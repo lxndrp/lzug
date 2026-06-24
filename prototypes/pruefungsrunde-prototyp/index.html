@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prüfwerk · Prüfungsrunde</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>.field-note{display:block;margin-top:5px;color:#8b94a5;font-size:9px;font-weight:500}.tag.attempt-1{background:#e8f7ef;color:#147a59;border:1px solid #c9e9db}.tag.attempt-2{background:#fff7d9;color:#9a6a05;border:1px solid #f1df9d}.tag.attempt-3{background:#ffeded;color:#b83f45;border:1px solid #f2c9cb}.tag.mep{background:#fff0df;color:#b45309;border:1px solid #f2cda9;font-weight:750}.tag.none{background:#f2f4f7;color:#7a8495}.check-field{display:flex!important;align-items:center;gap:9px;margin-top:20px}.check-field input{width:17px!important;height:17px;margin:0!important}.check-field span{color:#354057}.slot.mep-slot{background:#fff0df;color:#a84f07;border:1px solid #f2cda9;font-weight:750}</style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#dashboard" aria-label="Prüfwerk Startseite">
+        <span class="brand-mark">P</span>
+        <span><strong>Prüfwerk</strong><small>Ausschussportal</small></span>
+      </a>
+
+      <nav class="main-nav" aria-label="Hauptnavigation">
+        <button class="nav-item active" data-view="dashboard"><span>⌂</span> Übersicht</button>
+        <p class="nav-label">Prüfungsrunde</p>
+        <button class="nav-item" data-view="candidates"><span>◎</span> Prüflinge <b id="candidate-nav-count">0</b></button>
+        <button class="nav-item" data-view="members"><span>♙</span> Ausschuss</button>
+        <button class="nav-item" data-view="planning"><span>▦</span> Terminplanung</button>
+        <button class="nav-item" data-view="locations"><span>⌖</span> Prüfungsorte</button>
+      </nav>
+
+      <div class="sidebar-card">
+        <span class="eyebrow">Aktueller Durchgang</span>
+        <strong>Winter 2026/27</strong>
+        <div class="progress"><i id="round-progress" style="width:42%"></i></div>
+        <small id="round-status">Terminfindung läuft</small>
+      </div>
+
+      <div class="profile">
+        <span class="avatar">MK</span>
+        <span><strong>Martin König</strong><small>Vorsitzender</small></span>
+        <button title="Profil öffnen">•••</button>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <span class="crumb">Winterprüfung 2026/27</span>
+          <h1 id="page-title">Guten Morgen, Martin.</h1>
+        </div>
+        <div class="top-actions">
+          <button class="icon-button" title="Benachrichtigungen">♢<i></i></button>
+          <button class="button secondary" data-open="round-modal">Durchgang bearbeiten</button>
+          <button class="button primary" data-view-jump="planning">Planung öffnen</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="view active" id="dashboard-view">
+          <div class="hero-card">
+            <div>
+              <span class="status-pill amber" id="hero-status">● Terminfindung läuft</span>
+              <h2>Winterprüfung 2026/27</h2>
+              <p id="hero-message">Die Rückmeldefrist für die Verfügbarkeit endet in <strong>4 Tagen</strong>.</p>
+            </div>
+            <div class="hero-side">
+              <div class="mini-stat"><span>Planungszeitraum</span><strong>KW 47–49</strong></div>
+              <div class="mini-stat"><span>Prüfungen pro Tag</span><strong id="hero-capacity">6</strong></div>
+              <button class="button white" id="hero-action" data-view-jump="planning">Rückmeldungen ansehen →</button>
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <article class="stat-card"><span class="stat-icon blue">◎</span><div><small>Prüflinge</small><strong id="stat-candidates">0</strong><em id="stat-directions">4 Fachrichtungen</em></div></article>
+            <article class="stat-card"><span class="stat-icon green">✓</span><div><small>Rückmeldungen</small><strong id="stat-responses">0 / 0</strong><em class="positive">Frist läuft</em></div></article>
+            <article class="stat-card"><span class="stat-icon violet">▣</span><div><small>Benötigte Tage</small><strong id="stat-days">0</strong><em>bei aktueller Kapazität</em></div></article>
+            <article class="stat-card"><span class="stat-icon orange">♙</span><div><small>Aktive Mitglieder</small><strong id="stat-members">0</strong><em id="stat-member-sides">3 Vertreterseiten</em></div></article>
+          </div>
+
+          <div class="two-column">
+            <article class="panel">
+              <div class="panel-head"><div><span class="eyebrow">Nächste Schritte</span><h3>Was jetzt ansteht</h3></div></div>
+              <div class="task-list">
+                <button data-view-jump="planning"><span class="task-state amber">!</span><span><strong>Verfügbarkeiten einsammeln</strong><small id="task-responses">Noch ausstehende Rückmeldungen</small></span><b>→</b></button>
+                <button data-view-jump="candidates"><span class="task-state green">✓</span><span><strong>Prüflinge importieren</strong><small>Import prüfen und ergänzen</small></span><b>→</b></button>
+                <button data-view-jump="planning"><span class="task-state blue">3</span><span><strong>Planungsvorschlag erzeugen</strong><small>Besetzung automatisch optimieren</small></span><b>→</b></button>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-head"><div><span class="eyebrow">Ausschuss</span><h3>Verfügbarkeit</h3></div><button class="text-button" data-view-jump="members">Alle anzeigen</button></div>
+              <div id="dashboard-member-list" class="compact-members"></div>
+            </article>
+          </div>
+
+          <article class="panel confirmed-schedule hidden" id="dashboard-schedule">
+            <div class="panel-head"><div><span class="eyebrow">Verbindliche Planung</span><h3>Bestätigte Prüfungstermine</h3></div><button class="text-button" data-view-jump="planning">Vollständigen Plan öffnen →</button></div>
+            <div class="dashboard-schedule-grid" id="dashboard-schedule-grid"></div>
+          </article>
+        </section>
+
+        <section class="view" id="candidates-view">
+          <div class="section-heading">
+            <div><span class="eyebrow">Stammdaten</span><h2>Prüflinge</h2><p>Prüfungsdaten verwalten und aus CSV-Dateien übernehmen.</p></div>
+            <div><label class="button secondary file-button">CSV importieren<input id="csv-input" type="file" accept=".csv,text/csv"></label><button class="button primary" data-open="candidate-modal">+ Prüfling anlegen</button></div>
+          </div>
+          <article class="panel table-panel">
+            <div class="table-toolbar">
+              <label class="search"><span>⌕</span><input id="candidate-search" placeholder="Name, Prüfungsnummer oder Betrieb suchen"></label>
+              <select id="direction-filter"><option value="">Alle Fachrichtungen</option><option>Anwendungsentwicklung</option><option>Systemintegration</option><option>Daten- und Prozessanalyse</option><option>Digitale Vernetzung</option></select>
+              <button class="text-button" id="download-template">Importvorlage laden</button>
+            </div>
+            <div class="table-wrap"><table><thead><tr><th>Prüfling</th><th>IHK-Prüfungsnummer</th><th>Fachrichtung</th><th>Versuch</th><th>MEP</th><th>Ausbildungsbetrieb</th><th></th></tr></thead><tbody id="candidate-table"></tbody></table></div>
+            <div class="table-footer"><span id="candidate-result-count"></span><span>Duplikate werden anhand der Prüfungsnummer erkannt.</span></div>
+          </article>
+        </section>
+
+        <section class="view" id="members-view">
+          <div class="section-heading">
+            <div><span class="eyebrow">Besetzung</span><h2>Prüfungsausschuss</h2><p>Mitglieder, Funktionen und Vertreterseiten verwalten.</p></div>
+            <button class="button primary" data-open="member-modal">+ Mitglied anlegen</button>
+          </div>
+          <div class="member-summary" id="member-summary"></div>
+          <div class="member-grid" id="member-grid"></div>
+        </section>
+
+        <section class="view" id="planning-view">
+          <div class="section-heading">
+            <div><span class="eyebrow">Automatischer Vorschlag</span><h2>Terminplanung</h2><p>Verfügbarkeiten erfassen, Besetzung prüfen und Planung optimieren.</p></div>
+            <button class="button primary" id="generate-plan">Planungsvorschlag erzeugen</button>
+          </div>
+
+          <div class="planning-layout">
+            <article class="panel config-card">
+              <div class="panel-head"><div><span class="eyebrow">Vorgaben</span><h3>Planungsrahmen</h3></div><span class="lock-note">Nur Vorsitz</span></div>
+              <div class="form-grid compact">
+                <label>Von Kalenderwoche<input id="week-from" type="week" value="2026-W47"></label>
+                <label>Bis Kalenderwoche<input id="week-to" type="week" value="2026-W49"></label>
+                <label>Prüfungen pro Tag<input id="exams-per-day" type="number" min="1" max="10" value="6"></label>
+                <label>Max. Prüfungstage pro Woche<input id="exam-days-per-week" type="number" min="1" max="5" value="3"><small class="field-note">Nur durch den Vorsitzenden änderbar</small></label>
+                <label>Prüfungsort<select id="plan-location"></select></label>
+              </div>
+              <div class="fixed-rules">
+                <span><i>08:00</i> Beginn</span><span><i>08:30</i> Erste Prüfung</span><span><i>60 min</i> Je Prüfling</span>
+              </div>
+              <label class="toggle-row"><span><strong>Mittagspause einplanen</strong><small>Fest von 12:30 bis 13:30 Uhr</small></span><input id="lunch-toggle" type="checkbox" checked><i></i></label>
+              <button class="button secondary full" id="prepare-dates">Mögliche Tage berechnen</button>
+            </article>
+
+            <article class="panel capacity-card">
+              <div class="panel-head"><div><span class="eyebrow">Kapazität</span><h3>Aktuelle Kalkulation</h3></div></div>
+              <div class="capacity-number"><strong id="capacity-days">0</strong><span>benötigte<br>Prüfungstage</span></div>
+              <div class="capacity-bar"><i id="capacity-bar-fill"></i></div>
+              <div class="capacity-details"><span><b id="capacity-candidates">0</b> Prüfungstermine</span><span><b id="capacity-total">0</b> Plätze</span></div>
+              <p id="capacity-note">Die Planung berücksichtigt alle drei Vertreterseiten und einen zusätzlichen Fallback.</p>
+            </article>
+          </div>
+
+          <article class="panel availability-panel">
+            <div class="panel-head"><div><span class="eyebrow">Rückmeldungen</span><h3>Verfügbarkeitsmatrix</h3></div><div class="legend"><span><i class="dot green"></i> verfügbar</span><span><i class="dot amber"></i> halbtags</span><span><i class="dot red"></i> nicht verfügbar</span></div></div>
+            <div class="availability-wrap" id="availability-matrix"></div>
+          </article>
+
+          <div id="plan-result" class="plan-result hidden"></div>
+        </section>
+
+        <section class="view" id="locations-view">
+          <div class="section-heading">
+            <div><span class="eyebrow">Organisation</span><h2>Prüfungsorte</h2><p>Adressen und Räume für Terminplan und Kalendereinladungen.</p></div>
+            <button class="button primary" data-open="location-modal">+ Prüfungsort anlegen</button>
+          </div>
+          <div class="location-grid" id="location-grid"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="candidate-modal">
+    <form class="modal" id="candidate-form">
+      <div class="modal-head"><div><span class="eyebrow">Prüfling</span><h3>Datensatz anlegen</h3></div><button type="button" class="modal-close">×</button></div>
+      <div class="form-grid">
+        <label>Vorname<input name="firstName" required></label><label>Nachname<input name="lastName" required></label>
+        <label>IHK-Prüfungsnummer<input name="examNo" required></label>
+        <label>Fachrichtung<select name="direction" required><option>Anwendungsentwicklung</option><option>Systemintegration</option><option>Daten- und Prozessanalyse</option><option>Digitale Vernetzung</option></select></label>
+        <label>Prüfungsversuch<input name="attempt" type="number" min="1" step="1" value="1" required></label>
+        <label class="check-field"><input name="mep" type="checkbox" value="true"><span>Mündliche Ergänzungsprüfung (MEP)</span></label>
+        <label class="wide">Ausbildungsbetrieb<input name="company" required></label>
+      </div>
+      <div class="modal-actions"><button type="button" class="button secondary modal-close">Abbrechen</button><button class="button primary">Prüfling speichern</button></div>
+    </form>
+  </div>
+
+  <div class="modal-backdrop" id="member-modal">
+    <form class="modal" id="member-form">
+      <div class="modal-head"><div><span class="eyebrow">Ausschuss</span><h3>Mitglied anlegen</h3></div><button type="button" class="modal-close">×</button></div>
+      <div class="form-grid">
+        <label>Vorname<input name="firstName" required></label><label>Nachname<input name="lastName" required></label>
+        <label>Mitgliedsstatus<select name="status"><option>Ordentliches Mitglied</option><option>Stellvertretendes Mitglied</option></select></label>
+        <label>Funktion<select name="function"><option>Mitglied</option><option>Vorsitzender</option><option>Stellvertretender Vorsitzender</option></select></label>
+        <label>Vertreterseite<select name="side"><option>Arbeitgeber</option><option>Arbeitnehmer</option><option>Schule</option></select></label>
+        <label>E-Mail-Adresse<input name="email" type="email" required></label>
+        <label>Mobilfunknummer<input name="mobile" type="tel"></label>
+      </div>
+      <div class="modal-actions"><button type="button" class="button secondary modal-close">Abbrechen</button><button class="button primary">Mitglied speichern</button></div>
+    </form>
+  </div>
+
+  <div class="modal-backdrop" id="location-modal">
+    <form class="modal" id="location-form">
+      <div class="modal-head"><div><span class="eyebrow">Organisation</span><h3>Prüfungsort anlegen</h3></div><button type="button" class="modal-close">×</button></div>
+      <div class="form-grid">
+        <label class="wide">Bezeichnung<input name="name" required></label><label>Straße und Hausnummer<input name="street" required></label><label>Raum<input name="room" required></label><label>Postleitzahl<input name="zip" required></label><label>Ort<input name="city" required></label>
+      </div>
+      <div class="modal-actions"><button type="button" class="button secondary modal-close">Abbrechen</button><button class="button primary">Ort speichern</button></div>
+    </form>
+  </div>
+
+  <div class="modal-backdrop" id="round-modal">
+    <form class="modal" id="round-form">
+      <div class="modal-head"><div><span class="eyebrow">Prüfungsrunde</span><h3>Durchgang bearbeiten</h3></div><button type="button" class="modal-close">×</button></div>
+      <div class="form-grid"><label class="wide">Bezeichnung<input value="Winterprüfung 2026/27"></label><label>Rückmeldefrist<input value="7 Tage" disabled></label><label>Erinnerung<input value="nach 3,5 Tagen" disabled></label></div>
+      <div class="modal-actions"><button type="button" class="button secondary modal-close">Abbrechen</button><button class="button primary">Änderungen speichern</button></div>
+    </form>
+  </div>
+
+  <div class="toast" id="toast"><span>✓</span><p></p></div>
+  <script src="app.js"></script>
+</body>
+</html>
