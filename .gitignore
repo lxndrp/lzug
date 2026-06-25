@@ -4,5 +4,13 @@ dist/
 build/
 .env
 .env.*
+.venv/
+*.egg-info/
 *.log
 coverage/
+.coverage
+coverage.xml
+htmlcov/
+__pycache__/
+*.py[cod]
+var/
