@@ -1,0 +1,271 @@
+from __future__ import annotations
+
+import argparse
+import json
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+
+from .database import DEFAULT_DB_PATH, initialize, is_available
+from .models import CANDIDATE, Resource
+from .repositories import REST_RESOURCES, ResourceRepository
+
+
+class LzugHandler(BaseHTTPRequestHandler):
+    db_path = DEFAULT_DB_PATH
+
+    @property
+    def repository(self) -> ResourceRepository:
+        return ResourceRepository(self.db_path)
+
+    def do_GET(self) -> None:
+        try:
+            parsed = urlparse(self.path)
+            path_parts = self.path_parts(parsed.path)
+            query = parse_qs(parsed.query)
+
+            if path_parts == ["health"]:
+                self.respond(self.health())
+                return
+
+            if path_parts == ["round-summary"]:
+                round_id = int(query.get("round_id", ["1"])[0])
+                summary = self.repository.round_summary(round_id)
+                if summary is None:
+                    self.respond({"error": "Exam round not found"}, HTTPStatus.NOT_FOUND)
+                    return
+                self.respond(summary)
+                return
+
+            resource_name, entity_id = self.resource_target(path_parts)
+            if resource_name is None:
+                self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                return
+
+            entity = REST_RESOURCES[resource_name]
+            if entity_id is None:
+                if resource_name == "candidates":
+                    self.respond(self.repository.candidate_list())
+                else:
+                    filters = self.resource_filters(entity, query)
+                    if filters:
+                        self.respond(self.repository.list_filtered(entity, filters))
+                    else:
+                        self.respond(self.repository.list(entity))
+                return
+
+            row = self.repository.get(entity, entity_id)
+            if row is None:
+                self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                return
+            self.respond(row)
+        except ValueError:
+            self.respond({"error": "Invalid request"}, HTTPStatus.BAD_REQUEST)
+        except SQLAlchemyError as error:
+            self.respond({"error": str(error)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def do_POST(self) -> None:
+        try:
+            resource_name, entity_id = self.resource_target(
+                self.path_parts(urlparse(self.path).path)
+            )
+            if resource_name is None or entity_id is not None:
+                self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                return
+
+            payload = self.read_json()
+            status = HTTPStatus.CREATED
+            if resource_name == "candidates":
+                row = self.repository.create_candidate(payload)
+            elif resource_name == "planning-settings":
+                row = self.repository.save_planning_settings(payload)
+                status = HTTPStatus.OK
+            elif resource_name == "member-availabilities":
+                row = self.repository.save_member_availability(payload)
+                status = HTTPStatus.OK
+            else:
+                row = self.repository.create(REST_RESOURCES[resource_name], payload)
+            self.respond(row, status)
+        except ValueError as error:
+            self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+        except IntegrityError as error:
+            self.respond({"error": str(error)}, HTTPStatus.CONFLICT)
+        except SQLAlchemyError as error:
+            self.respond({"error": str(error)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def do_PATCH(self) -> None:
+        try:
+            resource_name, entity_id = self.resource_target(
+                self.path_parts(urlparse(self.path).path)
+            )
+            if resource_name is None or entity_id is None:
+                self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                return
+
+            payload = self.read_json()
+            if resource_name == "planning-settings":
+                row = self.repository.update_planning_settings(entity_id, payload)
+            elif resource_name == "member-availabilities":
+                row = self.repository.update_member_availability(entity_id, payload)
+            else:
+                row = self.repository.update(
+                    REST_RESOURCES[resource_name],
+                    entity_id,
+                    payload,
+                )
+            if row is None:
+                self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                return
+            self.respond(row)
+        except ValueError as error:
+            self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+        except IntegrityError as error:
+            self.respond({"error": str(error)}, HTTPStatus.CONFLICT)
+        except SQLAlchemyError as error:
+            self.respond({"error": str(error)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def do_DELETE(self) -> None:
+        try:
+            resource_name, entity_id = self.resource_target(
+                self.path_parts(urlparse(self.path).path)
+            )
+            if resource_name is None or entity_id is None:
+                self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                return
+
+            if resource_name == "candidates":
+                deleted = self.repository.delete_candidate(entity_id)
+            else:
+                deleted = self.repository.delete(REST_RESOURCES[resource_name], entity_id)
+            if not deleted:
+                self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                return
+            self.respond({}, HTTPStatus.NO_CONTENT)
+        except IntegrityError as error:
+            self.respond({"error": str(error)}, HTTPStatus.CONFLICT)
+        except SQLAlchemyError as error:
+            self.respond({"error": str(error)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def health(self) -> dict:
+        return {"status": "ok" if is_available(self.db_path) else "unavailable"}
+
+    def resource_target(self, path_parts: list[str]) -> tuple[str | None, int | None]:
+        if len(path_parts) not in (1, 2):
+            return None, None
+        resource_name = path_parts[0]
+        if resource_name not in REST_RESOURCES:
+            return None, None
+        if len(path_parts) == 1:
+            return resource_name, None
+        return resource_name, int(path_parts[1])
+
+    def path_parts(self, path: str) -> list[str]:
+        normalized = path.strip("/")
+        if normalized.startswith("api/"):
+            normalized = normalized[4:]
+        return [part for part in normalized.split("/") if part]
+
+    def resource_filters(self, resource: Resource, query: dict[str, list[str]]) -> dict:
+        aliases = {"round_id": "exam_round_id"}
+        fields = set(resource.readable_fields)
+        filters = {}
+        for key, values in query.items():
+            field = aliases.get(key, key)
+            if field not in fields or not values:
+                continue
+            filters[field] = self.normalize_filter_value(field, values[0])
+        return filters
+
+    def normalize_filter_value(self, field: str, value: str):
+        if field == "id" or field.endswith("_id") or field in {"is_active"}:
+            return int(value)
+        return value
+
+    def read_json(self) -> dict:
+        length = int(self.headers.get("Content-Length", "0"))
+        if length == 0:
+            return {}
+        try:
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        except json.JSONDecodeError as error:
+            raise ValueError("Invalid JSON body") from error
+        if not isinstance(payload, dict):
+            raise ValueError("JSON body must be an object")
+        return self.normalize_payload(payload)
+
+    def normalize_payload(self, payload: dict) -> dict:
+        normalized = dict(payload)
+        if "specialization_label" in normalized:
+            normalized.pop("specialization_label")
+        if "attempt_number" in normalized:
+            normalized["attempt_number"] = max(1, int(normalized["attempt_number"]))
+        if "requires_mep" in normalized:
+            normalized["requires_mep"] = self.normalize_bool(normalized["requires_mep"])
+        if "is_active" in normalized:
+            normalized["is_active"] = self.normalize_bool(normalized["is_active"])
+        if "lunch_break_enabled" in normalized:
+            normalized["lunch_break_enabled"] = self.normalize_bool(
+                normalized["lunch_break_enabled"]
+            )
+        if CANDIDATE.table in normalized:
+            normalized.pop(CANDIDATE.table)
+        return normalized
+
+    def normalize_bool(self, value) -> int:
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, int):
+            return int(value != 0)
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "on"}:
+                return 1
+            if normalized in {"0", "false", "no", "off"}:
+                return 0
+        raise ValueError("Expected boolean value")
+
+    def respond(self, payload, status: HTTPStatus = HTTPStatus.OK) -> None:
+        body = b"" if status == HTTPStatus.NO_CONTENT else self.json_bytes(payload)
+        self.send_response(status)
+        if body:
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if body:
+            self.wfile.write(body)
+
+    def json_bytes(self, payload) -> bytes:
+        return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+
+    def log_message(self, format: str, *args) -> None:
+        print(f"{self.address_string()} - {format % args}")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the lzug demo backend.")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
+    parser.add_argument("--init", action="store_true", help="Create schema before starting.")
+    parser.add_argument("--seed", action="store_true", help="Load demo data with --init.")
+    parser.add_argument("--reset", action="store_true", help="Delete the database before --init.")
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    if args.init:
+        initialize(args.db, with_seed=args.seed, reset=args.reset)
+
+    LzugHandler.db_path = args.db
+    server = ThreadingHTTPServer((args.host, args.port), LzugHandler)
+    print(f"lzug backend listening on http://{args.host}:{args.port}")
+    print(f"database: {args.db}")
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    main()

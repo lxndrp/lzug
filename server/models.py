@@ -1,0 +1,412 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+from sqlalchemy import ForeignKey, Integer, String
+from sqlalchemy import text as sql_text
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Committee(Base):
+    __tablename__ = "committee"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    occupation: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("'Fachinformatiker/in'"),
+    )
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+
+class CommitteeMember(Base):
+    __tablename__ = "committee_member"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    committee_id: Mapped[int] = mapped_column(ForeignKey("committee.id"))
+    first_name: Mapped[str] = mapped_column(String)
+    last_name: Mapped[str] = mapped_column(String)
+    member_status: Mapped[str] = mapped_column(String)
+    committee_role: Mapped[str] = mapped_column(String)
+    representing_side: Mapped[str] = mapped_column(String)
+    email: Mapped[str] = mapped_column(String)
+    email_verified_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    mobile: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_active: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+
+class Location(Base):
+    __tablename__ = "location"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    committee_id: Mapped[int] = mapped_column(ForeignKey("committee.id"))
+    name: Mapped[str] = mapped_column(String)
+    street: Mapped[str] = mapped_column(String)
+    postal_code: Mapped[str] = mapped_column(String)
+    city: Mapped[str] = mapped_column(String)
+    room: Mapped[str] = mapped_column(String)
+    is_active: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+
+class Candidate(Base):
+    __tablename__ = "candidate"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    first_name: Mapped[str] = mapped_column(String)
+    last_name: Mapped[str] = mapped_column(String)
+    ihk_exam_number: Mapped[str] = mapped_column(String)
+    specialization: Mapped[str] = mapped_column(String)
+    training_company: Mapped[str] = mapped_column(String)
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+
+class ExamRound(Base):
+    __tablename__ = "exam_round"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    committee_id: Mapped[int] = mapped_column(ForeignKey("committee.id"))
+    name: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'draft'"))
+    availability_deadline: Mapped[str | None] = mapped_column(String, nullable=True)
+    availability_reminder_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_by_member_id: Mapped[int] = mapped_column(ForeignKey("committee_member.id"))
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+
+class RoundCandidate(Base):
+    __tablename__ = "round_candidate"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_round_id: Mapped[int] = mapped_column(ForeignKey("exam_round.id"))
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidate.id"))
+    attempt_number: Mapped[int] = mapped_column(Integer)
+    requires_mep: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+
+class PlanningSettings(Base):
+    __tablename__ = "planning_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_round_id: Mapped[int] = mapped_column(ForeignKey("exam_round.id"))
+    calendar_week_from: Mapped[str] = mapped_column(String)
+    calendar_week_to: Mapped[str] = mapped_column(String)
+    exams_per_day: Mapped[int] = mapped_column(Integer)
+    max_exam_days_per_week: Mapped[int] = mapped_column(Integer)
+    lunch_break_enabled: Mapped[int] = mapped_column(
+        Integer,
+        server_default=sql_text("1"),
+    )
+    default_location_id: Mapped[int | None] = mapped_column(
+        ForeignKey("location.id"),
+        nullable=True,
+    )
+    updated_by_member_id: Mapped[int] = mapped_column(ForeignKey("committee_member.id"))
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+
+class CandidateExamDay(Base):
+    __tablename__ = "candidate_exam_day"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_round_id: Mapped[int] = mapped_column(ForeignKey("exam_round.id"))
+    date: Mapped[str] = mapped_column(String)
+    is_active: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+
+class MemberAvailability(Base):
+    __tablename__ = "member_availability"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_round_id: Mapped[int] = mapped_column(ForeignKey("exam_round.id"))
+    committee_member_id: Mapped[int] = mapped_column(ForeignKey("committee_member.id"))
+    candidate_exam_day_id: Mapped[int] = mapped_column(
+        ForeignKey("candidate_exam_day.id")
+    )
+    availability: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("'pending'"),
+    )
+    responded_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+
+@dataclass(frozen=True)
+class Resource:
+    model: type[Base]
+    fields: tuple[str, ...]
+    order_by: tuple[str, ...] = ()
+    writable_fields: tuple[str, ...] = ()
+
+    @property
+    def readable_fields(self) -> tuple[str, ...]:
+        return ("id", *self.fields)
+
+    @property
+    def table(self) -> str:
+        return self.model.__tablename__
+
+
+def model_to_dict(model: Any, resource: Resource) -> dict[str, Any]:
+    return {field: getattr(model, field) for field in resource.readable_fields}
+
+
+COMMITTEE = Resource(
+    model=Committee,
+    fields=("name", "occupation", "created_at", "updated_at"),
+    order_by=("name",),
+    writable_fields=("name", "occupation"),
+)
+
+COMMITTEE_MEMBER = Resource(
+    model=CommitteeMember,
+    fields=(
+        "committee_id",
+        "first_name",
+        "last_name",
+        "member_status",
+        "committee_role",
+        "representing_side",
+        "email",
+        "email_verified_at",
+        "mobile",
+        "is_active",
+        "created_at",
+        "updated_at",
+    ),
+    order_by=("-is_active", "last_name", "first_name"),
+    writable_fields=(
+        "committee_id",
+        "first_name",
+        "last_name",
+        "member_status",
+        "committee_role",
+        "representing_side",
+        "email",
+        "email_verified_at",
+        "mobile",
+        "is_active",
+    ),
+)
+
+LOCATION = Resource(
+    model=Location,
+    fields=(
+        "committee_id",
+        "name",
+        "street",
+        "postal_code",
+        "city",
+        "room",
+        "is_active",
+        "created_at",
+        "updated_at",
+    ),
+    order_by=("-is_active", "name"),
+    writable_fields=(
+        "committee_id",
+        "name",
+        "street",
+        "postal_code",
+        "city",
+        "room",
+        "is_active",
+    ),
+)
+
+CANDIDATE = Resource(
+    model=Candidate,
+    fields=(
+        "first_name",
+        "last_name",
+        "ihk_exam_number",
+        "specialization",
+        "training_company",
+        "created_at",
+        "updated_at",
+    ),
+    order_by=("last_name", "first_name"),
+    writable_fields=(
+        "first_name",
+        "last_name",
+        "ihk_exam_number",
+        "specialization",
+        "training_company",
+    ),
+)
+
+EXAM_ROUND = Resource(
+    model=ExamRound,
+    fields=(
+        "committee_id",
+        "name",
+        "status",
+        "availability_deadline",
+        "availability_reminder_at",
+        "created_by_member_id",
+        "created_at",
+        "updated_at",
+    ),
+    order_by=("-created_at",),
+    writable_fields=(
+        "committee_id",
+        "name",
+        "status",
+        "availability_deadline",
+        "availability_reminder_at",
+        "created_by_member_id",
+    ),
+)
+
+ROUND_CANDIDATE = Resource(
+    model=RoundCandidate,
+    fields=(
+        "exam_round_id",
+        "candidate_id",
+        "attempt_number",
+        "requires_mep",
+        "created_at",
+        "updated_at",
+    ),
+    order_by=("id",),
+    writable_fields=(
+        "exam_round_id",
+        "candidate_id",
+        "attempt_number",
+        "requires_mep",
+    ),
+)
+
+PLANNING_SETTINGS = Resource(
+    model=PlanningSettings,
+    fields=(
+        "exam_round_id",
+        "calendar_week_from",
+        "calendar_week_to",
+        "exams_per_day",
+        "max_exam_days_per_week",
+        "lunch_break_enabled",
+        "default_location_id",
+        "updated_by_member_id",
+        "created_at",
+        "updated_at",
+    ),
+    writable_fields=(
+        "exam_round_id",
+        "calendar_week_from",
+        "calendar_week_to",
+        "exams_per_day",
+        "max_exam_days_per_week",
+        "lunch_break_enabled",
+        "default_location_id",
+        "updated_by_member_id",
+    ),
+)
+
+CANDIDATE_EXAM_DAY = Resource(
+    model=CandidateExamDay,
+    fields=(
+        "exam_round_id",
+        "date",
+        "is_active",
+        "created_at",
+        "updated_at",
+    ),
+    order_by=("date",),
+    writable_fields=(
+        "exam_round_id",
+        "date",
+        "is_active",
+    ),
+)
+
+MEMBER_AVAILABILITY = Resource(
+    model=MemberAvailability,
+    fields=(
+        "exam_round_id",
+        "committee_member_id",
+        "candidate_exam_day_id",
+        "availability",
+        "responded_at",
+        "created_at",
+        "updated_at",
+    ),
+    writable_fields=(
+        "exam_round_id",
+        "committee_member_id",
+        "candidate_exam_day_id",
+        "availability",
+        "responded_at",
+    ),
+)
