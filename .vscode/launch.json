@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "lzug Backend",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "server.app",
+            "args": [
+                "--init",
+                "--seed",
+                "--reset"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}

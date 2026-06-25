@@ -1,0 +1,71 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Tests ausfuehren",
+            "type": "shell",
+            "command": "${workspaceFolder}/.venv/bin/python",
+            "args": [
+                "-m",
+                "unittest"
+            ],
+            "group": "test",
+            "problemMatcher": []
+        },
+        {
+            "label": "Tests mit Coverage",
+            "type": "shell",
+            "command": "${workspaceFolder}/.venv/bin/python",
+            "args": [
+                "-m",
+                "coverage",
+                "run",
+                "-m",
+                "unittest"
+            ],
+            "group": "test",
+            "problemMatcher": []
+        },
+        {
+            "label": "Coverage XML erzeugen",
+            "type": "shell",
+            "command": "${workspaceFolder}/.venv/bin/python",
+            "args": [
+                "-m",
+                "coverage",
+                "xml"
+            ],
+            "dependsOn": "Tests mit Coverage",
+            "group": "test",
+            "problemMatcher": []
+        },
+        {
+            "label": "Coverage HTML erzeugen",
+            "type": "shell",
+            "command": "${workspaceFolder}/.venv/bin/python",
+            "args": [
+                "-m",
+                "coverage",
+                "html"
+            ],
+            "dependsOn": "Tests mit Coverage",
+            "group": "test",
+            "problemMatcher": []
+        },
+        {
+            "label": "Backend starten",
+            "type": "shell",
+            "command": "${workspaceFolder}/.venv/bin/python",
+            "args": [
+                "-m",
+                "server.app",
+                "--init",
+                "--seed",
+                "--reset"
+            ],
+            "group": "build",
+            "isBackground": true,
+            "problemMatcher": []
+        }
+    ]
+}

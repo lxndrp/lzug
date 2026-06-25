@@ -1,0 +1,23 @@
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        "./tests",
+        "-p",
+        "test_*.py"
+    ],
+    "python.testing.pytestEnabled": false,
+    "python.testing.unittestEnabled": true,
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}"
+    ],
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true
+    },
+    "coverage-gutters.coverageFileNames": [
+        "coverage.xml"
+    ],
+    "coverage-gutters.showGutterCoverage": true
+}
