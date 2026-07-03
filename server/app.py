@@ -10,7 +10,9 @@ from urllib.parse import parse_qs, urlparse
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from .database import DEFAULT_DB_PATH, initialize, is_available
+from . import hateoas, openapi
 from .models import CANDIDATE, Resource
+from .planning import PlanningService
 from .repositories import REST_RESOURCES, ResourceRepository
 
 
@@ -21,14 +23,30 @@ class LzugHandler(BaseHTTPRequestHandler):
     def repository(self) -> ResourceRepository:
         return ResourceRepository(self.db_path)
 
+    @property
+    def planning_service(self) -> PlanningService:
+        return PlanningService(self.db_path)
+
     def do_GET(self) -> None:
         try:
             parsed = urlparse(self.path)
             path_parts = self.path_parts(parsed.path)
             query = parse_qs(parsed.query)
 
+            if path_parts == []:
+                self.respond(hateoas.api_root())
+                return
+
             if path_parts == ["health"]:
                 self.respond(self.health())
+                return
+
+            if path_parts == ["openapi.json"]:
+                self.respond(openapi.spec())
+                return
+
+            if path_parts == ["docs"]:
+                self.respond_html(self.docs_html())
                 return
 
             if path_parts == ["round-summary"]:
@@ -37,7 +55,7 @@ class LzugHandler(BaseHTTPRequestHandler):
                 if summary is None:
                     self.respond({"error": "Exam round not found"}, HTTPStatus.NOT_FOUND)
                     return
-                self.respond(summary)
+                self.respond(hateoas.round_summary(summary, round_id))
                 return
 
             resource_name, entity_id = self.resource_target(path_parts)
@@ -48,20 +66,28 @@ class LzugHandler(BaseHTTPRequestHandler):
             entity = REST_RESOURCES[resource_name]
             if entity_id is None:
                 if resource_name == "candidates":
-                    self.respond(self.repository.candidate_list())
+                    rows = self.repository.candidate_list()
                 else:
                     filters = self.resource_filters(entity, query)
                     if filters:
-                        self.respond(self.repository.list_filtered(entity, filters))
+                        rows = self.repository.list_filtered(entity, filters)
                     else:
-                        self.respond(self.repository.list(entity))
+                        rows = self.repository.list(entity)
+                self.respond(
+                    hateoas.collection(
+                        resource_name,
+                        entity,
+                        rows,
+                        parsed.query,
+                    )
+                )
                 return
 
             row = self.repository.get(entity, entity_id)
             if row is None:
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 return
-            self.respond(row)
+            self.respond(hateoas.resource_item(resource_name, entity, row))
         except ValueError:
             self.respond({"error": "Invalid request"}, HTTPStatus.BAD_REQUEST)
         except SQLAlchemyError as error:
@@ -69,8 +95,25 @@ class LzugHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         try:
+            path_parts = self.path_parts(urlparse(self.path).path)
+            if (
+                len(path_parts) == 3
+                and path_parts[0] == "exam-rounds"
+                and path_parts[2] == "confirm-plan"
+            ):
+                confirmed_plan = self.planning_service.confirm_plan(int(path_parts[1]))
+                self.respond(hateoas.confirmed_plan(confirmed_plan))
+                return
+
+            if path_parts == ["planning-proposals"]:
+                payload = self.read_json()
+                round_id = int(payload.get("round_id", 1))
+                proposal = self.planning_service.generate_proposal(round_id)
+                self.respond(hateoas.planning_proposal(proposal), HTTPStatus.CREATED)
+                return
+
             resource_name, entity_id = self.resource_target(
-                self.path_parts(urlparse(self.path).path)
+                path_parts
             )
             if resource_name is None or entity_id is not None:
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
@@ -88,7 +131,14 @@ class LzugHandler(BaseHTTPRequestHandler):
                 status = HTTPStatus.OK
             else:
                 row = self.repository.create(REST_RESOURCES[resource_name], payload)
-            self.respond(row, status)
+            self.respond(
+                hateoas.resource_item(
+                    resource_name,
+                    REST_RESOURCES[resource_name],
+                    row,
+                ),
+                status,
+            )
         except ValueError as error:
             self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
         except IntegrityError as error:
@@ -119,7 +169,13 @@ class LzugHandler(BaseHTTPRequestHandler):
             if row is None:
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 return
-            self.respond(row)
+            self.respond(
+                hateoas.resource_item(
+                    resource_name,
+                    REST_RESOURCES[resource_name],
+                    row,
+                )
+            )
         except ValueError as error:
             self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
         except IntegrityError as error:
@@ -150,7 +206,8 @@ class LzugHandler(BaseHTTPRequestHandler):
             self.respond({"error": str(error)}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def health(self) -> dict:
-        return {"status": "ok" if is_available(self.db_path) else "unavailable"}
+        status = "ok" if is_available(self.db_path) else "unavailable"
+        return hateoas.health(status)
 
     def resource_target(self, path_parts: list[str]) -> tuple[str | None, int | None]:
         if len(path_parts) not in (1, 2):
@@ -164,6 +221,8 @@ class LzugHandler(BaseHTTPRequestHandler):
 
     def path_parts(self, path: str) -> list[str]:
         normalized = path.strip("/")
+        if normalized == "api":
+            return []
         if normalized.startswith("api/"):
             normalized = normalized[4:]
         return [part for part in normalized.split("/") if part]
@@ -237,8 +296,38 @@ class LzugHandler(BaseHTTPRequestHandler):
         if body:
             self.wfile.write(body)
 
+    def respond_html(self, html: str, status: HTTPStatus = HTTPStatus.OK) -> None:
+        body = html.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def json_bytes(self, payload) -> bytes:
         return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+
+    def docs_html(self) -> str:
+        return """<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>lzug API Docs</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css">
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"></script>
+  <script>
+    window.onload = () => {
+      window.ui = SwaggerUIBundle({
+        url: "/api/openapi.json",
+        dom_id: "#swagger-ui"
+      });
+    };
+  </script>
+</body>
+</html>"""
 
     def log_message(self, format: str, *args) -> None:
         print(f"{self.address_string()} - {format % args}")

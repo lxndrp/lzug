@@ -11,7 +11,8 @@ class ApiTests(unittest.TestCase):
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             status, health = api.request("GET", "/api/health")
             assert_status(status, HTTPStatus.OK)
-            self.assertEqual({"status": "ok"}, health)
+            self.assertEqual("ok", health["status"])
+            self.assertEqual("/api/health", health["_links"]["self"]["href"])
 
             status, summary = api.request("GET", "/api/round-summary?round_id=1")
             assert_status(status, HTTPStatus.OK)
@@ -20,6 +21,48 @@ class ApiTests(unittest.TestCase):
                 {"candidates": 12, "mep_count": 4, "required_exam_slots": 16},
                 summary["counts"],
             )
+            self.assertEqual(
+                "/api/round-summary?round_id=1",
+                summary["_links"]["self"]["href"],
+            )
+
+    def test_api_root_openapi_and_docs_are_served(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, root = api.request("GET", "/api")
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("/api/openapi.json", root["_links"]["openapi"]["href"])
+            self.assertEqual("/api/candidates", root["_links"]["candidates"]["href"])
+
+            status, spec = api.request("GET", "/api/openapi.json")
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("3.1.0", spec["openapi"])
+            self.assertIn("/api/candidates/{id}", spec["paths"])
+            self.assertIn("/api/exam-rounds/{id}/confirm-plan", spec["paths"])
+            self.assertIn("Candidates", spec["components"]["schemas"])
+
+            status, headers, body = api.request_raw("GET", "/api/docs")
+            assert_status(status, HTTPStatus.OK)
+            self.assertIn("text/html", headers["content-type"])
+            self.assertIn(b"/api/openapi.json", body)
+
+    def test_collection_and_resource_responses_are_self_describing(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, candidates = api.request("GET", "/api/candidates")
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("/api/candidates", candidates["_links"]["self"]["href"])
+            self.assertEqual("POST", candidates["_links"]["create"]["method"])
+            self.assertEqual(12, len(candidates["items"]))
+            first_candidate = candidates["items"][0]
+            self.assertEqual(
+                f"/api/candidates/{first_candidate['id']}",
+                first_candidate["_links"]["self"]["href"],
+            )
+
+            status, candidate = api.request("GET", "/api/candidates/1")
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("/api/candidates/1", candidate["_links"]["self"]["href"])
+            self.assertEqual("PATCH", candidate["_links"]["update"]["method"])
+            self.assertEqual("DELETE", candidate["_links"]["delete"]["method"])
 
     def test_candidate_crud_over_http_updates_round_counts(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
@@ -134,6 +177,50 @@ class ApiTests(unittest.TestCase):
             )
             assert_status(status, HTTPStatus.OK)
             self.assertIsNone(availability["responded_at"])
+
+    def test_planning_proposal_can_be_generated_over_http(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, proposal = api.request(
+                "POST",
+                "/api/planning-proposals",
+                {"round_id": 1},
+            )
+            assert_status(status, HTTPStatus.CREATED)
+            self.assertTrue(proposal["validation"]["passed"])
+            self.assertEqual(16, proposal["counts"]["planned_slots"])
+            self.assertEqual(
+                "/api/exam-days?round_id=1",
+                proposal["_links"]["exam-days"]["href"],
+            )
+
+            status, summary = api.request("GET", "/api/round-summary?round_id=1")
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("plan_proposed", summary["round"]["status"])
+
+    def test_planning_proposal_can_be_confirmed_over_http(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, _proposal = api.request(
+                "POST",
+                "/api/planning-proposals",
+                {"round_id": 1},
+            )
+            assert_status(status, HTTPStatus.CREATED)
+
+            status, confirmed = api.request(
+                "POST",
+                "/api/exam-rounds/1/confirm-plan",
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("plan_confirmed", confirmed["status"])
+            self.assertEqual(16, confirmed["counts"]["confirmed_slots"])
+            self.assertEqual(
+                "/api/round-summary?round_id=1",
+                confirmed["_links"]["round-summary"]["href"],
+            )
+
+            status, summary = api.request("GET", "/api/round-summary?round_id=1")
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("plan_confirmed", summary["round"]["status"])
 
 
 if __name__ == "__main__":

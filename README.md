@@ -80,7 +80,11 @@ Danach stehen JSON-Endpunkte unter `http://127.0.0.1:8000/api/` bereit, z. B.:
 
 ```text
 /api/health
+/api/openapi.json
+/api/docs
 /api/round-summary?round_id=1
+/api/planning-proposals
+/api/exam-rounds/1/confirm-plan
 /api/candidates
 /api/candidates/1
 /api/members
@@ -88,9 +92,24 @@ Danach stehen JSON-Endpunkte unter `http://127.0.0.1:8000/api/` bereit, z. B.:
 /api/planning-settings?round_id=1
 /api/candidate-exam-days?round_id=1
 /api/member-availabilities?round_id=1
+/api/exam-days?round_id=1
+/api/exam-slots
+/api/exam-day-assignments
 ```
 
 Für die Kernressourcen `committees`, `members`, `locations`, `exam-rounds` und `candidates` sind die CRUD-Muster `GET`, `POST`, `PATCH` und `DELETE` vorbereitet. Planungsparameter und Verfügbarkeiten sind ebenfalls schreibbar; `POST /api/planning-settings` und `POST /api/member-availabilities` aktualisieren vorhandene Einträge für dieselbe Prüfungsrunde bzw. dieselbe Mitglied/Tag-Kombination.
+
+`POST /api/planning-proposals` erzeugt einen deterministischen Planungsvorschlag für eine Prüfungsrunde, persistiert Prüfungstage, Slots und Besetzungen und setzt die Runde auf `plan_proposed`. MEP-Slots werden am Tagesende platziert; der Response enthält einen Validierungsreport.
+
+`POST /api/exam-rounds/{id}/confirm-plan` bestätigt einen vorhandenen Planungsvorschlag, setzt Prüfungstage und Slots auf `confirmed` und überführt die Runde nach `plan_confirmed`. Bestätigte Planungstage können nicht mehr durch einen neuen Vorschlag ersetzt werden.
+
+Die API ist selbstbeschreibend:
+
+- `GET /api` liefert den Einstiegspunkt mit Links auf Ressourcen, Healthcheck, OpenAPI und Docs.
+- `GET /api/openapi.json` liefert eine OpenAPI-3.1-Spezifikation.
+- `GET /api/docs` liefert eine Swagger-UI-Ansicht auf Basis von `/api/openapi.json`.
+- JSON-Antworten enthalten HAL-nahe `_links` mit `self`, `collection` und erlaubten Operationen.
+- Listen werden als `{ "items": [...], "_links": {...} }` ausgeliefert.
 
 ## Tests
 
@@ -98,7 +117,10 @@ Der Test-Harness nutzt `unittest` und die in `pyproject.toml` beschriebenen Proj
 
 - Datenbankschema, Seed-Daten und Kern-Constraints
 - Repository-Funktionen und Rundenzusammenfassung
+- deterministische Planungsvorschläge mit Slots, Besetzungen und MEP-Regeln
+- Bestätigungsworkflow für vorgeschlagene Prüfungspläne
 - JSON-API über den echten HTTP-Handler ohne lokalen Port
+- OpenAPI-, Docs- und HATEOAS-Kontrakte
 - statischen Prototyp mit Asset-, Navigations- und JavaScript-Syntaxprüfung
 
 Alle Tests laufen mit:
@@ -122,4 +144,4 @@ Wenn Node.js installiert ist, prüft der Harness zusätzlich `app.js` mit `node 
 
 ## Nächster geplanter Schritt
 
-Der nächste sinnvolle Schritt ist, Planungsvorschläge und die zugehörigen fachlichen Service-Regeln auszubauen. Die Regeln aus `docs/relationales-schema.md` sollten dabei in Service-Funktionen validiert werden.
+Der nächste sinnvolle Schritt ist, die erzeugte und bestätigte Planung im Frontend zu nutzen und danach Benachrichtigungs- sowie Kalenderereignisse anzubinden.

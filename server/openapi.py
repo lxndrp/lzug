@@ -1,0 +1,324 @@
+from __future__ import annotations
+
+from typing import Any
+
+from .repositories import REST_RESOURCES
+
+
+REST_SCHEMA_FIELDS = {
+    "specialization": {
+        "type": "string",
+        "enum": [
+            "application_development",
+            "system_integration",
+            "data_and_process_analysis",
+            "digital_networking",
+        ],
+    },
+    "availability": {
+        "type": "string",
+        "enum": ["full_day", "morning", "afternoon", "unavailable", "pending"],
+    },
+    "committee_role": {
+        "type": "string",
+        "enum": ["chair", "deputy_chair", "member"],
+    },
+    "member_status": {"type": "string", "enum": ["ordinary", "deputy"]},
+    "representing_side": {
+        "type": "string",
+        "enum": ["employer", "employee", "school"],
+    },
+    "slot_type": {"type": "string", "enum": ["regular", "mep"]},
+    "assignment_role": {"type": "string", "enum": ["examiner", "fallback"]},
+    "day_part": {"type": "string", "enum": ["morning", "afternoon", "full_day"]},
+    "status": {"type": "string"},
+}
+
+
+def spec() -> dict[str, Any]:
+    paths: dict[str, Any] = {
+        "/api": {
+            "get": {
+                "summary": "API entry point",
+                "operationId": "getApiRoot",
+                "responses": {"200": json_response("ApiRoot")},
+            }
+        },
+        "/api/health": {
+            "get": {
+                "summary": "Health check",
+                "operationId": "getHealth",
+                "responses": {"200": json_response("Health")},
+            }
+        },
+        "/api/openapi.json": {
+            "get": {
+                "summary": "OpenAPI specification",
+                "operationId": "getOpenApiSpecification",
+                "responses": {"200": json_response("OpenApiDocument")},
+            }
+        },
+        "/api/round-summary": {
+            "get": {
+                "summary": "Round summary",
+                "operationId": "getRoundSummary",
+                "parameters": [query_parameter("round_id", "integer")],
+                "responses": {"200": json_response("RoundSummary")},
+            }
+        },
+        "/api/planning-proposals": {
+            "post": {
+                "summary": "Generate planning proposal",
+                "operationId": "generatePlanningProposal",
+                "requestBody": json_request("PlanningProposalRequest"),
+                "responses": {
+                    "201": json_response("PlanningProposal"),
+                    "400": json_response("Error"),
+                    "409": json_response("Error"),
+                },
+            }
+        },
+        "/api/exam-rounds/{id}/confirm-plan": {
+            "post": {
+                "summary": "Confirm planning proposal",
+                "operationId": "confirmPlanningProposal",
+                "parameters": [path_parameter("id")],
+                "responses": {
+                    "200": json_response("ConfirmedPlan"),
+                    "400": json_response("Error"),
+                    "404": json_response("Error"),
+                    "409": json_response("Error"),
+                },
+            }
+        },
+    }
+
+    for resource_name, resource in REST_RESOURCES.items():
+        schema_name = schema_ref_name(resource_name)
+        collection_schema = f"{schema_name}Collection"
+        paths[f"/api/{resource_name}"] = {
+            "get": {
+                "summary": f"List {resource_name}",
+                "operationId": operation_id("list", resource_name),
+                "parameters": collection_parameters(resource),
+                "responses": {"200": json_response(collection_schema)},
+            },
+            "post": {
+                "summary": f"Create or update {resource_name}",
+                "operationId": operation_id("create", resource_name),
+                "requestBody": json_request(f"{schema_name}Write"),
+                "responses": {
+                    "200": json_response(schema_name),
+                    "201": json_response(schema_name),
+                    "400": json_response("Error"),
+                    "409": json_response("Error"),
+                },
+            },
+        }
+        paths[f"/api/{resource_name}/{{id}}"] = {
+            "get": {
+                "summary": f"Get {resource_name} resource",
+                "operationId": operation_id("get", resource_name),
+                "parameters": [path_parameter("id")],
+                "responses": {"200": json_response(schema_name), "404": json_response("Error")},
+            },
+            "patch": {
+                "summary": f"Update {resource_name} resource",
+                "operationId": operation_id("update", resource_name),
+                "parameters": [path_parameter("id")],
+                "requestBody": json_request(f"{schema_name}Write"),
+                "responses": {
+                    "200": json_response(schema_name),
+                    "400": json_response("Error"),
+                    "404": json_response("Error"),
+                    "409": json_response("Error"),
+                },
+            },
+            "delete": {
+                "summary": f"Delete {resource_name} resource",
+                "operationId": operation_id("delete", resource_name),
+                "parameters": [path_parameter("id")],
+                "responses": {
+                    "204": {"description": "Deleted"},
+                    "404": json_response("Error"),
+                    "409": json_response("Error"),
+                },
+            },
+        }
+
+    schemas = {
+        "ApiRoot": object_schema({"name": {"type": "string"}, "_links": link_map()}),
+        "Health": object_schema({"status": {"type": "string"}, "_links": link_map()}),
+        "Error": object_schema({"error": {"type": "string"}}, required=("error",)),
+        "Link": object_schema(
+            {
+                "href": {"type": "string"},
+                "method": {"type": "string"},
+                "title": {"type": "string"},
+            },
+            required=("href",),
+        ),
+        "RoundSummary": object_schema(
+            {
+                "round": {"type": "object"},
+                "counts": {"type": "object"},
+                "settings": {"type": ["object", "null"]},
+                "availability": {"type": "array", "items": {"type": "object"}},
+                "_links": link_map(),
+            }
+        ),
+        "PlanningProposalRequest": object_schema(
+            {"round_id": {"type": "integer"}},
+            required=("round_id",),
+        ),
+        "PlanningProposal": object_schema(
+            {
+                "round_id": {"type": "integer"},
+                "status": {"type": "string"},
+                "exam_days": {"type": "array", "items": {"type": "object"}},
+                "validation": {"type": "object"},
+                "counts": {"type": "object"},
+                "_links": link_map(),
+            }
+        ),
+        "ConfirmedPlan": object_schema(
+            {
+                "round_id": {"type": "integer"},
+                "status": {"type": "string"},
+                "exam_days": {"type": "array", "items": {"type": "object"}},
+                "counts": {"type": "object"},
+                "_links": link_map(),
+            }
+        ),
+        "OpenApiDocument": {"type": "object"},
+    }
+
+    for resource_name, resource in REST_RESOURCES.items():
+        schema_name = schema_ref_name(resource_name)
+        schemas[schema_name] = resource_schema(resource, include_links=True)
+        schemas[f"{schema_name}Write"] = resource_write_schema(resource)
+        schemas[f"{schema_name}Collection"] = object_schema(
+            {
+                "items": {
+                    "type": "array",
+                    "items": {"$ref": f"#/components/schemas/{schema_name}"},
+                },
+                "_links": link_map(),
+            }
+        )
+
+    return {
+        "openapi": "3.1.0",
+        "info": {
+            "title": "lzug API",
+            "version": "0.1.0",
+            "description": "JSON API fuer Pruefungsrunden mit HAL-nahen HATEOAS-Links.",
+        },
+        "servers": [{"url": "http://127.0.0.1:8000"}],
+        "paths": paths,
+        "components": {"schemas": schemas},
+    }
+
+
+def json_response(schema_name: str) -> dict[str, Any]:
+    return {
+        "description": "JSON response",
+        "content": {
+            "application/json": {
+                "schema": {"$ref": f"#/components/schemas/{schema_name}"}
+            }
+        },
+    }
+
+
+def json_request(schema_name: str) -> dict[str, Any]:
+    return {
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {"$ref": f"#/components/schemas/{schema_name}"}
+            }
+        },
+    }
+
+
+def object_schema(
+    properties: dict[str, Any],
+    required: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": list(required),
+        "additionalProperties": True,
+    }
+
+
+def link_map() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": {"$ref": "#/components/schemas/Link"},
+    }
+
+
+def resource_schema(resource, include_links: bool) -> dict[str, Any]:
+    properties = {
+        field: field_schema(field)
+        for field in resource.readable_fields
+    }
+    if include_links:
+        properties["_links"] = link_map()
+    return object_schema(properties, required=("id",))
+
+
+def resource_write_schema(resource) -> dict[str, Any]:
+    properties = {field: field_schema(field) for field in resource.writable_fields}
+    return object_schema(properties)
+
+
+def field_schema(field: str) -> dict[str, Any]:
+    explicit = REST_SCHEMA_FIELDS.get(field)
+    if explicit:
+        return explicit
+    if field == "id" or field.endswith("_id"):
+        return {"type": "integer"}
+    if field in {"is_active", "requires_mep", "lunch_break_enabled"}:
+        return {"type": "boolean"}
+    if field.endswith("_at") or field.endswith("_deadline"):
+        return {"type": ["string", "null"]}
+    if field in {"attempt_number", "exams_per_day", "max_exam_days_per_week"}:
+        return {"type": "integer"}
+    return {"type": "string"}
+
+
+def path_parameter(name: str) -> dict[str, Any]:
+    return {
+        "name": name,
+        "in": "path",
+        "required": True,
+        "schema": {"type": "integer"},
+    }
+
+
+def query_parameter(name: str, value_type: str) -> dict[str, Any]:
+    return {
+        "name": name,
+        "in": "query",
+        "required": False,
+        "schema": {"type": value_type},
+    }
+
+
+def collection_parameters(resource) -> list[dict[str, Any]]:
+    parameters = []
+    if "exam_round_id" in resource.readable_fields:
+        parameters.append(query_parameter("round_id", "integer"))
+    return parameters
+
+
+def schema_ref_name(resource_name: str) -> str:
+    return "".join(part.capitalize() for part in resource_name.split("-"))
+
+
+def operation_id(action: str, resource_name: str) -> str:
+    return f"{action}{schema_ref_name(resource_name)}"

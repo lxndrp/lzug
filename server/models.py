@@ -202,6 +202,72 @@ class MemberAvailability(Base):
     )
 
 
+class ExamDay(Base):
+    __tablename__ = "exam_day"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_round_id: Mapped[int] = mapped_column(ForeignKey("exam_round.id"))
+    location_id: Mapped[int] = mapped_column(ForeignKey("location.id"))
+    date: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'proposed'"))
+    lunch_break_enabled: Mapped[int] = mapped_column(
+        Integer,
+        server_default=sql_text("1"),
+    )
+    created_from_proposal: Mapped[int] = mapped_column(
+        Integer,
+        server_default=sql_text("1"),
+    )
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+
+class ExamSlot(Base):
+    __tablename__ = "exam_slot"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_day_id: Mapped[int] = mapped_column(ForeignKey("exam_day.id"))
+    round_candidate_id: Mapped[int] = mapped_column(ForeignKey("round_candidate.id"))
+    slot_type: Mapped[str] = mapped_column(String)
+    starts_at: Mapped[str] = mapped_column(String)
+    ends_at: Mapped[str] = mapped_column(String)
+    sequence_number: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'proposed'"))
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+
+class ExamDayAssignment(Base):
+    __tablename__ = "exam_day_assignment"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_day_id: Mapped[int] = mapped_column(ForeignKey("exam_day.id"))
+    committee_member_id: Mapped[int] = mapped_column(ForeignKey("committee_member.id"))
+    assignment_role: Mapped[str] = mapped_column(String)
+    day_part: Mapped[str] = mapped_column(String)
+    fallback_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+
 @dataclass(frozen=True)
 class Resource:
     model: type[Base]
@@ -408,5 +474,74 @@ MEMBER_AVAILABILITY = Resource(
         "candidate_exam_day_id",
         "availability",
         "responded_at",
+    ),
+)
+
+EXAM_DAY = Resource(
+    model=ExamDay,
+    fields=(
+        "exam_round_id",
+        "location_id",
+        "date",
+        "status",
+        "lunch_break_enabled",
+        "created_from_proposal",
+        "created_at",
+        "updated_at",
+    ),
+    order_by=("date",),
+    writable_fields=(
+        "exam_round_id",
+        "location_id",
+        "date",
+        "status",
+        "lunch_break_enabled",
+        "created_from_proposal",
+    ),
+)
+
+EXAM_SLOT = Resource(
+    model=ExamSlot,
+    fields=(
+        "exam_day_id",
+        "round_candidate_id",
+        "slot_type",
+        "starts_at",
+        "ends_at",
+        "sequence_number",
+        "status",
+        "created_at",
+        "updated_at",
+    ),
+    order_by=("exam_day_id", "sequence_number"),
+    writable_fields=(
+        "exam_day_id",
+        "round_candidate_id",
+        "slot_type",
+        "starts_at",
+        "ends_at",
+        "sequence_number",
+        "status",
+    ),
+)
+
+EXAM_DAY_ASSIGNMENT = Resource(
+    model=ExamDayAssignment,
+    fields=(
+        "exam_day_id",
+        "committee_member_id",
+        "assignment_role",
+        "day_part",
+        "fallback_status",
+        "created_at",
+        "updated_at",
+    ),
+    order_by=("exam_day_id", "day_part", "assignment_role"),
+    writable_fields=(
+        "exam_day_id",
+        "committee_member_id",
+        "assignment_role",
+        "day_part",
+        "fallback_status",
     ),
 )

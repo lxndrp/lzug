@@ -76,6 +76,15 @@ class ApiServer(AbstractContextManager):
         path: str,
         payload: dict[str, Any] | None = None,
     ) -> tuple[int, Any]:
+        status, _headers, body = self.request_raw(method, path, payload)
+        return status, self._read_json(body)
+
+    def request_raw(
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None = None,
+    ) -> tuple[int, dict[str, str], bytes]:
         body = b""
         headers = {
             "Host": "127.0.0.1",
@@ -103,7 +112,14 @@ class ApiServer(AbstractContextManager):
         header_bytes, _, response_body = raw_response.partition(b"\r\n\r\n")
         status_line, _, _header_block = header_bytes.partition(b"\r\n")
         status = int(status_line.split()[1])
-        return status, self._read_json(response_body)
+        response_headers = {}
+        for header_line in _header_block.split(b"\r\n"):
+            name, _, value = header_line.partition(b":")
+            if name:
+                response_headers[name.decode("ascii").lower()] = value.strip().decode(
+                    "utf-8"
+                )
+        return status, response_headers, response_body
 
     def _read_json(self, body: bytes) -> Any:
         if not body:
