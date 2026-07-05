@@ -1,0 +1,88 @@
+<c-sidebar id="appSidebar" colorScheme="dark" position="fixed" [visible]="true">
+  <c-sidebar-header>
+    <c-sidebar-brand>lzug</c-sidebar-brand>
+  </c-sidebar-header>
+
+  <c-sidebar-nav aria-label="Hauptnavigation">
+    <li class="nav-title">Prüfungsverwaltung</li>
+    <li class="nav-item">
+      <button
+        class="nav-link"
+        type="button"
+        [class.active]="activeView() === 'dashboard'"
+        [attr.aria-current]="activeView() === 'dashboard' ? 'page' : null"
+        (click)="showView('dashboard')"
+      >
+        Übersicht
+      </button>
+    </li>
+    <li class="nav-item">
+      <button
+        class="nav-link"
+        type="button"
+        [class.active]="activeView() === 'master-data'"
+        [attr.aria-current]="activeView() === 'master-data' ? 'page' : null"
+        (click)="showView('master-data')"
+      >
+        Stammdaten
+      </button>
+    </li>
+    <li class="nav-title">Service</li>
+    <li class="nav-item">
+      <a class="nav-link" href="/api/docs" target="_blank" rel="noopener">API-Doku</a>
+    </li>
+  </c-sidebar-nav>
+</c-sidebar>
+
+<div class="app-wrapper">
+  <c-header position="sticky">
+    <c-container fluid>
+      <button cHeaderToggler cSidebarToggle="appSidebar" class="app-sidebar-toggle" type="button"></button>
+      <c-header-brand>{{ pageTitle() }}</c-header-brand>
+      <span class="app-spacer"></span>
+      <span cHeaderText class="app-muted">
+        {{ apiRoot()?.name || 'Nicht verbunden' }} · {{ loading() ? 'Lädt Daten' : message() }}
+      </span>
+      <button cButton color="secondary" variant="outline" type="button" (click)="refresh()" [disabled]="loading()">
+        Aktualisieren
+      </button>
+      <button cButton color="secondary" variant="outline" type="button" (click)="openDocs()">OpenAPI</button>
+    </c-container>
+  </c-header>
+
+  @if (loading()) {
+    <c-progress thin>
+      <c-progress-bar color="primary" [animated]="true" [value]="100" />
+    </c-progress>
+  }
+
+  <main class="app-content">
+    <c-container fluid>
+      <header class="app-page-header">
+        <p class="app-muted">{{ crumb() }}</p>
+        <h1>{{ pageTitle() }}</h1>
+      </header>
+
+      @if (activeView() === 'dashboard') {
+        <app-dashboard
+          [summary]="summary()"
+          [board]="board()"
+          [loading]="loading()"
+          [actionBusy]="actionBusy()"
+          (generateProposal)="generateProposal()"
+          (confirmPlan)="confirmPlan()"
+        />
+      } @else {
+        <app-committee
+          [masterData]="masterData()"
+          [selectedCommitteeIdInput]="selectedCommitteeId()"
+          [actionBusy]="actionBusy()"
+          (selectedCommitteeIdChange)="selectCommittee($event)"
+          (createCommittee)="createCommittee($event)"
+          (createMember)="createMember($event)"
+          (toggleMember)="toggleMember($event)"
+        />
+      }
+    </c-container>
+  </main>
+</div>

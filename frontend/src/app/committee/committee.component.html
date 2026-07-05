@@ -1,0 +1,214 @@
+<div class="row g-4">
+  <div class="col-12">
+    <c-card>
+      <c-card-header>
+        <strong>Prüfungsausschuss</strong>
+        <span class="app-muted">Committee und CommitteeMember</span>
+      </c-card-header>
+      <c-card-body>
+        <table cTable hover small responsive>
+          <thead>
+            <tr>
+              <th scope="col">Kennzahl</th>
+              <th scope="col">Wert</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (metric of metrics(); track metric.label) {
+              <tr>
+                <td>{{ metric.label }}</td>
+                <td>{{ metric.value }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </c-card-body>
+    </c-card>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <c-card>
+      <c-card-header>
+        <strong>Ausschüsse</strong>
+      </c-card-header>
+      <c-card-body>
+        <div cListGroup>
+          @for (committee of masterDataView()?.committees || []; track committee.id) {
+            <button
+              cListGroupItem
+              type="button"
+              [active]="isSelectedCommittee(committee)"
+              (click)="selectCommittee(committee.id)"
+            >
+              <strong>{{ committee.name }}</strong>
+              <span>{{ committee.occupation }}</span>
+            </button>
+          } @empty {
+            <p>Keine Ausschüsse vorhanden.</p>
+          }
+        </div>
+      </c-card-body>
+    </c-card>
+
+    <c-card>
+      <c-card-header>
+        <strong>Ausschuss anlegen</strong>
+      </c-card-header>
+      <c-card-body>
+        <form cForm (submit)="saveCommittee($event)">
+          <div class="mb-3">
+            <label cLabel for="committeeName">Bezeichnung</label>
+            <input
+              cFormControl
+              id="committeeName"
+              name="name"
+              required
+              placeholder="PA Fachinformatiker Hamburg 1"
+            />
+          </div>
+          <div class="mb-3">
+            <label cLabel for="committeeOccupation">Ausbildungsberuf</label>
+            <input
+              cFormControl
+              id="committeeOccupation"
+              name="occupation"
+              required
+              placeholder="Fachinformatiker/in"
+            />
+          </div>
+          <button cButton color="primary" type="submit" [disabled]="actionBusy">Speichern</button>
+        </form>
+      </c-card-body>
+    </c-card>
+  </div>
+
+  <div class="col-12 col-xl-8">
+    <c-card>
+      <c-card-header>
+        <strong>{{ selectedCommitteeName() }}</strong>
+        <c-badge color="success">{{ activeMemberCount() }} aktiv</c-badge>
+      </c-card-header>
+      <c-card-body>
+        <table cTable hover responsive>
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Rolle</th>
+              <th scope="col">Seite</th>
+              <th scope="col">Kontakt</th>
+              <th scope="col">Status</th>
+              <th scope="col">Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (member of committeeMembers(); track member.id) {
+              <tr>
+                <td>
+                  <strong>{{ fullMemberName(member) }}</strong>
+                  <span>{{ memberStatusLabel(member.member_status) }}</span>
+                </td>
+                <td>{{ roleLabel(member.committee_role) }}</td>
+                <td>{{ memberSide(member) }}</td>
+                <td>{{ member.email }} · {{ member.mobile || 'Keine Mobilnummer' }}</td>
+                <td>
+                  <c-badge [color]="member.is_active ? 'success' : 'secondary'">
+                    {{ member.is_active ? 'Aktiv' : 'Inaktiv' }}
+                  </c-badge>
+                </td>
+                <td>
+                  <button
+                    cButton
+                    color="secondary"
+                    size="sm"
+                    variant="outline"
+                    type="button"
+                    (click)="toggleMember.emit(member)"
+                    [disabled]="actionBusy"
+                  >
+                    {{ member.is_active ? 'Deaktivieren' : 'Aktivieren' }}
+                  </button>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6">Keine Prüfer im ausgewählten Ausschuss.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </c-card-body>
+    </c-card>
+
+    <c-card>
+      <c-card-header>
+        <strong>Prüfer anlegen</strong>
+      </c-card-header>
+      <c-card-body>
+        <form cForm (submit)="saveMember($event)">
+          <div class="row g-3">
+            <div class="col-12">
+              <label cLabel for="memberCommittee">Ausschuss</label>
+              <select cSelect id="memberCommittee" name="committee_id" required>
+                @for (committee of masterDataView()?.committees || []; track committee.id) {
+                  <option [value]="committee.id" [selected]="isSelectedCommittee(committee)">
+                    {{ committee.name }}
+                  </option>
+                }
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label cLabel for="memberFirstName">Vorname</label>
+              <input cFormControl id="memberFirstName" name="first_name" required />
+            </div>
+            <div class="col-12 col-md-6">
+              <label cLabel for="memberLastName">Nachname</label>
+              <input cFormControl id="memberLastName" name="last_name" required />
+            </div>
+            <div class="col-12 col-md-6">
+              <label cLabel for="memberEmail">E-Mail</label>
+              <input cFormControl id="memberEmail" name="email" type="email" required />
+            </div>
+            <div class="col-12 col-md-6">
+              <label cLabel for="memberMobile">Mobil</label>
+              <input cFormControl id="memberMobile" name="mobile" type="tel" />
+            </div>
+            <div class="col-12 col-md-4">
+              <label cLabel for="memberStatus">Mitgliedsstatus</label>
+              <select cSelect id="memberStatus" name="member_status">
+                <option value="ordinary">Ordentlich</option>
+                <option value="deputy">Stellvertretend</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-4">
+              <label cLabel for="memberRole">Funktion</label>
+              <select cSelect id="memberRole" name="committee_role">
+                <option value="member">Mitglied</option>
+                <option value="chair">Vorsitz</option>
+                <option value="deputy_chair">Stellv. Vorsitz</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-4">
+              <label cLabel for="memberSide">Vertreterseite</label>
+              <select cSelect id="memberSide" name="representing_side">
+                <option value="employer">Arbeitgeber</option>
+                <option value="employee">Arbeitnehmer</option>
+                <option value="school">Schule</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <c-form-check>
+                <input cFormCheckInput id="memberActive" name="is_active" type="checkbox" checked />
+                <label cFormCheckLabel for="memberActive">Aktiv</label>
+              </c-form-check>
+            </div>
+            <div class="col-12">
+              <button cButton color="primary" type="submit" [disabled]="actionBusy">
+                Prüfer speichern
+              </button>
+            </div>
+          </div>
+        </form>
+      </c-card-body>
+    </c-card>
+  </div>
+</div>

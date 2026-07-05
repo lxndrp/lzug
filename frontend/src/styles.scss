@@ -1,0 +1,49 @@
+@use '@coreui/coreui/scss/root';
+@use '@coreui/coreui/scss/reboot';
+@use '@coreui/coreui/scss/type';
+@use '@coreui/coreui/scss/containers';
+@use '@coreui/coreui/scss/grid';
+@use '@coreui/coreui/scss/tables';
+@use '@coreui/coreui/scss/forms';
+@use '@coreui/coreui/scss/buttons';
+@use '@coreui/coreui/scss/card';
+@use '@coreui/coreui/scss/badge';
+@use '@coreui/coreui/scss/list-group';
+@use '@coreui/coreui/scss/progress';
+@use '@coreui/coreui/scss/header';
+@use '@coreui/coreui/scss/sidebar';
+@use '@coreui/coreui/scss/helpers';
+@use '@coreui/coreui/scss/utilities/api';
+
+@import '@fontsource/roboto/300.css';
+@import '@fontsource/roboto/400.css';
+@import '@fontsource/roboto/500.css';
+@import '@fontsource/roboto/700.css';
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--cui-body-bg);
+  color: var(--cui-body-color);
+  font-family: var(--cui-body-font-family);
+  font-size: var(--cui-body-font-size);
+  font-weight: var(--cui-body-font-weight);
+  line-height: var(--cui-body-line-height);
+}
+
+h3,
+h4 {
+  margin-top: 1rem;
+}
+
+table {
+  width: 100%;
+}
+
+.app-muted {
+  color: var(--cui-secondary-color);
+}

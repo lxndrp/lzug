@@ -1,0 +1,38 @@
+.app-wrapper {
+  min-height: 100%;
+  padding-left: var(--cui-sidebar-occupy-start, 0);
+}
+
+.app-spacer {
+  flex: 1 1 auto;
+}
+
+c-header c-container {
+  gap: 12px;
+}
+
+.app-sidebar-toggle {
+  margin-inline-end: 4px;
+}
+
+.app-content {
+  padding-block: 24px;
+}
+
+.app-page-header {
+  margin-block-end: 24px;
+}
+
+.app-page-header h1 {
+  margin: 0;
+}
+
+.app-page-header p {
+  margin: 0 0 4px;
+}
+
+.sidebar-nav .nav-link {
+  width: 100%;
+  border: 0;
+  text-align: left;
+}

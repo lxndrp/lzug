@@ -1,0 +1,200 @@
+<div class="row g-4">
+  <div class="col-12">
+    <c-card>
+      <c-card-body>
+        <div class="d-flex flex-wrap align-items-center gap-3">
+          <div>
+            <c-badge color="primary">{{ statusLabel(summary?.round?.status) }}</c-badge>
+            <h2>{{ summary?.round?.committee_name || 'Prüfungsausschuss' }}</h2>
+          </div>
+          <div class="ms-auto d-flex flex-wrap gap-2">
+            <button
+              cButton
+              color="primary"
+              type="button"
+              (click)="generateProposal.emit()"
+              [disabled]="loading || actionBusy || !canGeneratePlan()"
+            >
+              Planung erzeugen
+            </button>
+            <button
+              cButton
+              color="secondary"
+              variant="outline"
+              type="button"
+              (click)="confirmPlan.emit()"
+              [disabled]="loading || actionBusy || !canConfirmPlan()"
+            >
+              Plan bestätigen
+            </button>
+          </div>
+        </div>
+      </c-card-body>
+    </c-card>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <c-card>
+      <c-card-header>
+        <strong>Kennzahlen</strong>
+      </c-card-header>
+      <c-card-body>
+        <table cTable hover small responsive>
+          <thead>
+            <tr>
+              <th scope="col">Kennzahl</th>
+              <th scope="col">Wert</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (metric of metrics(); track metric.label) {
+              <tr>
+                <td>{{ metric.label }}</td>
+                <td>{{ metric.value }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </c-card-body>
+    </c-card>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <c-card>
+      <c-card-header>
+        <strong>Planungsrahmen</strong>
+      </c-card-header>
+      <c-card-body>
+        <dl class="row mb-0">
+          <dt class="col-6">Zeitraum</dt>
+          <dd class="col-6">
+            {{ summary?.settings?.calendar_week_from || '–' }} bis
+            {{ summary?.settings?.calendar_week_to || '–' }}
+          </dd>
+          <dt class="col-6">Prüfungen pro Tag</dt>
+          <dd class="col-6">{{ summary?.settings?.exams_per_day ?? '–' }}</dd>
+          <dt class="col-6">Max. Tage pro Woche</dt>
+          <dd class="col-6">{{ summary?.settings?.max_exam_days_per_week ?? '–' }}</dd>
+          <dt class="col-6">Mögliche Prüfungstage</dt>
+          <dd class="col-6">{{ activeDayCount() }}</dd>
+        </dl>
+      </c-card-body>
+    </c-card>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <c-card>
+      <c-card-header>
+        <strong>Rücklauf</strong>
+        <span class="app-muted">{{ pendingCount() }} offen</span>
+      </c-card-header>
+      <c-card-body>
+        <div class="d-flex flex-wrap gap-2">
+          @for (item of summary?.availability || []; track item.availability) {
+            <c-badge [color]="availabilityColor(item.availability)">
+              {{ availabilityLabel(item.availability) }}: {{ item.count }}
+            </c-badge>
+          }
+        </div>
+      </c-card-body>
+    </c-card>
+  </div>
+
+  <div class="col-12 col-xl-8">
+    <c-card>
+      <c-card-header>
+        <strong>Terminplan</strong>
+        <span class="app-muted">{{ plannedSlotCount() }} geplante Prüfungstermine</span>
+      </c-card-header>
+      <c-card-body>
+        @if (board?.days?.length) {
+          <div class="vstack gap-3">
+            @for (item of board?.days; track item.day.id) {
+              <c-card>
+                <c-card-body>
+                  <div class="d-flex flex-wrap align-items-start gap-2">
+                    <div>
+                      <h3>{{ dateLabel(item.day.date) }}</h3>
+                      <p class="app-muted">
+                        {{ item.location?.name || 'Prüfungsort offen' }} ·
+                        {{ item.location?.room || 'Raum offen' }} · {{ statusLabel(item.day.status) }}
+                      </p>
+                    </div>
+                    <div class="ms-auto d-flex flex-wrap gap-1">
+                      @for (slot of item.slots; track slot.id) {
+                        <c-badge color="secondary">
+                          {{ timeLabel(slot.starts_at) }}
+                          @if (slot.slot_type === 'mep') {
+                            · MEP
+                          }
+                        </c-badge>
+                      }
+                    </div>
+                  </div>
+
+                  <h4>Vormittag</h4>
+                  <div class="d-flex flex-wrap gap-1">
+                    @for (assignment of assignmentsFor(item, 'morning'); track assignment.id) {
+                      <c-badge color="info">
+                        {{ memberName(assignment.committee_member_id) }} ·
+                        {{ memberSide(assignment.committee_member_id) }}
+                      </c-badge>
+                    }
+                  </div>
+
+                  <h4>Nachmittag</h4>
+                  <div class="d-flex flex-wrap gap-1">
+                    @for (assignment of assignmentsFor(item, 'afternoon'); track assignment.id) {
+                      <c-badge color="info">
+                        {{ memberName(assignment.committee_member_id) }} ·
+                        {{ memberSide(assignment.committee_member_id) }}
+                      </c-badge>
+                    } @empty {
+                      <c-badge color="secondary">Keine Nachmittagstermine</c-badge>
+                    }
+                  </div>
+                </c-card-body>
+              </c-card>
+            }
+          </div>
+        } @else {
+          <p>Noch kein Planungsvorschlag</p>
+        }
+      </c-card-body>
+    </c-card>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <c-card>
+      <c-card-header>
+        <strong>Aktive Tage</strong>
+      </c-card-header>
+      <c-card-body>
+        <table cTable hover small responsive>
+          <thead>
+            <tr>
+              <th scope="col">Datum</th>
+              <th scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (day of board?.candidateDays || []; track day.id) {
+              <tr>
+                <td>{{ dateLabel(day.date) }}</td>
+                <td>
+                  <c-badge [color]="day.is_active ? 'success' : 'secondary'">
+                    {{ day.is_active ? 'aktiv' : 'inaktiv' }}
+                  </c-badge>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="2">Keine Tage vorhanden.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </c-card-body>
+    </c-card>
+  </div>
+</div>

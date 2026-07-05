@@ -23,6 +23,8 @@ lzug/
 │   ├── datenmodell.md
 │   ├── relationales-schema.md
 │   └── backend-prototyp.md
+├── frontend/
+│   └── Angular-App für die produktivere Oberfläche
 ├── server/
 │   ├── app.py
 │   ├── database.py
@@ -76,6 +78,15 @@ Der Server startet danach mit:
 .venv/bin/python -m server.app --init --seed --reset
 ```
 
+Die Angular-App liegt unter `frontend/` und nutzt im Entwicklungsmodus einen Proxy auf den Python-Server:
+
+```bash
+PATH=/Users/alexp/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH \
+  /Users/alexp/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/pnpm --dir frontend start
+```
+
+Der Python-Server sollte dafür parallel unter `http://127.0.0.1:8000` laufen.
+
 Danach stehen JSON-Endpunkte unter `http://127.0.0.1:8000/api/` bereit, z. B.:
 
 ```text
@@ -119,6 +130,7 @@ Der Test-Harness nutzt `unittest` und die in `pyproject.toml` beschriebenen Proj
 - Repository-Funktionen und Rundenzusammenfassung
 - deterministische Planungsvorschläge mit Slots, Besetzungen und MEP-Regeln
 - Bestätigungsworkflow für vorgeschlagene Prüfungspläne
+- Angular-Frontend-Schale mit API-Anbindung an Rundenzusammenfassung und Planungsaktionen
 - JSON-API über den echten HTTP-Handler ohne lokalen Port
 - OpenAPI-, Docs- und HATEOAS-Kontrakte
 - statischen Prototyp mit Asset-, Navigations- und JavaScript-Syntaxprüfung
