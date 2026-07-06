@@ -13,6 +13,62 @@
             "problemMatcher": []
         },
         {
+            "label": "Frontend Tests",
+            "type": "shell",
+            "command": "${workspaceFolder}/frontend/node_modules/.bin/ng",
+            "args": [
+                "test",
+                "--watch=false",
+                "--browsers=ChromeHeadless"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/frontend"
+            },
+            "group": "test",
+            "problemMatcher": []
+        },
+        {
+            "label": "Frontend Coverage",
+            "type": "shell",
+            "command": "${workspaceFolder}/frontend/node_modules/.bin/ng",
+            "args": [
+                "test",
+                "--watch=false",
+                "--browsers=ChromeHeadless",
+                "--code-coverage"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/frontend"
+            },
+            "group": "test",
+            "problemMatcher": []
+        },
+        {
+            "label": "Frontend Build",
+            "type": "shell",
+            "command": "${workspaceFolder}/frontend/node_modules/.bin/ng",
+            "args": [
+                "build",
+                "--configuration",
+                "production"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/frontend"
+            },
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Alle Tests",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Tests ausfuehren",
+                "Frontend Tests"
+            ],
+            "group": "test",
+            "problemMatcher": []
+        },
+        {
             "label": "Tests mit Coverage",
             "type": "shell",
             "command": "${workspaceFolder}/.venv/bin/python",
@@ -49,6 +105,16 @@
                 "html"
             ],
             "dependsOn": "Tests mit Coverage",
+            "group": "test",
+            "problemMatcher": []
+        },
+        {
+            "label": "Alle Coverage Reports",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Coverage XML erzeugen",
+                "Frontend Coverage"
+            ],
             "group": "test",
             "problemMatcher": []
         },

@@ -141,6 +141,16 @@ Alle Tests laufen mit:
 .venv/bin/python -m unittest
 ```
 
+Die Angular-Tests laufen im Frontend mit Chrome Headless:
+
+```bash
+pnpm --dir frontend run test:ci
+pnpm --dir frontend run test:coverage
+pnpm --dir frontend run build:ci
+```
+
+Falls Chrome nicht im Standardpfad liegt, muss `CHROME_BIN` auf die Chrome-Binary zeigen.
+
 Coverage ist als Dev-Extra konfiguriert:
 
 ```bash
@@ -150,7 +160,7 @@ Coverage ist als Dev-Extra konfiguriert:
 .venv/bin/python -m coverage xml
 ```
 
-In VS Code stehen dafuer die Tasks `Tests mit Coverage`, `Coverage XML erzeugen` und `Coverage HTML erzeugen` bereit. Die empfohlene Erweiterung Coverage Gutters nutzt `coverage.xml` direkt im Editor.
+In VS Code stehen dafuer die Tasks `Tests mit Coverage`, `Coverage XML erzeugen`, `Coverage HTML erzeugen`, `Frontend Tests`, `Frontend Coverage`, `Frontend Build`, `Alle Tests` und `Alle Coverage Reports` bereit. Die empfohlene Erweiterung Coverage Gutters nutzt `coverage.xml` und `frontend/coverage/frontend/lcov.info` direkt im Editor.
 
 Wenn Node.js installiert ist, prüft der Harness zusätzlich `app.js` mit `node --check`; ohne Node wird nur dieser optionale Syntaxcheck übersprungen.
 

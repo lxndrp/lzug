@@ -5,8 +5,11 @@
     "ng": "ng",
     "start": "ng serve --proxy-config proxy.conf.json",
     "build": "ng build",
+    "build:ci": "ng build --configuration production",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "test:ci": "ng test --watch=false --browsers=ChromeHeadless",
+    "test:coverage": "ng test --watch=false --browsers=ChromeHeadless --code-coverage"
   },
   "prettier": {
     "printWidth": 100,

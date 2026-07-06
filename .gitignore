@@ -12,6 +12,7 @@ coverage/
 .coverage
 coverage.xml
 htmlcov/
+frontend/coverage/
 __pycache__/
 *.py[cod]
 var/

@@ -17,7 +17,8 @@
         "**/*.pyc": true
     },
     "coverage-gutters.coverageFileNames": [
-        "coverage.xml"
+        "coverage.xml",
+        "frontend/coverage/frontend/lcov.info"
     ],
     "coverage-gutters.showGutterCoverage": true
 }
