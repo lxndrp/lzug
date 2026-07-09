@@ -109,7 +109,7 @@
       <c-card-body>
         @if (board?.days?.length) {
           <div class="vstack gap-3">
-            @for (item of board?.days; track item.day.id) {
+            @for (item of board.days; track item.day.id) {
               <c-card>
                 <c-card-body>
                   <div class="d-flex flex-wrap align-items-start gap-2">
