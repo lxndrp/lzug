@@ -15,11 +15,10 @@
         {
             "label": "Frontend Tests",
             "type": "shell",
-            "command": "${workspaceFolder}/frontend/node_modules/.bin/ng",
+            "command": "npm",
             "args": [
-                "test",
-                "--watch=false",
-                "--browsers=ChromeHeadless"
+                "run",
+                "test:ci"
             ],
             "options": {
                 "cwd": "${workspaceFolder}/frontend"
@@ -30,12 +29,10 @@
         {
             "label": "Frontend Coverage",
             "type": "shell",
-            "command": "${workspaceFolder}/frontend/node_modules/.bin/ng",
+            "command": "npm",
             "args": [
-                "test",
-                "--watch=false",
-                "--browsers=ChromeHeadless",
-                "--code-coverage"
+                "run",
+                "test:coverage"
             ],
             "options": {
                 "cwd": "${workspaceFolder}/frontend"
@@ -46,11 +43,10 @@
         {
             "label": "Frontend Build",
             "type": "shell",
-            "command": "${workspaceFolder}/frontend/node_modules/.bin/ng",
+            "command": "npm",
             "args": [
-                "build",
-                "--configuration",
-                "production"
+                "run",
+                "build:ci"
             ],
             "options": {
                 "cwd": "${workspaceFolder}/frontend"

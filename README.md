@@ -67,9 +67,16 @@ docs/backend-prototyp.md
 
 Ein erster persistenter Backend-Prototyp nutzt SQLite über SQLAlchemy. Die Abhängigkeiten sind in `pyproject.toml` beschrieben:
 
+Voraussetzung fuer Backend und Frontend sind Python 3, Node.js und npm. Auf macOS koennen Node.js und npm zum Beispiel per Homebrew installiert werden:
+
+```bash
+brew install node
+```
+
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install -e .
+.venv/bin/python -m pip install -e ".[dev]"
+cd frontend && npm install
 ```
 
 Der Server startet danach mit:
@@ -81,8 +88,7 @@ Der Server startet danach mit:
 Die Angular-App liegt unter `frontend/` und nutzt im Entwicklungsmodus einen Proxy auf den Python-Server:
 
 ```bash
-PATH=/Users/alexp/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH \
-  /Users/alexp/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/pnpm --dir frontend start
+cd frontend && npm start
 ```
 
 Der Python-Server sollte dafür parallel unter `http://127.0.0.1:8000` laufen.
@@ -139,14 +145,14 @@ Alle Tests laufen mit:
 
 ```bash
 .venv/bin/python -m unittest
+cd frontend && npm run test:ci
 ```
 
-Die Angular-Tests laufen im Frontend mit Chrome Headless:
+Backend- und Frontend-Tests koennen auch einzeln ausgefuehrt werden:
 
 ```bash
-pnpm --dir frontend run test:ci
-pnpm --dir frontend run test:coverage
-pnpm --dir frontend run build:ci
+.venv/bin/python -m unittest
+cd frontend && npm run test:ci
 ```
 
 Falls Chrome nicht im Standardpfad liegt, muss `CHROME_BIN` auf die Chrome-Binary zeigen.
@@ -154,10 +160,10 @@ Falls Chrome nicht im Standardpfad liegt, muss `CHROME_BIN` auf die Chrome-Binar
 Coverage ist als Dev-Extra konfiguriert:
 
 ```bash
-.venv/bin/python -m pip install -e ".[dev]"
 .venv/bin/python -m coverage run -m unittest
 .venv/bin/python -m coverage report
 .venv/bin/python -m coverage xml
+cd frontend && npm run test:coverage
 ```
 
 In VS Code stehen dafuer die Tasks `Tests mit Coverage`, `Coverage XML erzeugen`, `Coverage HTML erzeugen`, `Frontend Tests`, `Frontend Coverage`, `Frontend Build`, `Alle Tests` und `Alle Coverage Reports` bereit. Die empfohlene Erweiterung Coverage Gutters nutzt `coverage.xml` und `frontend/coverage/frontend/lcov.info` direkt im Editor.
