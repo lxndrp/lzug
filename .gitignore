@@ -52,3 +52,4 @@ bower.json
 
 # Ignore pow environment settings
 .powenv
+.pnpm-store
