@@ -2,6 +2,7 @@
     "recommendations": [
         "ms-python.python",
         "ms-python.debugpy",
+        "ms-python.black-formatter",
         "charliermarsh.ruff",
         "jdx.mise",
         "ryanluker.vscode-coverage-gutters",
