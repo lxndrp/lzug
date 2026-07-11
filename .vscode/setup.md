@@ -1,6 +1,6 @@
 # VSCode Project Setup
 
-This project uses **mise** to manage tool versions (Python, Node.js) across your team.
+This project uses **mise** to manage tool versions (Python, Node.js) via standard version files.
 
 ## First-time setup
 
@@ -10,21 +10,19 @@ This project uses **mise** to manage tool versions (Python, Node.js) across your
 brew install mise
 ```
 
-Mise is a unified version manager for Python, Node.js, Go, Ruby, and more.
+Mise is a unified version manager that reads `.python-version`, `.node-version`, and more.
 
 ### 2. Install pinned versions
 
-From the project root:
+From the project root, mise automatically reads `.python-version` and `.node-version`:
 
 ```bash
 mise install
 ```
 
-This reads `.mise.toml` and installs:
-- Python 3.14.6
-- Node.js 26.5.0
-
-Versions can be added to `.mise.toml` at any time (e.g., Go for future use).
+This installs:
+- Python 3.14.6 (from `.python-version`)
+- Node.js 26.5.0 (from `.node-version`)
 
 ### 3. Create virtual environment (Python only)
 
@@ -39,7 +37,7 @@ Then install frontend dependencies:
 cd frontend && npm install
 ```
 
-Or use mise tasks:
+Or use the mise task:
 
 ```bash
 mise run setup
@@ -51,7 +49,7 @@ VSCode will prompt to select the Python interpreter. Choose:
 
 - **Suggested**: `.venv/bin/python` (already configured in `.vscode/settings.json`)
 
-Mise automatically sets PATH so Node.js tools work without additional configuration.
+Mise automatically sets PATH so Python and Node.js tools work without additional configuration.
 
 ### 5. Verify setup
 
@@ -85,6 +83,25 @@ mise sync nodejs
 
 This symlinks Homebrew versions into mise, allowing you to switch between them.
 
+### Adding tools to version files
+
+To add Go support, create `.go-version`:
+
+```bash
+echo "1.21" > .go-version
+mise install
+```
+
+Mise reads all version files automatically.
+
+## Version files
+
+- **`.python-version`** — Python version (compatible with pyenv)
+- **`.node-version`** — Node.js version (compatible with nvm)
+- **`.mise.toml`** — Mise configuration (tasks, additional tools)
+
+This approach is **tool-agnostic**: if your team later switches from mise to nvm or pyenv, the version files still work.
+
 ## Extensions
 
 Recommended extensions (auto-prompted in VSCode):
@@ -97,20 +114,4 @@ Recommended extensions (auto-prompted in VSCode):
 - **esbenp.prettier-vscode** - Prettier formatter
 - **ryanluker.vscode-coverage-gutters** - Coverage report visualization
 
-## Adding more tools to mise
-
-Mise supports Go, Ruby, Rust, Deno, Java, and many more. To add Go support:
-
-```toml
-# .mise.toml
-go = "1.21"
-```
-
-Then:
-
-```bash
-mise install
-```
-
-That's it—no plugins or complex configuration needed.
 

@@ -71,7 +71,7 @@ docs/backend-prototyp.md
 
 Ein erster persistenter Backend-Prototyp nutzt SQLite über SQLAlchemy. Die Abhängigkeiten sind in `pyproject.toml` beschrieben:
 
-Voraussetzung fuer Backend und Frontend sind Python 3.14.6 und Node.js 26.5.0, die über **mise** verwaltet werden.
+Voraussetzung fuer Backend und Frontend sind Python 3.14.6 und Node.js 26.5.0, die über **mise** verwaltet werden (mit Fallback auf pyenv/nvm-kompatible Versionsdateien).
 
 ### Umgebung einrichten
 
@@ -83,7 +83,7 @@ Installiere [mise](https://mise.jdx.dev/):
 brew install mise
 ```
 
-Dann installiere die in `.mise.toml` definierten Versionen:
+Dann installiere die in `.python-version` und `.node-version` definierten Versionen:
 
 ```bash
 mise install
