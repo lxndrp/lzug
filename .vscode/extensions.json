@@ -2,8 +2,10 @@
     "recommendations": [
         "ms-python.python",
         "ms-python.debugpy",
+        "charliermarsh.ruff",
         "ryanluker.vscode-coverage-gutters",
         "esbenp.prettier-vscode",
-        "dbaeumer.vscode-eslint"
+        "dbaeumer.vscode-eslint",
+        "pycxa.flask-restplus"
     ]
 }
