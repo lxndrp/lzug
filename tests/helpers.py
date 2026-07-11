@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import tempfile
-from io import BytesIO
 from contextlib import AbstractContextManager
 from http import HTTPStatus
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -63,7 +63,7 @@ class ApiServer(AbstractContextManager):
         self.db_path = db_path
         self._previous_db_path = TestLzugHandler.db_path
 
-    def __enter__(self) -> "ApiServer":
+    def __enter__(self) -> ApiServer:
         TestLzugHandler.db_path = self.db_path
         return self
 
@@ -116,9 +116,7 @@ class ApiServer(AbstractContextManager):
         for header_line in _header_block.split(b"\r\n"):
             name, _, value = header_line.partition(b":")
             if name:
-                response_headers[name.decode("ascii").lower()] = value.strip().decode(
-                    "utf-8"
-                )
+                response_headers[name.decode("ascii").lower()] = value.strip().decode("utf-8")
         return status, response_headers, response_body
 
     def _read_json(self, body: bytes) -> Any:

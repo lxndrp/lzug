@@ -5,7 +5,6 @@ from typing import Any
 from .models import Resource
 from .repositories import REST_RESOURCES
 
-
 RELATED_RESOURCE_FIELDS = {
     "committee_id": "committees",
     "created_by_member_id": "members",
@@ -29,17 +28,16 @@ def api_root() -> dict[str, Any]:
             "openapi": {"href": "/api/openapi.json"},
             "docs": {"href": "/api/docs"},
             "round-summary": {"href": "/api/round-summary?round_id=1"},
-        "planning-proposals": {
-            "href": "/api/planning-proposals",
-            "method": "POST",
-        },
-        "confirm-plan": {
-            "href": "/api/exam-rounds/1/confirm-plan",
-            "method": "POST",
-        },
+            "planning-proposals": {
+                "href": "/api/planning-proposals",
+                "method": "POST",
+            },
+            "confirm-plan": {
+                "href": "/api/exam-rounds/1/confirm-plan",
+                "method": "POST",
+            },
             **{
-                resource_name: {"href": f"/api/{resource_name}"}
-                for resource_name in REST_RESOURCES
+                resource_name: {"href": f"/api/{resource_name}"} for resource_name in REST_RESOURCES
             },
         },
     }
@@ -113,12 +111,8 @@ def round_summary(summary: dict[str, Any], round_id: int) -> dict[str, Any]:
         "round": {"href": f"/api/exam-rounds/{round_id}"},
         "candidates": {"href": "/api/candidates"},
         "planning-settings": {"href": f"/api/planning-settings?round_id={round_id}"},
-        "candidate-exam-days": {
-            "href": f"/api/candidate-exam-days?round_id={round_id}"
-        },
-        "member-availabilities": {
-            "href": f"/api/member-availabilities?round_id={round_id}"
-        },
+        "candidate-exam-days": {"href": f"/api/candidate-exam-days?round_id={round_id}"},
+        "member-availabilities": {"href": f"/api/member-availabilities?round_id={round_id}"},
     }
     return linked
 

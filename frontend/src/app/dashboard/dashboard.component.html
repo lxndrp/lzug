@@ -182,7 +182,8 @@
                       <h3>{{ dateLabel(item.day.date) }}</h3>
                       <p class="app-muted">
                         {{ item.location?.name || 'Prüfungsort offen' }} ·
-                        {{ item.location?.room || 'Raum offen' }} · {{ statusLabel(item.day.status) }}
+                        {{ item.location?.room || 'Raum offen' }} ·
+                        {{ statusLabel(item.day.status) }}
                       </p>
                     </div>
                     <div class="ms-auto d-flex flex-wrap gap-1">
@@ -249,9 +250,7 @@
               <tr>
                 <td>{{ dateLabel(item.day.date) }}</td>
                 <td>
-                  <c-badge color="success">
-                    {{ item.slots.length }} Termine
-                  </c-badge>
+                  <c-badge color="success"> {{ item.slots.length }} Termine </c-badge>
                 </td>
               </tr>
             } @empty {

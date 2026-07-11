@@ -12,6 +12,16 @@
     "python.analysis.extraPaths": [
         "${workspaceFolder}"
     ],
+    "python.linting.enabled": true,
+    "python.linting.ruffEnabled": true,
+    "python.formatting.provider": "black",
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.python",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    },
     "files.exclude": {
         "**/__pycache__": true,
         "**/*.pyc": true
@@ -20,5 +30,20 @@
         "coverage.xml",
         "frontend/coverage/frontend/lcov.info"
     ],
-    "coverage-gutters.showGutterCoverage": true
+    "coverage-gutters.showGutterCoverage": true,
+    "[typescript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.eslint": "explicit"
+        }
+    },
+    "[html]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true
+    },
+    "eslint.validate": [
+        "javascript",
+        "typescript"
+    ]
 }

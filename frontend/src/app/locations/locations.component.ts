@@ -15,7 +15,15 @@ export type LocationPayload = Omit<Location, 'id'>;
 
 @Component({
   selector: 'app-locations',
-  imports: [BadgeModule, ButtonModule, CardModule, FormModule, FormsModule, GridModule, TableModule],
+  imports: [
+    BadgeModule,
+    ButtonModule,
+    CardModule,
+    FormModule,
+    FormsModule,
+    GridModule,
+    TableModule,
+  ],
   templateUrl: './locations.component.html',
 })
 export class LocationsComponent {

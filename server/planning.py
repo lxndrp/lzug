@@ -21,7 +21,6 @@ from .models import (
 )
 from .store import Store
 
-
 SIDES = ("employer", "employee", "school")
 
 
@@ -389,9 +388,7 @@ class PlanningService:
             if not options:
                 return None
             crew.append(options[0]["id"])
-        fallback_options = [
-            member for member in available_members if member["id"] not in set(crew)
-        ]
+        fallback_options = [member for member in available_members if member["id"] not in set(crew)]
         fallback_options.sort(key=lambda member: (load[member["id"]], member["id"]))
         if not fallback_options:
             return None
@@ -425,8 +422,7 @@ class PlanningService:
         for index, day in enumerate(planned_days):
             regular_count = day["exams"] - mep_counts_by_index[index]
             day["regular_candidate_ids"] = [
-                regular_queue.pop(0)["id"]
-                for _ in range(min(regular_count, len(regular_queue)))
+                regular_queue.pop(0)["id"] for _ in range(min(regular_count, len(regular_queue)))
             ]
 
     def _slot_times(self, count: int, lunch_break: bool) -> list[tuple[str, str]]:

@@ -4,7 +4,6 @@ from typing import Any
 
 from .repositories import REST_RESOURCES
 
-
 REST_SCHEMA_FIELDS = {
     "specialization": {
         "type": "string",
@@ -224,9 +223,7 @@ def json_response(schema_name: str) -> dict[str, Any]:
     return {
         "description": "JSON response",
         "content": {
-            "application/json": {
-                "schema": {"$ref": f"#/components/schemas/{schema_name}"}
-            }
+            "application/json": {"schema": {"$ref": f"#/components/schemas/{schema_name}"}}
         },
     }
 
@@ -235,9 +232,7 @@ def json_request(schema_name: str) -> dict[str, Any]:
     return {
         "required": True,
         "content": {
-            "application/json": {
-                "schema": {"$ref": f"#/components/schemas/{schema_name}"}
-            }
+            "application/json": {"schema": {"$ref": f"#/components/schemas/{schema_name}"}}
         },
     }
 
@@ -262,10 +257,7 @@ def link_map() -> dict[str, Any]:
 
 
 def resource_schema(resource, include_links: bool) -> dict[str, Any]:
-    properties = {
-        field: field_schema(field)
-        for field in resource.readable_fields
-    }
+    properties = {field: field_schema(field) for field in resource.readable_fields}
     if include_links:
         properties["_links"] = link_map()
     return object_schema(properties, required=("id",))

@@ -184,9 +184,7 @@ class MemberAvailability(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     exam_round_id: Mapped[int] = mapped_column(ForeignKey("exam_round.id"))
     committee_member_id: Mapped[int] = mapped_column(ForeignKey("committee_member.id"))
-    candidate_exam_day_id: Mapped[int] = mapped_column(
-        ForeignKey("candidate_exam_day.id")
-    )
+    candidate_exam_day_id: Mapped[int] = mapped_column(ForeignKey("candidate_exam_day.id"))
     availability: Mapped[str] = mapped_column(
         String,
         server_default=sql_text("'pending'"),

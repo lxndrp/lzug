@@ -38,6 +38,12 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
 
+      - name: Lint with ruff
+        run: python -m ruff check .
+
+      - name: Format check with black
+        run: python -m black --check .
+
       - name: Run backend tests with coverage
         run: |
           python -m coverage run -m unittest
@@ -72,6 +78,12 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Lint with ESLint
+        run: npm run lint
+
+      - name: Format check with Prettier
+        run: npm run format:check
 
       - name: Build frontend
         run: npm run build:ci

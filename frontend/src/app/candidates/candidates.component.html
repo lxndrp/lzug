@@ -100,7 +100,9 @@
             </div>
           </div>
           <div class="col-12">
-            <button cButton color="primary" type="submit" [disabled]="actionBusy">Prüfling anlegen</button>
+            <button cButton color="primary" type="submit" [disabled]="actionBusy">
+              Prüfling anlegen
+            </button>
           </div>
         </form>
       </c-card-body>
@@ -162,7 +164,9 @@
                 <td>{{ item.candidate.ihk_exam_number }}</td>
                 <td>{{ specializationLabel(item.candidate.specialization) }}</td>
                 <td>
-                  <c-badge color="secondary">{{ attemptLabel(item.roundCandidate?.attempt_number) }}</c-badge>
+                  <c-badge color="secondary">{{
+                    attemptLabel(item.roundCandidate?.attempt_number)
+                  }}</c-badge>
                 </td>
                 <td>
                   <c-badge [color]="item.roundCandidate?.requires_mep ? 'warning' : 'secondary'">

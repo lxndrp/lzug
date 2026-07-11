@@ -29,7 +29,15 @@ export type AvailabilityPayload = Pick<
 
 @Component({
   selector: 'app-planning',
-  imports: [BadgeModule, ButtonModule, CardModule, FormModule, FormsModule, GridModule, TableModule],
+  imports: [
+    BadgeModule,
+    ButtonModule,
+    CardModule,
+    FormModule,
+    FormsModule,
+    GridModule,
+    TableModule,
+  ],
   templateUrl: './planning.component.html',
 })
 export class PlanningComponent implements OnChanges {
@@ -143,15 +151,18 @@ export class PlanningComponent implements OnChanges {
       exams_per_day: Number(this.draft.exams_per_day) || 1,
       max_exam_days_per_week: Number(this.draft.max_exam_days_per_week) || 1,
       lunch_break_enabled: this.draft.lunch_break_enabled ? 1 : 0,
-      default_location_id: this.draft.default_location_id ? Number(this.draft.default_location_id) : null,
+      default_location_id: this.draft.default_location_id
+        ? Number(this.draft.default_location_id)
+        : null,
       updated_by_member_id: updaterId,
     });
   }
 
   protected defaultUpdaterId(): number {
     return (
-      this.masterData?.members.find((member) => member.committee_role === 'chair' && member.is_active)
-        ?.id ??
+      this.masterData?.members.find(
+        (member) => member.committee_role === 'chair' && member.is_active,
+      )?.id ??
       this.masterData?.members.find((member) => member.is_active)?.id ??
       0
     );

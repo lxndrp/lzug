@@ -9,8 +9,8 @@ from urllib.parse import parse_qs, urlparse
 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from .database import DEFAULT_DB_PATH, initialize, is_available
 from . import hateoas, openapi
+from .database import DEFAULT_DB_PATH, initialize, is_available
 from .models import CANDIDATE, Resource
 from .planning import PlanningService
 from .repositories import REST_RESOURCES, ResourceRepository
@@ -112,9 +112,7 @@ class LzugHandler(BaseHTTPRequestHandler):
                 self.respond(hateoas.planning_proposal(proposal), HTTPStatus.CREATED)
                 return
 
-            resource_name, entity_id = self.resource_target(
-                path_parts
-            )
+            resource_name, entity_id = self.resource_target(path_parts)
             if resource_name is None or entity_id is not None:
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 return

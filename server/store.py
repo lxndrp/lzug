@@ -116,11 +116,7 @@ class Store:
         return statement
 
     def _payload(self, resource: Resource, values: dict[str, Any]) -> dict[str, Any]:
-        return {
-            field: values[field]
-            for field in resource.writable_fields
-            if field in values
-        }
+        return {field: values[field] for field in resource.writable_fields if field in values}
 
     def _validate_fields(self, resource: Resource, values: dict[str, Any]) -> None:
         known_fields = set(resource.readable_fields)

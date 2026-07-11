@@ -34,9 +34,7 @@ class PlanningTests(unittest.TestCase):
             slots = repository.list(EXAM_SLOT)
 
         for exam_day in exam_days:
-            day_slots = [
-                slot for slot in slots if slot["exam_day_id"] == exam_day["id"]
-            ]
+            day_slots = [slot for slot in slots if slot["exam_day_id"] == exam_day["id"]]
             slot_types = [slot["slot_type"] for slot in day_slots]
             if "mep" in slot_types:
                 first_mep = slot_types.index("mep")

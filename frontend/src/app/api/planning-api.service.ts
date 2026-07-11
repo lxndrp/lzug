@@ -15,7 +15,6 @@ import {
   ExamDayAssignment,
   ExamSlot,
   Location,
-  MasterData,
   MemberAvailability,
   PlanningBoard,
   PlanningResult,
@@ -62,7 +61,16 @@ export class PlanningApiService {
       ),
     }).pipe(
       map(
-        ({ days, slots, assignments, members, locations, candidates, candidateDays, availabilities }) => {
+        ({
+          days,
+          slots,
+          assignments,
+          members,
+          locations,
+          candidates,
+          candidateDays,
+          availabilities,
+        }) => {
           const sortedDays = [...days].sort((a, b) => a.date.localeCompare(b.date));
           const board: PlanningBoard = {
             members,
@@ -145,7 +153,9 @@ export class PlanningApiService {
     return this.http.patch<CommitteeMember>(`/api/members/${id}`, payload);
   }
 
-  createCandidate(payload: Omit<Candidate, 'id'> & { attempt_number: number; requires_mep: number }) {
+  createCandidate(
+    payload: Omit<Candidate, 'id'> & { attempt_number: number; requires_mep: number },
+  ) {
     return this.http.post<Candidate>('/api/candidates', {
       ...payload,
       exam_round_id: this.roundId,
@@ -179,7 +189,10 @@ export class PlanningApiService {
   }
 
   saveMemberAvailability(
-    payload: Pick<MemberAvailability, 'committee_member_id' | 'candidate_exam_day_id' | 'availability'>,
+    payload: Pick<
+      MemberAvailability,
+      'committee_member_id' | 'candidate_exam_day_id' | 'availability'
+    >,
   ) {
     return this.http.post<MemberAvailability>('/api/member-availabilities', {
       ...payload,
@@ -192,10 +205,7 @@ export class PlanningApiService {
   }
 
   confirmPlan() {
-    return this.http.post<PlanningResult>(
-      `/api/exam-rounds/${this.roundId}/confirm-plan`,
-      {},
-    );
+    return this.http.post<PlanningResult>(`/api/exam-rounds/${this.roundId}/confirm-plan`, {});
   }
 
   private list<T>(url: string) {

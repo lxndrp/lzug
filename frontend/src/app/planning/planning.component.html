@@ -96,7 +96,9 @@
               [(ngModel)]="draft.updated_by_member_id"
             >
               @for (member of masterData?.members || []; track member.id) {
-                <option [ngValue]="member.id">{{ member.first_name }} {{ member.last_name }}</option>
+                <option [ngValue]="member.id">
+                  {{ member.first_name }} {{ member.last_name }}
+                </option>
               }
             </select>
           </div>

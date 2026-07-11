@@ -13,9 +13,7 @@ class DatabaseTests(unittest.TestCase):
     def test_seed_contains_full_demo_round(self) -> None:
         with TempDatabase() as db_path, connect(db_path) as connection:
             counts = {
-                table: connection.execute(
-                    text(f"SELECT COUNT(*) FROM {table}")
-                ).fetchone()[0]
+                table: connection.execute(text(f"SELECT COUNT(*) FROM {table}")).fetchone()[0]
                 for table in (
                     "committee",
                     "committee_member",
@@ -48,8 +46,7 @@ class DatabaseTests(unittest.TestCase):
         with TempDatabase() as db_path, connect(db_path) as connection:
             with self.assertRaises(IntegrityError):
                 connection.execute(
-                    text(
-                        """
+                    text("""
                     INSERT INTO candidate (
                       first_name,
                       last_name,
@@ -64,8 +61,7 @@ class DatabaseTests(unittest.TestCase):
                       :specialization,
                       :training_company
                     )
-                    """
-                    ),
+                    """),
                     {
                         "first_name": "Ada",
                         "last_name": "Lovelace",
@@ -76,9 +72,7 @@ class DatabaseTests(unittest.TestCase):
                 )
 
             with self.assertRaises(IntegrityError):
-                connection.execute(
-                    text(
-                        """
+                connection.execute(text("""
                     INSERT INTO member_availability (
                       exam_round_id,
                       committee_member_id,
@@ -87,18 +81,13 @@ class DatabaseTests(unittest.TestCase):
                       responded_at
                     )
                     VALUES (1, 1, 1, 'full_day', NULL)
-                    """
-                    )
-                )
+                    """))
 
     def test_initialize_can_reset_existing_database(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
             with connect(db_path) as connection, connection.begin():
                 connection.execute(
-                    text(
-                        "INSERT INTO committee (id, name, occupation) "
-                        "VALUES (99, 'Alt', 'FI')"
-                    )
+                    text("INSERT INTO committee (id, name, occupation) " "VALUES (99, 'Alt', 'FI')")
                 )
 
             initialize(db_path, with_seed=True, reset=True)
@@ -106,9 +95,7 @@ class DatabaseTests(unittest.TestCase):
             with connect(db_path) as connection:
                 ids = [
                     row[0]
-                    for row in connection.execute(
-                        text("SELECT id FROM committee ORDER BY id")
-                    )
+                    for row in connection.execute(text("SELECT id FROM committee ORDER BY id"))
                 ]
 
         self.assertEqual([1], ids)

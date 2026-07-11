@@ -6,7 +6,6 @@ import unittest
 from html.parser import HTMLParser
 from pathlib import Path
 
-
 ROOT_DIR = Path(__file__).resolve().parents[1]
 PROTOTYPE_DIR = ROOT_DIR / "prototypes" / "pruefungsrunde-prototyp"
 HTML_PATH = PROTOTYPE_DIR / "index.html"

@@ -18,7 +18,15 @@ export type CandidatePayload = Omit<Candidate, 'id'> & {
 
 @Component({
   selector: 'app-candidates',
-  imports: [BadgeModule, ButtonModule, CardModule, FormModule, FormsModule, GridModule, TableModule],
+  imports: [
+    BadgeModule,
+    ButtonModule,
+    CardModule,
+    FormModule,
+    FormsModule,
+    GridModule,
+    TableModule,
+  ],
   templateUrl: './candidates.component.html',
 })
 export class CandidatesComponent {
@@ -45,7 +53,9 @@ export class CandidatesComponent {
   }
 
   protected mepCount(): number {
-    return this.masterData?.candidates.filter((item) => item.roundCandidate?.requires_mep).length ?? 0;
+    return (
+      this.masterData?.candidates.filter((item) => item.roundCandidate?.requires_mep).length ?? 0
+    );
   }
 
   protected attemptLabel(attempt?: number): string {
@@ -55,7 +65,9 @@ export class CandidatesComponent {
   protected specializations(): string[] {
     return [
       ...new Set(
-        (this.masterData?.candidates ?? []).map((item) => item.candidate.specialization).filter(Boolean),
+        (this.masterData?.candidates ?? [])
+          .map((item) => item.candidate.specialization)
+          .filter(Boolean),
       ),
     ].sort((a, b) => this.specializationLabel(a).localeCompare(this.specializationLabel(b)));
   }

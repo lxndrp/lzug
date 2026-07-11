@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +21,6 @@ from .models import (
     Resource,
 )
 from .store import Store
-
 
 SPECIALIZATION_LABELS = {
     "application_development": "Anwendungsentwicklung",
@@ -217,19 +216,12 @@ class ResourceRepository:
 
         updater = store.get(COMMITTEE_MEMBER, payload["updated_by_member_id"])
         if updater is None or updater["committee_id"] != exam_round["committee_id"]:
-            raise ValueError(
-                "Updating member does not belong to the exam round committee"
-            )
+            raise ValueError("Updating member does not belong to the exam round committee")
 
-        if (
-            "default_location_id" in payload
-            and payload["default_location_id"] is not None
-        ):
+        if "default_location_id" in payload and payload["default_location_id"] is not None:
             location = store.get(LOCATION, payload["default_location_id"])
             if location is None or location["committee_id"] != exam_round["committee_id"]:
-                raise ValueError(
-                    "Default location does not belong to the exam round committee"
-                )
+                raise ValueError("Default location does not belong to the exam round committee")
 
         existing = store.first(
             PLANNING_SETTINGS,
@@ -276,9 +268,10 @@ class ResourceRepository:
         if normalized["availability"] == "pending":
             normalized["responded_at"] = None
         else:
-            normalized["responded_at"] = normalized.get("responded_at") or datetime.now(
-                timezone.utc
-            ).replace(microsecond=0).isoformat()
+            normalized["responded_at"] = (
+                normalized.get("responded_at")
+                or datetime.now(UTC).replace(microsecond=0).isoformat()
+            )
         return normalized
 
 

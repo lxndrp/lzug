@@ -252,7 +252,9 @@ export class App {
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
         next: () => {
-          this.message.set(`${this.fullMemberName(member)} ist ${nextActive ? 'aktiv' : 'inaktiv'}`);
+          this.message.set(
+            `${this.fullMemberName(member)} ist ${nextActive ? 'aktiv' : 'inaktiv'}`,
+          );
           this.refresh();
         },
         error: () => this.message.set('Prüferstatus konnte nicht geändert werden'),

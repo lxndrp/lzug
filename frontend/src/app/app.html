@@ -70,16 +70,30 @@
 <div class="app-wrapper">
   <c-header position="sticky">
     <c-container fluid>
-      <button cHeaderToggler cSidebarToggle="appSidebar" class="app-sidebar-toggle" type="button"></button>
+      <button
+        cHeaderToggler
+        cSidebarToggle="appSidebar"
+        class="app-sidebar-toggle"
+        type="button"
+      ></button>
       <c-header-brand>{{ pageTitle() }}</c-header-brand>
       <span class="app-spacer"></span>
       <span cHeaderText class="app-muted">
         {{ apiRoot()?.name || 'Nicht verbunden' }} · {{ loading() ? 'Lädt Daten' : message() }}
       </span>
-      <button cButton color="secondary" variant="outline" type="button" (click)="refresh()" [disabled]="loading()">
+      <button
+        cButton
+        color="secondary"
+        variant="outline"
+        type="button"
+        (click)="refresh()"
+        [disabled]="loading()"
+      >
         Aktualisieren
       </button>
-      <button cButton color="secondary" variant="outline" type="button" (click)="openDocs()">OpenAPI</button>
+      <button cButton color="secondary" variant="outline" type="button" (click)="openDocs()">
+        OpenAPI
+      </button>
     </c-container>
   </c-header>
 
@@ -98,35 +112,37 @@
 
       @switch (activeView()) {
         @case ('dashboard') {
-        <app-dashboard
-          [summary]="summary()"
-          [round]="round()"
-          [board]="board()"
-          [planningResult]="lastPlanningResult()"
-          [loading]="loading()"
-          [actionBusy]="actionBusy()"
-          (generateProposal)="generateProposal()"
-          (confirmPlan)="confirmPlan()"
-        />
+          <app-dashboard
+            [summary]="summary()"
+            [round]="round()"
+            [board]="board()"
+            [planningResult]="lastPlanningResult()"
+            [loading]="loading()"
+            [actionBusy]="actionBusy()"
+            (generateProposal)="generateProposal()"
+            (confirmPlan)="confirmPlan()"
+          />
         }
         @case ('candidates') {
           <app-candidates
             [masterData]="masterData()"
             [actionBusy]="actionBusy()"
             (createCandidate)="createCandidate($event)"
-            (deleteCandidate)="deleteCandidate($event.id, $event.first_name + ' ' + $event.last_name)"
+            (deleteCandidate)="
+              deleteCandidate($event.id, $event.first_name + ' ' + $event.last_name)
+            "
           />
         }
         @case ('committee') {
-        <app-committee
-          [masterData]="masterData()"
-          [selectedCommitteeIdInput]="selectedCommitteeId()"
-          [actionBusy]="actionBusy()"
-          (selectedCommitteeIdChange)="selectCommittee($event)"
-          (createCommittee)="createCommittee($event)"
-          (createMember)="createMember($event)"
-          (toggleMember)="toggleMember($event)"
-        />
+          <app-committee
+            [masterData]="masterData()"
+            [selectedCommitteeIdInput]="selectedCommitteeId()"
+            [actionBusy]="actionBusy()"
+            (selectedCommitteeIdChange)="selectCommittee($event)"
+            (createCommittee)="createCommittee($event)"
+            (createMember)="createMember($event)"
+            (toggleMember)="toggleMember($event)"
+          />
         }
         @case ('planning') {
           <app-planning

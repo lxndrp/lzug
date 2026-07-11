@@ -43,11 +43,7 @@ export type ExamRound = {
 };
 
 export type RoundStatus =
-  | 'draft'
-  | 'availability_requested'
-  | 'plan_proposed'
-  | 'plan_confirmed'
-  | string;
+  'draft' | 'availability_requested' | 'plan_proposed' | 'plan_confirmed' | string;
 
 export type PlanningSettings = {
   id?: number;
@@ -67,12 +63,7 @@ export type AvailabilityCount = {
 };
 
 export type AvailabilityValue =
-  | 'full_day'
-  | 'morning'
-  | 'afternoon'
-  | 'pending'
-  | 'unavailable'
-  | string;
+  'full_day' | 'morning' | 'afternoon' | 'pending' | 'unavailable' | string;
 
 export type PlanningResult = {
   status: RoundStatus;
