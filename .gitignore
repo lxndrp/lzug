@@ -1,55 +1,29 @@
+# OS
 .DS_Store
+
+# Frontend
 node_modules/
-.pnpm-store/
 dist/
-build/
+
+# Backend
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Environment
 .env
 .env.*
-.venv/
-*.egg-info/
+
+# Build artifacts
+build/
+
+# Logs
 *.log
+
+# Test coverage
 coverage/
 .coverage
 coverage.xml
 htmlcov/
 frontend/coverage/
-__pycache__/
-*.py[cod]
-var/
-
-*.rbc
-capybara-*.html
-.rspec
-/log
-/tmp
-/db/*.sqlite3
-/db/*.sqlite3-journal
-/public/system
-/coverage/
-/spec/tmp
-**.orig
-rerun.txt
-pickle-email-*.html
-
-# TODO Comment out these rules if you are OK with secrets being uploaded to the repo
-config/initializers/secret_token.rb
-config/secrets.yml
-
-## Environment normalisation:
-/.bundle
-/vendor/bundle
-
-# these should all be checked in to normalise the environment:
-# Gemfile.lock, .ruby-version, .ruby-gemset
-
-# unless supporting rvm < 1.11.0 or doing something fancy, ignore this:
-.rvmrc
-
-# if using bower-rails ignore default bower_components path bower.json files
-/vendor/assets/bower_components
-*.bowerrc
-bower.json
-
-# Ignore pow environment settings
-.powenv
-.pnpm-store
