@@ -33,10 +33,13 @@ jobs:
           python-version: "3.14.6"
           cache: pip
 
+      - name: Install UV
+        run: pip install uv
+
       - name: Install backend dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          uv venv
+          uv pip install -e ".[dev]"
 
       - name: Lint with ruff
         run: python -m ruff check .

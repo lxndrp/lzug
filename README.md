@@ -71,16 +71,16 @@ docs/backend-prototyp.md
 
 Ein erster persistenter Backend-Prototyp nutzt SQLite über SQLAlchemy. Die Abhängigkeiten sind in `pyproject.toml` beschrieben:
 
-Voraussetzung fuer Backend und Frontend sind Python 3.14.6 und Node.js 26.5.0, die über **mise** verwaltet werden (mit Fallback auf pyenv/nvm-kompatible Versionsdateien).
+Voraussetzung fuer Backend und Frontend sind Python 3.14.6 und Node.js 26.5.0, die über **mise** verwaltet werden. Das Python Virtual Environment wird durch **UV** verwaltet.
 
 ### Umgebung einrichten
 
 **Installation (alle Plattformen):**
 
-Installiere [mise](https://mise.jdx.dev/):
+Installiere [mise](https://mise.jdx.dev/) und [UV](https://docs.astral.sh/uv/):
 
 ```bash
-brew install mise
+brew install mise uv
 ```
 
 Dann installiere die in `.python-version` und `.node-version` definierten Versionen:
@@ -89,7 +89,7 @@ Dann installiere die in `.python-version` und `.node-version` definierten Versio
 mise install
 ```
 
-Dies installiert automatisch Python 3.14.6 und Node.js 26.5.0 und erstellt automatisch ein Virtual Environment unter `.venv`.
+Dies installiert automatisch Python 3.14.6 und Node.js 26.5.0.
 
 **Abhängigkeiten installieren:**
 
@@ -97,14 +97,17 @@ Dies installiert automatisch Python 3.14.6 und Node.js 26.5.0 und erstellt autom
 mise run setup
 ```
 
-Dies installiert automatisch:
-- Python-Abhängigkeiten: `pip install -e ".[dev]"`
-- Frontend-Abhängigkeiten: `npm install`
+Dies erstellt automatisch:
+- `.venv` Virtual Environment (via `uv venv`)
+- Python-Abhängigkeiten (via `uv pip install -e ".[dev]"`)
+- `uv.lock` Lockfile für reproduzierbare Installs
+- Frontend-Abhängigkeiten (via `npm install`)
 
 Oder manuell:
 
 ```bash
-.venv/bin/python -m pip install -e ".[dev]"
+uv venv
+uv pip install -e ".[dev]"
 cd frontend && npm install
 ```
 ```
