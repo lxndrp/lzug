@@ -31,14 +31,14 @@ mise run setup
 ```
 
 This:
-- Recreates `.venv` using `uv venv --python "$(mise which python)" --clear`
+- Recreates `.venv` using `uv venv --python "$(mise which python)" --clear --seed`
 - Installs Python dependencies: `uv pip install -e ".[dev]"`
 - Installs frontend dependencies: `npm install`
 - Locks exact versions in `uv.lock`
 
 Or manually:
 ```bash
-uv venv --python "$(mise which python)" --clear
+uv venv --python "$(mise which python)" --clear --seed
 uv pip install -e ".[dev]"
 cd frontend && npm install
 ```

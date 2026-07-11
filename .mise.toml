@@ -8,7 +8,7 @@ python.uv_venv_auto = true
 [tasks.setup]
 description = "Recreate virtualenv and install dependencies"
 run = """
-uv venv --python "$(mise which python)" --clear
+uv venv --python "$(mise which python)" --clear --seed
 uv pip install -e ".[dev]"
 cd frontend && npm install
 """

@@ -98,7 +98,7 @@ mise run setup
 ```
 
 Dies erstellt automatisch:
-- `.venv` Virtual Environment (via `uv venv --python "$(mise which python)" --clear`)
+- `.venv` Virtual Environment (via `uv venv --python "$(mise which python)" --clear --seed`)
 - Python-Abhängigkeiten (via `uv pip install -e ".[dev]"`)
 - `uv.lock` Lockfile für reproduzierbare Installs
 - Frontend-Abhängigkeiten (via `npm install`)
@@ -106,7 +106,7 @@ Dies erstellt automatisch:
 Oder manuell:
 
 ```bash
-uv venv --python "$(mise which python)" --clear
+uv venv --python "$(mise which python)" --clear --seed
 uv pip install -e ".[dev]"
 cd frontend && npm install
 ```

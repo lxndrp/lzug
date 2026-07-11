@@ -50,5 +50,6 @@
         "javascript",
         "typescript"
     ],
-    "python-envs.defaultEnvManager": "ms-python.python:venv"
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
+    "python-envs.alwaysUseUv": true
 }
