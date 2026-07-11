@@ -5,7 +5,7 @@ import unittest
 from backend.models import EXAM_DAY, EXAM_DAY_ASSIGNMENT, EXAM_ROUND, EXAM_SLOT
 from backend.planning import PlanningService
 from backend.repositories import ResourceRepository
-from tests.helpers import TempDatabase
+from backend.tests.helpers import TempDatabase
 
 
 class PlanningTests(unittest.TestCase):

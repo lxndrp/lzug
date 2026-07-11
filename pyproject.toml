@@ -15,13 +15,13 @@ dev = [
 ]
 
 [tool.unittest]
-start-dir = "tests"
+start-dir = "backend/tests"
 
 [tool.coverage.run]
 branch = true
 source = ["backend"]
 omit = [
-  "tests/*",
+  "backend/tests/*",
 ]
 
 [tool.coverage.report]

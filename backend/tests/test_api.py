@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from http import HTTPStatus
 
-from tests.helpers import ApiServer, TempDatabase, assert_status
+from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
 
 class ApiTests(unittest.TestCase):

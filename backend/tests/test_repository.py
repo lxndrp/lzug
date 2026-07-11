@@ -4,7 +4,7 @@ import unittest
 
 from backend.models import CANDIDATE, MEMBER_AVAILABILITY, PLANNING_SETTINGS
 from backend.repositories import ResourceRepository
-from tests.helpers import TempDatabase
+from backend.tests.helpers import TempDatabase
 
 
 class RepositoryTests(unittest.TestCase):
