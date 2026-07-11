@@ -2,7 +2,7 @@
 name = "lzug"
 version = "0.1.0"
 description = "Backend-Prototyp fuer die lzug Pruefungsrunden-App"
-requires-python = ">=3.11"
+requires-python = ">=3.14.6"
 dependencies = [
   "SQLAlchemy>=2.0,<3.0",
 ]
@@ -44,7 +44,7 @@ packages = ["backend"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py314"
 exclude = [".venv", "dist", "build", ".git", "__pycache__"]
 
 [tool.ruff.lint]
@@ -52,7 +52,7 @@ select = ["E", "F", "W", "I", "N", "UP", "B"]
 
 [tool.black]
 line-length = 100
-target-version = ["py311"]
+target-version = ["py314"]
 include = '\.pyi?$'
 extend-exclude = '''
 /(
