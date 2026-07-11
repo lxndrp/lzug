@@ -1,7 +1,6 @@
 [tasks.setup]
-description = "Initial project setup"
+description = "Install project dependencies"
 run = """
-python -m venv .venv
 .venv/bin/python -m pip install -e ".[dev]"
 cd frontend && npm install
 """
@@ -19,3 +18,9 @@ run = """
 echo "Starting backend and frontend..."
 (.venv/bin/python -m backend.app --init &) && (cd frontend && npm start)
 """
+
+[tools]
+python = "3.14.6"
+
+[env]
+_.python.venv = { path = ".venv", create = true }

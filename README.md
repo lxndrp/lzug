@@ -89,25 +89,24 @@ Dann installiere die in `.python-version` und `.node-version` definierten Versio
 mise install
 ```
 
-Dies installiert automatisch Python 3.14.6 und Node.js 26.5.0.
+Dies installiert automatisch Python 3.14.6 und Node.js 26.5.0 und erstellt automatisch ein Virtual Environment unter `.venv`.
 
-**Python Virtual Environment:**
-
-```bash
-python -m venv .venv
-.venv/bin/python -m pip install -e ".[dev]"
-```
-
-**Frontend-Abhängigkeiten:**
-
-```bash
-cd frontend && npm install
-```
-
-Oder nutze die vordefinierte mise-Task:
+**Abhängigkeiten installieren:**
 
 ```bash
 mise run setup
+```
+
+Dies installiert automatisch:
+- Python-Abhängigkeiten: `pip install -e ".[dev]"`
+- Frontend-Abhängigkeiten: `npm install`
+
+Oder manuell:
+
+```bash
+.venv/bin/python -m pip install -e ".[dev]"
+cd frontend && npm install
+```
 ```
 
 Der Server startet danach mit:
