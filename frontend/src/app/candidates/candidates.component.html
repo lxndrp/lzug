@@ -1,0 +1,197 @@
+<div class="row g-4">
+  <div class="col-12 col-xl-4">
+    <c-card>
+      <c-card-header>
+        <strong>Prüflinge</strong>
+      </c-card-header>
+      <c-card-body>
+        <dl class="row mb-0">
+          <dt class="col-7">Gesamt</dt>
+          <dd class="col-5">{{ candidateCount() }}</dd>
+          <dt class="col-7">MEP</dt>
+          <dd class="col-5">{{ mepCount() }}</dd>
+        </dl>
+      </c-card-body>
+    </c-card>
+  </div>
+
+  <div class="col-12 col-xl-8">
+    <c-card>
+      <c-card-header>
+        <strong>Prüfling anlegen</strong>
+      </c-card-header>
+      <c-card-body>
+        <form class="row g-3" (ngSubmit)="submitCandidate()">
+          <div class="col-12 col-md-6">
+            <label cLabel for="candidateFirstName">Vorname</label>
+            <input
+              cFormControl
+              id="candidateFirstName"
+              name="firstName"
+              [(ngModel)]="draft.first_name"
+              required
+            />
+          </div>
+          <div class="col-12 col-md-6">
+            <label cLabel for="candidateLastName">Nachname</label>
+            <input
+              cFormControl
+              id="candidateLastName"
+              name="lastName"
+              [(ngModel)]="draft.last_name"
+              required
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <label cLabel for="candidateExamNumber">Prüfungsnummer</label>
+            <input
+              cFormControl
+              id="candidateExamNumber"
+              name="examNumber"
+              [(ngModel)]="draft.ihk_exam_number"
+              required
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <label cLabel for="candidateSpecialization">Fachrichtung</label>
+            <select
+              cSelect
+              id="candidateSpecialization"
+              name="candidateSpecialization"
+              [(ngModel)]="draft.specialization"
+            >
+              <option value="application_development">Anwendungsentwicklung</option>
+              <option value="system_integration">Systemintegration</option>
+              <option value="data_and_process_analysis">Daten- und Prozessanalyse</option>
+              <option value="digital_networking">Digitale Vernetzung</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-4">
+            <label cLabel for="candidateAttempt">Versuch</label>
+            <input
+              cFormControl
+              id="candidateAttempt"
+              min="1"
+              name="attempt"
+              type="number"
+              [(ngModel)]="draft.attempt_number"
+            />
+          </div>
+          <div class="col-12 col-md-8">
+            <label cLabel for="candidateCompany">Ausbildungsbetrieb</label>
+            <input
+              cFormControl
+              id="candidateCompany"
+              name="company"
+              [(ngModel)]="draft.training_company"
+            />
+          </div>
+          <div class="col-12 col-md-4 d-flex align-items-end">
+            <div cFormCheck>
+              <input
+                cFormCheckInput
+                id="candidateMep"
+                name="requiresMep"
+                type="checkbox"
+                [ngModel]="draft.requires_mep === 1"
+                (ngModelChange)="draft.requires_mep = $event ? 1 : 0"
+              />
+              <label cFormCheckLabel for="candidateMep">MEP erforderlich</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <button cButton color="primary" type="submit" [disabled]="actionBusy">Prüfling anlegen</button>
+          </div>
+        </form>
+      </c-card-body>
+    </c-card>
+  </div>
+
+  <div class="col-12">
+    <c-card>
+      <c-card-header>
+        <strong>Prüflingsliste</strong>
+        <span class="app-muted">{{ filteredCandidates().length }} von {{ candidateCount() }}</span>
+      </c-card-header>
+      <c-card-body>
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-md-8">
+            <label cLabel for="candidateSearch">Suche</label>
+            <input
+              cFormControl
+              id="candidateSearch"
+              type="search"
+              [ngModel]="query()"
+              (ngModelChange)="query.set($event)"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <label cLabel for="candidateFilter">Fachrichtung</label>
+            <select
+              cSelect
+              id="candidateFilter"
+              [ngModel]="specialization()"
+              (ngModelChange)="specialization.set($event)"
+            >
+              <option value="">Alle Fachrichtungen</option>
+              @for (value of specializations(); track value) {
+                <option [value]="value">{{ specializationLabel(value) }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <table cTable hover small responsive>
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Prüfungsnummer</th>
+              <th scope="col">Fachrichtung</th>
+              <th scope="col">Versuch</th>
+              <th scope="col">MEP</th>
+              <th scope="col">Ausbildungsbetrieb</th>
+              <th scope="col">Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of filteredCandidates(); track item.candidate.id) {
+              <tr>
+                <td>
+                  <strong>{{ item.candidate.last_name }}, {{ item.candidate.first_name }}</strong>
+                </td>
+                <td>{{ item.candidate.ihk_exam_number }}</td>
+                <td>{{ specializationLabel(item.candidate.specialization) }}</td>
+                <td>
+                  <c-badge color="secondary">{{ attemptLabel(item.roundCandidate?.attempt_number) }}</c-badge>
+                </td>
+                <td>
+                  <c-badge [color]="item.roundCandidate?.requires_mep ? 'warning' : 'secondary'">
+                    {{ item.roundCandidate?.requires_mep ? 'MEP' : 'Nein' }}
+                  </c-badge>
+                </td>
+                <td>{{ item.candidate.training_company }}</td>
+                <td>
+                  <button
+                    cButton
+                    color="danger"
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                    [disabled]="actionBusy"
+                    (click)="deleteCandidate.emit(item.candidate)"
+                  >
+                    Löschen
+                  </button>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7">Keine passenden Prüflinge vorhanden.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </c-card-body>
+    </c-card>
+  </div>
+</div>

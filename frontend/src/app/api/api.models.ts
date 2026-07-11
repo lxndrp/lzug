@@ -30,6 +30,18 @@ export type RoundSummary = {
   _links: Record<string, ApiLink>;
 };
 
+export type ExamRound = {
+  id: number;
+  name: string;
+  committee_id: number;
+  status: RoundStatus;
+  availability_deadline: string | null;
+  availability_reminder_at: string | null;
+  created_at?: string;
+  updated_at?: string;
+  _links?: Record<string, ApiLink>;
+};
+
 export type RoundStatus =
   | 'draft'
   | 'availability_requested'
@@ -38,12 +50,15 @@ export type RoundStatus =
   | string;
 
 export type PlanningSettings = {
+  id?: number;
+  exam_round_id?: number;
   calendar_week_from: string;
   calendar_week_to: string;
   exams_per_day: number;
   max_exam_days_per_week: number;
   lunch_break_enabled?: number;
   default_location_id?: number | null;
+  updated_by_member_id?: number;
 };
 
 export type AvailabilityCount = {
@@ -122,9 +137,41 @@ export type CommitteeMember = {
 
 export type Location = {
   id: number;
+  committee_id?: number;
   name: string;
+  street?: string;
+  postal_code?: string;
   room: string;
   city: string;
+  is_active?: number;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type Candidate = {
+  id: number;
+  first_name: string;
+  last_name: string;
+  ihk_exam_number: string;
+  specialization: string;
+  training_company: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type RoundCandidate = {
+  id: number;
+  exam_round_id: number;
+  candidate_id: number;
+  attempt_number: number;
+  requires_mep: number;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type CandidateView = {
+  candidate: Candidate;
+  roundCandidate?: RoundCandidate;
 };
 
 export type CandidateExamDay = {
@@ -136,9 +183,11 @@ export type CandidateExamDay = {
 
 export type MemberAvailability = {
   id: number;
+  exam_round_id?: number;
   committee_member_id: number;
   candidate_exam_day_id: number;
   availability: AvailabilityValue;
+  responded_at?: string | null;
 };
 
 export type PlanningDayView = {
@@ -151,6 +200,7 @@ export type PlanningDayView = {
 export type PlanningBoard = {
   days: PlanningDayView[];
   members: CommitteeMember[];
+  candidates: CandidateView[];
   candidateDays: CandidateExamDay[];
   availabilities: MemberAvailability[];
   locations: Location[];
@@ -159,4 +209,6 @@ export type PlanningBoard = {
 export type MasterData = {
   committees: Committee[];
   members: CommitteeMember[];
+  candidates: CandidateView[];
+  locations: Location[];
 };

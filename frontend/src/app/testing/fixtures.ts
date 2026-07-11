@@ -1,15 +1,19 @@
 import {
   ApiRoot,
+  Candidate,
   CandidateExamDay,
+  CandidateView,
   Committee,
   CommitteeMember,
   ExamDay,
   ExamDayAssignment,
+  ExamRound,
   ExamSlot,
   Location,
   MasterData,
   MemberAvailability,
   PlanningBoard,
+  RoundCandidate,
   RoundSummary,
 } from '../api/api.models';
 
@@ -66,13 +70,72 @@ export const membersFixture: CommitteeMember[] = [
 ];
 
 export const locationsFixture: Location[] = [
-  { id: 1, name: 'Bildungszentrum HafenCity', room: '3.12', city: 'Hamburg' },
+  {
+    id: 1,
+    committee_id: 1,
+    name: 'Bildungszentrum HafenCity',
+    street: 'Prüfungsweg 1',
+    postal_code: '20457',
+    room: '3.12',
+    city: 'Hamburg',
+    is_active: 1,
+  },
 ];
+
+export const candidatesFixture: Candidate[] = [
+  {
+    id: 1,
+    first_name: 'Lea',
+    last_name: 'Hoffmann',
+    ihk_exam_number: 'FI-2026-1042',
+    specialization: 'Anwendungsentwicklung',
+    training_company: 'Nordlicht Digital GmbH',
+  },
+  {
+    id: 2,
+    first_name: 'Jonas',
+    last_name: 'Weber',
+    ihk_exam_number: 'FI-2026-1057',
+    specialization: 'Systemintegration',
+    training_company: 'HanseNet Solutions AG',
+  },
+];
+
+export const roundCandidatesFixture: RoundCandidate[] = [
+  {
+    id: 1,
+    exam_round_id: 1,
+    candidate_id: 1,
+    attempt_number: 1,
+    requires_mep: 0,
+  },
+  {
+    id: 2,
+    exam_round_id: 1,
+    candidate_id: 2,
+    attempt_number: 2,
+    requires_mep: 1,
+  },
+];
+
+export const candidateViewsFixture: CandidateView[] = candidatesFixture.map((candidate) => ({
+  candidate,
+  roundCandidate: roundCandidatesFixture.find((item) => item.candidate_id === candidate.id),
+}));
 
 export const candidateDaysFixture: CandidateExamDay[] = [
   { id: 1, exam_round_id: 1, date: '2026-11-16', is_active: 1 },
   { id: 2, exam_round_id: 1, date: '2026-11-17', is_active: 0 },
 ];
+
+export const examRoundFixture: ExamRound = {
+  id: 1,
+  name: 'Winter 2026/27',
+  committee_id: 1,
+  status: 'availability_requested',
+  availability_deadline: '2026-10-15 18:00:00',
+  availability_reminder_at: '2026-10-08 09:00:00',
+};
 
 export const availabilitiesFixture: MemberAvailability[] = [
   { id: 1, committee_member_id: 1, candidate_exam_day_id: 1, availability: 'full_day' },
@@ -168,11 +231,14 @@ export const summaryFixture: RoundSummary = {
 export const masterDataFixture: MasterData = {
   committees: committeesFixture,
   members: membersFixture,
+  candidates: candidateViewsFixture,
+  locations: locationsFixture,
 };
 
 export const planningBoardFixture: PlanningBoard = {
   members: membersFixture,
   locations: locationsFixture,
+  candidates: candidateViewsFixture,
   candidateDays: candidateDaysFixture,
   availabilities: availabilitiesFixture,
   days: [

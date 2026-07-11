@@ -5,9 +5,12 @@ import { forkJoin, map, of, switchMap } from 'rxjs';
 import {
   ApiCollection,
   ApiRoot,
+  Candidate,
   CandidateExamDay,
+  CandidateView,
   Committee,
   CommitteeMember,
+  ExamRound,
   ExamDay,
   ExamDayAssignment,
   ExamSlot,
@@ -16,13 +19,20 @@ import {
   MemberAvailability,
   PlanningBoard,
   PlanningResult,
+  PlanningSettings,
+  RoundCandidate,
   RoundSummary,
 } from './api.models';
+import { RoundContextService } from './round-context.service';
 
 @Injectable({ providedIn: 'root' })
 export class PlanningApiService {
   private readonly http = inject(HttpClient);
-  private readonly roundId = 1;
+  private readonly roundContext = inject(RoundContextService);
+
+  private get roundId(): number {
+    return this.roundContext.roundId();
+  }
 
   getRoot() {
     return this.http.get<ApiRoot>('/api');
@@ -32,6 +42,10 @@ export class PlanningApiService {
     return this.http.get<RoundSummary>(`/api/round-summary?round_id=${this.roundId}`);
   }
 
+  getExamRound() {
+    return this.http.get<ExamRound>(`/api/exam-rounds/${this.roundId}`);
+  }
+
   getPlanningBoard() {
     return forkJoin({
       days: this.list<ExamDay>(`/api/exam-days?round_id=${this.roundId}`),
@@ -39,6 +53,7 @@ export class PlanningApiService {
       assignments: this.list<ExamDayAssignment>('/api/exam-day-assignments'),
       members: this.list<CommitteeMember>('/api/members'),
       locations: this.list<Location>('/api/locations'),
+      candidates: this.getCandidateViews(),
       candidateDays: this.list<CandidateExamDay>(
         `/api/candidate-exam-days?round_id=${this.roundId}`,
       ),
@@ -47,11 +62,12 @@ export class PlanningApiService {
       ),
     }).pipe(
       map(
-        ({ days, slots, assignments, members, locations, candidateDays, availabilities }) => {
+        ({ days, slots, assignments, members, locations, candidates, candidateDays, availabilities }) => {
           const sortedDays = [...days].sort((a, b) => a.date.localeCompare(b.date));
           const board: PlanningBoard = {
             members,
             locations,
+            candidates,
             candidateDays,
             availabilities,
             days: sortedDays.map((day) => ({
@@ -73,7 +89,23 @@ export class PlanningApiService {
     return forkJoin({
       committees: this.list<Committee>('/api/committees'),
       members: this.list<CommitteeMember>('/api/members'),
+      candidates: this.getCandidateViews(),
+      locations: this.list<Location>('/api/locations'),
     });
+  }
+
+  getCandidateViews() {
+    return forkJoin({
+      candidates: this.list<Candidate>('/api/candidates'),
+      roundCandidates: this.list<RoundCandidate>(`/api/round-candidates?round_id=${this.roundId}`),
+    }).pipe(
+      map(({ candidates, roundCandidates }) =>
+        candidates.map((candidate): CandidateView => ({
+          candidate,
+          roundCandidate: roundCandidates.find((item) => item.candidate_id === candidate.id),
+        })),
+      ),
+    );
   }
 
   refreshDashboard() {
@@ -81,13 +113,15 @@ export class PlanningApiService {
       switchMap((root) =>
         forkJoin({
           root: of(root),
+          round: this.getExamRound(),
           summary: this.getRoundSummary(),
           board: this.getPlanningBoard(),
           masterData: this.getMasterData(),
         }),
       ),
-      map(({ root, summary, board, masterData }) => ({
+      map(({ root, round, summary, board, masterData }) => ({
         root,
+        round,
         summary,
         board,
         masterData,
@@ -109,6 +143,48 @@ export class PlanningApiService {
 
   updateMember(id: number, payload: Partial<Omit<CommitteeMember, 'id'>>) {
     return this.http.patch<CommitteeMember>(`/api/members/${id}`, payload);
+  }
+
+  createCandidate(payload: Omit<Candidate, 'id'> & { attempt_number: number; requires_mep: number }) {
+    return this.http.post<Candidate>('/api/candidates', {
+      ...payload,
+      exam_round_id: this.roundId,
+    });
+  }
+
+  deleteCandidate(id: number) {
+    return this.http.delete<void>(`/api/candidates/${id}`);
+  }
+
+  createLocation(payload: Omit<Location, 'id'>) {
+    return this.http.post<Location>('/api/locations', payload);
+  }
+
+  savePlanningSettings(payload: Omit<PlanningSettings, 'id' | 'exam_round_id'>) {
+    return this.http.post<PlanningSettings>('/api/planning-settings', {
+      ...payload,
+      exam_round_id: this.roundId,
+    });
+  }
+
+  createCandidateExamDay(payload: Omit<CandidateExamDay, 'id' | 'exam_round_id'>) {
+    return this.http.post<CandidateExamDay>('/api/candidate-exam-days', {
+      ...payload,
+      exam_round_id: this.roundId,
+    });
+  }
+
+  updateCandidateExamDay(id: number, payload: Partial<Pick<CandidateExamDay, 'is_active'>>) {
+    return this.http.patch<CandidateExamDay>(`/api/candidate-exam-days/${id}`, payload);
+  }
+
+  saveMemberAvailability(
+    payload: Pick<MemberAvailability, 'committee_member_id' | 'candidate_exam_day_id' | 'availability'>,
+  ) {
+    return this.http.post<MemberAvailability>('/api/member-availabilities', {
+      ...payload,
+      exam_round_id: this.roundId,
+    });
   }
 
   generateProposal() {
