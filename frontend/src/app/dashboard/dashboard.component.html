@@ -148,13 +148,13 @@
     </c-card>
   </div>
 
-  @if (planningResult?.validation) {
+  @if (planningResult?.validation; as validation) {
     <div class="col-12">
-      <c-alert [color]="planningResult?.validation?.passed ? 'success' : 'warning'">
+      <c-alert [color]="validation.passed ? 'success' : 'warning'">
         <strong>Validierungsreport</strong>
-        @if (planningResult?.validation?.messages?.length) {
+        @if (validation.messages.length) {
           <ul class="mb-0">
-            @for (message of planningResult?.validation?.messages || []; track message) {
+            @for (message of validation.messages; track message) {
               <li>{{ message }}</li>
             }
           </ul>
