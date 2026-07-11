@@ -1,7 +1,12 @@
+[tools]
+uv = "latest"
+
+[settings]
+python.uv_venv_auto = true
+
 [tasks.setup]
-description = "Create virtualenv and install dependencies"
+description = "Install project dependencies"
 run = """
-uv venv
 uv pip install -e ".[dev]"
 cd frontend && npm install
 """
@@ -20,5 +25,3 @@ echo "Starting backend and frontend..."
 (.venv/bin/python -m backend.app --init &) && (cd frontend && npm start)
 """
 
-[tools]
-python = "3.14.6"
