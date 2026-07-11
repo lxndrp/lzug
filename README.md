@@ -1,5 +1,9 @@
 # lzug
 
+[![CI](https://github.com/lxndrp/lzug/actions/workflows/ci.yml/badge.svg)](https://github.com/lxndrp/lzug/actions/workflows/ci.yml)
+![Status](https://img.shields.io/badge/status-prototype-yellow)
+![Coverage](https://img.shields.io/badge/coverage-83%25-brightgreen)
+
 `lzug` ist eine Web-App zur Unterstützung eines IHK-Prüfungsausschusses bei der Organisation halbjährlicher Fachinformatiker-Prüfungen.
 
 Der aktuelle Fokus liegt auf der Prüfungsrunde:
