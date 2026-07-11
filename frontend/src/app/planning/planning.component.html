@@ -1,0 +1,253 @@
+<div class="row g-4">
+  <div class="col-12 col-xl-4">
+    <c-card>
+      <c-card-header>
+        <strong>Kapazitätsvorschau</strong>
+      </c-card-header>
+      <c-card-body>
+        <dl class="row mb-0">
+          <dt class="col-7">Benötigte Termine</dt>
+          <dd class="col-5">{{ requiredSlots() }}</dd>
+          <dt class="col-7">Verfügbare Plätze</dt>
+          <dd class="col-5">{{ capacity() }}</dd>
+          <dt class="col-7">Bewertung</dt>
+          <dd class="col-5">
+            <c-badge [color]="capacity() >= requiredSlots() ? 'success' : 'warning'">
+              {{ capacity() >= requiredSlots() ? 'ausreichend' : 'Unterdeckung' }}
+            </c-badge>
+          </dd>
+        </dl>
+      </c-card-body>
+    </c-card>
+  </div>
+
+  <div class="col-12 col-xl-8">
+    <c-card>
+      <c-card-header>
+        <strong>Planungsrahmen</strong>
+      </c-card-header>
+      <c-card-body>
+        <form class="row g-3" (ngSubmit)="submitSettings()">
+          <div class="col-12 col-md-6">
+            <label cLabel for="weekFrom">KW von</label>
+            <input
+              cFormControl
+              id="weekFrom"
+              name="weekFrom"
+              placeholder="2026-W47"
+              [(ngModel)]="draft.calendar_week_from"
+              required
+            />
+          </div>
+          <div class="col-12 col-md-6">
+            <label cLabel for="weekTo">KW bis</label>
+            <input
+              cFormControl
+              id="weekTo"
+              name="weekTo"
+              placeholder="2026-W49"
+              [(ngModel)]="draft.calendar_week_to"
+              required
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <label cLabel for="examsPerDay">Prüfungen pro Tag</label>
+            <input
+              cFormControl
+              id="examsPerDay"
+              min="1"
+              name="examsPerDay"
+              type="number"
+              [(ngModel)]="draft.exams_per_day"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <label cLabel for="examDaysPerWeek">Max. Tage pro Woche</label>
+            <input
+              cFormControl
+              id="examDaysPerWeek"
+              max="5"
+              min="1"
+              name="examDaysPerWeek"
+              type="number"
+              [(ngModel)]="draft.max_exam_days_per_week"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <label cLabel for="defaultLocation">Standardort</label>
+            <select
+              cSelect
+              id="defaultLocation"
+              name="defaultLocation"
+              [(ngModel)]="draft.default_location_id"
+            >
+              <option [ngValue]="null">Kein Standardort</option>
+              @for (location of board?.locations || []; track location.id) {
+                <option [ngValue]="location.id">{{ location.name }} · {{ location.room }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-12 col-md-8">
+            <label cLabel for="updatedByMember">Geändert durch</label>
+            <select
+              cSelect
+              id="updatedByMember"
+              name="updatedByMember"
+              [(ngModel)]="draft.updated_by_member_id"
+            >
+              @for (member of masterData?.members || []; track member.id) {
+                <option [ngValue]="member.id">{{ member.first_name }} {{ member.last_name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-12 col-md-4 d-flex align-items-end">
+            <div cFormCheck>
+              <input
+                cFormCheckInput
+                id="lunchBreak"
+                name="lunchBreak"
+                type="checkbox"
+                [ngModel]="draft.lunch_break_enabled === 1"
+                (ngModelChange)="draft.lunch_break_enabled = $event ? 1 : 0"
+              />
+              <label cFormCheckLabel for="lunchBreak">Mittagspause</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <button cButton color="primary" type="submit" [disabled]="actionBusy">
+              Planungsrahmen speichern
+            </button>
+          </div>
+        </form>
+      </c-card-body>
+    </c-card>
+  </div>
+
+  <div class="col-12">
+    <c-card>
+      <c-card-header>
+        <strong>Mögliche Prüfungstage</strong>
+      </c-card-header>
+      <c-card-body>
+        <form class="row g-3 mb-3" (ngSubmit)="submitCandidateDay()">
+          <div class="col-12 col-md-4">
+            <label cLabel for="candidateDayDate">Datum</label>
+            <input
+              cFormControl
+              id="candidateDayDate"
+              name="candidateDayDate"
+              type="date"
+              [(ngModel)]="candidateDayDraft.date"
+              required
+            />
+          </div>
+          <div class="col-12 col-md-4 d-flex align-items-end">
+            <div cFormCheck>
+              <input
+                cFormCheckInput
+                id="candidateDayActive"
+                name="candidateDayActive"
+                type="checkbox"
+                [ngModel]="candidateDayDraft.is_active === 1"
+                (ngModelChange)="candidateDayDraft.is_active = $event ? 1 : 0"
+              />
+              <label cFormCheckLabel for="candidateDayActive">Aktiv</label>
+            </div>
+          </div>
+          <div class="col-12 col-md-4 d-flex align-items-end">
+            <button cButton color="primary" type="submit" [disabled]="actionBusy">
+              Prüfungstag hinzufügen
+            </button>
+          </div>
+        </form>
+        <table cTable hover small responsive>
+          <thead>
+            <tr>
+              <th scope="col">Datum</th>
+              <th scope="col">Status</th>
+              <th scope="col">Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (day of board?.candidateDays || []; track day.id) {
+              <tr>
+                <td>{{ dateLabel(day.date) }}</td>
+                <td>
+                  <c-badge [color]="day.is_active ? 'success' : 'secondary'">
+                    {{ day.is_active ? 'aktiv' : 'inaktiv' }}
+                  </c-badge>
+                </td>
+                <td>
+                  <button
+                    cButton
+                    color="secondary"
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                    [disabled]="actionBusy"
+                    (click)="toggleCandidateDay.emit(day)"
+                  >
+                    {{ day.is_active ? 'Deaktivieren' : 'Aktivieren' }}
+                  </button>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="3">Keine möglichen Prüfungstage vorhanden.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </c-card-body>
+    </c-card>
+  </div>
+
+  <div class="col-12">
+    <c-card>
+      <c-card-header>
+        <strong>Verfügbarkeiten</strong>
+        <span class="app-muted">Änderungen werden direkt gespeichert.</span>
+      </c-card-header>
+      <c-card-body>
+        @if ((board?.candidateDays?.length || 0) > 0 && activeMembers().length > 0) {
+          <table cTable hover small responsive>
+            <thead>
+              <tr>
+                <th scope="col">Mitglied</th>
+                @for (day of board?.candidateDays || []; track day.id) {
+                  <th scope="col">{{ dateLabel(day.date) }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (member of activeMembers(); track member.id) {
+                <tr>
+                  <th scope="row">
+                    {{ memberLabel(member) }}
+                    <span class="app-muted d-block">{{ member.representing_side }}</span>
+                  </th>
+                  @for (day of board?.candidateDays || []; track day.id) {
+                    <td>
+                      <select
+                        cSelect
+                        [disabled]="actionBusy || !day.is_active"
+                        [ngModel]="availabilityFor(member.id, day.id)"
+                        (ngModelChange)="changeAvailability(member, day, $event)"
+                      >
+                        @for (option of availabilityOptions(); track option.value) {
+                          <option [ngValue]="option.value">{{ option.label }}</option>
+                        }
+                      </select>
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else {
+          <p>Keine aktiven Mitglieder oder möglichen Prüfungstage vorhanden.</p>
+        }
+      </c-card-body>
+    </c-card>
+  </div>
+</div>

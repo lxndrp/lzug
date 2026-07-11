@@ -1,21 +1,34 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { BadgeModule, ButtonModule, CardModule, GridModule, TableModule } from '@coreui/angular';
+import {
+  AlertModule,
+  BadgeModule,
+  ButtonModule,
+  CardModule,
+  GridModule,
+  TableModule,
+} from '@coreui/angular';
 
 import {
   AvailabilityValue,
+  ExamDayAssignment,
+  ExamRound,
+  ExamSlot,
   PlanningBoard,
   PlanningDayView,
+  PlanningResult,
   RoundSummary,
 } from '../api/api.models';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [BadgeModule, ButtonModule, CardModule, GridModule, TableModule],
+  imports: [AlertModule, BadgeModule, ButtonModule, CardModule, GridModule, TableModule],
   templateUrl: './dashboard.component.html',
 })
 export class DashboardComponent {
   @Input() summary: RoundSummary | null = null;
+  @Input() round: ExamRound | null = null;
   @Input() board: PlanningBoard | null = null;
+  @Input() planningResult: PlanningResult | null = null;
   @Input() loading = false;
   @Input() actionBusy = false;
 
@@ -63,6 +76,35 @@ export class DashboardComponent {
     return candidateDays.filter((day) => day.is_active).length;
   }
 
+  protected tasks() {
+    return [
+      {
+        label: 'Verfügbarkeiten',
+        detail: this.pendingCount()
+          ? `${this.pendingCount()} Rückmeldungen offen`
+          : 'Rückmeldungen vollständig',
+        color: this.pendingCount() ? 'warning' : 'success',
+      },
+      {
+        label: 'Prüflinge',
+        detail: `${this.summary?.counts?.candidates ?? 0} Prüflinge erfasst`,
+        color: (this.summary?.counts?.candidates ?? 0) > 0 ? 'success' : 'warning',
+      },
+      {
+        label: 'Planung',
+        detail: this.planTaskLabel(),
+        color: this.summary?.round.status === 'plan_confirmed' ? 'success' : 'info',
+      },
+    ];
+  }
+
+  protected confirmedDays(): PlanningDayView[] {
+    const isConfirmedRound = this.summary?.round.status === 'plan_confirmed';
+    return (this.board?.days ?? []).filter(
+      (item) => isConfirmedRound || item.day.status === 'confirmed',
+    );
+  }
+
   protected availabilityLabel(value: AvailabilityValue): string {
     const labels: Record<string, string> = {
       full_day: 'Ganztägig',
@@ -100,6 +142,22 @@ export class DashboardComponent {
     return match?.[1] ?? value;
   }
 
+  protected slotTitle(slot: ExamSlot): string {
+    return `${this.timeLabel(slot.starts_at)}-${this.timeLabel(slot.ends_at)} · ${this.candidateName(
+      slot.round_candidate_id,
+    )}`;
+  }
+
+  protected candidateName(roundCandidateId: number): string {
+    const candidate = this.board?.candidates.find(
+      (item) => item.roundCandidate?.id === roundCandidateId,
+    )?.candidate;
+    if (!candidate) {
+      return `Prüfling ${roundCandidateId}`;
+    }
+    return `${candidate.first_name} ${candidate.last_name}`;
+  }
+
   protected memberName(id: number): string {
     const member = this.board?.members.find((item) => item.id === id);
     if (!member) {
@@ -124,6 +182,17 @@ export class DashboardComponent {
       .sort((a, b) => a.assignment_role.localeCompare(b.assignment_role));
   }
 
+  protected assignmentColor(assignment: ExamDayAssignment): string {
+    return assignment.assignment_role === 'fallback' ? 'warning' : 'info';
+  }
+
+  protected assignmentRoleLabel(assignment: ExamDayAssignment): string {
+    if (assignment.assignment_role === 'fallback') {
+      return 'Fallback';
+    }
+    return 'Prüfer';
+  }
+
   protected availabilityColor(value: AvailabilityValue): string {
     const colors: Record<string, string> = {
       full_day: 'success',
@@ -133,5 +202,30 @@ export class DashboardComponent {
       unavailable: 'secondary',
     };
     return colors[value] ?? 'secondary';
+  }
+
+  protected dateTimeLabel(value: string | null | undefined): string {
+    if (!value) {
+      return '–';
+    }
+    return new Intl.DateTimeFormat('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(value.replace(' ', 'T')));
+  }
+
+  private planTaskLabel(): string {
+    if (this.summary?.round.status === 'plan_confirmed') {
+      return `${this.plannedSlotCount()} bestätigte Termine`;
+    }
+    if (this.summary?.round.status === 'plan_proposed') {
+      return 'Vorschlag bereit zur Bestätigung';
+    }
+    return this.plannedSlotCount()
+      ? `${this.plannedSlotCount()} Termine vorgeschlagen`
+      : 'Noch kein Vorschlag';
   }
 }

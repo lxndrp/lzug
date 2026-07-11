@@ -8,11 +8,14 @@ import {
   assignmentsFixture,
   availabilitiesFixture,
   candidateDaysFixture,
+  candidatesFixture,
   committeesFixture,
   examDaysFixture,
+  examRoundFixture,
   examSlotsFixture,
   locationsFixture,
   membersFixture,
+  roundCandidatesFixture,
   summaryFixture,
 } from './testing/fixtures';
 
@@ -44,11 +47,20 @@ describe('App', () => {
 
 function flushDashboardRequests(http: HttpTestingController): void {
   http.expectOne('/api').flush(apiRootFixture);
+  http.expectOne('/api/exam-rounds/1').flush(examRoundFixture);
   http.expectOne('/api/round-summary?round_id=1').flush(summaryFixture);
   http.expectOne('/api/exam-days?round_id=1').flush({ items: examDaysFixture, _links: {} });
   http.expectOne('/api/exam-slots').flush({ items: examSlotsFixture, _links: {} });
   http.expectOne('/api/exam-day-assignments').flush({ items: assignmentsFixture, _links: {} });
-  http.expectOne('/api/locations').flush({ items: locationsFixture, _links: {} });
+  const candidateRequests = http.match('/api/candidates');
+  expect(candidateRequests.length).toBe(2);
+  candidateRequests.forEach((request) => request.flush({ items: candidatesFixture, _links: {} }));
+
+  const roundCandidateRequests = http.match('/api/round-candidates?round_id=1');
+  expect(roundCandidateRequests.length).toBe(2);
+  roundCandidateRequests.forEach((request) =>
+    request.flush({ items: roundCandidatesFixture, _links: {} }),
+  );
   http.expectOne('/api/candidate-exam-days?round_id=1').flush({
     items: candidateDaysFixture,
     _links: {},
@@ -66,4 +78,8 @@ function flushDashboardRequests(http: HttpTestingController): void {
     items: committeesFixture,
     _links: {},
   });
+
+  const locationRequests = http.match('/api/locations');
+  expect(locationRequests.length).toBe(2);
+  locationRequests.forEach((request) => request.flush({ items: locationsFixture, _links: {} }));
 }

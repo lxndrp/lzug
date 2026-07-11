@@ -20,11 +20,44 @@
       <button
         class="nav-link"
         type="button"
-        [class.active]="activeView() === 'master-data'"
-        [attr.aria-current]="activeView() === 'master-data' ? 'page' : null"
-        (click)="showView('master-data')"
+        [class.active]="activeView() === 'candidates'"
+        [attr.aria-current]="activeView() === 'candidates' ? 'page' : null"
+        (click)="showView('candidates')"
       >
-        Stammdaten
+        Prüflinge
+      </button>
+    </li>
+    <li class="nav-item">
+      <button
+        class="nav-link"
+        type="button"
+        [class.active]="activeView() === 'committee'"
+        [attr.aria-current]="activeView() === 'committee' ? 'page' : null"
+        (click)="showView('committee')"
+      >
+        Ausschuss
+      </button>
+    </li>
+    <li class="nav-item">
+      <button
+        class="nav-link"
+        type="button"
+        [class.active]="activeView() === 'planning'"
+        [attr.aria-current]="activeView() === 'planning' ? 'page' : null"
+        (click)="showView('planning')"
+      >
+        Terminplanung
+      </button>
+    </li>
+    <li class="nav-item">
+      <button
+        class="nav-link"
+        type="button"
+        [class.active]="activeView() === 'locations'"
+        [attr.aria-current]="activeView() === 'locations' ? 'page' : null"
+        (click)="showView('locations')"
+      >
+        Prüfungsorte
       </button>
     </li>
     <li class="nav-title">Service</li>
@@ -63,16 +96,28 @@
         <h1>{{ pageTitle() }}</h1>
       </header>
 
-      @if (activeView() === 'dashboard') {
+      @switch (activeView()) {
+        @case ('dashboard') {
         <app-dashboard
           [summary]="summary()"
+          [round]="round()"
           [board]="board()"
+          [planningResult]="lastPlanningResult()"
           [loading]="loading()"
           [actionBusy]="actionBusy()"
           (generateProposal)="generateProposal()"
           (confirmPlan)="confirmPlan()"
         />
-      } @else {
+        }
+        @case ('candidates') {
+          <app-candidates
+            [masterData]="masterData()"
+            [actionBusy]="actionBusy()"
+            (createCandidate)="createCandidate($event)"
+            (deleteCandidate)="deleteCandidate($event.id, $event.first_name + ' ' + $event.last_name)"
+          />
+        }
+        @case ('committee') {
         <app-committee
           [masterData]="masterData()"
           [selectedCommitteeIdInput]="selectedCommitteeId()"
@@ -82,6 +127,26 @@
           (createMember)="createMember($event)"
           (toggleMember)="toggleMember($event)"
         />
+        }
+        @case ('planning') {
+          <app-planning
+            [summary]="summary()"
+            [board]="board()"
+            [masterData]="masterData()"
+            [actionBusy]="actionBusy()"
+            (saveSettings)="savePlanningSettings($event)"
+            (createCandidateDay)="createCandidateDay($event)"
+            (toggleCandidateDay)="toggleCandidateDay($event)"
+            (saveAvailability)="saveAvailability($event)"
+          />
+        }
+        @case ('locations') {
+          <app-locations
+            [masterData]="masterData()"
+            [actionBusy]="actionBusy()"
+            (createLocation)="createLocation($event)"
+          />
+        }
       }
     </c-container>
   </main>
