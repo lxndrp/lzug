@@ -98,7 +98,7 @@ mise run setup
 ```
 
 Dies erstellt automatisch:
-- `.venv` Virtual Environment (via `uv venv`)
+- `.venv` Virtual Environment (via `uv venv --python "$(mise which python)" --clear`)
 - Python-Abhängigkeiten (via `uv pip install -e ".[dev]"`)
 - `uv.lock` Lockfile für reproduzierbare Installs
 - Frontend-Abhängigkeiten (via `npm install`)
@@ -106,10 +106,9 @@ Dies erstellt automatisch:
 Oder manuell:
 
 ```bash
-uv venv
+uv venv --python "$(mise which python)" --clear
 uv pip install -e ".[dev]"
 cd frontend && npm install
-```
 ```
 
 Der Server startet danach mit:

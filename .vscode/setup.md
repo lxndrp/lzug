@@ -31,14 +31,14 @@ mise run setup
 ```
 
 This:
-- Creates `.venv` using `uv venv`
+- Recreates `.venv` using `uv venv --python "$(mise which python)" --clear`
 - Installs Python dependencies: `uv pip install -e ".[dev]"`
 - Installs frontend dependencies: `npm install`
 - Locks exact versions in `uv.lock`
 
 Or manually:
 ```bash
-uv venv
+uv venv --python "$(mise which python)" --clear
 uv pip install -e ".[dev]"
 cd frontend && npm install
 ```
@@ -132,4 +132,3 @@ Recommended extensions (auto-prompted in VSCode):
 - **dbaeumer.vscode-eslint** - ESLint integration
 - **esbenp.prettier-vscode** - Prettier formatter
 - **ryanluker.vscode-coverage-gutters** - Coverage report visualization
-

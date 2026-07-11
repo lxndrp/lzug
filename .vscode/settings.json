@@ -49,5 +49,6 @@
     "eslint.validate": [
         "javascript",
         "typescript"
-    ]
+    ],
+    "python-envs.defaultEnvManager": "ms-python.python:venv"
 }
