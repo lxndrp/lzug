@@ -5,7 +5,7 @@ import unittest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
-from server.database import connect, initialize
+from backend.database import connect, initialize
 from tests.helpers import TempDatabase
 
 

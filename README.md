@@ -29,7 +29,7 @@ lzug/
 │   └── backend-prototyp.md
 ├── frontend/
 │   └── Angular-App für die produktivere Oberfläche
-├── server/
+├── backend/
 │   ├── app.py
 │   ├── database.py
 │   ├── models.py
@@ -86,7 +86,7 @@ cd frontend && npm install
 Der Server startet danach mit:
 
 ```bash
-.venv/bin/python -m server.app --init --seed --reset
+.venv/bin/python -m backend.app --init --seed --reset
 ```
 
 Die Angular-App liegt unter `frontend/` und nutzt im Entwicklungsmodus einen Proxy auf den Python-Server:

@@ -8,8 +8,8 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-from server.app import LzugHandler
-from server.database import initialize
+from backend.app import LzugHandler
+from backend.database import initialize
 
 
 class TestLzugHandler(LzugHandler):

@@ -5,7 +5,7 @@
             "name": "lzug Backend",
             "type": "debugpy",
             "request": "launch",
-            "module": "server.app",
+            "module": "backend.app",
             "args": [
                 "--init",
                 "--seed",

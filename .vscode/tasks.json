@@ -120,7 +120,7 @@
             "command": "${workspaceFolder}/.venv/bin/python",
             "args": [
                 "-m",
-                "server.app",
+                "backend.app",
                 "--init",
                 "--seed",
                 "--reset"

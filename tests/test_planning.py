@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-from server.models import EXAM_DAY, EXAM_DAY_ASSIGNMENT, EXAM_ROUND, EXAM_SLOT
-from server.planning import PlanningService
-from server.repositories import ResourceRepository
+from backend.models import EXAM_DAY, EXAM_DAY_ASSIGNMENT, EXAM_ROUND, EXAM_SLOT
+from backend.planning import PlanningService
+from backend.repositories import ResourceRepository
 from tests.helpers import TempDatabase
 
 

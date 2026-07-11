@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from server.models import CANDIDATE, MEMBER_AVAILABILITY, PLANNING_SETTINGS
-from server.repositories import ResourceRepository
+from backend.models import CANDIDATE, MEMBER_AVAILABILITY, PLANNING_SETTINGS
+from backend.repositories import ResourceRepository
 from tests.helpers import TempDatabase
 
 

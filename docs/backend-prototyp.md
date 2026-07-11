@@ -26,7 +26,7 @@ Das ist weiterhin bewusst noch kein endgültiger Web-Stack. Der Wert liegt darin
 - `server/planning.py` erzeugt deterministische Planungsvorschläge und persistiert Prüfungstage, Slots und Besetzungen.
 - `server/hateoas.py` ergänzt JSON-Antworten um HAL-nahe `_links`.
 - `server/openapi.py` erzeugt die OpenAPI-3.1-Spezifikation.
-- `server/app.py` stellt JSON-Endpunkte bereit und enthält keine fachlichen SQL-Abfragen.
+- `backend/app.py` stellt JSON-Endpunkte bereit und enthält keine fachlichen SQL-Abfragen.
 - `db/seed_demo.sql` überführt die Demo-Daten aus dem Prototyp in relationale Tabellen.
 
 ## Start
@@ -34,7 +34,7 @@ Das ist weiterhin bewusst noch kein endgültiger Web-Stack. Der Wert liegt darin
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -e .
-.venv/bin/python -m server.app --init --seed --reset
+.venv/bin/python -m backend.app --init --seed --reset
 ```
 
 Danach läuft der Server standardmäßig unter:
