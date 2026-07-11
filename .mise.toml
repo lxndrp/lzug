@@ -6,10 +6,10 @@ uv = "latest"
 python.uv_venv_auto = true
 
 [tasks.setup]
-description = "Recreate virtualenv and install dependencies"
+description = "Recreate virtualenv and install locked dependencies"
 run = """
 uv venv --python "$(mise which python)" --clear --seed
-uv pip install -e ".[dev]"
+uv sync --locked --extra dev
 cd frontend && npm install
 """
 

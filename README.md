@@ -99,15 +99,14 @@ mise run setup
 
 Dies erstellt automatisch:
 - `.venv` Virtual Environment (via `uv venv --python "$(mise which python)" --clear --seed`)
-- Python-Abhängigkeiten (via `uv pip install -e ".[dev]"`)
-- `uv.lock` Lockfile für reproduzierbare Installs
+- Python-Abhängigkeiten aus Lockfile (via `uv sync --locked --extra dev`)
 - Frontend-Abhängigkeiten (via `npm install`)
 
 Oder manuell:
 
 ```bash
 uv venv --python "$(mise which python)" --clear --seed
-uv pip install -e ".[dev]"
+uv sync --locked --extra dev
 cd frontend && npm install
 ```
 

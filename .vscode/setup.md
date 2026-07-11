@@ -32,14 +32,13 @@ mise run setup
 
 This:
 - Recreates `.venv` using `uv venv --python "$(mise which python)" --clear --seed`
-- Installs Python dependencies: `uv pip install -e ".[dev]"`
+- Installs Python dependencies from lock file: `uv sync --locked --extra dev`
 - Installs frontend dependencies: `npm install`
-- Locks exact versions in `uv.lock`
 
 Or manually:
 ```bash
 uv venv --python "$(mise which python)" --clear --seed
-uv pip install -e ".[dev]"
+uv sync --locked --extra dev
 cd frontend && npm install
 ```
 
@@ -77,8 +76,8 @@ mise run dev
 To add a new dependency:
 
 ```bash
-uv pip install <package>
-uv lock  # regenerate uv.lock
+uv add <package>
+uv sync --extra dev
 ```
 
 ### Sync Homebrew-installed versions (optional)
