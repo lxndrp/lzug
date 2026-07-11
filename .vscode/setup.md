@@ -1,64 +1,116 @@
 # VSCode Project Setup
 
-This project uses **pyenv** to manage Python versions locally.
+This project uses **mise** to manage tool versions (Python, Node.js) across your team.
 
 ## First-time setup
 
-### 1. Install pyenv (macOS / Linux)
+### 1. Install mise via Homebrew
 
 ```bash
-brew install pyenv
+brew install mise
 ```
 
-See https://github.com/pyenv/pyenv#installation for other platforms.
+Mise is a unified version manager for Python, Node.js, Go, Ruby, and more.
 
-### 2. Install Python 3.11.9
+### 2. Install pinned versions
 
-Run from the project root:
+From the project root:
 
 ```bash
-pyenv install
+mise install
 ```
 
-This reads `.python-version` and installs the pinned version.
+This reads `.mise.toml` and installs:
+- Python 3.14.6
+- Node.js 26.5.0
 
-### 3. Create virtual environment
+Versions can be added to `.mise.toml` at any time (e.g., Go for future use).
+
+### 3. Create virtual environment (Python only)
 
 ```bash
-python3 -m venv .venv
+python -m venv .venv
 .venv/bin/python -m pip install -e ".[dev]"
+```
+
+Then install frontend dependencies:
+
+```bash
+cd frontend && npm install
+```
+
+Or use mise tasks:
+
+```bash
+mise run setup
 ```
 
 ### 4. Open in VSCode
 
-VSCode will prompt to select the Python interpreter. Choose the venv:
+VSCode will prompt to select the Python interpreter. Choose:
 
-- **Suggested**: `.venv/bin/python` from the workspace
+- **Suggested**: `.venv/bin/python` (already configured in `.vscode/settings.json`)
 
-This is already configured in `.vscode/settings.json` as the default.
+Mise automatically sets PATH so Node.js tools work without additional configuration.
 
-### 5. Verify
+### 5. Verify setup
 
-VSCode should show:
+- Python interpreter shows `.venv/bin/python` in VSCode status bar
+- `python --version` outputs 3.14.6
+- `node --version` outputs v26.5.0
+- Linting active (ruff, black, ESLint)
 
-- Python interpreter: `.venv/bin/python` in the bottom status bar
-- Linting: ruff and black active (no errors in Output > Python)
-- ESLint: active in frontend files (no errors in Output > ESLint)
+## Using mise
 
-## Why pyenv?
+### Run tests
 
-- Ensures all team members use Python 3.11.9
-- Prevents "works on my machine" version mismatches
-- Matches CI version exactly
-- Works alongside venv for dependency isolation
+```bash
+mise run test
+```
+
+### Start development servers (parallel)
+
+```bash
+mise run dev
+```
+
+### Sync Homebrew-installed versions (optional)
+
+If you install Python or Node.js via Homebrew, make them available to mise:
+
+```bash
+mise sync python
+mise sync nodejs
+```
+
+This symlinks Homebrew versions into mise, allowing you to switch between them.
 
 ## Extensions
 
 Recommended extensions (auto-prompted in VSCode):
 
+- **jdx.mise** - Mise version manager integration
 - **ms-python.python** - Python language support and debugging
 - **ms-python.debugpy** - Python debugger
 - **charliermarsh.ruff** - Ruff linter integration
 - **dbaeumer.vscode-eslint** - ESLint integration
 - **esbenp.prettier-vscode** - Prettier formatter
 - **ryanluker.vscode-coverage-gutters** - Coverage report visualization
+
+## Adding more tools to mise
+
+Mise supports Go, Ruby, Rust, Deno, Java, and many more. To add Go support:
+
+```toml
+# .mise.toml
+go = "1.21"
+```
+
+Then:
+
+```bash
+mise install
+```
+
+That's it—no plugins or complex configuration needed.
+

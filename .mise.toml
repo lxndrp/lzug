@@ -1,0 +1,29 @@
+[tools]
+# Python version manager with Homebrew sync support
+python = "3.14.6"
+
+# Node.js and npm version manager
+# Go can be added here later if needed: go = "1.21"
+nodejs = "26.5.0"
+
+[tasks.setup]
+description = "Initial project setup"
+run = """
+python -m venv .venv
+.venv/bin/python -m pip install -e ".[dev]"
+cd frontend && npm install
+"""
+
+[tasks.test]
+description = "Run all tests"
+run = """
+.venv/bin/python -m unittest
+cd frontend && npm run test:ci
+"""
+
+[tasks.dev]
+description = "Start backend and frontend in parallel"
+run = """
+echo "Starting backend and frontend..."
+(.venv/bin/python -m backend.app --init &) && (cd frontend && npm start)
+"""

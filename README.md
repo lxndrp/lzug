@@ -71,48 +71,43 @@ docs/backend-prototyp.md
 
 Ein erster persistenter Backend-Prototyp nutzt SQLite über SQLAlchemy. Die Abhängigkeiten sind in `pyproject.toml` beschrieben:
 
-Voraussetzung fuer Backend und Frontend sind Python 3.11, Node.js und npm.
+Voraussetzung fuer Backend und Frontend sind Python 3.14.6 und Node.js 26.5.0, die über **mise** verwaltet werden.
 
 ### Umgebung einrichten
 
-**Python (macOS / Linux):**
+**Installation (alle Plattformen):**
 
-Installiere [pyenv](https://github.com/pyenv/pyenv#installation) zum Verwalten der Python-Version:
-
-```bash
-brew install pyenv
-pyenv install
-```
-
-Dann erstelle das Virtual Environment:
+Installiere [mise](https://mise.jdx.dev/):
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -e ".[dev]"
+brew install mise
 ```
 
-**Python (Windows):**
+Dann installiere die in `.mise.toml` definierten Versionen:
 
-Installiere [Python 3.11](https://www.python.org/downloads/) direkt oder nutze `py --list-paths` zur Versionsverwaltung. Dann:
+```bash
+mise install
+```
+
+Dies installiert automatisch Python 3.14.6 und Node.js 26.5.0.
+
+**Python Virtual Environment:**
 
 ```bash
 python -m venv .venv
-.venv\Scripts\activate
-pip install -e ".[dev]"
+.venv/bin/python -m pip install -e ".[dev]"
 ```
 
-**Node.js:**
-
-Auf macOS:
-
-```bash
-brew install node
-```
-
-Danach im Frontend-Verzeichnis:
+**Frontend-Abhängigkeiten:**
 
 ```bash
 cd frontend && npm install
+```
+
+Oder nutze die vordefinierte mise-Task:
+
+```bash
+mise run setup
 ```
 
 Der Server startet danach mit:
