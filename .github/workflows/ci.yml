@@ -41,6 +41,10 @@ jobs:
           uv venv
           uv pip install -e ".[dev]"
 
+      - name: Activate virtual environment
+        shell: bash
+        run: echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
+
       - name: Lint with ruff
         run: python -m ruff check .
 
