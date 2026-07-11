@@ -100,6 +100,71 @@
     </c-card>
   </div>
 
+  <div class="col-12 col-xl-6">
+    <c-card>
+      <c-card-header>
+        <strong>Aufgaben</strong>
+      </c-card-header>
+      <c-card-body>
+        <table cTable hover small responsive>
+          <thead>
+            <tr>
+              <th scope="col">Bereich</th>
+              <th scope="col">Stand</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (task of tasks(); track task.label) {
+              <tr>
+                <td>{{ task.label }}</td>
+                <td>
+                  <c-badge [color]="task.color">{{ task.detail }}</c-badge>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </c-card-body>
+    </c-card>
+  </div>
+
+  <div class="col-12 col-xl-6">
+    <c-card>
+      <c-card-header>
+        <strong>Durchgang</strong>
+      </c-card-header>
+      <c-card-body>
+        <dl class="row mb-0">
+          <dt class="col-6">Name</dt>
+          <dd class="col-6">{{ round?.name || summary?.round?.name || '–' }}</dd>
+          <dt class="col-6">Status</dt>
+          <dd class="col-6">{{ statusLabel(round?.status || summary?.round?.status) }}</dd>
+          <dt class="col-6">Rückmeldefrist</dt>
+          <dd class="col-6">{{ dateTimeLabel(round?.availability_deadline) }}</dd>
+          <dt class="col-6">Erinnerung</dt>
+          <dd class="col-6">{{ dateTimeLabel(round?.availability_reminder_at) }}</dd>
+        </dl>
+      </c-card-body>
+    </c-card>
+  </div>
+
+  @if (planningResult?.validation) {
+    <div class="col-12">
+      <c-alert [color]="planningResult?.validation?.passed ? 'success' : 'warning'">
+        <strong>Validierungsreport</strong>
+        @if (planningResult?.validation?.messages?.length) {
+          <ul class="mb-0">
+            @for (message of planningResult?.validation?.messages || []; track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        } @else {
+          <span>Keine Hinweise.</span>
+        }
+      </c-alert>
+    </div>
+  }
+
   <div class="col-12 col-xl-8">
     <c-card>
       <c-card-header>
@@ -123,7 +188,7 @@
                     <div class="ms-auto d-flex flex-wrap gap-1">
                       @for (slot of item.slots; track slot.id) {
                         <c-badge color="secondary">
-                          {{ timeLabel(slot.starts_at) }}
+                          {{ slotTitle(slot) }}
                           @if (slot.slot_type === 'mep') {
                             · MEP
                           }
@@ -135,9 +200,10 @@
                   <h4>Vormittag</h4>
                   <div class="d-flex flex-wrap gap-1">
                     @for (assignment of assignmentsFor(item, 'morning'); track assignment.id) {
-                      <c-badge color="info">
+                      <c-badge [color]="assignmentColor(assignment)">
                         {{ memberName(assignment.committee_member_id) }} ·
-                        {{ memberSide(assignment.committee_member_id) }}
+                        {{ memberSide(assignment.committee_member_id) }} ·
+                        {{ assignmentRoleLabel(assignment) }}
                       </c-badge>
                     }
                   </div>
@@ -145,9 +211,10 @@
                   <h4>Nachmittag</h4>
                   <div class="d-flex flex-wrap gap-1">
                     @for (assignment of assignmentsFor(item, 'afternoon'); track assignment.id) {
-                      <c-badge color="info">
+                      <c-badge [color]="assignmentColor(assignment)">
                         {{ memberName(assignment.committee_member_id) }} ·
-                        {{ memberSide(assignment.committee_member_id) }}
+                        {{ memberSide(assignment.committee_member_id) }} ·
+                        {{ assignmentRoleLabel(assignment) }}
                       </c-badge>
                     } @empty {
                       <c-badge color="secondary">Keine Nachmittagstermine</c-badge>
@@ -167,7 +234,7 @@
   <div class="col-12 col-xl-4">
     <c-card>
       <c-card-header>
-        <strong>Aktive Tage</strong>
+        <strong>Bestätigte Termine</strong>
       </c-card-header>
       <c-card-body>
         <table cTable hover small responsive>
@@ -178,18 +245,18 @@
             </tr>
           </thead>
           <tbody>
-            @for (day of board?.candidateDays || []; track day.id) {
+            @for (item of confirmedDays(); track item.day.id) {
               <tr>
-                <td>{{ dateLabel(day.date) }}</td>
+                <td>{{ dateLabel(item.day.date) }}</td>
                 <td>
-                  <c-badge [color]="day.is_active ? 'success' : 'secondary'">
-                    {{ day.is_active ? 'aktiv' : 'inaktiv' }}
+                  <c-badge color="success">
+                    {{ item.slots.length }} Termine
                   </c-badge>
                 </td>
               </tr>
             } @empty {
               <tr>
-                <td colspan="2">Keine Tage vorhanden.</td>
+                <td colspan="2">Noch keine bestätigten Termine.</td>
               </tr>
             }
           </tbody>
