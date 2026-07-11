@@ -71,15 +71,47 @@ docs/backend-prototyp.md
 
 Ein erster persistenter Backend-Prototyp nutzt SQLite über SQLAlchemy. Die Abhängigkeiten sind in `pyproject.toml` beschrieben:
 
-Voraussetzung fuer Backend und Frontend sind Python 3, Node.js und npm. Auf macOS koennen Node.js und npm zum Beispiel per Homebrew installiert werden:
+Voraussetzung fuer Backend und Frontend sind Python 3.11, Node.js und npm.
+
+### Umgebung einrichten
+
+**Python (macOS / Linux):**
+
+Installiere [pyenv](https://github.com/pyenv/pyenv#installation) zum Verwalten der Python-Version:
+
+```bash
+brew install pyenv
+pyenv install
+```
+
+Dann erstelle das Virtual Environment:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e ".[dev]"
+```
+
+**Python (Windows):**
+
+Installiere [Python 3.11](https://www.python.org/downloads/) direkt oder nutze `py --list-paths` zur Versionsverwaltung. Dann:
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -e ".[dev]"
+```
+
+**Node.js:**
+
+Auf macOS:
 
 ```bash
 brew install node
 ```
 
+Danach im Frontend-Verzeichnis:
+
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -e ".[dev]"
 cd frontend && npm install
 ```
 
