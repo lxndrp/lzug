@@ -1,9 +1,16 @@
-<c-sidebar id="appSidebar" colorScheme="dark" position="fixed" [visible]="true">
+<c-sidebar
+  id="appSidebar"
+  colorScheme="dark"
+  position="fixed"
+  role="complementary"
+  aria-label="Prüfungsverwaltung"
+  [visible]="true"
+>
   <c-sidebar-header>
     <c-sidebar-brand>lzug</c-sidebar-brand>
   </c-sidebar-header>
 
-  <c-sidebar-nav aria-label="Hauptnavigation">
+  <c-sidebar-nav aria-label="Hauptnavigation" role="list">
     <li class="nav-title">Prüfungsverwaltung</li>
     <li class="nav-item">
       <button
@@ -68,6 +75,7 @@
       <button
         cHeaderToggler
         cSidebarToggle="appSidebar"
+        aria-label="Navigation ein- oder ausblenden"
         class="app-sidebar-toggle"
         type="button"
       ></button>

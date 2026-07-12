@@ -20,6 +20,14 @@ module.exports = function configureKarma(config) {
       dir: path.join(__dirname, 'coverage', 'frontend'),
       subdir: '.',
       reporters: [{ type: 'html' }, { type: 'lcovonly' }, { type: 'text-summary' }],
+      check: {
+        global: {
+          statements: 70,
+          lines: 70,
+          functions: 65,
+          branches: 45,
+        },
+      },
     },
     reporters: ['progress', 'kjhtml'],
     browsers: ['Chrome'],

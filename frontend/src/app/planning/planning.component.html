@@ -234,6 +234,7 @@
                     <td>
                       <select
                         cSelect
+                        [attr.aria-label]="memberLabel(member) + ' ' + dateLabel(day.date)"
                         [disabled]="actionBusy || !day.is_active"
                         [ngModel]="availabilityFor(member.id, day.id)"
                         (ngModelChange)="changeAvailability(member, day, $event)"

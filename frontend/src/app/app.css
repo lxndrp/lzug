@@ -36,3 +36,7 @@ c-header c-container {
   border: 0;
   text-align: left;
 }
+
+.sidebar-nav .nav-title {
+  color: #aab4c3;
+}

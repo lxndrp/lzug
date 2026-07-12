@@ -119,6 +119,26 @@ class ApiTests(unittest.TestCase):
             assert_status(status, HTTPStatus.CONFLICT)
             self.assertIn("NOT NULL", body["error"])
 
+            status, body = api.request_raw(
+                "POST",
+                "/api/planning-proposals",
+                {"round_id": "not-a-number"},
+            )[:2]
+            assert_status(status, HTTPStatus.BAD_REQUEST)
+
+            status, body = api.request_raw(
+                "POST",
+                "/api/candidates",
+                None,
+            )[:2]
+            assert_status(status, HTTPStatus.CONFLICT)
+
+    def test_confirmation_without_proposal_returns_bad_request(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, body = api.request("POST", "/api/exam-rounds/1/confirm-plan", {})
+            assert_status(status, HTTPStatus.BAD_REQUEST)
+            self.assertEqual("No planning proposal found", body["error"])
+
     def test_planning_settings_and_availabilities_are_writable(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             status, settings = api.request(

@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import unittest
 
+from sqlalchemy import text
+
+from backend.database import connect
 from backend.models import EXAM_DAY, EXAM_DAY_ASSIGNMENT, EXAM_ROUND, EXAM_SLOT
 from backend.planning import PlanningService
 from backend.repositories import ResourceRepository
@@ -9,6 +12,34 @@ from backend.tests.helpers import TempDatabase
 
 
 class PlanningTests(unittest.TestCase):
+    def test_missing_round_is_rejected(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            with self.assertRaisesRegex(ValueError, "Exam round not found"):
+                PlanningService(db_path).generate_proposal(1)
+
+    def test_missing_planning_settings_are_rejected(self) -> None:
+        with TempDatabase() as db_path:
+            with connect(db_path) as connection:
+                connection.execute(text("DELETE FROM planning_settings"))
+                connection.commit()
+
+            with self.assertRaisesRegex(ValueError, "Planning settings not found"):
+                PlanningService(db_path).generate_proposal(1)
+
+    def test_no_active_candidate_days_are_rejected(self) -> None:
+        with TempDatabase() as db_path:
+            with connect(db_path) as connection:
+                connection.execute(text("DELETE FROM candidate_exam_day"))
+                connection.commit()
+
+            with self.assertRaisesRegex(ValueError, "No active candidate exam days found"):
+                PlanningService(db_path).generate_proposal(1)
+
+    def test_confirmation_without_proposal_is_rejected(self) -> None:
+        with TempDatabase() as db_path:
+            with self.assertRaisesRegex(ValueError, "No planning proposal found"):
+                PlanningService(db_path).confirm_plan(1)
+
     def test_generate_proposal_persists_days_slots_assignments(self) -> None:
         with TempDatabase() as db_path:
             proposal = PlanningService(db_path).generate_proposal(1)
