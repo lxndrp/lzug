@@ -36,7 +36,7 @@ directory = "htmlcov"
 output = "coverage.xml"
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=83.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
