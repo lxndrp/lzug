@@ -1,9 +1,10 @@
 [tools]
 python = "3.14.6"
+node = "26.5.0"
 uv = "latest"
 
 [settings]
-python.uv_venv_auto = true
+python.uv_venv_auto="create|source"
 
 [tasks.setup]
 description = "Recreate virtualenv and install locked dependencies"
