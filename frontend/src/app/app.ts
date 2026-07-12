@@ -3,6 +3,7 @@ import {
   ButtonModule,
   GridModule,
   HeaderModule,
+  NavModule,
   ProgressModule,
   SidebarModule,
 } from '@coreui/angular';
@@ -13,6 +14,7 @@ import {
   CandidateExamDay,
   CommitteeMember,
   ExamRound,
+  Location,
   MasterData,
   PlanningBoard,
   PlanningResult,
@@ -46,6 +48,7 @@ import {
     ButtonModule,
     GridModule,
     HeaderModule,
+    NavModule,
     ProgressModule,
     SidebarModule,
   ],
@@ -198,6 +201,23 @@ export class App {
           this.refresh();
         },
         error: () => this.message.set('Prüfungsort konnte nicht gelöscht werden'),
+      });
+  }
+
+  protected toggleLocation(location: Location): void {
+    const nextActive = location.is_active === 0 ? 1 : 0;
+    this.actionBusy.set(true);
+    this.api
+      .updateLocation(location.id, { is_active: nextActive })
+      .pipe(finalize(() => this.actionBusy.set(false)))
+      .subscribe({
+        next: () => {
+          this.message.set(
+            `${location.name} ist jetzt ${nextActive ? 'aktiv' : 'deaktiviert'}`,
+          );
+          this.refresh();
+        },
+        error: () => this.message.set('Prüfungsortstatus konnte nicht geändert werden'),
       });
   }
 

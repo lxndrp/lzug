@@ -188,6 +188,12 @@ describe('PlanningApiService', () => {
     });
     request.flush(locationsFixture[0]);
 
+    service.updateLocation(1, { is_active: 0 }).subscribe();
+    const update = http.expectOne('/api/locations/1');
+    expect(update.request.method).toBe('PATCH');
+    expect(update.request.body).toEqual({ is_active: 0 });
+    update.flush({ ...locationsFixture[0], is_active: 0 });
+
     service.deleteLocation(1).subscribe();
     const remove = http.expectOne('/api/locations/1');
     expect(remove.request.method).toBe('DELETE');

@@ -65,6 +65,21 @@ describe('LocationsComponent', () => {
     );
   });
 
+  it('should emit location status toggle requests', () => {
+    const component = fixture.componentInstance;
+    spyOn(component.toggleLocation, 'emit');
+
+    const button = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ).find((item) => item.textContent?.includes('Deaktivieren'));
+    expect(button).toBeDefined();
+    button!.click();
+
+    expect(component.toggleLocation.emit).toHaveBeenCalledWith(
+      jasmine.objectContaining({ id: 1, is_active: 1 }),
+    );
+  });
+
   function setInput(selector: string, value: string): void {
     const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(selector);
     expect(input).toBeTruthy();

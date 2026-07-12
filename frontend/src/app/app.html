@@ -7,10 +7,9 @@
     <li class="nav-title">Prüfungsverwaltung</li>
     <li class="nav-item">
       <button
-        class="nav-link"
+        cNavLink
         type="button"
-        [class.active]="activeView() === 'dashboard'"
-        [attr.aria-current]="activeView() === 'dashboard' ? 'page' : null"
+        [active]="activeView() === 'dashboard'"
         (click)="showView('dashboard')"
       >
         Übersicht
@@ -18,10 +17,9 @@
     </li>
     <li class="nav-item">
       <button
-        class="nav-link"
+        cNavLink
         type="button"
-        [class.active]="activeView() === 'candidates'"
-        [attr.aria-current]="activeView() === 'candidates' ? 'page' : null"
+        [active]="activeView() === 'candidates'"
         (click)="showView('candidates')"
       >
         Prüflinge
@@ -29,10 +27,9 @@
     </li>
     <li class="nav-item">
       <button
-        class="nav-link"
+        cNavLink
         type="button"
-        [class.active]="activeView() === 'committee'"
-        [attr.aria-current]="activeView() === 'committee' ? 'page' : null"
+        [active]="activeView() === 'committee'"
         (click)="showView('committee')"
       >
         Ausschuss
@@ -40,10 +37,9 @@
     </li>
     <li class="nav-item">
       <button
-        class="nav-link"
+        cNavLink
         type="button"
-        [class.active]="activeView() === 'planning'"
-        [attr.aria-current]="activeView() === 'planning' ? 'page' : null"
+        [active]="activeView() === 'planning'"
         (click)="showView('planning')"
       >
         Terminplanung
@@ -51,10 +47,9 @@
     </li>
     <li class="nav-item">
       <button
-        class="nav-link"
+        cNavLink
         type="button"
-        [class.active]="activeView() === 'locations'"
-        [attr.aria-current]="activeView() === 'locations' ? 'page' : null"
+        [active]="activeView() === 'locations'"
         (click)="showView('locations')"
       >
         Prüfungsorte
@@ -62,7 +57,7 @@
     </li>
     <li class="nav-title">Service</li>
     <li class="nav-item">
-      <a class="nav-link" href="/api/docs" target="_blank" rel="noopener">API-Doku</a>
+      <a cNavLink href="/api/docs" target="_blank" rel="noopener">API-Doku</a>
     </li>
   </c-sidebar-nav>
 </c-sidebar>
@@ -161,6 +156,7 @@
             [masterData]="masterData()"
             [actionBusy]="actionBusy()"
             (createLocation)="createLocation($event)"
+            (toggleLocation)="toggleLocation($event)"
             (deleteLocation)="deleteLocation($event.id, $event.name + ' · ' + $event.room)"
           />
         }

@@ -170,6 +170,10 @@ export class PlanningApiService {
     return this.http.post<Location>('/api/locations', payload);
   }
 
+  updateLocation(id: number, payload: Partial<Pick<Location, 'is_active'>>) {
+    return this.http.patch<Location>(`/api/locations/${id}`, payload);
+  }
+
   deleteLocation(id: number) {
     return this.http.delete<void>(`/api/locations/${id}`);
   }
