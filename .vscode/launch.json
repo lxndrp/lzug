@@ -14,6 +14,45 @@
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "lzug Frontend (Server)",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "npm start",
+            "cwd": "${workspaceFolder}/frontend"
+        },
+        {
+            "name": "lzug Frontend (Chrome)",
+            "type": "chrome",
+            "request": "launch",
+            "url": "http://localhost:4200",
+            "webRoot": "${workspaceFolder}/frontend"
+        },
+        {
+            "name": "lzug Frontend (Edge)",
+            "type": "msedge",
+            "request": "launch",
+            "url": "http://localhost:4200",
+            "webRoot": "${workspaceFolder}/frontend"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "lzug Full Debug (Chrome)",
+            "configurations": [
+                "lzug Backend",
+                "lzug Frontend (Server)",
+                "lzug Frontend (Chrome)"
+            ]
+        },
+        {
+            "name": "lzug Full Debug (Edge)",
+            "configurations": [
+                "lzug Backend",
+                "lzug Frontend (Server)",
+                "lzug Frontend (Edge)"
+            ]
         }
     ]
 }

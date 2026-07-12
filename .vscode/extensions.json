@@ -4,6 +4,7 @@
         "ms-python.debugpy",
         "charliermarsh.ruff",
         "jdx.mise",
+        "ms-edgedevtools.vscode-edge-devtools",
         "ryanluker.vscode-coverage-gutters",
         "esbenp.prettier-vscode",
         "dbaeumer.vscode-eslint"
