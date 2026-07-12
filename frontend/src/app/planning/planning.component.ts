@@ -27,6 +27,8 @@ export type AvailabilityPayload = Pick<
   'committee_member_id' | 'candidate_exam_day_id' | 'availability'
 >;
 
+type NumericPlanningField = 'exams_per_day' | 'max_exam_days_per_week';
+
 @Component({
   selector: 'app-planning',
   imports: [
@@ -128,6 +130,12 @@ export class PlanningComponent implements OnChanges {
     });
   }
 
+  protected adjustNumber(field: NumericPlanningField, delta: number): void {
+    const limits = field === 'exams_per_day' ? { min: 1, max: 20 } : { min: 1, max: 5 };
+    const current = Number(this.draft[field]) || limits.min;
+    this.draft[field] = Math.min(limits.max, Math.max(limits.min, current + delta));
+  }
+
   protected submitCandidateDay(): void {
     if (!this.candidateDayDraft.date) {
       return;
@@ -178,7 +186,9 @@ export class PlanningComponent implements OnChanges {
     this.draft.lunch_break_enabled =
       settings?.lunch_break_enabled ?? this.draft.lunch_break_enabled ?? 1;
     this.draft.default_location_id =
-      settings?.default_location_id ?? this.board?.locations[0]?.id ?? null;
+      settings?.default_location_id ??
+      this.board?.locations.find((location) => location.is_active !== 0)?.id ??
+      null;
     this.draft.updated_by_member_id = settings?.updated_by_member_id ?? this.defaultUpdaterId();
   }
 }

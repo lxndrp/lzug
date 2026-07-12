@@ -34,7 +34,7 @@
               cFormControl
               id="weekFrom"
               name="weekFrom"
-              placeholder="2026-W47"
+              type="week"
               [(ngModel)]="draft.calendar_week_from"
               required
             />
@@ -45,7 +45,7 @@
               cFormControl
               id="weekTo"
               name="weekTo"
-              placeholder="2026-W49"
+              type="week"
               [(ngModel)]="draft.calendar_week_to"
               required
             />
@@ -83,7 +83,11 @@
             >
               <option [ngValue]="null">Kein Standardort</option>
               @for (location of board?.locations || []; track location.id) {
-                <option [ngValue]="location.id">{{ location.name }} · {{ location.room }}</option>
+                @if (location.is_active !== 0) {
+                  <option [ngValue]="location.id">
+                    {{ location.name }} · {{ location.room }}
+                  </option>
+                }
               }
             </select>
           </div>
