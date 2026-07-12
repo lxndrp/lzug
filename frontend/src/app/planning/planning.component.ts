@@ -27,8 +27,6 @@ export type AvailabilityPayload = Pick<
   'committee_member_id' | 'candidate_exam_day_id' | 'availability'
 >;
 
-type NumericPlanningField = 'exams_per_day' | 'max_exam_days_per_week';
-
 @Component({
   selector: 'app-planning',
   imports: [
@@ -128,12 +126,6 @@ export class PlanningComponent implements OnChanges {
       candidate_exam_day_id: day.id,
       availability,
     });
-  }
-
-  protected adjustNumber(field: NumericPlanningField, delta: number): void {
-    const limits = field === 'exams_per_day' ? { min: 1, max: 20 } : { min: 1, max: 5 };
-    const current = Number(this.draft[field]) || limits.min;
-    this.draft[field] = Math.min(limits.max, Math.max(limits.min, current + delta));
   }
 
   protected submitCandidateDay(): void {

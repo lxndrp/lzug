@@ -46,28 +46,15 @@ describe('PlanningComponent', () => {
     );
   });
 
-  it('should render week pickers and adjust planning quantities within their limits', () => {
+  it('should render week pickers and numeric planning controls', () => {
     const element = fixture.nativeElement as HTMLElement;
     expect(element.querySelector('#weekFrom')?.getAttribute('type')).toBe('week');
     expect(element.querySelector('#weekTo')?.getAttribute('type')).toBe('week');
-
-    const component = fixture.componentInstance as PlanningComponent & {
-      adjustNumber: (field: 'exams_per_day' | 'max_exam_days_per_week', delta: number) => void;
-      draft: { exams_per_day: number; max_exam_days_per_week: number };
-    };
-
-    component.draft.exams_per_day = 1;
-    component.adjustNumber('exams_per_day', -1);
-    expect(component.draft.exams_per_day).toBe(1);
-
-    component.draft.max_exam_days_per_week = 5;
-    component.adjustNumber('max_exam_days_per_week', 1);
-    expect(component.draft.max_exam_days_per_week).toBe(5);
-
-    const increaseButtons = Array.from(element.querySelectorAll('button')).filter((button) =>
-      button.getAttribute('aria-label')?.includes('erhöhen'),
-    );
-    expect(increaseButtons.length).toBe(2);
+    expect(element.querySelector('#examsPerDay')?.getAttribute('type')).toBe('number');
+    expect(element.querySelector('#examsPerDay')?.getAttribute('min')).toBe('1');
+    expect(element.querySelector('#examDaysPerWeek')?.getAttribute('type')).toBe('number');
+    expect(element.querySelector('#examDaysPerWeek')?.getAttribute('min')).toBe('1');
+    expect(element.querySelector('#examDaysPerWeek')?.getAttribute('max')).toBe('5');
   });
 
   it('should emit possible day changes', () => {
