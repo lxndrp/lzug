@@ -31,6 +31,7 @@ export class LocationsComponent {
   @Input() actionBusy = false;
 
   @Output() createLocation = new EventEmitter<LocationPayload>();
+  @Output() deleteLocation = new EventEmitter<Location>();
 
   protected readonly draft: LocationPayload = {
     committee_id: 0,

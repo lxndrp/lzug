@@ -187,6 +187,11 @@ describe('PlanningApiService', () => {
       is_active: 1,
     });
     request.flush(locationsFixture[0]);
+
+    service.deleteLocation(1).subscribe();
+    const remove = http.expectOne('/api/locations/1');
+    expect(remove.request.method).toBe('DELETE');
+    remove.flush({});
   });
 
   it('should save planning settings for the active round', () => {

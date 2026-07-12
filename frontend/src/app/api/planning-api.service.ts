@@ -170,6 +170,10 @@ export class PlanningApiService {
     return this.http.post<Location>('/api/locations', payload);
   }
 
+  deleteLocation(id: number) {
+    return this.http.delete<void>(`/api/locations/${id}`);
+  }
+
   savePlanningSettings(payload: Omit<PlanningSettings, 'id' | 'exam_round_id'>) {
     return this.http.post<PlanningSettings>('/api/planning-settings', {
       ...payload,

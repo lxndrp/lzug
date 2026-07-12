@@ -187,6 +187,20 @@ export class App {
       });
   }
 
+  protected deleteLocation(id: number, label: string): void {
+    this.actionBusy.set(true);
+    this.api
+      .deleteLocation(id)
+      .pipe(finalize(() => this.actionBusy.set(false)))
+      .subscribe({
+        next: () => {
+          this.message.set(`Prüfungsort gelöscht: ${label}`);
+          this.refresh();
+        },
+        error: () => this.message.set('Prüfungsort konnte nicht gelöscht werden'),
+      });
+  }
+
   protected savePlanningSettings(payload: PlanningSettingsPayload): void {
     this.actionBusy.set(true);
     this.api

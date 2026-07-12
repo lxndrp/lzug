@@ -47,6 +47,24 @@ describe('LocationsComponent', () => {
     );
   });
 
+  it('should emit location deletion requests', () => {
+    const component = fixture.componentInstance;
+    spyOn(component.deleteLocation, 'emit');
+
+    const button = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ).find((item) => item.textContent?.includes('Löschen'));
+    expect(button).toBeDefined();
+    button!.click();
+
+    expect(component.deleteLocation.emit).toHaveBeenCalledWith(
+      jasmine.objectContaining({
+        id: 1,
+        name: 'Bildungszentrum HafenCity',
+      }),
+    );
+  });
+
   function setInput(selector: string, value: string): void {
     const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(selector);
     expect(input).toBeTruthy();

@@ -161,6 +161,7 @@
             [masterData]="masterData()"
             [actionBusy]="actionBusy()"
             (createLocation)="createLocation($event)"
+            (deleteLocation)="deleteLocation($event.id, $event.name + ' · ' + $event.room)"
           />
         }
       }
