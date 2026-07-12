@@ -84,9 +84,7 @@
               <option [ngValue]="null">Kein Standardort</option>
               @for (location of board?.locations || []; track location.id) {
                 @if (location.is_active !== 0) {
-                  <option [ngValue]="location.id">
-                    {{ location.name }} · {{ location.room }}
-                  </option>
+                  <option [ngValue]="location.id">{{ location.name }} · {{ location.room }}</option>
                 }
               }
             </select>

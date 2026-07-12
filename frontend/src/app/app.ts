@@ -212,9 +212,7 @@ export class App {
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
         next: () => {
-          this.message.set(
-            `${location.name} ist jetzt ${nextActive ? 'aktiv' : 'deaktiviert'}`,
-          );
+          this.message.set(`${location.name} ist jetzt ${nextActive ? 'aktiv' : 'deaktiviert'}`);
           this.refresh();
         },
         error: () => this.message.set('Prüfungsortstatus konnte nicht geändert werden'),
