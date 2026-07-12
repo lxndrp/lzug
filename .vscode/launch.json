@@ -3,7 +3,7 @@
     "configurations": [
         {
             "type": "debugpy",
-            "name": "lzug Backend",
+            "name": "lzug Backend (Server)",
             "request": "launch",
             "module": "backend.app",
             "args": [
@@ -21,6 +21,13 @@
             "request": "launch",
             "command": "npm start",
             "cwd": "${workspaceFolder}/frontend"
+        },
+        {
+            "type": "msedge",
+            "name": "lzug Backend (Edge)",
+            "request": "launch",
+            "url": "http://localhost:8000",
+            "webRoot": "${workspaceFolder}/backend"
         },
         {
             "type": "msedge",
@@ -68,13 +75,13 @@
         {
             "name": "lzug Debug (Application)",
             "configurations": [
-                "lzug Backend",
+                "lzug Backend (Server)",
                 "lzug Frontend (Server)"            ]
         },
         {
             "name": "lzug Debug (Edge Headless w/ DevTools)",
             "configurations": [
-                "lzug Backend",
+                "lzug Backend (Server)",
                 "lzug Frontend (Server)",
                 "lzug Frontend Debug (Edge Headless)",
                 "Open Edge DevTools"
@@ -83,7 +90,7 @@
         {
             "name": "lzug Debug (Edge w/ DevTools)",
             "configurations": [
-                "lzug Backend",
+                "lzug Backend (Server)",
                 "lzug Frontend (Server)",
                 "lzug Frontend Debug (Edge)",
                 "Open Edge DevTools"
