@@ -21,6 +21,24 @@ run = """
 cd frontend && npm run test:ci
 """
 
+[tasks.quality]
+description = "Run the complete local quality assurance suite"
+run = """
+set -e
+.venv/bin/python -m ruff check .
+.venv/bin/python -m black --check .
+.venv/bin/python -m pip_audit --skip-editable --cache-dir /tmp/lzug-pip-audit
+.venv/bin/python -m coverage run -m unittest
+.venv/bin/python -m coverage report
+cd frontend
+npm run lint
+npm run format:check
+npm run build:ci
+npm run test:coverage
+npm run security:check
+npm run test:e2e
+"""
+
 [tasks.dev]
 description = "Start backend and frontend in parallel"
 run = """

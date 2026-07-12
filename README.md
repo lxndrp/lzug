@@ -197,7 +197,23 @@ Coverage ist als Dev-Extra konfiguriert:
 cd frontend && npm run test:coverage
 ```
 
-In VS Code stehen dafuer die Tasks `Tests mit Coverage`, `Coverage XML erzeugen`, `Coverage HTML erzeugen`, `Frontend Tests`, `Frontend Coverage`, `Frontend Build`, `Alle Tests` und `Alle Coverage Reports` bereit. Die empfohlene Erweiterung Coverage Gutters nutzt `coverage.xml` und `frontend/coverage/frontend/lcov.info` direkt im Editor.
+Der vollständige lokale QS-Lauf prüft Formatierung, Linting, Backend- und
+Frontend-Coverage, Dependency-Sicherheit, Produktionsbuild sowie Browser- und
+Accessibility-Tests:
+
+```bash
+mise run quality
+```
+
+Für die Browser-Tests wird Playwright verwendet. Der Lauf startet Backend und
+Frontend automatisch und verwendet eine isolierte SQLite-Testdatenbank. Der
+Frontend-Coverage-Gate liegt aktuell bei mindestens 70 Prozent Statements und
+Lines, 65 Prozent Functions sowie 45 Prozent Branches.
+
+In VS Code stehen dafuer Tasks fuer Backend- und Frontend-Tests, Coverage,
+Browser-E2E, Security, statische Checks und den kompletten QS-Lauf bereit. Die
+empfohlene Erweiterung Coverage Gutters nutzt `coverage.xml` und
+`frontend/coverage/frontend/lcov.info` direkt im Editor.
 
 Wenn Node.js installiert ist, prüft der Harness zusätzlich `app.js` mit `node --check`; ohne Node wird nur dieser optionale Syntaxcheck übersprungen.
 

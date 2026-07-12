@@ -27,4 +27,6 @@ coverage/
 coverage.xml
 htmlcov/
 frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
 var/

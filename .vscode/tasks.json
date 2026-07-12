@@ -59,7 +59,8 @@
             "dependsOrder": "sequence",
             "dependsOn": [
                 "Tests ausfuehren",
-                "Frontend Tests"
+                "Frontend Tests",
+                "Frontend E2E"
             ],
             "group": "test",
             "problemMatcher": []
@@ -192,6 +193,86 @@
             "options": {
                 "cwd": "${workspaceFolder}/frontend"
             },
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Frontend E2E",
+            "type": "shell",
+            "command": "npm",
+            "args": [
+                "run",
+                "test:e2e"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/frontend"
+            },
+            "group": "test",
+            "problemMatcher": []
+        },
+        {
+            "label": "Frontend Accessibility",
+            "type": "shell",
+            "command": "npm",
+            "args": [
+                "run",
+                "test:a11y"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/frontend"
+            },
+            "group": "test",
+            "problemMatcher": []
+        },
+        {
+            "label": "Frontend Security",
+            "type": "shell",
+            "command": "npm",
+            "args": [
+                "run",
+                "security:check"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/frontend"
+            },
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Backend Security",
+            "type": "shell",
+            "command": "${workspaceFolder}/.venv/bin/python",
+            "args": [
+                "-m",
+                "pip_audit",
+                "--skip-editable"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Statische QS",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Ruff Lint (Backend)",
+                "Black Format Check (Backend)",
+                "ESLint (Frontend)",
+                "Prettier Check (Frontend)"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "QS komplett",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Statische QS",
+                "Alle Tests",
+                "Alle Coverage Reports",
+                "Backend Security",
+                "Frontend Security",
+                "Frontend Accessibility"
+            ],
             "group": "build",
             "problemMatcher": []
         }
