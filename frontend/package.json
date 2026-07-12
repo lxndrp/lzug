@@ -36,7 +36,7 @@
     "@angular/core": "^22.0.5",
     "@angular/forms": "^22.0.5",
     "@angular/platform-browser": "^22.0.5",
-    "@angular/router": "^22.0.5",
+    "@angular/router": "^22.0.6",
     "@coreui/angular": "^5.7.3",
     "@coreui/coreui": "^5.8.0",
     "@coreui/icons-angular": "^5.7.3",
