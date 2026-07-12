@@ -2,8 +2,8 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "lzug Backend",
             "type": "debugpy",
+            "name": "lzug Backend",
             "request": "launch",
             "module": "backend.app",
             "args": [
@@ -16,42 +16,77 @@
             "justMyCode": true
         },
         {
-            "name": "lzug Frontend (Server)",
             "type": "node-terminal",
+            "name": "lzug Frontend (Server)",
             "request": "launch",
             "command": "npm start",
             "cwd": "${workspaceFolder}/frontend"
         },
         {
-            "name": "lzug Frontend (Chrome)",
-            "type": "chrome",
+            "type": "msedge",
+            "name": "lzug Frontend (Edge)",
             "request": "launch",
             "url": "http://localhost:4200",
             "webRoot": "${workspaceFolder}/frontend"
         },
         {
-            "name": "lzug Frontend (Edge)",
             "type": "msedge",
+            "name": "lzug Frontend Debug (Edge)",
             "request": "launch",
+            "runtimeArgs": [
+                "--remote-debugging-port=9222"
+            ],
             "url": "http://localhost:4200",
-            "webRoot": "${workspaceFolder}/frontend"
+            "presentation": {
+                "hidden": true
+            }
+        },
+        {
+            "type": "msedge",
+            "name": "lzug Frontend Debug (Edge Headless)",
+            "request": "launch",
+            "runtimeArgs": [
+                "--headless",
+                "--remote-debugging-port=9222"
+            ],
+            "url": "http://localhost:4200",
+            "presentation": {
+                "hidden": true
+            }
+        },
+        {
+            "type": "vscode-edge-devtools.debug",
+            "name": "Open Edge DevTools",
+            "request": "attach",
+            "url": "http://localhost:4200",
+            "presentation": {
+                "hidden": true
+            }
         }
     ],
     "compounds": [
         {
-            "name": "lzug Full Debug (Chrome)",
+            "name": "lzug Debug (Application)",
+            "configurations": [
+                "lzug Backend",
+                "lzug Frontend (Server)"            ]
+        },
+        {
+            "name": "lzug Debug (Edge Headless w/ DevTools)",
             "configurations": [
                 "lzug Backend",
                 "lzug Frontend (Server)",
-                "lzug Frontend (Chrome)"
+                "lzug Frontend Debug (Edge Headless)",
+                "Open Edge DevTools"
             ]
         },
         {
-            "name": "lzug Full Debug (Edge)",
+            "name": "lzug Debug (Edge w/ DevTools)",
             "configurations": [
                 "lzug Backend",
                 "lzug Frontend (Server)",
-                "lzug Frontend (Edge)"
+                "lzug Frontend Debug (Edge)",
+                "Open Edge DevTools"
             ]
         }
     ]
