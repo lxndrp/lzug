@@ -430,10 +430,6 @@ export class App {
       });
   }
 
-  protected openDocs(): void {
-    globalThis.open('/api/docs', '_blank', 'noopener');
-  }
-
   private notify(type: 'success' | 'error', title: string, message: string): void {
     this.feedback.set({ type, title, message });
   }

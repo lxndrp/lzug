@@ -116,6 +116,15 @@ export class PlanningComponent implements OnChanges {
     return `${member.first_name} ${member.last_name}`;
   }
 
+  protected memberSideLabel(member: CommitteeMember): string {
+    const labels: Record<string, string> = {
+      employer: 'Arbeitgeber',
+      employee: 'Arbeitnehmer',
+      school: 'Schule',
+    };
+    return labels[member.representing_side] ?? member.representing_side;
+  }
+
   protected changeAvailability(
     member: CommitteeMember,
     day: CandidateExamDay,

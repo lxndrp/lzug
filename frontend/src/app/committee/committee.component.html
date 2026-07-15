@@ -3,7 +3,7 @@
     <c-card>
       <c-card-header>
         <strong>Prüfungsausschuss</strong>
-        <span class="app-muted">Committee und CommitteeMember</span>
+        <span class="app-muted">Ausschüsse und ihre Mitglieder verwalten</span>
       </c-card-header>
       <c-card-body>
         <table cTable hover small responsive>
@@ -105,7 +105,9 @@
               <tr>
                 <td>
                   <strong>{{ fullMemberName(member) }}</strong>
-                  <span>{{ memberStatusLabel(member.member_status) }}</span>
+                  <span class="app-muted d-block">{{
+                    memberStatusLabel(member.member_status)
+                  }}</span>
                 </td>
                 <td>{{ roleLabel(member.committee_role) }}</td>
                 <td>{{ memberSide(member) }}</td>

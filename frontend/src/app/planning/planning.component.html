@@ -13,7 +13,7 @@
           <dt class="col-7">Bewertung</dt>
           <dd class="col-5">
             <c-badge [color]="capacity() >= requiredSlots() ? 'success' : 'warning'">
-              {{ capacity() >= requiredSlots() ? 'ausreichend' : 'Unterdeckung' }}
+              {{ capacity() >= requiredSlots() ? 'Ausreichend' : 'Unterdeckung' }}
             </c-badge>
           </dd>
         </dl>
@@ -90,7 +90,7 @@
             </select>
           </div>
           <div class="col-12 col-md-8">
-            <label cLabel for="updatedByMember">Geändert durch</label>
+            <label cLabel for="updatedByMember">Änderung dokumentieren für</label>
             <select
               cSelect
               id="updatedByMember"
@@ -178,7 +178,7 @@
                 <td>{{ dateLabel(day.date) }}</td>
                 <td>
                   <c-badge [color]="day.is_active ? 'success' : 'secondary'">
-                    {{ day.is_active ? 'aktiv' : 'inaktiv' }}
+                    {{ day.is_active ? 'Aktiv' : 'Inaktiv' }}
                   </c-badge>
                 </td>
                 <td>
@@ -228,7 +228,7 @@
                 <tr>
                   <th scope="row">
                     {{ memberLabel(member) }}
-                    <span class="app-muted d-block">{{ member.representing_side }}</span>
+                    <span class="app-muted d-block">{{ memberSideLabel(member) }}</span>
                   </th>
                   @for (day of board?.candidateDays || []; track day.id) {
                     <td>

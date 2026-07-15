@@ -24,6 +24,8 @@ describe('PlanningComponent', () => {
     expect(text).toContain('Kapazitätsvorschau');
     expect(text).toContain('Benötigte Termine');
     expect(text).toContain('16.11.2026');
+    expect(text).toContain('Arbeitgeber');
+    expect(text).not.toContain('employer');
   });
 
   it('should emit planning settings form submissions', () => {
