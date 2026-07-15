@@ -121,6 +121,7 @@
             [actionBusy]="actionBusy()"
             (generateProposal)="generateProposal()"
             (confirmPlan)="requestPlanConfirmation()"
+            (openView)="showView($event)"
           />
         }
         @case ('candidates') {

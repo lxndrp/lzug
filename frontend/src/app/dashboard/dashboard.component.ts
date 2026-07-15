@@ -18,6 +18,7 @@ import {
   PlanningResult,
   RoundSummary,
 } from '../api/api.models';
+import { AppView } from '../app-view';
 
 @Component({
   selector: 'app-dashboard',
@@ -34,6 +35,7 @@ export class DashboardComponent {
 
   @Output() generateProposal = new EventEmitter<void>();
   @Output() confirmPlan = new EventEmitter<void>();
+  @Output() openView = new EventEmitter<AppView>();
 
   protected metrics() {
     return [
@@ -84,16 +86,19 @@ export class DashboardComponent {
           ? `${this.pendingCount()} Rückmeldungen offen`
           : 'Rückmeldungen vollständig',
         color: this.pendingCount() ? 'warning' : 'success',
+        view: 'planning' as AppView,
       },
       {
         label: 'Prüflinge',
         detail: `${this.summary?.counts?.candidates ?? 0} Prüflinge erfasst`,
         color: (this.summary?.counts?.candidates ?? 0) > 0 ? 'success' : 'warning',
+        view: 'candidates' as AppView,
       },
       {
         label: 'Planung',
         detail: this.planTaskLabel(),
         color: this.summary?.round.status === 'plan_confirmed' ? 'success' : 'info',
+        view: 'planning' as AppView,
       },
     ];
   }

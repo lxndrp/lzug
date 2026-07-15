@@ -87,6 +87,17 @@ describe('DashboardComponent', () => {
     expect(button('Plan bestätigen')?.disabled).toBeTrue();
   });
 
+  it('should open the view that belongs to a task', () => {
+    spyOn(component.openView, 'emit');
+    component.summary = summaryFixture;
+    component.board = planningBoardFixture;
+    fixture.detectChanges();
+
+    clickButton('Verfügbarkeiten');
+
+    expect(component.openView.emit).toHaveBeenCalledWith('planning');
+  });
+
   function textContent(): string {
     return (fixture.nativeElement as HTMLElement).textContent ?? '';
   }

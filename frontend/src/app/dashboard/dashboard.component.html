@@ -29,6 +29,11 @@
             </button>
           </div>
         </div>
+        @if (!canConfirmPlan() && summary?.round?.status !== 'plan_confirmed') {
+          <p class="app-action-hint">
+            Plan bestätigen wird verfügbar, sobald ein Vorschlag erzeugt wurde.
+          </p>
+        }
       </c-card-body>
     </c-card>
   </div>
@@ -106,24 +111,15 @@
         <strong>Aufgaben</strong>
       </c-card-header>
       <c-card-body>
-        <table cTable hover small responsive>
-          <thead>
-            <tr>
-              <th scope="col">Bereich</th>
-              <th scope="col">Stand</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (task of tasks(); track task.label) {
-              <tr>
-                <td>{{ task.label }}</td>
-                <td>
-                  <c-badge [color]="task.color">{{ task.detail }}</c-badge>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
+        <div class="app-task-list">
+          @for (task of tasks(); track task.label) {
+            <button type="button" class="app-task-link" (click)="openView.emit(task.view)">
+              <span>{{ task.label }}</span>
+              <c-badge [color]="task.color">{{ task.detail }}</c-badge>
+              <span aria-hidden="true">→</span>
+            </button>
+          }
+        </div>
       </c-card-body>
     </c-card>
   </div>

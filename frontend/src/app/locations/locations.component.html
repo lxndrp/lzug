@@ -1,58 +1,61 @@
 <div class="row g-4">
   <div class="col-12">
-    <c-card>
-      <c-card-header>
-        <strong>Prüfungsort anlegen</strong>
-      </c-card-header>
-      <c-card-body>
-        <form class="row g-3" (ngSubmit)="submitLocation()">
-          <div class="col-12 col-md-4">
-            <label cLabel for="locationCommittee">Ausschuss</label>
-            <select
-              cSelect
-              id="locationCommittee"
-              name="committeeId"
-              [(ngModel)]="draft.committee_id"
-            >
-              <option [ngValue]="0">Standardausschuss</option>
-              @for (committee of masterData?.committees || []; track committee.id) {
-                <option [ngValue]="committee.id">{{ committee.name }}</option>
-              }
-            </select>
-          </div>
-          <div class="col-12 col-md-4">
-            <label cLabel for="locationName">Ort</label>
-            <input cFormControl id="locationName" name="name" [(ngModel)]="draft.name" required />
-          </div>
-          <div class="col-12 col-md-4">
-            <label cLabel for="locationRoom">Raum</label>
-            <input cFormControl id="locationRoom" name="room" [(ngModel)]="draft.room" required />
-          </div>
-          <div class="col-12 col-md-5">
-            <label cLabel for="locationStreet">Straße</label>
-            <input cFormControl id="locationStreet" name="street" [(ngModel)]="draft.street" />
-          </div>
-          <div class="col-12 col-md-3">
-            <label cLabel for="locationPostalCode">PLZ</label>
-            <input
-              cFormControl
-              id="locationPostalCode"
-              name="postalCode"
-              [(ngModel)]="draft.postal_code"
-            />
-          </div>
-          <div class="col-12 col-md-4">
-            <label cLabel for="locationCity">Stadt</label>
-            <input cFormControl id="locationCity" name="city" [(ngModel)]="draft.city" />
-          </div>
-          <div class="col-12">
-            <button cButton color="primary" type="submit" [disabled]="actionBusy">
-              Prüfungsort anlegen
-            </button>
-          </div>
-        </form>
-      </c-card-body>
-    </c-card>
+    <details class="app-create-panel">
+      <summary class="app-create-trigger">Neuen Prüfungsort anlegen</summary>
+      <c-card>
+        <c-card-header>
+          <strong>Prüfungsort anlegen</strong>
+        </c-card-header>
+        <c-card-body>
+          <form class="row g-3" (ngSubmit)="submitLocation()">
+            <div class="col-12 col-md-4">
+              <label cLabel for="locationCommittee">Ausschuss</label>
+              <select
+                cSelect
+                id="locationCommittee"
+                name="committeeId"
+                [(ngModel)]="draft.committee_id"
+              >
+                <option [ngValue]="0">Standardausschuss</option>
+                @for (committee of masterData?.committees || []; track committee.id) {
+                  <option [ngValue]="committee.id">{{ committee.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-12 col-md-4">
+              <label cLabel for="locationName">Ort</label>
+              <input cFormControl id="locationName" name="name" [(ngModel)]="draft.name" required />
+            </div>
+            <div class="col-12 col-md-4">
+              <label cLabel for="locationRoom">Raum</label>
+              <input cFormControl id="locationRoom" name="room" [(ngModel)]="draft.room" required />
+            </div>
+            <div class="col-12 col-md-5">
+              <label cLabel for="locationStreet">Straße</label>
+              <input cFormControl id="locationStreet" name="street" [(ngModel)]="draft.street" />
+            </div>
+            <div class="col-12 col-md-3">
+              <label cLabel for="locationPostalCode">PLZ</label>
+              <input
+                cFormControl
+                id="locationPostalCode"
+                name="postalCode"
+                [(ngModel)]="draft.postal_code"
+              />
+            </div>
+            <div class="col-12 col-md-4">
+              <label cLabel for="locationCity">Stadt</label>
+              <input cFormControl id="locationCity" name="city" [(ngModel)]="draft.city" />
+            </div>
+            <div class="col-12">
+              <button cButton color="primary" type="submit" [disabled]="actionBusy">
+                Prüfungsort anlegen
+              </button>
+            </div>
+          </form>
+        </c-card-body>
+      </c-card>
+    </details>
   </div>
 
   <div class="col-12">
