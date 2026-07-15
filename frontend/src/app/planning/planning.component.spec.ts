@@ -110,18 +110,56 @@ describe('PlanningComponent', () => {
         day: (typeof planningBoardFixture.candidateDays)[number],
         availability: string,
       ) => void;
+      isAvailabilitySaving: (memberId: number, dayId: number) => boolean;
     };
     changeAvailability.changeAvailability(
       masterDataFixture.members[0],
-      planningBoardFixture.candidateDays[1],
+      planningBoardFixture.candidateDays[0],
       'morning',
     );
 
     expect(component.saveAvailability.emit).toHaveBeenCalledWith({
       committee_member_id: 1,
-      candidate_exam_day_id: 2,
+      candidate_exam_day_id: 1,
       availability: 'morning',
     });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Speichert …');
+    expect(changeAvailability.isAvailabilitySaving(1, 1)).toBeTrue();
+    expect(changeAvailability.isAvailabilitySaving(2, 1)).toBeFalse();
+  });
+
+  it('should confirm saved cells and roll failed cells back', () => {
+    const component = fixture.componentInstance;
+    const payload = {
+      committee_member_id: 1,
+      candidate_exam_day_id: 1,
+      availability: 'morning',
+    };
+    const changeAvailability = component as unknown as {
+      changeAvailability: (
+        member: (typeof masterDataFixture.members)[number],
+        day: (typeof planningBoardFixture.candidateDays)[number],
+        availability: string,
+      ) => void;
+      availabilityFor: (memberId: number, dayId: number) => string;
+    };
+
+    changeAvailability.changeAvailability(
+      masterDataFixture.members[0],
+      planningBoardFixture.candidateDays[0],
+      'morning',
+    );
+    component.markAvailabilitySaved(payload);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('✓ Gespeichert');
+
+    component.markAvailabilityError(payload);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Nicht gespeichert · zurückgesetzt',
+    );
+    expect(changeAvailability.availabilityFor(1, 1)).toBe('full_day');
   });
 
   function setInput(selector: string, value: string): void {

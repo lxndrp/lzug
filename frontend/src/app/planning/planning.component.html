@@ -237,17 +237,50 @@
                     </th>
                     @for (day of board?.candidateDays || []; track day.id) {
                       <td>
-                        <select
-                          cSelect
-                          [attr.aria-label]="memberLabel(member) + ' ' + dateLabel(day.date)"
-                          [disabled]="actionBusy || !day.is_active"
-                          [ngModel]="availabilityFor(member.id, day.id)"
-                          (ngModelChange)="changeAvailability(member, day, $event)"
-                        >
-                          @for (option of availabilityOptions(); track option.value) {
-                            <option [ngValue]="option.value">{{ option.label }}</option>
+                        <div class="app-availability-control">
+                          <select
+                            cSelect
+                            [attr.aria-label]="memberLabel(member) + ' ' + dateLabel(day.date)"
+                            [attr.aria-describedby]="
+                              availabilityCellState(member.id, day.id)
+                                ? availabilityStatusId(member.id, day.id)
+                                : null
+                            "
+                            [disabled]="
+                              actionBusy ||
+                              isAvailabilitySaving(member.id, day.id) ||
+                              !day.is_active
+                            "
+                            [ngModel]="availabilityFor(member.id, day.id)"
+                            (ngModelChange)="changeAvailability(member, day, $event)"
+                          >
+                            @for (option of availabilityOptions(); track option.value) {
+                              <option [ngValue]="option.value">{{ option.label }}</option>
+                            }
+                          </select>
+                          @if (availabilityCellState(member.id, day.id); as cellState) {
+                            <span
+                              class="app-cell-status"
+                              [class.app-cell-status-saving]="cellState.status === 'saving'"
+                              [class.app-cell-status-saved]="cellState.status === 'saved'"
+                              [class.app-cell-status-error]="cellState.status === 'error'"
+                              [id]="availabilityStatusId(member.id, day.id)"
+                              [attr.role]="cellState.status === 'error' ? 'alert' : 'status'"
+                            >
+                              @switch (cellState.status) {
+                                @case ('saving') {
+                                  Speichert …
+                                }
+                                @case ('saved') {
+                                  ✓ Gespeichert
+                                }
+                                @case ('error') {
+                                  Nicht gespeichert · zurückgesetzt
+                                }
+                              }
+                            </span>
                           }
-                        </select>
+                        </div>
                       </td>
                     }
                   </tr>

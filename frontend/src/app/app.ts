@@ -428,18 +428,34 @@ export class App {
   }
 
   protected saveAvailability(payload: AvailabilityPayload): void {
-    this.actionBusy.set(true);
-    this.api
-      .saveMemberAvailability(payload)
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: () => {
-          this.notify('success', 'Verfügbarkeit gespeichert', 'Die Auswahl wurde übernommen.');
-          this.refresh();
-        },
-        error: () =>
-          this.notify('error', 'Verfügbarkeit nicht gespeichert', 'Bitte erneut auswählen.'),
-      });
+    this.api.saveMemberAvailability(payload).subscribe({
+      next: (availability) => {
+        this.board.update((board) =>
+          board
+            ? {
+                ...board,
+                availabilities: [
+                  ...board.availabilities.filter(
+                    (item) =>
+                      item.committee_member_id !== availability.committee_member_id ||
+                      item.candidate_exam_day_id !== availability.candidate_exam_day_id,
+                  ),
+                  availability,
+                ],
+              }
+            : board,
+        );
+        this.planningComponent?.markAvailabilitySaved(payload);
+      },
+      error: () => {
+        this.planningComponent?.markAvailabilityError(payload);
+        this.notify(
+          'error',
+          'Verfügbarkeit nicht gespeichert',
+          'Die Auswahl wurde zurückgesetzt. Bitte erneut versuchen.',
+        );
+      },
+    });
   }
 
   protected toggleMember(member: CommitteeMember): void {

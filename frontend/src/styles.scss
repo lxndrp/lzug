@@ -123,8 +123,32 @@ c-card + c-card {
   box-shadow: 1px 0 0 var(--cui-border-color, #dee2e6);
 }
 
+.app-availability-control,
 .app-availability-table select {
   min-width: 9rem;
+}
+
+.app-availability-control {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.app-cell-status {
+  min-height: 1rem;
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+.app-cell-status-saving {
+  color: var(--cui-secondary-color, #6c757d);
+}
+
+.app-cell-status-saved {
+  color: var(--cui-success-text-emphasis, #0a3622);
+}
+
+.app-cell-status-error {
+  color: var(--cui-danger-text-emphasis, #58151c);
 }
 
 @media (max-width: 767.98px) {

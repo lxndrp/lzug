@@ -1,4 +1,13 @@
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
+import {
+  Component,
+  EventEmitter,
+  Input,
+  OnChanges,
+  OnDestroy,
+  Output,
+  SimpleChanges,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
   BadgeModule,
@@ -26,6 +35,10 @@ export type AvailabilityPayload = Pick<
   MemberAvailability,
   'committee_member_id' | 'candidate_exam_day_id' | 'availability'
 >;
+type AvailabilityCellState = {
+  status: 'saving' | 'saved' | 'error';
+  previous: AvailabilityValue;
+};
 
 @Component({
   selector: 'app-planning',
@@ -40,7 +53,7 @@ export type AvailabilityPayload = Pick<
   ],
   templateUrl: './planning.component.html',
 })
-export class PlanningComponent implements OnChanges {
+export class PlanningComponent implements OnChanges, OnDestroy {
   @Input() summary: RoundSummary | null = null;
   @Input() board: PlanningBoard | null = null;
   @Input() masterData: MasterData | null = null;
@@ -64,11 +77,18 @@ export class PlanningComponent implements OnChanges {
     date: '',
     is_active: 1,
   };
+  protected readonly availabilityCellStates = signal<Record<string, AvailabilityCellState>>({});
+  private readonly availabilityOverrides = signal<Record<string, AvailabilityValue>>({});
+  private readonly savedStateTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['summary'] || changes['board'] || changes['masterData']) {
       this.syncDraft();
     }
+  }
+
+  ngOnDestroy(): void {
+    this.savedStateTimers.forEach((timer) => clearTimeout(timer));
   }
 
   protected capacity(): number {
@@ -96,6 +116,30 @@ export class PlanningComponent implements OnChanges {
   }
 
   protected availabilityFor(memberId: number, dayId: number): AvailabilityValue {
+    const key = this.availabilityCellKey(memberId, dayId);
+    const overrides = this.availabilityOverrides();
+    if (key in overrides) {
+      return overrides[key];
+    }
+    return this.persistedAvailabilityFor(memberId, dayId);
+  }
+
+  protected availabilityCellState(
+    memberId: number,
+    dayId: number,
+  ): AvailabilityCellState | undefined {
+    return this.availabilityCellStates()[this.availabilityCellKey(memberId, dayId)];
+  }
+
+  protected availabilityStatusId(memberId: number, dayId: number): string {
+    return `availability-status-${memberId}-${dayId}`;
+  }
+
+  protected isAvailabilitySaving(memberId: number, dayId: number): boolean {
+    return this.availabilityCellState(memberId, dayId)?.status === 'saving';
+  }
+
+  private persistedAvailabilityFor(memberId: number, dayId: number): AvailabilityValue {
     return (
       this.board?.availabilities.find(
         (item) => item.committee_member_id === memberId && item.candidate_exam_day_id === dayId,
@@ -130,11 +174,68 @@ export class PlanningComponent implements OnChanges {
     day: CandidateExamDay,
     availability: AvailabilityValue,
   ): void {
+    const key = this.availabilityCellKey(member.id, day.id);
+    const previous = this.availabilityFor(member.id, day.id);
+    if (availability === previous) {
+      return;
+    }
+
+    this.clearSavedStateTimer(key);
+    this.availabilityOverrides.update((overrides) => ({ ...overrides, [key]: availability }));
+    this.availabilityCellStates.update((states) => ({
+      ...states,
+      [key]: { status: 'saving', previous },
+    }));
     this.saveAvailability.emit({
       committee_member_id: member.id,
       candidate_exam_day_id: day.id,
       availability,
     });
+  }
+
+  markAvailabilitySaved(payload: AvailabilityPayload): void {
+    const key = this.availabilityCellKey(
+      payload.committee_member_id,
+      payload.candidate_exam_day_id,
+    );
+    const state = this.availabilityCellStates()[key];
+    if (!state) {
+      return;
+    }
+
+    this.availabilityCellStates.update((states) => ({
+      ...states,
+      [key]: { ...state, status: 'saved' },
+    }));
+    this.clearSavedStateTimer(key);
+    this.savedStateTimers.set(
+      key,
+      setTimeout(() => {
+        this.removeAvailabilityCellEntry(key);
+        this.savedStateTimers.delete(key);
+      }, 1800),
+    );
+  }
+
+  markAvailabilityError(payload: AvailabilityPayload): void {
+    const key = this.availabilityCellKey(
+      payload.committee_member_id,
+      payload.candidate_exam_day_id,
+    );
+    const state = this.availabilityCellStates()[key];
+    if (!state) {
+      return;
+    }
+
+    this.clearSavedStateTimer(key);
+    this.availabilityOverrides.update((overrides) => ({
+      ...overrides,
+      [key]: state.previous,
+    }));
+    this.availabilityCellStates.update((states) => ({
+      ...states,
+      [key]: { ...state, status: 'error' },
+    }));
   }
 
   protected submitCandidateDay(): void {
@@ -194,5 +295,28 @@ export class PlanningComponent implements OnChanges {
       this.board?.locations.find((location) => location.is_active !== 0)?.id ??
       null;
     this.draft.updated_by_member_id = settings?.updated_by_member_id ?? this.defaultUpdaterId();
+  }
+
+  private availabilityCellKey(memberId: number, dayId: number): string {
+    return `${memberId}:${dayId}`;
+  }
+
+  private clearSavedStateTimer(key: string): void {
+    const timer = this.savedStateTimers.get(key);
+    if (timer) {
+      clearTimeout(timer);
+      this.savedStateTimers.delete(key);
+    }
+  }
+
+  private removeAvailabilityCellEntry(key: string): void {
+    this.availabilityOverrides.update((overrides) => this.withoutKey(overrides, key));
+    this.availabilityCellStates.update((states) => this.withoutKey(states, key));
+  }
+
+  private withoutKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+    const copy = { ...record };
+    delete copy[key];
+    return copy;
   }
 }
