@@ -91,10 +91,25 @@ class ApiTests(unittest.TestCase):
             status, updated = api.request(
                 "PATCH",
                 f"/api/candidates/{candidate['id']}",
-                {"training_company": "Neue Muster GmbH"},
+                {
+                    "training_company": "Neue Muster GmbH",
+                    "exam_round_id": 1,
+                    "attempt_number": 3,
+                    "requires_mep": False,
+                },
             )
             assert_status(status, HTTPStatus.OK)
             self.assertEqual("Neue Muster GmbH", updated["training_company"])
+
+            status, round_candidates = api.request("GET", "/api/round-candidates?round_id=1")
+            assert_status(status, HTTPStatus.OK)
+            round_candidate = next(
+                item
+                for item in round_candidates["items"]
+                if item["candidate_id"] == candidate["id"]
+            )
+            self.assertEqual(3, round_candidate["attempt_number"])
+            self.assertFalse(round_candidate["requires_mep"])
 
             status, body = api.request("DELETE", f"/api/candidates/{candidate['id']}")
             assert_status(status, HTTPStatus.NO_CONTENT)

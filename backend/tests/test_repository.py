@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from backend.models import CANDIDATE, MEMBER_AVAILABILITY, PLANNING_SETTINGS
+from backend.models import CANDIDATE, MEMBER_AVAILABILITY, PLANNING_SETTINGS, ROUND_CANDIDATE
 from backend.repositories import ResourceRepository
 from backend.tests.helpers import TempDatabase
 
@@ -51,6 +51,40 @@ class RepositoryTests(unittest.TestCase):
 
         self.assertIsNone(candidate)
         self.assertEqual(11, summary["counts"]["candidates"])
+
+    def test_update_candidate_updates_round_data_atomically(self) -> None:
+        with TempDatabase() as db_path:
+            repository = ResourceRepository(db_path)
+            updated = repository.update_candidate(
+                1,
+                {
+                    "last_name": "Neu",
+                    "exam_round_id": 1,
+                    "attempt_number": 3,
+                    "requires_mep": 1,
+                },
+            )
+            round_candidate = repository.list_filtered(
+                ROUND_CANDIDATE,
+                {"candidate_id": 1, "exam_round_id": 1},
+            )[0]
+
+            with self.assertRaises(ValueError):
+                repository.update_candidate(
+                    1,
+                    {
+                        "last_name": "Nicht gespeichert",
+                        "exam_round_id": 999,
+                        "attempt_number": 2,
+                    },
+                )
+            after_failed_update = repository.get(CANDIDATE, 1)
+
+        self.assertIsNotNone(updated)
+        self.assertEqual("Neu", updated["last_name"])
+        self.assertEqual(3, round_candidate["attempt_number"])
+        self.assertEqual(1, round_candidate["requires_mep"])
+        self.assertEqual("Neu", after_failed_update["last_name"])
 
     def test_planning_settings_upsert_enforces_chair_for_week_limit(self) -> None:
         with TempDatabase() as db_path:

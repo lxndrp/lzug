@@ -25,7 +25,11 @@ import {
 } from './api/api.models';
 import { PlanningApiService } from './api/planning-api.service';
 import { AppView } from './app-view';
-import { CandidatePayload, CandidatesComponent } from './candidates/candidates.component';
+import {
+  CandidatePayload,
+  CandidatesComponent,
+  CandidateUpdate,
+} from './candidates/candidates.component';
 import {
   CommitteeComponent,
   CommitteeMemberPayload,
@@ -269,6 +273,30 @@ export class App {
           this.refresh();
         },
         error: () => this.notify('error', 'Prüfling nicht gelöscht', 'Bitte erneut versuchen.'),
+      });
+  }
+
+  protected updateCandidate(update: CandidateUpdate): void {
+    this.actionBusy.set(true);
+    this.api
+      .updateCandidate(update.id, update.payload)
+      .pipe(finalize(() => this.actionBusy.set(false)))
+      .subscribe({
+        next: (candidate) => {
+          this.candidatesComponent?.finishEditing(candidate.id);
+          this.notify(
+            'success',
+            'Prüfling gespeichert',
+            `${candidate.first_name} ${candidate.last_name}`,
+          );
+          this.refresh();
+        },
+        error: () =>
+          this.notify(
+            'error',
+            'Prüfling nicht gespeichert',
+            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
+          ),
       });
   }
 

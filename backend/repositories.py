@@ -93,6 +93,33 @@ class ResourceRepository:
                 )
             return candidate
 
+    def update_candidate(
+        self,
+        candidate_id: int,
+        payload: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        with session_scope(self.db_path) as session:
+            store = Store(session)
+            candidate = store.update(CANDIDATE, candidate_id, payload)
+            if candidate is None:
+                return None
+
+            round_fields = {"attempt_number", "requires_mep"}
+            if round_fields.intersection(payload):
+                exam_round_id = payload.get("exam_round_id")
+                if exam_round_id is None:
+                    raise ValueError("Missing required field: exam_round_id")
+                round_candidate = store.first(
+                    ROUND_CANDIDATE,
+                    candidate_id=candidate_id,
+                    exam_round_id=exam_round_id,
+                )
+                if round_candidate is None:
+                    raise ValueError("Candidate does not belong to the exam round")
+                store.update(ROUND_CANDIDATE, round_candidate["id"], payload)
+
+            return candidate
+
     def save_planning_settings(self, payload: dict[str, Any]) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
             store = Store(session)

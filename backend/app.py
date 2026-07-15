@@ -158,6 +158,8 @@ class LzugHandler(BaseHTTPRequestHandler):
                 row = self.repository.update_planning_settings(entity_id, payload)
             elif resource_name == "member-availabilities":
                 row = self.repository.update_member_availability(entity_id, payload)
+            elif resource_name == "candidates":
+                row = self.repository.update_candidate(entity_id, payload)
             else:
                 row = self.repository.update(
                     REST_RESOURCES[resource_name],

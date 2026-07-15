@@ -162,6 +162,16 @@ export class PlanningApiService {
     });
   }
 
+  updateCandidate(
+    id: number,
+    payload: Omit<Candidate, 'id'> & { attempt_number: number; requires_mep: number },
+  ) {
+    return this.http.patch<Candidate>(`/api/candidates/${id}`, {
+      ...payload,
+      exam_round_id: this.roundId,
+    });
+  }
+
   deleteCandidate(id: number) {
     return this.http.delete<void>(`/api/candidates/${id}`);
   }

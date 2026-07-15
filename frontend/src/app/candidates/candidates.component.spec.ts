@@ -69,6 +69,36 @@ describe('CandidatesComponent', () => {
     expect(component.deleteCandidate.emit).toHaveBeenCalled();
   });
 
+  it('should edit candidate and round data without clearing the form before success', () => {
+    const component = fixture.componentInstance;
+    spyOn(component.updateCandidate, 'emit');
+
+    clickButton('Bearbeiten');
+    const editor = component as unknown as {
+      editDraft: () => { last_name: string; attempt_number: number };
+      submitCandidateUpdate: () => void;
+    };
+    editor.editDraft().last_name = 'Hoffmann-Neu';
+    editor.editDraft().attempt_number = 3;
+    editor.submitCandidateUpdate();
+
+    expect(component.updateCandidate.emit).toHaveBeenCalledWith({
+      id: 1,
+      payload: jasmine.objectContaining({
+        last_name: 'Hoffmann-Neu',
+        attempt_number: 3,
+        requires_mep: 0,
+      }),
+    });
+    expect(editor.editDraft().last_name).toBe('Hoffmann-Neu');
+
+    component.finishEditing(1);
+    fixture.detectChanges();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('#editCandidateLastName-1'),
+    ).toBeNull();
+  });
+
   function setInput(selector: string, value: string): void {
     const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(selector);
     expect(input).toBeTruthy();

@@ -15,6 +15,10 @@ export type CandidatePayload = Omit<Candidate, 'id'> & {
   attempt_number: number;
   requires_mep: number;
 };
+export type CandidateUpdate = {
+  id: number;
+  payload: CandidatePayload;
+};
 
 @Component({
   selector: 'app-candidates',
@@ -34,7 +38,11 @@ export class CandidatesComponent {
   @Input() actionBusy = false;
 
   @Output() createCandidate = new EventEmitter<CandidatePayload>();
+  @Output() updateCandidate = new EventEmitter<CandidateUpdate>();
   @Output() deleteCandidate = new EventEmitter<Candidate>();
+
+  protected readonly editingCandidateId = signal<number | null>(null);
+  protected readonly editDraft = signal<CandidatePayload | null>(null);
 
   protected readonly query = signal('');
   protected readonly specialization = signal('');
@@ -131,5 +139,52 @@ export class CandidatesComponent {
     this.draft.training_company = '';
     this.draft.attempt_number = 1;
     this.draft.requires_mep = 0;
+  }
+
+  protected startEditing(item: CandidateView): void {
+    this.editingCandidateId.set(item.candidate.id);
+    this.editDraft.set({
+      first_name: item.candidate.first_name,
+      last_name: item.candidate.last_name,
+      ihk_exam_number: item.candidate.ihk_exam_number,
+      specialization: item.candidate.specialization,
+      training_company: item.candidate.training_company,
+      attempt_number: item.roundCandidate?.attempt_number ?? 1,
+      requires_mep: item.roundCandidate?.requires_mep ?? 0,
+    });
+  }
+
+  protected submitCandidateUpdate(): void {
+    const id = this.editingCandidateId();
+    const draft = this.editDraft();
+    if (!id || !draft) {
+      return;
+    }
+
+    const payload: CandidatePayload = {
+      ...draft,
+      first_name: draft.first_name.trim(),
+      last_name: draft.last_name.trim(),
+      ihk_exam_number: draft.ihk_exam_number.trim(),
+      training_company: draft.training_company.trim(),
+      attempt_number: Number(draft.attempt_number) || 1,
+      requires_mep: draft.requires_mep ? 1 : 0,
+    };
+    if (!payload.first_name || !payload.last_name || !payload.ihk_exam_number) {
+      return;
+    }
+
+    this.updateCandidate.emit({ id, payload });
+  }
+
+  protected cancelEditing(): void {
+    this.editingCandidateId.set(null);
+    this.editDraft.set(null);
+  }
+
+  finishEditing(id: number): void {
+    if (this.editingCandidateId() === id) {
+      this.cancelEditing();
+    }
   }
 }

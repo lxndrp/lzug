@@ -94,6 +94,7 @@
             [masterData]="masterData()"
             [actionBusy]="actionBusy()"
             (createCandidate)="createCandidate($event)"
+            (updateCandidate)="updateCandidate($event)"
             (deleteCandidate)="
               requestCandidateDeletion($event.id, $event.first_name + ' ' + $event.last_name)
             "

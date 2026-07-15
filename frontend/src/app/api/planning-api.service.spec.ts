@@ -156,6 +156,31 @@ describe('PlanningApiService', () => {
     });
     create.flush(candidatesFixture[0]);
 
+    service
+      .updateCandidate(1, {
+        first_name: 'Lea',
+        last_name: 'Hoffmann',
+        ihk_exam_number: 'FI-2026-1042',
+        specialization: 'application_development',
+        training_company: 'Nordlicht Digital GmbH',
+        attempt_number: 2,
+        requires_mep: 1,
+      })
+      .subscribe();
+    const update = http.expectOne('/api/candidates/1');
+    expect(update.request.method).toBe('PATCH');
+    expect(update.request.body).toEqual({
+      first_name: 'Lea',
+      last_name: 'Hoffmann',
+      ihk_exam_number: 'FI-2026-1042',
+      specialization: 'application_development',
+      training_company: 'Nordlicht Digital GmbH',
+      attempt_number: 2,
+      requires_mep: 1,
+      exam_round_id: 1,
+    });
+    update.flush(candidatesFixture[0]);
+
     service.deleteCandidate(1).subscribe();
     const remove = http.expectOne('/api/candidates/1');
     expect(remove.request.method).toBe('DELETE');

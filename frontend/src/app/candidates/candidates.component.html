@@ -181,6 +181,17 @@
                   <td>
                     <button
                       cButton
+                      color="primary"
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                      [disabled]="actionBusy"
+                      (click)="startEditing(item)"
+                    >
+                      Bearbeiten
+                    </button>
+                    <button
+                      cButton
                       color="danger"
                       size="sm"
                       type="button"
@@ -192,6 +203,134 @@
                     </button>
                   </td>
                 </tr>
+                @if (editingCandidateId() === item.candidate.id) {
+                  @if (editDraft(); as currentDraft) {
+                    <tr>
+                      <td colspan="7">
+                        <form
+                          class="row g-3 app-inline-editor"
+                          [attr.aria-label]="
+                            'Prüfling ' +
+                            item.candidate.first_name +
+                            ' ' +
+                            item.candidate.last_name +
+                            ' bearbeiten'
+                          "
+                          (ngSubmit)="submitCandidateUpdate()"
+                        >
+                          <div class="col-12 col-md-6">
+                            <label cLabel [for]="'editCandidateFirstName-' + item.candidate.id"
+                              >Vorname</label
+                            >
+                            <input
+                              cFormControl
+                              [id]="'editCandidateFirstName-' + item.candidate.id"
+                              [name]="'editCandidateFirstName-' + item.candidate.id"
+                              [(ngModel)]="currentDraft.first_name"
+                              required
+                            />
+                          </div>
+                          <div class="col-12 col-md-6">
+                            <label cLabel [for]="'editCandidateLastName-' + item.candidate.id"
+                              >Nachname</label
+                            >
+                            <input
+                              cFormControl
+                              [id]="'editCandidateLastName-' + item.candidate.id"
+                              [name]="'editCandidateLastName-' + item.candidate.id"
+                              [(ngModel)]="currentDraft.last_name"
+                              required
+                            />
+                          </div>
+                          <div class="col-12 col-md-4">
+                            <label cLabel [for]="'editCandidateExamNumber-' + item.candidate.id"
+                              >Prüfungsnummer</label
+                            >
+                            <input
+                              cFormControl
+                              [id]="'editCandidateExamNumber-' + item.candidate.id"
+                              [name]="'editCandidateExamNumber-' + item.candidate.id"
+                              [(ngModel)]="currentDraft.ihk_exam_number"
+                              required
+                            />
+                          </div>
+                          <div class="col-12 col-md-4">
+                            <label cLabel [for]="'editCandidateSpecialization-' + item.candidate.id"
+                              >Fachrichtung</label
+                            >
+                            <select
+                              cSelect
+                              [id]="'editCandidateSpecialization-' + item.candidate.id"
+                              [name]="'editCandidateSpecialization-' + item.candidate.id"
+                              [(ngModel)]="currentDraft.specialization"
+                            >
+                              <option value="application_development">Anwendungsentwicklung</option>
+                              <option value="system_integration">Systemintegration</option>
+                              <option value="data_and_process_analysis">
+                                Daten- und Prozessanalyse
+                              </option>
+                              <option value="digital_networking">Digitale Vernetzung</option>
+                            </select>
+                          </div>
+                          <div class="col-12 col-md-4">
+                            <label cLabel [for]="'editCandidateAttempt-' + item.candidate.id"
+                              >Versuch</label
+                            >
+                            <input
+                              cFormControl
+                              [id]="'editCandidateAttempt-' + item.candidate.id"
+                              [name]="'editCandidateAttempt-' + item.candidate.id"
+                              min="1"
+                              type="number"
+                              [(ngModel)]="currentDraft.attempt_number"
+                            />
+                          </div>
+                          <div class="col-12 col-md-8">
+                            <label cLabel [for]="'editCandidateCompany-' + item.candidate.id"
+                              >Ausbildungsbetrieb</label
+                            >
+                            <input
+                              cFormControl
+                              [id]="'editCandidateCompany-' + item.candidate.id"
+                              [name]="'editCandidateCompany-' + item.candidate.id"
+                              [(ngModel)]="currentDraft.training_company"
+                            />
+                          </div>
+                          <div class="col-12 col-md-4 d-flex align-items-end">
+                            <div cFormCheck>
+                              <input
+                                cFormCheckInput
+                                [id]="'editCandidateMep-' + item.candidate.id"
+                                [name]="'editCandidateMep-' + item.candidate.id"
+                                type="checkbox"
+                                [ngModel]="currentDraft.requires_mep === 1"
+                                (ngModelChange)="currentDraft.requires_mep = $event ? 1 : 0"
+                              />
+                              <label cFormCheckLabel [for]="'editCandidateMep-' + item.candidate.id"
+                                >MEP erforderlich</label
+                              >
+                            </div>
+                          </div>
+                          <div class="col-12 app-actions">
+                            <button cButton color="primary" type="submit" [disabled]="actionBusy">
+                              Änderungen speichern
+                            </button>
+                            <button
+                              cButton
+                              color="secondary"
+                              type="button"
+                              variant="outline"
+                              [disabled]="actionBusy"
+                              (click)="cancelEditing()"
+                            >
+                              Abbrechen
+                            </button>
+                          </div>
+                        </form>
+                      </td>
+                    </tr>
+                  }
+                }
               } @empty {
                 <tr>
                   <td colspan="7">Keine passenden Prüflinge vorhanden.</td>
