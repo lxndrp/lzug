@@ -123,7 +123,7 @@
             [loading]="loading()"
             [actionBusy]="actionBusy()"
             (generateProposal)="generateProposal()"
-            (confirmPlan)="confirmPlan()"
+            (confirmPlan)="requestPlanConfirmation()"
           />
         }
         @case ('candidates') {
@@ -132,7 +132,7 @@
             [actionBusy]="actionBusy()"
             (createCandidate)="createCandidate($event)"
             (deleteCandidate)="
-              deleteCandidate($event.id, $event.first_name + ' ' + $event.last_name)
+              requestCandidateDeletion($event.id, $event.first_name + ' ' + $event.last_name)
             "
           />
         }
@@ -165,10 +165,55 @@
             [actionBusy]="actionBusy()"
             (createLocation)="createLocation($event)"
             (toggleLocation)="toggleLocation($event)"
-            (deleteLocation)="deleteLocation($event.id, $event.name + ' · ' + $event.room)"
+            (deleteLocation)="requestLocationDeletion($event.id, $event.name + ' · ' + $event.room)"
           />
         }
       }
     </c-container>
   </main>
 </div>
+
+@if (feedback(); as currentFeedback) {
+  <aside
+    class="app-feedback"
+    [class.app-feedback-error]="currentFeedback.type === 'error'"
+    [attr.role]="currentFeedback.type === 'error' ? 'alert' : 'status'"
+    aria-live="polite"
+  >
+    <div>
+      <strong>{{ currentFeedback.title }}</strong>
+      <span>{{ currentFeedback.message }}</span>
+    </div>
+    <button type="button" aria-label="Meldung schließen" (click)="dismissFeedback()">×</button>
+  </aside>
+}
+
+<c-modal
+  alignment="center"
+  backdrop="static"
+  [visible]="confirmation() !== null"
+  (visibleChange)="$event || cancelConfirmation()"
+>
+  @if (confirmation(); as currentConfirmation) {
+    <c-modal-header>
+      <h2 cModalTitle>{{ currentConfirmation.title }}</h2>
+    </c-modal-header>
+    <c-modal-body>
+      <p class="mb-0">{{ currentConfirmation.message }}</p>
+    </c-modal-body>
+    <c-modal-footer>
+      <button
+        cButton
+        color="secondary"
+        variant="outline"
+        type="button"
+        (click)="cancelConfirmation()"
+      >
+        Abbrechen
+      </button>
+      <button cButton color="danger" type="button" (click)="confirmAction()">
+        {{ currentConfirmation.confirmLabel }}
+      </button>
+    </c-modal-footer>
+  }
+</c-modal>

@@ -45,6 +45,10 @@ describe('LocationsComponent', () => {
         room: 'A 1.01',
       }),
     );
+    expect(inputValue('#locationName')).toBe('IHK Campus');
+
+    component.resetDraft();
+    expect((component as unknown as { draft: { name: string } }).draft.name).toBe('');
   });
 
   it('should emit location deletion requests', () => {
@@ -86,5 +90,9 @@ describe('LocationsComponent', () => {
     input!.value = value;
     input!.dispatchEvent(new Event('input'));
     fixture.detectChanges();
+  }
+
+  function inputValue(selector: string): string {
+    return (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(selector)!.value;
   }
 });

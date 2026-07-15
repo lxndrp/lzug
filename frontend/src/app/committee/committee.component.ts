@@ -29,6 +29,8 @@ export type CommitteeMemberPayload = Omit<CommitteeMember, 'id' | 'email_verifie
 })
 export class CommitteeComponent {
   protected readonly selectedCommitteeId = signal<number | null>(null);
+  private pendingCommitteeForm: HTMLFormElement | null = null;
+  private pendingMemberForm: HTMLFormElement | null = null;
 
   @Input() actionBusy = false;
   @Output() selectedCommitteeIdChange = new EventEmitter<number | null>();
@@ -101,7 +103,7 @@ export class CommitteeComponent {
     if (!name || !occupation) {
       return;
     }
-    form.reset();
+    this.pendingCommitteeForm = form;
     this.createCommittee.emit({ name, occupation });
   }
 
@@ -124,8 +126,18 @@ export class CommitteeComponent {
     if (!payload.committee_id || !payload.first_name || !payload.last_name || !payload.email) {
       return;
     }
-    form.reset();
+    this.pendingMemberForm = form;
     this.createMember.emit(payload);
+  }
+
+  resetCommitteeForm(): void {
+    this.pendingCommitteeForm?.reset();
+    this.pendingCommitteeForm = null;
+  }
+
+  resetMemberForm(): void {
+    this.pendingMemberForm?.reset();
+    this.pendingMemberForm = null;
   }
 
   protected fullMemberName(member: CommitteeMember): string {

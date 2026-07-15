@@ -59,6 +59,10 @@ describe('CandidatesComponent', () => {
         ihk_exam_number: 'FI-2026-1081',
       }),
     );
+    expect(inputValue('#candidateFirstName')).toBe('Mara');
+
+    component.resetDraft();
+    expect((component as unknown as { draft: { first_name: string } }).draft.first_name).toBe('');
 
     clickButton('Löschen');
     expect(component.deleteCandidate.emit).toHaveBeenCalled();
@@ -70,6 +74,10 @@ describe('CandidatesComponent', () => {
     input!.value = value;
     input!.dispatchEvent(new Event('input'));
     fixture.detectChanges();
+  }
+
+  function inputValue(selector: string): string {
+    return (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(selector)!.value;
   }
 
   function clickButton(label: string): void {

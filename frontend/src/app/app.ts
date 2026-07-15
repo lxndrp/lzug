@@ -1,8 +1,9 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, ViewChild, computed, inject, signal } from '@angular/core';
 import {
   ButtonModule,
   GridModule,
   HeaderModule,
+  ModalModule,
   NavModule,
   ProgressModule,
   SidebarModule,
@@ -48,6 +49,7 @@ import {
     ButtonModule,
     GridModule,
     HeaderModule,
+    ModalModule,
     NavModule,
     ProgressModule,
     SidebarModule,
@@ -57,6 +59,10 @@ import {
 })
 export class App {
   private readonly api = inject(PlanningApiService);
+  @ViewChild(CandidatesComponent) private candidatesComponent?: CandidatesComponent;
+  @ViewChild(CommitteeComponent) private committeeComponent?: CommitteeComponent;
+  @ViewChild(LocationsComponent) private locationsComponent?: LocationsComponent;
+  @ViewChild(PlanningComponent) private planningComponent?: PlanningComponent;
 
   protected readonly apiRoot = signal<ApiRoot | null>(null);
   protected readonly round = signal<ExamRound | null>(null);
@@ -69,6 +75,17 @@ export class App {
   protected readonly message = signal('Bereit');
   protected readonly loading = signal(false);
   protected readonly actionBusy = signal(false);
+  protected readonly feedback = signal<{
+    type: 'success' | 'error';
+    title: string;
+    message: string;
+  } | null>(null);
+  protected readonly confirmation = signal<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    action: () => void;
+  } | null>(null);
 
   protected readonly pageTitle = computed(() => {
     const labels: Record<AppView, string> = {
@@ -118,6 +135,47 @@ export class App {
     this.selectedCommitteeId.set(id);
   }
 
+  protected dismissFeedback(): void {
+    this.feedback.set(null);
+  }
+
+  protected cancelConfirmation(): void {
+    this.confirmation.set(null);
+  }
+
+  protected confirmAction(): void {
+    const confirmation = this.confirmation();
+    this.confirmation.set(null);
+    confirmation?.action();
+  }
+
+  protected requestCandidateDeletion(id: number, label: string): void {
+    this.confirmation.set({
+      title: 'Prüfling löschen?',
+      message: `${label} wird dauerhaft aus der Prüfungsverwaltung entfernt.`,
+      confirmLabel: 'Prüfling löschen',
+      action: () => this.deleteCandidate(id, label),
+    });
+  }
+
+  protected requestLocationDeletion(id: number, label: string): void {
+    this.confirmation.set({
+      title: 'Prüfungsort löschen?',
+      message: `${label} wird dauerhaft aus der Prüfungsverwaltung entfernt.`,
+      confirmLabel: 'Prüfungsort löschen',
+      action: () => this.deleteLocation(id, label),
+    });
+  }
+
+  protected requestPlanConfirmation(): void {
+    this.confirmation.set({
+      title: 'Terminplan bestätigen?',
+      message: 'Der aktuelle Planungsvorschlag wird als verbindlicher Terminplan bestätigt.',
+      confirmLabel: 'Plan verbindlich bestätigen',
+      action: () => this.confirmPlan(),
+    });
+  }
+
   protected createCommittee(payload: CommitteePayload): void {
     this.actionBusy.set(true);
     this.api
@@ -125,11 +183,17 @@ export class App {
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
         next: (committee) => {
+          this.committeeComponent?.resetCommitteeForm();
           this.selectedCommitteeId.set(committee.id);
-          this.message.set(`Ausschuss angelegt: ${committee.name}`);
+          this.notify('success', 'Ausschuss angelegt', committee.name);
           this.refresh();
         },
-        error: () => this.message.set('Ausschuss konnte nicht gespeichert werden'),
+        error: () =>
+          this.notify(
+            'error',
+            'Ausschuss nicht gespeichert',
+            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
+          ),
       });
   }
 
@@ -140,11 +204,17 @@ export class App {
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
         next: (member) => {
+          this.committeeComponent?.resetMemberForm();
           this.selectedCommitteeId.set(member.committee_id);
-          this.message.set(`Prüfer angelegt: ${this.fullMemberName(member)}`);
+          this.notify('success', 'Prüfer angelegt', this.fullMemberName(member));
           this.refresh();
         },
-        error: () => this.message.set('Prüfer konnte nicht gespeichert werden'),
+        error: () =>
+          this.notify(
+            'error',
+            'Prüfer nicht gespeichert',
+            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
+          ),
       });
   }
 
@@ -155,10 +225,20 @@ export class App {
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
         next: (candidate) => {
-          this.message.set(`Prüfling angelegt: ${candidate.first_name} ${candidate.last_name}`);
+          this.candidatesComponent?.resetDraft();
+          this.notify(
+            'success',
+            'Prüfling angelegt',
+            `${candidate.first_name} ${candidate.last_name}`,
+          );
           this.refresh();
         },
-        error: () => this.message.set('Prüfling konnte nicht gespeichert werden'),
+        error: () =>
+          this.notify(
+            'error',
+            'Prüfling nicht gespeichert',
+            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
+          ),
       });
   }
 
@@ -169,10 +249,10 @@ export class App {
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
         next: () => {
-          this.message.set(`Prüfling gelöscht: ${label}`);
+          this.notify('success', 'Prüfling gelöscht', label);
           this.refresh();
         },
-        error: () => this.message.set('Prüfling konnte nicht gelöscht werden'),
+        error: () => this.notify('error', 'Prüfling nicht gelöscht', 'Bitte erneut versuchen.'),
       });
   }
 
@@ -183,10 +263,16 @@ export class App {
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
         next: (location) => {
-          this.message.set(`Prüfungsort angelegt: ${location.name}`);
+          this.locationsComponent?.resetDraft();
+          this.notify('success', 'Prüfungsort angelegt', location.name);
           this.refresh();
         },
-        error: () => this.message.set('Prüfungsort konnte nicht gespeichert werden'),
+        error: () =>
+          this.notify(
+            'error',
+            'Prüfungsort nicht gespeichert',
+            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
+          ),
       });
   }
 
@@ -197,10 +283,10 @@ export class App {
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
         next: () => {
-          this.message.set(`Prüfungsort gelöscht: ${label}`);
+          this.notify('success', 'Prüfungsort gelöscht', label);
           this.refresh();
         },
-        error: () => this.message.set('Prüfungsort konnte nicht gelöscht werden'),
+        error: () => this.notify('error', 'Prüfungsort nicht gelöscht', 'Bitte erneut versuchen.'),
       });
   }
 
@@ -212,10 +298,14 @@ export class App {
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
         next: () => {
-          this.message.set(`${location.name} ist jetzt ${nextActive ? 'aktiv' : 'deaktiviert'}`);
+          this.notify(
+            'success',
+            `Prüfungsort ${nextActive ? 'aktiviert' : 'deaktiviert'}`,
+            location.name,
+          );
           this.refresh();
         },
-        error: () => this.message.set('Prüfungsortstatus konnte nicht geändert werden'),
+        error: () => this.notify('error', 'Status nicht geändert', 'Bitte erneut versuchen.'),
       });
   }
 
@@ -226,10 +316,11 @@ export class App {
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
         next: () => {
-          this.message.set('Planungsrahmen gespeichert');
+          this.notify('success', 'Planungsrahmen gespeichert', 'Die Änderungen sind übernommen.');
           this.refresh();
         },
-        error: () => this.message.set('Planungsrahmen konnte nicht gespeichert werden'),
+        error: () =>
+          this.notify('error', 'Planungsrahmen nicht gespeichert', 'Bitte erneut versuchen.'),
       });
   }
 
@@ -240,10 +331,16 @@ export class App {
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
         next: (day) => {
-          this.message.set(`Prüfungstag angelegt: ${day.date}`);
+          this.planningComponent?.resetCandidateDayDraft();
+          this.notify('success', 'Prüfungstag angelegt', day.date);
           this.refresh();
         },
-        error: () => this.message.set('Prüfungstag konnte nicht angelegt werden'),
+        error: () =>
+          this.notify(
+            'error',
+            'Prüfungstag nicht angelegt',
+            'Die Eingabe bleibt erhalten. Bitte erneut versuchen.',
+          ),
       });
   }
 
@@ -255,10 +352,14 @@ export class App {
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
         next: () => {
-          this.message.set(`Prüfungstag ${nextActive ? 'aktiviert' : 'deaktiviert'}: ${day.date}`);
+          this.notify(
+            'success',
+            `Prüfungstag ${nextActive ? 'aktiviert' : 'deaktiviert'}`,
+            day.date,
+          );
           this.refresh();
         },
-        error: () => this.message.set('Prüfungstag konnte nicht geändert werden'),
+        error: () => this.notify('error', 'Prüfungstag nicht geändert', 'Bitte erneut versuchen.'),
       });
   }
 
@@ -269,10 +370,11 @@ export class App {
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
         next: () => {
-          this.message.set('Verfügbarkeit gespeichert');
+          this.notify('success', 'Verfügbarkeit gespeichert', 'Die Auswahl wurde übernommen.');
           this.refresh();
         },
-        error: () => this.message.set('Verfügbarkeit konnte nicht gespeichert werden'),
+        error: () =>
+          this.notify('error', 'Verfügbarkeit nicht gespeichert', 'Bitte erneut auswählen.'),
       });
   }
 
@@ -284,12 +386,14 @@ export class App {
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
         next: () => {
-          this.message.set(
-            `${this.fullMemberName(member)} ist ${nextActive ? 'aktiv' : 'inaktiv'}`,
+          this.notify(
+            'success',
+            `Prüfer ${nextActive ? 'aktiviert' : 'deaktiviert'}`,
+            this.fullMemberName(member),
           );
           this.refresh();
         },
-        error: () => this.message.set('Prüferstatus konnte nicht geändert werden'),
+        error: () => this.notify('error', 'Status nicht geändert', 'Bitte erneut versuchen.'),
       });
   }
 
@@ -303,10 +407,10 @@ export class App {
           this.lastPlanningResult.set(result);
           const planned = result.counts['planned_slots'] ?? 0;
           const suffix = result.validation?.passed === false ? ' mit Hinweisen' : '';
-          this.message.set(`Planungsvorschlag erzeugt: ${planned} Termine${suffix}`);
+          this.notify('success', 'Planungsvorschlag erzeugt', `${planned} Termine${suffix}`);
           this.refresh();
         },
-        error: () => this.message.set('Planungsvorschlag konnte nicht erzeugt werden'),
+        error: () => this.notify('error', 'Planung nicht erzeugt', 'Bitte Planungsdaten prüfen.'),
       });
   }
 
@@ -319,15 +423,19 @@ export class App {
         next: (result) => {
           this.lastPlanningResult.set(result);
           const confirmed = result.counts['confirmed_slots'] ?? 0;
-          this.message.set(`Plan bestätigt: ${confirmed} Termine`);
+          this.notify('success', 'Plan bestätigt', `${confirmed} Termine sind verbindlich.`);
           this.refresh();
         },
-        error: () => this.message.set('Plan konnte nicht bestätigt werden'),
+        error: () => this.notify('error', 'Plan nicht bestätigt', 'Bitte erneut versuchen.'),
       });
   }
 
   protected openDocs(): void {
     globalThis.open('/api/docs', '_blank', 'noopener');
+  }
+
+  private notify(type: 'success' | 'error', title: string, message: string): void {
+    this.feedback.set({ type, title, message });
   }
 
   private fullMemberName(member: CommitteeMember): string {

@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 
@@ -43,7 +43,35 @@ describe('App', () => {
     expect(compiled.querySelector('h1')?.textContent).toContain('Winter 2026/27');
     expect(compiled.textContent).toContain('Planung erzeugen');
   });
+
+  it('should ask before deleting a candidate', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+    fixture.detectChanges();
+
+    clickButton(fixture, 'Prüflinge');
+    fixture.detectChanges();
+    clickButton(fixture, 'Löschen');
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Prüfling löschen?');
+    expect(http.match((request) => request.method === 'DELETE').length).toBe(0);
+
+    clickButton(fixture, 'Abbrechen');
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Prüfling löschen?');
+  });
 });
+
+function clickButton(fixture: ComponentFixture<App>, label: string): void {
+  const button = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find(
+    (item) => item.textContent?.includes(label),
+  );
+  expect(button).toBeDefined();
+  button?.click();
+}
 
 function flushDashboardRequests(http: HttpTestingController): void {
   http.expectOne('/api').flush(apiRootFixture);

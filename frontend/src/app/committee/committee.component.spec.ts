@@ -46,6 +46,10 @@ describe('CommitteeComponent', () => {
       name: 'PA Neu',
       occupation: 'Fachinformatiker/in',
     });
+    expect(inputValue('#committeeName')).toBe('PA Neu');
+
+    component.resetCommitteeForm();
+    expect(inputValue('#committeeName')).toBe('');
   });
 
   it('should emit valid member form submissions', () => {
@@ -65,6 +69,10 @@ describe('CommitteeComponent', () => {
         is_active: 1,
       }),
     );
+    expect(inputValue('#memberFirstName')).toBe('Lina');
+
+    component.resetMemberForm();
+    expect(inputValue('#memberFirstName')).toBe('');
   });
 
   it('should emit member toggle actions from the member table', () => {
@@ -84,6 +92,10 @@ describe('CommitteeComponent', () => {
     expect(input).toBeTruthy();
     input!.value = value;
     input!.dispatchEvent(new Event('input'));
+  }
+
+  function inputValue(selector: string): string {
+    return (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(selector)!.value;
   }
 
   function submitForm(index: number): void {

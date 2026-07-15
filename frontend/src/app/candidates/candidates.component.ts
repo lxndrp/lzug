@@ -123,7 +123,7 @@ export class CandidatesComponent {
     this.resetDraft();
   }
 
-  private resetDraft(): void {
+  resetDraft(): void {
     this.draft.first_name = '';
     this.draft.last_name = '';
     this.draft.ihk_exam_number = '';

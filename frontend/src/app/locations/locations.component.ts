@@ -63,7 +63,7 @@ export class LocationsComponent {
     this.resetDraft();
   }
 
-  private resetDraft(): void {
+  resetDraft(): void {
     this.draft.committee_id = 0;
     this.draft.name = '';
     this.draft.street = '';

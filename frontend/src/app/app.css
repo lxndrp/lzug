@@ -40,3 +40,45 @@ c-header c-container {
 .sidebar-nav .nav-title {
   color: #aab4c3;
 }
+
+.app-feedback {
+  position: fixed;
+  z-index: 1100;
+  inset-block-start: 72px;
+  inset-inline-end: 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  width: min(420px, calc(100vw - 32px));
+  padding: 16px;
+  border: 1px solid #75b798;
+  border-inline-start: 4px solid #198754;
+  border-radius: 8px;
+  background: #f2fbf6;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 16%);
+  color: #0f5132;
+}
+
+.app-feedback-error {
+  border-color: #ea868f;
+  border-inline-start-color: #dc3545;
+  background: #fff5f5;
+  color: #842029;
+}
+
+.app-feedback div,
+.app-feedback span {
+  display: block;
+}
+
+.app-feedback div {
+  flex: 1;
+}
+
+.app-feedback button {
+  border: 0;
+  background: transparent;
+  color: currentcolor;
+  font-size: 1.5rem;
+  line-height: 1;
+}

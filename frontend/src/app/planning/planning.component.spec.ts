@@ -87,6 +87,12 @@ describe('PlanningComponent', () => {
       date: '2026-11-18',
       is_active: 1,
     });
+    expect(input!.value).toBe('2026-11-18');
+
+    component.resetCandidateDayDraft();
+    expect(
+      (component as unknown as { candidateDayDraft: { date: string } }).candidateDayDraft.date,
+    ).toBe('');
   });
 
   it('should emit availability changes', () => {

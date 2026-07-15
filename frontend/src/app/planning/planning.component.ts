@@ -136,6 +136,9 @@ export class PlanningComponent implements OnChanges {
       date: this.candidateDayDraft.date,
       is_active: this.candidateDayDraft.is_active ? 1 : 0,
     });
+  }
+
+  resetCandidateDayDraft(): void {
     this.candidateDayDraft.date = '';
     this.candidateDayDraft.is_active = 1;
   }
