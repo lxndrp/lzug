@@ -1,4 +1,6 @@
-import { Component, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ViewChild, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import {
   ButtonModule,
   GridModule,
@@ -8,7 +10,7 @@ import {
   ProgressModule,
   SidebarModule,
 } from '@coreui/angular';
-import { finalize } from 'rxjs';
+import { filter, finalize } from 'rxjs';
 
 import {
   ApiRoot,
@@ -52,6 +54,7 @@ import {
     ModalModule,
     NavModule,
     ProgressModule,
+    RouterLink,
     SidebarModule,
   ],
   templateUrl: './app.html',
@@ -59,6 +62,8 @@ import {
 })
 export class App {
   private readonly api = inject(PlanningApiService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
   @ViewChild(CandidatesComponent) private candidatesComponent?: CandidatesComponent;
   @ViewChild(CommitteeComponent) private committeeComponent?: CommitteeComponent;
   @ViewChild(LocationsComponent) private locationsComponent?: LocationsComponent;
@@ -103,6 +108,13 @@ export class App {
   );
 
   constructor() {
+    this.router.events
+      .pipe(
+        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((event) => this.activeView.set(this.viewFromUrl(event.urlAfterRedirects)));
+    this.activeView.set(this.viewFromUrl(this.router.url));
     this.refresh();
   }
 
@@ -128,7 +140,7 @@ export class App {
   }
 
   protected showView(view: AppView): void {
-    this.activeView.set(view);
+    void this.router.navigateByUrl(`/${this.pathForView(view)}`);
   }
 
   protected selectCommittee(id: number | null): void {
@@ -432,6 +444,29 @@ export class App {
 
   private notify(type: 'success' | 'error', title: string, message: string): void {
     this.feedback.set({ type, title, message });
+  }
+
+  private pathForView(view: AppView): string {
+    const paths: Record<AppView, string> = {
+      dashboard: 'dashboard',
+      candidates: 'candidates',
+      committee: 'committee',
+      planning: 'planning',
+      locations: 'locations',
+    };
+    return paths[view];
+  }
+
+  private viewFromUrl(url: string): AppView {
+    const segment = url.split('?')[0].split('#')[0].split('/').filter(Boolean)[0];
+    const views: Record<string, AppView> = {
+      dashboard: 'dashboard',
+      candidates: 'candidates',
+      committee: 'committee',
+      planning: 'planning',
+      locations: 'locations',
+    };
+    return views[segment ?? 'dashboard'] ?? 'dashboard';
   }
 
   private fullMemberName(member: CommitteeMember): string {

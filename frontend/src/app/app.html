@@ -13,54 +13,19 @@
   <c-sidebar-nav aria-label="Hauptnavigation" role="list">
     <li class="nav-title">Prüfungsverwaltung</li>
     <li class="nav-item">
-      <button
-        cNavLink
-        type="button"
-        [active]="activeView() === 'dashboard'"
-        (click)="showView('dashboard')"
-      >
-        Übersicht
-      </button>
+      <a cNavLink routerLink="/dashboard" [active]="activeView() === 'dashboard'"> Übersicht </a>
     </li>
     <li class="nav-item">
-      <button
-        cNavLink
-        type="button"
-        [active]="activeView() === 'candidates'"
-        (click)="showView('candidates')"
-      >
-        Prüflinge
-      </button>
+      <a cNavLink routerLink="/candidates" [active]="activeView() === 'candidates'"> Prüflinge </a>
     </li>
     <li class="nav-item">
-      <button
-        cNavLink
-        type="button"
-        [active]="activeView() === 'committee'"
-        (click)="showView('committee')"
-      >
-        Ausschuss
-      </button>
+      <a cNavLink routerLink="/committee" [active]="activeView() === 'committee'"> Ausschuss </a>
     </li>
     <li class="nav-item">
-      <button
-        cNavLink
-        type="button"
-        [active]="activeView() === 'planning'"
-        (click)="showView('planning')"
-      >
-        Terminplanung
-      </button>
+      <a cNavLink routerLink="/planning" [active]="activeView() === 'planning'"> Terminplanung </a>
     </li>
     <li class="nav-item">
-      <button
-        cNavLink
-        type="button"
-        [active]="activeView() === 'locations'"
-        (click)="showView('locations')"
-      >
-        Prüfungsorte
-      </button>
+      <a cNavLink routerLink="/locations" [active]="activeView() === 'locations'"> Prüfungsorte </a>
     </li>
     <li class="nav-title">Entwicklung</li>
     <li class="nav-item">

@@ -1,8 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
+import { provideRouter, Router } from '@angular/router';
 
 import { App } from './app';
+import { routes } from './app.routes';
 import {
   apiRootFixture,
   assignmentsFixture,
@@ -23,7 +25,7 @@ describe('App', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting()],
     }).compileComponents();
   });
 
@@ -44,13 +46,13 @@ describe('App', () => {
     expect(compiled.textContent).toContain('Planung erzeugen');
   });
 
-  it('should ask before deleting a candidate', () => {
+  it('should ask before deleting a candidate', async () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
     flushDashboardRequests(http);
     fixture.detectChanges();
 
-    clickButton(fixture, 'Prüflinge');
+    await TestBed.inject(Router).navigateByUrl('/candidates');
     fixture.detectChanges();
     clickButton(fixture, 'Löschen');
     fixture.detectChanges();
@@ -62,6 +64,21 @@ describe('App', () => {
     clickButton(fixture, 'Abbrechen');
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Prüfling löschen?');
+  });
+
+  it('should use English URLs for frontend views', async () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    const router = TestBed.inject(Router);
+    flushDashboardRequests(http);
+
+    await router.navigateByUrl('/planning');
+    fixture.detectChanges();
+
+    expect(router.url).toBe('/planning');
+    expect((fixture.nativeElement as HTMLElement).querySelector('h1')?.textContent).toContain(
+      'Terminplanung',
+    );
   });
 });
 
