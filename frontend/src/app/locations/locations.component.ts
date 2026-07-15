@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
   BadgeModule,
@@ -12,6 +12,10 @@ import {
 import { Location, MasterData } from '../api/api.models';
 
 export type LocationPayload = Omit<Location, 'id'>;
+export type LocationUpdate = {
+  id: number;
+  payload: LocationPayload;
+};
 
 @Component({
   selector: 'app-locations',
@@ -31,8 +35,12 @@ export class LocationsComponent {
   @Input() actionBusy = false;
 
   @Output() createLocation = new EventEmitter<LocationPayload>();
+  @Output() updateLocation = new EventEmitter<LocationUpdate>();
   @Output() toggleLocation = new EventEmitter<Location>();
   @Output() deleteLocation = new EventEmitter<Location>();
+
+  protected readonly editingLocationId = signal<number | null>(null);
+  protected readonly editDraft = signal<LocationPayload | null>(null);
 
   protected readonly draft: LocationPayload = {
     committee_id: 0,
@@ -71,5 +79,51 @@ export class LocationsComponent {
     this.draft.city = '';
     this.draft.room = '';
     this.draft.is_active = 1;
+  }
+
+  protected startEditing(location: Location): void {
+    this.editingLocationId.set(location.id);
+    this.editDraft.set({
+      committee_id: location.committee_id,
+      name: location.name,
+      street: location.street,
+      postal_code: location.postal_code,
+      city: location.city,
+      room: location.room,
+      is_active: location.is_active,
+    });
+  }
+
+  protected submitLocationUpdate(): void {
+    const id = this.editingLocationId();
+    const draft = this.editDraft();
+    if (!id || !draft) {
+      return;
+    }
+
+    const payload: LocationPayload = {
+      ...draft,
+      name: draft.name.trim(),
+      street: draft.street?.trim() ?? '',
+      postal_code: draft.postal_code?.trim() ?? '',
+      city: draft.city?.trim() ?? '',
+      room: draft.room.trim(),
+    };
+    if (!payload.committee_id || !payload.name || !payload.room) {
+      return;
+    }
+
+    this.updateLocation.emit({ id, payload });
+  }
+
+  protected cancelEditing(): void {
+    this.editingLocationId.set(null);
+    this.editDraft.set(null);
+  }
+
+  finishEditing(id: number): void {
+    if (this.editingLocationId() === id) {
+      this.cancelEditing();
+    }
   }
 }

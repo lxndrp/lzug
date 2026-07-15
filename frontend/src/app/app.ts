@@ -32,7 +32,11 @@ import {
   CommitteePayload,
 } from './committee/committee.component';
 import { DashboardComponent } from './dashboard/dashboard.component';
-import { LocationPayload, LocationsComponent } from './locations/locations.component';
+import {
+  LocationPayload,
+  LocationsComponent,
+  LocationUpdate,
+} from './locations/locations.component';
 import {
   AvailabilityPayload,
   CandidateExamDayPayload,
@@ -299,6 +303,26 @@ export class App {
           this.refresh();
         },
         error: () => this.notify('error', 'Prüfungsort nicht gelöscht', 'Bitte erneut versuchen.'),
+      });
+  }
+
+  protected updateLocation(update: LocationUpdate): void {
+    this.actionBusy.set(true);
+    this.api
+      .updateLocation(update.id, update.payload)
+      .pipe(finalize(() => this.actionBusy.set(false)))
+      .subscribe({
+        next: (location) => {
+          this.locationsComponent?.finishEditing(location.id);
+          this.notify('success', 'Prüfungsort gespeichert', `${location.name} · ${location.room}`);
+          this.refresh();
+        },
+        error: () =>
+          this.notify(
+            'error',
+            'Prüfungsort nicht gespeichert',
+            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
+          ),
       });
   }
 

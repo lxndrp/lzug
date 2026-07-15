@@ -127,6 +127,7 @@
             [masterData]="masterData()"
             [actionBusy]="actionBusy()"
             (createLocation)="createLocation($event)"
+            (updateLocation)="updateLocation($event)"
             (toggleLocation)="toggleLocation($event)"
             (deleteLocation)="requestLocationDeletion($event.id, $event.name + ' · ' + $event.room)"
           />

@@ -97,6 +97,17 @@
                   <td>
                     <button
                       cButton
+                      color="primary"
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                      [disabled]="actionBusy"
+                      (click)="startEditing(location)"
+                    >
+                      Bearbeiten
+                    </button>
+                    <button
+                      cButton
                       color="secondary"
                       size="sm"
                       type="button"
@@ -119,6 +130,99 @@
                     </button>
                   </td>
                 </tr>
+                @if (editingLocationId() === location.id) {
+                  @if (editDraft(); as currentDraft) {
+                    <tr>
+                      <td colspan="5">
+                        <form
+                          class="row g-3 app-inline-editor"
+                          [attr.aria-label]="'Prüfungsort ' + location.name + ' bearbeiten'"
+                          (ngSubmit)="submitLocationUpdate()"
+                        >
+                          <div class="col-12 col-md-4">
+                            <label cLabel [for]="'editLocationCommittee-' + location.id"
+                              >Ausschuss</label
+                            >
+                            <select
+                              cSelect
+                              [id]="'editLocationCommittee-' + location.id"
+                              [name]="'editLocationCommittee-' + location.id"
+                              [(ngModel)]="currentDraft.committee_id"
+                            >
+                              @for (committee of masterData?.committees || []; track committee.id) {
+                                <option [ngValue]="committee.id">{{ committee.name }}</option>
+                              }
+                            </select>
+                          </div>
+                          <div class="col-12 col-md-4">
+                            <label cLabel [for]="'editLocationName-' + location.id">Ort</label>
+                            <input
+                              cFormControl
+                              [id]="'editLocationName-' + location.id"
+                              [name]="'editLocationName-' + location.id"
+                              [(ngModel)]="currentDraft.name"
+                              required
+                            />
+                          </div>
+                          <div class="col-12 col-md-4">
+                            <label cLabel [for]="'editLocationRoom-' + location.id">Raum</label>
+                            <input
+                              cFormControl
+                              [id]="'editLocationRoom-' + location.id"
+                              [name]="'editLocationRoom-' + location.id"
+                              [(ngModel)]="currentDraft.room"
+                              required
+                            />
+                          </div>
+                          <div class="col-12 col-md-5">
+                            <label cLabel [for]="'editLocationStreet-' + location.id">Straße</label>
+                            <input
+                              cFormControl
+                              [id]="'editLocationStreet-' + location.id"
+                              [name]="'editLocationStreet-' + location.id"
+                              [(ngModel)]="currentDraft.street"
+                            />
+                          </div>
+                          <div class="col-12 col-md-3">
+                            <label cLabel [for]="'editLocationPostalCode-' + location.id"
+                              >PLZ</label
+                            >
+                            <input
+                              cFormControl
+                              [id]="'editLocationPostalCode-' + location.id"
+                              [name]="'editLocationPostalCode-' + location.id"
+                              [(ngModel)]="currentDraft.postal_code"
+                            />
+                          </div>
+                          <div class="col-12 col-md-4">
+                            <label cLabel [for]="'editLocationCity-' + location.id">Stadt</label>
+                            <input
+                              cFormControl
+                              [id]="'editLocationCity-' + location.id"
+                              [name]="'editLocationCity-' + location.id"
+                              [(ngModel)]="currentDraft.city"
+                            />
+                          </div>
+                          <div class="col-12 app-actions">
+                            <button cButton color="primary" type="submit" [disabled]="actionBusy">
+                              Änderungen speichern
+                            </button>
+                            <button
+                              cButton
+                              color="secondary"
+                              type="button"
+                              variant="outline"
+                              [disabled]="actionBusy"
+                              (click)="cancelEditing()"
+                            >
+                              Abbrechen
+                            </button>
+                          </div>
+                        </form>
+                      </td>
+                    </tr>
+                  }
+                }
               } @empty {
                 <tr>
                   <td colspan="5">Keine Prüfungsorte vorhanden.</td>

@@ -84,6 +84,34 @@ describe('LocationsComponent', () => {
     );
   });
 
+  it('should edit a location without clearing the form before success', () => {
+    const component = fixture.componentInstance;
+    spyOn(component.updateLocation, 'emit');
+
+    clickButton('Bearbeiten');
+    const editor = component as unknown as {
+      editDraft: () => { name: string; room: string };
+      submitLocationUpdate: () => void;
+    };
+    editor.editDraft().name = 'Bildungszentrum Nord';
+    editor.editDraft().room = '4.20';
+    editor.submitLocationUpdate();
+
+    expect(component.updateLocation.emit).toHaveBeenCalledWith({
+      id: 1,
+      payload: jasmine.objectContaining({
+        name: 'Bildungszentrum Nord',
+        room: '4.20',
+        is_active: 1,
+      }),
+    });
+    expect(editor.editDraft().name).toBe('Bildungszentrum Nord');
+
+    component.finishEditing(1);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('#editLocationName-1')).toBeNull();
+  });
+
   function setInput(selector: string, value: string): void {
     const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(selector);
     expect(input).toBeTruthy();
@@ -94,5 +122,14 @@ describe('LocationsComponent', () => {
 
   function inputValue(selector: string): string {
     return (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(selector)!.value;
+  }
+
+  function clickButton(label: string): void {
+    const button = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ).find((item) => item.textContent?.includes(label));
+    expect(button).toBeDefined();
+    button!.click();
+    fixture.detectChanges();
   }
 });
