@@ -214,41 +214,47 @@
       </c-card-header>
       <c-card-body>
         @if ((board?.candidateDays?.length || 0) > 0 && activeMembers().length > 0) {
-          <table cTable hover small responsive>
-            <thead>
-              <tr>
-                <th scope="col">Mitglied</th>
-                @for (day of board?.candidateDays || []; track day.id) {
-                  <th scope="col">{{ dateLabel(day.date) }}</th>
-                }
-              </tr>
-            </thead>
-            <tbody>
-              @for (member of activeMembers(); track member.id) {
+          <div
+            class="app-table-scroll app-availability-scroll"
+            tabindex="0"
+            aria-label="Verfügbarkeiten nach Mitglied und Prüfungstag"
+          >
+            <table cTable hover small class="app-availability-table">
+              <thead>
                 <tr>
-                  <th scope="row">
-                    {{ memberLabel(member) }}
-                    <span class="app-muted d-block">{{ memberSideLabel(member) }}</span>
-                  </th>
+                  <th scope="col">Mitglied</th>
                   @for (day of board?.candidateDays || []; track day.id) {
-                    <td>
-                      <select
-                        cSelect
-                        [attr.aria-label]="memberLabel(member) + ' ' + dateLabel(day.date)"
-                        [disabled]="actionBusy || !day.is_active"
-                        [ngModel]="availabilityFor(member.id, day.id)"
-                        (ngModelChange)="changeAvailability(member, day, $event)"
-                      >
-                        @for (option of availabilityOptions(); track option.value) {
-                          <option [ngValue]="option.value">{{ option.label }}</option>
-                        }
-                      </select>
-                    </td>
+                    <th scope="col">{{ dateLabel(day.date) }}</th>
                   }
                 </tr>
-              }
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                @for (member of activeMembers(); track member.id) {
+                  <tr>
+                    <th scope="row">
+                      {{ memberLabel(member) }}
+                      <span class="app-muted d-block">{{ memberSideLabel(member) }}</span>
+                    </th>
+                    @for (day of board?.candidateDays || []; track day.id) {
+                      <td>
+                        <select
+                          cSelect
+                          [attr.aria-label]="memberLabel(member) + ' ' + dateLabel(day.date)"
+                          [disabled]="actionBusy || !day.is_active"
+                          [ngModel]="availabilityFor(member.id, day.id)"
+                          (ngModelChange)="changeAvailability(member, day, $event)"
+                        >
+                          @for (option of availabilityOptions(); track option.value) {
+                            <option [ngValue]="option.value">{{ option.label }}</option>
+                          }
+                        </select>
+                      </td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
         } @else {
           <p>Keine aktiven Mitglieder oder möglichen Prüfungstage vorhanden.</p>
         }

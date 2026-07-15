@@ -143,58 +143,60 @@
           </div>
         </div>
 
-        <table cTable hover small responsive>
-          <thead>
-            <tr>
-              <th scope="col">Name</th>
-              <th scope="col">Prüfungsnummer</th>
-              <th scope="col">Fachrichtung</th>
-              <th scope="col">Versuch</th>
-              <th scope="col">MEP</th>
-              <th scope="col">Ausbildungsbetrieb</th>
-              <th scope="col">Aktion</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (item of filteredCandidates(); track item.candidate.id) {
+        <div class="app-table-scroll">
+          <table cTable hover small class="app-data-table app-table-sticky-actions">
+            <thead>
               <tr>
-                <td>
-                  <strong>{{ item.candidate.last_name }}, {{ item.candidate.first_name }}</strong>
-                </td>
-                <td>{{ item.candidate.ihk_exam_number }}</td>
-                <td>{{ specializationLabel(item.candidate.specialization) }}</td>
-                <td>
-                  <c-badge color="secondary">{{
-                    attemptLabel(item.roundCandidate?.attempt_number)
-                  }}</c-badge>
-                </td>
-                <td>
-                  <c-badge [color]="item.roundCandidate?.requires_mep ? 'warning' : 'secondary'">
-                    {{ item.roundCandidate?.requires_mep ? 'MEP' : 'Nein' }}
-                  </c-badge>
-                </td>
-                <td>{{ item.candidate.training_company }}</td>
-                <td>
-                  <button
-                    cButton
-                    color="danger"
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                    [disabled]="actionBusy"
-                    (click)="deleteCandidate.emit(item.candidate)"
-                  >
-                    Löschen
-                  </button>
-                </td>
+                <th scope="col">Name</th>
+                <th scope="col">Prüfungsnummer</th>
+                <th scope="col">Fachrichtung</th>
+                <th scope="col">Versuch</th>
+                <th scope="col">MEP</th>
+                <th scope="col">Ausbildungsbetrieb</th>
+                <th scope="col">Aktion</th>
               </tr>
-            } @empty {
-              <tr>
-                <td colspan="7">Keine passenden Prüflinge vorhanden.</td>
-              </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (item of filteredCandidates(); track item.candidate.id) {
+                <tr>
+                  <td>
+                    <strong>{{ item.candidate.last_name }}, {{ item.candidate.first_name }}</strong>
+                  </td>
+                  <td>{{ item.candidate.ihk_exam_number }}</td>
+                  <td>{{ specializationLabel(item.candidate.specialization) }}</td>
+                  <td>
+                    <c-badge color="secondary">{{
+                      attemptLabel(item.roundCandidate?.attempt_number)
+                    }}</c-badge>
+                  </td>
+                  <td>
+                    <c-badge [color]="item.roundCandidate?.requires_mep ? 'warning' : 'secondary'">
+                      {{ item.roundCandidate?.requires_mep ? 'MEP' : 'Nein' }}
+                    </c-badge>
+                  </td>
+                  <td>{{ item.candidate.training_company }}</td>
+                  <td>
+                    <button
+                      cButton
+                      color="danger"
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                      [disabled]="actionBusy"
+                      (click)="deleteCandidate.emit(item.candidate)"
+                    >
+                      Löschen
+                    </button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="7">Keine passenden Prüflinge vorhanden.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       </c-card-body>
     </c-card>
   </div>

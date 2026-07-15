@@ -47,6 +47,99 @@ c-card + c-card {
   margin-block-start: 1.5rem;
 }
 
+.row > * {
+  min-width: 0;
+}
+
+.app-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+}
+
+.app-data-table {
+  min-width: 56rem;
+  margin-block-end: 0;
+}
+
+.app-data-table th:first-child,
+.app-data-table td:first-child {
+  position: sticky;
+  z-index: 1;
+  inset-inline-start: 0;
+  background: var(--cui-card-bg, #fff);
+  box-shadow: 1px 0 0 var(--cui-border-color, #dee2e6);
+}
+
+.app-table-sticky-actions th:last-child,
+.app-table-sticky-actions td:last-child {
+  position: sticky;
+  z-index: 1;
+  inset-inline-end: 0;
+  background: var(--cui-card-bg, #fff);
+  box-shadow: -1px 0 0 var(--cui-border-color, #dee2e6);
+}
+
+.app-contact span,
+.app-contact a {
+  display: block;
+  white-space: nowrap;
+}
+
+.app-actions {
+  white-space: nowrap;
+}
+
+.app-actions .btn + .btn {
+  margin-inline-start: 0.375rem;
+}
+
+.app-availability-scroll {
+  max-height: min(65vh, 44rem);
+}
+
+.app-availability-table {
+  width: max-content;
+  min-width: 100%;
+  margin-block-end: 0;
+}
+
+.app-availability-table thead th {
+  position: sticky;
+  z-index: 2;
+  inset-block-start: 0;
+  background: var(--cui-card-bg, #fff);
+  box-shadow: 0 1px 0 var(--cui-border-color, #dee2e6);
+}
+
+.app-availability-table th:first-child {
+  position: sticky;
+  z-index: 3;
+  inset-inline-start: 0;
+  min-width: 12rem;
+  background: var(--cui-card-bg, #fff);
+  box-shadow: 1px 0 0 var(--cui-border-color, #dee2e6);
+}
+
+.app-availability-table select {
+  min-width: 9rem;
+}
+
+@media (max-width: 767.98px) {
+  .app-content {
+    padding-block: 1rem;
+  }
+
+  .app-page-header {
+    margin-block-end: 1rem;
+  }
+
+  .app-data-table {
+    min-width: 48rem;
+  }
+}
+
 body {
   margin: 0;
   background: var(--cui-body-bg);

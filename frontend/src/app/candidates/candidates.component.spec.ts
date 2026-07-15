@@ -23,6 +23,7 @@ describe('CandidatesComponent', () => {
     expect(text).toContain('FI-2026-1042');
     expect(text).toContain('2. Versuch');
     expect(text).toContain('MEP');
+    expect((fixture.nativeElement as HTMLElement).querySelector('.app-table-scroll')).toBeTruthy();
   });
 
   it('should filter candidates by search input', () => {

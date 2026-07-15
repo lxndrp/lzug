@@ -64,64 +64,66 @@
         >
       </c-card-header>
       <c-card-body>
-        <table cTable hover small responsive>
-          <thead>
-            <tr>
-              <th scope="col">Ort</th>
-              <th scope="col">Raum</th>
-              <th scope="col">Adresse</th>
-              <th scope="col">Status</th>
-              <th scope="col">Aktion</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (location of masterData?.locations || []; track location.id) {
+        <div class="app-table-scroll">
+          <table cTable hover small class="app-data-table app-table-sticky-actions">
+            <thead>
               <tr>
-                <td>{{ location.name }}</td>
-                <td>{{ location.room }}</td>
-                <td>
-                  {{ location.street || '–' }}
-                  @if (location.postal_code || location.city) {
-                    <span> · {{ location.postal_code }} {{ location.city }}</span>
-                  }
-                </td>
-                <td>
-                  <c-badge [color]="location.is_active === 0 ? 'secondary' : 'success'">
-                    {{ location.is_active === 0 ? 'Inaktiv' : 'Aktiv' }}
-                  </c-badge>
-                </td>
-                <td>
-                  <button
-                    cButton
-                    color="secondary"
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                    [disabled]="actionBusy"
-                    (click)="toggleLocation.emit(location)"
-                  >
-                    {{ location.is_active === 0 ? 'Aktivieren' : 'Deaktivieren' }}
-                  </button>
-                  <button
-                    cButton
-                    color="danger"
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                    [disabled]="actionBusy"
-                    (click)="deleteLocation.emit(location)"
-                  >
-                    Löschen
-                  </button>
-                </td>
+                <th scope="col">Ort</th>
+                <th scope="col">Raum</th>
+                <th scope="col">Adresse</th>
+                <th scope="col">Status</th>
+                <th scope="col">Aktion</th>
               </tr>
-            } @empty {
-              <tr>
-                <td colspan="5">Keine Prüfungsorte vorhanden.</td>
-              </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (location of masterData?.locations || []; track location.id) {
+                <tr>
+                  <td>{{ location.name }}</td>
+                  <td>{{ location.room }}</td>
+                  <td class="app-actions">
+                    {{ location.street || '–' }}
+                    @if (location.postal_code || location.city) {
+                      <span> · {{ location.postal_code }} {{ location.city }}</span>
+                    }
+                  </td>
+                  <td>
+                    <c-badge [color]="location.is_active === 0 ? 'secondary' : 'success'">
+                      {{ location.is_active === 0 ? 'Inaktiv' : 'Aktiv' }}
+                    </c-badge>
+                  </td>
+                  <td>
+                    <button
+                      cButton
+                      color="secondary"
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                      [disabled]="actionBusy"
+                      (click)="toggleLocation.emit(location)"
+                    >
+                      {{ location.is_active === 0 ? 'Aktivieren' : 'Deaktivieren' }}
+                    </button>
+                    <button
+                      cButton
+                      color="danger"
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                      [disabled]="actionBusy"
+                      (click)="deleteLocation.emit(location)"
+                    >
+                      Löschen
+                    </button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5">Keine Prüfungsorte vorhanden.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       </c-card-body>
     </c-card>
   </div>

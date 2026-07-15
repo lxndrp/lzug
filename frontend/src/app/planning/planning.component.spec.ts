@@ -26,6 +26,9 @@ describe('PlanningComponent', () => {
     expect(text).toContain('16.11.2026');
     expect(text).toContain('Arbeitgeber');
     expect(text).not.toContain('employer');
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('.app-availability-scroll'),
+    ).toBeTruthy();
   });
 
   it('should emit planning settings form submissions', () => {

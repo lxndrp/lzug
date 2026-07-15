@@ -89,55 +89,60 @@
         <c-badge color="success">{{ activeMemberCount() }} aktiv</c-badge>
       </c-card-header>
       <c-card-body>
-        <table cTable hover responsive>
-          <thead>
-            <tr>
-              <th scope="col">Name</th>
-              <th scope="col">Rolle</th>
-              <th scope="col">Seite</th>
-              <th scope="col">Kontakt</th>
-              <th scope="col">Status</th>
-              <th scope="col">Aktion</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (member of committeeMembers(); track member.id) {
+        <div class="app-table-scroll">
+          <table cTable hover class="app-data-table app-table-sticky-actions">
+            <thead>
               <tr>
-                <td>
-                  <strong>{{ fullMemberName(member) }}</strong>
-                  <span class="app-muted d-block">{{
-                    memberStatusLabel(member.member_status)
-                  }}</span>
-                </td>
-                <td>{{ roleLabel(member.committee_role) }}</td>
-                <td>{{ memberSide(member) }}</td>
-                <td>{{ member.email }} · {{ member.mobile || 'Keine Mobilnummer' }}</td>
-                <td>
-                  <c-badge [color]="member.is_active ? 'success' : 'secondary'">
-                    {{ member.is_active ? 'Aktiv' : 'Inaktiv' }}
-                  </c-badge>
-                </td>
-                <td>
-                  <button
-                    cButton
-                    color="secondary"
-                    size="sm"
-                    variant="outline"
-                    type="button"
-                    (click)="toggleMember.emit(member)"
-                    [disabled]="actionBusy"
-                  >
-                    {{ member.is_active ? 'Deaktivieren' : 'Aktivieren' }}
-                  </button>
-                </td>
+                <th scope="col">Name</th>
+                <th scope="col">Rolle</th>
+                <th scope="col">Seite</th>
+                <th scope="col">Kontakt</th>
+                <th scope="col">Status</th>
+                <th scope="col">Aktion</th>
               </tr>
-            } @empty {
-              <tr>
-                <td colspan="6">Keine Prüfer im ausgewählten Ausschuss.</td>
-              </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (member of committeeMembers(); track member.id) {
+                <tr>
+                  <td>
+                    <strong>{{ fullMemberName(member) }}</strong>
+                    <span class="app-muted d-block">{{
+                      memberStatusLabel(member.member_status)
+                    }}</span>
+                  </td>
+                  <td>{{ roleLabel(member.committee_role) }}</td>
+                  <td>{{ memberSide(member) }}</td>
+                  <td class="app-contact">
+                    <a [href]="'mailto:' + member.email">{{ member.email }}</a>
+                    <span>{{ member.mobile || 'Keine Mobilnummer' }}</span>
+                  </td>
+                  <td>
+                    <c-badge [color]="member.is_active ? 'success' : 'secondary'">
+                      {{ member.is_active ? 'Aktiv' : 'Inaktiv' }}
+                    </c-badge>
+                  </td>
+                  <td>
+                    <button
+                      cButton
+                      color="secondary"
+                      size="sm"
+                      variant="outline"
+                      type="button"
+                      (click)="toggleMember.emit(member)"
+                      [disabled]="actionBusy"
+                    >
+                      {{ member.is_active ? 'Deaktivieren' : 'Aktivieren' }}
+                    </button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6">Keine Prüfer im ausgewählten Ausschuss.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       </c-card-body>
     </c-card>
 
