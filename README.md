@@ -4,9 +4,14 @@
 ![Status](https://img.shields.io/badge/status-prototype-yellow)
 ![Coverage](https://img.shields.io/badge/coverage-83%25-brightgreen)
 
-`lzug` ist eine Web-App zur Unterstützung eines IHK-Prüfungsausschusses bei der Organisation halbjährlicher Fachinformatiker-Prüfungen.
+`lzug` ist eine Web-App zur Unterstützung eines IHK-Prüfungsausschusses bei der Organisation halbjährlicher Fachinformatiker-Prüfungen. Die App richtet sich an die Ausschussarbeit, nicht an interne IHK-Sachbearbeitung.
 
-Der aktuelle Fokus liegt auf der Prüfungsrunde:
+Fachlich gliedert sich das Produkt in zwei zentrale Bereiche:
+
+- **Prüfungen planen**: Prüflinge, Ausschussmitglieder, Orte, Verfügbarkeiten, Planungsvorschlag, Bestätigung, Ausfallprozess und Terminbereitstellung.
+- **Prüfungen durchführen**: Tagesansicht, Anwesenheiten, Prüfungsstatus, Protokollierung, Ergebnis-/Abschlussdaten und Abschlusslogik. Dieser Bereich ist noch fachlich zu schärfen.
+
+Der aktuelle Entwicklungsstand liegt vor allem im Bereich **Prüfungen planen**:
 
 - Verwaltung von Prüflingen
 - Import von Prüflingsdaten
@@ -16,6 +21,14 @@ Der aktuelle Fokus liegt auf der Prüfungsrunde:
 - MEP- und Prüfungsversuchslogik
 - Vorbereitung eines persistenten Server-Datenmodells
 
+Der fachliche Referenzstand mit umgesetzten und offenen Anforderungen steht in:
+
+```text
+ROADMAP.md
+```
+
+Die operative Planung wird im GitHub Project [lzug Roadmap](https://github.com/users/lxndrp/projects/2) geführt.
+
 ## Projektstruktur
 
 ```text
@@ -24,9 +37,11 @@ lzug/
 │   ├── schema.sql
 │   └── seed_demo.sql
 ├── docs/
+│   ├── ARCHITECTURE.md
 │   ├── datenmodell.md
 │   ├── relationales-schema.md
 │   └── backend-prototyp.md
+├── ROADMAP.md
 ├── frontend/
 │   └── Angular-App für die produktivere Oberfläche
 ├── backend/
@@ -63,25 +78,63 @@ Das relationale Basisschema befindet sich in:
 db/schema.sql
 ```
 
-Die technische Einordnung des ersten Backends ist dokumentiert in:
+Die technische Architektur befindet sich in:
+
+```text
+docs/ARCHITECTURE.md
+```
+
+Der fachliche Roadmap- und Anforderungsstand befindet sich in:
+
+```text
+ROADMAP.md
+```
+
+Die historische technische Einordnung des ersten Backend-Prototyps ist dokumentiert in:
 
 ```text
 docs/backend-prototyp.md
 ```
 
-Ein erster persistenter Backend-Prototyp nutzt SQLite über SQLAlchemy. Die Abhängigkeiten sind in `pyproject.toml` beschrieben:
+Die aktuelle technische Architektur, API-Struktur, Backend-/Frontend-Schichtung und CI-Einordnung stehen in `docs/ARCHITECTURE.md`.
 
-Voraussetzung fuer Backend und Frontend sind Python 3.14.6 und Node.js 26.5.0, die über **mise** verwaltet werden. Das Python Virtual Environment wird durch **UV** verwaltet.
+### Technischer Kurzüberblick
+
+Die Entwicklungsumgebung ist im Repository festgelegt und wird mit **mise** verwaltet:
+
+- Python `3.14.6` fuer das Backend
+- Node.js `26.5.0` und npm fuer das Frontend
+- uv fuer die Python-Umgebung und das Lockfile `uv.lock`
+- Angular `22`, TypeScript `6` und CoreUI im Verzeichnis `frontend/`
+- npm mit `frontend/package-lock.json`; pnpm wird nicht verwendet
+
+Weitere technische Details stehen in `docs/ARCHITECTURE.md`.
+
+Frontend-spezifische Kurzkommandos stehen zusätzlich in:
+
+```text
+frontend/README.md
+```
 
 ### Umgebung einrichten
 
-**Installation (alle Plattformen):**
+**macOS-Installation:**
 
 Installiere [mise](https://mise.jdx.dev/) und [UV](https://docs.astral.sh/uv/):
 
 ```bash
 brew install mise uv
 ```
+
+Das Homebrew-Beispiel ist ein macOS-spezifischer Einstieg. Für Linux, Windows
+und alternative Installationswege bitte die offiziellen Installationshinweise
+von `mise` und `uv` verwenden.
+
+Hinweis zu Intel-Macs: Das vorliegende Projekt wurde auch auf einem Intel-Mac
+mit extern installiertem `mise`, `uv`, Python und Node.js genutzt. Der
+`mise`-interne Homebrew-/Bootstrap-Paketmanager unterstützt Intel-Macs jedoch
+nicht offiziell; projektbezogene Systempakete sollten dort nicht über
+`mise bootstrap packages` erwartet werden.
 
 Dann installiere die in `.python-version` und `.node-version` definierten Versionen:
 
@@ -124,40 +177,15 @@ cd frontend && npm start
 
 Der Python-Server sollte dafür parallel unter `http://127.0.0.1:8000` laufen.
 
-Danach stehen JSON-Endpunkte unter `http://127.0.0.1:8000/api/` bereit, z. B.:
+Danach stehen JSON-Endpunkte unter `http://127.0.0.1:8000/api/` bereit. Die API ist selbstbeschreibend:
 
 ```text
-/api/health
-/api/openapi.json
-/api/docs
-/api/round-summary?round_id=1
-/api/planning-proposals
-/api/exam-rounds/1/confirm-plan
-/api/candidates
-/api/candidates/1
-/api/members
-/api/locations
-/api/planning-settings?round_id=1
-/api/candidate-exam-days?round_id=1
-/api/member-availabilities?round_id=1
-/api/exam-days?round_id=1
-/api/exam-slots
-/api/exam-day-assignments
+http://127.0.0.1:8000/api
+http://127.0.0.1:8000/api/openapi.json
+http://127.0.0.1:8000/api/docs
 ```
 
-Für die Kernressourcen `committees`, `members`, `locations`, `exam-rounds` und `candidates` sind die CRUD-Muster `GET`, `POST`, `PATCH` und `DELETE` vorbereitet. Planungsparameter und Verfügbarkeiten sind ebenfalls schreibbar; `POST /api/planning-settings` und `POST /api/member-availabilities` aktualisieren vorhandene Einträge für dieselbe Prüfungsrunde bzw. dieselbe Mitglied/Tag-Kombination.
-
-`POST /api/planning-proposals` erzeugt einen deterministischen Planungsvorschlag für eine Prüfungsrunde, persistiert Prüfungstage, Slots und Besetzungen und setzt die Runde auf `plan_proposed`. MEP-Slots werden am Tagesende platziert; der Response enthält einen Validierungsreport.
-
-`POST /api/exam-rounds/{id}/confirm-plan` bestätigt einen vorhandenen Planungsvorschlag, setzt Prüfungstage und Slots auf `confirmed` und überführt die Runde nach `plan_confirmed`. Bestätigte Planungstage können nicht mehr durch einen neuen Vorschlag ersetzt werden.
-
-Die API ist selbstbeschreibend:
-
-- `GET /api` liefert den Einstiegspunkt mit Links auf Ressourcen, Healthcheck, OpenAPI und Docs.
-- `GET /api/openapi.json` liefert eine OpenAPI-3.1-Spezifikation.
-- `GET /api/docs` liefert eine Swagger-UI-Ansicht auf Basis von `/api/openapi.json`.
-- JSON-Antworten enthalten HAL-nahe `_links` mit `self`, `collection` und erlaubten Operationen.
-- Listen werden als `{ "items": [...], "_links": {...} }` ausgeliefert.
+Die API-Struktur, Ressourcen und Planungsaktionen sind in `docs/ARCHITECTURE.md` beschrieben.
 
 ## Tests
 
@@ -217,6 +245,6 @@ empfohlene Erweiterung Coverage Gutters nutzt `coverage.xml` und
 
 Wenn Node.js installiert ist, prüft der Harness zusätzlich `app.js` mit `node --check`; ohne Node wird nur dieser optionale Syntaxcheck übersprungen.
 
-## Nächster geplanter Schritt
+## Roadmap
 
-Der nächste sinnvolle Schritt ist, die erzeugte und bestätigte Planung im Frontend zu nutzen und danach Benachrichtigungs- sowie Kalenderereignisse anzubinden.
+Die fachliche Roadmap wird in `ROADMAP.md` dokumentiert und operativ im GitHub Project [lzug Roadmap](https://github.com/users/lxndrp/projects/2) nachverfolgt.

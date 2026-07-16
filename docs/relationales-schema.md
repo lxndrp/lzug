@@ -8,6 +8,8 @@ Dieses Dokument beschreibt den ersten relationalen Schemaentwurf für die Server
 db/schema.sql
 ```
 
+Die übergreifende technische Architektur ist in `docs/ARCHITECTURE.md` dokumentiert.
+
 ## Entwurfsentscheidung
 
 Das Schema ist bewusst als robuste Zwischenform angelegt:

@@ -1,8 +1,8 @@
-# Fachliche Anforderungen und Projektplan
+# Roadmap
 
 Stand: 16.07.2026
 
-Dieses Dokument ordnet die ursprünglichen fachlichen Anforderungen gegen den aktuellen Projektstand ein. Es dient als lokale Quelle der Wahrheit im Repository. Wenn ein GitHub Project verfügbar ist, soll die zukünftige operative Planung zusätzlich dort gepflegt werden.
+Dieses Dokument ordnet die ursprünglichen fachlichen Anforderungen gegen den aktuellen Projektstand ein. Es dient als fachlicher Referenzstand im Repository. Die operative Planung wird zusätzlich im GitHub Project `lzug Roadmap` gepflegt.
 
 Die bisherige Umsetzung betrachtet im Kern den Planungsprozess einer Prüfungsrunde. Die Abwicklung des Prüfungstags selbst ist fachlich noch nicht ausgearbeitet und technisch noch nicht umgesetzt. Agil betrachtet besteht das Produkt damit aus mindestens zwei Epics:
 
@@ -177,5 +177,5 @@ Dieses Epic wurde in den ursprünglichen Anforderungen nicht näher spezifiziert
 
 ## Pflegehinweis
 
-- Statusänderungen an Anforderungen sollen zuerst in diesem Dokument aktualisiert werden.
-- Wenn ein GitHub Project eingerichtet ist, sollen operative Aufgaben zusätzlich dort gepflegt und mit dem Repository verknüpft werden.
+- Statusänderungen an Anforderungen sollen in diesem Dokument nachvollziehbar bleiben.
+- Operative Aufgaben werden im GitHub Project `lzug Roadmap` gepflegt und mit Issues im Repository verknüpft.

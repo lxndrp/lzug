@@ -1,27 +1,24 @@
-# lzug Codex-Projektanweisung
+# lzug Agent Instructions
 
-Diese Datei beschreibt den Arbeitsmodus fuer Codex und andere Coding Agents im Projekt `lzug`.
+Diese Datei beschreibt, wie Codex und andere Coding Agents in diesem Repository arbeiten sollen. Produktbeschreibung, fachlicher Umfang, Architektur und Technologieauswahl gehoeren in `README.md` und `ROADMAP.md`, nicht in diese Datei.
 
-## Projektkontext
+## Grundsatz
 
-`lzug` ist eine Web-App zur Unterstuetzung eines IHK-Pruefungsausschusses fuer Fachinformatiker-Pruefungen. Die App richtet sich an den Pruefungsausschuss, nicht an festangestellte IHK-Mitarbeitende.
-
-Fachlich gibt es zwei zentrale Epics:
-
-- **Pruefungen planen**: Prueflinge, Ausschussmitglieder, Orte, Verfuegbarkeiten, Planungsvorschlag, Bestaetigung, Ausfallprozess und Terminbereitstellung.
-- **Pruefungen durchfuehren**: Tagesansicht, Anwesenheiten, Pruefungsstatus, Protokollierung, Ergebnis-/Abschlussdaten und Abschlusslogik. Dieses Epic ist noch fachlich zu schaerfen.
-
-Der aktuelle fachliche Referenzstand liegt in `docs/fachliche-anforderungen-plan.md`. Das GitHub Project `lzug Roadmap` ist die operative Roadmap.
+- Vor groesseren Aenderungen den aktuellen Repository-Zustand lesen statt aus Erinnerung zu arbeiten.
+- Bestehende Git-Historie, Artefakte und nicht selbst vorgenommene Aenderungen bewahren.
+- Keine fremden oder ungefragten Aenderungen zuruecksetzen.
+- Wenn der Nutzer Planung statt Umsetzung verlangt, read-only bleiben.
+- Wenn der Nutzer Umsetzung verlangt, die Arbeit bis zur angemessenen Verifikation durchziehen.
 
 ## Planung und Nachverfolgung
 
 Arbeite nach diesem Modell:
 
 - Chat und lokale Notizen sind Arbeitsgedaechtnis.
-- Repository-Dokumente sind versionierter fachlicher Kontext fuer Codex und Entwicklungsentscheidungen.
+- Repository-Dokumente sind versionierter Kontext fuer Produkt, Architektur und Entscheidungen.
 - GitHub Issues und GitHub Projects sind die dauerhafte Quelle fuer Backlog, Fortschritt und Nachverfolgung.
 
-Wenn fachliche Planung in Codex entsteht und belastbar genug ist, ueberfuehre sie in GitHub:
+Wenn fachliche oder technische Planung in Codex entsteht und belastbar genug ist, ueberfuehre sie in GitHub:
 
 - Epics als echte GitHub Issues mit Label `type: epic`.
 - User Stories als echte GitHub Issues mit Label `type: story`.
@@ -36,45 +33,21 @@ Draft-Items im GitHub Project nur fuer sehr fruehe Ideen verwenden. Sobald ein E
 
 Im GitHub Project gelten die Standardstatus:
 
-- `Todo`: fachlich aufgenommen, noch nicht begonnen.
+- `Todo`: aufgenommen, noch nicht begonnen.
 - `In Progress`: aktuell in Arbeit oder aktives Epic.
 - `Done`: abgeschlossen und nachvollziehbar dokumentiert.
 
 Geschlossene Issues nicht loeschen. Wenn sie aus einer nachtraeglichen Ueberfuehrung stammen, muessen sie transparent als Baseline-Import markiert sein.
 
-## Entwicklungsprozess
+## Git und Commits
 
-- Bestehende Git-Historie und Artefakte bewahren.
-- Vor groesseren Aenderungen den aktuellen Repo-Zustand lesen statt aus Erinnerung zu arbeiten.
 - Aenderungen thematisch schneiden und kleine, nachvollziehbare Commits bevorzugen.
-- Commit-Messages bevorzugt auf Englisch schreiben, passend zur bisherigen Git-Historie; Deutsch und Englisch nicht innerhalb einer Message mischen.
-- Keine fremden oder ungefragten Aenderungen zuruecksetzen.
-- Wenn der Nutzer Planung statt Umsetzung verlangt, read-only bleiben.
-- Wenn der Nutzer Umsetzung verlangt, bis zur Verifikation durchziehen.
+- Commit-Messages bevorzugt auf Englisch schreiben, passend zur bisherigen Git-Historie.
+- Deutsch und Englisch nicht innerhalb einer Commit-Message mischen.
+- Vor Commits `git -c core.fsmonitor=false status ...` verwenden, wenn `fsmonitor` lokal stoert.
+- Nur Dateien stagen, die zum aktuellen Arbeitsauftrag gehoeren.
 
-## Backend
-
-Das produktive Backend soll keine SQL-Statements im Anwendungscode enthalten. Persistenz und CRUD-Operationen laufen ueber ORM-nahe Abstraktionen, Repositories und REST-nahe Ressourcen.
-
-Bei Erweiterungen:
-
-- Bestehende SQLAlchemy-Modelle und Repository-Muster verwenden.
-- Neue fachliche Konzepte zuerst sauber im Domain-/Datenmodell einordnen.
-- REST-Schnittstellen so schneiden, dass sie direkt vom Angular-Client nutzbar sind.
-- Rechte- und Statusuebergaenge serverseitig testen.
-
-## Frontend
-
-Das Angular-Frontend soll die Workflows aus dem akzeptierten statischen Prototyp schrittweise produktiv abbilden.
-
-Bei UI-Arbeit:
-
-- Bestehende Angular-/CoreUI-Muster beibehalten.
-- Keine Marketing- oder Landingpage bauen; die App ist ein Arbeitswerkzeug.
-- Dichte, klare, arbeitsorientierte Oberflaechen bevorzugen.
-- Rollen, Status, Fehlermeldungen und leere Zustaende sichtbar und bedienbar machen.
-
-## Tests und Qualitaet
+## Tests und Verifikation
 
 Primaere lokale Gesamtpruefung ist:
 
@@ -82,9 +55,26 @@ Primaere lokale Gesamtpruefung ist:
 mise run quality
 ```
 
-Wenn nur ein Teilbereich geaendert wurde, gezielt passende Tests ausfuehren. Build- oder Testfehler nicht automatisch als Produktfehler werten, wenn sie eindeutig durch die lokale Sandbox verursacht sind; dann die Einschraenkung klar benennen.
+Wenn nur ein Teilbereich geaendert wurde, gezielt passende Tests oder Checks ausfuehren. Im Abschlussbericht klar unterscheiden zwischen:
 
-### Codex-Sandbox
+- `verifiziert`
+- `in Codex nicht verifizierbar`
+- `durch bekannte Sandbox-Grenze blockiert`
+
+Bei neuen fachlichen Aenderungen sollen Tests schichtweise ergaenzt werden:
+
+1. Domain-/Repository-Regeln und Statusuebergaenge im Backend.
+2. HTTP- und OpenAPI-Vertrag inklusive Fehlerantworten.
+3. Frontend-Komponenten und API-Service mit isolierten Fixtures.
+4. Mindestens ein Browser-Szenario fuer den fachlichen End-to-End-Nutzen.
+
+## Continuous Integration
+
+Die vollstaendige Projektpruefung laeuft in `.github/workflows/ci.yml` auf Pushes und Pull Requests gegen `main` und `master`.
+
+Fuer die vollstaendige Verifikation sind erfolgreiche Jobs in GitHub Actions massgeblich, wenn lokale Pruefungen an der Codex-Sandbox scheitern. Dependency- und Security-Hinweise sind getrennt vom CI-Aufbau zu bewerten und blockieren den Workflow nicht automatisch.
+
+## Codex-Sandbox
 
 Die Codex-Sandbox ist nicht die massgebliche produktive Laufzeit. Einige lokale Vollpruefungen koennen dort wiederholt an bekannten Umgebungsgrenzen scheitern, obwohl sie in der normalen Entwicklungsumgebung oder in CI funktionieren.
 
@@ -92,32 +82,19 @@ Arbeite deshalb so:
 
 - `mise run quality` bleibt die Referenz fuer vollstaendige lokale Qualitaetssicherung, soll in Codex aber nicht reflexhaft nach jeder Aenderung gestartet werden.
 - Bei kleinen Aenderungen gezielt die betroffenen Tests oder Checks ausfuehren.
-- Wenn ein bekannter Sandbox-Fehler erneut auftritt, nicht mehrfach denselben Vollcheck wiederholen und keine Produktfixes fuer reine Sandbox-Symptome einbauen.
+- Wenn ein bekannter Sandbox-Fehler erneut auftritt, nicht mehrfach denselben Vollcheck wiederholen.
+- Keine Produktfixes fuer reine Sandbox-Symptome einbauen.
 - Wenn der Nutzer bestaetigt, dass ein Fehler sandbox-spezifisch ist, diese Einordnung uebernehmen und die verbleibenden echten Implementierungsluecken getrennt bewerten.
 - Fuer vollstaendige Sicherheit CI oder eine Ausfuehrung ausserhalb der Codex-Sandbox heranziehen.
-- Im Abschlussbericht klar unterscheiden zwischen `verifiziert`, `in Codex nicht verifizierbar` und `durch bekannte Sandbox-Grenze blockiert`.
 
 Bekannte lokale Eigenheiten:
 
 - `git status` kann durch `fsmonitor` stoeren; dann `git -c core.fsmonitor=false status ...` verwenden.
 - Frontend-Builds oder Browser-/E2E-nahe Pruefungen koennen in der Codex-Sandbox anders scheitern als in der normalen Entwicklungsumgebung. Nach einem solchen bekannten Treffer nicht weiter am Produktcode drehen, sondern den Befund als Umgebungsthema dokumentieren.
 
-## Entwicklungsumgebung
+## Fuehrende Dokumente
 
-Die Toolchain ist im Repository festgelegt:
-
-- Python ueber `uv`, `.python-version` und `.mise.toml`.
-- Node/npm ueber `.node-version` und `.mise.toml`.
-- VS-Code-Konfiguration liegt bewusst im Repository, soweit sie projektweit nuetzlich ist.
-
-Wenn `node`, `npm`, `uv`, `mise` oder `gh` in Codex fehlen, zuerst PATH und lokale Installation pruefen, bevor Projektdateien angepasst werden.
-
-## GitHub Project
-
-Das GitHub Project heisst `lzug Roadmap`:
-
-- URL: `https://github.com/users/lxndrp/projects/2`
-- Board-Spalten sollten nach `Status` gruppiert sein.
-- Filter nach `label:"type: epic"` und `label:"type: story"` sollen die fachliche Struktur sichtbar machen.
-
-Zukuenftige operative Planung soll dort gepflegt werden. Repository-Dokumente bleiben ergaenzender Kontext und sollten bei grundlegenden fachlichen Entscheidungen aktualisiert werden.
+- `README.md`: Produktueberblick, fachliche Hauptbereiche, Setup und zentrale Einstiegspunkte.
+- `docs/ARCHITECTURE.md`: technische Architektur, Technologieentscheidungen, Backend-/Frontend-Schichtung, API, Datenbank und CI.
+- `ROADMAP.md`: fachlicher Referenzstand, umgesetzte und offene Anforderungen, Epics und Plan.
+- GitHub Project `lzug Roadmap`: operative Planung und Statusverfolgung.

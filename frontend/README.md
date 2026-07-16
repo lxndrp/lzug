@@ -3,6 +3,9 @@
 Das Frontend ist eine Angular-22-Anwendung. Abhängigkeiten werden mit npm und
 `package-lock.json` reproduzierbar installiert.
 
+Die technische Einordnung des Frontends ist zentral in
+[`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) dokumentiert.
+
 ## Entwicklungsserver
 
 ```bash
@@ -22,12 +25,11 @@ npm run test:coverage
 ```
 
 Die Unit-Tests verwenden Karma. Der Coverage-Lauf erzeugt HTML- und LCOV-
-Reports unter `coverage/frontend` und prüft die konfigurierten Schwellwerte.
+Reports unter `coverage/frontend`.
 
 ## Browser-Tests
 
-Playwright startet Backend und Angular-Dev-Server automatisch. Das Backend
-verwendet dabei eine isolierte SQLite-Datenbank mit Demo-Daten:
+Playwright startet Backend und Angular-Dev-Server automatisch:
 
 ```bash
 npx playwright install chromium

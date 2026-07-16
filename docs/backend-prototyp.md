@@ -2,6 +2,12 @@
 
 Stand: 25.06.2026
 
+Dieses Dokument ist eine historische Einordnung des ersten Backend-Prototyps. Die aktuelle technische Architektur steht in:
+
+```text
+docs/ARCHITECTURE.md
+```
+
 ## Entscheidung
 
 Der Backend-Prototyp nutzt Python, SQLite und SQLAlchemy 2.x.
@@ -19,13 +25,13 @@ Das ist weiterhin bewusst noch kein endgültiger Web-Stack. Der Wert liegt darin
 ## Dateien
 
 - `pyproject.toml` beschreibt SQLAlchemy als Projektabhängigkeit.
-- `server/database.py` kapselt SQLAlchemy-Engine, Session-Kontext und Initialisierung.
-- `server/models.py` beschreibt die aktuell genutzten Tabellen als SQLAlchemy-ORM-Modelle und API-Ressourcen.
-- `server/store.py` enthält einen kleinen SQLAlchemy-basierten CRUD-Adapter für generische Repository-Operationen.
-- `server/repositories.py` bündelt fachnahe Lese- und Schreiboperationen.
-- `server/planning.py` erzeugt deterministische Planungsvorschläge und persistiert Prüfungstage, Slots und Besetzungen.
-- `server/hateoas.py` ergänzt JSON-Antworten um HAL-nahe `_links`.
-- `server/openapi.py` erzeugt die OpenAPI-3.1-Spezifikation.
+- `backend/database.py` kapselt SQLAlchemy-Engine, Session-Kontext und Initialisierung.
+- `backend/models.py` beschreibt die aktuell genutzten Tabellen als SQLAlchemy-ORM-Modelle und API-Ressourcen.
+- `backend/store.py` enthält einen kleinen SQLAlchemy-basierten CRUD-Adapter für generische Repository-Operationen.
+- `backend/repositories.py` bündelt fachnahe Lese- und Schreiboperationen.
+- `backend/planning.py` erzeugt deterministische Planungsvorschläge und persistiert Prüfungstage, Slots und Besetzungen.
+- `backend/hateoas.py` ergänzt JSON-Antworten um HAL-nahe `_links`.
+- `backend/openapi.py` erzeugt die OpenAPI-3.1-Spezifikation.
 - `backend/app.py` stellt JSON-Endpunkte bereit und enthält keine fachlichen SQL-Abfragen.
 - `db/seed_demo.sql` überführt die Demo-Daten aus dem Prototyp in relationale Tabellen.
 
@@ -70,7 +76,7 @@ http://127.0.0.1:8000
 - `GET /api/exam-day-assignments`
 - `GET /api/round-summary?round_id=1`
 
-Die REST-Schicht arbeitet gegen Repositories und Ressourcen-Metadaten. Neue Ressourcen sollten daher zuerst in `server/models.py` als SQLAlchemy-Modell und `Resource` beschrieben und dann in `server/repositories.py` fachlich ergänzt werden.
+Die REST-Schicht arbeitet gegen Repositories und Ressourcen-Metadaten. Neue Ressourcen sollten daher zuerst in `backend/models.py` als SQLAlchemy-Modell und `Resource` beschrieben und dann in `backend/repositories.py` fachlich ergänzt werden.
 
 Die API ist HAL-nah selbstbeschreibend. Einzelressourcen enthalten `_links.self`, `_links.collection` sowie Links für erlaubte Operationen wie `update` und `delete`. Listen werden als Objekt mit `items` und `_links` ausgeliefert, damit auch Sammlungen navigierbar sind. Die OpenAPI-Spezifikation liegt unter `/api/openapi.json`; `/api/docs` bindet Swagger UI gegen diese Spezifikation ein.
 
