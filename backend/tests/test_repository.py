@@ -97,6 +97,8 @@ class RepositoryTests(unittest.TestCase):
                     "exams_per_day": 5,
                     "max_exam_days_per_week": 4,
                     "lunch_break_enabled": 0,
+                    "exclude_public_holidays": 1,
+                    "holiday_subdivision_code": "DE-NW",
                     "default_location_id": 2,
                     "updated_by_member_id": 1,
                 }
@@ -111,6 +113,8 @@ class RepositoryTests(unittest.TestCase):
                         "exams_per_day": 5,
                         "max_exam_days_per_week": 5,
                         "lunch_break_enabled": 0,
+                        "exclude_public_holidays": 1,
+                        "holiday_subdivision_code": "DE-NW",
                         "default_location_id": 2,
                         "updated_by_member_id": 2,
                     }
@@ -120,7 +124,32 @@ class RepositoryTests(unittest.TestCase):
 
         self.assertEqual(1, updated["id"])
         self.assertEqual(4, updated["max_exam_days_per_week"])
+        self.assertEqual(1, updated["exclude_public_holidays"])
+        self.assertEqual("DE-NW", updated["holiday_subdivision_code"])
         self.assertEqual(1, len(settings))
+
+    def test_planning_settings_require_valid_state_for_holiday_exclusion(self) -> None:
+        with TempDatabase() as db_path:
+            repository = ResourceRepository(db_path)
+            payload = {
+                "exam_round_id": 1,
+                "calendar_week_from": "2026-W47",
+                "calendar_week_to": "2026-W50",
+                "exams_per_day": 5,
+                "max_exam_days_per_week": 3,
+                "lunch_break_enabled": 1,
+                "exclude_public_holidays": 1,
+                "holiday_subdivision_code": None,
+                "default_location_id": 1,
+                "updated_by_member_id": 1,
+            }
+
+            with self.assertRaisesRegex(ValueError, "Federal state is required"):
+                repository.save_planning_settings(payload)
+
+            payload["holiday_subdivision_code"] = "DE-XX"
+            with self.assertRaisesRegex(ValueError, "Unknown German federal state"):
+                repository.save_planning_settings(payload)
 
     def test_availability_upsert_manages_response_timestamp(self) -> None:
         with TempDatabase() as db_path:

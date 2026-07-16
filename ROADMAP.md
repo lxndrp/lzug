@@ -26,7 +26,7 @@ Die bisherige Umsetzung betrachtet im Kern den Planungsprozess einer Prüfungsru
 
 - **Planungsparameter**: Kalenderwoche von/bis, Prüfungen pro Tag, max. Prüfungstage pro Woche, Mittagspause und Standardort sind backendseitig und im Angular-Frontend bearbeitbar.
 - **Rechteprüfung für max. Prüfungstage pro Woche**: Backend prüft, dass nur ein Mitglied mit Rolle `chair` `max_exam_days_per_week` ändern darf.
-- **Mögliche Prüfungstage**: Prüfungstage können manuell angelegt, aktiviert und deaktiviert werden.
+- **Mögliche Prüfungstage**: Prüfungstage können manuell angelegt, aktiviert und deaktiviert oder automatisch aus einem Kalenderwochenbereich erzeugt werden. Optional werden bundesweite und landesweite Feiertage des ausgewählten Bundeslands über die kuratierte Backend-Bibliothek `holidays` ausgeschlossen.
 - **Verfügbarkeiten**: Ganztägig, vormittags, nachmittags, nicht verfügbar und offen sind modelliert und in einer Angular-Matrix bearbeitbar.
 - **Direktes Feedback je Verfügbarkeitszelle**: Speichern/Fehlerzustände werden im Frontend je Zelle angezeigt.
 
@@ -56,7 +56,6 @@ Die bisherige Umsetzung betrachtet im Kern den Planungsprozess einer Prüfungsru
 - **CSV-Import für Prüflinge**: Im statischen Prototyp vorhanden, im Angular-Frontend noch nicht umgesetzt.
 - **Importvorlage herunterladen**: Im statischen Prototyp vorhanden, im Angular-Frontend noch nicht umgesetzt.
 - **Duplikatbehandlung beim Import**: Fachlich dokumentiert, für den Angular-/Backend-Import noch nicht umgesetzt.
-- **Automatische Erzeugung möglicher Prüfungstage aus KW von/bis**: Prüfungstage können manuell angelegt werden; ein Komfortworkflow zum Erzeugen aller Wochentage im Planungszeitraum fehlt.
 - **Prüfungsdurchgang bearbeiten**: Name, Rückmeldefrist und Erinnerung werden angezeigt, aber noch nicht als eigener Bearbeitungsworkflow gepflegt.
 
 ### Rechte und Sicherheit
@@ -102,7 +101,7 @@ Status: teilweise umgesetzt.
 - **Als Vorsitzender oder Stellvertreter möchte ich Verfügbarkeiten einsammeln, damit nur realistische Prüfungstage vorgeschlagen werden.** Status: umgesetzt.
 - **Als Vorsitzender möchte ich auf Basis der Verfügbarkeiten einen regelkonformen Planungsvorschlag erzeugen, damit ich möglichst volle Prüfungstage bestätigen kann.** Status: umgesetzt.
 - **Als Vorsitzender möchte ich Prüflinge importieren, damit größere Prüfungsrunden nicht manuell erfasst werden müssen.** Status: nicht abgeschlossen.
-- **Als Vorsitzender möchte ich mögliche Prüfungstage aus dem Zeitraum automatisch erzeugen, damit die Vorarbeit schneller und weniger fehleranfällig ist.** Status: nicht abgeschlossen.
+- **Als Vorsitzender möchte ich mögliche Prüfungstage aus dem Zeitraum automatisch erzeugen, damit die Vorarbeit schneller und weniger fehleranfällig ist.** Status: umgesetzt.
 - **Als Vorsitzender oder Stellvertreter möchte ich bestätigte Pläne kontrolliert ändern können, damit kurzfristige Anpassungen nachvollziehbar bleiben.** Status: nicht abgeschlossen.
 - **Als Ausschussmitglied möchte ich Ausfälle melden und Ersatzprozesse auslösen können, damit ein Prüfungstag möglichst nicht ausfällt.** Status: nicht abgeschlossen.
 
@@ -126,7 +125,7 @@ Dieses Epic wurde in den ursprünglichen Anforderungen nicht näher spezifiziert
 - CSV-Import für Prüflinge im Angular-Frontend und Backend-Service umsetzen.
 - Importvorlage als Download bereitstellen.
 - Duplikate anhand der IHK-Prüfungsnummer beim Import erkennen und berichten.
-- Backend-Endpunkt und Frontend-Aktion zum Erzeugen möglicher Prüfungstage aus KW von/bis ergänzen.
+- Backend-Endpunkt und Frontend-Aktion zum Erzeugen möglicher Prüfungstage aus KW von/bis ergänzen. Status: umgesetzt.
 - Prüfungsdurchgang-Bearbeitung für Name, Rückmeldefrist und Erinnerung umsetzen.
 
 ### Phase 2: Epic Prüfungen planen - Rechte und Benutzerkonzept

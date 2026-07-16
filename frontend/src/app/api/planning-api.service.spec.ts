@@ -239,6 +239,8 @@ describe('PlanningApiService', () => {
         exams_per_day: 6,
         max_exam_days_per_week: 3,
         lunch_break_enabled: 1,
+        exclude_public_holidays: 1,
+        holiday_subdivision_code: 'DE-NW',
         default_location_id: 1,
         updated_by_member_id: 1,
       })
@@ -253,6 +255,8 @@ describe('PlanningApiService', () => {
       exams_per_day: 6,
       max_exam_days_per_week: 3,
       lunch_break_enabled: 1,
+      exclude_public_holidays: 1,
+      holiday_subdivision_code: 'DE-NW',
       default_location_id: 1,
       updated_by_member_id: 1,
     });
@@ -260,6 +264,22 @@ describe('PlanningApiService', () => {
   });
 
   it('should expose possible day and availability write operations', () => {
+    service.generateCandidateExamDays().subscribe();
+    const generateDays = http.expectOne('/api/candidate-exam-days/generate');
+    expect(generateDays.request.method).toBe('POST');
+    expect(generateDays.request.body).toEqual({ round_id: 1 });
+    generateDays.flush({
+      round_id: 1,
+      calendar_week_from: '2026-W47',
+      calendar_week_to: '2026-W49',
+      exclude_public_holidays: 1,
+      holiday_subdivision_code: 'DE-NW',
+      created_days: [],
+      skipped_existing: [],
+      excluded_holidays: [],
+      counts: { calculated_weekdays: 15, created: 0, existing: 15, excluded_holidays: 0 },
+    });
+
     service.createCandidateExamDay({ date: '2026-11-18', is_active: 1 }).subscribe();
     const createDay = http.expectOne('/api/candidate-exam-days');
     expect(createDay.request.method).toBe('POST');

@@ -10,6 +10,7 @@ from urllib.parse import parse_qs, urlparse
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from . import hateoas, openapi
+from .candidate_days import CandidateDayService
 from .database import DEFAULT_DB_PATH, initialize, is_available
 from .models import CANDIDATE, Resource
 from .planning import PlanningService
@@ -26,6 +27,10 @@ class LzugHandler(BaseHTTPRequestHandler):
     @property
     def planning_service(self) -> PlanningService:
         return PlanningService(self.db_path)
+
+    @property
+    def candidate_day_service(self) -> CandidateDayService:
+        return CandidateDayService(self.db_path)
 
     def do_GET(self) -> None:
         try:
@@ -110,6 +115,13 @@ class LzugHandler(BaseHTTPRequestHandler):
                 round_id = int(payload.get("round_id", 1))
                 proposal = self.planning_service.generate_proposal(round_id)
                 self.respond(hateoas.planning_proposal(proposal), HTTPStatus.CREATED)
+                return
+
+            if path_parts == ["candidate-exam-days", "generate"]:
+                payload = self.read_json()
+                round_id = int(payload.get("round_id", 1))
+                result = self.candidate_day_service.generate(round_id)
+                self.respond(hateoas.candidate_day_generation(result))
                 return
 
             resource_name, entity_id = self.resource_target(path_parts)
@@ -268,6 +280,10 @@ class LzugHandler(BaseHTTPRequestHandler):
         if "lunch_break_enabled" in normalized:
             normalized["lunch_break_enabled"] = self.normalize_bool(
                 normalized["lunch_break_enabled"]
+            )
+        if "exclude_public_holidays" in normalized:
+            normalized["exclude_public_holidays"] = self.normalize_bool(
+                normalized["exclude_public_holidays"]
             )
         if CANDIDATE.table in normalized:
             normalized.pop(CANDIDATE.table)

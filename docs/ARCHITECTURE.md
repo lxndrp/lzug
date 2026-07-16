@@ -51,10 +51,18 @@ Wichtige Module:
 - `backend/repositories.py`: fachnahe CRUD- und Leseoperationen
 - `backend/store.py`: generischer SQLAlchemy-basierter CRUD-Adapter
 - `backend/planning.py`: Planungsvorschlag, Slot-Erzeugung und Planbestätigung
+- `backend/candidate_days.py`: Erzeugung möglicher Prüfungstage aus Kalenderwochen
+- `backend/holiday_provider.py`: gekapselte Feiertagsberechnung über `holidays`
 - `backend/hateoas.py`: HAL-nahe Links in JSON-Antworten
 - `backend/openapi.py`: OpenAPI-3.1-Spezifikation
 
 Der Anwendungscode soll keine fachlichen SQL-Statements enthalten. Persistenz laeuft ueber SQLAlchemy-Modelle, Repositories und REST-nahe Ressourcen.
+
+Gesetzliche Feiertage werden serverseitig mit der Python-Bibliothek `holidays`
+berechnet. Die eigene `HolidayProvider`-Abstraktion verhindert eine Kopplung der
+Planungslogik an die konkrete Datenquelle. Beruecksichtigt werden bundesweite
+und landesweit geltende Feiertage; gemeindespezifische Sonderregeln werden bei
+einer reinen Bundeslandauswahl nicht abgeleitet.
 
 ### Frontend
 
@@ -101,6 +109,10 @@ docs/relationales-schema.md
 ```
 
 Das Schema ist PostgreSQL-nah angelegt, aber SQLite-kompatibel. Fachliche Mehrzeilenregeln werden nicht vollständig durch Datenbankconstraints erzwungen, sondern in Repository- und Service-Logik validiert.
+
+Bestehende SQLite-Datenbanken werden beim Start mit `--init` ueber versionierte
+SQL-Dateien unter `db/migrations/` aktualisiert. Ausgefuehrte Migrationen werden
+in `schema_migration` festgehalten.
 
 ## Backend-Schichten
 
@@ -171,6 +183,7 @@ Aktuelle Ressourcen und Aktionen:
 - `exam-day-assignments`
 - `round-summary`
 - `planning-proposals`
+- `candidate-exam-days/generate`
 - `exam-rounds/{id}/confirm-plan`
 
 JSON-Antworten enthalten HAL-nahe `_links` mit `self`, `collection` und erlaubten Operationen. Listen werden als Objekt mit `items` und `_links` ausgeliefert.
@@ -260,4 +273,3 @@ Mögliche Schritte:
 - Ausfallprozess mit Benachrichtigungen und Eskalationen
 - Kalenderintegration
 - Datenmodell und API für das Epic `Prüfungen durchführen`
-- Migrationen statt reinem Basisschema

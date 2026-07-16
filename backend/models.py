@@ -146,6 +146,11 @@ class PlanningSettings(Base):
         Integer,
         server_default=sql_text("1"),
     )
+    exclude_public_holidays: Mapped[int] = mapped_column(
+        Integer,
+        server_default=sql_text("0"),
+    )
+    holiday_subdivision_code: Mapped[str | None] = mapped_column(String, nullable=True)
     default_location_id: Mapped[int | None] = mapped_column(
         ForeignKey("location.id"),
         nullable=True,
@@ -421,6 +426,8 @@ PLANNING_SETTINGS = Resource(
         "exams_per_day",
         "max_exam_days_per_week",
         "lunch_break_enabled",
+        "exclude_public_holidays",
+        "holiday_subdivision_code",
         "default_location_id",
         "updated_by_member_id",
         "created_at",
@@ -433,6 +440,8 @@ PLANNING_SETTINGS = Resource(
         "exams_per_day",
         "max_exam_days_per_week",
         "lunch_break_enabled",
+        "exclude_public_holidays",
+        "holiday_subdivision_code",
         "default_location_id",
         "updated_by_member_id",
     ),

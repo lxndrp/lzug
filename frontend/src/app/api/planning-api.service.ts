@@ -6,6 +6,7 @@ import {
   ApiCollection,
   ApiRoot,
   Candidate,
+  CandidateDayGenerationResult,
   CandidateExamDay,
   CandidateView,
   Committee,
@@ -199,6 +200,12 @@ export class PlanningApiService {
     return this.http.post<CandidateExamDay>('/api/candidate-exam-days', {
       ...payload,
       exam_round_id: this.roundId,
+    });
+  }
+
+  generateCandidateExamDays() {
+    return this.http.post<CandidateDayGenerationResult>('/api/candidate-exam-days/generate', {
+      round_id: this.roundId,
     });
   }
 

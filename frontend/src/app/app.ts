@@ -11,10 +11,11 @@ import {
   SidebarModule,
 } from '@coreui/angular';
 import { IconDirective } from '@coreui/icons-angular';
-import { filter, finalize } from 'rxjs';
+import { filter, finalize, switchMap } from 'rxjs';
 
 import {
   ApiRoot,
+  CandidateDayGenerationResult,
   CandidateExamDay,
   CommitteeMember,
   ExamRound,
@@ -87,6 +88,9 @@ export class App {
   protected readonly board = signal<PlanningBoard | null>(null);
   protected readonly masterData = signal<MasterData | null>(null);
   protected readonly lastPlanningResult = signal<PlanningResult | null>(null);
+  protected readonly candidateDayGenerationResult = signal<CandidateDayGenerationResult | null>(
+    null,
+  );
   protected readonly activeView = signal<AppView>('dashboard');
   protected readonly selectedCommitteeId = signal<number | null>(null);
   protected readonly message = signal('Bereit');
@@ -408,6 +412,33 @@ export class App {
             'error',
             'Prüfungstag nicht angelegt',
             'Die Eingabe bleibt erhalten. Bitte erneut versuchen.',
+          ),
+      });
+  }
+
+  protected generateCandidateDays(payload: PlanningSettingsPayload): void {
+    this.actionBusy.set(true);
+    this.api
+      .savePlanningSettings(payload)
+      .pipe(
+        switchMap(() => this.api.generateCandidateExamDays()),
+        finalize(() => this.actionBusy.set(false)),
+      )
+      .subscribe({
+        next: (result) => {
+          this.candidateDayGenerationResult.set(result);
+          this.notify(
+            'success',
+            'Mögliche Prüfungstage berechnet',
+            `${result.counts.created} angelegt, ${result.counts.existing} bereits vorhanden.`,
+          );
+          this.refresh();
+        },
+        error: () =>
+          this.notify(
+            'error',
+            'Prüfungstage nicht berechnet',
+            'Planungszeitraum und Bundesland konnten nicht verarbeitet werden.',
           ),
       });
   }

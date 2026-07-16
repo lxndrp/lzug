@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
+  AlertModule,
   BadgeModule,
   ButtonModule,
   CardModule,
@@ -21,6 +22,7 @@ import { IconDirective } from '@coreui/icons-angular';
 
 import {
   AvailabilityValue,
+  CandidateDayGenerationResult,
   CandidateExamDay,
   CommitteeMember,
   MasterData,
@@ -45,6 +47,7 @@ type AvailabilityCellState = {
 @Component({
   selector: 'app-planning',
   imports: [
+    AlertModule,
     BadgeModule,
     ButtonModule,
     CardModule,
@@ -62,9 +65,11 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   @Input() board: PlanningBoard | null = null;
   @Input() masterData: MasterData | null = null;
   @Input() actionBusy = false;
+  @Input() candidateDayGenerationResult: CandidateDayGenerationResult | null = null;
 
   @Output() saveSettings = new EventEmitter<PlanningSettingsPayload>();
   @Output() createCandidateDay = new EventEmitter<CandidateExamDayPayload>();
+  @Output() generateCandidateDays = new EventEmitter<PlanningSettingsPayload>();
   @Output() toggleCandidateDay = new EventEmitter<CandidateExamDay>();
   @Output() saveAvailability = new EventEmitter<AvailabilityPayload>();
 
@@ -74,6 +79,8 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     exams_per_day: 6,
     max_exam_days_per_week: 3,
     lunch_break_enabled: 1,
+    exclude_public_holidays: 0,
+    holiday_subdivision_code: null,
     default_location_id: null,
     updated_by_member_id: 0,
   };
@@ -84,6 +91,24 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   protected readonly availabilityCellStates = signal<Record<string, AvailabilityCellState>>({});
   private readonly availabilityOverrides = signal<Record<string, AvailabilityValue>>({});
   private readonly savedStateTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  protected readonly federalStates = [
+    { code: 'DE-BW', name: 'Baden-Württemberg' },
+    { code: 'DE-BY', name: 'Bayern' },
+    { code: 'DE-BE', name: 'Berlin' },
+    { code: 'DE-BB', name: 'Brandenburg' },
+    { code: 'DE-HB', name: 'Bremen' },
+    { code: 'DE-HH', name: 'Hamburg' },
+    { code: 'DE-HE', name: 'Hessen' },
+    { code: 'DE-MV', name: 'Mecklenburg-Vorpommern' },
+    { code: 'DE-NI', name: 'Niedersachsen' },
+    { code: 'DE-NW', name: 'Nordrhein-Westfalen' },
+    { code: 'DE-RP', name: 'Rheinland-Pfalz' },
+    { code: 'DE-SL', name: 'Saarland' },
+    { code: 'DE-SN', name: 'Sachsen' },
+    { code: 'DE-ST', name: 'Sachsen-Anhalt' },
+    { code: 'DE-SH', name: 'Schleswig-Holstein' },
+    { code: 'DE-TH', name: 'Thüringen' },
+  ] as const;
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['summary'] || changes['board'] || changes['masterData']) {
@@ -258,21 +283,46 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   protected submitSettings(): void {
+    const payload = this.settingsPayload();
+    if (payload) {
+      this.saveSettings.emit(payload);
+    }
+  }
+
+  protected requestCandidateDayGeneration(): void {
+    const payload = this.settingsPayload();
+    if (payload) {
+      this.generateCandidateDays.emit(payload);
+    }
+  }
+
+  protected canGenerateCandidateDays(): boolean {
+    return this.settingsPayload() !== null;
+  }
+
+  private settingsPayload(): PlanningSettingsPayload | null {
     const updaterId = this.draft.updated_by_member_id || this.defaultUpdaterId();
-    if (!updaterId || !this.draft.calendar_week_from || !this.draft.calendar_week_to) {
-      return;
+    if (
+      !updaterId ||
+      !this.draft.calendar_week_from ||
+      !this.draft.calendar_week_to ||
+      (this.draft.exclude_public_holidays && !this.draft.holiday_subdivision_code)
+    ) {
+      return null;
     }
 
-    this.saveSettings.emit({
+    return {
       ...this.draft,
       exams_per_day: Number(this.draft.exams_per_day) || 1,
       max_exam_days_per_week: Number(this.draft.max_exam_days_per_week) || 1,
       lunch_break_enabled: this.draft.lunch_break_enabled ? 1 : 0,
+      exclude_public_holidays: this.draft.exclude_public_holidays ? 1 : 0,
+      holiday_subdivision_code: this.draft.holiday_subdivision_code || null,
       default_location_id: this.draft.default_location_id
         ? Number(this.draft.default_location_id)
         : null,
       updated_by_member_id: updaterId,
-    });
+    };
   }
 
   protected defaultUpdaterId(): number {
@@ -294,6 +344,10 @@ export class PlanningComponent implements OnChanges, OnDestroy {
       settings?.max_exam_days_per_week ?? this.draft.max_exam_days_per_week;
     this.draft.lunch_break_enabled =
       settings?.lunch_break_enabled ?? this.draft.lunch_break_enabled ?? 1;
+    this.draft.exclude_public_holidays =
+      settings?.exclude_public_holidays ?? this.draft.exclude_public_holidays ?? 0;
+    this.draft.holiday_subdivision_code =
+      settings?.holiday_subdivision_code ?? this.draft.holiday_subdivision_code ?? null;
     this.draft.default_location_id =
       settings?.default_location_id ??
       this.board?.locations.find((location) => location.is_active !== 0)?.id ??

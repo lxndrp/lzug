@@ -54,6 +54,42 @@
               required
             />
           </div>
+          <div class="col-12 col-md-6 d-flex align-items-end">
+            <div cFormCheck>
+              <input
+                cFormCheckInput
+                id="excludePublicHolidays"
+                name="excludePublicHolidays"
+                type="checkbox"
+                [ngModel]="draft.exclude_public_holidays === 1"
+                (ngModelChange)="draft.exclude_public_holidays = $event ? 1 : 0"
+              />
+              <label cFormCheckLabel for="excludePublicHolidays"
+                >Gesetzliche Feiertage ausschließen</label
+              >
+            </div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label cLabel for="holidaySubdivisionCode"
+              >Bundesland
+              @if (draft.exclude_public_holidays) {
+                <span aria-hidden="true">*</span>
+              }
+            </label>
+            <select
+              cSelect
+              id="holidaySubdivisionCode"
+              name="holidaySubdivisionCode"
+              [(ngModel)]="draft.holiday_subdivision_code"
+              [disabled]="!draft.exclude_public_holidays"
+              [required]="draft.exclude_public_holidays === 1"
+            >
+              <option [ngValue]="null">Bundesland auswählen</option>
+              @for (state of federalStates; track state.code) {
+                <option [ngValue]="state.code">{{ state.name }}</option>
+              }
+            </select>
+          </div>
           <div class="col-12 col-md-4">
             <label cLabel for="examsPerDay">Prüfungen pro Tag</label>
             <input
@@ -125,10 +161,23 @@
             <span class="app-form-action-hint"
               >Die Kapazitätsvorschau wird nach dem Speichern aktualisiert.</span
             >
-            <button cButton color="primary" type="submit" [disabled]="actionBusy">
-              <svg [cIcon]="icons.save" class="app-button-icon" aria-hidden="true"></svg>
-              Planungsrahmen speichern
-            </button>
+            <div class="d-flex flex-wrap gap-2">
+              <button
+                cButton
+                color="secondary"
+                type="button"
+                variant="outline"
+                [disabled]="actionBusy || !canGenerateCandidateDays()"
+                (click)="requestCandidateDayGeneration()"
+              >
+                <svg [cIcon]="icons.calendar" class="app-button-icon" aria-hidden="true"></svg>
+                Mögliche Tage berechnen
+              </button>
+              <button cButton color="primary" type="submit" [disabled]="actionBusy">
+                <svg [cIcon]="icons.save" class="app-button-icon" aria-hidden="true"></svg>
+                Planungsrahmen speichern
+              </button>
+            </div>
           </div>
         </form>
       </c-card-body>
@@ -144,6 +193,22 @@
         </div>
       </c-card-header>
       <c-card-body>
+        @if (candidateDayGenerationResult; as result) {
+          <c-alert color="info">
+            <strong>{{ result.counts.created }} Tage angelegt</strong>
+            <span class="d-block">
+              {{ result.counts.existing }} bereits vorhanden ·
+              {{ result.counts.excluded_holidays }} Feiertage ausgeschlossen
+            </span>
+            @if (result.excluded_holidays.length) {
+              <ul class="mb-0 mt-2">
+                @for (holiday of result.excluded_holidays; track holiday.date) {
+                  <li>{{ dateLabel(holiday.date) }} · {{ holiday.name }}</li>
+                }
+              </ul>
+            }
+          </c-alert>
+        }
         <form class="row g-3 app-form-grid app-compact-form" (ngSubmit)="submitCandidateDay()">
           <div class="col-12 col-md-4">
             <label cLabel for="candidateDayDate">Datum <span aria-hidden="true">*</span></label>

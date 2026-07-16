@@ -59,6 +59,7 @@ export const appIcons = {
   add: plus,
   arrowRight,
   cancel: x,
+  calendar,
   candidates: education,
   committee: group,
   confirm: check,

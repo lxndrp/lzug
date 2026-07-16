@@ -8,6 +8,14 @@
 
 PRAGMA foreign_keys = ON;
 
+CREATE TABLE schema_migration (
+  name TEXT PRIMARY KEY,
+  applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO schema_migration (name)
+VALUES ('001_add_holiday_planning_settings.sql');
+
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
   name TEXT NOT NULL,
@@ -133,11 +141,21 @@ CREATE TABLE planning_settings (
   exams_per_day INTEGER NOT NULL CHECK (exams_per_day >= 1),
   max_exam_days_per_week INTEGER NOT NULL DEFAULT 3 CHECK (max_exam_days_per_week BETWEEN 1 AND 5),
   lunch_break_enabled INTEGER NOT NULL DEFAULT 1 CHECK (lunch_break_enabled IN (0, 1)),
+  exclude_public_holidays INTEGER NOT NULL DEFAULT 0 CHECK (exclude_public_holidays IN (0, 1)),
+  holiday_subdivision_code TEXT,
   default_location_id INTEGER REFERENCES location(id) ON DELETE SET NULL,
   updated_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CHECK (calendar_week_from <= calendar_week_to)
+  CHECK (calendar_week_from <= calendar_week_to),
+  CHECK (
+    holiday_subdivision_code IS NULL
+    OR holiday_subdivision_code IN (
+      'DE-BB', 'DE-BE', 'DE-BW', 'DE-BY', 'DE-HB', 'DE-HE', 'DE-HH', 'DE-MV',
+      'DE-NI', 'DE-NW', 'DE-RP', 'DE-SH', 'DE-SL', 'DE-SN', 'DE-ST', 'DE-TH'
+    )
+  ),
+  CHECK (exclude_public_holidays = 0 OR holiday_subdivision_code IS NOT NULL)
 );
 
 CREATE TABLE candidate_exam_day (
@@ -331,4 +349,3 @@ CREATE INDEX notification_status_scheduled
 
 CREATE INDEX calendar_event_status
   ON calendar_event(status);
-

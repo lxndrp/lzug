@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import sqlite3
+import tempfile
 import unittest
+from contextlib import closing
+from pathlib import Path
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -99,6 +103,29 @@ class DatabaseTests(unittest.TestCase):
                 ]
 
         self.assertEqual([1], ids)
+
+    def test_initialize_migrates_existing_planning_settings(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            db_path = Path(directory) / "legacy.sqlite3"
+            with closing(sqlite3.connect(db_path)) as connection:
+                connection.execute(
+                    "CREATE TABLE planning_settings "
+                    "(id INTEGER PRIMARY KEY, calendar_week_from TEXT, calendar_week_to TEXT)"
+                )
+
+            initialize(db_path)
+
+            with closing(sqlite3.connect(db_path)) as connection:
+                columns = {
+                    row[1] for row in connection.execute("PRAGMA table_info(planning_settings)")
+                }
+                migrations = {
+                    row[0] for row in connection.execute("SELECT name FROM schema_migration")
+                }
+
+        self.assertIn("exclude_public_holidays", columns)
+        self.assertIn("holiday_subdivision_code", columns)
+        self.assertIn("001_add_holiday_planning_settings.sql", migrations)
 
 
 if __name__ == "__main__":

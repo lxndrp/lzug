@@ -243,6 +243,8 @@ Felder:
 | `exams_per_day` | Integer | ja | Maximale Prüfungsslots pro Tag |
 | `max_exam_days_per_week` | Integer | ja | Maximale Prüfungstage pro Woche, Standard 3 |
 | `lunch_break_enabled` | Boolean | ja | Ob Mittagspause eingeplant wird |
+| `exclude_public_holidays` | Boolean | ja | Ob gesetzliche Feiertage bei der Tageserzeugung ausgeschlossen werden |
+| `holiday_subdivision_code` | Text | nein | Bundesland als ISO-3166-2-Code, wenn Feiertage ausgeschlossen werden |
 | `default_location_id` | Fremdschlüssel | nein | Standard-Prüfungsort |
 | `updated_by_member_id` | Fremdschlüssel | ja | Letzte Änderung durch |
 | `created_at` | Zeitstempel | ja | Anlagezeitpunkt |
@@ -253,6 +255,8 @@ Fachliche Regeln:
 - `exams_per_day` wird durch Vorsitz oder Stellvertretung festgelegt.
 - `max_exam_days_per_week` darf nur durch den Vorsitzenden geändert werden.
 - Standardwert für `max_exam_days_per_week` ist 3.
+- Bei aktivem Feiertagsausschluss ist ein gültiger ISO-3166-2-Code eines deutschen Bundeslands erforderlich.
+- Berücksichtigt werden bundesweite und landesweit geltende Feiertage; rein lokale Sonderregeln werden nicht automatisch abgeleitet.
 
 ### Möglicher Prüfungstag
 

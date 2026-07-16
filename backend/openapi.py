@@ -31,6 +31,28 @@ REST_SCHEMA_FIELDS = {
     "assignment_role": {"type": "string", "enum": ["examiner", "fallback"]},
     "day_part": {"type": "string", "enum": ["morning", "afternoon", "full_day"]},
     "status": {"type": "string"},
+    "holiday_subdivision_code": {
+        "type": ["string", "null"],
+        "enum": [
+            None,
+            "DE-BB",
+            "DE-BE",
+            "DE-BW",
+            "DE-BY",
+            "DE-HB",
+            "DE-HE",
+            "DE-HH",
+            "DE-MV",
+            "DE-NI",
+            "DE-NW",
+            "DE-RP",
+            "DE-SH",
+            "DE-SL",
+            "DE-SN",
+            "DE-ST",
+            "DE-TH",
+        ],
+    },
 }
 
 
@@ -74,6 +96,17 @@ def spec() -> dict[str, Any]:
                     "201": json_response("PlanningProposal"),
                     "400": json_response("Error"),
                     "409": json_response("Error"),
+                },
+            }
+        },
+        "/api/candidate-exam-days/generate": {
+            "post": {
+                "summary": "Generate candidate exam days from the configured calendar weeks",
+                "operationId": "generateCandidateExamDays",
+                "requestBody": json_request("CandidateExamDayGenerationRequest"),
+                "responses": {
+                    "200": json_response("CandidateExamDayGeneration"),
+                    "400": json_response("Error"),
                 },
             }
         },
@@ -169,6 +202,24 @@ def spec() -> dict[str, Any]:
         "PlanningProposalRequest": object_schema(
             {"round_id": {"type": "integer"}},
             required=("round_id",),
+        ),
+        "CandidateExamDayGenerationRequest": object_schema(
+            {"round_id": {"type": "integer"}},
+            required=("round_id",),
+        ),
+        "CandidateExamDayGeneration": object_schema(
+            {
+                "round_id": {"type": "integer"},
+                "calendar_week_from": {"type": "string"},
+                "calendar_week_to": {"type": "string"},
+                "exclude_public_holidays": {"type": "boolean"},
+                "holiday_subdivision_code": {"type": ["string", "null"]},
+                "created_days": {"type": "array", "items": {"type": "object"}},
+                "skipped_existing": {"type": "array", "items": {"type": "string"}},
+                "excluded_holidays": {"type": "array", "items": {"type": "object"}},
+                "counts": {"type": "object"},
+                "_links": link_map(),
+            }
         ),
         "PlanningProposal": object_schema(
             {
@@ -274,7 +325,12 @@ def field_schema(field: str) -> dict[str, Any]:
         return explicit
     if field == "id" or field.endswith("_id"):
         return {"type": "integer"}
-    if field in {"is_active", "requires_mep", "lunch_break_enabled"}:
+    if field in {
+        "is_active",
+        "requires_mep",
+        "lunch_break_enabled",
+        "exclude_public_holidays",
+    }:
         return {"type": "boolean"}
     if field.endswith("_at") or field.endswith("_deadline"):
         return {"type": ["string", "null"]}

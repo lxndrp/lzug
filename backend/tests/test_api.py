@@ -38,6 +38,7 @@ class ApiTests(unittest.TestCase):
             self.assertEqual("3.1.0", spec["openapi"])
             self.assertIn("/api/candidates/{id}", spec["paths"])
             self.assertIn("/api/exam-rounds/{id}/confirm-plan", spec["paths"])
+            self.assertIn("/api/candidate-exam-days/generate", spec["paths"])
             self.assertIn("Candidates", spec["components"]["schemas"])
 
             status, headers, body = api.request_raw("GET", "/api/docs")
@@ -166,6 +167,8 @@ class ApiTests(unittest.TestCase):
                     "exams_per_day": 5,
                     "max_exam_days_per_week": 4,
                     "lunch_break_enabled": False,
+                    "exclude_public_holidays": True,
+                    "holiday_subdivision_code": "DE-NW",
                     "default_location_id": 2,
                     "updated_by_member_id": 1,
                 },
@@ -173,6 +176,8 @@ class ApiTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertEqual(1, settings["id"])
             self.assertEqual(0, settings["lunch_break_enabled"])
+            self.assertEqual(1, settings["exclude_public_holidays"])
+            self.assertEqual("DE-NW", settings["holiday_subdivision_code"])
 
             status, body = api.request(
                 "POST",
@@ -184,6 +189,8 @@ class ApiTests(unittest.TestCase):
                     "exams_per_day": 5,
                     "max_exam_days_per_week": 5,
                     "lunch_break_enabled": False,
+                    "exclude_public_holidays": True,
+                    "holiday_subdivision_code": "DE-NW",
                     "default_location_id": 2,
                     "updated_by_member_id": 2,
                 },
@@ -212,6 +219,40 @@ class ApiTests(unittest.TestCase):
             )
             assert_status(status, HTTPStatus.OK)
             self.assertIsNone(availability["responded_at"])
+
+    def test_candidate_exam_days_can_be_generated_over_http(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, settings = api.request(
+                "POST",
+                "/api/planning-settings",
+                {
+                    "exam_round_id": 1,
+                    "calendar_week_from": "2026-W23",
+                    "calendar_week_to": "2026-W23",
+                    "exams_per_day": 6,
+                    "max_exam_days_per_week": 3,
+                    "lunch_break_enabled": True,
+                    "exclude_public_holidays": True,
+                    "holiday_subdivision_code": "DE-NW",
+                    "default_location_id": 1,
+                    "updated_by_member_id": 1,
+                },
+            )
+            assert_status(status, HTTPStatus.OK)
+
+            status, result = api.request(
+                "POST",
+                "/api/candidate-exam-days/generate",
+                {"round_id": 1},
+            )
+
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(4, result["counts"]["created"])
+            self.assertEqual("2026-06-04", result["excluded_holidays"][0]["date"])
+            self.assertEqual(
+                "/api/candidate-exam-days?round_id=1",
+                result["_links"]["candidate-exam-days"]["href"],
+            )
 
     def test_planning_proposal_can_be_generated_over_http(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:

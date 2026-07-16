@@ -136,8 +136,10 @@
             [board]="board()"
             [masterData]="masterData()"
             [actionBusy]="actionBusy()"
+            [candidateDayGenerationResult]="candidateDayGenerationResult()"
             (saveSettings)="savePlanningSettings($event)"
             (createCandidateDay)="createCandidateDay($event)"
+            (generateCandidateDays)="generateCandidateDays($event)"
             (toggleCandidateDay)="toggleCandidateDay($event)"
             (saveAvailability)="saveAvailability($event)"
           />

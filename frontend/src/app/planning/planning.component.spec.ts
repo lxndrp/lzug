@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { PlanningComponent } from './planning.component';
 import { masterDataFixture, planningBoardFixture, summaryFixture } from '../testing/fixtures';
@@ -9,6 +10,7 @@ describe('PlanningComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [PlanningComponent],
+      providers: [provideNoopAnimations()],
     }).compileComponents();
 
     fixture = TestBed.createComponent(PlanningComponent);
@@ -60,6 +62,63 @@ describe('PlanningComponent', () => {
     expect(element.querySelector('#examDaysPerWeek')?.getAttribute('type')).toBe('number');
     expect(element.querySelector('#examDaysPerWeek')?.getAttribute('min')).toBe('1');
     expect(element.querySelector('#examDaysPerWeek')?.getAttribute('max')).toBe('5');
+    expect(element.querySelector('#excludePublicHolidays')).toBeTruthy();
+    expect(
+      element.querySelector<HTMLSelectElement>('#holidaySubdivisionCode')?.disabled,
+    ).toBeTrue();
+  });
+
+  it('should require a federal state and emit settings before day generation', async () => {
+    const component = fixture.componentInstance;
+    spyOn(component.generateCandidateDays, 'emit');
+    const internals = component as unknown as {
+      draft: {
+        exclude_public_holidays: number;
+        holiday_subdivision_code: string | null;
+      };
+      requestCandidateDayGeneration: () => void;
+    };
+
+    internals.draft.exclude_public_holidays = 1;
+    internals.requestCandidateDayGeneration();
+    expect(component.generateCandidateDays.emit).not.toHaveBeenCalled();
+
+    internals.draft.holiday_subdivision_code = 'DE-NW';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>(
+        '#holidaySubdivisionCode',
+      )?.disabled,
+    ).toBeFalse();
+
+    internals.requestCandidateDayGeneration();
+    expect(component.generateCandidateDays.emit).toHaveBeenCalledWith(
+      jasmine.objectContaining({
+        exclude_public_holidays: 1,
+        holiday_subdivision_code: 'DE-NW',
+      }),
+    );
+  });
+
+  it('should show holidays excluded by the latest generation', () => {
+    fixture.componentRef.setInput('candidateDayGenerationResult', {
+      round_id: 1,
+      calendar_week_from: '2026-W23',
+      calendar_week_to: '2026-W23',
+      exclude_public_holidays: 1,
+      holiday_subdivision_code: 'DE-NW',
+      created_days: [],
+      skipped_existing: [],
+      excluded_holidays: [{ date: '2026-06-04', name: 'Fronleichnam' }],
+      counts: { calculated_weekdays: 5, created: 4, existing: 0, excluded_holidays: 1 },
+    });
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('4 Tage angelegt');
+    expect(text).toContain('04.06.2026 · Fronleichnam');
   });
 
   it('should group planning inputs, actions, and compact table content consistently', () => {

@@ -220,6 +220,8 @@ export const summaryFixture: RoundSummary = {
     calendar_week_to: '2026-W49',
     exams_per_day: 6,
     max_exam_days_per_week: 3,
+    exclude_public_holidays: 0,
+    holiday_subdivision_code: null,
   },
   availability: [
     { availability: 'full_day', count: 8 },

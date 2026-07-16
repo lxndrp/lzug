@@ -53,6 +53,8 @@ export type PlanningSettings = {
   exams_per_day: number;
   max_exam_days_per_week: number;
   lunch_break_enabled?: number;
+  exclude_public_holidays?: number;
+  holiday_subdivision_code?: string | null;
   default_location_id?: number | null;
   updated_by_member_id?: number;
 };
@@ -170,6 +172,24 @@ export type CandidateExamDay = {
   exam_round_id: number;
   date: string;
   is_active: number;
+};
+
+export type CandidateDayGenerationResult = {
+  round_id: number;
+  calendar_week_from: string;
+  calendar_week_to: string;
+  exclude_public_holidays: number;
+  holiday_subdivision_code: string | null;
+  created_days: CandidateExamDay[];
+  skipped_existing: string[];
+  excluded_holidays: Array<{ date: string; name: string }>;
+  counts: {
+    calculated_weekdays: number;
+    created: number;
+    existing: number;
+    excluded_holidays: number;
+  };
+  _links?: Record<string, ApiLink>;
 };
 
 export type MemberAvailability = {

@@ -32,6 +32,42 @@ test.describe('lzug browser workflows', () => {
     }
   });
 
+  test('generates possible exam days while excluding state holidays', async ({ page }) => {
+    await page.goto('/planning');
+
+    const weekFrom = page.locator('#weekFrom');
+    const weekTo = page.locator('#weekTo');
+    await expect(weekFrom).toHaveValue('2026-W47');
+    await expect(weekTo).toHaveValue('2026-W49');
+    await weekFrom.fill('2026-W23');
+    await weekFrom.press('Tab');
+    await weekTo.fill('2026-W23');
+    await weekTo.press('Tab');
+    await page.getByText('Gesetzliche Feiertage ausschließen', { exact: true }).click();
+    await expect(page.locator('#excludePublicHolidays')).toBeChecked();
+    await page.locator('#holidaySubdivisionCode').selectOption({ label: 'Nordrhein-Westfalen' });
+
+    const settingsResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/planning-settings') && response.request().method() === 'POST',
+    );
+    const generationResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/candidate-exam-days/generate') &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Mögliche Tage berechnen' }).click();
+
+    const settingsResponse = await settingsResponsePromise;
+    expect(settingsResponse.status(), await settingsResponse.text()).toBe(200);
+    const generationResponse = await generationResponsePromise;
+    expect(generationResponse.status(), await generationResponse.text()).toBe(200);
+
+    await expect(page.getByText('4 Tage angelegt')).toBeVisible();
+    await expect(page.getByText('1 Feiertage ausgeschlossen')).toBeVisible();
+    await expect(page.getByText('04.06.2026 · Fronleichnam')).toBeVisible();
+  });
+
   test('keeps required candidate fields enforced', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('link', { name: 'Prüflinge', exact: true }).click();

@@ -10,6 +10,10 @@ db/schema.sql
 
 Die übergreifende technische Architektur ist in `docs/ARCHITECTURE.md` dokumentiert.
 
+Schemaänderungen für bestehende SQLite-Datenbanken liegen versioniert unter
+`db/migrations/` und werden beim Initialisieren in `schema_migration`
+protokolliert.
+
 ## Entwurfsentscheidung
 
 Das Schema ist bewusst als robuste Zwischenform angelegt:

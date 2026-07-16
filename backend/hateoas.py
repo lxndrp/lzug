@@ -32,6 +32,10 @@ def api_root() -> dict[str, Any]:
                 "href": "/api/planning-proposals",
                 "method": "POST",
             },
+            "generate-candidate-exam-days": {
+                "href": "/api/candidate-exam-days/generate",
+                "method": "POST",
+            },
             "confirm-plan": {
                 "href": "/api/exam-rounds/1/confirm-plan",
                 "method": "POST",
@@ -150,5 +154,18 @@ def confirmed_plan(result: dict[str, Any]) -> dict[str, Any]:
         "exam-days": {"href": f"/api/exam-days?round_id={round_id}"},
         "exam-slots": {"href": "/api/exam-slots"},
         "exam-day-assignments": {"href": "/api/exam-day-assignments"},
+    }
+    return linked
+
+
+def candidate_day_generation(result: dict[str, Any]) -> dict[str, Any]:
+    round_id = result["round_id"]
+    linked = dict(result)
+    linked["_links"] = {
+        "self": {"href": "/api/candidate-exam-days/generate", "method": "POST"},
+        "api": {"href": "/api"},
+        "round": {"href": f"/api/exam-rounds/{round_id}"},
+        "planning-settings": {"href": f"/api/planning-settings?round_id={round_id}"},
+        "candidate-exam-days": {"href": f"/api/candidate-exam-days?round_id={round_id}"},
     }
     return linked

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .database import DEFAULT_DB_PATH, session_scope
+from .holiday_provider import GERMAN_SUBDIVISION_CODES
 from .models import (
     CANDIDATE,
     CANDIDATE_EXAM_DAY,
@@ -249,6 +250,12 @@ class ResourceRepository:
             location = store.get(LOCATION, payload["default_location_id"])
             if location is None or location["committee_id"] != exam_round["committee_id"]:
                 raise ValueError("Default location does not belong to the exam round committee")
+
+        subdivision_code = payload.get("holiday_subdivision_code")
+        if subdivision_code is not None and subdivision_code not in GERMAN_SUBDIVISION_CODES:
+            raise ValueError("Unknown German federal state")
+        if payload.get("exclude_public_holidays") and subdivision_code is None:
+            raise ValueError("Federal state is required when public holidays are excluded")
 
         existing = store.first(
             PLANNING_SETTINGS,
