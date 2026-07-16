@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import unittest
 
-from backend.models import CANDIDATE, MEMBER_AVAILABILITY, PLANNING_SETTINGS, ROUND_CANDIDATE
+from backend.models import (
+    CANDIDATE,
+    EXAM_ROUND,
+    MEMBER_AVAILABILITY,
+    PLANNING_SETTINGS,
+    ROUND_CANDIDATE,
+)
 from backend.repositories import ResourceRepository
 from backend.tests.helpers import TempDatabase
 
@@ -85,6 +91,38 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(3, round_candidate["attempt_number"])
         self.assertEqual(1, round_candidate["requires_mep"])
         self.assertEqual("Neu", after_failed_update["last_name"])
+
+    def test_update_exam_round_updates_metadata_and_timestamp(self) -> None:
+        with TempDatabase() as db_path:
+            repository = ResourceRepository(db_path)
+            before = repository.get(EXAM_ROUND, 1)
+            updated = repository.update_exam_round(
+                1,
+                {
+                    "name": "Sommer 2027",
+                    "availability_deadline": "2027-04-15 18:00:00",
+                    "availability_reminder_at": "2027-04-08 09:00:00",
+                },
+            )
+
+        self.assertIsNotNone(updated)
+        self.assertEqual("Sommer 2027", updated["name"])
+        self.assertEqual("2027-04-15 18:00:00", updated["availability_deadline"])
+        self.assertNotEqual(before["updated_at"], updated["updated_at"])
+
+    def test_update_exam_round_rejects_invalid_metadata(self) -> None:
+        with TempDatabase() as db_path:
+            repository = ResourceRepository(db_path)
+            with self.assertRaisesRegex(ValueError, "name is required"):
+                repository.update_exam_round(1, {"name": "  "})
+            with self.assertRaisesRegex(ValueError, "before the deadline"):
+                repository.update_exam_round(
+                    1,
+                    {
+                        "availability_deadline": "2027-04-08 09:00:00",
+                        "availability_reminder_at": "2027-04-15 18:00:00",
+                    },
+                )
 
     def test_planning_settings_upsert_enforces_chair_for_week_limit(self) -> None:
         with TempDatabase() as db_path:

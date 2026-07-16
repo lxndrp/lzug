@@ -37,6 +37,7 @@ class ApiTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertEqual("3.1.0", spec["openapi"])
             self.assertIn("/api/candidates/{id}", spec["paths"])
+            self.assertIn("/api/exam-rounds/{id}", spec["paths"])
             self.assertIn("/api/exam-rounds/{id}/confirm-plan", spec["paths"])
             self.assertIn("/api/candidate-exam-days/generate", spec["paths"])
             self.assertIn("Candidates", spec["components"]["schemas"])
@@ -120,6 +121,38 @@ class ApiTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertEqual(12, summary["counts"]["candidates"])
             self.assertEqual(4, summary["counts"]["mep_count"])
+
+    def test_exam_round_metadata_can_be_updated_over_http(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, updated = api.request(
+                "PATCH",
+                "/api/exam-rounds/1",
+                {
+                    "name": "Sommer 2027",
+                    "availability_deadline": "2027-04-15 18:00:00",
+                    "availability_reminder_at": "2027-04-08 09:00:00",
+                },
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("Sommer 2027", updated["name"])
+
+            status, round_data = api.request("GET", "/api/exam-rounds/1")
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("Sommer 2027", round_data["name"])
+
+            status, error = api.request(
+                "PATCH",
+                "/api/exam-rounds/1",
+                {
+                    "availability_deadline": "2027-04-15 18:00:00",
+                    "availability_reminder_at": "2027-04-16 09:00:00",
+                },
+            )
+            assert_status(status, HTTPStatus.BAD_REQUEST)
+            self.assertEqual(
+                "Availability reminder must be before the deadline",
+                error["error"],
+            )
 
     def test_invalid_payload_and_unknown_resources_return_client_errors(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
