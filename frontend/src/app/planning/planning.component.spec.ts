@@ -57,6 +57,12 @@ describe('PlanningComponent', () => {
     const element = fixture.nativeElement as HTMLElement;
     expect(element.querySelector('#weekFrom')?.getAttribute('type')).toBe('week');
     expect(element.querySelector('#weekTo')?.getAttribute('type')).toBe('week');
+    expect(element.querySelector('#weekFrom')?.getAttribute('aria-describedby')).toBe(
+      'weekFromHint',
+    );
+    expect(element.querySelector('#weekTo')?.getAttribute('aria-describedby')).toBe('weekToHint');
+    expect(element.querySelector('#weekFromHint')?.textContent).toContain('ISO: 2026-W47');
+    expect(element.querySelector('#weekToHint')?.textContent).toContain('ISO: 2026-W49');
     expect(element.querySelector('#examsPerDay')?.getAttribute('type')).toBe('number');
     expect(element.querySelector('#examsPerDay')?.getAttribute('min')).toBe('1');
     expect(element.querySelector('#examDaysPerWeek')?.getAttribute('type')).toBe('number');
