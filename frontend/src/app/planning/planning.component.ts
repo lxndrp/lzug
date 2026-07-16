@@ -17,6 +17,7 @@ import {
   GridModule,
   TableModule,
 } from '@coreui/angular';
+import { IconDirective } from '@coreui/icons-angular';
 
 import {
   AvailabilityValue,
@@ -28,6 +29,7 @@ import {
   PlanningSettings,
   RoundSummary,
 } from '../api/api.models';
+import { appIcons } from '../app-icons';
 
 export type PlanningSettingsPayload = Omit<PlanningSettings, 'id' | 'exam_round_id'>;
 export type CandidateExamDayPayload = Omit<CandidateExamDay, 'id' | 'exam_round_id'>;
@@ -49,11 +51,13 @@ type AvailabilityCellState = {
     FormModule,
     FormsModule,
     GridModule,
+    IconDirective,
     TableModule,
   ],
   templateUrl: './planning.component.html',
 })
 export class PlanningComponent implements OnChanges, OnDestroy {
+  protected readonly icons = appIcons;
   @Input() summary: RoundSummary | null = null;
   @Input() board: PlanningBoard | null = null;
   @Input() masterData: MasterData | null = null;

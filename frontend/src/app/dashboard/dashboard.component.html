@@ -15,6 +15,7 @@
               (click)="generateProposal.emit()"
               [disabled]="loading || actionBusy || !canGeneratePlan()"
             >
+              <svg [cIcon]="icons.proposal" class="app-button-icon" aria-hidden="true"></svg>
               Planung erzeugen
             </button>
             <button
@@ -25,6 +26,7 @@
               (click)="confirmPlan.emit()"
               [disabled]="loading || actionBusy || !canConfirmPlan()"
             >
+              <svg [cIcon]="icons.confirm" class="app-button-icon" aria-hidden="true"></svg>
               Plan bestätigen
             </button>
           </div>
@@ -116,7 +118,7 @@
             <button type="button" class="app-task-link" (click)="openView.emit(task.view)">
               <span>{{ task.label }}</span>
               <c-badge [color]="task.color">{{ task.detail }}</c-badge>
-              <span aria-hidden="true">→</span>
+              <svg [cIcon]="icons.arrowRight" class="app-icon-only" aria-hidden="true"></svg>
             </button>
           }
         </div>

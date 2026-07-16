@@ -78,7 +78,10 @@
                 placeholder="Fachinformatiker/in"
               />
             </div>
-            <button cButton color="primary" type="submit" [disabled]="actionBusy">Speichern</button>
+            <button cButton color="primary" type="submit" [disabled]="actionBusy">
+              <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
+              Ausschuss anlegen
+            </button>
           </form>
         </c-card-body>
       </c-card>
@@ -134,6 +137,11 @@
                       (click)="toggleMember.emit(member)"
                       [disabled]="actionBusy"
                     >
+                      <svg
+                        [cIcon]="member.is_active ? icons.deactivate : icons.activate"
+                        class="app-button-icon"
+                        aria-hidden="true"
+                      ></svg>
                       {{ member.is_active ? 'Deaktivieren' : 'Aktivieren' }}
                     </button>
                   </td>
@@ -221,6 +229,7 @@
               </div>
               <div class="col-12">
                 <button cButton color="primary" type="submit" [disabled]="actionBusy">
+                  <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                   Prüfer speichern
                 </button>
               </div>

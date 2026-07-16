@@ -8,8 +8,10 @@ import {
   ListGroupModule,
   TableModule,
 } from '@coreui/angular';
+import { IconDirective } from '@coreui/icons-angular';
 
 import { Committee, CommitteeMember, MasterData } from '../api/api.models';
+import { appIcons } from '../app-icons';
 
 export type CommitteePayload = Pick<Committee, 'name' | 'occupation'>;
 export type CommitteeMemberPayload = Omit<CommitteeMember, 'id' | 'email_verified_at'>;
@@ -22,12 +24,14 @@ export type CommitteeMemberPayload = Omit<CommitteeMember, 'id' | 'email_verifie
     CardModule,
     FormModule,
     GridModule,
+    IconDirective,
     ListGroupModule,
     TableModule,
   ],
   templateUrl: './committee.component.html',
 })
 export class CommitteeComponent {
+  protected readonly icons = appIcons;
   protected readonly selectedCommitteeId = signal<number | null>(null);
   private pendingCommitteeForm: HTMLFormElement | null = null;
   private pendingMemberForm: HTMLFormElement | null = null;

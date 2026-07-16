@@ -49,6 +49,7 @@
             </div>
             <div class="col-12">
               <button cButton color="primary" type="submit" [disabled]="actionBusy">
+                <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                 Prüfungsort anlegen
               </button>
             </div>
@@ -104,6 +105,7 @@
                       [disabled]="actionBusy"
                       (click)="startEditing(location)"
                     >
+                      <svg [cIcon]="icons.edit" class="app-button-icon" aria-hidden="true"></svg>
                       Bearbeiten
                     </button>
                     <button
@@ -115,6 +117,11 @@
                       [disabled]="actionBusy"
                       (click)="toggleLocation.emit(location)"
                     >
+                      <svg
+                        [cIcon]="location.is_active === 0 ? icons.activate : icons.deactivate"
+                        class="app-button-icon"
+                        aria-hidden="true"
+                      ></svg>
                       {{ location.is_active === 0 ? 'Aktivieren' : 'Deaktivieren' }}
                     </button>
                     <button
@@ -126,6 +133,7 @@
                       [disabled]="actionBusy"
                       (click)="deleteLocation.emit(location)"
                     >
+                      <svg [cIcon]="icons.delete" class="app-button-icon" aria-hidden="true"></svg>
                       Löschen
                     </button>
                   </td>
@@ -205,6 +213,11 @@
                           </div>
                           <div class="col-12 app-actions">
                             <button cButton color="primary" type="submit" [disabled]="actionBusy">
+                              <svg
+                                [cIcon]="icons.save"
+                                class="app-button-icon"
+                                aria-hidden="true"
+                              ></svg>
                               Änderungen speichern
                             </button>
                             <button
@@ -215,6 +228,11 @@
                               [disabled]="actionBusy"
                               (click)="cancelEditing()"
                             >
+                              <svg
+                                [cIcon]="icons.cancel"
+                                class="app-button-icon"
+                                aria-hidden="true"
+                              ></svg>
                               Abbrechen
                             </button>
                           </div>

@@ -103,6 +103,7 @@
             </div>
             <div class="col-12">
               <button cButton color="primary" type="submit" [disabled]="actionBusy">
+                <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                 Prüfling anlegen
               </button>
             </div>
@@ -188,6 +189,7 @@
                       [disabled]="actionBusy"
                       (click)="startEditing(item)"
                     >
+                      <svg [cIcon]="icons.edit" class="app-button-icon" aria-hidden="true"></svg>
                       Bearbeiten
                     </button>
                     <button
@@ -199,6 +201,7 @@
                       [disabled]="actionBusy"
                       (click)="deleteCandidate.emit(item.candidate)"
                     >
+                      <svg [cIcon]="icons.delete" class="app-button-icon" aria-hidden="true"></svg>
                       Löschen
                     </button>
                   </td>
@@ -313,6 +316,11 @@
                           </div>
                           <div class="col-12 app-actions">
                             <button cButton color="primary" type="submit" [disabled]="actionBusy">
+                              <svg
+                                [cIcon]="icons.save"
+                                class="app-button-icon"
+                                aria-hidden="true"
+                              ></svg>
                               Änderungen speichern
                             </button>
                             <button
@@ -323,6 +331,11 @@
                               [disabled]="actionBusy"
                               (click)="cancelEditing()"
                             >
+                              <svg
+                                [cIcon]="icons.cancel"
+                                class="app-button-icon"
+                                aria-hidden="true"
+                              ></svg>
                               Abbrechen
                             </button>
                           </div>

@@ -7,6 +7,7 @@ import {
   GridModule,
   TableModule,
 } from '@coreui/angular';
+import { IconDirective } from '@coreui/icons-angular';
 
 import {
   AvailabilityValue,
@@ -19,13 +20,23 @@ import {
   RoundSummary,
 } from '../api/api.models';
 import { AppView } from '../app-view';
+import { appIcons } from '../app-icons';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [AlertModule, BadgeModule, ButtonModule, CardModule, GridModule, TableModule],
+  imports: [
+    AlertModule,
+    BadgeModule,
+    ButtonModule,
+    CardModule,
+    GridModule,
+    IconDirective,
+    TableModule,
+  ],
   templateUrl: './dashboard.component.html',
 })
 export class DashboardComponent {
+  protected readonly icons = appIcons;
   @Input() summary: RoundSummary | null = null;
   @Input() round: ExamRound | null = null;
   @Input() board: PlanningBoard | null = null;

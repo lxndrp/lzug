@@ -255,6 +255,26 @@ c-card + c-card {
   background: var(--app-color-primary-soft);
 }
 
+.app-nav-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: 0 0 auto;
+  margin-inline-end: 0.625rem;
+}
+
+.app-button-icon {
+  width: 1rem;
+  height: 1rem;
+  margin-inline-end: 0.375rem;
+  vertical-align: -0.125rem;
+}
+
+.app-icon-only {
+  width: 1rem;
+  height: 1rem;
+  display: block;
+}
+
 .app-action-hint {
   margin: 1rem 0 0;
   color: var(--app-color-text-muted);

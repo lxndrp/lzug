@@ -119,6 +119,7 @@
           </div>
           <div class="col-12">
             <button cButton color="primary" type="submit" [disabled]="actionBusy">
+              <svg [cIcon]="icons.save" class="app-button-icon" aria-hidden="true"></svg>
               Planungsrahmen speichern
             </button>
           </div>
@@ -160,6 +161,7 @@
           </div>
           <div class="col-12 col-md-4 d-flex align-items-end">
             <button cButton color="primary" type="submit" [disabled]="actionBusy">
+              <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
               Prüfungstag hinzufügen
             </button>
           </div>
@@ -191,6 +193,11 @@
                     [disabled]="actionBusy"
                     (click)="toggleCandidateDay.emit(day)"
                   >
+                    <svg
+                      [cIcon]="day.is_active ? icons.deactivate : icons.activate"
+                      class="app-button-icon"
+                      aria-hidden="true"
+                    ></svg>
                     {{ day.is_active ? 'Deaktivieren' : 'Aktivieren' }}
                   </button>
                 </td>

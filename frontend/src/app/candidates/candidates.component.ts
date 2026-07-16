@@ -8,8 +8,10 @@ import {
   GridModule,
   TableModule,
 } from '@coreui/angular';
+import { IconDirective } from '@coreui/icons-angular';
 
 import { Candidate, CandidateView, MasterData } from '../api/api.models';
+import { appIcons } from '../app-icons';
 
 export type CandidatePayload = Omit<Candidate, 'id'> & {
   attempt_number: number;
@@ -29,11 +31,13 @@ export type CandidateUpdate = {
     FormModule,
     FormsModule,
     GridModule,
+    IconDirective,
     TableModule,
   ],
   templateUrl: './candidates.component.html',
 })
 export class CandidatesComponent {
+  protected readonly icons = appIcons;
   @Input() masterData: MasterData | null = null;
   @Input() actionBusy = false;
 

@@ -13,23 +13,41 @@
   <c-sidebar-nav aria-label="Hauptnavigation" role="list">
     <li class="nav-title">Prüfungsverwaltung</li>
     <li class="nav-item">
-      <a cNavLink routerLink="/dashboard" [active]="activeView() === 'dashboard'"> Übersicht </a>
+      <a cNavLink routerLink="/dashboard" [active]="activeView() === 'dashboard'">
+        <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
+        Übersicht
+      </a>
     </li>
     <li class="nav-item">
-      <a cNavLink routerLink="/candidates" [active]="activeView() === 'candidates'"> Prüflinge </a>
+      <a cNavLink routerLink="/candidates" [active]="activeView() === 'candidates'">
+        <svg [cIcon]="icons.candidates" class="app-nav-icon" aria-hidden="true"></svg>
+        Prüflinge
+      </a>
     </li>
     <li class="nav-item">
-      <a cNavLink routerLink="/committee" [active]="activeView() === 'committee'"> Ausschuss </a>
+      <a cNavLink routerLink="/committee" [active]="activeView() === 'committee'">
+        <svg [cIcon]="icons.committee" class="app-nav-icon" aria-hidden="true"></svg>
+        Ausschuss
+      </a>
     </li>
     <li class="nav-item">
-      <a cNavLink routerLink="/planning" [active]="activeView() === 'planning'"> Terminplanung </a>
+      <a cNavLink routerLink="/planning" [active]="activeView() === 'planning'">
+        <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
+        Terminplanung
+      </a>
     </li>
     <li class="nav-item">
-      <a cNavLink routerLink="/locations" [active]="activeView() === 'locations'"> Prüfungsorte </a>
+      <a cNavLink routerLink="/locations" [active]="activeView() === 'locations'">
+        <svg [cIcon]="icons.locations" class="app-nav-icon" aria-hidden="true"></svg>
+        Prüfungsorte
+      </a>
     </li>
     <li class="nav-title">Entwicklung</li>
     <li class="nav-item">
-      <a cNavLink href="/api/docs" target="_blank" rel="noopener">API-Dokumentation</a>
+      <a cNavLink href="/api/docs" target="_blank" rel="noopener">
+        <svg [cIcon]="icons.documentation" class="app-nav-icon" aria-hidden="true"></svg>
+        API-Dokumentation
+      </a>
     </li>
   </c-sidebar-nav>
 </c-sidebar>
@@ -57,6 +75,7 @@
         (click)="refresh()"
         [disabled]="loading()"
       >
+        <svg [cIcon]="icons.reload" class="app-button-icon" aria-hidden="true"></svg>
         Aktualisieren
       </button>
     </c-container>
@@ -149,7 +168,9 @@
       <strong>{{ currentFeedback.title }}</strong>
       <span>{{ currentFeedback.message }}</span>
     </div>
-    <button type="button" aria-label="Meldung schließen" (click)="dismissFeedback()">×</button>
+    <button type="button" aria-label="Meldung schließen" (click)="dismissFeedback()">
+      <svg [cIcon]="icons.cancel" class="app-icon-only" aria-hidden="true"></svg>
+    </button>
   </aside>
 }
 
@@ -174,9 +195,11 @@
         type="button"
         (click)="cancelConfirmation()"
       >
+        <svg [cIcon]="icons.cancel" class="app-button-icon" aria-hidden="true"></svg>
         Abbrechen
       </button>
       <button cButton color="danger" type="button" (click)="confirmAction()">
+        <svg [cIcon]="icons.confirm" class="app-button-icon" aria-hidden="true"></svg>
         {{ currentConfirmation.confirmLabel }}
       </button>
     </c-modal-footer>

@@ -10,6 +10,7 @@ import {
   ProgressModule,
   SidebarModule,
 } from '@coreui/angular';
+import { IconDirective } from '@coreui/icons-angular';
 import { filter, finalize } from 'rxjs';
 
 import {
@@ -25,6 +26,7 @@ import {
 } from './api/api.models';
 import { PlanningApiService } from './api/planning-api.service';
 import { AppView } from './app-view';
+import { appIcons } from './app-icons';
 import {
   CandidatePayload,
   CandidatesComponent,
@@ -59,6 +61,7 @@ import {
     ButtonModule,
     GridModule,
     HeaderModule,
+    IconDirective,
     ModalModule,
     NavModule,
     ProgressModule,
@@ -78,6 +81,7 @@ export class App {
   @ViewChild(PlanningComponent) private planningComponent?: PlanningComponent;
 
   protected readonly apiRoot = signal<ApiRoot | null>(null);
+  protected readonly icons = appIcons;
   protected readonly round = signal<ExamRound | null>(null);
   protected readonly summary = signal<RoundSummary | null>(null);
   protected readonly board = signal<PlanningBoard | null>(null);
