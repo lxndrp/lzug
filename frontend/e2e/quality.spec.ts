@@ -32,6 +32,34 @@ test.describe('lzug browser workflows', () => {
     }
   });
 
+  test('opens and closes the sidebar on a narrow viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.goto('/dashboard');
+
+    const sidebarToggle = page.locator('.app-sidebar-toggle');
+    const sidebar = page.getByRole('complementary', { name: 'Prüfungsverwaltung' });
+    await expect(sidebarToggle).toBeVisible();
+    await expect(sidebarToggle).toHaveAttribute('aria-label', 'Navigation öffnen');
+    await expect(sidebarToggle).toHaveAttribute('aria-expanded', 'false');
+    const iconWidth = await sidebarToggle
+      .locator('.header-toggler-icon')
+      .evaluate((element) => element.getBoundingClientRect().width);
+    expect(iconWidth).toBeGreaterThan(0);
+
+    await sidebarToggle.click();
+
+    await expect(sidebar).toHaveClass(/show/);
+    await expect(sidebarToggle).toHaveAttribute('aria-label', 'Navigation schließen');
+    await expect(sidebarToggle).toHaveAttribute('aria-expanded', 'true');
+    const sidebarClose = page.locator('.app-sidebar-close');
+    await expect(sidebarClose).toBeVisible();
+    await sidebarClose.click();
+
+    await expect(sidebar).toHaveClass(/hide/);
+    await expect(sidebarToggle).toHaveAttribute('aria-label', 'Navigation öffnen');
+    await expect(sidebarToggle).toHaveAttribute('aria-expanded', 'false');
+  });
+
   test('generates possible exam days while excluding state holidays', async ({ page }) => {
     await page.goto('/planning');
 

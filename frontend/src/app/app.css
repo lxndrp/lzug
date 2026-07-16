@@ -12,7 +12,108 @@ c-header c-container {
 }
 
 .app-sidebar-toggle {
+  flex: 0 0 40px;
+  inline-size: 40px;
+  min-inline-size: 40px;
   margin-inline-end: 4px;
+}
+
+.app-sidebar-toggle .header-toggler-icon {
+  position: relative;
+  display: block;
+  flex: 0 0 24px;
+  inline-size: 24px;
+  block-size: 18px;
+  background-image: none;
+}
+
+.app-sidebar-toggle .header-toggler-icon::before,
+.app-sidebar-toggle .header-toggler-icon::after,
+.app-menu-icon::before,
+.app-menu-icon::after {
+  position: absolute;
+  inset-inline: 0;
+  display: block;
+  block-size: 2px;
+  border-radius: 2px;
+  background: currentcolor;
+  content: '';
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.app-sidebar-toggle .header-toggler-icon::before,
+.app-menu-icon::before {
+  inset-block-start: 3px;
+  box-shadow:
+    0 6px currentcolor,
+    0 12px currentcolor;
+}
+
+.app-sidebar-toggle .header-toggler-icon::after,
+.app-menu-icon::after {
+  inset-block-start: 9px;
+  transform: scaleX(0);
+}
+
+.app-sidebar-toggle.is-open .header-toggler-icon::before,
+.app-menu-icon.is-close::before {
+  inset-block-start: 9px;
+  box-shadow: none;
+  transform: rotate(45deg);
+}
+
+.app-sidebar-toggle.is-open .header-toggler-icon::after,
+.app-menu-icon.is-close::after {
+  transform: rotate(-45deg);
+}
+
+.app-sidebar-close {
+  display: none;
+  flex: 0 0 40px;
+  align-items: center;
+  justify-content: center;
+  inline-size: 40px;
+  block-size: 40px;
+  margin-inline-start: auto;
+  border: 0;
+  border-radius: var(--app-radius-sm);
+  background: transparent;
+  color: inherit;
+}
+
+.app-menu-icon {
+  position: relative;
+  display: block;
+  flex: 0 0 24px;
+  inline-size: 24px;
+  block-size: 18px;
+}
+
+.sidebar.show .app-sidebar-close {
+  display: inline-flex;
+}
+
+.app-sidebar-close:focus-visible,
+.app-sidebar-toggle:focus-visible {
+  outline: 2px solid currentcolor;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-sidebar-toggle .header-toggler-icon::before,
+  .app-sidebar-toggle .header-toggler-icon::after,
+  .app-menu-icon::before,
+  .app-menu-icon::after {
+    transition: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .app-sidebar-close {
+    display: none !important;
+  }
 }
 
 .app-content {
