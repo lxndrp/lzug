@@ -36,6 +36,7 @@
           @for (committee of masterDataView()?.committees || []; track committee.id) {
             <button
               cListGroupItem
+              class="app-committee-choice"
               type="button"
               [active]="isSelectedCommittee(committee)"
               (click)="selectCommittee(committee.id)"

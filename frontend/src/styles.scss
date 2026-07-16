@@ -141,6 +141,22 @@ c-card + c-card {
   white-space: nowrap;
 }
 
+.app-committee-choice {
+  display: grid;
+  justify-items: start;
+  gap: 0.125rem;
+  text-align: start;
+}
+
+.app-committee-choice span {
+  color: var(--app-color-text-muted);
+  font-size: 0.875rem;
+}
+
+.app-committee-choice.active span {
+  color: rgb(255 255 255 / 82%);
+}
+
 .app-actions {
   white-space: nowrap;
 }
@@ -308,6 +324,12 @@ c-card + c-card {
 
   .app-data-table {
     min-width: 48rem;
+  }
+
+  .app-table-sticky-actions th:last-child,
+  .app-table-sticky-actions td:last-child {
+    position: static;
+    box-shadow: none;
   }
 
   .app-form-actions {

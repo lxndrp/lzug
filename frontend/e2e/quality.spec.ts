@@ -84,6 +84,44 @@ test.describe('lzug browser workflows', () => {
 
     await expect(page.getByText('Keine passenden Prüflinge vorhanden.')).toBeVisible();
   });
+
+  test('keeps application views within the mobile viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    for (const path of ['/dashboard', '/candidates', '/committee', '/planning', '/locations']) {
+      await page.goto(path);
+      const dimensions = await page.evaluate(() => ({
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      }));
+      expect(dimensions.scrollWidth).toBe(dimensions.clientWidth);
+    }
+  });
+
+  test('keeps table actions scrollable instead of covering mobile data', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/locations');
+
+    const scrollRegion = page.locator('.app-table-scroll');
+    const locationHeader = page.getByRole('columnheader', { name: 'Ort' });
+    const actionHeader = page.getByRole('columnheader', { name: 'Aktion' });
+    await expect(locationHeader).toBeInViewport();
+    await expect(actionHeader).not.toBeInViewport();
+    await expect
+      .poll(() => scrollRegion.evaluate((element) => element.scrollWidth > element.clientWidth))
+      .toBe(true);
+  });
+
+  test('opens the candidate form with the keyboard', async ({ page }) => {
+    await page.goto('/candidates');
+
+    const trigger = page.getByText('Neuen Prüfling anlegen', { exact: true });
+    await trigger.focus();
+    await page.keyboard.press('Enter');
+
+    await expect(page.locator('#candidateFirstName')).toBeVisible();
+    await expect(trigger).toBeFocused();
+  });
 });
 
 test.describe('lzug accessibility', () => {
