@@ -50,12 +50,43 @@ export class DashboardComponent {
 
   protected metrics() {
     return [
-      { label: 'Prüflinge', value: this.summary?.counts?.candidates ?? '–' },
-      { label: 'MEP', value: this.summary?.counts?.mep_count ?? '–' },
-      { label: 'Termine', value: this.summary?.counts?.required_exam_slots ?? '–' },
-      { label: 'Rückmeldungen', value: this.responseCount() },
-      { label: 'Plan-Tage', value: this.board?.days?.length ?? 0 },
+      {
+        label: 'Prüflinge',
+        value: this.summary?.counts?.candidates ?? '–',
+        hint: 'für diese Runde erfasst',
+      },
+      {
+        label: 'MEP',
+        value: this.summary?.counts?.mep_count ?? '–',
+        hint: 'mündliche Ergänzungsprüfungen',
+      },
+      {
+        label: 'Termine',
+        value: this.summary?.counts?.required_exam_slots ?? '–',
+        hint: 'insgesamt erforderlich',
+      },
+      {
+        label: 'Rückmeldungen',
+        value: this.responseCount(),
+        hint: this.pendingCount() ? `${this.pendingCount()} noch offen` : 'vollständig',
+      },
+      {
+        label: 'Planungstage',
+        value: this.board?.days?.length ?? 0,
+        hint: `${this.activeDayCount()} mögliche Tage aktiv`,
+      },
     ];
+  }
+
+  protected phaseDescription(): string {
+    const descriptions: Record<string, string> = {
+      draft: 'Vervollständigen Sie die Planungsgrundlagen und erfassen Sie alle Beteiligten.',
+      availability_requested:
+        'Prüfen Sie die offenen Rückmeldungen, bevor Sie den Terminplan erzeugen.',
+      plan_proposed: 'Der Planungsvorschlag ist erstellt und kann jetzt geprüft werden.',
+      plan_confirmed: 'Der Terminplan ist verbindlich bestätigt und bereit zur Durchführung.',
+    };
+    return descriptions[this.summary?.round.status ?? ''] ?? 'Die Prüfungsrunde wird geladen.';
   }
 
   protected responseCount(): number {
@@ -93,6 +124,7 @@ export class DashboardComponent {
     return [
       {
         label: 'Verfügbarkeiten',
+        hint: 'Rückmeldungen der Ausschussmitglieder prüfen',
         detail: this.pendingCount()
           ? `${this.pendingCount()} Rückmeldungen offen`
           : 'Rückmeldungen vollständig',
@@ -101,12 +133,14 @@ export class DashboardComponent {
       },
       {
         label: 'Prüflinge',
+        hint: 'Stammdaten und Prüfungsbedarf kontrollieren',
         detail: `${this.summary?.counts?.candidates ?? 0} Prüflinge erfasst`,
         color: (this.summary?.counts?.candidates ?? 0) > 0 ? 'success' : 'warning',
         view: 'candidates' as AppView,
       },
       {
         label: 'Planung',
+        hint: 'Rahmen, Prüfungstage und Vorschlag bearbeiten',
         detail: this.planTaskLabel(),
         color: this.summary?.round.status === 'plan_confirmed' ? 'success' : 'info',
         view: 'planning' as AppView,

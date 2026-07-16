@@ -58,6 +58,28 @@ describe('DashboardComponent', () => {
     expect(text).toContain('Zu wenige verfügbare Prüfer');
   });
 
+  it('should prioritize round status, key metrics, and next steps', () => {
+    component.summary = {
+      ...summaryFixture,
+      round: { ...summaryFixture.round, status: 'plan_proposed' },
+    };
+    component.round = examRoundFixture;
+    component.board = planningBoardFixture;
+
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const metrics = element.querySelectorAll('.app-metric-card');
+    expect(element.querySelector('.app-dashboard-hero')?.textContent).toContain(
+      'Der Planungsvorschlag ist erstellt',
+    );
+    expect(metrics.length).toBe(5);
+    expect(element.querySelector('.app-task-copy')?.textContent).toContain(
+      'Rückmeldungen der Ausschussmitglieder prüfen',
+    );
+    expect(element.querySelector('.app-context-list')?.textContent).toContain('Planungszeitraum');
+  });
+
   it('should emit planning actions when buttons are enabled', () => {
     spyOn(component.generateProposal, 'emit');
     spyOn(component.confirmPlan, 'emit');

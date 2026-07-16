@@ -1,13 +1,17 @@
 <div class="row g-4">
   <div class="col-12">
-    <c-card>
+    <c-card class="app-dashboard-hero">
       <c-card-body>
-        <div class="d-flex flex-wrap align-items-center gap-3">
-          <div>
-            <c-badge color="primary">{{ statusLabel(summary?.round?.status) }}</c-badge>
+        <div class="app-dashboard-hero-layout">
+          <div class="app-dashboard-hero-copy">
+            <div class="app-dashboard-status-line">
+              <span class="app-eyebrow">Aktueller Stand</span>
+              <c-badge color="primary">{{ statusLabel(summary?.round?.status) }}</c-badge>
+            </div>
             <h2>{{ summary?.round?.committee_name || 'Prüfungsausschuss' }}</h2>
+            <p>{{ phaseDescription() }}</p>
           </div>
-          <div class="ms-auto d-flex flex-wrap gap-2">
+          <div class="app-dashboard-actions">
             <button
               cButton
               color="primary"
@@ -29,94 +33,55 @@
               <svg [cIcon]="icons.confirm" class="app-button-icon" aria-hidden="true"></svg>
               Plan bestätigen
             </button>
+            @if (!canConfirmPlan() && summary?.round?.status !== 'plan_confirmed') {
+              <span class="app-action-hint">
+                Die Bestätigung wird nach dem Planungsvorschlag verfügbar.
+              </span>
+            }
           </div>
         </div>
-        @if (!canConfirmPlan() && summary?.round?.status !== 'plan_confirmed') {
-          <p class="app-action-hint">
-            Plan bestätigen wird verfügbar, sobald ein Vorschlag erzeugt wurde.
-          </p>
-        }
       </c-card-body>
     </c-card>
   </div>
 
-  <div class="col-12 col-xl-4">
-    <c-card>
-      <c-card-header>
-        <strong>Kennzahlen</strong>
-      </c-card-header>
-      <c-card-body>
-        <table cTable hover small responsive>
-          <thead>
-            <tr>
-              <th scope="col">Kennzahl</th>
-              <th scope="col">Wert</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (metric of metrics(); track metric.label) {
-              <tr>
-                <td>{{ metric.label }}</td>
-                <td>{{ metric.value }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </c-card-body>
-    </c-card>
-  </div>
-
-  <div class="col-12 col-xl-4">
-    <c-card>
-      <c-card-header>
-        <strong>Planungsrahmen</strong>
-      </c-card-header>
-      <c-card-body>
-        <dl class="row mb-0">
-          <dt class="col-6">Zeitraum</dt>
-          <dd class="col-6">
-            {{ summary?.settings?.calendar_week_from || '–' }} bis
-            {{ summary?.settings?.calendar_week_to || '–' }}
-          </dd>
-          <dt class="col-6">Prüfungen pro Tag</dt>
-          <dd class="col-6">{{ summary?.settings?.exams_per_day ?? '–' }}</dd>
-          <dt class="col-6">Max. Tage pro Woche</dt>
-          <dd class="col-6">{{ summary?.settings?.max_exam_days_per_week ?? '–' }}</dd>
-          <dt class="col-6">Mögliche Prüfungstage</dt>
-          <dd class="col-6">{{ activeDayCount() }}</dd>
-        </dl>
-      </c-card-body>
-    </c-card>
-  </div>
-
-  <div class="col-12 col-xl-4">
-    <c-card>
-      <c-card-header>
-        <strong>Rücklauf</strong>
-        <span class="app-muted">{{ pendingCount() }} offen</span>
-      </c-card-header>
-      <c-card-body>
-        <div class="d-flex flex-wrap gap-2">
-          @for (item of summary?.availability || []; track item.availability) {
-            <c-badge [color]="availabilityColor(item.availability)">
-              {{ availabilityLabel(item.availability) }}: {{ item.count }}
-            </c-badge>
-          }
+  <div class="col-12">
+    <section aria-labelledby="dashboardMetricsTitle">
+      <div class="app-section-heading">
+        <div>
+          <span class="app-eyebrow">Auf einen Blick</span>
+          <h2 id="dashboardMetricsTitle">Kennzahlen</h2>
         </div>
-      </c-card-body>
-    </c-card>
+        <span class="app-muted">Stand der aktuellen Prüfungsrunde</span>
+      </div>
+      <dl class="app-metric-grid">
+        @for (metric of metrics(); track metric.label) {
+          <div class="app-metric-card">
+            <dt>{{ metric.label }}</dt>
+            <dd>{{ metric.value }}</dd>
+            <dd class="app-metric-hint">{{ metric.hint }}</dd>
+          </div>
+        }
+      </dl>
+    </section>
   </div>
 
-  <div class="col-12 col-xl-6">
+  <div class="col-12 col-xl-7">
     <c-card>
       <c-card-header>
-        <strong>Aufgaben</strong>
+        <div>
+          <span class="app-eyebrow">Nächste Schritte</span>
+          <strong class="d-block">Aufgaben</strong>
+        </div>
+        <span class="app-muted">Direkt zum betreffenden Bereich</span>
       </c-card-header>
       <c-card-body>
         <div class="app-task-list">
           @for (task of tasks(); track task.label) {
             <button type="button" class="app-task-link" (click)="openView.emit(task.view)">
-              <span>{{ task.label }}</span>
+              <span class="app-task-copy">
+                <strong>{{ task.label }}</strong>
+                <small>{{ task.hint }}</small>
+              </span>
               <c-badge [color]="task.color">{{ task.detail }}</c-badge>
               <svg [cIcon]="icons.arrowRight" class="app-icon-only" aria-hidden="true"></svg>
             </button>
@@ -126,22 +91,58 @@
     </c-card>
   </div>
 
-  <div class="col-12 col-xl-6">
+  <div class="col-12 col-xl-5">
     <c-card>
       <c-card-header>
-        <strong>Durchgang</strong>
+        <div>
+          <span class="app-eyebrow">Rahmen</span>
+          <strong class="d-block">Planung und Fristen</strong>
+        </div>
+        <c-badge [color]="pendingCount() ? 'warning' : 'success'">
+          {{ pendingCount() ? pendingCount() + ' offen' : 'Rücklauf vollständig' }}
+        </c-badge>
       </c-card-header>
       <c-card-body>
-        <dl class="row mb-0">
-          <dt class="col-6">Name</dt>
-          <dd class="col-6">{{ round?.name || summary?.round?.name || '–' }}</dd>
-          <dt class="col-6">Status</dt>
-          <dd class="col-6">{{ statusLabel(round?.status || summary?.round?.status) }}</dd>
-          <dt class="col-6">Rückmeldefrist</dt>
-          <dd class="col-6">{{ dateTimeLabel(round?.availability_deadline) }}</dd>
-          <dt class="col-6">Erinnerung</dt>
-          <dd class="col-6">{{ dateTimeLabel(round?.availability_reminder_at) }}</dd>
+        <dl class="app-context-list">
+          <div>
+            <dt>Prüfungsrunde</dt>
+            <dd>{{ round?.name || summary?.round?.name || '–' }}</dd>
+          </div>
+          <div>
+            <dt>Planungszeitraum</dt>
+            <dd>
+              {{ summary?.settings?.calendar_week_from || '–' }} bis
+              {{ summary?.settings?.calendar_week_to || '–' }}
+            </dd>
+          </div>
+          <div>
+            <dt>Prüfungen pro Tag</dt>
+            <dd>{{ summary?.settings?.exams_per_day ?? '–' }}</dd>
+          </div>
+          <div>
+            <dt>Max. Tage pro Woche</dt>
+            <dd>{{ summary?.settings?.max_exam_days_per_week ?? '–' }}</dd>
+          </div>
+          <div>
+            <dt>Rückmeldefrist</dt>
+            <dd>{{ dateTimeLabel(round?.availability_deadline) }}</dd>
+          </div>
+          <div>
+            <dt>Erinnerung</dt>
+            <dd>{{ dateTimeLabel(round?.availability_reminder_at) }}</dd>
+          </div>
         </dl>
+
+        <div class="app-context-section">
+          <h3>Rücklauf</h3>
+          <div class="d-flex flex-wrap gap-2">
+            @for (item of summary?.availability || []; track item.availability) {
+              <c-badge [color]="availabilityColor(item.availability)">
+                {{ availabilityLabel(item.availability) }}: {{ item.count }}
+              </c-badge>
+            }
+          </div>
+        </div>
       </c-card-body>
     </c-card>
   </div>
@@ -224,7 +225,10 @@
             }
           </div>
         } @else {
-          <p>Noch kein Planungsvorschlag</p>
+          <div class="app-empty-state">
+            <strong>Noch kein Planungsvorschlag</strong>
+            <span>Erzeugen Sie einen Vorschlag, sobald alle Grundlagen vollständig sind.</span>
+          </div>
         }
       </c-card-body>
     </c-card>
