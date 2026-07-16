@@ -42,6 +42,11 @@ export type ExamRound = {
   _links?: Record<string, ApiLink>;
 };
 
+export type ExamRoundUpdate = Pick<
+  ExamRound,
+  'name' | 'availability_deadline' | 'availability_reminder_at'
+>;
+
 export type RoundStatus =
   'draft' | 'availability_requested' | 'plan_proposed' | 'plan_confirmed' | string;
 

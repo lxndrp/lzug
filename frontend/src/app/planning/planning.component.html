@@ -1,4 +1,56 @@
 <div class="row g-4">
+  <div class="col-12">
+    <c-card>
+      <c-card-header>
+        <div>
+          <strong>Prüfungsrunde bearbeiten</strong>
+          <span class="app-muted d-block">Name und Rückmeldefristen nach der Anlage pflegen</span>
+        </div>
+        <span class="app-muted">Letzte Änderung: {{ dateTimeLabel(round?.updated_at) }}</span>
+      </c-card-header>
+      <c-card-body>
+        <form id="roundMetadataForm" class="row g-3 app-form-grid" (ngSubmit)="submitRound()">
+          <div class="col-12 col-md-4">
+            <label cLabel for="roundName">Bezeichnung</label>
+            <input
+              cFormControl
+              id="roundName"
+              name="roundName"
+              [(ngModel)]="roundDraft.name"
+              required
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <label cLabel for="availabilityDeadline">Rückmeldefrist</label>
+            <input
+              cFormControl
+              id="availabilityDeadline"
+              name="availabilityDeadline"
+              type="datetime-local"
+              [(ngModel)]="roundDraft.availability_deadline"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <label cLabel for="availabilityReminder">Erinnerung</label>
+            <input
+              cFormControl
+              id="availabilityReminder"
+              name="availabilityReminder"
+              type="datetime-local"
+              [(ngModel)]="roundDraft.availability_reminder_at"
+            />
+          </div>
+          <div class="col-12 app-form-actions">
+            <button cButton color="primary" type="submit" [disabled]="actionBusy">
+              <svg [cIcon]="icons.save" class="app-button-icon" aria-hidden="true"></svg>
+              Prüfungsrunde speichern
+            </button>
+          </div>
+        </form>
+      </c-card-body>
+    </c-card>
+  </div>
+
   <div class="col-12 col-xl-4">
     <c-card>
       <c-card-header>
@@ -31,7 +83,7 @@
         <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
       </c-card-header>
       <c-card-body>
-        <form class="row g-3 app-form-grid" (ngSubmit)="submitSettings()">
+        <form id="planningSettingsForm" class="row g-3 app-form-grid" (ngSubmit)="submitSettings()">
           <div class="col-12 col-md-6">
             <label cLabel for="weekFrom">KW von <span aria-hidden="true">*</span></label>
             <input

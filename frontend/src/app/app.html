@@ -144,12 +144,14 @@
         }
         @case ('planning') {
           <app-planning
+            [round]="round()"
             [summary]="summary()"
             [board]="board()"
             [masterData]="masterData()"
             [actionBusy]="actionBusy()"
             [candidateDayGenerationResult]="candidateDayGenerationResult()"
             (saveSettings)="savePlanningSettings($event)"
+            (saveRound)="saveExamRound($event)"
             (createCandidateDay)="createCandidateDay($event)"
             (generateCandidateDays)="generateCandidateDays($event)"
             (toggleCandidateDay)="toggleCandidateDay($event)"

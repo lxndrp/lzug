@@ -19,6 +19,7 @@ import {
   CandidateExamDay,
   CommitteeMember,
   ExamRound,
+  ExamRoundUpdate,
   Location,
   MasterData,
   PlanningBoard,
@@ -394,6 +395,21 @@ export class App {
         },
         error: () =>
           this.notify('error', 'Planungsrahmen nicht gespeichert', 'Bitte erneut versuchen.'),
+      });
+  }
+
+  protected saveExamRound(payload: ExamRoundUpdate): void {
+    this.actionBusy.set(true);
+    this.api
+      .updateExamRound(payload)
+      .pipe(finalize(() => this.actionBusy.set(false)))
+      .subscribe({
+        next: () => {
+          this.notify('success', 'Prüfungsrunde gespeichert', 'Die Änderungen sind übernommen.');
+          this.refresh();
+        },
+        error: () =>
+          this.notify('error', 'Prüfungsrunde nicht gespeichert', 'Bitte Eingaben prüfen.'),
       });
   }
 
