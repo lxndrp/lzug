@@ -29,6 +29,45 @@ Wenn fachliche oder technische Planung in Codex entsteht und belastbar genug ist
 
 Draft-Items im GitHub Project nur fuer sehr fruehe Ideen verwenden. Sobald ein Element handhabbar oder nachvollziehbar sein soll, als Issue anlegen.
 
+### Issues aus dem Chat
+
+Neue fachliche oder technische Vorhaben koennen direkt im Chat gemeldet werden,
+wenn die Nachricht mit einem der folgenden Praefixe beginnt:
+
+- `Story: <Titel>`: GitHub Issue mit Label `type: story` anlegen.
+- `Epic: <Titel>`: GitHub Issue mit Label `type: epic` anlegen.
+- `Bug: <Titel>`: GitHub Issue mit Label `bug` anlegen.
+
+Den restlichen Text der Meldung als Issue-Titel verwenden und die verfuegbaren
+Details als Issue-Beschreibung uebernehmen. Das Issue dem GitHub Project
+`lzug Roadmap` hinzufuegen und grundsaetzlich auf `Todo` setzen. Wenn aus dem
+Kontext ein Parent-Epic oder eine weitere Verknuepfung erkennbar ist, diese
+ebenfalls anlegen. Bei unzureichenden Angaben die fehlenden Details im Chat
+klaeren, bevor eine umfangreiche Umsetzung beginnt.
+
+### Refinements
+
+- Refinements von Stories und Epics werden durch eine Aktualisierung des Issue-
+  Titels, der Beschreibung, der Labels oder der Verknuepfungen abgebildet.
+- Refinements von Bugs werden als zusaetzlicher Kommentar im bestehenden Bug-
+  Issue dokumentiert. Die urspruengliche Fehlerbeschreibung bleibt erhalten.
+- Nach einem Refinement den Project-Status nur aendern, wenn sich daraus ein
+  tatsaechlicher Fortschritt oder eine neue Priorisierung ergibt.
+
+### Trennung von Planung und Umsetzung
+
+- Planung, Refinement und fachliche Klaerung finden im jeweiligen
+  Planungsthread statt.
+- Die Implementierung eines Issues erfolgt in einem separaten Thread mit dem
+  Namen `Feature umsetzen` fuer Stories und Epics beziehungsweise `Bug beheben`
+  fuer Bug-Issues.
+- Beim Wechsel von der Planung in die Umsetzung den fuer die Implementierung
+  relevanten Kontext an den passenden Umsetzungsthread uebergeben. Dazu gehoeren
+  mindestens Issue-Nummer, fachliches Ziel, Akzeptanzkriterien, technische
+  Entscheidungen, bekannte Randbedingungen und offene Punkte.
+- Im Planungsthread keine umfangreiche Implementierung beginnen, sobald ein
+  passender Umsetzungsthread vorgesehen oder bereits vorhanden ist.
+
 ## Statusmodell
 
 Im GitHub Project gelten die Standardstatus:
@@ -41,6 +80,19 @@ Geschlossene Issues nicht loeschen. Wenn sie aus einer nachtraeglichen Ueberfueh
 
 ## Git und Commits
 
+- Produkt- und Fehlerbehebungsarbeiten, die zu einer Story, einem Epic oder
+  einem Bug-Issue gehoeren, immer in einem eigenen Feature-Branch umsetzen.
+- Branches fuer Codex-Arbeiten nach dem Muster
+  `codex/<issue>-<kurzer-name>` beziehungsweise
+  `codex/bug-<issue>-<kurzer-name>` benennen.
+- Niemals direkt in `master` committen, wenn die Aenderung ein Issue umsetzt.
+- Nach der Verifikation einen Pull Request gegen `master` eroeffnen und das
+  umgesetzte Issue im Pull Request verknuepfen. Fuer vollstaendig umgesetzte
+  Issues `Closes #<nummer>` verwenden; bei Teilumsetzungen eine nicht
+  schliessende Verknuepfung wie `Related to #<nummer>` nutzen.
+- Den Pull Request erst nach erfolgreicher CI und Review in `master` mergen.
+- Nach dem Merge den Issue-Status im GitHub Project auf `Done` setzen und das
+  Issue schliessen, sofern die Umsetzung vollstaendig ist.
 - Aenderungen thematisch schneiden und kleine, nachvollziehbare Commits bevorzugen.
 - Commit-Messages bevorzugt auf Englisch schreiben, passend zur bisherigen Git-Historie.
 - Deutsch und Englisch nicht innerhalb einer Commit-Message mischen.
