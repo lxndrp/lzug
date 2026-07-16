@@ -16,13 +16,6 @@
             "justMyCode": true
         },
         {
-            "type": "node-terminal",
-            "name": "lzug Frontend (Server)",
-            "request": "launch",
-            "command": "npm start",
-            "cwd": "${workspaceFolder}/frontend"
-        },
-        {
             "type": "msedge",
             "name": "lzug Backend (Edge)",
             "request": "launch",
@@ -33,7 +26,8 @@
             "type": "msedge",
             "name": "lzug Frontend (Edge)",
             "request": "launch",
-            "url": "http://localhost:4200",
+            "preLaunchTask": "Frontend starten",
+            "url": "http://127.0.0.1:4200",
             "webRoot": "${workspaceFolder}/frontend"
         },
         {
@@ -43,7 +37,7 @@
             "runtimeArgs": [
                 "--remote-debugging-port=9222"
             ],
-            "url": "http://localhost:4200",
+            "url": "http://127.0.0.1:4200",
             "presentation": {
                 "hidden": true
             }
@@ -56,7 +50,7 @@
                 "--headless",
                 "--remote-debugging-port=9222"
             ],
-            "url": "http://localhost:4200",
+            "url": "http://127.0.0.1:4200",
             "presentation": {
                 "hidden": true
             }
@@ -65,7 +59,7 @@
             "type": "vscode-edge-devtools.debug",
             "name": "Open Edge DevTools",
             "request": "attach",
-            "url": "http://localhost:4200",
+            "url": "http://127.0.0.1:4200",
             "presentation": {
                 "hidden": true
             }
@@ -74,24 +68,25 @@
     "compounds": [
         {
             "name": "lzug Debug (Application)",
+            "preLaunchTask": "Frontend starten",
             "configurations": [
-                "lzug Backend (Server)",
-                "lzug Frontend (Server)"            ]
+                "lzug Backend (Server)"
+            ]
         },
         {
             "name": "lzug Debug (Edge Headless w/ DevTools)",
+            "preLaunchTask": "Frontend starten",
             "configurations": [
                 "lzug Backend (Server)",
-                "lzug Frontend (Server)",
                 "lzug Frontend Debug (Edge Headless)",
                 "Open Edge DevTools"
             ]
         },
         {
             "name": "lzug Debug (Edge w/ DevTools)",
+            "preLaunchTask": "Frontend starten",
             "configurations": [
                 "lzug Backend (Server)",
-                "lzug Frontend (Server)",
                 "lzug Frontend Debug (Edge)",
                 "Open Edge DevTools"
             ]

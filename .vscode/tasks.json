@@ -2,6 +2,34 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Frontend starten",
+            "type": "shell",
+            "command": "npm",
+            "args": [
+                "start"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/frontend"
+            },
+            "isBackground": true,
+            "problemMatcher": {
+                "owner": "lzug-frontend",
+                "pattern": {
+                    "regexp": "^.*$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^.*Building.*$",
+                    "endsPattern": "^.*Local:.*http://127\\.0\\.0\\.1:4200/.*$"
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
             "label": "Tests ausfuehren",
             "type": "shell",
             "command": "${workspaceFolder}/.venv/bin/python",
