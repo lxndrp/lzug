@@ -1,39 +1,75 @@
-import {
-  cilArrowRight,
-  cilBan,
-  cilCalendar,
-  cilCalendarCheck,
-  cilCheck,
-  cilCheckCircle,
-  cilCode,
-  cilGroup,
-  cilLocationPin,
-  cilPeople,
-  cilPencil,
-  cilPlus,
-  cilReload,
-  cilSave,
-  cilSpeedometer,
-  cilTrash,
-  cilX,
-} from '@coreui/icons';
+// Selected from CoreUI Icons Free 3.1.0 (MIT); see THIRD_PARTY_NOTICES.md.
+// Keeping the definitions local avoids watching more than 11,000 catalogue files.
+const icon = (content: string): string[] => ['512 512', content];
+
+const arrowRight = icon(
+  "<path fill='currentcolor' d='m359.873 121.377-22.627 22.627 95.997 95.997H16v32.001h417.24l-95.994 95.994 22.627 22.627L494.498 256z'/>",
+);
+const ban = icon(
+  "<path fill='currentcolor' d='M425.706 86.294A240 240 0 0 0 86.294 425.705 240 240 0 0 0 425.706 86.294M256 48a207.1 207.1 0 0 1 135.528 50.345L98.345 391.528A207.1 207.1 0 0 1 48 256c0-114.691 93.309-208 208-208m0 416a207.08 207.08 0 0 1-134.986-49.887l293.1-293.1A207.08 207.08 0 0 1 464 256c0 114.691-93.309 208-208 208'/>",
+);
+const calendar = icon(
+  "<path fill='currentcolor' d='M472 96h-88V40h-32v56H160V40h-32v56H40a24.03 24.03 0 0 0-24 24v336a24.03 24.03 0 0 0 24 24h432a24.03 24.03 0 0 0 24-24V120a24.03 24.03 0 0 0-24-24m-8 352H48V128h80v40h32v-40h192v40h32v-40h80Z'/><path fill='currentcolor' d='M112 224h32v32h-32zm88 0h32v32h-32zm80 0h32v32h-32zm88 0h32v32h-32zm-256 72h32v32h-32zm88 0h32v32h-32zm80 0h32v32h-32zm88 0h32v32h-32zm-256 72h32v32h-32zm88 0h32v32h-32zm80 0h32v32h-32zm88 0h32v32h-32z'/>",
+);
+const calendarCheck = icon(
+  "<path fill='currentcolor' d='M472 96h-88V40h-32v56H160V40h-32v56H40a24.03 24.03 0 0 0-24 24v336a24.03 24.03 0 0 0 24 24h432a24.03 24.03 0 0 0 24-24V120a24.03 24.03 0 0 0-24-24m-8 352H48V128h80v40h32v-40h192v40h32v-40h80Z'/><path fill='currentcolor' d='m243.397 313.373-54.385-54.385-22.627 22.628 77.012 77.011 125.615-125.615-22.628-22.627z'/>",
+);
+const check = icon(
+  "<path fill='currentcolor' d='m199.066 456-7.379-7.514-3.94-3.9-86.2-86.2.053-.055-83.664-83.666 97.614-97.613 83.565 83.565L398.388 61.344 496 158.958 296.729 358.229l-11.26 11.371ZM146.6 358.183l52.459 52.46.1-.1.054.054 52.311-52.311 11.259-11.368 187.963-187.96-52.358-52.358-199.273 199.271-83.565-83.565-52.359 52.359 83.464 83.463Z'/>",
+);
+const checkCircle = icon(
+  "<path fill='currentcolor' d='M426.072 86.928A238.75 238.75 0 0 0 88.428 424.572 238.75 238.75 0 0 0 426.072 86.928M257.25 462.5c-114 0-206.75-92.748-206.75-206.75S143.248 49 257.25 49 464 141.748 464 255.75 371.252 462.5 257.25 462.5'/><path fill='currentcolor' d='m221.27 305.808-73.413-73.412-22.627 22.627 96.04 96.04 167.5-167.499-22.628-22.627z'/>",
+);
+const code = icon(
+  "<path fill='currentcolor' d='m388.632 393.82 107.191-137.88-107.139-137.762-25.26 19.644 91.864 118.122-91.92 118.236zm-240.053-19.639L56.712 255.999l91.917-118.176-25.258-19.646L16.177 255.993l107.137 137.826zM330.529 16h-32.97L178.441 496h32.971z'/>",
+);
+const education = icon(
+  "<path fill='currentcolor' d='m368 350.643-112 63-112-63v-66.562l-32-17.778v103.054l144 81 144-81V266.303l-32 17.778z'/><path fill='currentcolor' d='M256 45.977 32 162.125v27.734L256 314.3l192-106.663V296h32V162.125Zm160 142.831-32 17.777L256 277.7l-128-71.115-32-17.777-22.179-12.322L256 82.023l182.179 94.463Z'/>",
+);
+const group = icon(
+  "<path fill='currentcolor' d='m462.541 316.3-64.344-42.1 24.774-45.418A79.1 79.1 0 0 0 432.093 192v-72a103.941 103.941 0 0 0-174.609-76.477L279.232 67a71.989 71.989 0 0 1 120.861 53v72a46.8 46.8 0 0 1-5.215 21.452L355.962 284.8l89.058 58.274a42.16 42.16 0 0 1 19.073 35.421V432h-72v32h104v-85.506a74.06 74.06 0 0 0-33.552-62.194'/><path fill='currentcolor' d='m318.541 348.3-64.343-42.1 24.773-45.418A79.1 79.1 0 0 0 288.093 224v-72A104.21 104.21 0 0 0 184.04 47.866C126.723 47.866 80.093 94.581 80.093 152v72a78 78 0 0 0 9.015 36.775l24.908 45.664L50.047 348.3A74.02 74.02 0 0 0 16.5 410.4L16 496h336.093v-85.506a74.06 74.06 0 0 0-33.552-62.194m1.552 115.7H48.186l.31-53.506a42.16 42.16 0 0 1 19.073-35.421l88.682-58.029-39.051-71.592A46.84 46.84 0 0 1 112.093 224v-72a72 72 0 1 1 144 0v72a46.8 46.8 0 0 1-5.215 21.452L211.962 316.8l89.058 58.274a42.16 42.16 0 0 1 19.073 35.421Z'/>",
+);
+const locationPin = icon(
+  "<path fill='currentcolor' d='M253.924 127.592a64 64 0 1 0 64 64 64.073 64.073 0 0 0-64-64m0 96a32 32 0 1 1 32-32 32.037 32.037 0 0 1-32 32'/><path fill='currentcolor' d='M376.906 68.515A173.922 173.922 0 0 0 108.2 286.426l120.907 185.613a29.62 29.62 0 0 0 49.635 0l120.911-185.613a173.92 173.92 0 0 0-22.747-217.911m-4.065 200.444-118.916 182.55-118.917-182.55c-36.4-55.879-28.593-130.659 18.563-177.817a141.92 141.92 0 0 1 200.708 0c47.156 47.158 54.962 121.938 18.562 177.817'/>",
+);
+const pencil = icon(
+  "<path fill='currentcolor' d='m29.663 482.25.087.087a24.85 24.85 0 0 0 17.612 7.342 25.2 25.2 0 0 0 8.1-1.345l142.006-48.172 272.5-272.5A88.832 88.832 0 0 0 344.334 42.039l-272.5 272.5-48.168 142.002a24.84 24.84 0 0 0 5.997 25.709m337.3-417.584a56.832 56.832 0 0 1 80.371 80.373L411.5 180.873 331.127 100.5ZM99.744 331.884 308.5 123.127l80.373 80.373-208.757 208.756-121.634 41.262Z'/>",
+);
+const plus = icon(
+  "<path fill='currentcolor' d='M440 240H272V72h-32v168H72v32h168v168h32V272h168z'/>",
+);
+const reload = icon(
+  "<path fill='currentcolor' d='M265.614 206.387H456V16h-32v133.887l-26.137-26.137c-79.539-79.539-208.96-79.54-288.5 0s-79.539 208.96 0 288.5a204.23 204.23 0 0 0 288.5 0l-22.627-22.627c-67.063 67.063-176.182 67.063-243.244 0s-67.063-176.183 0-243.246 176.182-67.063 243.245 0l28.01 28.01H265.614Z'/>",
+);
+const save = icon(
+  "<path fill='currentcolor' d='m472.971 122.344-99.315-99.315A23.84 23.84 0 0 0 356.687 16H56a24.03 24.03 0 0 0-24 24v432a24.03 24.03 0 0 0 24 24h400a24.03 24.03 0 0 0 24-24V139.313a23.84 23.84 0 0 0-7.029-16.969M320 48v96H176V48Zm128 416H64V48h80v128h208V48h1.373L448 142.627Z'/><path fill='currentcolor' d='M252 224a92 92 0 1 0 92 92 92.1 92.1 0 0 0-92-92m0 152a60 60 0 1 1 60-60 60.07 60.07 0 0 1-60 60'/>",
+);
+const speedometer = icon(
+  "<path fill='currentcolor' d='M425.706 142.294A240 240 0 0 0 16 312v88h144v-32H48v-56c0-114.691 93.309-208 208-208s208 93.309 208 208v56H352v32h144v-88a238.43 238.43 0 0 0-70.294-169.706'/><path fill='currentcolor' d='M80 264h32v32H80zm160-136h32v32h-32zm-104 40h32v32h-32zm264 96h32v32h-32zm-102.778 71.1 69.2-144.173-28.85-13.848-69.183 144.135a64.141 64.141 0 1 0 28.833 13.886M256 416a32 32 0 1 1 32-32 32.036 32.036 0 0 1-32 32'/>",
+);
+const trash = icon(
+  "<path fill='currentcolor' d='M96 472a23.82 23.82 0 0 0 23.579 24h272.842A23.82 23.82 0 0 0 416 472V152H96Zm32-288h256v280H128Z'/><path fill='currentcolor' d='M168 216h32v200h-32zm72 0h32v200h-32zm72 0h32v200h-32zm16-128V40c0-13.458-9.488-24-21.6-24H205.6C193.488 16 184 26.542 184 40v48H64v32h384V88ZM216 48h80v40h-80Z'/>",
+);
+const x = icon(
+  "<path fill='currentcolor' d='m427.314 107.313-22.628-22.626L256 233.373 107.314 84.687l-22.628 22.626L233.373 256 84.686 404.687l22.628 22.626L256 278.627l148.686 148.686 22.628-22.626L278.627 256z'/>",
+);
 
 export const appIcons = {
-  activate: cilCheckCircle,
-  add: cilPlus,
-  arrowRight: cilArrowRight,
-  cancel: cilX,
-  candidates: cilPeople,
-  committee: cilGroup,
-  confirm: cilCheck,
-  deactivate: cilBan,
-  delete: cilTrash,
-  documentation: cilCode,
-  edit: cilPencil,
-  locations: cilLocationPin,
-  overview: cilSpeedometer,
-  planning: cilCalendar,
-  proposal: cilCalendarCheck,
-  reload: cilReload,
-  save: cilSave,
+  activate: checkCircle,
+  add: plus,
+  arrowRight,
+  cancel: x,
+  candidates: education,
+  committee: group,
+  confirm: check,
+  deactivate: ban,
+  delete: trash,
+  documentation: code,
+  edit: pencil,
+  locations: locationPin,
+  overview: speedometer,
+  planning: calendar,
+  proposal: calendarCheck,
+  reload,
+  save,
 } as const;

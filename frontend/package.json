@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve --proxy-config proxy.conf.json",
+    "start": "ng serve --proxy-config proxy.conf.json --poll 1000",
     "build": "ng build",
     "build:ci": "ng build --configuration production",
     "watch": "ng build --watch --configuration development",
@@ -48,7 +48,6 @@
     "@angular/router": "^22.0.6",
     "@coreui/angular": "^5.7.3",
     "@coreui/coreui": "^5.8.0",
-    "@coreui/icons": "^3.1.0",
     "@coreui/icons-angular": "^5.7.3",
     "@fontsource/source-sans-3": "^5.2.9",
     "rxjs": "~7.8.0",
