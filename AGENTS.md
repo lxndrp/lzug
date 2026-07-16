@@ -67,6 +67,8 @@ klaeren, bevor eine umfangreiche Umsetzung beginnt.
   Entscheidungen, bekannte Randbedingungen und offene Punkte.
 - Im Planungsthread keine umfangreiche Implementierung beginnen, sobald ein
   passender Umsetzungsthread vorgesehen oder bereits vorhanden ist.
+- Nach erfolgreich gemergtem Pull Request den zugehoerigen Umsetzungsthread
+  archivieren.
 
 ## Statusmodell
 
