@@ -698,12 +698,12 @@ h6 {
 }
 
 .btn-outline-secondary {
-  --cui-btn-color: var(--app-color-text-muted);
-  --cui-btn-border-color: var(--app-color-text-muted);
+  --cui-btn-color: #46535f;
+  --cui-btn-border-color: #46535f;
   --cui-btn-hover-color: #fff;
-  --cui-btn-hover-bg: var(--app-color-text-muted);
-  --cui-btn-hover-border-color: var(--app-color-text-muted);
-  --cui-btn-focus-shadow-rgb: 82, 96, 109;
+  --cui-btn-hover-bg: #46535f;
+  --cui-btn-hover-border-color: #46535f;
+  --cui-btn-focus-shadow-rgb: 70, 83, 95;
   --cui-btn-active-color: #fff;
   --cui-btn-active-bg: #3e4c59;
   --cui-btn-active-border-color: #3e4c59;
