@@ -38,7 +38,7 @@ c-header c-container {
 }
 
 .sidebar-nav .nav-title {
-  color: #aab4c3;
+  color: #b8c3cc;
 }
 
 .app-feedback {
@@ -53,9 +53,9 @@ c-header c-container {
   padding: 16px;
   border: 1px solid #75b798;
   border-inline-start: 4px solid #198754;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   background: #f2fbf6;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 16%);
+  box-shadow: var(--app-shadow-floating);
   color: #0f5132;
 }
 
