@@ -25,6 +25,8 @@ import {
   CandidateDayGenerationResult,
   CandidateExamDay,
   CommitteeMember,
+  ExamRound,
+  ExamRoundUpdate,
   MasterData,
   MemberAvailability,
   PlanningBoard,
@@ -35,6 +37,7 @@ import { appIcons } from '../app-icons';
 
 export type PlanningSettingsPayload = Omit<PlanningSettings, 'id' | 'exam_round_id'>;
 export type CandidateExamDayPayload = Omit<CandidateExamDay, 'id' | 'exam_round_id'>;
+export type RoundUpdatePayload = ExamRoundUpdate;
 export type AvailabilityPayload = Pick<
   MemberAvailability,
   'committee_member_id' | 'candidate_exam_day_id' | 'availability'
@@ -61,6 +64,7 @@ type AvailabilityCellState = {
 })
 export class PlanningComponent implements OnChanges, OnDestroy {
   protected readonly icons = appIcons;
+  @Input() round: ExamRound | null = null;
   @Input() summary: RoundSummary | null = null;
   @Input() board: PlanningBoard | null = null;
   @Input() masterData: MasterData | null = null;
@@ -68,6 +72,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   @Input() candidateDayGenerationResult: CandidateDayGenerationResult | null = null;
 
   @Output() saveSettings = new EventEmitter<PlanningSettingsPayload>();
+  @Output() saveRound = new EventEmitter<RoundUpdatePayload>();
   @Output() createCandidateDay = new EventEmitter<CandidateExamDayPayload>();
   @Output() generateCandidateDays = new EventEmitter<PlanningSettingsPayload>();
   @Output() toggleCandidateDay = new EventEmitter<CandidateExamDay>();
@@ -83,6 +88,11 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     holiday_subdivision_code: null,
     default_location_id: null,
     updated_by_member_id: 0,
+  };
+  protected readonly roundDraft = {
+    name: '',
+    availability_deadline: '',
+    availability_reminder_at: '',
   };
   protected readonly candidateDayDraft: CandidateExamDayPayload = {
     date: '',
@@ -111,6 +121,9 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   ] as const;
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['round']) {
+      this.syncRoundDraft();
+    }
     if (changes['summary'] || changes['board'] || changes['masterData']) {
       this.syncDraft();
     }
@@ -118,6 +131,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
 
   ngOnDestroy(): void {
     this.savedStateTimers.forEach((timer) => clearTimeout(timer));
+    this.savedStateTimers.clear();
   }
 
   protected capacity(): number {
@@ -289,6 +303,17 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     }
   }
 
+  protected submitRound(): void {
+    if (!this.roundDraft.name.trim()) {
+      return;
+    }
+    this.saveRound.emit({
+      name: this.roundDraft.name.trim(),
+      availability_deadline: this.toApiDateTime(this.roundDraft.availability_deadline),
+      availability_reminder_at: this.toApiDateTime(this.roundDraft.availability_reminder_at),
+    });
+  }
+
   protected requestCandidateDayGeneration(): void {
     const payload = this.settingsPayload();
     if (payload) {
@@ -353,6 +378,35 @@ export class PlanningComponent implements OnChanges, OnDestroy {
       this.board?.locations.find((location) => location.is_active !== 0)?.id ??
       null;
     this.draft.updated_by_member_id = settings?.updated_by_member_id ?? this.defaultUpdaterId();
+  }
+
+  private syncRoundDraft(): void {
+    if (!this.round) {
+      return;
+    }
+    this.roundDraft.name = this.round.name;
+    this.roundDraft.availability_deadline = this.toDateTimeLocal(this.round.availability_deadline);
+    this.roundDraft.availability_reminder_at = this.toDateTimeLocal(
+      this.round.availability_reminder_at,
+    );
+  }
+
+  protected dateTimeLabel(value?: string | null): string {
+    if (!value) {
+      return '–';
+    }
+    return new Intl.DateTimeFormat('de-DE', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(new Date(value.replace(' ', 'T')));
+  }
+
+  private toDateTimeLocal(value?: string | null): string {
+    return value ? value.replace(' ', 'T').slice(0, 16) : '';
+  }
+
+  private toApiDateTime(value: string): string | null {
+    return value ? `${value.replace('T', ' ')}:00` : null;
   }
 
   private availabilityCellKey(memberId: number, dayId: number): string {

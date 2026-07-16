@@ -17,6 +17,7 @@ Die bisherige Umsetzung betrachtet im Kern den Planungsprozess einer Prüfungsru
 - **Ausschüsse und Ausschussmitglieder verwalten**: Backend-Ressourcen, Angular-Ansicht, Anlegen, Anzeigen und Aktiv/Inaktiv-Schalten sind vorhanden.
 - **Rollen und Vertreterseiten modelliert**: `chair`, `deputy_chair`, `member`; `ordinary`, `deputy`; `employer`, `employee`, `school`.
 - **Prüfungsorte verwalten**: Backend-Ressource, Angular-Ansicht, Anlegen, Anzeigen, Aktiv/Inaktiv-Schalten und Löschen sind vorhanden.
+- **Prüfungsrunde bearbeiten und versionieren**: Name, Rückmeldefrist und Erinnerung sind nach der Anlage bearbeitbar; der letzte Änderungszeitpunkt wird über `updated_at` nachvollziehbar angezeigt.
 - **Prüflinge verwalten**: Backend-Ressource, Angular-Ansicht, Anlegen, Bearbeiten, Löschen, Suche und Fachrichtungsfilter sind vorhanden.
 - **Prüflingsfelder**: Vorname, Nachname, IHK-Prüfungsnummer, Fachrichtung, Ausbildungsbetrieb, Prüfungsversuch und MEP-Pflicht sind fachlich abgebildet.
 - **Fachrichtungen**: Anwendungsentwicklung, Systemintegration, Daten- und Prozessanalyse sowie Digitale Vernetzung sind abgebildet.
@@ -56,7 +57,7 @@ Die bisherige Umsetzung betrachtet im Kern den Planungsprozess einer Prüfungsru
 - **CSV-Import für Prüflinge**: Im statischen Prototyp vorhanden, im Angular-Frontend noch nicht umgesetzt.
 - **Importvorlage herunterladen**: Im statischen Prototyp vorhanden, im Angular-Frontend noch nicht umgesetzt.
 - **Duplikatbehandlung beim Import**: Fachlich dokumentiert, für den Angular-/Backend-Import noch nicht umgesetzt.
-- **Prüfungsdurchgang bearbeiten**: Name, Rückmeldefrist und Erinnerung werden angezeigt, aber noch nicht als eigener Bearbeitungsworkflow gepflegt.
+- **Vollständiger Änderungsverlauf für Prüfungsrunden**: Einzelne frühere Versionen und Bearbeiter sind noch nicht als Audit-Historie verfügbar.
 
 ### Rechte und Sicherheit
 

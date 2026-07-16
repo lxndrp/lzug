@@ -10,6 +10,7 @@ import {
   candidatesFixture,
   committeesFixture,
   examDaysFixture,
+  examRoundFixture,
   examSlotsFixture,
   locationsFixture,
   membersFixture,
@@ -261,6 +262,21 @@ describe('PlanningApiService', () => {
       updated_by_member_id: 1,
     });
     request.flush({});
+  });
+
+  it('should update exam round metadata for the active round', () => {
+    service
+      .updateExamRound({
+        name: 'Sommer 2027',
+        availability_deadline: '2027-04-15 18:00:00',
+        availability_reminder_at: '2027-04-08 09:00:00',
+      })
+      .subscribe();
+
+    const request = http.expectOne('/api/exam-rounds/1');
+    expect(request.request.method).toBe('PATCH');
+    expect(request.request.body.name).toBe('Sommer 2027');
+    request.flush({ ...examRoundFixture, name: 'Sommer 2027' });
   });
 
   it('should expose possible day and availability write operations', () => {

@@ -12,6 +12,7 @@ import {
   Committee,
   CommitteeMember,
   ExamRound,
+  ExamRoundUpdate,
   ExamDay,
   ExamDayAssignment,
   ExamSlot,
@@ -44,6 +45,10 @@ export class PlanningApiService {
 
   getExamRound() {
     return this.http.get<ExamRound>(`/api/exam-rounds/${this.roundId}`);
+  }
+
+  updateExamRound(payload: ExamRoundUpdate) {
+    return this.http.patch<ExamRound>(`/api/exam-rounds/${this.roundId}`, payload);
   }
 
   getPlanningBoard() {

@@ -147,6 +147,27 @@ class ResourceRepository:
             self._validate_planning_settings(store, merged)
             return store.update(PLANNING_SETTINGS, settings_id, payload) or existing
 
+    def update_exam_round(
+        self,
+        round_id: int,
+        payload: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        with session_scope(self.db_path) as session:
+            store = Store(session)
+            existing = store.get(EXAM_ROUND, round_id)
+            if existing is None:
+                return None
+
+            merged = {**existing, **payload}
+            if not str(merged.get("name", "")).strip():
+                raise ValueError("Exam round name is required")
+            deadline = merged.get("availability_deadline")
+            reminder = merged.get("availability_reminder_at")
+            if deadline and reminder and reminder > deadline:
+                raise ValueError("Availability reminder must be before the deadline")
+
+            return store.update(EXAM_ROUND, round_id, payload) or existing
+
     def save_member_availability(self, payload: dict[str, Any]) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
             store = Store(session)

@@ -2,7 +2,12 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { PlanningComponent } from './planning.component';
-import { masterDataFixture, planningBoardFixture, summaryFixture } from '../testing/fixtures';
+import {
+  examRoundFixture,
+  masterDataFixture,
+  planningBoardFixture,
+  summaryFixture,
+} from '../testing/fixtures';
 
 describe('PlanningComponent', () => {
   let fixture: ComponentFixture<PlanningComponent>;
@@ -14,6 +19,7 @@ describe('PlanningComponent', () => {
     }).compileComponents();
 
     fixture = TestBed.createComponent(PlanningComponent);
+    fixture.componentRef.setInput('round', examRoundFixture);
     fixture.componentRef.setInput('summary', summaryFixture);
     fixture.componentRef.setInput('board', planningBoardFixture);
     fixture.componentRef.setInput('masterData', masterDataFixture);
@@ -40,7 +46,7 @@ describe('PlanningComponent', () => {
     setInput('#weekFrom', '2026-W48');
     setInput('#weekTo', '2026-W50');
 
-    const form = (fixture.nativeElement as HTMLElement).querySelector('form');
+    const form = (fixture.nativeElement as HTMLElement).querySelector('#planningSettingsForm');
     expect(form).toBeTruthy();
     form!.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
 
@@ -51,6 +57,39 @@ describe('PlanningComponent', () => {
         updated_by_member_id: 1,
       }),
     );
+  });
+
+  it('should emit editable exam round metadata', () => {
+    const component = fixture.componentInstance;
+    spyOn(component.saveRound, 'emit');
+
+    setInput('#roundName', 'Sommer 2027');
+    setInput('#availabilityDeadline', '2027-04-15T18:00');
+    setInput('#availabilityReminder', '2027-04-08T09:00');
+    const form = (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLInputElement>('#roundName')
+      ?.closest('form');
+    expect(form).toBeTruthy();
+    form!.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
+
+    expect(component.saveRound.emit).toHaveBeenCalledWith({
+      name: 'Sommer 2027',
+      availability_deadline: '2027-04-15 18:00:00',
+      availability_reminder_at: '2027-04-08 09:00:00',
+    });
+  });
+
+  it('should clear pending saved-state timers on destroy', () => {
+    const component = fixture.componentInstance as unknown as {
+      savedStateTimers: Map<string, ReturnType<typeof setTimeout>>;
+      ngOnDestroy(): void;
+    };
+    const timer = setTimeout(() => undefined, 10_000);
+    component.savedStateTimers.set('1:1', timer);
+
+    component.ngOnDestroy();
+
+    expect(component.savedStateTimers.size).toBe(0);
   });
 
   it('should render week pickers and numeric planning controls', () => {
@@ -131,7 +170,9 @@ describe('PlanningComponent', () => {
     const element = fixture.nativeElement as HTMLElement;
 
     expect(element.querySelector('.app-required-hint')?.textContent).toContain('Pflichtfelder');
-    expect(element.querySelector('.app-form-actions')?.textContent).toContain('Kapazitätsvorschau');
+    expect(element.querySelector('#planningSettingsForm .app-form-actions')?.textContent).toContain(
+      'Kapazitätsvorschau',
+    );
     expect(element.querySelector('.app-compact-table')).toBeTruthy();
     expect(element.querySelector('.app-row-actions')?.textContent).toContain('Deaktivieren');
   });

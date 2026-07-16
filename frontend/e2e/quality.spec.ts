@@ -60,6 +60,30 @@ test.describe('lzug browser workflows', () => {
     await expect(sidebarToggle).toHaveAttribute('aria-expanded', 'false');
   });
 
+  test('updates exam round metadata and keeps it after reload', async ({ page }) => {
+    await page.goto('/planning');
+
+    await expect(page.locator('#roundName')).toHaveValue('Winter 2026/27');
+    await page.locator('#roundName').fill('Sommer 2027');
+    await page.locator('#availabilityDeadline').fill('2027-04-15T18:00');
+    await page.locator('#availabilityReminder').fill('2027-04-08T09:00');
+
+    const updateResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/exam-rounds/1') && response.request().method() === 'PATCH',
+    );
+    await page.getByRole('button', { name: 'Prüfungsrunde speichern' }).click();
+
+    const updateResponse = await updateResponsePromise;
+    expect(updateResponse.status(), await updateResponse.text()).toBe(200);
+    await expect(page.getByText('Prüfungsrunde gespeichert')).toBeVisible();
+
+    await page.reload();
+    await expect(page.locator('#roundName')).toHaveValue('Sommer 2027');
+    await expect(page.locator('#availabilityDeadline')).toHaveValue('2027-04-15T18:00');
+    await expect(page.locator('#availabilityReminder')).toHaveValue('2027-04-08T09:00');
+  });
+
   test('generates possible exam days while excluding state holidays', async ({ page }) => {
     await page.goto('/planning');
 

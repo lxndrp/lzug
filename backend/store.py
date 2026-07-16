@@ -55,7 +55,7 @@ class Store:
         for field, value in self._payload(resource, values).items():
             setattr(row, field, value)
         if hasattr(row, "updated_at"):
-            row.updated_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+            row.updated_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")
         self.session.flush()
         self.session.refresh(row)
         return model_to_dict(row, resource)
