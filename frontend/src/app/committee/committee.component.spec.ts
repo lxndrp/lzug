@@ -83,6 +83,14 @@ describe('CommitteeComponent', () => {
     expect(component.toggleMember.emit).toHaveBeenCalledWith(membersFixture[0]);
   });
 
+  it('should present required fields and actions consistently', () => {
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelectorAll('.app-required-hint').length).toBe(2);
+    expect(element.querySelectorAll('.app-form-actions').length).toBe(2);
+    expect(element.querySelector('.app-row-actions')?.textContent).toContain('Deaktivieren');
+  });
+
   function textContent(): string {
     return (fixture.nativeElement as HTMLElement).textContent ?? '';
   }

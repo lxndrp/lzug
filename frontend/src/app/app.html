@@ -164,7 +164,12 @@
     [attr.role]="currentFeedback.type === 'error' ? 'alert' : 'status'"
     aria-live="polite"
   >
-    <div>
+    <svg
+      [cIcon]="currentFeedback.type === 'error' ? icons.cancel : icons.confirm"
+      class="app-feedback-icon"
+      aria-hidden="true"
+    ></svg>
+    <div class="app-feedback-copy">
       <strong>{{ currentFeedback.title }}</strong>
       <span>{{ currentFeedback.message }}</span>
     </div>

@@ -40,6 +40,16 @@ describe('CandidatesComponent', () => {
     expect(text).not.toContain('Hoffmann, Lea');
   });
 
+  it('should provide consistent filter and form action regions', () => {
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.app-filter-bar')?.getAttribute('role')).toBe('search');
+    expect(element.querySelector('.app-form-actions')?.textContent).toContain(
+      'Der Prüfling wird der aktuellen Runde zugeordnet.',
+    );
+    expect(element.querySelectorAll('.app-row-actions').length).toBeGreaterThan(0);
+  });
+
   it('should emit create and delete events', () => {
     const component = fixture.componentInstance;
     spyOn(component.createCandidate, 'emit');

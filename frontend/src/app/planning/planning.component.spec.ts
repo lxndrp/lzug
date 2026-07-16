@@ -62,6 +62,15 @@ describe('PlanningComponent', () => {
     expect(element.querySelector('#examDaysPerWeek')?.getAttribute('max')).toBe('5');
   });
 
+  it('should group planning inputs, actions, and compact table content consistently', () => {
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.app-required-hint')?.textContent).toContain('Pflichtfelder');
+    expect(element.querySelector('.app-form-actions')?.textContent).toContain('Kapazitätsvorschau');
+    expect(element.querySelector('.app-compact-table')).toBeTruthy();
+    expect(element.querySelector('.app-row-actions')?.textContent).toContain('Deaktivieren');
+  });
+
   it('should emit possible day changes', () => {
     const component = fixture.componentInstance;
     spyOn(component.toggleCandidateDay, 'emit');

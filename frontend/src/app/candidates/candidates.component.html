@@ -20,12 +20,18 @@
       <summary class="app-create-trigger">Neuen Prüfling anlegen</summary>
       <c-card>
         <c-card-header>
-          <strong>Prüfling anlegen</strong>
+          <div>
+            <strong>Prüfling anlegen</strong>
+            <span class="app-muted d-block">Stammdaten und Prüfungsbedarf erfassen</span>
+          </div>
+          <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
         </c-card-header>
         <c-card-body>
-          <form class="row g-3" (ngSubmit)="submitCandidate()">
+          <form class="row g-3 app-form-grid" (ngSubmit)="submitCandidate()">
             <div class="col-12 col-md-6">
-              <label cLabel for="candidateFirstName">Vorname</label>
+              <label cLabel for="candidateFirstName"
+                >Vorname <span aria-hidden="true">*</span></label
+              >
               <input
                 cFormControl
                 id="candidateFirstName"
@@ -35,7 +41,9 @@
               />
             </div>
             <div class="col-12 col-md-6">
-              <label cLabel for="candidateLastName">Nachname</label>
+              <label cLabel for="candidateLastName"
+                >Nachname <span aria-hidden="true">*</span></label
+              >
               <input
                 cFormControl
                 id="candidateLastName"
@@ -45,7 +53,9 @@
               />
             </div>
             <div class="col-12 col-md-4">
-              <label cLabel for="candidateExamNumber">Prüfungsnummer</label>
+              <label cLabel for="candidateExamNumber"
+                >Prüfungsnummer <span aria-hidden="true">*</span></label
+              >
               <input
                 cFormControl
                 id="candidateExamNumber"
@@ -101,7 +111,10 @@
                 <label cFormCheckLabel for="candidateMep">MEP erforderlich</label>
               </div>
             </div>
-            <div class="col-12">
+            <div class="col-12 app-form-actions">
+              <span class="app-form-action-hint"
+                >Der Prüfling wird der aktuellen Runde zugeordnet.</span
+              >
               <button cButton color="primary" type="submit" [disabled]="actionBusy">
                 <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                 Prüfling anlegen
@@ -120,7 +133,7 @@
         <span class="app-muted">{{ filteredCandidates().length }} von {{ candidateCount() }}</span>
       </c-card-header>
       <c-card-body>
-        <div class="row g-3 mb-3">
+        <div class="row g-3 app-filter-bar" role="search" aria-label="Prüflingsliste filtern">
           <div class="col-12 col-md-8">
             <label cLabel for="candidateSearch">Suche</label>
             <input
@@ -179,31 +192,37 @@
                     </c-badge>
                   </td>
                   <td>{{ item.candidate.training_company }}</td>
-                  <td>
-                    <button
-                      cButton
-                      color="primary"
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                      [disabled]="actionBusy"
-                      (click)="startEditing(item)"
-                    >
-                      <svg [cIcon]="icons.edit" class="app-button-icon" aria-hidden="true"></svg>
-                      Bearbeiten
-                    </button>
-                    <button
-                      cButton
-                      color="danger"
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                      [disabled]="actionBusy"
-                      (click)="deleteCandidate.emit(item.candidate)"
-                    >
-                      <svg [cIcon]="icons.delete" class="app-button-icon" aria-hidden="true"></svg>
-                      Löschen
-                    </button>
+                  <td class="app-actions">
+                    <div class="app-row-actions">
+                      <button
+                        cButton
+                        color="primary"
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        [disabled]="actionBusy"
+                        (click)="startEditing(item)"
+                      >
+                        <svg [cIcon]="icons.edit" class="app-button-icon" aria-hidden="true"></svg>
+                        Bearbeiten
+                      </button>
+                      <button
+                        cButton
+                        color="danger"
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        [disabled]="actionBusy"
+                        (click)="deleteCandidate.emit(item.candidate)"
+                      >
+                        <svg
+                          [cIcon]="icons.delete"
+                          class="app-button-icon"
+                          aria-hidden="true"
+                        ></svg>
+                        Löschen
+                      </button>
+                    </div>
                   </td>
                 </tr>
                 @if (editingCandidateId() === item.candidate.id) {
@@ -211,7 +230,7 @@
                     <tr>
                       <td colspan="7">
                         <form
-                          class="row g-3 app-inline-editor"
+                          class="row g-3 app-form-grid app-inline-editor"
                           [attr.aria-label]="
                             'Prüfling ' +
                             item.candidate.first_name +
@@ -223,7 +242,7 @@
                         >
                           <div class="col-12 col-md-6">
                             <label cLabel [for]="'editCandidateFirstName-' + item.candidate.id"
-                              >Vorname</label
+                              >Vorname <span aria-hidden="true">*</span></label
                             >
                             <input
                               cFormControl
@@ -235,7 +254,7 @@
                           </div>
                           <div class="col-12 col-md-6">
                             <label cLabel [for]="'editCandidateLastName-' + item.candidate.id"
-                              >Nachname</label
+                              >Nachname <span aria-hidden="true">*</span></label
                             >
                             <input
                               cFormControl
@@ -247,7 +266,7 @@
                           </div>
                           <div class="col-12 col-md-4">
                             <label cLabel [for]="'editCandidateExamNumber-' + item.candidate.id"
-                              >Prüfungsnummer</label
+                              >Prüfungsnummer <span aria-hidden="true">*</span></label
                             >
                             <input
                               cFormControl
@@ -314,7 +333,10 @@
                               >
                             </div>
                           </div>
-                          <div class="col-12 app-actions">
+                          <div class="col-12 app-form-actions">
+                            <span class="app-form-action-hint"
+                              >Änderungen gelten für Stammdaten und aktuelle Runde.</span
+                            >
                             <button cButton color="primary" type="submit" [disabled]="actionBusy">
                               <svg
                                 [cIcon]="icons.save"
@@ -346,7 +368,12 @@
                 }
               } @empty {
                 <tr>
-                  <td colspan="7">Keine passenden Prüflinge vorhanden.</td>
+                  <td colspan="7" class="app-table-empty-cell">
+                    <div class="app-table-empty">
+                      <strong>Keine passenden Prüflinge vorhanden.</strong>
+                      <span>Ändern Sie Suche oder Fachrichtung, um weitere Einträge zu sehen.</span>
+                    </div>
+                  </td>
                 </tr>
               }
             </tbody>

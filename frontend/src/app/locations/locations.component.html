@@ -4,10 +4,14 @@
       <summary class="app-create-trigger">Neuen Prüfungsort anlegen</summary>
       <c-card>
         <c-card-header>
-          <strong>Prüfungsort anlegen</strong>
+          <div>
+            <strong>Prüfungsort anlegen</strong>
+            <span class="app-muted d-block">Ort, Raum und optionale Anschrift erfassen</span>
+          </div>
+          <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
         </c-card-header>
         <c-card-body>
-          <form class="row g-3" (ngSubmit)="submitLocation()">
+          <form class="row g-3 app-form-grid" (ngSubmit)="submitLocation()">
             <div class="col-12 col-md-4">
               <label cLabel for="locationCommittee">Ausschuss</label>
               <select
@@ -23,11 +27,11 @@
               </select>
             </div>
             <div class="col-12 col-md-4">
-              <label cLabel for="locationName">Ort</label>
+              <label cLabel for="locationName">Ort <span aria-hidden="true">*</span></label>
               <input cFormControl id="locationName" name="name" [(ngModel)]="draft.name" required />
             </div>
             <div class="col-12 col-md-4">
-              <label cLabel for="locationRoom">Raum</label>
+              <label cLabel for="locationRoom">Raum <span aria-hidden="true">*</span></label>
               <input cFormControl id="locationRoom" name="room" [(ngModel)]="draft.room" required />
             </div>
             <div class="col-12 col-md-5">
@@ -47,7 +51,10 @@
               <label cLabel for="locationCity">Stadt</label>
               <input cFormControl id="locationCity" name="city" [(ngModel)]="draft.city" />
             </div>
-            <div class="col-12">
+            <div class="col-12 app-form-actions">
+              <span class="app-form-action-hint"
+                >Der Ort steht anschließend in der Terminplanung bereit.</span
+              >
               <button cButton color="primary" type="submit" [disabled]="actionBusy">
                 <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                 Prüfungsort anlegen
@@ -95,47 +102,53 @@
                       {{ location.is_active === 0 ? 'Inaktiv' : 'Aktiv' }}
                     </c-badge>
                   </td>
-                  <td>
-                    <button
-                      cButton
-                      color="primary"
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                      [disabled]="actionBusy"
-                      (click)="startEditing(location)"
-                    >
-                      <svg [cIcon]="icons.edit" class="app-button-icon" aria-hidden="true"></svg>
-                      Bearbeiten
-                    </button>
-                    <button
-                      cButton
-                      color="secondary"
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                      [disabled]="actionBusy"
-                      (click)="toggleLocation.emit(location)"
-                    >
-                      <svg
-                        [cIcon]="location.is_active === 0 ? icons.activate : icons.deactivate"
-                        class="app-button-icon"
-                        aria-hidden="true"
-                      ></svg>
-                      {{ location.is_active === 0 ? 'Aktivieren' : 'Deaktivieren' }}
-                    </button>
-                    <button
-                      cButton
-                      color="danger"
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                      [disabled]="actionBusy"
-                      (click)="deleteLocation.emit(location)"
-                    >
-                      <svg [cIcon]="icons.delete" class="app-button-icon" aria-hidden="true"></svg>
-                      Löschen
-                    </button>
+                  <td class="app-actions">
+                    <div class="app-row-actions">
+                      <button
+                        cButton
+                        color="primary"
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        [disabled]="actionBusy"
+                        (click)="startEditing(location)"
+                      >
+                        <svg [cIcon]="icons.edit" class="app-button-icon" aria-hidden="true"></svg>
+                        Bearbeiten
+                      </button>
+                      <button
+                        cButton
+                        color="secondary"
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        [disabled]="actionBusy"
+                        (click)="toggleLocation.emit(location)"
+                      >
+                        <svg
+                          [cIcon]="location.is_active === 0 ? icons.activate : icons.deactivate"
+                          class="app-button-icon"
+                          aria-hidden="true"
+                        ></svg>
+                        {{ location.is_active === 0 ? 'Aktivieren' : 'Deaktivieren' }}
+                      </button>
+                      <button
+                        cButton
+                        color="danger"
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        [disabled]="actionBusy"
+                        (click)="deleteLocation.emit(location)"
+                      >
+                        <svg
+                          [cIcon]="icons.delete"
+                          class="app-button-icon"
+                          aria-hidden="true"
+                        ></svg>
+                        Löschen
+                      </button>
+                    </div>
                   </td>
                 </tr>
                 @if (editingLocationId() === location.id) {
@@ -143,7 +156,7 @@
                     <tr>
                       <td colspan="5">
                         <form
-                          class="row g-3 app-inline-editor"
+                          class="row g-3 app-form-grid app-inline-editor"
                           [attr.aria-label]="'Prüfungsort ' + location.name + ' bearbeiten'"
                           (ngSubmit)="submitLocationUpdate()"
                         >
@@ -163,7 +176,9 @@
                             </select>
                           </div>
                           <div class="col-12 col-md-4">
-                            <label cLabel [for]="'editLocationName-' + location.id">Ort</label>
+                            <label cLabel [for]="'editLocationName-' + location.id"
+                              >Ort <span aria-hidden="true">*</span></label
+                            >
                             <input
                               cFormControl
                               [id]="'editLocationName-' + location.id"
@@ -173,7 +188,9 @@
                             />
                           </div>
                           <div class="col-12 col-md-4">
-                            <label cLabel [for]="'editLocationRoom-' + location.id">Raum</label>
+                            <label cLabel [for]="'editLocationRoom-' + location.id"
+                              >Raum <span aria-hidden="true">*</span></label
+                            >
                             <input
                               cFormControl
                               [id]="'editLocationRoom-' + location.id"
@@ -211,7 +228,10 @@
                               [(ngModel)]="currentDraft.city"
                             />
                           </div>
-                          <div class="col-12 app-actions">
+                          <div class="col-12 app-form-actions">
+                            <span class="app-form-action-hint"
+                              >Die Änderungen gelten für künftige Planungen.</span
+                            >
                             <button cButton color="primary" type="submit" [disabled]="actionBusy">
                               <svg
                                 [cIcon]="icons.save"
@@ -243,7 +263,12 @@
                 }
               } @empty {
                 <tr>
-                  <td colspan="5">Keine Prüfungsorte vorhanden.</td>
+                  <td colspan="5" class="app-table-empty-cell">
+                    <div class="app-table-empty">
+                      <strong>Keine Prüfungsorte vorhanden.</strong>
+                      <span>Legen Sie den ersten Ort über die Aktion oberhalb an.</span>
+                    </div>
+                  </td>
                 </tr>
               }
             </tbody>

@@ -24,12 +24,16 @@
   <div class="col-12 col-xl-8">
     <c-card>
       <c-card-header>
-        <strong>Planungsrahmen</strong>
+        <div>
+          <strong>Planungsrahmen</strong>
+          <span class="app-muted d-block">Zeitraum, Kapazität und Standardwerte festlegen</span>
+        </div>
+        <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
       </c-card-header>
       <c-card-body>
-        <form class="row g-3" (ngSubmit)="submitSettings()">
+        <form class="row g-3 app-form-grid" (ngSubmit)="submitSettings()">
           <div class="col-12 col-md-6">
-            <label cLabel for="weekFrom">KW von</label>
+            <label cLabel for="weekFrom">KW von <span aria-hidden="true">*</span></label>
             <input
               cFormControl
               id="weekFrom"
@@ -40,7 +44,7 @@
             />
           </div>
           <div class="col-12 col-md-6">
-            <label cLabel for="weekTo">KW bis</label>
+            <label cLabel for="weekTo">KW bis <span aria-hidden="true">*</span></label>
             <input
               cFormControl
               id="weekTo"
@@ -117,7 +121,10 @@
               <label cFormCheckLabel for="lunchBreak">Mittagspause</label>
             </div>
           </div>
-          <div class="col-12">
+          <div class="col-12 app-form-actions">
+            <span class="app-form-action-hint"
+              >Die Kapazitätsvorschau wird nach dem Speichern aktualisiert.</span
+            >
             <button cButton color="primary" type="submit" [disabled]="actionBusy">
               <svg [cIcon]="icons.save" class="app-button-icon" aria-hidden="true"></svg>
               Planungsrahmen speichern
@@ -131,12 +138,15 @@
   <div class="col-12">
     <c-card>
       <c-card-header>
-        <strong>Mögliche Prüfungstage</strong>
+        <div>
+          <strong>Mögliche Prüfungstage</strong>
+          <span class="app-muted d-block">Kalendertage für den Planungsvorschlag freigeben</span>
+        </div>
       </c-card-header>
       <c-card-body>
-        <form class="row g-3 mb-3" (ngSubmit)="submitCandidateDay()">
+        <form class="row g-3 app-form-grid app-compact-form" (ngSubmit)="submitCandidateDay()">
           <div class="col-12 col-md-4">
-            <label cLabel for="candidateDayDate">Datum</label>
+            <label cLabel for="candidateDayDate">Datum <span aria-hidden="true">*</span></label>
             <input
               cFormControl
               id="candidateDayDate"
@@ -146,7 +156,7 @@
               required
             />
           </div>
-          <div class="col-12 col-md-4 d-flex align-items-end">
+          <div class="col-12 col-md-4 d-flex align-items-end app-compact-form-action">
             <div cFormCheck>
               <input
                 cFormCheckInput
@@ -166,49 +176,60 @@
             </button>
           </div>
         </form>
-        <table cTable hover small responsive>
-          <thead>
-            <tr>
-              <th scope="col">Datum</th>
-              <th scope="col">Status</th>
-              <th scope="col">Aktion</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (day of board?.candidateDays || []; track day.id) {
+        <div class="app-table-scroll">
+          <table cTable hover small class="app-compact-table">
+            <thead>
               <tr>
-                <td>{{ dateLabel(day.date) }}</td>
-                <td>
-                  <c-badge [color]="day.is_active ? 'success' : 'secondary'">
-                    {{ day.is_active ? 'Aktiv' : 'Inaktiv' }}
-                  </c-badge>
-                </td>
-                <td>
-                  <button
-                    cButton
-                    color="secondary"
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                    [disabled]="actionBusy"
-                    (click)="toggleCandidateDay.emit(day)"
-                  >
-                    <svg
-                      [cIcon]="day.is_active ? icons.deactivate : icons.activate"
-                      class="app-button-icon"
-                      aria-hidden="true"
-                    ></svg>
-                    {{ day.is_active ? 'Deaktivieren' : 'Aktivieren' }}
-                  </button>
-                </td>
+                <th scope="col">Datum</th>
+                <th scope="col">Status</th>
+                <th scope="col">Aktion</th>
               </tr>
-            } @empty {
-              <tr>
-                <td colspan="3">Keine möglichen Prüfungstage vorhanden.</td>
-              </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (day of board?.candidateDays || []; track day.id) {
+                <tr>
+                  <td>
+                    <strong>{{ dateLabel(day.date) }}</strong>
+                  </td>
+                  <td>
+                    <c-badge [color]="day.is_active ? 'success' : 'secondary'">
+                      {{ day.is_active ? 'Aktiv' : 'Inaktiv' }}
+                    </c-badge>
+                  </td>
+                  <td class="app-actions">
+                    <div class="app-row-actions">
+                      <button
+                        cButton
+                        color="secondary"
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        [disabled]="actionBusy"
+                        (click)="toggleCandidateDay.emit(day)"
+                      >
+                        <svg
+                          [cIcon]="day.is_active ? icons.deactivate : icons.activate"
+                          class="app-button-icon"
+                          aria-hidden="true"
+                        ></svg>
+                        {{ day.is_active ? 'Deaktivieren' : 'Aktivieren' }}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="3" class="app-table-empty-cell">
+                    <div class="app-table-empty">
+                      <strong>Keine möglichen Prüfungstage vorhanden.</strong>
+                      <span>Fügen Sie oben den ersten Kalendertag hinzu.</span>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       </c-card-body>
     </c-card>
   </div>
@@ -296,7 +317,10 @@
             </table>
           </div>
         } @else {
-          <p>Keine aktiven Mitglieder oder möglichen Prüfungstage vorhanden.</p>
+          <div class="app-compact-empty">
+            <strong>Verfügbarkeiten können noch nicht erfasst werden.</strong>
+            <span>Aktivieren Sie mindestens ein Mitglied und einen möglichen Prüfungstag.</span>
+          </div>
         }
       </c-card-body>
     </c-card>

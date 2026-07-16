@@ -99,4 +99,16 @@ test.describe('lzug accessibility', () => {
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
   });
+
+  for (const view of [
+    { name: 'Prüflinge', path: '/candidates' },
+    { name: 'Ausschuss', path: '/committee' },
+    { name: 'Prüfungsorte', path: '/locations' },
+  ]) {
+    test(`has no detectable accessibility violations on ${view.name} @a11y`, async ({ page }) => {
+      await page.goto(view.path);
+      const results = await new AxeBuilder({ page }).analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
 });

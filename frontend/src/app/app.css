@@ -59,6 +59,13 @@ c-header c-container {
   color: #0f5132;
 }
 
+.app-feedback-icon {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-block-start: 2px;
+}
+
 .app-feedback-error {
   border-color: #ea868f;
   border-inline-start-color: #dc3545;
@@ -66,13 +73,17 @@ c-header c-container {
   color: #842029;
 }
 
-.app-feedback div,
-.app-feedback span {
+.app-feedback-copy,
+.app-feedback-copy span {
   display: block;
 }
 
-.app-feedback div {
+.app-feedback-copy {
   flex: 1;
+}
+
+.app-feedback-copy span {
+  margin-block-start: 2px;
 }
 
 .app-feedback button {
@@ -81,4 +92,11 @@ c-header c-container {
   color: currentcolor;
   font-size: 1.5rem;
   line-height: 1;
+}
+
+@media (max-width: 575.98px) {
+  .app-feedback {
+    inset-block-start: 16px;
+    inset-inline: 16px;
+  }
 }

@@ -44,7 +44,10 @@
               <span>{{ committee.occupation }}</span>
             </button>
           } @empty {
-            <p>Keine Ausschüsse vorhanden.</p>
+            <div class="app-compact-empty">
+              <strong>Keine Ausschüsse vorhanden.</strong>
+              <span>Legen Sie zuerst einen Ausschuss an.</span>
+            </div>
           }
         </div>
       </c-card-body>
@@ -54,12 +57,18 @@
       <summary class="app-create-trigger">Neuen Ausschuss anlegen</summary>
       <c-card>
         <c-card-header>
-          <strong>Ausschuss anlegen</strong>
+          <div>
+            <strong>Ausschuss anlegen</strong>
+            <span class="app-muted d-block">Bezeichnung und Ausbildungsberuf festlegen</span>
+          </div>
+          <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
         </c-card-header>
         <c-card-body>
-          <form cForm (submit)="saveCommittee($event)">
+          <form cForm class="app-form-grid" (submit)="saveCommittee($event)">
             <div class="mb-3">
-              <label cLabel for="committeeName">Bezeichnung</label>
+              <label cLabel for="committeeName"
+                >Bezeichnung <span aria-hidden="true">*</span></label
+              >
               <input
                 cFormControl
                 id="committeeName"
@@ -69,7 +78,9 @@
               />
             </div>
             <div class="mb-3">
-              <label cLabel for="committeeOccupation">Ausbildungsberuf</label>
+              <label cLabel for="committeeOccupation"
+                >Ausbildungsberuf <span aria-hidden="true">*</span></label
+              >
               <input
                 cFormControl
                 id="committeeOccupation"
@@ -78,10 +89,15 @@
                 placeholder="Fachinformatiker/in"
               />
             </div>
-            <button cButton color="primary" type="submit" [disabled]="actionBusy">
-              <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
-              Ausschuss anlegen
-            </button>
+            <div class="app-form-actions">
+              <span class="app-form-action-hint"
+                >Mitglieder können anschließend zugeordnet werden.</span
+              >
+              <button cButton color="primary" type="submit" [disabled]="actionBusy">
+                <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
+                Ausschuss anlegen
+              </button>
+            </div>
           </form>
         </c-card-body>
       </c-card>
@@ -96,7 +112,7 @@
       </c-card-header>
       <c-card-body>
         <div class="app-table-scroll">
-          <table cTable hover class="app-data-table app-table-sticky-actions">
+          <table cTable hover small class="app-data-table app-table-sticky-actions">
             <thead>
               <tr>
                 <th scope="col">Name</th>
@@ -127,28 +143,35 @@
                       {{ member.is_active ? 'Aktiv' : 'Inaktiv' }}
                     </c-badge>
                   </td>
-                  <td>
-                    <button
-                      cButton
-                      color="secondary"
-                      size="sm"
-                      variant="outline"
-                      type="button"
-                      (click)="toggleMember.emit(member)"
-                      [disabled]="actionBusy"
-                    >
-                      <svg
-                        [cIcon]="member.is_active ? icons.deactivate : icons.activate"
-                        class="app-button-icon"
-                        aria-hidden="true"
-                      ></svg>
-                      {{ member.is_active ? 'Deaktivieren' : 'Aktivieren' }}
-                    </button>
+                  <td class="app-actions">
+                    <div class="app-row-actions">
+                      <button
+                        cButton
+                        color="secondary"
+                        size="sm"
+                        variant="outline"
+                        type="button"
+                        (click)="toggleMember.emit(member)"
+                        [disabled]="actionBusy"
+                      >
+                        <svg
+                          [cIcon]="member.is_active ? icons.deactivate : icons.activate"
+                          class="app-button-icon"
+                          aria-hidden="true"
+                        ></svg>
+                        {{ member.is_active ? 'Deaktivieren' : 'Aktivieren' }}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="6">Keine Prüfer im ausgewählten Ausschuss.</td>
+                  <td colspan="6" class="app-table-empty-cell">
+                    <div class="app-table-empty">
+                      <strong>Keine Prüfer im ausgewählten Ausschuss.</strong>
+                      <span>Legen Sie den ersten Prüfer über das Formular unterhalb an.</span>
+                    </div>
+                  </td>
                 </tr>
               }
             </tbody>
@@ -161,13 +184,21 @@
       <summary class="app-create-trigger">Neuen Prüfer anlegen</summary>
       <c-card>
         <c-card-header>
-          <strong>Prüfer anlegen</strong>
+          <div>
+            <strong>Prüfer anlegen</strong>
+            <span class="app-muted d-block"
+              >Kontaktdaten, Funktion und Vertreterseite erfassen</span
+            >
+          </div>
+          <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
         </c-card-header>
         <c-card-body>
-          <form cForm (submit)="saveMember($event)">
+          <form cForm class="app-form-grid" (submit)="saveMember($event)">
             <div class="row g-3">
               <div class="col-12">
-                <label cLabel for="memberCommittee">Ausschuss</label>
+                <label cLabel for="memberCommittee"
+                  >Ausschuss <span aria-hidden="true">*</span></label
+                >
                 <select cSelect id="memberCommittee" name="committee_id" required>
                   @for (committee of masterDataView()?.committees || []; track committee.id) {
                     <option [value]="committee.id" [selected]="isSelectedCommittee(committee)">
@@ -177,15 +208,19 @@
                 </select>
               </div>
               <div class="col-12 col-md-6">
-                <label cLabel for="memberFirstName">Vorname</label>
+                <label cLabel for="memberFirstName"
+                  >Vorname <span aria-hidden="true">*</span></label
+                >
                 <input cFormControl id="memberFirstName" name="first_name" required />
               </div>
               <div class="col-12 col-md-6">
-                <label cLabel for="memberLastName">Nachname</label>
+                <label cLabel for="memberLastName"
+                  >Nachname <span aria-hidden="true">*</span></label
+                >
                 <input cFormControl id="memberLastName" name="last_name" required />
               </div>
               <div class="col-12 col-md-6">
-                <label cLabel for="memberEmail">E-Mail</label>
+                <label cLabel for="memberEmail">E-Mail <span aria-hidden="true">*</span></label>
                 <input cFormControl id="memberEmail" name="email" type="email" required />
               </div>
               <div class="col-12 col-md-6">
@@ -227,7 +262,10 @@
                   <label cFormCheckLabel for="memberActive">Aktiv</label>
                 </c-form-check>
               </div>
-              <div class="col-12">
+              <div class="col-12 app-form-actions">
+                <span class="app-form-action-hint"
+                  >Der Prüfer wird direkt dem gewählten Ausschuss zugeordnet.</span
+                >
                 <button cButton color="primary" type="submit" [disabled]="actionBusy">
                   <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                   Prüfer speichern

@@ -112,6 +112,14 @@ describe('LocationsComponent', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('#editLocationName-1')).toBeNull();
   });
 
+  it('should present form guidance and grouped row actions', () => {
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.app-required-hint')?.textContent).toContain('Pflichtfelder');
+    expect(element.querySelector('.app-form-action-hint')?.textContent).toContain('Terminplanung');
+    expect(element.querySelector('.app-row-actions')?.querySelectorAll('button').length).toBe(3);
+  });
+
   function setInput(selector: string, value: string): void {
     const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(selector);
     expect(input).toBeTruthy();

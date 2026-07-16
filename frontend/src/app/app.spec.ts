@@ -80,6 +80,23 @@ describe('App', () => {
       'Terminplanung',
     );
   });
+
+  it('should expose operation errors as a consistent alert', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+
+    const app = fixture.componentInstance as unknown as {
+      notify: (type: 'success' | 'error', title: string, message: string) => void;
+    };
+    app.notify('error', 'Nicht gespeichert', 'Bitte Eingaben prüfen.');
+    fixture.detectChanges();
+
+    const alert = (fixture.nativeElement as HTMLElement).querySelector('.app-feedback');
+    expect(alert?.getAttribute('role')).toBe('alert');
+    expect(alert?.textContent).toContain('Bitte Eingaben prüfen.');
+    expect(alert?.querySelector('.app-feedback-icon')).toBeTruthy();
+  });
 });
 
 function clickButton(fixture: ComponentFixture<App>, label: string): void {
