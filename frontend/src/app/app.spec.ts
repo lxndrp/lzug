@@ -46,6 +46,50 @@ describe('App', () => {
     expect(compiled.textContent).toContain('Planung erzeugen');
   });
 
+  it('should expose the sidebar visibility through accessible toggle state', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+    fixture.detectChanges();
+
+    const app = fixture.componentInstance as unknown as {
+      sidebarVisible: {
+        (): boolean;
+        set(value: boolean): void;
+      };
+    };
+    const toggle = () =>
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+        '.app-sidebar-toggle',
+      );
+
+    app.sidebarVisible.set(true);
+    fixture.detectChanges();
+
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('true');
+    expect(toggle()?.getAttribute('aria-label')).toBe('Navigation schließen');
+
+    app.sidebarVisible.set(false);
+    fixture.detectChanges();
+
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle()?.getAttribute('aria-label')).toBe('Navigation öffnen');
+  });
+
+  it('should update the selected committee', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+
+    const app = fixture.componentInstance as unknown as {
+      selectCommittee(id: number | null): void;
+      selectedCommitteeId: () => number | null;
+    };
+    app.selectCommittee(2);
+
+    expect(app.selectedCommitteeId()).toBe(2);
+  });
+
   it('should ask before deleting a candidate', async () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
@@ -88,6 +132,7 @@ describe('App', () => {
 
     const app = fixture.componentInstance as unknown as {
       notify: (type: 'success' | 'error', title: string, message: string) => void;
+      dismissFeedback: () => void;
     };
     app.notify('error', 'Nicht gespeichert', 'Bitte Eingaben prüfen.');
     fixture.detectChanges();
@@ -96,6 +141,10 @@ describe('App', () => {
     expect(alert?.getAttribute('role')).toBe('alert');
     expect(alert?.textContent).toContain('Bitte Eingaben prüfen.');
     expect(alert?.querySelector('.app-feedback-icon')).toBeTruthy();
+
+    app.dismissFeedback();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.app-feedback')).toBeNull();
   });
 });
 

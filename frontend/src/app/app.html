@@ -4,10 +4,19 @@
   position="fixed"
   role="complementary"
   aria-label="Prüfungsverwaltung"
-  [visible]="true"
+  [visible]="sidebarVisible()"
+  (visibleChange)="sidebarVisible.set($event)"
 >
   <c-sidebar-header>
     <c-sidebar-brand>LZUG</c-sidebar-brand>
+    <button
+      cSidebarToggle="appSidebar"
+      class="app-sidebar-close"
+      type="button"
+      aria-label="Navigation schließen"
+    >
+      <span class="app-menu-icon is-close" aria-hidden="true"></span>
+    </button>
   </c-sidebar-header>
 
   <c-sidebar-nav aria-label="Hauptnavigation" role="list">
@@ -58,7 +67,10 @@
       <button
         cHeaderToggler
         cSidebarToggle="appSidebar"
-        aria-label="Navigation ein- oder ausblenden"
+        [attr.aria-controls]="'appSidebar'"
+        [attr.aria-expanded]="sidebarVisible()"
+        [attr.aria-label]="sidebarVisible() ? 'Navigation schließen' : 'Navigation öffnen'"
+        [class.is-open]="sidebarVisible()"
         class="app-sidebar-toggle"
         type="button"
       ></button>
