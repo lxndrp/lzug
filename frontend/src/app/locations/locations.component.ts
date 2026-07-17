@@ -1,7 +1,6 @@
 import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TuiButton, TuiInput, TuiTextfield } from '@taiga-ui/core';
-import { TuiSelect } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
 
 import { Location, MasterData } from '../api/api.models';
@@ -16,7 +15,7 @@ export type LocationUpdate = {
 
 @Component({
   selector: 'app-locations',
-  imports: [AppIconDirective, FormsModule, TuiButton, TuiInput, TuiSelect, TuiTable, TuiTextfield],
+  imports: [AppIconDirective, FormsModule, TuiButton, TuiInput, TuiTable, TuiTextfield],
   templateUrl: './locations.component.html',
 })
 export class LocationsComponent {

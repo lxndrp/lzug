@@ -149,7 +149,6 @@
             </label>
             <tui-textfield>
               <select
-                tuiSelect
                 id="holidaySubdivisionCode"
                 name="holidaySubdivisionCode"
                 [(ngModel)]="draft.holiday_subdivision_code"
@@ -194,7 +193,6 @@
             <label for="defaultLocation">Standardort</label>
             <tui-textfield>
               <select
-                tuiSelect
                 id="defaultLocation"
                 name="defaultLocation"
                 [(ngModel)]="draft.default_location_id"
@@ -214,7 +212,6 @@
             <label for="updatedByMember">Änderung dokumentieren für</label>
             <tui-textfield>
               <select
-                tuiSelect
                 id="updatedByMember"
                 name="updatedByMember"
                 [(ngModel)]="draft.updated_by_member_id"
@@ -421,7 +418,6 @@
                         <div class="app-availability-control">
                           <tui-textfield>
                             <select
-                              tuiSelect
                               [attr.aria-label]="memberLabel(member) + ' ' + dateLabel(day.date)"
                               [attr.aria-describedby]="
                                 availabilityCellState(member.id, day.id)

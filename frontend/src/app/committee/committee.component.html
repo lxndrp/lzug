@@ -203,7 +203,7 @@
               <div class="col-12">
                 <label for="memberCommittee">Ausschuss <span aria-hidden="true">*</span></label>
                 <tui-textfield>
-                  <select tuiSelect id="memberCommittee" name="committee_id" ngModel required>
+                  <select id="memberCommittee" name="committee_id" ngModel required>
                     @for (committee of masterDataView()?.committees || []; track committee.id) {
                       <option [value]="committee.id" [selected]="isSelectedCommittee(committee)">
                         {{ committee.name }}
@@ -239,7 +239,7 @@
               <div class="col-12 col-md-4">
                 <label for="memberStatus">Mitgliedsstatus</label>
                 <tui-textfield>
-                  <select tuiSelect id="memberStatus" name="member_status" ngModel>
+                  <select id="memberStatus" name="member_status" ngModel>
                     <option value="ordinary">Ordentlich</option>
                     <option value="deputy">Stellvertretend</option>
                   </select>
@@ -248,7 +248,7 @@
               <div class="col-12 col-md-4">
                 <label for="memberRole">Funktion</label>
                 <tui-textfield>
-                  <select tuiSelect id="memberRole" name="committee_role" ngModel>
+                  <select id="memberRole" name="committee_role" ngModel>
                     <option value="member">Mitglied</option>
                     <option value="chair">Vorsitz</option>
                     <option value="deputy_chair">Stellv. Vorsitz</option>
@@ -258,7 +258,7 @@
               <div class="col-12 col-md-4">
                 <label for="memberSide">Vertreterseite</label>
                 <tui-textfield>
-                  <select tuiSelect id="memberSide" name="representing_side" ngModel>
+                  <select id="memberSide" name="representing_side" ngModel>
                     <option value="employer">Arbeitgeber</option>
                     <option value="employee">Arbeitnehmer</option>
                     <option value="school">Schule</option>

@@ -15,12 +15,7 @@
             <div class="col-12 col-md-4">
               <label for="locationCommittee">Ausschuss</label>
               <tui-textfield>
-                <select
-                  tuiSelect
-                  id="locationCommittee"
-                  name="committeeId"
-                  [(ngModel)]="draft.committee_id"
-                >
+                <select id="locationCommittee" name="committeeId" [(ngModel)]="draft.committee_id">
                   <option [ngValue]="0">Standardausschuss</option>
                   @for (committee of masterData?.committees || []; track committee.id) {
                     <option [ngValue]="committee.id">{{ committee.name }}</option>
@@ -179,7 +174,6 @@
                             <label [for]="'editLocationCommittee-' + location.id">Ausschuss</label>
                             <tui-textfield>
                               <select
-                                tuiSelect
                                 [id]="'editLocationCommittee-' + location.id"
                                 [name]="'editLocationCommittee-' + location.id"
                                 [(ngModel)]="currentDraft.committee_id"
