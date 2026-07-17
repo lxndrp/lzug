@@ -1,6 +1,6 @@
 import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { TuiButton, TuiInput, TuiTextfield } from '@taiga-ui/core';
+import { TuiButton, TuiInput } from '@taiga-ui/core';
 import { TuiSelect } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
 
@@ -19,7 +19,7 @@ export type CandidateUpdate = {
 
 @Component({
   selector: 'app-candidates',
-  imports: [AppIconDirective, FormsModule, TuiButton, TuiInput, TuiSelect, TuiTable, TuiTextfield],
+  imports: [AppIconDirective, FormsModule, TuiButton, TuiInput, TuiSelect, TuiTable],
   templateUrl: './candidates.component.html',
 })
 export class CandidatesComponent {
