@@ -106,7 +106,7 @@ Die Entwicklungsumgebung ist im Repository festgelegt und wird mit **mise** verw
 - `holidays` als kuratierte Feiertagsberechnung im Python-Backend
 - Node.js `26.5.0` und npm fuer das Frontend
 - uv fuer die Python-Umgebung und das Lockfile `uv.lock`
-- Angular `22`, TypeScript `6` und CoreUI im Verzeichnis `frontend/`
+- Angular `22`, TypeScript `6` und Taiga UI im Verzeichnis `frontend/`
 - npm mit `frontend/package-lock.json`; pnpm wird nicht verwendet
 
 Weitere technische Details stehen in `docs/ARCHITECTURE.md`.

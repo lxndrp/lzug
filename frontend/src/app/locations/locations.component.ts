@@ -1,10 +1,11 @@
 import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { BadgeModule, ButtonModule, FormModule, GridModule, TableModule } from '@coreui/angular';
-import { IconDirective } from '@coreui/icons-angular';
+import { TuiButton, TuiInput, TuiTextfield } from '@taiga-ui/core';
+import { TuiTable } from '@taiga-ui/addon-table';
 
 import { Location, MasterData } from '../api/api.models';
 import { appIcons } from '../app-icons';
+import { AppIconDirective } from '../app-icon.directive';
 
 export type LocationPayload = Omit<Location, 'id'>;
 export type LocationUpdate = {
@@ -14,15 +15,7 @@ export type LocationUpdate = {
 
 @Component({
   selector: 'app-locations',
-  imports: [
-    BadgeModule,
-    ButtonModule,
-    FormModule,
-    FormsModule,
-    GridModule,
-    IconDirective,
-    TableModule,
-  ],
+  imports: [AppIconDirective, FormsModule, TuiButton, TuiInput, TuiTable, TuiTextfield],
   templateUrl: './locations.component.html',
 })
 export class LocationsComponent {

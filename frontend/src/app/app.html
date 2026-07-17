@@ -242,34 +242,28 @@
   </aside>
 }
 
-<c-modal
-  alignment="center"
-  backdrop="static"
-  [visible]="confirmation() !== null"
-  (visibleChange)="$event || cancelConfirmation()"
+<dialog
+  class="app-confirmation-dialog"
+  [open]="confirmation() !== null"
+  aria-labelledby="confirmation-title"
+  (cancel)="cancelConfirmation()"
 >
   @if (confirmation(); as currentConfirmation) {
-    <c-modal-header>
-      <h2 cModalTitle>{{ currentConfirmation.title }}</h2>
-    </c-modal-header>
-    <c-modal-body>
+    <header class="app-confirmation-header">
+      <h2 id="confirmation-title">{{ currentConfirmation.title }}</h2>
+    </header>
+    <div class="app-confirmation-body">
       <p class="mb-0">{{ currentConfirmation.message }}</p>
-    </c-modal-body>
-    <c-modal-footer>
-      <button
-        cButton
-        color="secondary"
-        variant="outline"
-        type="button"
-        (click)="cancelConfirmation()"
-      >
+    </div>
+    <footer class="app-confirmation-footer">
+      <button class="app-button app-button-secondary" type="button" (click)="cancelConfirmation()">
         <svg [cIcon]="icons.cancel" class="app-button-icon" aria-hidden="true"></svg>
         Abbrechen
       </button>
-      <button cButton color="danger" type="button" (click)="confirmAction()">
+      <button class="app-button app-button-danger" type="button" (click)="confirmAction()">
         <svg [cIcon]="icons.confirm" class="app-button-icon" aria-hidden="true"></svg>
         {{ currentConfirmation.confirmLabel }}
       </button>
-    </c-modal-footer>
+    </footer>
   }
-</c-modal>
+</dialog>

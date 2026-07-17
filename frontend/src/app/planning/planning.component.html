@@ -11,37 +11,43 @@
       <div class="app-panel-body">
         <form id="roundMetadataForm" class="row g-3 app-form-grid" (ngSubmit)="submitRound()">
           <div class="col-12 col-md-4">
-            <label cLabel for="roundName">Bezeichnung</label>
-            <input
-              cFormControl
-              id="roundName"
-              name="roundName"
-              [(ngModel)]="roundDraft.name"
-              required
-            />
+            <label for="roundName">Bezeichnung</label>
+            <tui-textfield>
+              <input
+                tuiInput
+                id="roundName"
+                name="roundName"
+                [(ngModel)]="roundDraft.name"
+                required
+              />
+            </tui-textfield>
           </div>
           <div class="col-12 col-md-4">
-            <label cLabel for="availabilityDeadline">Rückmeldefrist</label>
-            <input
-              cFormControl
-              id="availabilityDeadline"
-              name="availabilityDeadline"
-              type="datetime-local"
-              [(ngModel)]="roundDraft.availability_deadline"
-            />
+            <label for="availabilityDeadline">Rückmeldefrist</label>
+            <tui-textfield>
+              <input
+                tuiInput
+                id="availabilityDeadline"
+                name="availabilityDeadline"
+                type="datetime-local"
+                [(ngModel)]="roundDraft.availability_deadline"
+              />
+            </tui-textfield>
           </div>
           <div class="col-12 col-md-4">
-            <label cLabel for="availabilityReminder">Erinnerung</label>
-            <input
-              cFormControl
-              id="availabilityReminder"
-              name="availabilityReminder"
-              type="datetime-local"
-              [(ngModel)]="roundDraft.availability_reminder_at"
-            />
+            <label for="availabilityReminder">Erinnerung</label>
+            <tui-textfield>
+              <input
+                tuiInput
+                id="availabilityReminder"
+                name="availabilityReminder"
+                type="datetime-local"
+                [(ngModel)]="roundDraft.availability_reminder_at"
+              />
+            </tui-textfield>
           </div>
           <div class="col-12 app-form-actions">
-            <button cButton color="primary" type="submit" [disabled]="actionBusy">
+            <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
               <svg [cIcon]="icons.save" class="app-button-icon" aria-hidden="true"></svg>
               Prüfungsrunde speichern
             </button>
@@ -64,9 +70,12 @@
           <dd class="col-5">{{ capacity() }}</dd>
           <dt class="col-7">Bewertung</dt>
           <dd class="col-5">
-            <c-badge [color]="capacity() >= requiredSlots() ? 'success' : 'warning'">
+            <span
+              class="app-badge"
+              [attr.data-color]="capacity() >= requiredSlots() ? 'success' : 'warning'"
+            >
               {{ capacity() >= requiredSlots() ? 'Ausreichend' : 'Unterdeckung' }}
-            </c-badge>
+            </span>
           </dd>
         </dl>
       </div>
@@ -85,136 +94,147 @@
       <div class="app-panel-body">
         <form id="planningSettingsForm" class="row g-3 app-form-grid" (ngSubmit)="submitSettings()">
           <div class="col-12 col-md-6">
-            <label cLabel for="weekFrom">KW von <span aria-hidden="true">*</span></label>
-            <input
-              cFormControl
-              id="weekFrom"
-              name="weekFrom"
-              type="week"
-              aria-describedby="weekFromHint"
-              [(ngModel)]="draft.calendar_week_from"
-              required
-            />
+            <label for="weekFrom">KW von <span aria-hidden="true">*</span></label>
+            <tui-textfield>
+              <input
+                tuiInput
+                id="weekFrom"
+                name="weekFrom"
+                type="week"
+                aria-describedby="weekFromHint"
+                [(ngModel)]="draft.calendar_week_from"
+                required
+              />
+            </tui-textfield>
             <small id="weekFromHint" class="app-muted d-block mt-1"
               >ISO: {{ draft.calendar_week_from || '–' }}</small
             >
           </div>
           <div class="col-12 col-md-6">
-            <label cLabel for="weekTo">KW bis <span aria-hidden="true">*</span></label>
-            <input
-              cFormControl
-              id="weekTo"
-              name="weekTo"
-              type="week"
-              aria-describedby="weekToHint"
-              [(ngModel)]="draft.calendar_week_to"
-              required
-            />
+            <label for="weekTo">KW bis <span aria-hidden="true">*</span></label>
+            <tui-textfield>
+              <input
+                tuiInput
+                id="weekTo"
+                name="weekTo"
+                type="week"
+                aria-describedby="weekToHint"
+                [(ngModel)]="draft.calendar_week_to"
+                required
+              />
+            </tui-textfield>
             <small id="weekToHint" class="app-muted d-block mt-1"
               >ISO: {{ draft.calendar_week_to || '–' }}</small
             >
           </div>
           <div class="col-12 col-md-6 d-flex align-items-end">
-            <div cFormCheck>
+            <div class="app-form-check">
               <input
-                cFormCheckInput
+                class="form-check-input"
                 id="excludePublicHolidays"
                 name="excludePublicHolidays"
                 type="checkbox"
                 [ngModel]="draft.exclude_public_holidays === 1"
                 (ngModelChange)="draft.exclude_public_holidays = $event ? 1 : 0"
               />
-              <label cFormCheckLabel for="excludePublicHolidays"
-                >Gesetzliche Feiertage ausschließen</label
-              >
+              <label for="excludePublicHolidays">Gesetzliche Feiertage ausschließen</label>
             </div>
           </div>
           <div class="col-12 col-md-6">
-            <label cLabel for="holidaySubdivisionCode"
+            <label for="holidaySubdivisionCode"
               >Bundesland
               @if (draft.exclude_public_holidays) {
                 <span aria-hidden="true">*</span>
               }
             </label>
-            <select
-              cSelect
-              id="holidaySubdivisionCode"
-              name="holidaySubdivisionCode"
-              [(ngModel)]="draft.holiday_subdivision_code"
-              [disabled]="!draft.exclude_public_holidays"
-              [required]="draft.exclude_public_holidays === 1"
-            >
-              <option [ngValue]="null">Bundesland auswählen</option>
-              @for (state of federalStates; track state.code) {
-                <option [ngValue]="state.code">{{ state.name }}</option>
-              }
-            </select>
-          </div>
-          <div class="col-12 col-md-4">
-            <label cLabel for="examsPerDay">Prüfungen pro Tag</label>
-            <input
-              cFormControl
-              id="examsPerDay"
-              min="1"
-              name="examsPerDay"
-              type="number"
-              [(ngModel)]="draft.exams_per_day"
-            />
-          </div>
-          <div class="col-12 col-md-4">
-            <label cLabel for="examDaysPerWeek">Max. Tage pro Woche</label>
-            <input
-              cFormControl
-              id="examDaysPerWeek"
-              max="5"
-              min="1"
-              name="examDaysPerWeek"
-              type="number"
-              [(ngModel)]="draft.max_exam_days_per_week"
-            />
-          </div>
-          <div class="col-12 col-md-4">
-            <label cLabel for="defaultLocation">Standardort</label>
-            <select
-              cSelect
-              id="defaultLocation"
-              name="defaultLocation"
-              [(ngModel)]="draft.default_location_id"
-            >
-              <option [ngValue]="null">Kein Standardort</option>
-              @for (location of board?.locations || []; track location.id) {
-                @if (location.is_active !== 0) {
-                  <option [ngValue]="location.id">{{ location.name }} · {{ location.room }}</option>
+            <tui-textfield>
+              <select
+                id="holidaySubdivisionCode"
+                name="holidaySubdivisionCode"
+                [(ngModel)]="draft.holiday_subdivision_code"
+                [disabled]="!draft.exclude_public_holidays"
+                [required]="draft.exclude_public_holidays === 1"
+              >
+                <option [ngValue]="null">Bundesland auswählen</option>
+                @for (state of federalStates; track state.code) {
+                  <option [ngValue]="state.code">{{ state.name }}</option>
                 }
-              }
-            </select>
+              </select>
+            </tui-textfield>
+          </div>
+          <div class="col-12 col-md-4">
+            <label for="examsPerDay">Prüfungen pro Tag</label>
+            <tui-textfield>
+              <input
+                tuiInput
+                id="examsPerDay"
+                min="1"
+                name="examsPerDay"
+                type="number"
+                [(ngModel)]="draft.exams_per_day"
+              />
+            </tui-textfield>
+          </div>
+          <div class="col-12 col-md-4">
+            <label for="examDaysPerWeek">Max. Tage pro Woche</label>
+            <tui-textfield>
+              <input
+                tuiInput
+                id="examDaysPerWeek"
+                max="5"
+                min="1"
+                name="examDaysPerWeek"
+                type="number"
+                [(ngModel)]="draft.max_exam_days_per_week"
+              />
+            </tui-textfield>
+          </div>
+          <div class="col-12 col-md-4">
+            <label for="defaultLocation">Standardort</label>
+            <tui-textfield>
+              <select
+                id="defaultLocation"
+                name="defaultLocation"
+                [(ngModel)]="draft.default_location_id"
+              >
+                <option [ngValue]="null">Kein Standardort</option>
+                @for (location of board?.locations || []; track location.id) {
+                  @if (location.is_active !== 0) {
+                    <option [ngValue]="location.id">
+                      {{ location.name }} · {{ location.room }}
+                    </option>
+                  }
+                }
+              </select>
+            </tui-textfield>
           </div>
           <div class="col-12 col-md-8">
-            <label cLabel for="updatedByMember">Änderung dokumentieren für</label>
-            <select
-              cSelect
-              id="updatedByMember"
-              name="updatedByMember"
-              [(ngModel)]="draft.updated_by_member_id"
-            >
-              @for (member of masterData?.members || []; track member.id) {
-                <option [ngValue]="member.id">
-                  {{ member.first_name }} {{ member.last_name }}
-                </option>
-              }
-            </select>
+            <label for="updatedByMember">Änderung dokumentieren für</label>
+            <tui-textfield>
+              <select
+                id="updatedByMember"
+                name="updatedByMember"
+                [(ngModel)]="draft.updated_by_member_id"
+              >
+                @for (member of masterData?.members || []; track member.id) {
+                  <option [ngValue]="member.id">
+                    {{ member.first_name }} {{ member.last_name }}
+                  </option>
+                }
+              </select>
+            </tui-textfield>
           </div>
           <div class="col-12 col-md-4 d-flex align-items-end">
-            <div cFormCheck>
+            <div class="app-form-check">
               <input
-                cFormCheckInput
+                class="form-check-input"
                 id="lunchBreak"
                 name="lunchBreak"
                 type="checkbox"
                 [ngModel]="draft.lunch_break_enabled === 1"
                 (ngModelChange)="draft.lunch_break_enabled = $event ? 1 : 0"
               />
-              <label cFormCheckLabel for="lunchBreak">Mittagspause</label>
+              <label for="lunchBreak">Mittagspause</label>
             </div>
           </div>
           <div class="col-12 app-form-actions">
@@ -223,7 +243,7 @@
             >
             <div class="d-flex flex-wrap gap-2">
               <button
-                cButton
+                tuiButton
                 color="secondary"
                 type="button"
                 variant="outline"
@@ -233,7 +253,7 @@
                 <svg [cIcon]="icons.calendar" class="app-button-icon" aria-hidden="true"></svg>
                 Mögliche Tage berechnen
               </button>
-              <button cButton color="primary" type="submit" [disabled]="actionBusy">
+              <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
                 <svg [cIcon]="icons.save" class="app-button-icon" aria-hidden="true"></svg>
                 Planungsrahmen speichern
               </button>
@@ -254,7 +274,7 @@
       </header>
       <div class="app-panel-body">
         @if (candidateDayGenerationResult; as result) {
-          <c-alert color="info">
+          <aside class="app-alert app-alert-info" role="status">
             <strong>{{ result.counts.created }} Tage angelegt</strong>
             <span class="d-block">
               {{ result.counts.existing }} bereits vorhanden ·
@@ -267,42 +287,44 @@
                 }
               </ul>
             }
-          </c-alert>
+          </aside>
         }
         <form class="row g-3 app-form-grid app-compact-form" (ngSubmit)="submitCandidateDay()">
           <div class="col-12 col-md-4">
-            <label cLabel for="candidateDayDate">Datum <span aria-hidden="true">*</span></label>
-            <input
-              cFormControl
-              id="candidateDayDate"
-              name="candidateDayDate"
-              type="date"
-              [(ngModel)]="candidateDayDraft.date"
-              required
-            />
+            <label for="candidateDayDate">Datum <span aria-hidden="true">*</span></label>
+            <tui-textfield>
+              <input
+                tuiInput
+                id="candidateDayDate"
+                name="candidateDayDate"
+                type="date"
+                [(ngModel)]="candidateDayDraft.date"
+                required
+              />
+            </tui-textfield>
           </div>
           <div class="col-12 col-md-4 d-flex align-items-end app-compact-form-action">
-            <div cFormCheck>
+            <div class="app-form-check">
               <input
-                cFormCheckInput
+                class="form-check-input"
                 id="candidateDayActive"
                 name="candidateDayActive"
                 type="checkbox"
                 [ngModel]="candidateDayDraft.is_active === 1"
                 (ngModelChange)="candidateDayDraft.is_active = $event ? 1 : 0"
               />
-              <label cFormCheckLabel for="candidateDayActive">Aktiv</label>
+              <label for="candidateDayActive">Aktiv</label>
             </div>
           </div>
           <div class="col-12 col-md-4 d-flex align-items-end">
-            <button cButton color="primary" type="submit" [disabled]="actionBusy">
+            <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
               <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
               Prüfungstag hinzufügen
             </button>
           </div>
         </form>
         <div class="app-table-scroll">
-          <table cTable hover small class="app-compact-table">
+          <table tuiTable class="app-compact-table">
             <thead>
               <tr>
                 <th scope="col">Datum</th>
@@ -317,16 +339,19 @@
                     <strong>{{ dateLabel(day.date) }}</strong>
                   </td>
                   <td>
-                    <c-badge [color]="day.is_active ? 'success' : 'secondary'">
+                    <span
+                      class="app-badge"
+                      [attr.data-color]="day.is_active ? 'success' : 'secondary'"
+                    >
                       {{ day.is_active ? 'Aktiv' : 'Inaktiv' }}
-                    </c-badge>
+                    </span>
                   </td>
                   <td class="app-actions">
                     <div class="app-row-actions">
                       <button
-                        cButton
+                        tuiButton
                         color="secondary"
-                        size="sm"
+                        size="s"
                         type="button"
                         variant="outline"
                         [disabled]="actionBusy"
@@ -372,7 +397,7 @@
             tabindex="0"
             aria-label="Verfügbarkeiten nach Mitglied und Prüfungstag"
           >
-            <table cTable hover small class="app-availability-table">
+            <table tuiTable class="app-availability-table">
               <thead>
                 <tr>
                   <th scope="col">Mitglied</th>
@@ -391,26 +416,27 @@
                     @for (day of board?.candidateDays || []; track day.id) {
                       <td>
                         <div class="app-availability-control">
-                          <select
-                            cSelect
-                            [attr.aria-label]="memberLabel(member) + ' ' + dateLabel(day.date)"
-                            [attr.aria-describedby]="
-                              availabilityCellState(member.id, day.id)
-                                ? availabilityStatusId(member.id, day.id)
-                                : null
-                            "
-                            [disabled]="
-                              actionBusy ||
-                              isAvailabilitySaving(member.id, day.id) ||
-                              !day.is_active
-                            "
-                            [ngModel]="availabilityFor(member.id, day.id)"
-                            (ngModelChange)="changeAvailability(member, day, $event)"
-                          >
-                            @for (option of availabilityOptions(); track option.value) {
-                              <option [ngValue]="option.value">{{ option.label }}</option>
-                            }
-                          </select>
+                          <tui-textfield>
+                            <select
+                              [attr.aria-label]="memberLabel(member) + ' ' + dateLabel(day.date)"
+                              [attr.aria-describedby]="
+                                availabilityCellState(member.id, day.id)
+                                  ? availabilityStatusId(member.id, day.id)
+                                  : null
+                              "
+                              [disabled]="
+                                actionBusy ||
+                                isAvailabilitySaving(member.id, day.id) ||
+                                !day.is_active
+                              "
+                              [ngModel]="availabilityFor(member.id, day.id)"
+                              (ngModelChange)="changeAvailability(member, day, $event)"
+                            >
+                              @for (option of availabilityOptions(); track option.value) {
+                                <option [ngValue]="option.value">{{ option.label }}</option>
+                              }
+                            </select>
+                          </tui-textfield>
                           @if (availabilityCellState(member.id, day.id); as cellState) {
                             <span
                               class="app-cell-status"

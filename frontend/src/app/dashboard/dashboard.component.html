@@ -15,7 +15,7 @@
           </div>
           <div class="app-dashboard-actions">
             <button
-              cButton
+              tuiButton
               color="primary"
               type="button"
               (click)="generateProposal.emit()"
@@ -25,7 +25,7 @@
               Planung erzeugen
             </button>
             <button
-              cButton
+              tuiButton
               color="secondary"
               variant="outline"
               type="button"
@@ -151,7 +151,12 @@
 
   @if (planningResult?.validation; as validation) {
     <div class="col-12">
-      <c-alert [color]="validation.passed ? 'success' : 'warning'">
+      <aside
+        class="app-alert"
+        [class.app-alert-success]="validation.passed"
+        [class.app-alert-warning]="!validation.passed"
+        role="status"
+      >
         <strong>Validierungsreport</strong>
         @if (validation.messages.length) {
           <ul class="mb-0">
@@ -162,7 +167,7 @@
         } @else {
           <span>Keine Hinweise.</span>
         }
-      </c-alert>
+      </aside>
     </div>
   }
 
@@ -242,7 +247,7 @@
         <strong>Bestätigte Termine</strong>
       </header>
       <div class="app-panel-body">
-        <table cTable hover small responsive>
+        <table tuiTable class="app-compact-table">
           <thead>
             <tr>
               <th scope="col">Datum</th>

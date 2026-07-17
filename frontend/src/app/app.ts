@@ -1,8 +1,6 @@
 import { Component, DestroyRef, ViewChild, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
-import { ButtonModule, ModalModule } from '@coreui/angular';
-import { IconDirective } from '@coreui/icons-angular';
 import { TuiRoot } from '@taiga-ui/core';
 import { filter, finalize, switchMap } from 'rxjs';
 
@@ -22,6 +20,7 @@ import {
 import { PlanningApiService } from './api/planning-api.service';
 import { AppView } from './app-view';
 import { appIcons } from './app-icons';
+import { AppIconDirective } from './app-icon.directive';
 import {
   CandidatePayload,
   CandidatesComponent,
@@ -49,14 +48,12 @@ import { TaigaPrototypeComponent } from './taiga-prototype/taiga-prototype.compo
 @Component({
   selector: 'app-root',
   imports: [
+    AppIconDirective,
     CandidatesComponent,
     CommitteeComponent,
     DashboardComponent,
     LocationsComponent,
     PlanningComponent,
-    ButtonModule,
-    IconDirective,
-    ModalModule,
     TaigaPrototypeComponent,
     TuiRoot,
   ],
@@ -84,7 +81,9 @@ export class App {
   );
   protected readonly activeView = signal<AppView>('dashboard');
   protected readonly prototypeVisible = signal(false);
-  protected readonly sidebarVisible = signal(!window.matchMedia('(max-width: 767.98px)').matches);
+  protected readonly sidebarVisible = signal(
+    typeof window === 'undefined' || window.innerWidth >= 768,
+  );
   protected readonly selectedCommitteeId = signal<number | null>(null);
   protected readonly message = signal('Bereit');
   protected readonly loading = signal(false);

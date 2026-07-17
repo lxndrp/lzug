@@ -13,49 +13,56 @@
         <div class="app-panel-body">
           <form class="row g-3 app-form-grid" (ngSubmit)="submitLocation()">
             <div class="col-12 col-md-4">
-              <label cLabel for="locationCommittee">Ausschuss</label>
-              <select
-                cSelect
-                id="locationCommittee"
-                name="committeeId"
-                [(ngModel)]="draft.committee_id"
-              >
-                <option [ngValue]="0">Standardausschuss</option>
-                @for (committee of masterData?.committees || []; track committee.id) {
-                  <option [ngValue]="committee.id">{{ committee.name }}</option>
-                }
-              </select>
+              <label for="locationCommittee">Ausschuss</label>
+              <tui-textfield>
+                <select id="locationCommittee" name="committeeId" [(ngModel)]="draft.committee_id">
+                  <option [ngValue]="0">Standardausschuss</option>
+                  @for (committee of masterData?.committees || []; track committee.id) {
+                    <option [ngValue]="committee.id">{{ committee.name }}</option>
+                  }
+                </select>
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-4">
-              <label cLabel for="locationName">Ort <span aria-hidden="true">*</span></label>
-              <input cFormControl id="locationName" name="name" [(ngModel)]="draft.name" required />
+              <label for="locationName">Ort <span aria-hidden="true">*</span></label>
+              <tui-textfield>
+                <input tuiInput id="locationName" name="name" [(ngModel)]="draft.name" required />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-4">
-              <label cLabel for="locationRoom">Raum <span aria-hidden="true">*</span></label>
-              <input cFormControl id="locationRoom" name="room" [(ngModel)]="draft.room" required />
+              <label for="locationRoom">Raum <span aria-hidden="true">*</span></label>
+              <tui-textfield>
+                <input tuiInput id="locationRoom" name="room" [(ngModel)]="draft.room" required />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-5">
-              <label cLabel for="locationStreet">Straße</label>
-              <input cFormControl id="locationStreet" name="street" [(ngModel)]="draft.street" />
+              <label for="locationStreet">Straße</label>
+              <tui-textfield>
+                <input tuiInput id="locationStreet" name="street" [(ngModel)]="draft.street" />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-3">
-              <label cLabel for="locationPostalCode">PLZ</label>
-              <input
-                cFormControl
-                id="locationPostalCode"
-                name="postalCode"
-                [(ngModel)]="draft.postal_code"
-              />
+              <label for="locationPostalCode">PLZ</label>
+              <tui-textfield>
+                <input
+                  tuiInput
+                  id="locationPostalCode"
+                  name="postalCode"
+                  [(ngModel)]="draft.postal_code"
+                />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-4">
-              <label cLabel for="locationCity">Stadt</label>
-              <input cFormControl id="locationCity" name="city" [(ngModel)]="draft.city" />
+              <label for="locationCity">Stadt</label>
+              <tui-textfield>
+                <input tuiInput id="locationCity" name="city" [(ngModel)]="draft.city" />
+              </tui-textfield>
             </div>
             <div class="col-12 app-form-actions">
               <span class="app-form-action-hint"
                 >Der Ort steht anschließend in der Terminplanung bereit.</span
               >
-              <button cButton color="primary" type="submit" [disabled]="actionBusy">
+              <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
                 <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                 Prüfungsort anlegen
               </button>
@@ -76,7 +83,7 @@
       </header>
       <div class="app-panel-body">
         <div class="app-table-scroll">
-          <table cTable hover small class="app-data-table app-table-sticky-actions">
+          <table tuiTable class="app-data-table app-table-sticky-actions">
             <thead>
               <tr>
                 <th scope="col">Ort</th>
@@ -98,16 +105,19 @@
                     }
                   </td>
                   <td>
-                    <c-badge [color]="location.is_active === 0 ? 'secondary' : 'success'">
+                    <span
+                      class="app-badge"
+                      [attr.data-color]="location.is_active === 0 ? 'secondary' : 'success'"
+                    >
                       {{ location.is_active === 0 ? 'Inaktiv' : 'Aktiv' }}
-                    </c-badge>
+                    </span>
                   </td>
                   <td class="app-actions">
                     <div class="app-row-actions">
                       <button
-                        cButton
+                        tuiButton
                         color="primary"
-                        size="sm"
+                        size="s"
                         type="button"
                         variant="outline"
                         [disabled]="actionBusy"
@@ -117,9 +127,9 @@
                         Bearbeiten
                       </button>
                       <button
-                        cButton
+                        tuiButton
                         color="secondary"
-                        size="sm"
+                        size="s"
                         type="button"
                         variant="outline"
                         [disabled]="actionBusy"
@@ -133,9 +143,9 @@
                         {{ location.is_active === 0 ? 'Aktivieren' : 'Deaktivieren' }}
                       </button>
                       <button
-                        cButton
+                        tuiButton
                         color="danger"
-                        size="sm"
+                        size="s"
                         type="button"
                         variant="outline"
                         [disabled]="actionBusy"
@@ -161,78 +171,88 @@
                           (ngSubmit)="submitLocationUpdate()"
                         >
                           <div class="col-12 col-md-4">
-                            <label cLabel [for]="'editLocationCommittee-' + location.id"
-                              >Ausschuss</label
-                            >
-                            <select
-                              cSelect
-                              [id]="'editLocationCommittee-' + location.id"
-                              [name]="'editLocationCommittee-' + location.id"
-                              [(ngModel)]="currentDraft.committee_id"
-                            >
-                              @for (committee of masterData?.committees || []; track committee.id) {
-                                <option [ngValue]="committee.id">{{ committee.name }}</option>
-                              }
-                            </select>
+                            <label [for]="'editLocationCommittee-' + location.id">Ausschuss</label>
+                            <tui-textfield>
+                              <select
+                                [id]="'editLocationCommittee-' + location.id"
+                                [name]="'editLocationCommittee-' + location.id"
+                                [(ngModel)]="currentDraft.committee_id"
+                              >
+                                @for (
+                                  committee of masterData?.committees || [];
+                                  track committee.id
+                                ) {
+                                  <option [ngValue]="committee.id">{{ committee.name }}</option>
+                                }
+                              </select>
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-4">
-                            <label cLabel [for]="'editLocationName-' + location.id"
+                            <label [for]="'editLocationName-' + location.id"
                               >Ort <span aria-hidden="true">*</span></label
                             >
-                            <input
-                              cFormControl
-                              [id]="'editLocationName-' + location.id"
-                              [name]="'editLocationName-' + location.id"
-                              [(ngModel)]="currentDraft.name"
-                              required
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editLocationName-' + location.id"
+                                [name]="'editLocationName-' + location.id"
+                                [(ngModel)]="currentDraft.name"
+                                required
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-4">
-                            <label cLabel [for]="'editLocationRoom-' + location.id"
+                            <label [for]="'editLocationRoom-' + location.id"
                               >Raum <span aria-hidden="true">*</span></label
                             >
-                            <input
-                              cFormControl
-                              [id]="'editLocationRoom-' + location.id"
-                              [name]="'editLocationRoom-' + location.id"
-                              [(ngModel)]="currentDraft.room"
-                              required
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editLocationRoom-' + location.id"
+                                [name]="'editLocationRoom-' + location.id"
+                                [(ngModel)]="currentDraft.room"
+                                required
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-5">
-                            <label cLabel [for]="'editLocationStreet-' + location.id">Straße</label>
-                            <input
-                              cFormControl
-                              [id]="'editLocationStreet-' + location.id"
-                              [name]="'editLocationStreet-' + location.id"
-                              [(ngModel)]="currentDraft.street"
-                            />
+                            <label [for]="'editLocationStreet-' + location.id">Straße</label>
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editLocationStreet-' + location.id"
+                                [name]="'editLocationStreet-' + location.id"
+                                [(ngModel)]="currentDraft.street"
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-3">
-                            <label cLabel [for]="'editLocationPostalCode-' + location.id"
-                              >PLZ</label
-                            >
-                            <input
-                              cFormControl
-                              [id]="'editLocationPostalCode-' + location.id"
-                              [name]="'editLocationPostalCode-' + location.id"
-                              [(ngModel)]="currentDraft.postal_code"
-                            />
+                            <label [for]="'editLocationPostalCode-' + location.id">PLZ</label>
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editLocationPostalCode-' + location.id"
+                                [name]="'editLocationPostalCode-' + location.id"
+                                [(ngModel)]="currentDraft.postal_code"
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-4">
-                            <label cLabel [for]="'editLocationCity-' + location.id">Stadt</label>
-                            <input
-                              cFormControl
-                              [id]="'editLocationCity-' + location.id"
-                              [name]="'editLocationCity-' + location.id"
-                              [(ngModel)]="currentDraft.city"
-                            />
+                            <label [for]="'editLocationCity-' + location.id">Stadt</label>
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editLocationCity-' + location.id"
+                                [name]="'editLocationCity-' + location.id"
+                                [(ngModel)]="currentDraft.city"
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 app-form-actions">
                             <span class="app-form-action-hint"
                               >Die Änderungen gelten für künftige Planungen.</span
                             >
-                            <button cButton color="primary" type="submit" [disabled]="actionBusy">
+                            <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
                               <svg
                                 [cIcon]="icons.save"
                                 class="app-button-icon"
@@ -241,7 +261,7 @@
                               Änderungen speichern
                             </button>
                             <button
-                              cButton
+                              tuiButton
                               color="secondary"
                               type="button"
                               variant="outline"

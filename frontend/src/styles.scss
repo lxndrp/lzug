@@ -1,21 +1,3 @@
-@use '@coreui/coreui/scss/root';
-@use '@coreui/coreui/scss/reboot';
-@use '@coreui/coreui/scss/type';
-@use '@coreui/coreui/scss/containers';
-@use '@coreui/coreui/scss/grid';
-@use '@coreui/coreui/scss/tables';
-@use '@coreui/coreui/scss/forms';
-@use '@coreui/coreui/scss/buttons';
-@use '@coreui/coreui/scss/card';
-@use '@coreui/coreui/scss/badge';
-@use '@coreui/coreui/scss/list-group';
-@use '@coreui/coreui/scss/modal';
-@use '@coreui/coreui/scss/progress';
-@use '@coreui/coreui/scss/header';
-@use '@coreui/coreui/scss/sidebar';
-@use '@coreui/coreui/scss/helpers';
-@use '@coreui/coreui/scss/utilities/api';
-
 @import '@fontsource/source-sans-3/400.css';
 @import '@fontsource/source-sans-3/600.css';
 @import '@fontsource/source-sans-3/700.css';
@@ -37,29 +19,11 @@
   --app-radius-lg: 0.75rem;
   --app-shadow-subtle: 0 1px 2px rgb(31 41 51 / 6%);
   --app-shadow-floating: 0 8px 24px rgb(31 41 51 / 16%);
-  --cui-primary: var(--app-color-primary);
-  --cui-primary-rgb: 21, 94, 99;
-  --cui-secondary-color: var(--app-color-text-muted);
-  --cui-secondary-rgb: 82, 96, 109;
-  --cui-link-color: var(--app-color-primary);
-  --cui-link-hover-color: var(--app-color-primary-hover);
-  --cui-body-bg: var(--app-color-canvas);
-  --cui-body-color: var(--app-color-text);
-  --cui-body-font-family: 'Source Sans 3', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --cui-border-color: var(--app-color-border);
-  --cui-border-radius: var(--app-radius-sm);
-  --cui-focus-ring-color: rgb(213 138 44 / 35%);
 }
 
 html,
 body {
   height: 100%;
-}
-
-.card {
-  border-color: var(--app-color-border);
-  background: var(--app-color-surface);
-  box-shadow: var(--app-shadow-subtle);
 }
 
 .app-panel {
@@ -212,8 +176,6 @@ input:focus {
 }
 
 .table {
-  --cui-table-bg: var(--app-color-surface);
-  --cui-table-border-color: var(--app-color-border);
   color: var(--app-color-text);
 }
 
@@ -265,6 +227,32 @@ input:focus {
   color: #fff;
 }
 
+.app-list-group {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.app-list-group-item {
+  display: grid;
+  justify-items: start;
+  gap: 0.125rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-color-surface);
+  color: var(--app-color-text);
+  text-align: start;
+}
+
+.app-list-group-item:hover,
+.app-list-group-item:focus-visible,
+.app-list-group-item.active {
+  border-color: var(--app-color-primary);
+  background: var(--app-color-primary);
+  color: #fff;
+}
+
 .form-check-input {
   inline-size: 1.15rem;
   block-size: 1.15rem;
@@ -309,21 +297,32 @@ input:focus {
   margin: 0;
 }
 
-.card-header {
+.app-confirmation-footer {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  border-block-start: 1px solid var(--app-color-border);
 }
 
-.card-header .app-muted {
-  font-size: 0.875rem;
-  font-weight: 400;
+.app-button {
+  min-block-size: 2.5rem;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid transparent;
+  border-radius: var(--app-radius-sm);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-c-card + c-card {
-  margin-block-start: 1.5rem;
+.app-button-secondary {
+  border-color: var(--app-color-border);
+  background: var(--app-color-surface);
+  color: var(--app-color-text);
+}
+
+.app-button-danger {
+  background: #b02a37;
+  color: #fff;
 }
 
 .row > * {
@@ -369,8 +368,8 @@ c-card + c-card {
   position: sticky;
   z-index: 1;
   inset-inline-start: 0;
-  background: var(--cui-card-bg, #fff);
-  box-shadow: 1px 0 0 var(--cui-border-color, #dee2e6);
+  background: var(--app-color-surface);
+  box-shadow: 1px 0 0 var(--app-color-border);
 }
 
 .app-table-sticky-actions th:last-child,
@@ -378,8 +377,8 @@ c-card + c-card {
   position: sticky;
   z-index: 1;
   inset-inline-end: 0;
-  background: var(--cui-card-bg, #fff);
-  box-shadow: -1px 0 0 var(--cui-border-color, #dee2e6);
+  background: var(--app-color-surface);
+  box-shadow: -1px 0 0 var(--app-color-border);
 }
 
 .app-contact span,
@@ -440,7 +439,7 @@ c-card + c-card {
 
 .app-form-grid label span[aria-hidden='true'],
 .app-required-hint span[aria-hidden='true'] {
-  color: var(--cui-danger, #dc3545);
+  color: #dc3545;
 }
 
 .app-required-hint {
@@ -523,8 +522,8 @@ c-card + c-card {
   position: sticky;
   z-index: 2;
   inset-block-start: 0;
-  background: var(--cui-card-bg, #fff);
-  box-shadow: 0 1px 0 var(--cui-border-color, #dee2e6);
+  background: var(--app-color-surface);
+  box-shadow: 0 1px 0 var(--app-color-border);
 }
 
 .app-availability-table th:first-child {
@@ -532,8 +531,8 @@ c-card + c-card {
   z-index: 3;
   inset-inline-start: 0;
   min-width: 12rem;
-  background: var(--cui-card-bg, #fff);
-  box-shadow: 1px 0 0 var(--cui-border-color, #dee2e6);
+  background: var(--app-color-surface);
+  box-shadow: 1px 0 0 var(--app-color-border);
 }
 
 .app-availability-control,
@@ -557,11 +556,11 @@ c-card + c-card {
 }
 
 .app-cell-status-saved {
-  color: var(--cui-success-text-emphasis, #0a3622);
+  color: #0a3622;
 }
 
 .app-cell-status-error {
-  color: var(--cui-danger-text-emphasis, #58151c);
+  color: #58151c;
 }
 
 @media (max-width: 767.98px) {
@@ -612,7 +611,7 @@ c-card + c-card {
   align-items: center;
   min-height: 2.5rem;
   padding: 0.5rem 1rem;
-  border-radius: var(--cui-border-radius, 0.375rem);
+  border-radius: var(--app-radius-sm);
   background: var(--app-color-primary);
   color: #fff;
   cursor: pointer;
@@ -756,9 +755,9 @@ c-card + c-card {
   gap: 0.75rem;
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid var(--cui-border-color, #dee2e6);
-  border-radius: var(--cui-border-radius, 0.375rem);
-  background: var(--cui-card-bg, #fff);
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-color-surface);
   color: inherit;
   text-align: start;
 }
@@ -906,12 +905,17 @@ c-card + c-card {
 
 body {
   margin: 0;
-  background: var(--cui-body-bg);
-  color: var(--cui-body-color);
-  font-family: var(--cui-body-font-family);
-  font-size: var(--cui-body-font-size);
-  font-weight: var(--cui-body-font-weight);
-  line-height: var(--cui-body-line-height);
+  background: var(--app-color-canvas);
+  color: var(--app-color-text);
+  font-family:
+    'Source Sans 3',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
 }
 
 h1,
@@ -923,58 +927,6 @@ h6 {
   color: var(--app-color-text);
   font-weight: 600;
   letter-spacing: -0.01em;
-}
-
-.btn-primary {
-  --cui-btn-color: #fff;
-  --cui-btn-bg: var(--app-color-primary);
-  --cui-btn-border-color: var(--app-color-primary);
-  --cui-btn-hover-color: #fff;
-  --cui-btn-hover-bg: var(--app-color-primary-hover);
-  --cui-btn-hover-border-color: var(--app-color-primary-hover);
-  --cui-btn-focus-shadow-rgb: 21, 94, 99;
-  --cui-btn-active-color: #fff;
-  --cui-btn-active-bg: var(--app-color-primary-active);
-  --cui-btn-active-border-color: var(--app-color-primary-active);
-  --cui-btn-disabled-color: #fff;
-  --cui-btn-disabled-bg: var(--app-color-primary);
-  --cui-btn-disabled-border-color: var(--app-color-primary);
-}
-
-.btn-outline-primary {
-  --cui-btn-color: var(--app-color-primary);
-  --cui-btn-border-color: var(--app-color-primary);
-  --cui-btn-hover-color: #fff;
-  --cui-btn-hover-bg: var(--app-color-primary);
-  --cui-btn-hover-border-color: var(--app-color-primary);
-  --cui-btn-focus-shadow-rgb: 21, 94, 99;
-  --cui-btn-active-color: #fff;
-  --cui-btn-active-bg: var(--app-color-primary-active);
-  --cui-btn-active-border-color: var(--app-color-primary-active);
-}
-
-.btn-outline-secondary {
-  --cui-btn-color: #5f6c79;
-  --cui-btn-border-color: #5f6c79;
-  --cui-btn-hover-color: #fff;
-  --cui-btn-hover-bg: #5f6c79;
-  --cui-btn-hover-border-color: #5f6c79;
-  --cui-btn-focus-shadow-rgb: 70, 83, 95;
-  --cui-btn-active-color: #fff;
-  --cui-btn-active-bg: #3e4c59;
-  --cui-btn-active-border-color: #3e4c59;
-}
-
-.btn-outline-danger {
-  --cui-btn-color: #b02a37;
-  --cui-btn-border-color: #b02a37;
-  --cui-btn-hover-color: #fff;
-  --cui-btn-hover-bg: #b02a37;
-  --cui-btn-hover-border-color: #b02a37;
-  --cui-btn-focus-shadow-rgb: 176, 42, 55;
-  --cui-btn-active-color: #fff;
-  --cui-btn-active-bg: #842029;
-  --cui-btn-active-border-color: #842029;
 }
 
 :where(a, button, input, select, summary, [tabindex]):focus-visible {

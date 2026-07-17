@@ -29,93 +29,100 @@
         <div class="app-panel-body">
           <form class="row g-3 app-form-grid" (ngSubmit)="submitCandidate()">
             <div class="col-12 col-md-6">
-              <label cLabel for="candidateFirstName"
-                >Vorname <span aria-hidden="true">*</span></label
-              >
-              <input
-                cFormControl
-                id="candidateFirstName"
-                name="firstName"
-                [(ngModel)]="draft.first_name"
-                required
-              />
+              <label for="candidateFirstName">Vorname <span aria-hidden="true">*</span></label>
+              <tui-textfield>
+                <input
+                  tuiInput
+                  id="candidateFirstName"
+                  name="firstName"
+                  [(ngModel)]="draft.first_name"
+                  required
+                />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-6">
-              <label cLabel for="candidateLastName"
-                >Nachname <span aria-hidden="true">*</span></label
-              >
-              <input
-                cFormControl
-                id="candidateLastName"
-                name="lastName"
-                [(ngModel)]="draft.last_name"
-                required
-              />
+              <label for="candidateLastName">Nachname <span aria-hidden="true">*</span></label>
+              <tui-textfield>
+                <input
+                  tuiInput
+                  id="candidateLastName"
+                  name="lastName"
+                  [(ngModel)]="draft.last_name"
+                  required
+                />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-4">
-              <label cLabel for="candidateExamNumber"
+              <label for="candidateExamNumber"
                 >Prüfungsnummer <span aria-hidden="true">*</span></label
               >
-              <input
-                cFormControl
-                id="candidateExamNumber"
-                name="examNumber"
-                [(ngModel)]="draft.ihk_exam_number"
-                required
-              />
+              <tui-textfield>
+                <input
+                  tuiInput
+                  id="candidateExamNumber"
+                  name="examNumber"
+                  [(ngModel)]="draft.ihk_exam_number"
+                  required
+                />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-4">
-              <label cLabel for="candidateSpecialization">Fachrichtung</label>
-              <select
-                cSelect
-                id="candidateSpecialization"
-                name="candidateSpecialization"
-                [(ngModel)]="draft.specialization"
-              >
-                <option value="application_development">Anwendungsentwicklung</option>
-                <option value="system_integration">Systemintegration</option>
-                <option value="data_and_process_analysis">Daten- und Prozessanalyse</option>
-                <option value="digital_networking">Digitale Vernetzung</option>
-              </select>
+              <label for="candidateSpecialization">Fachrichtung</label>
+              <tui-textfield>
+                <select
+                  id="candidateSpecialization"
+                  name="candidateSpecialization"
+                  [(ngModel)]="draft.specialization"
+                >
+                  <option value="application_development">Anwendungsentwicklung</option>
+                  <option value="system_integration">Systemintegration</option>
+                  <option value="data_and_process_analysis">Daten- und Prozessanalyse</option>
+                  <option value="digital_networking">Digitale Vernetzung</option>
+                </select>
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-4">
-              <label cLabel for="candidateAttempt">Versuch</label>
-              <input
-                cFormControl
-                id="candidateAttempt"
-                min="1"
-                name="attempt"
-                type="number"
-                [(ngModel)]="draft.attempt_number"
-              />
+              <label for="candidateAttempt">Versuch</label>
+              <tui-textfield>
+                <input
+                  tuiInput
+                  id="candidateAttempt"
+                  min="1"
+                  name="attempt"
+                  type="number"
+                  [(ngModel)]="draft.attempt_number"
+                />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-8">
-              <label cLabel for="candidateCompany">Ausbildungsbetrieb</label>
-              <input
-                cFormControl
-                id="candidateCompany"
-                name="company"
-                [(ngModel)]="draft.training_company"
-              />
+              <label for="candidateCompany">Ausbildungsbetrieb</label>
+              <tui-textfield>
+                <input
+                  tuiInput
+                  id="candidateCompany"
+                  name="company"
+                  [(ngModel)]="draft.training_company"
+                />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-4 d-flex align-items-end">
-              <div cFormCheck>
+              <div class="app-form-check">
                 <input
-                  cFormCheckInput
+                  class="form-check-input"
                   id="candidateMep"
                   name="requiresMep"
                   type="checkbox"
                   [ngModel]="draft.requires_mep === 1"
                   (ngModelChange)="draft.requires_mep = $event ? 1 : 0"
                 />
-                <label cFormCheckLabel for="candidateMep">MEP erforderlich</label>
+                <label for="candidateMep">MEP erforderlich</label>
               </div>
             </div>
             <div class="col-12 app-form-actions">
               <span class="app-form-action-hint"
                 >Der Prüfling wird der aktuellen Runde zugeordnet.</span
               >
-              <button cButton color="primary" type="submit" [disabled]="actionBusy">
+              <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
                 <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                 Prüfling anlegen
               </button>
@@ -135,33 +142,36 @@
       <div class="app-panel-body">
         <div class="row g-3 app-filter-bar" role="search" aria-label="Prüflingsliste filtern">
           <div class="col-12 col-md-8">
-            <label cLabel for="candidateSearch">Suche</label>
-            <input
-              cFormControl
-              id="candidateSearch"
-              type="search"
-              [ngModel]="query()"
-              (ngModelChange)="query.set($event)"
-            />
+            <tui-textfield>
+              <label tuiLabel for="candidateSearch">Suche</label>
+              <input
+                tuiTextfield
+                id="candidateSearch"
+                type="search"
+                [ngModel]="query()"
+                (ngModelChange)="query.set($event)"
+              />
+            </tui-textfield>
           </div>
           <div class="col-12 col-md-4">
-            <label cLabel for="candidateFilter">Fachrichtung</label>
-            <select
-              cSelect
-              id="candidateFilter"
-              [ngModel]="specialization()"
-              (ngModelChange)="specialization.set($event)"
-            >
-              <option value="">Alle Fachrichtungen</option>
-              @for (value of specializations(); track value) {
-                <option [value]="value">{{ specializationLabel(value) }}</option>
-              }
-            </select>
+            <label for="candidateFilter">Fachrichtung</label>
+            <tui-textfield>
+              <select
+                id="candidateFilter"
+                [ngModel]="specialization()"
+                (ngModelChange)="specialization.set($event)"
+              >
+                <option value="">Alle Fachrichtungen</option>
+                @for (value of specializations(); track value) {
+                  <option [value]="value">{{ specializationLabel(value) }}</option>
+                }
+              </select>
+            </tui-textfield>
           </div>
         </div>
 
         <div class="app-table-scroll">
-          <table cTable hover small class="app-data-table app-table-sticky-actions">
+          <table tuiTable class="app-data-table app-table-sticky-actions">
             <thead>
               <tr>
                 <th scope="col">Name</th>
@@ -199,9 +209,9 @@
                   <td class="app-actions">
                     <div class="app-row-actions">
                       <button
-                        cButton
+                        tuiButton
                         color="primary"
-                        size="sm"
+                        size="s"
                         type="button"
                         variant="outline"
                         [disabled]="actionBusy"
@@ -211,9 +221,9 @@
                         Bearbeiten
                       </button>
                       <button
-                        cButton
+                        tuiButton
                         color="danger"
-                        size="sm"
+                        size="s"
                         type="button"
                         variant="outline"
                         [disabled]="actionBusy"
@@ -245,94 +255,107 @@
                           (ngSubmit)="submitCandidateUpdate()"
                         >
                           <div class="col-12 col-md-6">
-                            <label cLabel [for]="'editCandidateFirstName-' + item.candidate.id"
+                            <label [for]="'editCandidateFirstName-' + item.candidate.id"
                               >Vorname <span aria-hidden="true">*</span></label
                             >
-                            <input
-                              cFormControl
-                              [id]="'editCandidateFirstName-' + item.candidate.id"
-                              [name]="'editCandidateFirstName-' + item.candidate.id"
-                              [(ngModel)]="currentDraft.first_name"
-                              required
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editCandidateFirstName-' + item.candidate.id"
+                                [name]="'editCandidateFirstName-' + item.candidate.id"
+                                [(ngModel)]="currentDraft.first_name"
+                                required
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-6">
-                            <label cLabel [for]="'editCandidateLastName-' + item.candidate.id"
+                            <label [for]="'editCandidateLastName-' + item.candidate.id"
                               >Nachname <span aria-hidden="true">*</span></label
                             >
-                            <input
-                              cFormControl
-                              [id]="'editCandidateLastName-' + item.candidate.id"
-                              [name]="'editCandidateLastName-' + item.candidate.id"
-                              [(ngModel)]="currentDraft.last_name"
-                              required
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editCandidateLastName-' + item.candidate.id"
+                                [name]="'editCandidateLastName-' + item.candidate.id"
+                                [(ngModel)]="currentDraft.last_name"
+                                required
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-4">
-                            <label cLabel [for]="'editCandidateExamNumber-' + item.candidate.id"
+                            <label [for]="'editCandidateExamNumber-' + item.candidate.id"
                               >Prüfungsnummer <span aria-hidden="true">*</span></label
                             >
-                            <input
-                              cFormControl
-                              [id]="'editCandidateExamNumber-' + item.candidate.id"
-                              [name]="'editCandidateExamNumber-' + item.candidate.id"
-                              [(ngModel)]="currentDraft.ihk_exam_number"
-                              required
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editCandidateExamNumber-' + item.candidate.id"
+                                [name]="'editCandidateExamNumber-' + item.candidate.id"
+                                [(ngModel)]="currentDraft.ihk_exam_number"
+                                required
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-4">
-                            <label cLabel [for]="'editCandidateSpecialization-' + item.candidate.id"
+                            <label [for]="'editCandidateSpecialization-' + item.candidate.id"
                               >Fachrichtung</label
                             >
-                            <select
-                              cSelect
-                              [id]="'editCandidateSpecialization-' + item.candidate.id"
-                              [name]="'editCandidateSpecialization-' + item.candidate.id"
-                              [(ngModel)]="currentDraft.specialization"
-                            >
-                              <option value="application_development">Anwendungsentwicklung</option>
-                              <option value="system_integration">Systemintegration</option>
-                              <option value="data_and_process_analysis">
-                                Daten- und Prozessanalyse
-                              </option>
-                              <option value="digital_networking">Digitale Vernetzung</option>
-                            </select>
+                            <tui-textfield>
+                              <select
+                                [id]="'editCandidateSpecialization-' + item.candidate.id"
+                                [name]="'editCandidateSpecialization-' + item.candidate.id"
+                                [(ngModel)]="currentDraft.specialization"
+                              >
+                                <option value="application_development">
+                                  Anwendungsentwicklung
+                                </option>
+                                <option value="system_integration">Systemintegration</option>
+                                <option value="data_and_process_analysis">
+                                  Daten- und Prozessanalyse
+                                </option>
+                                <option value="digital_networking">Digitale Vernetzung</option>
+                              </select>
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-4">
-                            <label cLabel [for]="'editCandidateAttempt-' + item.candidate.id"
+                            <label [for]="'editCandidateAttempt-' + item.candidate.id"
                               >Versuch</label
                             >
-                            <input
-                              cFormControl
-                              [id]="'editCandidateAttempt-' + item.candidate.id"
-                              [name]="'editCandidateAttempt-' + item.candidate.id"
-                              min="1"
-                              type="number"
-                              [(ngModel)]="currentDraft.attempt_number"
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editCandidateAttempt-' + item.candidate.id"
+                                [name]="'editCandidateAttempt-' + item.candidate.id"
+                                min="1"
+                                type="number"
+                                [(ngModel)]="currentDraft.attempt_number"
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-8">
-                            <label cLabel [for]="'editCandidateCompany-' + item.candidate.id"
+                            <label [for]="'editCandidateCompany-' + item.candidate.id"
                               >Ausbildungsbetrieb</label
                             >
-                            <input
-                              cFormControl
-                              [id]="'editCandidateCompany-' + item.candidate.id"
-                              [name]="'editCandidateCompany-' + item.candidate.id"
-                              [(ngModel)]="currentDraft.training_company"
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editCandidateCompany-' + item.candidate.id"
+                                [name]="'editCandidateCompany-' + item.candidate.id"
+                                [(ngModel)]="currentDraft.training_company"
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-4 d-flex align-items-end">
-                            <div cFormCheck>
+                            <div class="app-form-check">
                               <input
-                                cFormCheckInput
+                                class="form-check-input"
                                 [id]="'editCandidateMep-' + item.candidate.id"
                                 [name]="'editCandidateMep-' + item.candidate.id"
                                 type="checkbox"
                                 [ngModel]="currentDraft.requires_mep === 1"
                                 (ngModelChange)="currentDraft.requires_mep = $event ? 1 : 0"
                               />
-                              <label cFormCheckLabel [for]="'editCandidateMep-' + item.candidate.id"
+                              <label [for]="'editCandidateMep-' + item.candidate.id"
                                 >MEP erforderlich</label
                               >
                             </div>
@@ -341,7 +364,7 @@
                             <span class="app-form-action-hint"
                               >Änderungen gelten für Stammdaten und aktuelle Runde.</span
                             >
-                            <button cButton color="primary" type="submit" [disabled]="actionBusy">
+                            <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
                               <svg
                                 [cIcon]="icons.save"
                                 class="app-button-icon"
@@ -350,7 +373,7 @@
                               Änderungen speichern
                             </button>
                             <button
-                              cButton
+                              tuiButton
                               color="secondary"
                               type="button"
                               variant="outline"
