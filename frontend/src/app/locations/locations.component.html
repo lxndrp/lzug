@@ -15,7 +15,7 @@
             <div class="col-12 col-md-4">
               <label cLabel for="locationCommittee">Ausschuss</label>
               <select
-                cSelect
+                tuiSelect
                 id="locationCommittee"
                 name="committeeId"
                 [(ngModel)]="draft.committee_id"
@@ -165,7 +165,7 @@
                               >Ausschuss</label
                             >
                             <select
-                              cSelect
+                              tuiSelect
                               [id]="'editLocationCommittee-' + location.id"
                               [name]="'editLocationCommittee-' + location.id"
                               [(ngModel)]="currentDraft.committee_id"

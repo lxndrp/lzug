@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { BadgeModule, FormModule, GridModule, TableModule } from '@coreui/angular';
 import { IconDirective } from '@coreui/icons-angular';
 import { TuiButton } from '@taiga-ui/core';
+import { TuiSelect } from '@taiga-ui/kit';
 
 import { Location, MasterData } from '../api/api.models';
 import { appIcons } from '../app-icons';
@@ -23,6 +24,7 @@ export type LocationUpdate = {
     IconDirective,
     TableModule,
     TuiButton,
+    TuiSelect,
   ],
   templateUrl: './locations.component.html',
 })

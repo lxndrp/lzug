@@ -137,7 +137,7 @@
               }
             </label>
             <select
-              cSelect
+              tuiSelect
               id="holidaySubdivisionCode"
               name="holidaySubdivisionCode"
               [(ngModel)]="draft.holiday_subdivision_code"
@@ -176,7 +176,7 @@
           <div class="col-12 col-md-4">
             <label cLabel for="defaultLocation">Standardort</label>
             <select
-              cSelect
+              tuiSelect
               id="defaultLocation"
               name="defaultLocation"
               [(ngModel)]="draft.default_location_id"
@@ -192,7 +192,7 @@
           <div class="col-12 col-md-8">
             <label cLabel for="updatedByMember">Änderung dokumentieren für</label>
             <select
-              cSelect
+              tuiSelect
               id="updatedByMember"
               name="updatedByMember"
               [(ngModel)]="draft.updated_by_member_id"
@@ -392,7 +392,7 @@
                       <td>
                         <div class="app-availability-control">
                           <select
-                            cSelect
+                            tuiSelect
                             [attr.aria-label]="memberLabel(member) + ' ' + dateLabel(day.date)"
                             [attr.aria-describedby]="
                               availabilityCellState(member.id, day.id)

@@ -199,7 +199,7 @@
                 <label cLabel for="memberCommittee"
                   >Ausschuss <span aria-hidden="true">*</span></label
                 >
-                <select cSelect id="memberCommittee" name="committee_id" required>
+                <select tuiSelect id="memberCommittee" name="committee_id" required>
                   @for (committee of masterDataView()?.committees || []; track committee.id) {
                     <option [value]="committee.id" [selected]="isSelectedCommittee(committee)">
                       {{ committee.name }}
@@ -229,14 +229,14 @@
               </div>
               <div class="col-12 col-md-4">
                 <label cLabel for="memberStatus">Mitgliedsstatus</label>
-                <select cSelect id="memberStatus" name="member_status">
+                <select tuiSelect id="memberStatus" name="member_status">
                   <option value="ordinary">Ordentlich</option>
                   <option value="deputy">Stellvertretend</option>
                 </select>
               </div>
               <div class="col-12 col-md-4">
                 <label cLabel for="memberRole">Funktion</label>
-                <select cSelect id="memberRole" name="committee_role">
+                <select tuiSelect id="memberRole" name="committee_role">
                   <option value="member">Mitglied</option>
                   <option value="chair">Vorsitz</option>
                   <option value="deputy_chair">Stellv. Vorsitz</option>
@@ -244,7 +244,7 @@
               </div>
               <div class="col-12 col-md-4">
                 <label cLabel for="memberSide">Vertreterseite</label>
-                <select cSelect id="memberSide" name="representing_side">
+                <select tuiSelect id="memberSide" name="representing_side">
                   <option value="employer">Arbeitgeber</option>
                   <option value="employee">Arbeitnehmer</option>
                   <option value="school">Schule</option>
