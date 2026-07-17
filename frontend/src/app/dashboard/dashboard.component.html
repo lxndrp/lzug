@@ -6,7 +6,9 @@
           <div class="app-dashboard-hero-copy">
             <div class="app-dashboard-status-line">
               <span class="app-eyebrow">Aktueller Stand</span>
-              <c-badge color="primary">{{ statusLabel(summary?.round?.status) }}</c-badge>
+              <span class="app-badge app-badge-primary">{{
+                statusLabel(summary?.round?.status)
+              }}</span>
             </div>
             <h2>{{ summary?.round?.committee_name || 'Prüfungsausschuss' }}</h2>
             <p>{{ phaseDescription() }}</p>
@@ -82,7 +84,7 @@
                 <strong>{{ task.label }}</strong>
                 <small>{{ task.hint }}</small>
               </span>
-              <c-badge [color]="task.color">{{ task.detail }}</c-badge>
+              <span class="app-badge" [attr.data-color]="task.color">{{ task.detail }}</span>
               <svg [cIcon]="icons.arrowRight" class="app-icon-only" aria-hidden="true"></svg>
             </button>
           }
@@ -98,9 +100,9 @@
           <span class="app-eyebrow">Rahmen</span>
           <strong class="d-block">Planung und Fristen</strong>
         </div>
-        <c-badge [color]="pendingCount() ? 'warning' : 'success'">
+        <span class="app-badge" [attr.data-color]="pendingCount() ? 'warning' : 'success'">
           {{ pendingCount() ? pendingCount() + ' offen' : 'Rücklauf vollständig' }}
-        </c-badge>
+        </span>
       </header>
       <div class="app-panel-body">
         <dl class="app-context-list">
@@ -137,9 +139,9 @@
           <h3>Rücklauf</h3>
           <div class="d-flex flex-wrap gap-2">
             @for (item of summary?.availability || []; track item.availability) {
-              <c-badge [color]="availabilityColor(item.availability)">
+              <span class="app-badge" [attr.data-color]="availabilityColor(item.availability)">
                 {{ availabilityLabel(item.availability) }}: {{ item.count }}
-              </c-badge>
+              </span>
             }
           </div>
         </div>
@@ -187,12 +189,12 @@
                     </div>
                     <div class="ms-auto d-flex flex-wrap gap-1">
                       @for (slot of item.slots; track slot.id) {
-                        <c-badge color="secondary">
+                        <span class="app-badge app-badge-secondary">
                           {{ slotTitle(slot) }}
                           @if (slot.slot_type === 'mep') {
                             · MEP
                           }
-                        </c-badge>
+                        </span>
                       }
                     </div>
                   </div>
@@ -200,24 +202,24 @@
                   <h4>Vormittag</h4>
                   <div class="d-flex flex-wrap gap-1">
                     @for (assignment of assignmentsFor(item, 'morning'); track assignment.id) {
-                      <c-badge [color]="assignmentColor(assignment)">
+                      <span class="app-badge" [attr.data-color]="assignmentColor(assignment)">
                         {{ memberName(assignment.committee_member_id) }} ·
                         {{ memberSide(assignment.committee_member_id) }} ·
                         {{ assignmentRoleLabel(assignment) }}
-                      </c-badge>
+                      </span>
                     }
                   </div>
 
                   <h4>Nachmittag</h4>
                   <div class="d-flex flex-wrap gap-1">
                     @for (assignment of assignmentsFor(item, 'afternoon'); track assignment.id) {
-                      <c-badge [color]="assignmentColor(assignment)">
+                      <span class="app-badge" [attr.data-color]="assignmentColor(assignment)">
                         {{ memberName(assignment.committee_member_id) }} ·
                         {{ memberSide(assignment.committee_member_id) }} ·
                         {{ assignmentRoleLabel(assignment) }}
-                      </c-badge>
+                      </span>
                     } @empty {
-                      <c-badge color="secondary">Keine Nachmittagstermine</c-badge>
+                      <span class="app-badge app-badge-secondary">Keine Nachmittagstermine</span>
                     }
                   </div>
                 </div>
@@ -252,7 +254,7 @@
               <tr>
                 <td>{{ dateLabel(item.day.date) }}</td>
                 <td>
-                  <c-badge color="success"> {{ item.slots.length }} Termine </c-badge>
+                  <span class="app-badge app-badge-success"> {{ item.slots.length }} Termine </span>
                 </td>
               </tr>
             } @empty {
