@@ -254,7 +254,7 @@
       </header>
       <div class="app-panel-body">
         @if (candidateDayGenerationResult; as result) {
-          <c-alert color="info">
+          <aside class="app-alert app-alert-info" role="status">
             <strong>{{ result.counts.created }} Tage angelegt</strong>
             <span class="d-block">
               {{ result.counts.existing }} bereits vorhanden ·
@@ -267,7 +267,7 @@
                 }
               </ul>
             }
-          </c-alert>
+          </aside>
         }
         <form class="row g-3 app-form-grid app-compact-form" (ngSubmit)="submitCandidateDay()">
           <div class="col-12 col-md-4">

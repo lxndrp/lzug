@@ -32,13 +32,12 @@
         <strong>Ausschüsse</strong>
       </header>
       <div class="app-panel-body">
-        <div cListGroup>
+        <div class="app-list-group">
           @for (committee of masterDataView()?.committees || []; track committee.id) {
             <button
-              cListGroupItem
-              class="app-committee-choice"
+              class="app-list-group-item app-committee-choice"
               type="button"
-              [active]="isSelectedCommittee(committee)"
+              [class.active]="isSelectedCommittee(committee)"
               (click)="selectCommittee(committee.id)"
             >
               <strong>{{ committee.name }}</strong>

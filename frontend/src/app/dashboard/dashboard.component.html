@@ -151,7 +151,12 @@
 
   @if (planningResult?.validation; as validation) {
     <div class="col-12">
-      <c-alert [color]="validation.passed ? 'success' : 'warning'">
+      <aside
+        class="app-alert"
+        [class.app-alert-success]="validation.passed"
+        [class.app-alert-warning]="!validation.passed"
+        role="status"
+      >
         <strong>Validierungsreport</strong>
         @if (validation.messages.length) {
           <ul class="mb-0">
@@ -162,7 +167,7 @@
         } @else {
           <span>Keine Hinweise.</span>
         }
-      </c-alert>
+      </aside>
     </div>
   }
 
