@@ -136,6 +136,22 @@ body {
   color: var(--app-color-primary-active);
 }
 
+.app-badge[data-color='warning'] {
+  background: #fff1cf;
+  color: #7a4d00;
+}
+
+.app-badge[data-color='success'] {
+  background: #dff3e7;
+  color: #176b3a;
+}
+
+.app-badge[data-color='info'],
+.app-badge[data-color='primary'] {
+  background: var(--app-color-primary-soft);
+  color: var(--app-color-primary-active);
+}
+
 .app-confirmation-dialog {
   width: min(32rem, calc(100vw - 2rem));
   padding: 0;
