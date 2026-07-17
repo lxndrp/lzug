@@ -115,18 +115,16 @@
             >
           </div>
           <div class="col-12 col-md-6 d-flex align-items-end">
-            <div cFormCheck>
+            <div class="app-form-check">
               <input
-                cFormCheckInput
+                class="form-check-input"
                 id="excludePublicHolidays"
                 name="excludePublicHolidays"
                 type="checkbox"
                 [ngModel]="draft.exclude_public_holidays === 1"
                 (ngModelChange)="draft.exclude_public_holidays = $event ? 1 : 0"
               />
-              <label cFormCheckLabel for="excludePublicHolidays"
-                >Gesetzliche Feiertage ausschließen</label
-              >
+              <label for="excludePublicHolidays">Gesetzliche Feiertage ausschließen</label>
             </div>
           </div>
           <div class="col-12 col-md-6">
@@ -205,16 +203,16 @@
             </select>
           </div>
           <div class="col-12 col-md-4 d-flex align-items-end">
-            <div cFormCheck>
+            <div class="app-form-check">
               <input
-                cFormCheckInput
+                class="form-check-input"
                 id="lunchBreak"
                 name="lunchBreak"
                 type="checkbox"
                 [ngModel]="draft.lunch_break_enabled === 1"
                 (ngModelChange)="draft.lunch_break_enabled = $event ? 1 : 0"
               />
-              <label cFormCheckLabel for="lunchBreak">Mittagspause</label>
+              <label for="lunchBreak">Mittagspause</label>
             </div>
           </div>
           <div class="col-12 app-form-actions">
@@ -282,16 +280,16 @@
             />
           </div>
           <div class="col-12 col-md-4 d-flex align-items-end app-compact-form-action">
-            <div cFormCheck>
+            <div class="app-form-check">
               <input
-                cFormCheckInput
+                class="form-check-input"
                 id="candidateDayActive"
                 name="candidateDayActive"
                 type="checkbox"
                 [ngModel]="candidateDayDraft.is_active === 1"
                 (ngModelChange)="candidateDayDraft.is_active = $event ? 1 : 0"
               />
-              <label cFormCheckLabel for="candidateDayActive">Aktiv</label>
+              <label for="candidateDayActive">Aktiv</label>
             </div>
           </div>
           <div class="col-12 col-md-4 d-flex align-items-end">

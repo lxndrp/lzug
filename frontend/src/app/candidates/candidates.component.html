@@ -95,16 +95,16 @@
               />
             </div>
             <div class="col-12 col-md-4 d-flex align-items-end">
-              <div cFormCheck>
+              <div class="app-form-check">
                 <input
-                  cFormCheckInput
+                  class="form-check-input"
                   id="candidateMep"
                   name="requiresMep"
                   type="checkbox"
                   [ngModel]="draft.requires_mep === 1"
                   (ngModelChange)="draft.requires_mep = $event ? 1 : 0"
                 />
-                <label cFormCheckLabel for="candidateMep">MEP erforderlich</label>
+                <label for="candidateMep">MEP erforderlich</label>
               </div>
             </div>
             <div class="col-12 app-form-actions">
@@ -321,16 +321,16 @@
                             />
                           </div>
                           <div class="col-12 col-md-4 d-flex align-items-end">
-                            <div cFormCheck>
+                            <div class="app-form-check">
                               <input
-                                cFormCheckInput
+                                class="form-check-input"
                                 [id]="'editCandidateMep-' + item.candidate.id"
                                 [name]="'editCandidateMep-' + item.candidate.id"
                                 type="checkbox"
                                 [ngModel]="currentDraft.requires_mep === 1"
                                 (ngModelChange)="currentDraft.requires_mep = $event ? 1 : 0"
                               />
-                              <label cFormCheckLabel [for]="'editCandidateMep-' + item.candidate.id"
+                              <label [for]="'editCandidateMep-' + item.candidate.id"
                                 >MEP erforderlich</label
                               >
                             </div>

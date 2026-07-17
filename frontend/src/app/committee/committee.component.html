@@ -64,7 +64,7 @@
           <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
         </header>
         <div class="app-panel-body">
-          <form cForm class="app-form-grid" (submit)="saveCommittee($event)">
+          <form class="app-form-grid" (submit)="saveCommittee($event)">
             <div class="mb-3">
               <label for="committeeName">Bezeichnung <span aria-hidden="true">*</span></label>
               <input
@@ -191,7 +191,7 @@
           <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
         </header>
         <div class="app-panel-body">
-          <form cForm class="app-form-grid" (submit)="saveMember($event)">
+          <form class="app-form-grid" (submit)="saveMember($event)">
             <div class="row g-3">
               <div class="col-12">
                 <label for="memberCommittee">Ausschuss <span aria-hidden="true">*</span></label>
@@ -245,13 +245,13 @@
               <div class="col-12">
                 <c-form-check>
                   <input
-                    cFormCheckInput
+                    class="form-check-input"
                     id="memberActive"
                     name="is_active"
                     type="checkbox"
                     checked
                   />
-                  <label cFormCheckLabel for="memberActive">Aktiv</label>
+                  <label for="memberActive">Aktiv</label>
                 </c-form-check>
               </div>
               <div class="col-12 app-form-actions">
