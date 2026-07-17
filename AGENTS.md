@@ -106,13 +106,28 @@ Geschlossene Issues nicht loeschen. Wenn sie aus einer nachtraeglichen Ueberfueh
 
 ## Tests und Verifikation
 
-Primaere lokale Gesamtpruefung ist:
+Die lokale Qualitaetssicherung ist der erste Pruefschritt fuer jede Aenderung.
+
+- Massgeblich ist grundsaetzlich `mise quality`.
+- Bei klar eingegrenzten Aenderungen duerfen zunaechst passende Teiltests oder
+  Checks ausgefuehrt werden.
+- Wenn ein Teilcheck erfolgreich ist, aber die Aenderung weitere Bereiche
+  beruehrt oder die Ursache nicht vollstaendig eingegrenzt ist, folgt
+  `mise quality`.
+- GitHub Actions wird erst gestartet, wenn die lokale Qualitaetssicherung
+  erfolgreich durchlaufen wurde.
+- Die GitHub-Actions-Pipeline ist anschliessend die finale Verifikation und
+  massgeblich fuer die Abnahme.
+- Wenn lokale Pruefungen in Codex durch eine bekannte Sandbox-Grenze blockiert
+  sind, ist die Aenderung nicht lokal verifiziert. In diesem Fall wird nicht
+  automatisch GitHub Actions als Ersatz gestartet; der Befund wird als
+  Umgebungsproblem dokumentiert.
+
+Im Abschlussbericht klar unterscheiden zwischen:
 
 ```sh
-mise run quality
+mise quality
 ```
-
-Wenn nur ein Teilbereich geaendert wurde, gezielt passende Tests oder Checks ausfuehren. Im Abschlussbericht klar unterscheiden zwischen:
 
 - `verifiziert`
 - `in Codex nicht verifizierbar`
@@ -127,9 +142,9 @@ Bei neuen fachlichen Aenderungen sollen Tests schichtweise ergaenzt werden:
 
 ## Continuous Integration
 
-Die vollstaendige Projektpruefung laeuft in `.github/workflows/ci.yml` auf Pushes und Pull Requests gegen `main` und `master`.
+Die vollstaendige Projektpruefung laeuft in `.github/workflows/ci.yml` auf Pushes und Pull Requests gegen `main` und `master`. Sie wird erst nach erfolgreicher lokaler Qualitaetssicherung gestartet und ist anschliessend die finale Verifikation fuer die Abnahme.
 
-Fuer die vollstaendige Verifikation sind erfolgreiche Jobs in GitHub Actions massgeblich, wenn lokale Pruefungen an der Codex-Sandbox scheitern. Dependency- und Security-Hinweise sind getrennt vom CI-Aufbau zu bewerten und blockieren den Workflow nicht automatisch.
+Dependency- und Security-Hinweise sind getrennt vom CI-Aufbau zu bewerten und blockieren den Workflow nicht automatisch.
 
 ## Codex-Sandbox
 
@@ -137,12 +152,11 @@ Die Codex-Sandbox ist nicht die massgebliche produktive Laufzeit. Einige lokale 
 
 Arbeite deshalb so:
 
-- `mise run quality` bleibt die Referenz fuer vollstaendige lokale Qualitaetssicherung, soll in Codex aber nicht reflexhaft nach jeder Aenderung gestartet werden.
-- Bei kleinen Aenderungen gezielt die betroffenen Tests oder Checks ausfuehren.
+- Bei kleinen, klar eingegrenzten Aenderungen gezielt die betroffenen Tests oder Checks ausfuehren und anschliessend bei Bedarf `mise quality` starten.
 - Wenn ein bekannter Sandbox-Fehler erneut auftritt, nicht mehrfach denselben Vollcheck wiederholen.
 - Keine Produktfixes fuer reine Sandbox-Symptome einbauen.
 - Wenn der Nutzer bestaetigt, dass ein Fehler sandbox-spezifisch ist, diese Einordnung uebernehmen und die verbleibenden echten Implementierungsluecken getrennt bewerten.
-- Fuer vollstaendige Sicherheit CI oder eine Ausfuehrung ausserhalb der Codex-Sandbox heranziehen.
+- Fuer die finale Abnahme nach erfolgreicher lokaler QA GitHub Actions heranziehen; wenn die lokale QA durch eine bekannte Sandbox-Grenze blockiert ist, den Befund als nicht lokal verifiziert dokumentieren.
 
 Bekannte lokale Eigenheiten:
 

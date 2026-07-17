@@ -21,8 +21,8 @@ run = """
 cd frontend && npm run test:ci
 """
 
-[tasks.quality]
-description = "Run the complete local quality assurance suite"
+[tasks."quality:backend"]
+description = "Run backend lint, audit, tests, and coverage"
 run = """
 set -e
 .venv/bin/python -m ruff check .
@@ -30,14 +30,32 @@ set -e
 .venv/bin/python -m pip_audit --skip-editable --cache-dir /tmp/lzug-pip-audit
 .venv/bin/python -m coverage run -m unittest
 .venv/bin/python -m coverage report
+"""
+
+[tasks."quality:frontend"]
+description = "Run frontend lint, audit, build, and unit tests"
+run = """
+set -e
 cd frontend
 npm run lint
 npm run format:check
 npm run build:ci
 npm run test:coverage
 npm run security:check
-npm run test:e2e
 """
+
+[tasks."quality:e2e"]
+description = "Run browser E2E and accessibility tests"
+run = """
+set -e
+cd frontend
+npm run test:e2e
+npm run test:a11y
+"""
+
+[tasks.quality]
+description = "Run the complete local quality assurance suite in parallel"
+run = "mise run --jobs 3 quality:backend ::: quality:frontend ::: quality:e2e"
 
 [tasks.dev]
 description = "Start backend and frontend in parallel"
