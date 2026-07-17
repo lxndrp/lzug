@@ -50,6 +50,11 @@
     "@coreui/coreui": "^5.8.0",
     "@coreui/icons-angular": "^5.7.3",
     "@fontsource/source-sans-3": "^5.2.9",
+    "@taiga-ui/addon-table": "^5.15.0",
+    "@taiga-ui/core": "^5.15.0",
+    "@taiga-ui/i18n": "^5.15.0",
+    "@taiga-ui/icons": "^5.15.0",
+    "@taiga-ui/kit": "^5.15.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "^0.16.2"

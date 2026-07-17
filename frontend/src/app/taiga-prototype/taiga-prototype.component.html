@@ -1,0 +1,232 @@
+<section class="prototype" aria-labelledby="prototype-title">
+  <header class="prototype-hero">
+    <div>
+      <p class="prototype-eyebrow">Interaktiver Entscheidungsprototyp · keine Echtdaten</p>
+      <h2 id="prototype-title">Prüfungsplanung mit Taiga UI</h2>
+      <p>
+        Ein bewusst begrenzter Querschnitt für Navigation, Formulare, Dialoge, Tabellen und die
+        responsive Planung.
+      </p>
+    </div>
+    <span tuiBadge appearance="positive">Angular 22 · Taiga UI 5</span>
+  </header>
+
+  <nav class="prototype-nav" aria-label="Prototyp-Navigation">
+    <button
+      type="button"
+      [class.is-active]="activeSection() === 'planung'"
+      [attr.aria-current]="activeSection() === 'planung' ? 'page' : null"
+      (click)="activeSection.set('planung')"
+    >
+      Terminplanung
+    </button>
+    <button
+      type="button"
+      [class.is-active]="activeSection() === 'prueflinge'"
+      [attr.aria-current]="activeSection() === 'prueflinge' ? 'page' : null"
+      (click)="activeSection.set('prueflinge')"
+    >
+      Prüflinge
+    </button>
+    <button
+      type="button"
+      [class.is-active]="activeSection() === 'ausschuss'"
+      [attr.aria-current]="activeSection() === 'ausschuss' ? 'page' : null"
+      (click)="activeSection.set('ausschuss')"
+    >
+      Ausschuss
+    </button>
+  </nav>
+
+  @switch (activeSection()) {
+    @case ('planung') {
+      <div class="prototype-layout">
+        <form class="prototype-card prototype-form" [formGroup]="form" (ngSubmit)="submit()">
+          <div class="card-heading">
+            <div>
+              <span class="section-kicker">Formular & Validierung</span>
+              <h3>Planungsrahmen</h3>
+            </div>
+            <span class="required-note"><span aria-hidden="true">*</span> Pflichtfelder</span>
+          </div>
+
+          <tui-textfield>
+            <label tuiLabel>Bezeichnung der Prüfungsrunde</label>
+            <input tuiInput formControlName="roundName" autocomplete="off" />
+          </tui-textfield>
+          @if (form.controls.roundName.touched && form.controls.roundName.invalid) {
+            <p class="field-error" role="alert">Bitte mindestens vier Zeichen eingeben.</p>
+          }
+
+          <div class="form-row">
+            <div>
+              <tui-textfield>
+                <label tuiLabel>Von Kalenderwoche</label>
+                <input tuiInput type="week" formControlName="weekFrom" />
+              </tui-textfield>
+              <small>Native Wochenauswahl · ISO-Format</small>
+            </div>
+            <div>
+              <tui-textfield>
+                <label tuiLabel>Beispieltag</label>
+                <input tuiInputDate type="date" formControlName="sampleDate" />
+              </tui-textfield>
+              <small>Taiga-Datumseingabe mit mobilem Picker</small>
+            </div>
+          </div>
+
+          <div class="future-control">
+            <div>
+              <strong>Zukünftiger Login</strong>
+              <span>Passwortfeld als Komponentenprobe</span>
+            </div>
+            <tui-textfield>
+              <label tuiLabel>Temporäres Passwort</label>
+              <input
+                tuiInput
+                type="password"
+                formControlName="password"
+                autocomplete="new-password"
+              />
+              <tui-icon tuiPassword />
+            </tui-textfield>
+          </div>
+          @if (form.controls.password.touched && form.controls.password.invalid) {
+            <p class="field-error" role="alert">Mindestens acht Zeichen erforderlich.</p>
+          }
+
+          <div class="form-actions">
+            <button tuiButton appearance="secondary" type="button" (click)="form.reset()">
+              Zurücksetzen
+            </button>
+            <button tuiButton type="submit">Formular prüfen</button>
+          </div>
+          @if (submitted() && form.valid) {
+            <p class="form-success" role="status">Alle Beispielangaben sind gültig.</p>
+          }
+        </form>
+
+        <aside class="prototype-card future-card" aria-labelledby="future-title">
+          <span class="section-kicker">Zukünftiger Ablauf</span>
+          <h3 id="future-title">Planungsschritte</h3>
+          <tui-stepper
+            orientation="vertical"
+            [activeItemIndex]="step()"
+            (activeItemIndexChange)="step.set($event)"
+          >
+            <button tuiStep stepState="pass" type="button">Grunddaten</button>
+            <button tuiStep type="button">Verfügbarkeiten</button>
+            <button tuiStep type="button">Vorschlag</button>
+            <button tuiStep type="button">Bestätigung</button>
+          </tui-stepper>
+          <p>
+            Der Stepper eignet sich als Fortschrittsanzeige, sollte aber erst mit einer späteren
+            Workflow-Story navigierbar werden.
+          </p>
+          <button tuiButton appearance="secondary" type="button" (click)="openConfirmation()">
+            Taiga-Dialog öffnen
+          </button>
+        </aside>
+      </div>
+
+      <section class="prototype-card planning-card" aria-labelledby="planning-title">
+        <div class="card-heading">
+          <div>
+            <span class="section-kicker">Anspruchsvolle Planungsdarstellung</span>
+            <h3 id="planning-title">Kapazitätsvorschau · KW 47</h3>
+          </div>
+          <div class="legend" aria-label="Legende">
+            <span><i class="dot good"></i> vollständig</span>
+            <span><i class="dot warn"></i> Handlungsbedarf</span>
+          </div>
+        </div>
+        <div class="planning-board">
+          @for (day of days; track day.date) {
+            <article class="planning-day" [class]="'planning-day ' + day.tone">
+              <header>
+                <div>
+                  <strong>{{ day.date }}</strong>
+                  <span>{{ day.location }}</span>
+                </div>
+                <button tuiButton appearance="flat" size="s" type="button">Bearbeiten</button>
+              </header>
+              <div class="slots">
+                @for (slot of day.slots; track slot[0]) {
+                  <div class="slot">
+                    <time>{{ slot[0] }}</time>
+                    <strong>{{ slot[1] }}</strong>
+                    <span>{{ slot[2] }}</span>
+                  </div>
+                }
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+    }
+    @case ('prueflinge') {
+      <section class="prototype-card table-card" aria-labelledby="table-title">
+        <div class="card-heading">
+          <div>
+            <span class="section-kicker">Tabelle & Aktionen</span>
+            <h3 id="table-title">Prüflinge der Runde</h3>
+          </div>
+          <button tuiButton size="m" type="button">Prüfling hinzufügen</button>
+        </div>
+        <div class="table-scroll" tabindex="0" aria-label="Prüflingstabelle, horizontal scrollbar">
+          <table tuiTable>
+            <thead>
+              <tr>
+                <th tuiTh>Name</th>
+                <th tuiTh>Prüfungsnummer</th>
+                <th tuiTh>Fachrichtung</th>
+                <th tuiTh>Status</th>
+                <th tuiTh>Aktionen</th>
+              </tr>
+            </thead>
+            <tbody tuiTbody>
+              @for (candidate of candidates; track candidate.number) {
+                <tr>
+                  <td tuiTd>
+                    <strong>{{ candidate.name }}</strong>
+                  </td>
+                  <td tuiTd>{{ candidate.number }}</td>
+                  <td tuiTd>{{ candidate.specialization }}</td>
+                  <td tuiTd>
+                    <span tuiBadge>{{ candidate.status }}</span>
+                  </td>
+                  <td tuiTd>
+                    <div class="row-actions">
+                      <button tuiButton appearance="secondary" size="s" type="button">
+                        Bearbeiten
+                      </button>
+                      <button tuiButton appearance="flat" size="s" type="button">Mehr</button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+    @case ('ausschuss') {
+      <section class="prototype-card empty-state" aria-labelledby="committee-title">
+        <span tuiBadge>Navigationsexemplar</span>
+        <h3 id="committee-title">Prüfungsausschuss Hamburg 1</h3>
+        <p>
+          Dieser Navigationspunkt demonstriert Fokus, aktiven Zustand und die kompakte mobile
+          Navigation. Inhaltlich bleibt der Prototyp bewusst auf Planung und Tabelle begrenzt.
+        </p>
+        <button
+          tuiButton
+          appearance="secondary"
+          type="button"
+          (click)="activeSection.set('planung')"
+        >
+          Zur Terminplanung
+        </button>
+      </section>
+    }
+  }
+</section>

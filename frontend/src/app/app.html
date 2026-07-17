@@ -53,6 +53,17 @@
     </li>
     <li class="nav-title">Entwicklung</li>
     <li class="nav-item">
+      <button
+        class="nav-link app-prototype-link"
+        type="button"
+        [class.active]="prototypeVisible()"
+        (click)="showPrototype()"
+      >
+        <span class="app-prototype-mark" aria-hidden="true">T</span>
+        Taiga-Prototyp
+      </button>
+    </li>
+    <li class="nav-item">
       <a cNavLink href="/api/docs" target="_blank" rel="noopener">
         <svg [cIcon]="icons.documentation" class="app-nav-icon" aria-hidden="true"></svg>
         API-Dokumentation
@@ -106,67 +117,75 @@
         <h1>{{ pageTitle() }}</h1>
       </header>
 
-      @switch (activeView()) {
-        @case ('dashboard') {
-          <app-dashboard
-            [summary]="summary()"
-            [round]="round()"
-            [board]="board()"
-            [planningResult]="lastPlanningResult()"
-            [loading]="loading()"
-            [actionBusy]="actionBusy()"
-            (generateProposal)="generateProposal()"
-            (confirmPlan)="requestPlanConfirmation()"
-            (openView)="showView($event)"
-          />
-        }
-        @case ('candidates') {
-          <app-candidates
-            [masterData]="masterData()"
-            [actionBusy]="actionBusy()"
-            (createCandidate)="createCandidate($event)"
-            (updateCandidate)="updateCandidate($event)"
-            (deleteCandidate)="
-              requestCandidateDeletion($event.id, $event.first_name + ' ' + $event.last_name)
-            "
-          />
-        }
-        @case ('committee') {
-          <app-committee
-            [masterData]="masterData()"
-            [selectedCommitteeIdInput]="selectedCommitteeId()"
-            [actionBusy]="actionBusy()"
-            (selectedCommitteeIdChange)="selectCommittee($event)"
-            (createCommittee)="createCommittee($event)"
-            (createMember)="createMember($event)"
-            (toggleMember)="toggleMember($event)"
-          />
-        }
-        @case ('planning') {
-          <app-planning
-            [round]="round()"
-            [summary]="summary()"
-            [board]="board()"
-            [masterData]="masterData()"
-            [actionBusy]="actionBusy()"
-            [candidateDayGenerationResult]="candidateDayGenerationResult()"
-            (saveSettings)="savePlanningSettings($event)"
-            (saveRound)="saveExamRound($event)"
-            (createCandidateDay)="createCandidateDay($event)"
-            (generateCandidateDays)="generateCandidateDays($event)"
-            (toggleCandidateDay)="toggleCandidateDay($event)"
-            (saveAvailability)="saveAvailability($event)"
-          />
-        }
-        @case ('locations') {
-          <app-locations
-            [masterData]="masterData()"
-            [actionBusy]="actionBusy()"
-            (createLocation)="createLocation($event)"
-            (updateLocation)="updateLocation($event)"
-            (toggleLocation)="toggleLocation($event)"
-            (deleteLocation)="requestLocationDeletion($event.id, $event.name + ' · ' + $event.room)"
-          />
+      @if (prototypeVisible()) {
+        <tui-root>
+          <app-taiga-prototype />
+        </tui-root>
+      } @else {
+        @switch (activeView()) {
+          @case ('dashboard') {
+            <app-dashboard
+              [summary]="summary()"
+              [round]="round()"
+              [board]="board()"
+              [planningResult]="lastPlanningResult()"
+              [loading]="loading()"
+              [actionBusy]="actionBusy()"
+              (generateProposal)="generateProposal()"
+              (confirmPlan)="requestPlanConfirmation()"
+              (openView)="showView($event)"
+            />
+          }
+          @case ('candidates') {
+            <app-candidates
+              [masterData]="masterData()"
+              [actionBusy]="actionBusy()"
+              (createCandidate)="createCandidate($event)"
+              (updateCandidate)="updateCandidate($event)"
+              (deleteCandidate)="
+                requestCandidateDeletion($event.id, $event.first_name + ' ' + $event.last_name)
+              "
+            />
+          }
+          @case ('committee') {
+            <app-committee
+              [masterData]="masterData()"
+              [selectedCommitteeIdInput]="selectedCommitteeId()"
+              [actionBusy]="actionBusy()"
+              (selectedCommitteeIdChange)="selectCommittee($event)"
+              (createCommittee)="createCommittee($event)"
+              (createMember)="createMember($event)"
+              (toggleMember)="toggleMember($event)"
+            />
+          }
+          @case ('planning') {
+            <app-planning
+              [round]="round()"
+              [summary]="summary()"
+              [board]="board()"
+              [masterData]="masterData()"
+              [actionBusy]="actionBusy()"
+              [candidateDayGenerationResult]="candidateDayGenerationResult()"
+              (saveSettings)="savePlanningSettings($event)"
+              (saveRound)="saveExamRound($event)"
+              (createCandidateDay)="createCandidateDay($event)"
+              (generateCandidateDays)="generateCandidateDays($event)"
+              (toggleCandidateDay)="toggleCandidateDay($event)"
+              (saveAvailability)="saveAvailability($event)"
+            />
+          }
+          @case ('locations') {
+            <app-locations
+              [masterData]="masterData()"
+              [actionBusy]="actionBusy()"
+              (createLocation)="createLocation($event)"
+              (updateLocation)="updateLocation($event)"
+              (toggleLocation)="toggleLocation($event)"
+              (deleteLocation)="
+                requestLocationDeletion($event.id, $event.name + ' · ' + $event.room)
+              "
+            />
+          }
         }
       }
     </c-container>
