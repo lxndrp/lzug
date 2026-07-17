@@ -1,20 +1,3 @@
-@use '@coreui/coreui/scss/root';
-@use '@coreui/coreui/scss/reboot';
-@use '@coreui/coreui/scss/type';
-@use '@coreui/coreui/scss/containers';
-@use '@coreui/coreui/scss/grid';
-@use '@coreui/coreui/scss/tables';
-@use '@coreui/coreui/scss/forms';
-@use '@coreui/coreui/scss/buttons';
-@use '@coreui/coreui/scss/badge';
-@use '@coreui/coreui/scss/list-group';
-@use '@coreui/coreui/scss/modal';
-@use '@coreui/coreui/scss/progress';
-@use '@coreui/coreui/scss/header';
-@use '@coreui/coreui/scss/sidebar';
-@use '@coreui/coreui/scss/helpers';
-@use '@coreui/coreui/scss/utilities/api';
-
 @import '@fontsource/source-sans-3/400.css';
 @import '@fontsource/source-sans-3/600.css';
 @import '@fontsource/source-sans-3/700.css';
@@ -36,18 +19,6 @@
   --app-radius-lg: 0.75rem;
   --app-shadow-subtle: 0 1px 2px rgb(31 41 51 / 6%);
   --app-shadow-floating: 0 8px 24px rgb(31 41 51 / 16%);
-  --cui-primary: var(--app-color-primary);
-  --cui-primary-rgb: 21, 94, 99;
-  --cui-secondary-color: var(--app-color-text-muted);
-  --cui-secondary-rgb: 82, 96, 109;
-  --cui-link-color: var(--app-color-primary);
-  --cui-link-hover-color: var(--app-color-primary-hover);
-  --cui-body-bg: var(--app-color-canvas);
-  --cui-body-color: var(--app-color-text);
-  --cui-body-font-family: 'Source Sans 3', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --cui-border-color: var(--app-color-border);
-  --cui-border-radius: var(--app-radius-sm);
-  --cui-focus-ring-color: rgb(213 138 44 / 35%);
 }
 
 html,

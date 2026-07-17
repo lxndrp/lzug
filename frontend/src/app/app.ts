@@ -1,7 +1,6 @@
 import { Component, DestroyRef, ViewChild, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
-import { IconDirective } from '@coreui/icons-angular';
 import { TuiRoot } from '@taiga-ui/core';
 import { filter, finalize, switchMap } from 'rxjs';
 
@@ -21,6 +20,7 @@ import {
 import { PlanningApiService } from './api/planning-api.service';
 import { AppView } from './app-view';
 import { appIcons } from './app-icons';
+import { AppIconDirective } from './app-icon.directive';
 import {
   CandidatePayload,
   CandidatesComponent,
@@ -48,12 +48,12 @@ import { TaigaPrototypeComponent } from './taiga-prototype/taiga-prototype.compo
 @Component({
   selector: 'app-root',
   imports: [
+    AppIconDirective,
     CandidatesComponent,
     CommitteeComponent,
     DashboardComponent,
     LocationsComponent,
     PlanningComponent,
-    IconDirective,
     TaigaPrototypeComponent,
     TuiRoot,
   ],

@@ -9,8 +9,6 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { AlertModule, BadgeModule, FormModule, GridModule, TableModule } from '@coreui/angular';
-import { IconDirective } from '@coreui/icons-angular';
 import { TuiButton, TuiInput } from '@taiga-ui/core';
 import { TuiSelect } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
@@ -29,6 +27,7 @@ import {
   RoundSummary,
 } from '../api/api.models';
 import { appIcons } from '../app-icons';
+import { AppIconDirective } from '../app-icon.directive';
 
 export type PlanningSettingsPayload = Omit<PlanningSettings, 'id' | 'exam_round_id'>;
 export type CandidateExamDayPayload = Omit<CandidateExamDay, 'id' | 'exam_round_id'>;
@@ -44,19 +43,7 @@ type AvailabilityCellState = {
 
 @Component({
   selector: 'app-planning',
-  imports: [
-    AlertModule,
-    BadgeModule,
-    FormModule,
-    FormsModule,
-    GridModule,
-    IconDirective,
-    TableModule,
-    TuiButton,
-    TuiInput,
-    TuiSelect,
-    TuiTable,
-  ],
+  imports: [AppIconDirective, FormsModule, TuiButton, TuiInput, TuiSelect, TuiTable],
   templateUrl: './planning.component.html',
 })
 export class PlanningComponent implements OnChanges, OnDestroy {

@@ -1,13 +1,12 @@
 import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { BadgeModule, FormModule, GridModule, TableModule } from '@coreui/angular';
-import { IconDirective } from '@coreui/icons-angular';
 import { TuiButton, TuiInput, TuiTextfield } from '@taiga-ui/core';
 import { TuiSelect } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
 
 import { Candidate, CandidateView, MasterData } from '../api/api.models';
 import { appIcons } from '../app-icons';
+import { AppIconDirective } from '../app-icon.directive';
 
 export type CandidatePayload = Omit<Candidate, 'id'> & {
   attempt_number: number;
@@ -20,19 +19,7 @@ export type CandidateUpdate = {
 
 @Component({
   selector: 'app-candidates',
-  imports: [
-    BadgeModule,
-    FormModule,
-    FormsModule,
-    GridModule,
-    IconDirective,
-    TableModule,
-    TuiButton,
-    TuiInput,
-    TuiSelect,
-    TuiTable,
-    TuiTextfield,
-  ],
+  imports: [AppIconDirective, FormsModule, TuiButton, TuiInput, TuiSelect, TuiTable, TuiTextfield],
   templateUrl: './candidates.component.html',
 })
 export class CandidatesComponent {
