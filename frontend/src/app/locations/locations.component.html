@@ -14,42 +14,54 @@
           <form class="row g-3 app-form-grid" (ngSubmit)="submitLocation()">
             <div class="col-12 col-md-4">
               <label for="locationCommittee">Ausschuss</label>
-              <select
-                tuiSelect
-                id="locationCommittee"
-                name="committeeId"
-                [(ngModel)]="draft.committee_id"
-              >
-                <option [ngValue]="0">Standardausschuss</option>
-                @for (committee of masterData?.committees || []; track committee.id) {
-                  <option [ngValue]="committee.id">{{ committee.name }}</option>
-                }
-              </select>
+              <tui-textfield>
+                <select
+                  tuiSelect
+                  id="locationCommittee"
+                  name="committeeId"
+                  [(ngModel)]="draft.committee_id"
+                >
+                  <option [ngValue]="0">Standardausschuss</option>
+                  @for (committee of masterData?.committees || []; track committee.id) {
+                    <option [ngValue]="committee.id">{{ committee.name }}</option>
+                  }
+                </select>
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-4">
               <label for="locationName">Ort <span aria-hidden="true">*</span></label>
-              <input tuiInput id="locationName" name="name" [(ngModel)]="draft.name" required />
+              <tui-textfield>
+                <input tuiInput id="locationName" name="name" [(ngModel)]="draft.name" required />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-4">
               <label for="locationRoom">Raum <span aria-hidden="true">*</span></label>
-              <input tuiInput id="locationRoom" name="room" [(ngModel)]="draft.room" required />
+              <tui-textfield>
+                <input tuiInput id="locationRoom" name="room" [(ngModel)]="draft.room" required />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-5">
               <label for="locationStreet">Straße</label>
-              <input tuiInput id="locationStreet" name="street" [(ngModel)]="draft.street" />
+              <tui-textfield>
+                <input tuiInput id="locationStreet" name="street" [(ngModel)]="draft.street" />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-3">
               <label for="locationPostalCode">PLZ</label>
-              <input
-                tuiInput
-                id="locationPostalCode"
-                name="postalCode"
-                [(ngModel)]="draft.postal_code"
-              />
+              <tui-textfield>
+                <input
+                  tuiInput
+                  id="locationPostalCode"
+                  name="postalCode"
+                  [(ngModel)]="draft.postal_code"
+                />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-4">
               <label for="locationCity">Stadt</label>
-              <input tuiInput id="locationCity" name="city" [(ngModel)]="draft.city" />
+              <tui-textfield>
+                <input tuiInput id="locationCity" name="city" [(ngModel)]="draft.city" />
+              </tui-textfield>
             </div>
             <div class="col-12 app-form-actions">
               <span class="app-form-action-hint"
@@ -165,67 +177,82 @@
                         >
                           <div class="col-12 col-md-4">
                             <label [for]="'editLocationCommittee-' + location.id">Ausschuss</label>
-                            <select
-                              tuiSelect
-                              [id]="'editLocationCommittee-' + location.id"
-                              [name]="'editLocationCommittee-' + location.id"
-                              [(ngModel)]="currentDraft.committee_id"
-                            >
-                              @for (committee of masterData?.committees || []; track committee.id) {
-                                <option [ngValue]="committee.id">{{ committee.name }}</option>
-                              }
-                            </select>
+                            <tui-textfield>
+                              <select
+                                tuiSelect
+                                [id]="'editLocationCommittee-' + location.id"
+                                [name]="'editLocationCommittee-' + location.id"
+                                [(ngModel)]="currentDraft.committee_id"
+                              >
+                                @for (
+                                  committee of masterData?.committees || [];
+                                  track committee.id
+                                ) {
+                                  <option [ngValue]="committee.id">{{ committee.name }}</option>
+                                }
+                              </select>
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-4">
                             <label [for]="'editLocationName-' + location.id"
                               >Ort <span aria-hidden="true">*</span></label
                             >
-                            <input
-                              tuiInput
-                              [id]="'editLocationName-' + location.id"
-                              [name]="'editLocationName-' + location.id"
-                              [(ngModel)]="currentDraft.name"
-                              required
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editLocationName-' + location.id"
+                                [name]="'editLocationName-' + location.id"
+                                [(ngModel)]="currentDraft.name"
+                                required
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-4">
                             <label [for]="'editLocationRoom-' + location.id"
                               >Raum <span aria-hidden="true">*</span></label
                             >
-                            <input
-                              tuiInput
-                              [id]="'editLocationRoom-' + location.id"
-                              [name]="'editLocationRoom-' + location.id"
-                              [(ngModel)]="currentDraft.room"
-                              required
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editLocationRoom-' + location.id"
+                                [name]="'editLocationRoom-' + location.id"
+                                [(ngModel)]="currentDraft.room"
+                                required
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-5">
                             <label [for]="'editLocationStreet-' + location.id">Straße</label>
-                            <input
-                              tuiInput
-                              [id]="'editLocationStreet-' + location.id"
-                              [name]="'editLocationStreet-' + location.id"
-                              [(ngModel)]="currentDraft.street"
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editLocationStreet-' + location.id"
+                                [name]="'editLocationStreet-' + location.id"
+                                [(ngModel)]="currentDraft.street"
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-3">
                             <label [for]="'editLocationPostalCode-' + location.id">PLZ</label>
-                            <input
-                              tuiInput
-                              [id]="'editLocationPostalCode-' + location.id"
-                              [name]="'editLocationPostalCode-' + location.id"
-                              [(ngModel)]="currentDraft.postal_code"
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editLocationPostalCode-' + location.id"
+                                [name]="'editLocationPostalCode-' + location.id"
+                                [(ngModel)]="currentDraft.postal_code"
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-4">
                             <label [for]="'editLocationCity-' + location.id">Stadt</label>
-                            <input
-                              tuiInput
-                              [id]="'editLocationCity-' + location.id"
-                              [name]="'editLocationCity-' + location.id"
-                              [(ngModel)]="currentDraft.city"
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editLocationCity-' + location.id"
+                                [name]="'editLocationCity-' + location.id"
+                                [(ngModel)]="currentDraft.city"
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 app-form-actions">
                             <span class="app-form-action-hint"

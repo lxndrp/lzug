@@ -30,69 +30,81 @@
           <form class="row g-3 app-form-grid" (ngSubmit)="submitCandidate()">
             <div class="col-12 col-md-6">
               <label for="candidateFirstName">Vorname <span aria-hidden="true">*</span></label>
-              <input
-                tuiInput
-                id="candidateFirstName"
-                name="firstName"
-                [(ngModel)]="draft.first_name"
-                required
-              />
+              <tui-textfield>
+                <input
+                  tuiInput
+                  id="candidateFirstName"
+                  name="firstName"
+                  [(ngModel)]="draft.first_name"
+                  required
+                />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-6">
               <label for="candidateLastName">Nachname <span aria-hidden="true">*</span></label>
-              <input
-                tuiInput
-                id="candidateLastName"
-                name="lastName"
-                [(ngModel)]="draft.last_name"
-                required
-              />
+              <tui-textfield>
+                <input
+                  tuiInput
+                  id="candidateLastName"
+                  name="lastName"
+                  [(ngModel)]="draft.last_name"
+                  required
+                />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-4">
               <label for="candidateExamNumber"
                 >Prüfungsnummer <span aria-hidden="true">*</span></label
               >
-              <input
-                tuiInput
-                id="candidateExamNumber"
-                name="examNumber"
-                [(ngModel)]="draft.ihk_exam_number"
-                required
-              />
+              <tui-textfield>
+                <input
+                  tuiInput
+                  id="candidateExamNumber"
+                  name="examNumber"
+                  [(ngModel)]="draft.ihk_exam_number"
+                  required
+                />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-4">
               <label for="candidateSpecialization">Fachrichtung</label>
-              <select
-                tuiSelect
-                id="candidateSpecialization"
-                name="candidateSpecialization"
-                [(ngModel)]="draft.specialization"
-              >
-                <option value="application_development">Anwendungsentwicklung</option>
-                <option value="system_integration">Systemintegration</option>
-                <option value="data_and_process_analysis">Daten- und Prozessanalyse</option>
-                <option value="digital_networking">Digitale Vernetzung</option>
-              </select>
+              <tui-textfield>
+                <select
+                  tuiSelect
+                  id="candidateSpecialization"
+                  name="candidateSpecialization"
+                  [(ngModel)]="draft.specialization"
+                >
+                  <option value="application_development">Anwendungsentwicklung</option>
+                  <option value="system_integration">Systemintegration</option>
+                  <option value="data_and_process_analysis">Daten- und Prozessanalyse</option>
+                  <option value="digital_networking">Digitale Vernetzung</option>
+                </select>
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-4">
               <label for="candidateAttempt">Versuch</label>
-              <input
-                tuiInput
-                id="candidateAttempt"
-                min="1"
-                name="attempt"
-                type="number"
-                [(ngModel)]="draft.attempt_number"
-              />
+              <tui-textfield>
+                <input
+                  tuiInput
+                  id="candidateAttempt"
+                  min="1"
+                  name="attempt"
+                  type="number"
+                  [(ngModel)]="draft.attempt_number"
+                />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-8">
               <label for="candidateCompany">Ausbildungsbetrieb</label>
-              <input
-                tuiInput
-                id="candidateCompany"
-                name="company"
-                [(ngModel)]="draft.training_company"
-              />
+              <tui-textfield>
+                <input
+                  tuiInput
+                  id="candidateCompany"
+                  name="company"
+                  [(ngModel)]="draft.training_company"
+                />
+              </tui-textfield>
             </div>
             <div class="col-12 col-md-4 d-flex align-items-end">
               <div class="app-form-check">
@@ -144,17 +156,19 @@
           </div>
           <div class="col-12 col-md-4">
             <label for="candidateFilter">Fachrichtung</label>
-            <select
-              tuiSelect
-              id="candidateFilter"
-              [ngModel]="specialization()"
-              (ngModelChange)="specialization.set($event)"
-            >
-              <option value="">Alle Fachrichtungen</option>
-              @for (value of specializations(); track value) {
-                <option [value]="value">{{ specializationLabel(value) }}</option>
-              }
-            </select>
+            <tui-textfield>
+              <select
+                tuiSelect
+                id="candidateFilter"
+                [ngModel]="specialization()"
+                (ngModelChange)="specialization.set($event)"
+              >
+                <option value="">Alle Fachrichtungen</option>
+                @for (value of specializations(); track value) {
+                  <option [value]="value">{{ specializationLabel(value) }}</option>
+                }
+              </select>
+            </tui-textfield>
           </div>
         </div>
 
@@ -246,79 +260,93 @@
                             <label [for]="'editCandidateFirstName-' + item.candidate.id"
                               >Vorname <span aria-hidden="true">*</span></label
                             >
-                            <input
-                              tuiInput
-                              [id]="'editCandidateFirstName-' + item.candidate.id"
-                              [name]="'editCandidateFirstName-' + item.candidate.id"
-                              [(ngModel)]="currentDraft.first_name"
-                              required
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editCandidateFirstName-' + item.candidate.id"
+                                [name]="'editCandidateFirstName-' + item.candidate.id"
+                                [(ngModel)]="currentDraft.first_name"
+                                required
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-6">
                             <label [for]="'editCandidateLastName-' + item.candidate.id"
                               >Nachname <span aria-hidden="true">*</span></label
                             >
-                            <input
-                              tuiInput
-                              [id]="'editCandidateLastName-' + item.candidate.id"
-                              [name]="'editCandidateLastName-' + item.candidate.id"
-                              [(ngModel)]="currentDraft.last_name"
-                              required
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editCandidateLastName-' + item.candidate.id"
+                                [name]="'editCandidateLastName-' + item.candidate.id"
+                                [(ngModel)]="currentDraft.last_name"
+                                required
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-4">
                             <label [for]="'editCandidateExamNumber-' + item.candidate.id"
                               >Prüfungsnummer <span aria-hidden="true">*</span></label
                             >
-                            <input
-                              tuiInput
-                              [id]="'editCandidateExamNumber-' + item.candidate.id"
-                              [name]="'editCandidateExamNumber-' + item.candidate.id"
-                              [(ngModel)]="currentDraft.ihk_exam_number"
-                              required
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editCandidateExamNumber-' + item.candidate.id"
+                                [name]="'editCandidateExamNumber-' + item.candidate.id"
+                                [(ngModel)]="currentDraft.ihk_exam_number"
+                                required
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-4">
                             <label [for]="'editCandidateSpecialization-' + item.candidate.id"
                               >Fachrichtung</label
                             >
-                            <select
-                              tuiSelect
-                              [id]="'editCandidateSpecialization-' + item.candidate.id"
-                              [name]="'editCandidateSpecialization-' + item.candidate.id"
-                              [(ngModel)]="currentDraft.specialization"
-                            >
-                              <option value="application_development">Anwendungsentwicklung</option>
-                              <option value="system_integration">Systemintegration</option>
-                              <option value="data_and_process_analysis">
-                                Daten- und Prozessanalyse
-                              </option>
-                              <option value="digital_networking">Digitale Vernetzung</option>
-                            </select>
+                            <tui-textfield>
+                              <select
+                                tuiSelect
+                                [id]="'editCandidateSpecialization-' + item.candidate.id"
+                                [name]="'editCandidateSpecialization-' + item.candidate.id"
+                                [(ngModel)]="currentDraft.specialization"
+                              >
+                                <option value="application_development">
+                                  Anwendungsentwicklung
+                                </option>
+                                <option value="system_integration">Systemintegration</option>
+                                <option value="data_and_process_analysis">
+                                  Daten- und Prozessanalyse
+                                </option>
+                                <option value="digital_networking">Digitale Vernetzung</option>
+                              </select>
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-4">
                             <label [for]="'editCandidateAttempt-' + item.candidate.id"
                               >Versuch</label
                             >
-                            <input
-                              tuiInput
-                              [id]="'editCandidateAttempt-' + item.candidate.id"
-                              [name]="'editCandidateAttempt-' + item.candidate.id"
-                              min="1"
-                              type="number"
-                              [(ngModel)]="currentDraft.attempt_number"
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editCandidateAttempt-' + item.candidate.id"
+                                [name]="'editCandidateAttempt-' + item.candidate.id"
+                                min="1"
+                                type="number"
+                                [(ngModel)]="currentDraft.attempt_number"
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-8">
                             <label [for]="'editCandidateCompany-' + item.candidate.id"
                               >Ausbildungsbetrieb</label
                             >
-                            <input
-                              tuiInput
-                              [id]="'editCandidateCompany-' + item.candidate.id"
-                              [name]="'editCandidateCompany-' + item.candidate.id"
-                              [(ngModel)]="currentDraft.training_company"
-                            />
+                            <tui-textfield>
+                              <input
+                                tuiInput
+                                [id]="'editCandidateCompany-' + item.candidate.id"
+                                [name]="'editCandidateCompany-' + item.candidate.id"
+                                [(ngModel)]="currentDraft.training_company"
+                              />
+                            </tui-textfield>
                           </div>
                           <div class="col-12 col-md-4 d-flex align-items-end">
                             <div class="app-form-check">

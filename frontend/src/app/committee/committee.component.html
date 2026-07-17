@@ -67,25 +67,29 @@
           <form class="app-form-grid" (submit)="saveCommittee($event)">
             <div class="mb-3">
               <label for="committeeName">Bezeichnung <span aria-hidden="true">*</span></label>
-              <input
-                tuiInput
-                id="committeeName"
-                name="name"
-                required
-                placeholder="PA Fachinformatiker Hamburg 1"
-              />
+              <tui-textfield>
+                <input
+                  tuiInput
+                  id="committeeName"
+                  name="name"
+                  required
+                  placeholder="PA Fachinformatiker Hamburg 1"
+                />
+              </tui-textfield>
             </div>
             <div class="mb-3">
               <label for="committeeOccupation"
                 >Ausbildungsberuf <span aria-hidden="true">*</span></label
               >
-              <input
-                tuiInput
-                id="committeeOccupation"
-                name="occupation"
-                required
-                placeholder="Fachinformatiker/in"
-              />
+              <tui-textfield>
+                <input
+                  tuiInput
+                  id="committeeOccupation"
+                  name="occupation"
+                  required
+                  placeholder="Fachinformatiker/in"
+                />
+              </tui-textfield>
             </div>
             <div class="app-form-actions">
               <span class="app-form-action-hint"
@@ -198,52 +202,68 @@
             <div class="row g-3">
               <div class="col-12">
                 <label for="memberCommittee">Ausschuss <span aria-hidden="true">*</span></label>
-                <select tuiSelect id="memberCommittee" name="committee_id" required>
-                  @for (committee of masterDataView()?.committees || []; track committee.id) {
-                    <option [value]="committee.id" [selected]="isSelectedCommittee(committee)">
-                      {{ committee.name }}
-                    </option>
-                  }
-                </select>
+                <tui-textfield>
+                  <select tuiSelect id="memberCommittee" name="committee_id" required>
+                    @for (committee of masterDataView()?.committees || []; track committee.id) {
+                      <option [value]="committee.id" [selected]="isSelectedCommittee(committee)">
+                        {{ committee.name }}
+                      </option>
+                    }
+                  </select>
+                </tui-textfield>
               </div>
               <div class="col-12 col-md-6">
                 <label for="memberFirstName">Vorname <span aria-hidden="true">*</span></label>
-                <input tuiInput id="memberFirstName" name="first_name" required />
+                <tui-textfield>
+                  <input tuiInput id="memberFirstName" name="first_name" required />
+                </tui-textfield>
               </div>
               <div class="col-12 col-md-6">
                 <label for="memberLastName">Nachname <span aria-hidden="true">*</span></label>
-                <input tuiInput id="memberLastName" name="last_name" required />
+                <tui-textfield>
+                  <input tuiInput id="memberLastName" name="last_name" required />
+                </tui-textfield>
               </div>
               <div class="col-12 col-md-6">
                 <label for="memberEmail">E-Mail <span aria-hidden="true">*</span></label>
-                <input tuiInput id="memberEmail" name="email" type="email" required />
+                <tui-textfield>
+                  <input tuiInput id="memberEmail" name="email" type="email" required />
+                </tui-textfield>
               </div>
               <div class="col-12 col-md-6">
                 <label for="memberMobile">Mobil</label>
-                <input tuiInput id="memberMobile" name="mobile" type="tel" />
+                <tui-textfield>
+                  <input tuiInput id="memberMobile" name="mobile" type="tel" />
+                </tui-textfield>
               </div>
               <div class="col-12 col-md-4">
                 <label for="memberStatus">Mitgliedsstatus</label>
-                <select tuiSelect id="memberStatus" name="member_status">
-                  <option value="ordinary">Ordentlich</option>
-                  <option value="deputy">Stellvertretend</option>
-                </select>
+                <tui-textfield>
+                  <select tuiSelect id="memberStatus" name="member_status">
+                    <option value="ordinary">Ordentlich</option>
+                    <option value="deputy">Stellvertretend</option>
+                  </select>
+                </tui-textfield>
               </div>
               <div class="col-12 col-md-4">
                 <label for="memberRole">Funktion</label>
-                <select tuiSelect id="memberRole" name="committee_role">
-                  <option value="member">Mitglied</option>
-                  <option value="chair">Vorsitz</option>
-                  <option value="deputy_chair">Stellv. Vorsitz</option>
-                </select>
+                <tui-textfield>
+                  <select tuiSelect id="memberRole" name="committee_role">
+                    <option value="member">Mitglied</option>
+                    <option value="chair">Vorsitz</option>
+                    <option value="deputy_chair">Stellv. Vorsitz</option>
+                  </select>
+                </tui-textfield>
               </div>
               <div class="col-12 col-md-4">
                 <label for="memberSide">Vertreterseite</label>
-                <select tuiSelect id="memberSide" name="representing_side">
-                  <option value="employer">Arbeitgeber</option>
-                  <option value="employee">Arbeitnehmer</option>
-                  <option value="school">Schule</option>
-                </select>
+                <tui-textfield>
+                  <select tuiSelect id="memberSide" name="representing_side">
+                    <option value="employer">Arbeitgeber</option>
+                    <option value="employee">Arbeitnehmer</option>
+                    <option value="school">Schule</option>
+                  </select>
+                </tui-textfield>
               </div>
               <div class="col-12">
                 <div class="app-form-check">
