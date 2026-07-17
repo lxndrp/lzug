@@ -73,8 +73,8 @@
           <tui-textfield>
             <label tuiLabel for="prototypeRoundName">Bezeichnung der Prüfungsrunde</label>
             <input
-              id="prototypeRoundName"
               tuiInput
+              id="prototypeRoundName"
               formControlName="roundName"
               autocomplete="off"
             />
@@ -87,7 +87,7 @@
             <div>
               <tui-textfield>
                 <label tuiLabel for="prototypeWeekFrom">Von Kalenderwoche</label>
-                <input id="prototypeWeekFrom" tuiInput type="week" formControlName="weekFrom" />
+                <input tuiInput id="prototypeWeekFrom" type="week" formControlName="weekFrom" />
               </tui-textfield>
               <small>Native Wochenauswahl · ISO-Format</small>
             </div>
@@ -95,8 +95,8 @@
               <tui-textfield>
                 <label tuiLabel for="prototypeSampleDate">Beispieltag</label>
                 <input
-                  id="prototypeSampleDate"
                   tuiInputDate
+                  id="prototypeSampleDate"
                   type="date"
                   formControlName="sampleDate"
                 />

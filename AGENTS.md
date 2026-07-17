@@ -61,6 +61,9 @@ klaeren, bevor eine umfangreiche Umsetzung beginnt.
 - Die Implementierung eines Issues erfolgt in einem separaten Thread mit dem
   Namen `Feature umsetzen` fuer Stories und Epics beziehungsweise `Bug beheben`
   fuer Bug-Issues.
+- Jeder Umsetzungsthread fuer ein Issue erhaelt einen eigenen Worktree. Der
+  Worktree wird mit dem zugehoerigen Feature-Branch verbunden und darf nicht
+  parallel mit dem Planungsthread im selben Arbeitsverzeichnis arbeiten.
 - Beim Wechsel von der Planung in die Umsetzung den fuer die Implementierung
   relevanten Kontext an den passenden Umsetzungsthread uebergeben. Dazu gehoeren
   mindestens Issue-Nummer, fachliches Ziel, Akzeptanzkriterien, technische
