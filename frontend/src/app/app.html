@@ -3,6 +3,8 @@
     <aside
       id="appSidebar"
       class="app-sidebar"
+      [class.show]="sidebarVisible()"
+      [class.hide]="!sidebarVisible()"
       [class.is-visible]="sidebarVisible()"
       role="complementary"
       aria-label="Prüfungsverwaltung"
@@ -107,7 +109,7 @@
             [class.is-open]="sidebarVisible()"
             (click)="sidebarVisible.set(!sidebarVisible())"
           >
-            <span class="app-menu-icon" aria-hidden="true"></span>
+            <span class="app-menu-icon header-toggler-icon" aria-hidden="true"></span>
           </button>
           <a
             class="app-header-title"

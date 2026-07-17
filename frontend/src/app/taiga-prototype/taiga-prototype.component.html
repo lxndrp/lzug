@@ -71,8 +71,13 @@
           </div>
 
           <tui-textfield>
-            <label tuiLabel>Bezeichnung der Prüfungsrunde</label>
-            <input tuiInput formControlName="roundName" autocomplete="off" />
+            <label tuiLabel for="prototypeRoundName">Bezeichnung der Prüfungsrunde</label>
+            <input
+              tuiInput
+              id="prototypeRoundName"
+              formControlName="roundName"
+              autocomplete="off"
+            />
           </tui-textfield>
           @if (form.controls.roundName.touched && form.controls.roundName.invalid) {
             <p class="field-error" role="alert">Bitte mindestens vier Zeichen eingeben.</p>
@@ -81,15 +86,20 @@
           <div class="form-row">
             <div>
               <tui-textfield>
-                <label tuiLabel>Von Kalenderwoche</label>
-                <input tuiInput type="week" formControlName="weekFrom" />
+                <label tuiLabel for="prototypeWeekFrom">Von Kalenderwoche</label>
+                <input tuiInput id="prototypeWeekFrom" type="week" formControlName="weekFrom" />
               </tui-textfield>
               <small>Native Wochenauswahl · ISO-Format</small>
             </div>
             <div>
               <tui-textfield>
-                <label tuiLabel>Beispieltag</label>
-                <input tuiInputDate type="date" formControlName="sampleDate" />
+                <label tuiLabel for="prototypeSampleDate">Beispieltag</label>
+                <input
+                  tuiInputDate
+                  id="prototypeSampleDate"
+                  type="date"
+                  formControlName="sampleDate"
+                />
               </tui-textfield>
               <small>Taiga-Datumseingabe mit mobilem Picker</small>
             </div>
@@ -101,9 +111,10 @@
               <span>Passwortfeld als Komponentenprobe</span>
             </div>
             <tui-textfield>
-              <label tuiLabel>Temporäres Passwort</label>
+              <label tuiLabel for="prototypePassword">Temporäres Passwort</label>
               <input
                 tuiInput
+                id="prototypePassword"
                 type="password"
                 formControlName="password"
                 autocomplete="new-password"
