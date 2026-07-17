@@ -1,12 +1,14 @@
 <div class="row g-4">
   <div class="col-12">
-    <c-card class="app-dashboard-hero">
-      <c-card-body>
+    <section class="app-panel app-dashboard-hero">
+      <div class="app-panel-body">
         <div class="app-dashboard-hero-layout">
           <div class="app-dashboard-hero-copy">
             <div class="app-dashboard-status-line">
               <span class="app-eyebrow">Aktueller Stand</span>
-              <c-badge color="primary">{{ statusLabel(summary?.round?.status) }}</c-badge>
+              <span class="app-badge app-badge-primary">{{
+                statusLabel(summary?.round?.status)
+              }}</span>
             </div>
             <h2>{{ summary?.round?.committee_name || 'Prüfungsausschuss' }}</h2>
             <p>{{ phaseDescription() }}</p>
@@ -40,8 +42,8 @@
             }
           </div>
         </div>
-      </c-card-body>
-    </c-card>
+      </div>
+    </section>
   </div>
 
   <div class="col-12">
@@ -66,15 +68,15 @@
   </div>
 
   <div class="col-12 col-xl-7">
-    <c-card>
-      <c-card-header>
+    <section class="app-panel">
+      <header class="app-panel-header">
         <div>
           <span class="app-eyebrow">Nächste Schritte</span>
           <strong class="d-block">Aufgaben</strong>
         </div>
         <span class="app-muted">Direkt zum betreffenden Bereich</span>
-      </c-card-header>
-      <c-card-body>
+      </header>
+      <div class="app-panel-body">
         <div class="app-task-list">
           @for (task of tasks(); track task.label) {
             <button type="button" class="app-task-link" (click)="openView.emit(task.view)">
@@ -82,27 +84,27 @@
                 <strong>{{ task.label }}</strong>
                 <small>{{ task.hint }}</small>
               </span>
-              <c-badge [color]="task.color">{{ task.detail }}</c-badge>
+              <span class="app-badge" [attr.data-color]="task.color">{{ task.detail }}</span>
               <svg [cIcon]="icons.arrowRight" class="app-icon-only" aria-hidden="true"></svg>
             </button>
           }
         </div>
-      </c-card-body>
-    </c-card>
+      </div>
+    </section>
   </div>
 
   <div class="col-12 col-xl-5">
-    <c-card>
-      <c-card-header>
+    <section class="app-panel">
+      <header class="app-panel-header">
         <div>
           <span class="app-eyebrow">Rahmen</span>
           <strong class="d-block">Planung und Fristen</strong>
         </div>
-        <c-badge [color]="pendingCount() ? 'warning' : 'success'">
+        <span class="app-badge" [attr.data-color]="pendingCount() ? 'warning' : 'success'">
           {{ pendingCount() ? pendingCount() + ' offen' : 'Rücklauf vollständig' }}
-        </c-badge>
-      </c-card-header>
-      <c-card-body>
+        </span>
+      </header>
+      <div class="app-panel-body">
         <dl class="app-context-list">
           <div>
             <dt>Prüfungsrunde</dt>
@@ -137,14 +139,14 @@
           <h3>Rücklauf</h3>
           <div class="d-flex flex-wrap gap-2">
             @for (item of summary?.availability || []; track item.availability) {
-              <c-badge [color]="availabilityColor(item.availability)">
+              <span class="app-badge" [attr.data-color]="availabilityColor(item.availability)">
                 {{ availabilityLabel(item.availability) }}: {{ item.count }}
-              </c-badge>
+              </span>
             }
           </div>
         </div>
-      </c-card-body>
-    </c-card>
+      </div>
+    </section>
   </div>
 
   @if (planningResult?.validation; as validation) {
@@ -165,17 +167,17 @@
   }
 
   <div class="col-12 col-xl-8">
-    <c-card>
-      <c-card-header>
+    <section class="app-panel">
+      <header class="app-panel-header">
         <strong>Terminplan</strong>
         <span class="app-muted">{{ plannedSlotCount() }} geplante Prüfungstermine</span>
-      </c-card-header>
-      <c-card-body>
+      </header>
+      <div class="app-panel-body">
         @if (board?.days?.length) {
           <div class="vstack gap-3">
             @for (item of board.days; track item.day.id) {
-              <c-card>
-                <c-card-body>
+              <article class="app-panel app-panel-nested">
+                <div class="app-panel-body">
                   <div class="d-flex flex-wrap align-items-start gap-2">
                     <div>
                       <h3>{{ dateLabel(item.day.date) }}</h3>
@@ -187,12 +189,12 @@
                     </div>
                     <div class="ms-auto d-flex flex-wrap gap-1">
                       @for (slot of item.slots; track slot.id) {
-                        <c-badge color="secondary">
+                        <span class="app-badge app-badge-secondary">
                           {{ slotTitle(slot) }}
                           @if (slot.slot_type === 'mep') {
                             · MEP
                           }
-                        </c-badge>
+                        </span>
                       }
                     </div>
                   </div>
@@ -200,28 +202,28 @@
                   <h4>Vormittag</h4>
                   <div class="d-flex flex-wrap gap-1">
                     @for (assignment of assignmentsFor(item, 'morning'); track assignment.id) {
-                      <c-badge [color]="assignmentColor(assignment)">
+                      <span class="app-badge" [attr.data-color]="assignmentColor(assignment)">
                         {{ memberName(assignment.committee_member_id) }} ·
                         {{ memberSide(assignment.committee_member_id) }} ·
                         {{ assignmentRoleLabel(assignment) }}
-                      </c-badge>
+                      </span>
                     }
                   </div>
 
                   <h4>Nachmittag</h4>
                   <div class="d-flex flex-wrap gap-1">
                     @for (assignment of assignmentsFor(item, 'afternoon'); track assignment.id) {
-                      <c-badge [color]="assignmentColor(assignment)">
+                      <span class="app-badge" [attr.data-color]="assignmentColor(assignment)">
                         {{ memberName(assignment.committee_member_id) }} ·
                         {{ memberSide(assignment.committee_member_id) }} ·
                         {{ assignmentRoleLabel(assignment) }}
-                      </c-badge>
+                      </span>
                     } @empty {
-                      <c-badge color="secondary">Keine Nachmittagstermine</c-badge>
+                      <span class="app-badge app-badge-secondary">Keine Nachmittagstermine</span>
                     }
                   </div>
-                </c-card-body>
-              </c-card>
+                </div>
+              </article>
             }
           </div>
         } @else {
@@ -230,16 +232,16 @@
             <span>Erzeugen Sie einen Vorschlag, sobald alle Grundlagen vollständig sind.</span>
           </div>
         }
-      </c-card-body>
-    </c-card>
+      </div>
+    </section>
   </div>
 
   <div class="col-12 col-xl-4">
-    <c-card>
-      <c-card-header>
+    <section class="app-panel">
+      <header class="app-panel-header">
         <strong>Bestätigte Termine</strong>
-      </c-card-header>
-      <c-card-body>
+      </header>
+      <div class="app-panel-body">
         <table cTable hover small responsive>
           <thead>
             <tr>
@@ -252,7 +254,7 @@
               <tr>
                 <td>{{ dateLabel(item.day.date) }}</td>
                 <td>
-                  <c-badge color="success"> {{ item.slots.length }} Termine </c-badge>
+                  <span class="app-badge app-badge-success"> {{ item.slots.length }} Termine </span>
                 </td>
               </tr>
             } @empty {
@@ -262,7 +264,7 @@
             }
           </tbody>
         </table>
-      </c-card-body>
-    </c-card>
+      </div>
+    </section>
   </div>
 </div>
