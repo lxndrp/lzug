@@ -1,11 +1,11 @@
 <div class="row g-4">
   <div class="col-12">
-    <c-card>
-      <c-card-header>
+    <section class="app-panel">
+      <header class="app-panel-header">
         <strong>Prüfungsausschuss</strong>
         <span class="app-muted">Ausschüsse und ihre Mitglieder verwalten</span>
-      </c-card-header>
-      <c-card-body>
+      </header>
+      <div class="app-panel-body">
         <table cTable hover small responsive>
           <thead>
             <tr>
@@ -22,16 +22,16 @@
             }
           </tbody>
         </table>
-      </c-card-body>
-    </c-card>
+      </div>
+    </section>
   </div>
 
   <div class="col-12 col-xl-4">
-    <c-card>
-      <c-card-header>
+    <section class="app-panel">
+      <header class="app-panel-header">
         <strong>Ausschüsse</strong>
-      </c-card-header>
-      <c-card-body>
+      </header>
+      <div class="app-panel-body">
         <div cListGroup>
           @for (committee of masterDataView()?.committees || []; track committee.id) {
             <button
@@ -51,20 +51,20 @@
             </div>
           }
         </div>
-      </c-card-body>
-    </c-card>
+      </div>
+    </section>
 
     <details class="app-create-panel">
       <summary class="app-create-trigger">Neuen Ausschuss anlegen</summary>
-      <c-card>
-        <c-card-header>
+      <section class="app-panel">
+        <header class="app-panel-header">
           <div>
             <strong>Ausschuss anlegen</strong>
             <span class="app-muted d-block">Bezeichnung und Ausbildungsberuf festlegen</span>
           </div>
           <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
-        </c-card-header>
-        <c-card-body>
+        </header>
+        <div class="app-panel-body">
           <form cForm class="app-form-grid" (submit)="saveCommittee($event)">
             <div class="mb-3">
               <label cLabel for="committeeName"
@@ -100,18 +100,18 @@
               </button>
             </div>
           </form>
-        </c-card-body>
-      </c-card>
+        </div>
+      </section>
     </details>
   </div>
 
   <div class="col-12 col-xl-8">
-    <c-card>
-      <c-card-header>
+    <section class="app-panel">
+      <header class="app-panel-header">
         <strong>{{ selectedCommitteeName() }}</strong>
         <c-badge color="success">{{ activeMemberCount() }} aktiv</c-badge>
-      </c-card-header>
-      <c-card-body>
+      </header>
+      <div class="app-panel-body">
         <div class="app-table-scroll">
           <table cTable hover small class="app-data-table app-table-sticky-actions">
             <thead>
@@ -178,13 +178,13 @@
             </tbody>
           </table>
         </div>
-      </c-card-body>
-    </c-card>
+      </div>
+    </section>
 
     <details class="app-create-panel">
       <summary class="app-create-trigger">Neuen Prüfer anlegen</summary>
-      <c-card>
-        <c-card-header>
+      <section class="app-panel">
+        <header class="app-panel-header">
           <div>
             <strong>Prüfer anlegen</strong>
             <span class="app-muted d-block"
@@ -192,8 +192,8 @@
             >
           </div>
           <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
-        </c-card-header>
-        <c-card-body>
+        </header>
+        <div class="app-panel-body">
           <form cForm class="app-form-grid" (submit)="saveMember($event)">
             <div class="row g-3">
               <div class="col-12">
@@ -274,8 +274,8 @@
               </div>
             </div>
           </form>
-        </c-card-body>
-      </c-card>
+        </div>
+      </section>
     </details>
   </div>
 </div>
