@@ -80,6 +80,15 @@ describe('DashboardComponent', () => {
     expect(element.querySelector('.app-context-list')?.textContent).toContain('Planungszeitraum');
   });
 
+  it('should use Taiga headers and the responsive app page grid', () => {
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.app-page-grid')).toBeTruthy();
+    expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(4);
+    expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
+  });
+
   it('should emit planning actions when buttons are enabled', () => {
     spyOn(component.generateProposal, 'emit');
     spyOn(component.confirmPlan, 'emit');

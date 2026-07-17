@@ -50,6 +50,15 @@ describe('CandidatesComponent', () => {
     expect(element.querySelectorAll('.app-row-actions').length).toBeGreaterThan(0);
   });
 
+  it('should use Taiga form and header layout with app grid classes', () => {
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.app-page-grid')).toBeTruthy();
+    expect(element.querySelectorAll('form[tuiForm]').length).toBe(1);
+    expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(3);
+    expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
+  });
+
   it('should emit create and delete events', () => {
     const component = fixture.componentInstance;
     spyOn(component.createCandidate, 'emit');
