@@ -135,14 +135,16 @@
       <div class="app-panel-body">
         <div class="row g-3 app-filter-bar" role="search" aria-label="Prüflingsliste filtern">
           <div class="col-12 col-md-8">
-            <label cLabel for="candidateSearch">Suche</label>
-            <input
-              cFormControl
-              id="candidateSearch"
-              type="search"
-              [ngModel]="query()"
-              (ngModelChange)="query.set($event)"
-            />
+            <tui-textfield>
+              <label tuiLabel for="candidateSearch">Suche</label>
+              <input
+                tuiTextfield
+                id="candidateSearch"
+                type="search"
+                [ngModel]="query()"
+                (ngModelChange)="query.set($event)"
+              />
+            </tui-textfield>
           </div>
           <div class="col-12 col-md-4">
             <label cLabel for="candidateFilter">Fachrichtung</label>
