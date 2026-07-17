@@ -4,7 +4,15 @@ import prettier from 'eslint-config-prettier';
 
 export default [
   {
-    ignores: ['node_modules', 'dist', 'coverage', '.angular', 'karma.conf.cjs'],
+    ignores: [
+      'node_modules',
+      'dist',
+      'coverage',
+      '.angular',
+      'test-results',
+      'playwright-report',
+      'karma.conf.cjs',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

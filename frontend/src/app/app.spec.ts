@@ -153,20 +153,18 @@ describe('App', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('.app-feedback')).toBeNull();
   });
 
-  it('should open the prototype without changing the application route', () => {
+  it('should keep development-only prototype content out of the application shell', () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
-    const router = TestBed.inject(Router);
     flushDashboardRequests(http);
     fixture.detectChanges();
 
-    clickButton(fixture, 'Taiga-Prototyp');
-    fixture.detectChanges();
-
-    expect(router.url).toBe('/');
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
-      'Prüfungsplanung mit Taiga UI',
-    );
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).not.toContain('Entwicklung');
+    expect(element.textContent).not.toContain('Taiga-Prototyp');
+    expect(element.querySelector('.app-header-title')?.textContent).toContain('Prüfungsverwaltung');
+    expect(element.querySelector('h1')?.textContent).toContain('Winter 2026/27');
+    expect(element.textContent).toContain('Daten synchronisiert');
   });
 });
 
