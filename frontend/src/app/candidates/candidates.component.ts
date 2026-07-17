@@ -1,7 +1,8 @@
 import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { BadgeModule, ButtonModule, FormModule, GridModule, TableModule } from '@coreui/angular';
+import { BadgeModule, FormModule, GridModule, TableModule } from '@coreui/angular';
 import { IconDirective } from '@coreui/icons-angular';
+import { TuiButton } from '@taiga-ui/core';
 
 import { Candidate, CandidateView, MasterData } from '../api/api.models';
 import { appIcons } from '../app-icons';
@@ -19,12 +20,12 @@ export type CandidateUpdate = {
   selector: 'app-candidates',
   imports: [
     BadgeModule,
-    ButtonModule,
     FormModule,
     FormsModule,
     GridModule,
     IconDirective,
     TableModule,
+    TuiButton,
   ],
   templateUrl: './candidates.component.html',
 })

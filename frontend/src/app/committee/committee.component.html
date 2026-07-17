@@ -94,7 +94,7 @@
               <span class="app-form-action-hint"
                 >Mitglieder können anschließend zugeordnet werden.</span
               >
-              <button cButton color="primary" type="submit" [disabled]="actionBusy">
+              <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
                 <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                 Ausschuss anlegen
               </button>
@@ -147,9 +147,9 @@
                   <td class="app-actions">
                     <div class="app-row-actions">
                       <button
-                        cButton
+                        tuiButton
                         color="secondary"
-                        size="sm"
+                        size="s"
                         variant="outline"
                         type="button"
                         (click)="toggleMember.emit(member)"
@@ -267,7 +267,7 @@
                 <span class="app-form-action-hint"
                   >Der Prüfer wird direkt dem gewählten Ausschuss zugeordnet.</span
                 >
-                <button cButton color="primary" type="submit" [disabled]="actionBusy">
+                <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
                   <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                   Prüfer speichern
                 </button>

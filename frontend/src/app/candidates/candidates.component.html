@@ -115,7 +115,7 @@
               <span class="app-form-action-hint"
                 >Der Prüfling wird der aktuellen Runde zugeordnet.</span
               >
-              <button cButton color="primary" type="submit" [disabled]="actionBusy">
+              <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
                 <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                 Prüfling anlegen
               </button>
@@ -199,9 +199,9 @@
                   <td class="app-actions">
                     <div class="app-row-actions">
                       <button
-                        cButton
+                        tuiButton
                         color="primary"
-                        size="sm"
+                        size="s"
                         type="button"
                         variant="outline"
                         [disabled]="actionBusy"
@@ -211,9 +211,9 @@
                         Bearbeiten
                       </button>
                       <button
-                        cButton
+                        tuiButton
                         color="danger"
-                        size="sm"
+                        size="s"
                         type="button"
                         variant="outline"
                         [disabled]="actionBusy"
@@ -341,7 +341,7 @@
                             <span class="app-form-action-hint"
                               >Änderungen gelten für Stammdaten und aktuelle Runde.</span
                             >
-                            <button cButton color="primary" type="submit" [disabled]="actionBusy">
+                            <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
                               <svg
                                 [cIcon]="icons.save"
                                 class="app-button-icon"
@@ -350,7 +350,7 @@
                               Änderungen speichern
                             </button>
                             <button
-                              cButton
+                              tuiButton
                               color="secondary"
                               type="button"
                               variant="outline"

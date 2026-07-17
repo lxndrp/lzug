@@ -1,13 +1,7 @@
 import { Component, EventEmitter, Input, Output, computed, signal } from '@angular/core';
-import {
-  BadgeModule,
-  ButtonModule,
-  FormModule,
-  GridModule,
-  ListGroupModule,
-  TableModule,
-} from '@coreui/angular';
+import { BadgeModule, FormModule, GridModule, ListGroupModule, TableModule } from '@coreui/angular';
 import { IconDirective } from '@coreui/icons-angular';
+import { TuiButton } from '@taiga-ui/core';
 
 import { Committee, CommitteeMember, MasterData } from '../api/api.models';
 import { appIcons } from '../app-icons';
@@ -19,12 +13,12 @@ export type CommitteeMemberPayload = Omit<CommitteeMember, 'id' | 'email_verifie
   selector: 'app-committee',
   imports: [
     BadgeModule,
-    ButtonModule,
     FormModule,
     GridModule,
     IconDirective,
     ListGroupModule,
     TableModule,
+    TuiButton,
   ],
   templateUrl: './committee.component.html',
 })
