@@ -81,7 +81,9 @@ export class App {
   );
   protected readonly activeView = signal<AppView>('dashboard');
   protected readonly prototypeVisible = signal(false);
-  protected readonly sidebarVisible = signal(true);
+  protected readonly sidebarVisible = signal(
+    typeof window === 'undefined' || window.innerWidth >= 768,
+  );
   protected readonly selectedCommitteeId = signal<number | null>(null);
   protected readonly message = signal('Bereit');
   protected readonly loading = signal(false);
