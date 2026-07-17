@@ -96,8 +96,8 @@ Stand: 17. Juli 2026.
 | Angular-Templates | `npx ngc -p tsconfig.app.json --noEmit` erfolgreich                                                                                                                              |
 | ESLint            | `npm run lint` erfolgreich                                                                                                                                                       |
 | Unit-Tests        | Prototyp- und App-Tests ergaenzt; Karma-Bundle in Codex durch bekannten esbuild-Deadlock blockiert                                                                               |
-| Produktion-Build  | In Codex vor Ausgabe der Bundle-Dateien durch denselben esbuild-Deadlock mit Exit 134 blockiert                                                                                  |
-| Bundle-Groesse    | Neue Produktionsgroesse deshalb in Codex nicht belastbar messbar; letzter vorhandener Vor-Prototyp-Artefaktstand: 882.900 Byte JS+CSS, nicht als Vergleichsergebnis verwenden    |
+| Produktion-Build  | GitHub CI baut den Produktions-Bundle; der lokale Codex-Build bleibt durch den bekannten esbuild-Deadlock mit Exit 134 blockiert                                      |
+| Bundle-Groesse    | GitHub CI misst aktuell 1,21 MB initiales Bundle; die Produktionsbudgets in `frontend/angular.json` sind für den Taiga-Prototyp auf 1,3 MB Warnung und 1,5 MB Fehler angehoben |
 | Accessibility     | Semantische Desktop-Pruefung erfolgreich; Axe-Test fuer den Prototyp ergaenzt, Ausfuehrung zusammen mit Browser-Bundle in Codex blockiert                                        |
 | Desktop-Smoke     | In-App-Chromium: Navigation, vier Taiga-Textfelder, drei Planungstage, Tabelle mit drei Zeilen und Dialog interaktiv bestaetigt                                                  |
 | Mobile-Smoke      | 390 px ohne dokumentweiten horizontalen Ueberlauf bestaetigt; abschliessender erneuter Live-Smoke nach Root-Kapselung durch gesperrte localhost-Browserverbindung nicht moeglich |
