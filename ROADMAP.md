@@ -121,6 +121,26 @@ Dieses Epic wurde in den ursprünglichen Anforderungen nicht näher spezifiziert
 
 ## Projektplan
 
+### Taiga-UI-Migration - Entscheidung und Reihenfolge
+
+Die visuelle Entscheidungsschranke aus Issue #56 ist am 17.07.2026 mit Go
+abgeschlossen. Die weitere Arbeit erfolgt inkrementell und in getrennten
+Stories; es gibt keinen automatischen Big-Bang-Umbau.
+
+- **#57 App-Shell und Designsystem:** zuerst migrieren, inklusive Navigation,
+  globaler Rueckmeldungen, Tokens, Fokuszustaenden und responsive Layoutbasis.
+- **#58 Dashboard und Stammdaten:** danach Dashboard, Prueflinge und
+  Pruefungsorte migrieren.
+- **#59 Ausschussverwaltung:** anschliessend Ausschuesse, Mitglieder, Rollen
+  und Statusaktionen migrieren.
+- **#60 Planung und Verfuegbarkeiten:** zuletzt die komplexe Planungsansicht
+  und Matrix mit erweiterter Browser-/Accessibility-Pruefung migrieren.
+- **#61 CoreUI entfernen:** erst nach erfolgreicher visueller und technischer
+  Gesamtpruefung Abhaengigkeiten, Imports und temporaere Styles entfernen.
+
+Backend, API-Vertraege, programmatische API-Bezeichnungen und Routen bleiben in
+allen Stufen unveraendert. CoreUI darf bis #61 parallel bestehen.
+
 ### Phase 1: Epic Prüfungen planen - Import und Planungsgrundlagen abschließen
 
 - CSV-Import für Prüflinge im Angular-Frontend und Backend-Service umsetzen.

@@ -7,8 +7,17 @@ Der Prototyp ist die visuelle Entscheidungsschranke vor der Gesamtmigration aus
 weder Backend noch API-Vertraege oder bestehende Routen. CoreUI und Taiga UI
 laufen auf diesem Branch bewusst parallel.
 
-Eine Go-/No-Go-Entscheidung ist noch nicht getroffen. Sie erfolgt erst nach der
-visuellen Pruefung durch den Produktverantwortlichen.
+## Entscheidungspunkt
+
+Stand: 17. Juli 2026. Nach der visuellen Pruefung wurde ein Go fuer eine
+inkrementelle Migration erteilt. Die Entscheidung bezieht sich auf die
+technische und gestalterische Richtung, nicht auf einen ungesteuerten
+Big-Bang-Umbau: Backend, API-Vertraege, Routen und fachliche Ablaeufe bleiben
+unveraendert.
+
+Die Migration startet deshalb mit #57 (Anwendungsrahmen und Designsystem). Die
+Stories #58 bis #60 folgen in fachlich getrennten Schritten; #61 wird erst nach
+der vollstaendigen visuellen und technischen Abschlusspruefung umgesetzt.
 
 ## Start und visueller Pruefpunkt
 
@@ -94,6 +103,24 @@ Stand: 17. Juli 2026.
 | Mobile-Smoke      | 390 px ohne dokumentweiten horizontalen Ueberlauf bestaetigt; abschliessender erneuter Live-Smoke nach Root-Kapselung durch gesperrte localhost-Browserverbindung nicht moeglich |
 | Edge              | In dieser Umgebung nicht installiert/verfuegbar; manueller Smoke offen                                                                                                           |
 | Safari/WebKit     | In dieser Umgebung nicht automatisierbar; manueller Smoke offen, besonders fuer `input[type=week]`                                                                               |
+
+## Migrationsfolge nach dem Go
+
+1. **#57 App-Shell und Designsystem:** Taiga-Root, Navigation, globale
+   Rueckmeldungen, Tokens und Fokusfuehrung als belastbare Grundlage umsetzen.
+2. **#58 Dashboard und Stammdaten:** Dashboard, Prueflinge und Pruefungsorte
+   migrieren; API-Services und Routen unveraendert weiterverwenden.
+3. **#59 Ausschussverwaltung:** Listen, Rollen-/Statusdarstellung und
+   Bearbeitungsaktionen migrieren.
+4. **#60 Planung:** Planungsparameter, Verfuegbarkeitsmatrix und komplexe
+   responsive Planung migrieren; diese Story bekommt die strengste
+   Accessibility- und Browserpruefung.
+5. **#61 Abschluss:** CoreUI-Abhaengigkeiten und temporaere Adapter entfernen,
+   Bundle, Browser, Accessibility und `mise run quality` abschliessend pruefen.
+
+Jede Stufe wird separat verifiziert und reviewbar abgeschlossen. Ein Rueckfall
+auf CoreUI bleibt bis zum Abschluss von #61 moeglich; produktive Backend- oder
+API-Aenderungen sind kein Bestandteil dieser Migration.
 
 Die verbindliche lokale Gesamtpruefung bleibt:
 
