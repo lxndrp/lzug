@@ -1,6 +1,6 @@
 <section class="prototype" aria-labelledby="prototype-title">
   <header class="prototype-hero">
-    <div>
+    <div class="hero-copy">
       <p class="prototype-eyebrow">Interaktiver Entscheidungsprototyp · keine Echtdaten</p>
       <h2 id="prototype-title">Prüfungsplanung mit Taiga UI</h2>
       <p>
@@ -8,7 +8,23 @@
         responsive Planung.
       </p>
     </div>
-    <span tuiBadge appearance="positive">Angular 22 · Taiga UI 5</span>
+    <div class="hero-panel" aria-label="Planungsübersicht">
+      <span tuiBadge appearance="positive">Angular 22 · Taiga UI 5</span>
+      <dl>
+        <div>
+          <dt>Prüfungen</dt>
+          <dd>16</dd>
+        </div>
+        <div>
+          <dt>Planungstage</dt>
+          <dd>3</dd>
+        </div>
+        <div>
+          <dt>Offene Besetzungen</dt>
+          <dd>2</dd>
+        </div>
+      </dl>
+    </div>
   </header>
 
   <nav class="prototype-nav" aria-label="Prototyp-Navigation">
@@ -41,7 +57,11 @@
   @switch (activeSection()) {
     @case ('planung') {
       <div class="prototype-layout">
-        <form class="prototype-card prototype-form" [formGroup]="form" (ngSubmit)="submit()">
+        <form
+          class="prototype-card prototype-form primary-card"
+          [formGroup]="form"
+          (ngSubmit)="submit()"
+        >
           <div class="card-heading">
             <div>
               <span class="section-kicker">Formular & Validierung</span>
@@ -75,7 +95,7 @@
             </div>
           </div>
 
-          <div class="future-control">
+          <div class="future-control" aria-label="Komponentenprobe Passworteingabe">
             <div>
               <strong>Zukünftiger Login</strong>
               <span>Passwortfeld als Komponentenprobe</span>
@@ -106,7 +126,7 @@
           }
         </form>
 
-        <aside class="prototype-card future-card" aria-labelledby="future-title">
+        <aside class="prototype-card future-card supporting-card" aria-labelledby="future-title">
           <span class="section-kicker">Zukünftiger Ablauf</span>
           <h3 id="future-title">Planungsschritte</h3>
           <tui-stepper
@@ -129,7 +149,7 @@
         </aside>
       </div>
 
-      <section class="prototype-card planning-card" aria-labelledby="planning-title">
+      <section class="planning-card" aria-labelledby="planning-title">
         <div class="card-heading">
           <div>
             <span class="section-kicker">Anspruchsvolle Planungsdarstellung</span>
@@ -148,7 +168,12 @@
                   <strong>{{ day.date }}</strong>
                   <span>{{ day.location }}</span>
                 </div>
-                <button tuiButton appearance="flat" size="s" type="button">Bearbeiten</button>
+                <div class="day-actions">
+                  <span class="day-status" [class]="'day-status ' + day.tone">
+                    {{ day.tone === 'good' ? 'Bereit' : day.tone === 'warn' ? 'Prüfen' : 'Frei' }}
+                  </span>
+                  <button tuiButton appearance="flat" size="s" type="button">Bearbeiten</button>
+                </div>
               </header>
               <div class="slots">
                 @for (slot of day.slots; track slot[0]) {
