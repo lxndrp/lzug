@@ -1,5 +1,5 @@
 import { Component, EventEmitter, Input, Output, computed, signal } from '@angular/core';
-import { TuiButton, TuiInput } from '@taiga-ui/core';
+import { TuiButton, TuiInput, TuiTextfield } from '@taiga-ui/core';
 import { TuiSelect } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
 
@@ -12,7 +12,7 @@ export type CommitteeMemberPayload = Omit<CommitteeMember, 'id' | 'email_verifie
 
 @Component({
   selector: 'app-committee',
-  imports: [AppIconDirective, TuiButton, TuiInput, TuiSelect, TuiTable],
+  imports: [AppIconDirective, TuiButton, TuiInput, TuiSelect, TuiTable, TuiTextfield],
   templateUrl: './committee.component.html',
 })
 export class CommitteeComponent {
