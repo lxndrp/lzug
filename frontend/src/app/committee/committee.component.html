@@ -66,7 +66,7 @@
         <div class="app-panel-body">
           <form cForm class="app-form-grid" (submit)="saveCommittee($event)">
             <div class="mb-3">
-              <label cLabel for="committeeName"
+              <label for="committeeName"
                 >Bezeichnung <span aria-hidden="true">*</span></label
               >
               <input
@@ -78,7 +78,7 @@
               />
             </div>
             <div class="mb-3">
-              <label cLabel for="committeeOccupation"
+              <label for="committeeOccupation"
                 >Ausbildungsberuf <span aria-hidden="true">*</span></label
               >
               <input
@@ -196,7 +196,7 @@
           <form cForm class="app-form-grid" (submit)="saveMember($event)">
             <div class="row g-3">
               <div class="col-12">
-                <label cLabel for="memberCommittee"
+                <label for="memberCommittee"
                   >Ausschuss <span aria-hidden="true">*</span></label
                 >
                 <select tuiSelect id="memberCommittee" name="committee_id" required>
@@ -208,34 +208,34 @@
                 </select>
               </div>
               <div class="col-12 col-md-6">
-                <label cLabel for="memberFirstName"
+                <label for="memberFirstName"
                   >Vorname <span aria-hidden="true">*</span></label
                 >
                 <input tuiInput id="memberFirstName" name="first_name" required />
               </div>
               <div class="col-12 col-md-6">
-                <label cLabel for="memberLastName"
+                <label for="memberLastName"
                   >Nachname <span aria-hidden="true">*</span></label
                 >
                 <input tuiInput id="memberLastName" name="last_name" required />
               </div>
               <div class="col-12 col-md-6">
-                <label cLabel for="memberEmail">E-Mail <span aria-hidden="true">*</span></label>
+                <label for="memberEmail">E-Mail <span aria-hidden="true">*</span></label>
                 <input tuiInput id="memberEmail" name="email" type="email" required />
               </div>
               <div class="col-12 col-md-6">
-                <label cLabel for="memberMobile">Mobil</label>
+                <label for="memberMobile">Mobil</label>
                 <input tuiInput id="memberMobile" name="mobile" type="tel" />
               </div>
               <div class="col-12 col-md-4">
-                <label cLabel for="memberStatus">Mitgliedsstatus</label>
+                <label for="memberStatus">Mitgliedsstatus</label>
                 <select tuiSelect id="memberStatus" name="member_status">
                   <option value="ordinary">Ordentlich</option>
                   <option value="deputy">Stellvertretend</option>
                 </select>
               </div>
               <div class="col-12 col-md-4">
-                <label cLabel for="memberRole">Funktion</label>
+                <label for="memberRole">Funktion</label>
                 <select tuiSelect id="memberRole" name="committee_role">
                   <option value="member">Mitglied</option>
                   <option value="chair">Vorsitz</option>
@@ -243,7 +243,7 @@
                 </select>
               </div>
               <div class="col-12 col-md-4">
-                <label cLabel for="memberSide">Vertreterseite</label>
+                <label for="memberSide">Vertreterseite</label>
                 <select tuiSelect id="memberSide" name="representing_side">
                   <option value="employer">Arbeitgeber</option>
                   <option value="employee">Arbeitnehmer</option>

@@ -29,9 +29,7 @@
         <div class="app-panel-body">
           <form class="row g-3 app-form-grid" (ngSubmit)="submitCandidate()">
             <div class="col-12 col-md-6">
-              <label cLabel for="candidateFirstName"
-                >Vorname <span aria-hidden="true">*</span></label
-              >
+              <label for="candidateFirstName">Vorname <span aria-hidden="true">*</span></label>
               <input
                 tuiInput
                 id="candidateFirstName"
@@ -41,9 +39,7 @@
               />
             </div>
             <div class="col-12 col-md-6">
-              <label cLabel for="candidateLastName"
-                >Nachname <span aria-hidden="true">*</span></label
-              >
+              <label for="candidateLastName">Nachname <span aria-hidden="true">*</span></label>
               <input
                 tuiInput
                 id="candidateLastName"
@@ -53,7 +49,7 @@
               />
             </div>
             <div class="col-12 col-md-4">
-              <label cLabel for="candidateExamNumber"
+              <label for="candidateExamNumber"
                 >Prüfungsnummer <span aria-hidden="true">*</span></label
               >
               <input
@@ -65,7 +61,7 @@
               />
             </div>
             <div class="col-12 col-md-4">
-              <label cLabel for="candidateSpecialization">Fachrichtung</label>
+              <label for="candidateSpecialization">Fachrichtung</label>
               <select
                 tuiSelect
                 id="candidateSpecialization"
@@ -79,7 +75,7 @@
               </select>
             </div>
             <div class="col-12 col-md-4">
-              <label cLabel for="candidateAttempt">Versuch</label>
+              <label for="candidateAttempt">Versuch</label>
               <input
                 tuiInput
                 id="candidateAttempt"
@@ -90,7 +86,7 @@
               />
             </div>
             <div class="col-12 col-md-8">
-              <label cLabel for="candidateCompany">Ausbildungsbetrieb</label>
+              <label for="candidateCompany">Ausbildungsbetrieb</label>
               <input
                 tuiInput
                 id="candidateCompany"
@@ -247,7 +243,7 @@
                           (ngSubmit)="submitCandidateUpdate()"
                         >
                           <div class="col-12 col-md-6">
-                            <label cLabel [for]="'editCandidateFirstName-' + item.candidate.id"
+                            <label [for]="'editCandidateFirstName-' + item.candidate.id"
                               >Vorname <span aria-hidden="true">*</span></label
                             >
                             <input
@@ -259,7 +255,7 @@
                             />
                           </div>
                           <div class="col-12 col-md-6">
-                            <label cLabel [for]="'editCandidateLastName-' + item.candidate.id"
+                            <label [for]="'editCandidateLastName-' + item.candidate.id"
                               >Nachname <span aria-hidden="true">*</span></label
                             >
                             <input
@@ -271,7 +267,7 @@
                             />
                           </div>
                           <div class="col-12 col-md-4">
-                            <label cLabel [for]="'editCandidateExamNumber-' + item.candidate.id"
+                            <label [for]="'editCandidateExamNumber-' + item.candidate.id"
                               >Prüfungsnummer <span aria-hidden="true">*</span></label
                             >
                             <input
@@ -283,7 +279,7 @@
                             />
                           </div>
                           <div class="col-12 col-md-4">
-                            <label cLabel [for]="'editCandidateSpecialization-' + item.candidate.id"
+                            <label [for]="'editCandidateSpecialization-' + item.candidate.id"
                               >Fachrichtung</label
                             >
                             <select
@@ -301,7 +297,7 @@
                             </select>
                           </div>
                           <div class="col-12 col-md-4">
-                            <label cLabel [for]="'editCandidateAttempt-' + item.candidate.id"
+                            <label [for]="'editCandidateAttempt-' + item.candidate.id"
                               >Versuch</label
                             >
                             <input
@@ -314,7 +310,7 @@
                             />
                           </div>
                           <div class="col-12 col-md-8">
-                            <label cLabel [for]="'editCandidateCompany-' + item.candidate.id"
+                            <label [for]="'editCandidateCompany-' + item.candidate.id"
                               >Ausbildungsbetrieb</label
                             >
                             <input

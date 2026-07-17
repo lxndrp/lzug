@@ -13,7 +13,7 @@
         <div class="app-panel-body">
           <form class="row g-3 app-form-grid" (ngSubmit)="submitLocation()">
             <div class="col-12 col-md-4">
-              <label cLabel for="locationCommittee">Ausschuss</label>
+              <label for="locationCommittee">Ausschuss</label>
               <select
                 tuiSelect
                 id="locationCommittee"
@@ -27,19 +27,19 @@
               </select>
             </div>
             <div class="col-12 col-md-4">
-              <label cLabel for="locationName">Ort <span aria-hidden="true">*</span></label>
+              <label for="locationName">Ort <span aria-hidden="true">*</span></label>
               <input tuiInput id="locationName" name="name" [(ngModel)]="draft.name" required />
             </div>
             <div class="col-12 col-md-4">
-              <label cLabel for="locationRoom">Raum <span aria-hidden="true">*</span></label>
+              <label for="locationRoom">Raum <span aria-hidden="true">*</span></label>
               <input tuiInput id="locationRoom" name="room" [(ngModel)]="draft.room" required />
             </div>
             <div class="col-12 col-md-5">
-              <label cLabel for="locationStreet">Straße</label>
+              <label for="locationStreet">Straße</label>
               <input tuiInput id="locationStreet" name="street" [(ngModel)]="draft.street" />
             </div>
             <div class="col-12 col-md-3">
-              <label cLabel for="locationPostalCode">PLZ</label>
+              <label for="locationPostalCode">PLZ</label>
               <input
                 tuiInput
                 id="locationPostalCode"
@@ -48,7 +48,7 @@
               />
             </div>
             <div class="col-12 col-md-4">
-              <label cLabel for="locationCity">Stadt</label>
+              <label for="locationCity">Stadt</label>
               <input tuiInput id="locationCity" name="city" [(ngModel)]="draft.city" />
             </div>
             <div class="col-12 app-form-actions">
@@ -161,7 +161,7 @@
                           (ngSubmit)="submitLocationUpdate()"
                         >
                           <div class="col-12 col-md-4">
-                            <label cLabel [for]="'editLocationCommittee-' + location.id"
+                            <label [for]="'editLocationCommittee-' + location.id"
                               >Ausschuss</label
                             >
                             <select
@@ -176,7 +176,7 @@
                             </select>
                           </div>
                           <div class="col-12 col-md-4">
-                            <label cLabel [for]="'editLocationName-' + location.id"
+                            <label [for]="'editLocationName-' + location.id"
                               >Ort <span aria-hidden="true">*</span></label
                             >
                             <input
@@ -188,7 +188,7 @@
                             />
                           </div>
                           <div class="col-12 col-md-4">
-                            <label cLabel [for]="'editLocationRoom-' + location.id"
+                            <label [for]="'editLocationRoom-' + location.id"
                               >Raum <span aria-hidden="true">*</span></label
                             >
                             <input
@@ -200,7 +200,7 @@
                             />
                           </div>
                           <div class="col-12 col-md-5">
-                            <label cLabel [for]="'editLocationStreet-' + location.id">Straße</label>
+                            <label [for]="'editLocationStreet-' + location.id">Straße</label>
                             <input
                               tuiInput
                               [id]="'editLocationStreet-' + location.id"
@@ -209,7 +209,7 @@
                             />
                           </div>
                           <div class="col-12 col-md-3">
-                            <label cLabel [for]="'editLocationPostalCode-' + location.id"
+                            <label [for]="'editLocationPostalCode-' + location.id"
                               >PLZ</label
                             >
                             <input
@@ -220,7 +220,7 @@
                             />
                           </div>
                           <div class="col-12 col-md-4">
-                            <label cLabel [for]="'editLocationCity-' + location.id">Stadt</label>
+                            <label [for]="'editLocationCity-' + location.id">Stadt</label>
                             <input
                               tuiInput
                               [id]="'editLocationCity-' + location.id"

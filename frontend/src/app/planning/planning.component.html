@@ -11,7 +11,7 @@
       <div class="app-panel-body">
         <form id="roundMetadataForm" class="row g-3 app-form-grid" (ngSubmit)="submitRound()">
           <div class="col-12 col-md-4">
-            <label cLabel for="roundName">Bezeichnung</label>
+            <label for="roundName">Bezeichnung</label>
             <input
               tuiInput
               id="roundName"
@@ -21,7 +21,7 @@
             />
           </div>
           <div class="col-12 col-md-4">
-            <label cLabel for="availabilityDeadline">Rückmeldefrist</label>
+            <label for="availabilityDeadline">Rückmeldefrist</label>
             <input
               tuiInput
               id="availabilityDeadline"
@@ -31,7 +31,7 @@
             />
           </div>
           <div class="col-12 col-md-4">
-            <label cLabel for="availabilityReminder">Erinnerung</label>
+            <label for="availabilityReminder">Erinnerung</label>
             <input
               tuiInput
               id="availabilityReminder"
@@ -85,7 +85,7 @@
       <div class="app-panel-body">
         <form id="planningSettingsForm" class="row g-3 app-form-grid" (ngSubmit)="submitSettings()">
           <div class="col-12 col-md-6">
-            <label cLabel for="weekFrom">KW von <span aria-hidden="true">*</span></label>
+            <label for="weekFrom">KW von <span aria-hidden="true">*</span></label>
             <input
               tuiInput
               id="weekFrom"
@@ -100,7 +100,7 @@
             >
           </div>
           <div class="col-12 col-md-6">
-            <label cLabel for="weekTo">KW bis <span aria-hidden="true">*</span></label>
+            <label for="weekTo">KW bis <span aria-hidden="true">*</span></label>
             <input
               tuiInput
               id="weekTo"
@@ -130,7 +130,7 @@
             </div>
           </div>
           <div class="col-12 col-md-6">
-            <label cLabel for="holidaySubdivisionCode"
+            <label for="holidaySubdivisionCode"
               >Bundesland
               @if (draft.exclude_public_holidays) {
                 <span aria-hidden="true">*</span>
@@ -151,7 +151,7 @@
             </select>
           </div>
           <div class="col-12 col-md-4">
-            <label cLabel for="examsPerDay">Prüfungen pro Tag</label>
+            <label for="examsPerDay">Prüfungen pro Tag</label>
             <input
               tuiInput
               id="examsPerDay"
@@ -162,7 +162,7 @@
             />
           </div>
           <div class="col-12 col-md-4">
-            <label cLabel for="examDaysPerWeek">Max. Tage pro Woche</label>
+            <label for="examDaysPerWeek">Max. Tage pro Woche</label>
             <input
               tuiInput
               id="examDaysPerWeek"
@@ -174,7 +174,7 @@
             />
           </div>
           <div class="col-12 col-md-4">
-            <label cLabel for="defaultLocation">Standardort</label>
+            <label for="defaultLocation">Standardort</label>
             <select
               tuiSelect
               id="defaultLocation"
@@ -190,7 +190,7 @@
             </select>
           </div>
           <div class="col-12 col-md-8">
-            <label cLabel for="updatedByMember">Änderung dokumentieren für</label>
+            <label for="updatedByMember">Änderung dokumentieren für</label>
             <select
               tuiSelect
               id="updatedByMember"
@@ -271,7 +271,7 @@
         }
         <form class="row g-3 app-form-grid app-compact-form" (ngSubmit)="submitCandidateDay()">
           <div class="col-12 col-md-4">
-            <label cLabel for="candidateDayDate">Datum <span aria-hidden="true">*</span></label>
+            <label for="candidateDayDate">Datum <span aria-hidden="true">*</span></label>
             <input
               tuiInput
               id="candidateDayDate"
