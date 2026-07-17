@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
+import { provideTaiga } from '@taiga-ui/core';
 
 import { App } from './app';
 import { routes } from './app.routes';
@@ -25,7 +26,12 @@ describe('App', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideRouter(routes),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideTaiga({ scrollbars: 'native' }),
+      ],
     }).compileComponents();
   });
 
@@ -145,6 +151,22 @@ describe('App', () => {
     app.dismissFeedback();
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).querySelector('.app-feedback')).toBeNull();
+  });
+
+  it('should open the prototype without changing the application route', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    const router = TestBed.inject(Router);
+    flushDashboardRequests(http);
+    fixture.detectChanges();
+
+    clickButton(fixture, 'Taiga-Prototyp');
+    fixture.detectChanges();
+
+    expect(router.url).toBe('/');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Prüfungsplanung mit Taiga UI',
+    );
   });
 });
 
