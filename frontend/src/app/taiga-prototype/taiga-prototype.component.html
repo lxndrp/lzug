@@ -72,7 +72,12 @@
 
           <tui-textfield>
             <label tuiLabel for="prototypeRoundName">Bezeichnung der Prüfungsrunde</label>
-            <input id="prototypeRoundName" tuiInput formControlName="roundName" autocomplete="off" />
+            <input
+              id="prototypeRoundName"
+              tuiInput
+              formControlName="roundName"
+              autocomplete="off"
+            />
           </tui-textfield>
           @if (form.controls.roundName.touched && form.controls.roundName.invalid) {
             <p class="field-error" role="alert">Bitte mindestens vier Zeichen eingeben.</p>
@@ -89,7 +94,12 @@
             <div>
               <tui-textfield>
                 <label tuiLabel for="prototypeSampleDate">Beispieltag</label>
-                <input id="prototypeSampleDate" tuiInputDate type="date" formControlName="sampleDate" />
+                <input
+                  id="prototypeSampleDate"
+                  tuiInputDate
+                  type="date"
+                  formControlName="sampleDate"
+                />
               </tui-textfield>
               <small>Taiga-Datumseingabe mit mobilem Picker</small>
             </div>
