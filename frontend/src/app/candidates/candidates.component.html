@@ -147,9 +147,9 @@
             </tui-textfield>
           </div>
           <div class="col-12 col-md-4">
-            <label cLabel for="candidateFilter">Fachrichtung</label>
+            <label for="candidateFilter">Fachrichtung</label>
             <select
-              cSelect
+              tuiSelect
               id="candidateFilter"
               [ngModel]="specialization()"
               (ngModelChange)="specialization.set($event)"
