@@ -169,6 +169,10 @@ c-card + c-card {
 }
 
 .app-row-actions .btn {
+  min-block-size: 2.25rem;
+  padding-inline: 0.75rem;
+  border-width: 1px;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -698,11 +702,11 @@ h6 {
 }
 
 .btn-outline-secondary {
-  --cui-btn-color: #46535f;
-  --cui-btn-border-color: #46535f;
+  --cui-btn-color: #5f6c79;
+  --cui-btn-border-color: #5f6c79;
   --cui-btn-hover-color: #fff;
-  --cui-btn-hover-bg: #46535f;
-  --cui-btn-hover-border-color: #46535f;
+  --cui-btn-hover-bg: #5f6c79;
+  --cui-btn-hover-border-color: #5f6c79;
   --cui-btn-focus-shadow-rgb: 70, 83, 95;
   --cui-btn-active-color: #fff;
   --cui-btn-active-bg: #3e4c59;

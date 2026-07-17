@@ -11,6 +11,7 @@ import {
   SidebarModule,
 } from '@coreui/angular';
 import { IconDirective } from '@coreui/icons-angular';
+import { TuiRoot } from '@taiga-ui/core';
 import { filter, finalize, switchMap } from 'rxjs';
 
 import {
@@ -51,6 +52,7 @@ import {
   PlanningComponent,
   PlanningSettingsPayload,
 } from './planning/planning.component';
+import { TaigaPrototypeComponent } from './taiga-prototype/taiga-prototype.component';
 
 @Component({
   selector: 'app-root',
@@ -69,6 +71,8 @@ import {
     ProgressModule,
     RouterLink,
     SidebarModule,
+    TaigaPrototypeComponent,
+    TuiRoot,
   ],
   templateUrl: './app.html',
   styleUrl: './app.css',
@@ -93,6 +97,7 @@ export class App {
     null,
   );
   protected readonly activeView = signal<AppView>('dashboard');
+  protected readonly prototypeVisible = signal(false);
   protected readonly sidebarVisible = signal(true);
   protected readonly selectedCommitteeId = signal<number | null>(null);
   protected readonly message = signal('Bereit');
@@ -111,6 +116,10 @@ export class App {
   } | null>(null);
 
   protected readonly pageTitle = computed(() => {
+    if (this.prototypeVisible()) {
+      return 'Taiga-UI-Prototyp';
+    }
+
     const labels: Record<AppView, string> = {
       dashboard: this.summary()?.round?.name ?? 'Prüfungsrunde',
       candidates: 'Prüflinge',
@@ -122,7 +131,11 @@ export class App {
   });
 
   protected readonly crumb = computed(() =>
-    this.activeView() === 'dashboard' ? 'Winter 2026/27' : 'Prüfungsverwaltung',
+    this.prototypeVisible()
+      ? 'Entscheidungsgrundlage · Issue #56'
+      : this.activeView() === 'dashboard'
+        ? 'Winter 2026/27'
+        : 'Prüfungsverwaltung',
   );
 
   constructor() {
@@ -131,7 +144,10 @@ export class App {
         filter((event): event is NavigationEnd => event instanceof NavigationEnd),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((event) => this.activeView.set(this.viewFromUrl(event.urlAfterRedirects)));
+      .subscribe((event) => {
+        this.prototypeVisible.set(false);
+        this.activeView.set(this.viewFromUrl(event.urlAfterRedirects));
+      });
     this.activeView.set(this.viewFromUrl(this.router.url));
     this.refresh();
   }
@@ -158,7 +174,12 @@ export class App {
   }
 
   protected showView(view: AppView): void {
+    this.prototypeVisible.set(false);
     void this.router.navigateByUrl(`/${this.pathForView(view)}`);
+  }
+
+  protected showPrototype(): void {
+    this.prototypeVisible.set(true);
   }
 
   protected selectCommittee(id: number | null): void {

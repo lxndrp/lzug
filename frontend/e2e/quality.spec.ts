@@ -210,6 +210,34 @@ test.describe('lzug browser workflows', () => {
     await expect(page.locator('#candidateFirstName')).toBeVisible();
     await expect(trigger).toBeFocused();
   });
+
+  test('opens and exercises the Taiga UI prototype', async ({ page }) => {
+    await page.goto('/dashboard');
+    await page.getByRole('button', { name: 'Taiga-Prototyp' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Prüfungsplanung mit Taiga UI' })).toBeVisible();
+    await expect(page).toHaveURL('/dashboard');
+    await page.getByRole('button', { name: 'Prüflinge', exact: true }).click();
+    await expect(page.getByRole('table')).toContainText('FI-2026-1042');
+    await page.getByRole('button', { name: 'Terminplanung', exact: true }).click();
+    await page.getByRole('button', { name: 'Taiga-Dialog öffnen' }).click();
+    await expect(page.getByRole('dialog')).toContainText('Planungsvorschlag prüfen');
+  });
+
+  test('keeps the Taiga planning prototype usable on mobile', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/dashboard');
+    await page.locator('.app-sidebar-toggle').click();
+    await page.getByRole('button', { name: 'Taiga-Prototyp' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Prüfungsplanung mit Taiga UI' })).toBeVisible();
+    const dimensions = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+    expect(dimensions.scrollWidth).toBe(dimensions.clientWidth);
+    await expect(page.getByRole('button', { name: 'Terminplanung', exact: true })).toBeVisible();
+  });
 });
 
 test.describe('lzug accessibility', () => {
@@ -222,6 +250,15 @@ test.describe('lzug accessibility', () => {
   test('has no detectable accessibility violations on planning @a11y', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('link', { name: 'Terminplanung', exact: true }).click();
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('has no detectable accessibility violations in the Taiga prototype @a11y', async ({
+    page,
+  }) => {
+    await page.goto('/dashboard');
+    await page.getByRole('button', { name: 'Taiga-Prototyp' }).click();
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
   });
