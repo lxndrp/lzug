@@ -70,7 +70,7 @@ Das Frontend liegt unter `frontend/` und nutzt:
 
 - Angular `22`
 - TypeScript `6`
-- CoreUI fuer Oberflaechenkomponenten
+- Taiga UI fuer Oberflaechenkomponenten
 - Angular Router fuer die Hauptansichten
 - einen API-Service fuer die Kommunikation mit dem Backend
 
