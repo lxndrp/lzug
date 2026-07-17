@@ -6,6 +6,7 @@
 
 .app-shell {
   min-block-size: 100vh;
+  overflow-x: clip;
   background: var(--app-color-canvas);
 }
 
