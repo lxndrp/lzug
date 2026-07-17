@@ -1,9 +1,47 @@
 :host {
+  --tui-typography-family-text: 'Source Sans 3', system-ui, sans-serif;
+  --tui-typography-family-display: 'Source Sans 3', system-ui, sans-serif;
+  --tui-font-offset: 0px;
+  --tui-typography-ui-l: normal 1.0625rem / 1.4 var(--tui-typography-family-text);
+  --tui-typography-ui-m: normal 1rem / 1.25 var(--tui-typography-family-text);
+  --tui-typography-ui-s: normal 0.875rem / 1.15 var(--tui-typography-family-text);
+  --tui-typography-ui-xs: normal 0.75rem / 1.25 var(--tui-typography-family-text);
+  --tui-radius-m: 0.625rem;
+  --tui-radius-l: 0.75rem;
+  --tui-height-s: 2rem;
+  --tui-height-m: 2.75rem;
+  --tui-height-l: 3.5rem;
+  --tui-padding-s: 0.625rem;
+  --tui-padding-m: 0.75rem;
+  --tui-padding-l: 1rem;
+  --tui-background-base: #fff;
+  --tui-background-base-alt: #f6f6f6;
+  --tui-background-neutral-1: rgb(0 0 0 / 4%);
+  --tui-background-neutral-1-hover: rgb(0 0 0 / 8%);
+  --tui-background-neutral-1-pressed: rgb(0 0 0 / 12%);
   --tui-background-accent-1: var(--app-color-primary);
   --tui-background-accent-1-hover: var(--app-color-primary-hover);
   --tui-background-accent-1-pressed: var(--app-color-primary-active);
+  --tui-background-accent-2: #d58a2c;
+  --tui-background-accent-2-hover: #b9731d;
+  --tui-background-accent-2-pressed: #925a13;
   --tui-border-normal: #dce5e5;
-  --tui-radius-m: 0.75rem;
+  --tui-border-hover: #9aaeb0;
+  --tui-border-focus: var(--app-color-primary);
+  --tui-text-primary: var(--app-color-text);
+  --tui-text-secondary: var(--app-color-text-muted);
+  --tui-text-tertiary: #71808c;
+  --tui-text-action: var(--app-color-primary);
+  --tui-text-action-hover: var(--app-color-primary-hover);
+  --tui-text-primary-on-accent-1: #fff;
+  --tui-text-primary-on-accent-2: #fff;
+  --tui-status-negative: #b02a37;
+  --tui-status-negative-pale: #f8d7da;
+  --tui-status-negative-pale-hover: #f1aeb5;
+  --tui-text-negative: #b02a37;
+  --tui-text-negative-hover: #842029;
+  --tui-background-elevation-3: #fff;
+  --tui-service-autofill-background: #fff5c0;
   --prototype-radius: 1.125rem;
   --prototype-surface-soft: #f1f6f5;
   --prototype-surface-warm: #fbf6ed;
@@ -25,6 +63,117 @@
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
+}
+
+// Keep the prototype legible even when the optional Taiga theme stylesheet is
+// not emitted by the local Angular dev-server bundle.
+tui-textfield {
+  position: relative;
+  display: flex;
+  min-block-size: var(--tui-height-l);
+  align-items: flex-start;
+  padding: 0 var(--tui-padding-l);
+  border: 1px solid var(--tui-border-normal);
+  border-radius: var(--tui-radius-l);
+  background: var(--tui-background-base);
+  box-sizing: border-box;
+  box-shadow: 0 2px 5px rgb(31 41 51 / 8%);
+}
+
+tui-textfield:focus-within {
+  border-color: var(--app-color-primary);
+  outline: 2px solid rgb(21 94 99 / 22%);
+  outline-offset: 1px;
+}
+
+tui-textfield > label[tuiLabel] {
+  position: absolute;
+  inset-block-start: 0.45rem;
+  inset-inline: var(--tui-padding-l) auto;
+  z-index: 1;
+  max-width: calc(100% - 3rem);
+  overflow: hidden;
+  color: var(--tui-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+tui-textfield > input[tuiInput] {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  padding: 1.35rem 2.75rem 0.35rem var(--tui-padding-l);
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: var(--tui-text-primary);
+  font: inherit;
+  outline: 0;
+  box-sizing: border-box;
+}
+
+tui-textfield > input[tuiInput]::placeholder {
+  color: transparent;
+}
+
+tui-textfield > tui-icon[tuiPassword] {
+  position: absolute;
+  inset-block-start: 1.1rem;
+  inset-inline-end: 0.85rem;
+  z-index: 2;
+  color: var(--tui-text-secondary);
+}
+
+button[tuiButton] {
+  min-block-size: 2.75rem;
+  padding: 0.65rem 1.25rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: var(--app-color-primary);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+button[tuiButton][data-appearance='secondary'] {
+  background: var(--app-color-primary-soft);
+  color: var(--app-color-primary-active);
+}
+
+button[tuiButton][data-appearance='flat'] {
+  background: transparent;
+  color: var(--app-color-primary);
+}
+
+button[tuiButton]:hover {
+  background: var(--app-color-primary-hover);
+  color: #fff;
+}
+
+button[tuiButton][data-appearance='secondary']:hover {
+  background: #cfe2e2;
+  color: var(--app-color-primary-active);
+}
+
+button[tuiButton][data-appearance='flat']:hover {
+  background: var(--app-color-primary-soft);
+  color: var(--app-color-primary-active);
+}
+
+button[tuiButton]:focus-visible {
+  outline: 3px solid rgb(213 138 44 / 42%);
+  outline-offset: 2px;
+}
+
+button[tuiButton]:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
 }
 
 .prototype-hero {

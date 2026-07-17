@@ -169,6 +169,10 @@ c-card + c-card {
 }
 
 .app-row-actions .btn {
+  min-block-size: 2.25rem;
+  padding-inline: 0.75rem;
+  border-width: 1px;
+  font-weight: 600;
   white-space: nowrap;
 }
 
