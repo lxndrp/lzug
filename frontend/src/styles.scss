@@ -96,6 +96,39 @@ body {
   padding: 1rem;
 }
 
+.app-badge {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 1.5rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.app-badge-secondary {
+  background: #e8ecef;
+  color: var(--app-color-text-muted);
+}
+
+.app-badge-warning {
+  background: #fff1cf;
+  color: #7a4d00;
+}
+
+.app-badge-success {
+  background: #dff3e7;
+  color: #176b3a;
+}
+
+.app-badge-primary,
+.app-badge-info {
+  background: var(--app-color-primary-soft);
+  color: var(--app-color-primary-active);
+}
+
 .app-confirmation-dialog {
   width: min(32rem, calc(100vw - 2rem));
   padding: 0;
