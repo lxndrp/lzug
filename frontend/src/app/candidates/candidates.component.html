@@ -33,7 +33,7 @@
                 >Vorname <span aria-hidden="true">*</span></label
               >
               <input
-                cFormControl
+                tuiInput
                 id="candidateFirstName"
                 name="firstName"
                 [(ngModel)]="draft.first_name"
@@ -45,7 +45,7 @@
                 >Nachname <span aria-hidden="true">*</span></label
               >
               <input
-                cFormControl
+                tuiInput
                 id="candidateLastName"
                 name="lastName"
                 [(ngModel)]="draft.last_name"
@@ -57,7 +57,7 @@
                 >Prüfungsnummer <span aria-hidden="true">*</span></label
               >
               <input
-                cFormControl
+                tuiInput
                 id="candidateExamNumber"
                 name="examNumber"
                 [(ngModel)]="draft.ihk_exam_number"
@@ -67,7 +67,7 @@
             <div class="col-12 col-md-4">
               <label cLabel for="candidateSpecialization">Fachrichtung</label>
               <select
-                cSelect
+                tuiSelect
                 id="candidateSpecialization"
                 name="candidateSpecialization"
                 [(ngModel)]="draft.specialization"
@@ -81,7 +81,7 @@
             <div class="col-12 col-md-4">
               <label cLabel for="candidateAttempt">Versuch</label>
               <input
-                cFormControl
+                tuiInput
                 id="candidateAttempt"
                 min="1"
                 name="attempt"
@@ -92,7 +92,7 @@
             <div class="col-12 col-md-8">
               <label cLabel for="candidateCompany">Ausbildungsbetrieb</label>
               <input
-                cFormControl
+                tuiInput
                 id="candidateCompany"
                 name="company"
                 [(ngModel)]="draft.training_company"
@@ -251,7 +251,7 @@
                               >Vorname <span aria-hidden="true">*</span></label
                             >
                             <input
-                              cFormControl
+                              tuiInput
                               [id]="'editCandidateFirstName-' + item.candidate.id"
                               [name]="'editCandidateFirstName-' + item.candidate.id"
                               [(ngModel)]="currentDraft.first_name"
@@ -263,7 +263,7 @@
                               >Nachname <span aria-hidden="true">*</span></label
                             >
                             <input
-                              cFormControl
+                              tuiInput
                               [id]="'editCandidateLastName-' + item.candidate.id"
                               [name]="'editCandidateLastName-' + item.candidate.id"
                               [(ngModel)]="currentDraft.last_name"
@@ -275,7 +275,7 @@
                               >Prüfungsnummer <span aria-hidden="true">*</span></label
                             >
                             <input
-                              cFormControl
+                              tuiInput
                               [id]="'editCandidateExamNumber-' + item.candidate.id"
                               [name]="'editCandidateExamNumber-' + item.candidate.id"
                               [(ngModel)]="currentDraft.ihk_exam_number"
@@ -287,7 +287,7 @@
                               >Fachrichtung</label
                             >
                             <select
-                              cSelect
+                              tuiSelect
                               [id]="'editCandidateSpecialization-' + item.candidate.id"
                               [name]="'editCandidateSpecialization-' + item.candidate.id"
                               [(ngModel)]="currentDraft.specialization"
@@ -305,7 +305,7 @@
                               >Versuch</label
                             >
                             <input
-                              cFormControl
+                              tuiInput
                               [id]="'editCandidateAttempt-' + item.candidate.id"
                               [name]="'editCandidateAttempt-' + item.candidate.id"
                               min="1"
@@ -318,7 +318,7 @@
                               >Ausbildungsbetrieb</label
                             >
                             <input
-                              cFormControl
+                              tuiInput
                               [id]="'editCandidateCompany-' + item.candidate.id"
                               [name]="'editCandidateCompany-' + item.candidate.id"
                               [(ngModel)]="currentDraft.training_company"
