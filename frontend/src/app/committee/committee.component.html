@@ -106,7 +106,7 @@
     <section class="app-panel">
       <header class="app-panel-header">
         <strong>{{ selectedCommitteeName() }}</strong>
-        <c-badge color="success">{{ activeMemberCount() }} aktiv</c-badge>
+        <span class="app-badge app-badge-success">{{ activeMemberCount() }} aktiv</span>
       </header>
       <div class="app-panel-body">
         <div class="app-table-scroll">
@@ -137,9 +137,12 @@
                     <span>{{ member.mobile || 'Keine Mobilnummer' }}</span>
                   </td>
                   <td>
-                    <c-badge [color]="member.is_active ? 'success' : 'secondary'">
+                    <span
+                      class="app-badge"
+                      [attr.data-color]="member.is_active ? 'success' : 'secondary'"
+                    >
                       {{ member.is_active ? 'Aktiv' : 'Inaktiv' }}
-                    </c-badge>
+                    </span>
                   </td>
                   <td class="app-actions">
                     <div class="app-row-actions">

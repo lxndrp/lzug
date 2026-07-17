@@ -98,9 +98,12 @@
                     }
                   </td>
                   <td>
-                    <c-badge [color]="location.is_active === 0 ? 'secondary' : 'success'">
+                    <span
+                      class="app-badge"
+                      [attr.data-color]="location.is_active === 0 ? 'secondary' : 'success'"
+                    >
                       {{ location.is_active === 0 ? 'Inaktiv' : 'Aktiv' }}
-                    </c-badge>
+                    </span>
                   </td>
                   <td class="app-actions">
                     <div class="app-row-actions">

@@ -64,9 +64,12 @@
           <dd class="col-5">{{ capacity() }}</dd>
           <dt class="col-7">Bewertung</dt>
           <dd class="col-5">
-            <c-badge [color]="capacity() >= requiredSlots() ? 'success' : 'warning'">
+            <span
+              class="app-badge"
+              [attr.data-color]="capacity() >= requiredSlots() ? 'success' : 'warning'"
+            >
               {{ capacity() >= requiredSlots() ? 'Ausreichend' : 'Unterdeckung' }}
-            </c-badge>
+            </span>
           </dd>
         </dl>
       </div>
@@ -315,9 +318,12 @@
                     <strong>{{ dateLabel(day.date) }}</strong>
                   </td>
                   <td>
-                    <c-badge [color]="day.is_active ? 'success' : 'secondary'">
+                    <span
+                      class="app-badge"
+                      [attr.data-color]="day.is_active ? 'success' : 'secondary'"
+                    >
                       {{ day.is_active ? 'Aktiv' : 'Inaktiv' }}
-                    </c-badge>
+                    </span>
                   </td>
                   <td class="app-actions">
                     <div class="app-row-actions">
