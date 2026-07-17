@@ -152,6 +152,130 @@ body {
   color: var(--app-color-primary-active);
 }
 
+/* Functional control baseline shared by the migrated views. */
+.form-control,
+.form-select,
+select,
+input[type='text'],
+input[type='email'],
+input[type='tel'],
+input[type='number'],
+input[type='search'],
+input[type='week'] {
+  min-block-size: 2.625rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-color-surface);
+  color: var(--app-color-text);
+  font: inherit;
+}
+
+.form-control:focus,
+.form-select:focus,
+select:focus,
+input:focus {
+  border-color: var(--app-color-primary);
+  box-shadow: 0 0 0 0.2rem rgb(21 94 99 / 16%);
+  outline: 0;
+}
+
+.btn {
+  min-block-size: 2.5rem;
+  border-radius: var(--app-radius-sm);
+  font-weight: 600;
+}
+
+.btn-sm {
+  min-block-size: 2.25rem;
+}
+
+.btn-primary {
+  border-color: var(--app-color-primary);
+  background: var(--app-color-primary);
+}
+
+.btn-primary:hover,
+.btn-primary:focus-visible {
+  border-color: var(--app-color-primary-hover);
+  background: var(--app-color-primary-hover);
+}
+
+.btn-outline-primary,
+.btn-outline-secondary,
+.btn-outline-danger {
+  background: var(--app-color-surface);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.table {
+  --cui-table-bg: var(--app-color-surface);
+  --cui-table-border-color: var(--app-color-border);
+  color: var(--app-color-text);
+}
+
+.table thead th {
+  background: var(--app-color-canvas);
+}
+
+.table tbody tr:hover > * {
+  background: var(--app-color-primary-soft);
+}
+
+.alert {
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-md);
+  color: var(--app-color-text);
+}
+
+.alert-info {
+  border-color: #b9dfe2;
+  background: #edf8f9;
+}
+
+.alert-success {
+  border-color: #b7dec5;
+  background: #edf8f1;
+}
+
+.alert-warning {
+  border-color: #efd69d;
+  background: #fff9eb;
+}
+
+.list-group {
+  gap: 0.375rem;
+}
+
+.list-group-item {
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-md) !important;
+  background: var(--app-color-surface);
+  color: var(--app-color-text);
+}
+
+.list-group-item-action:hover,
+.list-group-item-action:focus-visible,
+.list-group-item.active {
+  border-color: var(--app-color-primary);
+  background: var(--app-color-primary);
+  color: #fff;
+}
+
+.form-check-input {
+  inline-size: 1.15rem;
+  block-size: 1.15rem;
+  border-color: var(--app-color-border);
+}
+
+.form-check-input:checked {
+  border-color: var(--app-color-primary);
+  background-color: var(--app-color-primary);
+}
+
 .app-confirmation-dialog {
   width: min(32rem, calc(100vw - 2rem));
   padding: 0;
