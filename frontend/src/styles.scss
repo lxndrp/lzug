@@ -62,6 +62,47 @@ body {
   box-shadow: var(--app-shadow-subtle);
 }
 
+.app-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-lg);
+  background: var(--app-color-surface);
+  box-shadow: var(--app-shadow-subtle);
+}
+
+.app-panel + .app-panel {
+  margin-block-start: 1.5rem;
+}
+
+.app-panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  border-block-end: 1px solid var(--app-color-border);
+}
+
+.app-panel-header .app-muted {
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.app-panel-body {
+  padding: 1.25rem;
+}
+
+.app-panel-nested {
+  box-shadow: none;
+  background: var(--app-color-canvas);
+}
+
+.app-panel-nested .app-panel-body {
+  padding: 1rem;
+}
+
 .card-header {
   display: flex;
   align-items: baseline;
@@ -320,6 +361,11 @@ c-card + c-card {
 @media (max-width: 767.98px) {
   .app-content {
     padding-block: 1rem;
+  }
+
+  .app-panel-header,
+  .app-panel-body {
+    padding-inline: 1rem;
   }
 
   .app-page-header {

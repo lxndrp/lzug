@@ -1,12 +1,5 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
-import {
-  AlertModule,
-  BadgeModule,
-  ButtonModule,
-  CardModule,
-  GridModule,
-  TableModule,
-} from '@coreui/angular';
+import { AlertModule, BadgeModule, ButtonModule, GridModule, TableModule } from '@coreui/angular';
 import { IconDirective } from '@coreui/icons-angular';
 
 import {
@@ -24,15 +17,7 @@ import { appIcons } from '../app-icons';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [
-    AlertModule,
-    BadgeModule,
-    ButtonModule,
-    CardModule,
-    GridModule,
-    IconDirective,
-    TableModule,
-  ],
+  imports: [AlertModule, BadgeModule, ButtonModule, GridModule, IconDirective, TableModule],
   templateUrl: './dashboard.component.html',
 })
 export class DashboardComponent {

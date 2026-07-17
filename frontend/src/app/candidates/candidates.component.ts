@@ -1,13 +1,6 @@
 import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import {
-  BadgeModule,
-  ButtonModule,
-  CardModule,
-  FormModule,
-  GridModule,
-  TableModule,
-} from '@coreui/angular';
+import { BadgeModule, ButtonModule, FormModule, GridModule, TableModule } from '@coreui/angular';
 import { IconDirective } from '@coreui/icons-angular';
 
 import { Candidate, CandidateView, MasterData } from '../api/api.models';
@@ -27,7 +20,6 @@ export type CandidateUpdate = {
   imports: [
     BadgeModule,
     ButtonModule,
-    CardModule,
     FormModule,
     FormsModule,
     GridModule,

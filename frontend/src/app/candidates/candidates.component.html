@@ -1,32 +1,32 @@
 <div class="row g-4">
   <div class="col-12 col-xl-4">
-    <c-card>
-      <c-card-header>
+    <section class="app-panel">
+      <header class="app-panel-header">
         <strong>Prüflinge</strong>
-      </c-card-header>
-      <c-card-body>
+      </header>
+      <div class="app-panel-body">
         <dl class="row mb-0">
           <dt class="col-7">Gesamt</dt>
           <dd class="col-5">{{ candidateCount() }}</dd>
           <dt class="col-7">MEP</dt>
           <dd class="col-5">{{ mepCount() }}</dd>
         </dl>
-      </c-card-body>
-    </c-card>
+      </div>
+    </section>
   </div>
 
   <div class="col-12 col-xl-8">
     <details class="app-create-panel">
       <summary class="app-create-trigger">Neuen Prüfling anlegen</summary>
-      <c-card>
-        <c-card-header>
+      <section class="app-panel">
+        <header class="app-panel-header">
           <div>
             <strong>Prüfling anlegen</strong>
             <span class="app-muted d-block">Stammdaten und Prüfungsbedarf erfassen</span>
           </div>
           <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
-        </c-card-header>
-        <c-card-body>
+        </header>
+        <div class="app-panel-body">
           <form class="row g-3 app-form-grid" (ngSubmit)="submitCandidate()">
             <div class="col-12 col-md-6">
               <label cLabel for="candidateFirstName"
@@ -121,18 +121,18 @@
               </button>
             </div>
           </form>
-        </c-card-body>
-      </c-card>
+        </div>
+      </section>
     </details>
   </div>
 
   <div class="col-12">
-    <c-card>
-      <c-card-header>
+    <section class="app-panel">
+      <header class="app-panel-header">
         <strong>Prüflingsliste</strong>
         <span class="app-muted">{{ filteredCandidates().length }} von {{ candidateCount() }}</span>
-      </c-card-header>
-      <c-card-body>
+      </header>
+      <div class="app-panel-body">
         <div class="row g-3 app-filter-bar" role="search" aria-label="Prüflingsliste filtern">
           <div class="col-12 col-md-8">
             <label cLabel for="candidateSearch">Suche</label>
@@ -379,7 +379,7 @@
             </tbody>
           </table>
         </div>
-      </c-card-body>
-    </c-card>
+      </div>
+    </section>
   </div>
 </div>
