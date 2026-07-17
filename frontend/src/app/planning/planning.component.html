@@ -1,14 +1,14 @@
 <div class="row g-4">
   <div class="col-12">
-    <c-card>
-      <c-card-header>
+    <section class="app-panel">
+      <header class="app-panel-header">
         <div>
           <strong>Prüfungsrunde bearbeiten</strong>
           <span class="app-muted d-block">Name und Rückmeldefristen nach der Anlage pflegen</span>
         </div>
         <span class="app-muted">Letzte Änderung: {{ dateTimeLabel(round?.updated_at) }}</span>
-      </c-card-header>
-      <c-card-body>
+      </header>
+      <div class="app-panel-body">
         <form id="roundMetadataForm" class="row g-3 app-form-grid" (ngSubmit)="submitRound()">
           <div class="col-12 col-md-4">
             <label cLabel for="roundName">Bezeichnung</label>
@@ -47,16 +47,16 @@
             </button>
           </div>
         </form>
-      </c-card-body>
-    </c-card>
+      </div>
+    </section>
   </div>
 
   <div class="col-12 col-xl-4">
-    <c-card>
-      <c-card-header>
+    <section class="app-panel">
+      <header class="app-panel-header">
         <strong>Kapazitätsvorschau</strong>
-      </c-card-header>
-      <c-card-body>
+      </header>
+      <div class="app-panel-body">
         <dl class="row mb-0">
           <dt class="col-7">Benötigte Termine</dt>
           <dd class="col-5">{{ requiredSlots() }}</dd>
@@ -69,20 +69,20 @@
             </c-badge>
           </dd>
         </dl>
-      </c-card-body>
-    </c-card>
+      </div>
+    </section>
   </div>
 
   <div class="col-12 col-xl-8">
-    <c-card>
-      <c-card-header>
+    <section class="app-panel">
+      <header class="app-panel-header">
         <div>
           <strong>Planungsrahmen</strong>
           <span class="app-muted d-block">Zeitraum, Kapazität und Standardwerte festlegen</span>
         </div>
         <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
-      </c-card-header>
-      <c-card-body>
+      </header>
+      <div class="app-panel-body">
         <form id="planningSettingsForm" class="row g-3 app-form-grid" (ngSubmit)="submitSettings()">
           <div class="col-12 col-md-6">
             <label cLabel for="weekFrom">KW von <span aria-hidden="true">*</span></label>
@@ -240,19 +240,19 @@
             </div>
           </div>
         </form>
-      </c-card-body>
-    </c-card>
+      </div>
+    </section>
   </div>
 
   <div class="col-12">
-    <c-card>
-      <c-card-header>
+    <section class="app-panel">
+      <header class="app-panel-header">
         <div>
           <strong>Mögliche Prüfungstage</strong>
           <span class="app-muted d-block">Kalendertage für den Planungsvorschlag freigeben</span>
         </div>
-      </c-card-header>
-      <c-card-body>
+      </header>
+      <div class="app-panel-body">
         @if (candidateDayGenerationResult; as result) {
           <c-alert color="info">
             <strong>{{ result.counts.created }} Tage angelegt</strong>
@@ -355,17 +355,17 @@
             </tbody>
           </table>
         </div>
-      </c-card-body>
-    </c-card>
+      </div>
+    </section>
   </div>
 
   <div class="col-12">
-    <c-card>
-      <c-card-header>
+    <section class="app-panel">
+      <header class="app-panel-header">
         <strong>Verfügbarkeiten</strong>
         <span class="app-muted">Änderungen werden direkt gespeichert.</span>
-      </c-card-header>
-      <c-card-body>
+      </header>
+      <div class="app-panel-body">
         @if ((board?.candidateDays?.length || 0) > 0 && activeMembers().length > 0) {
           <div
             class="app-table-scroll app-availability-scroll"
@@ -447,7 +447,7 @@
             <span>Aktivieren Sie mindestens ein Mitglied und einen möglichen Prüfungstag.</span>
           </div>
         }
-      </c-card-body>
-    </c-card>
+      </div>
+    </section>
   </div>
 </div>
