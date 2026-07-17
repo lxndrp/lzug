@@ -1,7 +1,7 @@
-<div class="row g-4">
-  <div class="col-12">
+<div class="app-page-grid">
+  <div class="app-page-full">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <strong>Prüfungsausschuss</strong>
         <span class="app-muted">Ausschüsse und ihre Mitglieder verwalten</span>
       </header>
@@ -26,9 +26,9 @@
     </section>
   </div>
 
-  <div class="col-12 col-xl-4">
+  <div class="app-page-span-4">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <strong>Ausschüsse</strong>
       </header>
       <div class="app-panel-body">
@@ -56,16 +56,16 @@
     <details class="app-create-panel">
       <summary class="app-create-trigger">Neuen Ausschuss anlegen</summary>
       <section class="app-panel">
-        <header class="app-panel-header">
+        <header tuiHeader="body-m" class="app-panel-header">
           <div>
             <strong>Ausschuss anlegen</strong>
-            <span class="app-muted d-block">Bezeichnung und Ausbildungsberuf festlegen</span>
+            <span class="app-muted app-block">Bezeichnung und Ausbildungsberuf festlegen</span>
           </div>
           <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
         </header>
         <div class="app-panel-body">
-          <form class="app-form-grid" (submit)="saveCommittee($event)">
-            <div class="mb-3">
+          <form tuiForm="m" class="app-form-grid" (submit)="saveCommittee($event)">
+            <div class="app-field-full">
               <label for="committeeName">Bezeichnung <span aria-hidden="true">*</span></label>
               <tui-textfield>
                 <input
@@ -77,7 +77,7 @@
                 />
               </tui-textfield>
             </div>
-            <div class="mb-3">
+            <div class="app-field-full">
               <label for="committeeOccupation"
                 >Ausbildungsberuf <span aria-hidden="true">*</span></label
               >
@@ -91,7 +91,7 @@
                 />
               </tui-textfield>
             </div>
-            <div class="app-form-actions">
+            <div class="app-field-full app-form-actions">
               <span class="app-form-action-hint"
                 >Mitglieder können anschließend zugeordnet werden.</span
               >
@@ -106,14 +106,14 @@
     </details>
   </div>
 
-  <div class="col-12 col-xl-8">
+  <div class="app-page-span-8">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <strong>{{ selectedCommitteeName() }}</strong>
         <span class="app-badge app-badge-success">{{ activeMemberCount() }} aktiv</span>
       </header>
       <div class="app-panel-body">
-        <div class="app-table-scroll" tabindex="0" aria-label="Prüfertabelle, seitlich scrollbar">
+        <div class="app-table-scroll">
           <table tuiTable class="app-data-table app-table-sticky-actions">
             <thead>
               <tr>
@@ -130,7 +130,7 @@
                 <tr>
                   <td>
                     <strong>{{ fullMemberName(member) }}</strong>
-                    <span class="app-muted d-block">{{
+                    <span class="app-muted app-block">{{
                       memberStatusLabel(member.member_status)
                     }}</span>
                   </td>
@@ -152,8 +152,9 @@
                     <div class="app-row-actions">
                       <button
                         tuiButton
-                        appearance="secondary"
+                        color="secondary"
                         size="s"
+                        variant="outline"
                         type="button"
                         (click)="toggleMember.emit(member)"
                         [disabled]="actionBusy"
@@ -187,104 +188,102 @@
     <details class="app-create-panel">
       <summary class="app-create-trigger">Neuen Prüfer anlegen</summary>
       <section class="app-panel">
-        <header class="app-panel-header">
+        <header tuiHeader="body-m" class="app-panel-header">
           <div>
             <strong>Prüfer anlegen</strong>
-            <span class="app-muted d-block"
+            <span class="app-muted app-block"
               >Kontaktdaten, Funktion und Vertreterseite erfassen</span
             >
           </div>
           <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
         </header>
         <div class="app-panel-body">
-          <form class="app-form-grid" (submit)="saveMember($event)">
-            <div class="row g-3">
-              <div class="col-12">
-                <label for="memberCommittee">Ausschuss <span aria-hidden="true">*</span></label>
-                <tui-textfield>
-                  <select id="memberCommittee" name="committee_id" ngModel required>
-                    @for (committee of masterDataView()?.committees || []; track committee.id) {
-                      <option [value]="committee.id" [selected]="isSelectedCommittee(committee)">
-                        {{ committee.name }}
-                      </option>
-                    }
-                  </select>
-                </tui-textfield>
+          <form tuiForm="m" class="app-form-grid" (submit)="saveMember($event)">
+            <div class="app-field-full">
+              <label for="memberCommittee">Ausschuss <span aria-hidden="true">*</span></label>
+              <tui-textfield>
+                <select id="memberCommittee" name="committee_id" ngModel required>
+                  @for (committee of masterDataView()?.committees || []; track committee.id) {
+                    <option [value]="committee.id" [selected]="isSelectedCommittee(committee)">
+                      {{ committee.name }}
+                    </option>
+                  }
+                </select>
+              </tui-textfield>
+            </div>
+            <div class="app-field-half">
+              <label for="memberFirstName">Vorname <span aria-hidden="true">*</span></label>
+              <tui-textfield>
+                <input tuiInput id="memberFirstName" name="first_name" required />
+              </tui-textfield>
+            </div>
+            <div class="app-field-half">
+              <label for="memberLastName">Nachname <span aria-hidden="true">*</span></label>
+              <tui-textfield>
+                <input tuiInput id="memberLastName" name="last_name" required />
+              </tui-textfield>
+            </div>
+            <div class="app-field-half">
+              <label for="memberEmail">E-Mail <span aria-hidden="true">*</span></label>
+              <tui-textfield>
+                <input tuiInput id="memberEmail" name="email" type="email" required />
+              </tui-textfield>
+            </div>
+            <div class="app-field-half">
+              <label for="memberMobile">Mobil</label>
+              <tui-textfield>
+                <input tuiInput id="memberMobile" name="mobile" type="tel" />
+              </tui-textfield>
+            </div>
+            <div class="app-field-third">
+              <label for="memberStatus">Mitgliedsstatus</label>
+              <tui-textfield>
+                <select id="memberStatus" name="member_status" ngModel>
+                  <option value="ordinary">Ordentlich</option>
+                  <option value="deputy">Stellvertretend</option>
+                </select>
+              </tui-textfield>
+            </div>
+            <div class="app-field-third">
+              <label for="memberRole">Funktion</label>
+              <tui-textfield>
+                <select id="memberRole" name="committee_role" ngModel>
+                  <option value="member">Mitglied</option>
+                  <option value="chair">Vorsitz</option>
+                  <option value="deputy_chair">Stellv. Vorsitz</option>
+                </select>
+              </tui-textfield>
+            </div>
+            <div class="app-field-third">
+              <label for="memberSide">Vertreterseite</label>
+              <tui-textfield>
+                <select id="memberSide" name="representing_side" ngModel>
+                  <option value="employer">Arbeitgeber</option>
+                  <option value="employee">Arbeitnehmer</option>
+                  <option value="school">Schule</option>
+                </select>
+              </tui-textfield>
+            </div>
+            <div class="app-field-full">
+              <div class="app-form-check">
+                <input
+                  class="form-check-input"
+                  id="memberActive"
+                  name="is_active"
+                  type="checkbox"
+                  checked
+                />
+                <label for="memberActive">Aktiv</label>
               </div>
-              <div class="col-12 col-md-6">
-                <label for="memberFirstName">Vorname <span aria-hidden="true">*</span></label>
-                <tui-textfield>
-                  <input tuiInput id="memberFirstName" name="first_name" required />
-                </tui-textfield>
-              </div>
-              <div class="col-12 col-md-6">
-                <label for="memberLastName">Nachname <span aria-hidden="true">*</span></label>
-                <tui-textfield>
-                  <input tuiInput id="memberLastName" name="last_name" required />
-                </tui-textfield>
-              </div>
-              <div class="col-12 col-md-6">
-                <label for="memberEmail">E-Mail <span aria-hidden="true">*</span></label>
-                <tui-textfield>
-                  <input tuiInput id="memberEmail" name="email" type="email" required />
-                </tui-textfield>
-              </div>
-              <div class="col-12 col-md-6">
-                <label for="memberMobile">Mobil</label>
-                <tui-textfield>
-                  <input tuiInput id="memberMobile" name="mobile" type="tel" />
-                </tui-textfield>
-              </div>
-              <div class="col-12 col-md-4">
-                <label for="memberStatus">Mitgliedsstatus</label>
-                <tui-textfield>
-                  <select id="memberStatus" name="member_status" ngModel>
-                    <option value="ordinary">Ordentlich</option>
-                    <option value="deputy">Stellvertretend</option>
-                  </select>
-                </tui-textfield>
-              </div>
-              <div class="col-12 col-md-4">
-                <label for="memberRole">Funktion</label>
-                <tui-textfield>
-                  <select id="memberRole" name="committee_role" ngModel>
-                    <option value="member">Mitglied</option>
-                    <option value="chair">Vorsitz</option>
-                    <option value="deputy_chair">Stellv. Vorsitz</option>
-                  </select>
-                </tui-textfield>
-              </div>
-              <div class="col-12 col-md-4">
-                <label for="memberSide">Vertreterseite</label>
-                <tui-textfield>
-                  <select id="memberSide" name="representing_side" ngModel>
-                    <option value="employer">Arbeitgeber</option>
-                    <option value="employee">Arbeitnehmer</option>
-                    <option value="school">Schule</option>
-                  </select>
-                </tui-textfield>
-              </div>
-              <div class="col-12">
-                <div class="app-form-check">
-                  <input
-                    class="form-check-input"
-                    id="memberActive"
-                    name="is_active"
-                    type="checkbox"
-                    checked
-                  />
-                  <label for="memberActive">Aktiv</label>
-                </div>
-              </div>
-              <div class="col-12 app-form-actions">
-                <span class="app-form-action-hint"
-                  >Der Prüfer wird direkt dem gewählten Ausschuss zugeordnet.</span
-                >
-                <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
-                  <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
-                  Prüfer speichern
-                </button>
-              </div>
+            </div>
+            <div class="app-field-full app-form-actions">
+              <span class="app-form-action-hint"
+                >Der Prüfer wird direkt dem gewählten Ausschuss zugeordnet.</span
+              >
+              <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
+                <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
+                Prüfer speichern
+              </button>
             </div>
           </form>
         </div>

@@ -11,6 +11,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { TuiButton, TuiInput, TuiTextfield } from '@taiga-ui/core';
 import { TuiTable } from '@taiga-ui/addon-table';
+import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 
 import {
   AvailabilityValue,
@@ -42,7 +43,16 @@ type AvailabilityCellState = {
 
 @Component({
   selector: 'app-planning',
-  imports: [AppIconDirective, FormsModule, TuiButton, TuiInput, TuiTable, TuiTextfield],
+  imports: [
+    AppIconDirective,
+    FormsModule,
+    TuiButton,
+    TuiForm,
+    TuiHeader,
+    TuiInput,
+    TuiTable,
+    TuiTextfield,
+  ],
   templateUrl: './planning.component.html',
 })
 export class PlanningComponent implements OnChanges, OnDestroy {

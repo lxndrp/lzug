@@ -98,14 +98,17 @@ body {
   margin-block-start: 1.5rem;
 }
 
-.app-panel-header {
+.app-panel-header,
+header.app-panel-header[tuiHeader] {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 0.5rem 1rem;
   flex-wrap: wrap;
+  box-sizing: border-box;
   padding: 1rem 1.25rem;
   border-block-end: 1px solid var(--app-color-border);
+  color: inherit;
 }
 
 .app-panel-header .app-muted {
@@ -392,8 +395,106 @@ input:focus {
   color: #fff;
 }
 
-.row > * {
+.app-page-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: start;
+  gap: 1.5rem;
+}
+
+.app-page-grid > *,
+.app-form-grid > * {
   min-width: 0;
+}
+
+.app-page-full,
+.app-page-span-4,
+.app-page-span-5,
+.app-page-span-7,
+.app-page-span-8 {
+  grid-column: 1 / -1;
+}
+
+.app-form-grid,
+form.app-form-grid[tuiForm] {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: start;
+  gap: 1rem;
+}
+
+.app-field-full,
+.app-field-half,
+.app-field-third,
+.app-field-two-thirds,
+.app-field-five-twelfths,
+.app-field-quarter {
+  grid-column: 1 / -1;
+}
+
+.app-field-align-end {
+  display: flex;
+  align-items: flex-end;
+  min-block-size: 100%;
+}
+
+.app-key-value-list {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+}
+
+.app-key-value-list dd {
+  margin: 0;
+}
+
+.app-block {
+  display: block;
+}
+
+.app-flush {
+  margin: 0;
+}
+
+.app-hint-offset {
+  margin-block-start: 0.25rem;
+}
+
+.app-section-offset {
+  margin-block-start: 0.5rem;
+}
+
+.app-inline-actions,
+.app-badge-list,
+.app-day-slots {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.app-inline-actions {
+  gap: 0.5rem;
+}
+
+.app-badge-list,
+.app-day-slots {
+  gap: 0.25rem;
+}
+
+.app-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.app-day-heading {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.app-day-slots {
+  margin-inline-start: auto;
 }
 
 .app-table-scroll {
@@ -482,7 +583,7 @@ input:focus {
   gap: 0.375rem;
 }
 
-.app-row-actions .btn {
+.app-row-actions [tuiButton] {
   min-block-size: 2.25rem;
   padding-inline: 0.75rem;
   border-width: 1px;
@@ -678,8 +779,8 @@ input:focus {
     flex-direction: column;
   }
 
-  .app-form-actions .btn,
-  .app-compact-form-action .btn {
+  .app-form-actions [tuiButton],
+  .app-compact-form-action [tuiButton] {
     width: 100%;
   }
 }
@@ -953,7 +1054,7 @@ input:focus {
     justify-content: stretch;
   }
 
-  .app-dashboard-actions .btn {
+  .app-dashboard-actions [tuiButton] {
     width: 100%;
   }
 
@@ -979,6 +1080,46 @@ input:focus {
   .app-task-link .app-icon-only {
     grid-column: 2;
     grid-row: 1 / span 2;
+  }
+}
+
+@media (min-width: 768px) {
+  .app-field-half {
+    grid-column: span 6;
+  }
+
+  .app-field-third {
+    grid-column: span 4;
+  }
+
+  .app-field-two-thirds {
+    grid-column: span 8;
+  }
+
+  .app-field-five-twelfths {
+    grid-column: span 5;
+  }
+
+  .app-field-quarter {
+    grid-column: span 3;
+  }
+}
+
+@media (min-width: 1200px) {
+  .app-page-span-4 {
+    grid-column: span 4;
+  }
+
+  .app-page-span-5 {
+    grid-column: span 5;
+  }
+
+  .app-page-span-7 {
+    grid-column: span 7;
+  }
+
+  .app-page-span-8 {
+    grid-column: span 8;
   }
 }
 

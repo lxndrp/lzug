@@ -1,5 +1,5 @@
-<div class="row g-4">
-  <div class="col-12">
+<div class="app-page-grid">
+  <div class="app-page-full">
     <section class="app-panel app-dashboard-hero">
       <div class="app-panel-body">
         <div class="app-dashboard-hero-layout">
@@ -45,7 +45,7 @@
     </section>
   </div>
 
-  <div class="col-12">
+  <div class="app-page-full">
     <section aria-labelledby="dashboardMetricsTitle">
       <div class="app-section-heading">
         <div>
@@ -66,12 +66,12 @@
     </section>
   </div>
 
-  <div class="col-12 col-xl-7">
+  <div class="app-page-span-7">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <div>
           <span class="app-eyebrow">Nächste Schritte</span>
-          <strong class="d-block">Aufgaben</strong>
+          <strong class="app-block">Aufgaben</strong>
         </div>
         <span class="app-muted">Direkt zum betreffenden Bereich</span>
       </header>
@@ -92,12 +92,12 @@
     </section>
   </div>
 
-  <div class="col-12 col-xl-5">
+  <div class="app-page-span-5">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <div>
           <span class="app-eyebrow">Rahmen</span>
-          <strong class="d-block">Planung und Fristen</strong>
+          <strong class="app-block">Planung und Fristen</strong>
         </div>
         <span class="app-badge" [attr.data-color]="pendingCount() ? 'warning' : 'success'">
           {{ pendingCount() ? pendingCount() + ' offen' : 'Rücklauf vollständig' }}
@@ -136,7 +136,7 @@
 
         <div class="app-context-section">
           <h3>Rücklauf</h3>
-          <div class="d-flex flex-wrap gap-2">
+          <div class="app-inline-actions">
             @for (item of summary?.availability || []; track item.availability) {
               <span class="app-badge" [attr.data-color]="availabilityColor(item.availability)">
                 {{ availabilityLabel(item.availability) }}: {{ item.count }}
@@ -149,7 +149,7 @@
   </div>
 
   @if (planningResult?.validation; as validation) {
-    <div class="col-12">
+    <div class="app-page-full">
       <aside
         class="app-alert"
         [class.app-alert-success]="validation.passed"
@@ -158,7 +158,7 @@
       >
         <strong>Validierungsreport</strong>
         @if (validation.messages.length) {
-          <ul class="mb-0">
+          <ul class="app-flush">
             @for (message of validation.messages; track message) {
               <li>{{ message }}</li>
             }
@@ -170,19 +170,19 @@
     </div>
   }
 
-  <div class="col-12 col-xl-8">
+  <div class="app-page-span-8">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <strong>Terminplan</strong>
         <span class="app-muted">{{ plannedSlotCount() }} geplante Prüfungstermine</span>
       </header>
       <div class="app-panel-body">
         @if (board?.days?.length) {
-          <div class="vstack gap-3">
+          <div class="app-stack">
             @for (item of board.days; track item.day.id) {
               <article class="app-panel app-panel-nested">
                 <div class="app-panel-body">
-                  <div class="d-flex flex-wrap align-items-start gap-2">
+                  <div class="app-day-heading">
                     <div>
                       <h3>{{ dateLabel(item.day.date) }}</h3>
                       <p class="app-muted">
@@ -191,7 +191,7 @@
                         {{ statusLabel(item.day.status) }}
                       </p>
                     </div>
-                    <div class="ms-auto d-flex flex-wrap gap-1">
+                    <div class="app-day-slots">
                       @for (slot of item.slots; track slot.id) {
                         <span class="app-badge app-badge-secondary">
                           {{ slotTitle(slot) }}
@@ -204,7 +204,7 @@
                   </div>
 
                   <h4>Vormittag</h4>
-                  <div class="d-flex flex-wrap gap-1">
+                  <div class="app-badge-list">
                     @for (assignment of assignmentsFor(item, 'morning'); track assignment.id) {
                       <span class="app-badge" [attr.data-color]="assignmentColor(assignment)">
                         {{ memberName(assignment.committee_member_id) }} ·
@@ -215,7 +215,7 @@
                   </div>
 
                   <h4>Nachmittag</h4>
-                  <div class="d-flex flex-wrap gap-1">
+                  <div class="app-badge-list">
                     @for (assignment of assignmentsFor(item, 'afternoon'); track assignment.id) {
                       <span class="app-badge" [attr.data-color]="assignmentColor(assignment)">
                         {{ memberName(assignment.committee_member_id) }} ·
@@ -240,9 +240,9 @@
     </section>
   </div>
 
-  <div class="col-12 col-xl-4">
+  <div class="app-page-span-4">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <strong>Bestätigte Termine</strong>
       </header>
       <div class="app-panel-body">

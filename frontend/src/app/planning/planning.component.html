@@ -1,16 +1,16 @@
-<div class="row g-4">
-  <div class="col-12">
+<div class="app-page-grid">
+  <div class="app-page-full">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <div>
           <strong>Prüfungsrunde bearbeiten</strong>
-          <span class="app-muted d-block">Name und Rückmeldefristen nach der Anlage pflegen</span>
+          <span class="app-muted app-block">Name und Rückmeldefristen nach der Anlage pflegen</span>
         </div>
         <span class="app-muted">Letzte Änderung: {{ dateTimeLabel(round?.updated_at) }}</span>
       </header>
       <div class="app-panel-body">
-        <form id="roundMetadataForm" class="row g-3 app-form-grid" (ngSubmit)="submitRound()">
-          <div class="col-12 col-md-4">
+        <form tuiForm="m" id="roundMetadataForm" class="app-form-grid" (ngSubmit)="submitRound()">
+          <div class="app-field-third">
             <label for="roundName">Bezeichnung</label>
             <tui-textfield>
               <input
@@ -22,7 +22,7 @@
               />
             </tui-textfield>
           </div>
-          <div class="col-12 col-md-4">
+          <div class="app-field-third">
             <label for="availabilityDeadline">Rückmeldefrist</label>
             <tui-textfield>
               <input
@@ -34,7 +34,7 @@
               />
             </tui-textfield>
           </div>
-          <div class="col-12 col-md-4">
+          <div class="app-field-third">
             <label for="availabilityReminder">Erinnerung</label>
             <tui-textfield>
               <input
@@ -46,7 +46,7 @@
               />
             </tui-textfield>
           </div>
-          <div class="col-12 app-form-actions">
+          <div class="app-field-full app-form-actions">
             <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
               <svg [cIcon]="icons.save" class="app-button-icon" aria-hidden="true"></svg>
               Prüfungsrunde speichern
@@ -57,19 +57,19 @@
     </section>
   </div>
 
-  <div class="col-12 col-xl-4">
+  <div class="app-page-span-4">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <strong>Kapazitätsvorschau</strong>
       </header>
       <div class="app-panel-body">
-        <dl class="row mb-0">
-          <dt class="col-7">Benötigte Termine</dt>
-          <dd class="col-5">{{ requiredSlots() }}</dd>
-          <dt class="col-7">Verfügbare Plätze</dt>
-          <dd class="col-5">{{ capacity() }}</dd>
-          <dt class="col-7">Bewertung</dt>
-          <dd class="col-5">
+        <dl class="app-key-value-list">
+          <dt>Benötigte Termine</dt>
+          <dd>{{ requiredSlots() }}</dd>
+          <dt>Verfügbare Plätze</dt>
+          <dd>{{ capacity() }}</dd>
+          <dt>Bewertung</dt>
+          <dd>
             <span
               class="app-badge"
               [attr.data-color]="capacity() >= requiredSlots() ? 'success' : 'warning'"
@@ -82,18 +82,23 @@
     </section>
   </div>
 
-  <div class="col-12 col-xl-8">
+  <div class="app-page-span-8">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <div>
           <strong>Planungsrahmen</strong>
-          <span class="app-muted d-block">Zeitraum, Kapazität und Standardwerte festlegen</span>
+          <span class="app-muted app-block">Zeitraum, Kapazität und Standardwerte festlegen</span>
         </div>
         <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
       </header>
       <div class="app-panel-body">
-        <form id="planningSettingsForm" class="row g-3 app-form-grid" (ngSubmit)="submitSettings()">
-          <div class="col-12 col-md-6">
+        <form
+          tuiForm="m"
+          id="planningSettingsForm"
+          class="app-form-grid"
+          (ngSubmit)="submitSettings()"
+        >
+          <div class="app-field-half">
             <label for="weekFrom">KW von <span aria-hidden="true">*</span></label>
             <tui-textfield>
               <input
@@ -106,11 +111,11 @@
                 required
               />
             </tui-textfield>
-            <small id="weekFromHint" class="app-muted d-block mt-1"
+            <small id="weekFromHint" class="app-muted app-block app-hint-offset"
               >ISO: {{ draft.calendar_week_from || '–' }}</small
             >
           </div>
-          <div class="col-12 col-md-6">
+          <div class="app-field-half">
             <label for="weekTo">KW bis <span aria-hidden="true">*</span></label>
             <tui-textfield>
               <input
@@ -123,11 +128,11 @@
                 required
               />
             </tui-textfield>
-            <small id="weekToHint" class="app-muted d-block mt-1"
+            <small id="weekToHint" class="app-muted app-block app-hint-offset"
               >ISO: {{ draft.calendar_week_to || '–' }}</small
             >
           </div>
-          <div class="col-12 col-md-6 d-flex align-items-end">
+          <div class="app-field-half app-field-align-end">
             <div class="app-form-check">
               <input
                 class="form-check-input"
@@ -140,7 +145,7 @@
               <label for="excludePublicHolidays">Gesetzliche Feiertage ausschließen</label>
             </div>
           </div>
-          <div class="col-12 col-md-6">
+          <div class="app-field-half">
             <label for="holidaySubdivisionCode"
               >Bundesland
               @if (draft.exclude_public_holidays) {
@@ -162,7 +167,7 @@
               </select>
             </tui-textfield>
           </div>
-          <div class="col-12 col-md-4">
+          <div class="app-field-third">
             <label for="examsPerDay">Prüfungen pro Tag</label>
             <tui-textfield>
               <input
@@ -175,7 +180,7 @@
               />
             </tui-textfield>
           </div>
-          <div class="col-12 col-md-4">
+          <div class="app-field-third">
             <label for="examDaysPerWeek">Max. Tage pro Woche</label>
             <tui-textfield>
               <input
@@ -189,7 +194,7 @@
               />
             </tui-textfield>
           </div>
-          <div class="col-12 col-md-4">
+          <div class="app-field-third">
             <label for="defaultLocation">Standardort</label>
             <tui-textfield>
               <select
@@ -208,7 +213,7 @@
               </select>
             </tui-textfield>
           </div>
-          <div class="col-12 col-md-8">
+          <div class="app-field-two-thirds">
             <label for="updatedByMember">Änderung dokumentieren für</label>
             <tui-textfield>
               <select
@@ -224,7 +229,7 @@
               </select>
             </tui-textfield>
           </div>
-          <div class="col-12 col-md-4 d-flex align-items-end">
+          <div class="app-field-third app-field-align-end">
             <div class="app-form-check">
               <input
                 class="form-check-input"
@@ -237,15 +242,16 @@
               <label for="lunchBreak">Mittagspause</label>
             </div>
           </div>
-          <div class="col-12 app-form-actions">
+          <div class="app-field-full app-form-actions">
             <span class="app-form-action-hint"
               >Die Kapazitätsvorschau wird nach dem Speichern aktualisiert.</span
             >
-            <div class="d-flex flex-wrap gap-2">
+            <div class="app-inline-actions">
               <button
                 tuiButton
-                appearance="secondary"
+                color="secondary"
                 type="button"
+                variant="outline"
                 [disabled]="actionBusy || !canGenerateCandidateDays()"
                 (click)="requestCandidateDayGeneration()"
               >
@@ -263,24 +269,24 @@
     </section>
   </div>
 
-  <div class="col-12">
+  <div class="app-page-full">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <div>
           <strong>Mögliche Prüfungstage</strong>
-          <span class="app-muted d-block">Kalendertage für den Planungsvorschlag freigeben</span>
+          <span class="app-muted app-block">Kalendertage für den Planungsvorschlag freigeben</span>
         </div>
       </header>
       <div class="app-panel-body">
         @if (candidateDayGenerationResult; as result) {
           <aside class="app-alert app-alert-info" role="status">
             <strong>{{ result.counts.created }} Tage angelegt</strong>
-            <span class="d-block">
+            <span class="app-block">
               {{ result.counts.existing }} bereits vorhanden ·
               {{ result.counts.excluded_holidays }} Feiertage ausgeschlossen
             </span>
             @if (result.excluded_holidays.length) {
-              <ul class="mb-0 mt-2">
+              <ul class="app-flush app-section-offset">
                 @for (holiday of result.excluded_holidays; track holiday.date) {
                   <li>{{ dateLabel(holiday.date) }} · {{ holiday.name }}</li>
                 }
@@ -288,8 +294,8 @@
             }
           </aside>
         }
-        <form class="row g-3 app-form-grid app-compact-form" (ngSubmit)="submitCandidateDay()">
-          <div class="col-12 col-md-4">
+        <form tuiForm="m" class="app-form-grid app-compact-form" (ngSubmit)="submitCandidateDay()">
+          <div class="app-field-third">
             <label for="candidateDayDate">Datum <span aria-hidden="true">*</span></label>
             <tui-textfield>
               <input
@@ -302,7 +308,7 @@
               />
             </tui-textfield>
           </div>
-          <div class="col-12 col-md-4 d-flex align-items-end app-compact-form-action">
+          <div class="app-field-third app-field-align-end app-compact-form-action">
             <div class="app-form-check">
               <input
                 class="form-check-input"
@@ -315,18 +321,14 @@
               <label for="candidateDayActive">Aktiv</label>
             </div>
           </div>
-          <div class="col-12 col-md-4 d-flex align-items-end">
+          <div class="app-field-third app-field-align-end">
             <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
               <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
               Prüfungstag hinzufügen
             </button>
           </div>
         </form>
-        <div
-          class="app-table-scroll"
-          tabindex="0"
-          aria-label="Prüfungstagstabelle, seitlich scrollbar"
-        >
+        <div class="app-table-scroll">
           <table tuiTable class="app-compact-table">
             <thead>
               <tr>
@@ -353,9 +355,10 @@
                     <div class="app-row-actions">
                       <button
                         tuiButton
-                        appearance="secondary"
+                        color="secondary"
                         size="s"
                         type="button"
+                        variant="outline"
                         [disabled]="actionBusy"
                         (click)="toggleCandidateDay.emit(day)"
                       >
@@ -386,9 +389,9 @@
     </section>
   </div>
 
-  <div class="col-12">
+  <div class="app-page-full">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <strong>Verfügbarkeiten</strong>
         <span class="app-muted">Änderungen werden direkt gespeichert.</span>
       </header>
@@ -413,7 +416,7 @@
                   <tr>
                     <th scope="row">
                       {{ memberLabel(member) }}
-                      <span class="app-muted d-block">{{ memberSideLabel(member) }}</span>
+                      <span class="app-muted app-block">{{ memberSideLabel(member) }}</span>
                     </th>
                     @for (day of board?.candidateDays || []; track day.id) {
                       <td>

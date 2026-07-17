@@ -1,6 +1,7 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiTable } from '@taiga-ui/addon-table';
+import { TuiHeader } from '@taiga-ui/layout';
 
 import {
   AvailabilityValue,
@@ -18,7 +19,7 @@ import { AppIconDirective } from '../app-icon.directive';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [AppIconDirective, TuiButton, TuiTable],
+  imports: [AppIconDirective, TuiButton, TuiHeader, TuiTable],
   templateUrl: './dashboard.component.html',
 })
 export class DashboardComponent {
