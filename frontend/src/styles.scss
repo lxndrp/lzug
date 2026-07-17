@@ -6,7 +6,6 @@
 @use '@coreui/coreui/scss/tables';
 @use '@coreui/coreui/scss/forms';
 @use '@coreui/coreui/scss/buttons';
-@use '@coreui/coreui/scss/card';
 @use '@coreui/coreui/scss/badge';
 @use '@coreui/coreui/scss/list-group';
 @use '@coreui/coreui/scss/modal';
@@ -56,12 +55,6 @@ body {
   height: 100%;
 }
 
-.card {
-  border-color: var(--app-color-border);
-  background: var(--app-color-surface);
-  box-shadow: var(--app-shadow-subtle);
-}
-
 .app-panel {
   min-width: 0;
   overflow: hidden;
@@ -101,23 +94,6 @@ body {
 
 .app-panel-nested .app-panel-body {
   padding: 1rem;
-}
-
-.card-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  flex-wrap: wrap;
-}
-
-.card-header .app-muted {
-  font-size: 0.875rem;
-  font-weight: 400;
-}
-
-c-card + c-card {
-  margin-block-start: 1.5rem;
 }
 
 .row > * {
