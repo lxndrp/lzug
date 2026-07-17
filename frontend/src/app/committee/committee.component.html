@@ -95,7 +95,7 @@
               <span class="app-form-action-hint"
                 >Mitglieder können anschließend zugeordnet werden.</span
               >
-              <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
+              <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
                 <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                 Ausschuss anlegen
               </button>
@@ -113,7 +113,7 @@
         <span class="app-badge app-badge-success">{{ activeMemberCount() }} aktiv</span>
       </header>
       <div class="app-panel-body">
-        <div class="app-table-scroll">
+        <div class="app-table-scroll" tabindex="0" aria-label="Prüfertabelle, seitlich scrollbar">
           <table tuiTable class="app-data-table app-table-sticky-actions">
             <thead>
               <tr>
@@ -152,9 +152,8 @@
                     <div class="app-row-actions">
                       <button
                         tuiButton
-                        color="secondary"
+                        appearance="secondary"
                         size="s"
-                        variant="outline"
                         type="button"
                         (click)="toggleMember.emit(member)"
                         [disabled]="actionBusy"
@@ -281,7 +280,7 @@
                 <span class="app-form-action-hint"
                   >Der Prüfer wird direkt dem gewählten Ausschuss zugeordnet.</span
                 >
-                <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
+                <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
                   <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                   Prüfer speichern
                 </button>

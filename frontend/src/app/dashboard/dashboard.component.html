@@ -16,7 +16,7 @@
           <div class="app-dashboard-actions">
             <button
               tuiButton
-              color="primary"
+              appearance="primary"
               type="button"
               (click)="generateProposal.emit()"
               [disabled]="loading || actionBusy || !canGeneratePlan()"
@@ -26,8 +26,7 @@
             </button>
             <button
               tuiButton
-              color="secondary"
-              variant="outline"
+              appearance="secondary"
               type="button"
               (click)="confirmPlan.emit()"
               [disabled]="loading || actionBusy || !canConfirmPlan()"

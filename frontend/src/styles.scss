@@ -3,22 +3,81 @@
 @import '@fontsource/source-sans-3/700.css';
 
 :root {
+  color-scheme: light;
   --app-color-primary: #155e63;
   --app-color-primary-hover: #104b4f;
   --app-color-primary-active: #0b3d40;
   --app-color-primary-soft: #e7f1f1;
+  --app-color-on-primary: #fff;
   --app-color-accent: #8a5a00;
   --app-color-surface: #fff;
+  --app-color-surface-translucent: rgb(255 255 255 / 92%);
   --app-color-canvas: #f5f7f8;
   --app-color-border: #d8e0e3;
   --app-color-text: #1f2933;
   --app-color-text-muted: #52606d;
   --app-color-focus: #d58a2c;
+  --app-color-danger: #b02a37;
+  --app-color-danger-hover: #8f202b;
+  --app-color-danger-soft: #fff0f1;
+  --app-color-danger-text: #842029;
+  --app-color-success-soft: #e4f5ea;
+  --app-color-success-text: #176b3a;
+  --app-color-warning-soft: #fff1cf;
+  --app-color-warning-text: #7a4d00;
+  --app-color-info-soft: #edf8f9;
+  --app-color-info-border: #b9dfe2;
   --app-radius-sm: 0.375rem;
   --app-radius-md: 0.5rem;
   --app-radius-lg: 0.75rem;
   --app-shadow-subtle: 0 1px 2px rgb(31 41 51 / 6%);
   --app-shadow-floating: 0 8px 24px rgb(31 41 51 / 16%);
+  --tui-background-accent-1: var(--app-color-primary);
+  --tui-background-accent-1-hover: var(--app-color-primary-hover);
+  --tui-background-accent-1-pressed: var(--app-color-primary-active);
+  --tui-text-action: var(--app-color-primary);
+  --tui-text-action-hover: var(--app-color-primary-hover);
+  --tui-status-negative: var(--app-color-danger);
+  --tui-text-negative: var(--app-color-danger);
+  --tui-text-negative-hover: var(--app-color-danger-hover);
+}
+
+body[tuiTheme='dark'] {
+  color-scheme: dark;
+  --app-color-primary: #67c6c9;
+  --app-color-primary-hover: #83d6d8;
+  --app-color-primary-active: #a0e4e5;
+  --app-color-primary-soft: #183b3e;
+  --app-color-on-primary: #0b3032;
+  --app-color-accent: #f4bd62;
+  --app-color-surface: #222c30;
+  --app-color-surface-translucent: rgb(34 44 48 / 92%);
+  --app-color-canvas: #151d20;
+  --app-color-border: #4b5b61;
+  --app-color-text: #f2f6f7;
+  --app-color-text-muted: #b9c6ca;
+  --app-color-focus: #ffbd66;
+  --app-color-danger: #ff7d88;
+  --app-color-danger-hover: #ff9aa3;
+  --app-color-danger-soft: #4a252b;
+  --app-color-danger-text: #ffc4c9;
+  --app-color-success-soft: #193c30;
+  --app-color-success-text: #87ddb1;
+  --app-color-warning-soft: #473a1d;
+  --app-color-warning-text: #ffd88a;
+  --app-color-info-soft: #19383d;
+  --app-color-info-border: #3d7379;
+  --app-shadow-subtle: 0 1px 2px rgb(0 0 0 / 24%);
+  --app-shadow-floating: 0 10px 30px rgb(0 0 0 / 42%);
+  --tui-background-accent-1: var(--app-color-primary);
+  --tui-background-accent-1-hover: var(--app-color-primary-hover);
+  --tui-background-accent-1-pressed: var(--app-color-primary-active);
+  --tui-text-primary-on-accent-1: var(--app-color-on-primary);
+  --tui-text-action: var(--app-color-primary);
+  --tui-text-action-hover: var(--app-color-primary-hover);
+  --tui-status-negative: var(--app-color-danger);
+  --tui-text-negative: var(--app-color-danger);
+  --tui-text-negative-hover: var(--app-color-danger-hover);
 }
 
 html,
@@ -80,18 +139,18 @@ body {
 }
 
 .app-badge-secondary {
-  background: #e8ecef;
+  background: var(--app-color-canvas);
   color: var(--app-color-text-muted);
 }
 
 .app-badge-warning {
-  background: #fff1cf;
-  color: #7a4d00;
+  background: var(--app-color-warning-soft);
+  color: var(--app-color-warning-text);
 }
 
 .app-badge-success {
-  background: #dff3e7;
-  color: #176b3a;
+  background: var(--app-color-success-soft);
+  color: var(--app-color-success-text);
 }
 
 .app-badge-primary,
@@ -101,13 +160,13 @@ body {
 }
 
 .app-badge[data-color='warning'] {
-  background: #fff1cf;
-  color: #7a4d00;
+  background: var(--app-color-warning-soft);
+  color: var(--app-color-warning-text);
 }
 
 .app-badge[data-color='success'] {
-  background: #dff3e7;
-  color: #176b3a;
+  background: var(--app-color-success-soft);
+  color: var(--app-color-success-text);
 }
 
 .app-badge[data-color='info'],
@@ -194,18 +253,18 @@ input:focus {
 }
 
 .alert-info {
-  border-color: #b9dfe2;
-  background: #edf8f9;
+  border-color: var(--app-color-info-border);
+  background: var(--app-color-info-soft);
 }
 
 .alert-success {
-  border-color: #b7dec5;
-  background: #edf8f1;
+  border-color: var(--app-color-success-text);
+  background: var(--app-color-success-soft);
 }
 
 .alert-warning {
-  border-color: #efd69d;
-  background: #fff9eb;
+  border-color: var(--app-color-warning-text);
+  background: var(--app-color-warning-soft);
 }
 
 .list-group {
@@ -224,7 +283,7 @@ input:focus {
 .list-group-item.active {
   border-color: var(--app-color-primary);
   background: var(--app-color-primary);
-  color: #fff;
+  color: var(--app-color-on-primary);
 }
 
 .app-list-group {
@@ -250,7 +309,7 @@ input:focus {
 .app-list-group-item.active {
   border-color: var(--app-color-primary);
   background: var(--app-color-primary);
-  color: #fff;
+  color: var(--app-color-on-primary);
 }
 
 .form-check-input {
@@ -265,12 +324,20 @@ input:focus {
 }
 
 .app-confirmation-dialog {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
   width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
   padding: 0;
+  overflow: auto;
   border: 1px solid var(--app-color-border);
   border-radius: var(--app-radius-lg);
   background: var(--app-color-surface);
-  box-shadow: var(--app-shadow-floating);
+  box-shadow:
+    0 0 0 100vmax rgb(15 23 42 / 58%),
+    var(--app-shadow-floating);
   color: var(--app-color-text);
 }
 
@@ -321,7 +388,7 @@ input:focus {
 }
 
 .app-button-danger {
-  background: #b02a37;
+  background: var(--app-color-danger);
   color: #fff;
 }
 
@@ -330,6 +397,7 @@ input:focus {
 }
 
 .app-table-scroll {
+  position: relative;
   max-width: 100%;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
@@ -400,7 +468,7 @@ input:focus {
 }
 
 .app-committee-choice.active span {
-  color: rgb(255 255 255 / 82%);
+  color: var(--app-color-on-primary);
 }
 
 .app-actions {
@@ -556,14 +624,32 @@ input:focus {
 }
 
 .app-cell-status-saved {
-  color: #0a3622;
+  color: var(--app-color-success-text);
 }
 
 .app-cell-status-error {
-  color: #58151c;
+  color: var(--app-color-danger-text);
 }
 
 @media (max-width: 767.98px) {
+  .app-table-scroll::before {
+    position: sticky;
+    z-index: 4;
+    inset-inline-start: 0;
+    display: block;
+    width: max-content;
+    margin: 0 0 0.5rem;
+    padding: 0.25rem 0.625rem;
+    border: 1px solid var(--app-color-border);
+    border-radius: 999px;
+    background: var(--app-color-surface);
+    color: var(--app-color-text-muted);
+    content: 'Tabelle seitlich scrollen →';
+    font-size: 0.8125rem;
+    font-weight: 600;
+    box-shadow: var(--app-shadow-subtle);
+  }
+
   .app-content {
     padding-block: 1rem;
   }
@@ -613,7 +699,7 @@ input:focus {
   padding: 0.5rem 1rem;
   border-radius: var(--app-radius-sm);
   background: var(--app-color-primary);
-  color: #fff;
+  color: var(--app-color-on-primary);
   cursor: pointer;
   font-weight: 500;
 }
