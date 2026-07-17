@@ -1,15 +1,7 @@
 import { Component, DestroyRef, ViewChild, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationEnd, Router, RouterLink } from '@angular/router';
-import {
-  ButtonModule,
-  GridModule,
-  HeaderModule,
-  ModalModule,
-  NavModule,
-  ProgressModule,
-  SidebarModule,
-} from '@coreui/angular';
+import { NavigationEnd, Router } from '@angular/router';
+import { ButtonModule, ModalModule } from '@coreui/angular';
 import { IconDirective } from '@coreui/icons-angular';
 import { TuiRoot } from '@taiga-ui/core';
 import { filter, finalize, switchMap } from 'rxjs';
@@ -63,14 +55,8 @@ import { TaigaPrototypeComponent } from './taiga-prototype/taiga-prototype.compo
     LocationsComponent,
     PlanningComponent,
     ButtonModule,
-    GridModule,
-    HeaderModule,
     IconDirective,
     ModalModule,
-    NavModule,
-    ProgressModule,
-    RouterLink,
-    SidebarModule,
     TaigaPrototypeComponent,
     TuiRoot,
   ],
@@ -98,7 +84,7 @@ export class App {
   );
   protected readonly activeView = signal<AppView>('dashboard');
   protected readonly prototypeVisible = signal(false);
-  protected readonly sidebarVisible = signal(true);
+  protected readonly sidebarVisible = signal(!window.matchMedia('(max-width: 767.98px)').matches);
   protected readonly selectedCommitteeId = signal<number | null>(null);
   protected readonly message = signal('Bereit');
   protected readonly loading = signal(false);
@@ -178,8 +164,20 @@ export class App {
     void this.router.navigateByUrl(`/${this.pathForView(view)}`);
   }
 
+  protected navigateFromShell(view: AppView, event: Event): void {
+    event.preventDefault();
+    this.showView(view);
+    this.closeSidebarOnMobile();
+  }
+
   protected showPrototype(): void {
     this.prototypeVisible.set(true);
+  }
+
+  protected closeSidebarOnMobile(): void {
+    if (window.matchMedia('(max-width: 767.98px)').matches) {
+      this.sidebarVisible.set(false);
+    }
   }
 
   protected selectCommittee(id: number | null): void {
