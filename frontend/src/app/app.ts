@@ -1,7 +1,6 @@
 import { Component, DestroyRef, ViewChild, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
-import { ButtonModule, ModalModule } from '@coreui/angular';
 import { IconDirective } from '@coreui/icons-angular';
 import { TuiRoot } from '@taiga-ui/core';
 import { filter, finalize, switchMap } from 'rxjs';
@@ -54,9 +53,7 @@ import { TaigaPrototypeComponent } from './taiga-prototype/taiga-prototype.compo
     DashboardComponent,
     LocationsComponent,
     PlanningComponent,
-    ButtonModule,
     IconDirective,
-    ModalModule,
     TaigaPrototypeComponent,
     TuiRoot,
   ],

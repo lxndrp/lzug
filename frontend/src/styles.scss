@@ -96,6 +96,67 @@ body {
   padding: 1rem;
 }
 
+.app-confirmation-dialog {
+  width: min(32rem, calc(100vw - 2rem));
+  padding: 0;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-lg);
+  background: var(--app-color-surface);
+  box-shadow: var(--app-shadow-floating);
+  color: var(--app-color-text);
+}
+
+.app-confirmation-dialog::backdrop {
+  background: rgb(31 41 51 / 42%);
+}
+
+.app-confirmation-header,
+.app-confirmation-body,
+.app-confirmation-footer {
+  padding: 1rem 1.25rem;
+}
+
+.app-confirmation-header {
+  border-block-end: 1px solid var(--app-color-border);
+}
+
+.app-confirmation-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.app-confirmation-body p {
+  margin: 0;
+}
+
+.app-confirmation-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  border-block-start: 1px solid var(--app-color-border);
+}
+
+.app-button {
+  min-block-size: 2.5rem;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid transparent;
+  border-radius: var(--app-radius-sm);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.app-button-secondary {
+  border-color: var(--app-color-border);
+  background: var(--app-color-surface);
+  color: var(--app-color-text);
+}
+
+.app-button-danger {
+  background: var(--cui-danger, #b02a37);
+  color: #fff;
+}
+
 .row > * {
   min-width: 0;
 }
