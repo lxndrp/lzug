@@ -182,14 +182,18 @@
                   <td>{{ item.candidate.ihk_exam_number }}</td>
                   <td>{{ specializationLabel(item.candidate.specialization) }}</td>
                   <td>
-                    <c-badge color="secondary">{{
+                    <span class="app-badge app-badge-secondary">{{
                       attemptLabel(item.roundCandidate?.attempt_number)
-                    }}</c-badge>
+                    }}</span>
                   </td>
                   <td>
-                    <c-badge [color]="item.roundCandidate?.requires_mep ? 'warning' : 'secondary'">
+                    <span
+                      class="app-badge"
+                      [class.app-badge-warning]="item.roundCandidate?.requires_mep"
+                      [class.app-badge-secondary]="!item.roundCandidate?.requires_mep"
+                    >
                       {{ item.roundCandidate?.requires_mep ? 'MEP' : 'Nein' }}
-                    </c-badge>
+                    </span>
                   </td>
                   <td>{{ item.candidate.training_company }}</td>
                   <td class="app-actions">
