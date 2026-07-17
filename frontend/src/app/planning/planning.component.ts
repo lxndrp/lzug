@@ -11,7 +11,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { AlertModule, BadgeModule, FormModule, GridModule, TableModule } from '@coreui/angular';
 import { IconDirective } from '@coreui/icons-angular';
-import { TuiButton } from '@taiga-ui/core';
+import { TuiButton, TuiInput } from '@taiga-ui/core';
 import { TuiSelect } from '@taiga-ui/kit';
 
 import {
@@ -52,6 +52,7 @@ type AvailabilityCellState = {
     IconDirective,
     TableModule,
     TuiButton,
+    TuiInput,
     TuiSelect,
   ],
   templateUrl: './planning.component.html',

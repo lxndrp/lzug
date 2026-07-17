@@ -28,20 +28,20 @@
             </div>
             <div class="col-12 col-md-4">
               <label cLabel for="locationName">Ort <span aria-hidden="true">*</span></label>
-              <input cFormControl id="locationName" name="name" [(ngModel)]="draft.name" required />
+              <input tuiInput id="locationName" name="name" [(ngModel)]="draft.name" required />
             </div>
             <div class="col-12 col-md-4">
               <label cLabel for="locationRoom">Raum <span aria-hidden="true">*</span></label>
-              <input cFormControl id="locationRoom" name="room" [(ngModel)]="draft.room" required />
+              <input tuiInput id="locationRoom" name="room" [(ngModel)]="draft.room" required />
             </div>
             <div class="col-12 col-md-5">
               <label cLabel for="locationStreet">Straße</label>
-              <input cFormControl id="locationStreet" name="street" [(ngModel)]="draft.street" />
+              <input tuiInput id="locationStreet" name="street" [(ngModel)]="draft.street" />
             </div>
             <div class="col-12 col-md-3">
               <label cLabel for="locationPostalCode">PLZ</label>
               <input
-                cFormControl
+                tuiInput
                 id="locationPostalCode"
                 name="postalCode"
                 [(ngModel)]="draft.postal_code"
@@ -49,7 +49,7 @@
             </div>
             <div class="col-12 col-md-4">
               <label cLabel for="locationCity">Stadt</label>
-              <input cFormControl id="locationCity" name="city" [(ngModel)]="draft.city" />
+              <input tuiInput id="locationCity" name="city" [(ngModel)]="draft.city" />
             </div>
             <div class="col-12 app-form-actions">
               <span class="app-form-action-hint"
@@ -180,7 +180,7 @@
                               >Ort <span aria-hidden="true">*</span></label
                             >
                             <input
-                              cFormControl
+                              tuiInput
                               [id]="'editLocationName-' + location.id"
                               [name]="'editLocationName-' + location.id"
                               [(ngModel)]="currentDraft.name"
@@ -192,7 +192,7 @@
                               >Raum <span aria-hidden="true">*</span></label
                             >
                             <input
-                              cFormControl
+                              tuiInput
                               [id]="'editLocationRoom-' + location.id"
                               [name]="'editLocationRoom-' + location.id"
                               [(ngModel)]="currentDraft.room"
@@ -202,7 +202,7 @@
                           <div class="col-12 col-md-5">
                             <label cLabel [for]="'editLocationStreet-' + location.id">Straße</label>
                             <input
-                              cFormControl
+                              tuiInput
                               [id]="'editLocationStreet-' + location.id"
                               [name]="'editLocationStreet-' + location.id"
                               [(ngModel)]="currentDraft.street"
@@ -213,7 +213,7 @@
                               >PLZ</label
                             >
                             <input
-                              cFormControl
+                              tuiInput
                               [id]="'editLocationPostalCode-' + location.id"
                               [name]="'editLocationPostalCode-' + location.id"
                               [(ngModel)]="currentDraft.postal_code"
@@ -222,7 +222,7 @@
                           <div class="col-12 col-md-4">
                             <label cLabel [for]="'editLocationCity-' + location.id">Stadt</label>
                             <input
-                              cFormControl
+                              tuiInput
                               [id]="'editLocationCity-' + location.id"
                               [name]="'editLocationCity-' + location.id"
                               [(ngModel)]="currentDraft.city"

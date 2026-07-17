@@ -13,7 +13,7 @@
           <div class="col-12 col-md-4">
             <label cLabel for="roundName">Bezeichnung</label>
             <input
-              cFormControl
+              tuiInput
               id="roundName"
               name="roundName"
               [(ngModel)]="roundDraft.name"
@@ -23,7 +23,7 @@
           <div class="col-12 col-md-4">
             <label cLabel for="availabilityDeadline">Rückmeldefrist</label>
             <input
-              cFormControl
+              tuiInput
               id="availabilityDeadline"
               name="availabilityDeadline"
               type="datetime-local"
@@ -33,7 +33,7 @@
           <div class="col-12 col-md-4">
             <label cLabel for="availabilityReminder">Erinnerung</label>
             <input
-              cFormControl
+              tuiInput
               id="availabilityReminder"
               name="availabilityReminder"
               type="datetime-local"
@@ -87,7 +87,7 @@
           <div class="col-12 col-md-6">
             <label cLabel for="weekFrom">KW von <span aria-hidden="true">*</span></label>
             <input
-              cFormControl
+              tuiInput
               id="weekFrom"
               name="weekFrom"
               type="week"
@@ -102,7 +102,7 @@
           <div class="col-12 col-md-6">
             <label cLabel for="weekTo">KW bis <span aria-hidden="true">*</span></label>
             <input
-              cFormControl
+              tuiInput
               id="weekTo"
               name="weekTo"
               type="week"
@@ -153,7 +153,7 @@
           <div class="col-12 col-md-4">
             <label cLabel for="examsPerDay">Prüfungen pro Tag</label>
             <input
-              cFormControl
+              tuiInput
               id="examsPerDay"
               min="1"
               name="examsPerDay"
@@ -164,7 +164,7 @@
           <div class="col-12 col-md-4">
             <label cLabel for="examDaysPerWeek">Max. Tage pro Woche</label>
             <input
-              cFormControl
+              tuiInput
               id="examDaysPerWeek"
               max="5"
               min="1"
@@ -273,7 +273,7 @@
           <div class="col-12 col-md-4">
             <label cLabel for="candidateDayDate">Datum <span aria-hidden="true">*</span></label>
             <input
-              cFormControl
+              tuiInput
               id="candidateDayDate"
               name="candidateDayDate"
               type="date"
