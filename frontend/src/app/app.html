@@ -1,197 +1,223 @@
-<c-sidebar
-  id="appSidebar"
-  colorScheme="dark"
-  position="fixed"
-  role="complementary"
-  aria-label="Prüfungsverwaltung"
-  [visible]="sidebarVisible()"
-  (visibleChange)="sidebarVisible.set($event)"
->
-  <c-sidebar-header>
-    <c-sidebar-brand>LZUG</c-sidebar-brand>
-    <button
-      cSidebarToggle="appSidebar"
-      class="app-sidebar-close"
-      type="button"
-      aria-label="Navigation schließen"
+<tui-root>
+  <div class="app-shell" [class.sidebar-collapsed]="!sidebarVisible()">
+    <aside
+      id="appSidebar"
+      class="app-sidebar"
+      [class.is-visible]="sidebarVisible()"
+      role="complementary"
+      aria-label="Prüfungsverwaltung"
     >
-      <span class="app-menu-icon is-close" aria-hidden="true"></span>
-    </button>
-  </c-sidebar-header>
+      <div class="app-sidebar-header">
+        <a class="app-brand" href="/dashboard" (click)="navigateFromShell('dashboard', $event)"
+          >LZUG</a
+        >
+        <button
+          class="app-sidebar-close"
+          type="button"
+          aria-label="Navigation schließen"
+          (click)="sidebarVisible.set(false)"
+        >
+          <span class="app-menu-icon is-close" aria-hidden="true"></span>
+        </button>
+      </div>
 
-  <c-sidebar-nav aria-label="Hauptnavigation" role="list">
-    <li class="nav-title">Prüfungsverwaltung</li>
-    <li class="nav-item">
-      <a cNavLink routerLink="/dashboard" [active]="activeView() === 'dashboard'">
-        <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
-        Übersicht
-      </a>
-    </li>
-    <li class="nav-item">
-      <a cNavLink routerLink="/candidates" [active]="activeView() === 'candidates'">
-        <svg [cIcon]="icons.candidates" class="app-nav-icon" aria-hidden="true"></svg>
-        Prüflinge
-      </a>
-    </li>
-    <li class="nav-item">
-      <a cNavLink routerLink="/committee" [active]="activeView() === 'committee'">
-        <svg [cIcon]="icons.committee" class="app-nav-icon" aria-hidden="true"></svg>
-        Ausschuss
-      </a>
-    </li>
-    <li class="nav-item">
-      <a cNavLink routerLink="/planning" [active]="activeView() === 'planning'">
-        <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
-        Terminplanung
-      </a>
-    </li>
-    <li class="nav-item">
-      <a cNavLink routerLink="/locations" [active]="activeView() === 'locations'">
-        <svg [cIcon]="icons.locations" class="app-nav-icon" aria-hidden="true"></svg>
-        Prüfungsorte
-      </a>
-    </li>
-    <li class="nav-title">Entwicklung</li>
-    <li class="nav-item">
-      <button
-        class="nav-link app-prototype-link"
-        type="button"
-        [class.active]="prototypeVisible()"
-        (click)="showPrototype()"
-      >
-        <span class="app-prototype-mark" aria-hidden="true">T</span>
-        Taiga-Prototyp
-      </button>
-    </li>
-    <li class="nav-item">
-      <a cNavLink href="/api/docs" target="_blank" rel="noopener">
-        <svg [cIcon]="icons.documentation" class="app-nav-icon" aria-hidden="true"></svg>
-        API-Dokumentation
-      </a>
-    </li>
-  </c-sidebar-nav>
-</c-sidebar>
+      <nav class="app-navigation" aria-label="Hauptnavigation">
+        <p class="app-nav-title">Prüfungsverwaltung</p>
+        <a
+          class="app-nav-link"
+          href="/dashboard"
+          [class.is-active]="!prototypeVisible() && activeView() === 'dashboard'"
+          (click)="navigateFromShell('dashboard', $event)"
+        >
+          <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
+          Übersicht
+        </a>
+        <a
+          class="app-nav-link"
+          href="/candidates"
+          [class.is-active]="!prototypeVisible() && activeView() === 'candidates'"
+          (click)="navigateFromShell('candidates', $event)"
+        >
+          <svg [cIcon]="icons.candidates" class="app-nav-icon" aria-hidden="true"></svg>
+          Prüflinge
+        </a>
+        <a
+          class="app-nav-link"
+          href="/committee"
+          [class.is-active]="!prototypeVisible() && activeView() === 'committee'"
+          (click)="navigateFromShell('committee', $event)"
+        >
+          <svg [cIcon]="icons.committee" class="app-nav-icon" aria-hidden="true"></svg>
+          Ausschuss
+        </a>
+        <a
+          class="app-nav-link"
+          href="/planning"
+          [class.is-active]="!prototypeVisible() && activeView() === 'planning'"
+          (click)="navigateFromShell('planning', $event)"
+        >
+          <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
+          Terminplanung
+        </a>
+        <a
+          class="app-nav-link"
+          href="/locations"
+          [class.is-active]="!prototypeVisible() && activeView() === 'locations'"
+          (click)="navigateFromShell('locations', $event)"
+        >
+          <svg [cIcon]="icons.locations" class="app-nav-icon" aria-hidden="true"></svg>
+          Prüfungsorte
+        </a>
 
-<div class="app-wrapper">
-  <c-header position="sticky">
-    <c-container fluid>
+        <p class="app-nav-title">Entwicklung</p>
+        <button
+          class="app-nav-link app-prototype-link"
+          type="button"
+          [class.is-active]="prototypeVisible()"
+          (click)="showPrototype(); closeSidebarOnMobile()"
+        >
+          <span class="app-prototype-mark" aria-hidden="true">T</span>
+          Taiga-Prototyp
+        </button>
+        <a class="app-nav-link" href="/api/docs" target="_blank" rel="noopener">
+          <svg [cIcon]="icons.documentation" class="app-nav-icon" aria-hidden="true"></svg>
+          API-Dokumentation
+        </a>
+      </nav>
+    </aside>
+
+    @if (sidebarVisible()) {
       <button
-        cHeaderToggler
-        cSidebarToggle="appSidebar"
-        [attr.aria-controls]="'appSidebar'"
-        [attr.aria-expanded]="sidebarVisible()"
-        [attr.aria-label]="sidebarVisible() ? 'Navigation schließen' : 'Navigation öffnen'"
-        [class.is-open]="sidebarVisible()"
-        class="app-sidebar-toggle"
+        class="app-sidebar-backdrop"
         type="button"
+        aria-label="Navigation schließen"
+        (click)="sidebarVisible.set(false)"
       ></button>
-      <c-header-brand>{{ pageTitle() }}</c-header-brand>
-      <span class="app-spacer"></span>
-      <span cHeaderText class="app-muted">
-        {{ apiRoot()?.name || 'Nicht verbunden' }} · {{ loading() ? 'Lädt Daten' : message() }}
-      </span>
-      <button
-        cButton
-        color="secondary"
-        variant="outline"
-        type="button"
-        (click)="refresh()"
-        [disabled]="loading()"
-      >
-        <svg [cIcon]="icons.reload" class="app-button-icon" aria-hidden="true"></svg>
-        Aktualisieren
-      </button>
-    </c-container>
-  </c-header>
+    }
 
-  @if (loading()) {
-    <c-progress thin>
-      <c-progress-bar color="primary" [animated]="true" [value]="100" />
-    </c-progress>
-  }
-
-  <main class="app-content">
-    <c-container fluid>
-      <header class="app-page-header">
-        <p class="app-muted">{{ crumb() }}</p>
-        <h1>{{ pageTitle() }}</h1>
+    <div class="app-wrapper">
+      <header class="app-header">
+        <div class="app-header-inner">
+          <button
+            class="app-sidebar-toggle"
+            type="button"
+            [attr.aria-controls]="'appSidebar'"
+            [attr.aria-expanded]="sidebarVisible()"
+            [attr.aria-label]="sidebarVisible() ? 'Navigation schließen' : 'Navigation öffnen'"
+            [class.is-open]="sidebarVisible()"
+            (click)="sidebarVisible.set(!sidebarVisible())"
+          >
+            <span class="app-menu-icon" aria-hidden="true"></span>
+          </button>
+          <a
+            class="app-header-title"
+            href="/dashboard"
+            (click)="navigateFromShell('dashboard', $event)"
+            >{{ pageTitle() }}</a
+          >
+          <span class="app-spacer"></span>
+          <span class="app-header-status">
+            {{ apiRoot()?.name || 'Nicht verbunden' }} · {{ loading() ? 'Lädt Daten' : message() }}
+          </span>
+          <button
+            class="app-refresh-button"
+            type="button"
+            (click)="refresh()"
+            [disabled]="loading()"
+          >
+            <svg [cIcon]="icons.reload" class="app-button-icon" aria-hidden="true"></svg>
+            Aktualisieren
+          </button>
+        </div>
       </header>
 
-      @if (prototypeVisible()) {
-        <tui-root>
-          <app-taiga-prototype />
-        </tui-root>
-      } @else {
-        @switch (activeView()) {
-          @case ('dashboard') {
-            <app-dashboard
-              [summary]="summary()"
-              [round]="round()"
-              [board]="board()"
-              [planningResult]="lastPlanningResult()"
-              [loading]="loading()"
-              [actionBusy]="actionBusy()"
-              (generateProposal)="generateProposal()"
-              (confirmPlan)="requestPlanConfirmation()"
-              (openView)="showView($event)"
-            />
-          }
-          @case ('candidates') {
-            <app-candidates
-              [masterData]="masterData()"
-              [actionBusy]="actionBusy()"
-              (createCandidate)="createCandidate($event)"
-              (updateCandidate)="updateCandidate($event)"
-              (deleteCandidate)="
-                requestCandidateDeletion($event.id, $event.first_name + ' ' + $event.last_name)
-              "
-            />
-          }
-          @case ('committee') {
-            <app-committee
-              [masterData]="masterData()"
-              [selectedCommitteeIdInput]="selectedCommitteeId()"
-              [actionBusy]="actionBusy()"
-              (selectedCommitteeIdChange)="selectCommittee($event)"
-              (createCommittee)="createCommittee($event)"
-              (createMember)="createMember($event)"
-              (toggleMember)="toggleMember($event)"
-            />
-          }
-          @case ('planning') {
-            <app-planning
-              [round]="round()"
-              [summary]="summary()"
-              [board]="board()"
-              [masterData]="masterData()"
-              [actionBusy]="actionBusy()"
-              [candidateDayGenerationResult]="candidateDayGenerationResult()"
-              (saveSettings)="savePlanningSettings($event)"
-              (saveRound)="saveExamRound($event)"
-              (createCandidateDay)="createCandidateDay($event)"
-              (generateCandidateDays)="generateCandidateDays($event)"
-              (toggleCandidateDay)="toggleCandidateDay($event)"
-              (saveAvailability)="saveAvailability($event)"
-            />
-          }
-          @case ('locations') {
-            <app-locations
-              [masterData]="masterData()"
-              [actionBusy]="actionBusy()"
-              (createLocation)="createLocation($event)"
-              (updateLocation)="updateLocation($event)"
-              (toggleLocation)="toggleLocation($event)"
-              (deleteLocation)="
-                requestLocationDeletion($event.id, $event.name + ' · ' + $event.room)
-              "
-            />
-          }
-        }
+      @if (loading()) {
+        <div class="app-progress" role="progressbar" aria-label="Daten werden geladen">
+          <span></span>
+        </div>
       }
-    </c-container>
-  </main>
-</div>
 
+      <main class="app-content">
+        <div class="app-content-inner">
+          <header class="app-page-header">
+            <p class="app-muted">{{ crumb() }}</p>
+            <h1>{{ pageTitle() }}</h1>
+          </header>
+
+          @if (prototypeVisible()) {
+            <app-taiga-prototype />
+          } @else {
+            @switch (activeView()) {
+              @case ('dashboard') {
+                <app-dashboard
+                  [summary]="summary()"
+                  [round]="round()"
+                  [board]="board()"
+                  [planningResult]="lastPlanningResult()"
+                  [loading]="loading()"
+                  [actionBusy]="actionBusy()"
+                  (generateProposal)="generateProposal()"
+                  (confirmPlan)="requestPlanConfirmation()"
+                  (openView)="showView($event)"
+                />
+              }
+              @case ('candidates') {
+                <app-candidates
+                  [masterData]="masterData()"
+                  [actionBusy]="actionBusy()"
+                  (createCandidate)="createCandidate($event)"
+                  (updateCandidate)="updateCandidate($event)"
+                  (deleteCandidate)="
+                    requestCandidateDeletion($event.id, $event.first_name + ' ' + $event.last_name)
+                  "
+                />
+              }
+              @case ('committee') {
+                <app-committee
+                  [masterData]="masterData()"
+                  [selectedCommitteeIdInput]="selectedCommitteeId()"
+                  [actionBusy]="actionBusy()"
+                  (selectedCommitteeIdChange)="selectCommittee($event)"
+                  (createCommittee)="createCommittee($event)"
+                  (createMember)="createMember($event)"
+                  (toggleMember)="toggleMember($event)"
+                />
+              }
+              @case ('planning') {
+                <app-planning
+                  [round]="round()"
+                  [summary]="summary()"
+                  [board]="board()"
+                  [masterData]="masterData()"
+                  [actionBusy]="actionBusy()"
+                  [candidateDayGenerationResult]="candidateDayGenerationResult()"
+                  (saveSettings)="savePlanningSettings($event)"
+                  (saveRound)="saveExamRound($event)"
+                  (createCandidateDay)="createCandidateDay($event)"
+                  (generateCandidateDays)="generateCandidateDays($event)"
+                  (toggleCandidateDay)="toggleCandidateDay($event)"
+                  (saveAvailability)="saveAvailability($event)"
+                />
+              }
+              @case ('locations') {
+                <app-locations
+                  [masterData]="masterData()"
+                  [actionBusy]="actionBusy()"
+                  (createLocation)="createLocation($event)"
+                  (updateLocation)="updateLocation($event)"
+                  (toggleLocation)="toggleLocation($event)"
+                  (deleteLocation)="
+                    requestLocationDeletion($event.id, $event.name + ' · ' + $event.room)
+                  "
+                />
+              }
+            }
+          }
+        </div>
+      </main>
+    </div>
+  </div>
+</tui-root>
 @if (feedback(); as currentFeedback) {
   <aside
     class="app-feedback"
