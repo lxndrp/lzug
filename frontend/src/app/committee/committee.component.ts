@@ -2,7 +2,6 @@ import { Component, EventEmitter, Input, Output, computed, signal } from '@angul
 import {
   BadgeModule,
   ButtonModule,
-  CardModule,
   FormModule,
   GridModule,
   ListGroupModule,
@@ -21,7 +20,6 @@ export type CommitteeMemberPayload = Omit<CommitteeMember, 'id' | 'email_verifie
   imports: [
     BadgeModule,
     ButtonModule,
-    CardModule,
     FormModule,
     GridModule,
     IconDirective,
