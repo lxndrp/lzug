@@ -6,7 +6,7 @@
         <span class="app-muted">Ausschüsse und ihre Mitglieder verwalten</span>
       </header>
       <div class="app-panel-body">
-        <table cTable hover small responsive>
+        <table tuiTable class="app-compact-table">
           <thead>
             <tr>
               <th scope="col">Kennzahl</th>
@@ -66,9 +66,7 @@
         <div class="app-panel-body">
           <form cForm class="app-form-grid" (submit)="saveCommittee($event)">
             <div class="mb-3">
-              <label for="committeeName"
-                >Bezeichnung <span aria-hidden="true">*</span></label
-              >
+              <label for="committeeName">Bezeichnung <span aria-hidden="true">*</span></label>
               <input
                 tuiInput
                 id="committeeName"
@@ -112,7 +110,7 @@
       </header>
       <div class="app-panel-body">
         <div class="app-table-scroll">
-          <table cTable hover small class="app-data-table app-table-sticky-actions">
+          <table tuiTable class="app-data-table app-table-sticky-actions">
             <thead>
               <tr>
                 <th scope="col">Name</th>
@@ -196,9 +194,7 @@
           <form cForm class="app-form-grid" (submit)="saveMember($event)">
             <div class="row g-3">
               <div class="col-12">
-                <label for="memberCommittee"
-                  >Ausschuss <span aria-hidden="true">*</span></label
-                >
+                <label for="memberCommittee">Ausschuss <span aria-hidden="true">*</span></label>
                 <select tuiSelect id="memberCommittee" name="committee_id" required>
                   @for (committee of masterDataView()?.committees || []; track committee.id) {
                     <option [value]="committee.id" [selected]="isSelectedCommittee(committee)">
@@ -208,15 +204,11 @@
                 </select>
               </div>
               <div class="col-12 col-md-6">
-                <label for="memberFirstName"
-                  >Vorname <span aria-hidden="true">*</span></label
-                >
+                <label for="memberFirstName">Vorname <span aria-hidden="true">*</span></label>
                 <input tuiInput id="memberFirstName" name="first_name" required />
               </div>
               <div class="col-12 col-md-6">
-                <label for="memberLastName"
-                  >Nachname <span aria-hidden="true">*</span></label
-                >
+                <label for="memberLastName">Nachname <span aria-hidden="true">*</span></label>
                 <input tuiInput id="memberLastName" name="last_name" required />
               </div>
               <div class="col-12 col-md-6">

@@ -76,7 +76,7 @@
       </header>
       <div class="app-panel-body">
         <div class="app-table-scroll">
-          <table cTable hover small class="app-data-table app-table-sticky-actions">
+          <table tuiTable class="app-data-table app-table-sticky-actions">
             <thead>
               <tr>
                 <th scope="col">Ort</th>
@@ -161,9 +161,7 @@
                           (ngSubmit)="submitLocationUpdate()"
                         >
                           <div class="col-12 col-md-4">
-                            <label [for]="'editLocationCommittee-' + location.id"
-                              >Ausschuss</label
-                            >
+                            <label [for]="'editLocationCommittee-' + location.id">Ausschuss</label>
                             <select
                               tuiSelect
                               [id]="'editLocationCommittee-' + location.id"
@@ -209,9 +207,7 @@
                             />
                           </div>
                           <div class="col-12 col-md-3">
-                            <label [for]="'editLocationPostalCode-' + location.id"
-                              >PLZ</label
-                            >
+                            <label [for]="'editLocationPostalCode-' + location.id">PLZ</label>
                             <input
                               tuiInput
                               [id]="'editLocationPostalCode-' + location.id"

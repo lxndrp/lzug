@@ -4,6 +4,7 @@ import { BadgeModule, FormModule, GridModule, TableModule } from '@coreui/angula
 import { IconDirective } from '@coreui/icons-angular';
 import { TuiButton, TuiInput, TuiTextfield } from '@taiga-ui/core';
 import { TuiSelect } from '@taiga-ui/kit';
+import { TuiTable } from '@taiga-ui/addon-table';
 
 import { Candidate, CandidateView, MasterData } from '../api/api.models';
 import { appIcons } from '../app-icons';
@@ -29,6 +30,7 @@ export type CandidateUpdate = {
     TuiButton,
     TuiInput,
     TuiSelect,
+    TuiTable,
     TuiTextfield,
   ],
   templateUrl: './candidates.component.html',
