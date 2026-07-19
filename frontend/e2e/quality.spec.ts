@@ -16,7 +16,7 @@ const viewports = [
 ] as const;
 
 async function waitForDataSync(page: Page): Promise<void> {
-  await expect(page.getByText('Daten synchronisiert', { exact: true })).toBeVisible({
+  await expect(page.locator('.app-progress')).toHaveCount(0, {
     timeout: 90_000,
   });
 }
