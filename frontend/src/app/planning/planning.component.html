@@ -47,7 +47,7 @@
             </tui-textfield>
           </div>
           <div class="col-12 app-form-actions">
-            <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
+            <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
               <svg [cIcon]="icons.save" class="app-button-icon" aria-hidden="true"></svg>
               Prüfungsrunde speichern
             </button>
@@ -244,16 +244,15 @@
             <div class="d-flex flex-wrap gap-2">
               <button
                 tuiButton
-                color="secondary"
+                appearance="secondary"
                 type="button"
-                variant="outline"
                 [disabled]="actionBusy || !canGenerateCandidateDays()"
                 (click)="requestCandidateDayGeneration()"
               >
                 <svg [cIcon]="icons.calendar" class="app-button-icon" aria-hidden="true"></svg>
                 Mögliche Tage berechnen
               </button>
-              <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
+              <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
                 <svg [cIcon]="icons.save" class="app-button-icon" aria-hidden="true"></svg>
                 Planungsrahmen speichern
               </button>
@@ -317,13 +316,17 @@
             </div>
           </div>
           <div class="col-12 col-md-4 d-flex align-items-end">
-            <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
+            <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
               <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
               Prüfungstag hinzufügen
             </button>
           </div>
         </form>
-        <div class="app-table-scroll">
+        <div
+          class="app-table-scroll"
+          tabindex="0"
+          aria-label="Prüfungstagstabelle, seitlich scrollbar"
+        >
           <table tuiTable class="app-compact-table">
             <thead>
               <tr>
@@ -350,10 +353,9 @@
                     <div class="app-row-actions">
                       <button
                         tuiButton
-                        color="secondary"
+                        appearance="secondary"
                         size="s"
                         type="button"
-                        variant="outline"
                         [disabled]="actionBusy"
                         (click)="toggleCandidateDay.emit(day)"
                       >

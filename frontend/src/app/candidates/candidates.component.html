@@ -122,7 +122,7 @@
               <span class="app-form-action-hint"
                 >Der Prüfling wird der aktuellen Runde zugeordnet.</span
               >
-              <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
+              <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
                 <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                 Prüfling anlegen
               </button>
@@ -170,7 +170,11 @@
           </div>
         </div>
 
-        <div class="app-table-scroll">
+        <div
+          class="app-table-scroll"
+          tabindex="0"
+          aria-label="Prüflingstabelle, seitlich scrollbar"
+        >
           <table tuiTable class="app-data-table app-table-sticky-actions">
             <thead>
               <tr>
@@ -210,10 +214,9 @@
                     <div class="app-row-actions">
                       <button
                         tuiButton
-                        color="primary"
+                        appearance="secondary"
                         size="s"
                         type="button"
-                        variant="outline"
                         [disabled]="actionBusy"
                         (click)="startEditing(item)"
                       >
@@ -222,10 +225,9 @@
                       </button>
                       <button
                         tuiButton
-                        color="danger"
+                        appearance="secondary-destructive"
                         size="s"
                         type="button"
-                        variant="outline"
                         [disabled]="actionBusy"
                         (click)="deleteCandidate.emit(item.candidate)"
                       >
@@ -364,7 +366,12 @@
                             <span class="app-form-action-hint"
                               >Änderungen gelten für Stammdaten und aktuelle Runde.</span
                             >
-                            <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
+                            <button
+                              tuiButton
+                              appearance="primary"
+                              type="submit"
+                              [disabled]="actionBusy"
+                            >
                               <svg
                                 [cIcon]="icons.save"
                                 class="app-button-icon"
@@ -374,9 +381,8 @@
                             </button>
                             <button
                               tuiButton
-                              color="secondary"
+                              appearance="secondary"
                               type="button"
-                              variant="outline"
                               [disabled]="actionBusy"
                               (click)="cancelEditing()"
                             >

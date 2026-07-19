@@ -62,7 +62,7 @@
               <span class="app-form-action-hint"
                 >Der Ort steht anschließend in der Terminplanung bereit.</span
               >
-              <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
+              <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
                 <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                 Prüfungsort anlegen
               </button>
@@ -82,7 +82,11 @@
         >
       </header>
       <div class="app-panel-body">
-        <div class="app-table-scroll">
+        <div
+          class="app-table-scroll"
+          tabindex="0"
+          aria-label="Prüfungsorttabelle, seitlich scrollbar"
+        >
           <table tuiTable class="app-data-table app-table-sticky-actions">
             <thead>
               <tr>
@@ -116,10 +120,9 @@
                     <div class="app-row-actions">
                       <button
                         tuiButton
-                        color="primary"
+                        appearance="secondary"
                         size="s"
                         type="button"
-                        variant="outline"
                         [disabled]="actionBusy"
                         (click)="startEditing(location)"
                       >
@@ -128,10 +131,9 @@
                       </button>
                       <button
                         tuiButton
-                        color="secondary"
+                        appearance="secondary"
                         size="s"
                         type="button"
-                        variant="outline"
                         [disabled]="actionBusy"
                         (click)="toggleLocation.emit(location)"
                       >
@@ -144,10 +146,9 @@
                       </button>
                       <button
                         tuiButton
-                        color="danger"
+                        appearance="secondary-destructive"
                         size="s"
                         type="button"
-                        variant="outline"
                         [disabled]="actionBusy"
                         (click)="deleteLocation.emit(location)"
                       >
@@ -252,7 +253,12 @@
                             <span class="app-form-action-hint"
                               >Die Änderungen gelten für künftige Planungen.</span
                             >
-                            <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
+                            <button
+                              tuiButton
+                              appearance="primary"
+                              type="submit"
+                              [disabled]="actionBusy"
+                            >
                               <svg
                                 [cIcon]="icons.save"
                                 class="app-button-icon"
@@ -262,9 +268,8 @@
                             </button>
                             <button
                               tuiButton
-                              color="secondary"
+                              appearance="secondary"
                               type="button"
-                              variant="outline"
                               [disabled]="actionBusy"
                               (click)="cancelEditing()"
                             >
