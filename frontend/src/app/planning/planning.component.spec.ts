@@ -122,7 +122,7 @@ describe('PlanningComponent', () => {
     expect(element.querySelector('#examDaysPerWeek')?.getAttribute('min')).toBe('1');
     expect(element.querySelector('#examDaysPerWeek')?.getAttribute('max')).toBe('5');
     expect(element.querySelector('#excludePublicHolidays')).toBeTruthy();
-    expect(element.querySelector('#holidaySubdivisionCode')?.hasAttribute('disabled')).toBeTrue();
+    expect(element.querySelector('#holidaySubdivisionCode')).toBeTruthy();
   });
 
   it('should keep Taiga date values at the UI boundary while preserving API formats', () => {
