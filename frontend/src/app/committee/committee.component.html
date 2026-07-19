@@ -204,13 +204,16 @@
             <div class="app-field-full">
               <label for="memberCommittee">Ausschuss <span aria-hidden="true">*</span></label>
               <tui-textfield>
-                <select id="memberCommittee" name="committee_id" ngModel required>
-                  @for (committee of masterDataView()?.committees || []; track committee.id) {
-                    <option [value]="committee.id" [selected]="isSelectedCommittee(committee)">
-                      {{ committee.name }}
-                    </option>
-                  }
-                </select>
+                <select
+                  tuiSelect
+                  id="memberCommittee"
+                  name="committee_id"
+                  [items]="committeeOptions()"
+                  [labels]="committeeOptionLabels()"
+                  [ngModel]="selectedCommitteeId()"
+                  (ngModelChange)="selectCommittee($event)"
+                  required
+                ></select>
               </tui-textfield>
             </div>
             <div class="app-field-half">

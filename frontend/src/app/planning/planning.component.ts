@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TuiButton, TuiCheckbox, TuiInput, TuiTextfield } from '@taiga-ui/core';
+import { TuiSelect } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 
@@ -51,6 +52,7 @@ type AvailabilityCellState = {
     TuiForm,
     TuiHeader,
     TuiInput,
+    TuiSelect,
     TuiTable,
     TuiTextfield,
   ],
@@ -150,6 +152,50 @@ export class PlanningComponent implements OnChanges, OnDestroy {
       { value: 'unavailable', label: 'Nicht verfügbar' },
       { value: 'pending', label: 'Offen' },
     ];
+  }
+
+  protected availabilityOptionValues(): AvailabilityValue[] {
+    return this.availabilityOptions().map((option) => option.value);
+  }
+
+  protected availabilityOptionLabels(): string[] {
+    return this.availabilityOptions().map((option) => option.label);
+  }
+
+  protected holidaySubdivisionOptions(): Array<string | null> {
+    return [null, ...this.federalStates.map((state) => state.code)];
+  }
+
+  protected holidaySubdivisionLabels(): string[] {
+    return ['Bundesland auswählen', ...this.federalStates.map((state) => state.name)];
+  }
+
+  protected defaultLocationOptions(): Array<number | null> {
+    return [
+      null,
+      ...(this.board?.locations ?? [])
+        .filter((location) => location.is_active !== 0)
+        .map((location) => location.id),
+    ];
+  }
+
+  protected defaultLocationLabels(): string[] {
+    return [
+      'Kein Standardort',
+      ...(this.board?.locations ?? [])
+        .filter((location) => location.is_active !== 0)
+        .map((location) => `${location.name} · ${location.room}`),
+    ];
+  }
+
+  protected updatedByMemberOptions(): number[] {
+    return (this.masterData?.members ?? []).map((member) => member.id);
+  }
+
+  protected updatedByMemberLabels(): string[] {
+    return (this.masterData?.members ?? []).map(
+      (member) => `${member.first_name} ${member.last_name}`,
+    );
   }
 
   protected availabilityFor(memberId: number, dayId: number): AvailabilityValue {

@@ -127,6 +127,7 @@ describe('LocationsComponent', () => {
     expect(element.querySelectorAll('form[tuiForm]').length).toBe(1);
     expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(2);
     expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
+    expect(element.querySelectorAll('select[tuiSelect]').length).toBeGreaterThan(0);
     expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 

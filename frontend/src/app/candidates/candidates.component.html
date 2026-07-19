@@ -159,15 +159,13 @@
             <label for="candidateFilter">Fachrichtung</label>
             <tui-textfield>
               <select
+                tuiSelect
                 id="candidateFilter"
+                [items]="specializationFilterOptions()"
+                [labels]="specializationFilterLabels()"
                 [ngModel]="specialization()"
                 (ngModelChange)="specialization.set($event)"
-              >
-                <option value="">Alle Fachrichtungen</option>
-                @for (value of specializations(); track value) {
-                  <option [value]="value">{{ specializationLabel(value) }}</option>
-                }
-              </select>
+              ></select>
             </tui-textfield>
           </div>
         </div>

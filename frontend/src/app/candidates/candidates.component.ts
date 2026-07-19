@@ -96,6 +96,17 @@ export class CandidatesComponent {
     ].sort((a, b) => this.specializationLabel(a).localeCompare(this.specializationLabel(b)));
   }
 
+  protected specializationFilterOptions(): string[] {
+    return ['', ...this.specializations()];
+  }
+
+  protected specializationFilterLabels(): string[] {
+    return [
+      'Alle Fachrichtungen',
+      ...this.specializations().map((value) => this.specializationLabel(value)),
+    ];
+  }
+
   protected filteredCandidates(): CandidateView[] {
     const query = this.query().trim().toLocaleLowerCase('de-DE');
     const specialization = this.specialization();

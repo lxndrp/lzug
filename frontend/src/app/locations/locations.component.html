@@ -15,12 +15,14 @@
             <div class="app-field-third">
               <label for="locationCommittee">Ausschuss</label>
               <tui-textfield>
-                <select id="locationCommittee" name="committeeId" [(ngModel)]="draft.committee_id">
-                  <option [ngValue]="0">Standardausschuss</option>
-                  @for (committee of masterData?.committees || []; track committee.id) {
-                    <option [ngValue]="committee.id">{{ committee.name }}</option>
-                  }
-                </select>
+                <select
+                  tuiSelect
+                  id="locationCommittee"
+                  name="committeeId"
+                  [items]="committeeOptions()"
+                  [labels]="committeeOptionLabels()"
+                  [(ngModel)]="draft.committee_id"
+                ></select>
               </tui-textfield>
             </div>
             <div class="app-field-third">
@@ -176,17 +178,13 @@
                             <label [for]="'editLocationCommittee-' + location.id">Ausschuss</label>
                             <tui-textfield>
                               <select
+                                tuiSelect
                                 [id]="'editLocationCommittee-' + location.id"
                                 [name]="'editLocationCommittee-' + location.id"
+                                [items]="committeeOptions()"
+                                [labels]="committeeOptionLabels()"
                                 [(ngModel)]="currentDraft.committee_id"
-                              >
-                                @for (
-                                  committee of masterData?.committees || [];
-                                  track committee.id
-                                ) {
-                                  <option [ngValue]="committee.id">{{ committee.name }}</option>
-                                }
-                              </select>
+                              ></select>
                             </tui-textfield>
                           </div>
                           <div class="app-field-third">

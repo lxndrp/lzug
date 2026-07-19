@@ -187,6 +187,7 @@ describe('PlanningComponent', () => {
     expect(element.querySelectorAll('.app-field-hint').length).toBe(2);
     expect(element.querySelectorAll('input[tuiCheckbox]').length).toBe(3);
     expect(element.querySelectorAll('input.form-check-input').length).toBe(0);
+    expect(element.querySelectorAll('select[tuiSelect]').length).toBeGreaterThan(0);
     expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 

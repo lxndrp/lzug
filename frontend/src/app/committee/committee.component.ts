@@ -103,6 +103,14 @@ export class CommitteeComponent {
     return this.selectedCommittee()?.id === committee.id;
   }
 
+  protected committeeOptions(): number[] {
+    return (this.masterDataView()?.committees ?? []).map((committee) => committee.id);
+  }
+
+  protected committeeOptionLabels(): string[] {
+    return (this.masterDataView()?.committees ?? []).map((committee) => committee.name);
+  }
+
   protected saveCommittee(event: SubmitEvent): void {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
