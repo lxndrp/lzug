@@ -57,6 +57,8 @@ describe('CandidatesComponent', () => {
     expect(element.querySelectorAll('form[tuiForm]').length).toBe(1);
     expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(3);
     expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
+    expect(element.querySelectorAll('input[tuiCheckbox]').length).toBe(1);
+    expect(element.querySelectorAll('input.form-check-input').length).toBe(0);
     expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 

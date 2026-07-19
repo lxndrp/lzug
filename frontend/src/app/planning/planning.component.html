@@ -135,9 +135,9 @@
           <div class="app-field-half app-field-align-end">
             <div class="app-form-check">
               <input
-                class="form-check-input"
                 id="excludePublicHolidays"
                 name="excludePublicHolidays"
+                tuiCheckbox
                 type="checkbox"
                 [ngModel]="draft.exclude_public_holidays === 1"
                 (ngModelChange)="draft.exclude_public_holidays = $event ? 1 : 0"
@@ -232,9 +232,9 @@
           <div class="app-field-third app-field-align-end">
             <div class="app-form-check">
               <input
-                class="form-check-input"
                 id="lunchBreak"
                 name="lunchBreak"
+                tuiCheckbox
                 type="checkbox"
                 [ngModel]="draft.lunch_break_enabled === 1"
                 (ngModelChange)="draft.lunch_break_enabled = $event ? 1 : 0"
@@ -311,9 +311,9 @@
           <div class="app-field-third app-field-align-end app-compact-form-action">
             <div class="app-form-check">
               <input
-                class="form-check-input"
                 id="candidateDayActive"
                 name="candidateDayActive"
+                tuiCheckbox
                 type="checkbox"
                 [ngModel]="candidateDayDraft.is_active === 1"
                 (ngModelChange)="candidateDayDraft.is_active = $event ? 1 : 0"

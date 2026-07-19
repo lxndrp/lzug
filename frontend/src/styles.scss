@@ -315,17 +315,6 @@ input:focus {
   color: var(--app-color-on-primary);
 }
 
-.form-check-input {
-  inline-size: 1.15rem;
-  block-size: 1.15rem;
-  border-color: var(--app-color-border);
-}
-
-.form-check-input:checked {
-  border-color: var(--app-color-primary);
-  background-color: var(--app-color-primary);
-}
-
 .app-confirmation-dialog {
   position: fixed;
   z-index: 1200;

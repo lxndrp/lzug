@@ -112,9 +112,9 @@
             <div class="app-field-third app-field-align-end">
               <div class="app-form-check">
                 <input
-                  class="form-check-input"
                   id="candidateMep"
                   name="requiresMep"
+                  tuiCheckbox
                   type="checkbox"
                   [ngModel]="draft.requires_mep === 1"
                   (ngModelChange)="draft.requires_mep = $event ? 1 : 0"
@@ -355,9 +355,9 @@
                           <div class="app-field-third app-field-align-end">
                             <div class="app-form-check">
                               <input
-                                class="form-check-input"
                                 [id]="'editCandidateMep-' + item.candidate.id"
                                 [name]="'editCandidateMep-' + item.candidate.id"
+                                tuiCheckbox
                                 type="checkbox"
                                 [ngModel]="currentDraft.requires_mep === 1"
                                 (ngModelChange)="currentDraft.requires_mep = $event ? 1 : 0"
