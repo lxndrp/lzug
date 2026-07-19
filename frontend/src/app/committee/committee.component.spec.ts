@@ -100,6 +100,7 @@ describe('CommitteeComponent', () => {
     expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
     expect(element.querySelectorAll('input[tuiCheckbox]').length).toBe(1);
     expect(element.querySelectorAll('input.form-check-input').length).toBe(0);
+    expect(element.querySelectorAll('select[tuiSelect]').length).toBe(3);
     expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 

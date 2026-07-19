@@ -74,15 +74,13 @@
               <label for="candidateSpecialization">Fachrichtung</label>
               <tui-textfield>
                 <select
+                  tuiSelect
                   id="candidateSpecialization"
                   name="candidateSpecialization"
+                  [items]="specializationOptions"
+                  [labels]="specializationOptionLabels"
                   [(ngModel)]="draft.specialization"
-                >
-                  <option value="application_development">Anwendungsentwicklung</option>
-                  <option value="system_integration">Systemintegration</option>
-                  <option value="data_and_process_analysis">Daten- und Prozessanalyse</option>
-                  <option value="digital_networking">Digitale Vernetzung</option>
-                </select>
+                ></select>
               </tui-textfield>
             </div>
             <div class="app-field-third">
@@ -309,19 +307,13 @@
                             >
                             <tui-textfield>
                               <select
+                                tuiSelect
                                 [id]="'editCandidateSpecialization-' + item.candidate.id"
                                 [name]="'editCandidateSpecialization-' + item.candidate.id"
+                                [items]="specializationOptions"
+                                [labels]="specializationOptionLabels"
                                 [(ngModel)]="currentDraft.specialization"
-                              >
-                                <option value="application_development">
-                                  Anwendungsentwicklung
-                                </option>
-                                <option value="system_integration">Systemintegration</option>
-                                <option value="data_and_process_analysis">
-                                  Daten- und Prozessanalyse
-                                </option>
-                                <option value="digital_networking">Digitale Vernetzung</option>
-                              </select>
+                              ></select>
                             </tui-textfield>
                           </div>
                           <div class="app-field-third">

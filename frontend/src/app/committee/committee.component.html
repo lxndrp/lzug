@@ -244,30 +244,40 @@
             <div class="app-field-third">
               <label for="memberStatus">Mitgliedsstatus</label>
               <tui-textfield>
-                <select id="memberStatus" name="member_status" ngModel>
-                  <option value="ordinary">Ordentlich</option>
-                  <option value="deputy">Stellvertretend</option>
-                </select>
+                <select
+                  tuiSelect
+                  id="memberStatus"
+                  name="member_status"
+                  [items]="memberStatusOptions"
+                  [labels]="memberStatusOptionLabels"
+                  ngModel="ordinary"
+                ></select>
               </tui-textfield>
             </div>
             <div class="app-field-third">
               <label for="memberRole">Funktion</label>
               <tui-textfield>
-                <select id="memberRole" name="committee_role" ngModel>
-                  <option value="member">Mitglied</option>
-                  <option value="chair">Vorsitz</option>
-                  <option value="deputy_chair">Stellv. Vorsitz</option>
-                </select>
+                <select
+                  tuiSelect
+                  id="memberRole"
+                  name="committee_role"
+                  [items]="committeeRoleOptions"
+                  [labels]="committeeRoleOptionLabels"
+                  ngModel="member"
+                ></select>
               </tui-textfield>
             </div>
             <div class="app-field-third">
               <label for="memberSide">Vertreterseite</label>
               <tui-textfield>
-                <select id="memberSide" name="representing_side" ngModel>
-                  <option value="employer">Arbeitgeber</option>
-                  <option value="employee">Arbeitnehmer</option>
-                  <option value="school">Schule</option>
-                </select>
+                <select
+                  tuiSelect
+                  id="memberSide"
+                  name="representing_side"
+                  [items]="memberSideOptions"
+                  [labels]="memberSideOptionLabels"
+                  ngModel="employer"
+                ></select>
               </tui-textfield>
             </div>
             <div class="app-field-full">

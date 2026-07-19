@@ -1,6 +1,7 @@
 import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TuiButton, TuiCheckbox, TuiInput, TuiTextfield } from '@taiga-ui/core';
+import { TuiSelect } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 
@@ -27,6 +28,7 @@ export type CandidateUpdate = {
     TuiForm,
     TuiHeader,
     TuiInput,
+    TuiSelect,
     TuiTable,
     TuiTextfield,
   ],
@@ -55,6 +57,20 @@ export class CandidatesComponent {
     attempt_number: 1,
     requires_mep: 0,
   };
+
+  protected readonly specializationOptions = [
+    'application_development',
+    'system_integration',
+    'data_and_process_analysis',
+    'digital_networking',
+  ];
+
+  protected readonly specializationOptionLabels = [
+    'Anwendungsentwicklung',
+    'Systemintegration',
+    'Daten- und Prozessanalyse',
+    'Digitale Vernetzung',
+  ];
 
   protected candidateCount(): number {
     return this.masterData?.candidates.length ?? 0;
