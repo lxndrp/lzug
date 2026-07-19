@@ -1,5 +1,9 @@
 <tui-root>
-  <div class="app-shell" [class.sidebar-collapsed]="!sidebarVisible()">
+  <div
+    class="app-shell"
+    [class.sidebar-collapsed]="!sidebarVisible()"
+    [attr.data-app-ready]="loading() ? null : 'true'"
+  >
     <aside
       id="appSidebar"
       class="app-sidebar"
