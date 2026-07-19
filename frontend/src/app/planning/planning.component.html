@@ -11,8 +11,8 @@
       <div class="app-panel-body">
         <form tuiForm="m" id="roundMetadataForm" class="app-form-grid" (ngSubmit)="submitRound()">
           <div class="app-field-third">
-            <label for="roundName">Bezeichnung</label>
             <tui-textfield>
+              <label tuiLabel for="roundName">Bezeichnung</label>
               <input
                 tuiInput
                 id="roundName"
@@ -23,8 +23,8 @@
             </tui-textfield>
           </div>
           <div class="app-field-third">
-            <label for="availabilityDeadline">Rückmeldefrist</label>
             <tui-textfield>
+              <label tuiLabel for="availabilityDeadline">Rückmeldefrist</label>
               <input
                 tuiInput
                 id="availabilityDeadline"
@@ -35,8 +35,8 @@
             </tui-textfield>
           </div>
           <div class="app-field-third">
-            <label for="availabilityReminder">Erinnerung</label>
             <tui-textfield>
+              <label tuiLabel for="availabilityReminder">Erinnerung</label>
               <input
                 tuiInput
                 id="availabilityReminder"
@@ -99,8 +99,8 @@
           (ngSubmit)="submitSettings()"
         >
           <div class="app-field-half">
-            <label for="weekFrom">KW von <span aria-hidden="true">*</span></label>
             <tui-textfield>
+              <label tuiLabel for="weekFrom">KW von <span aria-hidden="true">*</span></label>
               <input
                 tuiInput
                 id="weekFrom"
@@ -111,13 +111,13 @@
                 required
               />
             </tui-textfield>
-            <small id="weekFromHint" class="app-muted app-block app-hint-offset"
+            <small id="weekFromHint" class="app-field-hint"
               >ISO: {{ draft.calendar_week_from || '–' }}</small
             >
           </div>
           <div class="app-field-half">
-            <label for="weekTo">KW bis <span aria-hidden="true">*</span></label>
             <tui-textfield>
+              <label tuiLabel for="weekTo">KW bis <span aria-hidden="true">*</span></label>
               <input
                 tuiInput
                 id="weekTo"
@@ -128,7 +128,7 @@
                 required
               />
             </tui-textfield>
-            <small id="weekToHint" class="app-muted app-block app-hint-offset"
+            <small id="weekToHint" class="app-field-hint"
               >ISO: {{ draft.calendar_week_to || '–' }}</small
             >
           </div>
@@ -168,8 +168,8 @@
             </tui-textfield>
           </div>
           <div class="app-field-third">
-            <label for="examsPerDay">Prüfungen pro Tag</label>
             <tui-textfield>
+              <label tuiLabel for="examsPerDay">Prüfungen pro Tag</label>
               <input
                 tuiInput
                 id="examsPerDay"
@@ -181,8 +181,8 @@
             </tui-textfield>
           </div>
           <div class="app-field-third">
-            <label for="examDaysPerWeek">Max. Tage pro Woche</label>
             <tui-textfield>
+              <label tuiLabel for="examDaysPerWeek">Max. Tage pro Woche</label>
               <input
                 tuiInput
                 id="examDaysPerWeek"
@@ -296,8 +296,8 @@
         }
         <form tuiForm="m" class="app-form-grid app-compact-form" (ngSubmit)="submitCandidateDay()">
           <div class="app-field-third">
-            <label for="candidateDayDate">Datum <span aria-hidden="true">*</span></label>
             <tui-textfield>
+              <label tuiLabel for="candidateDayDate">Datum <span aria-hidden="true">*</span></label>
               <input
                 tuiInput
                 id="candidateDayDate"

@@ -461,6 +461,13 @@ form.app-form-grid[tuiForm] {
   margin-block-start: 0.25rem;
 }
 
+.app-field-hint {
+  display: block;
+  margin-block-start: 0.25rem;
+  color: var(--app-color-text-muted);
+  font-size: 0.8125rem;
+}
+
 .app-section-offset {
   margin-block-start: 0.5rem;
 }

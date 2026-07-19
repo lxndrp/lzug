@@ -66,8 +66,10 @@
         <div class="app-panel-body">
           <form tuiForm="m" class="app-form-grid" (submit)="saveCommittee($event)">
             <div class="app-field-full">
-              <label for="committeeName">Bezeichnung <span aria-hidden="true">*</span></label>
               <tui-textfield>
+                <label tuiLabel for="committeeName"
+                  >Bezeichnung <span aria-hidden="true">*</span></label
+                >
                 <input
                   tuiInput
                   id="committeeName"
@@ -78,10 +80,10 @@
               </tui-textfield>
             </div>
             <div class="app-field-full">
-              <label for="committeeOccupation"
-                >Ausbildungsberuf <span aria-hidden="true">*</span></label
-              >
               <tui-textfield>
+                <label tuiLabel for="committeeOccupation"
+                  >Ausbildungsberuf <span aria-hidden="true">*</span></label
+                >
                 <input
                   tuiInput
                   id="committeeOccupation"
@@ -212,26 +214,30 @@
               </tui-textfield>
             </div>
             <div class="app-field-half">
-              <label for="memberFirstName">Vorname <span aria-hidden="true">*</span></label>
               <tui-textfield>
+                <label tuiLabel for="memberFirstName"
+                  >Vorname <span aria-hidden="true">*</span></label
+                >
                 <input tuiInput id="memberFirstName" name="first_name" required />
               </tui-textfield>
             </div>
             <div class="app-field-half">
-              <label for="memberLastName">Nachname <span aria-hidden="true">*</span></label>
               <tui-textfield>
+                <label tuiLabel for="memberLastName"
+                  >Nachname <span aria-hidden="true">*</span></label
+                >
                 <input tuiInput id="memberLastName" name="last_name" required />
               </tui-textfield>
             </div>
             <div class="app-field-half">
-              <label for="memberEmail">E-Mail <span aria-hidden="true">*</span></label>
               <tui-textfield>
+                <label tuiLabel for="memberEmail">E-Mail <span aria-hidden="true">*</span></label>
                 <input tuiInput id="memberEmail" name="email" type="email" required />
               </tui-textfield>
             </div>
             <div class="app-field-half">
-              <label for="memberMobile">Mobil</label>
               <tui-textfield>
+                <label tuiLabel for="memberMobile">Mobil</label>
                 <input tuiInput id="memberMobile" name="mobile" type="tel" />
               </tui-textfield>
             </div>

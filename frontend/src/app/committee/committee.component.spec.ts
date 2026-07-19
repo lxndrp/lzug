@@ -97,6 +97,7 @@ describe('CommitteeComponent', () => {
     expect(element.querySelector('.app-page-grid')).toBeTruthy();
     expect(element.querySelectorAll('form[tuiForm]').length).toBe(2);
     expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(5);
+    expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
     expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 

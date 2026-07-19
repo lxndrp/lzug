@@ -24,26 +24,26 @@
               </tui-textfield>
             </div>
             <div class="app-field-third">
-              <label for="locationName">Ort <span aria-hidden="true">*</span></label>
               <tui-textfield>
+                <label tuiLabel for="locationName">Ort <span aria-hidden="true">*</span></label>
                 <input tuiInput id="locationName" name="name" [(ngModel)]="draft.name" required />
               </tui-textfield>
             </div>
             <div class="app-field-third">
-              <label for="locationRoom">Raum <span aria-hidden="true">*</span></label>
               <tui-textfield>
+                <label tuiLabel for="locationRoom">Raum <span aria-hidden="true">*</span></label>
                 <input tuiInput id="locationRoom" name="room" [(ngModel)]="draft.room" required />
               </tui-textfield>
             </div>
             <div class="app-field-five-twelfths">
-              <label for="locationStreet">Straße</label>
               <tui-textfield>
+                <label tuiLabel for="locationStreet">Straße</label>
                 <input tuiInput id="locationStreet" name="street" [(ngModel)]="draft.street" />
               </tui-textfield>
             </div>
             <div class="app-field-quarter">
-              <label for="locationPostalCode">PLZ</label>
               <tui-textfield>
+                <label tuiLabel for="locationPostalCode">PLZ</label>
                 <input
                   tuiInput
                   id="locationPostalCode"
@@ -53,8 +53,8 @@
               </tui-textfield>
             </div>
             <div class="app-field-third">
-              <label for="locationCity">Stadt</label>
               <tui-textfield>
+                <label tuiLabel for="locationCity">Stadt</label>
                 <input tuiInput id="locationCity" name="city" [(ngModel)]="draft.city" />
               </tui-textfield>
             </div>
@@ -190,10 +190,10 @@
                             </tui-textfield>
                           </div>
                           <div class="app-field-third">
-                            <label [for]="'editLocationName-' + location.id"
-                              >Ort <span aria-hidden="true">*</span></label
-                            >
                             <tui-textfield>
+                              <label tuiLabel [for]="'editLocationName-' + location.id"
+                                >Ort <span aria-hidden="true">*</span></label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editLocationName-' + location.id"
@@ -204,10 +204,10 @@
                             </tui-textfield>
                           </div>
                           <div class="app-field-third">
-                            <label [for]="'editLocationRoom-' + location.id"
-                              >Raum <span aria-hidden="true">*</span></label
-                            >
                             <tui-textfield>
+                              <label tuiLabel [for]="'editLocationRoom-' + location.id"
+                                >Raum <span aria-hidden="true">*</span></label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editLocationRoom-' + location.id"
@@ -218,8 +218,10 @@
                             </tui-textfield>
                           </div>
                           <div class="app-field-five-twelfths">
-                            <label [for]="'editLocationStreet-' + location.id">Straße</label>
                             <tui-textfield>
+                              <label tuiLabel [for]="'editLocationStreet-' + location.id"
+                                >Straße</label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editLocationStreet-' + location.id"
@@ -229,8 +231,10 @@
                             </tui-textfield>
                           </div>
                           <div class="app-field-quarter">
-                            <label [for]="'editLocationPostalCode-' + location.id">PLZ</label>
                             <tui-textfield>
+                              <label tuiLabel [for]="'editLocationPostalCode-' + location.id"
+                                >PLZ</label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editLocationPostalCode-' + location.id"
@@ -240,8 +244,10 @@
                             </tui-textfield>
                           </div>
                           <div class="app-field-third">
-                            <label [for]="'editLocationCity-' + location.id">Stadt</label>
                             <tui-textfield>
+                              <label tuiLabel [for]="'editLocationCity-' + location.id"
+                                >Stadt</label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editLocationCity-' + location.id"

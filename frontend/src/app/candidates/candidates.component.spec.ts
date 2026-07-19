@@ -56,6 +56,7 @@ describe('CandidatesComponent', () => {
     expect(element.querySelector('.app-page-grid')).toBeTruthy();
     expect(element.querySelectorAll('form[tuiForm]').length).toBe(1);
     expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(3);
+    expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
     expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 

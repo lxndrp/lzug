@@ -183,6 +183,8 @@ describe('PlanningComponent', () => {
     expect(element.querySelector('.app-page-grid')).toBeTruthy();
     expect(element.querySelectorAll('form[tuiForm]').length).toBe(3);
     expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(5);
+    expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
+    expect(element.querySelectorAll('.app-field-hint').length).toBe(2);
     expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 

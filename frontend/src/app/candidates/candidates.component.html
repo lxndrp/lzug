@@ -29,8 +29,10 @@
         <div class="app-panel-body">
           <form tuiForm="m" class="app-form-grid" (ngSubmit)="submitCandidate()">
             <div class="app-field-half">
-              <label for="candidateFirstName">Vorname <span aria-hidden="true">*</span></label>
               <tui-textfield>
+                <label tuiLabel for="candidateFirstName"
+                  >Vorname <span aria-hidden="true">*</span></label
+                >
                 <input
                   tuiInput
                   id="candidateFirstName"
@@ -41,8 +43,10 @@
               </tui-textfield>
             </div>
             <div class="app-field-half">
-              <label for="candidateLastName">Nachname <span aria-hidden="true">*</span></label>
               <tui-textfield>
+                <label tuiLabel for="candidateLastName"
+                  >Nachname <span aria-hidden="true">*</span></label
+                >
                 <input
                   tuiInput
                   id="candidateLastName"
@@ -53,10 +57,10 @@
               </tui-textfield>
             </div>
             <div class="app-field-third">
-              <label for="candidateExamNumber"
-                >Prüfungsnummer <span aria-hidden="true">*</span></label
-              >
               <tui-textfield>
+                <label tuiLabel for="candidateExamNumber"
+                  >Prüfungsnummer <span aria-hidden="true">*</span></label
+                >
                 <input
                   tuiInput
                   id="candidateExamNumber"
@@ -82,8 +86,8 @@
               </tui-textfield>
             </div>
             <div class="app-field-third">
-              <label for="candidateAttempt">Versuch</label>
               <tui-textfield>
+                <label tuiLabel for="candidateAttempt">Versuch</label>
                 <input
                   tuiInput
                   id="candidateAttempt"
@@ -95,8 +99,8 @@
               </tui-textfield>
             </div>
             <div class="app-field-two-thirds">
-              <label for="candidateCompany">Ausbildungsbetrieb</label>
               <tui-textfield>
+                <label tuiLabel for="candidateCompany">Ausbildungsbetrieb</label>
                 <input
                   tuiInput
                   id="candidateCompany"
@@ -258,10 +262,10 @@
                           (ngSubmit)="submitCandidateUpdate()"
                         >
                           <div class="app-field-half">
-                            <label [for]="'editCandidateFirstName-' + item.candidate.id"
-                              >Vorname <span aria-hidden="true">*</span></label
-                            >
                             <tui-textfield>
+                              <label tuiLabel [for]="'editCandidateFirstName-' + item.candidate.id"
+                                >Vorname <span aria-hidden="true">*</span></label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editCandidateFirstName-' + item.candidate.id"
@@ -272,10 +276,10 @@
                             </tui-textfield>
                           </div>
                           <div class="app-field-half">
-                            <label [for]="'editCandidateLastName-' + item.candidate.id"
-                              >Nachname <span aria-hidden="true">*</span></label
-                            >
                             <tui-textfield>
+                              <label tuiLabel [for]="'editCandidateLastName-' + item.candidate.id"
+                                >Nachname <span aria-hidden="true">*</span></label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editCandidateLastName-' + item.candidate.id"
@@ -286,10 +290,10 @@
                             </tui-textfield>
                           </div>
                           <div class="app-field-third">
-                            <label [for]="'editCandidateExamNumber-' + item.candidate.id"
-                              >Prüfungsnummer <span aria-hidden="true">*</span></label
-                            >
                             <tui-textfield>
+                              <label tuiLabel [for]="'editCandidateExamNumber-' + item.candidate.id"
+                                >Prüfungsnummer <span aria-hidden="true">*</span></label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editCandidateExamNumber-' + item.candidate.id"
@@ -321,10 +325,10 @@
                             </tui-textfield>
                           </div>
                           <div class="app-field-third">
-                            <label [for]="'editCandidateAttempt-' + item.candidate.id"
-                              >Versuch</label
-                            >
                             <tui-textfield>
+                              <label tuiLabel [for]="'editCandidateAttempt-' + item.candidate.id"
+                                >Versuch</label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editCandidateAttempt-' + item.candidate.id"
@@ -336,10 +340,10 @@
                             </tui-textfield>
                           </div>
                           <div class="app-field-two-thirds">
-                            <label [for]="'editCandidateCompany-' + item.candidate.id"
-                              >Ausbildungsbetrieb</label
-                            >
                             <tui-textfield>
+                              <label tuiLabel [for]="'editCandidateCompany-' + item.candidate.id"
+                                >Ausbildungsbetrieb</label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editCandidateCompany-' + item.candidate.id"
