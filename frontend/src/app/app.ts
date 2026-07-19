@@ -138,7 +138,6 @@ export class App {
         tap(({ round, summary }) => {
           this.round.set(round);
           this.summary.set(summary);
-          this.loading.set(false);
         }),
         switchMap(({ root, round, summary }) =>
           forkJoin({
