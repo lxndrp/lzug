@@ -91,6 +91,15 @@ describe('CommitteeComponent', () => {
     expect(element.querySelector('.app-row-actions')?.textContent).toContain('Deaktivieren');
   });
 
+  it('should use Taiga form and header layout with app grid classes', () => {
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.app-page-grid')).toBeTruthy();
+    expect(element.querySelectorAll('form[tuiForm]').length).toBe(2);
+    expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(5);
+    expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
+  });
+
   function textContent(): string {
     return (fixture.nativeElement as HTMLElement).textContent ?? '';
   }

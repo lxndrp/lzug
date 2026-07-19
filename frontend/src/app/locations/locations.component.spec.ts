@@ -120,6 +120,15 @@ describe('LocationsComponent', () => {
     expect(element.querySelector('.app-row-actions')?.querySelectorAll('button').length).toBe(3);
   });
 
+  it('should use Taiga form and header layout with app grid classes', () => {
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.app-page-grid')).toBeTruthy();
+    expect(element.querySelectorAll('form[tuiForm]').length).toBe(1);
+    expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(2);
+    expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
+  });
+
   function setInput(selector: string, value: string): void {
     const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(selector);
     expect(input).toBeTruthy();

@@ -1,34 +1,34 @@
-<div class="row g-4">
-  <div class="col-12 col-xl-4">
+<div class="app-page-grid">
+  <div class="app-page-span-4">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <strong>Prüflinge</strong>
       </header>
       <div class="app-panel-body">
-        <dl class="row mb-0">
-          <dt class="col-7">Gesamt</dt>
-          <dd class="col-5">{{ candidateCount() }}</dd>
-          <dt class="col-7">MEP</dt>
-          <dd class="col-5">{{ mepCount() }}</dd>
+        <dl class="app-key-value-list">
+          <dt>Gesamt</dt>
+          <dd>{{ candidateCount() }}</dd>
+          <dt>MEP</dt>
+          <dd>{{ mepCount() }}</dd>
         </dl>
       </div>
     </section>
   </div>
 
-  <div class="col-12 col-xl-8">
+  <div class="app-page-span-8">
     <details class="app-create-panel">
       <summary class="app-create-trigger">Neuen Prüfling anlegen</summary>
       <section class="app-panel">
-        <header class="app-panel-header">
+        <header tuiHeader="body-m" class="app-panel-header">
           <div>
             <strong>Prüfling anlegen</strong>
-            <span class="app-muted d-block">Stammdaten und Prüfungsbedarf erfassen</span>
+            <span class="app-muted app-block">Stammdaten und Prüfungsbedarf erfassen</span>
           </div>
           <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
         </header>
         <div class="app-panel-body">
-          <form class="row g-3 app-form-grid" (ngSubmit)="submitCandidate()">
-            <div class="col-12 col-md-6">
+          <form tuiForm="m" class="app-form-grid" (ngSubmit)="submitCandidate()">
+            <div class="app-field-half">
               <label for="candidateFirstName">Vorname <span aria-hidden="true">*</span></label>
               <tui-textfield>
                 <input
@@ -40,7 +40,7 @@
                 />
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-6">
+            <div class="app-field-half">
               <label for="candidateLastName">Nachname <span aria-hidden="true">*</span></label>
               <tui-textfield>
                 <input
@@ -52,7 +52,7 @@
                 />
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-4">
+            <div class="app-field-third">
               <label for="candidateExamNumber"
                 >Prüfungsnummer <span aria-hidden="true">*</span></label
               >
@@ -66,7 +66,7 @@
                 />
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-4">
+            <div class="app-field-third">
               <label for="candidateSpecialization">Fachrichtung</label>
               <tui-textfield>
                 <select
@@ -81,7 +81,7 @@
                 </select>
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-4">
+            <div class="app-field-third">
               <label for="candidateAttempt">Versuch</label>
               <tui-textfield>
                 <input
@@ -94,7 +94,7 @@
                 />
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-8">
+            <div class="app-field-two-thirds">
               <label for="candidateCompany">Ausbildungsbetrieb</label>
               <tui-textfield>
                 <input
@@ -105,7 +105,7 @@
                 />
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-4 d-flex align-items-end">
+            <div class="app-field-third app-field-align-end">
               <div class="app-form-check">
                 <input
                   class="form-check-input"
@@ -118,7 +118,7 @@
                 <label for="candidateMep">MEP erforderlich</label>
               </div>
             </div>
-            <div class="col-12 app-form-actions">
+            <div class="app-field-full app-form-actions">
               <span class="app-form-action-hint"
                 >Der Prüfling wird der aktuellen Runde zugeordnet.</span
               >
@@ -133,15 +133,15 @@
     </details>
   </div>
 
-  <div class="col-12">
+  <div class="app-page-full">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <strong>Prüflingsliste</strong>
         <span class="app-muted">{{ filteredCandidates().length }} von {{ candidateCount() }}</span>
       </header>
       <div class="app-panel-body">
-        <div class="row g-3 app-filter-bar" role="search" aria-label="Prüflingsliste filtern">
-          <div class="col-12 col-md-8">
+        <div class="app-form-grid app-filter-bar" role="search" aria-label="Prüflingsliste filtern">
+          <div class="app-field-two-thirds">
             <tui-textfield>
               <label tuiLabel for="candidateSearch">Suche</label>
               <input
@@ -153,7 +153,7 @@
               />
             </tui-textfield>
           </div>
-          <div class="col-12 col-md-4">
+          <div class="app-field-third">
             <label for="candidateFilter">Fachrichtung</label>
             <tui-textfield>
               <select
@@ -246,7 +246,8 @@
                     <tr>
                       <td colspan="7">
                         <form
-                          class="row g-3 app-form-grid app-inline-editor"
+                          tuiForm="m"
+                          class="app-form-grid app-inline-editor"
                           [attr.aria-label]="
                             'Prüfling ' +
                             item.candidate.first_name +
@@ -256,7 +257,7 @@
                           "
                           (ngSubmit)="submitCandidateUpdate()"
                         >
-                          <div class="col-12 col-md-6">
+                          <div class="app-field-half">
                             <label [for]="'editCandidateFirstName-' + item.candidate.id"
                               >Vorname <span aria-hidden="true">*</span></label
                             >
@@ -270,7 +271,7 @@
                               />
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-6">
+                          <div class="app-field-half">
                             <label [for]="'editCandidateLastName-' + item.candidate.id"
                               >Nachname <span aria-hidden="true">*</span></label
                             >
@@ -284,7 +285,7 @@
                               />
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-4">
+                          <div class="app-field-third">
                             <label [for]="'editCandidateExamNumber-' + item.candidate.id"
                               >Prüfungsnummer <span aria-hidden="true">*</span></label
                             >
@@ -298,7 +299,7 @@
                               />
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-4">
+                          <div class="app-field-third">
                             <label [for]="'editCandidateSpecialization-' + item.candidate.id"
                               >Fachrichtung</label
                             >
@@ -319,7 +320,7 @@
                               </select>
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-4">
+                          <div class="app-field-third">
                             <label [for]="'editCandidateAttempt-' + item.candidate.id"
                               >Versuch</label
                             >
@@ -334,7 +335,7 @@
                               />
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-8">
+                          <div class="app-field-two-thirds">
                             <label [for]="'editCandidateCompany-' + item.candidate.id"
                               >Ausbildungsbetrieb</label
                             >
@@ -347,7 +348,7 @@
                               />
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-4 d-flex align-items-end">
+                          <div class="app-field-third app-field-align-end">
                             <div class="app-form-check">
                               <input
                                 class="form-check-input"
@@ -362,7 +363,7 @@
                               >
                             </div>
                           </div>
-                          <div class="col-12 app-form-actions">
+                          <div class="app-field-full app-form-actions">
                             <span class="app-form-action-hint"
                               >Änderungen gelten für Stammdaten und aktuelle Runde.</span
                             >
