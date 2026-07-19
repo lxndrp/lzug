@@ -6,6 +6,14 @@ import { masterDataFixture } from '../testing/fixtures';
 describe('CandidatesComponent', () => {
   let fixture: ComponentFixture<CandidatesComponent>;
 
+  beforeAll(() => {
+    Object.defineProperty(HTMLSelectElement.prototype, 'readOnly', {
+      configurable: true,
+      get: () => false,
+      set: () => undefined,
+    });
+  });
+
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [CandidatesComponent],

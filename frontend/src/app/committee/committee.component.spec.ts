@@ -7,6 +7,14 @@ describe('CommitteeComponent', () => {
   let fixture: ComponentFixture<CommitteeComponent>;
   let component: CommitteeComponent;
 
+  beforeAll(() => {
+    Object.defineProperty(HTMLSelectElement.prototype, 'readOnly', {
+      configurable: true,
+      get: () => false,
+      set: () => undefined,
+    });
+  });
+
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [CommitteeComponent],

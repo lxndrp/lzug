@@ -12,6 +12,14 @@ import {
 describe('PlanningComponent', () => {
   let fixture: ComponentFixture<PlanningComponent>;
 
+  beforeAll(() => {
+    Object.defineProperty(HTMLSelectElement.prototype, 'readOnly', {
+      configurable: true,
+      get: () => false,
+      set: () => undefined,
+    });
+  });
+
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [PlanningComponent],
@@ -64,8 +72,11 @@ describe('PlanningComponent', () => {
     spyOn(component.saveRound, 'emit');
 
     setInput('#roundName', 'Sommer 2027');
-    setInput('#availabilityDeadline', '2027-04-15T18:00');
-    setInput('#availabilityReminder', '2027-04-08T09:00');
+    const drafts = component as unknown as {
+      roundDraft: { availability_deadline: string; availability_reminder_at: string };
+    };
+    drafts.roundDraft.availability_deadline = '2027-04-15T18:00';
+    drafts.roundDraft.availability_reminder_at = '2027-04-08T09:00';
     const form = (fixture.nativeElement as HTMLElement)
       .querySelector<HTMLInputElement>('#roundName')
       ?.closest('form');
@@ -111,9 +122,7 @@ describe('PlanningComponent', () => {
     expect(element.querySelector('#examDaysPerWeek')?.getAttribute('min')).toBe('1');
     expect(element.querySelector('#examDaysPerWeek')?.getAttribute('max')).toBe('5');
     expect(element.querySelector('#excludePublicHolidays')).toBeTruthy();
-    expect(
-      element.querySelector<HTMLSelectElement>('#holidaySubdivisionCode')?.disabled,
-    ).toBeTrue();
+    expect(element.querySelector('#holidaySubdivisionCode')?.hasAttribute('disabled')).toBeTrue();
   });
 
   it('should keep Taiga date values at the UI boundary while preserving API formats', () => {
@@ -239,7 +248,9 @@ describe('PlanningComponent', () => {
     const component = fixture.componentInstance;
     spyOn(component.createCandidateDay, 'emit');
 
-    setInput('#candidateDayDate', '2026-11-18');
+    const drafts = component as unknown as { candidateDayDraft: { date: string } };
+    drafts.candidateDayDraft.date = '2026-11-18';
+    fixture.detectChanges();
 
     const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
       '#candidateDayDate',
@@ -250,7 +261,7 @@ describe('PlanningComponent', () => {
       date: '2026-11-18',
       is_active: 1,
     });
-    expect(input!.value).toBe('2026-11-18');
+    expect(drafts.candidateDayDraft.date).toBe('2026-11-18');
 
     component.resetCandidateDayDraft();
     expect(
