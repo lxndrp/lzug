@@ -27,10 +27,12 @@
               <label tuiLabel for="availabilityDeadline">Rückmeldefrist</label>
               <input
                 tuiInput
+                tuiInputDateTime
                 id="availabilityDeadline"
                 name="availabilityDeadline"
                 type="datetime-local"
-                [(ngModel)]="roundDraft.availability_deadline"
+                [ngModel]="roundDateTimeValue(roundDraft.availability_deadline)"
+                (ngModelChange)="setRoundDateTimeValue('availability_deadline', $event)"
               />
             </tui-textfield>
           </div>
@@ -39,10 +41,12 @@
               <label tuiLabel for="availabilityReminder">Erinnerung</label>
               <input
                 tuiInput
+                tuiInputDateTime
                 id="availabilityReminder"
                 name="availabilityReminder"
                 type="datetime-local"
-                [(ngModel)]="roundDraft.availability_reminder_at"
+                [ngModel]="roundDateTimeValue(roundDraft.availability_reminder_at)"
+                (ngModelChange)="setRoundDateTimeValue('availability_reminder_at', $event)"
               />
             </tui-textfield>
           </div>
@@ -289,10 +293,12 @@
               <label tuiLabel for="candidateDayDate">Datum <span aria-hidden="true">*</span></label>
               <input
                 tuiInput
+                tuiInputDate
                 id="candidateDayDate"
                 name="candidateDayDate"
                 type="date"
-                [(ngModel)]="candidateDayDraft.date"
+                [ngModel]="candidateDayValue()"
+                (ngModelChange)="setCandidateDayValue($event)"
                 required
               />
             </tui-textfield>

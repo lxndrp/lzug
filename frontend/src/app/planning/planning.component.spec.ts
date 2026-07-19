@@ -94,6 +94,9 @@ describe('PlanningComponent', () => {
 
   it('should render week pickers and numeric planning controls', () => {
     const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('#availabilityDeadline[tuiInputDateTime]')).toBeTruthy();
+    expect(element.querySelector('#availabilityReminder[tuiInputDateTime]')).toBeTruthy();
+    expect(element.querySelector('#candidateDayDate[tuiInputDate]')).toBeTruthy();
     expect(element.querySelector('#weekFrom')?.getAttribute('type')).toBe('week');
     expect(element.querySelector('#weekTo')?.getAttribute('type')).toBe('week');
     expect(element.querySelector('#weekFrom')?.getAttribute('aria-describedby')).toBe(
@@ -111,6 +114,32 @@ describe('PlanningComponent', () => {
     expect(
       element.querySelector<HTMLSelectElement>('#holidaySubdivisionCode')?.disabled,
     ).toBeTrue();
+  });
+
+  it('should keep Taiga date values at the UI boundary while preserving API formats', () => {
+    const component = fixture.componentInstance as unknown as {
+      candidateDayValue: () => { toJSON(): string } | null;
+      setCandidateDayValue: (value: { toJSON(): string } | null) => void;
+      roundDateTimeValue: (
+        value: string,
+      ) => readonly [{ toJSON(): string }, { toString(mode: 'HH:MM'): string } | null] | null;
+      setRoundDateTimeValue: (
+        field: 'availability_deadline' | 'availability_reminder_at',
+        value: readonly [{ toJSON(): string }, { toString(mode: 'HH:MM'): string } | null] | null,
+      ) => void;
+      roundDraft: { availability_deadline: string };
+      candidateDayDraft: { date: string };
+    };
+
+    expect(component.candidateDayValue()).toBeNull();
+    component.setCandidateDayValue(null);
+    expect(component.candidateDayDraft.date).toBe('');
+
+    const dateTime = component.roundDateTimeValue('2027-04-15T18:00');
+    expect(dateTime?.[0].toJSON()).toBe('2027-04-15');
+    expect(dateTime?.[1]?.toString('HH:MM')).toBe('18:00');
+    component.setRoundDateTimeValue('availability_deadline', dateTime);
+    expect(component.roundDraft.availability_deadline).toBe('2027-04-15T18:00');
   });
 
   it('should require a federal state and emit settings before day generation', async () => {
