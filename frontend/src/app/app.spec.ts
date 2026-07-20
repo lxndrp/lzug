@@ -41,6 +41,7 @@ describe('App', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideTaiga({ scrollbars: 'native' }),
+        TuiConfirmService,
       ],
     }).compileComponents();
   });

@@ -8,6 +8,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
+import { TuiConfirmService } from '@taiga-ui/kit';
 import { TUI_LANGUAGE } from '@taiga-ui/i18n';
 import { TUI_GERMAN_LANGUAGE } from '@taiga-ui/i18n/languages/german';
 
@@ -21,6 +22,7 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(),
     provideAnimationsAsync(),
     provideTaiga({ scrollbars: 'native' }),
+    TuiConfirmService,
     { provide: TUI_LANGUAGE, useValue: signal(TUI_GERMAN_LANGUAGE) },
   ],
 };
