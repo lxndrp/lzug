@@ -129,64 +129,8 @@ header.app-panel-header[tuiHeader] {
   padding: 1rem;
 }
 
-.app-badge {
-  display: inline-flex;
-  align-items: center;
-  min-block-size: 1.5rem;
-  padding: 0.125rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.25;
-  white-space: nowrap;
-}
-
-.app-badge-secondary {
-  background: var(--app-color-canvas);
-  color: var(--app-color-text-muted);
-}
-
-.app-badge-warning {
-  background: var(--app-color-warning-soft);
-  color: var(--app-color-warning-text);
-}
-
-.app-badge-success {
-  background: var(--app-color-success-soft);
-  color: var(--app-color-success-text);
-}
-
-.app-badge-primary,
-.app-badge-info {
-  background: var(--app-color-primary-soft);
-  color: var(--app-color-primary-active);
-}
-
-.app-badge[data-color='warning'] {
-  background: var(--app-color-warning-soft);
-  color: var(--app-color-warning-text);
-}
-
-.app-badge[data-color='success'] {
-  background: var(--app-color-success-soft);
-  color: var(--app-color-success-text);
-}
-
-.app-badge[data-color='info'],
-.app-badge[data-color='primary'] {
-  background: var(--app-color-primary-soft);
-  color: var(--app-color-primary-active);
-}
-
-/* Functional control baseline shared by the migrated views. */
-.form-control,
-.form-select,
+/* Native controls retained only where Taiga has no equivalent (for example ISO weeks). */
 select,
-input[type='text'],
-input[type='email'],
-input[type='tel'],
-input[type='number'],
-input[type='search'],
 input[type='week'] {
   min-block-size: 2.625rem;
   border: 1px solid var(--app-color-border);
@@ -196,97 +140,11 @@ input[type='week'] {
   font: inherit;
 }
 
-.form-control:focus,
-.form-select:focus,
 select:focus,
 input:focus {
   border-color: var(--app-color-primary);
   box-shadow: 0 0 0 0.2rem rgb(21 94 99 / 16%);
   outline: 0;
-}
-
-.btn {
-  min-block-size: 2.5rem;
-  border-radius: var(--app-radius-sm);
-  font-weight: 600;
-}
-
-.btn-sm {
-  min-block-size: 2.25rem;
-}
-
-.btn-primary {
-  border-color: var(--app-color-primary);
-  background: var(--app-color-primary);
-}
-
-.btn-primary:hover,
-.btn-primary:focus-visible {
-  border-color: var(--app-color-primary-hover);
-  background: var(--app-color-primary-hover);
-}
-
-.btn-outline-primary,
-.btn-outline-secondary,
-.btn-outline-danger {
-  background: var(--app-color-surface);
-}
-
-.btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.58;
-}
-
-.table {
-  color: var(--app-color-text);
-}
-
-.table thead th {
-  background: var(--app-color-canvas);
-}
-
-.table tbody tr:hover > * {
-  background: var(--app-color-primary-soft);
-}
-
-.alert {
-  border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius-md);
-  color: var(--app-color-text);
-}
-
-.alert-info {
-  border-color: var(--app-color-info-border);
-  background: var(--app-color-info-soft);
-}
-
-.alert-success {
-  border-color: var(--app-color-success-text);
-  background: var(--app-color-success-soft);
-}
-
-.alert-warning {
-  border-color: var(--app-color-warning-text);
-  background: var(--app-color-warning-soft);
-}
-
-.list-group {
-  gap: 0.375rem;
-}
-
-.list-group-item {
-  border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius-md) !important;
-  background: var(--app-color-surface);
-  color: var(--app-color-text);
-}
-
-.list-group-item-action:hover,
-.list-group-item-action:focus-visible,
-.list-group-item.active {
-  border-color: var(--app-color-primary);
-  background: var(--app-color-primary);
-  color: var(--app-color-on-primary);
 }
 
 .app-list-group {
@@ -313,86 +171,6 @@ input:focus {
   border-color: var(--app-color-primary);
   background: var(--app-color-primary);
   color: var(--app-color-on-primary);
-}
-
-.form-check-input {
-  inline-size: 1.15rem;
-  block-size: 1.15rem;
-  border-color: var(--app-color-border);
-}
-
-.form-check-input:checked {
-  border-color: var(--app-color-primary);
-  background-color: var(--app-color-primary);
-}
-
-.app-confirmation-dialog {
-  position: fixed;
-  z-index: 1200;
-  inset: 0;
-  width: min(32rem, calc(100vw - 2rem));
-  max-height: calc(100dvh - 2rem);
-  margin: auto;
-  padding: 0;
-  overflow: auto;
-  border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius-lg);
-  background: var(--app-color-surface);
-  box-shadow:
-    0 0 0 100vmax rgb(15 23 42 / 58%),
-    var(--app-shadow-floating);
-  color: var(--app-color-text);
-}
-
-.app-confirmation-dialog::backdrop {
-  background: rgb(31 41 51 / 42%);
-}
-
-.app-confirmation-header,
-.app-confirmation-body,
-.app-confirmation-footer {
-  padding: 1rem 1.25rem;
-}
-
-.app-confirmation-header {
-  border-block-end: 1px solid var(--app-color-border);
-}
-
-.app-confirmation-header h2 {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.app-confirmation-body p {
-  margin: 0;
-}
-
-.app-confirmation-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  border-block-start: 1px solid var(--app-color-border);
-}
-
-.app-button {
-  min-block-size: 2.5rem;
-  padding: 0.5rem 0.875rem;
-  border: 1px solid transparent;
-  border-radius: var(--app-radius-sm);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.app-button-secondary {
-  border-color: var(--app-color-border);
-  background: var(--app-color-surface);
-  color: var(--app-color-text);
-}
-
-.app-button-danger {
-  background: var(--app-color-danger);
-  color: #fff;
 }
 
 .app-page-grid {
@@ -459,6 +237,13 @@ form.app-form-grid[tuiForm] {
 
 .app-hint-offset {
   margin-block-start: 0.25rem;
+}
+
+.app-field-hint {
+  display: block;
+  margin-block-start: 0.25rem;
+  color: var(--app-color-text-muted);
+  font-size: 0.8125rem;
 }
 
 .app-section-offset {
@@ -615,10 +400,6 @@ form.app-form-grid[tuiForm] {
   color: var(--app-color-text-muted);
   font-size: 0.8125rem;
   font-weight: 400;
-}
-
-.app-form-grid :where(.form-control, .form-select) {
-  min-height: 2.625rem;
 }
 
 .app-form-actions {

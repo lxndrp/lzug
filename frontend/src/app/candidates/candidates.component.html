@@ -29,8 +29,10 @@
         <div class="app-panel-body">
           <form tuiForm="m" class="app-form-grid" (ngSubmit)="submitCandidate()">
             <div class="app-field-half">
-              <label for="candidateFirstName">Vorname <span aria-hidden="true">*</span></label>
               <tui-textfield>
+                <label tuiLabel for="candidateFirstName"
+                  >Vorname <span aria-hidden="true">*</span></label
+                >
                 <input
                   tuiInput
                   id="candidateFirstName"
@@ -41,8 +43,10 @@
               </tui-textfield>
             </div>
             <div class="app-field-half">
-              <label for="candidateLastName">Nachname <span aria-hidden="true">*</span></label>
               <tui-textfield>
+                <label tuiLabel for="candidateLastName"
+                  >Nachname <span aria-hidden="true">*</span></label
+                >
                 <input
                   tuiInput
                   id="candidateLastName"
@@ -53,10 +57,10 @@
               </tui-textfield>
             </div>
             <div class="app-field-third">
-              <label for="candidateExamNumber"
-                >Prüfungsnummer <span aria-hidden="true">*</span></label
-              >
               <tui-textfield>
+                <label tuiLabel for="candidateExamNumber"
+                  >Prüfungsnummer <span aria-hidden="true">*</span></label
+                >
                 <input
                   tuiInput
                   id="candidateExamNumber"
@@ -70,20 +74,18 @@
               <label for="candidateSpecialization">Fachrichtung</label>
               <tui-textfield>
                 <select
+                  tuiSelect
                   id="candidateSpecialization"
                   name="candidateSpecialization"
+                  [items]="specializationOptions"
+                  [labels]="specializationOptionLabels"
                   [(ngModel)]="draft.specialization"
-                >
-                  <option value="application_development">Anwendungsentwicklung</option>
-                  <option value="system_integration">Systemintegration</option>
-                  <option value="data_and_process_analysis">Daten- und Prozessanalyse</option>
-                  <option value="digital_networking">Digitale Vernetzung</option>
-                </select>
+                ></select>
               </tui-textfield>
             </div>
             <div class="app-field-third">
-              <label for="candidateAttempt">Versuch</label>
               <tui-textfield>
+                <label tuiLabel for="candidateAttempt">Versuch</label>
                 <input
                   tuiInput
                   id="candidateAttempt"
@@ -95,8 +97,8 @@
               </tui-textfield>
             </div>
             <div class="app-field-two-thirds">
-              <label for="candidateCompany">Ausbildungsbetrieb</label>
               <tui-textfield>
+                <label tuiLabel for="candidateCompany">Ausbildungsbetrieb</label>
                 <input
                   tuiInput
                   id="candidateCompany"
@@ -108,9 +110,9 @@
             <div class="app-field-third app-field-align-end">
               <div class="app-form-check">
                 <input
-                  class="form-check-input"
                   id="candidateMep"
                   name="requiresMep"
+                  tuiCheckbox
                   type="checkbox"
                   [ngModel]="draft.requires_mep === 1"
                   (ngModelChange)="draft.requires_mep = $event ? 1 : 0"
@@ -157,15 +159,13 @@
             <label for="candidateFilter">Fachrichtung</label>
             <tui-textfield>
               <select
+                tuiSelect
                 id="candidateFilter"
+                [items]="specializationFilterOptions()"
+                [labels]="specializationFilterLabels()"
                 [ngModel]="specialization()"
                 (ngModelChange)="specialization.set($event)"
-              >
-                <option value="">Alle Fachrichtungen</option>
-                @for (value of specializations(); track value) {
-                  <option [value]="value">{{ specializationLabel(value) }}</option>
-                }
-              </select>
+              ></select>
             </tui-textfield>
           </div>
         </div>
@@ -196,15 +196,14 @@
                   <td>{{ item.candidate.ihk_exam_number }}</td>
                   <td>{{ specializationLabel(item.candidate.specialization) }}</td>
                   <td>
-                    <span class="app-badge app-badge-secondary">{{
+                    <span tuiBadge appearance="neutral">{{
                       attemptLabel(item.roundCandidate?.attempt_number)
                     }}</span>
                   </td>
                   <td>
                     <span
-                      class="app-badge"
-                      [class.app-badge-warning]="item.roundCandidate?.requires_mep"
-                      [class.app-badge-secondary]="!item.roundCandidate?.requires_mep"
+                      tuiBadge
+                      [appearance]="item.roundCandidate?.requires_mep ? 'warning' : 'neutral'"
                     >
                       {{ item.roundCandidate?.requires_mep ? 'MEP' : 'Nein' }}
                     </span>
@@ -258,10 +257,10 @@
                           (ngSubmit)="submitCandidateUpdate()"
                         >
                           <div class="app-field-half">
-                            <label [for]="'editCandidateFirstName-' + item.candidate.id"
-                              >Vorname <span aria-hidden="true">*</span></label
-                            >
                             <tui-textfield>
+                              <label tuiLabel [for]="'editCandidateFirstName-' + item.candidate.id"
+                                >Vorname <span aria-hidden="true">*</span></label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editCandidateFirstName-' + item.candidate.id"
@@ -272,10 +271,10 @@
                             </tui-textfield>
                           </div>
                           <div class="app-field-half">
-                            <label [for]="'editCandidateLastName-' + item.candidate.id"
-                              >Nachname <span aria-hidden="true">*</span></label
-                            >
                             <tui-textfield>
+                              <label tuiLabel [for]="'editCandidateLastName-' + item.candidate.id"
+                                >Nachname <span aria-hidden="true">*</span></label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editCandidateLastName-' + item.candidate.id"
@@ -286,10 +285,10 @@
                             </tui-textfield>
                           </div>
                           <div class="app-field-third">
-                            <label [for]="'editCandidateExamNumber-' + item.candidate.id"
-                              >Prüfungsnummer <span aria-hidden="true">*</span></label
-                            >
                             <tui-textfield>
+                              <label tuiLabel [for]="'editCandidateExamNumber-' + item.candidate.id"
+                                >Prüfungsnummer <span aria-hidden="true">*</span></label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editCandidateExamNumber-' + item.candidate.id"
@@ -305,26 +304,20 @@
                             >
                             <tui-textfield>
                               <select
+                                tuiSelect
                                 [id]="'editCandidateSpecialization-' + item.candidate.id"
                                 [name]="'editCandidateSpecialization-' + item.candidate.id"
+                                [items]="specializationOptions"
+                                [labels]="specializationOptionLabels"
                                 [(ngModel)]="currentDraft.specialization"
-                              >
-                                <option value="application_development">
-                                  Anwendungsentwicklung
-                                </option>
-                                <option value="system_integration">Systemintegration</option>
-                                <option value="data_and_process_analysis">
-                                  Daten- und Prozessanalyse
-                                </option>
-                                <option value="digital_networking">Digitale Vernetzung</option>
-                              </select>
+                              ></select>
                             </tui-textfield>
                           </div>
                           <div class="app-field-third">
-                            <label [for]="'editCandidateAttempt-' + item.candidate.id"
-                              >Versuch</label
-                            >
                             <tui-textfield>
+                              <label tuiLabel [for]="'editCandidateAttempt-' + item.candidate.id"
+                                >Versuch</label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editCandidateAttempt-' + item.candidate.id"
@@ -336,10 +329,10 @@
                             </tui-textfield>
                           </div>
                           <div class="app-field-two-thirds">
-                            <label [for]="'editCandidateCompany-' + item.candidate.id"
-                              >Ausbildungsbetrieb</label
-                            >
                             <tui-textfield>
+                              <label tuiLabel [for]="'editCandidateCompany-' + item.candidate.id"
+                                >Ausbildungsbetrieb</label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editCandidateCompany-' + item.candidate.id"
@@ -351,9 +344,9 @@
                           <div class="app-field-third app-field-align-end">
                             <div class="app-form-check">
                               <input
-                                class="form-check-input"
                                 [id]="'editCandidateMep-' + item.candidate.id"
                                 [name]="'editCandidateMep-' + item.candidate.id"
+                                tuiCheckbox
                                 type="checkbox"
                                 [ngModel]="currentDraft.requires_mep === 1"
                                 (ngModelChange)="currentDraft.requires_mep = $event ? 1 : 0"

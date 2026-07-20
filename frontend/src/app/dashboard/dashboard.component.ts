@@ -1,5 +1,6 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { TuiButton } from '@taiga-ui/core';
+import { TuiButton, TuiNotification } from '@taiga-ui/core';
+import { TuiBadge } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
 import { TuiHeader } from '@taiga-ui/layout';
 
@@ -19,7 +20,7 @@ import { AppIconDirective } from '../app-icon.directive';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [AppIconDirective, TuiButton, TuiHeader, TuiTable],
+  imports: [AppIconDirective, TuiBadge, TuiButton, TuiHeader, TuiNotification, TuiTable],
   templateUrl: './dashboard.component.html',
 })
 export class DashboardComponent {
@@ -239,6 +240,17 @@ export class DashboardComponent {
       unavailable: 'secondary',
     };
     return colors[value] ?? 'secondary';
+  }
+
+  protected badgeAppearance(color: string): string {
+    const appearances: Record<string, string> = {
+      success: 'positive',
+      warning: 'warning',
+      info: 'info',
+      primary: 'info',
+      secondary: 'neutral',
+    };
+    return appearances[color] ?? 'neutral';
   }
 
   protected dateTimeLabel(value: string | null | undefined): string {

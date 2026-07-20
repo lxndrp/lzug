@@ -1,6 +1,7 @@
 import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TuiButton, TuiInput, TuiTextfield } from '@taiga-ui/core';
+import { TuiBadge, TuiSelect } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 
@@ -20,9 +21,11 @@ export type LocationUpdate = {
     AppIconDirective,
     FormsModule,
     TuiButton,
+    TuiBadge,
     TuiForm,
     TuiHeader,
     TuiInput,
+    TuiSelect,
     TuiTable,
     TuiTextfield,
   ],
@@ -50,6 +53,17 @@ export class LocationsComponent {
     room: '',
     is_active: 1,
   };
+
+  protected committeeOptions(): number[] {
+    return [0, ...(this.masterData?.committees ?? []).map((committee) => committee.id)];
+  }
+
+  protected committeeOptionLabels(): string[] {
+    return [
+      'Standardausschuss',
+      ...(this.masterData?.committees ?? []).map((committee) => committee.name),
+    ];
+  }
 
   protected submitLocation(): void {
     const committeeId = this.draft.committee_id || this.masterData?.committees[0]?.id;

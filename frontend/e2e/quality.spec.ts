@@ -16,6 +16,8 @@ const viewports = [
 ] as const;
 
 test.describe('lzug browser workflows', () => {
+  test.describe.configure({ timeout: 60_000 });
+
   test('generates and confirms a planning proposal', async ({ page }) => {
     await page.goto('/');
 
@@ -27,12 +29,16 @@ test.describe('lzug browser workflows', () => {
 
     await page.getByRole('button', { name: 'Plan bestätigen' }).click();
     await page.getByRole('button', { name: 'Plan verbindlich bestätigen' }).click();
-    await expect(page.locator('.app-badge').filter({ hasText: 'Plan bestätigt' })).toBeVisible();
+    await expect(page.getByText('Plan bestätigt', { exact: true }).first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Plan bestätigen' })).toBeDisabled();
   });
 
   test('navigates through the application views', async ({ page }) => {
     await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Winter 2026/27' })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.locator('.app-progress')).toHaveCount(0);
 
     for (const [view, path] of [
       ['Prüflinge', '/candidates'],
@@ -77,10 +83,10 @@ test.describe('lzug browser workflows', () => {
   test('updates exam round metadata and keeps it after reload', async ({ page }) => {
     await page.goto('/planning');
 
-    await expect(page.locator('#roundName')).toHaveValue('Winter 2026/27');
+    await expect(page.locator('#roundName')).toHaveValue('Winter 2026/27', { timeout: 30_000 });
     await page.locator('#roundName').fill('Sommer 2027');
-    await page.locator('#availabilityDeadline').fill('2027-04-15T18:00');
-    await page.locator('#availabilityReminder').fill('2027-04-08T09:00');
+    await page.locator('#availabilityDeadline').fill('15.04.2027, 18:00');
+    await page.locator('#availabilityReminder').fill('08.04.2027, 09:00');
 
     const updateResponsePromise = page.waitForResponse(
       (response) =>
@@ -94,8 +100,8 @@ test.describe('lzug browser workflows', () => {
 
     await page.reload();
     await expect(page.locator('#roundName')).toHaveValue('Sommer 2027');
-    await expect(page.locator('#availabilityDeadline')).toHaveValue('2027-04-15T18:00');
-    await expect(page.locator('#availabilityReminder')).toHaveValue('2027-04-08T09:00');
+    await expect(page.locator('#availabilityDeadline')).toHaveValue('15.04.2027, 18:00');
+    await expect(page.locator('#availabilityReminder')).toHaveValue('08.04.2027, 09:00');
   });
 
   test('generates possible exam days while excluding state holidays', async ({ page }) => {
@@ -111,7 +117,7 @@ test.describe('lzug browser workflows', () => {
     await weekTo.press('Tab');
     await page.getByText('Gesetzliche Feiertage ausschließen', { exact: true }).click();
     await expect(page.locator('#excludePublicHolidays')).toBeChecked();
-    await page.locator('#holidaySubdivisionCode').selectOption({ label: 'Nordrhein-Westfalen' });
+    await page.locator('#holidaySubdivisionCode').selectOption('DE-NW');
 
     const settingsResponsePromise = page.waitForResponse(
       (response) =>

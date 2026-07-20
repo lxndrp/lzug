@@ -11,8 +11,8 @@
       <div class="app-panel-body">
         <form tuiForm="m" id="roundMetadataForm" class="app-form-grid" (ngSubmit)="submitRound()">
           <div class="app-field-third">
-            <label for="roundName">Bezeichnung</label>
             <tui-textfield>
+              <label tuiLabel for="roundName">Bezeichnung</label>
               <input
                 tuiInput
                 id="roundName"
@@ -23,26 +23,30 @@
             </tui-textfield>
           </div>
           <div class="app-field-third">
-            <label for="availabilityDeadline">Rückmeldefrist</label>
             <tui-textfield>
+              <label tuiLabel for="availabilityDeadline">Rückmeldefrist</label>
               <input
                 tuiInput
+                tuiInputDateTime
                 id="availabilityDeadline"
                 name="availabilityDeadline"
                 type="datetime-local"
-                [(ngModel)]="roundDraft.availability_deadline"
+                [ngModel]="availabilityDeadlineValue"
+                (ngModelChange)="setRoundDateTimeValue('availability_deadline', $event)"
               />
             </tui-textfield>
           </div>
           <div class="app-field-third">
-            <label for="availabilityReminder">Erinnerung</label>
             <tui-textfield>
+              <label tuiLabel for="availabilityReminder">Erinnerung</label>
               <input
                 tuiInput
+                tuiInputDateTime
                 id="availabilityReminder"
                 name="availabilityReminder"
                 type="datetime-local"
-                [(ngModel)]="roundDraft.availability_reminder_at"
+                [ngModel]="availabilityReminderValue"
+                (ngModelChange)="setRoundDateTimeValue('availability_reminder_at', $event)"
               />
             </tui-textfield>
           </div>
@@ -70,10 +74,7 @@
           <dd>{{ capacity() }}</dd>
           <dt>Bewertung</dt>
           <dd>
-            <span
-              class="app-badge"
-              [attr.data-color]="capacity() >= requiredSlots() ? 'success' : 'warning'"
-            >
+            <span tuiBadge [appearance]="capacity() >= requiredSlots() ? 'positive' : 'warning'">
               {{ capacity() >= requiredSlots() ? 'Ausreichend' : 'Unterdeckung' }}
             </span>
           </dd>
@@ -99,8 +100,8 @@
           (ngSubmit)="submitSettings()"
         >
           <div class="app-field-half">
-            <label for="weekFrom">KW von <span aria-hidden="true">*</span></label>
             <tui-textfield>
+              <label tuiLabel for="weekFrom">KW von <span aria-hidden="true">*</span></label>
               <input
                 tuiInput
                 id="weekFrom"
@@ -111,13 +112,13 @@
                 required
               />
             </tui-textfield>
-            <small id="weekFromHint" class="app-muted app-block app-hint-offset"
+            <small id="weekFromHint" class="app-field-hint"
               >ISO: {{ draft.calendar_week_from || '–' }}</small
             >
           </div>
           <div class="app-field-half">
-            <label for="weekTo">KW bis <span aria-hidden="true">*</span></label>
             <tui-textfield>
+              <label tuiLabel for="weekTo">KW bis <span aria-hidden="true">*</span></label>
               <input
                 tuiInput
                 id="weekTo"
@@ -128,16 +129,16 @@
                 required
               />
             </tui-textfield>
-            <small id="weekToHint" class="app-muted app-block app-hint-offset"
+            <small id="weekToHint" class="app-field-hint"
               >ISO: {{ draft.calendar_week_to || '–' }}</small
             >
           </div>
           <div class="app-field-half app-field-align-end">
             <div class="app-form-check">
               <input
-                class="form-check-input"
                 id="excludePublicHolidays"
                 name="excludePublicHolidays"
+                tuiCheckbox
                 type="checkbox"
                 [ngModel]="draft.exclude_public_holidays === 1"
                 (ngModelChange)="draft.exclude_public_holidays = $event ? 1 : 0"
@@ -154,22 +155,20 @@
             </label>
             <tui-textfield>
               <select
+                tuiSelect
                 id="holidaySubdivisionCode"
                 name="holidaySubdivisionCode"
+                [items]="holidaySubdivisionOptions"
+                [labels]="holidaySubdivisionLabels"
                 [(ngModel)]="draft.holiday_subdivision_code"
                 [disabled]="!draft.exclude_public_holidays"
                 [required]="draft.exclude_public_holidays === 1"
-              >
-                <option [ngValue]="null">Bundesland auswählen</option>
-                @for (state of federalStates; track state.code) {
-                  <option [ngValue]="state.code">{{ state.name }}</option>
-                }
-              </select>
+              ></select>
             </tui-textfield>
           </div>
           <div class="app-field-third">
-            <label for="examsPerDay">Prüfungen pro Tag</label>
             <tui-textfield>
+              <label tuiLabel for="examsPerDay">Prüfungen pro Tag</label>
               <input
                 tuiInput
                 id="examsPerDay"
@@ -181,8 +180,8 @@
             </tui-textfield>
           </div>
           <div class="app-field-third">
-            <label for="examDaysPerWeek">Max. Tage pro Woche</label>
             <tui-textfield>
+              <label tuiLabel for="examDaysPerWeek">Max. Tage pro Woche</label>
               <input
                 tuiInput
                 id="examDaysPerWeek"
@@ -198,43 +197,34 @@
             <label for="defaultLocation">Standardort</label>
             <tui-textfield>
               <select
+                tuiSelect
                 id="defaultLocation"
                 name="defaultLocation"
+                [items]="defaultLocationOptions"
+                [labels]="defaultLocationLabels"
                 [(ngModel)]="draft.default_location_id"
-              >
-                <option [ngValue]="null">Kein Standardort</option>
-                @for (location of board?.locations || []; track location.id) {
-                  @if (location.is_active !== 0) {
-                    <option [ngValue]="location.id">
-                      {{ location.name }} · {{ location.room }}
-                    </option>
-                  }
-                }
-              </select>
+              ></select>
             </tui-textfield>
           </div>
           <div class="app-field-two-thirds">
             <label for="updatedByMember">Änderung dokumentieren für</label>
             <tui-textfield>
               <select
+                tuiSelect
                 id="updatedByMember"
                 name="updatedByMember"
+                [items]="updatedByMemberOptions"
+                [labels]="updatedByMemberLabels"
                 [(ngModel)]="draft.updated_by_member_id"
-              >
-                @for (member of masterData?.members || []; track member.id) {
-                  <option [ngValue]="member.id">
-                    {{ member.first_name }} {{ member.last_name }}
-                  </option>
-                }
-              </select>
+              ></select>
             </tui-textfield>
           </div>
           <div class="app-field-third app-field-align-end">
             <div class="app-form-check">
               <input
-                class="form-check-input"
                 id="lunchBreak"
                 name="lunchBreak"
+                tuiCheckbox
                 type="checkbox"
                 [ngModel]="draft.lunch_break_enabled === 1"
                 (ngModelChange)="draft.lunch_break_enabled = $event ? 1 : 0"
@@ -279,7 +269,7 @@
       </header>
       <div class="app-panel-body">
         @if (candidateDayGenerationResult; as result) {
-          <aside class="app-alert app-alert-info" role="status">
+          <div tuiNotification appearance="info" role="status">
             <strong>{{ result.counts.created }} Tage angelegt</strong>
             <span class="app-block">
               {{ result.counts.existing }} bereits vorhanden ·
@@ -292,18 +282,20 @@
                 }
               </ul>
             }
-          </aside>
+          </div>
         }
         <form tuiForm="m" class="app-form-grid app-compact-form" (ngSubmit)="submitCandidateDay()">
           <div class="app-field-third">
-            <label for="candidateDayDate">Datum <span aria-hidden="true">*</span></label>
             <tui-textfield>
+              <label tuiLabel for="candidateDayDate">Datum <span aria-hidden="true">*</span></label>
               <input
                 tuiInput
+                tuiInputDate
                 id="candidateDayDate"
                 name="candidateDayDate"
                 type="date"
-                [(ngModel)]="candidateDayDraft.date"
+                [ngModel]="candidateDayDateValue"
+                (ngModelChange)="setCandidateDayValue($event)"
                 required
               />
             </tui-textfield>
@@ -311,9 +303,9 @@
           <div class="app-field-third app-field-align-end app-compact-form-action">
             <div class="app-form-check">
               <input
-                class="form-check-input"
                 id="candidateDayActive"
                 name="candidateDayActive"
+                tuiCheckbox
                 type="checkbox"
                 [ngModel]="candidateDayDraft.is_active === 1"
                 (ngModelChange)="candidateDayDraft.is_active = $event ? 1 : 0"
@@ -344,10 +336,7 @@
                     <strong>{{ dateLabel(day.date) }}</strong>
                   </td>
                   <td>
-                    <span
-                      class="app-badge"
-                      [attr.data-color]="day.is_active ? 'success' : 'secondary'"
-                    >
+                    <span tuiBadge [appearance]="day.is_active ? 'positive' : 'neutral'">
                       {{ day.is_active ? 'Aktiv' : 'Inaktiv' }}
                     </span>
                   </td>
@@ -423,6 +412,7 @@
                         <div class="app-availability-control">
                           <tui-textfield>
                             <select
+                              tuiSelect
                               [attr.aria-label]="memberLabel(member) + ' ' + dateLabel(day.date)"
                               [attr.aria-describedby]="
                                 availabilityCellState(member.id, day.id)
@@ -434,13 +424,11 @@
                                 isAvailabilitySaving(member.id, day.id) ||
                                 !day.is_active
                               "
+                              [items]="availabilityOptionValues"
+                              [labels]="availabilityOptionLabels"
                               [ngModel]="availabilityFor(member.id, day.id)"
                               (ngModelChange)="changeAvailability(member, day, $event)"
-                            >
-                              @for (option of availabilityOptions(); track option.value) {
-                                <option [ngValue]="option.value">{{ option.label }}</option>
-                              }
-                            </select>
+                            ></select>
                           </tui-textfield>
                           @if (availabilityCellState(member.id, day.id); as cellState) {
                             <span

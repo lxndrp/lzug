@@ -6,6 +6,14 @@ import { masterDataFixture } from '../testing/fixtures';
 describe('CandidatesComponent', () => {
   let fixture: ComponentFixture<CandidatesComponent>;
 
+  beforeAll(() => {
+    Object.defineProperty(HTMLSelectElement.prototype, 'readOnly', {
+      configurable: true,
+      get: () => false,
+      set: () => undefined,
+    });
+  });
+
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [CandidatesComponent],
@@ -56,6 +64,10 @@ describe('CandidatesComponent', () => {
     expect(element.querySelector('.app-page-grid')).toBeTruthy();
     expect(element.querySelectorAll('form[tuiForm]').length).toBe(1);
     expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(3);
+    expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
+    expect(element.querySelectorAll('input[tuiCheckbox]').length).toBe(1);
+    expect(element.querySelectorAll('input.form-check-input').length).toBe(0);
+    expect(element.querySelectorAll('select[tuiSelect]').length).toBeGreaterThan(1);
     expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 

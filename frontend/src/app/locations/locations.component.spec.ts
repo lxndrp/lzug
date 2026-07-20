@@ -6,6 +6,14 @@ import { masterDataFixture } from '../testing/fixtures';
 describe('LocationsComponent', () => {
   let fixture: ComponentFixture<LocationsComponent>;
 
+  beforeAll(() => {
+    Object.defineProperty(HTMLSelectElement.prototype, 'readOnly', {
+      configurable: true,
+      get: () => false,
+      set: () => undefined,
+    });
+  });
+
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [LocationsComponent],
@@ -126,6 +134,8 @@ describe('LocationsComponent', () => {
     expect(element.querySelector('.app-page-grid')).toBeTruthy();
     expect(element.querySelectorAll('form[tuiForm]').length).toBe(1);
     expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(2);
+    expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
+    expect(element.querySelectorAll('select[tuiSelect]').length).toBeGreaterThan(0);
     expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 

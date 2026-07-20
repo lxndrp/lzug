@@ -66,8 +66,10 @@
         <div class="app-panel-body">
           <form tuiForm="m" class="app-form-grid" (submit)="saveCommittee($event)">
             <div class="app-field-full">
-              <label for="committeeName">Bezeichnung <span aria-hidden="true">*</span></label>
               <tui-textfield>
+                <label tuiLabel for="committeeName"
+                  >Bezeichnung <span aria-hidden="true">*</span></label
+                >
                 <input
                   tuiInput
                   id="committeeName"
@@ -78,10 +80,10 @@
               </tui-textfield>
             </div>
             <div class="app-field-full">
-              <label for="committeeOccupation"
-                >Ausbildungsberuf <span aria-hidden="true">*</span></label
-              >
               <tui-textfield>
+                <label tuiLabel for="committeeOccupation"
+                  >Ausbildungsberuf <span aria-hidden="true">*</span></label
+                >
                 <input
                   tuiInput
                   id="committeeOccupation"
@@ -110,7 +112,7 @@
     <section class="app-panel">
       <header tuiHeader="body-m" class="app-panel-header">
         <strong>{{ selectedCommitteeName() }}</strong>
-        <span class="app-badge app-badge-success">{{ activeMemberCount() }} aktiv</span>
+        <span tuiBadge appearance="positive">{{ activeMemberCount() }} aktiv</span>
       </header>
       <div class="app-panel-body">
         <div class="app-table-scroll">
@@ -141,10 +143,7 @@
                     <span>{{ member.mobile || 'Keine Mobilnummer' }}</span>
                   </td>
                   <td>
-                    <span
-                      class="app-badge"
-                      [attr.data-color]="member.is_active ? 'success' : 'secondary'"
-                    >
+                    <span tuiBadge [appearance]="member.is_active ? 'positive' : 'neutral'">
                       {{ member.is_active ? 'Aktiv' : 'Inaktiv' }}
                     </span>
                   </td>
@@ -202,76 +201,93 @@
             <div class="app-field-full">
               <label for="memberCommittee">Ausschuss <span aria-hidden="true">*</span></label>
               <tui-textfield>
-                <select id="memberCommittee" name="committee_id" ngModel required>
-                  @for (committee of masterDataView()?.committees || []; track committee.id) {
-                    <option [value]="committee.id" [selected]="isSelectedCommittee(committee)">
-                      {{ committee.name }}
-                    </option>
-                  }
-                </select>
+                <select
+                  tuiSelect
+                  id="memberCommittee"
+                  name="committee_id"
+                  [items]="committeeOptions()"
+                  [labels]="committeeOptionLabels()"
+                  [ngModel]="selectedCommitteeId()"
+                  (ngModelChange)="selectCommittee($event)"
+                  required
+                ></select>
               </tui-textfield>
             </div>
             <div class="app-field-half">
-              <label for="memberFirstName">Vorname <span aria-hidden="true">*</span></label>
               <tui-textfield>
+                <label tuiLabel for="memberFirstName"
+                  >Vorname <span aria-hidden="true">*</span></label
+                >
                 <input tuiInput id="memberFirstName" name="first_name" required />
               </tui-textfield>
             </div>
             <div class="app-field-half">
-              <label for="memberLastName">Nachname <span aria-hidden="true">*</span></label>
               <tui-textfield>
+                <label tuiLabel for="memberLastName"
+                  >Nachname <span aria-hidden="true">*</span></label
+                >
                 <input tuiInput id="memberLastName" name="last_name" required />
               </tui-textfield>
             </div>
             <div class="app-field-half">
-              <label for="memberEmail">E-Mail <span aria-hidden="true">*</span></label>
               <tui-textfield>
+                <label tuiLabel for="memberEmail">E-Mail <span aria-hidden="true">*</span></label>
                 <input tuiInput id="memberEmail" name="email" type="email" required />
               </tui-textfield>
             </div>
             <div class="app-field-half">
-              <label for="memberMobile">Mobil</label>
               <tui-textfield>
+                <label tuiLabel for="memberMobile">Mobil</label>
                 <input tuiInput id="memberMobile" name="mobile" type="tel" />
               </tui-textfield>
             </div>
             <div class="app-field-third">
               <label for="memberStatus">Mitgliedsstatus</label>
               <tui-textfield>
-                <select id="memberStatus" name="member_status" ngModel>
-                  <option value="ordinary">Ordentlich</option>
-                  <option value="deputy">Stellvertretend</option>
-                </select>
+                <select
+                  tuiSelect
+                  id="memberStatus"
+                  name="member_status"
+                  [items]="memberStatusOptions"
+                  [labels]="memberStatusOptionLabels"
+                  ngModel="ordinary"
+                ></select>
               </tui-textfield>
             </div>
             <div class="app-field-third">
               <label for="memberRole">Funktion</label>
               <tui-textfield>
-                <select id="memberRole" name="committee_role" ngModel>
-                  <option value="member">Mitglied</option>
-                  <option value="chair">Vorsitz</option>
-                  <option value="deputy_chair">Stellv. Vorsitz</option>
-                </select>
+                <select
+                  tuiSelect
+                  id="memberRole"
+                  name="committee_role"
+                  [items]="committeeRoleOptions"
+                  [labels]="committeeRoleOptionLabels"
+                  ngModel="member"
+                ></select>
               </tui-textfield>
             </div>
             <div class="app-field-third">
               <label for="memberSide">Vertreterseite</label>
               <tui-textfield>
-                <select id="memberSide" name="representing_side" ngModel>
-                  <option value="employer">Arbeitgeber</option>
-                  <option value="employee">Arbeitnehmer</option>
-                  <option value="school">Schule</option>
-                </select>
+                <select
+                  tuiSelect
+                  id="memberSide"
+                  name="representing_side"
+                  [items]="memberSideOptions"
+                  [labels]="memberSideOptionLabels"
+                  ngModel="employer"
+                ></select>
               </tui-textfield>
             </div>
             <div class="app-field-full">
               <div class="app-form-check">
                 <input
-                  class="form-check-input"
                   id="memberActive"
                   name="is_active"
+                  tuiCheckbox
                   type="checkbox"
-                  checked
+                  ngModel="true"
                 />
                 <label for="memberActive">Aktiv</label>
               </div>
