@@ -31,7 +31,7 @@
                 id="availabilityDeadline"
                 name="availabilityDeadline"
                 type="datetime-local"
-                [ngModel]="roundDateTimeValue(roundDraft.availability_deadline)"
+                [ngModel]="availabilityDeadlineValue"
                 (ngModelChange)="setRoundDateTimeValue('availability_deadline', $event)"
               />
             </tui-textfield>
@@ -45,7 +45,7 @@
                 id="availabilityReminder"
                 name="availabilityReminder"
                 type="datetime-local"
-                [ngModel]="roundDateTimeValue(roundDraft.availability_reminder_at)"
+                [ngModel]="availabilityReminderValue"
                 (ngModelChange)="setRoundDateTimeValue('availability_reminder_at', $event)"
               />
             </tui-textfield>
@@ -161,8 +161,8 @@
                 tuiSelect
                 id="holidaySubdivisionCode"
                 name="holidaySubdivisionCode"
-                [items]="holidaySubdivisionOptions()"
-                [labels]="holidaySubdivisionLabels()"
+                [items]="holidaySubdivisionOptions"
+                [labels]="holidaySubdivisionLabels"
                 [(ngModel)]="draft.holiday_subdivision_code"
                 [disabled]="!draft.exclude_public_holidays"
                 [required]="draft.exclude_public_holidays === 1"
@@ -203,8 +203,8 @@
                 tuiSelect
                 id="defaultLocation"
                 name="defaultLocation"
-                [items]="defaultLocationOptions()"
-                [labels]="defaultLocationLabels()"
+                [items]="defaultLocationOptions"
+                [labels]="defaultLocationLabels"
                 [(ngModel)]="draft.default_location_id"
               ></select>
             </tui-textfield>
@@ -216,8 +216,8 @@
                 tuiSelect
                 id="updatedByMember"
                 name="updatedByMember"
-                [items]="updatedByMemberOptions()"
-                [labels]="updatedByMemberLabels()"
+                [items]="updatedByMemberOptions"
+                [labels]="updatedByMemberLabels"
                 [(ngModel)]="draft.updated_by_member_id"
               ></select>
             </tui-textfield>
@@ -297,7 +297,7 @@
                 id="candidateDayDate"
                 name="candidateDayDate"
                 type="date"
-                [ngModel]="candidateDayValue()"
+                [ngModel]="candidateDayDateValue"
                 (ngModelChange)="setCandidateDayValue($event)"
                 required
               />
@@ -430,8 +430,8 @@
                                 isAvailabilitySaving(member.id, day.id) ||
                                 !day.is_active
                               "
-                              [items]="availabilityOptionValues()"
-                              [labels]="availabilityOptionLabels()"
+                              [items]="availabilityOptionValues"
+                              [labels]="availabilityOptionLabels"
                               [ngModel]="availabilityFor(member.id, day.id)"
                               (ngModelChange)="changeAvailability(member, day, $event)"
                             ></select>

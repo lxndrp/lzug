@@ -97,6 +97,9 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     date: '',
     is_active: 1,
   };
+  protected candidateDayDateValue: TuiDay | null = null;
+  protected availabilityDeadlineValue: readonly [TuiDay, TuiTime | null] | null = null;
+  protected availabilityReminderValue: readonly [TuiDay, TuiTime | null] | null = null;
   protected readonly availabilityCellStates = signal<Record<string, AvailabilityCellState>>({});
   private readonly availabilityOverrides = signal<Record<string, AvailabilityValue>>({});
   private readonly savedStateTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -125,6 +128,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     }
     if (changes['summary'] || changes['board'] || changes['masterData']) {
       this.syncDraft();
+      this.syncSelectOptions();
     }
   }
 
@@ -147,59 +151,32 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     return (this.masterData?.members ?? []).filter((member) => member.is_active);
   }
 
-  protected availabilityOptions(): Array<{ value: AvailabilityValue; label: string }> {
-    return [
-      { value: 'full_day', label: 'Ganztägig' },
-      { value: 'morning', label: 'Vormittag' },
-      { value: 'afternoon', label: 'Nachmittag' },
-      { value: 'unavailable', label: 'Nicht verfügbar' },
-      { value: 'pending', label: 'Offen' },
-    ];
-  }
-
-  protected availabilityOptionValues(): AvailabilityValue[] {
-    return this.availabilityOptions().map((option) => option.value);
-  }
-
-  protected availabilityOptionLabels(): string[] {
-    return this.availabilityOptions().map((option) => option.label);
-  }
-
-  protected holidaySubdivisionOptions(): Array<string | null> {
-    return [null, ...this.federalStates.map((state) => state.code)];
-  }
-
-  protected holidaySubdivisionLabels(): string[] {
-    return ['Bundesland auswählen', ...this.federalStates.map((state) => state.name)];
-  }
-
-  protected defaultLocationOptions(): Array<number | null> {
-    return [
-      null,
-      ...(this.board?.locations ?? [])
-        .filter((location) => location.is_active !== 0)
-        .map((location) => location.id),
-    ];
-  }
-
-  protected defaultLocationLabels(): string[] {
-    return [
-      'Kein Standardort',
-      ...(this.board?.locations ?? [])
-        .filter((location) => location.is_active !== 0)
-        .map((location) => `${location.name} · ${location.room}`),
-    ];
-  }
-
-  protected updatedByMemberOptions(): number[] {
-    return (this.masterData?.members ?? []).map((member) => member.id);
-  }
-
-  protected updatedByMemberLabels(): string[] {
-    return (this.masterData?.members ?? []).map(
-      (member) => `${member.first_name} ${member.last_name}`,
-    );
-  }
+  protected readonly availabilityOptionValues: AvailabilityValue[] = [
+    'full_day',
+    'morning',
+    'afternoon',
+    'unavailable',
+    'pending',
+  ];
+  protected readonly availabilityOptionLabels = [
+    'Ganztägig',
+    'Vormittag',
+    'Nachmittag',
+    'Nicht verfügbar',
+    'Offen',
+  ];
+  protected readonly holidaySubdivisionOptions: Array<string | null> = [
+    null,
+    ...this.federalStates.map((state) => state.code),
+  ];
+  protected readonly holidaySubdivisionLabels = [
+    'Bundesland auswählen',
+    ...this.federalStates.map((state) => state.name),
+  ];
+  protected defaultLocationOptions: Array<number | null> = [null];
+  protected defaultLocationLabels = ['Kein Standardort'];
+  protected updatedByMemberOptions: number[] = [];
+  protected updatedByMemberLabels: string[] = [];
 
   protected availabilityFor(memberId: number, dayId: number): AvailabilityValue {
     const key = this.availabilityCellKey(memberId, dayId);
@@ -339,6 +316,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   protected setCandidateDayValue(value: TuiDay | null): void {
+    this.candidateDayDateValue = value;
     this.candidateDayDraft.date = value?.toJSON() ?? '';
   }
 
@@ -355,6 +333,11 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     field: 'availability_deadline' | 'availability_reminder_at',
     value: readonly [TuiDay, TuiTime | null] | null,
   ): void {
+    if (field === 'availability_deadline') {
+      this.availabilityDeadlineValue = value;
+    } else {
+      this.availabilityReminderValue = value;
+    }
     this.roundDraft[field] = value
       ? `${value[0].toJSON()}T${value[1]?.toString('HH:MM') ?? '00:00'}`
       : '';
@@ -363,6 +346,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   resetCandidateDayDraft(): void {
     this.candidateDayDraft.date = '';
     this.candidateDayDraft.is_active = 1;
+    this.candidateDayDateValue = null;
   }
 
   protected submitSettings(): void {
@@ -449,6 +433,21 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     this.draft.updated_by_member_id = settings?.updated_by_member_id ?? this.defaultUpdaterId();
   }
 
+  private syncSelectOptions(): void {
+    const locations = (this.board?.locations ?? []).filter((location) => location.is_active !== 0);
+    this.defaultLocationOptions = [null, ...locations.map((location) => location.id)];
+    this.defaultLocationLabels = [
+      'Kein Standardort',
+      ...locations.map((location) => `${location.name} · ${location.room}`),
+    ];
+
+    const members = this.masterData?.members ?? [];
+    this.updatedByMemberOptions = members.map((member) => member.id);
+    this.updatedByMemberLabels = members.map(
+      (member) => `${member.first_name} ${member.last_name}`,
+    );
+  }
+
   private syncRoundDraft(): void {
     if (!this.round) {
       return;
@@ -457,6 +456,10 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     this.roundDraft.availability_deadline = this.toDateTimeLocal(this.round.availability_deadline);
     this.roundDraft.availability_reminder_at = this.toDateTimeLocal(
       this.round.availability_reminder_at,
+    );
+    this.availabilityDeadlineValue = this.roundDateTimeValue(this.roundDraft.availability_deadline);
+    this.availabilityReminderValue = this.roundDateTimeValue(
+      this.roundDraft.availability_reminder_at,
     );
   }
 

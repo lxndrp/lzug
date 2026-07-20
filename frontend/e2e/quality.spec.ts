@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 const productiveViews = [
   { name: 'Übersicht', path: '/dashboard' },
@@ -15,18 +15,11 @@ const viewports = [
   { name: 'mobile', width: 390, height: 844 },
 ] as const;
 
-async function waitForDataSync(page: Page): Promise<void> {
-  await expect(page.locator('[data-app-ready="true"]')).toBeVisible({
-    timeout: 90_000,
-  });
-}
-
 test.describe('lzug browser workflows', () => {
-  test.describe.configure({ timeout: 120_000 });
+  test.describe.configure({ timeout: 60_000 });
 
   test('generates and confirms a planning proposal', async ({ page }) => {
     await page.goto('/');
-    await waitForDataSync(page);
 
     await expect(page.getByRole('heading', { name: 'Winter 2026/27' })).toBeVisible();
 
@@ -42,7 +35,10 @@ test.describe('lzug browser workflows', () => {
 
   test('navigates through the application views', async ({ page }) => {
     await page.goto('/');
-    await waitForDataSync(page);
+    await expect(page.getByRole('heading', { name: 'Winter 2026/27' })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.locator('.app-progress')).toHaveCount(0);
 
     for (const [view, path] of [
       ['Prüflinge', '/candidates'],
@@ -86,12 +82,11 @@ test.describe('lzug browser workflows', () => {
 
   test('updates exam round metadata and keeps it after reload', async ({ page }) => {
     await page.goto('/planning');
-    await waitForDataSync(page);
 
-    await expect(page.locator('#roundName')).toHaveValue('Winter 2026/27');
+    await expect(page.locator('#roundName')).toHaveValue('Winter 2026/27', { timeout: 30_000 });
     await page.locator('#roundName').fill('Sommer 2027');
-    await page.locator('#availabilityDeadline').fill('2027-04-15T18:00');
-    await page.locator('#availabilityReminder').fill('2027-04-08T09:00');
+    await page.locator('#availabilityDeadline').fill('15.04.2027, 18:00');
+    await page.locator('#availabilityReminder').fill('08.04.2027, 09:00');
 
     const updateResponsePromise = page.waitForResponse(
       (response) =>
@@ -105,13 +100,12 @@ test.describe('lzug browser workflows', () => {
 
     await page.reload();
     await expect(page.locator('#roundName')).toHaveValue('Sommer 2027');
-    await expect(page.locator('#availabilityDeadline')).toHaveValue('2027-04-15T18:00');
-    await expect(page.locator('#availabilityReminder')).toHaveValue('2027-04-08T09:00');
+    await expect(page.locator('#availabilityDeadline')).toHaveValue('15.04.2027, 18:00');
+    await expect(page.locator('#availabilityReminder')).toHaveValue('08.04.2027, 09:00');
   });
 
   test('generates possible exam days while excluding state holidays', async ({ page }) => {
     await page.goto('/planning');
-    await waitForDataSync(page);
 
     const weekFrom = page.locator('#weekFrom');
     const weekTo = page.locator('#weekTo');
@@ -148,7 +142,6 @@ test.describe('lzug browser workflows', () => {
 
   test('keeps required candidate fields enforced', async ({ page }) => {
     await page.goto('/');
-    await waitForDataSync(page);
     await page.getByRole('link', { name: 'Prüflinge', exact: true }).click();
     await page.getByText('Neuen Prüfling anlegen', { exact: true }).click();
 
@@ -163,7 +156,6 @@ test.describe('lzug browser workflows', () => {
 
   test('creates and deletes a candidate through the browser', async ({ page }) => {
     await page.goto('/');
-    await waitForDataSync(page);
     await page.getByRole('link', { name: 'Prüflinge', exact: true }).click();
     await page.getByText('Neuen Prüfling anlegen', { exact: true }).click();
 
@@ -189,7 +181,6 @@ test.describe('lzug browser workflows', () => {
 
   test('shows a readable message when the API becomes unavailable', async ({ page }) => {
     await page.goto('/');
-    await waitForDataSync(page);
     await page.route('**/api/round-summary*', (route) => route.fulfill({ status: 500 }));
 
     await page.getByRole('button', { name: 'Aktualisieren' }).click();
@@ -205,7 +196,6 @@ test.describe('lzug browser workflows', () => {
       }),
     );
     await page.goto('/');
-    await waitForDataSync(page);
     await page.getByRole('link', { name: 'Prüflinge', exact: true }).click();
 
     await expect(page.getByText('Keine passenden Prüflinge vorhanden.')).toBeVisible();
@@ -216,7 +206,6 @@ test.describe('lzug browser workflows', () => {
 
     for (const path of ['/dashboard', '/candidates', '/committee', '/planning', '/locations']) {
       await page.goto(path);
-      await waitForDataSync(page);
       const dimensions = await page.evaluate(() => ({
         clientWidth: document.documentElement.clientWidth,
         scrollWidth: document.documentElement.scrollWidth,
@@ -228,7 +217,6 @@ test.describe('lzug browser workflows', () => {
   test('keeps table actions scrollable instead of covering mobile data', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/locations');
-    await waitForDataSync(page);
 
     const scrollRegion = page.locator('.app-table-scroll');
     const locationHeader = page.getByRole('columnheader', { name: 'Ort' });
@@ -245,7 +233,6 @@ test.describe('lzug browser workflows', () => {
 
   test('opens the candidate form with the keyboard', async ({ page }) => {
     await page.goto('/candidates');
-    await waitForDataSync(page);
 
     const trigger = page.getByText('Neuen Prüfling anlegen', { exact: true });
     await trigger.focus();
@@ -259,7 +246,6 @@ test.describe('lzug browser workflows', () => {
     page,
   }) => {
     await page.goto('/dashboard');
-    await waitForDataSync(page);
     await expect(page.getByText('Taiga-Prototyp')).toHaveCount(0);
     await expect(page.getByText('Entwicklung', { exact: true })).toHaveCount(0);
   });
@@ -279,7 +265,7 @@ test.describe('lzug theme and accessibility matrix', () => {
           await test.step(view.name, async () => {
             await page.goto(view.path);
             await expect(page.locator('h1')).toBeVisible();
-            await waitForDataSync(page);
+            await expect(page.locator('.app-progress')).toHaveCount(0);
             if (scheme === 'dark') {
               await expect(page.locator('body')).toHaveAttribute('tuiTheme', 'dark');
             } else {

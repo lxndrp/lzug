@@ -2,7 +2,7 @@ import { Component, DestroyRef, ViewChild, computed, inject, signal } from '@ang
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { TuiRoot } from '@taiga-ui/core';
-import { filter, finalize, forkJoin, of, switchMap, tap } from 'rxjs';
+import { filter, finalize, switchMap } from 'rxjs';
 
 import {
   CandidateDayGenerationResult,
@@ -126,30 +126,8 @@ export class App {
   protected refresh(): void {
     this.loading.set(true);
     this.api
-      .getRoot()
-      .pipe(
-        switchMap((root) =>
-          forkJoin({
-            root: of(root),
-            round: this.api.getExamRound(),
-            summary: this.api.getRoundSummary(),
-          }),
-        ),
-        tap(({ round, summary }) => {
-          this.round.set(round);
-          this.summary.set(summary);
-        }),
-        switchMap(({ root, round, summary }) =>
-          forkJoin({
-            root: of(root),
-            round: of(round),
-            summary: of(summary),
-            board: this.api.getPlanningBoard(),
-            masterData: this.api.getMasterData(),
-          }),
-        ),
-        finalize(() => this.loading.set(false)),
-      )
+      .refreshDashboard()
+      .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: ({ round, summary, board, masterData }) => {
           this.round.set(round);
