@@ -1,5 +1,5 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { TuiButton } from '@taiga-ui/core';
+import { TuiButton, TuiNotification } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
 import { TuiHeader } from '@taiga-ui/layout';
@@ -20,7 +20,7 @@ import { AppIconDirective } from '../app-icon.directive';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [AppIconDirective, TuiBadge, TuiButton, TuiHeader, TuiTable],
+  imports: [AppIconDirective, TuiBadge, TuiButton, TuiHeader, TuiNotification, TuiTable],
   templateUrl: './dashboard.component.html',
 })
 export class DashboardComponent {

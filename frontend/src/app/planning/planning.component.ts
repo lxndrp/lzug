@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { TuiButton, TuiCheckbox, TuiInput, TuiTextfield } from '@taiga-ui/core';
+import { TuiButton, TuiCheckbox, TuiInput, TuiNotification, TuiTextfield } from '@taiga-ui/core';
 import { TuiDay, TuiTime } from '@taiga-ui/cdk/date-time';
 import { TuiBadge, TuiInputDate, TuiInputDateTime, TuiSelect } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
@@ -59,6 +59,7 @@ type AvailabilityCellState = {
     TuiSelect,
     TuiTable,
     TuiTextfield,
+    TuiNotification,
   ],
   templateUrl: './planning.component.html',
 })

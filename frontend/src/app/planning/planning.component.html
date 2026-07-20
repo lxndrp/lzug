@@ -269,7 +269,7 @@
       </header>
       <div class="app-panel-body">
         @if (candidateDayGenerationResult; as result) {
-          <aside class="app-alert app-alert-info" role="status">
+          <div tuiNotification appearance="info" role="status">
             <strong>{{ result.counts.created }} Tage angelegt</strong>
             <span class="app-block">
               {{ result.counts.existing }} bereits vorhanden ·
@@ -282,7 +282,7 @@
                 }
               </ul>
             }
-          </aside>
+          </div>
         }
         <form tuiForm="m" class="app-form-grid app-compact-form" (ngSubmit)="submitCandidateDay()">
           <div class="app-field-third">

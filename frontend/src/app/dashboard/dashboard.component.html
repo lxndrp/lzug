@@ -150,12 +150,7 @@
 
   @if (planningResult?.validation; as validation) {
     <div class="app-page-full">
-      <aside
-        class="app-alert"
-        [class.app-alert-success]="validation.passed"
-        [class.app-alert-warning]="!validation.passed"
-        role="status"
-      >
+      <div tuiNotification [appearance]="validation.passed ? 'positive' : 'warning'" role="status">
         <strong>Validierungsreport</strong>
         @if (validation.messages.length) {
           <ul class="app-flush">
@@ -166,7 +161,7 @@
         } @else {
           <span>Keine Hinweise.</span>
         }
-      </aside>
+      </div>
     </div>
   }
 

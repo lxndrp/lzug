@@ -201,9 +201,10 @@
   </div>
 </tui-root>
 @if (feedback(); as currentFeedback) {
-  <aside
+  <div
+    tuiNotification
     class="app-feedback"
-    [class.app-feedback-error]="currentFeedback.type === 'error'"
+    [appearance]="currentFeedback.type === 'error' ? 'negative' : 'positive'"
     [attr.role]="currentFeedback.type === 'error' ? 'alert' : 'status'"
     aria-live="polite"
   >
@@ -219,7 +220,7 @@
     <button type="button" aria-label="Meldung schließen" (click)="dismissFeedback()">
       <svg [cIcon]="icons.cancel" class="app-icon-only" aria-hidden="true"></svg>
     </button>
-  </aside>
+  </div>
 }
 
 <dialog

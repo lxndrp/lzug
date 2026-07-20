@@ -1,7 +1,7 @@
 import { Component, DestroyRef, ViewChild, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
-import { TuiRoot } from '@taiga-ui/core';
+import { TuiNotification, TuiRoot } from '@taiga-ui/core';
 import { filter, finalize, switchMap } from 'rxjs';
 
 import {
@@ -52,6 +52,7 @@ import {
     DashboardComponent,
     LocationsComponent,
     PlanningComponent,
+    TuiNotification,
     TuiRoot,
   ],
   templateUrl: './app.html',
