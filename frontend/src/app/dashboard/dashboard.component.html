@@ -6,7 +6,7 @@
           <div class="app-dashboard-hero-copy">
             <div class="app-dashboard-status-line">
               <span class="app-eyebrow">Aktueller Stand</span>
-              <span class="app-badge app-badge-primary">{{
+              <span tuiBadge [appearance]="badgeAppearance('primary')">{{
                 statusLabel(summary?.round?.status)
               }}</span>
             </div>
@@ -83,7 +83,7 @@
                 <strong>{{ task.label }}</strong>
                 <small>{{ task.hint }}</small>
               </span>
-              <span class="app-badge" [attr.data-color]="task.color">{{ task.detail }}</span>
+              <span tuiBadge [appearance]="badgeAppearance(task.color)">{{ task.detail }}</span>
               <svg [cIcon]="icons.arrowRight" class="app-icon-only" aria-hidden="true"></svg>
             </button>
           }
@@ -99,7 +99,7 @@
           <span class="app-eyebrow">Rahmen</span>
           <strong class="app-block">Planung und Fristen</strong>
         </div>
-        <span class="app-badge" [attr.data-color]="pendingCount() ? 'warning' : 'success'">
+        <span tuiBadge [appearance]="badgeAppearance(pendingCount() ? 'warning' : 'success')">
           {{ pendingCount() ? pendingCount() + ' offen' : 'Rücklauf vollständig' }}
         </span>
       </header>
@@ -138,7 +138,7 @@
           <h3>Rücklauf</h3>
           <div class="app-inline-actions">
             @for (item of summary?.availability || []; track item.availability) {
-              <span class="app-badge" [attr.data-color]="availabilityColor(item.availability)">
+              <span tuiBadge [appearance]="badgeAppearance(availabilityColor(item.availability))">
                 {{ availabilityLabel(item.availability) }}: {{ item.count }}
               </span>
             }
@@ -193,7 +193,7 @@
                     </div>
                     <div class="app-day-slots">
                       @for (slot of item.slots; track slot.id) {
-                        <span class="app-badge app-badge-secondary">
+                        <span tuiBadge [appearance]="badgeAppearance('secondary')">
                           {{ slotTitle(slot) }}
                           @if (slot.slot_type === 'mep') {
                             · MEP
@@ -206,7 +206,7 @@
                   <h4>Vormittag</h4>
                   <div class="app-badge-list">
                     @for (assignment of assignmentsFor(item, 'morning'); track assignment.id) {
-                      <span class="app-badge" [attr.data-color]="assignmentColor(assignment)">
+                      <span tuiBadge [appearance]="badgeAppearance(assignmentColor(assignment))">
                         {{ memberName(assignment.committee_member_id) }} ·
                         {{ memberSide(assignment.committee_member_id) }} ·
                         {{ assignmentRoleLabel(assignment) }}
@@ -217,13 +217,15 @@
                   <h4>Nachmittag</h4>
                   <div class="app-badge-list">
                     @for (assignment of assignmentsFor(item, 'afternoon'); track assignment.id) {
-                      <span class="app-badge" [attr.data-color]="assignmentColor(assignment)">
+                      <span tuiBadge [appearance]="badgeAppearance(assignmentColor(assignment))">
                         {{ memberName(assignment.committee_member_id) }} ·
                         {{ memberSide(assignment.committee_member_id) }} ·
                         {{ assignmentRoleLabel(assignment) }}
                       </span>
                     } @empty {
-                      <span class="app-badge app-badge-secondary">Keine Nachmittagstermine</span>
+                      <span tuiBadge [appearance]="badgeAppearance('secondary')">
+                        Keine Nachmittagstermine
+                      </span>
                     }
                   </div>
                 </div>
@@ -258,7 +260,9 @@
               <tr>
                 <td>{{ dateLabel(item.day.date) }}</td>
                 <td>
-                  <span class="app-badge app-badge-success"> {{ item.slots.length }} Termine </span>
+                  <span tuiBadge [appearance]="badgeAppearance('success')">
+                    {{ item.slots.length }} Termine
+                  </span>
                 </td>
               </tr>
             } @empty {
