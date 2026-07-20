@@ -1,7 +1,8 @@
 import { Component, DestroyRef, ViewChild, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
-import { TuiNotification, TuiRoot } from '@taiga-ui/core';
+import { TuiButton, TuiNotification, TuiRoot } from '@taiga-ui/core';
+import { TuiConfirmService } from '@taiga-ui/kit';
 import { filter, finalize, switchMap } from 'rxjs';
 
 import {
@@ -52,6 +53,7 @@ import {
     DashboardComponent,
     LocationsComponent,
     PlanningComponent,
+    TuiButton,
     TuiNotification,
     TuiRoot,
   ],
@@ -60,6 +62,7 @@ import {
 })
 export class App {
   private readonly api = inject(PlanningApiService);
+  private readonly confirm = inject(TuiConfirmService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   @ViewChild(CandidatesComponent) private candidatesComponent?: CandidatesComponent;
@@ -88,12 +91,6 @@ export class App {
     type: 'success' | 'error';
     title: string;
     message: string;
-  } | null>(null);
-  protected readonly confirmation = signal<{
-    title: string;
-    message: string;
-    confirmLabel: string;
-    action: () => void;
   } | null>(null);
 
   protected readonly pageTitle = computed(() => {
@@ -168,41 +165,50 @@ export class App {
     this.feedback.set(null);
   }
 
-  protected cancelConfirmation(): void {
-    this.confirmation.set(null);
-  }
-
-  protected confirmAction(): void {
-    const confirmation = this.confirmation();
-    this.confirmation.set(null);
-    confirmation?.action();
-  }
-
   protected requestCandidateDeletion(id: number, label: string): void {
-    this.confirmation.set({
-      title: 'Prüfling löschen?',
-      message: `${label} wird dauerhaft aus der Prüfungsverwaltung entfernt.`,
-      confirmLabel: 'Prüfling löschen',
-      action: () => this.deleteCandidate(id, label),
-    });
+    this.requestConfirmation(
+      'Prüfling löschen?',
+      `${label} wird dauerhaft aus der Prüfungsverwaltung entfernt.`,
+      'Prüfling löschen',
+      () => this.deleteCandidate(id, label),
+    );
   }
 
   protected requestLocationDeletion(id: number, label: string): void {
-    this.confirmation.set({
-      title: 'Prüfungsort löschen?',
-      message: `${label} wird dauerhaft aus der Prüfungsverwaltung entfernt.`,
-      confirmLabel: 'Prüfungsort löschen',
-      action: () => this.deleteLocation(id, label),
-    });
+    this.requestConfirmation(
+      'Prüfungsort löschen?',
+      `${label} wird dauerhaft aus der Prüfungsverwaltung entfernt.`,
+      'Prüfungsort löschen',
+      () => this.deleteLocation(id, label),
+    );
   }
 
   protected requestPlanConfirmation(): void {
-    this.confirmation.set({
-      title: 'Terminplan bestätigen?',
-      message: 'Der aktuelle Planungsvorschlag wird als verbindlicher Terminplan bestätigt.',
-      confirmLabel: 'Plan verbindlich bestätigen',
-      action: () => this.confirmPlan(),
-    });
+    this.requestConfirmation(
+      'Terminplan bestätigen?',
+      'Der aktuelle Planungsvorschlag wird als verbindlicher Terminplan bestätigt.',
+      'Plan verbindlich bestätigen',
+      () => this.confirmPlan(),
+    );
+  }
+
+  private requestConfirmation(
+    title: string,
+    message: string,
+    confirmLabel: string,
+    action: () => void,
+  ): void {
+    this.confirm
+      .withConfirm({
+        label: title,
+        size: 'm',
+        data: { content: message, no: 'Abbrechen', yes: confirmLabel, appearance: 'negative' },
+      })
+      .subscribe((confirmed) => {
+        if (confirmed) {
+          action();
+        }
+      });
   }
 
   protected createCommittee(payload: CommitteePayload): void {

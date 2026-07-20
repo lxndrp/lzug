@@ -78,7 +78,13 @@
       <div class="app-panel-body">
         <div class="app-task-list">
           @for (task of tasks(); track task.label) {
-            <button type="button" class="app-task-link" (click)="openView.emit(task.view)">
+            <button
+              tuiButton
+              appearance="flat"
+              type="button"
+              class="app-task-link"
+              (click)="openView.emit(task.view)"
+            >
               <span class="app-task-copy">
                 <strong>{{ task.label }}</strong>
                 <small>{{ task.hint }}</small>

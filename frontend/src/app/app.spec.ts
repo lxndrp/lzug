@@ -3,6 +3,8 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
+import { TuiConfirmService } from '@taiga-ui/kit';
+import { of } from 'rxjs';
 
 import { App } from './app';
 import { routes } from './app.routes';
@@ -112,16 +114,19 @@ describe('App', () => {
 
     await TestBed.inject(Router).navigateByUrl('/candidates');
     fixture.detectChanges();
+    const confirm = TestBed.inject(TuiConfirmService);
+    const confirmSpy = spyOn(confirm, 'withConfirm').and.returnValue(of(false));
+
     clickButton(fixture, 'Löschen');
-    fixture.detectChanges();
 
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Prüfling löschen?');
+    expect(confirmSpy).toHaveBeenCalled();
+    const options = confirmSpy.calls.mostRecent().args[0] as {
+      label: string;
+      data: { yes: string };
+    };
+    expect(options.label).toBe('Prüfling löschen?');
+    expect(options.data.yes).toBe('Prüfling löschen');
     expect(http.match((request) => request.method === 'DELETE').length).toBe(0);
-
-    clickButton(fixture, 'Abbrechen');
-    fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Prüfling löschen?');
   });
 
   it('should use English URLs for frontend views', async () => {

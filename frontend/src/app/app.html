@@ -14,6 +14,8 @@
           >LZUG</a
         >
         <button
+          tuiButton
+          appearance="flat"
           class="app-sidebar-close"
           type="button"
           aria-label="Navigation schließen"
@@ -86,6 +88,8 @@
       <header class="app-header">
         <div class="app-header-inner">
           <button
+            tuiButton
+            appearance="flat"
             class="app-sidebar-toggle"
             type="button"
             [attr.aria-controls]="'appSidebar'"
@@ -107,6 +111,8 @@
             {{ loading() ? 'Daten werden geladen' : message() }}
           </span>
           <button
+            tuiButton
+            appearance="secondary"
             class="app-refresh-button"
             type="button"
             (click)="refresh()"
@@ -217,34 +223,15 @@
       <strong>{{ currentFeedback.title }}</strong>
       <span>{{ currentFeedback.message }}</span>
     </div>
-    <button type="button" aria-label="Meldung schließen" (click)="dismissFeedback()">
+    <button
+      tuiButton
+      appearance="flat"
+      size="s"
+      type="button"
+      aria-label="Meldung schließen"
+      (click)="dismissFeedback()"
+    >
       <svg [cIcon]="icons.cancel" class="app-icon-only" aria-hidden="true"></svg>
     </button>
   </div>
 }
-
-<dialog
-  class="app-confirmation-dialog"
-  [open]="confirmation() !== null"
-  aria-labelledby="confirmation-title"
-  (cancel)="cancelConfirmation()"
->
-  @if (confirmation(); as currentConfirmation) {
-    <header class="app-confirmation-header">
-      <h2 id="confirmation-title">{{ currentConfirmation.title }}</h2>
-    </header>
-    <div class="app-confirmation-body">
-      <p class="app-flush">{{ currentConfirmation.message }}</p>
-    </div>
-    <footer class="app-confirmation-footer">
-      <button class="app-button app-button-secondary" type="button" (click)="cancelConfirmation()">
-        <svg [cIcon]="icons.cancel" class="app-button-icon" aria-hidden="true"></svg>
-        Abbrechen
-      </button>
-      <button class="app-button app-button-danger" type="button" (click)="confirmAction()">
-        <svg [cIcon]="icons.confirm" class="app-button-icon" aria-hidden="true"></svg>
-        {{ currentConfirmation.confirmLabel }}
-      </button>
-    </footer>
-  }
-</dialog>
