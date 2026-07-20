@@ -1,49 +1,51 @@
-<div class="row g-4">
-  <div class="col-12">
+<div class="app-page-grid">
+  <div class="app-page-full">
     <details class="app-create-panel">
       <summary class="app-create-trigger">Neuen Prüfungsort anlegen</summary>
       <section class="app-panel">
-        <header class="app-panel-header">
+        <header tuiHeader="body-m" class="app-panel-header">
           <div>
             <strong>Prüfungsort anlegen</strong>
-            <span class="app-muted d-block">Ort, Raum und optionale Anschrift erfassen</span>
+            <span class="app-muted app-block">Ort, Raum und optionale Anschrift erfassen</span>
           </div>
           <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
         </header>
         <div class="app-panel-body">
-          <form class="row g-3 app-form-grid" (ngSubmit)="submitLocation()">
-            <div class="col-12 col-md-4">
+          <form tuiForm="m" class="app-form-grid" (ngSubmit)="submitLocation()">
+            <div class="app-field-third">
               <label for="locationCommittee">Ausschuss</label>
               <tui-textfield>
-                <select id="locationCommittee" name="committeeId" [(ngModel)]="draft.committee_id">
-                  <option [ngValue]="0">Standardausschuss</option>
-                  @for (committee of masterData?.committees || []; track committee.id) {
-                    <option [ngValue]="committee.id">{{ committee.name }}</option>
-                  }
-                </select>
+                <select
+                  tuiSelect
+                  id="locationCommittee"
+                  name="committeeId"
+                  [items]="committeeOptions()"
+                  [labels]="committeeOptionLabels()"
+                  [(ngModel)]="draft.committee_id"
+                ></select>
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-4">
-              <label for="locationName">Ort <span aria-hidden="true">*</span></label>
+            <div class="app-field-third">
               <tui-textfield>
+                <label tuiLabel for="locationName">Ort <span aria-hidden="true">*</span></label>
                 <input tuiInput id="locationName" name="name" [(ngModel)]="draft.name" required />
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-4">
-              <label for="locationRoom">Raum <span aria-hidden="true">*</span></label>
+            <div class="app-field-third">
               <tui-textfield>
+                <label tuiLabel for="locationRoom">Raum <span aria-hidden="true">*</span></label>
                 <input tuiInput id="locationRoom" name="room" [(ngModel)]="draft.room" required />
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-5">
-              <label for="locationStreet">Straße</label>
+            <div class="app-field-five-twelfths">
               <tui-textfield>
+                <label tuiLabel for="locationStreet">Straße</label>
                 <input tuiInput id="locationStreet" name="street" [(ngModel)]="draft.street" />
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-3">
-              <label for="locationPostalCode">PLZ</label>
+            <div class="app-field-quarter">
               <tui-textfield>
+                <label tuiLabel for="locationPostalCode">PLZ</label>
                 <input
                   tuiInput
                   id="locationPostalCode"
@@ -52,17 +54,17 @@
                 />
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-4">
-              <label for="locationCity">Stadt</label>
+            <div class="app-field-third">
               <tui-textfield>
+                <label tuiLabel for="locationCity">Stadt</label>
                 <input tuiInput id="locationCity" name="city" [(ngModel)]="draft.city" />
               </tui-textfield>
             </div>
-            <div class="col-12 app-form-actions">
+            <div class="app-field-full app-form-actions">
               <span class="app-form-action-hint"
                 >Der Ort steht anschließend in der Terminplanung bereit.</span
               >
-              <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
+              <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
                 <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                 Prüfungsort anlegen
               </button>
@@ -73,16 +75,20 @@
     </details>
   </div>
 
-  <div class="col-12">
+  <div class="app-page-full">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <strong>Prüfungsorte</strong>
         <span class="app-muted"
           >Diese Orte stehen der Terminplanung als Auswahlquelle zur Verfügung.</span
         >
       </header>
       <div class="app-panel-body">
-        <div class="app-table-scroll">
+        <div
+          class="app-table-scroll"
+          tabindex="0"
+          aria-label="Prüfungsorttabelle, seitlich scrollbar"
+        >
           <table tuiTable class="app-data-table app-table-sticky-actions">
             <thead>
               <tr>
@@ -105,10 +111,7 @@
                     }
                   </td>
                   <td>
-                    <span
-                      class="app-badge"
-                      [attr.data-color]="location.is_active === 0 ? 'secondary' : 'success'"
-                    >
+                    <span tuiBadge [appearance]="location.is_active === 0 ? 'neutral' : 'positive'">
                       {{ location.is_active === 0 ? 'Inaktiv' : 'Aktiv' }}
                     </span>
                   </td>
@@ -116,10 +119,9 @@
                     <div class="app-row-actions">
                       <button
                         tuiButton
-                        color="primary"
+                        appearance="secondary"
                         size="s"
                         type="button"
-                        variant="outline"
                         [disabled]="actionBusy"
                         (click)="startEditing(location)"
                       >
@@ -128,10 +130,9 @@
                       </button>
                       <button
                         tuiButton
-                        color="secondary"
+                        appearance="secondary"
                         size="s"
                         type="button"
-                        variant="outline"
                         [disabled]="actionBusy"
                         (click)="toggleLocation.emit(location)"
                       >
@@ -144,10 +145,9 @@
                       </button>
                       <button
                         tuiButton
-                        color="danger"
+                        appearance="secondary-destructive"
                         size="s"
                         type="button"
-                        variant="outline"
                         [disabled]="actionBusy"
                         (click)="deleteLocation.emit(location)"
                       >
@@ -166,32 +166,29 @@
                     <tr>
                       <td colspan="5">
                         <form
-                          class="row g-3 app-form-grid app-inline-editor"
+                          tuiForm="m"
+                          class="app-form-grid app-inline-editor"
                           [attr.aria-label]="'Prüfungsort ' + location.name + ' bearbeiten'"
                           (ngSubmit)="submitLocationUpdate()"
                         >
-                          <div class="col-12 col-md-4">
+                          <div class="app-field-third">
                             <label [for]="'editLocationCommittee-' + location.id">Ausschuss</label>
                             <tui-textfield>
                               <select
+                                tuiSelect
                                 [id]="'editLocationCommittee-' + location.id"
                                 [name]="'editLocationCommittee-' + location.id"
+                                [items]="committeeOptions()"
+                                [labels]="committeeOptionLabels()"
                                 [(ngModel)]="currentDraft.committee_id"
-                              >
-                                @for (
-                                  committee of masterData?.committees || [];
-                                  track committee.id
-                                ) {
-                                  <option [ngValue]="committee.id">{{ committee.name }}</option>
-                                }
-                              </select>
+                              ></select>
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-4">
-                            <label [for]="'editLocationName-' + location.id"
-                              >Ort <span aria-hidden="true">*</span></label
-                            >
+                          <div class="app-field-third">
                             <tui-textfield>
+                              <label tuiLabel [for]="'editLocationName-' + location.id"
+                                >Ort <span aria-hidden="true">*</span></label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editLocationName-' + location.id"
@@ -201,11 +198,11 @@
                               />
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-4">
-                            <label [for]="'editLocationRoom-' + location.id"
-                              >Raum <span aria-hidden="true">*</span></label
-                            >
+                          <div class="app-field-third">
                             <tui-textfield>
+                              <label tuiLabel [for]="'editLocationRoom-' + location.id"
+                                >Raum <span aria-hidden="true">*</span></label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editLocationRoom-' + location.id"
@@ -215,9 +212,11 @@
                               />
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-5">
-                            <label [for]="'editLocationStreet-' + location.id">Straße</label>
+                          <div class="app-field-five-twelfths">
                             <tui-textfield>
+                              <label tuiLabel [for]="'editLocationStreet-' + location.id"
+                                >Straße</label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editLocationStreet-' + location.id"
@@ -226,9 +225,11 @@
                               />
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-3">
-                            <label [for]="'editLocationPostalCode-' + location.id">PLZ</label>
+                          <div class="app-field-quarter">
                             <tui-textfield>
+                              <label tuiLabel [for]="'editLocationPostalCode-' + location.id"
+                                >PLZ</label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editLocationPostalCode-' + location.id"
@@ -237,9 +238,11 @@
                               />
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-4">
-                            <label [for]="'editLocationCity-' + location.id">Stadt</label>
+                          <div class="app-field-third">
                             <tui-textfield>
+                              <label tuiLabel [for]="'editLocationCity-' + location.id"
+                                >Stadt</label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editLocationCity-' + location.id"
@@ -248,11 +251,16 @@
                               />
                             </tui-textfield>
                           </div>
-                          <div class="col-12 app-form-actions">
+                          <div class="app-field-full app-form-actions">
                             <span class="app-form-action-hint"
                               >Die Änderungen gelten für künftige Planungen.</span
                             >
-                            <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
+                            <button
+                              tuiButton
+                              appearance="primary"
+                              type="submit"
+                              [disabled]="actionBusy"
+                            >
                               <svg
                                 [cIcon]="icons.save"
                                 class="app-button-icon"
@@ -262,9 +270,8 @@
                             </button>
                             <button
                               tuiButton
-                              color="secondary"
+                              appearance="secondary"
                               type="button"
-                              variant="outline"
                               [disabled]="actionBusy"
                               (click)="cancelEditing()"
                             >

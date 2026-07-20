@@ -3,22 +3,81 @@
 @import '@fontsource/source-sans-3/700.css';
 
 :root {
+  color-scheme: light;
   --app-color-primary: #155e63;
   --app-color-primary-hover: #104b4f;
   --app-color-primary-active: #0b3d40;
   --app-color-primary-soft: #e7f1f1;
+  --app-color-on-primary: #fff;
   --app-color-accent: #8a5a00;
   --app-color-surface: #fff;
+  --app-color-surface-translucent: rgb(255 255 255 / 92%);
   --app-color-canvas: #f5f7f8;
   --app-color-border: #d8e0e3;
   --app-color-text: #1f2933;
   --app-color-text-muted: #52606d;
   --app-color-focus: #d58a2c;
+  --app-color-danger: #b02a37;
+  --app-color-danger-hover: #8f202b;
+  --app-color-danger-soft: #fff0f1;
+  --app-color-danger-text: #842029;
+  --app-color-success-soft: #e4f5ea;
+  --app-color-success-text: #176b3a;
+  --app-color-warning-soft: #fff1cf;
+  --app-color-warning-text: #7a4d00;
+  --app-color-info-soft: #edf8f9;
+  --app-color-info-border: #b9dfe2;
   --app-radius-sm: 0.375rem;
   --app-radius-md: 0.5rem;
   --app-radius-lg: 0.75rem;
   --app-shadow-subtle: 0 1px 2px rgb(31 41 51 / 6%);
   --app-shadow-floating: 0 8px 24px rgb(31 41 51 / 16%);
+  --tui-background-accent-1: var(--app-color-primary);
+  --tui-background-accent-1-hover: var(--app-color-primary-hover);
+  --tui-background-accent-1-pressed: var(--app-color-primary-active);
+  --tui-text-action: var(--app-color-primary);
+  --tui-text-action-hover: var(--app-color-primary-hover);
+  --tui-status-negative: var(--app-color-danger);
+  --tui-text-negative: var(--app-color-danger);
+  --tui-text-negative-hover: var(--app-color-danger-hover);
+}
+
+body[tuiTheme='dark'] {
+  color-scheme: dark;
+  --app-color-primary: #67c6c9;
+  --app-color-primary-hover: #83d6d8;
+  --app-color-primary-active: #a0e4e5;
+  --app-color-primary-soft: #183b3e;
+  --app-color-on-primary: #0b3032;
+  --app-color-accent: #f4bd62;
+  --app-color-surface: #222c30;
+  --app-color-surface-translucent: rgb(34 44 48 / 92%);
+  --app-color-canvas: #151d20;
+  --app-color-border: #4b5b61;
+  --app-color-text: #f2f6f7;
+  --app-color-text-muted: #b9c6ca;
+  --app-color-focus: #ffbd66;
+  --app-color-danger: #ff7d88;
+  --app-color-danger-hover: #ff9aa3;
+  --app-color-danger-soft: #4a252b;
+  --app-color-danger-text: #ffc4c9;
+  --app-color-success-soft: #193c30;
+  --app-color-success-text: #87ddb1;
+  --app-color-warning-soft: #473a1d;
+  --app-color-warning-text: #ffd88a;
+  --app-color-info-soft: #19383d;
+  --app-color-info-border: #3d7379;
+  --app-shadow-subtle: 0 1px 2px rgb(0 0 0 / 24%);
+  --app-shadow-floating: 0 10px 30px rgb(0 0 0 / 42%);
+  --tui-background-accent-1: var(--app-color-primary);
+  --tui-background-accent-1-hover: var(--app-color-primary-hover);
+  --tui-background-accent-1-pressed: var(--app-color-primary-active);
+  --tui-text-primary-on-accent-1: var(--app-color-on-primary);
+  --tui-text-action: var(--app-color-primary);
+  --tui-text-action-hover: var(--app-color-primary-hover);
+  --tui-status-negative: var(--app-color-danger);
+  --tui-text-negative: var(--app-color-danger);
+  --tui-text-negative-hover: var(--app-color-danger-hover);
 }
 
 html,
@@ -39,14 +98,17 @@ body {
   margin-block-start: 1.5rem;
 }
 
-.app-panel-header {
+.app-panel-header,
+header.app-panel-header[tuiHeader] {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 0.5rem 1rem;
   flex-wrap: wrap;
+  box-sizing: border-box;
   padding: 1rem 1.25rem;
   border-block-end: 1px solid var(--app-color-border);
+  color: inherit;
 }
 
 .app-panel-header .app-muted {
@@ -67,64 +129,8 @@ body {
   padding: 1rem;
 }
 
-.app-badge {
-  display: inline-flex;
-  align-items: center;
-  min-block-size: 1.5rem;
-  padding: 0.125rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.25;
-  white-space: nowrap;
-}
-
-.app-badge-secondary {
-  background: #e8ecef;
-  color: var(--app-color-text-muted);
-}
-
-.app-badge-warning {
-  background: #fff1cf;
-  color: #7a4d00;
-}
-
-.app-badge-success {
-  background: #dff3e7;
-  color: #176b3a;
-}
-
-.app-badge-primary,
-.app-badge-info {
-  background: var(--app-color-primary-soft);
-  color: var(--app-color-primary-active);
-}
-
-.app-badge[data-color='warning'] {
-  background: #fff1cf;
-  color: #7a4d00;
-}
-
-.app-badge[data-color='success'] {
-  background: #dff3e7;
-  color: #176b3a;
-}
-
-.app-badge[data-color='info'],
-.app-badge[data-color='primary'] {
-  background: var(--app-color-primary-soft);
-  color: var(--app-color-primary-active);
-}
-
-/* Functional control baseline shared by the migrated views. */
-.form-control,
-.form-select,
+/* Native controls retained only where Taiga has no equivalent (for example ISO weeks). */
 select,
-input[type='text'],
-input[type='email'],
-input[type='tel'],
-input[type='number'],
-input[type='search'],
 input[type='week'] {
   min-block-size: 2.625rem;
   border: 1px solid var(--app-color-border);
@@ -134,97 +140,11 @@ input[type='week'] {
   font: inherit;
 }
 
-.form-control:focus,
-.form-select:focus,
 select:focus,
 input:focus {
   border-color: var(--app-color-primary);
   box-shadow: 0 0 0 0.2rem rgb(21 94 99 / 16%);
   outline: 0;
-}
-
-.btn {
-  min-block-size: 2.5rem;
-  border-radius: var(--app-radius-sm);
-  font-weight: 600;
-}
-
-.btn-sm {
-  min-block-size: 2.25rem;
-}
-
-.btn-primary {
-  border-color: var(--app-color-primary);
-  background: var(--app-color-primary);
-}
-
-.btn-primary:hover,
-.btn-primary:focus-visible {
-  border-color: var(--app-color-primary-hover);
-  background: var(--app-color-primary-hover);
-}
-
-.btn-outline-primary,
-.btn-outline-secondary,
-.btn-outline-danger {
-  background: var(--app-color-surface);
-}
-
-.btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.58;
-}
-
-.table {
-  color: var(--app-color-text);
-}
-
-.table thead th {
-  background: var(--app-color-canvas);
-}
-
-.table tbody tr:hover > * {
-  background: var(--app-color-primary-soft);
-}
-
-.alert {
-  border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius-md);
-  color: var(--app-color-text);
-}
-
-.alert-info {
-  border-color: #b9dfe2;
-  background: #edf8f9;
-}
-
-.alert-success {
-  border-color: #b7dec5;
-  background: #edf8f1;
-}
-
-.alert-warning {
-  border-color: #efd69d;
-  background: #fff9eb;
-}
-
-.list-group {
-  gap: 0.375rem;
-}
-
-.list-group-item {
-  border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius-md) !important;
-  background: var(--app-color-surface);
-  color: var(--app-color-text);
-}
-
-.list-group-item-action:hover,
-.list-group-item-action:focus-visible,
-.list-group-item.active {
-  border-color: var(--app-color-primary);
-  background: var(--app-color-primary);
-  color: #fff;
 }
 
 .app-list-group {
@@ -250,86 +170,120 @@ input:focus {
 .app-list-group-item.active {
   border-color: var(--app-color-primary);
   background: var(--app-color-primary);
-  color: #fff;
+  color: var(--app-color-on-primary);
 }
 
-.form-check-input {
-  inline-size: 1.15rem;
-  block-size: 1.15rem;
-  border-color: var(--app-color-border);
+.app-page-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: start;
+  gap: 1.5rem;
 }
 
-.form-check-input:checked {
-  border-color: var(--app-color-primary);
-  background-color: var(--app-color-primary);
-}
-
-.app-confirmation-dialog {
-  width: min(32rem, calc(100vw - 2rem));
-  padding: 0;
-  border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius-lg);
-  background: var(--app-color-surface);
-  box-shadow: var(--app-shadow-floating);
-  color: var(--app-color-text);
-}
-
-.app-confirmation-dialog::backdrop {
-  background: rgb(31 41 51 / 42%);
-}
-
-.app-confirmation-header,
-.app-confirmation-body,
-.app-confirmation-footer {
-  padding: 1rem 1.25rem;
-}
-
-.app-confirmation-header {
-  border-block-end: 1px solid var(--app-color-border);
-}
-
-.app-confirmation-header h2 {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.app-confirmation-body p {
-  margin: 0;
-}
-
-.app-confirmation-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  border-block-start: 1px solid var(--app-color-border);
-}
-
-.app-button {
-  min-block-size: 2.5rem;
-  padding: 0.5rem 0.875rem;
-  border: 1px solid transparent;
-  border-radius: var(--app-radius-sm);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.app-button-secondary {
-  border-color: var(--app-color-border);
-  background: var(--app-color-surface);
-  color: var(--app-color-text);
-}
-
-.app-button-danger {
-  background: #b02a37;
-  color: #fff;
-}
-
-.row > * {
+.app-page-grid > *,
+.app-form-grid > * {
   min-width: 0;
 }
 
+.app-page-full,
+.app-page-span-4,
+.app-page-span-5,
+.app-page-span-7,
+.app-page-span-8 {
+  grid-column: 1 / -1;
+}
+
+.app-form-grid,
+form.app-form-grid[tuiForm] {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: start;
+  gap: 1rem;
+}
+
+.app-field-full,
+.app-field-half,
+.app-field-third,
+.app-field-two-thirds,
+.app-field-five-twelfths,
+.app-field-quarter {
+  grid-column: 1 / -1;
+}
+
+.app-field-align-end {
+  display: flex;
+  align-items: flex-end;
+  min-block-size: 100%;
+}
+
+.app-key-value-list {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+}
+
+.app-key-value-list dd {
+  margin: 0;
+}
+
+.app-block {
+  display: block;
+}
+
+.app-flush {
+  margin: 0;
+}
+
+.app-hint-offset {
+  margin-block-start: 0.25rem;
+}
+
+.app-field-hint {
+  display: block;
+  margin-block-start: 0.25rem;
+  color: var(--app-color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.app-section-offset {
+  margin-block-start: 0.5rem;
+}
+
+.app-inline-actions,
+.app-badge-list,
+.app-day-slots {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.app-inline-actions {
+  gap: 0.5rem;
+}
+
+.app-badge-list,
+.app-day-slots {
+  gap: 0.25rem;
+}
+
+.app-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.app-day-heading {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.app-day-slots {
+  margin-inline-start: auto;
+}
+
 .app-table-scroll {
+  position: relative;
   max-width: 100%;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
@@ -400,7 +354,7 @@ input:focus {
 }
 
 .app-committee-choice.active span {
-  color: rgb(255 255 255 / 82%);
+  color: var(--app-color-on-primary);
 }
 
 .app-actions {
@@ -414,7 +368,7 @@ input:focus {
   gap: 0.375rem;
 }
 
-.app-row-actions .btn {
+.app-row-actions [tuiButton] {
   min-block-size: 2.25rem;
   padding-inline: 0.75rem;
   border-width: 1px;
@@ -446,10 +400,6 @@ input:focus {
   color: var(--app-color-text-muted);
   font-size: 0.8125rem;
   font-weight: 400;
-}
-
-.app-form-grid :where(.form-control, .form-select) {
-  min-height: 2.625rem;
 }
 
 .app-form-actions {
@@ -556,14 +506,32 @@ input:focus {
 }
 
 .app-cell-status-saved {
-  color: #0a3622;
+  color: var(--app-color-success-text);
 }
 
 .app-cell-status-error {
-  color: #58151c;
+  color: var(--app-color-danger-text);
 }
 
 @media (max-width: 767.98px) {
+  .app-table-scroll::before {
+    position: sticky;
+    z-index: 4;
+    inset-inline-start: 0;
+    display: block;
+    width: max-content;
+    margin: 0 0 0.5rem;
+    padding: 0.25rem 0.625rem;
+    border: 1px solid var(--app-color-border);
+    border-radius: 999px;
+    background: var(--app-color-surface);
+    color: var(--app-color-text-muted);
+    content: 'Tabelle seitlich scrollen →';
+    font-size: 0.8125rem;
+    font-weight: 600;
+    box-shadow: var(--app-shadow-subtle);
+  }
+
   .app-content {
     padding-block: 1rem;
   }
@@ -592,8 +560,8 @@ input:focus {
     flex-direction: column;
   }
 
-  .app-form-actions .btn,
-  .app-compact-form-action .btn {
+  .app-form-actions [tuiButton],
+  .app-compact-form-action [tuiButton] {
     width: 100%;
   }
 }
@@ -613,7 +581,7 @@ input:focus {
   padding: 0.5rem 1rem;
   border-radius: var(--app-radius-sm);
   background: var(--app-color-primary);
-  color: #fff;
+  color: var(--app-color-on-primary);
   cursor: pointer;
   font-weight: 500;
 }
@@ -867,7 +835,7 @@ input:focus {
     justify-content: stretch;
   }
 
-  .app-dashboard-actions .btn {
+  .app-dashboard-actions [tuiButton] {
     width: 100%;
   }
 
@@ -893,6 +861,46 @@ input:focus {
   .app-task-link .app-icon-only {
     grid-column: 2;
     grid-row: 1 / span 2;
+  }
+}
+
+@media (min-width: 768px) {
+  .app-field-half {
+    grid-column: span 6;
+  }
+
+  .app-field-third {
+    grid-column: span 4;
+  }
+
+  .app-field-two-thirds {
+    grid-column: span 8;
+  }
+
+  .app-field-five-twelfths {
+    grid-column: span 5;
+  }
+
+  .app-field-quarter {
+    grid-column: span 3;
+  }
+}
+
+@media (min-width: 1200px) {
+  .app-page-span-4 {
+    grid-column: span 4;
+  }
+
+  .app-page-span-5 {
+    grid-column: span 5;
+  }
+
+  .app-page-span-7 {
+    grid-column: span 7;
+  }
+
+  .app-page-span-8 {
+    grid-column: span 8;
   }
 }
 

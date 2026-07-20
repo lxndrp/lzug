@@ -3,6 +3,8 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
+import { TuiConfirmService } from '@taiga-ui/kit';
+import { of } from 'rxjs';
 
 import { App } from './app';
 import { routes } from './app.routes';
@@ -23,6 +25,14 @@ import {
 } from './testing/fixtures';
 
 describe('App', () => {
+  beforeAll(() => {
+    Object.defineProperty(HTMLSelectElement.prototype, 'readOnly', {
+      configurable: true,
+      get: () => false,
+      set: () => undefined,
+    });
+  });
+
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
@@ -31,6 +41,7 @@ describe('App', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideTaiga({ scrollbars: 'native' }),
+        TuiConfirmService,
       ],
     }).compileComponents();
   });
@@ -104,16 +115,19 @@ describe('App', () => {
 
     await TestBed.inject(Router).navigateByUrl('/candidates');
     fixture.detectChanges();
+    const confirm = TestBed.inject(TuiConfirmService);
+    const confirmSpy = spyOn(confirm, 'withConfirm').and.returnValue(of(false));
+
     clickButton(fixture, 'Löschen');
-    fixture.detectChanges();
 
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Prüfling löschen?');
+    expect(confirmSpy).toHaveBeenCalled();
+    const options = confirmSpy.calls.mostRecent().args[0] as {
+      label: string;
+      data: { yes: string };
+    };
+    expect(options.label).toBe('Prüfling löschen?');
+    expect(options.data.yes).toBe('Prüfling löschen');
     expect(http.match((request) => request.method === 'DELETE').length).toBe(0);
-
-    clickButton(fixture, 'Abbrechen');
-    fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Prüfling löschen?');
   });
 
   it('should use English URLs for frontend views', async () => {
@@ -153,20 +167,18 @@ describe('App', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('.app-feedback')).toBeNull();
   });
 
-  it('should open the prototype without changing the application route', () => {
+  it('should keep development-only prototype content out of the application shell', () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
-    const router = TestBed.inject(Router);
     flushDashboardRequests(http);
     fixture.detectChanges();
 
-    clickButton(fixture, 'Taiga-Prototyp');
-    fixture.detectChanges();
-
-    expect(router.url).toBe('/');
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
-      'Prüfungsplanung mit Taiga UI',
-    );
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).not.toContain('Entwicklung');
+    expect(element.textContent).not.toContain('Taiga-Prototyp');
+    expect(element.querySelector('.app-header-title')?.textContent).toContain('Prüfungsverwaltung');
+    expect(element.querySelector('h1')?.textContent).toContain('Winter 2026/27');
+    expect(element.textContent).toContain('Daten synchronisiert');
   });
 });
 

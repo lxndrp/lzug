@@ -1,12 +1,12 @@
-<div class="row g-4">
-  <div class="col-12">
+<div class="app-page-grid">
+  <div class="app-page-full">
     <section class="app-panel app-dashboard-hero">
       <div class="app-panel-body">
         <div class="app-dashboard-hero-layout">
           <div class="app-dashboard-hero-copy">
             <div class="app-dashboard-status-line">
               <span class="app-eyebrow">Aktueller Stand</span>
-              <span class="app-badge app-badge-primary">{{
+              <span tuiBadge [appearance]="badgeAppearance('primary')">{{
                 statusLabel(summary?.round?.status)
               }}</span>
             </div>
@@ -16,7 +16,7 @@
           <div class="app-dashboard-actions">
             <button
               tuiButton
-              color="primary"
+              appearance="primary"
               type="button"
               (click)="generateProposal.emit()"
               [disabled]="loading || actionBusy || !canGeneratePlan()"
@@ -26,8 +26,7 @@
             </button>
             <button
               tuiButton
-              color="secondary"
-              variant="outline"
+              appearance="secondary"
               type="button"
               (click)="confirmPlan.emit()"
               [disabled]="loading || actionBusy || !canConfirmPlan()"
@@ -46,7 +45,7 @@
     </section>
   </div>
 
-  <div class="col-12">
+  <div class="app-page-full">
     <section aria-labelledby="dashboardMetricsTitle">
       <div class="app-section-heading">
         <div>
@@ -67,24 +66,30 @@
     </section>
   </div>
 
-  <div class="col-12 col-xl-7">
+  <div class="app-page-span-7">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <div>
           <span class="app-eyebrow">Nächste Schritte</span>
-          <strong class="d-block">Aufgaben</strong>
+          <strong class="app-block">Aufgaben</strong>
         </div>
         <span class="app-muted">Direkt zum betreffenden Bereich</span>
       </header>
       <div class="app-panel-body">
         <div class="app-task-list">
           @for (task of tasks(); track task.label) {
-            <button type="button" class="app-task-link" (click)="openView.emit(task.view)">
+            <button
+              tuiButton
+              appearance="flat"
+              type="button"
+              class="app-task-link"
+              (click)="openView.emit(task.view)"
+            >
               <span class="app-task-copy">
                 <strong>{{ task.label }}</strong>
                 <small>{{ task.hint }}</small>
               </span>
-              <span class="app-badge" [attr.data-color]="task.color">{{ task.detail }}</span>
+              <span tuiBadge [appearance]="badgeAppearance(task.color)">{{ task.detail }}</span>
               <svg [cIcon]="icons.arrowRight" class="app-icon-only" aria-hidden="true"></svg>
             </button>
           }
@@ -93,14 +98,14 @@
     </section>
   </div>
 
-  <div class="col-12 col-xl-5">
+  <div class="app-page-span-5">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <div>
           <span class="app-eyebrow">Rahmen</span>
-          <strong class="d-block">Planung und Fristen</strong>
+          <strong class="app-block">Planung und Fristen</strong>
         </div>
-        <span class="app-badge" [attr.data-color]="pendingCount() ? 'warning' : 'success'">
+        <span tuiBadge [appearance]="badgeAppearance(pendingCount() ? 'warning' : 'success')">
           {{ pendingCount() ? pendingCount() + ' offen' : 'Rücklauf vollständig' }}
         </span>
       </header>
@@ -137,9 +142,9 @@
 
         <div class="app-context-section">
           <h3>Rücklauf</h3>
-          <div class="d-flex flex-wrap gap-2">
+          <div class="app-inline-actions">
             @for (item of summary?.availability || []; track item.availability) {
-              <span class="app-badge" [attr.data-color]="availabilityColor(item.availability)">
+              <span tuiBadge [appearance]="badgeAppearance(availabilityColor(item.availability))">
                 {{ availabilityLabel(item.availability) }}: {{ item.count }}
               </span>
             }
@@ -150,16 +155,11 @@
   </div>
 
   @if (planningResult?.validation; as validation) {
-    <div class="col-12">
-      <aside
-        class="app-alert"
-        [class.app-alert-success]="validation.passed"
-        [class.app-alert-warning]="!validation.passed"
-        role="status"
-      >
+    <div class="app-page-full">
+      <div tuiNotification [appearance]="validation.passed ? 'positive' : 'warning'" role="status">
         <strong>Validierungsreport</strong>
         @if (validation.messages.length) {
-          <ul class="mb-0">
+          <ul class="app-flush">
             @for (message of validation.messages; track message) {
               <li>{{ message }}</li>
             }
@@ -167,23 +167,23 @@
         } @else {
           <span>Keine Hinweise.</span>
         }
-      </aside>
+      </div>
     </div>
   }
 
-  <div class="col-12 col-xl-8">
+  <div class="app-page-span-8">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <strong>Terminplan</strong>
         <span class="app-muted">{{ plannedSlotCount() }} geplante Prüfungstermine</span>
       </header>
       <div class="app-panel-body">
         @if (board?.days?.length) {
-          <div class="vstack gap-3">
+          <div class="app-stack">
             @for (item of board.days; track item.day.id) {
               <article class="app-panel app-panel-nested">
                 <div class="app-panel-body">
-                  <div class="d-flex flex-wrap align-items-start gap-2">
+                  <div class="app-day-heading">
                     <div>
                       <h3>{{ dateLabel(item.day.date) }}</h3>
                       <p class="app-muted">
@@ -192,9 +192,9 @@
                         {{ statusLabel(item.day.status) }}
                       </p>
                     </div>
-                    <div class="ms-auto d-flex flex-wrap gap-1">
+                    <div class="app-day-slots">
                       @for (slot of item.slots; track slot.id) {
-                        <span class="app-badge app-badge-secondary">
+                        <span tuiBadge [appearance]="badgeAppearance('secondary')">
                           {{ slotTitle(slot) }}
                           @if (slot.slot_type === 'mep') {
                             · MEP
@@ -205,9 +205,9 @@
                   </div>
 
                   <h4>Vormittag</h4>
-                  <div class="d-flex flex-wrap gap-1">
+                  <div class="app-badge-list">
                     @for (assignment of assignmentsFor(item, 'morning'); track assignment.id) {
-                      <span class="app-badge" [attr.data-color]="assignmentColor(assignment)">
+                      <span tuiBadge [appearance]="badgeAppearance(assignmentColor(assignment))">
                         {{ memberName(assignment.committee_member_id) }} ·
                         {{ memberSide(assignment.committee_member_id) }} ·
                         {{ assignmentRoleLabel(assignment) }}
@@ -216,15 +216,17 @@
                   </div>
 
                   <h4>Nachmittag</h4>
-                  <div class="d-flex flex-wrap gap-1">
+                  <div class="app-badge-list">
                     @for (assignment of assignmentsFor(item, 'afternoon'); track assignment.id) {
-                      <span class="app-badge" [attr.data-color]="assignmentColor(assignment)">
+                      <span tuiBadge [appearance]="badgeAppearance(assignmentColor(assignment))">
                         {{ memberName(assignment.committee_member_id) }} ·
                         {{ memberSide(assignment.committee_member_id) }} ·
                         {{ assignmentRoleLabel(assignment) }}
                       </span>
                     } @empty {
-                      <span class="app-badge app-badge-secondary">Keine Nachmittagstermine</span>
+                      <span tuiBadge [appearance]="badgeAppearance('secondary')">
+                        Keine Nachmittagstermine
+                      </span>
                     }
                   </div>
                 </div>
@@ -241,9 +243,9 @@
     </section>
   </div>
 
-  <div class="col-12 col-xl-4">
+  <div class="app-page-span-4">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <strong>Bestätigte Termine</strong>
       </header>
       <div class="app-panel-body">
@@ -259,7 +261,9 @@
               <tr>
                 <td>{{ dateLabel(item.day.date) }}</td>
                 <td>
-                  <span class="app-badge app-badge-success"> {{ item.slots.length }} Termine </span>
+                  <span tuiBadge [appearance]="badgeAppearance('success')">
+                    {{ item.slots.length }} Termine
+                  </span>
                 </td>
               </tr>
             } @empty {

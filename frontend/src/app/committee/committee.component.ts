@@ -1,7 +1,9 @@
 import { Component, EventEmitter, Input, Output, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { TuiButton, TuiInput, TuiTextfield } from '@taiga-ui/core';
+import { TuiButton, TuiCheckbox, TuiInput, TuiTextfield } from '@taiga-ui/core';
+import { TuiBadge, TuiSelect } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
+import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 
 import { Committee, CommitteeMember, MasterData } from '../api/api.models';
 import { appIcons } from '../app-icons';
@@ -12,10 +14,29 @@ export type CommitteeMemberPayload = Omit<CommitteeMember, 'id' | 'email_verifie
 
 @Component({
   selector: 'app-committee',
-  imports: [AppIconDirective, FormsModule, TuiButton, TuiInput, TuiTable, TuiTextfield],
+  imports: [
+    AppIconDirective,
+    FormsModule,
+    TuiButton,
+    TuiBadge,
+    TuiCheckbox,
+    TuiForm,
+    TuiHeader,
+    TuiInput,
+    TuiSelect,
+    TuiTable,
+    TuiTextfield,
+  ],
   templateUrl: './committee.component.html',
 })
 export class CommitteeComponent {
+  protected readonly memberStatusOptions = ['ordinary', 'deputy'];
+  protected readonly memberStatusOptionLabels = ['Ordentlich', 'Stellvertretend'];
+  protected readonly committeeRoleOptions = ['member', 'chair', 'deputy_chair'];
+  protected readonly committeeRoleOptionLabels = ['Mitglied', 'Vorsitz', 'Stellv. Vorsitz'];
+  protected readonly memberSideOptions = ['employer', 'employee', 'school'];
+  protected readonly memberSideOptionLabels = ['Arbeitgeber', 'Arbeitnehmer', 'Schule'];
+
   protected readonly icons = appIcons;
   protected readonly selectedCommitteeId = signal<number | null>(null);
   private pendingCommitteeForm: HTMLFormElement | null = null;
@@ -81,6 +102,14 @@ export class CommitteeComponent {
 
   protected isSelectedCommittee(committee: Committee): boolean {
     return this.selectedCommittee()?.id === committee.id;
+  }
+
+  protected committeeOptions(): number[] {
+    return (this.masterDataView()?.committees ?? []).map((committee) => committee.id);
+  }
+
+  protected committeeOptionLabels(): string[] {
+    return (this.masterDataView()?.committees ?? []).map((committee) => committee.name);
   }
 
   protected saveCommittee(event: SubmitEvent): void {

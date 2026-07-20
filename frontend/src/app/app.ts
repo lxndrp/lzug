@@ -1,11 +1,11 @@
 import { Component, DestroyRef, ViewChild, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
-import { TuiRoot } from '@taiga-ui/core';
+import { TuiButton, TuiNotification, TuiRoot } from '@taiga-ui/core';
+import { TuiConfirmService } from '@taiga-ui/kit';
 import { filter, finalize, switchMap } from 'rxjs';
 
 import {
-  ApiRoot,
   CandidateDayGenerationResult,
   CandidateExamDay,
   CommitteeMember,
@@ -43,7 +43,6 @@ import {
   PlanningComponent,
   PlanningSettingsPayload,
 } from './planning/planning.component';
-import { TaigaPrototypeComponent } from './taiga-prototype/taiga-prototype.component';
 
 @Component({
   selector: 'app-root',
@@ -54,7 +53,8 @@ import { TaigaPrototypeComponent } from './taiga-prototype/taiga-prototype.compo
     DashboardComponent,
     LocationsComponent,
     PlanningComponent,
-    TaigaPrototypeComponent,
+    TuiButton,
+    TuiNotification,
     TuiRoot,
   ],
   templateUrl: './app.html',
@@ -62,6 +62,7 @@ import { TaigaPrototypeComponent } from './taiga-prototype/taiga-prototype.compo
 })
 export class App {
   private readonly api = inject(PlanningApiService);
+  private readonly confirm = inject(TuiConfirmService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   @ViewChild(CandidatesComponent) private candidatesComponent?: CandidatesComponent;
@@ -69,7 +70,6 @@ export class App {
   @ViewChild(LocationsComponent) private locationsComponent?: LocationsComponent;
   @ViewChild(PlanningComponent) private planningComponent?: PlanningComponent;
 
-  protected readonly apiRoot = signal<ApiRoot | null>(null);
   protected readonly icons = appIcons;
   protected readonly round = signal<ExamRound | null>(null);
   protected readonly summary = signal<RoundSummary | null>(null);
@@ -80,7 +80,6 @@ export class App {
     null,
   );
   protected readonly activeView = signal<AppView>('dashboard');
-  protected readonly prototypeVisible = signal(false);
   protected readonly sidebarVisible = signal(
     typeof window === 'undefined' || window.innerWidth >= 768,
   );
@@ -93,18 +92,8 @@ export class App {
     title: string;
     message: string;
   } | null>(null);
-  protected readonly confirmation = signal<{
-    title: string;
-    message: string;
-    confirmLabel: string;
-    action: () => void;
-  } | null>(null);
 
   protected readonly pageTitle = computed(() => {
-    if (this.prototypeVisible()) {
-      return 'Taiga-UI-Prototyp';
-    }
-
     const labels: Record<AppView, string> = {
       dashboard: this.summary()?.round?.name ?? 'Prüfungsrunde',
       candidates: 'Prüflinge',
@@ -116,11 +105,7 @@ export class App {
   });
 
   protected readonly crumb = computed(() =>
-    this.prototypeVisible()
-      ? 'Entscheidungsgrundlage · Issue #56'
-      : this.activeView() === 'dashboard'
-        ? 'Winter 2026/27'
-        : 'Prüfungsverwaltung',
+    this.activeView() === 'dashboard' ? 'Winter 2026/27' : 'Prüfungsverwaltung',
   );
 
   constructor() {
@@ -130,7 +115,6 @@ export class App {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((event) => {
-        this.prototypeVisible.set(false);
         this.activeView.set(this.viewFromUrl(event.urlAfterRedirects));
       });
     this.activeView.set(this.viewFromUrl(this.router.url));
@@ -143,8 +127,7 @@ export class App {
       .refreshDashboard()
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
-        next: ({ root, round, summary, board, masterData }) => {
-          this.apiRoot.set(root);
+        next: ({ round, summary, board, masterData }) => {
           this.round.set(round);
           this.summary.set(summary);
           this.board.set(board);
@@ -152,14 +135,13 @@ export class App {
           if (!this.selectedCommitteeId()) {
             this.selectedCommitteeId.set(masterData.committees[0]?.id ?? null);
           }
-          this.message.set('Aktualisiert');
+          this.message.set('Daten synchronisiert');
         },
-        error: () => this.message.set('Backend nicht erreichbar'),
+        error: () => this.message.set('Synchronisierung nicht möglich'),
       });
   }
 
   protected showView(view: AppView): void {
-    this.prototypeVisible.set(false);
     void this.router.navigateByUrl(`/${this.pathForView(view)}`);
   }
 
@@ -167,10 +149,6 @@ export class App {
     event.preventDefault();
     this.showView(view);
     this.closeSidebarOnMobile();
-  }
-
-  protected showPrototype(): void {
-    this.prototypeVisible.set(true);
   }
 
   protected closeSidebarOnMobile(): void {
@@ -187,41 +165,52 @@ export class App {
     this.feedback.set(null);
   }
 
-  protected cancelConfirmation(): void {
-    this.confirmation.set(null);
-  }
-
-  protected confirmAction(): void {
-    const confirmation = this.confirmation();
-    this.confirmation.set(null);
-    confirmation?.action();
-  }
-
   protected requestCandidateDeletion(id: number, label: string): void {
-    this.confirmation.set({
-      title: 'Prüfling löschen?',
-      message: `${label} wird dauerhaft aus der Prüfungsverwaltung entfernt.`,
-      confirmLabel: 'Prüfling löschen',
-      action: () => this.deleteCandidate(id, label),
-    });
+    this.requestConfirmation(
+      'Prüfling löschen?',
+      `${label} wird dauerhaft aus der Prüfungsverwaltung entfernt.`,
+      'Prüfling löschen',
+      () => this.deleteCandidate(id, label),
+    );
   }
 
   protected requestLocationDeletion(id: number, label: string): void {
-    this.confirmation.set({
-      title: 'Prüfungsort löschen?',
-      message: `${label} wird dauerhaft aus der Prüfungsverwaltung entfernt.`,
-      confirmLabel: 'Prüfungsort löschen',
-      action: () => this.deleteLocation(id, label),
-    });
+    this.requestConfirmation(
+      'Prüfungsort löschen?',
+      `${label} wird dauerhaft aus der Prüfungsverwaltung entfernt.`,
+      'Prüfungsort löschen',
+      () => this.deleteLocation(id, label),
+    );
   }
 
   protected requestPlanConfirmation(): void {
-    this.confirmation.set({
-      title: 'Terminplan bestätigen?',
-      message: 'Der aktuelle Planungsvorschlag wird als verbindlicher Terminplan bestätigt.',
-      confirmLabel: 'Plan verbindlich bestätigen',
-      action: () => this.confirmPlan(),
-    });
+    this.requestConfirmation(
+      'Terminplan bestätigen?',
+      'Der aktuelle Planungsvorschlag wird als verbindlicher Terminplan bestätigt.',
+      'Plan verbindlich bestätigen',
+      () => this.confirmPlan(),
+    );
+  }
+
+  private requestConfirmation(
+    title: string,
+    message: string,
+    confirmLabel: string,
+    action: () => void,
+  ): void {
+    this.confirm.markAsDirty();
+    this.confirm
+      .withConfirm({
+        label: title,
+        size: 'm',
+        data: { content: message, no: 'Abbrechen', yes: confirmLabel, appearance: 'negative' },
+      })
+      .pipe(finalize(() => this.confirm.markAsPristine()))
+      .subscribe((confirmed) => {
+        if (confirmed) {
+          action();
+        }
+      });
   }
 
   protected createCommittee(payload: CommitteePayload): void {

@@ -1,7 +1,23 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
+const productiveViews = [
+  { name: 'Übersicht', path: '/dashboard' },
+  { name: 'Prüflinge', path: '/candidates' },
+  { name: 'Ausschuss', path: '/committee' },
+  { name: 'Terminplanung', path: '/planning' },
+  { name: 'Prüfungsorte', path: '/locations' },
+] as const;
+
+const colorSchemes = ['light', 'dark'] as const;
+const viewports = [
+  { name: 'desktop', width: 1440, height: 1000 },
+  { name: 'mobile', width: 390, height: 844 },
+] as const;
+
 test.describe('lzug browser workflows', () => {
+  test.describe.configure({ timeout: 60_000 });
+
   test('generates and confirms a planning proposal', async ({ page }) => {
     await page.goto('/');
 
@@ -13,12 +29,16 @@ test.describe('lzug browser workflows', () => {
 
     await page.getByRole('button', { name: 'Plan bestätigen' }).click();
     await page.getByRole('button', { name: 'Plan verbindlich bestätigen' }).click();
-    await expect(page.locator('.app-badge').filter({ hasText: 'Plan bestätigt' })).toBeVisible();
+    await expect(page.getByText('Plan bestätigt', { exact: true }).first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Plan bestätigen' })).toBeDisabled();
   });
 
   test('navigates through the application views', async ({ page }) => {
     await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Winter 2026/27' })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.locator('.app-progress')).toHaveCount(0);
 
     for (const [view, path] of [
       ['Prüflinge', '/candidates'],
@@ -63,10 +83,10 @@ test.describe('lzug browser workflows', () => {
   test('updates exam round metadata and keeps it after reload', async ({ page }) => {
     await page.goto('/planning');
 
-    await expect(page.locator('#roundName')).toHaveValue('Winter 2026/27');
+    await expect(page.locator('#roundName')).toHaveValue('Winter 2026/27', { timeout: 30_000 });
     await page.locator('#roundName').fill('Sommer 2027');
-    await page.locator('#availabilityDeadline').fill('2027-04-15T18:00');
-    await page.locator('#availabilityReminder').fill('2027-04-08T09:00');
+    await page.locator('#availabilityDeadline').fill('15.04.2027, 18:00');
+    await page.locator('#availabilityReminder').fill('08.04.2027, 09:00');
 
     const updateResponsePromise = page.waitForResponse(
       (response) =>
@@ -80,8 +100,8 @@ test.describe('lzug browser workflows', () => {
 
     await page.reload();
     await expect(page.locator('#roundName')).toHaveValue('Sommer 2027');
-    await expect(page.locator('#availabilityDeadline')).toHaveValue('2027-04-15T18:00');
-    await expect(page.locator('#availabilityReminder')).toHaveValue('2027-04-08T09:00');
+    await expect(page.locator('#availabilityDeadline')).toHaveValue('15.04.2027, 18:00');
+    await expect(page.locator('#availabilityReminder')).toHaveValue('08.04.2027, 09:00');
   });
 
   test('generates possible exam days while excluding state holidays', async ({ page }) => {
@@ -97,7 +117,7 @@ test.describe('lzug browser workflows', () => {
     await weekTo.press('Tab');
     await page.getByText('Gesetzliche Feiertage ausschließen', { exact: true }).click();
     await expect(page.locator('#excludePublicHolidays')).toBeChecked();
-    await page.locator('#holidaySubdivisionCode').selectOption({ label: 'Nordrhein-Westfalen' });
+    await page.locator('#holidaySubdivisionCode').selectOption('DE-NW');
 
     const settingsResponsePromise = page.waitForResponse(
       (response) =>
@@ -146,8 +166,16 @@ test.describe('lzug browser workflows', () => {
 
     const row = page.locator('tr').filter({ hasText: 'E2E-2026-001' });
     await expect(row).toBeVisible();
-    await row.getByRole('button', { name: 'Löschen' }).click();
-    await page.getByRole('button', { name: 'Prüfling löschen' }).click();
+    const deleteButton = row.getByRole('button', { name: 'Löschen' });
+    await expect(deleteButton).toHaveAttribute('data-appearance', 'secondary-destructive');
+    await expect(row.getByRole('button', { name: 'Bearbeiten' })).toHaveAttribute(
+      'data-appearance',
+      'secondary',
+    );
+    await deleteButton.click();
+    const confirmationDialog = page.getByRole('dialog', { name: 'Prüfling löschen?' });
+    await expect(confirmationDialog).toBeVisible();
+    await confirmationDialog.getByRole('button', { name: 'Prüfling löschen' }).click();
     await expect(row).toHaveCount(0);
   });
 
@@ -156,7 +184,7 @@ test.describe('lzug browser workflows', () => {
     await page.route('**/api/round-summary*', (route) => route.fulfill({ status: 500 }));
 
     await page.getByRole('button', { name: 'Aktualisieren' }).click();
-    await expect(page.getByText('Backend nicht erreichbar')).toBeVisible();
+    await expect(page.getByText('Synchronisierung nicht möglich')).toBeVisible();
   });
 
   test('renders an empty candidate list without breaking the view', async ({ page }) => {
@@ -198,6 +226,9 @@ test.describe('lzug browser workflows', () => {
     await expect
       .poll(() => scrollRegion.evaluate((element) => element.scrollWidth > element.clientWidth))
       .toBe(true);
+    await expect
+      .poll(() => scrollRegion.evaluate((element) => getComputedStyle(element, '::before').content))
+      .toContain('Tabelle seitlich scrollen');
   });
 
   test('opens the candidate form with the keyboard', async ({ page }) => {
@@ -211,67 +242,140 @@ test.describe('lzug browser workflows', () => {
     await expect(trigger).toBeFocused();
   });
 
-  test('opens and exercises the Taiga UI prototype', async ({ page }) => {
-    await page.goto('/dashboard');
-    await page.getByRole('button', { name: 'Taiga-Prototyp' }).click();
-
-    await expect(page.getByRole('heading', { name: 'Prüfungsplanung mit Taiga UI' })).toBeVisible();
-    await expect(page).toHaveURL('/dashboard');
-    await page.getByRole('button', { name: 'Prüflinge', exact: true }).click();
-    await expect(page.getByRole('table')).toContainText('FI-2026-1042');
-    await page.getByRole('button', { name: 'Terminplanung', exact: true }).click();
-    await page.getByRole('button', { name: 'Taiga-Dialog öffnen' }).click();
-    await expect(page.getByRole('dialog')).toContainText('Planungsvorschlag prüfen');
-  });
-
-  test('keeps the Taiga planning prototype usable on mobile', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/dashboard');
-    await page.locator('.app-sidebar-toggle').click();
-    await page.getByRole('button', { name: 'Taiga-Prototyp' }).click();
-
-    await expect(page.getByRole('heading', { name: 'Prüfungsplanung mit Taiga UI' })).toBeVisible();
-    const dimensions = await page.evaluate(() => ({
-      clientWidth: document.documentElement.clientWidth,
-      scrollWidth: document.documentElement.scrollWidth,
-    }));
-    expect(dimensions.scrollWidth).toBe(dimensions.clientWidth);
-    await expect(page.getByRole('button', { name: 'Terminplanung', exact: true })).toBeVisible();
-  });
-});
-
-test.describe('lzug accessibility', () => {
-  test('has no detectable accessibility violations on the dashboard @a11y', async ({ page }) => {
-    await page.goto('/');
-    const results = await new AxeBuilder({ page }).analyze();
-    expect(results.violations).toEqual([]);
-  });
-
-  test('has no detectable accessibility violations on planning @a11y', async ({ page }) => {
-    await page.goto('/');
-    await page.getByRole('link', { name: 'Terminplanung', exact: true }).click();
-    const results = await new AxeBuilder({ page }).analyze();
-    expect(results.violations).toEqual([]);
-  });
-
-  test('has no detectable accessibility violations in the Taiga prototype @a11y', async ({
+  test('keeps development-only prototype content out of production navigation', async ({
     page,
   }) => {
     await page.goto('/dashboard');
-    await page.getByRole('button', { name: 'Taiga-Prototyp' }).click();
-    const results = await new AxeBuilder({ page }).analyze();
-    expect(results.violations).toEqual([]);
+    await expect(page.getByText('Taiga-Prototyp')).toHaveCount(0);
+    await expect(page.getByText('Entwicklung', { exact: true })).toHaveCount(0);
   });
+});
 
-  for (const view of [
-    { name: 'Prüflinge', path: '/candidates' },
-    { name: 'Ausschuss', path: '/committee' },
-    { name: 'Prüfungsorte', path: '/locations' },
-  ]) {
-    test(`has no detectable accessibility violations on ${view.name} @a11y`, async ({ page }) => {
-      await page.goto(view.path);
-      const results = await new AxeBuilder({ page }).analyze();
-      expect(results.violations).toEqual([]);
-    });
+test.describe('lzug theme and accessibility matrix', () => {
+  for (const scheme of colorSchemes) {
+    for (const viewport of viewports) {
+      test(`${scheme} ${viewport.name} renders every productive view with readable colors @a11y`, async ({
+        page,
+      }) => {
+        test.setTimeout(120_000);
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize(viewport);
+
+        for (const view of productiveViews) {
+          await test.step(view.name, async () => {
+            await page.goto(view.path);
+            await expect(page.locator('h1')).toBeVisible();
+            await expect(page.locator('.app-progress')).toHaveCount(0);
+            if (scheme === 'dark') {
+              await expect(page.locator('body')).toHaveAttribute('tuiTheme', 'dark');
+            } else {
+              await expect(page.locator('body')).not.toHaveAttribute('tuiTheme', 'dark');
+            }
+
+            await expectReadableContrast(page.locator('h1'));
+            await expectReadableContrast(page.locator('.app-panel').first());
+
+            const firstControl = page.locator('input:visible, select:visible').first();
+            if (await firstControl.count()) {
+              await expectReadableContrast(firstControl);
+            }
+
+            const firstCell = page.locator('tbody td:visible').first();
+            if (await firstCell.count()) {
+              await expectReadableContrast(firstCell);
+            }
+
+            if (viewport.name === 'mobile') {
+              const menuIcon = page.locator('.app-sidebar-toggle .app-menu-icon');
+              await expect(menuIcon).toBeVisible();
+              await expectReadableContrast(menuIcon, '::before', 'background-color');
+
+              const scrollRegion = page.locator('.app-table-scroll').first();
+              if (await scrollRegion.count()) {
+                await expect
+                  .poll(() =>
+                    scrollRegion.evaluate(
+                      (element) => getComputedStyle(element, '::before').content,
+                    ),
+                  )
+                  .toContain('Tabelle seitlich scrollen');
+              }
+            }
+
+            const results = await new AxeBuilder({ page }).analyze();
+            expect(results.violations, `${scheme} ${viewport.name} ${view.name}`).toEqual([]);
+          });
+        }
+      });
+    }
   }
 });
+
+async function expectReadableContrast(
+  locator: import('@playwright/test').Locator,
+  pseudo = '',
+  foregroundProperty = 'color',
+): Promise<void> {
+  const result = await locator.evaluate(
+    (element, options) => {
+      const parse = (value: string): [number, number, number, number] => {
+        const values = value.match(/[\d.]+/g)?.map(Number) ?? [];
+        return [values[0] ?? 0, values[1] ?? 0, values[2] ?? 0, values[3] ?? 1];
+      };
+      const luminance = ([red, green, blue]: [number, number, number, number]): number => {
+        const channels = [red, green, blue].map((channel) => {
+          const value = channel / 255;
+          return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+      };
+      const composite = (
+        foreground: [number, number, number, number],
+        background: [number, number, number, number],
+      ): [number, number, number, number] => {
+        const alpha = foreground[3] + background[3] * (1 - foreground[3]);
+        return [
+          (foreground[0] * foreground[3] + background[0] * background[3] * (1 - foreground[3])) /
+            alpha,
+          (foreground[1] * foreground[3] + background[1] * background[3] * (1 - foreground[3])) /
+            alpha,
+          (foreground[2] * foreground[3] + background[2] * background[3] * (1 - foreground[3])) /
+            alpha,
+          alpha,
+        ];
+      };
+
+      const foreground = parse(
+        getComputedStyle(element, options.pseudo).getPropertyValue(options.foregroundProperty),
+      );
+      let backgroundElement: Element | null = options.pseudo ? element.parentElement : element;
+      const backgroundLayers: [number, number, number, number][] = [];
+      let background: [number, number, number, number] = [255, 255, 255, 1];
+      while (backgroundElement) {
+        const candidate = parse(getComputedStyle(backgroundElement).backgroundColor);
+        if (candidate[3] > 0) {
+          backgroundLayers.push(candidate);
+        }
+        backgroundElement = backgroundElement.parentElement;
+      }
+      for (const layer of backgroundLayers.reverse()) {
+        background = composite(layer, background);
+      }
+      const visibleForeground = composite(foreground, background);
+
+      const lighter = Math.max(luminance(visibleForeground), luminance(background));
+      const darker = Math.min(luminance(visibleForeground), luminance(background));
+      return {
+        foreground: getComputedStyle(element, options.pseudo).getPropertyValue(
+          options.foregroundProperty,
+        ),
+        background: `rgb(${background[0]} ${background[1]} ${background[2]})`,
+        ratio: (lighter + 0.05) / (darker + 0.05),
+      };
+    },
+    { pseudo, foregroundProperty },
+  );
+
+  expect(result.foreground).not.toBe(result.background);
+  expect(result.ratio, `${result.foreground} on ${result.background}`).toBeGreaterThanOrEqual(4.5);
+}

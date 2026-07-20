@@ -9,6 +9,11 @@ export class AppIconDirective {
   }
 
   @Input() set cIcon(value: readonly string[] | null | undefined) {
+    if (value?.[0]) {
+      this.element.setAttribute('viewBox', `0 0 ${value[0]}`);
+    } else {
+      this.element.removeAttribute('viewBox');
+    }
     this.element.innerHTML = value?.[1] ?? '';
   }
 }

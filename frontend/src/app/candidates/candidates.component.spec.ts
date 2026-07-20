@@ -6,6 +6,14 @@ import { masterDataFixture } from '../testing/fixtures';
 describe('CandidatesComponent', () => {
   let fixture: ComponentFixture<CandidatesComponent>;
 
+  beforeAll(() => {
+    Object.defineProperty(HTMLSelectElement.prototype, 'readOnly', {
+      configurable: true,
+      get: () => false,
+      set: () => undefined,
+    });
+  });
+
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [CandidatesComponent],
@@ -48,6 +56,19 @@ describe('CandidatesComponent', () => {
       'Der Prüfling wird der aktuellen Runde zugeordnet.',
     );
     expect(element.querySelectorAll('.app-row-actions').length).toBeGreaterThan(0);
+  });
+
+  it('should use Taiga form and header layout with app grid classes', () => {
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.app-page-grid')).toBeTruthy();
+    expect(element.querySelectorAll('form[tuiForm]').length).toBe(1);
+    expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(3);
+    expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
+    expect(element.querySelectorAll('input[tuiCheckbox]').length).toBe(1);
+    expect(element.querySelectorAll('input.form-check-input').length).toBe(0);
+    expect(element.querySelectorAll('select[tuiSelect]').length).toBeGreaterThan(1);
+    expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 
   it('should emit create and delete events', () => {

@@ -7,6 +7,14 @@ describe('CommitteeComponent', () => {
   let fixture: ComponentFixture<CommitteeComponent>;
   let component: CommitteeComponent;
 
+  beforeAll(() => {
+    Object.defineProperty(HTMLSelectElement.prototype, 'readOnly', {
+      configurable: true,
+      get: () => false,
+      set: () => undefined,
+    });
+  });
+
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [CommitteeComponent],
@@ -89,6 +97,19 @@ describe('CommitteeComponent', () => {
     expect(element.querySelectorAll('.app-required-hint').length).toBe(2);
     expect(element.querySelectorAll('.app-form-actions').length).toBe(2);
     expect(element.querySelector('.app-row-actions')?.textContent).toContain('Deaktivieren');
+  });
+
+  it('should use Taiga form and header layout with app grid classes', () => {
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.app-page-grid')).toBeTruthy();
+    expect(element.querySelectorAll('form[tuiForm]').length).toBe(2);
+    expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(5);
+    expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
+    expect(element.querySelectorAll('input[tuiCheckbox]').length).toBe(1);
+    expect(element.querySelectorAll('input.form-check-input').length).toBe(0);
+    expect(element.querySelectorAll('select[tuiSelect]').length).toBe(4);
+    expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 
   function textContent(): string {

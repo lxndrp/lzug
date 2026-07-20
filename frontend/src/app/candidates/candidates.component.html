@@ -1,36 +1,38 @@
-<div class="row g-4">
-  <div class="col-12 col-xl-4">
+<div class="app-page-grid">
+  <div class="app-page-span-4">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <strong>Prüflinge</strong>
       </header>
       <div class="app-panel-body">
-        <dl class="row mb-0">
-          <dt class="col-7">Gesamt</dt>
-          <dd class="col-5">{{ candidateCount() }}</dd>
-          <dt class="col-7">MEP</dt>
-          <dd class="col-5">{{ mepCount() }}</dd>
+        <dl class="app-key-value-list">
+          <dt>Gesamt</dt>
+          <dd>{{ candidateCount() }}</dd>
+          <dt>MEP</dt>
+          <dd>{{ mepCount() }}</dd>
         </dl>
       </div>
     </section>
   </div>
 
-  <div class="col-12 col-xl-8">
+  <div class="app-page-span-8">
     <details class="app-create-panel">
       <summary class="app-create-trigger">Neuen Prüfling anlegen</summary>
       <section class="app-panel">
-        <header class="app-panel-header">
+        <header tuiHeader="body-m" class="app-panel-header">
           <div>
             <strong>Prüfling anlegen</strong>
-            <span class="app-muted d-block">Stammdaten und Prüfungsbedarf erfassen</span>
+            <span class="app-muted app-block">Stammdaten und Prüfungsbedarf erfassen</span>
           </div>
           <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
         </header>
         <div class="app-panel-body">
-          <form class="row g-3 app-form-grid" (ngSubmit)="submitCandidate()">
-            <div class="col-12 col-md-6">
-              <label for="candidateFirstName">Vorname <span aria-hidden="true">*</span></label>
+          <form tuiForm="m" class="app-form-grid" (ngSubmit)="submitCandidate()">
+            <div class="app-field-half">
               <tui-textfield>
+                <label tuiLabel for="candidateFirstName"
+                  >Vorname <span aria-hidden="true">*</span></label
+                >
                 <input
                   tuiInput
                   id="candidateFirstName"
@@ -40,9 +42,11 @@
                 />
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-6">
-              <label for="candidateLastName">Nachname <span aria-hidden="true">*</span></label>
+            <div class="app-field-half">
               <tui-textfield>
+                <label tuiLabel for="candidateLastName"
+                  >Nachname <span aria-hidden="true">*</span></label
+                >
                 <input
                   tuiInput
                   id="candidateLastName"
@@ -52,11 +56,11 @@
                 />
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-4">
-              <label for="candidateExamNumber"
-                >Prüfungsnummer <span aria-hidden="true">*</span></label
-              >
+            <div class="app-field-third">
               <tui-textfield>
+                <label tuiLabel for="candidateExamNumber"
+                  >Prüfungsnummer <span aria-hidden="true">*</span></label
+                >
                 <input
                   tuiInput
                   id="candidateExamNumber"
@@ -66,24 +70,22 @@
                 />
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-4">
+            <div class="app-field-third">
               <label for="candidateSpecialization">Fachrichtung</label>
               <tui-textfield>
                 <select
+                  tuiSelect
                   id="candidateSpecialization"
                   name="candidateSpecialization"
+                  [items]="specializationOptions"
+                  [labels]="specializationOptionLabels"
                   [(ngModel)]="draft.specialization"
-                >
-                  <option value="application_development">Anwendungsentwicklung</option>
-                  <option value="system_integration">Systemintegration</option>
-                  <option value="data_and_process_analysis">Daten- und Prozessanalyse</option>
-                  <option value="digital_networking">Digitale Vernetzung</option>
-                </select>
+                ></select>
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-4">
-              <label for="candidateAttempt">Versuch</label>
+            <div class="app-field-third">
               <tui-textfield>
+                <label tuiLabel for="candidateAttempt">Versuch</label>
                 <input
                   tuiInput
                   id="candidateAttempt"
@@ -94,9 +96,9 @@
                 />
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-8">
-              <label for="candidateCompany">Ausbildungsbetrieb</label>
+            <div class="app-field-two-thirds">
               <tui-textfield>
+                <label tuiLabel for="candidateCompany">Ausbildungsbetrieb</label>
                 <input
                   tuiInput
                   id="candidateCompany"
@@ -105,12 +107,12 @@
                 />
               </tui-textfield>
             </div>
-            <div class="col-12 col-md-4 d-flex align-items-end">
+            <div class="app-field-third app-field-align-end">
               <div class="app-form-check">
                 <input
-                  class="form-check-input"
                   id="candidateMep"
                   name="requiresMep"
+                  tuiCheckbox
                   type="checkbox"
                   [ngModel]="draft.requires_mep === 1"
                   (ngModelChange)="draft.requires_mep = $event ? 1 : 0"
@@ -118,11 +120,11 @@
                 <label for="candidateMep">MEP erforderlich</label>
               </div>
             </div>
-            <div class="col-12 app-form-actions">
+            <div class="app-field-full app-form-actions">
               <span class="app-form-action-hint"
                 >Der Prüfling wird der aktuellen Runde zugeordnet.</span
               >
-              <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
+              <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
                 <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
                 Prüfling anlegen
               </button>
@@ -133,15 +135,15 @@
     </details>
   </div>
 
-  <div class="col-12">
+  <div class="app-page-full">
     <section class="app-panel">
-      <header class="app-panel-header">
+      <header tuiHeader="body-m" class="app-panel-header">
         <strong>Prüflingsliste</strong>
         <span class="app-muted">{{ filteredCandidates().length }} von {{ candidateCount() }}</span>
       </header>
       <div class="app-panel-body">
-        <div class="row g-3 app-filter-bar" role="search" aria-label="Prüflingsliste filtern">
-          <div class="col-12 col-md-8">
+        <div class="app-form-grid app-filter-bar" role="search" aria-label="Prüflingsliste filtern">
+          <div class="app-field-two-thirds">
             <tui-textfield>
               <label tuiLabel for="candidateSearch">Suche</label>
               <input
@@ -153,24 +155,26 @@
               />
             </tui-textfield>
           </div>
-          <div class="col-12 col-md-4">
+          <div class="app-field-third">
             <label for="candidateFilter">Fachrichtung</label>
             <tui-textfield>
               <select
+                tuiSelect
                 id="candidateFilter"
+                [items]="specializationFilterOptions()"
+                [labels]="specializationFilterLabels()"
                 [ngModel]="specialization()"
                 (ngModelChange)="specialization.set($event)"
-              >
-                <option value="">Alle Fachrichtungen</option>
-                @for (value of specializations(); track value) {
-                  <option [value]="value">{{ specializationLabel(value) }}</option>
-                }
-              </select>
+              ></select>
             </tui-textfield>
           </div>
         </div>
 
-        <div class="app-table-scroll">
+        <div
+          class="app-table-scroll"
+          tabindex="0"
+          aria-label="Prüflingstabelle, seitlich scrollbar"
+        >
           <table tuiTable class="app-data-table app-table-sticky-actions">
             <thead>
               <tr>
@@ -192,15 +196,14 @@
                   <td>{{ item.candidate.ihk_exam_number }}</td>
                   <td>{{ specializationLabel(item.candidate.specialization) }}</td>
                   <td>
-                    <span class="app-badge app-badge-secondary">{{
+                    <span tuiBadge appearance="neutral">{{
                       attemptLabel(item.roundCandidate?.attempt_number)
                     }}</span>
                   </td>
                   <td>
                     <span
-                      class="app-badge"
-                      [class.app-badge-warning]="item.roundCandidate?.requires_mep"
-                      [class.app-badge-secondary]="!item.roundCandidate?.requires_mep"
+                      tuiBadge
+                      [appearance]="item.roundCandidate?.requires_mep ? 'warning' : 'neutral'"
                     >
                       {{ item.roundCandidate?.requires_mep ? 'MEP' : 'Nein' }}
                     </span>
@@ -210,10 +213,9 @@
                     <div class="app-row-actions">
                       <button
                         tuiButton
-                        color="primary"
+                        appearance="secondary"
                         size="s"
                         type="button"
-                        variant="outline"
                         [disabled]="actionBusy"
                         (click)="startEditing(item)"
                       >
@@ -222,10 +224,9 @@
                       </button>
                       <button
                         tuiButton
-                        color="danger"
+                        appearance="secondary-destructive"
                         size="s"
                         type="button"
-                        variant="outline"
                         [disabled]="actionBusy"
                         (click)="deleteCandidate.emit(item.candidate)"
                       >
@@ -244,7 +245,8 @@
                     <tr>
                       <td colspan="7">
                         <form
-                          class="row g-3 app-form-grid app-inline-editor"
+                          tuiForm="m"
+                          class="app-form-grid app-inline-editor"
                           [attr.aria-label]="
                             'Prüfling ' +
                             item.candidate.first_name +
@@ -254,11 +256,11 @@
                           "
                           (ngSubmit)="submitCandidateUpdate()"
                         >
-                          <div class="col-12 col-md-6">
-                            <label [for]="'editCandidateFirstName-' + item.candidate.id"
-                              >Vorname <span aria-hidden="true">*</span></label
-                            >
+                          <div class="app-field-half">
                             <tui-textfield>
+                              <label tuiLabel [for]="'editCandidateFirstName-' + item.candidate.id"
+                                >Vorname <span aria-hidden="true">*</span></label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editCandidateFirstName-' + item.candidate.id"
@@ -268,11 +270,11 @@
                               />
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-6">
-                            <label [for]="'editCandidateLastName-' + item.candidate.id"
-                              >Nachname <span aria-hidden="true">*</span></label
-                            >
+                          <div class="app-field-half">
                             <tui-textfield>
+                              <label tuiLabel [for]="'editCandidateLastName-' + item.candidate.id"
+                                >Nachname <span aria-hidden="true">*</span></label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editCandidateLastName-' + item.candidate.id"
@@ -282,11 +284,11 @@
                               />
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-4">
-                            <label [for]="'editCandidateExamNumber-' + item.candidate.id"
-                              >Prüfungsnummer <span aria-hidden="true">*</span></label
-                            >
+                          <div class="app-field-third">
                             <tui-textfield>
+                              <label tuiLabel [for]="'editCandidateExamNumber-' + item.candidate.id"
+                                >Prüfungsnummer <span aria-hidden="true">*</span></label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editCandidateExamNumber-' + item.candidate.id"
@@ -296,32 +298,26 @@
                               />
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-4">
+                          <div class="app-field-third">
                             <label [for]="'editCandidateSpecialization-' + item.candidate.id"
                               >Fachrichtung</label
                             >
                             <tui-textfield>
                               <select
+                                tuiSelect
                                 [id]="'editCandidateSpecialization-' + item.candidate.id"
                                 [name]="'editCandidateSpecialization-' + item.candidate.id"
+                                [items]="specializationOptions"
+                                [labels]="specializationOptionLabels"
                                 [(ngModel)]="currentDraft.specialization"
-                              >
-                                <option value="application_development">
-                                  Anwendungsentwicklung
-                                </option>
-                                <option value="system_integration">Systemintegration</option>
-                                <option value="data_and_process_analysis">
-                                  Daten- und Prozessanalyse
-                                </option>
-                                <option value="digital_networking">Digitale Vernetzung</option>
-                              </select>
+                              ></select>
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-4">
-                            <label [for]="'editCandidateAttempt-' + item.candidate.id"
-                              >Versuch</label
-                            >
+                          <div class="app-field-third">
                             <tui-textfield>
+                              <label tuiLabel [for]="'editCandidateAttempt-' + item.candidate.id"
+                                >Versuch</label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editCandidateAttempt-' + item.candidate.id"
@@ -332,11 +328,11 @@
                               />
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-8">
-                            <label [for]="'editCandidateCompany-' + item.candidate.id"
-                              >Ausbildungsbetrieb</label
-                            >
+                          <div class="app-field-two-thirds">
                             <tui-textfield>
+                              <label tuiLabel [for]="'editCandidateCompany-' + item.candidate.id"
+                                >Ausbildungsbetrieb</label
+                              >
                               <input
                                 tuiInput
                                 [id]="'editCandidateCompany-' + item.candidate.id"
@@ -345,12 +341,12 @@
                               />
                             </tui-textfield>
                           </div>
-                          <div class="col-12 col-md-4 d-flex align-items-end">
+                          <div class="app-field-third app-field-align-end">
                             <div class="app-form-check">
                               <input
-                                class="form-check-input"
                                 [id]="'editCandidateMep-' + item.candidate.id"
                                 [name]="'editCandidateMep-' + item.candidate.id"
+                                tuiCheckbox
                                 type="checkbox"
                                 [ngModel]="currentDraft.requires_mep === 1"
                                 (ngModelChange)="currentDraft.requires_mep = $event ? 1 : 0"
@@ -360,11 +356,16 @@
                               >
                             </div>
                           </div>
-                          <div class="col-12 app-form-actions">
+                          <div class="app-field-full app-form-actions">
                             <span class="app-form-action-hint"
                               >Änderungen gelten für Stammdaten und aktuelle Runde.</span
                             >
-                            <button tuiButton color="primary" type="submit" [disabled]="actionBusy">
+                            <button
+                              tuiButton
+                              appearance="primary"
+                              type="submit"
+                              [disabled]="actionBusy"
+                            >
                               <svg
                                 [cIcon]="icons.save"
                                 class="app-button-icon"
@@ -374,9 +375,8 @@
                             </button>
                             <button
                               tuiButton
-                              color="secondary"
+                              appearance="secondary"
                               type="button"
-                              variant="outline"
                               [disabled]="actionBusy"
                               (click)="cancelEditing()"
                             >
