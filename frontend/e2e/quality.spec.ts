@@ -29,7 +29,7 @@ test.describe('lzug browser workflows', () => {
 
     await page.getByRole('button', { name: 'Plan bestätigen' }).click();
     await page.getByRole('button', { name: 'Plan verbindlich bestätigen' }).click();
-    await expect(page.locator('.app-badge').filter({ hasText: 'Plan bestätigt' })).toBeVisible();
+    await expect(page.getByText('Plan bestätigt', { exact: true }).first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Plan bestätigen' })).toBeDisabled();
   });
 

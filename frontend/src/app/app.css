@@ -192,9 +192,11 @@
 
 .app-menu-icon {
   position: relative;
-  display: block;
+  display: inline-block;
   inline-size: 1.5rem;
+  min-inline-size: 1.5rem;
   block-size: 1.2rem;
+  flex: 0 0 1.5rem;
 }
 
 .app-menu-icon::before,

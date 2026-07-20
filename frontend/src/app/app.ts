@@ -198,12 +198,14 @@ export class App {
     confirmLabel: string,
     action: () => void,
   ): void {
+    this.confirm.markAsDirty();
     this.confirm
       .withConfirm({
         label: title,
         size: 'm',
         data: { content: message, no: 'Abbrechen', yes: confirmLabel, appearance: 'negative' },
       })
+      .pipe(finalize(() => this.confirm.markAsPristine()))
       .subscribe((confirmed) => {
         if (confirmed) {
           action();
