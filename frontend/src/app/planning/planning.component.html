@@ -74,10 +74,7 @@
           <dd>{{ capacity() }}</dd>
           <dt>Bewertung</dt>
           <dd>
-            <span
-              class="app-badge"
-              [attr.data-color]="capacity() >= requiredSlots() ? 'success' : 'warning'"
-            >
+            <span tuiBadge [appearance]="capacity() >= requiredSlots() ? 'positive' : 'warning'">
               {{ capacity() >= requiredSlots() ? 'Ausreichend' : 'Unterdeckung' }}
             </span>
           </dd>
@@ -339,10 +336,7 @@
                     <strong>{{ dateLabel(day.date) }}</strong>
                   </td>
                   <td>
-                    <span
-                      class="app-badge"
-                      [attr.data-color]="day.is_active ? 'success' : 'secondary'"
-                    >
+                    <span tuiBadge [appearance]="day.is_active ? 'positive' : 'neutral'">
                       {{ day.is_active ? 'Aktiv' : 'Inaktiv' }}
                     </span>
                   </td>

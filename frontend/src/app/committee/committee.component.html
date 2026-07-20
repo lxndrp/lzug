@@ -112,7 +112,7 @@
     <section class="app-panel">
       <header tuiHeader="body-m" class="app-panel-header">
         <strong>{{ selectedCommitteeName() }}</strong>
-        <span class="app-badge app-badge-success">{{ activeMemberCount() }} aktiv</span>
+        <span tuiBadge appearance="positive">{{ activeMemberCount() }} aktiv</span>
       </header>
       <div class="app-panel-body">
         <div class="app-table-scroll">
@@ -143,10 +143,7 @@
                     <span>{{ member.mobile || 'Keine Mobilnummer' }}</span>
                   </td>
                   <td>
-                    <span
-                      class="app-badge"
-                      [attr.data-color]="member.is_active ? 'success' : 'secondary'"
-                    >
+                    <span tuiBadge [appearance]="member.is_active ? 'positive' : 'neutral'">
                       {{ member.is_active ? 'Aktiv' : 'Inaktiv' }}
                     </span>
                   </td>

@@ -111,10 +111,7 @@
                     }
                   </td>
                   <td>
-                    <span
-                      class="app-badge"
-                      [attr.data-color]="location.is_active === 0 ? 'secondary' : 'success'"
-                    >
+                    <span tuiBadge [appearance]="location.is_active === 0 ? 'neutral' : 'positive'">
                       {{ location.is_active === 0 ? 'Inaktiv' : 'Aktiv' }}
                     </span>
                   </td>

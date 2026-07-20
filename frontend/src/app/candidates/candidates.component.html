@@ -196,15 +196,14 @@
                   <td>{{ item.candidate.ihk_exam_number }}</td>
                   <td>{{ specializationLabel(item.candidate.specialization) }}</td>
                   <td>
-                    <span class="app-badge app-badge-secondary">{{
+                    <span tuiBadge appearance="neutral">{{
                       attemptLabel(item.roundCandidate?.attempt_number)
                     }}</span>
                   </td>
                   <td>
                     <span
-                      class="app-badge"
-                      [class.app-badge-warning]="item.roundCandidate?.requires_mep"
-                      [class.app-badge-secondary]="!item.roundCandidate?.requires_mep"
+                      tuiBadge
+                      [appearance]="item.roundCandidate?.requires_mep ? 'warning' : 'neutral'"
                     >
                       {{ item.roundCandidate?.requires_mep ? 'MEP' : 'Nein' }}
                     </span>
