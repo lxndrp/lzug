@@ -58,9 +58,12 @@ klaeren, bevor eine umfangreiche Umsetzung beginnt.
 
 - Planung, Refinement und fachliche Klaerung finden im jeweiligen
   Planungsthread statt.
-- Die Implementierung eines Issues erfolgt in einem separaten Thread mit dem
-  Namen `Feature umsetzen` fuer Stories und Epics beziehungsweise `Bug beheben`
-  fuer Bug-Issues.
+- Threads zu einem GitHub Issue werden nach dem Muster
+  `<issue> (<type>): <title>` benannt. Dabei bezeichnet `<issue>` die
+  Issue-Nummer, `<type>` das relevante Type-Label ohne den Praefix `type:`
+  beziehungsweise `bug` fuer Bug-Issues und `<title>` den Issue-Titel.
+- Diese Namensstruktur gilt fuer Planungs- und Umsetzungsthreads; eine
+  zusaetzliche Unterscheidung nach Feature oder Bug ist nicht erforderlich.
 - Jeder Umsetzungsthread fuer ein Issue erhaelt einen eigenen Worktree. Der
   Worktree wird mit dem zugehoerigen Feature-Branch verbunden und darf nicht
   parallel mit dem Planungsthread im selben Arbeitsverzeichnis arbeiten.
@@ -70,8 +73,6 @@ klaeren, bevor eine umfangreiche Umsetzung beginnt.
   Entscheidungen, bekannte Randbedingungen und offene Punkte.
 - Im Planungsthread keine umfangreiche Implementierung beginnen, sobald ein
   passender Umsetzungsthread vorgesehen oder bereits vorhanden ist.
-- Nach erfolgreich gemergtem Pull Request den zugehoerigen Umsetzungsthread
-  archivieren.
 
 ## Statusmodell
 
@@ -88,8 +89,7 @@ Geschlossene Issues nicht loeschen. Wenn sie aus einer nachtraeglichen Ueberfueh
 - Produkt- und Fehlerbehebungsarbeiten, die zu einer Story, einem Epic oder
   einem Bug-Issue gehoeren, immer in einem eigenen Feature-Branch umsetzen.
 - Branches fuer Codex-Arbeiten nach dem Muster
-  `codex/<issue>-<kurzer-name>` beziehungsweise
-  `codex/bug-<issue>-<kurzer-name>` benennen.
+  `codex/<issue>-<kurzer-name>` benennen, unabhaengig vom Type-Label.
 - Niemals direkt in `master` committen, wenn die Aenderung ein Issue umsetzt.
 - Nach der Verifikation einen Pull Request gegen `master` eroeffnen und das
   umgesetzte Issue im Pull Request verknuepfen. Fuer vollstaendig umgesetzte
@@ -98,6 +98,13 @@ Geschlossene Issues nicht loeschen. Wenn sie aus einer nachtraeglichen Ueberfueh
 - Den Pull Request erst nach erfolgreicher CI und Review in `master` mergen.
 - Nach dem Merge den Issue-Status im GitHub Project auf `Done` setzen und das
   Issue schliessen, sofern die Umsetzung vollstaendig ist.
+- Nach erfolgreichem Merge aller zugehoerigen Pull Requests, erfolgreicher CI
+  und abgeschlossenem Review den zugehoerigen Planungsthread beziehungsweise
+  Umsetzungsthread archivieren. Danach den Issue-Worktree entfernen, den
+  lokalen Feature-Branch loeschen und den zugehoerigen Remote-Branch in
+  GitHub loeschen. Nur die dem abgeschlossenen Issue zugeordneten Worktrees
+  und Branches aufraeumen; `master`, andere Issues und aktive Arbeitsverzeichnisse
+  nicht loeschen.
 - Aenderungen thematisch schneiden und kleine, nachvollziehbare Commits bevorzugen.
 - Commit-Messages bevorzugt auf Englisch schreiben, passend zur bisherigen Git-Historie.
 - Deutsch und Englisch nicht innerhalb einer Commit-Message mischen.
