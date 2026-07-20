@@ -117,7 +117,7 @@ test.describe('lzug browser workflows', () => {
     await weekTo.press('Tab');
     await page.getByText('Gesetzliche Feiertage ausschließen', { exact: true }).click();
     await expect(page.locator('#excludePublicHolidays')).toBeChecked();
-    await page.locator('#holidaySubdivisionCode').selectOption({ label: 'Nordrhein-Westfalen' });
+    await page.locator('#holidaySubdivisionCode').selectOption('DE-NW');
 
     const settingsResponsePromise = page.waitForResponse(
       (response) =>
