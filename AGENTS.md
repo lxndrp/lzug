@@ -23,7 +23,7 @@ Wenn fachliche oder technische Planung in Codex entsteht und belastbar genug ist
 - Epics als echte GitHub Issues mit Label `type: epic`.
 - User Stories als echte GitHub Issues mit Label `type: story`.
 - Technische Aufgaben als echte GitHub Issues mit Label `type: task`.
-- Nachtraeglich importierte Bestands- oder Entscheidungsdokumentation mit Label `source: baseline-import`.
+- Fehler als echte GitHub Issues mit Label `type: bug`.
 - Epics und Stories ueber Parent/Sub-Issues verknuepfen.
 - Das GitHub Project `lzug Roadmap` fuer Status, Board-Ansicht und Priorisierung nutzen.
 
@@ -36,7 +36,7 @@ wenn die Nachricht mit einem der folgenden Praefixe beginnt:
 
 - `Story: <Titel>`: GitHub Issue mit Label `type: story` anlegen.
 - `Epic: <Titel>`: GitHub Issue mit Label `type: epic` anlegen.
-- `Bug: <Titel>`: GitHub Issue mit Label `bug` anlegen.
+- `Bug: <Titel>`: GitHub Issue mit Label `type: bug` anlegen.
 
 Den restlichen Text der Meldung als Issue-Titel verwenden und die verfuegbaren
 Details als Issue-Beschreibung uebernehmen. Das Issue dem GitHub Project
@@ -82,7 +82,18 @@ Im GitHub Project gelten die Standardstatus:
 - `In Progress`: aktuell in Arbeit oder aktives Epic.
 - `Done`: abgeschlossen und nachvollziehbar dokumentiert.
 
-Geschlossene Issues nicht loeschen. Wenn sie aus einer nachtraeglichen Ueberfuehrung stammen, muessen sie transparent als Baseline-Import markiert sein.
+Geschlossene Issues nicht loeschen.
+
+### Issue-Labels
+
+- Jedes manuell angelegte Issue erhaelt genau ein `type:`-Label: `epic`,
+  `story`, `task` oder `bug`.
+- `resolution:`-Labels dokumentieren die abschliessende Einordnung eines Issues
+  und sind optional: `duplicate`, `invalid`, `wontfix` oder `help-wanted`.
+- `type:` beschreibt die Art des Arbeitselements; `resolution:` beschreibt,
+  warum ein Issue nicht weiterverfolgt oder wie es abgeschlossen wurde.
+- Die Dependabot-Labels `dependencies` und `github_actions` sind technische
+  Automationslabels und koennen zusaetzlich verwendet werden.
 
 ## Git und Commits
 
