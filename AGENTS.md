@@ -10,6 +10,38 @@ Diese Datei beschreibt, wie Codex und andere Coding Agents in diesem Repository 
 - Wenn der Nutzer Planung statt Umsetzung verlangt, read-only bleiben.
 - Wenn der Nutzer Umsetzung verlangt, die Arbeit bis zur angemessenen Verifikation durchziehen.
 
+## UX-Leitbild fuer Frontend-Arbeiten
+
+Bei Planung, Umsetzung und Review des Frontends die Anwendung auch aus Sicht
+der Nutzenden beurteilen. Ziel ist eine ruhige, klare und aesthetische
+Verwaltungsoberflaeche, deren Form der Funktion folgt. Die Bedienung soll ohne
+Kenntnis der technischen Implementierung verstaendlich sein.
+
+Dabei gelten insbesondere diese Leitlinien:
+
+- Fachliche Aufgaben, Begriffe und Handlungsfolgen muessen erkennbar sein;
+  interne API-, Status- oder Implementierungsbegriffe nicht ungefiltert in der
+  Oberflaeche anzeigen.
+- Interaktive Elemente brauchen eindeutige Signale, erwartbare Zuordnung und
+  unmittelbares Feedback. Sichtbarkeit, Beschriftung und Zustand muessen ihre
+  Funktion vermitteln.
+- Fehler moeglichst durch sinnvolle Vorgaben, Einschraenkungen und Validierung
+  verhindern. Wenn Fehler auftreten, verstaendlich erklaeren, den betroffenen
+  Kontext zeigen und einen Weg zur Korrektur anbieten.
+- Informationshierarchie, Navigation und Aktionsgewichtung konsistent halten.
+  Primaere, sekundaere und destruktive Aktionen muessen visuell und semantisch
+  unterscheidbar sein.
+- Aesthetik dient Lesbarkeit, Orientierung und Vertrauen. Dekoration darf weder
+  Aufmerksamkeit von der Aufgabe abziehen noch fehlende Struktur kaschieren.
+- Den jeweils betroffenen Ablauf vollstaendig betrachten, einschliesslich
+  Laden, Leerzustand, Erfolg, Fehler, Bestaetigung und Abbruch. Bei einer
+  ausdruecklichen UX-Pruefung alle produktiven Hauptablaeufe untersuchen.
+- Relevante Ansichten auf Desktop und Mobil sowie im hellen und dunklen
+  Farbschema pruefen. Neben DOM und Accessibility auch sichtbare Hierarchie,
+  Kontrast, Fokus, Umbruch, Ueberlauf und erreichbare Aktionen beurteilen.
+- Positives und Verbesserungsbedarf konkret benennen und nach Auswirkung auf
+  Verstaendlichkeit, Fehlervermeidung und Aufgabenerfolg priorisieren.
+
 ## Planung und Nachverfolgung
 
 Arbeite nach diesem Modell:
