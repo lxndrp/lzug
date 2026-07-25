@@ -69,6 +69,21 @@ Wenn fachliche oder technische Planung in Codex entsteht und belastbar genug ist
 
 Draft-Items im GitHub Project nur fuer sehr fruehe Ideen verwenden. Sobald ein Element handhabbar oder nachvollziehbar sein soll, als Issue anlegen.
 
+### Project Status Updates
+
+- Bei wesentlichen Roadmap-Aktualisierungen die GitHub-Projects-Funktion
+  `Add status update` verwenden. Dazu gehoeren insbesondere neue
+  Meilensteinprognosen, relevante Fortschrittsaenderungen, Neuplanungen von
+  Iterationen sowie erkennbare Risiken fuer Termin oder Umfang.
+- Im Status Update mindestens Prognosestatus, Berichtsdatum, erreichten
+  Fortschritt, naechsten kritischen Pfad und wesentliche Risiken oder
+  Abhaengigkeiten festhalten.
+- Reine Pflege einzelner Felder, kleinere Prioritaetsverschiebungen oder
+  redaktionelle Korrekturen benoetigen kein eigenes Status Update.
+- Die ausfuehrlichen Planungsdaten weiterhin in Issues und Project-Feldern
+  pflegen; Status Updates fassen den fuer die Gesamtsteuerung relevanten Stand
+  zusammen.
+
 ### Issues aus dem Chat
 
 Neue fachliche oder technische Vorhaben koennen direkt im Chat gemeldet werden,
