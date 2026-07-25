@@ -59,16 +59,17 @@ class FakeServer:
 
 
 class ApiServer(AbstractContextManager):
-    def __init__(self, db_path: Path):
+    def __init__(self, db_path: Path, handler_type: type[TestLzugHandler] = TestLzugHandler):
         self.db_path = db_path
-        self._previous_db_path = TestLzugHandler.db_path
+        self.handler_type = handler_type
+        self._previous_db_path = self.handler_type.db_path
 
     def __enter__(self) -> ApiServer:
-        TestLzugHandler.db_path = self.db_path
+        self.handler_type.db_path = self.db_path
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-        TestLzugHandler.db_path = self._previous_db_path
+        self.handler_type.db_path = self._previous_db_path
 
     def request(
         self,
@@ -102,7 +103,7 @@ class ApiServer(AbstractContextManager):
         ).encode("utf-8") + body
         socket = FakeSocket(request)
 
-        TestLzugHandler(
+        self.handler_type(
             socket,
             ("127.0.0.1", 12345),
             FakeServer(),
