@@ -38,11 +38,17 @@ export type AvailabilityPayload = Pick<
   MemberAvailability,
   'committee_member_id' | 'candidate_exam_day_id' | 'availability'
 >;
-type AvailabilityCellState = {
+/** Transient UI state for one optimistic availability update. */
+export type AvailabilityCellState = {
   status: 'saving' | 'saved' | 'error';
   previous: AvailabilityValue;
 };
 
+/**
+ * Presents and edits one planning round, including optimistic availability
+ * changes. The parent owns network effects and calls the acknowledgement
+ * methods below to settle each cell state.
+ */
 @Component({
   selector: 'app-planning',
   imports: [
@@ -234,6 +240,12 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     return labels[member.representing_side] ?? member.representing_side;
   }
 
+  /**
+   * Optimistically expose a new availability value and request persistence.
+   *
+   * The previous value is retained per cell, allowing ``markAvailabilityError``
+   * to revert only the failed request rather than resetting unrelated edits.
+   */
   protected changeAvailability(
     member: CommitteeMember,
     day: CandidateExamDay,
@@ -258,6 +270,12 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     });
   }
 
+  /**
+   * Settle an optimistic cell as saved, then remove its transient feedback.
+   *
+   * Replacing an existing timer prevents an earlier acknowledgement from
+   * clearing feedback for a later change to the same cell.
+   */
   markAvailabilitySaved(payload: AvailabilityPayload): void {
     const key = this.availabilityCellKey(
       payload.committee_member_id,
@@ -282,6 +300,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     );
   }
 
+  /** Revert a failed optimistic cell to the value recorded before its request. */
   markAvailabilityError(payload: AvailabilityPayload): void {
     const key = this.availabilityCellKey(
       payload.committee_member_id,

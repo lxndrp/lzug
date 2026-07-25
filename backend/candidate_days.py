@@ -1,3 +1,5 @@
+"""Generate eligible weekday records for an exam round from ISO calendar weeks."""
+
 from __future__ import annotations
 
 import re
@@ -14,6 +16,13 @@ ISO_WEEK_PATTERN = re.compile(r"^(?P<year>\d{4})-W(?P<week>\d{2})$")
 
 
 class CandidateDayService:
+    """Generate candidate exam days without coupling planning to a holiday source.
+
+    The injected provider makes public-holiday rules replaceable in tests and
+    in future deployments. Generation is idempotent for existing dates and the
+    surrounding session commits all newly created days together.
+    """
+
     def __init__(
         self,
         db_path: Path = DEFAULT_DB_PATH,
@@ -23,6 +32,22 @@ class CandidateDayService:
         self.holiday_provider = holiday_provider or PythonHolidaysProvider()
 
     def generate(self, round_id: int) -> dict[str, Any]:
+        """Persist missing workdays in the configured ISO-week range.
+
+        Weekends, existing rows, and optionally state-specific public holidays
+        are excluded. The returned result keeps those categories separate so
+        the HTTP layer can give the user an actionable explanation.
+
+        Args:
+            round_id: Identifier of the round whose settings are used.
+
+        Returns:
+            Created days, skipped dates, excluded holidays, and their counts.
+
+        Raises:
+            ValueError: If settings are absent, ISO weeks are invalid, or a
+                required federal-state code is missing.
+        """
         with session_scope(self.db_path) as session:
             store = Store(session)
             settings = store.first(PLANNING_SETTINGS, exam_round_id=round_id)

@@ -1,0 +1,32 @@
+site_name: lzug developer documentation
+site_description: Versioned developer documentation and generated code reference.
+site_dir: site
+docs_dir: docs
+strict: true
+theme:
+  name: mkdocs
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - .
+          options:
+            docstring_style: google
+            show_source: false
+            members_order: source
+nav:
+  - Overview: index.md
+  - Documentation policy: development/code-documentation.md
+  - Frontend generator decision: development/frontend-generator.md
+  - Code reference:
+      - Python backend: reference/backend.md
+      - TypeScript frontend: reference/frontend.md
+  - Existing documentation:
+      - Architecture: ARCHITECTURE.md
+      - Data model: datenmodell.md
+      - Relational schema: relationales-schema.md
+      - Backend prototype: backend-prototyp.md
+      - Taiga UI exceptions: taiga-ui-exceptions.md
+      - Taiga UI prototype: taiga-ui-prototype.md

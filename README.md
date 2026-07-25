@@ -234,6 +234,16 @@ Accessibility-Tests:
 mise run quality
 ```
 
+Die versionierte Entwicklerdokumentation mit Python- und TypeScript-Referenz
+wird lokal erzeugt mit:
+
+```bash
+mise run docs
+```
+
+Das Ergebnis liegt unter `site/`. Es wird in CI nur als geschütztes Artefakt
+bereitgestellt; eine öffentliche Dokumentationsseite ist nicht aktiviert.
+
 Für die Browser-Tests wird Playwright verwendet. Der Lauf startet Backend und
 Frontend automatisch und verwendet eine isolierte SQLite-Testdatenbank. Der
 Frontend-Coverage-Gate liegt aktuell bei mindestens 70 Prozent Statements und

@@ -1,3 +1,5 @@
+"""Public-holiday abstraction used by candidate-day generation."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -31,11 +33,15 @@ GERMAN_SUBDIVISION_CODES = frozenset(
 
 @dataclass(frozen=True)
 class PublicHoliday:
+    """A holiday within the planning range, preserving the German display name."""
+
     date: date
     name: str
 
 
 class HolidayProvider(Protocol):
+    """Provide state-specific public holidays without exposing a library choice."""
+
     def public_holidays(
         self,
         start_date: date,
@@ -45,12 +51,24 @@ class HolidayProvider(Protocol):
 
 
 class PythonHolidaysProvider:
+    """Resolve German statutory holidays through the ``holidays`` package.
+
+    Municipality-specific rules are intentionally not inferred: callers must
+    supply one of the supported federal-state codes.
+    """
+
     def public_holidays(
         self,
         start_date: date,
         end_date: date,
         subdivision_code: str,
     ) -> list[PublicHoliday]:
+        """Return public holidays inside an inclusive date range.
+
+        Raises:
+            ValueError: If ``subdivision_code`` is not a supported German
+                federal-state code.
+        """
         if subdivision_code not in GERMAN_SUBDIVISION_CODES:
             raise ValueError("Unknown German federal state")
 

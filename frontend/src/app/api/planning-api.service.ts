@@ -27,6 +27,12 @@ import {
 } from './api.models';
 import { RoundContextService } from './round-context.service';
 
+/**
+ * Maps UI-oriented planning aggregates onto the JSON API.
+ *
+ * The service owns client-side joins only. Business validation and state
+ * transitions remain server-side and are described by the OpenAPI contract.
+ */
 @Injectable({ providedIn: 'root' })
 export class PlanningApiService {
   private readonly http = inject(HttpClient);
@@ -52,6 +58,12 @@ export class PlanningApiService {
     return this.http.patch<ExamRound>(`/api/exam-rounds/${this.roundId}`, payload);
   }
 
+  /**
+   * Load and deterministically join the collections used by planning views.
+   *
+   * Slots and assignments are deliberately fetched as full collections and
+   * filtered locally because their current endpoints are not round-scoped.
+   */
   getPlanningBoard() {
     return forkJoin({
       days: this.list<ExamDay>(`/api/exam-days?round_id=${this.roundId}`),
@@ -110,6 +122,10 @@ export class PlanningApiService {
     });
   }
 
+  /**
+   * Attach active-round data to each global candidate without hiding candidates
+   * that have not yet been added to the selected round.
+   */
   getCandidateViews() {
     return forkJoin({
       candidates: this.list<Candidate>('/api/candidates'),
@@ -124,6 +140,12 @@ export class PlanningApiService {
     );
   }
 
+  /**
+   * Refresh the dashboard's coherent read model for the current round.
+   *
+   * Independent reads run concurrently; the aggregate is emitted only after
+   * all sources complete successfully.
+   */
   refreshDashboard() {
     return this.getRoot().pipe(
       switchMap((root) =>
@@ -220,6 +242,7 @@ export class PlanningApiService {
     return this.http.patch<CandidateExamDay>(`/api/candidate-exam-days/${id}`, payload);
   }
 
+  /** Persist an availability value in the round selected at request time. */
   saveMemberAvailability(
     payload: Pick<
       MemberAvailability,
