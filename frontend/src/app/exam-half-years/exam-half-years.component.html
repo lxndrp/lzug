@@ -41,7 +41,13 @@
           <div class="app-field-full">
             <label for="examHalfYearSeason">Saison</label>
             <tui-textfield
-              ><select tuiSelect id="examHalfYearSeason" name="season" required>
+              ><select
+                tuiSelect
+                id="examHalfYearSeason"
+                name="season"
+                [ngModel]="'summer'"
+                required
+              >
                 <option value="summer">Sommer</option>
                 <option value="winter">Winter</option>
               </select></tui-textfield
@@ -80,7 +86,13 @@
           <div class="app-field-half">
             <label for="roundHalfYear">Prüfungshalbjahr</label
             ><tui-textfield
-              ><select tuiSelect id="roundHalfYear" name="exam_half_year_id" required>
+              ><select
+                tuiSelect
+                id="roundHalfYear"
+                name="exam_half_year_id"
+                [ngModel]="halfYears()[0]?.id"
+                required
+              >
                 @for (halfYear of halfYears(); track halfYear.id) {
                   <option [value]="halfYear.id">{{ halfYearLabel(halfYear) }}</option>
                 }
@@ -90,7 +102,13 @@
           <div class="app-field-half">
             <label for="roundCommittee">Ausschuss</label
             ><tui-textfield
-              ><select tuiSelect id="roundCommittee" name="committee_id" required>
+              ><select
+                tuiSelect
+                id="roundCommittee"
+                name="committee_id"
+                [ngModel]="committees[0]?.id"
+                required
+              >
                 @for (committee of committees; track committee.id) {
                   <option [value]="committee.id">{{ committee.name }}</option>
                 }
