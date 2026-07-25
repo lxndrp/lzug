@@ -21,6 +21,7 @@ import {
   PlanningBoard,
   PlanningResult,
   PlanningSettings,
+  Person,
   RoundCandidate,
   RoundSummary,
 } from './api.models';
@@ -102,6 +103,7 @@ export class PlanningApiService {
   getMasterData() {
     return forkJoin({
       committees: this.list<Committee>('/api/committees'),
+      persons: this.list<Person>('/api/persons'),
       members: this.list<CommitteeMember>('/api/members'),
       candidates: this.getCandidateViews(),
       locations: this.list<Location>('/api/locations'),
@@ -151,7 +153,7 @@ export class PlanningApiService {
     return this.http.patch<Committee>(`/api/committees/${id}`, payload);
   }
 
-  createMember(payload: Omit<CommitteeMember, 'id' | 'email_verified_at'>) {
+  createMember(payload: Partial<Omit<CommitteeMember, 'id' | 'email_verified_at'>>) {
     return this.http.post<CommitteeMember>('/api/members', payload);
   }
 

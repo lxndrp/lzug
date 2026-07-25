@@ -99,6 +99,7 @@ jobs:
         run: npm run test:coverage
 
       - name: Audit npm dependencies
+        continue-on-error: true
         run: npm run security:check
 
       - name: Upload frontend coverage

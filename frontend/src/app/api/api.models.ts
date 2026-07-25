@@ -121,6 +121,7 @@ export type Committee = {
 
 export type CommitteeMember = {
   id: number;
+  person_id: number;
   committee_id: number;
   first_name: string;
   last_name: string;
@@ -131,6 +132,14 @@ export type CommitteeMember = {
   email_verified_at: string | null;
   mobile: string | null;
   is_active: number;
+};
+
+export type Person = {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  mobile: string | null;
 };
 
 export type Location = {
@@ -224,6 +233,7 @@ export type PlanningBoard = {
 
 export type MasterData = {
   committees: Committee[];
+  persons: Person[];
   members: CommitteeMember[];
   candidates: CandidateView[];
   locations: Location[];

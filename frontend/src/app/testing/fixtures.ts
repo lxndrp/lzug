@@ -13,6 +13,7 @@ import {
   MasterData,
   MemberAvailability,
   PlanningBoard,
+  Person,
   RoundCandidate,
   RoundSummary,
 } from '../api/api.models';
@@ -30,6 +31,7 @@ export const committeesFixture: Committee[] = [
 export const membersFixture: CommitteeMember[] = [
   {
     id: 1,
+    person_id: 1,
     committee_id: 1,
     first_name: 'Martin',
     last_name: 'Koenig',
@@ -43,6 +45,7 @@ export const membersFixture: CommitteeMember[] = [
   },
   {
     id: 2,
+    person_id: 2,
     committee_id: 1,
     first_name: 'Anne',
     last_name: 'Berg',
@@ -56,6 +59,7 @@ export const membersFixture: CommitteeMember[] = [
   },
   {
     id: 3,
+    person_id: 3,
     committee_id: 2,
     first_name: 'Tobias',
     last_name: 'Rehm',
@@ -66,6 +70,30 @@ export const membersFixture: CommitteeMember[] = [
     email_verified_at: null,
     mobile: null,
     is_active: 1,
+  },
+];
+
+export const personsFixture: Person[] = [
+  {
+    id: 1,
+    first_name: 'Martin',
+    last_name: 'Koenig',
+    email: 'martin.koenig@example.de',
+    mobile: '+49 170 1234567',
+  },
+  {
+    id: 2,
+    first_name: 'Anne',
+    last_name: 'Berg',
+    email: 'anne.berg@example.de',
+    mobile: null,
+  },
+  {
+    id: 3,
+    first_name: 'Tobias',
+    last_name: 'Rehm',
+    email: 'tobias.rehm@example.de',
+    mobile: null,
   },
 ];
 
@@ -232,6 +260,7 @@ export const summaryFixture: RoundSummary = {
 
 export const masterDataFixture: MasterData = {
   committees: committeesFixture,
+  persons: personsFixture,
   members: membersFixture,
   candidates: candidateViewsFixture,
   locations: locationsFixture,
