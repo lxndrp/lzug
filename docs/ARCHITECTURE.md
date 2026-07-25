@@ -252,6 +252,61 @@ Die Konfiguration liegt in:
 
 Runtime-Pins wie Python- und Node-Versionen bleiben bewusste Projektentscheidungen und werden bei neuen Runtime-Releases manuell bewertet.
 
+### npm-Sicherheitsgate und Dependabot-Triage
+
+Der Frontend-Build mit Linting, Formatierung, Tests und Coverage ist von der
+npm-Sicherheitsprüfung getrennt. In GitHub Actions erscheint die Prüfung als
+eigenes Ergebnis **`npm production security gate`**; lokal entspricht ihr
+`mise run quality:security`. Beide rufen denselben Paket-Script auf:
+
+```bash
+cd frontend
+npm run security:check
+# npm audit --omit=dev --audit-level=critical
+```
+
+Damit blockieren nur kritische Befunde im produktiv installierten npm-Baum die
+Abnahme. Nichtkritische Befunde und Development-Abhängigkeiten bleiben in
+Dependabot Alerts sichtbar, blockieren aber keine fachlich unabhängigen Pull
+Requests pauschal. Dieses Gate ersetzt keinen einzelnen Alert- oder
+Release-Review.
+
+Dependabot erstellt weiterhin wöchentliche Versionsupdates für `uv`, npm und
+GitHub Actions. Die `@angular/*`-Versionsupdates und `@angular/*`-
+Sicherheitsupdates sind jeweils separat gruppiert. Die Trennung durch
+`applies-to: version-updates` und `applies-to: security-updates` verhindert,
+dass eine reguläre Versionserhöhung mit einem Security-Fix vermischt wird.
+Andere Security Updates bleiben absichtlich einzeln, damit ein Konflikt nicht
+mehrere unabhängige Behebungen aufhält.
+
+Die Einordnung und Reaktion auf Dependabot Alerts folgt diesen Fristen:
+
+- **Critical, produktiv relevant:** sofort bewerten und beheben; blockiert über
+  das Security-Gate.
+- **High, produktiv relevant:** innerhalb von sieben Tagen bewerten und
+  beheben oder mit belastbarer Begründung weiterverfolgen.
+- **High, nur Development/Build:** innerhalb von 14 Tagen bewerten.
+- **Medium:** innerhalb von 30 Tagen bewerten.
+- **Low:** bei regulären Updates, mindestens jedoch quartalsweise prüfen.
+
+Bei einem transitiven Befund ohne kompatibel erreichbaren Fix wird der
+betroffene Pfad, die tatsächliche Ausnutzbarkeit und eine mögliche Mitigation
+im zugehörigen GitHub Issue dokumentiert. Der Befund bleibt offen und wird bei
+Upstream- oder Dependabot-Updates erneut geprüft. `npm audit fix --force` und
+pauschale npm-`overrides` sind keine zulässigen Mittel, nur um die Zahl der
+Audit-Befunde zu senken.
+
+Für dieses private, benutzereigene Repository ist das GitHub-Preset **Dismiss
+low impact issues for development-scoped dependencies** verfügbar, aber nicht
+in `.github/dependabot.yml` und nicht über eine dokumentierte REST- oder
+GraphQL-Repository-Einstellung steuerbar. Es wird deshalb manuell unter
+**Settings → Advanced Security → Dependabot → Dependabot rules → GitHub
+presets** aktiviert und bleibt dort überprüfbar. Eigene Auto-Triage-Regeln und
+Dependency Review sind hier keine Voraussetzung: Erstere benötigen für private
+Repositories GitHub Code Security, Letzteres steht für dieses Repository ohne
+GitHub Code Security/Advanced Security nicht als verbindliche Grundlage zur
+Verfügung.
+
 ## Migration und Ausbau
 
 ### PostgreSQL

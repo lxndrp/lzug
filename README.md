@@ -244,6 +244,11 @@ Browser-E2E, Security, statische Checks und den kompletten QS-Lauf bereit. Die
 empfohlene Erweiterung Coverage Gutters nutzt `coverage.xml` und
 `frontend/coverage/frontend/lcov.info` direkt im Editor.
 
+Der npm-Sicherheitscheck ist dabei bewusst ein separates, risikobasiertes
+Critical-Gate für produktive Abhängigkeiten. Die verbindliche Triage-Fristen,
+Ausnahmen für transitive Befunde und Dependabot-Konfiguration stehen in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#npm-sicherheitsgate-und-dependabot-triage).
+
 Wenn Node.js installiert ist, prüft der Harness zusätzlich `app.js` mit `node --check`; ohne Node wird nur dieser optionale Syntaxcheck übersprungen.
 
 ## Roadmap
