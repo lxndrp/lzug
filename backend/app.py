@@ -1,3 +1,5 @@
+"""HTTP entry point that maps JSON requests onto repository and planning services."""
+
 from __future__ import annotations
 
 import argparse
@@ -18,6 +20,14 @@ from .repositories import REST_RESOURCES, ResourceRepository
 
 
 class LzugHandler(BaseHTTPRequestHandler):
+    """Serve the versioned JSON API and its OpenAPI-backed interactive documentation.
+
+    This adapter parses transport data, delegates domain work to services and
+    repositories, and maps expected errors to HTTP responses. Endpoint details
+    remain canonical in :mod:`backend.openapi`, rather than being duplicated in
+    method documentation here.
+    """
+
     db_path = DEFAULT_DB_PATH
 
     @property
@@ -33,6 +43,7 @@ class LzugHandler(BaseHTTPRequestHandler):
         return CandidateDayService(self.db_path)
 
     def do_GET(self) -> None:
+        """Dispatch read, health, OpenAPI, and Swagger UI requests."""
         try:
             parsed = urlparse(self.path)
             path_parts = self.path_parts(parsed.path)
@@ -105,6 +116,7 @@ class LzugHandler(BaseHTTPRequestHandler):
             self.respond({"error": str(error)}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def do_POST(self) -> None:
+        """Dispatch creates and planning actions, translating domain errors to HTTP."""
         try:
             path_parts = self.path_parts(urlparse(self.path).path)
             if (
@@ -165,6 +177,7 @@ class LzugHandler(BaseHTTPRequestHandler):
             self.respond({"error": str(error)}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def do_PATCH(self) -> None:
+        """Dispatch partial updates through the repository validation boundary."""
         try:
             resource_name, entity_id = self.resource_target(
                 self.path_parts(urlparse(self.path).path)

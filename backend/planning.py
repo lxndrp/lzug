@@ -1,3 +1,5 @@
+"""Build and confirm exam-round proposals while preserving planning invariants."""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -26,15 +28,42 @@ SIDES = ("employer", "employee", "school")
 
 @dataclass(frozen=True)
 class ShiftCrew:
+    """A complete examiner crew for one day part, including its fallback member."""
+
     crew: tuple[int, int, int]
     fallback: int
 
 
 class PlanningService:
+    """Coordinate proposal generation and confirmation within one database transaction.
+
+    The service owns the planning-specific invariants; callers must use the
+    returned validation information instead of inferring validity from created
+    rows. Each public operation runs in one :func:`session_scope`, so partial
+    proposals and partially confirmed plans are rolled back on errors.
+    """
+
     def __init__(self, db_path: Path = DEFAULT_DB_PATH):
         self.db_path = db_path
 
     def generate_proposal(self, round_id: int) -> dict[str, Any]:
+        """Create a replaceable proposal for an exam round.
+
+        Regular candidates are scheduled before MEP candidates, every planned
+        shift needs all three representation sides plus a fallback, and a day
+        cannot consist solely of MEP slots. Existing non-confirmed proposals
+        are replaced atomically; confirmed days raise ``ValueError`` instead.
+
+        Args:
+            round_id: Identifier of the exam round to plan.
+
+        Returns:
+            The persisted proposal, validation messages, and slot counts.
+
+        Raises:
+            ValueError: If required planning data is missing or a confirmed
+                proposal would be replaced.
+        """
         with session_scope(self.db_path) as session:
             store = Store(session)
             context = self._load_context(store, round_id)
@@ -59,6 +88,22 @@ class PlanningService:
             }
 
     def confirm_plan(self, round_id: int) -> dict[str, Any]:
+        """Confirm every day, slot, and fallback belonging to a proposal.
+
+        Confirmation is an all-or-nothing state transition. Cancelled days are
+        rejected before writes begin, and the containing session rolls back if
+        any later persistence operation fails.
+
+        Args:
+            round_id: Identifier of the round whose proposal is confirmed.
+
+        Returns:
+            The confirmed days and aggregate confirmation counts.
+
+        Raises:
+            ValueError: If the round or a proposal is absent, or contains a
+                cancelled day.
+        """
         with session_scope(self.db_path) as session:
             store = Store(session)
             exam_round = store.get(EXAM_ROUND, round_id)

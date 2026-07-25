@@ -236,6 +236,21 @@ Die vollständige CI-Konfiguration liegt in:
 .github/workflows/ci.yml
 ```
 
+### Entwicklerdokumentation
+
+Die versionierte Entwicklerdokumentation verbindet die bestehenden
+Markdown-Dokumente mit einer aus Google-Style-Docstrings erzeugten
+Python-Referenz und einer TypeDoc-Referenz für das Angular-Frontend. Der lokale
+Build läuft mit `mise run docs`; die vollständige Qualitätssicherung enthält
+diesen Build ebenfalls. CI stellt `site/` als geschütztes Artefakt
+`developer-documentation` bereit. Es ist kein GitHub Pages-, Read the Docs- oder
+anderes öffentliches Hosting konfiguriert.
+
+Die Richtlinie und die begründete Toolentscheidung liegen unter
+`docs/development/`; insbesondere nutzt TypeDoc den gelockten TypeScript-
+Compiler des Projekts, während Compodoc wegen einer abweichenden eingebetteten
+Compiler-Version nicht übernommen wurde.
+
 ## Abhängigkeitspflege
 
 Dependabot verwaltet Updates für:

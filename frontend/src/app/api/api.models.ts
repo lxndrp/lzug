@@ -1,3 +1,4 @@
+/** A HAL-like link. The optional method describes an allowed state transition. */
 export type ApiLink = {
   href: string;
   method?: string;
@@ -47,6 +48,12 @@ export type ExamRoundUpdate = Pick<
   'name' | 'availability_deadline' | 'availability_reminder_at'
 >;
 
+/**
+ * Current server-side planning state.
+ *
+ * The open ``string`` member deliberately keeps the UI forward-compatible with
+ * newly introduced backend states; presentation code must provide a fallback.
+ */
 export type RoundStatus =
   'draft' | 'availability_requested' | 'plan_proposed' | 'plan_confirmed' | string;
 
@@ -69,9 +76,16 @@ export type AvailabilityCount = {
   count: number;
 };
 
+/**
+ * A member's declared availability for one candidate day.
+ *
+ * As with round status, unknown future values are retained instead of being
+ * coerced, so a user never silently overwrites a server-side state.
+ */
 export type AvailabilityValue =
   'full_day' | 'morning' | 'afternoon' | 'pending' | 'unavailable' | string;
 
+/** Result of generating or confirming a proposal, including user-facing rule validation. */
 export type PlanningResult = {
   status: RoundStatus;
   validation?: {
@@ -119,6 +133,12 @@ export type Committee = {
   updated_at?: string;
 };
 
+/**
+ * A membership in one committee, enriched with the globally stored person data.
+ *
+ * ``id`` is the membership identifier used by availability and assignment APIs;
+ * ``person_id`` is used for conflict checks across committees.
+ */
 export type CommitteeMember = {
   id: number;
   person_id: number;
@@ -176,6 +196,7 @@ export type RoundCandidate = {
   updated_at?: string;
 };
 
+/** A global candidate enriched with the optional data of the active exam round. */
 export type CandidateView = {
   candidate: Candidate;
   roundCandidate?: RoundCandidate;
@@ -222,6 +243,12 @@ export type PlanningDayView = {
   location?: Location;
 };
 
+/**
+ * Client-side aggregate assembled from several API collections for planning views.
+ *
+ * Slots and assignments are grouped under their day to make the template avoid
+ * repeated cross-collection joins.
+ */
 export type PlanningBoard = {
   days: PlanningDayView[];
   members: CommitteeMember[];

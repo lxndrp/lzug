@@ -1,3 +1,5 @@
+"""Resource-oriented persistence operations and business validation boundaries."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -35,6 +37,14 @@ AVAILABILITY_VALUES = {"full_day", "morning", "afternoon", "unavailable", "pendi
 
 
 class ResourceRepository:
+    """Expose CRUD operations while applying resource-specific domain rules.
+
+    One repository call creates one :func:`session_scope`; the method either
+    completes and commits all of its related writes or rolls them back. Generic
+    ``Store`` operations remain deliberately unaware of person memberships,
+    candidate records, and cross-committee assignment conflicts.
+    """
+
     def __init__(self, db_path: Path = DEFAULT_DB_PATH):
         self.db_path = db_path
 
@@ -55,6 +65,16 @@ class ResourceRepository:
             return Store(session).get(resource, resource_id)
 
     def create(self, resource: Resource, payload: dict[str, Any]) -> dict[str, Any]:
+        """Create a resource after applying its domain-specific write rules.
+
+        Person payloads are normalized, memberships are created through their
+        dedicated invariant-preserving path, and assignment conflicts are
+        rejected before a row is written.
+
+        Raises:
+            ValueError: If the payload violates a resource invariant or names
+                an unknown field.
+        """
         with session_scope(self.db_path) as session:
             store = Store(session)
             if resource == PERSON:
@@ -71,6 +91,12 @@ class ResourceRepository:
         resource_id: int,
         payload: dict[str, Any],
     ) -> dict[str, Any] | None:
+        """Update a resource and return ``None`` only when it does not exist.
+
+        Membership and assignment writes reuse the same validation as creation.
+        In particular, an assignment update cannot bypass person-wide conflict
+        checks by changing only one of its fields.
+        """
         with session_scope(self.db_path) as session:
             store = Store(session)
             if resource == PERSON:

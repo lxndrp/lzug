@@ -127,6 +127,50 @@ jobs:
       - name: Audit critical production npm dependencies
         run: npm run security:check
 
+  documentation:
+    name: Developer documentation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14.6"
+
+      - name: Set up UV
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install documentation dependencies
+        run: uv sync --locked --extra dev
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build developer documentation
+        run: |
+          uv run mkdocs build --strict --site-dir site
+          cd frontend && npm run docs
+
+      - name: Upload developer documentation
+        uses: actions/upload-artifact@v7
+        with:
+          name: developer-documentation
+          path: site
+          if-no-files-found: error
+
   e2e:
     name: Browser E2E and accessibility
     runs-on: ubuntu-latest

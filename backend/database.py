@@ -1,3 +1,5 @@
+"""SQLite engine setup, migration handling, and transaction-scoped sessions."""
+
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -39,6 +41,18 @@ def connect(db_path: Path = DEFAULT_DB_PATH) -> Connection:
 
 @contextmanager
 def session_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[Session]:
+    """Yield a session that commits on success and rolls back on every error.
+
+    Services and repositories use this context manager as their transaction
+    boundary. ``Store`` only flushes, therefore all writes performed during
+    the yielded block are committed together or rolled back together.
+
+    Args:
+        db_path: SQLite database file used for this unit of work.
+
+    Yields:
+        An open SQLAlchemy session.
+    """
     session_factory = sessionmaker(bind=engine_for(db_path), future=True)
     session = session_factory()
     try:

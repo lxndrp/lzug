@@ -21,6 +21,15 @@ run = """
 cd frontend && npm run test:ci
 """
 
+[tasks.docs]
+description = "Build the local developer documentation and generated code reference"
+run = """
+set -e
+.venv/bin/mkdocs build --strict --site-dir site
+cd frontend
+npm run docs
+"""
+
 [tasks."quality:backend"]
 description = "Run backend lint, audit, tests, and coverage"
 run = """
@@ -62,7 +71,7 @@ npm run test:a11y
 
 [tasks.quality]
 description = "Run the complete local quality assurance suite in parallel"
-run = "mise run --jobs 4 quality:backend ::: quality:frontend ::: quality:security ::: quality:e2e"
+run = "mise run --jobs 5 quality:backend ::: quality:frontend ::: quality:security ::: quality:e2e ::: docs"
 
 [tasks.dev]
 description = "Start backend and frontend in parallel"

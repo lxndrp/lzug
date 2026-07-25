@@ -1,3 +1,5 @@
+"""Small SQLAlchemy CRUD adapter used only inside repository-owned sessions."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -10,7 +12,12 @@ from .models import Resource, model_to_dict
 
 
 class Store:
-    """SQLAlchemy-backed CRUD adapter kept behind repositories."""
+    """SQLAlchemy-backed CRUD adapter kept behind repositories.
+
+    ``Store`` flushes changes so callers can use generated values immediately,
+    but it never commits or rolls back. The caller that opened
+    :func:`backend.database.session_scope` owns the transaction boundary.
+    """
 
     def __init__(self, session: Session):
         self.session = session
@@ -37,6 +44,12 @@ class Store:
         return model_to_dict(row, resource) if row else None
 
     def create(self, resource: Resource, values: dict[str, Any]) -> dict[str, Any]:
+        """Add and flush a model after accepting only writable resource fields.
+
+        The returned dictionary reflects the flushed row, not a committed
+        transaction. An enclosing repository or service may still roll this
+        write back.
+        """
         row = resource.model(**self._payload(resource, values))
         self.session.add(row)
         self.session.flush()
@@ -49,6 +62,11 @@ class Store:
         resource_id: int,
         values: dict[str, Any],
     ) -> dict[str, Any] | None:
+        """Apply writable fields, refresh timestamps, and flush without commit.
+
+        Returns ``None`` for an absent row; invalid field names raise
+        ``ValueError`` before any mutation is flushed.
+        """
         row = self.session.get(resource.model, resource_id)
         if row is None:
             return None
