@@ -2,7 +2,11 @@
 
 Stand: 16.07.2026
 
-Dieses Dokument beschreibt die technische Architektur von `lzug`. Fachlicher Umfang und Roadmap stehen in `../ROADMAP.md`; Arbeitsregeln fuer Codex und andere Agents stehen in `../AGENTS.md`.
+Dieses Dokument beschreibt die technische Architektur von `lzug`.
+Produktueberblick und stabiler fachlicher Umfang stehen in `../README.md` und
+`datenmodell.md`. Die operative Planung wird im GitHub Project
+[`lzug Roadmap`](https://github.com/users/lxndrp/projects/2) gefuehrt;
+Arbeitsregeln fuer Codex und andere Agents stehen in `../AGENTS.md`.
 
 ## Überblick
 

@@ -33,8 +33,9 @@ generates their browser reference during `mise run docs`.
 
 ## Keeping the boundary clear
 
-- Product and domain requirements belong in `README.md`, `ROADMAP.md`, and the
-  German domain documentation.
+- Stable product and domain information belongs in `README.md` and the German
+  domain documentation. Changing scope, priorities, and delivery planning
+  belong in the GitHub Project and its issues.
 - Technical decisions belong in `ARCHITECTURE.md` and future ADRs.
 - HTTP paths, payloads, and responses are canonical in OpenAPI and Swagger UI.
 - Comments explain why code has a particular responsibility or state boundary;

@@ -4,30 +4,33 @@
 ![Status](https://img.shields.io/badge/status-prototype-yellow)
 ![Coverage](https://img.shields.io/badge/coverage-83%25-brightgreen)
 
-`lzug` ist eine Web-App zur Unterstützung eines IHK-Prüfungsausschusses bei der Organisation halbjährlicher Fachinformatiker-Prüfungen. Die App richtet sich an die Ausschussarbeit, nicht an interne IHK-Sachbearbeitung.
+`lzug` ist eine Web-App zur Unterstützung von IHK-Prüfungsausschüssen bei der
+Organisation halbjährlicher Fachinformatiker-Prüfungen. Die App richtet sich an
+die Ausschussarbeit, nicht an interne IHK-Sachbearbeitung.
 
-Fachlich gliedert sich das Produkt in zwei zentrale Bereiche:
+Fachlich gliedert sich das Produkt in drei zusammenhängende Bereiche:
 
+- **Prüfungshalbjahre verwalten**: Sommer- und Wintertermine als
+  ausschussübergreifende Klammer für Prüfungsrunden, Kandidaten,
+  Terminorganisation, Durchführung und Historie.
 - **Prüfungen planen**: Prüflinge, Ausschussmitglieder, Orte, Verfügbarkeiten, Planungsvorschlag, Bestätigung, Ausfallprozess und Terminbereitstellung.
-- **Prüfungen durchführen**: Tagesansicht, Anwesenheiten, Prüfungsstatus, Protokollierung, Ergebnis-/Abschlussdaten und Abschlusslogik. Dieser Bereich ist noch fachlich zu schärfen.
+- **Prüfungen durchführen**: Tagesansicht, Anwesenheiten, Prüfungsstatus,
+  Protokollierung, Ergebnis- und Abschlussdaten sowie Abschlusslogik.
 
-Der aktuelle Entwicklungsstand liegt vor allem im Bereich **Prüfungen planen**:
+Die produktive Weiterentwicklung findet im Angular-Frontend und im
+Python-Backend statt. Der aktuelle Stand unterstützt insbesondere:
 
 - Verwaltung von Prüflingen
-- Import von Prüflingsdaten
 - Pflege von Ausschussmitgliedern und Prüfungsorten
 - Terminfindung mit Verfügbarkeiten
 - automatisierter Planungsvorschlag
 - MEP- und Prüfungsversuchslogik
-- Vorbereitung eines persistenten Server-Datenmodells
+- persistente Speicherung über das relationale Server-Datenmodell
 
-Der fachliche Referenzstand mit umgesetzten und offenen Anforderungen steht in:
-
-```text
-ROADMAP.md
-```
-
-Die operative Planung wird im GitHub Project [lzug Roadmap](https://github.com/users/lxndrp/projects/2) geführt.
+Aktueller Umfang, Prioritäten, Iterationen, Termine und Fortschritt werden im
+GitHub Project [lzug Roadmap](https://github.com/users/lxndrp/projects/2)
+geführt. Die zugehörigen GitHub Issues enthalten Anforderungen,
+Akzeptanzkriterien, Refinements und Implementierungsnachweise.
 
 ## Projektstruktur
 
@@ -41,7 +44,6 @@ lzug/
 │   ├── datenmodell.md
 │   ├── relationales-schema.md
 │   └── backend-prototyp.md
-├── ROADMAP.md
 ├── frontend/
 │   └── Angular-App für die produktivere Oberfläche
 ├── backend/
@@ -82,12 +84,6 @@ Die technische Architektur befindet sich in:
 
 ```text
 docs/ARCHITECTURE.md
-```
-
-Der fachliche Roadmap- und Anforderungsstand befindet sich in:
-
-```text
-ROADMAP.md
 ```
 
 Die historische technische Einordnung des ersten Backend-Prototyps ist dokumentiert in:
@@ -261,6 +257,14 @@ Ausnahmen für transitive Befunde und Dependabot-Konfiguration stehen in
 
 Wenn Node.js installiert ist, prüft der Harness zusätzlich `app.js` mit `node --check`; ohne Node wird nur dieser optionale Syntaxcheck übersprungen.
 
-## Roadmap
+## Projektplanung
 
-Die fachliche Roadmap wird in `ROADMAP.md` dokumentiert und operativ im GitHub Project [lzug Roadmap](https://github.com/users/lxndrp/projects/2) nachverfolgt.
+Das GitHub Project [lzug Roadmap](https://github.com/users/lxndrp/projects/2)
+ist die operative Quelle für Backlog, Abhängigkeiten, Status, Prioritäten,
+Iterationen, Termine und Meilensteine. GitHub Issues dokumentieren den
+fachlichen und technischen Umfang einzelner Epics, Stories, Tasks und Bugs.
+
+Stabile fachliche Begriffe und Beziehungen stehen in
+[`docs/datenmodell.md`](docs/datenmodell.md). Technische Entscheidungen und
+Systemgrenzen stehen in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

@@ -1,6 +1,10 @@
 # lzug Agent Instructions
 
-Diese Datei beschreibt, wie Codex und andere Coding Agents in diesem Repository arbeiten sollen. Produktbeschreibung, fachlicher Umfang, Architektur und Technologieauswahl gehoeren in `README.md` und `ROADMAP.md`, nicht in diese Datei.
+Diese Datei beschreibt, wie Codex und andere Coding Agents in diesem Repository
+arbeiten sollen. Produktbeschreibung und stabiler fachlicher Umfang gehoeren
+in `README.md` und die Fachdokumentation, Architektur und Technologieauswahl in
+`docs/ARCHITECTURE.md`. Veraenderliche Planung wird im GitHub Project und in
+GitHub Issues gepflegt, nicht in dieser Datei.
 
 ## Grundsatz
 
@@ -236,5 +240,8 @@ Bekannte lokale Eigenheiten:
 
 - `README.md`: Produktueberblick, fachliche Hauptbereiche, Setup und zentrale Einstiegspunkte.
 - `docs/ARCHITECTURE.md`: technische Architektur, Technologieentscheidungen, Backend-/Frontend-Schichtung, API, Datenbank und CI.
-- `ROADMAP.md`: fachlicher Referenzstand, umgesetzte und offene Anforderungen, Epics und Plan.
-- GitHub Project `lzug Roadmap`: operative Planung und Statusverfolgung.
+- `docs/datenmodell.md`: stabile fachliche Begriffe, Entitaeten und Beziehungen.
+- GitHub Project `lzug Roadmap`: operative Planung, Prioritaeten, Iterationen,
+  Termine, Meilensteine und Statusverfolgung.
+- GitHub Issues: verbindlicher Umfang, Akzeptanzkriterien, Refinements und
+  Implementierungsnachweise fuer einzelne Arbeitselemente.
