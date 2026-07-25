@@ -158,6 +158,10 @@ Geschlossene Issues nicht loeschen.
   umgesetzte Issue im Pull Request verknuepfen. Fuer vollstaendig umgesetzte
   Issues `Closes #<nummer>` verwenden; bei Teilumsetzungen eine nicht
   schliessende Verknuepfung wie `Related to #<nummer>` nutzen.
+- Pull Requests aus einer Issue-Bearbeitung mit
+  `scripts/create-issue-pr.sh` erstellen. Der Befehl übernimmt das GitHub
+  Project, den Milestone und die Assignees aus dem Issue. Nicht gesetzte
+  Issue-Felder bleiben auch im Pull Request leer.
 - Den Pull Request erst nach erfolgreicher CI und Review in `master` mergen.
 - Nach dem Merge den Issue-Status im GitHub Project auf `Done` setzen und das
   Issue schliessen, sofern die Umsetzung vollstaendig ist.
