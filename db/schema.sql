@@ -14,7 +14,7 @@ CREATE TABLE schema_migration (
 );
 
 INSERT INTO schema_migration (name)
-VALUES ('001_add_holiday_planning_settings.sql');
+VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.sql');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
@@ -24,21 +24,27 @@ CREATE TABLE committee (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE committee_member (
+CREATE TABLE person (
   id INTEGER PRIMARY KEY,
-  committee_id INTEGER NOT NULL REFERENCES committee(id) ON DELETE CASCADE,
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
+  email TEXT NOT NULL COLLATE NOCASE UNIQUE,
+  mobile TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE committee_member (
+  id INTEGER PRIMARY KEY,
+  person_id INTEGER NOT NULL REFERENCES person(id) ON DELETE RESTRICT,
+  committee_id INTEGER NOT NULL REFERENCES committee(id) ON DELETE CASCADE,
   member_status TEXT NOT NULL CHECK (member_status IN ('ordinary', 'deputy')),
   committee_role TEXT NOT NULL CHECK (committee_role IN ('chair', 'deputy_chair', 'member')),
   representing_side TEXT NOT NULL CHECK (representing_side IN ('employer', 'employee', 'school')),
-  email TEXT NOT NULL,
-  email_verified_at TEXT,
-  mobile TEXT,
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (committee_id, email)
+  UNIQUE (committee_id, person_id)
 );
 
 CREATE UNIQUE INDEX committee_member_one_chair_per_committee
@@ -51,7 +57,7 @@ CREATE UNIQUE INDEX committee_member_one_deputy_chair_per_committee
 
 CREATE TABLE user_account (
   id INTEGER PRIMARY KEY,
-  committee_member_id INTEGER REFERENCES committee_member(id) ON DELETE SET NULL,
+  person_id INTEGER UNIQUE REFERENCES person(id) ON DELETE SET NULL,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   passkey_enabled INTEGER NOT NULL DEFAULT 0 CHECK (passkey_enabled IN (0, 1)),
@@ -322,6 +328,9 @@ CREATE TABLE calendar_event (
 
 CREATE INDEX committee_member_committee_active
   ON committee_member(committee_id, is_active);
+
+CREATE INDEX committee_member_person
+  ON committee_member(person_id);
 
 CREATE INDEX candidate_name
   ON candidate(last_name, first_name);

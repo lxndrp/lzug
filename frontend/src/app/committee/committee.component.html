@@ -213,6 +213,23 @@
                 ></select>
               </tui-textfield>
             </div>
+            <div class="app-field-full">
+              <label for="existingPerson">Person zuordnen</label>
+              <tui-textfield>
+                <select
+                  tuiSelect
+                  id="existingPerson"
+                  [items]="personOptions()"
+                  [labels]="personOptionLabels()"
+                  [ngModel]="selectedPersonId()"
+                  (ngModelChange)="selectPerson($event)"
+                  name="person_id"
+                ></select>
+              </tui-textfield>
+              <span class="app-muted app-block"
+                >Bestehende Person auswählen oder unten neue Kontaktdaten erfassen.</span
+              >
+            </div>
             <div class="app-field-half">
               <tui-textfield>
                 <label tuiLabel for="memberFirstName"

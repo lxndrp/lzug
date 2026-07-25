@@ -1,19 +1,30 @@
 INSERT INTO committee (id, name, occupation)
 VALUES (1, 'PA Fachinformatiker Hamburg 1', 'Fachinformatiker/in');
 
-INSERT INTO committee_member
-  (id, committee_id, first_name, last_name, member_status, committee_role, representing_side, email, email_verified_at, mobile)
+INSERT INTO person (id, first_name, last_name, email, mobile)
 VALUES
-  (1, 1, 'Martin', 'König', 'ordinary', 'chair', 'employer', 'martin.koenig@example.de', CURRENT_TIMESTAMP, '+49 170 1234567'),
-  (2, 1, 'Dr. Anne', 'Berg', 'ordinary', 'deputy_chair', 'school', 'anne.berg@example.de', CURRENT_TIMESTAMP, '+49 171 2345678'),
-  (3, 1, 'Tobias', 'Rehm', 'ordinary', 'member', 'employee', 'tobias.rehm@example.de', CURRENT_TIMESTAMP, '+49 172 3456789'),
-  (4, 1, 'Sabine', 'Jahn', 'ordinary', 'member', 'employer', 'sabine.jahn@example.de', CURRENT_TIMESTAMP, '+49 173 4567890'),
-  (5, 1, 'Jan', 'Peters', 'deputy', 'member', 'school', 'jan.peters@example.de', NULL, '+49 174 5678901'),
-  (6, 1, 'Nina', 'Albrecht', 'deputy', 'member', 'employee', 'nina.albrecht@example.de', CURRENT_TIMESTAMP, '+49 175 6789012'),
-  (7, 1, 'Karim', 'Özdemir', 'deputy', 'member', 'employer', 'karim.oezdemir@example.de', NULL, '+49 176 7890123'),
-  (8, 1, 'Claudia', 'Mertens', 'deputy', 'member', 'school', 'claudia.mertens@example.de', CURRENT_TIMESTAMP, '+49 177 8901234');
+  (1, 'Martin', 'König', 'martin.koenig@example.de', '+49 170 1234567'),
+  (2, 'Dr. Anne', 'Berg', 'anne.berg@example.de', '+49 171 2345678'),
+  (3, 'Tobias', 'Rehm', 'tobias.rehm@example.de', '+49 172 3456789'),
+  (4, 'Sabine', 'Jahn', 'sabine.jahn@example.de', '+49 173 4567890'),
+  (5, 'Jan', 'Peters', 'jan.peters@example.de', '+49 174 5678901'),
+  (6, 'Nina', 'Albrecht', 'nina.albrecht@example.de', '+49 175 6789012'),
+  (7, 'Karim', 'Özdemir', 'karim.oezdemir@example.de', '+49 176 7890123'),
+  (8, 'Claudia', 'Mertens', 'claudia.mertens@example.de', '+49 177 8901234');
 
-INSERT INTO user_account (id, committee_member_id, email, password_hash)
+INSERT INTO committee_member
+  (id, person_id, committee_id, member_status, committee_role, representing_side)
+VALUES
+  (1, 1, 1, 'ordinary', 'chair', 'employer'),
+  (2, 2, 1, 'ordinary', 'deputy_chair', 'school'),
+  (3, 3, 1, 'ordinary', 'member', 'employee'),
+  (4, 4, 1, 'ordinary', 'member', 'employer'),
+  (5, 5, 1, 'deputy', 'member', 'school'),
+  (6, 6, 1, 'deputy', 'member', 'employee'),
+  (7, 7, 1, 'deputy', 'member', 'employer'),
+  (8, 8, 1, 'deputy', 'member', 'school');
+
+INSERT INTO user_account (id, person_id, email, password_hash)
 VALUES (1, 1, 'martin.koenig@example.de', 'demo-password-hash');
 
 INSERT INTO location

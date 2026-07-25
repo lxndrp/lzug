@@ -35,15 +35,11 @@ class CommitteeMember(Base):
     __tablename__ = "committee_member"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    person_id: Mapped[int] = mapped_column(ForeignKey("person.id"))
     committee_id: Mapped[int] = mapped_column(ForeignKey("committee.id"))
-    first_name: Mapped[str] = mapped_column(String)
-    last_name: Mapped[str] = mapped_column(String)
     member_status: Mapped[str] = mapped_column(String)
     committee_role: Mapped[str] = mapped_column(String)
     representing_side: Mapped[str] = mapped_column(String)
-    email: Mapped[str] = mapped_column(String)
-    email_verified_at: Mapped[str | None] = mapped_column(String, nullable=True)
-    mobile: Mapped[str | None] = mapped_column(String, nullable=True)
     is_active: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
     created_at: Mapped[str] = mapped_column(
         String,
@@ -53,6 +49,18 @@ class CommitteeMember(Base):
         String,
         server_default=sql_text("CURRENT_TIMESTAMP"),
     )
+
+
+class Person(Base):
+    __tablename__ = "person"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    first_name: Mapped[str] = mapped_column(String)
+    last_name: Mapped[str] = mapped_column(String)
+    email: Mapped[str] = mapped_column(String)
+    mobile: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
 
 
 class Location(Base):
@@ -301,32 +309,31 @@ COMMITTEE = Resource(
 COMMITTEE_MEMBER = Resource(
     model=CommitteeMember,
     fields=(
+        "person_id",
         "committee_id",
-        "first_name",
-        "last_name",
         "member_status",
         "committee_role",
         "representing_side",
-        "email",
-        "email_verified_at",
-        "mobile",
         "is_active",
         "created_at",
         "updated_at",
     ),
-    order_by=("-is_active", "last_name", "first_name"),
+    order_by=("-is_active", "id"),
     writable_fields=(
+        "person_id",
         "committee_id",
-        "first_name",
-        "last_name",
         "member_status",
         "committee_role",
         "representing_side",
-        "email",
-        "email_verified_at",
-        "mobile",
         "is_active",
     ),
+)
+
+PERSON = Resource(
+    model=Person,
+    fields=("first_name", "last_name", "email", "mobile", "created_at", "updated_at"),
+    order_by=("last_name", "first_name"),
+    writable_fields=("first_name", "last_name", "email", "mobile"),
 )
 
 LOCATION = Resource(
