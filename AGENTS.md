@@ -86,6 +86,18 @@ klaeren, bevor eine umfangreiche Umsetzung beginnt.
 - Nach einem Refinement den Project-Status nur aendern, wenn sich daraus ein
   tatsaechlicher Fortschritt oder eine neue Priorisierung ergibt.
 
+### Umsetzungsdokumentation
+
+- Den Implementierungsstand eines Issues dauerhaft durch Kommentare im
+  zugehoerigen GitHub Issue dokumentieren. Fortschritt darf nicht
+  ausschliesslich im Chat oder Umsetzungsthread nachvollziehbar sein.
+- Bei sinnvollen Zwischenstaenden mindestens festhalten, was umgesetzt und
+  verifiziert wurde, welche Abweichungen von der Planung entstanden sind und
+  welche Punkte noch offen sind.
+- Spaetestens vor dem Abschluss des Issues einen zusammenfassenden Kommentar
+  mit umgesetztem Umfang, ausgefuehrten Qualitaetspruefungen, zugehoerigem Pull
+  Request und gegebenenfalls verbleibenden Folgearbeiten hinterlegen.
+
 ### Trennung von Planung und Umsetzung
 
 - Planung, Refinement und fachliche Klaerung finden im jeweiligen
@@ -143,11 +155,14 @@ Geschlossene Issues nicht loeschen.
   Issue schliessen, sofern die Umsetzung vollstaendig ist.
 - Nach erfolgreichem Merge aller zugehoerigen Pull Requests, erfolgreicher CI
   und abgeschlossenem Review den zugehoerigen Planungsthread beziehungsweise
-  Umsetzungsthread archivieren. Danach den Issue-Worktree entfernen, den
-  lokalen Feature-Branch loeschen und den zugehoerigen Remote-Branch in
-  GitHub loeschen. Nur die dem abgeschlossenen Issue zugeordneten Worktrees
-  und Branches aufraeumen; `master`, andere Issues und aktive Arbeitsverzeichnisse
-  nicht loeschen.
+  Umsetzungsthread archivieren. Die Archivierung und das Aufraeumen bilden
+  einen gemeinsamen Abschlussvorgang: Mit der Archivierung den zugehoerigen
+  Issue-Worktree entfernen, den lokalen Feature-Branch loeschen und den
+  zugehoerigen Remote-Branch in GitHub loeschen. Einen archivierten
+  Umsetzungsthread nicht mit einem liegen gebliebenen Worktree abschliessen.
+  Nur die dem abgeschlossenen Issue zugeordneten Worktrees und Branches
+  aufraeumen; `master`, andere Issues und aktive Arbeitsverzeichnisse nicht
+  loeschen.
 - Aenderungen thematisch schneiden und kleine, nachvollziehbare Commits bevorzugen.
 - Commit-Messages bevorzugt auf Englisch schreiben, passend zur bisherigen Git-Historie.
 - Deutsch und Englisch nicht innerhalb einer Commit-Message mischen.
