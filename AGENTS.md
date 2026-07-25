@@ -9,6 +9,10 @@ Diese Datei beschreibt, wie Codex und andere Coding Agents in diesem Repository 
 - Keine fremden oder ungefragten Aenderungen zuruecksetzen.
 - Wenn der Nutzer Planung statt Umsetzung verlangt, read-only bleiben.
 - Wenn der Nutzer Umsetzung verlangt, die Arbeit bis zur angemessenen Verifikation durchziehen.
+- Deutsche Prosa in Dokumenten, GitHub Issues, Pull Requests und Kommentaren
+  mit korrekten Umlauten und Sonderzeichen schreiben. ASCII bleibt technischen
+  Bezeichnern wie Code, Dateinamen, IDs, Konfigurationsschluesseln und
+  Kommandozeilenargumenten vorbehalten.
 
 ## UX-Leitbild fuer Frontend-Arbeiten
 
