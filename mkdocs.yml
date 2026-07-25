@@ -19,6 +19,7 @@ plugins:
 nav:
   - Overview: index.md
   - Documentation policy: development/code-documentation.md
+  - API contract validation: development/api-contract-validation.md
   - Frontend generator decision: development/frontend-generator.md
   - Code reference:
       - Python backend: reference/backend.md
