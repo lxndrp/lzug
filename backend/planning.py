@@ -129,7 +129,25 @@ class PlanningService:
                 if row["is_active"]
             ],
             "availability": store.where(MEMBER_AVAILABILITY, exam_round_id=round_id),
+            "blocked_person_ids": self._blocked_person_ids(store, round_id),
         }
+
+    def _blocked_person_ids(self, store: Store, round_id: int) -> dict[tuple[str, str], set[int]]:
+        """People already assigned by another committee, keyed by day and part."""
+        blocked: dict[tuple[str, str], set[int]] = defaultdict(set)
+        for assignment in store.all(EXAM_DAY_ASSIGNMENT):
+            exam_day = store.get(EXAM_DAY, assignment["exam_day_id"])
+            member = store.get(COMMITTEE_MEMBER, assignment["committee_member_id"])
+            if exam_day is None or member is None or exam_day["exam_round_id"] == round_id:
+                continue
+            parts = (
+                ("morning", "afternoon")
+                if assignment["day_part"] == "full_day"
+                else (assignment["day_part"],)
+            )
+            for part in parts:
+                blocked[(exam_day["date"], part)].add(member["person_id"])
+        return blocked
 
     def _clear_existing_proposal(self, store: Store, round_id: int) -> None:
         for exam_day in store.where(EXAM_DAY, exam_round_id=round_id):
@@ -369,9 +387,18 @@ class PlanningService:
         day_part: str,
         load: dict[int, float],
     ) -> ShiftCrew | None:
+        candidate_day = next(
+            (day for day in context["candidate_days"] if day["id"] == candidate_exam_day_id),
+            None,
+        )
+        blocked = context["blocked_person_ids"].get(
+            (candidate_day["date"], day_part) if candidate_day else ("", day_part),
+            set(),
+        )
         available_members = [
             member
             for member in context["members"]
+            if member["person_id"] not in blocked
             if self._available_for(
                 availability.get((member["id"], candidate_exam_day_id), "pending"),
                 day_part,

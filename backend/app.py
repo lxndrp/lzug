@@ -70,7 +70,9 @@ class LzugHandler(BaseHTTPRequestHandler):
 
             entity = REST_RESOURCES[resource_name]
             if entity_id is None:
-                if resource_name == "candidates":
+                if resource_name in {"members", "memberships"}:
+                    rows = self.repository.member_list(self.resource_filters(entity, query))
+                elif resource_name == "candidates":
                     rows = self.repository.candidate_list()
                 else:
                     filters = self.resource_filters(entity, query)
@@ -88,7 +90,11 @@ class LzugHandler(BaseHTTPRequestHandler):
                 )
                 return
 
-            row = self.repository.get(entity, entity_id)
+            row = (
+                self.repository.member_get(entity_id)
+                if resource_name in {"members", "memberships"}
+                else self.repository.get(entity, entity_id)
+            )
             if row is None:
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 return
@@ -139,6 +145,8 @@ class LzugHandler(BaseHTTPRequestHandler):
             elif resource_name == "member-availabilities":
                 row = self.repository.save_member_availability(payload)
                 status = HTTPStatus.OK
+            elif resource_name in {"members", "memberships"}:
+                row = self.repository.create_membership(payload)
             else:
                 row = self.repository.create(REST_RESOURCES[resource_name], payload)
             self.respond(
@@ -174,6 +182,8 @@ class LzugHandler(BaseHTTPRequestHandler):
                 row = self.repository.update_candidate(entity_id, payload)
             elif resource_name == "exam-rounds":
                 row = self.repository.update_exam_round(entity_id, payload)
+            elif resource_name in {"members", "memberships"}:
+                row = self.repository.update_membership(entity_id, payload)
             else:
                 row = self.repository.update(
                     REST_RESOURCES[resource_name],

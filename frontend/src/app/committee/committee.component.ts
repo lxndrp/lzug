@@ -10,7 +10,11 @@ import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
 
 export type CommitteePayload = Pick<Committee, 'name' | 'occupation'>;
-export type CommitteeMemberPayload = Omit<CommitteeMember, 'id' | 'email_verified_at'>;
+export type CommitteeMemberPayload = Pick<
+  CommitteeMember,
+  'committee_id' | 'member_status' | 'committee_role' | 'representing_side' | 'is_active'
+> &
+  Partial<Pick<CommitteeMember, 'person_id' | 'first_name' | 'last_name' | 'email' | 'mobile'>>;
 
 @Component({
   selector: 'app-committee',
@@ -39,6 +43,7 @@ export class CommitteeComponent {
 
   protected readonly icons = appIcons;
   protected readonly selectedCommitteeId = signal<number | null>(null);
+  protected readonly selectedPersonId = signal<number | null>(null);
   private pendingCommitteeForm: HTMLFormElement | null = null;
   private pendingMemberForm: HTMLFormElement | null = null;
 
@@ -112,6 +117,20 @@ export class CommitteeComponent {
     return (this.masterDataView()?.committees ?? []).map((committee) => committee.name);
   }
 
+  protected personOptions(): number[] {
+    return (this.masterDataView()?.persons ?? []).map((person) => person.id);
+  }
+
+  protected personOptionLabels(): string[] {
+    return (this.masterDataView()?.persons ?? []).map(
+      (person) => `${person.first_name} ${person.last_name} · ${person.email}`,
+    );
+  }
+
+  protected selectPerson(personId: number | null): void {
+    this.selectedPersonId.set(personId);
+  }
+
   protected saveCommittee(event: SubmitEvent): void {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
@@ -130,7 +149,9 @@ export class CommitteeComponent {
     const form = event.currentTarget as HTMLFormElement;
     const data = new FormData(form);
     const committeeId = Number(data.get('committee_id') || this.selectedCommittee()?.id);
+    const personId = this.selectedPersonId();
     const payload: CommitteeMemberPayload = {
+      person_id: personId ?? undefined,
       committee_id: committeeId,
       first_name: String(data.get('first_name') ?? '').trim(),
       last_name: String(data.get('last_name') ?? '').trim(),
@@ -141,7 +162,13 @@ export class CommitteeComponent {
       mobile: String(data.get('mobile') ?? '').trim() || null,
       is_active: data.get('is_active') === 'on' ? 1 : 0,
     };
-    if (!payload.committee_id || !payload.first_name || !payload.last_name || !payload.email) {
+    if (!personId) {
+      delete (payload as Partial<CommitteeMemberPayload>).person_id;
+    }
+    if (
+      !payload.committee_id ||
+      (!personId && (!payload.first_name || !payload.last_name || !payload.email))
+    ) {
       return;
     }
     this.pendingMemberForm = form;
@@ -156,6 +183,7 @@ export class CommitteeComponent {
   resetMemberForm(): void {
     this.pendingMemberForm?.reset();
     this.pendingMemberForm = null;
+    this.selectedPersonId.set(null);
   }
 
   protected fullMemberName(member: CommitteeMember): string {

@@ -17,6 +17,7 @@ from .models import (
     EXAM_SLOT,
     LOCATION,
     MEMBER_AVAILABILITY,
+    PERSON,
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
     Resource,
@@ -55,7 +56,14 @@ class ResourceRepository:
 
     def create(self, resource: Resource, payload: dict[str, Any]) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
-            return Store(session).create(resource, payload)
+            store = Store(session)
+            if resource == PERSON:
+                return store.create(PERSON, self._person_payload(payload))
+            if resource == COMMITTEE_MEMBER:
+                return self._create_membership(store, payload)
+            if resource == EXAM_DAY_ASSIGNMENT:
+                self._validate_assignment_conflict(store, payload)
+            return store.create(resource, payload)
 
     def update(
         self,
@@ -64,7 +72,142 @@ class ResourceRepository:
         payload: dict[str, Any],
     ) -> dict[str, Any] | None:
         with session_scope(self.db_path) as session:
-            return Store(session).update(resource, resource_id, payload)
+            store = Store(session)
+            if resource == PERSON:
+                return store.update(PERSON, resource_id, self._person_payload(payload))
+            if resource == COMMITTEE_MEMBER:
+                return self._update_membership(store, resource_id, payload)
+            if resource == EXAM_DAY_ASSIGNMENT:
+                existing = store.get(resource, resource_id)
+                if existing is None:
+                    return None
+                self._validate_assignment_conflict(store, {**existing, **payload}, resource_id)
+            return store.update(resource, resource_id, payload)
+
+    def member_list(self, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        with session_scope(self.db_path) as session:
+            store = Store(session)
+            rows = store.where(COMMITTEE_MEMBER, **(filters or {}))
+            return [self._member_view(store, row) for row in rows]
+
+    def member_get(self, member_id: int) -> dict[str, Any] | None:
+        with session_scope(self.db_path) as session:
+            store = Store(session)
+            row = store.get(COMMITTEE_MEMBER, member_id)
+            return self._member_view(store, row) if row else None
+
+    def create_membership(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with session_scope(self.db_path) as session:
+            return self._create_membership(Store(session), payload)
+
+    def update_membership(self, member_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        with session_scope(self.db_path) as session:
+            return self._update_membership(Store(session), member_id, payload)
+
+    def _person_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        normalized = dict(payload)
+        if "email" in normalized:
+            email = str(normalized["email"]).strip().lower()
+            if not email:
+                raise ValueError("Primary email is required")
+            normalized["email"] = email
+        return normalized
+
+    def _create_membership(self, store: Store, payload: dict[str, Any]) -> dict[str, Any]:
+        membership = dict(payload)
+        person_id = membership.get("person_id")
+        person_fields = {
+            key: membership.pop(key)
+            for key in ("first_name", "last_name", "email", "mobile")
+            if key in membership
+        }
+        if person_id is None:
+            required = {"first_name", "last_name", "email"}
+            if not required.issubset(person_fields):
+                raise ValueError(
+                    "Select an existing person or provide first name, last name and email"
+                )
+            person = store.create(PERSON, self._person_payload(person_fields))
+            person_id = person["id"]
+        elif store.get(PERSON, int(person_id)) is None:
+            raise ValueError("Person not found")
+        elif person_fields:
+            raise ValueError(
+                "Existing person contact data must be changed through the person endpoint"
+            )
+        membership["person_id"] = person_id
+        return self._member_view(store, store.create(COMMITTEE_MEMBER, membership))
+
+    def _update_membership(
+        self, store: Store, member_id: int, payload: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        existing = store.get(COMMITTEE_MEMBER, member_id)
+        if existing is None:
+            return None
+        if {"first_name", "last_name", "email", "mobile"}.intersection(payload):
+            person_values = {
+                key: payload[key]
+                for key in ("first_name", "last_name", "email", "mobile")
+                if key in payload
+            }
+            store.update(PERSON, existing["person_id"], self._person_payload(person_values))
+        member_values = {
+            key: value
+            for key, value in payload.items()
+            if key not in {"first_name", "last_name", "email", "mobile"}
+        }
+        row = (
+            store.update(COMMITTEE_MEMBER, member_id, member_values) if member_values else existing
+        )
+        return self._member_view(store, row)
+
+    def _member_view(self, store: Store, member: dict[str, Any]) -> dict[str, Any]:
+        person = store.get(PERSON, member["person_id"])
+        return {
+            **member,
+            **{key: person[key] for key in ("first_name", "last_name", "email", "mobile")},
+            "email_verified_at": None,
+        }
+
+    def _validate_assignment_conflict(
+        self,
+        store: Store,
+        payload: dict[str, Any],
+        assignment_id: int | None = None,
+    ) -> None:
+        member = store.get(COMMITTEE_MEMBER, payload["committee_member_id"])
+        target_day = store.get(EXAM_DAY, payload["exam_day_id"])
+        if member is None or target_day is None:
+            raise ValueError("Assignment member or exam day not found")
+        target_part = payload.get("day_part", "full_day")
+        for assignment in store.all(EXAM_DAY_ASSIGNMENT):
+            if assignment_id is not None and assignment["id"] == assignment_id:
+                continue
+            other_member = store.get(COMMITTEE_MEMBER, assignment["committee_member_id"])
+            other_day = store.get(EXAM_DAY, assignment["exam_day_id"])
+            if other_member is None or other_day is None:
+                continue
+            if (
+                other_member["person_id"] != member["person_id"]
+                or other_day["date"] != target_day["date"]
+            ):
+                continue
+            if other_day["exam_round_id"] == target_day["exam_round_id"]:
+                continue
+            if (
+                target_part == "full_day"
+                or assignment["day_part"] == "full_day"
+                or assignment["day_part"] == target_part
+            ):
+                other_round = store.get(EXAM_ROUND, other_day["exam_round_id"])
+                other_committee = (
+                    store.get(COMMITTEE, other_round["committee_id"]) if other_round else None
+                )
+                raise ValueError(
+                    "Person is already assigned in "
+                    f"{other_committee['name'] if other_committee else 'another committee'} "
+                    f"on {other_day['date']} ({assignment['day_part']})"
+                )
 
     def delete(self, resource: Resource, resource_id: int) -> bool:
         with session_scope(self.db_path) as session:
@@ -178,9 +321,13 @@ class ResourceRepository:
                 committee_member_id=payload["committee_member_id"],
                 candidate_exam_day_id=payload["candidate_exam_day_id"],
             )
-            if existing is None:
-                return store.create(MEMBER_AVAILABILITY, payload)
-            return store.update(MEMBER_AVAILABILITY, existing["id"], payload) or existing
+            saved = (
+                store.create(MEMBER_AVAILABILITY, payload)
+                if existing is None
+                else store.update(MEMBER_AVAILABILITY, existing["id"], payload) or existing
+            )
+            self._propagate_person_availability(store, saved)
+            return saved
 
     def update_member_availability(
         self,
@@ -193,7 +340,9 @@ class ResourceRepository:
             if existing is None:
                 return None
             normalized = self._availability_payload(store, {**existing, **payload})
-            return store.update(MEMBER_AVAILABILITY, availability_id, normalized) or existing
+            saved = store.update(MEMBER_AVAILABILITY, availability_id, normalized) or existing
+            self._propagate_person_availability(store, saved)
+            return saved
 
     def delete_candidate(self, candidate_id: int) -> bool:
         with session_scope(self.db_path) as session:
@@ -329,10 +478,51 @@ class ResourceRepository:
             )
         return normalized
 
+    def _propagate_person_availability(self, store: Store, saved: dict[str, Any]) -> None:
+        """Mirror one response to same-person memberships on the same calendar day."""
+        member = store.get(COMMITTEE_MEMBER, saved["committee_member_id"])
+        source_day = store.get(CANDIDATE_EXAM_DAY, saved["candidate_exam_day_id"])
+        if member is None or source_day is None:
+            return
+        for other_member in store.all(COMMITTEE_MEMBER):
+            if (
+                other_member["id"] == member["id"]
+                or other_member["person_id"] != member["person_id"]
+            ):
+                continue
+            for other_day in store.all(CANDIDATE_EXAM_DAY):
+                if other_day["date"] != source_day["date"]:
+                    continue
+                other_round = store.get(EXAM_ROUND, other_day["exam_round_id"])
+                if (
+                    other_round is None
+                    or other_round["committee_id"] != other_member["committee_id"]
+                ):
+                    continue
+                existing = store.first(
+                    MEMBER_AVAILABILITY,
+                    exam_round_id=other_day["exam_round_id"],
+                    committee_member_id=other_member["id"],
+                    candidate_exam_day_id=other_day["id"],
+                )
+                values = {
+                    "exam_round_id": other_day["exam_round_id"],
+                    "committee_member_id": other_member["id"],
+                    "candidate_exam_day_id": other_day["id"],
+                    "availability": saved["availability"],
+                    "responded_at": saved["responded_at"],
+                }
+                if existing is None:
+                    store.create(MEMBER_AVAILABILITY, values)
+                else:
+                    store.update(MEMBER_AVAILABILITY, existing["id"], values)
+
 
 REST_RESOURCES = {
     "committees": COMMITTEE,
+    "persons": PERSON,
     "members": COMMITTEE_MEMBER,
+    "memberships": COMMITTEE_MEMBER,
     "locations": LOCATION,
     "exam-rounds": EXAM_ROUND,
     "round-candidates": ROUND_CANDIDATE,
