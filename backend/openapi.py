@@ -31,6 +31,14 @@ REST_SCHEMA_FIELDS = {
     "assignment_role": {"type": "string", "enum": ["examiner", "fallback"]},
     "day_part": {"type": "string", "enum": ["morning", "afternoon", "full_day"]},
     "status": {"type": "string"},
+    "mobile": {"type": ["string", "null"]},
+    "fallback_status": {"type": ["string", "null"]},
+    "default_location_id": {"type": ["integer", "null"]},
+    "is_active": {"type": "integer", "enum": [0, 1]},
+    "requires_mep": {"type": "integer", "enum": [0, 1]},
+    "lunch_break_enabled": {"type": "integer", "enum": [0, 1]},
+    "exclude_public_holidays": {"type": "integer", "enum": [0, 1]},
+    "created_from_proposal": {"type": "integer", "enum": [0, 1]},
     "holiday_subdivision_code": {
         "type": ["string", "null"],
         "enum": [
@@ -179,8 +187,14 @@ def spec() -> dict[str, Any]:
         }
 
     schemas = {
-        "ApiRoot": object_schema({"name": {"type": "string"}, "_links": link_map()}),
-        "Health": object_schema({"status": {"type": "string"}, "_links": link_map()}),
+        "ApiRoot": object_schema(
+            {"name": {"type": "string"}, "_links": link_map()},
+            required=("name", "_links"),
+        ),
+        "Health": object_schema(
+            {"status": {"type": "string"}, "_links": link_map()},
+            required=("status", "_links"),
+        ),
         "Error": object_schema({"error": {"type": "string"}}, required=("error",)),
         "Link": object_schema(
             {
@@ -197,7 +211,8 @@ def spec() -> dict[str, Any]:
                 "settings": {"type": ["object", "null"]},
                 "availability": {"type": "array", "items": {"type": "object"}},
                 "_links": link_map(),
-            }
+            },
+            required=("round", "counts", "settings", "availability", "_links"),
         ),
         "PlanningProposalRequest": object_schema(
             {"round_id": {"type": "integer"}},
@@ -212,14 +227,26 @@ def spec() -> dict[str, Any]:
                 "round_id": {"type": "integer"},
                 "calendar_week_from": {"type": "string"},
                 "calendar_week_to": {"type": "string"},
-                "exclude_public_holidays": {"type": "boolean"},
+                "exclude_public_holidays": field_schema("exclude_public_holidays"),
                 "holiday_subdivision_code": {"type": ["string", "null"]},
                 "created_days": {"type": "array", "items": {"type": "object"}},
                 "skipped_existing": {"type": "array", "items": {"type": "string"}},
                 "excluded_holidays": {"type": "array", "items": {"type": "object"}},
                 "counts": {"type": "object"},
                 "_links": link_map(),
-            }
+            },
+            required=(
+                "round_id",
+                "calendar_week_from",
+                "calendar_week_to",
+                "exclude_public_holidays",
+                "holiday_subdivision_code",
+                "created_days",
+                "skipped_existing",
+                "excluded_holidays",
+                "counts",
+                "_links",
+            ),
         ),
         "PlanningProposal": object_schema(
             {
@@ -229,7 +256,8 @@ def spec() -> dict[str, Any]:
                 "validation": {"type": "object"},
                 "counts": {"type": "object"},
                 "_links": link_map(),
-            }
+            },
+            required=("round_id", "status", "exam_days", "validation", "counts", "_links"),
         ),
         "ConfirmedPlan": object_schema(
             {
@@ -238,14 +266,15 @@ def spec() -> dict[str, Any]:
                 "exam_days": {"type": "array", "items": {"type": "object"}},
                 "counts": {"type": "object"},
                 "_links": link_map(),
-            }
+            },
+            required=("round_id", "status", "exam_days", "counts", "_links"),
         ),
         "OpenApiDocument": {"type": "object"},
     }
 
     for resource_name, resource in REST_RESOURCES.items():
         schema_name = schema_ref_name(resource_name)
-        schemas[schema_name] = resource_schema(resource, include_links=True)
+        schemas[schema_name] = resource_schema(resource_name, resource, include_links=True)
         schemas[f"{schema_name}Write"] = resource_write_schema(resource)
         schemas[f"{schema_name}Collection"] = object_schema(
             {
@@ -254,7 +283,8 @@ def spec() -> dict[str, Any]:
                     "items": {"$ref": f"#/components/schemas/{schema_name}"},
                 },
                 "_links": link_map(),
-            }
+            },
+            required=("items", "_links"),
         )
 
     return {
@@ -307,11 +337,30 @@ def link_map() -> dict[str, Any]:
     }
 
 
-def resource_schema(resource, include_links: bool) -> dict[str, Any]:
-    properties = {field: field_schema(field) for field in resource.readable_fields}
+def resource_schema(resource_name: str, resource, include_links: bool) -> dict[str, Any]:
+    readable_fields = resource.readable_fields
+    if resource_name in {"members", "memberships"}:
+        readable_fields = (
+            "id",
+            "person_id",
+            "committee_id",
+            "first_name",
+            "last_name",
+            "email",
+            "mobile",
+            "email_verified_at",
+            "member_status",
+            "committee_role",
+            "representing_side",
+            "is_active",
+            "created_at",
+            "updated_at",
+        )
+    properties = {field: field_schema(field) for field in readable_fields}
     if include_links:
         properties["_links"] = link_map()
-    return object_schema(properties, required=("id",))
+    required = (*readable_fields, "_links") if include_links else readable_fields
+    return object_schema(properties, required=required)
 
 
 def resource_write_schema(resource) -> dict[str, Any]:
@@ -325,13 +374,6 @@ def field_schema(field: str) -> dict[str, Any]:
         return explicit
     if field == "id" or field.endswith("_id"):
         return {"type": "integer"}
-    if field in {
-        "is_active",
-        "requires_mep",
-        "lunch_break_enabled",
-        "exclude_public_holidays",
-    }:
-        return {"type": "boolean"}
     if field.endswith("_at") or field.endswith("_deadline"):
         return {"type": ["string", "null"]}
     if field in {"attempt_number", "exams_per_day", "max_exam_days_per_week"}:
