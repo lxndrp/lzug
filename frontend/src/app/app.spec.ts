@@ -20,6 +20,7 @@ import {
   examSlotsFixture,
   locationsFixture,
   membersFixture,
+  personsFixture,
   roundCandidatesFixture,
   summaryFixture,
 } from './testing/fixtures';
@@ -218,6 +219,8 @@ function flushDashboardRequests(http: HttpTestingController): void {
   const memberRequests = http.match('/api/members');
   expect(memberRequests.length).toBe(2);
   memberRequests.forEach((request) => request.flush({ items: membersFixture, _links: {} }));
+
+  http.expectOne('/api/persons').flush({ items: personsFixture, _links: {} });
 
   http.expectOne('/api/committees').flush({
     items: committeesFixture,
