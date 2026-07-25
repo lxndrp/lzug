@@ -1,7 +1,7 @@
 import { Component, EventEmitter, Input, OnInit, Output, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TuiButton, TuiInput, TuiNotification, TuiTextfield } from '@taiga-ui/core';
-import { TuiBadge, TuiSelect } from '@taiga-ui/kit';
+import { TuiBadge } from '@taiga-ui/kit';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 
 import { Committee, CommitteeMember, ExamHalfYear, ExamRound } from '../api/api.models';
@@ -18,7 +18,6 @@ import { PlanningApiService } from '../api/planning-api.service';
     TuiHeader,
     TuiInput,
     TuiNotification,
-    TuiSelect,
     TuiTextfield,
   ],
   templateUrl: './exam-half-years.component.html',
@@ -60,7 +59,8 @@ export class ExamHalfYearsComponent implements OnInit {
 
   protected createHalfYear(event: SubmitEvent): void {
     event.preventDefault();
-    const data = new FormData(event.currentTarget as HTMLFormElement);
+    const form = event.currentTarget as HTMLFormElement;
+    const data = new FormData(form);
     const year = Number(data.get('year'));
     const season = String(data.get('season')) as ExamHalfYear['season'];
     if (!Number.isInteger(year) || !season) {
@@ -69,7 +69,7 @@ export class ExamHalfYearsComponent implements OnInit {
     this.loading.set(true);
     this.api.createExamHalfYear({ season, year, status: 'draft' }).subscribe({
       next: () => {
-        (event.currentTarget as HTMLFormElement).reset();
+        form.reset();
         this.success.set('Prüfungshalbjahr angelegt. Ordnen Sie jetzt Ausschüsse zu.');
         this.load();
       },
