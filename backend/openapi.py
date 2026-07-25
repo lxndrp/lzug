@@ -18,6 +18,8 @@ REST_SCHEMA_FIELDS = {
         "type": "string",
         "enum": ["full_day", "morning", "afternoon", "unavailable", "pending"],
     },
+    "season": {"type": "string", "enum": ["summer", "winter"]},
+    "year": {"type": "integer", "minimum": 2000, "maximum": 2100},
     "committee_role": {
         "type": "string",
         "enum": ["chair", "deputy_chair", "member"],

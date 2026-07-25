@@ -12,6 +12,7 @@ import {
   Committee,
   CommitteeMember,
   ExamRound,
+  ExamRoundCreate,
   ExamRoundUpdate,
   ExamDay,
   ExamDayAssignment,
@@ -21,6 +22,7 @@ import {
   PlanningBoard,
   PlanningResult,
   PlanningSettings,
+  ExamHalfYear,
   Person,
   RoundCandidate,
   RoundSummary,
@@ -56,6 +58,22 @@ export class PlanningApiService {
 
   updateExamRound(payload: ExamRoundUpdate) {
     return this.http.patch<ExamRound>(`/api/exam-rounds/${this.roundId}`, payload);
+  }
+
+  listExamHalfYears() {
+    return this.list<ExamHalfYear>('/api/exam-half-years');
+  }
+
+  listExamRounds() {
+    return this.list<ExamRound>('/api/exam-rounds');
+  }
+
+  createExamHalfYear(payload: Pick<ExamHalfYear, 'season' | 'year' | 'status'>) {
+    return this.http.post<ExamHalfYear>('/api/exam-half-years', payload);
+  }
+
+  createExamRound(payload: ExamRoundCreate) {
+    return this.http.post<ExamRound>('/api/exam-rounds', payload);
   }
 
   /**

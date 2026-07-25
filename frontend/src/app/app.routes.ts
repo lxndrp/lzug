@@ -7,5 +7,6 @@ export const routes: Routes = [
   { path: 'committee', children: [] },
   { path: 'planning', children: [] },
   { path: 'locations', children: [] },
+  { path: 'exam-half-years', children: [] },
   { path: '**', redirectTo: 'dashboard' },
 ];

@@ -54,6 +54,7 @@ class PersonMembershipTests(unittest.TestCase):
             other_round = repository.create(
                 EXAM_ROUND,
                 {
+                    "exam_half_year_id": 1,
                     "committee_id": committee["id"],
                     "name": "Sommer",
                     "created_by_member_id": membership["id"],

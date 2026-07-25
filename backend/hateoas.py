@@ -7,6 +7,7 @@ from .repositories import REST_RESOURCES
 
 RELATED_RESOURCE_FIELDS = {
     "committee_id": "committees",
+    "exam_half_year_id": "exam-half-years",
     "created_by_member_id": "members",
     "updated_by_member_id": "members",
     "committee_member_id": "members",
@@ -117,6 +118,7 @@ def round_summary(summary: dict[str, Any], round_id: int) -> dict[str, Any]:
         "planning-settings": {"href": f"/api/planning-settings?round_id={round_id}"},
         "candidate-exam-days": {"href": f"/api/candidate-exam-days?round_id={round_id}"},
         "member-availabilities": {"href": f"/api/member-availabilities?round_id={round_id}"},
+        "exam-half-years": {"href": "/api/exam-half-years"},
     }
     return linked
 

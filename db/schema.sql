@@ -14,7 +14,8 @@ CREATE TABLE schema_migration (
 );
 
 INSERT INTO schema_migration (name)
-VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.sql');
+VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.sql'),
+       ('003_add_exam_half_years.sql');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
@@ -99,8 +100,19 @@ CREATE TABLE candidate (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE exam_half_year (
+  id INTEGER PRIMARY KEY,
+  season TEXT NOT NULL CHECK (season IN ('summer', 'winter')),
+  year INTEGER NOT NULL CHECK (year BETWEEN 2000 AND 2100),
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'completed', 'archived')),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (season, year)
+);
+
 CREATE TABLE exam_round (
   id INTEGER PRIMARY KEY,
+  exam_half_year_id INTEGER NOT NULL REFERENCES exam_half_year(id) ON DELETE RESTRICT,
   committee_id INTEGER NOT NULL REFERENCES committee(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'draft' CHECK (
@@ -121,6 +133,7 @@ CREATE TABLE exam_round (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (committee_id, name),
+  UNIQUE (exam_half_year_id, committee_id),
   CHECK (
     availability_deadline IS NULL
     OR availability_reminder_at IS NULL

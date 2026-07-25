@@ -104,6 +104,32 @@ test.describe('lzug browser workflows', () => {
     await expect(page.locator('#availabilityReminder')).toHaveValue('08.04.2027, 09:00');
   });
 
+  test('creates a half-year and its committee-specific exam round', async ({ page }) => {
+    await page.goto('/exam-half-years');
+    await expect(page.getByRole('heading', { name: 'Prüfungshalbjahre' })).toBeVisible({
+      timeout: 30_000,
+    });
+
+    await page.locator('#examHalfYearSeason').selectOption('summer');
+    await page.locator('#examHalfYearYear').fill('2027');
+    const halfYearResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/exam-half-years') && response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Prüfungshalbjahr anlegen' }).click();
+    expect((await halfYearResponse).status()).toBe(201);
+
+    await page.locator('#roundHalfYear').selectOption({ label: 'Sommer 2027' });
+    const roundResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/exam-rounds') && response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Prüfungsrunde anlegen' }).click();
+    expect((await roundResponse).status()).toBe(201);
+    await expect(page).toHaveURL('/dashboard');
+    await expect(page.getByRole('heading', { name: /Sommer 2027/ })).toBeVisible();
+  });
+
   test('generates possible exam days while excluding state holidays', async ({ page }) => {
     await page.goto('/planning');
 

@@ -154,6 +154,42 @@ class ApiTests(unittest.TestCase):
                 error["error"],
             )
 
+    def test_exam_half_year_and_committee_round_can_be_created_over_http(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, half_year = api.request(
+                "POST",
+                "/api/exam-half-years",
+                {"season": "summer", "year": 2027, "status": "draft"},
+            )
+            assert_status(status, HTTPStatus.CREATED)
+            self.assertEqual("summer", half_year["season"])
+
+            status, exam_round = api.request(
+                "POST",
+                "/api/exam-rounds",
+                {
+                    "exam_half_year_id": half_year["id"],
+                    "committee_id": 1,
+                    "name": "Sommer 2027 · PA Fachinformatiker Hamburg 1",
+                    "created_by_member_id": 1,
+                },
+            )
+            assert_status(status, HTTPStatus.CREATED)
+            self.assertEqual(half_year["id"], exam_round["exam_half_year_id"])
+
+            status, error = api.request(
+                "POST",
+                "/api/exam-rounds",
+                {
+                    "exam_half_year_id": half_year["id"],
+                    "committee_id": 1,
+                    "name": "Doppelte Runde",
+                    "created_by_member_id": 1,
+                },
+            )
+            assert_status(status, HTTPStatus.CONFLICT)
+            self.assertIn("UNIQUE", error["error"])
+
     def test_invalid_payload_and_unknown_resources_return_client_errors(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             status, body = api.request("GET", "/api/does-not-exist")
