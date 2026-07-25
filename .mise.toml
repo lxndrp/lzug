@@ -33,7 +33,7 @@ set -e
 """
 
 [tasks."quality:frontend"]
-description = "Run frontend lint, audit, build, and unit tests"
+description = "Run frontend lint, build, and unit tests"
 run = """
 set -e
 cd frontend
@@ -41,6 +41,13 @@ npm run lint
 npm run format:check
 npm run build:ci
 npm run test:coverage
+"""
+
+[tasks."quality:security"]
+description = "Run the production npm critical security gate"
+run = """
+set -e
+cd frontend
 npm run security:check
 """
 
@@ -55,7 +62,7 @@ npm run test:a11y
 
 [tasks.quality]
 description = "Run the complete local quality assurance suite in parallel"
-run = "mise run --jobs 3 quality:backend ::: quality:frontend ::: quality:e2e"
+run = "mise run --jobs 4 quality:backend ::: quality:frontend ::: quality:security ::: quality:e2e"
 
 [tasks.dev]
 description = "Start backend and frontend in parallel"

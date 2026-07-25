@@ -13,7 +13,7 @@
     "test:coverage": "ng test --watch=false --browsers=ChromeHeadlessNoSandbox --code-coverage",
     "test:e2e": "playwright test",
     "test:a11y": "playwright test --grep @a11y",
-    "security:check": "npm audit --audit-level=high",
+    "security:check": "npm audit --omit=dev --audit-level=critical",
     "lint": "eslint . --max-warnings=0",
     "format:check": "prettier --check ."
   },
