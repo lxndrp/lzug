@@ -33,6 +33,7 @@ export type RoundSummary = {
 
 export type ExamRound = {
   id: number;
+  exam_half_year_id: number;
   name: string;
   committee_id: number;
   status: RoundStatus;
@@ -41,6 +42,19 @@ export type ExamRound = {
   created_at?: string;
   updated_at?: string;
   _links?: Record<string, ApiLink>;
+};
+
+export type ExamHalfYear = {
+  id: number;
+  season: 'summer' | 'winter';
+  year: number;
+  status: 'draft' | 'active' | 'completed' | 'archived' | string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ExamRoundCreate = Pick<ExamRound, 'exam_half_year_id' | 'committee_id' | 'name'> & {
+  created_by_member_id: number;
 };
 
 export type ExamRoundUpdate = Pick<

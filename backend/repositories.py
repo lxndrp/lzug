@@ -15,6 +15,7 @@ from .models import (
     COMMITTEE_MEMBER,
     EXAM_DAY,
     EXAM_DAY_ASSIGNMENT,
+    EXAM_HALF_YEAR,
     EXAM_ROUND,
     EXAM_SLOT,
     LOCATION,
@@ -81,6 +82,10 @@ class ResourceRepository:
                 return store.create(PERSON, self._person_payload(payload))
             if resource == COMMITTEE_MEMBER:
                 return self._create_membership(store, payload)
+            if resource == EXAM_HALF_YEAR:
+                return store.create(EXAM_HALF_YEAR, self._exam_half_year_payload(payload))
+            if resource == EXAM_ROUND:
+                return self._create_exam_round(store, payload)
             if resource == EXAM_DAY_ASSIGNMENT:
                 self._validate_assignment_conflict(store, payload)
             return store.create(resource, payload)
@@ -103,6 +108,10 @@ class ResourceRepository:
                 return store.update(PERSON, resource_id, self._person_payload(payload))
             if resource == COMMITTEE_MEMBER:
                 return self._update_membership(store, resource_id, payload)
+            if resource == EXAM_HALF_YEAR:
+                return store.update(
+                    EXAM_HALF_YEAR, resource_id, self._exam_half_year_payload(payload)
+                )
             if resource == EXAM_DAY_ASSIGNMENT:
                 existing = store.get(resource, resource_id)
                 if existing is None:
@@ -138,6 +147,44 @@ class ResourceRepository:
                 raise ValueError("Primary email is required")
             normalized["email"] = email
         return normalized
+
+    def _exam_half_year_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        normalized = dict(payload)
+        season = normalized.get("season")
+        if season is not None and season not in {"summer", "winter"}:
+            raise ValueError("Season must be summer or winter")
+        if "year" in normalized:
+            try:
+                normalized["year"] = int(normalized["year"])
+            except (TypeError, ValueError) as error:
+                raise ValueError("Year must be a four-digit number") from error
+            if not 2000 <= normalized["year"] <= 2100:
+                raise ValueError("Year must be between 2000 and 2100")
+        if "status" in normalized and normalized["status"] not in {
+            "draft",
+            "active",
+            "completed",
+            "archived",
+        }:
+            raise ValueError("Unknown exam half-year status")
+        return normalized
+
+    def _create_exam_round(self, store: Store, payload: dict[str, Any]) -> dict[str, Any]:
+        required = ("exam_half_year_id", "committee_id", "created_by_member_id")
+        for field in required:
+            if field not in payload:
+                raise ValueError(f"Missing required field: {field}")
+        if store.get(EXAM_HALF_YEAR, payload["exam_half_year_id"]) is None:
+            raise ValueError("Exam half-year not found")
+        committee = store.get(COMMITTEE, payload["committee_id"])
+        if committee is None:
+            raise ValueError("Committee not found")
+        creator = store.get(COMMITTEE_MEMBER, payload["created_by_member_id"])
+        if creator is None or creator["committee_id"] != payload["committee_id"]:
+            raise ValueError("Creating member does not belong to the exam round committee")
+        if not str(payload.get("name", "")).strip():
+            raise ValueError("Exam round name is required")
+        return store.create(EXAM_ROUND, payload)
 
     def _create_membership(self, store: Store, payload: dict[str, Any]) -> dict[str, Any]:
         membership = dict(payload)
@@ -328,6 +375,14 @@ class ResourceRepository:
                 return None
 
             merged = {**existing, **payload}
+            if any(
+                merged[field] != existing[field]
+                for field in ("exam_half_year_id", "committee_id")
+                if field in payload
+            ):
+                raise ValueError(
+                    "An exam round cannot be reassigned to another half-year or committee"
+                )
             if not str(merged.get("name", "")).strip():
                 raise ValueError("Exam round name is required")
             deadline = merged.get("availability_deadline")
@@ -384,6 +439,7 @@ class ResourceRepository:
                 return None
 
             committee = store.get(COMMITTEE, exam_round["committee_id"])
+            exam_half_year = store.get(EXAM_HALF_YEAR, exam_round["exam_half_year_id"])
             candidate_count = store.count(ROUND_CANDIDATE, exam_round_id=round_id)
             mep_count = store.count(
                 ROUND_CANDIDATE,
@@ -402,6 +458,7 @@ class ResourceRepository:
                     "name": exam_round["name"],
                     "status": exam_round["status"],
                     "committee_name": committee["name"] if committee else None,
+                    "exam_half_year": exam_half_year,
                 },
                 "counts": {
                     "candidates": candidate_count,
@@ -550,6 +607,7 @@ REST_RESOURCES = {
     "members": COMMITTEE_MEMBER,
     "memberships": COMMITTEE_MEMBER,
     "locations": LOCATION,
+    "exam-half-years": EXAM_HALF_YEAR,
     "exam-rounds": EXAM_ROUND,
     "round-candidates": ROUND_CANDIDATE,
     "candidates": CANDIDATE,

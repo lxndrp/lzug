@@ -29,6 +29,15 @@
         <p class="app-nav-title">Prüfungsverwaltung</p>
         <a
           class="app-nav-link"
+          href="/exam-half-years"
+          [class.is-active]="activeView() === 'exam-half-years'"
+          (click)="navigateFromShell('exam-half-years', $event)"
+        >
+          <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
+          Prüfungshalbjahre
+        </a>
+        <a
+          class="app-nav-link"
           href="/dashboard"
           [class.is-active]="activeView() === 'dashboard'"
           (click)="navigateFromShell('dashboard', $event)"
@@ -198,6 +207,14 @@
                 (deleteLocation)="
                   requestLocationDeletion($event.id, $event.name + ' · ' + $event.room)
                 "
+              />
+            }
+            @case ('exam-half-years') {
+              <app-exam-half-years
+                [committees]="masterData()?.committees || []"
+                [members]="masterData()?.members || []"
+                [activeRoundId]="round()?.id || null"
+                (roundSelected)="selectExamRound($event)"
               />
             }
           }

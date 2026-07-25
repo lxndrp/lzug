@@ -116,6 +116,13 @@ def apply_migrations(db_path: Path = DEFAULT_DB_PATH) -> None:
                 ).first()
             if has_members is None:
                 continue
+        if migration.name == "003_add_exam_half_years.sql":
+            with engine.connect() as connection:
+                has_rounds = connection.exec_driver_sql(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' " "AND name = 'exam_round'"
+                ).first()
+            if has_rounds is None:
+                continue
         raw_connection = engine.raw_connection()
         try:
             raw_connection.executescript(migration.read_text(encoding="utf-8"))

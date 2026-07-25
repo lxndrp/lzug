@@ -49,10 +49,13 @@ VALUES
   (11, 'Lina', 'Schröder', 'FI-2026-1205', 'application_development', 'Codewerft GmbH'),
   (12, 'Emil', 'Hartmann', 'FI-2026-1221', 'system_integration', 'Infrapilot AG');
 
+INSERT INTO exam_half_year (id, season, year, status)
+VALUES (1, 'winter', 2026, 'active');
+
 INSERT INTO exam_round
-  (id, committee_id, name, status, availability_deadline, availability_reminder_at, created_by_member_id)
+  (id, exam_half_year_id, committee_id, name, status, availability_deadline, availability_reminder_at, created_by_member_id)
 VALUES
-  (1, 1, 'Winter 2026/27', 'availability_requested', '2026-10-02 18:00:00', '2026-09-29 18:00:00', 1);
+  (1, 1, 1, 'Winter 2026/27', 'availability_requested', '2026-10-02 18:00:00', '2026-09-29 18:00:00', 1);
 
 INSERT INTO round_candidate
   (id, exam_round_id, candidate_id, attempt_number, requires_mep)

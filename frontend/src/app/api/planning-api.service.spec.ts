@@ -98,6 +98,32 @@ describe('PlanningApiService', () => {
     });
   });
 
+  it('should expose exam-half-year and committee-round operations', () => {
+    service.listExamHalfYears().subscribe();
+    const halfYears = http.expectOne('/api/exam-half-years');
+    expect(halfYears.request.method).toBe('GET');
+    halfYears.flush({ items: [], _links: {} });
+
+    service.createExamHalfYear({ season: 'summer', year: 2027, status: 'draft' }).subscribe();
+    const createHalfYear = http.expectOne('/api/exam-half-years');
+    expect(createHalfYear.request.method).toBe('POST');
+    expect(createHalfYear.request.body).toEqual({ season: 'summer', year: 2027, status: 'draft' });
+    createHalfYear.flush({ id: 2, season: 'summer', year: 2027, status: 'draft' });
+
+    service
+      .createExamRound({
+        exam_half_year_id: 2,
+        committee_id: 1,
+        name: 'Sommer 2027 · PA Fachinformatiker Hamburg 1',
+        created_by_member_id: 1,
+      })
+      .subscribe();
+    const createRound = http.expectOne('/api/exam-rounds');
+    expect(createRound.request.method).toBe('POST');
+    expect(createRound.request.body.exam_half_year_id).toBe(2);
+    createRound.flush({ ...examRoundFixture, id: 2, exam_half_year_id: 2 });
+  });
+
   it('should expose committee and member write operations', () => {
     service.createCommittee({ name: 'PA Neu', occupation: 'Fachinformatiker/in' }).subscribe();
     const committee = http.expectOne('/api/committees');

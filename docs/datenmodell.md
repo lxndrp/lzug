@@ -28,6 +28,7 @@ Ziel ist zunächst kein endgültiges technisches Schema, sondern ein tragfähige
 erDiagram
   COMMITTEE ||--o{ COMMITTEE_MEMBER : has
   COMMITTEE ||--o{ EXAM_ROUND : organizes
+  EXAM_HALF_YEAR ||--o{ EXAM_ROUND : groups
   EXAM_ROUND ||--o{ ROUND_CANDIDATE : includes
   CANDIDATE ||--o{ ROUND_CANDIDATE : participates
   EXAM_ROUND ||--o{ MEMBER_AVAILABILITY : collects
@@ -170,17 +171,45 @@ Fachliche Regeln:
 - Die IHK-Prüfungsnummer sollte eindeutig sein.
 - Beim Import werden Duplikate anhand der IHK-Prüfungsnummer erkannt und automatisch herausgefiltert.
 
-### Prüfungsdurchgang
+### Prüfungshalbjahr
 
-Technischer Name: `exam_round`
+Technischer Name: `exam_half_year`
 
-Beschreibt einen konkreten Durchgang, z. B. „Winter 2026/27“.
+Beschreibt den ausschussübergreifenden Sommer- oder Wintertermin eines Jahres.
+Er bündelt die jeweils genau eine Prüfungsrunde eines Ausschusses, ohne die
+Planungs- und Durchführungsdaten aus der Runde herauszulösen.
 
 Felder:
 
 | Feld | Typ | Pflicht | Beschreibung |
 | --- | --- | --- | --- |
 | `id` | UUID/Integer | ja | Eindeutige ID |
+| `season` | Enum | ja | `summer` oder `winter` |
+| `year` | Integer | ja | Startjahr des Termins, z. B. `2026` für Winter 2026/27 |
+| `status` | Enum | ja | `draft`, `active`, `completed` oder `archived` |
+| `created_at` | Zeitstempel | ja | Anlagezeitpunkt |
+| `updated_at` | Zeitstempel | ja | Letzte Änderung |
+
+Fachliche Regeln:
+
+- Sommer oder Winter eines Jahres existiert genau einmal.
+- Pro Prüfungshalbjahr und Ausschuss gibt es höchstens eine Prüfungsrunde.
+- Die Runde bleibt für alle Terminorganisationen und bestätigten Pläne der
+  eindeutige Bezugspunkt; deren bestehenden IDs werden nicht verändert.
+
+### Prüfungsdurchgang
+
+Technischer Name: `exam_round`
+
+Beschreibt die ausschussbezogene Runde innerhalb eines Prüfungshalbjahrs. Sie
+bleibt die fachliche Einheit für Planung, Prüfungstage und Prüfungen.
+
+Felder:
+
+| Feld | Typ | Pflicht | Beschreibung |
+| --- | --- | --- | --- |
+| `id` | UUID/Integer | ja | Eindeutige ID |
+| `exam_half_year_id` | Fremdschlüssel | ja | Übergeordnetes Prüfungshalbjahr |
 | `committee_id` | Fremdschlüssel | ja | Zuständiger Ausschuss |
 | `name` | Text | ja | Anzeigename, z. B. „Winter 2026/27“ |
 | `status` | Enum | ja | Status des Durchgangs |

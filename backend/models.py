@@ -103,10 +103,22 @@ class Candidate(Base):
     )
 
 
+class ExamHalfYear(Base):
+    __tablename__ = "exam_half_year"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    season: Mapped[str] = mapped_column(String)
+    year: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'draft'"))
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
 class ExamRound(Base):
     __tablename__ = "exam_round"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_half_year_id: Mapped[int] = mapped_column(ForeignKey("exam_half_year.id"))
     committee_id: Mapped[int] = mapped_column(ForeignKey("committee.id"))
     name: Mapped[str] = mapped_column(String)
     status: Mapped[str] = mapped_column(String, server_default=sql_text("'draft'"))
@@ -385,6 +397,7 @@ CANDIDATE = Resource(
 EXAM_ROUND = Resource(
     model=ExamRound,
     fields=(
+        "exam_half_year_id",
         "committee_id",
         "name",
         "status",
@@ -396,6 +409,7 @@ EXAM_ROUND = Resource(
     ),
     order_by=("-created_at",),
     writable_fields=(
+        "exam_half_year_id",
         "committee_id",
         "name",
         "status",
@@ -403,6 +417,13 @@ EXAM_ROUND = Resource(
         "availability_reminder_at",
         "created_by_member_id",
     ),
+)
+
+EXAM_HALF_YEAR = Resource(
+    model=ExamHalfYear,
+    fields=("season", "year", "status", "created_at", "updated_at"),
+    order_by=("-year", "season"),
+    writable_fields=("season", "year", "status"),
 )
 
 ROUND_CANDIDATE = Resource(

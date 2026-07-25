@@ -175,6 +175,7 @@ Kernressourcen nutzen REST-nahe CRUD-Muster mit `GET`, `POST`, `PATCH` und `DELE
 Aktuelle Ressourcen und Aktionen:
 
 - `committees`
+- `exam-half-years`
 - `members`
 - `locations`
 - `exam-rounds`

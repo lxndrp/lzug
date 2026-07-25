@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import unittest
 
+from sqlalchemy.exc import IntegrityError
+
 from backend.models import (
     CANDIDATE,
+    EXAM_HALF_YEAR,
     EXAM_ROUND,
     MEMBER_AVAILABILITY,
     PLANNING_SETTINGS,
@@ -123,6 +126,51 @@ class RepositoryTests(unittest.TestCase):
                         "availability_reminder_at": "2027-04-15 18:00:00",
                     },
                 )
+
+    def test_exam_round_requires_a_unique_committee_half_year_pair(self) -> None:
+        with TempDatabase() as db_path:
+            repository = ResourceRepository(db_path)
+            half_year = repository.create(
+                EXAM_HALF_YEAR,
+                {"season": "summer", "year": 2027, "status": "draft"},
+            )
+            created = repository.create(
+                EXAM_ROUND,
+                {
+                    "exam_half_year_id": half_year["id"],
+                    "committee_id": 1,
+                    "name": "Sommer 2027 · PA Fachinformatiker Hamburg 1",
+                    "created_by_member_id": 1,
+                },
+            )
+            with self.assertRaisesRegex(ValueError, "Creating member"):
+                invalid_half_year = repository.create(
+                    EXAM_HALF_YEAR,
+                    {"season": "winter", "year": 2027, "status": "draft"},
+                )
+                repository.create(
+                    EXAM_ROUND,
+                    {
+                        "exam_half_year_id": invalid_half_year["id"],
+                        "committee_id": 1,
+                        "name": "Ungültige Runde",
+                        "created_by_member_id": 999,
+                    },
+                )
+            with self.assertRaises(IntegrityError):
+                repository.create(
+                    EXAM_ROUND,
+                    {
+                        "exam_half_year_id": half_year["id"],
+                        "committee_id": 1,
+                        "name": "Doppelte Runde",
+                        "created_by_member_id": 1,
+                    },
+                )
+            summary = repository.round_summary(created["id"])
+
+        self.assertEqual(half_year["id"], created["exam_half_year_id"])
+        self.assertEqual(half_year["id"], summary["round"]["exam_half_year"]["id"])
 
     def test_planning_settings_upsert_enforces_chair_for_week_limit(self) -> None:
         with TempDatabase() as db_path:

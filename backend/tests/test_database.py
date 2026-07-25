@@ -23,6 +23,7 @@ class DatabaseTests(unittest.TestCase):
                     "committee_member",
                     "location",
                     "candidate",
+                    "exam_half_year",
                     "exam_round",
                     "round_candidate",
                     "planning_settings",
@@ -37,6 +38,7 @@ class DatabaseTests(unittest.TestCase):
                 "committee_member": 8,
                 "location": 2,
                 "candidate": 12,
+                "exam_half_year": 1,
                 "exam_round": 1,
                 "round_candidate": 12,
                 "planning_settings": 1,
@@ -126,6 +128,41 @@ class DatabaseTests(unittest.TestCase):
         self.assertIn("exclude_public_holidays", columns)
         self.assertIn("holiday_subdivision_code", columns)
         self.assertIn("001_add_holiday_planning_settings.sql", migrations)
+
+    def test_initialize_groups_legacy_rounds_under_a_migrated_half_year(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            db_path = Path(directory) / "legacy-round.sqlite3"
+            with closing(sqlite3.connect(db_path)) as connection:
+                connection.execute(
+                    "CREATE TABLE exam_round "
+                    "(id INTEGER PRIMARY KEY, committee_id INTEGER NOT NULL, name TEXT NOT NULL)"
+                )
+                connection.execute(
+                    "CREATE TABLE planning_settings "
+                    "(id INTEGER PRIMARY KEY, calendar_week_from TEXT, calendar_week_to TEXT)"
+                )
+                connection.execute(
+                    "INSERT INTO exam_round (id, committee_id, name) "
+                    "VALUES (17, 4, 'Winter 2026/27')"
+                )
+                connection.commit()
+
+            initialize(db_path)
+
+            with closing(sqlite3.connect(db_path)) as connection:
+                half_year = connection.execute(
+                    "SELECT season, year, status FROM exam_half_year"
+                ).fetchone()
+                migrated_round = connection.execute(
+                    "SELECT exam_half_year_id FROM exam_round WHERE id = 17"
+                ).fetchone()
+                migrations = {
+                    row[0] for row in connection.execute("SELECT name FROM schema_migration")
+                }
+
+        self.assertEqual(("winter", 2026, "active"), half_year)
+        self.assertEqual(1, migrated_round[0])
+        self.assertIn("003_add_exam_half_years.sql", migrations)
 
 
 if __name__ == "__main__":

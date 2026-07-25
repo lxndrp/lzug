@@ -158,6 +158,7 @@ export const candidateDaysFixture: CandidateExamDay[] = [
 
 export const examRoundFixture: ExamRound = {
   id: 1,
+  exam_half_year_id: 1,
   name: 'Winter 2026/27',
   committee_id: 1,
   status: 'availability_requested',

@@ -1,1 +1,2 @@
-export type AppView = 'dashboard' | 'candidates' | 'committee' | 'planning' | 'locations';
+export type AppView =
+  'dashboard' | 'candidates' | 'committee' | 'planning' | 'locations' | 'exam-half-years';

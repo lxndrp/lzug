@@ -18,9 +18,11 @@ import {
   RoundSummary,
 } from './api/api.models';
 import { PlanningApiService } from './api/planning-api.service';
+import { RoundContextService } from './api/round-context.service';
 import { AppView } from './app-view';
 import { appIcons } from './app-icons';
 import { AppIconDirective } from './app-icon.directive';
+import { ExamHalfYearsComponent } from './exam-half-years/exam-half-years.component';
 import {
   CandidatePayload,
   CandidatesComponent,
@@ -51,6 +53,7 @@ import {
     CandidatesComponent,
     CommitteeComponent,
     DashboardComponent,
+    ExamHalfYearsComponent,
     LocationsComponent,
     PlanningComponent,
     TuiButton,
@@ -62,6 +65,7 @@ import {
 })
 export class App {
   private readonly api = inject(PlanningApiService);
+  private readonly roundContext = inject(RoundContextService);
   private readonly confirm = inject(TuiConfirmService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
@@ -100,12 +104,15 @@ export class App {
       committee: 'Prüfungsausschuss',
       planning: 'Terminplanung',
       locations: 'Prüfungsorte',
+      'exam-half-years': 'Prüfungshalbjahre',
     };
     return labels[this.activeView()];
   });
 
   protected readonly crumb = computed(() =>
-    this.activeView() === 'dashboard' ? 'Winter 2026/27' : 'Prüfungsverwaltung',
+    this.activeView() === 'dashboard'
+      ? (this.summary()?.round?.name ?? 'Prüfungsverwaltung')
+      : 'Prüfungsverwaltung',
   );
 
   constructor() {
@@ -159,6 +166,14 @@ export class App {
 
   protected selectCommittee(id: number | null): void {
     this.selectedCommitteeId.set(id);
+  }
+
+  protected selectExamRound(id: number): void {
+    this.roundContext.select(id);
+    this.lastPlanningResult.set(null);
+    this.candidateDayGenerationResult.set(null);
+    this.refresh();
+    this.showView('dashboard');
   }
 
   protected dismissFeedback(): void {
@@ -580,6 +595,7 @@ export class App {
       committee: 'committee',
       planning: 'planning',
       locations: 'locations',
+      'exam-half-years': 'exam-half-years',
     };
     return paths[view];
   }
@@ -592,6 +608,7 @@ export class App {
       committee: 'committee',
       planning: 'planning',
       locations: 'locations',
+      'exam-half-years': 'exam-half-years',
     };
     return views[segment ?? 'dashboard'] ?? 'dashboard';
   }
