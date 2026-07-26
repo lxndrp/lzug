@@ -36,7 +36,7 @@ anzupassen:
 4. Der Angular-`PlanningApiService` und seine Typen. Der Vertragstest liest
    dessen Pfade und prüft, dass jede verwendete Operation in OpenAPI existiert.
 
-Die vollständige Prüfung läuft mit `mise quality`; der Backend-Abschnitt führt
+Die vollständige Prüfung läuft mit `task quality`; der Backend-Abschnitt führt
 den Vertragstest über `python -m unittest` aus. Der GitHub-Actions-Backend-Job
 verwendet denselben Testbefehl, daher sind Vertragsbrüche lokal und in CI
 blockierend.

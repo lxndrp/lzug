@@ -7,39 +7,31 @@ Issues und im Project [lzug Roadmap](https://github.com/users/lxndrp/projects/2)
 ## Voraussetzungen und Einrichtung
 
 Die projektweit festgelegten Werkzeuge werden von [mise](https://mise.jdx.dev/)
-verwaltet. Zusätzlich wird [uv](https://docs.astral.sh/uv/) benötigt. Nach der
-Installation beider Werkzeuge:
+verwaltet. Dazu gehören Python, Node.js, uv und Task. Nach der Installation von
+mise:
 
 ```sh
 mise install
-mise run setup
+task setup
 ```
 
-`mise run setup` erstellt die Python-Umgebung aus `uv.lock` und installiert die
+`task setup` erstellt die Python-Umgebung aus `uv.lock` und installiert die
 Frontend-Abhängigkeiten mit npm. Das Projekt verwendet npm und
 `frontend/package-lock.json`; pnpm wird nicht verwendet.
 
 ## Lokal entwickeln
 
-Den Backend-Server mit Demo-Daten starten:
+Backend und Angular-Frontend gemeinsam starten:
 
 ```sh
-.venv/bin/python -m backend.app --init --seed --reset
+task dev
 ```
 
-Die JSON-API läuft dann unter `http://127.0.0.1:8000/api/`. Ihre verbindliche
+Die JSON-API läuft unter `http://127.0.0.1:8000/api/`. Ihre verbindliche
 Beschreibung ist unter `http://127.0.0.1:8000/api/openapi.json` verfügbar,
-Swagger UI unter `http://127.0.0.1:8000/api/docs`.
-
-In einem zweiten Terminal das Angular-Frontend starten:
-
-```sh
-cd frontend
-npm start
-```
-
-Es ist unter `http://localhost:4200/` erreichbar und leitet `/api` über den
-lokalen Proxy an das Backend weiter.
+Swagger UI unter `http://127.0.0.1:8000/api/docs`. Das Frontend ist unter
+`http://localhost:4200/` erreichbar und leitet `/api` über den lokalen Proxy
+an das Backend weiter.
 
 ## Qualität und Dokumentation
 
@@ -47,13 +39,13 @@ Vor einem Pull Request die betroffenen Prüfungen und anschließend den
 vollständigen Lauf ausführen:
 
 ```sh
-mise quality
+task quality
 ```
 
 Der Lauf enthält Backend-Linting, Formatierung, Sicherheitsprüfung, Tests und
 Coverage, Frontend-Linting, Produktionsbuild und Tests sowie Browser- und
 Accessibility-Prüfungen. Die vollständige Dokumentation mit Python- und
-TypeScript-Referenzen entsteht mit `mise run docs`.
+TypeScript-Referenzen entsteht mit `task docs`.
 
 Frontend-spezifische Befehle und die E2E-Isolation beschreibt
 [frontend/README.md](frontend/README.md). Architektur, API-Vertrag,

@@ -8,4 +8,4 @@ Dieses Handbuch beschreibt den aktuellen, versionierten Stand von `lzug`.
 
 Der operative Umfang und die geplante Weiterentwicklung werden nicht hier, sondern im GitHub Project [lzug Roadmap](https://github.com/users/lxndrp/projects/2) und in GitHub Issues gepflegt.
 
-Die Dokumentation entsteht lokal mit `mise run docs`. Sie wird nicht öffentlich gehostet. CI stellt den Build als geschütztes Artefakt `lzug-documentation` bereit.
+Die Dokumentation entsteht lokal mit `task docs`. Sie wird nicht öffentlich gehostet. CI stellt den Build als geschütztes Artefakt `lzug-documentation` bereit.
