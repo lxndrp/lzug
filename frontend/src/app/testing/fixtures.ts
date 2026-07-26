@@ -1,6 +1,7 @@
 import {
   ApiRoot,
   Candidate,
+  CandidateCommitteeAssignment,
   CandidateExamDay,
   CandidateView,
   Committee,
@@ -136,6 +137,7 @@ export const roundCandidatesFixture: RoundCandidate[] = [
     candidate_id: 1,
     attempt_number: 1,
     requires_mep: 0,
+    is_active: 1,
   },
   {
     id: 2,
@@ -143,6 +145,7 @@ export const roundCandidatesFixture: RoundCandidate[] = [
     candidate_id: 2,
     attempt_number: 2,
     requires_mep: 1,
+    is_active: 1,
   },
 ];
 
@@ -165,6 +168,52 @@ export const examRoundFixture: ExamRound = {
   availability_deadline: '2026-10-15 18:00:00',
   availability_reminder_at: '2026-10-08 09:00:00',
 };
+
+export const examRoundsFixture: ExamRound[] = [
+  examRoundFixture,
+  {
+    id: 2,
+    exam_half_year_id: 1,
+    name: 'Winter 2026/27',
+    committee_id: 2,
+    status: 'draft',
+    availability_deadline: null,
+    availability_reminder_at: null,
+  },
+];
+
+export const candidateAssignmentsFixture: CandidateCommitteeAssignment[] = [
+  {
+    id: 1,
+    candidate_id: 1,
+    exam_half_year_id: 1,
+    exam_round_id: 1,
+    round_candidate_id: 1,
+    assigned_at: '2026-07-01 09:00:00',
+    ended_at: null,
+    change_reason: null,
+  },
+  {
+    id: 2,
+    candidate_id: 2,
+    exam_half_year_id: 1,
+    exam_round_id: 2,
+    round_candidate_id: 2,
+    assigned_at: '2026-06-15 09:00:00',
+    ended_at: '2026-07-01 09:00:00',
+    change_reason: 'Ausschusswechsel',
+  },
+  {
+    id: 3,
+    candidate_id: 2,
+    exam_half_year_id: 1,
+    exam_round_id: 1,
+    round_candidate_id: 2,
+    assigned_at: '2026-07-01 09:00:00',
+    ended_at: null,
+    change_reason: null,
+  },
+];
 
 export const availabilitiesFixture: MemberAvailability[] = [
   { id: 1, committee_member_id: 1, candidate_exam_day_id: 1, availability: 'full_day' },
@@ -264,6 +313,8 @@ export const masterDataFixture: MasterData = {
   persons: personsFixture,
   members: membersFixture,
   candidates: candidateViewsFixture,
+  examRounds: examRoundsFixture,
+  candidateAssignments: candidateAssignmentsFixture,
   locations: locationsFixture,
 };
 

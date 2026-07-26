@@ -15,7 +15,7 @@ CREATE TABLE schema_migration (
 
 INSERT INTO schema_migration (name)
 VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.sql'),
-       ('003_add_exam_half_years.sql');
+       ('003_add_exam_half_years.sql'), ('004_add_candidate_committee_assignments.sql');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
@@ -147,10 +147,32 @@ CREATE TABLE round_candidate (
   candidate_id INTEGER NOT NULL REFERENCES candidate(id) ON DELETE RESTRICT,
   attempt_number INTEGER NOT NULL CHECK (attempt_number >= 1),
   requires_mep INTEGER NOT NULL DEFAULT 0 CHECK (requires_mep IN (0, 1)),
+  is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (exam_round_id, candidate_id)
 );
+
+CREATE TABLE candidate_committee_assignment (
+  id INTEGER PRIMARY KEY,
+  candidate_id INTEGER NOT NULL REFERENCES candidate(id) ON DELETE RESTRICT,
+  exam_half_year_id INTEGER NOT NULL REFERENCES exam_half_year(id) ON DELETE RESTRICT,
+  exam_round_id INTEGER NOT NULL REFERENCES exam_round(id) ON DELETE RESTRICT,
+  round_candidate_id INTEGER NOT NULL REFERENCES round_candidate(id) ON DELETE RESTRICT,
+  assigned_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ended_at TEXT,
+  change_reason TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (ended_at IS NULL OR ended_at >= assigned_at)
+);
+
+CREATE UNIQUE INDEX candidate_committee_assignment_one_active_per_half_year
+  ON candidate_committee_assignment(candidate_id, exam_half_year_id)
+  WHERE ended_at IS NULL;
+
+CREATE INDEX candidate_committee_assignment_history
+  ON candidate_committee_assignment(candidate_id, exam_half_year_id, assigned_at DESC);
 
 CREATE TABLE planning_settings (
   id INTEGER PRIMARY KEY,

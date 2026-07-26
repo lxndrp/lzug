@@ -10,6 +10,7 @@ from .database import DEFAULT_DB_PATH, session_scope
 from .holiday_provider import GERMAN_SUBDIVISION_CODES
 from .models import (
     CANDIDATE,
+    CANDIDATE_COMMITTEE_ASSIGNMENT,
     CANDIDATE_EXAM_DAY,
     COMMITTEE,
     COMMITTEE_MEMBER,
@@ -86,6 +87,8 @@ class ResourceRepository:
                 return store.create(EXAM_HALF_YEAR, self._exam_half_year_payload(payload))
             if resource == EXAM_ROUND:
                 return self._create_exam_round(store, payload)
+            if resource == ROUND_CANDIDATE:
+                return self._create_round_candidate(store, payload)
             if resource == EXAM_DAY_ASSIGNMENT:
                 self._validate_assignment_conflict(store, payload)
             return store.create(resource, payload)
@@ -117,6 +120,10 @@ class ResourceRepository:
                 if existing is None:
                     return None
                 self._validate_assignment_conflict(store, {**existing, **payload}, resource_id)
+            if resource == ROUND_CANDIDATE:
+                raise ValueError(
+                    "Round candidate assignments must be changed through the candidate endpoint"
+                )
             return store.update(resource, resource_id, payload)
 
     def member_list(self, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -185,6 +192,26 @@ class ResourceRepository:
         if not str(payload.get("name", "")).strip():
             raise ValueError("Exam round name is required")
         return store.create(EXAM_ROUND, payload)
+
+    def _create_round_candidate(self, store: Store, payload: dict[str, Any]) -> dict[str, Any]:
+        candidate_id = int(payload["candidate_id"])
+        exam_round_id = int(payload["exam_round_id"])
+        self._assign_candidate_to_round(
+            store,
+            candidate_id,
+            exam_round_id,
+            attempt_number=payload.get("attempt_number", 1),
+            requires_mep=payload.get("requires_mep", 0),
+            change_reason=payload.get("assignment_change_reason"),
+        )
+        round_candidate = store.first(
+            ROUND_CANDIDATE,
+            candidate_id=candidate_id,
+            exam_round_id=exam_round_id,
+        )
+        if round_candidate is None:
+            raise ValueError("Round candidate assignment could not be created")
+        return round_candidate
 
     def _create_membership(self, store: Store, payload: dict[str, Any]) -> dict[str, Any]:
         membership = dict(payload)
@@ -299,14 +326,12 @@ class ResourceRepository:
             store = Store(session)
             candidate = store.create(CANDIDATE, payload)
             if "exam_round_id" in payload:
-                store.create(
-                    ROUND_CANDIDATE,
-                    {
-                        "exam_round_id": payload["exam_round_id"],
-                        "candidate_id": candidate["id"],
-                        "attempt_number": payload.get("attempt_number", 1),
-                        "requires_mep": payload.get("requires_mep", 0),
-                    },
+                self._assign_candidate_to_round(
+                    store,
+                    candidate["id"],
+                    int(payload["exam_round_id"]),
+                    attempt_number=payload.get("attempt_number", 1),
+                    requires_mep=payload.get("requires_mep", 0),
                 )
             return candidate
 
@@ -322,20 +347,114 @@ class ResourceRepository:
                 return None
 
             round_fields = {"attempt_number", "requires_mep"}
-            if round_fields.intersection(payload):
-                exam_round_id = payload.get("exam_round_id")
-                if exam_round_id is None:
-                    raise ValueError("Missing required field: exam_round_id")
-                round_candidate = store.first(
-                    ROUND_CANDIDATE,
-                    candidate_id=candidate_id,
-                    exam_round_id=exam_round_id,
+            exam_round_id = payload.get("exam_round_id")
+            if round_fields.intersection(payload) and exam_round_id is None:
+                raise ValueError("Missing required field: exam_round_id")
+            if exam_round_id is not None:
+                self._assign_candidate_to_round(
+                    store,
+                    candidate_id,
+                    int(exam_round_id),
+                    attempt_number=payload.get("attempt_number"),
+                    requires_mep=payload.get("requires_mep"),
+                    change_reason=payload.get("assignment_change_reason"),
                 )
-                if round_candidate is None:
-                    raise ValueError("Candidate does not belong to the exam round")
-                store.update(ROUND_CANDIDATE, round_candidate["id"], payload)
 
             return candidate
+
+    def candidate_committee_assignments(
+        self,
+        candidate_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        with session_scope(self.db_path) as session:
+            store = Store(session)
+            filters = {"candidate_id": candidate_id} if candidate_id is not None else {}
+            return store.where(CANDIDATE_COMMITTEE_ASSIGNMENT, **filters)
+
+    def _assign_candidate_to_round(
+        self,
+        store: Store,
+        candidate_id: int,
+        exam_round_id: int,
+        *,
+        attempt_number: int | None,
+        requires_mep: int | None,
+        change_reason: str | None = None,
+    ) -> dict[str, Any]:
+        """Activate one committee-round assignment and preserve an earlier one."""
+        if store.get(CANDIDATE, candidate_id) is None:
+            raise ValueError("Candidate not found")
+        exam_round = store.get(EXAM_ROUND, exam_round_id)
+        if exam_round is None:
+            raise ValueError("Exam round not found")
+
+        exam_half_year_id = exam_round["exam_half_year_id"]
+        active_assignment = store.first(
+            CANDIDATE_COMMITTEE_ASSIGNMENT,
+            candidate_id=candidate_id,
+            exam_half_year_id=exam_half_year_id,
+            ended_at=None,
+        )
+        target_round_candidate = store.first(
+            ROUND_CANDIDATE,
+            candidate_id=candidate_id,
+            exam_round_id=exam_round_id,
+        )
+
+        if active_assignment and active_assignment["exam_round_id"] != exam_round_id:
+            reason = str(change_reason or "").strip()
+            if not reason:
+                raise ValueError("A reason is required for a committee change")
+            self._end_candidate_assignment(store, active_assignment, reason)
+            active_assignment = None
+
+        if target_round_candidate is None:
+            target_round_candidate = store.create(
+                ROUND_CANDIDATE,
+                {
+                    "exam_round_id": exam_round_id,
+                    "candidate_id": candidate_id,
+                    "attempt_number": attempt_number or 1,
+                    "requires_mep": requires_mep or 0,
+                    "is_active": 1,
+                },
+            )
+        else:
+            updated_values: dict[str, Any] = {"is_active": 1}
+            if attempt_number is not None:
+                updated_values["attempt_number"] = attempt_number
+            if requires_mep is not None:
+                updated_values["requires_mep"] = requires_mep
+            target_round_candidate = (
+                store.update(ROUND_CANDIDATE, target_round_candidate["id"], updated_values)
+                or target_round_candidate
+            )
+
+        if active_assignment is None:
+            return store.create(
+                CANDIDATE_COMMITTEE_ASSIGNMENT,
+                {
+                    "candidate_id": candidate_id,
+                    "exam_half_year_id": exam_half_year_id,
+                    "exam_round_id": exam_round_id,
+                    "round_candidate_id": target_round_candidate["id"],
+                },
+            )
+        return active_assignment
+
+    def _end_candidate_assignment(
+        self,
+        store: Store,
+        assignment: dict[str, Any],
+        change_reason: str,
+    ) -> None:
+        ended_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")
+        store.update(
+            CANDIDATE_COMMITTEE_ASSIGNMENT,
+            assignment["id"],
+            {"ended_at": ended_at, "change_reason": change_reason},
+        )
+        store.update(ROUND_CANDIDATE, assignment["round_candidate_id"], {"is_active": 0})
 
     def save_planning_settings(self, payload: dict[str, Any]) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
@@ -428,6 +547,7 @@ class ResourceRepository:
     def delete_candidate(self, candidate_id: int) -> bool:
         with session_scope(self.db_path) as session:
             store = Store(session)
+            store.delete_where(CANDIDATE_COMMITTEE_ASSIGNMENT, candidate_id=candidate_id)
             store.delete_where(ROUND_CANDIDATE, candidate_id=candidate_id)
             return store.delete(CANDIDATE, candidate_id)
 
@@ -440,11 +560,16 @@ class ResourceRepository:
 
             committee = store.get(COMMITTEE, exam_round["committee_id"])
             exam_half_year = store.get(EXAM_HALF_YEAR, exam_round["exam_half_year_id"])
-            candidate_count = store.count(ROUND_CANDIDATE, exam_round_id=round_id)
+            candidate_count = store.count(
+                ROUND_CANDIDATE,
+                exam_round_id=round_id,
+                is_active=1,
+            )
             mep_count = store.count(
                 ROUND_CANDIDATE,
                 exam_round_id=round_id,
                 requires_mep=1,
+                is_active=1,
             )
             settings = self._first(
                 store,

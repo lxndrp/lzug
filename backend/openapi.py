@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .models import CANDIDATE_COMMITTEE_ASSIGNMENT
 from .repositories import REST_RESOURCES
 
 REST_SCHEMA_FIELDS = {
@@ -95,6 +96,25 @@ def spec() -> dict[str, Any]:
                 "operationId": "getRoundSummary",
                 "parameters": [query_parameter("round_id", "integer")],
                 "responses": {"200": json_response("RoundSummary")},
+            }
+        },
+        "/api/candidate-committee-assignments": {
+            "get": {
+                "summary": "List candidate committee assignment history",
+                "operationId": "listCandidateCommitteeAssignments",
+                "parameters": [query_parameter("candidate_id", "integer")],
+                "responses": {"200": json_response("CandidateCommitteeAssignmentCollection")},
+            }
+        },
+        "/api/candidate-committee-assignments/{id}": {
+            "get": {
+                "summary": "Get candidate committee assignment history entry",
+                "operationId": "getCandidateCommitteeAssignment",
+                "parameters": [path_parameter("id")],
+                "responses": {
+                    "200": json_response("CandidateCommitteeAssignment"),
+                    "404": json_response("Error"),
+                },
             }
         },
         "/api/planning-proposals": {
@@ -272,6 +292,21 @@ def spec() -> dict[str, Any]:
             required=("round_id", "status", "exam_days", "counts", "_links"),
         ),
         "OpenApiDocument": {"type": "object"},
+        "CandidateCommitteeAssignment": resource_schema(
+            "candidate-committee-assignments",
+            CANDIDATE_COMMITTEE_ASSIGNMENT,
+            include_links=True,
+        ),
+        "CandidateCommitteeAssignmentCollection": object_schema(
+            {
+                "items": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/CandidateCommitteeAssignment"},
+                },
+                "_links": link_map(),
+            },
+            required=("items", "_links"),
+        ),
     }
 
     for resource_name, resource in REST_RESOURCES.items():

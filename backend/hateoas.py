@@ -41,6 +41,7 @@ def api_root() -> dict[str, Any]:
                 "href": "/api/exam-rounds/1/confirm-plan",
                 "method": "POST",
             },
+            "candidate-committee-assignments": {"href": "/api/candidate-committee-assignments"},
             **{
                 resource_name: {"href": f"/api/{resource_name}"} for resource_name in REST_RESOURCES
             },
@@ -64,17 +65,24 @@ def collection(
     resource: Resource,
     rows: list[dict[str, Any]],
     query_string: str = "",
+    allow_create: bool = True,
+    allow_item_mutation: bool = True,
 ) -> dict[str, Any]:
     href = f"/api/{resource_name}"
     if query_string:
         href = f"{href}?{query_string}"
+    links = {
+        "self": {"href": href},
+        "api": {"href": "/api"},
+    }
+    if allow_create:
+        links["create"] = {"href": f"/api/{resource_name}", "method": "POST"}
     return {
-        "items": [resource_item(resource_name, resource, row) for row in rows],
-        "_links": {
-            "self": {"href": href},
-            "api": {"href": "/api"},
-            "create": {"href": f"/api/{resource_name}", "method": "POST"},
-        },
+        "items": [
+            resource_item(resource_name, resource, row, allow_item_mutation=allow_item_mutation)
+            for row in rows
+        ],
+        "_links": links,
     }
 
 
@@ -82,9 +90,10 @@ def resource_item(
     resource_name: str,
     resource: Resource,
     row: dict[str, Any],
+    allow_item_mutation: bool = True,
 ) -> dict[str, Any]:
     item = dict(row)
-    item["_links"] = item_links(resource_name, resource, row)
+    item["_links"] = item_links(resource_name, resource, row, allow_item_mutation)
     return item
 
 
@@ -92,14 +101,16 @@ def item_links(
     resource_name: str,
     resource: Resource,
     row: dict[str, Any],
+    allow_item_mutation: bool = True,
 ) -> dict[str, Any]:
     resource_id = row["id"]
     links = {
         "self": {"href": f"/api/{resource_name}/{resource_id}"},
         "collection": {"href": f"/api/{resource_name}"},
-        "update": {"href": f"/api/{resource_name}/{resource_id}", "method": "PATCH"},
-        "delete": {"href": f"/api/{resource_name}/{resource_id}", "method": "DELETE"},
     }
+    if allow_item_mutation:
+        links["update"] = {"href": f"/api/{resource_name}/{resource_id}", "method": "PATCH"}
+        links["delete"] = {"href": f"/api/{resource_name}/{resource_id}", "method": "DELETE"}
     for field, related_resource in RELATED_RESOURCE_FIELDS.items():
         related_id = row.get(field)
         if related_id is not None and field in resource.readable_fields:
