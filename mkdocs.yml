@@ -1,5 +1,5 @@
-site_name: lzug developer documentation
-site_description: Versioned developer documentation and generated code reference.
+site_name: lzug Dokumentation
+site_description: Versioniertes Handbuch für die Nutzung, lokale Administration und Entwicklung von lzug.
 site_dir: site
 docs_dir: docs
 strict: true
@@ -17,17 +17,43 @@ plugins:
             show_source: false
             members_order: source
 nav:
-  - Overview: index.md
-  - Documentation policy: development/code-documentation.md
-  - API contract validation: development/api-contract-validation.md
-  - Frontend generator decision: development/frontend-generator.md
-  - Code reference:
-      - Python backend: reference/backend.md
-      - TypeScript frontend: reference/frontend.md
-  - Existing documentation:
-      - Architecture: ARCHITECTURE.md
-      - Data model: datenmodell.md
-      - Relational schema: relationales-schema.md
-      - Backend prototype: backend-prototyp.md
-      - Taiga UI exceptions: taiga-ui-exceptions.md
-      - Taiga UI prototype: taiga-ui-prototype.md
+  - Start: index.md
+  - Für Nutzer:
+      - Überblick: users/index.md
+      - Grundbegriffe: users/concepts.md
+      - Prüfungshalbjahre: users/exam-half-years.md
+      - Stammdaten: users/master-data.md
+      - Terminplanung: users/scheduling.md
+  - Für Administratoren:
+      - Überblick: administrators/index.md
+      - Lokale Laufzeit: administrators/local-runtime.md
+      - Daten und Zurücksetzen: administrators/data-and-reset.md
+  - Für Entwickler:
+      - Überblick: developers/index.md
+      - Einrichtung: developers/setup.md
+      - Mitarbeit: developers/mitarbeit.md
+      - Arbeitsprozess: developers/arbeitsprozess.md
+      - Qualität und Sicherheitsprozess: developers/qualitaet-und-sicherheit.md
+      - Frontend-Richtlinie: developers/frontend-guidelines.md
+      - Frontend-Ausnahmen: developers/frontend-exceptions.md
+      - Dokumentation: developers/documentation.md
+      - Architektur:
+          - Übersicht: developers/architecture/index.md
+          - Backend und Datenzugriff: developers/architecture/backend.md
+          - Frontend: developers/architecture/frontend.md
+          - API und Persistenz: developers/architecture/api-and-persistence.md
+      - Referenz:
+          - Fachliches Datenmodell: developers/domain-model.md
+          - Datenbankschema: developers/database-schema.md
+          - Python-Backend: developers/reference/backend.md
+          - TypeScript-Frontend: developers/reference/frontend.md
+      - Entscheidungen:
+          - Übersicht: developers/decisions/index.md
+          - ADR-0001 Lokale relationale Persistenz: developers/decisions/0001-lokale-relationale-persistenz.md
+          - ADR-0002 Python-Backend mit SQLAlchemy: developers/decisions/0002-python-backend-sqlalchemy.md
+          - ADR-0003 Toolchain: developers/decisions/0003-toolchain-mise-uv-npm.md
+          - ADR-0004 Angular und REST-Integration: developers/decisions/0004-angular-rest-integration.md
+          - ADR-0005 Taiga UI: developers/decisions/0005-taiga-ui.md
+          - ADR-0006 OpenAPI-Vertrag: developers/decisions/0006-openapi-http-vertrag.md
+          - ADR-0007 Dokumentation und Code-Referenz: developers/decisions/0007-dokumentation-und-code-referenz.md
+          - ADR-0008 Feiertagsprovider: developers/decisions/0008-feiertagsprovider.md

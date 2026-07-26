@@ -1,266 +1,60 @@
-# lzug Agent Instructions
+# Hinweise für Coding Agents
 
-Diese Datei beschreibt, wie Codex und andere Coding Agents in diesem Repository
-arbeiten sollen. Produktbeschreibung und stabiler fachlicher Umfang gehoeren
-in `README.md` und die Fachdokumentation, Architektur und Technologieauswahl in
-`docs/ARCHITECTURE.md`. Veraenderliche Planung wird im GitHub Project und in
-GitHub Issues gepflegt, nicht in dieser Datei.
+Diese Datei enthält ausschließlich Regeln für Codex und andere Coding Agents.
+Produktumfang und Anleitung stehen im [README](README.md), Beiträge in
+[CONTRIBUTING.md](CONTRIBUTING.md) und die technische Referenz im
+[Entwicklerhandbuch](docs/developers/index.md).
 
-## Grundsatz
+## Arbeitsweise
 
-- Vor groesseren Aenderungen den aktuellen Repository-Zustand lesen statt aus Erinnerung zu arbeiten.
-- Bestehende Git-Historie, Artefakte und nicht selbst vorgenommene Aenderungen bewahren.
-- Keine fremden oder ungefragten Aenderungen zuruecksetzen.
-- Wenn der Nutzer Planung statt Umsetzung verlangt, read-only bleiben.
-- Wenn der Nutzer Umsetzung verlangt, die Arbeit bis zur angemessenen Verifikation durchziehen.
-- Deutsche Prosa in Dokumenten, GitHub Issues, Pull Requests und Kommentaren
-  mit korrekten Umlauten und Sonderzeichen schreiben. ASCII bleibt technischen
-  Bezeichnern wie Code, Dateinamen, IDs, Konfigurationsschluesseln und
-  Kommandozeilenargumenten vorbehalten.
+- Vor Änderungen den aktuellen Repository- und Git-Status lesen; fremde oder
+  ungefragte Änderungen niemals zurücksetzen.
+- Bei Planung, Refinement oder fachlicher Klärung read-only bleiben. Umfangreiche
+  Umsetzung erst im zugehörigen Issue-Worktree beginnen.
+- Für Story-, Epic- und Bug-Umsetzungen einen Branch nach
+  `codex/<issue>-<kurzer-name>` verwenden und nicht direkt auf `master`
+  committen.
+- Nur Dateien stagen, die zum Auftrag gehören. Commit-Nachrichten sind Englisch;
+  deutsche Prosa verwendet korrekte Umlaute.
+- Vor einer Umsetzung die betroffenen Tests ausführen und anschließend, soweit
+  die Änderung es erfordert, `mise quality` verwenden. Bekannte
+  Sandbox-Eigenheiten als Umgebungsthema dokumentieren, nicht mit Produktcode
+  umgehen.
 
-## UX-Leitbild fuer Frontend-Arbeiten
+## GitHub-Arbeit
 
-Bei Planung, Umsetzung und Review des Frontends die Anwendung auch aus Sicht
-der Nutzenden beurteilen. Ziel ist eine ruhige, klare und aesthetische
-Verwaltungsoberflaeche, deren Form der Funktion folgt. Die Bedienung soll ohne
-Kenntnis der technischen Implementierung verstaendlich sein.
+- GitHub Issues und das Project `lzug Roadmap` sind die dauerhafte Quelle für
+  Umfang, Fortschritt und Nachverfolgung. Fortschritt und Abschluss im
+  zugehörigen Issue kommentieren.
+- Meldungen mit `Story:`, `Epic:` oder `Bug:` als entsprechendes GitHub Issue
+  erfassen, dem Roadmap-Project hinzufügen und zunächst auf `Todo` setzen.
+- Pull Requests für Issue-Arbeit mit `scripts/create-issue-pr.sh` gegen
+  `master` erstellen. Vollständige Umsetzungen mit `Closes #<nummer>`
+  verknüpfen.
+- Erst nach erfolgreicher CI und Review mergen. Worktree, lokale und Remote-
+  Branches erst gemeinsam mit der Archivierung eines abgeschlossenen Issues
+  aufräumen.
 
-Dabei gelten insbesondere diese Leitlinien:
+## Threads und Worktrees
 
-- Fachliche Aufgaben, Begriffe und Handlungsfolgen muessen erkennbar sein;
-  interne API-, Status- oder Implementierungsbegriffe nicht ungefiltert in der
-  Oberflaeche anzeigen.
-- Interaktive Elemente brauchen eindeutige Signale, erwartbare Zuordnung und
-  unmittelbares Feedback. Sichtbarkeit, Beschriftung und Zustand muessen ihre
-  Funktion vermitteln.
-- Fehler moeglichst durch sinnvolle Vorgaben, Einschraenkungen und Validierung
-  verhindern. Wenn Fehler auftreten, verstaendlich erklaeren, den betroffenen
-  Kontext zeigen und einen Weg zur Korrektur anbieten.
-- Informationshierarchie, Navigation und Aktionsgewichtung konsistent halten.
-  Primaere, sekundaere und destruktive Aktionen muessen visuell und semantisch
-  unterscheidbar sein.
-- Aesthetik dient Lesbarkeit, Orientierung und Vertrauen. Dekoration darf weder
-  Aufmerksamkeit von der Aufgabe abziehen noch fehlende Struktur kaschieren.
-- Den jeweils betroffenen Ablauf vollstaendig betrachten, einschliesslich
-  Laden, Leerzustand, Erfolg, Fehler, Bestaetigung und Abbruch. Bei einer
-  ausdruecklichen UX-Pruefung alle produktiven Hauptablaeufe untersuchen.
-- Relevante Ansichten auf Desktop und Mobil sowie im hellen und dunklen
-  Farbschema pruefen. Neben DOM und Accessibility auch sichtbare Hierarchie,
-  Kontrast, Fokus, Umbruch, Ueberlauf und erreichbare Aktionen beurteilen.
-- Positives und Verbesserungsbedarf konkret benennen und nach Auswirkung auf
-  Verstaendlichkeit, Fehlervermeidung und Aufgabenerfolg priorisieren.
-
-## Planung und Nachverfolgung
-
-Arbeite nach diesem Modell:
-
-- Chat und lokale Notizen sind Arbeitsgedaechtnis.
-- Repository-Dokumente sind versionierter Kontext fuer Produkt, Architektur und Entscheidungen.
-- GitHub Issues und GitHub Projects sind die dauerhafte Quelle fuer Backlog, Fortschritt und Nachverfolgung.
-
-Wenn fachliche oder technische Planung in Codex entsteht und belastbar genug ist, ueberfuehre sie in GitHub:
-
-- Epics als echte GitHub Issues mit Label `type: epic`.
-- User Stories als echte GitHub Issues mit Label `type: story`.
-- Technische Aufgaben als echte GitHub Issues mit Label `type: task`.
-- Fehler als echte GitHub Issues mit Label `type: bug`.
-- Epics und Stories ueber Parent/Sub-Issues verknuepfen.
-- Das GitHub Project `lzug Roadmap` fuer Status, Board-Ansicht und Priorisierung nutzen.
-
-Draft-Items im GitHub Project nur fuer sehr fruehe Ideen verwenden. Sobald ein Element handhabbar oder nachvollziehbar sein soll, als Issue anlegen.
-
-### Project Status Updates
-
-- Bei wesentlichen Roadmap-Aktualisierungen die GitHub-Projects-Funktion
-  `Add status update` verwenden. Dazu gehoeren insbesondere neue
-  Meilensteinprognosen, relevante Fortschrittsaenderungen, Neuplanungen von
-  Iterationen sowie erkennbare Risiken fuer Termin oder Umfang.
-- Im Status Update mindestens Prognosestatus, Berichtsdatum, erreichten
-  Fortschritt, naechsten kritischen Pfad und wesentliche Risiken oder
-  Abhaengigkeiten festhalten.
-- Reine Pflege einzelner Felder, kleinere Prioritaetsverschiebungen oder
-  redaktionelle Korrekturen benoetigen kein eigenes Status Update.
-- Die ausfuehrlichen Planungsdaten weiterhin in Issues und Project-Feldern
-  pflegen; Status Updates fassen den fuer die Gesamtsteuerung relevanten Stand
-  zusammen.
-
-### Issues aus dem Chat
-
-Neue fachliche oder technische Vorhaben koennen direkt im Chat gemeldet werden,
-wenn die Nachricht mit einem der folgenden Praefixe beginnt:
-
-- `Story: <Titel>`: GitHub Issue mit Label `type: story` anlegen.
-- `Epic: <Titel>`: GitHub Issue mit Label `type: epic` anlegen.
-- `Bug: <Titel>`: GitHub Issue mit Label `type: bug` anlegen.
-
-Den restlichen Text der Meldung als Issue-Titel verwenden und die verfuegbaren
-Details als Issue-Beschreibung uebernehmen. Das Issue dem GitHub Project
-`lzug Roadmap` hinzufuegen und grundsaetzlich auf `Todo` setzen. Wenn aus dem
-Kontext ein Parent-Epic oder eine weitere Verknuepfung erkennbar ist, diese
-ebenfalls anlegen. Bei unzureichenden Angaben die fehlenden Details im Chat
-klaeren, bevor eine umfangreiche Umsetzung beginnt.
-
-### Refinements
-
-- Refinements von Stories und Epics werden durch eine Aktualisierung des Issue-
-  Titels, der Beschreibung, der Labels oder der Verknuepfungen abgebildet.
-- Refinements von Bugs werden als zusaetzlicher Kommentar im bestehenden Bug-
-  Issue dokumentiert. Die urspruengliche Fehlerbeschreibung bleibt erhalten.
-- Nach einem Refinement den Project-Status nur aendern, wenn sich daraus ein
-  tatsaechlicher Fortschritt oder eine neue Priorisierung ergibt.
-
-### Umsetzungsdokumentation
-
-- Den Implementierungsstand eines Issues dauerhaft durch Kommentare im
-  zugehoerigen GitHub Issue dokumentieren. Fortschritt darf nicht
-  ausschliesslich im Chat oder Umsetzungsthread nachvollziehbar sein.
-- Bei sinnvollen Zwischenstaenden mindestens festhalten, was umgesetzt und
-  verifiziert wurde, welche Abweichungen von der Planung entstanden sind und
-  welche Punkte noch offen sind.
-- Spaetestens vor dem Abschluss des Issues einen zusammenfassenden Kommentar
-  mit umgesetztem Umfang, ausgefuehrten Qualitaetspruefungen, zugehoerigem Pull
-  Request und gegebenenfalls verbleibenden Folgearbeiten hinterlegen.
-
-### Trennung von Planung und Umsetzung
-
-- Planung, Refinement und fachliche Klaerung finden im jeweiligen
-  Planungsthread statt.
-- Threads zu einem GitHub Issue werden nach dem Muster
-  `<issue> (<type>): <title>` benannt. Dabei bezeichnet `<issue>` die
-  Issue-Nummer, `<type>` das relevante Type-Label ohne den Praefix `type:`
-  beziehungsweise `bug` fuer Bug-Issues und `<title>` den Issue-Titel.
-- Diese Namensstruktur gilt fuer Planungs- und Umsetzungsthreads; eine
-  zusaetzliche Unterscheidung nach Feature oder Bug ist nicht erforderlich.
-- Jeder Umsetzungsthread fuer ein Issue erhaelt einen eigenen Worktree. Der
-  Worktree wird mit dem zugehoerigen Feature-Branch verbunden und darf nicht
-  parallel mit dem Planungsthread im selben Arbeitsverzeichnis arbeiten.
-- Beim Wechsel von der Planung in die Umsetzung den fuer die Implementierung
-  relevanten Kontext an den passenden Umsetzungsthread uebergeben. Dazu gehoeren
-  mindestens Issue-Nummer, fachliches Ziel, Akzeptanzkriterien, technische
-  Entscheidungen, bekannte Randbedingungen und offene Punkte.
-- Im Planungsthread keine umfangreiche Implementierung beginnen, sobald ein
-  passender Umsetzungsthread vorgesehen oder bereits vorhanden ist.
-
-## Statusmodell
-
-Im GitHub Project gelten die Standardstatus:
-
-- `Todo`: aufgenommen, noch nicht begonnen.
-- `In Progress`: aktuell in Arbeit oder aktives Epic.
-- `Done`: abgeschlossen und nachvollziehbar dokumentiert.
-
-Geschlossene Issues nicht loeschen.
-
-### Issue-Labels
-
-- Jedes manuell angelegte Issue erhaelt genau ein `type:`-Label: `epic`,
-  `story`, `task` oder `bug`.
-- `resolution:`-Labels dokumentieren die abschliessende Einordnung eines Issues
-  und sind optional: `duplicate`, `invalid`, `wontfix` oder `help-wanted`.
-- `type:` beschreibt die Art des Arbeitselements; `resolution:` beschreibt,
-  warum ein Issue nicht weiterverfolgt oder wie es abgeschlossen wurde.
-- Die Dependabot-Labels `dependencies` und `github_actions` sind technische
-  Automationslabels und koennen zusaetzlich verwendet werden.
-
-## Git und Commits
-
-- Produkt- und Fehlerbehebungsarbeiten, die zu einer Story, einem Epic oder
-  einem Bug-Issue gehoeren, immer in einem eigenen Feature-Branch umsetzen.
-- Branches fuer Codex-Arbeiten nach dem Muster
-  `codex/<issue>-<kurzer-name>` benennen, unabhaengig vom Type-Label.
-- Niemals direkt in `master` committen, wenn die Aenderung ein Issue umsetzt.
-- Nach der Verifikation einen Pull Request gegen `master` eroeffnen und das
-  umgesetzte Issue im Pull Request verknuepfen. Fuer vollstaendig umgesetzte
-  Issues `Closes #<nummer>` verwenden; bei Teilumsetzungen eine nicht
-  schliessende Verknuepfung wie `Related to #<nummer>` nutzen.
-- Pull Requests aus einer Issue-Bearbeitung mit
-  `scripts/create-issue-pr.sh` erstellen. Der Befehl übernimmt das GitHub
-  Project, den Milestone und die Assignees aus dem Issue. Nicht gesetzte
-  Issue-Felder bleiben auch im Pull Request leer.
-- Den Pull Request erst nach erfolgreicher CI und Review in `master` mergen.
-- Nach dem Merge den Issue-Status im GitHub Project auf `Done` setzen und das
-  Issue schliessen, sofern die Umsetzung vollstaendig ist.
-- Nach erfolgreichem Merge aller zugehoerigen Pull Requests, erfolgreicher CI
-  und abgeschlossenem Review den zugehoerigen Planungsthread beziehungsweise
-  Umsetzungsthread archivieren. Die Archivierung und das Aufraeumen bilden
-  einen gemeinsamen Abschlussvorgang: Mit der Archivierung den zugehoerigen
-  Issue-Worktree entfernen, den lokalen Feature-Branch loeschen und den
-  zugehoerigen Remote-Branch in GitHub loeschen. Einen archivierten
-  Umsetzungsthread nicht mit einem liegen gebliebenen Worktree abschliessen.
-  Nur die dem abgeschlossenen Issue zugeordneten Worktrees und Branches
-  aufraeumen; `master`, andere Issues und aktive Arbeitsverzeichnisse nicht
-  loeschen.
-- Aenderungen thematisch schneiden und kleine, nachvollziehbare Commits bevorzugen.
-- Commit-Messages bevorzugt auf Englisch schreiben, passend zur bisherigen Git-Historie.
-- Deutsch und Englisch nicht innerhalb einer Commit-Message mischen.
-- Vor Commits `git -c core.fsmonitor=false status ...` verwenden, wenn `fsmonitor` lokal stoert.
-- Nur Dateien stagen, die zum aktuellen Arbeitsauftrag gehoeren.
-
-## Tests und Verifikation
-
-Die lokale Qualitaetssicherung ist der erste Pruefschritt fuer jede Aenderung.
-
-- Massgeblich ist grundsaetzlich `mise quality`.
-- Bei klar eingegrenzten Aenderungen duerfen zunaechst passende Teiltests oder
-  Checks ausgefuehrt werden.
-- Wenn ein Teilcheck erfolgreich ist, aber die Aenderung weitere Bereiche
-  beruehrt oder die Ursache nicht vollstaendig eingegrenzt ist, folgt
-  `mise quality`.
-- GitHub Actions wird erst gestartet, wenn die lokale Qualitaetssicherung
-  erfolgreich durchlaufen wurde.
-- Die GitHub-Actions-Pipeline ist anschliessend die finale Verifikation und
-  massgeblich fuer die Abnahme.
-- Wenn lokale Pruefungen in Codex durch eine bekannte Sandbox-Grenze blockiert
-  sind, ist die Aenderung nicht lokal verifiziert. In diesem Fall wird nicht
-  automatisch GitHub Actions als Ersatz gestartet; der Befund wird als
-  Umgebungsproblem dokumentiert.
-
-Im Abschlussbericht klar unterscheiden zwischen:
-
-```sh
-mise quality
-```
-
-- `verifiziert`
-- `in Codex nicht verifizierbar`
-- `durch bekannte Sandbox-Grenze blockiert`
-
-Bei neuen fachlichen Aenderungen sollen Tests schichtweise ergaenzt werden:
-
-1. Domain-/Repository-Regeln und Statusuebergaenge im Backend.
-2. HTTP- und OpenAPI-Vertrag inklusive Fehlerantworten.
-3. Frontend-Komponenten und API-Service mit isolierten Fixtures.
-4. Mindestens ein Browser-Szenario fuer den fachlichen End-to-End-Nutzen.
-
-## Continuous Integration
-
-Die vollstaendige Projektpruefung laeuft in `.github/workflows/ci.yml` auf Pushes und Pull Requests gegen `main` und `master`. Sie wird erst nach erfolgreicher lokaler Qualitaetssicherung gestartet und ist anschliessend die finale Verifikation fuer die Abnahme.
-
-Dependency- und Security-Hinweise sind getrennt vom CI-Aufbau zu bewerten und blockieren den Workflow nicht automatisch.
+- Planung und Umsetzung eines Issues in getrennten Threads nach dem Muster
+  `<issue> (<type>): <title>` durchführen.
+- Beim Wechsel in die Umsetzung Issue-Nummer, Ziel, Akzeptanzkriterien,
+  technische Entscheidungen, Randbedingungen und offene Punkte an den
+  Umsetzungsthread übergeben.
+- Jedem Umsetzungsthread einen separaten Worktree mit dem zugehörigen
+  Feature-Branch geben.
+- Nach Merge, erfolgreicher CI und Review den Umsetzungsthread archivieren und
+  dabei ausschließlich seinen Worktree sowie seinen lokalen und entfernten
+  Feature-Branch aufräumen.
 
 ## Codex-Sandbox
 
-Die Codex-Sandbox ist nicht die massgebliche produktive Laufzeit. Einige lokale Vollpruefungen koennen dort wiederholt an bekannten Umgebungsgrenzen scheitern, obwohl sie in der normalen Entwicklungsumgebung oder in CI funktionieren.
+- Wiederkehrende bekannte Sandbox-Fehler nicht mehrfach ausführen und nicht
+  durch Änderungen am Produktcode umgehen.
+- Blockierte Prüfungen als Umgebungsproblem kennzeichnen und klar von echten
+  Implementierungslücken trennen.
+- Bei störendem Git-Fsmonitor
+  `git -c core.fsmonitor=false status ...` verwenden.
 
-Arbeite deshalb so:
-
-- Bei kleinen, klar eingegrenzten Aenderungen gezielt die betroffenen Tests oder Checks ausfuehren und anschliessend bei Bedarf `mise quality` starten.
-- Wenn ein bekannter Sandbox-Fehler erneut auftritt, nicht mehrfach denselben Vollcheck wiederholen.
-- Keine Produktfixes fuer reine Sandbox-Symptome einbauen.
-- Wenn der Nutzer bestaetigt, dass ein Fehler sandbox-spezifisch ist, diese Einordnung uebernehmen und die verbleibenden echten Implementierungsluecken getrennt bewerten.
-- Fuer die finale Abnahme nach erfolgreicher lokaler QA GitHub Actions heranziehen; wenn die lokale QA durch eine bekannte Sandbox-Grenze blockiert ist, den Befund als nicht lokal verifiziert dokumentieren.
-
-Bekannte lokale Eigenheiten:
-
-- `git status` kann durch `fsmonitor` stoeren; dann `git -c core.fsmonitor=false status ...` verwenden.
-- Frontend-Builds oder Browser-/E2E-nahe Pruefungen koennen in der Codex-Sandbox anders scheitern als in der normalen Entwicklungsumgebung. Nach einem solchen bekannten Treffer nicht weiter am Produktcode drehen, sondern den Befund als Umgebungsthema dokumentieren.
-
-## Fuehrende Dokumente
-
-- `README.md`: Produktueberblick, fachliche Hauptbereiche, Setup und zentrale Einstiegspunkte.
-- `docs/ARCHITECTURE.md`: technische Architektur, Technologieentscheidungen, Backend-/Frontend-Schichtung, API, Datenbank und CI.
-- `docs/datenmodell.md`: stabile fachliche Begriffe, Entitaeten und Beziehungen.
-- GitHub Project `lzug Roadmap`: operative Planung, Prioritaeten, Iterationen,
-  Termine, Meilensteine und Statusverfolgung.
-- GitHub Issues: verbindlicher Umfang, Akzeptanzkriterien, Refinements und
-  Implementierungsnachweise fuer einzelne Arbeitselemente.
+Für Frontend-Arbeit gilt die [Frontend-Richtlinie](docs/developers/frontend-guidelines.md).
