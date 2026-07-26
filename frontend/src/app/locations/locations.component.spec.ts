@@ -34,7 +34,7 @@ describe('LocationsComponent', () => {
 
   it('should emit valid location form submissions', () => {
     const component = fixture.componentInstance;
-    spyOn(component.createLocation, 'emit');
+    vi.spyOn(component.createLocation, 'emit').mockReturnValue(undefined);
 
     setInput('#locationName', 'IHK Campus');
     setInput('#locationRoom', 'A 1.01');
@@ -47,7 +47,7 @@ describe('LocationsComponent', () => {
     form!.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
 
     expect(component.createLocation.emit).toHaveBeenCalledWith(
-      jasmine.objectContaining({
+      expect.objectContaining({
         committee_id: 1,
         name: 'IHK Campus',
         room: 'A 1.01',
@@ -56,12 +56,20 @@ describe('LocationsComponent', () => {
     expect(inputValue('#locationName')).toBe('IHK Campus');
 
     component.resetDraft();
-    expect((component as unknown as { draft: { name: string } }).draft.name).toBe('');
+    expect(
+      (
+        component as unknown as {
+          draft: {
+            name: string;
+          };
+        }
+      ).draft.name,
+    ).toBe('');
   });
 
   it('should emit location deletion requests', () => {
     const component = fixture.componentInstance;
-    spyOn(component.deleteLocation, 'emit');
+    vi.spyOn(component.deleteLocation, 'emit').mockReturnValue(undefined);
 
     const button = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
@@ -70,7 +78,7 @@ describe('LocationsComponent', () => {
     button!.click();
 
     expect(component.deleteLocation.emit).toHaveBeenCalledWith(
-      jasmine.objectContaining({
+      expect.objectContaining({
         id: 1,
         name: 'Bildungszentrum HafenCity',
       }),
@@ -79,7 +87,7 @@ describe('LocationsComponent', () => {
 
   it('should emit location status toggle requests', () => {
     const component = fixture.componentInstance;
-    spyOn(component.toggleLocation, 'emit');
+    vi.spyOn(component.toggleLocation, 'emit').mockReturnValue(undefined);
 
     const button = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
@@ -88,17 +96,20 @@ describe('LocationsComponent', () => {
     button!.click();
 
     expect(component.toggleLocation.emit).toHaveBeenCalledWith(
-      jasmine.objectContaining({ id: 1, is_active: 1 }),
+      expect.objectContaining({ id: 1, is_active: 1 }),
     );
   });
 
   it('should edit a location without clearing the form before success', () => {
     const component = fixture.componentInstance;
-    spyOn(component.updateLocation, 'emit');
+    vi.spyOn(component.updateLocation, 'emit').mockReturnValue(undefined);
 
     clickButton('Bearbeiten');
     const editor = component as unknown as {
-      editDraft: () => { name: string; room: string };
+      editDraft: () => {
+        name: string;
+        room: string;
+      };
       submitLocationUpdate: () => void;
     };
     editor.editDraft().name = 'Bildungszentrum Nord';
@@ -107,7 +118,7 @@ describe('LocationsComponent', () => {
 
     expect(component.updateLocation.emit).toHaveBeenCalledWith({
       id: 1,
-      payload: jasmine.objectContaining({
+      payload: expect.objectContaining({
         name: 'Bildungszentrum Nord',
         room: '4.20',
         is_active: 1,

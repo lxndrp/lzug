@@ -15,3 +15,4 @@ Historie, machen aber Kontext, Konsequenzen und Verweise dauerhaft auffindbar.
 | [0007](0007-dokumentation-und-code-referenz.md) | MkDocs und Code-Referenzen | Akzeptiert |
 | [0008](0008-feiertagsprovider.md) | Kuratierte Feiertagsdaten | Akzeptiert |
 | [0009](0009-toolchain-und-entwicklungs-tasks.md) | Toolchain und Entwicklungs-Tasks trennen | Akzeptiert |
+| [0010](0010-vitest-statt-karma-jasmine.md) | Vitest statt Karma und Jasmine für Frontend-Unit-Tests | Akzeptiert |

@@ -31,7 +31,7 @@ task dev
 
 Für lokale Prüfungen stehen `task test`, `task quality:frontend`,
 `task quality:e2e`, `task quality:a11y` und `task quality` bereit. Das Frontend ist unter
-`http://localhost:4200/` erreichbar und nutzt `proxy.conf.json`. Karma erzeugt
+`http://localhost:4200/` erreichbar und nutzt `proxy.conf.json`. Vitest erzeugt
 Coverage unter `coverage/frontend`. Jeder Playwright-Lauf verwendet eigene
 Ports, eine eigene SQLite-Datei unter `var/e2e/` und Demo-Seed-Daten. Für
 reproduzierbare Diagnosen kann `LZUG_E2E_RUN_ID` gesetzt werden.

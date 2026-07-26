@@ -119,17 +119,17 @@ describe('App', () => {
     await TestBed.inject(Router).navigateByUrl('/candidates');
     fixture.detectChanges();
     const confirm = TestBed.inject(TuiConfirmService);
-    const confirmSpy = spyOn(confirm, 'withConfirm').and.returnValue(of(false));
+    const confirmSpy = vi.spyOn(confirm, 'withConfirm').mockReturnValue(of(false));
 
     clickButton(fixture, 'Löschen');
 
     expect(confirmSpy).toHaveBeenCalled();
-    const options = confirmSpy.calls.mostRecent().args[0] as {
-      label: string;
-      data: { yes: string };
-    };
-    expect(options.label).toBe('Prüfling löschen?');
-    expect(options.data.yes).toBe('Prüfling löschen');
+    expect(vi.mocked(confirmSpy).mock.lastCall?.[0]).toEqual(
+      expect.objectContaining({
+        label: 'Prüfling löschen?',
+        data: expect.objectContaining({ yes: 'Prüfling löschen' }),
+      }),
+    );
     expect(http.match((request) => request.method === 'DELETE').length).toBe(0);
   });
 

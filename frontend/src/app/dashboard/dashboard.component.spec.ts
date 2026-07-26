@@ -1,4 +1,3 @@
-import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { DashboardComponent } from './dashboard.component';
@@ -11,7 +10,6 @@ describe('DashboardComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [DashboardComponent],
-      providers: [provideNoopAnimations()],
     }).compileComponents();
 
     fixture = TestBed.createComponent(DashboardComponent);
@@ -90,8 +88,8 @@ describe('DashboardComponent', () => {
   });
 
   it('should emit planning actions when buttons are enabled', () => {
-    spyOn(component.generateProposal, 'emit');
-    spyOn(component.confirmPlan, 'emit');
+    vi.spyOn(component.generateProposal, 'emit').mockReturnValue(undefined);
+    vi.spyOn(component.confirmPlan, 'emit').mockReturnValue(undefined);
     component.summary = {
       ...summaryFixture,
       round: { ...summaryFixture.round, status: 'plan_proposed' },
@@ -114,12 +112,12 @@ describe('DashboardComponent', () => {
 
     fixture.detectChanges();
 
-    expect(button('Planung erzeugen')?.disabled).toBeTrue();
-    expect(button('Plan bestätigen')?.disabled).toBeTrue();
+    expect(button('Planung erzeugen')?.disabled).toBe(true);
+    expect(button('Plan bestätigen')?.disabled).toBe(true);
   });
 
   it('should open the view that belongs to a task', () => {
-    spyOn(component.openView, 'emit');
+    vi.spyOn(component.openView, 'emit').mockReturnValue(undefined);
     component.summary = summaryFixture;
     component.board = planningBoardFixture;
     fixture.detectChanges();
