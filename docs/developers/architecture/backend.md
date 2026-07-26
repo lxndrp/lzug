@@ -13,6 +13,6 @@ Die fachliche Verarbeitung liegt hinter der HTTP-Schicht:
 
 Anwendungscode enthält keine fachlichen SQL-Abfragen. Neue Ressourcen werden zuerst als SQLAlchemy-Modell und `Resource` beschrieben und danach fachlich ergänzt.
 
-SQLite ist die lokale Entwicklungsdatenbank. `db/schema.sql` und `db/seed_demo.sql` sind die ausführbaren Quellen für Schema und Demo-Daten. Migrationen unter `db/migrations/` werden beim Start mit `--init` ausgeführt und in `schema_migration` protokolliert. Die Details stehen in der [Schema-Referenz](../reference/datenbankschema.md).
+SQLite ist die lokale Entwicklungsdatenbank. `db/schema.sql` und `db/seed_demo.sql` sind die ausführbaren Quellen für Schema und Demo-Daten. Migrationen unter `db/migrations/` werden beim Start mit `--init` ausgeführt und in `schema_migration` protokolliert. Die Details stehen in der [Schema-Referenz](../database-schema.md).
 
 Gesetzliche Feiertage werden bundes- und landesweit berücksichtigt. Gemeindespezifische Regeln leitet die Anwendung nicht aus einer reinen Bundeslandauswahl ab.

@@ -1,4 +1,4 @@
-# Taiga UI: verbleibende Ausnahmen
+# Frontend: verbleibende Taiga-UI-Ausnahmen
 
 Issue #65 migriert produktive Controls auf Taiga UI, wo eine passende und semantisch tragfähige Komponente vorhanden ist. Die folgenden Ausnahmen bleiben bewusst bestehen:
 

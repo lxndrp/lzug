@@ -12,4 +12,4 @@ Der erste Backend-Prototyp entschied sich für Python, SQLite und SQLAlchemy 2.x
 
 ## Konsequenzen
 
-Das relationale Modell ist lokal ausführbar und von SQLite-spezifischen APIs entkoppelt. Der frühere Prototypbericht bleibt unter [backend-prototyp.md](../../backend-prototyp.md) als historische Quelle erhalten; die aktive Architekturreferenz liegt unter [Backend und Datenzugriff](../architecture/backend.md).
+Das relationale Modell ist lokal ausführbar und von SQLite-spezifischen APIs entkoppelt. Die aktive Architekturreferenz liegt unter [Backend und Datenzugriff](../architecture/backend.md); die Git-Historie bewahrt den früheren Prototypbericht.

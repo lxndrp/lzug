@@ -14,4 +14,4 @@ Angular-Frontend
 
 Python `3.14.6`, Node.js `26.5.0`, npm, `mise` und `uv` sind projektweit festgelegt. Die Pins liegen in `.mise.toml`, `.python-version`, `.node-version`, `uv.lock` und `frontend/package-lock.json`.
 
-Die Architekturentscheidungen stehen als [ADRs](../decisions/index.md). Die frühere Gesamtdarstellung bleibt für vorhandene Direktlinks unter [ARCHITECTURE.md](../../ARCHITECTURE.md) erhalten; diese Seiten sind die aktive, nach Subsystemen gegliederte Referenz.
+Die Architekturentscheidungen stehen als [ADRs](../decisions/index.md). Der frühere Pfad [ARCHITECTURE.md](../../ARCHITECTURE.md) verweist auf diese gegliederte Referenz.

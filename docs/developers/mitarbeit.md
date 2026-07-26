@@ -13,4 +13,4 @@ Die verbindliche Anleitung für lokale Einrichtung, Start, Tests und Pull Reques
 
 ## Änderungen an API und Datenbank
 
-Eine API-Änderung aktualisiert gemeinsam Handler, fachliche Implementierung, `backend/openapi.py`, Vertragstest und gegebenenfalls `PlanningApiService` sowie seine Modelle. Eine Schemaänderung erhält eine versionierte Migration unter `db/migrations/`; die aktuelle Referenz bleibt [Datenbankschema](reference/datenbankschema.md).
+Eine API-Änderung aktualisiert gemeinsam Handler, fachliche Implementierung, `backend/openapi.py`, Vertragstest und gegebenenfalls `PlanningApiService` sowie seine Modelle. Eine Schemaänderung erhält eine versionierte Migration unter `db/migrations/`; die aktuelle Referenz bleibt [Datenbankschema](database-schema.md).

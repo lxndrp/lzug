@@ -1,6 +1,6 @@
 # Für Entwickler
 
-Dieses Handbuch beschreibt den aktuellen technischen Stand. Beginnen Sie mit [Mitarbeit](mitarbeit.md), wenn Sie lokal entwickeln oder einen Beitrag vorbereiten möchten.
+Dieses Handbuch beschreibt den aktuellen technischen Stand. Beginnen Sie mit [Einrichtung](setup.md), wenn Sie lokal entwickeln, oder mit [Mitarbeit](mitarbeit.md), wenn Sie einen Beitrag vorbereiten möchten.
 
 - **Architektur** erklärt die Rollen von Backend, Frontend, API und Qualitätssicherung.
 - **Referenz** enthält das fachliche Datenmodell, die aktuelle Datenbankschema-Referenz sowie die generierten Code-Referenzen.

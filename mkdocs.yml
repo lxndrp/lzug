@@ -20,24 +20,31 @@ nav:
   - Start: index.md
   - Für Nutzer:
       - Überblick: users/index.md
-      - Prüfungsrunde vorbereiten: users/pruefungsrunde-vorbereiten.md
-      - Planung erstellen und bestätigen: users/planung.md
+      - Grundbegriffe: users/concepts.md
+      - Prüfungshalbjahre: users/exam-half-years.md
+      - Stammdaten: users/master-data.md
+      - Terminplanung: users/scheduling.md
   - Für Administratoren:
       - Überblick: administrators/index.md
-      - Lokale Instanz betreiben: administrators/lokale-instanz.md
+      - Lokale Laufzeit: administrators/local-runtime.md
+      - Daten und Zurücksetzen: administrators/data-and-reset.md
   - Für Entwickler:
       - Überblick: developers/index.md
+      - Einrichtung: developers/setup.md
       - Mitarbeit: developers/mitarbeit.md
       - Arbeitsprozess: developers/arbeitsprozess.md
       - Qualität und Sicherheitsprozess: developers/qualitaet-und-sicherheit.md
+      - Frontend-Richtlinie: developers/frontend-guidelines.md
+      - Frontend-Ausnahmen: developers/frontend-exceptions.md
+      - Dokumentation: developers/documentation.md
       - Architektur:
-          - Übersicht: developers/architecture/overview.md
+          - Übersicht: developers/architecture/index.md
           - Backend und Datenzugriff: developers/architecture/backend.md
           - Frontend: developers/architecture/frontend.md
-          - API und Qualität: developers/architecture/api-und-qualitaet.md
+          - API und Persistenz: developers/architecture/api-and-persistence.md
       - Referenz:
-          - Fachliches Datenmodell: developers/reference/datenmodell.md
-          - Datenbankschema: developers/reference/datenbankschema.md
+          - Fachliches Datenmodell: developers/domain-model.md
+          - Datenbankschema: developers/database-schema.md
           - Python-Backend: developers/reference/backend.md
           - TypeScript-Frontend: developers/reference/frontend.md
       - Entscheidungen:

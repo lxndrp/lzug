@@ -10,4 +10,4 @@ Das Projekt benötigt reproduzierbare Runtime-Versionen und Lockfile-basierte Ab
 
 ## Konsequenzen
 
-Die lokale Einrichtung erfolgt über `mise install` und `mise run setup`. CI verwendet dieselben Versionen und Lockfiles. Versionspins in `.mise.toml`, `.python-version` und `.node-version` werden bewusst manuell bewertet. Die konkrete Bedienung steht in `CONTRIBUTING.md` im Repository-Wurzelverzeichnis und der [lokalen Administration](../../administrators/lokale-instanz.md).
+Die lokale Einrichtung erfolgt über `mise install` und `mise run setup`. CI verwendet dieselben Versionen und Lockfiles. Versionspins in `.mise.toml`, `.python-version` und `.node-version` werden bewusst manuell bewertet. Die konkrete Bedienung steht in [Entwickler-Setup](../setup.md) und der [lokalen Laufzeit](../../administrators/local-runtime.md).

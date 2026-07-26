@@ -4,7 +4,9 @@
 
 Die folgenden Seiten beschreiben nur Funktionen, die in der aktuellen Anwendung vorhanden sind:
 
-- [Prüfungsrunde vorbereiten](pruefungsrunde-vorbereiten.md)
-- [Planung erstellen und bestätigen](planung.md)
+- [Grundbegriffe](concepts.md)
+- [Prüfungshalbjahre](exam-half-years.md)
+- [Stammdaten](master-data.md)
+- [Terminplanung](scheduling.md)
 
 Hinweise zu künftigen Betriebs-, Benachrichtigungs-, Export- oder Wiederherstellungsfunktionen sind bewusst nicht Teil dieser Anleitung.

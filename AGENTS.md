@@ -33,10 +33,4 @@ Produktumfang und Anleitung stehen im [README](README.md), Beiträge in
   Branches erst gemeinsam mit der Archivierung eines abgeschlossenen Issues
   aufräumen.
 
-## Frontend
-
-Bei Frontend-Arbeit den vollständigen Ablauf betrachten: Laden, Leerzustand,
-Erfolg, Fehler, Bestätigung und Abbruch. Desktop und Mobil sowie helles und
-dunkles Farbschema auf Hierarchie, Kontrast, Fokus, Umbruch, Überlauf und
-erreichbare Aktionen prüfen. Interne API- oder Implementierungsbegriffe nicht
-ungefiltert in der Oberfläche ausgeben.
+Für Frontend-Arbeit gilt die [Frontend-Richtlinie](docs/developers/frontend-guidelines.md).

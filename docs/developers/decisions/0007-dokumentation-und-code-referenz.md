@@ -10,4 +10,4 @@ Versionierte Markdown-Dokumentation wird mit MkDocs und `mkdocstrings` für Pyth
 
 ## Konsequenzen
 
-`mise run docs` baut MkDocs zuerst und erzeugt anschließend TypeDoc unter `site/developers/reference/frontend/`. Der Build wird nicht eingecheckt und nicht öffentlich gehostet; CI veröffentlicht `site/` als geschütztes Artefakt `lzug-documentation`. Die frühere Generatorentscheidung bleibt unter [frontend-generator.md](../../development/frontend-generator.md) erreichbar.
+`mise run docs` baut MkDocs zuerst und erzeugt anschließend TypeDoc unter `site/developers/reference/frontend/`. Der Build wird nicht eingecheckt und nicht öffentlich gehostet; CI veröffentlicht `site/` als geschütztes Artefakt `lzug-documentation`. Konvention und Toolentscheidung stehen unter [Dokumentation](../documentation.md).
