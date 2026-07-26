@@ -10,6 +10,6 @@ Die wichtigsten Bereiche sind:
 - `candidates/`, `committee/`, `locations/`: Stammdatenpflege.
 - `planning/`: Planungsrahmen, mögliche Tage, Verfügbarkeiten, Vorschlag und Bestätigung.
 
-Im Entwicklungsmodus leitet `proxy.conf.json` `/api` an `http://127.0.0.1:8000` weiter. `angular.json`, `karma.conf.cjs`, `playwright.config.ts` und `eslint.config.js` definieren Build, Tests und Qualitätsgrenzen.
+Im Entwicklungsmodus leitet `proxy.conf.json` `/api` an `http://127.0.0.1:8000` weiter. `angular.json`, `vitest.config.ts`, `playwright.config.ts` und `eslint.config.js` definieren Build, Tests und Qualitätsgrenzen.
 
 Taiga UI wurde nach einer begrenzten Prototyp-Erprobung als Oberflächenbibliothek gewählt; die Begründung und bewusst verbleibende Ausnahmen hält [ADR-0005](../decisions/0005-taiga-ui.md) fest.

@@ -2,15 +2,17 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Entwicklungsumgebung einrichten",
+            "type": "shell",
+            "command": "task",
+            "args": ["setup"],
+            "problemMatcher": []
+        },
+        {
             "label": "Frontend starten",
             "type": "shell",
-            "command": "npm",
-            "args": [
-                "start"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}/frontend"
-            },
+            "command": "task",
+            "args": ["dev:frontend"],
             "isBackground": true,
             "problemMatcher": {
                 "owner": "lzug-frontend",
@@ -30,277 +32,75 @@
             }
         },
         {
-            "label": "Tests ausfuehren",
-            "type": "shell",
-            "command": "${workspaceFolder}/.venv/bin/python",
-            "args": [
-                "-m",
-                "unittest"
-            ],
-            "group": "test",
-            "problemMatcher": []
-        },
-        {
-            "label": "Frontend Tests",
-            "type": "shell",
-            "command": "npm",
-            "args": [
-                "run",
-                "test:ci"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}/frontend"
-            },
-            "group": "test",
-            "problemMatcher": []
-        },
-        {
-            "label": "Frontend Coverage",
-            "type": "shell",
-            "command": "npm",
-            "args": [
-                "run",
-                "test:coverage"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}/frontend"
-            },
-            "group": "test",
-            "problemMatcher": []
-        },
-        {
-            "label": "Frontend Build",
-            "type": "shell",
-            "command": "npm",
-            "args": [
-                "run",
-                "build:ci"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}/frontend"
-            },
-            "group": "build",
-            "problemMatcher": []
-        },
-        {
-            "label": "Alle Tests",
-            "dependsOrder": "sequence",
-            "dependsOn": [
-                "Tests ausfuehren",
-                "Frontend Tests",
-                "Frontend E2E"
-            ],
-            "group": "test",
-            "problemMatcher": []
-        },
-        {
-            "label": "Tests mit Coverage",
-            "type": "shell",
-            "command": "${workspaceFolder}/.venv/bin/python",
-            "args": [
-                "-m",
-                "coverage",
-                "run",
-                "-m",
-                "unittest"
-            ],
-            "group": "test",
-            "problemMatcher": []
-        },
-        {
-            "label": "Coverage XML erzeugen",
-            "type": "shell",
-            "command": "${workspaceFolder}/.venv/bin/python",
-            "args": [
-                "-m",
-                "coverage",
-                "xml"
-            ],
-            "dependsOn": "Tests mit Coverage",
-            "group": "test",
-            "problemMatcher": []
-        },
-        {
-            "label": "Coverage HTML erzeugen",
-            "type": "shell",
-            "command": "${workspaceFolder}/.venv/bin/python",
-            "args": [
-                "-m",
-                "coverage",
-                "html"
-            ],
-            "dependsOn": "Tests mit Coverage",
-            "group": "test",
-            "problemMatcher": []
-        },
-        {
-            "label": "Alle Coverage Reports",
-            "dependsOrder": "sequence",
-            "dependsOn": [
-                "Coverage XML erzeugen",
-                "Frontend Coverage"
-            ],
-            "group": "test",
-            "problemMatcher": []
-        },
-        {
             "label": "Backend starten",
             "type": "shell",
-            "command": "${workspaceFolder}/.venv/bin/python",
-            "args": [
-                "-m",
-                "backend.app",
-                "--init",
-                "--seed",
-                "--reset"
-            ],
+            "command": "task",
+            "args": ["dev:backend"],
             "group": "build",
             "isBackground": true,
             "problemMatcher": []
         },
         {
-            "label": "Ruff Lint (Backend)",
+            "label": "Unit-Tests",
             "type": "shell",
-            "command": "${workspaceFolder}/.venv/bin/python",
-            "args": [
-                "-m",
-                "ruff",
-                "check",
-                "."
-            ],
-            "group": "build",
-            "problemMatcher": []
-        },
-        {
-            "label": "Black Format Check (Backend)",
-            "type": "shell",
-            "command": "${workspaceFolder}/.venv/bin/python",
-            "args": [
-                "-m",
-                "black",
-                "--check",
-                "."
-            ],
-            "group": "build",
-            "problemMatcher": []
-        },
-        {
-            "label": "Black Format Fix (Backend)",
-            "type": "shell",
-            "command": "${workspaceFolder}/.venv/bin/python",
-            "args": [
-                "-m",
-                "black",
-                "."
-            ],
-            "group": "build",
-            "problemMatcher": []
-        },
-        {
-            "label": "ESLint (Frontend)",
-            "type": "shell",
-            "command": "npm",
-            "args": [
-                "run",
-                "lint"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}/frontend"
-            },
-            "group": "build",
-            "problemMatcher": []
-        },
-        {
-            "label": "Prettier Check (Frontend)",
-            "type": "shell",
-            "command": "npm",
-            "args": [
-                "run",
-                "format:check"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}/frontend"
-            },
-            "group": "build",
-            "problemMatcher": []
-        },
-        {
-            "label": "Frontend E2E",
-            "type": "shell",
-            "command": "npm",
-            "args": [
-                "run",
-                "test:e2e"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}/frontend"
-            },
+            "command": "task",
+            "args": ["test"],
             "group": "test",
             "problemMatcher": []
         },
         {
-            "label": "Frontend Accessibility",
+            "label": "Backend-Qualität",
             "type": "shell",
-            "command": "npm",
-            "args": [
-                "run",
-                "test:a11y"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}/frontend"
-            },
+            "command": "task",
+            "args": ["quality:backend"],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Frontend-Qualität",
+            "type": "shell",
+            "command": "task",
+            "args": ["quality:frontend"],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "End-to-End-Tests",
+            "type": "shell",
+            "command": "task",
+            "args": ["quality:e2e"],
             "group": "test",
             "problemMatcher": []
         },
         {
-            "label": "Frontend Security",
+            "label": "Accessibility-Tests",
             "type": "shell",
-            "command": "npm",
-            "args": [
-                "run",
-                "security:check"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}/frontend"
-            },
-            "group": "build",
+            "command": "task",
+            "args": ["quality:a11y"],
+            "group": "test",
             "problemMatcher": []
         },
         {
-            "label": "Backend Security",
+            "label": "Frontend-Sicherheitsprüfung",
             "type": "shell",
-            "command": "${workspaceFolder}/.venv/bin/python",
-            "args": [
-                "-m",
-                "pip_audit",
-                "--skip-editable"
-            ],
+            "command": "task",
+            "args": ["quality:security"],
             "group": "build",
             "problemMatcher": []
         },
         {
-            "label": "Statische QS",
-            "dependsOrder": "sequence",
-            "dependsOn": [
-                "Ruff Lint (Backend)",
-                "Black Format Check (Backend)",
-                "ESLint (Frontend)",
-                "Prettier Check (Frontend)"
-            ],
+            "label": "Dokumentation bauen",
+            "type": "shell",
+            "command": "task",
+            "args": ["docs"],
             "group": "build",
             "problemMatcher": []
         },
         {
-            "label": "QS komplett",
-            "dependsOrder": "sequence",
-            "dependsOn": [
-                "Statische QS",
-                "Alle Tests",
-                "Alle Coverage Reports",
-                "Backend Security",
-                "Frontend Security",
-                "Frontend Accessibility"
-            ],
+            "label": "Qualität vollständig prüfen",
+            "type": "shell",
+            "command": "task",
+            "args": ["quality"],
             "group": "build",
             "problemMatcher": []
         }

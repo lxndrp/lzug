@@ -124,12 +124,12 @@ tasks:
       - npm ci
 
   dev:backend:
-    internal: true
+    desc: Start the backend development server
     cmds:
       - '{{.UV}} python -m backend.app --init'
 
   dev:frontend:
-    internal: true
+    desc: Start the frontend development server
     dir: frontend
     cmds:
       - npm start
