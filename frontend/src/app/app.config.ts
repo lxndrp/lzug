@@ -5,7 +5,6 @@ import {
   signal,
 } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
-import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
 import { TuiConfirmService } from '@taiga-ui/kit';
@@ -20,7 +19,6 @@ export const appConfig: ApplicationConfig = {
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
     provideHttpClient(),
-    provideAnimationsAsync(),
     provideTaiga({ scrollbars: 'native' }),
     TuiConfirmService,
     { provide: TUI_LANGUAGE, useValue: signal(TUI_GERMAN_LANGUAGE) },

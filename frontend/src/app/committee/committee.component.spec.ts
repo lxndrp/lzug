@@ -36,7 +36,7 @@ describe('CommitteeComponent', () => {
   });
 
   it('should emit selected committee changes', () => {
-    spyOn(component.selectedCommitteeIdChange, 'emit');
+    vi.spyOn(component.selectedCommitteeIdChange, 'emit').mockReturnValue(undefined);
 
     clickButton('PA Fachinformatiker Hamburg 2');
 
@@ -44,7 +44,7 @@ describe('CommitteeComponent', () => {
   });
 
   it('should emit valid committee form submissions', () => {
-    spyOn(component.createCommittee, 'emit');
+    vi.spyOn(component.createCommittee, 'emit').mockReturnValue(undefined);
     setInput('#committeeName', 'PA Neu');
     setInput('#committeeOccupation', 'Fachinformatiker/in');
 
@@ -61,7 +61,7 @@ describe('CommitteeComponent', () => {
   });
 
   it('should emit valid member form submissions', () => {
-    spyOn(component.createMember, 'emit');
+    vi.spyOn(component.createMember, 'emit').mockReturnValue(undefined);
     setInput('#memberFirstName', 'Lina');
     setInput('#memberLastName', 'Schroeder');
     setInput('#memberEmail', 'lina.schroeder@example.de');
@@ -69,7 +69,7 @@ describe('CommitteeComponent', () => {
     submitForm(1);
 
     expect(component.createMember.emit).toHaveBeenCalledWith(
-      jasmine.objectContaining({
+      expect.objectContaining({
         committee_id: 1,
         first_name: 'Lina',
         last_name: 'Schroeder',
@@ -84,7 +84,7 @@ describe('CommitteeComponent', () => {
   });
 
   it('should emit member toggle actions from the member table', () => {
-    spyOn(component.toggleMember, 'emit');
+    vi.spyOn(component.toggleMember, 'emit').mockReturnValue(undefined);
 
     clickButton('Deaktivieren');
 

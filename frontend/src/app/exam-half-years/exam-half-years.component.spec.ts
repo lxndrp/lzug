@@ -25,7 +25,9 @@ describe('ExamHalfYearsComponent', () => {
   afterEach(() => http.verify());
 
   it('loads terms and creates a committee-specific round', () => {
-    const selection = spyOn(fixture.componentInstance.roundSelected, 'emit');
+    const selection = vi
+      .spyOn(fixture.componentInstance.roundSelected, 'emit')
+      .mockReturnValue(undefined);
     fixture.detectChanges();
     flushInitialLoad(http, [
       { id: 1, season: 'winter', year: 2026, status: 'active' },

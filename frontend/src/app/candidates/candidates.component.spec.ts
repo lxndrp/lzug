@@ -74,8 +74,8 @@ describe('CandidatesComponent', () => {
 
   it('should emit create and delete events', () => {
     const component = fixture.componentInstance;
-    spyOn(component.createCandidate, 'emit');
-    spyOn(component.deleteCandidate, 'emit');
+    vi.spyOn(component.createCandidate, 'emit').mockReturnValue(undefined);
+    vi.spyOn(component.deleteCandidate, 'emit').mockReturnValue(undefined);
 
     setInput('#candidateFirstName', 'Mara');
     setInput('#candidateLastName', 'Schulz');
@@ -86,7 +86,7 @@ describe('CandidatesComponent', () => {
     form!.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
 
     expect(component.createCandidate.emit).toHaveBeenCalledWith(
-      jasmine.objectContaining({
+      expect.objectContaining({
         first_name: 'Mara',
         last_name: 'Schulz',
         ihk_exam_number: 'FI-2026-1081',
@@ -95,7 +95,15 @@ describe('CandidatesComponent', () => {
     expect(inputValue('#candidateFirstName')).toBe('Mara');
 
     component.resetDraft();
-    expect((component as unknown as { draft: { first_name: string } }).draft.first_name).toBe('');
+    expect(
+      (
+        component as unknown as {
+          draft: {
+            first_name: string;
+          };
+        }
+      ).draft.first_name,
+    ).toBe('');
 
     clickButton('Löschen');
     expect(component.deleteCandidate.emit).toHaveBeenCalled();
@@ -103,11 +111,14 @@ describe('CandidatesComponent', () => {
 
   it('should edit candidate and round data without clearing the form before success', () => {
     const component = fixture.componentInstance;
-    spyOn(component.updateCandidate, 'emit');
+    vi.spyOn(component.updateCandidate, 'emit').mockReturnValue(undefined);
 
     clickButton('Bearbeiten');
     const editor = component as unknown as {
-      editDraft: () => { last_name: string; attempt_number: number };
+      editDraft: () => {
+        last_name: string;
+        attempt_number: number;
+      };
       submitCandidateUpdate: () => void;
     };
     editor.editDraft().last_name = 'Hoffmann-Neu';
@@ -116,7 +127,7 @@ describe('CandidatesComponent', () => {
 
     expect(component.updateCandidate.emit).toHaveBeenCalledWith({
       id: 1,
-      payload: jasmine.objectContaining({
+      payload: expect.objectContaining({
         last_name: 'Hoffmann-Neu',
         attempt_number: 3,
         requires_mep: 0,

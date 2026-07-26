@@ -1,5 +1,4 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { PlanningComponent } from './planning.component';
 import {
@@ -23,7 +22,6 @@ describe('PlanningComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [PlanningComponent],
-      providers: [provideNoopAnimations()],
     }).compileComponents();
 
     fixture = TestBed.createComponent(PlanningComponent);
@@ -49,7 +47,7 @@ describe('PlanningComponent', () => {
 
   it('should emit planning settings form submissions', () => {
     const component = fixture.componentInstance;
-    spyOn(component.saveSettings, 'emit');
+    vi.spyOn(component.saveSettings, 'emit').mockReturnValue(undefined);
 
     setInput('#weekFrom', '2026-W48');
     setInput('#weekTo', '2026-W50');
@@ -59,7 +57,7 @@ describe('PlanningComponent', () => {
     form!.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
 
     expect(component.saveSettings.emit).toHaveBeenCalledWith(
-      jasmine.objectContaining({
+      expect.objectContaining({
         calendar_week_from: '2026-W48',
         calendar_week_to: '2026-W50',
         updated_by_member_id: 1,
@@ -69,11 +67,14 @@ describe('PlanningComponent', () => {
 
   it('should emit editable exam round metadata', () => {
     const component = fixture.componentInstance;
-    spyOn(component.saveRound, 'emit');
+    vi.spyOn(component.saveRound, 'emit').mockReturnValue(undefined);
 
     setInput('#roundName', 'Sommer 2027');
     const drafts = component as unknown as {
-      roundDraft: { availability_deadline: string; availability_reminder_at: string };
+      roundDraft: {
+        availability_deadline: string;
+        availability_reminder_at: string;
+      };
     };
     drafts.roundDraft.availability_deadline = '2027-04-15T18:00';
     drafts.roundDraft.availability_reminder_at = '2027-04-08T09:00';
@@ -95,7 +96,7 @@ describe('PlanningComponent', () => {
       savedStateTimers: Map<string, ReturnType<typeof setTimeout>>;
       ngOnDestroy(): void;
     };
-    const timer = setTimeout(() => undefined, 10_000);
+    const timer = setTimeout(() => undefined, 10000);
     component.savedStateTimers.set('1:1', timer);
 
     component.ngOnDestroy();
@@ -127,17 +128,43 @@ describe('PlanningComponent', () => {
 
   it('should keep Taiga date values at the UI boundary while preserving API formats', () => {
     const component = fixture.componentInstance as unknown as {
-      candidateDayValue: () => { toJSON(): string } | null;
-      setCandidateDayValue: (value: { toJSON(): string } | null) => void;
-      roundDateTimeValue: (
-        value: string,
-      ) => readonly [{ toJSON(): string }, { toString(mode: 'HH:MM'): string } | null] | null;
+      candidateDayValue: () => {
+        toJSON(): string;
+      } | null;
+      setCandidateDayValue: (
+        value: {
+          toJSON(): string;
+        } | null,
+      ) => void;
+      roundDateTimeValue: (value: string) =>
+        | readonly [
+            {
+              toJSON(): string;
+            },
+            {
+              toString(mode: 'HH:MM'): string;
+            } | null,
+          ]
+        | null;
       setRoundDateTimeValue: (
         field: 'availability_deadline' | 'availability_reminder_at',
-        value: readonly [{ toJSON(): string }, { toString(mode: 'HH:MM'): string } | null] | null,
+        value:
+          | readonly [
+              {
+                toJSON(): string;
+              },
+              {
+                toString(mode: 'HH:MM'): string;
+              } | null,
+            ]
+          | null,
       ) => void;
-      roundDraft: { availability_deadline: string };
-      candidateDayDraft: { date: string };
+      roundDraft: {
+        availability_deadline: string;
+      };
+      candidateDayDraft: {
+        date: string;
+      };
     };
 
     expect(component.candidateDayValue()).toBeNull();
@@ -153,7 +180,7 @@ describe('PlanningComponent', () => {
 
   it('should require a federal state and emit settings before day generation', async () => {
     const component = fixture.componentInstance;
-    spyOn(component.generateCandidateDays, 'emit');
+    vi.spyOn(component.generateCandidateDays, 'emit').mockReturnValue(undefined);
     const internals = component as unknown as {
       draft: {
         exclude_public_holidays: number;
@@ -174,11 +201,11 @@ describe('PlanningComponent', () => {
       (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>(
         '#holidaySubdivisionCode',
       )?.disabled,
-    ).toBeFalse();
+    ).toBe(false);
 
     internals.requestCandidateDayGeneration();
     expect(component.generateCandidateDays.emit).toHaveBeenCalledWith(
-      jasmine.objectContaining({
+      expect.objectContaining({
         exclude_public_holidays: 1,
         holiday_subdivision_code: 'DE-NW',
       }),
@@ -231,7 +258,7 @@ describe('PlanningComponent', () => {
 
   it('should emit possible day changes', () => {
     const component = fixture.componentInstance;
-    spyOn(component.toggleCandidateDay, 'emit');
+    vi.spyOn(component.toggleCandidateDay, 'emit').mockReturnValue(undefined);
 
     const button = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
@@ -240,15 +267,19 @@ describe('PlanningComponent', () => {
     button!.click();
 
     expect(component.toggleCandidateDay.emit).toHaveBeenCalledWith(
-      jasmine.objectContaining({ id: 1, is_active: 1 }),
+      expect.objectContaining({ id: 1, is_active: 1 }),
     );
   });
 
   it('should emit new possible exam days', () => {
     const component = fixture.componentInstance;
-    spyOn(component.createCandidateDay, 'emit');
+    vi.spyOn(component.createCandidateDay, 'emit').mockReturnValue(undefined);
 
-    const drafts = component as unknown as { candidateDayDraft: { date: string } };
+    const drafts = component as unknown as {
+      candidateDayDraft: {
+        date: string;
+      };
+    };
     drafts.candidateDayDraft.date = '2026-11-18';
     fixture.detectChanges();
 
@@ -265,13 +296,19 @@ describe('PlanningComponent', () => {
 
     component.resetCandidateDayDraft();
     expect(
-      (component as unknown as { candidateDayDraft: { date: string } }).candidateDayDraft.date,
+      (
+        component as unknown as {
+          candidateDayDraft: {
+            date: string;
+          };
+        }
+      ).candidateDayDraft.date,
     ).toBe('');
   });
 
   it('should emit availability changes', () => {
     const component = fixture.componentInstance;
-    spyOn(component.saveAvailability, 'emit');
+    vi.spyOn(component.saveAvailability, 'emit').mockReturnValue(undefined);
 
     const changeAvailability = component as unknown as {
       changeAvailability: (
@@ -294,8 +331,8 @@ describe('PlanningComponent', () => {
     });
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Speichert …');
-    expect(changeAvailability.isAvailabilitySaving(1, 1)).toBeTrue();
-    expect(changeAvailability.isAvailabilitySaving(2, 1)).toBeFalse();
+    expect(changeAvailability.isAvailabilitySaving(1, 1)).toBe(true);
+    expect(changeAvailability.isAvailabilitySaving(2, 1)).toBe(false);
   });
 
   it('should confirm saved cells and roll failed cells back', () => {
