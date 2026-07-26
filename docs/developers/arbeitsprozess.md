@@ -26,6 +26,6 @@ Issue-Pull-Requests werden mit `scripts/create-issue-pr.sh` gegen `master` erste
 
 ## Verifikation und Sandbox
 
-`mise quality` ist grundsätzlich die maßgebliche lokale Gesamtprüfung. Teilprüfungen dürfen vorangehen, wenn sie die Änderung klar eingrenzen. Die GitHub-Actions-Pipeline ist nach erfolgreicher lokaler Prüfung die finale Abnahme. Abschlussberichte unterscheiden klar zwischen **verifiziert**, **in Codex nicht verifizierbar** und **durch bekannte Sandbox-Grenze blockiert**.
+`task quality` ist grundsätzlich die maßgebliche lokale Gesamtprüfung. Teilprüfungen dürfen vorangehen, wenn sie die Änderung klar eingrenzen. Die GitHub-Actions-Pipeline ist nach erfolgreicher lokaler Prüfung die finale Abnahme. Abschlussberichte unterscheiden klar zwischen **verifiziert**, **in Codex nicht verifizierbar** und **durch bekannte Sandbox-Grenze blockiert**.
 
 Bekannte Eigenheiten der Codex-Sandbox rechtfertigen keinen Produktfix: `git status` kann durch fsmonitor stören, und Frontend-Builds oder Browser-/E2E-nahe Prüfungen können abweichen. Einen wiederkehrenden bekannten Umgebungstreffer nicht mehrfach wiederholen; stattdessen Befund und verbleibende Produktlücken getrennt dokumentieren.

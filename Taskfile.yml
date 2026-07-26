@@ -1,0 +1,135 @@
+version: '3.52'
+
+vars:
+  UV: uv run --locked --extra dev
+
+tasks:
+  setup:
+    desc: Recreate the virtual environment and install locked dependencies
+    cmds:
+      - uv venv --python "$(mise which python)" --clear --seed
+      - uv sync --locked --extra dev
+      - task: setup:frontend
+
+  test:
+    desc: Run all backend and frontend unit tests
+    cmds:
+      - task: test:backend
+      - task: test:frontend
+
+  test:backend:
+    desc: Run backend unit tests
+    cmds:
+      - '{{.UV}} python -m unittest'
+
+  test:frontend:
+    desc: Run frontend unit tests
+    dir: frontend
+    cmds:
+      - npm run test:ci
+
+  docs:
+    desc: Build the local handbook and generated code references
+    cmds:
+      - task: docs:handbook
+      - task: docs:frontend
+
+  quality:
+    desc: Run the complete local quality assurance suite in parallel
+    deps:
+      - quality:backend
+      - quality:frontend
+      - quality:security
+      - quality:e2e
+      - quality:a11y
+      - docs
+
+  quality:backend:
+    desc: Run backend lint, audit, tests, and coverage
+    cmds:
+      - task: backend:lint
+      - task: backend:format
+      - task: backend:audit
+      - task: backend:coverage
+
+  quality:frontend:
+    desc: Run frontend lint, build, and unit tests
+    dir: frontend
+    cmds:
+      - npm run lint
+      - npm run format:check
+      - npm run build:ci
+      - npm run test:coverage
+
+  quality:security:
+    desc: Run the production npm critical security gate
+    dir: frontend
+    cmds:
+      - npm run security:check
+
+  quality:e2e:
+    desc: Run browser end-to-end tests
+    dir: frontend
+    cmds:
+      - npm run test:e2e
+
+  quality:a11y:
+    desc: Run browser accessibility tests
+    dir: frontend
+    cmds:
+      - npm run test:a11y
+
+  dev:
+    desc: Start backend and frontend development servers in parallel
+    deps:
+      - dev:backend
+      - dev:frontend
+
+  backend:lint:
+    internal: true
+    cmds:
+      - '{{.UV}} python -m ruff check .'
+
+  backend:format:
+    internal: true
+    cmds:
+      - '{{.UV}} python -m black --check .'
+
+  backend:audit:
+    internal: true
+    cmds:
+      - '{{.UV}} python -m pip_audit --skip-editable --cache-dir /tmp/lzug-pip-audit'
+
+  backend:coverage:
+    internal: true
+    cmds:
+      - '{{.UV}} python -m coverage run -m unittest'
+      - '{{.UV}} python -m coverage report'
+
+  docs:handbook:
+    internal: true
+    cmds:
+      - '{{.UV}} mkdocs build --strict --site-dir site'
+
+  docs:frontend:
+    internal: true
+    dir: frontend
+    cmds:
+      - npm run docs
+
+  setup:frontend:
+    internal: true
+    dir: frontend
+    cmds:
+      - npm ci
+
+  dev:backend:
+    internal: true
+    cmds:
+      - '{{.UV}} python -m backend.app --init'
+
+  dev:frontend:
+    internal: true
+    dir: frontend
+    cmds:
+      - npm start

@@ -28,7 +28,7 @@ Für Beiträge und lokale Entwicklung ist [CONTRIBUTING.md](CONTRIBUTING.md) der
 Einstieg. Die lokale Dokumentation inklusive Code-Referenzen entsteht mit:
 
 ```sh
-mise run docs
+task docs
 ```
 
 Das Ergebnis liegt unter `site/` und wird in CI als geschütztes Artefakt

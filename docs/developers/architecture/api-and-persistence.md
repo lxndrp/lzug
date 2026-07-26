@@ -9,7 +9,7 @@ Die JSON-API ist selbstbeschreibend:
 
 Kernressourcen verwenden REST-nahe CRUD-Muster mit `GET`, `POST`, `PATCH` und `DELETE`. Antworten enthalten HAL-nahe `_links`; Listen bestehen aus `items` und `_links`. Der genaue Vertrag steht immer in `backend/openapi.py`, nicht in einer zweiten statischen Liste.
 
-Die Qualitätssicherung ist mehrschichtig: Backend mit unittest, Coverage, Ruff, Black und `pip-audit`; Frontend mit Karma/Jasmine, Angular-Build, ESLint, Prettier und npm-Audit; Browser mit Playwright und axe. `mise quality` führt die vollständige lokale Prüfung aus. CI verwendet getrennte Jobs und veröffentlicht die Dokumentation als Artefakt `lzug-documentation`.
+Die Qualitätssicherung ist mehrschichtig: Backend mit unittest, Coverage, Ruff, Black und `pip-audit`; Frontend mit Karma/Jasmine, Angular-Build, ESLint, Prettier und npm-Audit; Browser mit Playwright und axe. `task quality` führt die vollständige lokale Prüfung aus. CI verwendet getrennte Jobs und veröffentlicht die Dokumentation als Artefakt `lzug-documentation`.
 
 SQLite ist die lokale Entwicklungsdatenbank. Das ausführbare Schema liegt in `db/schema.sql`, Änderungen in `db/migrations/`; `schema_migration` protokolliert ausgeführte Migrationen. Das Schema ist SQLite-kompatibel und PostgreSQL-nah angelegt. Mehrzeilige Fachregeln werden in Repository- und Service-Logik validiert. Die aktuelle Referenz steht unter [Datenbankschema](../database-schema.md).
 

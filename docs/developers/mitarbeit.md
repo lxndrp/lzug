@@ -9,7 +9,7 @@ Die verbindliche Anleitung für lokale Einrichtung, Start, Tests und Pull Reques
 - Verbindliche HTTP-Pfade, Payloads und Antworten gehören in OpenAPI; die Anwendung liefert sie unter `/api/openapi.json` und `/api/docs` aus.
 - Nicht offensichtliche öffentliche Python-Schnittstellen verwenden Google-Style-Docstrings. Exportierte Angular- und TypeScript-Schnittstellen verwenden TSDoc.
 
-`mise run docs` baut MkDocs, die Python-Referenz und die TypeDoc-Ausgabe. Der vollständige Qualitätslauf `mise quality` enthält denselben Dokumentationsbuild.
+`task docs` baut MkDocs, die Python-Referenz und die TypeDoc-Ausgabe. Der vollständige Qualitätslauf `task quality` enthält denselben Dokumentationsbuild.
 
 ## Änderungen an API und Datenbank
 

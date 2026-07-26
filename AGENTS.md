@@ -17,7 +17,7 @@ Produktumfang und Anleitung stehen im [README](README.md), Beiträge in
 - Nur Dateien stagen, die zum Auftrag gehören. Commit-Nachrichten sind Englisch;
   deutsche Prosa verwendet korrekte Umlaute.
 - Vor einer Umsetzung die betroffenen Tests ausführen und anschließend, soweit
-  die Änderung es erfordert, `mise quality` verwenden. Bekannte
+  die Änderung es erfordert, `task quality` verwenden. Bekannte
   Sandbox-Eigenheiten als Umgebungsthema dokumentieren, nicht mit Produktcode
   umgehen.
 

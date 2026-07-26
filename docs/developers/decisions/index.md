@@ -14,3 +14,4 @@ Historie, machen aber Kontext, Konsequenzen und Verweise dauerhaft auffindbar.
 | [0006](0006-openapi-http-vertrag.md) | HTTP-API als OpenAPI-Vertrag | Akzeptiert |
 | [0007](0007-dokumentation-und-code-referenz.md) | MkDocs und Code-Referenzen | Akzeptiert |
 | [0008](0008-feiertagsprovider.md) | Kuratierte Feiertagsdaten | Akzeptiert |
+| [0009](0009-toolchain-und-entwicklungs-tasks.md) | Toolchain und Entwicklungs-Tasks trennen | Akzeptiert |
