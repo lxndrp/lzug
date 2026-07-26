@@ -22,7 +22,7 @@ cd frontend && npm run test:ci
 """
 
 [tasks.docs]
-description = "Build the local developer documentation and generated code reference"
+description = "Build the local lzug handbook and generated code references"
 run = """
 set -e
 .venv/bin/mkdocs build --strict --site-dir site

@@ -9,8 +9,9 @@ candidates against the locked project toolchain on 25 July 2026:
 | Compodoc 2.0.0 | Parsed the application, but bundled TypeScript 6.0.2 while the project locks 6.0.3. | Rejected to avoid a parallel compiler runtime. |
 
 TypeDoc is run by `mise run docs` after MkDocs has built the shared Markdown and
-Python reference. Its output is placed under `site/reference/frontend/`; the
-<a href="../reference/frontend/index.html">Generated TypeScript reference</a>
+Python reference. Its output is placed under
+`site/developers/reference/frontend/`; the
+<a href="../developers/reference/frontend/index.html">Generated TypeScript reference</a>
 is therefore available in the local site and CI artifact.
 
 The generated material is not committed and is not deployed. Its only initial

@@ -3,8 +3,8 @@
 Das Frontend ist eine Angular-22-Anwendung. Abhängigkeiten werden mit npm und
 `package-lock.json` reproduzierbar installiert.
 
-Die technische Einordnung des Frontends ist zentral in
-[`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) dokumentiert.
+Die technische Einordnung des Frontends steht im
+[Entwicklerhandbuch](../docs/developers/architecture/frontend.md).
 
 ## Entwicklungsserver
 

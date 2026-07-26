@@ -1,27 +1,11 @@
-# lzug developer documentation
+# lzug-Handbuch
 
-This versioned documentation build combines the existing technical Markdown
-documents with code reference generated from the current source tree.
+Dieses Handbuch beschreibt den aktuellen, versionierten Stand von `lzug`.
 
-- [Code-documentation policy](development/code-documentation.md) defines the
-  incremental documentation standard.
-- [Python backend reference](reference/backend.md) is generated from Google-style
-  docstrings by `mkdocstrings`.
-- [TypeScript frontend reference](reference/frontend.md) explains the generated
-  TypeDoc output and its toolchain decision.
-- [Architecture](ARCHITECTURE.md), [data model](datenmodell.md), and
-  [relational schema](relationales-schema.md) remain the German conceptual
-  sources of truth.
+- **Nutzer** finden die vorhandenen Abläufe für Prüfungshalbjahre, Stammdaten und Planung.
+- **Administratoren** finden die Anleitung für eine lokale Entwicklungsinstanz.
+- **Entwickler** finden Architektur, Schnittstellen, Datenmodell, Entscheidungen und Qualitätsregeln.
 
-The REST contract is maintained separately as [OpenAPI JSON](/api/openapi.json)
-and its local [Swagger UI](/api/docs). Start the backend with the command in the
-repository README before following those two links.
+Der operative Umfang und die geplante Weiterentwicklung werden nicht hier, sondern im GitHub Project [lzug Roadmap](https://github.com/users/lxndrp/projects/2) und in GitHub Issues gepflegt.
 
-Build everything locally with:
-
-```sh
-mise run docs
-```
-
-The generated site is local build output only. It is uploaded as a private
-GitHub Actions artifact; no public hosting is configured.
+Die Dokumentation entsteht lokal mit `mise run docs`. Sie wird nicht öffentlich gehostet. CI stellt den Build als geschütztes Artefakt `lzug-documentation` bereit.

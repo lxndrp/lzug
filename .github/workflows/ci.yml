@@ -128,7 +128,7 @@ jobs:
         run: npm run security:check
 
   documentation:
-    name: Developer documentation
+    name: Documentation
     runs-on: ubuntu-latest
 
     steps:
@@ -159,15 +159,15 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Build developer documentation
+      - name: Build documentation
         run: |
           uv run mkdocs build --strict --site-dir site
           cd frontend && npm run docs
 
-      - name: Upload developer documentation
+      - name: Upload documentation
         uses: actions/upload-artifact@v7
         with:
-          name: developer-documentation
+          name: lzug-documentation
           path: site
           if-no-files-found: error
 

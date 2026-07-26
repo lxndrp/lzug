@@ -36,7 +36,7 @@ generates their browser reference during `mise run docs`.
 - Stable product and domain information belongs in `README.md` and the German
   domain documentation. Changing scope, priorities, and delivery planning
   belong in the GitHub Project and its issues.
-- Technical decisions belong in `ARCHITECTURE.md` and future ADRs.
+- Technical decisions belong in the developer handbook and its ADRs.
 - HTTP paths, payloads, and responses are canonical in OpenAPI and Swagger UI.
 - Comments explain why code has a particular responsibility or state boundary;
   they do not duplicate those other sources.

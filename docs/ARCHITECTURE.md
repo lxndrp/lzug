@@ -2,6 +2,11 @@
 
 Stand: 16.07.2026
 
+> **Kompatibilitätshinweis:** Diese frühere Gesamtübersicht bleibt für
+> bestehende Direktlinks erhalten. Die aktive, nach Zielgruppen und
+> Subsystemen gegliederte Referenz beginnt im
+> [Entwicklerhandbuch](developers/index.md).
+
 Dieses Dokument beschreibt die technische Architektur von `lzug`.
 Produktueberblick und stabiler fachlicher Umfang stehen in `../README.md` und
 `datenmodell.md`. Die operative Planung wird im GitHub Project
@@ -248,7 +253,7 @@ Markdown-Dokumente mit einer aus Google-Style-Docstrings erzeugten
 Python-Referenz und einer TypeDoc-Referenz für das Angular-Frontend. Der lokale
 Build läuft mit `mise run docs`; die vollständige Qualitätssicherung enthält
 diesen Build ebenfalls. CI stellt `site/` als geschütztes Artefakt
-`developer-documentation` bereit. Es ist kein GitHub Pages-, Read the Docs- oder
+`lzug-documentation` bereit. Es ist kein GitHub Pages-, Read the Docs- oder
 anderes öffentliches Hosting konfiguriert.
 
 Die Richtlinie und die begründete Toolentscheidung liegen unter
