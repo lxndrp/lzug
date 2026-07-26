@@ -25,7 +25,7 @@ Das versionierte Handbuch richtet sich an drei Zielgruppen:
   Entscheidungen und Qualitätssicherung.
 
 Für Beiträge und lokale Entwicklung ist [CONTRIBUTING.md](CONTRIBUTING.md) der
-Einstieg. Die lokalen Dokumentation inklusive Code-Referenzen entsteht mit:
+Einstieg. Die lokale Dokumentation inklusive Code-Referenzen entsteht mit:
 
 ```sh
 mise run docs
