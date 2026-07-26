@@ -40,6 +40,6 @@ reproduzierbare Diagnosen kann `LZUG_E2E_RUN_ID` gesetzt werden.
 
 Öffnen Sie den Repository-Ordner und wählen Sie `.venv/bin/python`; `.vscode/settings.json` setzt ihn bereits voraus. Prüfen Sie Python 3.14.6, Node.js 26.5.0 sowie aktive Ruff-, Black- und ESLint-Integration.
 
-Empfohlene Erweiterungen: `jdx.mise`, `ms-python.python`, `ms-python.debugpy`, `charliermarsh.ruff`, `dbaeumer.vscode-eslint`, `esbenp.prettier-vscode` und `ryanluker.vscode-coverage-gutters`. VS-Code-Tasks decken Backend- und Frontend-Tests, Coverage, Browser, Sicherheit und den vollständigen Qualitätslauf ab. Coverage Gutters verwendet `coverage.xml` und `frontend/coverage/frontend/lcov.info`.
+Empfohlene Erweiterungen: `jdx.mise`, `ms-python.python`, `ms-python.debugpy`, `charliermarsh.ruff`, `dbaeumer.vscode-eslint`, `esbenp.prettier-vscode` und `ryanluker.vscode-coverage-gutters`. Die VS-Code-Tasks rufen dieselben öffentlichen `task`-Workflows für Einrichtung, Tests, Teilprüfungen, Dokumentation und die vollständige Qualitätssicherung auf. Coverage Gutters verwendet `coverage.xml` und `frontend/coverage/frontend/lcov.info`. Der Standardstart des Backends initialisiert nur die Datenbank; ein separater Debug-Start setzt Demo-Daten ausdrücklich zurück.
 
 `task test` startet Backend- und Frontend-Tests, `task dev` beide Entwicklungsserver. Neue Python-Abhängigkeiten werden mit `uv add` und anschließend `uv sync --extra dev` ergänzt. Die Versionsdateien `.python-version`, `.node-version`, `.mise.toml`, `Taskfile.yml` und `uv.lock` bleiben versioniert.

@@ -7,6 +7,18 @@
             "request": "launch",
             "module": "backend.app",
             "args": [
+                "--init"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "type": "debugpy",
+            "name": "lzug Backend (Server, Demo-Daten zurücksetzen)",
+            "request": "launch",
+            "module": "backend.app",
+            "args": [
                 "--init",
                 "--seed",
                 "--reset"
