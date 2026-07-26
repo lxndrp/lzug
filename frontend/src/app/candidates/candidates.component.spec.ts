@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { CandidatesComponent } from './candidates.component';
-import { masterDataFixture } from '../testing/fixtures';
+import { examRoundFixture, masterDataFixture } from '../testing/fixtures';
 
 describe('CandidatesComponent', () => {
   let fixture: ComponentFixture<CandidatesComponent>;
@@ -21,6 +21,7 @@ describe('CandidatesComponent', () => {
 
     fixture = TestBed.createComponent(CandidatesComponent);
     fixture.componentRef.setInput('masterData', masterDataFixture);
+    fixture.componentRef.setInput('activeRound', examRoundFixture);
     fixture.detectChanges();
   });
 
@@ -128,6 +129,16 @@ describe('CandidatesComponent', () => {
     expect(
       (fixture.nativeElement as HTMLElement).querySelector('#editCandidateLastName-1'),
     ).toBeNull();
+  });
+
+  it('should offer same-half-year committee rounds and show assignment history', () => {
+    clickButton('Bearbeiten');
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('#editCandidateRound-1')).toBeTruthy();
+    expect(element.textContent).toContain('Zuordnungshistorie');
+    expect(element.textContent).toContain('PA Fachinformatiker Hamburg 1');
   });
 
   function setInput(selector: string, value: string): void {

@@ -6,6 +6,7 @@ import {
   ApiCollection,
   ApiRoot,
   Candidate,
+  CandidateCommitteeAssignment,
   CandidateDayGenerationResult,
   CandidateExamDay,
   CandidateView,
@@ -136,6 +137,10 @@ export class PlanningApiService {
       persons: this.list<Person>('/api/persons'),
       members: this.list<CommitteeMember>('/api/members'),
       candidates: this.getCandidateViews(),
+      examRounds: this.list<ExamRound>('/api/exam-rounds'),
+      candidateAssignments: this.list<CandidateCommitteeAssignment>(
+        '/api/candidate-committee-assignments',
+      ),
       locations: this.list<Location>('/api/locations'),
     });
   }
@@ -147,7 +152,9 @@ export class PlanningApiService {
   getCandidateViews() {
     return forkJoin({
       candidates: this.list<Candidate>('/api/candidates'),
-      roundCandidates: this.list<RoundCandidate>(`/api/round-candidates?round_id=${this.roundId}`),
+      roundCandidates: this.list<RoundCandidate>(
+        `/api/round-candidates?round_id=${this.roundId}&is_active=1`,
+      ),
     }).pipe(
       map(({ candidates, roundCandidates }) =>
         candidates.map((candidate): CandidateView => ({
@@ -202,21 +209,30 @@ export class PlanningApiService {
   }
 
   createCandidate(
-    payload: Omit<Candidate, 'id'> & { attempt_number: number; requires_mep: number },
+    payload: Omit<Candidate, 'id'> & {
+      attempt_number: number;
+      requires_mep: number;
+      exam_round_id?: number;
+    },
   ) {
     return this.http.post<Candidate>('/api/candidates', {
       ...payload,
-      exam_round_id: this.roundId,
+      exam_round_id: payload.exam_round_id ?? this.roundId,
     });
   }
 
   updateCandidate(
     id: number,
-    payload: Omit<Candidate, 'id'> & { attempt_number: number; requires_mep: number },
+    payload: Omit<Candidate, 'id'> & {
+      attempt_number: number;
+      requires_mep: number;
+      exam_round_id?: number;
+      assignment_change_reason?: string;
+    },
   ) {
     return this.http.patch<Candidate>(`/api/candidates/${id}`, {
       ...payload,
-      exam_round_id: this.roundId,
+      exam_round_id: payload.exam_round_id ?? this.roundId,
     });
   }
 

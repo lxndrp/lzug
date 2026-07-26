@@ -206,6 +206,21 @@ export type RoundCandidate = {
   candidate_id: number;
   attempt_number: number;
   requires_mep: number;
+  is_active: number;
+  created_at?: string;
+  updated_at?: string;
+};
+
+/** A time-bounded responsibility of a candidate within one exam half-year. */
+export type CandidateCommitteeAssignment = {
+  id: number;
+  candidate_id: number;
+  exam_half_year_id: number;
+  exam_round_id: number;
+  round_candidate_id: number;
+  assigned_at: string;
+  ended_at: string | null;
+  change_reason: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -277,5 +292,7 @@ export type MasterData = {
   persons: Person[];
   members: CommitteeMember[];
   candidates: CandidateView[];
+  examRounds: ExamRound[];
+  candidateAssignments: CandidateCommitteeAssignment[];
   locations: Location[];
 };

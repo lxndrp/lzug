@@ -13,10 +13,12 @@ import {
   assignmentsFixture,
   availabilitiesFixture,
   candidateDaysFixture,
+  candidateAssignmentsFixture,
   candidatesFixture,
   committeesFixture,
   examDaysFixture,
   examRoundFixture,
+  examRoundsFixture,
   examSlotsFixture,
   locationsFixture,
   membersFixture,
@@ -202,7 +204,7 @@ function flushDashboardRequests(http: HttpTestingController): void {
   expect(candidateRequests.length).toBe(2);
   candidateRequests.forEach((request) => request.flush({ items: candidatesFixture, _links: {} }));
 
-  const roundCandidateRequests = http.match('/api/round-candidates?round_id=1');
+  const roundCandidateRequests = http.match('/api/round-candidates?round_id=1&is_active=1');
   expect(roundCandidateRequests.length).toBe(2);
   roundCandidateRequests.forEach((request) =>
     request.flush({ items: roundCandidatesFixture, _links: {} }),
@@ -224,6 +226,11 @@ function flushDashboardRequests(http: HttpTestingController): void {
 
   http.expectOne('/api/committees').flush({
     items: committeesFixture,
+    _links: {},
+  });
+  http.expectOne('/api/exam-rounds').flush({ items: examRoundsFixture, _links: {} });
+  http.expectOne('/api/candidate-committee-assignments').flush({
+    items: candidateAssignmentsFixture,
     _links: {},
   });
 

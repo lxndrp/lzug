@@ -5,13 +5,21 @@ import { TuiBadge, TuiSelect } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 
-import { Candidate, CandidateView, MasterData } from '../api/api.models';
+import {
+  Candidate,
+  CandidateCommitteeAssignment,
+  CandidateView,
+  ExamRound,
+  MasterData,
+} from '../api/api.models';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
 
 export type CandidatePayload = Omit<Candidate, 'id'> & {
   attempt_number: number;
   requires_mep: number;
+  exam_round_id?: number;
+  assignment_change_reason?: string;
 };
 export type CandidateUpdate = {
   id: number;
@@ -38,6 +46,7 @@ export type CandidateUpdate = {
 export class CandidatesComponent {
   protected readonly icons = appIcons;
   @Input() masterData: MasterData | null = null;
+  @Input() activeRound: ExamRound | null = null;
   @Input() actionBusy = false;
 
   @Output() createCandidate = new EventEmitter<CandidatePayload>();
@@ -170,6 +179,7 @@ export class CandidatesComponent {
   }
 
   protected startEditing(item: CandidateView): void {
+    const activeAssignment = this.activeAssignment(item.candidate.id);
     this.editingCandidateId.set(item.candidate.id);
     this.editDraft.set({
       first_name: item.candidate.first_name,
@@ -179,6 +189,8 @@ export class CandidatesComponent {
       training_company: item.candidate.training_company,
       attempt_number: item.roundCandidate?.attempt_number ?? 1,
       requires_mep: item.roundCandidate?.requires_mep ?? 0,
+      exam_round_id: activeAssignment?.exam_round_id ?? this.activeRound?.id,
+      assignment_change_reason: '',
     });
   }
 
@@ -189,8 +201,9 @@ export class CandidatesComponent {
       return;
     }
 
+    const { exam_round_id, assignment_change_reason, ...candidateDraft } = draft;
     const payload: CandidatePayload = {
-      ...draft,
+      ...candidateDraft,
       first_name: draft.first_name.trim(),
       last_name: draft.last_name.trim(),
       ihk_exam_number: draft.ihk_exam_number.trim(),
@@ -198,6 +211,13 @@ export class CandidatesComponent {
       attempt_number: Number(draft.attempt_number) || 1,
       requires_mep: draft.requires_mep ? 1 : 0,
     };
+    if (exam_round_id !== undefined) {
+      payload.exam_round_id = exam_round_id;
+    }
+    const changeReason = assignment_change_reason?.trim();
+    if (changeReason) {
+      payload.assignment_change_reason = changeReason;
+    }
     if (!payload.first_name || !payload.last_name || !payload.ihk_exam_number) {
       return;
     }
@@ -214,5 +234,56 @@ export class CandidatesComponent {
     if (this.editingCandidateId() === id) {
       this.cancelEditing();
     }
+  }
+
+  protected eligibleRounds(): ExamRound[] {
+    const halfYearId = this.activeRound?.exam_half_year_id;
+    if (!halfYearId) {
+      return [];
+    }
+    return (
+      this.masterData?.examRounds.filter((round) => round.exam_half_year_id === halfYearId) ?? []
+    );
+  }
+
+  protected eligibleRoundLabels(): string[] {
+    return this.eligibleRounds().map((round) => this.roundLabel(round));
+  }
+
+  protected eligibleRoundIds(): number[] {
+    return this.eligibleRounds().map((round) => round.id);
+  }
+
+  protected assignmentHistory(candidateId: number): CandidateCommitteeAssignment[] {
+    return (this.masterData?.candidateAssignments ?? [])
+      .filter((assignment) => assignment.candidate_id === candidateId)
+      .sort((left, right) => right.assigned_at.localeCompare(left.assigned_at));
+  }
+
+  protected activeAssignment(candidateId: number): CandidateCommitteeAssignment | undefined {
+    return this.assignmentHistory(candidateId).find((assignment) => assignment.ended_at === null);
+  }
+
+  protected assignmentLabel(assignment: CandidateCommitteeAssignment): string {
+    const round = this.masterData?.examRounds.find((item) => item.id === assignment.exam_round_id);
+    return round ? this.roundLabel(round) : `Prüfungsrunde #${assignment.exam_round_id}`;
+  }
+
+  protected assignmentStateLabel(assignment: CandidateCommitteeAssignment): string {
+    return assignment.ended_at ? 'beendet' : 'aktuell';
+  }
+
+  protected needsChangeReason(candidateId: number, targetRoundId?: number): boolean {
+    const currentRoundId = this.activeAssignment(candidateId)?.exam_round_id;
+    return (
+      currentRoundId !== undefined &&
+      targetRoundId !== undefined &&
+      currentRoundId !== targetRoundId
+    );
+  }
+
+  private roundLabel(round: ExamRound): string {
+    const committee = this.masterData?.committees.find((item) => item.id === round.committee_id);
+    return committee ? `${committee.name} · ${round.name}` : round.name;
   }
 }

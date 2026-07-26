@@ -7,10 +7,12 @@ import {
   assignmentsFixture,
   availabilitiesFixture,
   candidateDaysFixture,
+  candidateAssignmentsFixture,
   candidatesFixture,
   committeesFixture,
   examDaysFixture,
   examRoundFixture,
+  examRoundsFixture,
   examSlotsFixture,
   locationsFixture,
   membersFixture,
@@ -53,7 +55,7 @@ describe('PlanningApiService', () => {
     http.expectOne('/api/members').flush({ items: membersFixture, _links: {} });
     http.expectOne('/api/locations').flush({ items: locationsFixture, _links: {} });
     http.expectOne('/api/candidates').flush({ items: candidatesFixture, _links: {} });
-    http.expectOne('/api/round-candidates?round_id=1').flush({
+    http.expectOne('/api/round-candidates?round_id=1&is_active=1').flush({
       items: roundCandidatesFixture,
       _links: {},
     });
@@ -150,7 +152,7 @@ describe('PlanningApiService', () => {
     });
 
     http.expectOne('/api/candidates').flush({ items: candidatesFixture, _links: {} });
-    http.expectOne('/api/round-candidates?round_id=1').flush({
+    http.expectOne('/api/round-candidates?round_id=1&is_active=1').flush({
       items: roundCandidatesFixture,
       _links: {},
     });
@@ -208,10 +210,50 @@ describe('PlanningApiService', () => {
     });
     update.flush(candidatesFixture[0]);
 
+    service
+      .updateCandidate(1, {
+        first_name: 'Lea',
+        last_name: 'Hoffmann',
+        ihk_exam_number: 'FI-2026-1042',
+        specialization: 'application_development',
+        training_company: 'Nordlicht Digital GmbH',
+        attempt_number: 2,
+        requires_mep: 1,
+        exam_round_id: 2,
+        assignment_change_reason: 'Wechsel in den zweiten Ausschuss',
+      })
+      .subscribe();
+    const transfer = http.expectOne('/api/candidates/1');
+    expect(transfer.request.body.exam_round_id).toBe(2);
+    expect(transfer.request.body.assignment_change_reason).toBe('Wechsel in den zweiten Ausschuss');
+    transfer.flush(candidatesFixture[0]);
+
     service.deleteCandidate(1).subscribe();
     const remove = http.expectOne('/api/candidates/1');
     expect(remove.request.method).toBe('DELETE');
     remove.flush({});
+  });
+
+  it('should load assignment history with master data', () => {
+    service.getMasterData().subscribe((masterData) => {
+      expect(masterData.examRounds).toEqual(examRoundsFixture);
+      expect(masterData.candidateAssignments).toEqual(candidateAssignmentsFixture);
+    });
+
+    http.expectOne('/api/committees').flush({ items: committeesFixture, _links: {} });
+    http.expectOne('/api/persons').flush({ items: [], _links: {} });
+    http.expectOne('/api/members').flush({ items: membersFixture, _links: {} });
+    http.expectOne('/api/candidates').flush({ items: candidatesFixture, _links: {} });
+    http.expectOne('/api/round-candidates?round_id=1&is_active=1').flush({
+      items: roundCandidatesFixture,
+      _links: {},
+    });
+    http.expectOne('/api/exam-rounds').flush({ items: examRoundsFixture, _links: {} });
+    http.expectOne('/api/candidate-committee-assignments').flush({
+      items: candidateAssignmentsFixture,
+      _links: {},
+    });
+    http.expectOne('/api/locations').flush({ items: locationsFixture, _links: {} });
   });
 
   it('should expose location write operations', () => {

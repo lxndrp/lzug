@@ -356,9 +356,62 @@
                               >
                             </div>
                           </div>
+                          <div class="app-field-half">
+                            <label [for]="'editCandidateRound-' + item.candidate.id"
+                              >Zuständiger Ausschuss</label
+                            >
+                            <tui-textfield>
+                              <select
+                                tuiSelect
+                                [id]="'editCandidateRound-' + item.candidate.id"
+                                [name]="'editCandidateRound-' + item.candidate.id"
+                                [items]="eligibleRoundIds()"
+                                [labels]="eligibleRoundLabels()"
+                                [(ngModel)]="currentDraft.exam_round_id"
+                              ></select>
+                            </tui-textfield>
+                          </div>
+                          <div class="app-field-half">
+                            <tui-textfield>
+                              <label
+                                tuiLabel
+                                [for]="'editCandidateChangeReason-' + item.candidate.id"
+                                >Grund des Ausschusswechsels</label
+                              >
+                              <input
+                                tuiInput
+                                [id]="'editCandidateChangeReason-' + item.candidate.id"
+                                [name]="'editCandidateChangeReason-' + item.candidate.id"
+                                [(ngModel)]="currentDraft.assignment_change_reason"
+                                [required]="
+                                  needsChangeReason(item.candidate.id, currentDraft.exam_round_id)
+                                "
+                              />
+                            </tui-textfield>
+                            @if (needsChangeReason(item.candidate.id, currentDraft.exam_round_id)) {
+                              <span class="app-muted app-block">Bei Wechsel erforderlich</span>
+                            }
+                          </div>
+                          <div class="app-field-full">
+                            <strong>Zuordnungshistorie</strong>
+                            <ul class="app-key-value-list">
+                              @for (
+                                assignment of assignmentHistory(item.candidate.id);
+                                track assignment.id
+                              ) {
+                                <li>
+                                  {{ assignmentLabel(assignment) }} ·
+                                  {{ assignmentStateLabel(assignment) }}
+                                  @if (assignment.change_reason) {
+                                    · {{ assignment.change_reason }}
+                                  }
+                                </li>
+                              }
+                            </ul>
+                          </div>
                           <div class="app-field-full app-form-actions">
                             <span class="app-form-action-hint"
-                              >Änderungen gelten für Stammdaten und aktuelle Runde.</span
+                              >Bei einem Ausschusswechsel ist ein Grund erforderlich.</span
                             >
                             <button
                               tuiButton
