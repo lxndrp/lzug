@@ -158,7 +158,11 @@ class PlanningService:
         return {
             "round": exam_round,
             "settings": settings,
-            "round_candidates": store.where(ROUND_CANDIDATE, exam_round_id=round_id),
+            "round_candidates": store.where(
+                ROUND_CANDIDATE,
+                exam_round_id=round_id,
+                is_active=1,
+            ),
             "candidates": {row["id"]: row for row in store.all(CANDIDATE)},
             "members": [
                 row

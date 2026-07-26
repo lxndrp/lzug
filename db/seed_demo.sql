@@ -73,6 +73,11 @@ VALUES
   (11, 1, 11, 1, 0),
   (12, 1, 12, 2, 0);
 
+INSERT INTO candidate_committee_assignment
+  (candidate_id, exam_half_year_id, exam_round_id, round_candidate_id)
+SELECT candidate_id, 1, exam_round_id, id
+FROM round_candidate;
+
 INSERT INTO planning_settings
   (id, exam_round_id, calendar_week_from, calendar_week_to, exams_per_day, max_exam_days_per_week, lunch_break_enabled, default_location_id, updated_by_member_id)
 VALUES

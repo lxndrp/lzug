@@ -26,6 +26,7 @@ class DatabaseTests(unittest.TestCase):
                     "exam_half_year",
                     "exam_round",
                     "round_candidate",
+                    "candidate_committee_assignment",
                     "planning_settings",
                     "candidate_exam_day",
                     "member_availability",
@@ -41,6 +42,7 @@ class DatabaseTests(unittest.TestCase):
                 "exam_half_year": 1,
                 "exam_round": 1,
                 "round_candidate": 12,
+                "candidate_committee_assignment": 12,
                 "planning_settings": 1,
                 "candidate_exam_day": 5,
                 "member_availability": 40,
@@ -163,6 +165,72 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(("winter", 2026, "active"), half_year)
         self.assertEqual(1, migrated_round[0])
         self.assertIn("003_add_exam_half_years.sql", migrations)
+
+    def test_schema_marks_one_seeded_candidate_assignment_active_per_half_year(self) -> None:
+        with TempDatabase() as db_path, connect(db_path) as connection:
+            active_count = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM candidate_committee_assignment "
+                    "WHERE candidate_id = 1 AND exam_half_year_id = 1 AND ended_at IS NULL"
+                )
+            ).fetchone()[0]
+            migrations = {
+                row[0] for row in connection.execute(text("SELECT name FROM schema_migration"))
+            }
+
+        self.assertEqual(1, active_count)
+        self.assertIn("004_add_candidate_committee_assignments.sql", migrations)
+
+    def test_initialize_migrates_legacy_candidate_assignments_without_losing_history(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            db_path = Path(directory) / "legacy-candidates.sqlite3"
+            with closing(sqlite3.connect(db_path)) as connection:
+                connection.executescript("""
+                    CREATE TABLE schema_migration (name TEXT PRIMARY KEY);
+                    INSERT INTO schema_migration (name) VALUES
+                      ('001_add_holiday_planning_settings.sql'),
+                      ('002_add_person_memberships.sql'),
+                      ('003_add_exam_half_years.sql');
+                    CREATE TABLE candidate (id INTEGER PRIMARY KEY);
+                    CREATE TABLE exam_half_year (id INTEGER PRIMARY KEY);
+                    CREATE TABLE exam_round (
+                      id INTEGER PRIMARY KEY,
+                      exam_half_year_id INTEGER NOT NULL
+                    );
+                    CREATE TABLE round_candidate (
+                      id INTEGER PRIMARY KEY,
+                      exam_round_id INTEGER NOT NULL,
+                      candidate_id INTEGER NOT NULL,
+                      attempt_number INTEGER NOT NULL,
+                      requires_mep INTEGER NOT NULL,
+                      created_at TEXT NOT NULL,
+                      updated_at TEXT NOT NULL
+                    );
+                    INSERT INTO candidate VALUES (1);
+                    INSERT INTO exam_half_year VALUES (1);
+                    INSERT INTO exam_round VALUES (1, 1), (2, 1);
+                    INSERT INTO round_candidate VALUES
+                      (1, 1, 1, 1, 0, '2026-01-01 08:00:00', '2026-02-01 08:00:00'),
+                      (2, 2, 1, 1, 0, '2026-02-01 08:00:00', '2026-02-01 08:00:00');
+                """)
+                connection.commit()
+
+            initialize(db_path)
+
+            with closing(sqlite3.connect(db_path)) as connection:
+                history = connection.execute(
+                    "SELECT exam_round_id, ended_at, change_reason "
+                    "FROM candidate_committee_assignment ORDER BY exam_round_id"
+                ).fetchall()
+                active_flags = connection.execute(
+                    "SELECT id, is_active FROM round_candidate ORDER BY id"
+                ).fetchall()
+
+        self.assertEqual(2, len(history))
+        self.assertIsNotNone(history[0][1])
+        self.assertIn("Migration", history[0][2])
+        self.assertIsNone(history[1][1])
+        self.assertEqual([(1, 0), (2, 1)], active_flags)
 
 
 if __name__ == "__main__":

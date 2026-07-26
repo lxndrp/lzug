@@ -14,7 +14,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from . import hateoas, openapi
 from .candidate_days import CandidateDayService
 from .database import DEFAULT_DB_PATH, initialize, is_available
-from .models import CANDIDATE, Resource
+from .models import CANDIDATE, CANDIDATE_COMMITTEE_ASSIGNMENT, Resource
 from .planning import PlanningService
 from .repositories import REST_RESOURCES, ResourceRepository
 
@@ -73,6 +73,38 @@ class LzugHandler(BaseHTTPRequestHandler):
                     return
                 self.respond(hateoas.round_summary(summary, round_id))
                 return
+
+            if path_parts and path_parts[0] == "candidate-committee-assignments":
+                if len(path_parts) == 1:
+                    candidate_id = query.get("candidate_id", [None])[0]
+                    rows = self.repository.candidate_committee_assignments(
+                        int(candidate_id) if candidate_id is not None else None
+                    )
+                    self.respond(
+                        hateoas.collection(
+                            "candidate-committee-assignments",
+                            CANDIDATE_COMMITTEE_ASSIGNMENT,
+                            rows,
+                            parsed.query,
+                            allow_create=False,
+                            allow_item_mutation=False,
+                        )
+                    )
+                    return
+                if len(path_parts) == 2:
+                    row = self.repository.get(CANDIDATE_COMMITTEE_ASSIGNMENT, int(path_parts[1]))
+                    if row is None:
+                        self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                        return
+                    self.respond(
+                        hateoas.resource_item(
+                            "candidate-committee-assignments",
+                            CANDIDATE_COMMITTEE_ASSIGNMENT,
+                            row,
+                            allow_item_mutation=False,
+                        )
+                    )
+                    return
 
             resource_name, entity_id = self.resource_target(path_parts)
             if resource_name is None:

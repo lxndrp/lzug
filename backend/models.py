@@ -143,6 +143,7 @@ class RoundCandidate(Base):
     candidate_id: Mapped[int] = mapped_column(ForeignKey("candidate.id"))
     attempt_number: Mapped[int] = mapped_column(Integer)
     requires_mep: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
+    is_active: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
     created_at: Mapped[str] = mapped_column(
         String,
         server_default=sql_text("CURRENT_TIMESTAMP"),
@@ -151,6 +152,23 @@ class RoundCandidate(Base):
         String,
         server_default=sql_text("CURRENT_TIMESTAMP"),
     )
+
+
+class CandidateCommitteeAssignment(Base):
+    """One time-bounded candidate responsibility within an exam half-year."""
+
+    __tablename__ = "candidate_committee_assignment"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidate.id"))
+    exam_half_year_id: Mapped[int] = mapped_column(ForeignKey("exam_half_year.id"))
+    exam_round_id: Mapped[int] = mapped_column(ForeignKey("exam_round.id"))
+    round_candidate_id: Mapped[int] = mapped_column(ForeignKey("round_candidate.id"))
+    assigned_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    ended_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    change_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
 
 
 class PlanningSettings(Base):
@@ -433,6 +451,7 @@ ROUND_CANDIDATE = Resource(
         "candidate_id",
         "attempt_number",
         "requires_mep",
+        "is_active",
         "created_at",
         "updated_at",
     ),
@@ -442,6 +461,32 @@ ROUND_CANDIDATE = Resource(
         "candidate_id",
         "attempt_number",
         "requires_mep",
+        "is_active",
+    ),
+)
+
+CANDIDATE_COMMITTEE_ASSIGNMENT = Resource(
+    model=CandidateCommitteeAssignment,
+    fields=(
+        "candidate_id",
+        "exam_half_year_id",
+        "exam_round_id",
+        "round_candidate_id",
+        "assigned_at",
+        "ended_at",
+        "change_reason",
+        "created_at",
+        "updated_at",
+    ),
+    order_by=("-assigned_at", "-id"),
+    writable_fields=(
+        "candidate_id",
+        "exam_half_year_id",
+        "exam_round_id",
+        "round_candidate_id",
+        "assigned_at",
+        "ended_at",
+        "change_reason",
     ),
 )
 

@@ -255,6 +255,34 @@ Fachliche Regeln:
 - MEP-Slots werden am Tagesende geplant.
 - Ein Prüfungstag darf nicht nur aus MEP-Slots bestehen.
 
+### Ausschusszuordnung eines Prüflings
+
+Technischer Name: `candidate_committee_assignment`
+
+Historisiert die Zuständigkeit eines Prüflings innerhalb eines
+Prüfungshalbjahrs. Der fachliche Bezug auf Ausschuss und Halbjahr erfolgt über
+den zugehörigen Prüfungsdurchgang.
+
+| Feld | Typ | Pflicht | Beschreibung |
+| --- | --- | --- | --- |
+| `id` | UUID/Integer | ja | Eindeutige ID |
+| `candidate_id` | Fremdschlüssel | ja | Prüfling |
+| `exam_half_year_id` | Fremdschlüssel | ja | Prüfungshalbjahr |
+| `exam_round_id` | Fremdschlüssel | ja | Ausschussbezogener Prüfungsdurchgang |
+| `round_candidate_id` | Fremdschlüssel | ja | Zuordnung zum Prüfungsdurchgang |
+| `assigned_at` | Zeitstempel | ja | Beginn der Zuständigkeit |
+| `ended_at` | Zeitstempel | nein | Ende der Zuständigkeit; `null` bedeutet aktuell |
+| `change_reason` | Text | nein | Begründung eines Ausschusswechsels |
+
+Fachliche Regeln:
+
+- Ein Prüfling hat pro Prüfungshalbjahr höchstens eine aktive Zuordnung.
+- Ein Ausschusswechsel beendet die bisherige Zuordnung mit Zeitstempel und
+  Begründung; der historische Rundeneintrag bleibt erhalten.
+- Nur der aktive `round_candidate` wird für neue Planung und Zählungen eines
+  Prüfungsdurchgangs berücksichtigt. Bereits angelegte Slots und spätere
+  Ergebnisse bleiben über den historischen Rundeneintrag nachvollziehbar.
+
 ### Planungsparameter
 
 Technischer Name: `planning_settings`

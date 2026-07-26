@@ -6,6 +6,8 @@ from sqlalchemy.exc import IntegrityError
 
 from backend.models import (
     CANDIDATE,
+    COMMITTEE,
+    COMMITTEE_MEMBER,
     EXAM_HALF_YEAR,
     EXAM_ROUND,
     MEMBER_AVAILABILITY,
@@ -94,6 +96,72 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(3, round_candidate["attempt_number"])
         self.assertEqual(1, round_candidate["requires_mep"])
         self.assertEqual("Neu", after_failed_update["last_name"])
+
+    def test_candidate_committee_change_preserves_history_and_deactivates_old_round(self) -> None:
+        with TempDatabase() as db_path:
+            repository = ResourceRepository(db_path)
+            committee = repository.create(
+                COMMITTEE,
+                {"name": "PA Fachinformatiker Hamburg 2", "occupation": "Fachinformatiker/in"},
+            )
+            member = repository.create(
+                COMMITTEE_MEMBER,
+                {
+                    "person_id": 1,
+                    "committee_id": committee["id"],
+                    "member_status": "ordinary",
+                    "committee_role": "chair",
+                    "representing_side": "employer",
+                    "is_active": 1,
+                },
+            )
+            target_round = repository.create(
+                EXAM_ROUND,
+                {
+                    "exam_half_year_id": 1,
+                    "committee_id": committee["id"],
+                    "name": "Winter 2026/27 · PA Fachinformatiker Hamburg 2",
+                    "created_by_member_id": member["id"],
+                },
+            )
+
+            with self.assertRaisesRegex(ValueError, "reason is required"):
+                repository.update_candidate(
+                    1,
+                    {"exam_round_id": target_round["id"], "attempt_number": 2},
+                )
+
+            repository.update_candidate(
+                1,
+                {
+                    "exam_round_id": target_round["id"],
+                    "attempt_number": 2,
+                    "requires_mep": 1,
+                    "assignment_change_reason": "Wechsel in den zuständigen Ausschuss",
+                },
+            )
+            history = repository.candidate_committee_assignments(1)
+            old_round_candidate = repository.list_filtered(
+                ROUND_CANDIDATE,
+                {"candidate_id": 1, "exam_round_id": 1},
+            )[0]
+            new_round_candidate = repository.list_filtered(
+                ROUND_CANDIDATE,
+                {"candidate_id": 1, "exam_round_id": target_round["id"]},
+            )[0]
+            old_summary = repository.round_summary(1)
+            new_summary = repository.round_summary(target_round["id"])
+
+        self.assertEqual(2, len(history))
+        historic = next(item for item in history if item["exam_round_id"] == 1)
+        active = next(item for item in history if item["exam_round_id"] == target_round["id"])
+        self.assertIsNotNone(historic["ended_at"])
+        self.assertEqual("Wechsel in den zuständigen Ausschuss", historic["change_reason"])
+        self.assertIsNone(active["ended_at"])
+        self.assertEqual(0, old_round_candidate["is_active"])
+        self.assertEqual(1, new_round_candidate["is_active"])
+        self.assertEqual(11, old_summary["counts"]["candidates"])
+        self.assertEqual(1, new_summary["counts"]["candidates"])
 
     def test_update_exam_round_updates_metadata_and_timestamp(self) -> None:
         with TempDatabase() as db_path:
