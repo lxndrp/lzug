@@ -91,6 +91,11 @@
                 "glob": "**/*",
                 "input": "node_modules/@taiga-ui/icons/src",
                 "output": "assets/taiga-ui/icons"
+              },
+              {
+                "glob": "source-sans-3-latin-*-normal.woff*",
+                "input": "node_modules/@fontsource/source-sans-3/files",
+                "output": "base/media"
               }
             ],
             "styles": [
