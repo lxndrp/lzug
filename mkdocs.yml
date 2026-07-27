@@ -34,6 +34,10 @@ nav:
       - Mitarbeit: developers/mitarbeit.md
       - Arbeitsprozess: developers/arbeitsprozess.md
       - Qualität und Sicherheitsprozess: developers/qualitaet-und-sicherheit.md
+      - Reviews:
+          - Review Policy: developers/reviews/index.md
+          - Reviewkriterien: developers/reviews/kriterien.md
+          - Copilot-Pilotphase: developers/reviews/copilot-pilot.md
       - Frontend-Richtlinie: developers/frontend-guidelines.md
       - Frontend-Ausnahmen: developers/frontend-exceptions.md
       - Dokumentation: developers/documentation.md
