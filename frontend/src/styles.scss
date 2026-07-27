@@ -185,6 +185,39 @@ input:focus {
   min-width: 0;
 }
 
+.app-wizard-steps {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.25rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-color-canvas);
+}
+
+.app-wizard-steps button {
+  flex: 1 0 max-content;
+}
+
+.app-wizard-steps button.is-active {
+  background: var(--app-color-primary);
+  color: var(--app-color-on-primary);
+}
+
+.app-wizard-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.app-wizard-error {
+  margin-block-end: 1rem;
+}
+
+.app-wizard-summary {
+  grid-template-columns: minmax(10rem, 1fr) minmax(0, 2fr);
+}
+
 .app-page-full,
 .app-page-span-4,
 .app-page-span-5,
@@ -514,6 +547,18 @@ form.app-form-grid[tuiForm] {
 }
 
 @media (max-width: 767.98px) {
+  .app-wizard-steps {
+    margin-inline: -0.25rem;
+  }
+
+  .app-wizard-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .app-wizard-summary dd {
+    margin-inline-start: 0;
+  }
+
   .app-table-scroll::before {
     position: sticky;
     z-index: 4;

@@ -33,6 +33,33 @@ test.describe('lzug browser workflows', () => {
     await expect(page.getByRole('button', { name: 'Plan bestätigen' })).toBeDisabled();
   });
 
+  test('guides a persisted terminorganisation through every wizard step', async ({ page }) => {
+    await page.goto('/planning');
+
+    await expect(
+      page.getByRole('navigation', { name: 'Schritte der Terminorganisation' }),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Zeitraum' })).toHaveAttribute(
+      'aria-current',
+      'step',
+    );
+    await expect(page.locator('#weekFrom')).toHaveValue('2026-W47');
+
+    await page.getByRole('button', { name: 'Weiter' }).click();
+    await expect(page.getByText('Mögliche Prüfungstage')).toBeVisible();
+    await page.getByRole('button', { name: 'Weiter' }).click();
+    await expect(page.locator('#roundName')).toHaveValue('Winter 2026/27');
+
+    await page.getByRole('button', { name: 'Weiter' }).click();
+    await expect(page.getByLabel('Verfügbarkeiten nach Mitglied und Prüfungstag')).toBeVisible();
+    await page.getByRole('button', { name: 'Weiter' }).click();
+    await expect(page.getByText('Zusammenfassung vor der Bestätigung')).toBeVisible();
+    await expect(page.getByText('Rückmeldefrist', { exact: true })).toBeVisible();
+
+    await expect(page.getByRole('button', { name: 'Planung erzeugen' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Plan bestätigen' })).toBeDisabled();
+  });
+
   test('navigates through the application views', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Winter 2026/27' })).toBeVisible({
@@ -82,6 +109,8 @@ test.describe('lzug browser workflows', () => {
 
   test('updates exam round metadata and keeps it after reload', async ({ page }) => {
     await page.goto('/planning');
+    await page.getByRole('button', { name: 'Weiter' }).click();
+    await page.getByRole('button', { name: 'Weiter' }).click();
 
     await expect(page.locator('#roundName')).toHaveValue('Winter 2026/27', { timeout: 30_000 });
     await page.locator('#roundName').fill('Sommer 2027');
@@ -99,6 +128,8 @@ test.describe('lzug browser workflows', () => {
     await expect(page.getByText('Prüfungsrunde gespeichert')).toBeVisible();
 
     await page.reload();
+    await page.getByRole('button', { name: 'Weiter' }).click();
+    await page.getByRole('button', { name: 'Weiter' }).click();
     await expect(page.locator('#roundName')).toHaveValue('Sommer 2027');
     await expect(page.locator('#availabilityDeadline')).toHaveValue('15.04.2027, 18:00');
     await expect(page.locator('#availabilityReminder')).toHaveValue('08.04.2027, 09:00');
@@ -161,6 +192,7 @@ test.describe('lzug browser workflows', () => {
     const generationResponse = await generationResponsePromise;
     expect(generationResponse.status(), await generationResponse.text()).toBe(200);
 
+    await page.getByRole('button', { name: 'Weiter' }).click();
     await expect(page.getByText('4 Tage angelegt')).toBeVisible();
     await expect(page.getByText('1 Feiertage ausgeschlossen')).toBeVisible();
     await expect(page.getByText('04.06.2026 · Fronleichnam')).toBeVisible();

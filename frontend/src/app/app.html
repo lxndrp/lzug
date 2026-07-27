@@ -190,12 +190,15 @@
                 [masterData]="masterData()"
                 [actionBusy]="actionBusy()"
                 [candidateDayGenerationResult]="candidateDayGenerationResult()"
+                [planningResult]="lastPlanningResult()"
                 (saveSettings)="savePlanningSettings($event)"
                 (saveRound)="saveExamRound($event)"
                 (createCandidateDay)="createCandidateDay($event)"
                 (generateCandidateDays)="generateCandidateDays($event)"
                 (toggleCandidateDay)="toggleCandidateDay($event)"
                 (saveAvailability)="saveAvailability($event)"
+                (generateProposal)="generateProposal()"
+                (confirmPlan)="requestPlanConfirmation()"
               />
             }
             @case ('locations') {

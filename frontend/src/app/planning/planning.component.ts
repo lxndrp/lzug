@@ -25,6 +25,7 @@ import {
   MasterData,
   MemberAvailability,
   PlanningBoard,
+  PlanningResult,
   PlanningSettings,
   RoundSummary,
 } from '../api/api.models';
@@ -42,6 +43,13 @@ export type AvailabilityPayload = Pick<
 export type AvailabilityCellState = {
   status: 'saving' | 'saved' | 'error';
   previous: AvailabilityValue;
+};
+
+export type WizardStep = 'period' | 'conditions' | 'request' | 'responses' | 'confirmation';
+
+export type WizardStepDefinition = {
+  id: WizardStep;
+  label: string;
 };
 
 /**
@@ -77,6 +85,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   @Input() masterData: MasterData | null = null;
   @Input() actionBusy = false;
   @Input() candidateDayGenerationResult: CandidateDayGenerationResult | null = null;
+  @Input() planningResult: PlanningResult | null = null;
 
   @Output() saveSettings = new EventEmitter<PlanningSettingsPayload>();
   @Output() saveRound = new EventEmitter<RoundUpdatePayload>();
@@ -84,6 +93,19 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   @Output() generateCandidateDays = new EventEmitter<PlanningSettingsPayload>();
   @Output() toggleCandidateDay = new EventEmitter<CandidateExamDay>();
   @Output() saveAvailability = new EventEmitter<AvailabilityPayload>();
+  @Output() generateProposal = new EventEmitter<void>();
+  @Output() confirmPlan = new EventEmitter<void>();
+
+  protected readonly currentStep = signal<WizardStep>('period');
+  protected readonly maxReachableStepIndex = signal<number>(0);
+  protected readonly stepErrors = signal<Partial<Record<WizardStep, string>>>({});
+  protected readonly wizardSteps: WizardStepDefinition[] = [
+    { id: 'period', label: 'Zeitraum' },
+    { id: 'conditions', label: 'Rahmenbedingungen' },
+    { id: 'request', label: 'Verfügbarkeitsanfrage' },
+    { id: 'responses', label: 'Rückmeldungen' },
+    { id: 'confirmation', label: 'Bestätigung' },
+  ];
 
   protected readonly draft: PlanningSettingsPayload = {
     calendar_week_from: '',
@@ -149,6 +171,57 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     const settings = this.summary?.settings;
     const activeDays = this.board?.candidateDays.filter((day) => day.is_active).length ?? 0;
     return activeDays * (settings?.exams_per_day ?? 0);
+  }
+
+  protected selectStep(step: WizardStep): void {
+    this.currentStep.set(step);
+  }
+
+  protected nextStep(): void {
+    const step = this.currentStep();
+    const error = this.validateStep(step);
+    if (error) {
+      this.stepErrors.update((errors) => ({ ...errors, [step]: error }));
+      return;
+    }
+    this.stepErrors.update((errors) => ({ ...errors, [step]: undefined }));
+    const index = this.wizardSteps.findIndex((item) => item.id === step);
+    const next = this.wizardSteps[index + 1];
+    if (next) {
+      this.currentStep.set(next.id);
+      if (index + 1 > this.maxReachableStepIndex()) {
+        this.maxReachableStepIndex.set(index + 1);
+      }
+    }
+  }
+
+  protected previousStep(): void {
+    const index = this.wizardSteps.findIndex((item) => item.id === this.currentStep());
+    const previous = this.wizardSteps[index - 1];
+    if (previous) {
+      this.currentStep.set(previous.id);
+    }
+  }
+
+  protected stepError(step: WizardStep): string | undefined {
+    return this.stepErrors()[step];
+  }
+
+  protected availabilityResponseCount(): number {
+    const activeMemberIds = new Set(this.activeMembers().map((m) => m.id));
+    const activeDayIds = new Set(
+      (this.board?.candidateDays ?? []).filter((d) => d.is_active).map((d) => d.id),
+    );
+    return (this.board?.availabilities ?? []).filter(
+      (item) =>
+        item.availability !== 'pending' &&
+        activeMemberIds.has(item.committee_member_id) &&
+        activeDayIds.has(item.candidate_exam_day_id),
+    ).length;
+  }
+
+  protected activeCandidateDayCount(): number {
+    return (this.board?.candidateDays ?? []).filter((day) => day.is_active).length;
   }
 
   protected requiredSlots(): number {
@@ -397,6 +470,25 @@ export class PlanningComponent implements OnChanges, OnDestroy {
 
   protected canGenerateCandidateDays(): boolean {
     return this.settingsPayload() !== null;
+  }
+
+  private validateStep(step: WizardStep): string | null {
+    if (step === 'period' && !this.settingsPayload()) {
+      return 'Bitte geben Sie Zeitraum, Bundesland bei Feiertagsauswahl und die dokumentierende Person an.';
+    }
+    if (step === 'conditions' && this.activeCandidateDayCount() === 0) {
+      return 'Bitte berechnen oder erfassen Sie mindestens einen aktiven möglichen Prüfungstag.';
+    }
+    if (
+      step === 'request' &&
+      (!this.roundDraft.name.trim() || !this.roundDraft.availability_deadline)
+    ) {
+      return 'Bitte geben Sie Bezeichnung und Rückmeldefrist für die Verfügbarkeitsanfrage an.';
+    }
+    if (step === 'responses' && this.activeMembers().length === 0) {
+      return 'Für Rückmeldungen muss mindestens ein aktives Ausschussmitglied vorhanden sein.';
+    }
+    return null;
   }
 
   private settingsPayload(): PlanningSettingsPayload | null {
