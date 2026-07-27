@@ -16,14 +16,15 @@ Produktumfang und Anleitung stehen im [README](README.md), Beiträge in
 - Nur Dateien stagen, die zum Auftrag gehören. Commit-Nachrichten sind Englisch;
   deutsche Prosa verwendet korrekte Umlaute.
 - Vor einer Umsetzung das Risiko der Änderung einschätzen und die lokalen
-  Prüfungen darauf begrenzen: eng begrenzte Änderungen erhalten mindestens
+  Prüfungen darauf begrenzen: Eng begrenzte Änderungen erhalten mindestens
   `git diff --check` sowie die betroffenen Format-, Link- oder Fachprüfungen.
-  `task quality` ist für querschnittliche, Toolchain-, Abhängigkeits-, CI-,
-  Datenbankmigrations- oder breit angelegte Backend-/Frontend-Änderungen
-  vorgesehen; bei einer alleinigen Änderung an `AGENTS.md` ist es nicht
-  erforderlich. Die vollständige finale Abnahme bleibt der CI vorbehalten.
+  Die Auswahl richtet sich nach Änderungsrisiko und betroffenen
+  Schnittstellen, nicht allein nach Dateitypen. `task quality` ist für
+  querschnittliche, Toolchain-, Abhängigkeits-, CI-, Datenbankmigrations-,
+  sicherheitsrelevante oder breit angelegte Backend-/Frontend-Änderungen
+  vorgesehen. Die vollständige finale Abnahme bleibt der CI vorbehalten.
   Bekannte Sandbox-Fehler als Umgebungsthema dokumentieren und breite
-  Prüfungen deswegen nicht mehrfach wiederholen.
+  Prüfungen deswegen nicht mehrfach unverändert wiederholen.
 
 ## GitHub-Arbeit
 
