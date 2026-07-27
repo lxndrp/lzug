@@ -56,14 +56,8 @@ test.describe('lzug browser workflows', () => {
     await expect(page.getByText('Zusammenfassung vor der Bestätigung')).toBeVisible();
     await expect(page.getByText('Rückmeldefrist', { exact: true })).toBeVisible();
 
-    const proposalResponse = page.waitForResponse(
-      (response) =>
-        response.url().endsWith('/api/planning-proposals') &&
-        response.request().method() === 'POST',
-    );
-    await page.getByRole('button', { name: 'Planung erzeugen' }).click();
-    expect((await proposalResponse).status()).toBe(201);
-    await expect(page.getByText('Planungsvorschlag bereit')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Planung erzeugen' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Plan bestätigen' })).toBeDisabled();
   });
 
   test('navigates through the application views', async ({ page }) => {
@@ -133,6 +127,7 @@ test.describe('lzug browser workflows', () => {
     await expect(page.getByText('Prüfungsrunde gespeichert')).toBeVisible();
 
     await page.reload();
+    await page.getByRole('button', { name: 'Verfügbarkeitsanfrage' }).click();
     await expect(page.locator('#roundName')).toHaveValue('Sommer 2027');
     await expect(page.locator('#availabilityDeadline')).toHaveValue('15.04.2027, 18:00');
     await expect(page.locator('#availabilityReminder')).toHaveValue('08.04.2027, 09:00');
@@ -195,6 +190,7 @@ test.describe('lzug browser workflows', () => {
     const generationResponse = await generationResponsePromise;
     expect(generationResponse.status(), await generationResponse.text()).toBe(200);
 
+    await page.getByRole('button', { name: 'Rahmenbedingungen' }).click();
     await expect(page.getByText('4 Tage angelegt')).toBeVisible();
     await expect(page.getByText('1 Feiertage ausgeschlossen')).toBeVisible();
     await expect(page.getByText('04.06.2026 · Fronleichnam')).toBeVisible();

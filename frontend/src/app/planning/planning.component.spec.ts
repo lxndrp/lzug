@@ -412,6 +412,77 @@ describe('PlanningComponent', () => {
     ).toBe('Fortgesetzter Entwurf');
   });
 
+  it('should advance and return through every valid wizard step', () => {
+    const component = fixture.componentInstance as unknown as {
+      currentStep: () => string;
+      nextStep: () => void;
+      previousStep: () => void;
+    };
+
+    component.nextStep();
+    expect(component.currentStep()).toBe('conditions');
+    component.nextStep();
+    expect(component.currentStep()).toBe('request');
+    component.nextStep();
+    expect(component.currentStep()).toBe('responses');
+    component.nextStep();
+    expect(component.currentStep()).toBe('confirmation');
+    component.previousStep();
+    expect(component.currentStep()).toBe('responses');
+  });
+
+  it('should keep validation errors on the incomplete conditions, request, and responses steps', () => {
+    const component = fixture.componentInstance as unknown as {
+      board: typeof planningBoardFixture;
+      masterData: typeof masterDataFixture;
+      roundDraft: { name: string; availability_deadline: string };
+      selectStep: (step: 'conditions' | 'request' | 'responses') => void;
+      nextStep: () => void;
+      stepError: (step: 'conditions' | 'request' | 'responses') => string | undefined;
+    };
+
+    component.board = { ...planningBoardFixture, candidateDays: [] };
+    component.selectStep('conditions');
+    component.nextStep();
+    expect(component.stepError('conditions')).toContain('mindestens einen aktiven');
+
+    component.roundDraft.name = '';
+    component.roundDraft.availability_deadline = '';
+    component.selectStep('request');
+    component.nextStep();
+    expect(component.stepError('request')).toContain('Rückmeldefrist');
+
+    component.masterData = { ...masterDataFixture, members: [] };
+    component.selectStep('responses');
+    component.nextStep();
+    expect(component.stepError('responses')).toContain('aktives Ausschussmitglied');
+  });
+
+  it('should render the confirmation summary and emit its actions', () => {
+    showStep('confirmation');
+    fixture.componentRef.setInput('planningResult', {
+      status: 'plan_proposed',
+      counts: { assigned_slots: 16 },
+    });
+    const component = fixture.componentInstance;
+    vi.spyOn(component.generateProposal, 'emit').mockReturnValue(undefined);
+    vi.spyOn(component.confirmPlan, 'emit').mockReturnValue(undefined);
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).toContain('Zusammenfassung vor der Bestätigung');
+    expect(element.textContent).toContain('16 Prüfungstermine können bestätigt werden.');
+    Array.from(element.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Planung erzeugen'))!
+      .click();
+    Array.from(element.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Plan bestätigen'))!
+      .click();
+
+    expect(component.generateProposal.emit).toHaveBeenCalledOnce();
+    expect(component.confirmPlan.emit).toHaveBeenCalledOnce();
+  });
+
   function setInput(selector: string, value: string): void {
     const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(selector);
     expect(input).toBeTruthy();

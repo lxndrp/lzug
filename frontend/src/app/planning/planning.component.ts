@@ -45,9 +45,9 @@ export type AvailabilityCellState = {
   previous: AvailabilityValue;
 };
 
-type WizardStep = 'period' | 'conditions' | 'request' | 'responses' | 'confirmation';
+export type WizardStep = 'period' | 'conditions' | 'request' | 'responses' | 'confirmation';
 
-type WizardStepDefinition = {
+export type WizardStepDefinition = {
   id: WizardStep;
   label: string;
 };
