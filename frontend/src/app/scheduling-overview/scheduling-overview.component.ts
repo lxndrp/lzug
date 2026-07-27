@@ -6,7 +6,7 @@ import { TuiHeader } from '@taiga-ui/layout';
 import { SchedulingOverviewItem, SchedulingStatusGroup } from '../api/api.models';
 import { PlanningApiService } from '../api/planning-api.service';
 
-type OverviewState = 'loading' | 'ready' | 'error';
+export type OverviewState = 'loading' | 'ready' | 'error';
 
 @Component({
   selector: 'app-scheduling-overview',
