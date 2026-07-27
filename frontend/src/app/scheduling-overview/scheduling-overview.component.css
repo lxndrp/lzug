@@ -1,0 +1,51 @@
+:host {
+  display: block;
+}
+.app-overview-groups,
+.app-overview-cards {
+  display: grid;
+  gap: 1.5rem;
+}
+.app-overview-cards {
+  gap: 0.75rem;
+}
+.app-overview-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-color-canvas);
+}
+.app-overview-card h2,
+.app-overview-card p {
+  margin: 0;
+}
+.app-overview-card h2 {
+  font-size: 1.125rem;
+}
+.app-overview-card p {
+  color: var(--app-color-text-muted);
+}
+.app-overview-card-actions,
+.app-overview-message {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.app-overview-message {
+  align-items: flex-start;
+  flex-direction: column;
+}
+@media (max-width: 600px) {
+  .app-overview-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .app-overview-card-actions {
+    align-items: stretch;
+  }
+}

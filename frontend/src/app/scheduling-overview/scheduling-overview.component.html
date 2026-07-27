@@ -1,0 +1,73 @@
+@if (state() === 'loading') {
+  <section class="app-panel" aria-busy="true" aria-live="polite">
+    <div class="app-panel-body app-overview-message">Terminorganisationen werden geladen …</div>
+  </section>
+} @else if (state() === 'error') {
+  <section class="app-panel" role="alert">
+    <div class="app-panel-body app-overview-message">
+      <strong>Übersicht nicht verfügbar</strong
+      ><span
+        >Die Terminorganisationen konnten nicht geladen werden. Bitte versuchen Sie es erneut.</span
+      ><button tuiButton appearance="secondary" type="button" (click)="load()">
+        Erneut versuchen
+      </button>
+    </div>
+  </section>
+} @else if (!items().length) {
+  <section class="app-panel">
+    <div class="app-panel-body app-overview-message">
+      <strong>Keine laufenden Terminorganisationen</strong
+      ><span
+        >Sobald eine Prüfungsrunde angelegt ist, erscheint sie hier nach Bearbeitungsstand.</span
+      >
+    </div>
+  </section>
+} @else {
+  <div class="app-overview-groups">
+    @for (group of groups; track group.id) {
+      <section class="app-panel">
+        <header tuiHeader="body-m" class="app-panel-header">
+          <div>
+            <strong>{{ group.label }}</strong
+            ><span class="app-muted app-block">{{ group.description }}</span>
+          </div>
+          <span tuiBadge [appearance]="badgeAppearance(group.id)">{{
+            itemsFor(group.id).length
+          }}</span>
+        </header>
+        <div class="app-panel-body">
+          <div class="app-overview-cards">
+            @for (item of itemsFor(group.id); track item.id) {
+              <article class="app-overview-card">
+                <div>
+                  <h2>{{ item.name }}</h2>
+                  <p>{{ halfYearLabel(item) }} · {{ item.committee_name }}</p>
+                  <p>{{ periodLabel(item) }}</p>
+                </div>
+                <div class="app-overview-card-actions">
+                  <span tuiBadge [appearance]="badgeAppearance(group.id)">{{
+                    statusLabel(item.status)
+                  }}</span>
+                  @if (item.can_continue) {
+                    <button
+                      tuiButton
+                      appearance="primary"
+                      type="button"
+                      (click)="continueRound.emit(item.id)"
+                    >
+                      Fortsetzen
+                    </button>
+                  } @else {
+                    <span class="app-muted">Plan bestätigt</span>
+                  }
+                </div>
+              </article>
+            } @empty {
+              <div class="app-empty-state">Derzeit keine Vorgänge in diesem Bearbeitungsstand.</div>
+            }
+          </div>
+        </div>
+      </section>
+    }
+  </div>
+}

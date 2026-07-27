@@ -47,6 +47,53 @@ class ApiTests(unittest.TestCase):
             self.assertIn("text/html", headers["content-type"])
             self.assertIn(b"/api/openapi.json", body)
 
+    def test_scheduling_overview_groups_active_rounds_and_excludes_finished_work(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            for year, name, round_status in (
+                (2027, "Offene Runde", "draft"),
+                (2028, "Bestätigte Runde", "plan_confirmed"),
+                (2029, "Archivierte Runde", "completed"),
+            ):
+                status, half_year = api.request(
+                    "POST",
+                    "/api/exam-half-years",
+                    {"season": "summer", "year": year, "status": "draft"},
+                )
+                assert_status(status, HTTPStatus.CREATED)
+                status, _round = api.request(
+                    "POST",
+                    "/api/exam-rounds",
+                    {
+                        "exam_half_year_id": half_year["id"],
+                        "committee_id": 1,
+                        "name": name,
+                        "status": round_status,
+                        "created_by_member_id": 1,
+                    },
+                )
+                assert_status(status, HTTPStatus.CREATED)
+
+            status, open_round = api.request("GET", "/api/exam-rounds?status=draft")
+            assert_status(status, HTTPStatus.OK)
+            open_round_id = next(
+                item["id"] for item in open_round["items"] if item["name"] == "Offene Runde"
+            )
+            status, _updated = api.request(
+                "PATCH", f"/api/exam-rounds/{open_round_id}", {"status": "plan_proposed"}
+            )
+            assert_status(status, HTTPStatus.OK)
+
+            status, overview = api.request("GET", "/api/scheduling-overview")
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("/api/scheduling-overview", overview["_links"]["self"]["href"])
+            groups = {item["name"]: item for item in overview["items"]}
+            self.assertEqual("coordination", groups["Offene Runde"]["status_group"])
+            self.assertTrue(groups["Offene Runde"]["can_continue"])
+            self.assertEqual("coordination", groups["Winter 2026/27"]["status_group"])
+            self.assertEqual("confirmed", groups["Bestätigte Runde"]["status_group"])
+            self.assertFalse(groups["Bestätigte Runde"]["can_continue"])
+            self.assertNotIn("Archivierte Runde", groups)
+
     def test_collection_and_resource_responses_are_self_describing(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             status, candidates = api.request("GET", "/api/candidates")

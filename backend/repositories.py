@@ -598,6 +598,51 @@ class ResourceRepository:
                 ),
             }
 
+    def scheduling_overview(self) -> list[dict[str, Any]]:
+        """Return only active planning work, enriched for the overview.
+
+        The detail links still point to the canonical exam-round resource.  This
+        read model deliberately leaves day and slot data out: proposed plans
+        must not leak into the confirmed exam-plan view.
+        """
+        groups = {
+            "draft": "open",
+            "availability_requested": "coordination",
+            "availability_closed": "coordination",
+            "plan_proposed": "coordination",
+            "in_progress": "coordination",
+            "plan_confirmed": "confirmed",
+        }
+        with session_scope(self.db_path) as session:
+            store = Store(session)
+            overview = []
+            for exam_round in store.all(EXAM_ROUND):
+                status_group = groups.get(exam_round["status"])
+                if status_group is None:
+                    continue
+                half_year = store.get(EXAM_HALF_YEAR, exam_round["exam_half_year_id"])
+                committee = store.get(COMMITTEE, exam_round["committee_id"])
+                settings = store.first(PLANNING_SETTINGS, exam_round_id=exam_round["id"])
+                overview.append(
+                    {
+                        "id": exam_round["id"],
+                        "name": exam_round["name"],
+                        "status": exam_round["status"],
+                        "status_group": status_group,
+                        "committee_name": (
+                            committee["name"] if committee else "Unbekannter Ausschuss"
+                        ),
+                        "exam_half_year": half_year,
+                        "calendar_week_from": settings["calendar_week_from"] if settings else None,
+                        "calendar_week_to": settings["calendar_week_to"] if settings else None,
+                        "can_continue": status_group != "confirmed",
+                    }
+                )
+            return sorted(
+                overview,
+                key=lambda item: (item["status_group"], item["name"], item["id"]),
+            )
+
     def _first(
         self,
         store: Store,

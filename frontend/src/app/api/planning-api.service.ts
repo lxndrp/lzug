@@ -27,6 +27,7 @@ import {
   Person,
   RoundCandidate,
   RoundSummary,
+  SchedulingOverviewItem,
 } from './api.models';
 import { RoundContextService } from './round-context.service';
 
@@ -67,6 +68,10 @@ export class PlanningApiService {
 
   listExamRounds() {
     return this.list<ExamRound>('/api/exam-rounds');
+  }
+
+  getSchedulingOverview() {
+    return this.list<SchedulingOverviewItem>('/api/scheduling-overview');
   }
 
   createExamHalfYear(payload: Pick<ExamHalfYear, 'season' | 'year' | 'status'>) {

@@ -134,6 +134,26 @@ def round_summary(summary: dict[str, Any], round_id: int) -> dict[str, Any]:
     return linked
 
 
+def scheduling_overview(items: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "items": [
+            {
+                **item,
+                "_links": {
+                    "self": {"href": f"/api/exam-rounds/{item['id']}"},
+                    "planning": {"href": f"/api/exam-rounds/{item['id']}"},
+                },
+            }
+            for item in items
+        ],
+        "_links": {
+            "self": {"href": "/api/scheduling-overview"},
+            "api": {"href": "/api"},
+            "exam-rounds": {"href": "/api/exam-rounds"},
+        },
+    }
+
+
 def planning_proposal(proposal: dict[str, Any]) -> dict[str, Any]:
     round_id = proposal["round_id"]
     linked = dict(proposal)
