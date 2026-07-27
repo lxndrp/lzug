@@ -62,3 +62,4 @@ nav:
           - ADR-0007 Dokumentation und Code-Referenz: developers/decisions/0007-dokumentation-und-code-referenz.md
           - ADR-0008 Feiertagsprovider: developers/decisions/0008-feiertagsprovider.md
           - ADR-0009 Toolchain und Tasks: developers/decisions/0009-toolchain-und-entwicklungs-tasks.md
+          - ADR-0010 Vitest statt Karma/Jasmine: developers/decisions/0010-vitest-statt-karma-jasmine.md

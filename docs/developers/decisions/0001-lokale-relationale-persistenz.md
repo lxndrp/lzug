@@ -12,4 +12,4 @@ Primärschlüssel sind zunächst `INTEGER PRIMARY KEY`, Enums `TEXT` mit `CHECK`
 
 ## Konsequenzen
 
-Die Entwicklung bleibt ohne separaten Datenbankdienst möglich. Ein späterer PostgreSQL-Wechsel bleibt vorbereitet, verlangt aber eine bewusste Migration von IDs, Zeitstempeln, Booleans, Enums und gegebenenfalls zusätzlichen Constraints. Die aktuelle technische Referenz ist `db/schema.sql`, nicht der ursprüngliche Entwurfstext [relationales-schema.md](../../relationales-schema.md).
+Die Entwicklung bleibt ohne separaten Datenbankdienst möglich. Ein späterer PostgreSQL-Wechsel bleibt vorbereitet, verlangt aber eine bewusste Migration von IDs, Zeitstempeln, Booleans, Enums und gegebenenfalls zusätzlichen Constraints. Die aktuelle technische Referenz ist `db/schema.sql`.

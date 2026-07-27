@@ -6,4 +6,4 @@ Das aktuelle Backend verwendet SQLite lokal und SQLAlchemy. Primärschlüssel,
 Enums, Zeitstempel und Booleans sind SQLite-kompatibel modelliert; mehrzeilige
 fachliche Regeln werden in Repositories und Services validiert. Die Entscheidung einschließlich des später möglichen PostgreSQL-Pfads hält [ADR-0001](decisions/0001-lokale-relationale-persistenz.md) fest.
 
-Der frühere Pfad [relationales-schema.md](../relationales-schema.md) verweist auf diese aktuelle Referenz. Er ersetzt weder `db/schema.sql` noch die Migrationen.
+Diese Referenz ersetzt weder `db/schema.sql` noch die Migrationen.
