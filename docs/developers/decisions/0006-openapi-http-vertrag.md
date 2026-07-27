@@ -12,4 +12,4 @@ Der Vertragstest ruft die echte HTTP-Schicht mit isolierter SQLite-Datenbank auf
 
 ## Konsequenzen
 
-Änderungen an API-Operationen aktualisieren gemeinsam Handler, Implementierung, OpenAPI, Vertragstest und Angular-Client. Eine von der Spezifikation abweichende echte Response blockiert die Backend-Prüfung. Der frühere Detailbericht bleibt unter [api-contract-validation.md](../../development/api-contract-validation.md) erreichbar.
+Änderungen an API-Operationen aktualisieren gemeinsam Handler, Implementierung, OpenAPI, Vertragstest und Angular-Client. Eine von der Spezifikation abweichende echte Response blockiert die Backend-Prüfung.
