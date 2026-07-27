@@ -58,3 +58,5 @@ Produktumfang und Anleitung stehen im [README](README.md), Beiträge in
   `git -c core.fsmonitor=false status ...` verwenden.
 
 Für Frontend-Arbeit gilt die [Frontend-Richtlinie](docs/developers/frontend-guidelines.md).
+Für menschliche und agentische Qualitätsreviews gilt die kanonische
+[Review Policy](docs/developers/reviews/index.md).
