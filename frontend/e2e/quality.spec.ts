@@ -33,6 +33,39 @@ test.describe('lzug browser workflows', () => {
     await expect(page.getByRole('button', { name: 'Plan bestätigen' })).toBeDisabled();
   });
 
+  test('guides a persisted terminorganisation through every wizard step', async ({ page }) => {
+    await page.goto('/planning');
+
+    await expect(
+      page.getByRole('navigation', { name: 'Schritte der Terminorganisation' }),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Zeitraum' })).toHaveAttribute(
+      'aria-current',
+      'step',
+    );
+    await expect(page.locator('#weekFrom')).toHaveValue('2026-W47');
+
+    await page.getByRole('button', { name: 'Rahmenbedingungen' }).click();
+    await expect(page.getByText('Mögliche Prüfungstage')).toBeVisible();
+    await page.getByRole('button', { name: 'Verfügbarkeitsanfrage' }).click();
+    await expect(page.locator('#roundName')).toHaveValue('Winter 2026/27');
+
+    await page.getByRole('button', { name: 'Rückmeldungen' }).click();
+    await expect(page.getByLabel('Verfügbarkeiten nach Mitglied und Prüfungstag')).toBeVisible();
+    await page.getByRole('button', { name: 'Bestätigung' }).click();
+    await expect(page.getByText('Zusammenfassung vor der Bestätigung')).toBeVisible();
+    await expect(page.getByText('Rückmeldefrist', { exact: true })).toBeVisible();
+
+    const proposalResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/planning-proposals') &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Planung erzeugen' }).click();
+    expect((await proposalResponse).status()).toBe(201);
+    await expect(page.getByText('Planungsvorschlag bereit')).toBeVisible();
+  });
+
   test('navigates through the application views', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Winter 2026/27' })).toBeVisible({
@@ -82,6 +115,7 @@ test.describe('lzug browser workflows', () => {
 
   test('updates exam round metadata and keeps it after reload', async ({ page }) => {
     await page.goto('/planning');
+    await page.getByRole('button', { name: 'Verfügbarkeitsanfrage' }).click();
 
     await expect(page.locator('#roundName')).toHaveValue('Winter 2026/27', { timeout: 30_000 });
     await page.locator('#roundName').fill('Sommer 2027');

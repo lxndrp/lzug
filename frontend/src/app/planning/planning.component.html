@@ -1,472 +1,593 @@
 <div class="app-page-grid">
   <div class="app-page-full">
-    <section class="app-panel">
-      <header tuiHeader="body-m" class="app-panel-header">
-        <div>
-          <strong>Prüfungsrunde bearbeiten</strong>
-          <span class="app-muted app-block">Name und Rückmeldefristen nach der Anlage pflegen</span>
-        </div>
-        <span class="app-muted">Letzte Änderung: {{ dateTimeLabel(round?.updated_at) }}</span>
-      </header>
-      <div class="app-panel-body">
-        <form tuiForm="m" id="roundMetadataForm" class="app-form-grid" (ngSubmit)="submitRound()">
-          <div class="app-field-third">
-            <tui-textfield>
-              <label tuiLabel for="roundName">Bezeichnung</label>
-              <input
-                tuiInput
-                id="roundName"
-                name="roundName"
-                [(ngModel)]="roundDraft.name"
-                required
-              />
-            </tui-textfield>
-          </div>
-          <div class="app-field-third">
-            <tui-textfield>
-              <label tuiLabel for="availabilityDeadline">Rückmeldefrist</label>
-              <input
-                tuiInput
-                tuiInputDateTime
-                id="availabilityDeadline"
-                name="availabilityDeadline"
-                type="datetime-local"
-                [ngModel]="availabilityDeadlineValue"
-                (ngModelChange)="setRoundDateTimeValue('availability_deadline', $event)"
-              />
-            </tui-textfield>
-          </div>
-          <div class="app-field-third">
-            <tui-textfield>
-              <label tuiLabel for="availabilityReminder">Erinnerung</label>
-              <input
-                tuiInput
-                tuiInputDateTime
-                id="availabilityReminder"
-                name="availabilityReminder"
-                type="datetime-local"
-                [ngModel]="availabilityReminderValue"
-                (ngModelChange)="setRoundDateTimeValue('availability_reminder_at', $event)"
-              />
-            </tui-textfield>
-          </div>
-          <div class="app-field-full app-form-actions">
-            <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
-              <svg [cIcon]="icons.save" class="app-button-icon" aria-hidden="true"></svg>
-              Prüfungsrunde speichern
-            </button>
-          </div>
-        </form>
-      </div>
-    </section>
-  </div>
-
-  <div class="app-page-span-4">
-    <section class="app-panel">
-      <header tuiHeader="body-m" class="app-panel-header">
-        <strong>Kapazitätsvorschau</strong>
-      </header>
-      <div class="app-panel-body">
-        <dl class="app-key-value-list">
-          <dt>Benötigte Termine</dt>
-          <dd>{{ requiredSlots() }}</dd>
-          <dt>Verfügbare Plätze</dt>
-          <dd>{{ capacity() }}</dd>
-          <dt>Bewertung</dt>
-          <dd>
-            <span tuiBadge [appearance]="capacity() >= requiredSlots() ? 'positive' : 'warning'">
-              {{ capacity() >= requiredSlots() ? 'Ausreichend' : 'Unterdeckung' }}
-            </span>
-          </dd>
-        </dl>
-      </div>
-    </section>
-  </div>
-
-  <div class="app-page-span-8">
-    <section class="app-panel">
-      <header tuiHeader="body-m" class="app-panel-header">
-        <div>
-          <strong>Planungsrahmen</strong>
-          <span class="app-muted app-block">Zeitraum, Kapazität und Standardwerte festlegen</span>
-        </div>
-        <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
-      </header>
-      <div class="app-panel-body">
-        <form
-          tuiForm="m"
-          id="planningSettingsForm"
-          class="app-form-grid"
-          (ngSubmit)="submitSettings()"
+    <nav class="app-wizard-steps" aria-label="Schritte der Terminorganisation">
+      @for (step of wizardSteps; track step.id) {
+        <button
+          tuiButton
+          appearance="flat"
+          type="button"
+          [class.is-active]="currentStep() === step.id"
+          [attr.aria-current]="currentStep() === step.id ? 'step' : null"
+          (click)="selectStep(step.id)"
         >
-          <div class="app-field-half">
-            <tui-textfield>
-              <label tuiLabel for="weekFrom">KW von <span aria-hidden="true">*</span></label>
-              <input
-                tuiInput
-                id="weekFrom"
-                name="weekFrom"
-                type="week"
-                aria-describedby="weekFromHint"
-                [(ngModel)]="draft.calendar_week_from"
-                required
-              />
-            </tui-textfield>
-            <small id="weekFromHint" class="app-field-hint"
-              >ISO: {{ draft.calendar_week_from || '–' }}</small
+          {{ step.label }}
+        </button>
+      }
+    </nav>
+  </div>
+
+  @if (currentStep() === 'request') {
+    <div class="app-page-full">
+      <section class="app-panel">
+        <header tuiHeader="body-m" class="app-panel-header">
+          <div>
+            <strong>Prüfungsrunde bearbeiten</strong>
+            <span class="app-muted app-block"
+              >Name und Rückmeldefristen nach der Anlage pflegen</span
             >
           </div>
-          <div class="app-field-half">
-            <tui-textfield>
-              <label tuiLabel for="weekTo">KW bis <span aria-hidden="true">*</span></label>
-              <input
-                tuiInput
-                id="weekTo"
-                name="weekTo"
-                type="week"
-                aria-describedby="weekToHint"
-                [(ngModel)]="draft.calendar_week_to"
-                required
-              />
-            </tui-textfield>
-            <small id="weekToHint" class="app-field-hint"
-              >ISO: {{ draft.calendar_week_to || '–' }}</small
-            >
-          </div>
-          <div class="app-field-half app-field-align-end">
-            <div class="app-form-check">
-              <input
-                id="excludePublicHolidays"
-                name="excludePublicHolidays"
-                tuiCheckbox
-                type="checkbox"
-                [ngModel]="draft.exclude_public_holidays === 1"
-                (ngModelChange)="draft.exclude_public_holidays = $event ? 1 : 0"
-              />
-              <label for="excludePublicHolidays">Gesetzliche Feiertage ausschließen</label>
+          <span class="app-muted">Letzte Änderung: {{ dateTimeLabel(round?.updated_at) }}</span>
+        </header>
+        <div class="app-panel-body">
+          <form tuiForm="m" id="roundMetadataForm" class="app-form-grid" (ngSubmit)="submitRound()">
+            <div class="app-field-third">
+              <tui-textfield>
+                <label tuiLabel for="roundName">Bezeichnung</label>
+                <input
+                  tuiInput
+                  id="roundName"
+                  name="roundName"
+                  [(ngModel)]="roundDraft.name"
+                  required
+                />
+              </tui-textfield>
             </div>
-          </div>
-          <div class="app-field-half">
-            <label for="holidaySubdivisionCode"
-              >Bundesland
-              @if (draft.exclude_public_holidays) {
-                <span aria-hidden="true">*</span>
-              }
-            </label>
-            <tui-textfield>
-              <select
-                tuiSelect
-                id="holidaySubdivisionCode"
-                name="holidaySubdivisionCode"
-                [items]="holidaySubdivisionOptions"
-                [labels]="holidaySubdivisionLabels"
-                [(ngModel)]="draft.holiday_subdivision_code"
-                [disabled]="!draft.exclude_public_holidays"
-                [required]="draft.exclude_public_holidays === 1"
-              ></select>
-            </tui-textfield>
-          </div>
-          <div class="app-field-third">
-            <tui-textfield>
-              <label tuiLabel for="examsPerDay">Prüfungen pro Tag</label>
-              <input
-                tuiInput
-                id="examsPerDay"
-                min="1"
-                name="examsPerDay"
-                type="number"
-                [(ngModel)]="draft.exams_per_day"
-              />
-            </tui-textfield>
-          </div>
-          <div class="app-field-third">
-            <tui-textfield>
-              <label tuiLabel for="examDaysPerWeek">Max. Tage pro Woche</label>
-              <input
-                tuiInput
-                id="examDaysPerWeek"
-                max="5"
-                min="1"
-                name="examDaysPerWeek"
-                type="number"
-                [(ngModel)]="draft.max_exam_days_per_week"
-              />
-            </tui-textfield>
-          </div>
-          <div class="app-field-third">
-            <label for="defaultLocation">Standardort</label>
-            <tui-textfield>
-              <select
-                tuiSelect
-                id="defaultLocation"
-                name="defaultLocation"
-                [items]="defaultLocationOptions"
-                [labels]="defaultLocationLabels"
-                [(ngModel)]="draft.default_location_id"
-              ></select>
-            </tui-textfield>
-          </div>
-          <div class="app-field-two-thirds">
-            <label for="updatedByMember">Änderung dokumentieren für</label>
-            <tui-textfield>
-              <select
-                tuiSelect
-                id="updatedByMember"
-                name="updatedByMember"
-                [items]="updatedByMemberOptions"
-                [labels]="updatedByMemberLabels"
-                [(ngModel)]="draft.updated_by_member_id"
-              ></select>
-            </tui-textfield>
-          </div>
-          <div class="app-field-third app-field-align-end">
-            <div class="app-form-check">
-              <input
-                id="lunchBreak"
-                name="lunchBreak"
-                tuiCheckbox
-                type="checkbox"
-                [ngModel]="draft.lunch_break_enabled === 1"
-                (ngModelChange)="draft.lunch_break_enabled = $event ? 1 : 0"
-              />
-              <label for="lunchBreak">Mittagspause</label>
+            <div class="app-field-third">
+              <tui-textfield>
+                <label tuiLabel for="availabilityDeadline">Rückmeldefrist</label>
+                <input
+                  tuiInput
+                  tuiInputDateTime
+                  id="availabilityDeadline"
+                  name="availabilityDeadline"
+                  type="datetime-local"
+                  [ngModel]="availabilityDeadlineValue"
+                  (ngModelChange)="setRoundDateTimeValue('availability_deadline', $event)"
+                />
+              </tui-textfield>
             </div>
-          </div>
-          <div class="app-field-full app-form-actions">
-            <span class="app-form-action-hint"
-              >Die Kapazitätsvorschau wird nach dem Speichern aktualisiert.</span
-            >
-            <div class="app-inline-actions">
-              <button
-                tuiButton
-                color="secondary"
-                type="button"
-                variant="outline"
-                [disabled]="actionBusy || !canGenerateCandidateDays()"
-                (click)="requestCandidateDayGeneration()"
-              >
-                <svg [cIcon]="icons.calendar" class="app-button-icon" aria-hidden="true"></svg>
-                Mögliche Tage berechnen
-              </button>
+            <div class="app-field-third">
+              <tui-textfield>
+                <label tuiLabel for="availabilityReminder">Erinnerung</label>
+                <input
+                  tuiInput
+                  tuiInputDateTime
+                  id="availabilityReminder"
+                  name="availabilityReminder"
+                  type="datetime-local"
+                  [ngModel]="availabilityReminderValue"
+                  (ngModelChange)="setRoundDateTimeValue('availability_reminder_at', $event)"
+                />
+              </tui-textfield>
+            </div>
+            <div class="app-field-full app-form-actions">
               <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
                 <svg [cIcon]="icons.save" class="app-button-icon" aria-hidden="true"></svg>
-                Planungsrahmen speichern
+                Prüfungsrunde speichern
               </button>
             </div>
-          </div>
-        </form>
-      </div>
-    </section>
-  </div>
-
-  <div class="app-page-full">
-    <section class="app-panel">
-      <header tuiHeader="body-m" class="app-panel-header">
-        <div>
-          <strong>Mögliche Prüfungstage</strong>
-          <span class="app-muted app-block">Kalendertage für den Planungsvorschlag freigeben</span>
+          </form>
         </div>
-      </header>
-      <div class="app-panel-body">
-        @if (candidateDayGenerationResult; as result) {
-          <div tuiNotification appearance="info" role="status">
-            <strong>{{ result.counts.created }} Tage angelegt</strong>
-            <span class="app-block">
-              {{ result.counts.existing }} bereits vorhanden ·
-              {{ result.counts.excluded_holidays }} Feiertage ausgeschlossen
-            </span>
-            @if (result.excluded_holidays.length) {
-              <ul class="app-flush app-section-offset">
-                @for (holiday of result.excluded_holidays; track holiday.date) {
-                  <li>{{ dateLabel(holiday.date) }} · {{ holiday.name }}</li>
-                }
-              </ul>
-            }
-          </div>
-        }
-        <form tuiForm="m" class="app-form-grid app-compact-form" (ngSubmit)="submitCandidateDay()">
-          <div class="app-field-third">
-            <tui-textfield>
-              <label tuiLabel for="candidateDayDate">Datum <span aria-hidden="true">*</span></label>
-              <input
-                tuiInput
-                tuiInputDate
-                id="candidateDayDate"
-                name="candidateDayDate"
-                type="date"
-                [ngModel]="candidateDayDateValue"
-                (ngModelChange)="setCandidateDayValue($event)"
-                required
-              />
-            </tui-textfield>
-          </div>
-          <div class="app-field-third app-field-align-end app-compact-form-action">
-            <div class="app-form-check">
-              <input
-                id="candidateDayActive"
-                name="candidateDayActive"
-                tuiCheckbox
-                type="checkbox"
-                [ngModel]="candidateDayDraft.is_active === 1"
-                (ngModelChange)="candidateDayDraft.is_active = $event ? 1 : 0"
-              />
-              <label for="candidateDayActive">Aktiv</label>
-            </div>
-          </div>
-          <div class="app-field-third app-field-align-end">
-            <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
-              <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
-              Prüfungstag hinzufügen
-            </button>
-          </div>
-        </form>
-        <div class="app-table-scroll">
-          <table tuiTable class="app-compact-table">
-            <thead>
-              <tr>
-                <th scope="col">Datum</th>
-                <th scope="col">Status</th>
-                <th scope="col">Aktion</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (day of board?.candidateDays || []; track day.id) {
-                <tr>
-                  <td>
-                    <strong>{{ dateLabel(day.date) }}</strong>
-                  </td>
-                  <td>
-                    <span tuiBadge [appearance]="day.is_active ? 'positive' : 'neutral'">
-                      {{ day.is_active ? 'Aktiv' : 'Inaktiv' }}
-                    </span>
-                  </td>
-                  <td class="app-actions">
-                    <div class="app-row-actions">
-                      <button
-                        tuiButton
-                        color="secondary"
-                        size="s"
-                        type="button"
-                        variant="outline"
-                        [disabled]="actionBusy"
-                        (click)="toggleCandidateDay.emit(day)"
-                      >
-                        <svg
-                          [cIcon]="day.is_active ? icons.deactivate : icons.activate"
-                          class="app-button-icon"
-                          aria-hidden="true"
-                        ></svg>
-                        {{ day.is_active ? 'Deaktivieren' : 'Aktivieren' }}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td colspan="3" class="app-table-empty-cell">
-                    <div class="app-table-empty">
-                      <strong>Keine möglichen Prüfungstage vorhanden.</strong>
-                      <span>Fügen Sie oben den ersten Kalendertag hinzu.</span>
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-  </div>
+      </section>
+    </div>
+  }
 
-  <div class="app-page-full">
-    <section class="app-panel">
-      <header tuiHeader="body-m" class="app-panel-header">
-        <strong>Verfügbarkeiten</strong>
-        <span class="app-muted">Änderungen werden direkt gespeichert.</span>
-      </header>
-      <div class="app-panel-body">
-        @if ((board?.candidateDays?.length || 0) > 0 && activeMembers().length > 0) {
-          <div
-            class="app-table-scroll app-availability-scroll"
-            tabindex="0"
-            aria-label="Verfügbarkeiten nach Mitglied und Prüfungstag"
+  @if (currentStep() === 'conditions') {
+    <div class="app-page-span-4">
+      <section class="app-panel">
+        <header tuiHeader="body-m" class="app-panel-header">
+          <strong>Kapazitätsvorschau</strong>
+        </header>
+        <div class="app-panel-body">
+          <dl class="app-key-value-list">
+            <dt>Benötigte Termine</dt>
+            <dd>{{ requiredSlots() }}</dd>
+            <dt>Verfügbare Plätze</dt>
+            <dd>{{ capacity() }}</dd>
+            <dt>Bewertung</dt>
+            <dd>
+              <span tuiBadge [appearance]="capacity() >= requiredSlots() ? 'positive' : 'warning'">
+                {{ capacity() >= requiredSlots() ? 'Ausreichend' : 'Unterdeckung' }}
+              </span>
+            </dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+  }
+
+  @if (currentStep() === 'period') {
+    <div class="app-page-span-8">
+      <section class="app-panel">
+        <header tuiHeader="body-m" class="app-panel-header">
+          <div>
+            <strong>Planungsrahmen</strong>
+            <span class="app-muted app-block">Zeitraum, Kapazität und Standardwerte festlegen</span>
+          </div>
+          <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
+        </header>
+        <div class="app-panel-body">
+          <form
+            tuiForm="m"
+            id="planningSettingsForm"
+            class="app-form-grid"
+            (ngSubmit)="submitSettings()"
           >
-            <table tuiTable class="app-availability-table">
+            <div class="app-field-half">
+              <tui-textfield>
+                <label tuiLabel for="weekFrom">KW von <span aria-hidden="true">*</span></label>
+                <input
+                  tuiInput
+                  id="weekFrom"
+                  name="weekFrom"
+                  type="week"
+                  aria-describedby="weekFromHint"
+                  [(ngModel)]="draft.calendar_week_from"
+                  required
+                />
+              </tui-textfield>
+              <small id="weekFromHint" class="app-field-hint"
+                >ISO: {{ draft.calendar_week_from || '–' }}</small
+              >
+            </div>
+            <div class="app-field-half">
+              <tui-textfield>
+                <label tuiLabel for="weekTo">KW bis <span aria-hidden="true">*</span></label>
+                <input
+                  tuiInput
+                  id="weekTo"
+                  name="weekTo"
+                  type="week"
+                  aria-describedby="weekToHint"
+                  [(ngModel)]="draft.calendar_week_to"
+                  required
+                />
+              </tui-textfield>
+              <small id="weekToHint" class="app-field-hint"
+                >ISO: {{ draft.calendar_week_to || '–' }}</small
+              >
+            </div>
+            <div class="app-field-half app-field-align-end">
+              <div class="app-form-check">
+                <input
+                  id="excludePublicHolidays"
+                  name="excludePublicHolidays"
+                  tuiCheckbox
+                  type="checkbox"
+                  [ngModel]="draft.exclude_public_holidays === 1"
+                  (ngModelChange)="draft.exclude_public_holidays = $event ? 1 : 0"
+                />
+                <label for="excludePublicHolidays">Gesetzliche Feiertage ausschließen</label>
+              </div>
+            </div>
+            <div class="app-field-half">
+              <label for="holidaySubdivisionCode"
+                >Bundesland
+                @if (draft.exclude_public_holidays) {
+                  <span aria-hidden="true">*</span>
+                }
+              </label>
+              <tui-textfield>
+                <select
+                  tuiSelect
+                  id="holidaySubdivisionCode"
+                  name="holidaySubdivisionCode"
+                  [items]="holidaySubdivisionOptions"
+                  [labels]="holidaySubdivisionLabels"
+                  [(ngModel)]="draft.holiday_subdivision_code"
+                  [disabled]="!draft.exclude_public_holidays"
+                  [required]="draft.exclude_public_holidays === 1"
+                ></select>
+              </tui-textfield>
+            </div>
+            <div class="app-field-third">
+              <tui-textfield>
+                <label tuiLabel for="examsPerDay">Prüfungen pro Tag</label>
+                <input
+                  tuiInput
+                  id="examsPerDay"
+                  min="1"
+                  name="examsPerDay"
+                  type="number"
+                  [(ngModel)]="draft.exams_per_day"
+                />
+              </tui-textfield>
+            </div>
+            <div class="app-field-third">
+              <tui-textfield>
+                <label tuiLabel for="examDaysPerWeek">Max. Tage pro Woche</label>
+                <input
+                  tuiInput
+                  id="examDaysPerWeek"
+                  max="5"
+                  min="1"
+                  name="examDaysPerWeek"
+                  type="number"
+                  [(ngModel)]="draft.max_exam_days_per_week"
+                />
+              </tui-textfield>
+            </div>
+            <div class="app-field-third">
+              <label for="defaultLocation">Standardort</label>
+              <tui-textfield>
+                <select
+                  tuiSelect
+                  id="defaultLocation"
+                  name="defaultLocation"
+                  [items]="defaultLocationOptions"
+                  [labels]="defaultLocationLabels"
+                  [(ngModel)]="draft.default_location_id"
+                ></select>
+              </tui-textfield>
+            </div>
+            <div class="app-field-two-thirds">
+              <label for="updatedByMember">Änderung dokumentieren für</label>
+              <tui-textfield>
+                <select
+                  tuiSelect
+                  id="updatedByMember"
+                  name="updatedByMember"
+                  [items]="updatedByMemberOptions"
+                  [labels]="updatedByMemberLabels"
+                  [(ngModel)]="draft.updated_by_member_id"
+                ></select>
+              </tui-textfield>
+            </div>
+            <div class="app-field-third app-field-align-end">
+              <div class="app-form-check">
+                <input
+                  id="lunchBreak"
+                  name="lunchBreak"
+                  tuiCheckbox
+                  type="checkbox"
+                  [ngModel]="draft.lunch_break_enabled === 1"
+                  (ngModelChange)="draft.lunch_break_enabled = $event ? 1 : 0"
+                />
+                <label for="lunchBreak">Mittagspause</label>
+              </div>
+            </div>
+            <div class="app-field-full app-form-actions">
+              <span class="app-form-action-hint"
+                >Die Kapazitätsvorschau wird nach dem Speichern aktualisiert.</span
+              >
+              <div class="app-inline-actions">
+                <button
+                  tuiButton
+                  color="secondary"
+                  type="button"
+                  variant="outline"
+                  [disabled]="actionBusy || !canGenerateCandidateDays()"
+                  (click)="requestCandidateDayGeneration()"
+                >
+                  <svg [cIcon]="icons.calendar" class="app-button-icon" aria-hidden="true"></svg>
+                  Mögliche Tage berechnen
+                </button>
+                <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
+                  <svg [cIcon]="icons.save" class="app-button-icon" aria-hidden="true"></svg>
+                  Planungsrahmen speichern
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+  }
+
+  @if (currentStep() === 'conditions') {
+    <div class="app-page-full">
+      <section class="app-panel">
+        <header tuiHeader="body-m" class="app-panel-header">
+          <div>
+            <strong>Mögliche Prüfungstage</strong>
+            <span class="app-muted app-block"
+              >Kalendertage für den Planungsvorschlag freigeben</span
+            >
+          </div>
+        </header>
+        <div class="app-panel-body">
+          @if (candidateDayGenerationResult; as result) {
+            <div tuiNotification appearance="info" role="status">
+              <strong>{{ result.counts.created }} Tage angelegt</strong>
+              <span class="app-block">
+                {{ result.counts.existing }} bereits vorhanden ·
+                {{ result.counts.excluded_holidays }} Feiertage ausgeschlossen
+              </span>
+              @if (result.excluded_holidays.length) {
+                <ul class="app-flush app-section-offset">
+                  @for (holiday of result.excluded_holidays; track holiday.date) {
+                    <li>{{ dateLabel(holiday.date) }} · {{ holiday.name }}</li>
+                  }
+                </ul>
+              }
+            </div>
+          }
+          <form
+            tuiForm="m"
+            class="app-form-grid app-compact-form"
+            (ngSubmit)="submitCandidateDay()"
+          >
+            <div class="app-field-third">
+              <tui-textfield>
+                <label tuiLabel for="candidateDayDate"
+                  >Datum <span aria-hidden="true">*</span></label
+                >
+                <input
+                  tuiInput
+                  tuiInputDate
+                  id="candidateDayDate"
+                  name="candidateDayDate"
+                  type="date"
+                  [ngModel]="candidateDayDateValue"
+                  (ngModelChange)="setCandidateDayValue($event)"
+                  required
+                />
+              </tui-textfield>
+            </div>
+            <div class="app-field-third app-field-align-end app-compact-form-action">
+              <div class="app-form-check">
+                <input
+                  id="candidateDayActive"
+                  name="candidateDayActive"
+                  tuiCheckbox
+                  type="checkbox"
+                  [ngModel]="candidateDayDraft.is_active === 1"
+                  (ngModelChange)="candidateDayDraft.is_active = $event ? 1 : 0"
+                />
+                <label for="candidateDayActive">Aktiv</label>
+              </div>
+            </div>
+            <div class="app-field-third app-field-align-end">
+              <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
+                <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
+                Prüfungstag hinzufügen
+              </button>
+            </div>
+          </form>
+          <div class="app-table-scroll">
+            <table tuiTable class="app-compact-table">
               <thead>
                 <tr>
-                  <th scope="col">Mitglied</th>
-                  @for (day of board?.candidateDays || []; track day.id) {
-                    <th scope="col">{{ dateLabel(day.date) }}</th>
-                  }
+                  <th scope="col">Datum</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Aktion</th>
                 </tr>
               </thead>
               <tbody>
-                @for (member of activeMembers(); track member.id) {
+                @for (day of board?.candidateDays || []; track day.id) {
                   <tr>
-                    <th scope="row">
-                      {{ memberLabel(member) }}
-                      <span class="app-muted app-block">{{ memberSideLabel(member) }}</span>
-                    </th>
-                    @for (day of board?.candidateDays || []; track day.id) {
-                      <td>
-                        <div class="app-availability-control">
-                          <tui-textfield>
-                            <select
-                              tuiSelect
-                              [attr.aria-label]="memberLabel(member) + ' ' + dateLabel(day.date)"
-                              [attr.aria-describedby]="
-                                availabilityCellState(member.id, day.id)
-                                  ? availabilityStatusId(member.id, day.id)
-                                  : null
-                              "
-                              [disabled]="
-                                actionBusy ||
-                                isAvailabilitySaving(member.id, day.id) ||
-                                !day.is_active
-                              "
-                              [items]="availabilityOptionValues"
-                              [labels]="availabilityOptionLabels"
-                              [ngModel]="availabilityFor(member.id, day.id)"
-                              (ngModelChange)="changeAvailability(member, day, $event)"
-                            ></select>
-                          </tui-textfield>
-                          @if (availabilityCellState(member.id, day.id); as cellState) {
-                            <span
-                              class="app-cell-status"
-                              [class.app-cell-status-saving]="cellState.status === 'saving'"
-                              [class.app-cell-status-saved]="cellState.status === 'saved'"
-                              [class.app-cell-status-error]="cellState.status === 'error'"
-                              [id]="availabilityStatusId(member.id, day.id)"
-                              [attr.role]="cellState.status === 'error' ? 'alert' : 'status'"
-                            >
-                              @switch (cellState.status) {
-                                @case ('saving') {
-                                  Speichert …
-                                }
-                                @case ('saved') {
-                                  ✓ Gespeichert
-                                }
-                                @case ('error') {
-                                  Nicht gespeichert · zurückgesetzt
-                                }
-                              }
-                            </span>
-                          }
-                        </div>
-                      </td>
-                    }
+                    <td>
+                      <strong>{{ dateLabel(day.date) }}</strong>
+                    </td>
+                    <td>
+                      <span tuiBadge [appearance]="day.is_active ? 'positive' : 'neutral'">
+                        {{ day.is_active ? 'Aktiv' : 'Inaktiv' }}
+                      </span>
+                    </td>
+                    <td class="app-actions">
+                      <div class="app-row-actions">
+                        <button
+                          tuiButton
+                          color="secondary"
+                          size="s"
+                          type="button"
+                          variant="outline"
+                          [disabled]="actionBusy"
+                          (click)="toggleCandidateDay.emit(day)"
+                        >
+                          <svg
+                            [cIcon]="day.is_active ? icons.deactivate : icons.activate"
+                            class="app-button-icon"
+                            aria-hidden="true"
+                          ></svg>
+                          {{ day.is_active ? 'Deaktivieren' : 'Aktivieren' }}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="3" class="app-table-empty-cell">
+                      <div class="app-table-empty">
+                        <strong>Keine möglichen Prüfungstage vorhanden.</strong>
+                        <span>Fügen Sie oben den ersten Kalendertag hinzu.</span>
+                      </div>
+                    </td>
                   </tr>
                 }
               </tbody>
             </table>
           </div>
-        } @else {
-          <div class="app-compact-empty">
-            <strong>Verfügbarkeiten können noch nicht erfasst werden.</strong>
-            <span>Aktivieren Sie mindestens ein Mitglied und einen möglichen Prüfungstag.</span>
+        </div>
+      </section>
+    </div>
+  }
+
+  @if (currentStep() === 'responses') {
+    <div class="app-page-full">
+      <section class="app-panel">
+        <header tuiHeader="body-m" class="app-panel-header">
+          <strong>Verfügbarkeiten</strong>
+          <span class="app-muted">Änderungen werden direkt gespeichert.</span>
+        </header>
+        <div class="app-panel-body">
+          @if ((board?.candidateDays?.length || 0) > 0 && activeMembers().length > 0) {
+            <div
+              class="app-table-scroll app-availability-scroll"
+              tabindex="0"
+              aria-label="Verfügbarkeiten nach Mitglied und Prüfungstag"
+            >
+              <table tuiTable class="app-availability-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Mitglied</th>
+                    @for (day of board?.candidateDays || []; track day.id) {
+                      <th scope="col">{{ dateLabel(day.date) }}</th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (member of activeMembers(); track member.id) {
+                    <tr>
+                      <th scope="row">
+                        {{ memberLabel(member) }}
+                        <span class="app-muted app-block">{{ memberSideLabel(member) }}</span>
+                      </th>
+                      @for (day of board?.candidateDays || []; track day.id) {
+                        <td>
+                          <div class="app-availability-control">
+                            <tui-textfield>
+                              <select
+                                tuiSelect
+                                [attr.aria-label]="memberLabel(member) + ' ' + dateLabel(day.date)"
+                                [attr.aria-describedby]="
+                                  availabilityCellState(member.id, day.id)
+                                    ? availabilityStatusId(member.id, day.id)
+                                    : null
+                                "
+                                [disabled]="
+                                  actionBusy ||
+                                  isAvailabilitySaving(member.id, day.id) ||
+                                  !day.is_active
+                                "
+                                [items]="availabilityOptionValues"
+                                [labels]="availabilityOptionLabels"
+                                [ngModel]="availabilityFor(member.id, day.id)"
+                                (ngModelChange)="changeAvailability(member, day, $event)"
+                              ></select>
+                            </tui-textfield>
+                            @if (availabilityCellState(member.id, day.id); as cellState) {
+                              <span
+                                class="app-cell-status"
+                                [class.app-cell-status-saving]="cellState.status === 'saving'"
+                                [class.app-cell-status-saved]="cellState.status === 'saved'"
+                                [class.app-cell-status-error]="cellState.status === 'error'"
+                                [id]="availabilityStatusId(member.id, day.id)"
+                                [attr.role]="cellState.status === 'error' ? 'alert' : 'status'"
+                              >
+                                @switch (cellState.status) {
+                                  @case ('saving') {
+                                    Speichert …
+                                  }
+                                  @case ('saved') {
+                                    ✓ Gespeichert
+                                  }
+                                  @case ('error') {
+                                    Nicht gespeichert · zurückgesetzt
+                                  }
+                                }
+                              </span>
+                            }
+                          </div>
+                        </td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <div class="app-compact-empty">
+              <strong>Verfügbarkeiten können noch nicht erfasst werden.</strong>
+              <span>Aktivieren Sie mindestens ein Mitglied und einen möglichen Prüfungstag.</span>
+            </div>
+          }
+        </div>
+      </section>
+    </div>
+  }
+
+  @if (currentStep() === 'confirmation') {
+    <div class="app-page-full">
+      <section class="app-panel">
+        <header tuiHeader="body-m" class="app-panel-header">
+          <div>
+            <strong>Zusammenfassung vor der Bestätigung</strong>
+            <span class="app-muted app-block"
+              >Prüfen Sie die zusammengeführten Angaben, bevor der Terminplan verbindlich
+              wird.</span
+            >
           </div>
-        }
+        </header>
+        <div class="app-panel-body">
+          <dl class="app-key-value-list app-wizard-summary">
+            <dt>Zeitraum</dt>
+            <dd>{{ draft.calendar_week_from || '–' }} bis {{ draft.calendar_week_to || '–' }}</dd>
+            <dt>Mögliche Prüfungstage</dt>
+            <dd>{{ activeCandidateDayCount() }}</dd>
+            <dt>Rückmeldefrist</dt>
+            <dd>{{ roundDraft.availability_deadline || '–' }}</dd>
+            <dt>Rückmeldungen</dt>
+            <dd>
+              {{ availabilityResponseCount() }} von
+              {{ activeMembers().length * activeCandidateDayCount() }}
+            </dd>
+            <dt>Kapazität</dt>
+            <dd>{{ capacity() }} Plätze für {{ requiredSlots() }} benötigte Termine</dd>
+          </dl>
+          @if (planningResult; as result) {
+            <div tuiNotification appearance="positive" role="status" class="app-section-offset">
+              <strong>Planungsvorschlag bereit</strong>
+              <span class="app-block"
+                >{{ result.counts['assigned_slots'] }} Prüfungstermine können bestätigt
+                werden.</span
+              >
+            </div>
+          }
+          <div class="app-inline-actions app-section-offset">
+            <button
+              tuiButton
+              appearance="secondary"
+              type="button"
+              [disabled]="actionBusy"
+              (click)="generateProposal.emit()"
+            >
+              Planung erzeugen
+            </button>
+            <button
+              tuiButton
+              appearance="primary"
+              type="button"
+              [disabled]="actionBusy || !planningResult"
+              (click)="confirmPlan.emit()"
+            >
+              Plan bestätigen
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  }
+
+  <div class="app-page-full">
+    @if (stepError(currentStep()); as error) {
+      <div tuiNotification appearance="negative" role="alert" class="app-wizard-error">
+        {{ error }}
       </div>
-    </section>
+    }
+    <div class="app-wizard-actions">
+      <button
+        tuiButton
+        appearance="secondary"
+        type="button"
+        (click)="previousStep()"
+        [disabled]="currentStep() === 'period'"
+      >
+        Zurück
+      </button>
+      @if (currentStep() !== 'confirmation') {
+        <button tuiButton appearance="primary" type="button" (click)="nextStep()">Weiter</button>
+      }
+    </div>
   </div>
 </div>

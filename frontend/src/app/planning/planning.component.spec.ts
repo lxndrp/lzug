@@ -33,11 +33,14 @@ describe('PlanningComponent', () => {
   });
 
   it('should render capacity preview and active days', () => {
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    showStep('conditions');
+    let text = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
     expect(text).toContain('Kapazitätsvorschau');
     expect(text).toContain('Benötigte Termine');
     expect(text).toContain('16.11.2026');
+    showStep('responses');
+    text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Arbeitgeber');
     expect(text).not.toContain('employer');
     expect(
@@ -66,16 +69,18 @@ describe('PlanningComponent', () => {
   });
 
   it('should emit editable exam round metadata', () => {
+    showStep('request');
     const component = fixture.componentInstance;
     vi.spyOn(component.saveRound, 'emit').mockReturnValue(undefined);
 
-    setInput('#roundName', 'Sommer 2027');
     const drafts = component as unknown as {
       roundDraft: {
+        name: string;
         availability_deadline: string;
         availability_reminder_at: string;
       };
     };
+    drafts.roundDraft.name = 'Sommer 2027';
     drafts.roundDraft.availability_deadline = '2027-04-15T18:00';
     drafts.roundDraft.availability_reminder_at = '2027-04-08T09:00';
     const form = (fixture.nativeElement as HTMLElement)
@@ -105,10 +110,13 @@ describe('PlanningComponent', () => {
   });
 
   it('should render week pickers and numeric planning controls', () => {
+    showStep('request');
     const element = fixture.nativeElement as HTMLElement;
     expect(element.querySelector('#availabilityDeadline[tuiInputDateTime]')).toBeTruthy();
     expect(element.querySelector('#availabilityReminder[tuiInputDateTime]')).toBeTruthy();
+    showStep('conditions');
     expect(element.querySelector('#candidateDayDate[tuiInputDate]')).toBeTruthy();
+    showStep('period');
     expect(element.querySelector('#weekFrom')?.getAttribute('type')).toBe('week');
     expect(element.querySelector('#weekTo')?.getAttribute('type')).toBe('week');
     expect(element.querySelector('#weekFrom')?.getAttribute('aria-describedby')).toBe(
@@ -224,6 +232,7 @@ describe('PlanningComponent', () => {
       excluded_holidays: [{ date: '2026-06-04', name: 'Fronleichnam' }],
       counts: { calculated_weekdays: 5, created: 4, existing: 0, excluded_holidays: 1 },
     });
+    showStep('conditions');
     fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -238,6 +247,7 @@ describe('PlanningComponent', () => {
     expect(element.querySelector('#planningSettingsForm .app-form-actions')?.textContent).toContain(
       'Kapazitätsvorschau',
     );
+    showStep('conditions');
     expect(element.querySelector('.app-compact-table')).toBeTruthy();
     expect(element.querySelector('.app-row-actions')?.textContent).toContain('Deaktivieren');
   });
@@ -246,17 +256,20 @@ describe('PlanningComponent', () => {
     const element = fixture.nativeElement as HTMLElement;
 
     expect(element.querySelector('.app-page-grid')).toBeTruthy();
-    expect(element.querySelectorAll('form[tuiForm]').length).toBe(3);
-    expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(5);
+    expect(element.querySelector('.app-wizard-steps')).toBeTruthy();
+    expect(element.querySelectorAll('.app-wizard-steps button')).toHaveLength(5);
+    expect(element.querySelectorAll('form[tuiForm]').length).toBe(1);
+    expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(1);
     expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
     expect(element.querySelectorAll('.app-field-hint').length).toBe(2);
-    expect(element.querySelectorAll('input[tuiCheckbox]').length).toBe(3);
+    expect(element.querySelectorAll('input[tuiCheckbox]').length).toBe(2);
     expect(element.querySelectorAll('input.form-check-input').length).toBe(0);
     expect(element.querySelectorAll('select[tuiSelect]').length).toBeGreaterThan(0);
     expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 
   it('should emit possible day changes', () => {
+    showStep('conditions');
     const component = fixture.componentInstance;
     vi.spyOn(component.toggleCandidateDay, 'emit').mockReturnValue(undefined);
 
@@ -272,6 +285,7 @@ describe('PlanningComponent', () => {
   });
 
   it('should emit new possible exam days', () => {
+    showStep('conditions');
     const component = fixture.componentInstance;
     vi.spyOn(component.createCandidateDay, 'emit').mockReturnValue(undefined);
 
@@ -307,6 +321,7 @@ describe('PlanningComponent', () => {
   });
 
   it('should emit availability changes', () => {
+    showStep('responses');
     const component = fixture.componentInstance;
     vi.spyOn(component.saveAvailability, 'emit').mockReturnValue(undefined);
 
@@ -336,6 +351,7 @@ describe('PlanningComponent', () => {
   });
 
   it('should confirm saved cells and roll failed cells back', () => {
+    showStep('responses');
     const component = fixture.componentInstance;
     const payload = {
       committee_member_id: 1,
@@ -368,11 +384,50 @@ describe('PlanningComponent', () => {
     expect(changeAvailability.availabilityFor(1, 1)).toBe('full_day');
   });
 
+  it('should keep wizard drafts available across steps and associate validation with the step', () => {
+    const component = fixture.componentInstance as unknown as {
+      draft: { calendar_week_from: string };
+      selectStep: (step: string) => void;
+    };
+    component.draft.calendar_week_from = '';
+    fixture.detectChanges();
+
+    const next = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Weiter',
+    );
+    next!.click();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Bitte geben Sie Zeitraum',
+    );
+
+    component.draft.calendar_week_from = '2026-W47';
+    showStep('request');
+    (fixture.componentInstance as unknown as { roundDraft: { name: string } }).roundDraft.name =
+      'Fortgesetzter Entwurf';
+    showStep('period');
+    showStep('request');
+    expect(
+      (fixture.componentInstance as unknown as { roundDraft: { name: string } }).roundDraft.name,
+    ).toBe('Fortgesetzter Entwurf');
+  });
+
   function setInput(selector: string, value: string): void {
     const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(selector);
     expect(input).toBeTruthy();
     input!.value = value;
     input!.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+  }
+
+  function showStep(step: 'period' | 'conditions' | 'request' | 'responses' | 'confirmation') {
+    (
+      fixture.componentInstance as unknown as {
+        selectStep: (
+          value: 'period' | 'conditions' | 'request' | 'responses' | 'confirmation',
+        ) => void;
+      }
+    ).selectStep(step);
     fixture.detectChanges();
   }
 });
