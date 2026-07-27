@@ -1,13 +1,14 @@
 <div class="app-page-grid">
   <div class="app-page-full">
     <nav class="app-wizard-steps" aria-label="Schritte der Terminorganisation">
-      @for (step of wizardSteps; track step.id) {
+      @for (step of wizardSteps; track step.id; let i = $index) {
         <button
           tuiButton
           appearance="flat"
           type="button"
           [class.is-active]="currentStep() === step.id"
           [attr.aria-current]="currentStep() === step.id ? 'step' : null"
+          [disabled]="i > maxReachableStepIndex()"
           (click)="selectStep(step.id)"
         >
           {{ step.label }}
@@ -526,7 +527,7 @@
             <dt>Mögliche Prüfungstage</dt>
             <dd>{{ activeCandidateDayCount() }}</dd>
             <dt>Rückmeldefrist</dt>
-            <dd>{{ roundDraft.availability_deadline || '–' }}</dd>
+            <dd>{{ dateTimeLabel(roundDraft.availability_deadline) }}</dd>
             <dt>Rückmeldungen</dt>
             <dd>
               {{ availabilityResponseCount() }} von

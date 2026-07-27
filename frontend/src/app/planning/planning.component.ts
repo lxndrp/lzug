@@ -97,6 +97,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   @Output() confirmPlan = new EventEmitter<void>();
 
   protected readonly currentStep = signal<WizardStep>('period');
+  protected readonly maxReachableStepIndex = signal<number>(0);
   protected readonly stepErrors = signal<Partial<Record<WizardStep, string>>>({});
   protected readonly wizardSteps: WizardStepDefinition[] = [
     { id: 'period', label: 'Zeitraum' },
@@ -188,6 +189,9 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     const next = this.wizardSteps[index + 1];
     if (next) {
       this.currentStep.set(next.id);
+      if (index + 1 > this.maxReachableStepIndex()) {
+        this.maxReachableStepIndex.set(index + 1);
+      }
     }
   }
 
@@ -204,8 +208,16 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   protected availabilityResponseCount(): number {
-    return (this.board?.availabilities ?? []).filter((item) => item.availability !== 'pending')
-      .length;
+    const activeMemberIds = new Set(this.activeMembers().map((m) => m.id));
+    const activeDayIds = new Set(
+      (this.board?.candidateDays ?? []).filter((d) => d.is_active).map((d) => d.id),
+    );
+    return (this.board?.availabilities ?? []).filter(
+      (item) =>
+        item.availability !== 'pending' &&
+        activeMemberIds.has(item.committee_member_id) &&
+        activeDayIds.has(item.candidate_exam_day_id),
+    ).length;
   }
 
   protected activeCandidateDayCount(): number {
