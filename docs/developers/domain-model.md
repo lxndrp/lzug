@@ -1,6 +1,6 @@
 # Prüfwerk – fachliches Datenmodell
 
-Stand: 24.06.2026
+Stand: 27.07.2026
 
 Dieses Dokument beschreibt das fachliche Datenmodell für die Server-App. Es bildet den aktuellen klickbaren Prototypen ab und ergänzt die fachlichen Regeln, die später dauerhaft gespeichert, validiert und automatisiert verarbeitet werden sollen.
 
@@ -31,6 +31,10 @@ erDiagram
   EXAM_HALF_YEAR ||--o{ EXAM_ROUND : groups
   EXAM_ROUND ||--o{ ROUND_CANDIDATE : includes
   CANDIDATE ||--o{ ROUND_CANDIDATE : participates
+  EXAM_HALF_YEAR ||--o{ CANDIDATE_COMMITTEE_ASSIGNMENT : scopes
+  CANDIDATE ||--o{ CANDIDATE_COMMITTEE_ASSIGNMENT : is_assigned
+  EXAM_ROUND ||--o{ CANDIDATE_COMMITTEE_ASSIGNMENT : receives
+  ROUND_CANDIDATE ||--o{ CANDIDATE_COMMITTEE_ASSIGNMENT : records
   EXAM_ROUND ||--o{ MEMBER_AVAILABILITY : collects
   COMMITTEE_MEMBER ||--o{ MEMBER_AVAILABILITY : reports
   EXAM_ROUND ||--o{ EXAM_DAY : plans
@@ -230,6 +234,14 @@ Mögliche Statuswerte:
 - `completed` – Durchgang abgeschlossen
 - `cancelled` – Durchgang abgebrochen
 
+Fachliche Regeln:
+
+- Die Prüfungsrunde gehört genau einem Prüfungshalbjahr und genau einem
+  Ausschuss. Damit ist der Ausschuss einer Kandidatenzuordnung immer über deren
+  `exam_round_id` bestimmbar.
+- Die Kombination aus Prüfungshalbjahr und Ausschuss ist eindeutig; derselbe
+  Ausschuss kann in einem Halbjahr keine zweite Runde führen.
+
 ### Prüfling im Prüfungsdurchgang
 
 Technischer Name: `round_candidate`
@@ -245,6 +257,7 @@ Felder:
 | `candidate_id` | Fremdschlüssel | ja | Prüfling |
 | `attempt_number` | Integer | ja | Prüfungsversuch, mindestens 1 |
 | `requires_mep` | Boolean | ja | Ob eine Mündliche Ergänzungsprüfung erforderlich ist |
+| `is_active` | Boolean | ja | Ob dieser Rundeneintrag für aktuelle Planung und Zählungen berücksichtigt wird |
 | `created_at` | Zeitstempel | ja | Anlagezeitpunkt |
 | `updated_at` | Zeitstempel | ja | Letzte Änderung |
 
@@ -254,6 +267,9 @@ Fachliche Regeln:
 - Wenn `requires_mep = true`, wird zusätzlich ein MEP-Slot benötigt.
 - MEP-Slots werden am Tagesende geplant.
 - Ein Prüfungstag darf nicht nur aus MEP-Slots bestehen.
+- Ein Prüfling kommt innerhalb derselben Prüfungsrunde nur einmal vor.
+- Bei einem Ausschusswechsel wird der bisherige Eintrag inaktiv; bereits
+  angelegte Slots und Ergebnisse bleiben an ihm erhalten.
 
 ### Ausschusszuordnung eines Prüflings
 
@@ -273,12 +289,22 @@ den zugehörigen Prüfungsdurchgang.
 | `assigned_at` | Zeitstempel | ja | Beginn der Zuständigkeit |
 | `ended_at` | Zeitstempel | nein | Ende der Zuständigkeit; `null` bedeutet aktuell |
 | `change_reason` | Text | nein | Begründung eines Ausschusswechsels |
+| `created_at` | Zeitstempel | ja | Anlagezeitpunkt |
+| `updated_at` | Zeitstempel | ja | Letzte Änderung |
 
 Fachliche Regeln:
 
-- Ein Prüfling hat pro Prüfungshalbjahr höchstens eine aktive Zuordnung.
+- Ein Prüfling hat pro Prüfungshalbjahr höchstens eine aktive Zuordnung. Die
+  Datenbank sichert dies mit einer eindeutigen aktiven Kombination aus
+  `candidate_id` und `exam_half_year_id`; eine fehlende Zuordnung bedeutet,
+  dass der Prüfling in diesem Halbjahr keinem Ausschuss zugeordnet ist.
 - Ein Ausschusswechsel beendet die bisherige Zuordnung mit Zeitstempel und
-  Begründung; der historische Rundeneintrag bleibt erhalten.
+  Begründung, bevor eine neue aktive Zuordnung für die Runde des zuständigen
+  Ausschusses angelegt wird. Der historische Rundeneintrag bleibt erhalten.
+- Die vier Verweise einer Zuordnung müssen zusammenpassen: Der Prüfling des
+  `round_candidate` ist `candidate_id`, dessen Runde ist `exam_round_id` und
+  diese Runde gehört zu `exam_half_year_id`. Die Anwendung erhält diese
+  fachliche Konsistenz beim Anlegen und Wechseln einer Zuordnung.
 - Nur der aktive `round_candidate` wird für neue Planung und Zählungen eines
   Prüfungsdurchgangs berücksichtigt. Bereits angelegte Slots und spätere
   Ergebnisse bleiben über den historischen Rundeneintrag nachvollziehbar.
