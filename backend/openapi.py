@@ -250,7 +250,7 @@ def spec() -> dict[str, Any]:
                 "status": {"type": "string"},
                 "status_group": {"type": "string", "enum": ["open", "coordination", "confirmed"]},
                 "committee_name": {"type": "string"},
-                "exam_half_year": {"type": "object"},
+                "exam_half_year": {"$ref": "#/components/schemas/ExamHalfYears"},
                 "calendar_week_from": {"type": ["string", "null"]},
                 "calendar_week_to": {"type": ["string", "null"]},
                 "can_continue": {"type": "boolean"},

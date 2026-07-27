@@ -41,6 +41,12 @@ class ApiTests(unittest.TestCase):
             self.assertIn("/api/exam-rounds/{id}/confirm-plan", spec["paths"])
             self.assertIn("/api/candidate-exam-days/generate", spec["paths"])
             self.assertIn("Candidates", spec["components"]["schemas"])
+            self.assertEqual(
+                {"$ref": "#/components/schemas/ExamHalfYears"},
+                spec["components"]["schemas"]["SchedulingOverviewItem"]["properties"][
+                    "exam_half_year"
+                ],
+            )
 
             status, headers, body = api.request_raw("GET", "/api/docs")
             assert_status(status, HTTPStatus.OK)
