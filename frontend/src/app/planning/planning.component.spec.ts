@@ -462,7 +462,8 @@ describe('PlanningComponent', () => {
     showStep('confirmation');
     fixture.componentRef.setInput('planningResult', {
       status: 'plan_proposed',
-      counts: { assigned_slots: 16 },
+      validation: { passed: true, messages: [] },
+      counts: { planned_slots: 16 },
     });
     const component = fixture.componentInstance;
     vi.spyOn(component.generateProposal, 'emit').mockReturnValue(undefined);
@@ -481,6 +482,24 @@ describe('PlanningComponent', () => {
 
     expect(component.generateProposal.emit).toHaveBeenCalledOnce();
     expect(component.confirmPlan.emit).toHaveBeenCalledOnce();
+  });
+
+  it('should explain cross-committee conflicts before confirmation', () => {
+    showStep('confirmation');
+    fixture.componentRef.setInput('planningResult', {
+      status: 'plan_proposed',
+      validation: {
+        passed: false,
+        messages: ['2026-11-16 (Vormittag): Personen sind durch bestätigte Termine reserviert'],
+      },
+      counts: { planned_slots: 0 },
+    });
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Ausschussübergreifende Konflikte verhindern die Bestätigung',
+    );
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('bestätigte Termine');
   });
 
   function setInput(selector: string, value: string): void {

@@ -121,8 +121,17 @@ export type PlanningResult = {
     passed: boolean;
     messages: string[];
   };
+  conflicts?: PlanningConflict[];
   counts: Record<string, number>;
   _links?: Record<string, ApiLink>;
+};
+
+/** A person-wide reservation that prevented an overlapping committee assignment. */
+export type PlanningConflict = {
+  date: string;
+  day_part: 'morning' | 'afternoon' | string;
+  reservation: 'confirmed' | 'proposed' | string;
+  message: string;
 };
 
 export type ExamDay = {
