@@ -45,6 +45,7 @@ import {
   PlanningComponent,
   PlanningSettingsPayload,
 } from './planning/planning.component';
+import { SchedulingOverviewComponent } from './scheduling-overview/scheduling-overview.component';
 
 @Component({
   selector: 'app-root',
@@ -56,6 +57,7 @@ import {
     ExamHalfYearsComponent,
     LocationsComponent,
     PlanningComponent,
+    SchedulingOverviewComponent,
     TuiButton,
     TuiNotification,
     TuiRoot,
@@ -100,6 +102,7 @@ export class App {
   protected readonly pageTitle = computed(() => {
     const labels: Record<AppView, string> = {
       dashboard: this.summary()?.round?.name ?? 'Prüfungsrunde',
+      'scheduling-overview': 'Terminorganisationen',
       candidates: 'Prüflinge',
       committee: 'Prüfungsausschuss',
       planning: 'Terminplanung',
@@ -174,6 +177,14 @@ export class App {
     this.candidateDayGenerationResult.set(null);
     this.refresh();
     this.showView('dashboard');
+  }
+
+  protected continueSchedulingRound(id: number): void {
+    this.roundContext.select(id);
+    this.lastPlanningResult.set(null);
+    this.candidateDayGenerationResult.set(null);
+    this.refresh();
+    this.showView('planning');
   }
 
   protected dismissFeedback(): void {
@@ -591,6 +602,7 @@ export class App {
   private pathForView(view: AppView): string {
     const paths: Record<AppView, string> = {
       dashboard: 'dashboard',
+      'scheduling-overview': 'scheduling-overview',
       candidates: 'candidates',
       committee: 'committee',
       planning: 'planning',
@@ -604,6 +616,7 @@ export class App {
     const segment = url.split('?')[0].split('#')[0].split('/').filter(Boolean)[0];
     const views: Record<string, AppView> = {
       dashboard: 'dashboard',
+      'scheduling-overview': 'scheduling-overview',
       candidates: 'candidates',
       committee: 'committee',
       planning: 'planning',

@@ -3,6 +3,7 @@ import { Routes } from '@angular/router';
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
   { path: 'dashboard', children: [] },
+  { path: 'scheduling-overview', children: [] },
   { path: 'candidates', children: [] },
   { path: 'committee', children: [] },
   { path: 'planning', children: [] },

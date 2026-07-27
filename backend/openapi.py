@@ -98,6 +98,13 @@ def spec() -> dict[str, Any]:
                 "responses": {"200": json_response("RoundSummary")},
             }
         },
+        "/api/scheduling-overview": {
+            "get": {
+                "summary": "List scheduling organizations grouped by planning state",
+                "operationId": "getSchedulingOverview",
+                "responses": {"200": json_response("SchedulingOverview")},
+            }
+        },
         "/api/candidate-committee-assignments": {
             "get": {
                 "summary": "List candidate committee assignment history",
@@ -235,6 +242,42 @@ def spec() -> dict[str, Any]:
                 "_links": link_map(),
             },
             required=("round", "counts", "settings", "availability", "_links"),
+        ),
+        "SchedulingOverviewItem": object_schema(
+            {
+                "id": {"type": "integer"},
+                "name": {"type": "string"},
+                "status": {"type": "string"},
+                "status_group": {"type": "string", "enum": ["open", "coordination", "confirmed"]},
+                "committee_name": {"type": "string"},
+                "exam_half_year": {"$ref": "#/components/schemas/ExamHalfYears"},
+                "calendar_week_from": {"type": ["string", "null"]},
+                "calendar_week_to": {"type": ["string", "null"]},
+                "can_continue": {"type": "boolean"},
+                "_links": link_map(),
+            },
+            required=(
+                "id",
+                "name",
+                "status",
+                "status_group",
+                "committee_name",
+                "exam_half_year",
+                "calendar_week_from",
+                "calendar_week_to",
+                "can_continue",
+                "_links",
+            ),
+        ),
+        "SchedulingOverview": object_schema(
+            {
+                "items": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/SchedulingOverviewItem"},
+                },
+                "_links": link_map(),
+            },
+            required=("items", "_links"),
         ),
         "PlanningProposalRequest": object_schema(
             {"round_id": {"type": "integer"}},

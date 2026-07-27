@@ -3,11 +3,33 @@ import { expect, test } from './fixtures';
 
 const productiveViews = [
   { name: 'Übersicht', path: '/dashboard' },
+  { name: 'Terminorganisationen', path: '/scheduling-overview' },
   { name: 'Prüflinge', path: '/candidates' },
   { name: 'Ausschuss', path: '/committee' },
   { name: 'Terminplanung', path: '/planning' },
   { name: 'Prüfungsorte', path: '/locations' },
 ] as const;
+
+function overviewItem(
+  id: number,
+  name: string,
+  status: string,
+  statusGroup: 'open' | 'coordination' | 'confirmed',
+  canContinue: boolean,
+) {
+  return {
+    id,
+    name,
+    status,
+    status_group: statusGroup,
+    committee_name: 'PA Fachinformatiker Hamburg 1',
+    exam_half_year: { id: 1, season: 'winter', year: 2026, status: 'active' },
+    calendar_week_from: '2026-W47',
+    calendar_week_to: '2026-W49',
+    can_continue: canContinue,
+    _links: {},
+  };
+}
 
 const colorSchemes = ['light', 'dark'] as const;
 const viewports = [
@@ -60,6 +82,34 @@ test.describe('lzug browser workflows', () => {
     await expect(page.getByRole('button', { name: 'Plan bestätigen' })).toBeDisabled();
   });
 
+  test('groups terminorganisationen and continues an eligible round', async ({ page }) => {
+    await page.route('**/api/scheduling-overview', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: [
+            overviewItem(1, 'Offene Runde', 'draft', 'open', true),
+            overviewItem(2, 'Rückmeldungen', 'availability_requested', 'coordination', true),
+            overviewItem(3, 'Bestätigte Runde', 'plan_confirmed', 'confirmed', false),
+          ],
+          _links: {},
+        }),
+      }),
+    );
+    await page.goto('/scheduling-overview');
+
+    await expect(page.getByRole('heading', { name: 'Terminorganisationen' })).toBeVisible();
+    await expect(page.getByText('Offen', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('In Abstimmung', { exact: true })).toBeVisible();
+    await expect(page.getByText('Bestätigt', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Plan bestätigt')).toBeVisible();
+    await page.getByRole('button', { name: 'Fortsetzen' }).first().click();
+    await expect(page).toHaveURL('/planning');
+    await expect(
+      page.getByRole('navigation', { name: 'Schritte der Terminorganisation' }),
+    ).toBeVisible();
+  });
+
   test('navigates through the application views', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Winter 2026/27' })).toBeVisible({
@@ -69,6 +119,7 @@ test.describe('lzug browser workflows', () => {
 
     for (const [view, path] of [
       ['Prüflinge', '/candidates'],
+      ['Terminorganisationen', '/scheduling-overview'],
       ['Ausschuss', '/committee'],
       ['Terminplanung', '/planning'],
       ['Prüfungsorte', '/locations'],
@@ -262,7 +313,14 @@ test.describe('lzug browser workflows', () => {
   test('keeps application views within the mobile viewport', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
 
-    for (const path of ['/dashboard', '/candidates', '/committee', '/planning', '/locations']) {
+    for (const path of [
+      '/dashboard',
+      '/scheduling-overview',
+      '/candidates',
+      '/committee',
+      '/planning',
+      '/locations',
+    ]) {
       await page.goto(path);
       const dimensions = await page.evaluate(() => ({
         clientWidth: document.documentElement.clientWidth,

@@ -14,6 +14,21 @@ export type ApiCollection<T> = {
   _links: Record<string, ApiLink>;
 };
 
+export type SchedulingStatusGroup = 'open' | 'coordination' | 'confirmed';
+
+export type SchedulingOverviewItem = {
+  id: number;
+  name: string;
+  status: RoundStatus;
+  status_group: SchedulingStatusGroup;
+  committee_name: string;
+  exam_half_year: ExamHalfYear;
+  calendar_week_from: string | null;
+  calendar_week_to: string | null;
+  can_continue: boolean;
+  _links: Record<string, ApiLink>;
+};
+
 export type RoundSummary = {
   round: {
     id: number;

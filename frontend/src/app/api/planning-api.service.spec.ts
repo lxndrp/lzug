@@ -126,6 +126,32 @@ describe('PlanningApiService', () => {
     createRound.flush({ ...examRoundFixture, id: 2, exam_half_year_id: 2 });
   });
 
+  it('should load the scheduling overview collection', () => {
+    service.getSchedulingOverview().subscribe((items) => {
+      expect(items[0].status_group).toBe('coordination');
+      expect(items[0].can_continue).toBe(true);
+    });
+    const request = http.expectOne('/api/scheduling-overview');
+    expect(request.request.method).toBe('GET');
+    request.flush({
+      items: [
+        {
+          id: 1,
+          name: 'Winter 2026/27',
+          status: 'availability_requested',
+          status_group: 'coordination',
+          committee_name: 'PA Fachinformatiker Hamburg 1',
+          exam_half_year: { id: 1, season: 'winter', year: 2026, status: 'active' },
+          calendar_week_from: '2026-W47',
+          calendar_week_to: '2026-W49',
+          can_continue: true,
+          _links: {},
+        },
+      ],
+      _links: {},
+    });
+  });
+
   it('should expose committee and member write operations', () => {
     service.createCommittee({ name: 'PA Neu', occupation: 'Fachinformatiker/in' }).subscribe();
     const committee = http.expectOne('/api/committees');
