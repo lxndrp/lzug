@@ -615,15 +615,10 @@ class ResourceRepository:
         }
         with session_scope(self.db_path) as session:
             store = Store(session)
-            half_years = {
-                half_year["id"]: half_year for half_year in store.all(EXAM_HALF_YEAR)
-            }
-            committees = {
-                committee["id"]: committee["name"] for committee in store.all(COMMITTEE)
-            }
+            half_years = {half_year["id"]: half_year for half_year in store.all(EXAM_HALF_YEAR)}
+            committees = {committee["id"]: committee["name"] for committee in store.all(COMMITTEE)}
             settings_by_round = {
-                settings["exam_round_id"]: settings
-                for settings in store.all(PLANNING_SETTINGS)
+                settings["exam_round_id"]: settings for settings in store.all(PLANNING_SETTINGS)
             }
             overview = []
             for exam_round in store.all(EXAM_ROUND):
@@ -631,9 +626,7 @@ class ResourceRepository:
                 if status_group is None:
                     continue
                 half_year = half_years.get(exam_round["exam_half_year_id"])
-                committee_name = committees.get(
-                    exam_round["committee_id"], "Unbekannter Ausschuss"
-                )
+                committee_name = committees.get(exam_round["committee_id"], "Unbekannter Ausschuss")
                 settings = settings_by_round.get(exam_round["id"])
                 overview.append(
                     {
@@ -643,8 +636,10 @@ class ResourceRepository:
                         "status_group": status_group,
                         "committee_name": committee_name,
                         "exam_half_year": half_year,
-                        "calendar_week_from": settings["calendar_week_from"] if settings else None,
-                        "calendar_week_to": settings["calendar_week_to"] if settings else None,
+                        "calendar_week_from": (
+                            settings["calendar_week_from"] if settings else None
+                        ),
+                        "calendar_week_to": (settings["calendar_week_to"] if settings else None),
                         "can_continue": status_group != "confirmed",
                     }
                 )
