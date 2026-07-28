@@ -95,8 +95,9 @@ Fachliche Regeln:
 
 - Pro Ausschuss sollte es genau einen Vorsitzenden geben.
 - Pro Ausschuss sollte es genau einen stellvertretenden Vorsitzenden geben.
-- Nur Vorsitzender und stellvertretender Vorsitzender dürfen Stammdaten und Planungsdaten bearbeiten.
-- Nur der Vorsitzende darf die maximale Anzahl der Prüfungstage pro Woche ändern.
+- Vorsitz und Stellvertretung bilden fachlich eine gleichberechtigte Rolle. Die
+  Stellvertretung kennzeichnet ausschließlich die Vertretungsfunktion.
+- Vorsitz und Stellvertretung dürfen Stammdaten und Planungsdaten bearbeiten.
 
 ### Benutzerkonto
 
@@ -335,8 +336,8 @@ Felder:
 
 Fachliche Regeln:
 
-- `exams_per_day` wird durch Vorsitz oder Stellvertretung festgelegt.
-- `max_exam_days_per_week` darf nur durch den Vorsitzenden geändert werden.
+- `exams_per_day` und `max_exam_days_per_week` werden durch Vorsitz oder
+  Stellvertretung festgelegt.
 - Standardwert für `max_exam_days_per_week` ist 3.
 - Bei aktivem Feiertagsausschluss ist ein gültiger ISO-3166-2-Code eines deutschen Bundeslands erforderlich.
 - Berücksichtigt werden bundesweite und landesweit geltende Feiertage; rein lokale Sonderregeln werden nicht automatisch abgeleitet.
@@ -513,7 +514,8 @@ Fachliche Regeln:
 - Der Fallback muss ausdrücklich bestätigen.
 - Erfolgt die Fallback-Bestätigung nicht innerhalb von 24 Stunden, werden Vorsitz und Stellvertretung benachrichtigt und weitere Mitglieder angefragt.
 - Ist die Ausfallmeldung jünger als 36 Stunden vor Prüfungsbeginn, werden alle Mitglieder sofort mit Dringlichkeit benachrichtigt.
-- Wenn mehrere Mitglieder einspringen können, wählt der Vorsitzende den Ersatz aus.
+- Wenn mehrere Mitglieder einspringen können, wählen Vorsitz oder
+  Stellvertretung den Ersatz aus.
 - Eine Person darf innerhalb desselben Prüfungshalbjahrs nicht in
   überlappenden Tagesabschnitten mehrerer Ausschüsse eingesetzt werden; dies
   gilt auch für Fallback-Besetzungen. Bestätigte Termine reservieren die Person
@@ -681,7 +683,7 @@ Der Planungsvorschlag soll:
 - die optional festgelegte Mittagspause berücksichtigen,
 - personenweite Reservierungen aus bestätigten Terminen und anderen
   Planungsvorschlägen desselben Prüfungshalbjahrs berücksichtigen,
-- den Vorsitzenden erlauben, Vorschläge manuell zu überschreiben.
+- eine manuelle Überschreibung durch Vorsitz oder Stellvertretung erlauben.
 
 ### Ausfallprozess
 
@@ -691,7 +693,8 @@ Wenn ein Prüfer ausfällt:
 2. Der Fallback muss ausdrücklich bestätigen.
 3. Erfolgt innerhalb von 24 Stunden keine Bestätigung, werden Vorsitz und Stellvertretung benachrichtigt und alle weiteren Mitglieder angefragt.
 4. Liegt die Ausfallmeldung weniger als 36 Stunden vor Prüfungsbeginn, werden alle Mitglieder sofort mit Dringlichkeit angefragt.
-5. Wenn mehrere Mitglieder zusagen, wählt der Vorsitzende den Ersatz aus.
+5. Wenn mehrere Mitglieder zusagen, wählen Vorsitz oder Stellvertretung den
+   Ersatz aus.
 6. Wenn kein Ersatz gefunden wird, wird die IHK über den Ausfall des Prüfungstags informiert.
 7. Für abgesagte oder verschobene Prüfungen startet der Terminfindungsprozess neu.
 
