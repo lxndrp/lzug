@@ -4,15 +4,15 @@
         {
             "label": "Entwicklungsumgebung einrichten",
             "type": "shell",
-            "command": "task",
-            "args": ["setup"],
+            "command": "mise",
+            "args": ["exec", "--", "task", "setup"],
             "problemMatcher": []
         },
         {
             "label": "Frontend starten",
             "type": "shell",
-            "command": "task",
-            "args": ["dev:frontend"],
+            "command": "mise",
+            "args": ["exec", "--", "task", "dev:frontend"],
             "isBackground": true,
             "problemMatcher": {
                 "owner": "lzug-frontend",
@@ -34,8 +34,8 @@
         {
             "label": "Backend starten",
             "type": "shell",
-            "command": "task",
-            "args": ["dev:backend"],
+            "command": "mise",
+            "args": ["exec", "--", "task", "dev:backend"],
             "group": "build",
             "isBackground": true,
             "problemMatcher": []
@@ -43,64 +43,64 @@
         {
             "label": "Unit-Tests",
             "type": "shell",
-            "command": "task",
-            "args": ["test"],
+            "command": "mise",
+            "args": ["exec", "--", "task", "test"],
             "group": "test",
             "problemMatcher": []
         },
         {
             "label": "Backend-Qualität",
             "type": "shell",
-            "command": "task",
-            "args": ["quality:backend"],
+            "command": "mise",
+            "args": ["exec", "--", "task", "quality:backend"],
             "group": "build",
             "problemMatcher": []
         },
         {
             "label": "Frontend-Qualität",
             "type": "shell",
-            "command": "task",
-            "args": ["quality:frontend"],
+            "command": "mise",
+            "args": ["exec", "--", "task", "quality:frontend"],
             "group": "build",
             "problemMatcher": []
         },
         {
             "label": "End-to-End-Tests",
             "type": "shell",
-            "command": "task",
-            "args": ["quality:e2e"],
+            "command": "mise",
+            "args": ["exec", "--", "task", "quality:e2e"],
             "group": "test",
             "problemMatcher": []
         },
         {
             "label": "Accessibility-Tests",
             "type": "shell",
-            "command": "task",
-            "args": ["quality:a11y"],
+            "command": "mise",
+            "args": ["exec", "--", "task", "quality:a11y"],
             "group": "test",
             "problemMatcher": []
         },
         {
             "label": "Frontend-Sicherheitsprüfung",
             "type": "shell",
-            "command": "task",
-            "args": ["quality:security"],
+            "command": "mise",
+            "args": ["exec", "--", "task", "quality:security"],
             "group": "build",
             "problemMatcher": []
         },
         {
             "label": "Dokumentation bauen",
             "type": "shell",
-            "command": "task",
-            "args": ["docs"],
+            "command": "mise",
+            "args": ["exec", "--", "task", "docs"],
             "group": "build",
             "problemMatcher": []
         },
         {
             "label": "Qualität vollständig prüfen",
             "type": "shell",
-            "command": "task",
-            "args": ["quality"],
+            "command": "mise",
+            "args": ["exec", "--", "task", "quality"],
             "group": "build",
             "problemMatcher": []
         }

@@ -32,9 +32,12 @@ den lokalen Workflow-Schritten.
 Die lokale Einrichtung beginnt mit `mise install` und setzt sich mit
 `task setup` fort. Python-Kommandos im Taskfile nutzen `uv run` gegen die
 gesperrten Entwicklungsabhängigkeiten, Frontend-Aufgaben verwenden ihr
-Arbeitsverzeichnis und `npm ci`. `task quality` behält die parallele Ausführung
-der bisherigen Prüfabschnitte bei und führt Browser-End-to-End- sowie
-Accessibility-Prüfungen parallel aus.
+Arbeitsverzeichnis und `npm ci`. Die Einrichtung installiert außerdem den
+Playwright-Chromium-Browser; `task doctor` prüft Toolchain, virtuelle
+Python-Umgebung und die verwendete Browser-Executable ohne vollständigen
+Qualitätslauf. `task quality` behält die parallele Ausführung der bisherigen
+Prüfabschnitte bei und führt Browser-End-to-End- sowie Accessibility-Prüfungen
+parallel aus.
 
 ADR-0003 bleibt als historische Toolchain-Entscheidung bestehen; dieser ADR
 ersetzt dessen frühere Zuordnung lokaler Abläufe zu `mise`.

@@ -8,7 +8,7 @@ Die lokale Qualitätssicherung ist der erste Prüfpunkt. Bei klar eingegrenzten 
 
 Neue fachliche Änderungen ergänzen Tests schichtweise: Domain- und Repository-Regeln, HTTP- und OpenAPI-Vertrag einschließlich Fehlern, Frontend-Komponenten und API-Service mit Fixtures sowie mindestens ein Browser-Szenario. Die Pipeline in `.github/workflows/ci.yml` prüft Backend, Frontend, npm-Sicherheit, Dokumentation sowie Browser und Accessibility.
 
-Wenn eine bekannte Codex-Sandbox-Grenze eine Vollprüfung blockiert, ist die Änderung nicht lokal verifiziert. Der Befund wird als Umgebungsproblem dokumentiert; Produktcode wird nicht an reine Sandbox-Symptome angepasst.
+Wenn eine bekannte Codex-Sandbox-Grenze eine Vollprüfung blockiert, ist die Änderung nicht lokal verifiziert. Der Befund wird als Umgebungsproblem dokumentiert; Produktcode wird nicht an reine Sandbox-Symptome angepasst. Browserprüfungen bleiben als getrennte Teilaufgaben verfügbar: In Codex ist der normale Sandbox-Lauf von einem gezielt lokal freigegebenen E2E- oder a11y-Teiltest zu unterscheiden. Die CI ist die finale Abnahme; die Chromium-Sandbox wird dafür oder lokal nicht deaktiviert.
 
 ## npm-Sicherheitsgate und Dependabot
 
