@@ -656,6 +656,117 @@ class ResourceRepository:
                 key=lambda item: (item["status_group"], item["name"], item["id"]),
             )
 
+    def confirmed_plans(self) -> list[dict[str, Any]]:
+        """Return the published calendar read model, excluding every proposal.
+
+        This deliberately performs the state check at the server boundary.  A
+        client cannot obtain draft or proposed appointments by merely hiding a
+        tab in the UI.
+        """
+        with session_scope(self.db_path) as session:
+            store = Store(session)
+            committees = {row["id"]: row for row in store.all(COMMITTEE)}
+            half_years = {row["id"]: row for row in store.all(EXAM_HALF_YEAR)}
+            locations = {row["id"]: row for row in store.all(LOCATION)}
+            candidates = {row["id"]: row for row in store.all(CANDIDATE)}
+            round_candidates = {row["id"]: row for row in store.all(ROUND_CANDIDATE)}
+            members = {
+                row["id"]: self._member_view(store, row) for row in store.all(COMMITTEE_MEMBER)
+            }
+
+            plans = []
+            for exam_round in store.where(EXAM_ROUND, status="plan_confirmed"):
+                committee = committees.get(exam_round["committee_id"])
+                if committee is None:
+                    continue
+                days = []
+                for exam_day in sorted(
+                    store.where(EXAM_DAY, exam_round_id=exam_round["id"]),
+                    key=lambda row: (row["date"], row["id"]),
+                ):
+                    if exam_day["status"] != "confirmed":
+                        continue
+                    slots = []
+                    for slot in sorted(
+                        store.where(EXAM_SLOT, exam_day_id=exam_day["id"]),
+                        key=lambda row: (row["starts_at"], row["sequence_number"], row["id"]),
+                    ):
+                        if slot["status"] != "confirmed":
+                            continue
+                        round_candidate = round_candidates.get(slot["round_candidate_id"])
+                        candidate = (
+                            candidates.get(round_candidate["candidate_id"])
+                            if round_candidate
+                            else None
+                        )
+                        if candidate is None:
+                            continue
+                        slots.append(
+                            {
+                                "id": slot["id"],
+                                "starts_at": slot["starts_at"],
+                                "ends_at": slot["ends_at"],
+                                "sequence_number": slot["sequence_number"],
+                                "slot_type": slot["slot_type"],
+                                "candidate": {
+                                    "id": candidate["id"],
+                                    "first_name": candidate["first_name"],
+                                    "last_name": candidate["last_name"],
+                                    "ihk_exam_number": candidate["ihk_exam_number"],
+                                },
+                            }
+                        )
+                    assignments = []
+                    for assignment in store.where(EXAM_DAY_ASSIGNMENT, exam_day_id=exam_day["id"]):
+                        member = members.get(assignment["committee_member_id"])
+                        if member is None:
+                            continue
+                        assignments.append(
+                            {
+                                "id": assignment["id"],
+                                "assignment_role": assignment["assignment_role"],
+                                "day_part": assignment["day_part"],
+                                "fallback_status": assignment["fallback_status"],
+                                "member": {
+                                    "id": member["id"],
+                                    "first_name": member["first_name"],
+                                    "last_name": member["last_name"],
+                                    "representing_side": member["representing_side"],
+                                },
+                            }
+                        )
+                    location = locations.get(exam_day["location_id"])
+                    days.append(
+                        {
+                            "id": exam_day["id"],
+                            "date": exam_day["date"],
+                            "location": (
+                                {
+                                    "id": location["id"],
+                                    "name": location["name"],
+                                    "room": location["room"],
+                                    "city": location["city"],
+                                }
+                                if location
+                                else None
+                            ),
+                            "slots": slots,
+                            "assignments": assignments,
+                        }
+                    )
+                plans.append(
+                    {
+                        "id": exam_round["id"],
+                        "name": exam_round["name"],
+                        "committee": {"id": committee["id"], "name": committee["name"]},
+                        "exam_half_year": half_years.get(exam_round["exam_half_year_id"]),
+                        "days": days,
+                    }
+                )
+            return sorted(
+                plans, key=lambda plan: (plan["committee"]["name"], plan["name"], plan["id"])
+            )
+
     def _first(
         self,
         store: Store,

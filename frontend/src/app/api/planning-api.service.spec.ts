@@ -152,6 +152,13 @@ describe('PlanningApiService', () => {
     });
   });
 
+  it('should load the confirmed-plan calendar collection', () => {
+    service.getConfirmedPlans().subscribe((plans) => expect(plans).toEqual([]));
+    const request = http.expectOne('/api/confirmed-plans');
+    expect(request.request.method).toBe('GET');
+    request.flush({ items: [], _links: {} });
+  });
+
   it('should expose committee and member write operations', () => {
     service.createCommittee({ name: 'PA Neu', occupation: 'Fachinformatiker/in' }).subscribe();
     const committee = http.expectOne('/api/committees');

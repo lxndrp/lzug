@@ -56,6 +56,15 @@
         </a>
         <a
           class="app-nav-link"
+          href="/confirmed-plans"
+          [class.is-active]="activeView() === 'confirmed-plans'"
+          (click)="navigateFromShell('confirmed-plans', $event)"
+        >
+          <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
+          Prüfungspläne
+        </a>
+        <a
+          class="app-nav-link"
           href="/candidates"
           [class.is-active]="activeView() === 'candidates'"
           (click)="navigateFromShell('candidates', $event)"
@@ -170,6 +179,9 @@
             }
             @case ('scheduling-overview') {
               <app-scheduling-overview (continueRound)="continueSchedulingRound($event)" />
+            }
+            @case ('confirmed-plans') {
+              <app-confirmed-plans />
             }
             @case ('candidates') {
               <app-candidates

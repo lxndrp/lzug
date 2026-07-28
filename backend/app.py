@@ -78,6 +78,10 @@ class LzugHandler(BaseHTTPRequestHandler):
                 self.respond(hateoas.scheduling_overview(self.repository.scheduling_overview()))
                 return
 
+            if path_parts == ["confirmed-plans"]:
+                self.respond(hateoas.confirmed_plans(self.repository.confirmed_plans()))
+                return
+
             if path_parts and path_parts[0] == "candidate-committee-assignments":
                 if len(path_parts) == 1:
                     candidate_id = query.get("candidate_id", [None])[0]

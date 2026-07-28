@@ -46,6 +46,7 @@ import {
   PlanningSettingsPayload,
 } from './planning/planning.component';
 import { SchedulingOverviewComponent } from './scheduling-overview/scheduling-overview.component';
+import { ConfirmedPlansComponent } from './confirmed-plans/confirmed-plans.component';
 
 @Component({
   selector: 'app-root',
@@ -53,6 +54,7 @@ import { SchedulingOverviewComponent } from './scheduling-overview/scheduling-ov
     AppIconDirective,
     CandidatesComponent,
     CommitteeComponent,
+    ConfirmedPlansComponent,
     DashboardComponent,
     ExamHalfYearsComponent,
     LocationsComponent,
@@ -103,6 +105,7 @@ export class App {
     const labels: Record<AppView, string> = {
       dashboard: this.summary()?.round?.name ?? 'Prüfungsrunde',
       'scheduling-overview': 'Terminorganisationen',
+      'confirmed-plans': 'Prüfungspläne',
       candidates: 'Prüflinge',
       committee: 'Prüfungsausschuss',
       planning: 'Terminplanung',
@@ -603,6 +606,7 @@ export class App {
     const paths: Record<AppView, string> = {
       dashboard: 'dashboard',
       'scheduling-overview': 'scheduling-overview',
+      'confirmed-plans': 'confirmed-plans',
       candidates: 'candidates',
       committee: 'committee',
       planning: 'planning',
@@ -617,6 +621,7 @@ export class App {
     const views: Record<string, AppView> = {
       dashboard: 'dashboard',
       'scheduling-overview': 'scheduling-overview',
+      'confirmed-plans': 'confirmed-plans',
       candidates: 'candidates',
       committee: 'committee',
       planning: 'planning',

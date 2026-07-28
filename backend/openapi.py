@@ -105,6 +105,13 @@ def spec() -> dict[str, Any]:
                 "responses": {"200": json_response("SchedulingOverview")},
             }
         },
+        "/api/confirmed-plans": {
+            "get": {
+                "summary": "List confirmed exam plans grouped for the calendar view",
+                "operationId": "getConfirmedPlans",
+                "responses": {"200": json_response("ConfirmedPlanCalendar")},
+            }
+        },
         "/api/candidate-committee-assignments": {
             "get": {
                 "summary": "List candidate committee assignment history",
@@ -278,6 +285,69 @@ def spec() -> dict[str, Any]:
                 "_links": link_map(),
             },
             required=("items", "_links"),
+        ),
+        "ConfirmedPlanCalendar": object_schema(
+            {
+                "items": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/ConfirmedPlanCalendarItem"},
+                },
+                "_links": link_map(),
+            },
+            required=("items", "_links"),
+        ),
+        "ConfirmedPlanCalendarItem": object_schema(
+            {
+                "id": {"type": "integer"},
+                "name": {"type": "string"},
+                "committee": {"$ref": "#/components/schemas/ConfirmedPlanCommittee"},
+                "exam_half_year": {"$ref": "#/components/schemas/ExamHalfYears"},
+                "days": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/ConfirmedPlanDay"},
+                },
+            },
+            required=("id", "name", "committee", "exam_half_year", "days"),
+        ),
+        "ConfirmedPlanCommittee": object_schema(
+            {"id": {"type": "integer"}, "name": {"type": "string"}}, required=("id", "name")
+        ),
+        "ConfirmedPlanDay": object_schema(
+            {
+                "id": {"type": "integer"},
+                "date": {"type": "string"},
+                "location": {"type": ["object", "null"]},
+                "slots": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/ConfirmedPlanSlot"},
+                },
+                "assignments": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/ConfirmedPlanAssignment"},
+                },
+            },
+            required=("id", "date", "location", "slots", "assignments"),
+        ),
+        "ConfirmedPlanSlot": object_schema(
+            {
+                "id": {"type": "integer"},
+                "starts_at": {"type": "string"},
+                "ends_at": {"type": "string"},
+                "sequence_number": {"type": "integer"},
+                "slot_type": {"type": "string"},
+                "candidate": {"type": "object"},
+            },
+            required=("id", "starts_at", "ends_at", "sequence_number", "slot_type", "candidate"),
+        ),
+        "ConfirmedPlanAssignment": object_schema(
+            {
+                "id": {"type": "integer"},
+                "assignment_role": {"type": "string"},
+                "day_part": {"type": "string"},
+                "fallback_status": {"type": ["string", "null"]},
+                "member": {"type": "object"},
+            },
+            required=("id", "assignment_role", "day_part", "fallback_status", "member"),
         ),
         "PlanningProposalRequest": object_schema(
             {"round_id": {"type": "integer"}},

@@ -4,6 +4,7 @@ export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
   { path: 'dashboard', children: [] },
   { path: 'scheduling-overview', children: [] },
+  { path: 'confirmed-plans', children: [] },
   { path: 'candidates', children: [] },
   { path: 'committee', children: [] },
   { path: 'planning', children: [] },

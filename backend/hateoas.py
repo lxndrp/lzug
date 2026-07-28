@@ -29,6 +29,7 @@ def api_root() -> dict[str, Any]:
             "openapi": {"href": "/api/openapi.json"},
             "docs": {"href": "/api/docs"},
             "round-summary": {"href": "/api/round-summary?round_id=1"},
+            "confirmed-plans": {"href": "/api/confirmed-plans"},
             "planning-proposals": {
                 "href": "/api/planning-proposals",
                 "method": "POST",
@@ -150,6 +151,16 @@ def scheduling_overview(items: list[dict[str, Any]]) -> dict[str, Any]:
             "self": {"href": "/api/scheduling-overview"},
             "api": {"href": "/api"},
             "exam-rounds": {"href": "/api/exam-rounds"},
+        },
+    }
+
+
+def confirmed_plans(items: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "items": items,
+        "_links": {
+            "self": {"href": "/api/confirmed-plans"},
+            "api": {"href": "/api"},
         },
     }
 

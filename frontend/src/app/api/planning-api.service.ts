@@ -8,6 +8,7 @@ import {
   Candidate,
   CandidateCommitteeAssignment,
   CandidateDayGenerationResult,
+  ConfirmedPlan,
   CandidateExamDay,
   CandidateView,
   Committee,
@@ -72,6 +73,10 @@ export class PlanningApiService {
 
   getSchedulingOverview() {
     return this.list<SchedulingOverviewItem>('/api/scheduling-overview');
+  }
+
+  getConfirmedPlans() {
+    return this.list<ConfirmedPlan>('/api/confirmed-plans');
   }
 
   createExamHalfYear(payload: Pick<ExamHalfYear, 'season' | 'year' | 'status'>) {

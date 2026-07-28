@@ -29,6 +29,33 @@ export type SchedulingOverviewItem = {
   _links: Record<string, ApiLink>;
 };
 
+export type ConfirmedPlan = {
+  id: number;
+  name: string;
+  committee: { id: number; name: string };
+  exam_half_year: ExamHalfYear;
+  days: Array<{
+    id: number;
+    date: string;
+    location: { id: number; name: string; room: string; city: string } | null;
+    slots: Array<{
+      id: number;
+      starts_at: string;
+      ends_at: string;
+      sequence_number: number;
+      slot_type: 'regular' | 'mep' | string;
+      candidate: { id: number; first_name: string; last_name: string; ihk_exam_number: string };
+    }>;
+    assignments: Array<{
+      id: number;
+      assignment_role: 'examiner' | 'fallback' | string;
+      day_part: 'morning' | 'afternoon' | 'full_day' | string;
+      fallback_status: 'confirmed' | null | string;
+      member: { id: number; first_name: string; last_name: string; representing_side: string };
+    }>;
+  }>;
+};
+
 export type RoundSummary = {
   round: {
     id: number;
