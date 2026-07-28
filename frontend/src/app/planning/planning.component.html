@@ -537,13 +537,22 @@
             <dd>{{ capacity() }} Plätze für {{ requiredSlots() }} benötigte Termine</dd>
           </dl>
           @if (planningResult; as result) {
-            <div tuiNotification appearance="positive" role="status" class="app-section-offset">
-              <strong>Planungsvorschlag bereit</strong>
-              <span class="app-block"
-                >{{ result.counts['assigned_slots'] }} Prüfungstermine können bestätigt
-                werden.</span
-              >
-            </div>
+            @if (result.validation?.passed) {
+              <div tuiNotification appearance="positive" role="status" class="app-section-offset">
+                <strong>Planungsvorschlag bereit</strong>
+                <span class="app-block"
+                  >{{ result.counts['planned_slots'] }} Prüfungstermine können bestätigt
+                  werden.</span
+                >
+              </div>
+            } @else {
+              <div tuiNotification appearance="negative" role="alert" class="app-section-offset">
+                <strong>Ausschussübergreifende Konflikte verhindern die Bestätigung</strong>
+                @for (message of result.validation?.messages ?? []; track message) {
+                  <span class="app-block">{{ message }}</span>
+                }
+              </div>
+            }
           }
           <div class="app-inline-actions app-section-offset">
             <button

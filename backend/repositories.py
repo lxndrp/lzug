@@ -279,6 +279,9 @@ class ResourceRepository:
         target_day = store.get(EXAM_DAY, payload["exam_day_id"])
         if member is None or target_day is None:
             raise ValueError("Assignment member or exam day not found")
+        target_round = store.get(EXAM_ROUND, target_day["exam_round_id"])
+        if target_round is None:
+            raise ValueError("Assignment exam round not found")
         target_part = payload.get("day_part", "full_day")
         for assignment in store.all(EXAM_DAY_ASSIGNMENT):
             if assignment_id is not None and assignment["id"] == assignment_id:
@@ -294,12 +297,17 @@ class ResourceRepository:
                 continue
             if other_day["exam_round_id"] == target_day["exam_round_id"]:
                 continue
+            other_round = store.get(EXAM_ROUND, other_day["exam_round_id"])
+            if (
+                other_round is None
+                or other_round["exam_half_year_id"] != target_round["exam_half_year_id"]
+            ):
+                continue
             if (
                 target_part == "full_day"
                 or assignment["day_part"] == "full_day"
                 or assignment["day_part"] == target_part
             ):
-                other_round = store.get(EXAM_ROUND, other_day["exam_round_id"])
                 other_committee = (
                     store.get(COMMITTEE, other_round["committee_id"]) if other_round else None
                 )
@@ -737,10 +745,11 @@ class ResourceRepository:
         return normalized
 
     def _propagate_person_availability(self, store: Store, saved: dict[str, Any]) -> None:
-        """Mirror one response to same-person memberships on the same calendar day."""
+        """Mirror one response to same-person memberships in the same half-year."""
         member = store.get(COMMITTEE_MEMBER, saved["committee_member_id"])
         source_day = store.get(CANDIDATE_EXAM_DAY, saved["candidate_exam_day_id"])
-        if member is None or source_day is None:
+        source_round = store.get(EXAM_ROUND, saved["exam_round_id"])
+        if member is None or source_day is None or source_round is None:
             return
         for other_member in store.all(COMMITTEE_MEMBER):
             if (
@@ -755,6 +764,7 @@ class ResourceRepository:
                 if (
                     other_round is None
                     or other_round["committee_id"] != other_member["committee_id"]
+                    or other_round["exam_half_year_id"] != source_round["exam_half_year_id"]
                 ):
                     continue
                 existing = store.first(

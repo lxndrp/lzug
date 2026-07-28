@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from backend.models import (
     CANDIDATE,
+    CANDIDATE_EXAM_DAY,
     COMMITTEE,
     COMMITTEE_MEMBER,
     EXAM_HALF_YEAR,
@@ -333,6 +334,79 @@ class RepositoryTests(unittest.TestCase):
         self.assertIsNotNone(pending)
         self.assertIsNone(pending["responded_at"])
         self.assertEqual(1, len(rows))
+
+    def test_availability_is_shared_by_person_only_within_the_same_half_year(self) -> None:
+        with TempDatabase() as db_path:
+            repository = ResourceRepository(db_path)
+            committee = repository.create(COMMITTEE, {"name": "PA 2", "occupation": "FI"})
+            membership = repository.create_membership(
+                {
+                    "person_id": 1,
+                    "committee_id": committee["id"],
+                    "member_status": "ordinary",
+                    "committee_role": "member",
+                    "representing_side": "employer",
+                    "is_active": 1,
+                }
+            )
+            shared_round = repository.create(
+                EXAM_ROUND,
+                {
+                    "exam_half_year_id": 1,
+                    "committee_id": committee["id"],
+                    "name": "Winter PA 2",
+                    "created_by_member_id": membership["id"],
+                },
+            )
+            shared_day = repository.create(
+                CANDIDATE_EXAM_DAY,
+                {"exam_round_id": shared_round["id"], "date": "2026-11-16", "is_active": 1},
+            )
+            next_half_year = repository.create(
+                EXAM_HALF_YEAR,
+                {"season": "summer", "year": 2027, "status": "active"},
+            )
+            separate_round = repository.create(
+                EXAM_ROUND,
+                {
+                    "exam_half_year_id": next_half_year["id"],
+                    "committee_id": committee["id"],
+                    "name": "Sommer PA 2",
+                    "created_by_member_id": membership["id"],
+                },
+            )
+            separate_day = repository.create(
+                CANDIDATE_EXAM_DAY,
+                {"exam_round_id": separate_round["id"], "date": "2026-11-16", "is_active": 1},
+            )
+
+            repository.save_member_availability(
+                {
+                    "exam_round_id": 1,
+                    "committee_member_id": 1,
+                    "candidate_exam_day_id": 1,
+                    "availability": "morning",
+                }
+            )
+            shared = repository.list_filtered(
+                MEMBER_AVAILABILITY,
+                {
+                    "exam_round_id": shared_round["id"],
+                    "committee_member_id": membership["id"],
+                    "candidate_exam_day_id": shared_day["id"],
+                },
+            )
+            separate = repository.list_filtered(
+                MEMBER_AVAILABILITY,
+                {
+                    "exam_round_id": separate_round["id"],
+                    "committee_member_id": membership["id"],
+                    "candidate_exam_day_id": separate_day["id"],
+                },
+            )
+
+        self.assertEqual("morning", shared[0]["availability"])
+        self.assertEqual([], separate)
 
 
 if __name__ == "__main__":

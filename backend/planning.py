@@ -114,6 +114,10 @@ class PlanningService:
             if not exam_days:
                 raise ValueError("No planning proposal found")
 
+            confirmed_conflicts = self._confirmed_conflicts(store, round_id, exam_days)
+            if confirmed_conflicts:
+                raise ValueError(confirmed_conflicts[0])
+
             for exam_day in exam_days:
                 if exam_day["status"] == "cancelled":
                     raise ValueError("Cancelled exam days cannot be confirmed")
@@ -178,25 +182,83 @@ class PlanningService:
                 if row["is_active"]
             ],
             "availability": store.where(MEMBER_AVAILABILITY, exam_round_id=round_id),
-            "blocked_person_ids": self._blocked_person_ids(store, round_id),
+            "blocked_person_ids": self._blocked_person_ids(store, exam_round),
         }
 
-    def _blocked_person_ids(self, store: Store, round_id: int) -> dict[tuple[str, str], set[int]]:
-        """People already assigned by another committee, keyed by day and part."""
-        blocked: dict[tuple[str, str], set[int]] = defaultdict(set)
+    def _blocked_person_ids(
+        self,
+        store: Store,
+        exam_round: dict[str, Any] | None,
+    ) -> dict[tuple[str, str], dict[int, str]]:
+        """Reserve people per half-year and day part for existing plans.
+
+        Confirmed plans have precedence over proposals.  A proposal is still a
+        reservation for another proposal so independently generated plans do
+        not double-book a person while both are awaiting confirmation.
+        """
+        blocked: dict[tuple[str, str], dict[int, str]] = defaultdict(dict)
+        if exam_round is None:
+            return blocked
         for assignment in store.all(EXAM_DAY_ASSIGNMENT):
             exam_day = store.get(EXAM_DAY, assignment["exam_day_id"])
             member = store.get(COMMITTEE_MEMBER, assignment["committee_member_id"])
-            if exam_day is None or member is None or exam_day["exam_round_id"] == round_id:
+            other_round = store.get(EXAM_ROUND, exam_day["exam_round_id"]) if exam_day else None
+            if (
+                exam_day is None
+                or member is None
+                or other_round is None
+                or exam_day["exam_round_id"] == exam_round["id"]
+                or other_round["exam_half_year_id"] != exam_round["exam_half_year_id"]
+                or exam_day["status"] in {"cancelled", "completed"}
+            ):
                 continue
+            reservation = (
+                "bestätigten Termin" if exam_day["status"] == "confirmed" else "Planungsvorschlag"
+            )
             parts = (
                 ("morning", "afternoon")
                 if assignment["day_part"] == "full_day"
                 else (assignment["day_part"],)
             )
             for part in parts:
-                blocked[(exam_day["date"], part)].add(member["person_id"])
+                key = (exam_day["date"], part)
+                previous = blocked[key].get(member["person_id"])
+                if previous != "bestätigten Termin":
+                    blocked[key][member["person_id"]] = reservation
         return blocked
+
+    def _confirmed_conflicts(
+        self,
+        store: Store,
+        round_id: int,
+        exam_days: list[dict[str, Any]],
+    ) -> list[str]:
+        """Return conflicts that prevent a proposal from becoming confirmed."""
+        exam_round = store.get(EXAM_ROUND, round_id)
+        if exam_round is None:
+            return []
+        reservations = self._blocked_person_ids(store, exam_round)
+        conflicts = []
+        for exam_day in exam_days:
+            for assignment in store.where(EXAM_DAY_ASSIGNMENT, exam_day_id=exam_day["id"]):
+                member = store.get(COMMITTEE_MEMBER, assignment["committee_member_id"])
+                if member is None:
+                    continue
+                parts = (
+                    ("morning", "afternoon")
+                    if assignment["day_part"] == "full_day"
+                    else (assignment["day_part"],)
+                )
+                for part in parts:
+                    reservation = reservations.get((exam_day["date"], part), {}).get(
+                        member["person_id"]
+                    )
+                    if reservation == "bestätigten Termin":
+                        conflicts.append(
+                            f"{exam_day['date']} ({part}): eine Person ist bereits durch "
+                            "einen bestätigten Termin reserviert"
+                        )
+        return conflicts
 
     def _clear_existing_proposal(self, store: Store, round_id: int) -> None:
         for exam_day in store.where(EXAM_DAY, exam_round_id=round_id):
@@ -235,6 +297,9 @@ class PlanningService:
                     validation["messages"].append(
                         f"{day['date']}: keine vollstaendige Vormittagsbesetzung"
                     )
+                    conflict = self._reservation_message(context, day["date"], "morning")
+                    if conflict:
+                        validation["messages"].append(conflict)
                     continue
                 afternoon = self._choose_shift_crew(
                     context,
@@ -282,6 +347,12 @@ class PlanningService:
                     else None
                 )
                 if morning is None or (needs_afternoon and afternoon is None):
+                    missing_part = "morning" if morning is None else "afternoon"
+                    conflict = self._reservation_message(
+                        context, option["day"]["date"], missing_part
+                    )
+                    if conflict:
+                        validation["messages"].append(conflict)
                     continue
 
                 self._apply_load(load, morning)
@@ -442,7 +513,7 @@ class PlanningService:
         )
         blocked = context["blocked_person_ids"].get(
             (candidate_day["date"], day_part) if candidate_day else ("", day_part),
-            set(),
+            {},
         )
         available_members = [
             member
@@ -474,6 +545,20 @@ class PlanningService:
         if availability == "full_day":
             return True
         return availability == day_part
+
+    def _reservation_message(
+        self,
+        context: dict[str, Any],
+        date: str,
+        day_part: str,
+    ) -> str | None:
+        reservations = context["blocked_person_ids"].get((date, day_part), {})
+        if not reservations:
+            return None
+        confirmed = any(value == "bestätigten Termin" for value in reservations.values())
+        label = "Vormittag" if day_part == "morning" else "Nachmittag"
+        priority = "bestätigte Termine" if confirmed else "andere Planungsvorschläge"
+        return f"{date} ({label}): Personen sind durch {priority} in anderen Ausschüssen reserviert"
 
     def _apply_load(self, load: dict[int, float], shift: ShiftCrew) -> None:
         for member_id in shift.crew:

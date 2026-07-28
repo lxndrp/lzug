@@ -389,6 +389,9 @@ Fachliche Regeln:
 
 - Bei Ablauf der Rückmeldefrist werden Mitglieder mit offener Rückmeldung benachrichtigt.
 - Nach der Hälfte der Frist werden offene Rückmeldungen erinnert.
+- Gehört dieselbe Person mehreren Ausschüssen an, gilt ihre Rückmeldung für
+  gleichdatierte mögliche Prüfungstage aller dieser Ausschüsse im selben
+  Prüfungshalbjahr.
 
 ### Prüfungstag
 
@@ -511,6 +514,10 @@ Fachliche Regeln:
 - Erfolgt die Fallback-Bestätigung nicht innerhalb von 24 Stunden, werden Vorsitz und Stellvertretung benachrichtigt und weitere Mitglieder angefragt.
 - Ist die Ausfallmeldung jünger als 36 Stunden vor Prüfungsbeginn, werden alle Mitglieder sofort mit Dringlichkeit benachrichtigt.
 - Wenn mehrere Mitglieder einspringen können, wählt der Vorsitzende den Ersatz aus.
+- Eine Person darf innerhalb desselben Prüfungshalbjahrs nicht in
+  überlappenden Tagesabschnitten mehrerer Ausschüsse eingesetzt werden; dies
+  gilt auch für Fallback-Besetzungen. Bestätigte Termine reservieren die Person
+  verbindlich und haben Vorrang vor Planungsvorschlägen.
 
 ### Ausfallmeldung
 
@@ -672,6 +679,8 @@ Der Planungsvorschlag soll:
 - die maximale Anzahl an Prüfungstagen pro Woche beachten,
 - die maximale Anzahl an Prüfungen pro Tag beachten,
 - die optional festgelegte Mittagspause berücksichtigen,
+- personenweite Reservierungen aus bestätigten Terminen und anderen
+  Planungsvorschlägen desselben Prüfungshalbjahrs berücksichtigen,
 - den Vorsitzenden erlauben, Vorschläge manuell zu überschreiben.
 
 ### Ausfallprozess
