@@ -5,11 +5,24 @@ vars:
 
 tasks:
   setup:
-    desc: Recreate the virtual environment and install locked dependencies
+    desc: Recreate the virtual environment and install locked dependencies and Chromium
     cmds:
       - uv venv --python "$(mise which python)" --clear --seed
       - uv sync --locked --extra dev
       - task: setup:frontend
+      - task: setup:playwright
+
+  doctor:
+    desc: Check the local toolchain, virtual environment, and Playwright Chromium
+    cmds:
+      - uv --version
+      - test "$(uv cache dir)" = "$HOME/.cache/uv" || { echo "uv cache must be $HOME/.cache/uv (configure Codex globally, not in this repository)"; exit 1; }
+      - test -x .venv/bin/python || { echo ".venv/bin/python is missing; run task setup"; exit 1; }
+      - .venv/bin/python --version
+      - node --version
+      - npm --version
+      - >-
+        cd frontend && node -e "const { chromium } = require('@playwright/test'); const { existsSync } = require('node:fs'); const executablePath = chromium.executablePath(); if (!existsSync(executablePath)) { console.error('Playwright Chromium is missing at ' + executablePath + '; run task setup'); process.exit(1); } console.log('Playwright Chromium: ' + executablePath);"
 
   test:
     desc: Run all backend and frontend unit tests
@@ -122,6 +135,12 @@ tasks:
     dir: frontend
     cmds:
       - npm ci
+
+  setup:playwright:
+    internal: true
+    dir: frontend
+    cmds:
+      - npx playwright install chromium
 
   dev:backend:
     desc: Start the backend development server

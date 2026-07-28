@@ -61,10 +61,17 @@ Produktumfang und Anleitung stehen im [README](README.md), Beiträge in
 
 ## Codex-Sandbox
 
+- `task doctor` vor gezielten Browserprüfungen verwenden. Der gemeinsame
+  uv-Cache liegt unter `~/.cache/uv` und wird ausschließlich über die globale
+  Codex-Konfiguration freigegeben; keine benutzerspezifische Konfiguration
+  versionieren.
 - Wiederkehrende bekannte Sandbox-Fehler nicht mehrfach ausführen und nicht
   durch Änderungen am Produktcode umgehen.
 - Blockierte Prüfungen als Umgebungsproblem kennzeichnen und klar von echten
   Implementierungslücken trennen.
+- Browser-E2E- und -a11y-Prüfungen bleiben getrennt. In der normalen
+  Codex-Sandbox nicht reproduzierbare Browserfehler gezielt lokal freigeben
+  oder durch CI final abnehmen lassen; Chromium nie mit `--no-sandbox` starten.
 - Bei störendem Git-Fsmonitor
   `git -c core.fsmonitor=false status ...` verwenden.
 
