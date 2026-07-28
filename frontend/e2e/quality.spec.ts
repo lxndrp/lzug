@@ -5,6 +5,7 @@ import { expect, test } from './fixtures';
 const productiveViews = [
   { name: 'Übersicht', path: '/dashboard' },
   { name: 'Terminorganisationen', path: '/scheduling-overview' },
+  { name: 'Prüfungspläne', path: '/confirmed-plans' },
   { name: 'Prüflinge', path: '/candidates' },
   { name: 'Ausschuss', path: '/committee' },
   { name: 'Terminplanung', path: '/planning' },
@@ -111,6 +112,28 @@ test.describe('lzug browser workflows', () => {
     ).toBeVisible();
   });
 
+  test('shows confirmed plans in committee tabs', async ({ page }) => {
+    await page.route('**/api/confirmed-plans', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: [
+            confirmedPlan(1, 'PA Nord', 'Max', 'Beispiel', 'mep'),
+            confirmedPlan(2, 'PA Süd', 'Erika', 'Muster', 'regular'),
+          ],
+          _links: {},
+        }),
+      }),
+    );
+    await page.goto('/confirmed-plans');
+    await expect(page.getByRole('heading', { name: 'Prüfungspläne' })).toBeVisible();
+    await expect(page.getByText('MEP-Prüfung')).toBeVisible();
+    await expect(page.getByText('Fallback')).toBeVisible();
+    await expect(page.getByText('Erika Muster')).toHaveCount(0);
+    await page.getByRole('tab', { name: 'PA Süd' }).click();
+    await expect(page.getByText('Erika Muster')).toBeVisible();
+  });
+
   test('navigates through the application views', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Winter 2026/27' })).toBeVisible({
@@ -121,6 +144,7 @@ test.describe('lzug browser workflows', () => {
     for (const [view, path] of [
       ['Prüflinge', '/candidates'],
       ['Terminorganisationen', '/scheduling-overview'],
+      ['Prüfungspläne', '/confirmed-plans'],
       ['Ausschuss', '/committee'],
       ['Terminplanung', '/planning'],
       ['Prüfungsorte', '/locations'],
@@ -329,6 +353,7 @@ test.describe('lzug browser workflows', () => {
     for (const path of [
       '/dashboard',
       '/scheduling-overview',
+      '/confirmed-plans',
       '/candidates',
       '/committee',
       '/planning',
@@ -439,6 +464,52 @@ test.describe('lzug theme and accessibility matrix', () => {
     }
   }
 });
+
+function confirmedPlan(
+  id: number,
+  committeeName: string,
+  firstName: string,
+  lastName: string,
+  slotType: 'regular' | 'mep',
+) {
+  return {
+    id,
+    name: `Winter ${committeeName}`,
+    committee: { id, name: committeeName },
+    exam_half_year: { id: 1, season: 'winter', year: 2026, status: 'active' },
+    days: [
+      {
+        id,
+        date: '2026-11-16',
+        location: { id: 1, name: 'Bildungszentrum', room: 'A 12', city: 'Hamburg' },
+        slots: [
+          {
+            id,
+            starts_at: '09:00',
+            ends_at: '09:30',
+            sequence_number: 1,
+            slot_type: slotType,
+            candidate: {
+              id,
+              first_name: firstName,
+              last_name: lastName,
+              ihk_exam_number: `FI-${id}`,
+            },
+          },
+        ],
+        assignments: [
+          {
+            id,
+            assignment_role: 'fallback',
+            day_part: 'morning',
+            fallback_status: 'confirmed',
+            member: { id, first_name: 'Alex', last_name: 'Prüfer', representing_side: 'employee' },
+          },
+        ],
+      },
+    ],
+  };
+}
 
 async function expectReadableContrast(
   locator: import('@playwright/test').Locator,

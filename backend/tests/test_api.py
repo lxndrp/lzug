@@ -40,6 +40,7 @@ class ApiTests(unittest.TestCase):
             self.assertIn("/api/exam-rounds/{id}", spec["paths"])
             self.assertIn("/api/exam-rounds/{id}/confirm-plan", spec["paths"])
             self.assertIn("/api/candidate-exam-days/generate", spec["paths"])
+            self.assertIn("/api/confirmed-plans", spec["paths"])
             self.assertIn("Candidates", spec["components"]["schemas"])
             self.assertEqual(
                 {"$ref": "#/components/schemas/ExamHalfYears"},
@@ -52,6 +53,31 @@ class ApiTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertIn("text/html", headers["content-type"])
             self.assertIn(b"/api/openapi.json", body)
+
+    def test_confirmed_plan_calendar_excludes_proposals_and_includes_schedule_context(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, proposal = api.request("POST", "/api/planning-proposals", {"round_id": 1})
+            assert_status(status, HTTPStatus.CREATED)
+            self.assertEqual("plan_proposed", proposal["status"])
+
+            status, empty_calendar = api.request("GET", "/api/confirmed-plans")
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual([], empty_calendar["items"])
+
+            status, _confirmed = api.request("POST", "/api/exam-rounds/1/confirm-plan")
+            assert_status(status, HTTPStatus.OK)
+            status, calendar = api.request("GET", "/api/confirmed-plans")
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("/api/confirmed-plans", calendar["_links"]["self"]["href"])
+            plan = calendar["items"][0]
+            self.assertEqual("PA Fachinformatiker Hamburg 1", plan["committee"]["name"])
+            self.assertGreaterEqual(len(plan["days"]), 1)
+            first_day = plan["days"][0]
+            self.assertGreaterEqual(len(first_day["slots"]), 1)
+            self.assertGreaterEqual(len(first_day["assignments"]), 1)
+            self.assertIn("candidate", first_day["slots"][0])
+            self.assertIn(first_day["slots"][0]["slot_type"], {"regular", "mep"})
+            self.assertEqual("confirmed", first_day["assignments"][-1]["fallback_status"])
 
     def test_scheduling_overview_groups_active_rounds_and_excludes_finished_work(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:

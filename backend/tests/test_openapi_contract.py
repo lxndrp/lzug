@@ -26,7 +26,12 @@ class OpenApiContractTests(unittest.TestCase):
     def test_seeded_read_operations_match_the_openapi_responses(self) -> None:
         """Exercise each documented collection and item response through the HTTP adapter."""
         with TempDatabase() as db_path, ApiServer(db_path) as api:
-            for path in ("/api", "/api/health", "/api/round-summary?round_id=1"):
+            for path in (
+                "/api",
+                "/api/health",
+                "/api/round-summary?round_id=1",
+                "/api/confirmed-plans",
+            ):
                 status, _response = self.request(api, "GET", path)
                 self.assertEqual(HTTPStatus.OK, status)
 

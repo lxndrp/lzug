@@ -1,0 +1,133 @@
+@if (state() === 'loading') {
+  <section class="app-panel" aria-busy="true" aria-live="polite">
+    <div class="app-panel-body app-confirmed-message">
+      Bestätigte Prüfungspläne werden geladen …
+    </div>
+  </section>
+} @else if (state() === 'error') {
+  <section class="app-panel" role="alert">
+    <div class="app-panel-body app-confirmed-message">
+      <strong>Prüfungspläne nicht verfügbar</strong>
+      <span
+        >Die bestätigten Prüfungspläne konnten nicht geladen werden. Bitte versuchen Sie es
+        erneut.</span
+      >
+      <button tuiButton appearance="secondary" type="button" (click)="load()">
+        Erneut versuchen
+      </button>
+    </div>
+  </section>
+} @else if (!plans().length) {
+  <section class="app-panel">
+    <div class="app-panel-body app-confirmed-message">
+      <strong>Keine bestätigten Prüfungspläne</strong>
+      <span
+        >Bestätigte Termine erscheinen hier nach Ausschuss gruppiert. Planungsvorschläge finden Sie
+        in der Terminorganisation.</span
+      >
+    </div>
+  </section>
+} @else {
+  <div class="app-confirmed-tabs" role="tablist" aria-label="Prüfungspläne nach Ausschuss">
+    @for (committee of committees(); track committee.id) {
+      <button
+        tuiButton
+        appearance="secondary"
+        type="button"
+        role="tab"
+        [attr.aria-selected]="committee.id === selectedCommitteeId()"
+        [class.is-active]="committee.id === selectedCommitteeId()"
+        (click)="selectCommittee(committee.id)"
+      >
+        {{ committee.name }}
+      </button>
+    }
+  </div>
+
+  @for (plan of selectedPlans(); track plan.id) {
+    <section class="app-panel app-confirmed-plan" role="tabpanel">
+      <header class="app-panel-header">
+        <div>
+          <strong>{{ plan.name }}</strong
+          ><span class="app-muted app-block"
+            >{{ plan.exam_half_year.season === 'summer' ? 'Sommer' : 'Winter' }}
+            {{ plan.exam_half_year.year }}</span
+          >
+        </div>
+      </header>
+      <div class="app-panel-body app-confirmed-days">
+        @for (day of plan.days; track day.id) {
+          <article class="app-confirmed-day">
+            <header>
+              <h2>{{ dateLabel(day.date) }}</h2>
+              <p>
+                {{
+                  day.location
+                    ? day.location.name + ' · ' + day.location.room + ', ' + day.location.city
+                    : 'Prüfungsort nicht hinterlegt'
+                }}
+              </p>
+            </header>
+            <div class="app-table-scroll" aria-label="Prüfungsslots">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Zeit</th>
+                    <th>Prüfung</th>
+                    <th>Prüfling</th>
+                    <th>Prüfungsnummer</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (slot of day.slots; track slot.id) {
+                    <tr>
+                      <td>{{ timeLabel(slot.starts_at) }}–{{ timeLabel(slot.ends_at) }}</td>
+                      <td>
+                        <span
+                          tuiBadge
+                          [appearance]="slot.slot_type === 'mep' ? 'warning' : 'neutral'"
+                          >{{ examLabel(slot.slot_type) }}</span
+                        >
+                      </td>
+                      <td>{{ slot.candidate.first_name }} {{ slot.candidate.last_name }}</td>
+                      <td>{{ slot.candidate.ihk_exam_number }}</td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="4">Keine bestätigten Slots an diesem Tag.</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <div class="app-confirmed-crew">
+              <strong>Prüferbesetzung</strong>
+              <ul>
+                @for (assignment of day.assignments; track assignment.id) {
+                  <li>
+                    <span
+                      tuiBadge
+                      [appearance]="
+                        assignment.assignment_role === 'fallback' ? 'warning' : 'positive'
+                      "
+                      >{{ roleLabel(assignment.assignment_role) }}</span
+                    >
+                    {{ assignment.member.first_name }} {{ assignment.member.last_name }} ·
+                    {{ assignment.member.representing_side }} ·
+                    {{ dayPartLabel(assignment.day_part) }}
+                  </li>
+                } @empty {
+                  <li>Keine bestätigte Prüferbesetzung hinterlegt.</li>
+                }
+              </ul>
+            </div>
+          </article>
+        } @empty {
+          <p class="app-empty-state">
+            Für diesen bestätigten Plan sind noch keine Prüfungstage hinterlegt.
+          </p>
+        }
+      </div>
+    </section>
+  }
+}
