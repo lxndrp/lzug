@@ -1,4 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
+import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 const productiveViews = [
@@ -160,8 +161,7 @@ test.describe('lzug browser workflows', () => {
 
   test('updates exam round metadata and keeps it after reload', async ({ page }) => {
     await page.goto('/planning');
-    await page.getByRole('button', { name: 'Weiter' }).click();
-    await page.getByRole('button', { name: 'Weiter' }).click();
+    await advanceToRoundMetadata(page);
 
     await expect(page.locator('#roundName')).toHaveValue('Winter 2026/27', { timeout: 30_000 });
     await page.locator('#roundName').fill('Sommer 2027');
@@ -179,12 +179,25 @@ test.describe('lzug browser workflows', () => {
     await expect(page.getByText('Prüfungsrunde gespeichert')).toBeVisible();
 
     await page.reload();
-    await page.getByRole('button', { name: 'Weiter' }).click();
-    await page.getByRole('button', { name: 'Weiter' }).click();
+    await advanceToRoundMetadata(page);
     await expect(page.locator('#roundName')).toHaveValue('Sommer 2027');
     await expect(page.locator('#availabilityDeadline')).toHaveValue('15.04.2027, 18:00');
     await expect(page.locator('#availabilityReminder')).toHaveValue('08.04.2027, 09:00');
   });
+
+  async function advanceToRoundMetadata(page: Page): Promise<void> {
+    const wizardActions = page.locator('.app-wizard-actions');
+    await wizardActions.getByRole('button', { name: 'Weiter', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Rahmenbedingungen' })).toHaveAttribute(
+      'aria-current',
+      'step',
+    );
+    await wizardActions.getByRole('button', { name: 'Weiter', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Verfügbarkeitsanfrage' })).toHaveAttribute(
+      'aria-current',
+      'step',
+    );
+  }
 
   test('creates a half-year and its committee-specific exam round', async ({ page }) => {
     await page.goto('/exam-half-years');
