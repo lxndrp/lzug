@@ -5,7 +5,7 @@ import { TuiBadge } from '@taiga-ui/kit';
 import { ConfirmedPlan } from '../api/api.models';
 import { PlanningApiService } from '../api/planning-api.service';
 
-type ViewState = 'loading' | 'ready' | 'error';
+export type ViewState = 'loading' | 'ready' | 'error';
 
 @Component({
   selector: 'app-confirmed-plans',
