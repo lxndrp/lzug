@@ -25,6 +25,23 @@ Ein Review kann nur Repository-Inhalte, GitHub-Artefakte und vorhandene
 CI-Ergebnisse beurteilen. Produktiver Betriebszustand, Telemetrie, Backups und
 Wiederherstellungen sind ohne entsprechende Evidenz nicht belegbar.
 
+## UX- und Gestaltungsreview
+
+Bei Änderungen an sichtbaren Abläufen wird die folgende Checkliste bezogen auf
+den betroffenen Hauptablauf angewendet. Sie ergänzt, aber ersetzt weder die
+automatisierten Prüfungen noch die fachliche Freigabe.
+
+| Prüfaspekt | Art der Prüfung | Nachweis und Grenze |
+| --- | --- | --- |
+| Semantik, programmatischer Name, Tastaturbedienung und technisch messbarer Kontrast | Automatisierte Accessibility-Prüfung, soweit der Prüfumfang dies abdeckt | Test- oder CI-Ergebnis; ein grünes Ergebnis bestätigt keine verständliche Gestaltung oder alle WCAG-Kriterien. |
+| Informationshierarchie, Beschriftung, Aktionsgewichtung, Zustände sowie Umbruch und Überlauf auf Desktop und Mobil | Visuelle und UX-Prüfung | Konkrete Betrachtung des geänderten Ablaufs einschließlich Laden, Leerzustand, Erfolg, Fehler, Bestätigung und Abbruch; keine Screenshot-Regression. |
+| Fachlich verständliche Begriffe, angemessene Fehlervermeidung und Aufgabenerfolg | Menschliche Bestätigung | Autor:in oder zuständige fachliche Person bestätigt den Kontext; ein Review kann diese Entscheidung nicht stellvertretend treffen. |
+
+Die [Frontend-Richtlinie](../frontend-guidelines.md) benennt die technischen
+und gestalterischen Quellen für diese Prüfung. Fehlt ein geeigneter sichtbarer
+oder fachlicher Nachweis, wird dies als offene Frage dokumentiert statt aus
+Automatisierung oder Designpräferenz abzuleiten.
+
 ## Belastbare Befunde und Nachverfolgung
 
 Jeder Befund enthält Qualitätsdimension, konkrete Fundstelle oder Evidenz,

@@ -2,6 +2,31 @@
 
 Bei Planung, Umsetzung und Review wird die Anwendung aus Sicht der Nutzenden beurteilt. Ziel ist eine ruhige, klare und ästhetische Verwaltungsoberfläche, deren Form der Funktion folgt und die ohne Implementierungswissen verständlich ist.
 
+## Technische und gestalterische Quellen
+
+[Taiga UI](https://taiga-ui.dev/) ist die extern gepflegte technische Grundlage
+für Komponenten, Tokens und Theming. Die Anwendung nutzt die dokumentierten
+Möglichkeiten der Bibliothek; ihre Quellen werden nicht in ein lokales
+Designsystem kopiert. Persönliche Codex- oder MCP-Konfigurationen können bei
+der Recherche helfen, gehören aber weder in das Repository noch zu den
+Voraussetzungen für Umsetzung oder Review.
+
+Die folgenden Quellen ergänzen Taiga UI mit klar getrennten Rollen:
+
+- [WCAG 2.2](https://www.w3.org/TR/WCAG22/) ist der Maßstab für
+  Zugänglichkeit; automatisierbare Kriterien werden in den vorhandenen
+  Accessibility-Prüfungen erfasst, übrige Kriterien sichtbar geprüft.
+- Die [Nielsen-Heuristiken](https://www.nngroup.com/articles/ten-usability-heuristics/)
+  strukturieren das Usability-Review, insbesondere Rückmeldung,
+  Fehlervermeidung und verständliche Begriffe.
+- Das [GOV.UK Design System](https://design-system.service.gov.uk/) dient als
+  Musterreferenz für Informationsstruktur, Formulare und Rückmeldungen. Es
+  liefert keine CSS- oder Komponentenbasis für lzug.
+
+Diese Referenzen begründen keine zusätzlichen Frameworks oder lokalen
+Gestaltungsregeln. Insbesondere werden weder GOV.UK-CSS noch weitere
+CSS-Frameworks oder ein Screenshot-Regressionstest eingeführt.
+
 - Fachliche Aufgaben, Begriffe und Folgen müssen erkennbar sein; interne API-, Status- oder Implementierungsbegriffe werden nicht ungefiltert angezeigt.
 - Interaktive Elemente benötigen eindeutige Signale, erwartbare Zuordnung und unmittelbares Feedback. Beschriftung, Sichtbarkeit und Zustand vermitteln die Funktion.
 - Sinnvolle Vorgaben, Einschränkungen und Validierung verhindern Fehler. Tritt ein Fehler ein, erklärt die Oberfläche Kontext und Korrekturweg.
