@@ -18,6 +18,29 @@ Planung, Refinement und fachliche Klärung erfolgen getrennt von der Umsetzung. 
 
 Der Implementierungsstand wird im zugehörigen Issue kommentiert: an sinnvollen Zwischenständen Umfang und Verifikation, Abweichungen und offene Punkte, vor Abschluss zusätzlich Pull Request und mögliche Folgearbeit. Fortschritt darf nicht ausschließlich im Chat stehen.
 
+## Fachlichkeit und Rückverfolgbarkeit
+
+Die stabile fachliche Grundlage liegt unter [Business Domain](../business-domain/index.md):
+Prozesslandkarte, Rollen und Verantwortlichkeiten, Glossar, Prozesssteckbriefe,
+User Journeys und Entscheidungsmatrizen beschreiben den aktuell vereinbarten
+Fachstand. Sie enthalten keine kurzfristige Planung, Priorisierung oder
+Umsetzungsstände.
+
+GitHub-Epics, Stories und Tasks bilden dagegen die veränderliche
+Umsetzungsplanung. Jedes Epic, das einen Kernprozess umsetzt, erhält das
+zugehörige Label `process:<slug>` und verlinkt in seiner Beschreibung auf den
+Prozesssteckbrief. Die Prozessseite verlinkt nicht auf einzelne Issues; so
+bleibt sie auch bei Umstrukturierungen des Backlogs stabil. Ein Epic kann
+mehrere Prozess-Labels tragen, wenn es mehrere fachliche Teilprozesse
+zusammenführt.
+
+Ändert sich eine fachliche Regel, werden zunächst die betroffene Fachseite und
+gegebenenfalls Glossar oder Entscheidungsmatrix aktualisiert. Ist die Regel
+bereits technisch modelliert, werden außerdem Datenmodell, Tests und
+Implementierung auf Konsistenz geprüft. Abweichungen zwischen User Journey und
+Frontend werden als Stories oder Tasks im zugehörigen Epic nachverfolgt, nicht
+als dauerhafter Verifikationsbericht in der Fachlichkeitsdokumentation.
+
 ## Branches, Pull Requests und Abschluss
 
 Produkt- und Fehlerbehebungsarbeiten zu Issues entstehen auf `codex/<issue>-<kurzer-name>`, nie direkt auf `master`. Commits bleiben klein, thematisch und auf Englisch. Vor dem Commit werden nur auftragsbezogene Dateien gestaged; bei lokal störendem fsmonitor hilft `git -c core.fsmonitor=false status`.

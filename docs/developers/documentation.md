@@ -2,6 +2,13 @@
 
 Produkt-, Fach- und Architekturdokumentation ist auf Deutsch; Code-Kommentare sind Englisch. Planung, Prioritäten und Liefertermine gehören in GitHub Issues und das Roadmap-Project, nicht in ADRs.
 
+Die fachliche Referenz für Prozesse, Rollen, Begriffe und Entscheidungsregeln
+liegt unter [Business Domain](../business-domain/index.md). Sie beschreibt den
+vereinbarten Fachstand. GitHub-Epics, Stories und Tasks dokumentieren dagegen
+die veränderliche Umsetzung und verlinken mit Prozess-Labels und Rücklinks auf
+die jeweiligen Fachseiten. Technisches Datenmodell, API-Vertrag und
+Architektur verbleiben im Entwicklerhandbuch.
+
 ## ADR-Konvention
 
 Dauerhafte technische Entscheidungen stehen als ADR unter `docs/developers/decisions/`. Der Dateiname hat das Muster `NNNN-kebab-case.md`. Jeder ADR enthält Status, ursprüngliches Entscheidungsdatum, Kontext, Entscheidung, Konsequenzen, Alternativen und Referenzen. Ein akzeptierter ADR wird nicht inhaltlich umgeschrieben; eine spätere Änderung erhält einen neuen ADR, der den vorherigen ablöst oder ergänzt.
