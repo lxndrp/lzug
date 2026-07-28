@@ -67,6 +67,7 @@ bestätigten oder zur Klärung aufgenommenen Befunds:
 | `review:documentation` | Fehlende, veraltete oder widersprüchliche Dokumentation |
 | `review:domain-drift` | Fachliche Inkonsistenzen sowie Abweichungen von Begriffen, Invarianten oder Abläufen |
 | `review:operations` | Betriebsfähigkeit, Konfiguration, Migration, Diagnose, Wiederanlauf und Obsoleszenz |
+| `review:usability` | Gebrauchstauglichkeit, Informationshierarchie, Interaktion, Rückmeldung und visuelle Konsistenz |
 
 Die Auswahl bleibt sparsam; mehrere Labels sind nur bei tatsächlich mehreren
 Dimensionen zulässig. Labels erfassen weder Autorenschaft noch Bestätigung,
