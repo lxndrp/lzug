@@ -86,18 +86,24 @@ describe('App', () => {
       (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
         '.app-sidebar-toggle',
       );
+    const sidebar = () =>
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.app-sidebar');
 
     app.sidebarVisible.set(true);
     fixture.detectChanges();
 
     expect(toggle()?.getAttribute('aria-expanded')).toBe('true');
     expect(toggle()?.getAttribute('aria-label')).toBe('Navigation schließen');
+    expect(sidebar()?.hasAttribute('inert')).toBe(false);
+    expect(sidebar()?.hasAttribute('aria-hidden')).toBe(false);
 
     app.sidebarVisible.set(false);
     fixture.detectChanges();
 
     expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
     expect(toggle()?.getAttribute('aria-label')).toBe('Navigation öffnen');
+    expect(sidebar()?.hasAttribute('inert')).toBe(true);
+    expect(sidebar()?.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('should update the selected committee', () => {
