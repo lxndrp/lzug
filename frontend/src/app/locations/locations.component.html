@@ -1,17 +1,48 @@
 <div class="app-page-grid">
   <div class="app-page-full">
-    <details class="app-create-panel">
-      <summary class="app-create-trigger">Neuen Prüfungsort anlegen</summary>
-      <section class="app-panel">
-        <header tuiHeader="body-m" class="app-panel-header">
-          <div>
-            <strong>Prüfungsort anlegen</strong>
-            <span class="app-muted app-block">Ort, Raum und optionale Anschrift erfassen</span>
-          </div>
-          <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
-        </header>
-        <div class="app-panel-body">
-          <form tuiForm="m" class="app-form-grid" (ngSubmit)="submitLocation()">
+    <section class="app-panel">
+      <header tuiHeader="body-m" class="app-panel-header">
+        <div>
+          <strong>Prüfungsorte</strong>
+          <span class="app-muted app-block"
+            >Diese Orte stehen der Terminplanung als Auswahlquelle zur Verfügung.</span
+          >
+        </div>
+        <div class="app-panel-header-actions">
+          <button
+            #locationCreateButton
+            tuiButton
+            size="s"
+            type="button"
+            [appearance]="creatingLocation() ? 'secondary' : 'primary'"
+            [attr.aria-expanded]="creatingLocation()"
+            aria-controls="location-create-editor"
+            (click)="toggleLocationCreation()"
+          >
+            <svg
+              [cIcon]="creatingLocation() ? icons.cancel : icons.add"
+              class="app-button-icon"
+              aria-hidden="true"
+            ></svg>
+            {{ creatingLocation() ? 'Anlegen abbrechen' : 'Neuen Prüfungsort anlegen' }}
+          </button>
+        </div>
+      </header>
+      <div class="app-panel-body">
+        <section
+          id="location-create-editor"
+          class="app-context-editor"
+          aria-labelledby="location-create-title"
+          [hidden]="!creatingLocation()"
+        >
+          <header class="app-context-editor-header">
+            <div>
+              <strong id="location-create-title">Prüfungsort anlegen</strong>
+              <span class="app-muted app-block">Ort, Raum und optionale Anschrift erfassen</span>
+            </div>
+            <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
+          </header>
+          <form #locationCreateForm tuiForm="m" class="app-form-grid" (ngSubmit)="submitLocation()">
             <div class="app-field-third">
               <label for="locationCommittee">Ausschuss</label>
               <tui-textfield>
@@ -64,26 +95,26 @@
               <span class="app-form-action-hint"
                 >Der Ort steht anschließend in der Terminplanung bereit.</span
               >
-              <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
-                <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
-                Prüfungsort anlegen
-              </button>
+              <div class="app-form-action-buttons">
+                <button
+                  tuiButton
+                  appearance="secondary"
+                  type="button"
+                  [disabled]="actionBusy"
+                  (click)="cancelLocationCreation()"
+                >
+                  <svg [cIcon]="icons.cancel" class="app-button-icon" aria-hidden="true"></svg>
+                  Abbrechen
+                </button>
+                <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
+                  <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
+                  Prüfungsort anlegen
+                </button>
+              </div>
             </div>
           </form>
-        </div>
-      </section>
-    </details>
-  </div>
+        </section>
 
-  <div class="app-page-full">
-    <section class="app-panel">
-      <header tuiHeader="body-m" class="app-panel-header">
-        <strong>Prüfungsorte</strong>
-        <span class="app-muted"
-          >Diese Orte stehen der Terminplanung als Auswahlquelle zur Verfügung.</span
-        >
-      </header>
-      <div class="app-panel-body">
         <div
           class="app-table-scroll"
           tabindex="0"
@@ -293,7 +324,7 @@
                   <td colspan="5" class="app-table-empty-cell">
                     <div class="app-table-empty">
                       <strong>Keine Prüfungsorte vorhanden.</strong>
-                      <span>Legen Sie den ersten Ort über die Aktion oberhalb an.</span>
+                      <span>Legen Sie den ersten Ort über die Aktion im Bereichskopf an.</span>
                     </div>
                   </td>
                 </tr>

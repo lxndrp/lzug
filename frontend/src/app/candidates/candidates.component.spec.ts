@@ -59,12 +59,37 @@ describe('CandidatesComponent', () => {
     expect(element.querySelectorAll('.app-row-actions').length).toBeGreaterThan(0);
   });
 
+  it('should keep the create action in the list header and cancel without emitting', () => {
+    const component = fixture.componentInstance;
+    const element = fixture.nativeElement as HTMLElement;
+    const trigger = buttonWithLabel('Neuen Prüfling anlegen');
+    const editor = element.querySelector<HTMLElement>('#candidate-create-editor');
+    vi.spyOn(component.createCandidate, 'emit').mockReturnValue(undefined);
+
+    expect(trigger.closest('.app-panel-header')).toBeTruthy();
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(editor?.hidden).toBe(true);
+
+    trigger.click();
+    fixture.detectChanges();
+    setInput('#candidateFirstName', 'Nicht');
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(editor?.hidden).toBe(false);
+
+    clickButton('Abbrechen');
+
+    expect(component.createCandidate.emit).not.toHaveBeenCalled();
+    expect(inputValue('#candidateFirstName')).toBe('');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(editor?.hidden).toBe(true);
+  });
+
   it('should use Taiga form and header layout with app grid classes', () => {
     const element = fixture.nativeElement as HTMLElement;
 
     expect(element.querySelector('.app-page-grid')).toBeTruthy();
     expect(element.querySelectorAll('form[tuiForm]').length).toBe(1);
-    expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(3);
+    expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(2);
     expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
     expect(element.querySelectorAll('input[tuiCheckbox]').length).toBe(1);
     expect(element.querySelectorAll('input.form-check-input').length).toBe(0);
@@ -165,11 +190,15 @@ describe('CandidatesComponent', () => {
   }
 
   function clickButton(label: string): void {
+    buttonWithLabel(label).click();
+    fixture.detectChanges();
+  }
+
+  function buttonWithLabel(label: string): HTMLButtonElement {
     const button = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
     ).find((item) => item.textContent?.includes(label));
     expect(button).toBeDefined();
-    button?.click();
-    fixture.detectChanges();
+    return button!;
   }
 });

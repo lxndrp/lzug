@@ -1,5 +1,5 @@
 <div class="app-page-grid">
-  <div class="app-page-span-4">
+  <div class="app-page-full">
     <section class="app-panel">
       <header tuiHeader="body-m" class="app-panel-header">
         <strong>Prüflinge</strong>
@@ -15,19 +15,55 @@
     </section>
   </div>
 
-  <div class="app-page-span-8">
-    <details class="app-create-panel">
-      <summary class="app-create-trigger">Neuen Prüfling anlegen</summary>
-      <section class="app-panel">
-        <header tuiHeader="body-m" class="app-panel-header">
-          <div>
-            <strong>Prüfling anlegen</strong>
-            <span class="app-muted app-block">Stammdaten und Prüfungsbedarf erfassen</span>
-          </div>
-          <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
-        </header>
-        <div class="app-panel-body">
-          <form tuiForm="m" class="app-form-grid" (ngSubmit)="submitCandidate()">
+  <div class="app-page-full">
+    <section class="app-panel">
+      <header tuiHeader="body-m" class="app-panel-header">
+        <div>
+          <strong>Prüflingsliste</strong>
+          <span class="app-muted app-block"
+            >{{ filteredCandidates().length }} von {{ candidateCount() }} Prüflingen</span
+          >
+        </div>
+        <div class="app-panel-header-actions">
+          <button
+            #candidateCreateButton
+            tuiButton
+            size="s"
+            type="button"
+            [appearance]="creatingCandidate() ? 'secondary' : 'primary'"
+            [attr.aria-expanded]="creatingCandidate()"
+            aria-controls="candidate-create-editor"
+            (click)="toggleCandidateCreation()"
+          >
+            <svg
+              [cIcon]="creatingCandidate() ? icons.cancel : icons.add"
+              class="app-button-icon"
+              aria-hidden="true"
+            ></svg>
+            {{ creatingCandidate() ? 'Anlegen abbrechen' : 'Neuen Prüfling anlegen' }}
+          </button>
+        </div>
+      </header>
+      <div class="app-panel-body">
+        <section
+          id="candidate-create-editor"
+          class="app-context-editor"
+          aria-labelledby="candidate-create-title"
+          [hidden]="!creatingCandidate()"
+        >
+          <header class="app-context-editor-header">
+            <div>
+              <strong id="candidate-create-title">Prüfling anlegen</strong>
+              <span class="app-muted app-block">Stammdaten und Prüfungsbedarf erfassen</span>
+            </div>
+            <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
+          </header>
+          <form
+            #candidateCreateForm
+            tuiForm="m"
+            class="app-form-grid"
+            (ngSubmit)="submitCandidate()"
+          >
             <div class="app-field-half">
               <tui-textfield>
                 <label tuiLabel for="candidateFirstName"
@@ -124,24 +160,26 @@
               <span class="app-form-action-hint"
                 >Der Prüfling wird der aktuellen Runde zugeordnet.</span
               >
-              <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
-                <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
-                Prüfling anlegen
-              </button>
+              <div class="app-form-action-buttons">
+                <button
+                  tuiButton
+                  appearance="secondary"
+                  type="button"
+                  [disabled]="actionBusy"
+                  (click)="cancelCandidateCreation()"
+                >
+                  <svg [cIcon]="icons.cancel" class="app-button-icon" aria-hidden="true"></svg>
+                  Abbrechen
+                </button>
+                <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
+                  <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
+                  Prüfling anlegen
+                </button>
+              </div>
             </div>
           </form>
-        </div>
-      </section>
-    </details>
-  </div>
+        </section>
 
-  <div class="app-page-full">
-    <section class="app-panel">
-      <header tuiHeader="body-m" class="app-panel-header">
-        <strong>Prüflingsliste</strong>
-        <span class="app-muted">{{ filteredCandidates().length }} von {{ candidateCount() }}</span>
-      </header>
-      <div class="app-panel-body">
         <div class="app-form-grid app-filter-bar" role="search" aria-label="Prüflingsliste filtern">
           <div class="app-field-two-thirds">
             <tui-textfield>

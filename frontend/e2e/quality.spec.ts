@@ -405,12 +405,84 @@ test.describe('lzug browser workflows', () => {
   test('opens the candidate form with the keyboard', async ({ page }) => {
     await page.goto('/candidates');
 
-    const trigger = page.getByText('Neuen Prüfling anlegen', { exact: true });
+    const trigger = page.locator('button[aria-controls="candidate-create-editor"]');
+    await expect(trigger).toHaveAccessibleName('Neuen Prüfling anlegen');
     await trigger.focus();
     await page.keyboard.press('Enter');
 
     await expect(page.locator('#candidateFirstName')).toBeVisible();
     await expect(trigger).toBeFocused();
+  });
+
+  test('keeps contextual create editors associated, cancellable and accessible', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const editors = [
+      {
+        path: '/candidates',
+        action: 'Neuen Prüfling anlegen',
+        editor: '#candidate-create-editor',
+        input: '#candidateFirstName',
+      },
+      {
+        path: '/committee',
+        action: 'Neuen Ausschuss anlegen',
+        editor: '#committee-create-editor',
+        input: '#committeeName',
+      },
+      {
+        path: '/committee',
+        action: 'Neuen Prüfer anlegen',
+        editor: '#member-create-editor',
+        input: '#memberFirstName',
+      },
+      {
+        path: '/locations',
+        action: 'Neuen Prüfungsort anlegen',
+        editor: '#location-create-editor',
+        input: '#locationName',
+      },
+    ] as const;
+
+    for (const viewport of viewports) {
+      await page.setViewportSize(viewport);
+
+      for (const item of editors) {
+        await test.step(`${viewport.name}: ${item.action}`, async () => {
+          await page.goto(item.path);
+          const trigger = page.locator(`button[aria-controls="${item.editor.slice(1)}"]`);
+          const editor = page.locator(item.editor);
+
+          await expect(trigger).toHaveAccessibleName(item.action);
+          expect(await trigger.evaluate((element) => !!element.closest('.app-panel-header'))).toBe(
+            true,
+          );
+          await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+          await expect(editor).toBeHidden();
+
+          await trigger.click();
+          await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+          await expect(editor).toBeVisible();
+          await page.locator(item.input).fill('Nicht speichern');
+
+          const dimensions = await page.evaluate(() => ({
+            clientWidth: document.documentElement.clientWidth,
+            scrollWidth: document.documentElement.scrollWidth,
+          }));
+          expect(dimensions.scrollWidth).toBe(dimensions.clientWidth);
+
+          const results = await new AxeBuilder({ page }).analyze();
+          expect(results.violations, `${viewport.name} ${item.action}`).toEqual([]);
+
+          await editor.getByRole('button', { name: 'Abbrechen', exact: true }).click();
+          await expect(editor).toBeHidden();
+          await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+          await expect(page.locator(item.input)).toHaveValue('');
+          await expect(trigger).toBeFocused();
+        });
+      }
+    }
   });
 
   test('keeps development-only prototype content out of production navigation', async ({
