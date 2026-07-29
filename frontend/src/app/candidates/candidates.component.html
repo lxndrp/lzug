@@ -107,15 +107,17 @@
               </tui-textfield>
             </div>
             <div class="app-field-third">
-              <label for="candidateSpecialization">Fachrichtung</label>
-              <tui-textfield>
+              <label for="candidateSpecialization"
+                >Fachrichtung <span aria-hidden="true">*</span></label
+              >
+              <tui-textfield [stringify]="specializationStringify" [tuiTextfieldCleaner]="false">
                 <select
                   tuiSelect
                   id="candidateSpecialization"
                   name="candidateSpecialization"
                   [items]="specializationOptions"
-                  [labels]="specializationOptionLabels"
                   [(ngModel)]="draft.specialization"
+                  required
                 ></select>
               </tui-textfield>
             </div>
@@ -182,12 +184,13 @@
 
         <div class="app-form-grid app-filter-bar" role="search" aria-label="Prüflingsliste filtern">
           <div class="app-field-two-thirds">
+            <label for="candidateSearch">Suche</label>
             <tui-textfield>
-              <label tuiLabel for="candidateSearch">Suche</label>
               <input
-                tuiTextfield
+                tuiInput
                 id="candidateSearch"
                 type="search"
+                autocomplete="off"
                 [ngModel]="query()"
                 (ngModelChange)="query.set($event)"
               />
@@ -195,12 +198,12 @@
           </div>
           <div class="app-field-third">
             <label for="candidateFilter">Fachrichtung</label>
-            <tui-textfield>
+            <tui-textfield [stringify]="specializationFilterStringify" [tuiTextfieldCleaner]="true">
               <select
                 tuiSelect
                 id="candidateFilter"
                 [items]="specializationFilterOptions()"
-                [labels]="specializationFilterLabels()"
+                placeholder="Alle Fachrichtungen"
                 [ngModel]="specialization()"
                 (ngModelChange)="specialization.set($event)"
               ></select>
@@ -338,16 +341,19 @@
                           </div>
                           <div class="app-field-third">
                             <label [for]="'editCandidateSpecialization-' + item.candidate.id"
-                              >Fachrichtung</label
+                              >Fachrichtung <span aria-hidden="true">*</span></label
                             >
-                            <tui-textfield>
+                            <tui-textfield
+                              [stringify]="specializationStringify"
+                              [tuiTextfieldCleaner]="false"
+                            >
                               <select
                                 tuiSelect
                                 [id]="'editCandidateSpecialization-' + item.candidate.id"
                                 [name]="'editCandidateSpecialization-' + item.candidate.id"
                                 [items]="specializationOptions"
-                                [labels]="specializationOptionLabels"
                                 [(ngModel)]="currentDraft.specialization"
+                                required
                               ></select>
                             </tui-textfield>
                           </div>
@@ -396,16 +402,19 @@
                           </div>
                           <div class="app-field-half">
                             <label [for]="'editCandidateRound-' + item.candidate.id"
-                              >Zuständiger Ausschuss</label
+                              >Zuständiger Ausschuss <span aria-hidden="true">*</span></label
                             >
-                            <tui-textfield>
+                            <tui-textfield
+                              [stringify]="eligibleRoundStringify"
+                              [tuiTextfieldCleaner]="false"
+                            >
                               <select
                                 tuiSelect
                                 [id]="'editCandidateRound-' + item.candidate.id"
                                 [name]="'editCandidateRound-' + item.candidate.id"
                                 [items]="eligibleRoundIds()"
-                                [labels]="eligibleRoundLabels()"
                                 [(ngModel)]="currentDraft.exam_round_id"
+                                required
                               ></select>
                             </tui-textfield>
                           </div>

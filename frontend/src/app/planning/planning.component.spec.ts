@@ -134,6 +134,32 @@ describe('PlanningComponent', () => {
     expect(element.querySelector('#holidaySubdivisionCode')).toBeTruthy();
   });
 
+  it('should show readable planning labels and only clear optional selections', () => {
+    const component = fixture.componentInstance as unknown as {
+      draft: {
+        exclude_public_holidays: number;
+        holiday_subdivision_code: string | null;
+      };
+    };
+    component.draft.exclude_public_holidays = 1;
+    component.draft.holiday_subdivision_code = 'DE-NW';
+    showStep('period');
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const state = element.querySelector<HTMLSelectElement>('#holidaySubdivisionCode')!;
+    const location = element.querySelector<HTMLSelectElement>('#defaultLocation')!;
+    const updater = element.querySelector<HTMLSelectElement>('#updatedByMember')!;
+
+    expect(optionLabels(state)).toContain('Nordrhein-Westfalen');
+    expect(optionLabels(location)).toContain('Bildungszentrum HafenCity · 3.12');
+    expect(optionLabels(updater)).toContain('Martin Koenig');
+    expect(state.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();
+    expect(location.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeTruthy();
+    expect(updater.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();
+    expect(updater.required).toBe(true);
+  });
+
   it('should keep Taiga date values at the UI boundary while preserving API formats', () => {
     const component = fixture.componentInstance as unknown as {
       candidateDayValue: () => {
@@ -519,5 +545,9 @@ describe('PlanningComponent', () => {
       }
     ).selectStep(step);
     fixture.detectChanges();
+  }
+
+  function optionLabels(select: HTMLSelectElement): string[] {
+    return Array.from(select.options).map((option) => option.textContent?.trim() ?? '');
   }
 });

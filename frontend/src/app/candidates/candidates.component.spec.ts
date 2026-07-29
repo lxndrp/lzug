@@ -49,6 +49,31 @@ describe('CandidatesComponent', () => {
     expect(text).not.toContain('Hoffmann, Lea');
   });
 
+  it('should show readable specialization labels and filter by the selected value', () => {
+    const element = fixture.nativeElement as HTMLElement;
+    const search = element.querySelector<HTMLInputElement>('#candidateSearch')!;
+    const filter = element.querySelector<HTMLSelectElement>('#candidateFilter')!;
+
+    expect(search.hasAttribute('tuiInput')).toBe(true);
+    expect(selectedOptionLabel(filter)).toBe('Alle Fachrichtungen');
+    expect(optionLabels(filter)).toContain('Systemintegration');
+    expect(filter.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeTruthy();
+    expect(
+      element
+        .querySelector('#candidateSpecialization')
+        ?.closest('tui-textfield')
+        ?.querySelector('[tuiButtonX]'),
+    ).toBeNull();
+
+    selectOption(filter, 'Systemintegration');
+
+    const rows = Array.from(element.querySelectorAll<HTMLTableRowElement>('tbody > tr')).map(
+      (row) => row.textContent ?? '',
+    );
+    expect(rows.some((row) => row.includes('Weber, Jonas'))).toBe(true);
+    expect(rows.some((row) => row.includes('Hoffmann, Lea'))).toBe(false);
+  });
+
   it('should provide consistent filter and form action regions', () => {
     const element = fixture.nativeElement as HTMLElement;
 
@@ -187,6 +212,22 @@ describe('CandidatesComponent', () => {
 
   function inputValue(selector: string): string {
     return (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(selector)!.value;
+  }
+
+  function optionLabels(select: HTMLSelectElement): string[] {
+    return Array.from(select.options).map((option) => option.textContent?.trim() ?? '');
+  }
+
+  function selectedOptionLabel(select: HTMLSelectElement): string {
+    return optionLabels(select)[select.selectedIndex] ?? '';
+  }
+
+  function selectOption(select: HTMLSelectElement, label: string): void {
+    const index = optionLabels(select).indexOf(label);
+    expect(index).toBeGreaterThanOrEqual(0);
+    select.selectedIndex = index;
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
   }
 
   function clickButton(label: string): void {

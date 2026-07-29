@@ -17,6 +17,7 @@ import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 import { Committee, CommitteeMember, MasterData } from '../api/api.models';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
+import { type SelectOption, selectLabel, selectStringify, selectValues } from '../select-options';
 
 export type CommitteePayload = Pick<Committee, 'name' | 'occupation'>;
 export type CommitteeMemberPayload = Pick<
@@ -43,12 +44,30 @@ export type CommitteeMemberPayload = Pick<
   templateUrl: './committee.component.html',
 })
 export class CommitteeComponent {
-  protected readonly memberStatusOptions = ['ordinary', 'deputy'];
-  protected readonly memberStatusOptionLabels = ['Ordentlich', 'Stellvertretend'];
-  protected readonly committeeRoleOptions = ['member', 'chair', 'deputy_chair'];
-  protected readonly committeeRoleOptionLabels = ['Mitglied', 'Vorsitz', 'Stellv. Vorsitz'];
-  protected readonly memberSideOptions = ['employer', 'employee', 'school'];
-  protected readonly memberSideOptionLabels = ['Arbeitgeber', 'Arbeitnehmer', 'Schule'];
+  protected readonly memberStatusSelectOptions: readonly SelectOption<string>[] = [
+    { value: 'ordinary', label: 'Ordentlich' },
+    { value: 'deputy', label: 'Stellvertretend' },
+  ];
+  protected readonly memberStatusOptions = selectValues(this.memberStatusSelectOptions);
+  protected readonly memberStatusStringify = selectStringify(() => this.memberStatusSelectOptions);
+  protected readonly committeeRoleSelectOptions: readonly SelectOption<string>[] = [
+    { value: 'member', label: 'Mitglied' },
+    { value: 'chair', label: 'Vorsitz' },
+    { value: 'deputy_chair', label: 'Stellv. Vorsitz' },
+  ];
+  protected readonly committeeRoleOptions = selectValues(this.committeeRoleSelectOptions);
+  protected readonly committeeRoleStringify = selectStringify(
+    () => this.committeeRoleSelectOptions,
+  );
+  protected readonly memberSideSelectOptions: readonly SelectOption<string>[] = [
+    { value: 'employer', label: 'Arbeitgeber' },
+    { value: 'employee', label: 'Arbeitnehmer' },
+    { value: 'school', label: 'Schule' },
+  ];
+  protected readonly memberSideOptions = selectValues(this.memberSideSelectOptions);
+  protected readonly memberSideStringify = selectStringify(() => this.memberSideSelectOptions);
+  protected readonly committeeStringify = selectStringify(() => this.committeeSelectOptions());
+  protected readonly personStringify = selectStringify(() => this.personSelectOptions());
 
   protected readonly icons = appIcons;
   @ViewChild('committeeCreateButton')
@@ -143,22 +162,12 @@ export class CommitteeComponent {
     return this.selectedCommittee()?.id === committee.id;
   }
 
-  protected committeeOptions(): number[] {
-    return (this.masterDataView()?.committees ?? []).map((committee) => committee.id);
+  protected committeeOptions(): readonly number[] {
+    return selectValues(this.committeeSelectOptions());
   }
 
-  protected committeeOptionLabels(): string[] {
-    return (this.masterDataView()?.committees ?? []).map((committee) => committee.name);
-  }
-
-  protected personOptions(): number[] {
-    return (this.masterDataView()?.persons ?? []).map((person) => person.id);
-  }
-
-  protected personOptionLabels(): string[] {
-    return (this.masterDataView()?.persons ?? []).map(
-      (person) => `${person.first_name} ${person.last_name} · ${person.email}`,
-    );
+  protected personOptions(): readonly number[] {
+    return selectValues(this.personSelectOptions());
   }
 
   protected selectPerson(personId: number | null): void {
@@ -257,29 +266,33 @@ export class CommitteeComponent {
   }
 
   protected roleLabel(value: string): string {
-    const labels: Record<string, string> = {
-      chair: 'Vorsitz',
-      deputy_chair: 'Stellv. Vorsitz',
-      member: 'Mitglied',
-    };
-    return labels[value] ?? value;
+    return selectLabel(this.committeeRoleSelectOptions, value, value);
   }
 
   protected memberSide(member: CommitteeMember): string {
-    const labels: Record<string, string> = {
-      employer: 'Arbeitgeber',
-      employee: 'Arbeitnehmer',
-      school: 'Schule',
-    };
-    return labels[member.representing_side] ?? member.representing_side;
+    return selectLabel(
+      this.memberSideSelectOptions,
+      member.representing_side,
+      member.representing_side,
+    );
   }
 
   protected memberStatusLabel(value: string): string {
-    const labels: Record<string, string> = {
-      ordinary: 'Ordentlich',
-      deputy: 'Stellvertretend',
-    };
-    return labels[value] ?? value;
+    return selectLabel(this.memberStatusSelectOptions, value, value);
+  }
+
+  private committeeSelectOptions(): readonly SelectOption<number>[] {
+    return (this.masterDataView()?.committees ?? []).map((committee) => ({
+      value: committee.id,
+      label: committee.name,
+    }));
+  }
+
+  private personSelectOptions(): readonly SelectOption<number>[] {
+    return (this.masterDataView()?.persons ?? []).map((person) => ({
+      value: person.id,
+      label: `${person.first_name} ${person.last_name} · ${person.email}`,
+    }));
   }
 
   private focusButton(button?: ElementRef<HTMLButtonElement>): void {

@@ -194,13 +194,12 @@
           <form #memberCreateForm tuiForm="m" class="app-form-grid" (submit)="saveMember($event)">
             <div class="app-field-full">
               <label for="memberCommittee">Ausschuss <span aria-hidden="true">*</span></label>
-              <tui-textfield>
+              <tui-textfield [stringify]="committeeStringify" [tuiTextfieldCleaner]="false">
                 <select
                   tuiSelect
                   id="memberCommittee"
                   name="committee_id"
                   [items]="committeeOptions()"
-                  [labels]="committeeOptionLabels()"
                   [ngModel]="selectedCommitteeId()"
                   (ngModelChange)="selectCommittee($event)"
                   required
@@ -209,12 +208,12 @@
             </div>
             <div class="app-field-full">
               <label for="existingPerson">Person zuordnen</label>
-              <tui-textfield>
+              <tui-textfield [stringify]="personStringify" [tuiTextfieldCleaner]="true">
                 <select
                   tuiSelect
                   id="existingPerson"
                   [items]="personOptions()"
-                  [labels]="personOptionLabels()"
+                  placeholder="Neue Person erfassen"
                   [ngModel]="selectedPersonId()"
                   (ngModelChange)="selectPerson($event)"
                   name="person_id"
@@ -278,41 +277,41 @@
               </tui-textfield>
             </div>
             <div class="app-field-third">
-              <label for="memberStatus">Mitgliedsstatus</label>
-              <tui-textfield>
+              <label for="memberStatus">Mitgliedsstatus <span aria-hidden="true">*</span></label>
+              <tui-textfield [stringify]="memberStatusStringify" [tuiTextfieldCleaner]="false">
                 <select
                   tuiSelect
                   id="memberStatus"
                   name="member_status"
                   [items]="memberStatusOptions"
-                  [labels]="memberStatusOptionLabels"
                   [(ngModel)]="memberDraft.member_status"
+                  required
                 ></select>
               </tui-textfield>
             </div>
             <div class="app-field-third">
-              <label for="memberRole">Funktion</label>
-              <tui-textfield>
+              <label for="memberRole">Funktion <span aria-hidden="true">*</span></label>
+              <tui-textfield [stringify]="committeeRoleStringify" [tuiTextfieldCleaner]="false">
                 <select
                   tuiSelect
                   id="memberRole"
                   name="committee_role"
                   [items]="committeeRoleOptions"
-                  [labels]="committeeRoleOptionLabels"
                   [(ngModel)]="memberDraft.committee_role"
+                  required
                 ></select>
               </tui-textfield>
             </div>
             <div class="app-field-third">
-              <label for="memberSide">Vertreterseite</label>
-              <tui-textfield>
+              <label for="memberSide">Vertreterseite <span aria-hidden="true">*</span></label>
+              <tui-textfield [stringify]="memberSideStringify" [tuiTextfieldCleaner]="false">
                 <select
                   tuiSelect
                   id="memberSide"
                   name="representing_side"
                   [items]="memberSideOptions"
-                  [labels]="memberSideOptionLabels"
                   [(ngModel)]="memberDraft.representing_side"
+                  required
                 ></select>
               </tui-textfield>
             </div>

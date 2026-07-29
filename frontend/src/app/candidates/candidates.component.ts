@@ -22,6 +22,7 @@ import {
 } from '../api/api.models';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
+import { type SelectOption, selectLabel, selectStringify, selectValues } from '../select-options';
 
 export type CandidatePayload = Omit<Candidate, 'id'> & {
   attempt_number: number;
@@ -71,7 +72,7 @@ export class CandidatesComponent {
   protected readonly creatingCandidate = signal(false);
 
   protected readonly query = signal('');
-  protected readonly specialization = signal('');
+  protected readonly specialization = signal<string | null>(null);
   protected readonly draft: CandidatePayload = {
     first_name: '',
     last_name: '',
@@ -82,19 +83,22 @@ export class CandidatesComponent {
     requires_mep: 0,
   };
 
-  protected readonly specializationOptions = [
-    'application_development',
-    'system_integration',
-    'data_and_process_analysis',
-    'digital_networking',
+  protected readonly specializationSelectOptions: readonly SelectOption<string>[] = [
+    { value: 'application_development', label: 'Anwendungsentwicklung' },
+    { value: 'system_integration', label: 'Systemintegration' },
+    { value: 'data_and_process_analysis', label: 'Daten- und Prozessanalyse' },
+    { value: 'digital_networking', label: 'Digitale Vernetzung' },
   ];
-
-  protected readonly specializationOptionLabels = [
-    'Anwendungsentwicklung',
-    'Systemintegration',
-    'Daten- und Prozessanalyse',
-    'Digitale Vernetzung',
-  ];
+  protected readonly specializationOptions = selectValues(this.specializationSelectOptions);
+  protected readonly specializationStringify = selectStringify(
+    () => this.specializationSelectOptions,
+  );
+  protected readonly specializationFilterStringify = selectStringify(() =>
+    this.specializationFilterSelectOptions(),
+  );
+  protected readonly eligibleRoundStringify = selectStringify(() =>
+    this.eligibleRoundSelectOptions(),
+  );
 
   protected candidateCount(): number {
     return this.masterData?.candidates.length ?? 0;
@@ -120,15 +124,8 @@ export class CandidatesComponent {
     ].sort((a, b) => this.specializationLabel(a).localeCompare(this.specializationLabel(b)));
   }
 
-  protected specializationFilterOptions(): string[] {
-    return ['', ...this.specializations()];
-  }
-
-  protected specializationFilterLabels(): string[] {
-    return [
-      'Alle Fachrichtungen',
-      ...this.specializations().map((value) => this.specializationLabel(value)),
-    ];
+  protected specializationFilterOptions(): readonly string[] {
+    return selectValues(this.specializationFilterSelectOptions());
   }
 
   protected filteredCandidates(): CandidateView[] {
@@ -152,13 +149,7 @@ export class CandidatesComponent {
   }
 
   protected specializationLabel(value: string): string {
-    const labels: Record<string, string> = {
-      application_development: 'Anwendungsentwicklung',
-      system_integration: 'Systemintegration',
-      data_and_process_analysis: 'Daten- und Prozessanalyse',
-      digital_networking: 'Digitale Vernetzung',
-    };
-    return labels[value] ?? value;
+    return selectLabel(this.specializationSelectOptions, value, value);
   }
 
   protected submitCandidate(): void {
@@ -275,12 +266,8 @@ export class CandidatesComponent {
     );
   }
 
-  protected eligibleRoundLabels(): string[] {
-    return this.eligibleRounds().map((round) => this.roundLabel(round));
-  }
-
-  protected eligibleRoundIds(): number[] {
-    return this.eligibleRounds().map((round) => round.id);
+  protected eligibleRoundIds(): readonly number[] {
+    return selectValues(this.eligibleRoundSelectOptions());
   }
 
   protected assignmentHistory(candidateId: number): CandidateCommitteeAssignment[] {
@@ -314,6 +301,20 @@ export class CandidatesComponent {
   private roundLabel(round: ExamRound): string {
     const committee = this.masterData?.committees.find((item) => item.id === round.committee_id);
     return committee ? `${committee.name} · ${round.name}` : round.name;
+  }
+
+  private specializationFilterSelectOptions(): readonly SelectOption<string>[] {
+    return this.specializations().map((value) => ({
+      value,
+      label: this.specializationLabel(value),
+    }));
+  }
+
+  private eligibleRoundSelectOptions(): readonly SelectOption<number>[] {
+    return this.eligibleRounds().map((round) => ({
+      value: round.id,
+      label: this.roundLabel(round),
+    }));
   }
 
   private focusCreateButton(): void {

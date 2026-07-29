@@ -27,12 +27,14 @@ describe('CommitteeComponent', () => {
   });
 
   it('should select the first committee and show its members', () => {
-    const text = textContent();
+    const element = fixture.nativeElement as HTMLElement;
+    const bodies = element.querySelectorAll('tbody');
+    const members = bodies.item(bodies.length - 1).textContent ?? '';
 
-    expect(text).toContain('PA Fachinformatiker Hamburg 1');
-    expect(text).toContain('Martin Koenig');
-    expect(text).toContain('Anne Berg');
-    expect(text).not.toContain('Tobias Rehm');
+    expect(element.textContent).toContain('PA Fachinformatiker Hamburg 1');
+    expect(members).toContain('Martin Koenig');
+    expect(members).toContain('Anne Berg');
+    expect(members).not.toContain('Tobias Rehm');
   });
 
   it('should emit selected committee changes', () => {
@@ -99,6 +101,25 @@ describe('CommitteeComponent', () => {
     expect(element.querySelector('.app-row-actions')?.textContent).toContain('Deaktivieren');
   });
 
+  it('should show readable member selections and only clear the optional person', () => {
+    const element = fixture.nativeElement as HTMLElement;
+    const committee = element.querySelector<HTMLSelectElement>('#memberCommittee')!;
+    const person = element.querySelector<HTMLSelectElement>('#existingPerson')!;
+    const status = element.querySelector<HTMLSelectElement>('#memberStatus')!;
+    const role = element.querySelector<HTMLSelectElement>('#memberRole')!;
+    const side = element.querySelector<HTMLSelectElement>('#memberSide')!;
+
+    expect(optionLabels(committee)).toContain('PA Fachinformatiker Hamburg 1');
+    expect(optionLabels(person)).toContain('Neue Person erfassen');
+    expect(optionLabels(person)).toContain('Martin Koenig · martin.koenig@example.de');
+    expect(optionLabels(status)).toContain('Ordentlich');
+    expect(optionLabels(role)).toContain('Mitglied');
+    expect(optionLabels(side)).toContain('Arbeitgeber');
+    expect(committee.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();
+    expect(person.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeTruthy();
+    expect(status.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();
+  });
+
   it('should keep both create actions in their section headers and cancel safely', () => {
     const committeeTrigger = buttonWithLabel('Neuen Ausschuss anlegen');
     const memberTrigger = buttonWithLabel('Neuen Prüfer anlegen');
@@ -142,8 +163,8 @@ describe('CommitteeComponent', () => {
     expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 
-  function textContent(): string {
-    return (fixture.nativeElement as HTMLElement).textContent ?? '';
+  function optionLabels(select: HTMLSelectElement): string[] {
+    return Array.from(select.options).map((option) => option.textContent?.trim() ?? '');
   }
 
   function setInput(selector: string, value: string): void {
