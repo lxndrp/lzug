@@ -26,7 +26,7 @@
       </div>
 
       <nav class="app-navigation" aria-label="Hauptnavigation">
-        <p class="app-nav-title">Prüfungsverwaltung</p>
+        <p class="app-nav-title">Prüfungskontext</p>
         <a
           class="app-nav-link"
           href="/exam-half-years"
@@ -34,8 +34,17 @@
           (click)="navigateFromShell('exam-half-years', $event)"
         >
           <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
-          Prüfungshalbjahre
+          Prüfungskontext auswählen
         </a>
+        @if (activeContext(); as context) {
+          <div class="app-nav-context" aria-label="Aktiver Kontext in der Navigation">
+            <strong>Aktiver Kontext</strong>
+            <span>{{ context.halfYear }}</span>
+            <span>{{ context.committee }}</span>
+          </div>
+        }
+
+        <p class="app-nav-title">Aktueller Prüfungskontext</p>
         <a
           class="app-nav-link"
           href="/dashboard"
@@ -72,6 +81,20 @@
           <svg [cIcon]="icons.candidates" class="app-nav-icon" aria-hidden="true"></svg>
           Prüflinge
         </a>
+        @if (canContinueScheduling()) {
+          <p class="app-nav-title">Aktueller Arbeitsablauf</p>
+          <a
+            class="app-nav-link"
+            href="/planning"
+            [class.is-active]="activeView() === 'planning'"
+            (click)="navigateFromShell('planning', $event)"
+          >
+            <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
+            Terminorganisation fortsetzen
+          </a>
+        }
+
+        <p class="app-nav-title">Globale Bereiche</p>
         <a
           class="app-nav-link"
           href="/committee"
@@ -79,16 +102,7 @@
           (click)="navigateFromShell('committee', $event)"
         >
           <svg [cIcon]="icons.committee" class="app-nav-icon" aria-hidden="true"></svg>
-          Ausschuss
-        </a>
-        <a
-          class="app-nav-link"
-          href="/planning"
-          [class.is-active]="activeView() === 'planning'"
-          (click)="navigateFromShell('planning', $event)"
-        >
-          <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
-          Terminplanung
+          Prüfungsausschüsse
         </a>
         <a
           class="app-nav-link"
@@ -159,9 +173,67 @@
       <main class="app-content">
         <div class="app-content-inner">
           <header class="app-page-header">
-            <p class="app-muted">{{ crumb() }}</p>
+            <nav class="app-breadcrumb app-muted" aria-label="Breadcrumb">
+              <a href="/dashboard" (click)="navigateFromShell('dashboard', $event)"
+                >Prüfungsverwaltung</a
+              >
+              <span aria-hidden="true">/</span>
+              <span>{{ breadcrumb() }}</span>
+            </nav>
             <h1>{{ pageTitle() }}</h1>
           </header>
+
+          @if (isContextualView()) {
+            @if (activeContext(); as context) {
+              <section class="app-active-context" aria-labelledby="activeContextHeading">
+                <div>
+                  <p class="app-eyebrow" id="activeContextHeading">Aktueller Prüfungskontext</p>
+                  <dl>
+                    <div>
+                      <dt>Prüfungshalbjahr</dt>
+                      <dd>{{ context.halfYear }}</dd>
+                    </div>
+                    <div>
+                      <dt>Prüfungsrunde</dt>
+                      <dd>{{ context.round }}</dd>
+                    </div>
+                    <div>
+                      <dt>Ausschuss</dt>
+                      <dd>{{ context.committee }}</dd>
+                    </div>
+                    <div>
+                      <dt>Bearbeitungsstand</dt>
+                      <dd>{{ context.status }}</dd>
+                    </div>
+                  </dl>
+                </div>
+                <a
+                  tuiButton
+                  appearance="secondary"
+                  href="/exam-half-years"
+                  (click)="navigateFromShell('exam-half-years', $event)"
+                  >Prüfungskontext wechseln</a
+                >
+              </section>
+            } @else {
+              <section class="app-active-context app-active-context-empty" role="status">
+                <div>
+                  <p class="app-eyebrow">Prüfungskontext erforderlich</p>
+                  <p>
+                    Wählen Sie ein Prüfungshalbjahr und einen Ausschuss aus, um rundenspezifisch zu
+                    arbeiten.
+                  </p>
+                </div>
+                <a
+                  tuiButton
+                  appearance="primary"
+                  href="/exam-half-years"
+                  (click)="navigateFromShell('exam-half-years', $event)"
+                  >Prüfungskontext auswählen</a
+                >
+              </section>
+            }
+          }
 
           @switch (activeView()) {
             @case ('dashboard') {

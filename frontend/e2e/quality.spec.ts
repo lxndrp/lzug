@@ -7,8 +7,8 @@ const productiveViews = [
   { name: 'Terminorganisationen', path: '/scheduling-overview' },
   { name: 'Prüfungspläne', path: '/confirmed-plans' },
   { name: 'Prüflinge', path: '/candidates' },
-  { name: 'Ausschuss', path: '/committee' },
-  { name: 'Terminplanung', path: '/planning' },
+  { name: 'Prüfungsausschüsse', path: '/committee' },
+  { name: 'Terminorganisation', path: '/planning' },
   { name: 'Prüfungsorte', path: '/locations' },
 ] as const;
 
@@ -45,7 +45,7 @@ test.describe('lzug browser workflows', () => {
   test('generates and confirms a planning proposal', async ({ page }) => {
     await page.goto('/');
 
-    await expect(page.getByRole('heading', { name: 'Winter 2026/27' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Übersicht' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Planung erzeugen' }).click();
     await expect(page.getByText('Validierungsreport')).toBeVisible();
@@ -104,7 +104,7 @@ test.describe('lzug browser workflows', () => {
     await expect(page.getByText('Offen', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('In Abstimmung', { exact: true })).toBeVisible();
     await expect(page.getByText('Bestätigt', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('Plan bestätigt')).toBeVisible();
+    await expect(page.locator('app-scheduling-overview').getByText('Plan bestätigt')).toBeVisible();
     await page.getByRole('button', { name: 'Fortsetzen' }).first().click();
     await expect(page).toHaveURL('/planning');
     await expect(
@@ -136,22 +136,38 @@ test.describe('lzug browser workflows', () => {
 
   test('navigates through the application views', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Winter 2026/27' })).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'Übersicht' })).toBeVisible({
       timeout: 30_000,
     });
     await expect(page.locator('.app-progress')).toHaveCount(0);
+    await expect(page.getByLabel('Aktueller Prüfungskontext')).toBeVisible();
 
     for (const [view, path] of [
       ['Prüflinge', '/candidates'],
       ['Terminorganisationen', '/scheduling-overview'],
       ['Prüfungspläne', '/confirmed-plans'],
-      ['Ausschuss', '/committee'],
-      ['Terminplanung', '/planning'],
+      ['Prüfungsausschüsse', '/committee'],
       ['Prüfungsorte', '/locations'],
     ] as const) {
       await page.getByRole('link', { name: view, exact: true }).click();
       await expect(page).toHaveURL(path);
       await expect(page.getByRole('heading', { name: view })).toBeVisible();
+    }
+
+    await expect(page.getByRole('link', { name: 'Terminplanung', exact: true })).toHaveCount(0);
+    await expect(
+      page.getByRole('link', { name: 'Terminorganisation fortsetzen', exact: true }),
+    ).toHaveCount(0);
+  });
+
+  test('keeps the active exam context visible in contextual views', async ({ page }) => {
+    for (const path of ['/candidates', '/scheduling-overview', '/confirmed-plans', '/planning']) {
+      await page.goto(path);
+      const context = page.getByLabel('Aktueller Prüfungskontext');
+      await expect(context).toBeVisible();
+      await expect(context).toContainText('Winter 2026');
+      await expect(context).toContainText('Winter 2026/27');
+      await expect(context).toContainText('PA Fachinformatiker Hamburg 1');
     }
   });
 
@@ -210,6 +226,7 @@ test.describe('lzug browser workflows', () => {
   });
 
   async function advanceToRoundMetadata(page: Page): Promise<void> {
+    await expect(page.locator('#weekFrom')).toHaveValue('2026-W47');
     const wizardActions = page.locator('.app-wizard-actions');
     await wizardActions.getByRole('button', { name: 'Weiter', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Rahmenbedingungen' })).toHaveAttribute(
@@ -246,7 +263,7 @@ test.describe('lzug browser workflows', () => {
     await page.getByRole('button', { name: 'Prüfungsrunde anlegen' }).click();
     expect((await roundResponse).status()).toBe(201);
     await expect(page).toHaveURL('/dashboard');
-    await expect(page.getByRole('heading', { name: /Sommer 2027/ })).toBeVisible();
+    await expect(page.getByLabel('Aktueller Prüfungskontext')).toContainText('Sommer 2027');
   });
 
   test('generates possible exam days while excluding state holidays', async ({ page }) => {

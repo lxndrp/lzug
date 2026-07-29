@@ -340,6 +340,7 @@ export type PlanningBoard = {
 
 export type MasterData = {
   committees: Committee[];
+  examHalfYears: ExamHalfYear[];
   persons: Person[];
   members: CommitteeMember[];
   candidates: CandidateView[];
