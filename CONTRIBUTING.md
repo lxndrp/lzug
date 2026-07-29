@@ -1,8 +1,14 @@
 # Zu lzug beitragen
 
 Danke für Beiträge zu `lzug`. Dieses Dokument beschreibt die lokale
-Entwicklung; fachliche Prioritäten und Akzeptanzkriterien bleiben in GitHub
-Issues und im Project [lzug Roadmap](https://github.com/users/lxndrp/projects/2).
+Entwicklung; fachliche Prioritäten und Akzeptanzkriterien bleiben in den
+[GitHub Issues](https://github.com/lxndrp/lzug/issues). Die Maintainer pflegen
+die operative Reihenfolge zusätzlich im GitHub Project `lzug Roadmap`.
+
+`lzug` ist ein ausdrücklich nicht produktionsreifer Quellcode-Prototyp mit
+synthetischen Demo- und Testdaten. Das Projekt ist nicht offiziell mit der IHK
+verbunden. Beiträge dürfen daher keine Produktionsreife, IHK-Zugehörigkeit oder
+produktive Betriebszusage voraussetzen.
 
 ## Voraussetzungen und Einrichtung
 
