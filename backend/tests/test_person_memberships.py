@@ -29,13 +29,13 @@ class PersonMembershipTests(unittest.TestCase):
             person = ResourceRepository(db_path).create(
                 PERSON,
                 {
-                    "first_name": "Ada",
-                    "last_name": "Lovelace",
-                    "email": " Ada@Example.DE ",
+                    "first_name": "Testperson",
+                    "last_name": "Normalisierung",
+                    "email": " Testperson.Normalisierung@Example.Invalid ",
                     "mobile": None,
                 },
             )
-        self.assertEqual("ada@example.de", person["email"])
+        self.assertEqual("testperson.normalisierung@example.invalid", person["email"])
 
     def test_manual_assignment_rejects_person_in_other_committee(self) -> None:
         with TempDatabase() as db_path:

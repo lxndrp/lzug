@@ -60,7 +60,7 @@ Felder:
 | Feld | Typ | Pflicht | Beschreibung |
 | --- | --- | --- | --- |
 | `id` | UUID/Integer | ja | Eindeutige ID |
-| `name` | Text | ja | Anzeigename, z. B. „PA Fachinformatiker Hamburg 1“ |
+| `name` | Text | ja | Anzeigename, z. B. „Prüfungsausschuss Teststadt 1“ |
 | `occupation` | Text | ja | Beruf, zunächst „Fachinformatiker/in“ |
 | `created_at` | Zeitstempel | ja | Anlagezeitpunkt |
 | `updated_at` | Zeitstempel | ja | Letzte Änderung |

@@ -67,7 +67,7 @@ describe('App', () => {
     expect(compiled.textContent).toContain('Planung erzeugen');
     expect(compiled.textContent).toContain('Aktueller Prüfungskontext');
     expect(compiled.textContent).toContain('Winter 2026');
-    expect(compiled.textContent).toContain('PA Fachinformatiker Hamburg 1');
+    expect(compiled.textContent).toContain('Prüfungsausschuss Teststadt 1');
   });
 
   it('should expose the sidebar visibility through accessible toggle state', () => {
@@ -134,7 +134,7 @@ describe('App', () => {
 
     expect(TestBed.inject(RoundContextService).roundId()).toBe(2);
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
-      'PA Fachinformatiker Hamburg 2',
+      'Prüfungsausschuss Teststadt 2',
     );
   });
 

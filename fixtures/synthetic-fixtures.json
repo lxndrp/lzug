@@ -1,0 +1,321 @@
+{
+  "version": 1,
+  "conventions": {
+    "city": "Teststadt",
+    "postal_code": "00000",
+    "email_domain": "example.invalid",
+    "phone_prefix": "+49 000",
+    "person_first_name": "Testperson",
+    "candidate_first_name": "Prüfling",
+    "exam_number_prefix": "TEST"
+  },
+  "committees": [
+    {
+      "id": 1,
+      "name": "Prüfungsausschuss Teststadt 1",
+      "occupation": "Fachinformatiker/in",
+      "adapters": ["seed", "frontend", "prototype"]
+    },
+    {
+      "id": 2,
+      "name": "Prüfungsausschuss Teststadt 2",
+      "occupation": "Fachinformatiker/in",
+      "adapters": ["frontend"]
+    }
+  ],
+  "members": [
+    {
+      "id": 1,
+      "person_id": 1,
+      "committee_id": 1,
+      "first_name": "Testperson",
+      "last_name": "Alpha",
+      "email": "testperson.alpha@example.invalid",
+      "mobile": "+49 000 0000001",
+      "member_status": "ordinary",
+      "committee_role": "chair",
+      "representing_side": "employer",
+      "is_active": 1,
+      "response": true,
+      "adapters": ["seed", "frontend", "prototype"]
+    },
+    {
+      "id": 2,
+      "person_id": 2,
+      "committee_id": 1,
+      "first_name": "Testperson",
+      "last_name": "Beta",
+      "email": "testperson.beta@example.invalid",
+      "mobile": "+49 000 0000002",
+      "member_status": "ordinary",
+      "committee_role": "deputy_chair",
+      "representing_side": "school",
+      "is_active": 1,
+      "response": true,
+      "adapters": ["seed", "frontend", "prototype"]
+    },
+    {
+      "id": 3,
+      "person_id": 3,
+      "committee_id": 1,
+      "first_name": "Testperson",
+      "last_name": "Gamma",
+      "email": "testperson.gamma@example.invalid",
+      "mobile": "+49 000 0000003",
+      "member_status": "ordinary",
+      "committee_role": "member",
+      "representing_side": "employee",
+      "is_active": 1,
+      "response": true,
+      "adapters": ["seed", "prototype"]
+    },
+    {
+      "id": 4,
+      "person_id": 4,
+      "committee_id": 1,
+      "first_name": "Testperson",
+      "last_name": "Delta",
+      "email": "testperson.delta@example.invalid",
+      "mobile": "+49 000 0000004",
+      "member_status": "ordinary",
+      "committee_role": "member",
+      "representing_side": "employer",
+      "is_active": 1,
+      "response": true,
+      "adapters": ["seed", "prototype"]
+    },
+    {
+      "id": 5,
+      "person_id": 5,
+      "committee_id": 1,
+      "first_name": "Testperson",
+      "last_name": "Epsilon",
+      "email": "testperson.epsilon@example.invalid",
+      "mobile": "+49 000 0000005",
+      "member_status": "deputy",
+      "committee_role": "member",
+      "representing_side": "school",
+      "is_active": 1,
+      "response": false,
+      "adapters": ["seed", "prototype"]
+    },
+    {
+      "id": 6,
+      "person_id": 6,
+      "committee_id": 1,
+      "first_name": "Testperson",
+      "last_name": "Zeta",
+      "email": "testperson.zeta@example.invalid",
+      "mobile": "+49 000 0000006",
+      "member_status": "deputy",
+      "committee_role": "member",
+      "representing_side": "employee",
+      "is_active": 1,
+      "response": true,
+      "adapters": ["seed", "prototype"]
+    },
+    {
+      "id": 7,
+      "person_id": 7,
+      "committee_id": 1,
+      "first_name": "Testperson",
+      "last_name": "Eta",
+      "email": "testperson.eta@example.invalid",
+      "mobile": "+49 000 0000007",
+      "member_status": "deputy",
+      "committee_role": "member",
+      "representing_side": "employer",
+      "is_active": 1,
+      "response": false,
+      "adapters": ["seed", "prototype"]
+    },
+    {
+      "id": 8,
+      "person_id": 8,
+      "committee_id": 1,
+      "first_name": "Testperson",
+      "last_name": "Theta",
+      "email": "testperson.theta@example.invalid",
+      "mobile": "+49 000 0000008",
+      "member_status": "deputy",
+      "committee_role": "member",
+      "representing_side": "school",
+      "is_active": 1,
+      "response": true,
+      "adapters": ["seed", "prototype"]
+    },
+    {
+      "id": 9,
+      "person_id": 9,
+      "committee_id": 2,
+      "first_name": "Testperson",
+      "last_name": "Iota",
+      "email": "testperson.iota@example.invalid",
+      "mobile": null,
+      "member_status": "deputy",
+      "committee_role": "member",
+      "representing_side": "employee",
+      "is_active": 1,
+      "response": true,
+      "adapters": ["frontend"]
+    }
+  ],
+  "locations": [
+    {
+      "id": 1,
+      "committee_id": 1,
+      "name": "Prüfungszentrum Alpha (Test)",
+      "street": "Testweg 1",
+      "postal_code": "00000",
+      "city": "Teststadt",
+      "room": "Testraum A-01",
+      "is_active": 1,
+      "adapters": ["seed", "frontend", "prototype"]
+    },
+    {
+      "id": 2,
+      "committee_id": 1,
+      "name": "Prüfungszentrum Beta (Test)",
+      "street": "Testweg 2",
+      "postal_code": "00000",
+      "city": "Teststadt",
+      "room": "Testraum B-02",
+      "is_active": 1,
+      "adapters": ["seed", "prototype"]
+    }
+  ],
+  "candidates": [
+    {
+      "id": 1,
+      "first_name": "Prüfling",
+      "last_name": "Alpha",
+      "ihk_exam_number": "TEST-2026-0001",
+      "specialization": "application_development",
+      "training_company": "Testbetrieb Alpha",
+      "attempt_number": 1,
+      "requires_mep": false,
+      "adapters": ["seed", "frontend", "prototype"]
+    },
+    {
+      "id": 2,
+      "first_name": "Prüfling",
+      "last_name": "Beta",
+      "ihk_exam_number": "TEST-2026-0002",
+      "specialization": "system_integration",
+      "training_company": "Testbetrieb Beta",
+      "attempt_number": 2,
+      "requires_mep": true,
+      "adapters": ["seed", "frontend", "prototype"]
+    },
+    {
+      "id": 3,
+      "first_name": "Prüfling",
+      "last_name": "Gamma",
+      "ihk_exam_number": "TEST-2026-0003",
+      "specialization": "data_and_process_analysis",
+      "training_company": "Testbetrieb Gamma",
+      "attempt_number": 1,
+      "requires_mep": false,
+      "adapters": ["seed", "prototype"]
+    },
+    {
+      "id": 4,
+      "first_name": "Prüfling",
+      "last_name": "Delta",
+      "ihk_exam_number": "TEST-2026-0004",
+      "specialization": "digital_networking",
+      "training_company": "Testbetrieb Delta",
+      "attempt_number": 3,
+      "requires_mep": false,
+      "adapters": ["seed", "prototype"]
+    },
+    {
+      "id": 5,
+      "first_name": "Prüfling",
+      "last_name": "Epsilon",
+      "ihk_exam_number": "TEST-2026-0005",
+      "specialization": "application_development",
+      "training_company": "Testbetrieb Epsilon",
+      "attempt_number": 2,
+      "requires_mep": false,
+      "adapters": ["seed", "prototype"]
+    },
+    {
+      "id": 6,
+      "first_name": "Prüfling",
+      "last_name": "Zeta",
+      "ihk_exam_number": "TEST-2026-0006",
+      "specialization": "system_integration",
+      "training_company": "Testbetrieb Zeta",
+      "attempt_number": 1,
+      "requires_mep": true,
+      "adapters": ["seed", "prototype"]
+    },
+    {
+      "id": 7,
+      "first_name": "Prüfling",
+      "last_name": "Eta",
+      "ihk_exam_number": "TEST-2026-0007",
+      "specialization": "application_development",
+      "training_company": "Testbetrieb Eta",
+      "attempt_number": 3,
+      "requires_mep": true,
+      "adapters": ["seed", "prototype"]
+    },
+    {
+      "id": 8,
+      "first_name": "Prüfling",
+      "last_name": "Theta",
+      "ihk_exam_number": "TEST-2026-0008",
+      "specialization": "system_integration",
+      "training_company": "Testbetrieb Theta",
+      "attempt_number": 1,
+      "requires_mep": false,
+      "adapters": ["seed", "prototype"]
+    },
+    {
+      "id": 9,
+      "first_name": "Prüfling",
+      "last_name": "Iota",
+      "ihk_exam_number": "TEST-2026-0009",
+      "specialization": "data_and_process_analysis",
+      "training_company": "Testbetrieb Iota",
+      "attempt_number": 2,
+      "requires_mep": true,
+      "adapters": ["seed", "prototype"]
+    },
+    {
+      "id": 10,
+      "first_name": "Prüfling",
+      "last_name": "Kappa",
+      "ihk_exam_number": "TEST-2026-0010",
+      "specialization": "digital_networking",
+      "training_company": "Testbetrieb Kappa",
+      "attempt_number": 1,
+      "requires_mep": false,
+      "adapters": ["seed", "prototype"]
+    },
+    {
+      "id": 11,
+      "first_name": "Prüfling",
+      "last_name": "Lambda",
+      "ihk_exam_number": "TEST-2026-0011",
+      "specialization": "application_development",
+      "training_company": "Testbetrieb Lambda",
+      "attempt_number": 1,
+      "requires_mep": false,
+      "adapters": ["seed", "prototype"]
+    },
+    {
+      "id": 12,
+      "first_name": "Prüfling",
+      "last_name": "My",
+      "ihk_exam_number": "TEST-2026-0012",
+      "specialization": "system_integration",
+      "training_company": "Testbetrieb My",
+      "attempt_number": 2,
+      "requires_mep": false,
+      "adapters": ["seed", "prototype"]
+    }
+  ]
+}

@@ -29,7 +29,7 @@ describe('ConfirmedPlansComponent', () => {
     http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
     fixture.detectChanges();
     const element = fixture.nativeElement as HTMLElement;
-    expect(element.textContent).toContain('PA Nord');
+    expect(element.textContent).toContain('Prüfungsausschuss Plan Alpha');
     expect(element.textContent).toContain('Montag, 16. November 2026');
     expect(element.querySelector('.app-confirmed-plan .app-muted')?.textContent?.trim()).toBe(
       'Winter 2026',
@@ -47,11 +47,11 @@ describe('ConfirmedPlansComponent', () => {
     const slotTable = element.querySelector('[aria-label="Prüfungsslots"]');
     expect(slotTable?.getAttribute('role')).toBe('region');
     expect(slotTable?.getAttribute('tabindex')).toBe('0');
-    click(element, 'PA Süd');
+    click(element, 'Prüfungsausschuss Plan Beta');
     fixture.detectChanges();
-    expect(element.textContent).toContain('PA Süd');
-    expect(element.textContent).toContain('Erika Muster');
-    expect(element.textContent).not.toContain('Max Beispiel');
+    expect(element.textContent).toContain('Prüfungsausschuss Plan Beta');
+    expect(element.textContent).toContain('Prüfling Plan-Beta');
+    expect(element.textContent).not.toContain('Prüfling Plan-Alpha');
   });
 
   it('links tabs to their panel and supports arrow-key selection', () => {
@@ -74,7 +74,7 @@ describe('ConfirmedPlansComponent', () => {
     expect(element.querySelector('[role="tabpanel"]')?.getAttribute('aria-labelledby')).toBe(
       'confirmed-plans-tab-2',
     );
-    expect(element.textContent).toContain('Erika Muster');
+    expect(element.textContent).toContain('Prüfling Plan-Beta');
   });
 
   it('renders empty and retryable error states', () => {
@@ -107,9 +107,14 @@ function plans() {
     candidate: { first_name: string; last_name: string; ihk_exam_number: string },
     slot_type = 'regular',
   ) => ({
-    id: candidate.ihk_exam_number === 'FI-1' ? 1 : 2,
+    id: candidate.ihk_exam_number === 'TEST-PLAN-1' ? 1 : 2,
     date: '2026-11-16',
-    location: { id: 1, name: 'Bildungszentrum', room: 'A 12', city: 'Hamburg' },
+    location: {
+      id: 1,
+      name: 'Prüfungszentrum Plan (Test)',
+      room: 'Testraum P-01',
+      city: 'Teststadt',
+    },
     slots: [
       {
         id: 1,
@@ -128,8 +133,8 @@ function plans() {
         fallback_status: null,
         member: {
           id: 1,
-          first_name: 'Eva',
-          last_name: 'Arbeitgeber',
+          first_name: 'Testperson',
+          last_name: 'Plan-Alpha',
           representing_side: 'employer',
         },
       },
@@ -138,31 +143,56 @@ function plans() {
         assignment_role: 'fallback',
         day_part: 'morning',
         fallback_status: 'confirmed',
-        member: { id: 2, first_name: 'Max', last_name: 'Prüfer', representing_side: 'employee' },
+        member: {
+          id: 2,
+          first_name: 'Testperson',
+          last_name: 'Plan-Beta',
+          representing_side: 'employee',
+        },
       },
       {
         id: 3,
         assignment_role: 'examiner',
         day_part: 'afternoon',
         fallback_status: null,
-        member: { id: 3, first_name: 'Sara', last_name: 'Schule', representing_side: 'school' },
+        member: {
+          id: 3,
+          first_name: 'Testperson',
+          last_name: 'Plan-Gamma',
+          representing_side: 'school',
+        },
       },
     ],
   });
   return [
     {
       id: 1,
-      name: 'Winter Nord',
-      committee: { id: 1, name: 'PA Nord' },
+      name: 'Winter Testrunde Alpha',
+      committee: { id: 1, name: 'Prüfungsausschuss Plan Alpha' },
       exam_half_year: { id: 1, season: 'winter', year: 2026, status: 'active' },
-      days: [day({ first_name: 'Max', last_name: 'Beispiel', ihk_exam_number: 'FI-1' }, 'mep')],
+      days: [
+        day(
+          {
+            first_name: 'Prüfling',
+            last_name: 'Plan-Alpha',
+            ihk_exam_number: 'TEST-PLAN-1',
+          },
+          'mep',
+        ),
+      ],
     },
     {
       id: 2,
-      name: 'Winter Süd',
-      committee: { id: 2, name: 'PA Süd' },
+      name: 'Winter Testrunde Beta',
+      committee: { id: 2, name: 'Prüfungsausschuss Plan Beta' },
       exam_half_year: { id: 1, season: 'winter', year: 2026, status: 'active' },
-      days: [day({ first_name: 'Erika', last_name: 'Muster', ihk_exam_number: 'FI-2' })],
+      days: [
+        day({
+          first_name: 'Prüfling',
+          last_name: 'Plan-Beta',
+          ihk_exam_number: 'TEST-PLAN-2',
+        }),
+      ],
     },
   ];
 }

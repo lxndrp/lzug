@@ -47,13 +47,13 @@ describe('ExamHalfYearsComponent', () => {
       exam_half_year_id: 2,
       committee_id: 1,
       created_by_member_id: 1,
-      name: 'Sommer 2027 · PA Fachinformatiker Hamburg 1',
+      name: 'Sommer 2027 · Prüfungsausschuss Teststadt 1',
     });
     request.flush({
       id: 2,
       exam_half_year_id: 2,
       committee_id: 1,
-      name: 'Sommer 2027 · PA Fachinformatiker Hamburg 1',
+      name: 'Sommer 2027 · Prüfungsausschuss Teststadt 1',
       status: 'draft',
       availability_deadline: null,
       availability_reminder_at: null,

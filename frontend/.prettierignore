@@ -3,3 +3,4 @@ dist/
 node_modules/
 playwright-report/
 test-results/
+src/app/testing/synthetic-fixtures.generated.ts

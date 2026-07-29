@@ -24,7 +24,7 @@ function overviewItem(
     name,
     status,
     status_group: statusGroup,
-    committee_name: 'PA Fachinformatiker Hamburg 1',
+    committee_name: 'Prüfungsausschuss Teststadt 1',
     exam_half_year: { id: 1, season: 'winter', year: 2026, status: 'active' },
     calendar_week_from: '2026-W47',
     calendar_week_to: '2026-W49',
@@ -118,8 +118,8 @@ test.describe('lzug browser workflows', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           items: [
-            confirmedPlan(1, 'PA Nord', 'Max', 'Beispiel', 'mep'),
-            confirmedPlan(2, 'PA Süd', 'Erika', 'Muster', 'regular'),
+            confirmedPlan(1, 'Prüfungsausschuss Plan Alpha', 'Prüfling', 'Plan-Alpha', 'mep'),
+            confirmedPlan(2, 'Prüfungsausschuss Plan Beta', 'Prüfling', 'Plan-Beta', 'regular'),
           ],
           _links: {},
         }),
@@ -177,14 +177,14 @@ test.describe('lzug browser workflows', () => {
       });
     }
 
-    const northTab = page.getByRole('tab', { name: 'PA Nord' });
+    const northTab = page.getByRole('tab', { name: 'Prüfungsausschuss Plan Alpha' });
     await northTab.focus();
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByRole('tab', { name: 'PA Süd' })).toHaveAttribute(
+    await expect(page.getByRole('tab', { name: 'Prüfungsausschuss Plan Beta' })).toHaveAttribute(
       'aria-selected',
       'true',
     );
-    await expect(page.getByText('Erika Muster')).toBeVisible();
+    await expect(page.getByText('Prüfling Plan-Beta')).toBeVisible();
   });
 
   test('navigates through the application views', async ({ page }) => {
@@ -220,7 +220,7 @@ test.describe('lzug browser workflows', () => {
       await expect(context).toBeVisible();
       await expect(context).toContainText('Winter 2026');
       await expect(context).toContainText('Winter 2026/27');
-      await expect(context).toContainText('PA Fachinformatiker Hamburg 1');
+      await expect(context).toContainText('Prüfungsausschuss Teststadt 1');
     }
   });
 
@@ -396,9 +396,9 @@ test.describe('lzug browser workflows', () => {
     const location = page.locator('#defaultLocation');
     const updater = page.locator('#updatedByMember');
     await expect(location.locator('option:checked')).toHaveText(
-      'Bildungszentrum HafenCity · Konferenzraum 3.12',
+      'Prüfungszentrum Alpha (Test) · Testraum A-01',
     );
-    await expect(updater.locator('option:checked')).toHaveText('Martin König');
+    await expect(updater.locator('option:checked')).toHaveText('Testperson Alpha');
     await expect(
       state.locator('xpath=ancestor::tui-textfield').locator('button[tuiButtonX]'),
     ).toHaveCount(0);
@@ -436,12 +436,12 @@ test.describe('lzug browser workflows', () => {
 
     await filter.selectOption({ label: 'Systemintegration' });
     await expect(filter.locator('option:checked')).toHaveText('Systemintegration');
-    await expect(page.locator('tbody > tr').filter({ hasText: 'Weber, Jonas' })).toBeVisible();
-    await expect(page.locator('tbody > tr').filter({ hasText: 'Hoffmann, Lea' })).toHaveCount(0);
+    await expect(page.locator('tbody > tr').filter({ hasText: 'Beta, Prüfling' })).toBeVisible();
+    await expect(page.locator('tbody > tr').filter({ hasText: 'Alpha, Prüfling' })).toHaveCount(0);
 
-    await search.fill('Noah');
-    await expect(page.locator('tbody > tr').filter({ hasText: 'Bauer, Noah' })).toBeVisible();
-    await expect(page.locator('tbody > tr').filter({ hasText: 'Weber, Jonas' })).toHaveCount(0);
+    await search.fill('Zeta');
+    await expect(page.locator('tbody > tr').filter({ hasText: 'Zeta, Prüfling' })).toBeVisible();
+    await expect(page.locator('tbody > tr').filter({ hasText: 'Beta, Prüfling' })).toHaveCount(0);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/candidates');
@@ -753,9 +753,9 @@ function confirmedPlan(
         date: '2026-11-16',
         location: {
           id: 1,
-          name: 'Bildungszentrum für technische Ausbildungsberufe',
-          room: 'Besprechungsraum A 12',
-          city: 'Hamburg-Altona',
+          name: 'Prüfungszentrum Langname (Test)',
+          room: 'Testraum Langname A-12',
+          city: 'Teststadt-West',
         },
         slots: [
           {
@@ -768,7 +768,7 @@ function confirmedPlan(
               id,
               first_name: firstName,
               last_name: lastName,
-              ihk_exam_number: `FI-${id}`,
+              ihk_exam_number: `TEST-PLAN-${id}`,
             },
           },
         ],
@@ -780,8 +780,8 @@ function confirmedPlan(
             fallback_status: null,
             member: {
               id: id * 10,
-              first_name: 'Alexandra Maria',
-              last_name: 'Prüferin mit langem Familiennamen',
+              first_name: 'Testperson',
+              last_name: 'Langname-Arbeitgeberseite',
               representing_side: 'employer',
             },
           },
@@ -792,8 +792,8 @@ function confirmedPlan(
             fallback_status: 'confirmed',
             member: {
               id: id * 10 + 1,
-              first_name: 'Alex',
-              last_name: 'Prüfer',
+              first_name: 'Testperson',
+              last_name: 'Langname-Arbeitnehmerseite',
               representing_side: 'employee',
             },
           },
@@ -804,8 +804,8 @@ function confirmedPlan(
             fallback_status: null,
             member: {
               id: id * 10 + 2,
-              first_name: 'Samira',
-              last_name: 'Berufsschule',
+              first_name: 'Testperson',
+              last_name: 'Langname-Schulseite',
               representing_side: 'school',
             },
           },

@@ -178,8 +178,8 @@ class PlanningTests(unittest.TestCase):
                 "committee_id": committee["id"],
                 "name": "Raum 2",
                 "street": "Testweg 1",
-                "postal_code": "20095",
-                "city": "Hamburg",
+                "postal_code": "00000",
+                "city": "Teststadt",
                 "room": "2.01",
                 "is_active": 1,
             },
@@ -197,11 +197,11 @@ class PlanningTests(unittest.TestCase):
             candidate = repository.create(
                 CANDIDATE,
                 {
-                    "first_name": "Konflikt",
-                    "last_name": f"{index}",
+                    "first_name": "Prüfling",
+                    "last_name": f"Konflikt-{index}",
                     "ihk_exam_number": f"TEST-88-{index}",
                     "specialization": "system_integration",
-                    "training_company": "Test GmbH",
+                    "training_company": "Testbetrieb Konflikt",
                 },
             )
             repository.create(

@@ -152,8 +152,8 @@ describe('PlanningComponent', () => {
     const updater = element.querySelector<HTMLSelectElement>('#updatedByMember')!;
 
     expect(optionLabels(state)).toContain('Nordrhein-Westfalen');
-    expect(optionLabels(location)).toContain('Bildungszentrum HafenCity · 3.12');
-    expect(optionLabels(updater)).toContain('Martin Koenig');
+    expect(optionLabels(location)).toContain('Prüfungszentrum Alpha (Test) · Testraum A-01');
+    expect(optionLabels(updater)).toContain('Testperson Alpha');
     expect(state.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();
     expect(location.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeTruthy();
     expect(updater.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();

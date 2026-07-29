@@ -73,7 +73,7 @@ function click(element: HTMLElement, label: string): void {
 
 function overviewItems() {
   const shared = {
-    committee_name: 'PA Fachinformatiker Hamburg 1',
+    committee_name: 'Prüfungsausschuss Teststadt 1',
     exam_half_year: { id: 1, season: 'winter', year: 2026, status: 'active' },
     calendar_week_from: '2026-W47',
     calendar_week_to: '2026-W49',

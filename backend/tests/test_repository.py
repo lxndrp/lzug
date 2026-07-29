@@ -36,11 +36,11 @@ class RepositoryTests(unittest.TestCase):
             repository = ResourceRepository(db_path)
             created = repository.create_candidate(
                 {
-                    "first_name": "Max",
-                    "last_name": "Test",
-                    "ihk_exam_number": "FI-2026-9001",
+                    "first_name": "Prüfling",
+                    "last_name": "Repository",
+                    "ihk_exam_number": "TEST-2026-9001",
                     "specialization": "system_integration",
-                    "training_company": "Testbetrieb GmbH",
+                    "training_company": "Testbetrieb Repository",
                     "exam_round_id": 1,
                     "attempt_number": 3,
                     "requires_mep": 1,
@@ -48,7 +48,7 @@ class RepositoryTests(unittest.TestCase):
             )
             summary = repository.round_summary(1)
 
-        self.assertEqual("Max", created["first_name"])
+        self.assertEqual("Prüfling", created["first_name"])
         self.assertIsNotNone(summary)
         self.assertEqual(13, summary["counts"]["candidates"])
         self.assertEqual(5, summary["counts"]["mep_count"])
@@ -103,7 +103,10 @@ class RepositoryTests(unittest.TestCase):
             repository = ResourceRepository(db_path)
             committee = repository.create(
                 COMMITTEE,
-                {"name": "PA Fachinformatiker Hamburg 2", "occupation": "Fachinformatiker/in"},
+                {
+                    "name": "Prüfungsausschuss Teststadt 2",
+                    "occupation": "Fachinformatiker/in",
+                },
             )
             member = repository.create(
                 COMMITTEE_MEMBER,
@@ -121,7 +124,7 @@ class RepositoryTests(unittest.TestCase):
                 {
                     "exam_half_year_id": 1,
                     "committee_id": committee["id"],
-                    "name": "Winter 2026/27 · PA Fachinformatiker Hamburg 2",
+                    "name": "Winter 2026/27 · Prüfungsausschuss Teststadt 2",
                     "created_by_member_id": member["id"],
                 },
             )
@@ -208,7 +211,7 @@ class RepositoryTests(unittest.TestCase):
                 {
                     "exam_half_year_id": half_year["id"],
                     "committee_id": 1,
-                    "name": "Sommer 2027 · PA Fachinformatiker Hamburg 1",
+                    "name": "Sommer 2027 · Prüfungsausschuss Teststadt 1",
                     "created_by_member_id": 1,
                 },
             )

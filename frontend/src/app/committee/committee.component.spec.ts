@@ -31,16 +31,16 @@ describe('CommitteeComponent', () => {
     const bodies = element.querySelectorAll('tbody');
     const members = bodies.item(bodies.length - 1).textContent ?? '';
 
-    expect(element.textContent).toContain('PA Fachinformatiker Hamburg 1');
-    expect(members).toContain('Martin Koenig');
-    expect(members).toContain('Anne Berg');
-    expect(members).not.toContain('Tobias Rehm');
+    expect(element.textContent).toContain('Prüfungsausschuss Teststadt 1');
+    expect(members).toContain('Testperson Alpha');
+    expect(members).toContain('Testperson Beta');
+    expect(members).not.toContain('Testperson Iota');
   });
 
   it('should emit selected committee changes', () => {
     vi.spyOn(component.selectedCommitteeIdChange, 'emit').mockReturnValue(undefined);
 
-    clickButton('PA Fachinformatiker Hamburg 2');
+    clickButton('Prüfungsausschuss Teststadt 2');
 
     expect(component.selectedCommitteeIdChange.emit).toHaveBeenCalledWith(2);
   });
@@ -64,22 +64,22 @@ describe('CommitteeComponent', () => {
 
   it('should emit valid member form submissions', () => {
     vi.spyOn(component.createMember, 'emit').mockReturnValue(undefined);
-    setInput('#memberFirstName', 'Lina');
-    setInput('#memberLastName', 'Schroeder');
-    setInput('#memberEmail', 'lina.schroeder@example.de');
+    setInput('#memberFirstName', 'Testperson');
+    setInput('#memberLastName', 'Kappa');
+    setInput('#memberEmail', 'testperson.kappa@example.invalid');
 
     submitForm(1);
 
     expect(component.createMember.emit).toHaveBeenCalledWith(
       expect.objectContaining({
         committee_id: 1,
-        first_name: 'Lina',
-        last_name: 'Schroeder',
-        email: 'lina.schroeder@example.de',
+        first_name: 'Testperson',
+        last_name: 'Kappa',
+        email: 'testperson.kappa@example.invalid',
         is_active: 1,
       }),
     );
-    expect(inputValue('#memberFirstName')).toBe('Lina');
+    expect(inputValue('#memberFirstName')).toBe('Testperson');
 
     component.resetMemberForm();
     expect(inputValue('#memberFirstName')).toBe('');
@@ -109,9 +109,9 @@ describe('CommitteeComponent', () => {
     const role = element.querySelector<HTMLSelectElement>('#memberRole')!;
     const side = element.querySelector<HTMLSelectElement>('#memberSide')!;
 
-    expect(optionLabels(committee)).toContain('PA Fachinformatiker Hamburg 1');
+    expect(optionLabels(committee)).toContain('Prüfungsausschuss Teststadt 1');
     expect(optionLabels(person)).toContain('Neue Person erfassen');
-    expect(optionLabels(person)).toContain('Martin Koenig · martin.koenig@example.de');
+    expect(optionLabels(person)).toContain('Testperson Alpha · testperson.alpha@example.invalid');
     expect(optionLabels(status)).toContain('Ordentlich');
     expect(optionLabels(role)).toContain('Mitglied');
     expect(optionLabels(side)).toContain('Arbeitgeber');

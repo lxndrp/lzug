@@ -28,8 +28,8 @@ describe('CandidatesComponent', () => {
   it('should render candidate rows with round metadata', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
-    expect(text).toContain('Hoffmann, Lea');
-    expect(text).toContain('FI-2026-1042');
+    expect(text).toContain('Alpha, Prüfling');
+    expect(text).toContain('TEST-2026-0001');
     expect(text).toContain('2. Versuch');
     expect(text).toContain('MEP');
     expect((fixture.nativeElement as HTMLElement).querySelector('.app-table-scroll')).toBeTruthy();
@@ -40,13 +40,13 @@ describe('CandidatesComponent', () => {
       '#candidateSearch',
     );
     expect(input).toBeTruthy();
-    input!.value = 'Jonas';
+    input!.value = 'Beta';
     input!.dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Weber, Jonas');
-    expect(text).not.toContain('Hoffmann, Lea');
+    expect(text).toContain('Beta, Prüfling');
+    expect(text).not.toContain('Alpha, Prüfling');
   });
 
   it('should show readable specialization labels and filter by the selected value', () => {
@@ -70,8 +70,8 @@ describe('CandidatesComponent', () => {
     const rows = Array.from(element.querySelectorAll<HTMLTableRowElement>('tbody > tr')).map(
       (row) => row.textContent ?? '',
     );
-    expect(rows.some((row) => row.includes('Weber, Jonas'))).toBe(true);
-    expect(rows.some((row) => row.includes('Hoffmann, Lea'))).toBe(false);
+    expect(rows.some((row) => row.includes('Beta, Prüfling'))).toBe(true);
+    expect(rows.some((row) => row.includes('Alpha, Prüfling'))).toBe(false);
   });
 
   it('should provide consistent filter and form action regions', () => {
@@ -127,9 +127,9 @@ describe('CandidatesComponent', () => {
     vi.spyOn(component.createCandidate, 'emit').mockReturnValue(undefined);
     vi.spyOn(component.deleteCandidate, 'emit').mockReturnValue(undefined);
 
-    setInput('#candidateFirstName', 'Mara');
-    setInput('#candidateLastName', 'Schulz');
-    setInput('#candidateExamNumber', 'FI-2026-1081');
+    setInput('#candidateFirstName', 'Prüfling');
+    setInput('#candidateLastName', 'Gamma');
+    setInput('#candidateExamNumber', 'TEST-2026-0003');
 
     const form = (fixture.nativeElement as HTMLElement).querySelector('form');
     expect(form).toBeTruthy();
@@ -137,12 +137,12 @@ describe('CandidatesComponent', () => {
 
     expect(component.createCandidate.emit).toHaveBeenCalledWith(
       expect.objectContaining({
-        first_name: 'Mara',
-        last_name: 'Schulz',
-        ihk_exam_number: 'FI-2026-1081',
+        first_name: 'Prüfling',
+        last_name: 'Gamma',
+        ihk_exam_number: 'TEST-2026-0003',
       }),
     );
-    expect(inputValue('#candidateFirstName')).toBe('Mara');
+    expect(inputValue('#candidateFirstName')).toBe('Prüfling');
 
     component.resetDraft();
     expect(
@@ -171,19 +171,19 @@ describe('CandidatesComponent', () => {
       };
       submitCandidateUpdate: () => void;
     };
-    editor.editDraft().last_name = 'Hoffmann-Neu';
+    editor.editDraft().last_name = 'Alpha-Neu';
     editor.editDraft().attempt_number = 3;
     editor.submitCandidateUpdate();
 
     expect(component.updateCandidate.emit).toHaveBeenCalledWith({
       id: 1,
       payload: expect.objectContaining({
-        last_name: 'Hoffmann-Neu',
+        last_name: 'Alpha-Neu',
         attempt_number: 3,
         requires_mep: 0,
       }),
     });
-    expect(editor.editDraft().last_name).toBe('Hoffmann-Neu');
+    expect(editor.editDraft().last_name).toBe('Alpha-Neu');
 
     component.finishEditing(1);
     fixture.detectChanges();
@@ -199,7 +199,7 @@ describe('CandidatesComponent', () => {
     const element = fixture.nativeElement as HTMLElement;
     expect(element.querySelector('#editCandidateRound-1')).toBeTruthy();
     expect(element.textContent).toContain('Zuordnungshistorie');
-    expect(element.textContent).toContain('PA Fachinformatiker Hamburg 1');
+    expect(element.textContent).toContain('Prüfungsausschuss Teststadt 1');
   });
 
   function setInput(selector: string, value: string): void {
