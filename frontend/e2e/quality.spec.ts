@@ -112,7 +112,7 @@ test.describe('lzug browser workflows', () => {
     ).toBeVisible();
   });
 
-  test('shows confirmed plans in committee tabs', async ({ page }) => {
+  test('shows confirmed plans correctly on desktop and mobile', async ({ page }) => {
     await page.route('**/api/confirmed-plans', (route) =>
       route.fulfill({
         contentType: 'application/json',
@@ -125,12 +125,65 @@ test.describe('lzug browser workflows', () => {
         }),
       }),
     );
-    await page.goto('/confirmed-plans');
-    await expect(page.getByRole('heading', { name: 'Prüfungspläne' })).toBeVisible();
-    await expect(page.getByText('MEP-Prüfung')).toBeVisible();
-    await expect(page.getByText('Fallback')).toBeVisible();
-    await expect(page.getByText('Erika Muster')).toHaveCount(0);
-    await page.getByRole('tab', { name: 'PA Süd' }).click();
+
+    for (const viewport of viewports) {
+      await test.step(viewport.name, async () => {
+        await page.setViewportSize(viewport);
+        await page.goto('/confirmed-plans');
+        await expect(page.getByRole('heading', { name: 'Prüfungspläne' })).toBeVisible();
+        await expect(page.getByText('08:30–09:30', { exact: true })).toBeVisible();
+        await expect(page.getByText('MEP-Prüfung')).toBeVisible();
+        await expect(page.getByText('Ersatzprüfer/in')).toBeVisible();
+        await expect(page.getByText('Arbeitgeber', { exact: true })).toBeVisible();
+        await expect(page.getByText('Arbeitnehmer', { exact: true })).toBeVisible();
+        await expect(page.getByText('Schule', { exact: true })).toBeVisible();
+        await expect(page.getByText('employee', { exact: true })).toHaveCount(0);
+
+        for (const selector of ['.app-confirmed-day-header', '.app-confirmed-crew']) {
+          const dimensions = await page.locator(selector).evaluate((element) => {
+            const rectangle = element.getBoundingClientRect();
+            return {
+              clientWidth: element.clientWidth,
+              right: rectangle.right,
+              scrollWidth: element.scrollWidth,
+              viewportWidth: document.documentElement.clientWidth,
+            };
+          });
+          expect(dimensions.right).toBeLessThanOrEqual(dimensions.viewportWidth);
+          expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+        }
+
+        const pageDimensions = await page.evaluate(() => ({
+          clientWidth: document.documentElement.clientWidth,
+          scrollWidth: document.documentElement.scrollWidth,
+        }));
+        expect(pageDimensions.scrollWidth).toBe(pageDimensions.clientWidth);
+
+        const slotTable = page.getByLabel('Prüfungsslots');
+        const tableDimensions = await slotTable.evaluate((element) => ({
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+        }));
+        if (viewport.name === 'mobile') {
+          expect(tableDimensions.scrollWidth).toBeGreaterThan(tableDimensions.clientWidth);
+        } else {
+          expect(tableDimensions.scrollWidth).toBe(tableDimensions.clientWidth);
+        }
+
+        const accessibility = await new AxeBuilder({ page })
+          .include('app-confirmed-plans')
+          .analyze();
+        expect(accessibility.violations, `${viewport.name} confirmed plans`).toEqual([]);
+      });
+    }
+
+    const northTab = page.getByRole('tab', { name: 'PA Nord' });
+    await northTab.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('tab', { name: 'PA Süd' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
     await expect(page.getByText('Erika Muster')).toBeVisible();
   });
 
@@ -627,12 +680,17 @@ function confirmedPlan(
       {
         id,
         date: '2026-11-16',
-        location: { id: 1, name: 'Bildungszentrum', room: 'A 12', city: 'Hamburg' },
+        location: {
+          id: 1,
+          name: 'Bildungszentrum für technische Ausbildungsberufe',
+          room: 'Besprechungsraum A 12',
+          city: 'Hamburg-Altona',
+        },
         slots: [
           {
             id,
-            starts_at: '09:00',
-            ends_at: '09:30',
+            starts_at: '2026-11-16T08:30:00',
+            ends_at: '2026-11-16T09:30:00',
             sequence_number: 1,
             slot_type: slotType,
             candidate: {
@@ -645,11 +703,40 @@ function confirmedPlan(
         ],
         assignments: [
           {
-            id,
+            id: id * 10,
+            assignment_role: 'examiner',
+            day_part: 'full_day',
+            fallback_status: null,
+            member: {
+              id: id * 10,
+              first_name: 'Alexandra Maria',
+              last_name: 'Prüferin mit langem Familiennamen',
+              representing_side: 'employer',
+            },
+          },
+          {
+            id: id * 10 + 1,
             assignment_role: 'fallback',
             day_part: 'morning',
             fallback_status: 'confirmed',
-            member: { id, first_name: 'Alex', last_name: 'Prüfer', representing_side: 'employee' },
+            member: {
+              id: id * 10 + 1,
+              first_name: 'Alex',
+              last_name: 'Prüfer',
+              representing_side: 'employee',
+            },
+          },
+          {
+            id: id * 10 + 2,
+            assignment_role: 'examiner',
+            day_part: 'afternoon',
+            fallback_status: null,
+            member: {
+              id: id * 10 + 2,
+              first_name: 'Samira',
+              last_name: 'Berufsschule',
+              representing_side: 'school',
+            },
           },
         ],
       },

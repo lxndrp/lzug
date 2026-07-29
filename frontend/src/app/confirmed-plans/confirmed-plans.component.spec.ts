@@ -24,20 +24,57 @@ describe('ConfirmedPlansComponent', () => {
 
   afterEach(() => http.verify());
 
-  it('groups confirmed plans in committee tabs and shows a day with slots and fallback', () => {
+  it('shows robust local times and German labels in committee tabs', () => {
     fixture.detectChanges();
     http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
     fixture.detectChanges();
     const element = fixture.nativeElement as HTMLElement;
     expect(element.textContent).toContain('PA Nord');
     expect(element.textContent).toContain('Montag, 16. November 2026');
+    expect(element.querySelector('.app-confirmed-plan .app-muted')?.textContent?.trim()).toBe(
+      'Winter 2026',
+    );
+    expect(element.textContent).toContain('08:30–09:30');
     expect(element.textContent).toContain('MEP-Prüfung');
-    expect(element.textContent).toContain('Fallback');
+    expect(element.textContent).toContain('Ersatzprüfer/in');
+    expect(element.textContent).toContain('Arbeitgeber');
+    expect(element.textContent).toContain('Arbeitnehmer');
+    expect(element.textContent).toContain('Schule');
+    expect(element.textContent).toContain('ganztägig');
+    expect(element.textContent).not.toContain('employer');
+    expect(element.textContent).not.toContain('employee');
+    expect(element.textContent).not.toContain('school');
+    const slotTable = element.querySelector('[aria-label="Prüfungsslots"]');
+    expect(slotTable?.getAttribute('role')).toBe('region');
+    expect(slotTable?.getAttribute('tabindex')).toBe('0');
     click(element, 'PA Süd');
     fixture.detectChanges();
     expect(element.textContent).toContain('PA Süd');
     expect(element.textContent).toContain('Erika Muster');
     expect(element.textContent).not.toContain('Max Beispiel');
+  });
+
+  it('links tabs to their panel and supports arrow-key selection', () => {
+    fixture.detectChanges();
+    http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const tabs = element.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    expect(tabs[0].getAttribute('aria-controls')).toBe('confirmed-plans-panel-1');
+    expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+    expect(element.querySelector('[role="tabpanel"]')?.getAttribute('aria-labelledby')).toBe(
+      'confirmed-plans-tab-1',
+    );
+
+    tabs[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    fixture.detectChanges();
+
+    expect(tabs[1].getAttribute('aria-selected')).toBe('true');
+    expect(element.querySelector('[role="tabpanel"]')?.getAttribute('aria-labelledby')).toBe(
+      'confirmed-plans-tab-2',
+    );
+    expect(element.textContent).toContain('Erika Muster');
   });
 
   it('renders empty and retryable error states', () => {
@@ -76,8 +113,8 @@ function plans() {
     slots: [
       {
         id: 1,
-        starts_at: '09:00',
-        ends_at: '09:30',
+        starts_at: '2026-11-16 08:30:00',
+        ends_at: '2026-11-16 09:30:00',
         sequence_number: 1,
         slot_type,
         candidate: { id: 1, ...candidate },
@@ -86,10 +123,29 @@ function plans() {
     assignments: [
       {
         id: 1,
+        assignment_role: 'examiner',
+        day_part: 'full_day',
+        fallback_status: null,
+        member: {
+          id: 1,
+          first_name: 'Eva',
+          last_name: 'Arbeitgeber',
+          representing_side: 'employer',
+        },
+      },
+      {
+        id: 2,
         assignment_role: 'fallback',
         day_part: 'morning',
         fallback_status: 'confirmed',
-        member: { id: 1, first_name: 'Max', last_name: 'Prüfer', representing_side: 'employee' },
+        member: { id: 2, first_name: 'Max', last_name: 'Prüfer', representing_side: 'employee' },
+      },
+      {
+        id: 3,
+        assignment_role: 'examiner',
+        day_part: 'afternoon',
+        fallback_status: null,
+        member: { id: 3, first_name: 'Sara', last_name: 'Schule', representing_side: 'school' },
       },
     ],
   });
