@@ -63,6 +63,7 @@ nav:
           - Copilot-Pilotphase: developers/reviews/copilot-pilot.md
           - Prüfung der öffentlichen Git-Historie: developers/reviews/public-history-audit.md
       - Frontend-Richtlinie: developers/frontend-guidelines.md
+      - Lizenz und Release-Freigabe: developers/licensing.md
       - Frontend-Ausnahmen: developers/frontend-exceptions.md
       - Dokumentation: developers/documentation.md
       - Architektur:
