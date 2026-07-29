@@ -104,7 +104,7 @@ test.describe('lzug browser workflows', () => {
     await expect(page.getByText('Offen', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('In Abstimmung', { exact: true })).toBeVisible();
     await expect(page.getByText('Bestätigt', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('Plan bestätigt')).toBeVisible();
+    await expect(page.locator('app-scheduling-overview').getByText('Plan bestätigt')).toBeVisible();
     await page.getByRole('button', { name: 'Fortsetzen' }).first().click();
     await expect(page).toHaveURL('/planning');
     await expect(
@@ -140,6 +140,7 @@ test.describe('lzug browser workflows', () => {
       timeout: 30_000,
     });
     await expect(page.locator('.app-progress')).toHaveCount(0);
+    await expect(page.getByLabel('Aktueller Prüfungskontext')).toBeVisible();
 
     for (const [view, path] of [
       ['Prüflinge', '/candidates'],
@@ -154,9 +155,9 @@ test.describe('lzug browser workflows', () => {
     }
 
     await expect(page.getByRole('link', { name: 'Terminplanung', exact: true })).toHaveCount(0);
-    await page.getByRole('link', { name: 'Terminorganisation fortsetzen' }).click();
-    await expect(page).toHaveURL('/planning');
-    await expect(page.getByRole('heading', { name: 'Terminorganisation' })).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: 'Terminorganisation fortsetzen', exact: true }),
+    ).toHaveCount(0);
   });
 
   test('keeps the active exam context visible in contextual views', async ({ page }) => {
@@ -225,6 +226,7 @@ test.describe('lzug browser workflows', () => {
   });
 
   async function advanceToRoundMetadata(page: Page): Promise<void> {
+    await expect(page.locator('#weekFrom')).toHaveValue('2026-W47');
     const wizardActions = page.locator('.app-wizard-actions');
     await wizardActions.getByRole('button', { name: 'Weiter', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Rahmenbedingungen' })).toHaveAttribute(
@@ -261,7 +263,7 @@ test.describe('lzug browser workflows', () => {
     await page.getByRole('button', { name: 'Prüfungsrunde anlegen' }).click();
     expect((await roundResponse).status()).toBe(201);
     await expect(page).toHaveURL('/dashboard');
-    await expect(page.getByRole('heading', { name: /Sommer 2027/ })).toBeVisible();
+    await expect(page.getByLabel('Aktueller Prüfungskontext')).toContainText('Sommer 2027');
   });
 
   test('generates possible exam days while excluding state holidays', async ({ page }) => {
