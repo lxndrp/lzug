@@ -46,6 +46,9 @@ jobs:
       - name: Format check with black
         run: uv run black --check .
 
+      - name: Check synthetic fixture policy
+        run: uv run python scripts/check_synthetic_fixtures.py
+
       - name: Run backend tests with coverage
         run: |
           uv run coverage run -m unittest

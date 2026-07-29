@@ -42,6 +42,9 @@ Coverage unter `coverage/frontend`. Jeder Playwright-Lauf verwendet eigene
 Ports, eine eigene SQLite-Datei unter `var/e2e/` und Demo-Seed-Daten. Für
 reproduzierbare Diagnosen kann `LZUG_E2E_RUN_ID` gesetzt werden.
 
+Demo-, Unit- und Browserdaten folgen der
+[kanonischen synthetischen Fixture-Grundlage](synthetic-fixtures.md).
+
 ## VS Code
 
 Öffnen Sie den Repository-Ordner und wählen Sie `.venv/bin/python`; `.vscode/settings.json` setzt ihn bereits voraus. Prüfen Sie Python 3.14.6, Node.js 26.5.0 sowie aktive Ruff-, Black- und ESLint-Integration.

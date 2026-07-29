@@ -43,7 +43,7 @@ describe('PlanningApiService', () => {
     service.getPlanningBoard().subscribe((board) => {
       dayDates = board.days.map((item) => item.day.date);
       slotIds = board.days[0].slots.map((slot) => slot.id);
-      expect(board.days[0].location?.name).toBe('Bildungszentrum HafenCity');
+      expect(board.days[0].location?.name).toBe('Prüfungszentrum Alpha (Test)');
       expect(board.days[0].assignments.length).toBe(2);
       expect(board.members.length).toBe(3);
       expect(board.candidates.length).toBe(2);
@@ -116,7 +116,7 @@ describe('PlanningApiService', () => {
       .createExamRound({
         exam_half_year_id: 2,
         committee_id: 1,
-        name: 'Sommer 2027 · PA Fachinformatiker Hamburg 1',
+        name: 'Sommer 2027 · Prüfungsausschuss Teststadt 1',
         created_by_member_id: 1,
       })
       .subscribe();
@@ -140,7 +140,7 @@ describe('PlanningApiService', () => {
           name: 'Winter 2026/27',
           status: 'availability_requested',
           status_group: 'coordination',
-          committee_name: 'PA Fachinformatiker Hamburg 1',
+          committee_name: 'Prüfungsausschuss Teststadt 1',
           exam_half_year: { id: 1, season: 'winter', year: 2026, status: 'active' },
           calendar_week_from: '2026-W47',
           calendar_week_to: '2026-W49',
@@ -179,7 +179,7 @@ describe('PlanningApiService', () => {
   it('should combine candidates with their round metadata', () => {
     service.getCandidateViews().subscribe((items) => {
       expect(items.length).toBe(2);
-      expect(items[1].candidate.last_name).toBe('Weber');
+      expect(items[1].candidate.last_name).toBe('Beta');
       expect(items[1].roundCandidate?.attempt_number).toBe(2);
       expect(items[1].roundCandidate?.requires_mep).toBe(1);
     });
@@ -194,11 +194,11 @@ describe('PlanningApiService', () => {
   it('should expose candidate write operations', () => {
     service
       .createCandidate({
-        first_name: 'Mara',
-        last_name: 'Schulz',
-        ihk_exam_number: 'FI-2026-1081',
+        first_name: 'Prüfling',
+        last_name: 'Gamma',
+        ihk_exam_number: 'TEST-2026-0003',
         specialization: 'data_and_process_analysis',
-        training_company: 'Datenspur Analytics GmbH',
+        training_company: 'Testbetrieb Gamma',
         attempt_number: 1,
         requires_mep: 0,
       })
@@ -207,11 +207,11 @@ describe('PlanningApiService', () => {
     const create = http.expectOne('/api/candidates');
     expect(create.request.method).toBe('POST');
     expect(create.request.body).toEqual({
-      first_name: 'Mara',
-      last_name: 'Schulz',
-      ihk_exam_number: 'FI-2026-1081',
+      first_name: 'Prüfling',
+      last_name: 'Gamma',
+      ihk_exam_number: 'TEST-2026-0003',
       specialization: 'data_and_process_analysis',
-      training_company: 'Datenspur Analytics GmbH',
+      training_company: 'Testbetrieb Gamma',
       attempt_number: 1,
       requires_mep: 0,
       exam_round_id: 1,
@@ -220,11 +220,11 @@ describe('PlanningApiService', () => {
 
     service
       .updateCandidate(1, {
-        first_name: 'Lea',
-        last_name: 'Hoffmann',
-        ihk_exam_number: 'FI-2026-1042',
+        first_name: 'Prüfling',
+        last_name: 'Alpha',
+        ihk_exam_number: 'TEST-2026-0001',
         specialization: 'application_development',
-        training_company: 'Nordlicht Digital GmbH',
+        training_company: 'Testbetrieb Alpha',
         attempt_number: 2,
         requires_mep: 1,
       })
@@ -232,11 +232,11 @@ describe('PlanningApiService', () => {
     const update = http.expectOne('/api/candidates/1');
     expect(update.request.method).toBe('PATCH');
     expect(update.request.body).toEqual({
-      first_name: 'Lea',
-      last_name: 'Hoffmann',
-      ihk_exam_number: 'FI-2026-1042',
+      first_name: 'Prüfling',
+      last_name: 'Alpha',
+      ihk_exam_number: 'TEST-2026-0001',
       specialization: 'application_development',
-      training_company: 'Nordlicht Digital GmbH',
+      training_company: 'Testbetrieb Alpha',
       attempt_number: 2,
       requires_mep: 1,
       exam_round_id: 1,
@@ -245,11 +245,11 @@ describe('PlanningApiService', () => {
 
     service
       .updateCandidate(1, {
-        first_name: 'Lea',
-        last_name: 'Hoffmann',
-        ihk_exam_number: 'FI-2026-1042',
+        first_name: 'Prüfling',
+        last_name: 'Alpha',
+        ihk_exam_number: 'TEST-2026-0001',
         specialization: 'application_development',
-        training_company: 'Nordlicht Digital GmbH',
+        training_company: 'Testbetrieb Alpha',
         attempt_number: 2,
         requires_mep: 1,
         exam_round_id: 2,
@@ -300,11 +300,11 @@ describe('PlanningApiService', () => {
     service
       .createLocation({
         committee_id: 1,
-        name: 'IHK Campus',
-        street: 'Prüfungsweg 2',
-        postal_code: '20457',
-        city: 'Hamburg',
-        room: 'A 1.01',
+        name: 'Prüfungszentrum Service (Test)',
+        street: 'Testweg 20',
+        postal_code: '00000',
+        city: 'Teststadt',
+        room: 'Testraum S-01',
         is_active: 1,
       })
       .subscribe();
@@ -313,11 +313,11 @@ describe('PlanningApiService', () => {
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual({
       committee_id: 1,
-      name: 'IHK Campus',
-      street: 'Prüfungsweg 2',
-      postal_code: '20457',
-      city: 'Hamburg',
-      room: 'A 1.01',
+      name: 'Prüfungszentrum Service (Test)',
+      street: 'Testweg 20',
+      postal_code: '00000',
+      city: 'Teststadt',
+      room: 'Testraum S-01',
       is_active: 1,
     });
     request.flush(locationsFixture[0]);
@@ -328,11 +328,20 @@ describe('PlanningApiService', () => {
     expect(update.request.body).toEqual({ is_active: 0 });
     update.flush({ ...locationsFixture[0], is_active: 0 });
 
-    service.updateLocation(1, { name: 'Bildungszentrum Nord', room: '4.20' }).subscribe();
+    service
+      .updateLocation(1, { name: 'Prüfungszentrum Service Neu (Test)', room: 'S-02' })
+      .subscribe();
     const edit = http.expectOne('/api/locations/1');
     expect(edit.request.method).toBe('PATCH');
-    expect(edit.request.body).toEqual({ name: 'Bildungszentrum Nord', room: '4.20' });
-    edit.flush({ ...locationsFixture[0], name: 'Bildungszentrum Nord', room: '4.20' });
+    expect(edit.request.body).toEqual({
+      name: 'Prüfungszentrum Service Neu (Test)',
+      room: 'S-02',
+    });
+    edit.flush({
+      ...locationsFixture[0],
+      name: 'Prüfungszentrum Service Neu (Test)',
+      room: 'S-02',
+    });
 
     service.deleteLocation(1).subscribe();
     const remove = http.expectOne('/api/locations/1');

@@ -54,11 +54,14 @@ class OpenApiContractTests(unittest.TestCase):
                 api,
                 "POST",
                 "/api/committees",
-                {"name": "PA Vertrag", "occupation": "Fachinformatiker/in"},
+                {"name": "Prüfungsausschuss Vertragstest", "occupation": "Fachinformatiker/in"},
             )
             self.assertEqual(HTTPStatus.CREATED, status)
             status, _committee = self.request(
-                api, "PATCH", f"/api/committees/{committee['id']}", {"name": "PA Vertrag neu"}
+                api,
+                "PATCH",
+                f"/api/committees/{committee['id']}",
+                {"name": "Prüfungsausschuss Vertragstest Neu"},
             )
             self.assertEqual(HTTPStatus.OK, status)
 
@@ -67,9 +70,9 @@ class OpenApiContractTests(unittest.TestCase):
                 "POST",
                 "/api/members",
                 {
-                    "first_name": "Vertrag",
-                    "last_name": "Test",
-                    "email": "vertrag.test@example.de",
+                    "first_name": "Testperson",
+                    "last_name": "Vertrag",
+                    "email": "testperson.vertrag@example.invalid",
                     "committee_id": committee["id"],
                     "member_status": "ordinary",
                     "committee_role": "member",
@@ -88,11 +91,11 @@ class OpenApiContractTests(unittest.TestCase):
                 "POST",
                 "/api/candidates",
                 {
-                    "first_name": "Vertrag",
-                    "last_name": "Kandidat",
-                    "ihk_exam_number": "FI-2026-9999",
+                    "first_name": "Prüfling",
+                    "last_name": "Vertrag",
+                    "ihk_exam_number": "TEST-2026-9999",
                     "specialization": "application_development",
-                    "training_company": "Vertrag GmbH",
+                    "training_company": "Testbetrieb Vertrag",
                     "exam_round_id": 1,
                     "attempt_number": 1,
                     "requires_mep": 0,
@@ -103,7 +106,7 @@ class OpenApiContractTests(unittest.TestCase):
                 api,
                 "PATCH",
                 f"/api/candidates/{candidate['id']}",
-                {"training_company": "Vertrag Neu GmbH", "exam_round_id": 1},
+                {"training_company": "Testbetrieb Vertrag Neu", "exam_round_id": 1},
             )
             self.assertEqual(HTTPStatus.OK, status)
             status, response = self.request(api, "DELETE", f"/api/candidates/{candidate['id']}")
@@ -116,11 +119,11 @@ class OpenApiContractTests(unittest.TestCase):
                 "/api/locations",
                 {
                     "committee_id": 1,
-                    "name": "Vertragsort",
-                    "street": "Vertragsweg 1",
-                    "postal_code": "20095",
-                    "city": "Hamburg",
-                    "room": "V 1",
+                    "name": "Prüfungszentrum Vertrag (Test)",
+                    "street": "Testweg 99",
+                    "postal_code": "00000",
+                    "city": "Teststadt",
+                    "room": "Testraum V-01",
                     "is_active": 1,
                 },
             )

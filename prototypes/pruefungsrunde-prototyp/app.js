@@ -1,34 +1,9 @@
 const STORAGE_KEY = "pruefwerk-prototype-v1";
 
 const seed = {
-  candidates: [
-    {id:1,firstName:"Lea",lastName:"Hoffmann",examNo:"FI-2026-1042",direction:"Anwendungsentwicklung",company:"Nordlicht Digital GmbH",attempt:1,mep:false},
-    {id:2,firstName:"Jonas",lastName:"Weber",examNo:"FI-2026-1057",direction:"Systemintegration",company:"HanseNet Solutions AG",attempt:2,mep:true},
-    {id:3,firstName:"Mara",lastName:"Schulz",examNo:"FI-2026-1081",direction:"Daten- und Prozessanalyse",company:"Datenspur Analytics GmbH",attempt:1,mep:false},
-    {id:4,firstName:"Elias",lastName:"Koch",examNo:"FI-2026-1096",direction:"Digitale Vernetzung",company:"Elbwerke Technik KG",attempt:3,mep:false},
-    {id:5,firstName:"Sofia",lastName:"Richter",examNo:"FI-2026-1113",direction:"Anwendungsentwicklung",company:"Pixelhafen Software GmbH",attempt:2,mep:false},
-    {id:6,firstName:"Noah",lastName:"Bauer",examNo:"FI-2026-1128",direction:"Systemintegration",company:"Kernsysteme Nord GmbH",attempt:1,mep:true},
-    {id:7,firstName:"Mila",lastName:"Wagner",examNo:"FI-2026-1144",direction:"Anwendungsentwicklung",company:"Cloudkontor AG",attempt:3,mep:true},
-    {id:8,firstName:"Finn",lastName:"Krüger",examNo:"FI-2026-1162",direction:"Systemintegration",company:"Bytebrücke GmbH",attempt:1,mep:false},
-    {id:9,firstName:"Amelie",lastName:"Wolf",examNo:"FI-2026-1179",direction:"Daten- und Prozessanalyse",company:"Prozessblick GmbH",attempt:2,mep:true},
-    {id:10,firstName:"Paul",lastName:"Neumann",examNo:"FI-2026-1190",direction:"Digitale Vernetzung",company:"Netzraum Solutions KG",attempt:1,mep:false},
-    {id:11,firstName:"Lina",lastName:"Schröder",examNo:"FI-2026-1205",direction:"Anwendungsentwicklung",company:"Codewerft GmbH",attempt:1,mep:false},
-    {id:12,firstName:"Emil",lastName:"Hartmann",examNo:"FI-2026-1221",direction:"Systemintegration",company:"Infrapilot AG",attempt:2,mep:false}
-  ],
-  members: [
-    {id:1,firstName:"Martin",lastName:"König",status:"Ordentliches Mitglied",function:"Vorsitzender",side:"Arbeitgeber",email:"martin.koenig@example.de",mobile:"+49 170 1234567",active:true,response:true},
-    {id:2,firstName:"Dr. Anne",lastName:"Berg",status:"Ordentliches Mitglied",function:"Stellvertretender Vorsitzender",side:"Schule",email:"anne.berg@example.de",mobile:"+49 171 2345678",active:true,response:true},
-    {id:3,firstName:"Tobias",lastName:"Rehm",status:"Ordentliches Mitglied",function:"Mitglied",side:"Arbeitnehmer",email:"tobias.rehm@example.de",mobile:"+49 172 3456789",active:true,response:true},
-    {id:4,firstName:"Sabine",lastName:"Jahn",status:"Ordentliches Mitglied",function:"Mitglied",side:"Arbeitgeber",email:"sabine.jahn@example.de",mobile:"+49 173 4567890",active:true,response:true},
-    {id:5,firstName:"Jan",lastName:"Peters",status:"Stellvertretendes Mitglied",function:"Mitglied",side:"Schule",email:"jan.peters@example.de",mobile:"+49 174 5678901",active:true,response:false},
-    {id:6,firstName:"Nina",lastName:"Albrecht",status:"Stellvertretendes Mitglied",function:"Mitglied",side:"Arbeitnehmer",email:"nina.albrecht@example.de",mobile:"+49 175 6789012",active:true,response:true},
-    {id:7,firstName:"Karim",lastName:"Özdemir",status:"Stellvertretendes Mitglied",function:"Mitglied",side:"Arbeitgeber",email:"karim.oezdemir@example.de",mobile:"+49 176 7890123",active:true,response:false},
-    {id:8,firstName:"Claudia",lastName:"Mertens",status:"Stellvertretendes Mitglied",function:"Mitglied",side:"Schule",email:"claudia.mertens@example.de",mobile:"+49 177 8901234",active:true,response:true}
-  ],
-  locations: [
-    {id:1,name:"Bildungszentrum HafenCity",street:"Am Sandtorkai 42",zip:"20457",city:"Hamburg",room:"Konferenzraum 3.12"},
-    {id:2,name:"Berufliche Schule IT",street:"Eulenkamp 46",zip:"22049",city:"Hamburg",room:"Prüfungsraum B 204"}
-  ],
+  candidates: clone(globalThis.SYNTHETIC_FIXTURES.candidates),
+  members: clone(globalThis.SYNTHETIC_FIXTURES.members),
+  locations: clone(globalThis.SYNTHETIC_FIXTURES.locations),
   settings:{weekFrom:"2026-W47",weekTo:"2026-W49",examsPerDay:6,maxExamDaysPerWeek:3,lunch:true,locationId:1},
   candidateDates:[],availability:{},plan:[],planConfirmed:false,confirmedAt:null,planningModelVersion:2,candidateModelVersion:2
 };
@@ -67,7 +42,7 @@ function showToast(message){
   clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove("show"),3200);
 }
 
-const titles={dashboard:"Guten Morgen, Martin.",candidates:"Prüflinge",members:"Prüfungsausschuss",planning:"Terminplanung",locations:"Prüfungsorte"};
+const titles={dashboard:"Guten Morgen, Testperson.",candidates:"Prüflinge",members:"Prüfungsausschuss",planning:"Terminplanung",locations:"Prüfungsorte"};
 function showView(view){
   document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id===`${view}-view`));
   document.querySelectorAll(".nav-item").forEach(el=>el.classList.toggle("active",el.dataset.view===view));
@@ -299,7 +274,7 @@ function importCsv(file){
   };reader.readAsText(file,"UTF-8");
 }
 function downloadTemplate(){
-  const csv="Vorname;Nachname;IHK-Prüfungsnummer;Fachrichtung;Prüfungsversuch;MEP;Ausbildungsbetrieb\nErika;Muster;FI-2026-0001;Anwendungsentwicklung;1;Nein;Muster GmbH\n";
+  const csv="Vorname;Nachname;IHK-Prüfungsnummer;Fachrichtung;Prüfungsversuch;MEP;Ausbildungsbetrieb\nPrüfling;CSV;TEST-2026-9001;Anwendungsentwicklung;1;Nein;Testbetrieb CSV\n";
   const link=document.createElement("a");link.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));link.download="prueflinge-importvorlage.csv";link.click();URL.revokeObjectURL(link.href);
 }
 

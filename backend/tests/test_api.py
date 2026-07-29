@@ -70,7 +70,7 @@ class ApiTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertEqual("/api/confirmed-plans", calendar["_links"]["self"]["href"])
             plan = calendar["items"][0]
-            self.assertEqual("PA Fachinformatiker Hamburg 1", plan["committee"]["name"])
+            self.assertEqual("Prüfungsausschuss Teststadt 1", plan["committee"]["name"])
             self.assertGreaterEqual(len(plan["days"]), 1)
             first_day = plan["days"][0]
             self.assertGreaterEqual(len(first_day["slots"]), 1)
@@ -151,18 +151,18 @@ class ApiTests(unittest.TestCase):
                 "POST",
                 "/api/candidates",
                 {
-                    "first_name": "Erika",
-                    "last_name": "Muster",
-                    "ihk_exam_number": "FI-2026-9999",
+                    "first_name": "Prüfling",
+                    "last_name": "API",
+                    "ihk_exam_number": "TEST-2026-9999",
                     "specialization": "application_development",
-                    "training_company": "Muster GmbH",
+                    "training_company": "Testbetrieb API",
                     "exam_round_id": 1,
                     "attempt_number": 2,
                     "requires_mep": True,
                 },
             )
             assert_status(status, HTTPStatus.CREATED)
-            self.assertEqual("Erika", candidate["first_name"])
+            self.assertEqual("Prüfling", candidate["first_name"])
 
             status, summary = api.request("GET", "/api/round-summary?round_id=1")
             assert_status(status, HTTPStatus.OK)
@@ -173,14 +173,14 @@ class ApiTests(unittest.TestCase):
                 "PATCH",
                 f"/api/candidates/{candidate['id']}",
                 {
-                    "training_company": "Neue Muster GmbH",
+                    "training_company": "Testbetrieb API Neu",
                     "exam_round_id": 1,
                     "attempt_number": 3,
                     "requires_mep": False,
                 },
             )
             assert_status(status, HTTPStatus.OK)
-            self.assertEqual("Neue Muster GmbH", updated["training_company"])
+            self.assertEqual("Testbetrieb API Neu", updated["training_company"])
 
             status, round_candidates = api.request("GET", "/api/round-candidates?round_id=1")
             assert_status(status, HTTPStatus.OK)
@@ -249,7 +249,7 @@ class ApiTests(unittest.TestCase):
                 {
                     "exam_half_year_id": half_year["id"],
                     "committee_id": 1,
-                    "name": "Sommer 2027 · PA Fachinformatiker Hamburg 1",
+                    "name": "Sommer 2027 · Prüfungsausschuss Teststadt 1",
                     "created_by_member_id": 1,
                 },
             )
@@ -274,7 +274,10 @@ class ApiTests(unittest.TestCase):
             status, committee = api.request(
                 "POST",
                 "/api/committees",
-                {"name": "PA Fachinformatiker Hamburg 2", "occupation": "Fachinformatiker/in"},
+                {
+                    "name": "Prüfungsausschuss Teststadt 2",
+                    "occupation": "Fachinformatiker/in",
+                },
             )
             assert_status(status, HTTPStatus.CREATED)
             status, member = api.request(
@@ -296,7 +299,7 @@ class ApiTests(unittest.TestCase):
                 {
                     "exam_half_year_id": 1,
                     "committee_id": committee["id"],
-                    "name": "Winter 2026/27 · PA Fachinformatiker Hamburg 2",
+                    "name": "Winter 2026/27 · Prüfungsausschuss Teststadt 2",
                     "created_by_member_id": member["id"],
                 },
             )

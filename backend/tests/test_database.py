@@ -71,11 +71,11 @@ class DatabaseTests(unittest.TestCase):
                     )
                     """),
                     {
-                        "first_name": "Ada",
-                        "last_name": "Lovelace",
-                        "ihk_exam_number": "FI-2026-1042",
+                        "first_name": "Prüfling",
+                        "last_name": "Datenbank",
+                        "ihk_exam_number": "TEST-2026-0001",
                         "specialization": "application_development",
-                        "training_company": "Analytical Engines GmbH",
+                        "training_company": "Testbetrieb Datenbank",
                     },
                 )
 

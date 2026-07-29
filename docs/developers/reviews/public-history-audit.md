@@ -143,7 +143,7 @@ Der zusätzliche Scan erhält bekannte Werte über eine geschützte externe Date
 Das Skript gibt keinen dieser Werte wieder:
 
 ```sh
-python scripts/audit-public-history.py \
+python scripts/audit_public_history.py \
   --git-dir "$AUDIT_ROOT/lzug.git" \
   --known-values "$AUDIT_ROOT/known-values.txt" \
   --output "$AUDIT_ROOT/public-history-audit.json"

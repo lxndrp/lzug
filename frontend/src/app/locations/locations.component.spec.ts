@@ -27,20 +27,20 @@ describe('LocationsComponent', () => {
   it('should render location details', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
-    expect(text).toContain('Bildungszentrum HafenCity');
-    expect(text).toContain('3.12');
-    expect(text).toContain('20457');
+    expect(text).toContain('Prüfungszentrum Alpha (Test)');
+    expect(text).toContain('Testraum A-01');
+    expect(text).toContain('00000');
   });
 
   it('should emit valid location form submissions', () => {
     const component = fixture.componentInstance;
     vi.spyOn(component.createLocation, 'emit').mockReturnValue(undefined);
 
-    setInput('#locationName', 'IHK Campus');
-    setInput('#locationRoom', 'A 1.01');
-    setInput('#locationStreet', 'Prüfungsweg 2');
-    setInput('#locationPostalCode', '20457');
-    setInput('#locationCity', 'Hamburg');
+    setInput('#locationName', 'Prüfungszentrum Formular (Test)');
+    setInput('#locationRoom', 'Testraum F-01');
+    setInput('#locationStreet', 'Testweg 30');
+    setInput('#locationPostalCode', '00000');
+    setInput('#locationCity', 'Teststadt');
 
     const form = (fixture.nativeElement as HTMLElement).querySelector('form');
     expect(form).toBeTruthy();
@@ -49,11 +49,11 @@ describe('LocationsComponent', () => {
     expect(component.createLocation.emit).toHaveBeenCalledWith(
       expect.objectContaining({
         committee_id: 1,
-        name: 'IHK Campus',
-        room: 'A 1.01',
+        name: 'Prüfungszentrum Formular (Test)',
+        room: 'Testraum F-01',
       }),
     );
-    expect(inputValue('#locationName')).toBe('IHK Campus');
+    expect(inputValue('#locationName')).toBe('Prüfungszentrum Formular (Test)');
 
     component.resetDraft();
     expect(
@@ -80,7 +80,7 @@ describe('LocationsComponent', () => {
     expect(component.deleteLocation.emit).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 1,
-        name: 'Bildungszentrum HafenCity',
+        name: 'Prüfungszentrum Alpha (Test)',
       }),
     );
   });
@@ -112,19 +112,19 @@ describe('LocationsComponent', () => {
       };
       submitLocationUpdate: () => void;
     };
-    editor.editDraft().name = 'Bildungszentrum Nord';
-    editor.editDraft().room = '4.20';
+    editor.editDraft().name = 'Prüfungszentrum Alpha Neu (Test)';
+    editor.editDraft().room = 'Testraum A-02';
     editor.submitLocationUpdate();
 
     expect(component.updateLocation.emit).toHaveBeenCalledWith({
       id: 1,
       payload: expect.objectContaining({
-        name: 'Bildungszentrum Nord',
-        room: '4.20',
+        name: 'Prüfungszentrum Alpha Neu (Test)',
+        room: 'Testraum A-02',
         is_active: 1,
       }),
     });
-    expect(editor.editDraft().name).toBe('Bildungszentrum Nord');
+    expect(editor.editDraft().name).toBe('Prüfungszentrum Alpha Neu (Test)');
 
     component.finishEditing(1);
     fixture.detectChanges();
@@ -146,7 +146,7 @@ describe('LocationsComponent', () => {
 
     const labels = Array.from(select.options).map((option) => option.textContent?.trim());
     expect(labels).toContain('Standardausschuss');
-    expect(labels).toContain('PA Fachinformatiker Hamburg 1');
+    expect(labels).toContain('Prüfungsausschuss Teststadt 1');
     expect(select.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();
     expect(select.required).toBe(true);
   });

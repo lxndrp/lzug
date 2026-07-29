@@ -18,117 +18,38 @@ import {
   RoundCandidate,
   RoundSummary,
 } from '../api/api.models';
+import { syntheticFixtures } from './synthetic-fixtures.generated';
 
 export const apiRootFixture: ApiRoot = {
   name: 'lzug API',
   _links: {},
 };
 
-export const committeesFixture: Committee[] = [
-  { id: 1, name: 'PA Fachinformatiker Hamburg 1', occupation: 'Fachinformatiker/in' },
-  { id: 2, name: 'PA Fachinformatiker Hamburg 2', occupation: 'Fachinformatiker/in' },
-];
+export const committeesFixture: Committee[] = syntheticFixtures.committees.map((item) => ({
+  ...item,
+}));
 
-export const membersFixture: CommitteeMember[] = [
-  {
-    id: 1,
-    person_id: 1,
-    committee_id: 1,
-    first_name: 'Martin',
-    last_name: 'Koenig',
-    member_status: 'ordinary',
-    committee_role: 'chair',
-    representing_side: 'employer',
-    email: 'martin.koenig@example.de',
-    email_verified_at: null,
-    mobile: '+49 170 1234567',
-    is_active: 1,
-  },
-  {
-    id: 2,
-    person_id: 2,
-    committee_id: 1,
-    first_name: 'Anne',
-    last_name: 'Berg',
-    member_status: 'ordinary',
-    committee_role: 'member',
-    representing_side: 'school',
-    email: 'anne.berg@example.de',
-    email_verified_at: null,
-    mobile: null,
-    is_active: 0,
-  },
-  {
-    id: 3,
-    person_id: 3,
-    committee_id: 2,
-    first_name: 'Tobias',
-    last_name: 'Rehm',
-    member_status: 'deputy',
-    committee_role: 'member',
-    representing_side: 'employee',
-    email: 'tobias.rehm@example.de',
-    email_verified_at: null,
-    mobile: null,
-    is_active: 1,
-  },
-];
+export const membersFixture: CommitteeMember[] = syntheticFixtures.members.map((item) => ({
+  ...item,
+}));
 
-export const personsFixture: Person[] = [
-  {
-    id: 1,
-    first_name: 'Martin',
-    last_name: 'Koenig',
-    email: 'martin.koenig@example.de',
-    mobile: '+49 170 1234567',
-  },
-  {
-    id: 2,
-    first_name: 'Anne',
-    last_name: 'Berg',
-    email: 'anne.berg@example.de',
-    mobile: null,
-  },
-  {
-    id: 3,
-    first_name: 'Tobias',
-    last_name: 'Rehm',
-    email: 'tobias.rehm@example.de',
-    mobile: null,
-  },
-];
+export const personsFixture: Person[] = syntheticFixtures.members.map(
+  ({ person_id, first_name, last_name, email, mobile }) => ({
+    id: person_id,
+    first_name,
+    last_name,
+    email,
+    mobile,
+  }),
+);
 
-export const locationsFixture: Location[] = [
-  {
-    id: 1,
-    committee_id: 1,
-    name: 'Bildungszentrum HafenCity',
-    street: 'Prüfungsweg 1',
-    postal_code: '20457',
-    room: '3.12',
-    city: 'Hamburg',
-    is_active: 1,
-  },
-];
+export const locationsFixture: Location[] = syntheticFixtures.locations.map((item) => ({
+  ...item,
+}));
 
-export const candidatesFixture: Candidate[] = [
-  {
-    id: 1,
-    first_name: 'Lea',
-    last_name: 'Hoffmann',
-    ihk_exam_number: 'FI-2026-1042',
-    specialization: 'Anwendungsentwicklung',
-    training_company: 'Nordlicht Digital GmbH',
-  },
-  {
-    id: 2,
-    first_name: 'Jonas',
-    last_name: 'Weber',
-    ihk_exam_number: 'FI-2026-1057',
-    specialization: 'Systemintegration',
-    training_company: 'HanseNet Solutions AG',
-  },
-];
+export const candidatesFixture: Candidate[] = syntheticFixtures.candidates.map((item) => ({
+  ...item,
+}));
 
 export const roundCandidatesFixture: RoundCandidate[] = [
   {
@@ -286,7 +207,7 @@ export const summaryFixture: RoundSummary = {
     id: 1,
     name: 'Winter 2026/27',
     status: 'availability_requested',
-    committee_name: 'PA Fachinformatiker Hamburg 1',
+    committee_name: committeesFixture[0].name,
   },
   counts: {
     candidates: 12,

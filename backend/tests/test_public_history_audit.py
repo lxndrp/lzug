@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
-AUDIT_SCRIPT = ROOT / "scripts" / "audit-public-history.py"
+AUDIT_SCRIPT = ROOT / "scripts" / "audit_public_history.py"
 
 
 class PublicHistoryAuditTest(unittest.TestCase):

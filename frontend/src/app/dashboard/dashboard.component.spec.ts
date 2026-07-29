@@ -24,14 +24,14 @@ describe('DashboardComponent', () => {
     fixture.detectChanges();
 
     const text = textContent();
-    expect(text).toContain('PA Fachinformatiker Hamburg 1');
+    expect(text).toContain('Prüfungsausschuss Teststadt 1');
     expect(text).toContain('Prüflinge');
     expect(text).toContain('12');
-    expect(text).toContain('Bildungszentrum HafenCity');
+    expect(text).toContain('Prüfungszentrum Alpha (Test)');
     expect(text).toContain('08:30');
-    expect(text).toContain('Lea Hoffmann');
+    expect(text).toContain('Prüfling Alpha');
     expect(text).toContain('MEP');
-    expect(text).toContain('Martin Koenig');
+    expect(text).toContain('Testperson Alpha');
     expect(text).toContain('Aufgaben');
     expect(text).toContain('Rückmeldefrist');
     expect(text).toContain('15.10.2026');
