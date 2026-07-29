@@ -1,4 +1,4 @@
-// Selected from CoreUI Icons Free 3.1.0 (MIT); see THIRD_PARTY_NOTICES.md.
+// Selected from CoreUI Icons Free 3.1.0 (CC BY 4.0); see THIRD_PARTY_NOTICES.md.
 // Keeping the definitions local avoids watching more than 11,000 catalogue files.
 const icon = (content: string): string[] => ['512 512', content];
 

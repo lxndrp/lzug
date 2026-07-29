@@ -1,6 +1,6 @@
 # lzug
 
-[![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue.svg)](LICENSE)
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![Status: prototype](https://img.shields.io/badge/status-prototype-yellow)](https://github.com/users/lxndrp/projects/2)
 [![CI](https://github.com/lxndrp/lzug/actions/workflows/ci.yml/badge.svg?branch=master&event=push)](https://github.com/lxndrp/lzug/actions/workflows/ci.yml?query=branch%3Amaster+event%3Apush)
 
@@ -36,4 +36,7 @@ Das Ergebnis liegt unter `site/` und wird in CI als geschütztes Artefakt
 
 ## Lizenz
 
-Dieses Projekt steht unter der [GPL-2.0-Lizenz](LICENSE).
+Dieses Projekt steht unter der [GNU Affero General Public License
+3.0-or-later](LICENSE). Änderungen an einer netzwerkbasiert betriebenen
+Version müssen den interagierenden Nutzenden den entsprechenden Quellcode
+zugänglich machen.
