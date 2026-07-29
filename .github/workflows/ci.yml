@@ -64,6 +64,7 @@ jobs:
           name: backend-coverage
           path: coverage.xml
           if-no-files-found: error
+          retention-days: 7
 
   frontend:
     name: Frontend
@@ -107,6 +108,7 @@ jobs:
           name: frontend-coverage
           path: frontend/coverage/frontend/lcov.info
           if-no-files-found: error
+          retention-days: 7
 
   npm-security:
     name: npm production security gate
@@ -173,6 +175,7 @@ jobs:
           name: lzug-documentation
           path: site
           if-no-files-found: error
+          retention-days: 7
 
   e2e:
     name: Browser E2E
@@ -214,13 +217,19 @@ jobs:
         working-directory: frontend
         run: npm run test:e2e
 
+      - name: Check browser artifacts
+        id: artifact_guard
+        if: always()
+        run: python scripts/check_ci_artifacts.py frontend/playwright-report frontend/test-results
+
       - name: Upload browser E2E report
         uses: actions/upload-artifact@v7
-        if: always()
+        if: failure() && steps.artifact_guard.outcome == 'success'
         with:
           name: playwright-e2e-report
           path: frontend/playwright-report
           if-no-files-found: warn
+          retention-days: 7
 
   a11y:
     name: Accessibility
@@ -262,10 +271,16 @@ jobs:
         working-directory: frontend
         run: npm run test:a11y
 
+      - name: Check browser artifacts
+        id: artifact_guard
+        if: always()
+        run: python scripts/check_ci_artifacts.py frontend/playwright-report frontend/test-results
+
       - name: Upload accessibility report
         uses: actions/upload-artifact@v7
-        if: always()
+        if: failure() && steps.artifact_guard.outcome == 'success'
         with:
           name: playwright-a11y-report
           path: frontend/playwright-report
           if-no-files-found: warn
+          retention-days: 7
