@@ -1,4 +1,12 @@
-import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  EventEmitter,
+  Input,
+  Output,
+  ViewChild,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TuiButton, TuiCheckbox, TuiInput, TuiTextfield } from '@taiga-ui/core';
 import { TuiBadge, TuiSelect } from '@taiga-ui/kit';
@@ -45,6 +53,11 @@ export type CandidateUpdate = {
 })
 export class CandidatesComponent {
   protected readonly icons = appIcons;
+  @ViewChild('candidateCreateButton')
+  private candidateCreateButton?: ElementRef<HTMLButtonElement>;
+  @ViewChild('candidateCreateForm', { read: ElementRef })
+  private candidateCreateForm?: ElementRef<HTMLFormElement>;
+
   @Input() masterData: MasterData | null = null;
   @Input() activeRound: ExamRound | null = null;
   @Input() actionBusy = false;
@@ -55,6 +68,7 @@ export class CandidatesComponent {
 
   protected readonly editingCandidateId = signal<number | null>(null);
   protected readonly editDraft = signal<CandidatePayload | null>(null);
+  protected readonly creatingCandidate = signal(false);
 
   protected readonly query = signal('');
   protected readonly specialization = signal('');
@@ -165,10 +179,10 @@ export class CandidatesComponent {
       attempt_number: Number(this.draft.attempt_number) || 1,
       requires_mep: this.draft.requires_mep ? 1 : 0,
     });
-    this.resetDraft();
   }
 
   resetDraft(): void {
+    this.candidateCreateForm?.nativeElement.reset();
     this.draft.first_name = '';
     this.draft.last_name = '';
     this.draft.ihk_exam_number = '';
@@ -176,6 +190,21 @@ export class CandidatesComponent {
     this.draft.training_company = '';
     this.draft.attempt_number = 1;
     this.draft.requires_mep = 0;
+    this.creatingCandidate.set(false);
+    this.focusCreateButton();
+  }
+
+  protected toggleCandidateCreation(): void {
+    if (this.creatingCandidate()) {
+      this.resetDraft();
+      return;
+    }
+
+    this.creatingCandidate.set(true);
+  }
+
+  protected cancelCandidateCreation(): void {
+    this.resetDraft();
   }
 
   protected startEditing(item: CandidateView): void {
@@ -285,5 +314,9 @@ export class CandidatesComponent {
   private roundLabel(round: ExamRound): string {
     const committee = this.masterData?.committees.find((item) => item.id === round.committee_id);
     return committee ? `${committee.name} · ${round.name}` : round.name;
+  }
+
+  private focusCreateButton(): void {
+    queueMicrotask(() => this.candidateCreateButton?.nativeElement.focus());
   }
 }

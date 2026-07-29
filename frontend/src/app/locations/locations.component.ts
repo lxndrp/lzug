@@ -1,4 +1,12 @@
-import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  EventEmitter,
+  Input,
+  Output,
+  ViewChild,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TuiButton, TuiInput, TuiTextfield } from '@taiga-ui/core';
 import { TuiBadge, TuiSelect } from '@taiga-ui/kit';
@@ -33,6 +41,11 @@ export type LocationUpdate = {
 })
 export class LocationsComponent {
   protected readonly icons = appIcons;
+  @ViewChild('locationCreateButton')
+  private locationCreateButton?: ElementRef<HTMLButtonElement>;
+  @ViewChild('locationCreateForm', { read: ElementRef })
+  private locationCreateForm?: ElementRef<HTMLFormElement>;
+
   @Input() masterData: MasterData | null = null;
   @Input() actionBusy = false;
 
@@ -43,6 +56,7 @@ export class LocationsComponent {
 
   protected readonly editingLocationId = signal<number | null>(null);
   protected readonly editDraft = signal<LocationPayload | null>(null);
+  protected readonly creatingLocation = signal(false);
 
   protected readonly draft: LocationPayload = {
     committee_id: 0,
@@ -81,10 +95,10 @@ export class LocationsComponent {
       room: this.draft.room.trim(),
       is_active: this.draft.is_active ?? 1,
     });
-    this.resetDraft();
   }
 
   resetDraft(): void {
+    this.locationCreateForm?.nativeElement.reset();
     this.draft.committee_id = 0;
     this.draft.name = '';
     this.draft.street = '';
@@ -92,6 +106,21 @@ export class LocationsComponent {
     this.draft.city = '';
     this.draft.room = '';
     this.draft.is_active = 1;
+    this.creatingLocation.set(false);
+    this.focusCreateButton();
+  }
+
+  protected toggleLocationCreation(): void {
+    if (this.creatingLocation()) {
+      this.resetDraft();
+      return;
+    }
+
+    this.creatingLocation.set(true);
+  }
+
+  protected cancelLocationCreation(): void {
+    this.resetDraft();
   }
 
   protected startEditing(location: Location): void {
@@ -138,5 +167,9 @@ export class LocationsComponent {
     if (this.editingLocationId() === id) {
       this.cancelEditing();
     }
+  }
+
+  private focusCreateButton(): void {
+    queueMicrotask(() => this.locationCreateButton?.nativeElement.focus());
   }
 }

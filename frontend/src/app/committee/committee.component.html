@@ -30,8 +30,100 @@
     <section class="app-panel">
       <header tuiHeader="body-m" class="app-panel-header">
         <strong>Ausschüsse</strong>
+        <div class="app-panel-header-actions">
+          <button
+            #committeeCreateButton
+            tuiButton
+            size="s"
+            type="button"
+            [appearance]="creatingCommittee() ? 'secondary' : 'primary'"
+            [attr.aria-expanded]="creatingCommittee()"
+            aria-controls="committee-create-editor"
+            (click)="toggleCommitteeCreation(committeeCreateForm)"
+          >
+            <svg
+              [cIcon]="creatingCommittee() ? icons.cancel : icons.add"
+              class="app-button-icon"
+              aria-hidden="true"
+            ></svg>
+            {{ creatingCommittee() ? 'Anlegen abbrechen' : 'Neuen Ausschuss anlegen' }}
+          </button>
+        </div>
       </header>
       <div class="app-panel-body">
+        <section
+          id="committee-create-editor"
+          class="app-context-editor"
+          aria-labelledby="committee-create-title"
+          [hidden]="!creatingCommittee()"
+        >
+          <header class="app-context-editor-header">
+            <div>
+              <strong id="committee-create-title">Ausschuss anlegen</strong>
+              <span class="app-muted app-block">Bezeichnung und Ausbildungsberuf festlegen</span>
+            </div>
+            <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
+          </header>
+          <form
+            #committeeCreateForm
+            tuiForm="m"
+            class="app-form-grid"
+            (submit)="saveCommittee($event)"
+          >
+            <div class="app-field-full">
+              <tui-textfield>
+                <label tuiLabel for="committeeName"
+                  >Bezeichnung <span aria-hidden="true">*</span></label
+                >
+                <input
+                  tuiInput
+                  id="committeeName"
+                  name="name"
+                  [(ngModel)]="committeeDraft.name"
+                  required
+                  placeholder="PA Fachinformatiker Hamburg 1"
+                />
+              </tui-textfield>
+            </div>
+            <div class="app-field-full">
+              <tui-textfield>
+                <label tuiLabel for="committeeOccupation"
+                  >Ausbildungsberuf <span aria-hidden="true">*</span></label
+                >
+                <input
+                  tuiInput
+                  id="committeeOccupation"
+                  name="occupation"
+                  [(ngModel)]="committeeDraft.occupation"
+                  required
+                  placeholder="Fachinformatiker/in"
+                />
+              </tui-textfield>
+            </div>
+            <div class="app-field-full app-form-actions">
+              <span class="app-form-action-hint"
+                >Mitglieder können anschließend zugeordnet werden.</span
+              >
+              <div class="app-form-action-buttons">
+                <button
+                  tuiButton
+                  appearance="secondary"
+                  type="button"
+                  [disabled]="actionBusy"
+                  (click)="resetCommitteeForm(committeeCreateForm)"
+                >
+                  <svg [cIcon]="icons.cancel" class="app-button-icon" aria-hidden="true"></svg>
+                  Abbrechen
+                </button>
+                <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
+                  <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
+                  Ausschuss anlegen
+                </button>
+              </div>
+            </div>
+          </form>
+        </section>
+
         <div class="app-list-group">
           @for (committee of masterDataView()?.committees || []; track committee.id) {
             <button
@@ -52,152 +144,54 @@
         </div>
       </div>
     </section>
-
-    <details class="app-create-panel">
-      <summary class="app-create-trigger">Neuen Ausschuss anlegen</summary>
-      <section class="app-panel">
-        <header tuiHeader="body-m" class="app-panel-header">
-          <div>
-            <strong>Ausschuss anlegen</strong>
-            <span class="app-muted app-block">Bezeichnung und Ausbildungsberuf festlegen</span>
-          </div>
-          <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
-        </header>
-        <div class="app-panel-body">
-          <form tuiForm="m" class="app-form-grid" (submit)="saveCommittee($event)">
-            <div class="app-field-full">
-              <tui-textfield>
-                <label tuiLabel for="committeeName"
-                  >Bezeichnung <span aria-hidden="true">*</span></label
-                >
-                <input
-                  tuiInput
-                  id="committeeName"
-                  name="name"
-                  required
-                  placeholder="PA Fachinformatiker Hamburg 1"
-                />
-              </tui-textfield>
-            </div>
-            <div class="app-field-full">
-              <tui-textfield>
-                <label tuiLabel for="committeeOccupation"
-                  >Ausbildungsberuf <span aria-hidden="true">*</span></label
-                >
-                <input
-                  tuiInput
-                  id="committeeOccupation"
-                  name="occupation"
-                  required
-                  placeholder="Fachinformatiker/in"
-                />
-              </tui-textfield>
-            </div>
-            <div class="app-field-full app-form-actions">
-              <span class="app-form-action-hint"
-                >Mitglieder können anschließend zugeordnet werden.</span
-              >
-              <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
-                <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
-                Ausschuss anlegen
-              </button>
-            </div>
-          </form>
-        </div>
-      </section>
-    </details>
   </div>
 
   <div class="app-page-span-8">
     <section class="app-panel">
       <header tuiHeader="body-m" class="app-panel-header">
-        <strong>{{ selectedCommitteeName() }}</strong>
-        <span tuiBadge appearance="positive">{{ activeMemberCount() }} aktiv</span>
+        <div>
+          <strong>{{ selectedCommitteeName() }}</strong>
+          <span class="app-muted app-block">{{ activeMemberCount() }} aktive Prüfer</span>
+        </div>
+        <div class="app-panel-header-actions">
+          <span tuiBadge appearance="positive">{{ activeMemberCount() }} aktiv</span>
+          <button
+            #memberCreateButton
+            tuiButton
+            size="s"
+            type="button"
+            [appearance]="creatingMember() ? 'secondary' : 'primary'"
+            [attr.aria-expanded]="creatingMember()"
+            aria-controls="member-create-editor"
+            [disabled]="!selectedCommittee() || actionBusy"
+            (click)="toggleMemberCreation(memberCreateForm)"
+          >
+            <svg
+              [cIcon]="creatingMember() ? icons.cancel : icons.add"
+              class="app-button-icon"
+              aria-hidden="true"
+            ></svg>
+            {{ creatingMember() ? 'Anlegen abbrechen' : 'Neuen Prüfer anlegen' }}
+          </button>
+        </div>
       </header>
       <div class="app-panel-body">
-        <div class="app-table-scroll">
-          <table tuiTable class="app-data-table app-table-sticky-actions">
-            <thead>
-              <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Rolle</th>
-                <th scope="col">Seite</th>
-                <th scope="col">Kontakt</th>
-                <th scope="col">Status</th>
-                <th scope="col">Aktion</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (member of committeeMembers(); track member.id) {
-                <tr>
-                  <td>
-                    <strong>{{ fullMemberName(member) }}</strong>
-                    <span class="app-muted app-block">{{
-                      memberStatusLabel(member.member_status)
-                    }}</span>
-                  </td>
-                  <td>{{ roleLabel(member.committee_role) }}</td>
-                  <td>{{ memberSide(member) }}</td>
-                  <td class="app-contact">
-                    <a [href]="'mailto:' + member.email">{{ member.email }}</a>
-                    <span>{{ member.mobile || 'Keine Mobilnummer' }}</span>
-                  </td>
-                  <td>
-                    <span tuiBadge [appearance]="member.is_active ? 'positive' : 'neutral'">
-                      {{ member.is_active ? 'Aktiv' : 'Inaktiv' }}
-                    </span>
-                  </td>
-                  <td class="app-actions">
-                    <div class="app-row-actions">
-                      <button
-                        tuiButton
-                        color="secondary"
-                        size="s"
-                        variant="outline"
-                        type="button"
-                        (click)="toggleMember.emit(member)"
-                        [disabled]="actionBusy"
-                      >
-                        <svg
-                          [cIcon]="member.is_active ? icons.deactivate : icons.activate"
-                          class="app-button-icon"
-                          aria-hidden="true"
-                        ></svg>
-                        {{ member.is_active ? 'Deaktivieren' : 'Aktivieren' }}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td colspan="6" class="app-table-empty-cell">
-                    <div class="app-table-empty">
-                      <strong>Keine Prüfer im ausgewählten Ausschuss.</strong>
-                      <span>Legen Sie den ersten Prüfer über das Formular unterhalb an.</span>
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <details class="app-create-panel">
-      <summary class="app-create-trigger">Neuen Prüfer anlegen</summary>
-      <section class="app-panel">
-        <header tuiHeader="body-m" class="app-panel-header">
-          <div>
-            <strong>Prüfer anlegen</strong>
-            <span class="app-muted app-block"
-              >Kontaktdaten, Funktion und Vertreterseite erfassen</span
-            >
-          </div>
-          <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
-        </header>
-        <div class="app-panel-body">
-          <form tuiForm="m" class="app-form-grid" (submit)="saveMember($event)">
+        <section
+          id="member-create-editor"
+          class="app-context-editor"
+          aria-labelledby="member-create-title"
+          [hidden]="!creatingMember()"
+        >
+          <header class="app-context-editor-header">
+            <div>
+              <strong id="member-create-title">Prüfer anlegen</strong>
+              <span class="app-muted app-block"
+                >Kontaktdaten, Funktion und Vertreterseite erfassen</span
+              >
+            </div>
+            <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
+          </header>
+          <form #memberCreateForm tuiForm="m" class="app-form-grid" (submit)="saveMember($event)">
             <div class="app-field-full">
               <label for="memberCommittee">Ausschuss <span aria-hidden="true">*</span></label>
               <tui-textfield>
@@ -235,7 +229,13 @@
                 <label tuiLabel for="memberFirstName"
                   >Vorname <span aria-hidden="true">*</span></label
                 >
-                <input tuiInput id="memberFirstName" name="first_name" required />
+                <input
+                  tuiInput
+                  id="memberFirstName"
+                  name="first_name"
+                  [(ngModel)]="memberDraft.first_name"
+                  required
+                />
               </tui-textfield>
             </div>
             <div class="app-field-half">
@@ -243,19 +243,38 @@
                 <label tuiLabel for="memberLastName"
                   >Nachname <span aria-hidden="true">*</span></label
                 >
-                <input tuiInput id="memberLastName" name="last_name" required />
+                <input
+                  tuiInput
+                  id="memberLastName"
+                  name="last_name"
+                  [(ngModel)]="memberDraft.last_name"
+                  required
+                />
               </tui-textfield>
             </div>
             <div class="app-field-half">
               <tui-textfield>
                 <label tuiLabel for="memberEmail">E-Mail <span aria-hidden="true">*</span></label>
-                <input tuiInput id="memberEmail" name="email" type="email" required />
+                <input
+                  tuiInput
+                  id="memberEmail"
+                  name="email"
+                  type="email"
+                  [(ngModel)]="memberDraft.email"
+                  required
+                />
               </tui-textfield>
             </div>
             <div class="app-field-half">
               <tui-textfield>
                 <label tuiLabel for="memberMobile">Mobil</label>
-                <input tuiInput id="memberMobile" name="mobile" type="tel" />
+                <input
+                  tuiInput
+                  id="memberMobile"
+                  name="mobile"
+                  type="tel"
+                  [(ngModel)]="memberDraft.mobile"
+                />
               </tui-textfield>
             </div>
             <div class="app-field-third">
@@ -267,7 +286,7 @@
                   name="member_status"
                   [items]="memberStatusOptions"
                   [labels]="memberStatusOptionLabels"
-                  ngModel="ordinary"
+                  [(ngModel)]="memberDraft.member_status"
                 ></select>
               </tui-textfield>
             </div>
@@ -280,7 +299,7 @@
                   name="committee_role"
                   [items]="committeeRoleOptions"
                   [labels]="committeeRoleOptionLabels"
-                  ngModel="member"
+                  [(ngModel)]="memberDraft.committee_role"
                 ></select>
               </tui-textfield>
             </div>
@@ -293,7 +312,7 @@
                   name="representing_side"
                   [items]="memberSideOptions"
                   [labels]="memberSideOptionLabels"
-                  ngModel="employer"
+                  [(ngModel)]="memberDraft.representing_side"
                 ></select>
               </tui-textfield>
             </div>
@@ -304,7 +323,7 @@
                   name="is_active"
                   tuiCheckbox
                   type="checkbox"
-                  ngModel="true"
+                  [(ngModel)]="memberDraft.is_active"
                 />
                 <label for="memberActive">Aktiv</label>
               </div>
@@ -313,14 +332,92 @@
               <span class="app-form-action-hint"
                 >Der Prüfer wird direkt dem gewählten Ausschuss zugeordnet.</span
               >
-              <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
-                <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
-                Prüfer speichern
-              </button>
+              <div class="app-form-action-buttons">
+                <button
+                  tuiButton
+                  appearance="secondary"
+                  type="button"
+                  [disabled]="actionBusy"
+                  (click)="resetMemberForm(memberCreateForm)"
+                >
+                  <svg [cIcon]="icons.cancel" class="app-button-icon" aria-hidden="true"></svg>
+                  Abbrechen
+                </button>
+                <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
+                  <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
+                  Prüfer speichern
+                </button>
+              </div>
             </div>
           </form>
+        </section>
+
+        <div class="app-table-scroll">
+          <table tuiTable class="app-data-table app-table-sticky-actions">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Rolle</th>
+                <th scope="col">Seite</th>
+                <th scope="col">Kontakt</th>
+                <th scope="col">Status</th>
+                <th scope="col">Aktion</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (member of committeeMembers(); track member.id) {
+                <tr>
+                  <td>
+                    <strong>{{ fullMemberName(member) }}</strong>
+                    <span class="app-muted app-block">{{
+                      memberStatusLabel(member.member_status)
+                    }}</span>
+                  </td>
+                  <td>{{ roleLabel(member.committee_role) }}</td>
+                  <td>{{ memberSide(member) }}</td>
+                  <td class="app-contact">
+                    <a [href]="'mailto:' + member.email">{{ member.email }}</a>
+                    <span>{{ member.mobile || 'Keine Mobilnummer' }}</span>
+                  </td>
+                  <td>
+                    <span tuiBadge [appearance]="member.is_active ? 'positive' : 'neutral'">
+                      {{ member.is_active ? 'Aktiv' : 'Inaktiv' }}
+                    </span>
+                  </td>
+                  <td class="app-actions">
+                    <div class="app-row-actions">
+                      <button
+                        tuiButton
+                        appearance="secondary"
+                        size="s"
+                        type="button"
+                        (click)="toggleMember.emit(member)"
+                        [disabled]="actionBusy"
+                      >
+                        <svg
+                          [cIcon]="member.is_active ? icons.deactivate : icons.activate"
+                          class="app-button-icon"
+                          aria-hidden="true"
+                        ></svg>
+                        {{ member.is_active ? 'Deaktivieren' : 'Aktivieren' }}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="app-table-empty-cell">
+                    <div class="app-table-empty">
+                      <strong>Keine Prüfer im ausgewählten Ausschuss.</strong>
+                      <span>Legen Sie den ersten Prüfer über die Aktion im Bereichskopf an.</span>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
         </div>
-      </section>
-    </details>
+      </div>
+    </section>
   </div>
 </div>

@@ -99,12 +99,42 @@ describe('CommitteeComponent', () => {
     expect(element.querySelector('.app-row-actions')?.textContent).toContain('Deaktivieren');
   });
 
+  it('should keep both create actions in their section headers and cancel safely', () => {
+    const committeeTrigger = buttonWithLabel('Neuen Ausschuss anlegen');
+    const memberTrigger = buttonWithLabel('Neuen Prüfer anlegen');
+    vi.spyOn(component.createCommittee, 'emit').mockReturnValue(undefined);
+    vi.spyOn(component.createMember, 'emit').mockReturnValue(undefined);
+
+    expect(committeeTrigger.closest('.app-panel-header')).toBeTruthy();
+    expect(memberTrigger.closest('.app-panel-header')).toBeTruthy();
+
+    committeeTrigger.click();
+    fixture.detectChanges();
+    setInput('#committeeName', 'Nicht speichern');
+    buttonWithin('#committee-create-editor', 'Abbrechen').click();
+    fixture.detectChanges();
+
+    expect(component.createCommittee.emit).not.toHaveBeenCalled();
+    expect(inputValue('#committeeName')).toBe('');
+    expect(committeeTrigger.getAttribute('aria-expanded')).toBe('false');
+
+    memberTrigger.click();
+    fixture.detectChanges();
+    setInput('#memberFirstName', 'Nicht speichern');
+    buttonWithin('#member-create-editor', 'Abbrechen').click();
+    fixture.detectChanges();
+
+    expect(component.createMember.emit).not.toHaveBeenCalled();
+    expect(inputValue('#memberFirstName')).toBe('');
+    expect(memberTrigger.getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('should use Taiga form and header layout with app grid classes', () => {
     const element = fixture.nativeElement as HTMLElement;
 
     expect(element.querySelector('.app-page-grid')).toBeTruthy();
     expect(element.querySelectorAll('form[tuiForm]').length).toBe(2);
-    expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(5);
+    expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(3);
     expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
     expect(element.querySelectorAll('input[tuiCheckbox]').length).toBe(1);
     expect(element.querySelectorAll('input.form-check-input').length).toBe(0);
@@ -134,11 +164,25 @@ describe('CommitteeComponent', () => {
   }
 
   function clickButton(label: string): void {
+    buttonWithLabel(label).click();
+    fixture.detectChanges();
+  }
+
+  function buttonWithLabel(label: string): HTMLButtonElement {
     const element = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
     ).find((button) => button.textContent?.includes(label));
     expect(element).toBeDefined();
-    element?.click();
-    fixture.detectChanges();
+    return element!;
+  }
+
+  function buttonWithin(selector: string, label: string): HTMLButtonElement {
+    const element = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
+        `${selector} button`,
+      ),
+    ).find((button) => button.textContent?.includes(label));
+    expect(element).toBeDefined();
+    return element!;
   }
 });

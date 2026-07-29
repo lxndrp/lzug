@@ -139,12 +139,33 @@ describe('LocationsComponent', () => {
     expect(element.querySelector('.app-row-actions')?.querySelectorAll('button').length).toBe(3);
   });
 
+  it('should keep the create action in the section header and cancel without emitting', () => {
+    const component = fixture.componentInstance;
+    const element = fixture.nativeElement as HTMLElement;
+    const trigger = buttonWithLabel('Neuen Prüfungsort anlegen');
+    const editor = element.querySelector<HTMLElement>('#location-create-editor');
+    vi.spyOn(component.createLocation, 'emit').mockReturnValue(undefined);
+
+    expect(trigger.closest('.app-panel-header')).toBeTruthy();
+    expect(editor?.hidden).toBe(true);
+
+    trigger.click();
+    fixture.detectChanges();
+    setInput('#locationName', 'Nicht speichern');
+    clickButton('Abbrechen');
+
+    expect(component.createLocation.emit).not.toHaveBeenCalled();
+    expect(inputValue('#locationName')).toBe('');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(editor?.hidden).toBe(true);
+  });
+
   it('should use Taiga form and header layout with app grid classes', () => {
     const element = fixture.nativeElement as HTMLElement;
 
     expect(element.querySelector('.app-page-grid')).toBeTruthy();
     expect(element.querySelectorAll('form[tuiForm]').length).toBe(1);
-    expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(2);
+    expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(1);
     expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
     expect(element.querySelectorAll('select[tuiSelect]').length).toBeGreaterThan(0);
     expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
@@ -163,11 +184,15 @@ describe('LocationsComponent', () => {
   }
 
   function clickButton(label: string): void {
+    buttonWithLabel(label).click();
+    fixture.detectChanges();
+  }
+
+  function buttonWithLabel(label: string): HTMLButtonElement {
     const button = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
     ).find((item) => item.textContent?.includes(label));
     expect(button).toBeDefined();
-    button!.click();
-    fixture.detectChanges();
+    return button!;
   }
 });

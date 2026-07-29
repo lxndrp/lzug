@@ -116,8 +116,40 @@ header.app-panel-header[tuiHeader] {
   font-weight: 400;
 }
 
+.app-panel-header-actions,
+.app-form-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.app-panel-header-actions [tuiButton][data-appearance='secondary'] {
+  color: var(--app-color-text);
+  transition: none;
+}
+
 .app-panel-body {
   padding: 1.25rem;
+}
+
+.app-context-editor {
+  margin-block-end: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-color-canvas);
+}
+
+.app-context-editor-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-block-end: 1rem;
+  padding-block-end: 0.75rem;
+  border-block-end: 1px solid var(--app-color-border);
+  flex-wrap: wrap;
 }
 
 .app-panel-nested {
@@ -440,9 +472,24 @@ form.app-form-grid[tuiForm] {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem 1rem;
+  flex-wrap: wrap;
   margin-block-start: 0.25rem;
   padding-block-start: 1rem;
   border-block-start: 1px solid var(--app-color-border);
+}
+
+.app-page-span-4 .app-form-actions {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.app-page-span-4 .app-form-action-buttons {
+  align-items: stretch;
+  flex-direction: column-reverse;
+}
+
+.app-page-span-4 .app-form-action-buttons [tuiButton] {
+  width: 100%;
 }
 
 .app-form-action-hint {
@@ -609,41 +656,22 @@ form.app-form-grid[tuiForm] {
   .app-compact-form-action [tuiButton] {
     width: 100%;
   }
-}
 
-.app-create-panel > summary {
-  list-style: none;
-}
+  .app-form-action-buttons {
+    align-items: stretch;
+    flex-direction: column-reverse;
+    width: 100%;
+  }
 
-.app-create-panel > summary::-webkit-details-marker {
-  display: none;
-}
+  .app-panel-header-actions {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
 
-.app-create-trigger {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.5rem;
-  padding: 0.5rem 1rem;
-  border-radius: var(--app-radius-sm);
-  background: var(--app-color-primary);
-  color: var(--app-color-on-primary);
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.app-create-trigger::after {
-  content: '+';
-  margin-inline-start: 0.75rem;
-  font-size: 1.25rem;
-  line-height: 1;
-}
-
-.app-create-panel[open] > .app-create-trigger::after {
-  content: '−';
-}
-
-.app-create-panel[open] > .app-create-trigger {
-  margin-block-end: 0.75rem;
+  .app-panel-header-actions [tuiButton] {
+    width: 100%;
+  }
 }
 
 .app-task-list {

@@ -1,4 +1,13 @@
-import { Component, EventEmitter, Input, Output, computed, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  EventEmitter,
+  Input,
+  Output,
+  ViewChild,
+  computed,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TuiButton, TuiCheckbox, TuiInput, TuiTextfield } from '@taiga-ui/core';
 import { TuiBadge, TuiSelect } from '@taiga-ui/kit';
@@ -42,8 +51,33 @@ export class CommitteeComponent {
   protected readonly memberSideOptionLabels = ['Arbeitgeber', 'Arbeitnehmer', 'Schule'];
 
   protected readonly icons = appIcons;
+  @ViewChild('committeeCreateButton')
+  private committeeCreateButton?: ElementRef<HTMLButtonElement>;
+  @ViewChild('committeeCreateForm', { read: ElementRef })
+  private committeeCreateForm?: ElementRef<HTMLFormElement>;
+  @ViewChild('memberCreateButton')
+  private memberCreateButton?: ElementRef<HTMLButtonElement>;
+  @ViewChild('memberCreateForm', { read: ElementRef })
+  private memberCreateForm?: ElementRef<HTMLFormElement>;
+
   protected readonly selectedCommitteeId = signal<number | null>(null);
   protected readonly selectedPersonId = signal<number | null>(null);
+  protected readonly creatingCommittee = signal(false);
+  protected readonly creatingMember = signal(false);
+  protected readonly committeeDraft = {
+    name: '',
+    occupation: '',
+  };
+  protected readonly memberDraft = {
+    first_name: '',
+    last_name: '',
+    email: '',
+    mobile: '',
+    member_status: 'ordinary',
+    committee_role: 'member',
+    representing_side: 'employer',
+    is_active: true,
+  };
   private pendingCommitteeForm: HTMLFormElement | null = null;
   private pendingMemberForm: HTMLFormElement | null = null;
 
@@ -175,15 +209,47 @@ export class CommitteeComponent {
     this.createMember.emit(payload);
   }
 
-  resetCommitteeForm(): void {
-    this.pendingCommitteeForm?.reset();
+  resetCommitteeForm(form?: HTMLFormElement): void {
+    this.clearForm(form ?? this.pendingCommitteeForm ?? this.committeeCreateForm?.nativeElement);
+    this.committeeDraft.name = '';
+    this.committeeDraft.occupation = '';
     this.pendingCommitteeForm = null;
+    this.creatingCommittee.set(false);
+    this.focusButton(this.committeeCreateButton);
   }
 
-  resetMemberForm(): void {
-    this.pendingMemberForm?.reset();
+  resetMemberForm(form?: HTMLFormElement): void {
+    this.clearForm(form ?? this.pendingMemberForm ?? this.memberCreateForm?.nativeElement);
+    this.memberDraft.first_name = '';
+    this.memberDraft.last_name = '';
+    this.memberDraft.email = '';
+    this.memberDraft.mobile = '';
+    this.memberDraft.member_status = 'ordinary';
+    this.memberDraft.committee_role = 'member';
+    this.memberDraft.representing_side = 'employer';
+    this.memberDraft.is_active = true;
     this.pendingMemberForm = null;
     this.selectedPersonId.set(null);
+    this.creatingMember.set(false);
+    this.focusButton(this.memberCreateButton);
+  }
+
+  protected toggleCommitteeCreation(form?: HTMLFormElement): void {
+    if (this.creatingCommittee()) {
+      this.resetCommitteeForm(form);
+      return;
+    }
+
+    this.creatingCommittee.set(true);
+  }
+
+  protected toggleMemberCreation(form?: HTMLFormElement): void {
+    if (this.creatingMember()) {
+      this.resetMemberForm(form);
+      return;
+    }
+
+    this.creatingMember.set(true);
   }
 
   protected fullMemberName(member: CommitteeMember): string {
@@ -214,5 +280,20 @@ export class CommitteeComponent {
       deputy: 'Stellvertretend',
     };
     return labels[value] ?? value;
+  }
+
+  private focusButton(button?: ElementRef<HTMLButtonElement>): void {
+    queueMicrotask(() => button?.nativeElement.focus());
+  }
+
+  private clearForm(form?: HTMLFormElement): void {
+    form?.reset();
+    form?.querySelectorAll<HTMLInputElement>('input').forEach((input) => {
+      if (input.type === 'checkbox' || input.type === 'radio') {
+        input.checked = input.defaultChecked;
+      } else {
+        input.value = input.defaultValue;
+      }
+    });
   }
 }
