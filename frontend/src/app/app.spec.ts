@@ -7,6 +7,7 @@ import { TuiConfirmService } from '@taiga-ui/kit';
 import { of } from 'rxjs';
 
 import { App } from './app';
+import { RoundContextService } from './api/round-context.service';
 import { routes } from './app.routes';
 import {
   apiRootFixture,
@@ -62,8 +63,11 @@ describe('App', () => {
     fixture.detectChanges();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Winter 2026/27');
+    expect(compiled.querySelector('h1')?.textContent).toContain('Übersicht');
     expect(compiled.textContent).toContain('Planung erzeugen');
+    expect(compiled.textContent).toContain('Aktueller Prüfungskontext');
+    expect(compiled.textContent).toContain('Winter 2026');
+    expect(compiled.textContent).toContain('PA Fachinformatiker Hamburg 1');
   });
 
   it('should expose the sidebar visibility through accessible toggle state', () => {
@@ -110,6 +114,24 @@ describe('App', () => {
     expect(app.selectedCommitteeId()).toBe(2);
   });
 
+  it('should refresh the visible context after selecting another exam round', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+
+    const app = fixture.componentInstance as unknown as {
+      selectExamRound(id: number): void;
+    };
+    app.selectExamRound(2);
+    flushDashboardRequests(http, examRoundsFixture[1]);
+    fixture.detectChanges();
+
+    expect(TestBed.inject(RoundContextService).roundId()).toBe(2);
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'PA Fachinformatiker Hamburg 2',
+    );
+  });
+
   it('should ask before deleting a candidate', async () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
@@ -133,7 +155,7 @@ describe('App', () => {
     expect(http.match((request) => request.method === 'DELETE').length).toBe(0);
   });
 
-  it('should use English URLs for frontend views', async () => {
+  it('should keep direct internal workflow URLs in their contextual frame', async () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
     const router = TestBed.inject(Router);
@@ -144,7 +166,10 @@ describe('App', () => {
 
     expect(router.url).toBe('/planning');
     expect((fixture.nativeElement as HTMLElement).querySelector('h1')?.textContent).toContain(
-      'Terminplanung',
+      'Terminorganisation',
+    );
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Aktueller Prüfungskontext',
     );
   });
 
@@ -180,7 +205,7 @@ describe('App', () => {
     expect(element.textContent).not.toContain('Entwicklung');
     expect(element.textContent).not.toContain('Taiga-Prototyp');
     expect(element.querySelector('.app-header-title')?.textContent).toContain('Prüfungsverwaltung');
-    expect(element.querySelector('h1')?.textContent).toContain('Winter 2026/27');
+    expect(element.querySelector('h1')?.textContent).toContain('Übersicht');
     expect(element.textContent).toContain('Daten synchronisiert');
   });
 });
@@ -193,27 +218,41 @@ function clickButton(fixture: ComponentFixture<App>, label: string): void {
   button?.click();
 }
 
-function flushDashboardRequests(http: HttpTestingController): void {
+function flushDashboardRequests(http: HttpTestingController, round = examRoundFixture): void {
+  const roundId = round.id;
   http.expectOne('/api').flush(apiRootFixture);
-  http.expectOne('/api/exam-rounds/1').flush(examRoundFixture);
-  http.expectOne('/api/round-summary?round_id=1').flush(summaryFixture);
-  http.expectOne('/api/exam-days?round_id=1').flush({ items: examDaysFixture, _links: {} });
+  http.expectOne(`/api/exam-rounds/${roundId}`).flush(round);
+  http.expectOne(`/api/round-summary?round_id=${roundId}`).flush({
+    ...summaryFixture,
+    round: {
+      ...summaryFixture.round,
+      id: roundId,
+      name: round.name,
+      committee_name:
+        committeesFixture.find((committee) => committee.id === round.committee_id)?.name ?? '',
+    },
+  });
+  http
+    .expectOne(`/api/exam-days?round_id=${roundId}`)
+    .flush({ items: examDaysFixture, _links: {} });
   http.expectOne('/api/exam-slots').flush({ items: examSlotsFixture, _links: {} });
   http.expectOne('/api/exam-day-assignments').flush({ items: assignmentsFixture, _links: {} });
   const candidateRequests = http.match('/api/candidates');
   expect(candidateRequests.length).toBe(2);
   candidateRequests.forEach((request) => request.flush({ items: candidatesFixture, _links: {} }));
 
-  const roundCandidateRequests = http.match('/api/round-candidates?round_id=1&is_active=1');
+  const roundCandidateRequests = http.match(
+    `/api/round-candidates?round_id=${roundId}&is_active=1`,
+  );
   expect(roundCandidateRequests.length).toBe(2);
   roundCandidateRequests.forEach((request) =>
     request.flush({ items: roundCandidatesFixture, _links: {} }),
   );
-  http.expectOne('/api/candidate-exam-days?round_id=1').flush({
+  http.expectOne(`/api/candidate-exam-days?round_id=${roundId}`).flush({
     items: candidateDaysFixture,
     _links: {},
   });
-  http.expectOne('/api/member-availabilities?round_id=1').flush({
+  http.expectOne(`/api/member-availabilities?round_id=${roundId}`).flush({
     items: availabilitiesFixture,
     _links: {},
   });
@@ -226,6 +265,10 @@ function flushDashboardRequests(http: HttpTestingController): void {
 
   http.expectOne('/api/committees').flush({
     items: committeesFixture,
+    _links: {},
+  });
+  http.expectOne('/api/exam-half-years').flush({
+    items: [{ id: 1, season: 'winter', year: 2026, status: 'active' }],
     _links: {},
   });
   http.expectOne('/api/exam-rounds').flush({ items: examRoundsFixture, _links: {} });

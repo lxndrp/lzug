@@ -103,22 +103,49 @@ export class App {
 
   protected readonly pageTitle = computed(() => {
     const labels: Record<AppView, string> = {
-      dashboard: this.summary()?.round?.name ?? 'Prüfungsrunde',
+      dashboard: 'Übersicht',
       'scheduling-overview': 'Terminorganisationen',
       'confirmed-plans': 'Prüfungspläne',
       candidates: 'Prüflinge',
-      committee: 'Prüfungsausschuss',
-      planning: 'Terminplanung',
+      committee: 'Prüfungsausschüsse',
+      planning: 'Terminorganisation',
       locations: 'Prüfungsorte',
       'exam-half-years': 'Prüfungshalbjahre',
     };
     return labels[this.activeView()];
   });
 
-  protected readonly crumb = computed(() =>
-    this.activeView() === 'dashboard'
-      ? (this.summary()?.round?.name ?? 'Prüfungsverwaltung')
-      : 'Prüfungsverwaltung',
+  protected readonly activeContext = computed(() => {
+    const round = this.round();
+    const masterData = this.masterData();
+    if (!round || !masterData) return null;
+
+    const halfYear = masterData.examHalfYears.find((item) => item.id === round.exam_half_year_id);
+    const committee = masterData.committees.find((item) => item.id === round.committee_id);
+    if (!halfYear || !committee) return null;
+
+    return {
+      halfYear: `${halfYear.season === 'summer' ? 'Sommer' : 'Winter'} ${halfYear.year}`,
+      round: round.name,
+      committee: committee.name,
+      status: this.roundStatusLabel(round.status),
+    };
+  });
+
+  protected readonly isContextualView = computed(() =>
+    ['dashboard', 'scheduling-overview', 'confirmed-plans', 'candidates', 'planning'].includes(
+      this.activeView(),
+    ),
+  );
+
+  protected readonly breadcrumb = computed(() => {
+    if (this.activeView() === 'exam-half-years') return 'Prüfungskontext';
+    if (['committee', 'locations'].includes(this.activeView())) return 'Globale Bereiche';
+    return 'Aktueller Prüfungskontext';
+  });
+
+  protected readonly canContinueScheduling = computed(
+    () => !!this.activeContext() && this.round()?.status !== 'plan_confirmed',
   );
 
   constructor() {
@@ -188,6 +215,18 @@ export class App {
     this.candidateDayGenerationResult.set(null);
     this.refresh();
     this.showView('planning');
+  }
+
+  protected roundStatusLabel(status: string): string {
+    const labels: Record<string, string> = {
+      draft: 'Offen',
+      availability_requested: 'Rückmeldungen angefragt',
+      availability_closed: 'Rückmeldungen vollständig',
+      plan_proposed: 'Planungsvorschlag liegt vor',
+      in_progress: 'In Bearbeitung',
+      plan_confirmed: 'Plan bestätigt',
+    };
+    return labels[status] ?? status;
   }
 
   protected dismissFeedback(): void {

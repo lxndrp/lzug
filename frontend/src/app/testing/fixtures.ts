@@ -310,6 +310,7 @@ export const summaryFixture: RoundSummary = {
 
 export const masterDataFixture: MasterData = {
   committees: committeesFixture,
+  examHalfYears: [{ id: 1, season: 'winter', year: 2026, status: 'active' }],
   persons: personsFixture,
   members: membersFixture,
   candidates: candidateViewsFixture,

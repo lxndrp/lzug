@@ -7,8 +7,8 @@ const productiveViews = [
   { name: 'Terminorganisationen', path: '/scheduling-overview' },
   { name: 'Prüfungspläne', path: '/confirmed-plans' },
   { name: 'Prüflinge', path: '/candidates' },
-  { name: 'Ausschuss', path: '/committee' },
-  { name: 'Terminplanung', path: '/planning' },
+  { name: 'Prüfungsausschüsse', path: '/committee' },
+  { name: 'Terminorganisation', path: '/planning' },
   { name: 'Prüfungsorte', path: '/locations' },
 ] as const;
 
@@ -45,7 +45,7 @@ test.describe('lzug browser workflows', () => {
   test('generates and confirms a planning proposal', async ({ page }) => {
     await page.goto('/');
 
-    await expect(page.getByRole('heading', { name: 'Winter 2026/27' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Übersicht' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Planung erzeugen' }).click();
     await expect(page.getByText('Validierungsreport')).toBeVisible();
@@ -136,7 +136,7 @@ test.describe('lzug browser workflows', () => {
 
   test('navigates through the application views', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Winter 2026/27' })).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'Übersicht' })).toBeVisible({
       timeout: 30_000,
     });
     await expect(page.locator('.app-progress')).toHaveCount(0);
@@ -145,13 +145,28 @@ test.describe('lzug browser workflows', () => {
       ['Prüflinge', '/candidates'],
       ['Terminorganisationen', '/scheduling-overview'],
       ['Prüfungspläne', '/confirmed-plans'],
-      ['Ausschuss', '/committee'],
-      ['Terminplanung', '/planning'],
+      ['Prüfungsausschüsse', '/committee'],
       ['Prüfungsorte', '/locations'],
     ] as const) {
       await page.getByRole('link', { name: view, exact: true }).click();
       await expect(page).toHaveURL(path);
       await expect(page.getByRole('heading', { name: view })).toBeVisible();
+    }
+
+    await expect(page.getByRole('link', { name: 'Terminplanung', exact: true })).toHaveCount(0);
+    await page.getByRole('link', { name: 'Terminorganisation fortsetzen' }).click();
+    await expect(page).toHaveURL('/planning');
+    await expect(page.getByRole('heading', { name: 'Terminorganisation' })).toBeVisible();
+  });
+
+  test('keeps the active exam context visible in contextual views', async ({ page }) => {
+    for (const path of ['/candidates', '/scheduling-overview', '/confirmed-plans', '/planning']) {
+      await page.goto(path);
+      const context = page.getByLabel('Aktueller Prüfungskontext');
+      await expect(context).toBeVisible();
+      await expect(context).toContainText('Winter 2026');
+      await expect(context).toContainText('Winter 2026/27');
+      await expect(context).toContainText('PA Fachinformatiker Hamburg 1');
     }
   });
 

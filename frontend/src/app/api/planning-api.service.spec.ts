@@ -269,11 +269,18 @@ describe('PlanningApiService', () => {
 
   it('should load assignment history with master data', () => {
     service.getMasterData().subscribe((masterData) => {
+      expect(masterData.examHalfYears).toEqual([
+        { id: 1, season: 'winter', year: 2026, status: 'active' },
+      ]);
       expect(masterData.examRounds).toEqual(examRoundsFixture);
       expect(masterData.candidateAssignments).toEqual(candidateAssignmentsFixture);
     });
 
     http.expectOne('/api/committees').flush({ items: committeesFixture, _links: {} });
+    http.expectOne('/api/exam-half-years').flush({
+      items: [{ id: 1, season: 'winter', year: 2026, status: 'active' }],
+      _links: {},
+    });
     http.expectOne('/api/persons').flush({ items: [], _links: {} });
     http.expectOne('/api/members').flush({ items: membersFixture, _links: {} });
     http.expectOne('/api/candidates').flush({ items: candidatesFixture, _links: {} });

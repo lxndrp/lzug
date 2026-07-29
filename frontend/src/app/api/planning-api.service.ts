@@ -144,6 +144,7 @@ export class PlanningApiService {
   getMasterData() {
     return forkJoin({
       committees: this.list<Committee>('/api/committees'),
+      examHalfYears: this.list<ExamHalfYear>('/api/exam-half-years'),
       persons: this.list<Person>('/api/persons'),
       members: this.list<CommitteeMember>('/api/members'),
       candidates: this.getCandidateViews(),
