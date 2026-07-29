@@ -1,6 +1,11 @@
 # Arbeitsprozess für Planung und Beiträge
 
-GitHub Issues und das Project **lzug Roadmap** sind die dauerhafte Quelle für Backlog, Prioritäten, Iterationen, Termine, Meilensteine und Fortschritt. Repository-Dokumente enthalten versionierten Produkt-, Architektur- und Entscheidungsstand; Chat und lokale Notizen sind nur Arbeitsgedächtnis.
+GitHub Issues und das Project **lzug Roadmap** sind die dauerhafte Quelle für
+Backlog, Prioritäten, Iterationen, Termine, Meilensteine und Fortschritt.
+Issues bleiben die öffentlich nachvollziehbare Quelle für Umfang und
+Akzeptanzkriterien; das Project ergänzt die operative Maintainer-Planung.
+Repository-Dokumente enthalten versionierten Produkt-, Architektur- und
+Entscheidungsstand; Chat und lokale Notizen sind nur Arbeitsgedächtnis.
 
 ## Arbeitselemente und Status
 

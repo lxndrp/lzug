@@ -8,11 +8,17 @@
 Fachinformatiker-Prüfungen. Die Anwendung ist ein Arbeitswerkzeug für die
 Ausschussarbeit, nicht für die interne IHK-Sachbearbeitung.
 
+> **Öffentlicher Quellcode-Prototyp:** Für die geplante Veröffentlichung gilt:
+> Der Quellcode ist ausdrücklich nicht produktionsreif. Er enthält ausschließlich
+> synthetische Demo- und Testdaten, keine produktive Authentifizierung und keine
+> Zusage für Self-Hosting oder Betrieb. `lzug` steht in keiner offiziellen
+> Beziehung zur IHK.
+
 Der aktuelle Prototyp unterstützt die Pflege von Prüfungshalbjahren,
 Ausschüssen, Prüflingen und Prüfungsorten sowie die Planung von möglichen
 Prüfungstagen, Verfügbarkeiten und Prüfungsvorschlägen. Der genaue Arbeitsstand
-steht im GitHub Project [lzug Roadmap](https://github.com/users/lxndrp/projects/2)
-und in den zugehörigen Issues.
+steht in den [GitHub Issues](https://github.com/lxndrp/lzug/issues). Die
+operative Maintainer-Roadmap wird separat im GitHub Project gepflegt.
 
 ## Dokumentation
 

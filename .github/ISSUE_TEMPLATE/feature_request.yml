@@ -1,0 +1,28 @@
+name: Feature request
+description: Eine fachliche oder technische Weiterentwicklung vorschlagen
+title: "Story: "
+labels:
+  - type: story
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Bitte den Nutzerwert und die fachliche Abgrenzung beschreiben. Produktions-, Self-Hosting- und Demo-Anforderungen gehören in das getrennte Release-Gate.
+  - type: textarea
+    id: user-value
+    attributes:
+      label: Nutzerwert
+      description: Wer soll was tun können und warum?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Akzeptanzkriterien
+      description: Woran lässt sich die Umsetzung prüfen?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Kontext und Abgrenzung

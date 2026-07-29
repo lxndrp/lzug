@@ -8,6 +8,9 @@ Dieses Handbuch beschreibt den aktuellen, versionierten Stand von `lzug`.
 - **Administratoren** finden die Anleitung für eine lokale Entwicklungsinstanz.
 - **Entwickler** finden Architektur, Schnittstellen, Datenmodell, Entscheidungen und Qualitätsregeln.
 
-Der operative Umfang und die geplante Weiterentwicklung werden nicht hier, sondern im GitHub Project [lzug Roadmap](https://github.com/users/lxndrp/projects/2) und in GitHub Issues gepflegt.
+Der operative Umfang und die geplante Weiterentwicklung werden nicht hier,
+sondern in den [GitHub Issues](https://github.com/lxndrp/lzug/issues) gepflegt.
+Die Maintainer verwenden zusätzlich das Project `lzug Roadmap` für Status,
+Priorisierung und Iterationen.
 
 Die Dokumentation entsteht lokal mit `task docs`. Sie wird nicht öffentlich gehostet. CI stellt den Build als geschütztes Artefakt `lzug-documentation` bereit.
