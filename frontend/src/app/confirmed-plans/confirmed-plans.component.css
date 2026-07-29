@@ -18,8 +18,24 @@
 .app-confirmed-tabs button.is-active {
   box-shadow: inset 0 0 0 2px var(--app-color-focus);
 }
+.app-confirmed-tabpanel,
+.app-confirmed-plan,
+.app-confirmed-day,
+.app-confirmed-day-header,
+.app-confirmed-crew {
+  min-width: 0;
+}
+.app-confirmed-tabpanel:focus-visible {
+  outline: 3px solid var(--app-color-focus);
+  outline-offset: 0.25rem;
+}
+.app-confirmed-day .app-table-scroll:focus-visible {
+  outline: 3px solid var(--app-color-focus);
+  outline-offset: -3px;
+}
 .app-confirmed-days {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
 }
 .app-confirmed-day {
@@ -34,13 +50,30 @@
 .app-confirmed-day p {
   margin: 0;
 }
+.app-confirmed-day-header {
+  display: grid;
+  gap: 0.25rem;
+}
 .app-confirmed-day p {
   color: var(--app-color-text-muted);
+}
+.app-confirmed-location {
+  display: flex;
+  gap: 0.125rem 0.4rem;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+.app-confirmed-location span + span::before {
+  margin-inline-end: 0.4rem;
+  content: '·';
 }
 .app-confirmed-day table {
   width: 100%;
   margin-top: 0.75rem;
   border-collapse: collapse;
+}
+.app-confirmed-day .app-confirmed-slots {
+  min-width: 34rem;
 }
 .app-confirmed-day th,
 .app-confirmed-day td {
@@ -64,4 +97,27 @@
   align-items: center;
   gap: 0.45rem;
   flex-wrap: wrap;
+  min-width: 0;
+}
+.app-confirmed-assignment {
+  display: flex;
+  min-width: 0;
+  gap: 0.125rem 0.4rem;
+  flex: 1 1 16rem;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+.app-confirmed-assignment span + span::before {
+  margin-inline-end: 0.4rem;
+  content: '·';
+}
+@media (max-width: 480px) {
+  .app-confirmed-location,
+  .app-confirmed-assignment {
+    display: grid;
+  }
+  .app-confirmed-location span + span::before,
+  .app-confirmed-assignment span + span::before {
+    content: none;
+  }
 }

@@ -48,6 +48,41 @@ export class ConfirmedPlansComponent implements OnInit {
     this.selectedCommitteeId.set(id);
   }
 
+  protected selectCommitteeWithKeyboard(event: KeyboardEvent, currentIndex: number): void {
+    const committees = this.committees();
+    let nextIndex: number;
+
+    switch (event.key) {
+      case 'ArrowRight':
+        nextIndex = (currentIndex + 1) % committees.length;
+        break;
+      case 'ArrowLeft':
+        nextIndex = (currentIndex - 1 + committees.length) % committees.length;
+        break;
+      case 'Home':
+        nextIndex = 0;
+        break;
+      case 'End':
+        nextIndex = committees.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    this.selectCommittee(committees[nextIndex].id);
+    const tablist = (event.currentTarget as HTMLElement).parentElement;
+    tablist?.querySelectorAll<HTMLElement>('[role="tab"]')[nextIndex]?.focus();
+  }
+
+  protected committeeTabId(id: number): string {
+    return `confirmed-plans-tab-${id}`;
+  }
+
+  protected committeePanelId(id: number): string {
+    return `confirmed-plans-panel-${id}`;
+  }
+
   protected dateLabel(date: string): string {
     return new Intl.DateTimeFormat('de-DE', { dateStyle: 'full' }).format(
       new Date(`${date}T12:00:00`),
@@ -55,20 +90,41 @@ export class ConfirmedPlansComponent implements OnInit {
   }
 
   protected timeLabel(value: string): string {
-    return value.slice(0, 5);
+    return value.match(/(\d{2}:\d{2})/)?.[1] ?? 'Uhrzeit nicht angegeben';
   }
 
   protected examLabel(slotType: string): string {
-    return slotType === 'mep' ? 'MEP-Prüfung' : 'Reguläre Prüfung';
+    return (
+      {
+        regular: 'Reguläre Prüfung',
+        mep: 'MEP-Prüfung',
+      }[slotType] ?? 'Prüfung'
+    );
   }
 
   protected roleLabel(role: string): string {
-    return role === 'fallback' ? 'Fallback' : 'Prüfer/in';
+    return (
+      {
+        examiner: 'Prüfer/in',
+        fallback: 'Ersatzprüfer/in',
+      }[role] ?? 'Prüferbesetzung'
+    );
   }
 
   protected dayPartLabel(dayPart: string): string {
     return (
-      { morning: 'vormittags', afternoon: 'nachmittags', full_day: 'ganztägig' }[dayPart] ?? dayPart
+      { morning: 'vormittags', afternoon: 'nachmittags', full_day: 'ganztägig' }[dayPart] ??
+      'Zeitfenster nicht angegeben'
+    );
+  }
+
+  protected representingSideLabel(side: string): string {
+    return (
+      {
+        employer: 'Arbeitgeber',
+        employee: 'Arbeitnehmer',
+        school: 'Schule',
+      }[side] ?? 'Vertreterseite nicht angegeben'
     );
   }
 }
