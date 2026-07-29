@@ -171,15 +171,21 @@ test.describe('lzug browser workflows', () => {
     }
   });
 
-  test('opens and closes the sidebar on a narrow viewport', async ({ page }) => {
+  test('keeps the mobile sidebar state, semantics, and focus synchronized', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 844 });
     await page.goto('/dashboard');
 
     const sidebarToggle = page.locator('.app-sidebar-toggle');
-    const sidebar = page.getByRole('complementary', { name: 'Prüfungsverwaltung' });
+    const sidebar = page.locator('#appSidebar');
+    const accessibleSidebar = page.getByRole('complementary', {
+      name: 'Prüfungsverwaltung',
+    });
     await expect(sidebarToggle).toBeVisible();
     await expect(sidebarToggle).toHaveAttribute('aria-label', 'Navigation öffnen');
     await expect(sidebarToggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(sidebar).toHaveAttribute('inert', '');
+    await expect(sidebar).toHaveAttribute('aria-hidden', 'true');
+    await expect(accessibleSidebar).toHaveCount(0);
     const iconWidth = await sidebarToggle
       .locator('.header-toggler-icon')
       .evaluate((element) => element.getBoundingClientRect().width);
@@ -188,15 +194,42 @@ test.describe('lzug browser workflows', () => {
     await sidebarToggle.click();
 
     await expect(sidebar).toHaveClass(/show/);
+    await expect(sidebar).not.toHaveAttribute('inert');
+    await expect(sidebar).not.toHaveAttribute('aria-hidden');
+    await expect(accessibleSidebar).toBeVisible();
     await expect(sidebarToggle).toHaveAttribute('aria-label', 'Navigation schließen');
     await expect(sidebarToggle).toHaveAttribute('aria-expanded', 'true');
     const sidebarClose = page.locator('.app-sidebar-close');
     await expect(sidebarClose).toBeVisible();
+    await expect(sidebarClose).toBeFocused();
+
+    await page.keyboard.press('Escape');
+
+    await expect(sidebar).toHaveClass(/hide/);
+    await expect(sidebar).toHaveAttribute('inert', '');
+    await expect(sidebar).toHaveAttribute('aria-hidden', 'true');
+    await expect(accessibleSidebar).toHaveCount(0);
+    await expect(sidebarToggle).toHaveAttribute('aria-label', 'Navigation öffnen');
+    await expect(sidebarToggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(sidebarToggle).toBeFocused();
+
+    await sidebarToggle.click();
+    await page.locator('.app-sidebar-backdrop').click({ position: { x: 300, y: 400 } });
+
+    await expect(sidebar).toHaveAttribute('inert', '');
+    await expect(sidebar).toHaveAttribute('aria-hidden', 'true');
+    await expect(sidebarToggle).toBeFocused();
+
+    await sidebarToggle.click();
+    await expect(sidebarClose).toBeFocused();
     await sidebarClose.click();
 
     await expect(sidebar).toHaveClass(/hide/);
+    await expect(sidebar).toHaveAttribute('inert', '');
+    await expect(sidebar).toHaveAttribute('aria-hidden', 'true');
     await expect(sidebarToggle).toHaveAttribute('aria-label', 'Navigation öffnen');
     await expect(sidebarToggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(sidebarToggle).toBeFocused();
   });
 
   test('updates exam round metadata and keeps it after reload', async ({ page }) => {
@@ -423,6 +456,30 @@ test.describe('lzug browser workflows', () => {
 });
 
 test.describe('lzug theme and accessibility matrix', () => {
+  test('keeps the closed mobile navigation out of the accessibility tree @a11y', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/dashboard');
+
+    const sidebar = page.locator('#appSidebar');
+    const sidebarToggle = page.getByRole('button', { name: 'Navigation öffnen' });
+    await expect(sidebar).toHaveAttribute('inert', '');
+    await expect(sidebar).toHaveAttribute('aria-hidden', 'true');
+    await expect(page.getByRole('complementary', { name: 'Prüfungsverwaltung' })).toHaveCount(0);
+    expect((await new AxeBuilder({ page }).include('#appSidebar').analyze()).violations).toEqual(
+      [],
+    );
+
+    await sidebarToggle.click();
+
+    await expect(page.getByRole('complementary', { name: 'Prüfungsverwaltung' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Navigation schließen' }).first()).toBeFocused();
+    expect((await new AxeBuilder({ page }).include('#appSidebar').analyze()).violations).toEqual(
+      [],
+    );
+  });
+
   for (const scheme of colorSchemes) {
     for (const viewport of viewports) {
       test(`${scheme} ${viewport.name} renders every productive view with readable colors @a11y`, async ({

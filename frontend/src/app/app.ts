@@ -1,4 +1,15 @@
-import { Component, DestroyRef, ViewChild, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  HostListener,
+  Injector,
+  ViewChild,
+  afterNextRender,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { TuiButton, TuiNotification, TuiRoot } from '@taiga-ui/core';
@@ -72,7 +83,10 @@ export class App {
   private readonly roundContext = inject(RoundContextService);
   private readonly confirm = inject(TuiConfirmService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
   private readonly router = inject(Router);
+  @ViewChild('sidebarClose') private sidebarClose?: ElementRef<HTMLButtonElement>;
+  @ViewChild('sidebarToggle') private sidebarToggle?: ElementRef<HTMLButtonElement>;
   @ViewChild(CandidatesComponent) private candidatesComponent?: CandidatesComponent;
   @ViewChild(CommitteeComponent) private committeeComponent?: CommitteeComponent;
   @ViewChild(LocationsComponent) private locationsComponent?: LocationsComponent;
@@ -192,9 +206,41 @@ export class App {
   }
 
   protected closeSidebarOnMobile(): void {
-    if (window.matchMedia('(max-width: 767.98px)').matches) {
-      this.sidebarVisible.set(false);
+    if (this.isMobileViewport()) {
+      this.closeSidebar();
     }
+  }
+
+  protected toggleSidebar(): void {
+    if (this.sidebarVisible()) {
+      this.closeSidebar();
+    } else {
+      this.openSidebar();
+    }
+  }
+
+  protected openSidebar(): void {
+    this.sidebarVisible.set(true);
+    afterNextRender(() => this.sidebarClose?.nativeElement.focus(), { injector: this.injector });
+  }
+
+  protected closeSidebar(): void {
+    if (!this.sidebarVisible()) return;
+
+    this.sidebarToggle?.nativeElement.focus();
+    this.sidebarVisible.set(false);
+  }
+
+  @HostListener('document:keydown.escape', ['$event'])
+  protected closeSidebarWithEscape(event: Event): void {
+    if (!this.sidebarVisible() || !this.isMobileViewport()) return;
+
+    event.preventDefault();
+    this.closeSidebar();
+  }
+
+  private isMobileViewport(): boolean {
+    return typeof window !== 'undefined' && window.matchMedia('(max-width: 767.98px)').matches;
   }
 
   protected selectCommittee(id: number | null): void {

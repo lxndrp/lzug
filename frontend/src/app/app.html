@@ -6,6 +6,8 @@
       [class.show]="sidebarVisible()"
       [class.hide]="!sidebarVisible()"
       [class.is-visible]="sidebarVisible()"
+      [attr.inert]="sidebarVisible() ? null : ''"
+      [attr.aria-hidden]="sidebarVisible() ? null : 'true'"
       role="complementary"
       aria-label="Prüfungsverwaltung"
     >
@@ -14,12 +16,13 @@
           >LZUG</a
         >
         <button
+          #sidebarClose
           tuiButton
           appearance="flat"
           class="app-sidebar-close"
           type="button"
           aria-label="Navigation schließen"
-          (click)="sidebarVisible.set(false)"
+          (click)="closeSidebar()"
         >
           <span class="app-menu-icon is-close" aria-hidden="true"></span>
         </button>
@@ -121,7 +124,7 @@
         class="app-sidebar-backdrop"
         type="button"
         aria-label="Navigation schließen"
-        (click)="sidebarVisible.set(false)"
+        (click)="closeSidebar()"
       ></button>
     }
 
@@ -129,6 +132,7 @@
       <header class="app-header">
         <div class="app-header-inner">
           <button
+            #sidebarToggle
             tuiButton
             appearance="flat"
             class="app-sidebar-toggle"
@@ -137,7 +141,7 @@
             [attr.aria-expanded]="sidebarVisible()"
             [attr.aria-label]="sidebarVisible() ? 'Navigation schließen' : 'Navigation öffnen'"
             [class.is-open]="sidebarVisible()"
-            (click)="sidebarVisible.set(!sidebarVisible())"
+            (click)="toggleSidebar()"
           >
             <span class="app-menu-icon header-toggler-icon" aria-hidden="true"></span>
           </button>
