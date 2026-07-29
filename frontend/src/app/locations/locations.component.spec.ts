@@ -139,6 +139,18 @@ describe('LocationsComponent', () => {
     expect(element.querySelector('.app-row-actions')?.querySelectorAll('button').length).toBe(3);
   });
 
+  it('should show readable committee labels without a clear action', () => {
+    const select = (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>(
+      '#locationCommittee',
+    )!;
+
+    const labels = Array.from(select.options).map((option) => option.textContent?.trim());
+    expect(labels).toContain('Standardausschuss');
+    expect(labels).toContain('PA Fachinformatiker Hamburg 1');
+    expect(select.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();
+    expect(select.required).toBe(true);
+  });
+
   it('should keep the create action in the section header and cancel without emitting', () => {
     const component = fixture.componentInstance;
     const element = fixture.nativeElement as HTMLElement;

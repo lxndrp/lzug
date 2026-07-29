@@ -178,13 +178,16 @@
                   <span aria-hidden="true">*</span>
                 }
               </label>
-              <tui-textfield>
+              <tui-textfield
+                [stringify]="holidaySubdivisionStringify"
+                [tuiTextfieldCleaner]="false"
+              >
                 <select
                   tuiSelect
                   id="holidaySubdivisionCode"
                   name="holidaySubdivisionCode"
                   [items]="holidaySubdivisionOptions"
-                  [labels]="holidaySubdivisionLabels"
+                  placeholder="Bundesland auswählen"
                   [(ngModel)]="draft.holiday_subdivision_code"
                   [disabled]="!draft.exclude_public_holidays"
                   [required]="draft.exclude_public_holidays === 1"
@@ -220,27 +223,29 @@
             </div>
             <div class="app-field-third">
               <label for="defaultLocation">Standardort</label>
-              <tui-textfield>
+              <tui-textfield [stringify]="defaultLocationStringify" [tuiTextfieldCleaner]="true">
                 <select
                   tuiSelect
                   id="defaultLocation"
                   name="defaultLocation"
-                  [items]="defaultLocationOptions"
-                  [labels]="defaultLocationLabels"
+                  [items]="defaultLocationOptions()"
+                  placeholder="Kein Standardort"
                   [(ngModel)]="draft.default_location_id"
                 ></select>
               </tui-textfield>
             </div>
             <div class="app-field-two-thirds">
-              <label for="updatedByMember">Änderung dokumentieren für</label>
-              <tui-textfield>
+              <label for="updatedByMember"
+                >Änderung dokumentieren für <span aria-hidden="true">*</span></label
+              >
+              <tui-textfield [stringify]="updatedByMemberStringify" [tuiTextfieldCleaner]="false">
                 <select
                   tuiSelect
                   id="updatedByMember"
                   name="updatedByMember"
-                  [items]="updatedByMemberOptions"
-                  [labels]="updatedByMemberLabels"
+                  [items]="updatedByMemberOptions()"
                   [(ngModel)]="draft.updated_by_member_id"
+                  required
                 ></select>
               </tui-textfield>
             </div>
@@ -447,7 +452,10 @@
                       @for (day of board?.candidateDays || []; track day.id) {
                         <td>
                           <div class="app-availability-control">
-                            <tui-textfield>
+                            <tui-textfield
+                              [stringify]="availabilityStringify"
+                              [tuiTextfieldCleaner]="false"
+                            >
                               <select
                                 tuiSelect
                                 [attr.aria-label]="memberLabel(member) + ' ' + dateLabel(day.date)"
@@ -462,7 +470,6 @@
                                   !day.is_active
                                 "
                                 [items]="availabilityOptionValues"
-                                [labels]="availabilityOptionLabels"
                                 [ngModel]="availabilityFor(member.id, day.id)"
                                 (ngModelChange)="changeAvailability(member, day, $event)"
                               ></select>

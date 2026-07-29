@@ -31,6 +31,7 @@ import {
 } from '../api/api.models';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
+import { type SelectOption, selectStringify, selectValues } from '../select-options';
 
 export type PlanningSettingsPayload = Omit<PlanningSettings, 'id' | 'exam_round_id'>;
 export type CandidateExamDayPayload = Omit<CandidateExamDay, 'id' | 'exam_round_id'>;
@@ -232,32 +233,37 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     return (this.masterData?.members ?? []).filter((member) => member.is_active);
   }
 
-  protected readonly availabilityOptionValues: AvailabilityValue[] = [
-    'full_day',
-    'morning',
-    'afternoon',
-    'unavailable',
-    'pending',
+  protected readonly availabilitySelectOptions: readonly SelectOption<AvailabilityValue>[] = [
+    { value: 'full_day', label: 'Ganztägig' },
+    { value: 'morning', label: 'Vormittag' },
+    { value: 'afternoon', label: 'Nachmittag' },
+    { value: 'unavailable', label: 'Nicht verfügbar' },
+    { value: 'pending', label: 'Offen' },
   ];
-  protected readonly availabilityOptionLabels = [
-    'Ganztägig',
-    'Vormittag',
-    'Nachmittag',
-    'Nicht verfügbar',
-    'Offen',
-  ];
-  protected readonly holidaySubdivisionOptions: Array<string | null> = [
-    null,
-    ...this.federalStates.map((state) => state.code),
-  ];
-  protected readonly holidaySubdivisionLabels = [
-    'Bundesland auswählen',
-    ...this.federalStates.map((state) => state.name),
-  ];
-  protected defaultLocationOptions: Array<number | null> = [null];
-  protected defaultLocationLabels = ['Kein Standardort'];
-  protected updatedByMemberOptions: number[] = [];
-  protected updatedByMemberLabels: string[] = [];
+  protected readonly availabilityOptionValues = selectValues(this.availabilitySelectOptions);
+  protected readonly availabilityStringify = selectStringify(() => this.availabilitySelectOptions);
+  protected readonly holidaySubdivisionSelectOptions: readonly SelectOption<string>[] =
+    this.federalStates.map((state) => ({ value: state.code, label: state.name }));
+  protected readonly holidaySubdivisionOptions = selectValues(this.holidaySubdivisionSelectOptions);
+  protected readonly holidaySubdivisionStringify = selectStringify(
+    () => this.holidaySubdivisionSelectOptions,
+  );
+  protected defaultLocationSelectOptions: readonly SelectOption<number>[] = [];
+  protected readonly defaultLocationStringify = selectStringify(
+    () => this.defaultLocationSelectOptions,
+  );
+  protected updatedByMemberSelectOptions: readonly SelectOption<number>[] = [];
+  protected readonly updatedByMemberStringify = selectStringify(
+    () => this.updatedByMemberSelectOptions,
+  );
+
+  protected defaultLocationOptions(): readonly number[] {
+    return selectValues(this.defaultLocationSelectOptions);
+  }
+
+  protected updatedByMemberOptions(): readonly number[] {
+    return selectValues(this.updatedByMemberSelectOptions);
+  }
 
   protected availabilityFor(memberId: number, dayId: number): AvailabilityValue {
     const key = this.availabilityCellKey(memberId, dayId);
@@ -548,17 +554,16 @@ export class PlanningComponent implements OnChanges, OnDestroy {
 
   private syncSelectOptions(): void {
     const locations = (this.board?.locations ?? []).filter((location) => location.is_active !== 0);
-    this.defaultLocationOptions = [null, ...locations.map((location) => location.id)];
-    this.defaultLocationLabels = [
-      'Kein Standardort',
-      ...locations.map((location) => `${location.name} · ${location.room}`),
-    ];
+    this.defaultLocationSelectOptions = locations.map((location) => ({
+      value: location.id,
+      label: `${location.name} · ${location.room}`,
+    }));
 
     const members = this.masterData?.members ?? [];
-    this.updatedByMemberOptions = members.map((member) => member.id);
-    this.updatedByMemberLabels = members.map(
-      (member) => `${member.first_name} ${member.last_name}`,
-    );
+    this.updatedByMemberSelectOptions = members.map((member) => ({
+      value: member.id,
+      label: `${member.first_name} ${member.last_name}`,
+    }));
   }
 
   private syncRoundDraft(): void {

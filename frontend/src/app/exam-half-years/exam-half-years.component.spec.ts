@@ -82,6 +82,20 @@ describe('ExamHalfYearsComponent', () => {
     request.flush({ id: 2, season: 'summer', year: 2027, status: 'draft' });
     flushInitialLoad(http, [{ id: 2, season: 'summer', year: 2027, status: 'draft' }]);
   });
+
+  it('keeps readable native required selections free of clear actions', () => {
+    fixture.detectChanges();
+    flushInitialLoad(http, [{ id: 1, season: 'winter', year: 2026, status: 'active' }]);
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    for (const selector of ['#examHalfYearSeason', '#roundHalfYear', '#roundCommittee']) {
+      const select = element.querySelector<HTMLSelectElement>(selector)!;
+      expect(select.required).toBe(true);
+      expect(select.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();
+      expect(select.options[select.selectedIndex]?.textContent?.trim()).not.toBe('');
+    }
+  });
 });
 
 function flushInitialLoad(http: HttpTestingController, halfYears: object[]): void {

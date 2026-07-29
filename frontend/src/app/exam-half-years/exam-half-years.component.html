@@ -40,7 +40,7 @@
         <form tuiForm="m" class="app-form-grid" (submit)="createHalfYear($event)">
           <div class="app-field-full">
             <label for="examHalfYearSeason">Saison</label>
-            <tui-textfield
+            <tui-textfield [tuiTextfieldCleaner]="false"
               ><select id="examHalfYearSeason" name="season" required>
                 <option value="summer">Sommer</option>
                 <option value="winter">Winter</option>
@@ -79,7 +79,7 @@
         <form tuiForm="m" class="app-form-grid" (submit)="createRound($event)">
           <div class="app-field-half">
             <label for="roundHalfYear">Prüfungshalbjahr</label
-            ><tui-textfield
+            ><tui-textfield [tuiTextfieldCleaner]="false"
               ><select id="roundHalfYear" name="exam_half_year_id" required>
                 @for (halfYear of halfYears(); track halfYear.id) {
                   <option [value]="halfYear.id">{{ halfYearLabel(halfYear) }}</option>
@@ -89,7 +89,7 @@
           </div>
           <div class="app-field-half">
             <label for="roundCommittee">Ausschuss</label
-            ><tui-textfield
+            ><tui-textfield [tuiTextfieldCleaner]="false"
               ><select id="roundCommittee" name="committee_id" required>
                 @for (committee of committees; track committee.id) {
                   <option [value]="committee.id">{{ committee.name }}</option>

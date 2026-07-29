@@ -365,7 +365,7 @@ test.describe('lzug browser workflows', () => {
     await weekTo.press('Tab');
     await page.getByText('Gesetzliche Feiertage ausschließen', { exact: true }).click();
     await expect(page.locator('#excludePublicHolidays')).toBeChecked();
-    await page.locator('#holidaySubdivisionCode').selectOption('DE-NW');
+    await page.locator('#holidaySubdivisionCode').selectOption({ label: 'Nordrhein-Westfalen' });
 
     const settingsResponsePromise = page.waitForResponse(
       (response) =>
@@ -387,6 +387,77 @@ test.describe('lzug browser workflows', () => {
     await expect(page.getByText('4 Tage angelegt')).toBeVisible();
     await expect(page.getByText('1 Feiertage ausgeschlossen')).toBeVisible();
     await expect(page.getByText('04.06.2026 · Fronleichnam')).toBeVisible();
+  });
+
+  test('shows readable selection values and aligned candidate filters', async ({ page }) => {
+    await page.goto('/planning');
+
+    const state = page.locator('#holidaySubdivisionCode');
+    const location = page.locator('#defaultLocation');
+    const updater = page.locator('#updatedByMember');
+    await expect(location.locator('option:checked')).toHaveText(
+      'Bildungszentrum HafenCity · Konferenzraum 3.12',
+    );
+    await expect(updater.locator('option:checked')).toHaveText('Martin König');
+    await expect(
+      state.locator('xpath=ancestor::tui-textfield').locator('button[tuiButtonX]'),
+    ).toHaveCount(0);
+    await expect(
+      location.locator('xpath=ancestor::tui-textfield').locator('button[tuiButtonX]'),
+    ).toHaveCount(1);
+    await expect(
+      updater.locator('xpath=ancestor::tui-textfield').locator('button[tuiButtonX]'),
+    ).toHaveCount(0);
+
+    const excludePublicHolidays = page.locator('#excludePublicHolidays');
+    await excludePublicHolidays.check();
+    await expect(excludePublicHolidays).toBeChecked();
+    await expect(state).toBeEnabled();
+    await state.selectOption({ label: 'Nordrhein-Westfalen' });
+    await expect(state.locator('option:checked')).toHaveText('Nordrhein-Westfalen');
+
+    await page.goto('/candidates');
+    const search = page.locator('#candidateSearch');
+    const filter = page.locator('#candidateFilter');
+    await expect(page.getByRole('searchbox', { name: 'Suche' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Fachrichtung' })).toBeVisible();
+    await expect(search).toHaveAttribute('tuiInput', '');
+    await expect(filter.locator('option:checked')).toHaveText('Alle Fachrichtungen');
+
+    const searchBox = await search.locator('xpath=ancestor::tui-textfield').boundingBox();
+    const filterBox = await filter.locator('xpath=ancestor::tui-textfield').boundingBox();
+    expect(searchBox).not.toBeNull();
+    expect(filterBox).not.toBeNull();
+    expect(Math.abs(searchBox!.y - filterBox!.y)).toBeLessThan(1);
+    expect(Math.abs(searchBox!.height - filterBox!.height)).toBeLessThan(1);
+    await search.focus();
+    await page.keyboard.press('Tab');
+    await expect(filter).toBeFocused();
+
+    await filter.selectOption({ label: 'Systemintegration' });
+    await expect(filter.locator('option:checked')).toHaveText('Systemintegration');
+    await expect(page.locator('tbody > tr').filter({ hasText: 'Weber, Jonas' })).toBeVisible();
+    await expect(page.locator('tbody > tr').filter({ hasText: 'Hoffmann, Lea' })).toHaveCount(0);
+
+    await search.fill('Noah');
+    await expect(page.locator('tbody > tr').filter({ hasText: 'Bauer, Noah' })).toBeVisible();
+    await expect(page.locator('tbody > tr').filter({ hasText: 'Weber, Jonas' })).toHaveCount(0);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/candidates');
+    const mobileSearchBox = await search.locator('xpath=ancestor::tui-textfield').boundingBox();
+    const mobileFilterBox = await filter.locator('xpath=ancestor::tui-textfield').boundingBox();
+    expect(mobileSearchBox).not.toBeNull();
+    expect(mobileFilterBox).not.toBeNull();
+    expect(Math.abs(mobileSearchBox!.x - mobileFilterBox!.x)).toBeLessThan(1);
+    expect(Math.abs(mobileSearchBox!.width - mobileFilterBox!.width)).toBeLessThan(1);
+
+    await page.goto('/exam-half-years');
+    const season = page.locator('#examHalfYearSeason');
+    await expect(season.locator('option:checked')).toHaveText('Sommer');
+    await expect(
+      season.locator('xpath=ancestor::tui-textfield').locator('button[tuiButtonX]'),
+    ).toHaveCount(0);
   });
 
   test('keeps required candidate fields enforced', async ({ page }) => {

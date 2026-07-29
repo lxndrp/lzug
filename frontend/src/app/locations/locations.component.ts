@@ -16,6 +16,7 @@ import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 import { Location, MasterData } from '../api/api.models';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
+import { type SelectOption, selectStringify, selectValues } from '../select-options';
 
 export type LocationPayload = Omit<Location, 'id'>;
 export type LocationUpdate = {
@@ -57,6 +58,7 @@ export class LocationsComponent {
   protected readonly editingLocationId = signal<number | null>(null);
   protected readonly editDraft = signal<LocationPayload | null>(null);
   protected readonly creatingLocation = signal(false);
+  protected readonly committeeStringify = selectStringify(() => this.committeeSelectOptions());
 
   protected readonly draft: LocationPayload = {
     committee_id: 0,
@@ -68,15 +70,8 @@ export class LocationsComponent {
     is_active: 1,
   };
 
-  protected committeeOptions(): number[] {
-    return [0, ...(this.masterData?.committees ?? []).map((committee) => committee.id)];
-  }
-
-  protected committeeOptionLabels(): string[] {
-    return [
-      'Standardausschuss',
-      ...(this.masterData?.committees ?? []).map((committee) => committee.name),
-    ];
+  protected committeeOptions(): readonly number[] {
+    return selectValues(this.committeeSelectOptions());
   }
 
   protected submitLocation(): void {
@@ -171,5 +166,15 @@ export class LocationsComponent {
 
   private focusCreateButton(): void {
     queueMicrotask(() => this.locationCreateButton?.nativeElement.focus());
+  }
+
+  private committeeSelectOptions(): readonly SelectOption<number>[] {
+    return [
+      { value: 0, label: 'Standardausschuss' },
+      ...(this.masterData?.committees ?? []).map((committee) => ({
+        value: committee.id,
+        label: committee.name,
+      })),
+    ];
   }
 }
