@@ -3,10 +3,12 @@
 # Load the published GitHub Wiki through the same Gollum library that renders it.
 # The workflow supplies Gollum in an isolated, pinned container; it is not a
 # dependency of the lzug Python/npm project.
-require "gollum"
+require "gollum-lib"
 
 wiki_root = ARGV.fetch(0)
-wiki = Gollum::Wiki.new(wiki_root)
+wiki_ref = ARGV[1]
+wiki_options = wiki_ref ? { ref: wiki_ref } : {}
+wiki = Gollum::Wiki.new(wiki_root, **wiki_options)
 pages = wiki.pages
 required = [
   "Home.md",

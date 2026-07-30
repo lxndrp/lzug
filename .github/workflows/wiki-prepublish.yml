@@ -31,8 +31,10 @@ jobs:
         run: python3 scripts/check_wiki.py wiki-candidate
 
       - name: Check Wiki candidate with Gollum
+        env:
+          WIKI_REF: ${{ inputs.wiki_ref }}
         run: >-
-          docker run --rm --network none --entrypoint ruby
+          docker run --rm --network none --user "$(id -u):$(id -g)" --entrypoint ruby
           -v "$PWD:/workspace:ro" -w /workspace
           ghcr.io/gollum/gollum@sha256:6dc5ba588bca0d7c5a5964e0537d0ee4cfa7d0738959b530f9bebaa776d1c641
-          scripts/check_wiki.rb wiki-candidate
+          scripts/check_wiki.rb wiki-candidate "$WIKI_REF"
