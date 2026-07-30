@@ -6,14 +6,16 @@
 require "gollum-lib"
 
 wiki_root = ARGV.fetch(0)
-wiki = Gollum::Wiki.new(wiki_root)
+wiki_ref = ARGV[1]
+wiki_options = wiki_ref ? { ref: wiki_ref } : {}
+wiki = Gollum::Wiki.new(wiki_root, **wiki_options)
 pages = wiki.pages
 required = [
-  "Home",
-  "Fachlichkeit/index",
-  "Nutzung/index",
-  "Administration/index",
-  "Entwicklung/index",
+  "Home.md",
+  "Fachlichkeit/index.md",
+  "Nutzung/index.md",
+  "Administration/index.md",
+  "Entwicklung/index.md",
 ]
 missing = required.reject { |path| wiki.page(path) }
 abort("gollum: required page missing: #{missing.join(', ')}") unless missing.empty?
