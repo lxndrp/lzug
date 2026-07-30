@@ -15,16 +15,7 @@ class RejectRedirects(HTTPRedirectHandler):
         raise HTTPError(request.full_url, code, msg, headers, None)
 
 
-def check_page(opener, base_url: str, page_name: str) -> list[str]:
-    url = urljoin(base_url.rstrip("/") + "/", quote(page_name))
-    request = Request(url, headers={"User-Agent": "lzug-wiki-post-publish-check"})
-    try:
-        response = opener.open(request, timeout=20)
-    except HTTPError as error:
-        location = error.headers.get("Location", "")
-        if "raw.githubusercontent.com" in location:
-            return [f"{page_name}: redirects to raw.githubusercontent.com ({location})"]
-        return [f"{page_name}: expected HTTP 200, got {error.code} ({url})"]
+def check_response(response, page_name: str) -> list[str]:
     status = getattr(response, "status", response.getcode())
     content_type = response.headers.get_content_type()
     errors = []
@@ -37,6 +28,30 @@ def check_page(opener, base_url: str, page_name: str) -> list[str]:
         errors.append(f"{page_name}: rendered page resolved to raw content ({final_url})")
     response.close()
     return errors
+
+
+def check_page(opener, base_url: str, page_name: str) -> list[str]:
+    url = urljoin(base_url.rstrip("/") + "/", quote(page_name))
+    request = Request(url, headers={"User-Agent": "lzug-wiki-post-publish-check"})
+    try:
+        response = opener.open(request, timeout=20)
+    except HTTPError as error:
+        location = error.headers.get("Location", "")
+        if "raw.githubusercontent.com" in location:
+            return [f"{page_name}: redirects to raw.githubusercontent.com ({location})"]
+        canonical_home = page_name == "Home" and location.rstrip("/") == base_url.rstrip("/")
+        if canonical_home:
+            root_request = Request(
+                base_url.rstrip("/"),
+                headers={"User-Agent": "lzug-wiki-post-publish-check"},
+            )
+            try:
+                response = opener.open(root_request, timeout=20)
+            except HTTPError as root_error:
+                return [f"{page_name}: canonical Wiki root returned HTTP {root_error.code}"]
+            return check_response(response, page_name)
+        return [f"{page_name}: expected HTTP 200, got {error.code} ({url})"]
+    return check_response(response, page_name)
 
 
 def main() -> int:
