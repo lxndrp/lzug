@@ -27,15 +27,10 @@ Workflows und diese Verfahrensbeschreibung.
    Er checkt den Default-Branch erneut, prüft portable Links und öffentliche
    Sicherheitsregeln und lädt jede Seite mit Gollum.
 
-Der aktuell veröffentlichte Wiki-Stand ist historisch und wird durch die
-Korrektur dieses Issues ersetzt. Der neue Kandidat wird nach dem lokalen
-Nachweis als konkreter Commit im separaten Wiki-Repository referenziert. Der
-lokal geprüfte Kandidat dieses Umsetzungsthreads ist derzeit
-`f8478d75c4195d74ca28d8fc3e67a052ff04b4e1` auf dem Branch
-`codex/205-wiki-ssot-korrektur`; er ist noch nicht in den öffentlichen
-Wiki-Clone gepusht. Bis zur expliziten Maintainer-Entscheidung bleibt der
-Wiki-Default-Branch unverändert; das Hauptrepository nimmt keine öffentliche
-Mutation vor.
+Das Wiki-Repository ist initialisiert. Der veröffentlichte Stand wird dort
+versioniert und ist die kanonische Quelle für das redaktionelle Handbuch. Die
+jeweils geprüfte Wiki-Commit-ID wird im zugehörigen GitHub-Issue dokumentiert;
+dieses Repository enthält bewusst keine Kopie der Wiki-Seiten.
 
 ## Inhaltliche Grenzen
 
