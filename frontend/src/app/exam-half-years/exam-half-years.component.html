@@ -8,15 +8,35 @@
             >Sommer- und Wintertermine über alle Ausschüsse hinweg</span
           >
         </div>
-        <button
-          tuiButton
-          appearance="secondary"
-          type="button"
-          (click)="load()"
-          [disabled]="loading()"
-        >
-          Aktualisieren
-        </button>
+        <div class="app-panel-header-actions">
+          <button
+            tuiButton
+            size="s"
+            [appearance]="creatingHalfYear() ? 'secondary' : 'primary'"
+            type="button"
+            [attr.aria-expanded]="creatingHalfYear()"
+            aria-controls="exam-half-year-create-editor"
+            (click)="toggleHalfYearCreation()"
+          >
+            <svg
+              [cIcon]="creatingHalfYear() ? icons.cancel : icons.add"
+              class="app-button-icon"
+              aria-hidden="true"
+            ></svg>
+            {{ creatingHalfYear() ? 'Anlegen abbrechen' : 'Prüfungshalbjahr anlegen' }}
+          </button>
+          <button
+            tuiButton
+            appearance="secondary"
+            size="s"
+            type="button"
+            (click)="load()"
+            [disabled]="loading()"
+          >
+            <svg [cIcon]="icons.reload" class="app-button-icon" aria-hidden="true"></svg>
+            Aktualisieren
+          </button>
+        </div>
       </header>
       <div class="app-panel-body">
         @if (error(); as message) {
@@ -25,127 +45,351 @@
         @if (success(); as message) {
           <div tuiNotification appearance="positive" role="status">{{ message }}</div>
         }
-        <p class="app-muted">
-          Eine Prüfungsrunde gehört immer genau einem Ausschuss in einem Prüfungshalbjahr. Planung,
-          Prüfungstage und bestätigte Termine bleiben an dieser Runde erhalten.
-        </p>
-      </div>
-    </section>
-  </div>
 
-  <div class="app-page-span-4">
-    <section class="app-panel">
-      <header tuiHeader="body-m" class="app-panel-header"><strong>Halbjahr anlegen</strong></header>
-      <div class="app-panel-body">
-        <form tuiForm="m" class="app-form-grid" (submit)="createHalfYear($event)">
-          <div class="app-field-full">
-            <label for="examHalfYearSeason">Saison</label>
-            <tui-textfield [tuiTextfieldCleaner]="false"
-              ><select id="examHalfYearSeason" name="season" required>
-                <option value="summer">Sommer</option>
-                <option value="winter">Winter</option>
-              </select></tui-textfield
+        <section
+          id="exam-half-year-create-editor"
+          class="app-context-editor"
+          aria-labelledby="exam-half-year-create-title"
+          [hidden]="!creatingHalfYear()"
+        >
+          <header class="app-context-editor-header">
+            <div>
+              <strong id="exam-half-year-create-title">Prüfungshalbjahr anlegen</strong>
+              <span class="app-muted app-block"
+                >Saison und Jahr des Prüfungsdurchgangs erfassen</span
+              >
+            </div>
+            <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
+          </header>
+          <form tuiForm="m" class="app-form-grid" (submit)="createHalfYear($event)">
+            <div class="app-field-half">
+              <label for="examHalfYearSeason">Saison <span aria-hidden="true">*</span></label>
+              <tui-textfield [tuiTextfieldCleaner]="false">
+                <select id="examHalfYearSeason" name="season" required>
+                  <option value="summer">Sommer</option>
+                  <option value="winter">Winter</option>
+                </select>
+              </tui-textfield>
+            </div>
+            <div class="app-field-half">
+              <tui-textfield>
+                <label tuiLabel for="examHalfYearYear"
+                  >Jahr <span aria-hidden="true">*</span></label
+                >
+                <input
+                  tuiInput
+                  id="examHalfYearYear"
+                  name="year"
+                  type="number"
+                  min="2000"
+                  max="2100"
+                  [value]="halfYearDraft.year"
+                  required
+                />
+              </tui-textfield>
+            </div>
+            <div class="app-field-full app-form-actions">
+              <span class="app-form-action-hint"
+                >Das Halbjahr wird zunächst als Entwurf angelegt.</span
+              >
+              <div class="app-form-action-buttons">
+                <button
+                  tuiButton
+                  appearance="secondary"
+                  type="button"
+                  (click)="cancelHalfYearCreation()"
+                >
+                  <svg [cIcon]="icons.cancel" class="app-button-icon" aria-hidden="true"></svg>
+                  Abbrechen
+                </button>
+                <button tuiButton appearance="primary" type="submit" [disabled]="loading()">
+                  <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
+                  Prüfungshalbjahr anlegen
+                </button>
+              </div>
+            </div>
+          </form>
+        </section>
+
+        <div class="app-half-year-list">
+          @for (halfYear of halfYears(); track halfYear.id) {
+            <article
+              class="app-half-year-card"
+              [class.is-selected]="selectedHalfYearId() === halfYear.id"
             >
-          </div>
-          <div class="app-field-full">
-            <tui-textfield
-              ><label tuiLabel for="examHalfYearYear">Jahr</label
-              ><input
-                tuiInput
-                id="examHalfYearYear"
-                name="year"
-                type="number"
-                min="2000"
-                max="2100"
-                required
-            /></tui-textfield>
-          </div>
-          <div class="app-field-full app-form-actions">
-            <button tuiButton appearance="primary" type="submit" [disabled]="loading()">
-              Prüfungshalbjahr anlegen
-            </button>
-          </div>
-        </form>
-      </div>
-    </section>
-  </div>
+              <header class="app-half-year-card-header">
+                <div>
+                  <h2>{{ halfYearLabel(halfYear) }}</h2>
+                  <span tuiBadge [appearance]="statusAppearance(halfYear.status)">
+                    {{ statusLabel(halfYear.status) }}
+                  </span>
+                </div>
+                <div class="app-panel-header-actions">
+                  <button
+                    tuiButton
+                    appearance="secondary"
+                    size="s"
+                    type="button"
+                    (click)="selectHalfYear(halfYear)"
+                  >
+                    <svg [cIcon]="icons.overview" class="app-button-icon" aria-hidden="true"></svg>
+                    Öffnen
+                  </button>
+                  <button
+                    tuiButton
+                    appearance="secondary"
+                    size="s"
+                    type="button"
+                    [disabled]="!canEdit(halfYear)"
+                    (click)="startEditing(halfYear)"
+                  >
+                    <svg [cIcon]="icons.edit" class="app-button-icon" aria-hidden="true"></svg>
+                    Bearbeiten
+                  </button>
+                </div>
+              </header>
 
-  <div class="app-page-span-8">
-    <section class="app-panel">
-      <header tuiHeader="body-m" class="app-panel-header">
-        <strong>Ausschuss zuordnen</strong>
-      </header>
-      <div class="app-panel-body">
-        <form tuiForm="m" class="app-form-grid" (submit)="createRound($event)">
-          <div class="app-field-half">
-            <label for="roundHalfYear">Prüfungshalbjahr</label
-            ><tui-textfield [tuiTextfieldCleaner]="false"
-              ><select id="roundHalfYear" name="exam_half_year_id" required>
-                @for (halfYear of halfYears(); track halfYear.id) {
-                  <option [value]="halfYear.id">{{ halfYearLabel(halfYear) }}</option>
+              <dl class="app-half-year-metrics">
+                <div>
+                  <dt>Ausschüsse</dt>
+                  <dd>{{ committeeCountFor(halfYear) }}</dd>
+                </div>
+                <div>
+                  <dt>Prüflinge</dt>
+                  <dd>{{ candidateCountFor(halfYear) }}</dd>
+                </div>
+                <div>
+                  <dt>Fortschritt</dt>
+                  <dd>{{ progressLabel(halfYear) }}</dd>
+                </div>
+              </dl>
+
+              <div class="app-half-year-card-actions">
+                <div class="app-form-action-buttons">
+                  <button
+                    tuiButton
+                    appearance="secondary"
+                    size="s"
+                    type="button"
+                    [disabled]="loading() || !canComplete()"
+                    [title]="statusActionHint(halfYear)"
+                  >
+                    <svg [cIcon]="icons.confirm" class="app-button-icon" aria-hidden="true"></svg>
+                    Abschließen
+                  </button>
+                  <button
+                    tuiButton
+                    appearance="secondary"
+                    size="s"
+                    type="button"
+                    [disabled]="loading() || !canArchive(halfYear)"
+                    [title]="statusActionHint(halfYear)"
+                  >
+                    <svg [cIcon]="icons.archive" class="app-button-icon" aria-hidden="true"></svg>
+                    Archivieren
+                  </button>
+                </div>
+                <span class="app-form-action-hint">{{ statusActionHint(halfYear) }}</span>
+              </div>
+
+              @if (editingHalfYearId() === halfYear.id) {
+                @if (editDraft(); as draft) {
+                  <form
+                    tuiForm="m"
+                    class="app-form-grid app-inline-editor"
+                    [attr.aria-label]="halfYearLabel(halfYear) + ' bearbeiten'"
+                    (ngSubmit)="submitHalfYearUpdate()"
+                  >
+                    <div class="app-field-half">
+                      <label [for]="'editHalfYearSeason-' + halfYear.id">Saison</label>
+                      <tui-textfield [tuiTextfieldCleaner]="false">
+                        <select
+                          [id]="'editHalfYearSeason-' + halfYear.id"
+                          [name]="'editHalfYearSeason-' + halfYear.id"
+                          [(ngModel)]="draft.season"
+                          required
+                        >
+                          <option value="summer">Sommer</option>
+                          <option value="winter">Winter</option>
+                        </select>
+                      </tui-textfield>
+                    </div>
+                    <div class="app-field-half">
+                      <tui-textfield>
+                        <label tuiLabel [for]="'editHalfYearYear-' + halfYear.id">Jahr</label>
+                        <input
+                          tuiInput
+                          [id]="'editHalfYearYear-' + halfYear.id"
+                          [name]="'editHalfYearYear-' + halfYear.id"
+                          type="number"
+                          min="2000"
+                          max="2100"
+                          [(ngModel)]="draft.year"
+                          required
+                        />
+                      </tui-textfield>
+                    </div>
+                    <div class="app-field-full app-form-actions">
+                      <span class="app-form-action-hint"
+                        >Die Änderung aktualisiert nur den Halbjahreskontext.</span
+                      >
+                      <div class="app-form-action-buttons">
+                        <button
+                          tuiButton
+                          appearance="secondary"
+                          type="button"
+                          (click)="cancelEditing()"
+                        >
+                          <svg
+                            [cIcon]="icons.cancel"
+                            class="app-button-icon"
+                            aria-hidden="true"
+                          ></svg>
+                          Abbrechen
+                        </button>
+                        <button tuiButton appearance="primary" type="submit" [disabled]="loading()">
+                          <svg
+                            [cIcon]="icons.save"
+                            class="app-button-icon"
+                            aria-hidden="true"
+                          ></svg>
+                          Änderungen speichern
+                        </button>
+                      </div>
+                    </div>
+                  </form>
                 }
-              </select></tui-textfield
-            >
-          </div>
-          <div class="app-field-half">
-            <label for="roundCommittee">Ausschuss</label
-            ><tui-textfield [tuiTextfieldCleaner]="false"
-              ><select id="roundCommittee" name="committee_id" required>
-                @for (committee of committees; track committee.id) {
-                  <option [value]="committee.id">{{ committee.name }}</option>
-                }
-              </select></tui-textfield
-            >
-          </div>
-          <div class="app-field-full app-form-actions">
-            <span class="app-form-action-hint"
-              >Der Vorsitz, sonst das erste Mitglied des Ausschusses, wird als anlegende Person
-              hinterlegt.</span
-            ><button tuiButton appearance="primary" type="submit" [disabled]="loading()">
-              Prüfungsrunde anlegen
-            </button>
-          </div>
-        </form>
+              }
+            </article>
+          } @empty {
+            <div class="app-empty-state">
+              <strong>Noch keine Prüfungshalbjahre</strong>
+              <span>Legen Sie Sommer oder Winter eines Jahres an.</span>
+            </div>
+          }
+        </div>
       </div>
     </section>
   </div>
 
-  @for (halfYear of halfYears(); track halfYear.id) {
+  @if (selectedHalfYear(); as halfYear) {
     <div class="app-page-full">
-      <section class="app-panel">
+      <section class="app-panel" aria-labelledby="selected-half-year-heading">
         <header tuiHeader="body-m" class="app-panel-header">
           <div>
-            <strong>{{ halfYearLabel(halfYear) }}</strong
-            ><span class="app-muted app-block">{{ halfYear.status }}</span>
+            <strong id="selected-half-year-heading">{{ halfYearLabel(halfYear) }}</strong>
+            <span class="app-muted app-block">Prüfungskontext und zugehörige Prüfungsrunden</span>
           </div>
-          <span tuiBadge appearance="info">{{ roundsFor(halfYear).length }} Ausschüsse</span>
+          <span tuiBadge [appearance]="statusAppearance(halfYear.status)">
+            {{ statusLabel(halfYear.status) }}
+          </span>
         </header>
         <div class="app-panel-body">
-          <div class="app-list-group">
-            @for (entry of roundsFor(halfYear); track entry.round.id) {
-              <button class="app-list-group-item" type="button" (click)="selectRound(entry.round)">
-                <strong>{{ entry.committee?.name || 'Ausschuss' }}</strong
-                ><span>{{ entry.round.name }}</span>
-                @if (entry.round.id === activeRoundId) {
-                  <span tuiBadge appearance="positive">Aktiv</span>
+          <p class="app-muted">
+            Ausschüsse und Terminorganisationen werden innerhalb dieses Prüfungshalbjahrs verwaltet.
+            Abgeschlossene Bereiche bleiben später als Historie einsehbar.
+          </p>
+
+          <div class="app-half-year-detail-grid">
+            <section class="app-detail-section" aria-labelledby="half-year-rounds-heading">
+              <header class="app-section-heading">
+                <div>
+                  <p class="app-eyebrow">Ausschüsse</p>
+                  <h2 id="half-year-rounds-heading">Prüfungsrunden</h2>
+                </div>
+                <span tuiBadge appearance="info">{{ roundsFor(halfYear).length }}</span>
+              </header>
+
+              @if (canManageRounds(halfYear)) {
+                <form
+                  tuiForm="m"
+                  class="app-form-grid app-compact-form"
+                  (submit)="createRound($event)"
+                >
+                  <div class="app-field-full">
+                    <label for="roundCommittee">Ausschuss <span aria-hidden="true">*</span></label>
+                    <tui-textfield [tuiTextfieldCleaner]="false">
+                      <select id="roundCommittee" name="committee_id" required>
+                        @for (committee of committees; track committee.id) {
+                          <option [value]="committee.id">{{ committee.name }}</option>
+                        }
+                      </select>
+                    </tui-textfield>
+                  </div>
+                  <div class="app-field-full app-form-actions">
+                    <span class="app-form-action-hint"
+                      >Ein Ausschuss kann je Halbjahr nur einmal zugeordnet werden.</span
+                    >
+                    <button
+                      tuiButton
+                      appearance="primary"
+                      type="submit"
+                      [disabled]="loading() || !committees.length"
+                    >
+                      <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
+                      Ausschuss hinzufügen
+                    </button>
+                  </div>
+                </form>
+              }
+
+              <div class="app-list-group">
+                @for (entry of roundsFor(halfYear); track entry.round.id) {
+                  <button
+                    class="app-list-group-item app-half-year-round"
+                    type="button"
+                    (click)="selectRound(entry.round)"
+                  >
+                    <span>
+                      <strong>{{ entry.committee?.name || 'Ausschuss' }}</strong>
+                      <small>{{ entry.round.name }}</small>
+                    </span>
+                    <span class="app-half-year-round-status">
+                      <span
+                        tuiBadge
+                        [appearance]="entry.round.id === activeRoundId ? 'positive' : 'neutral'"
+                      >
+                        {{
+                          entry.round.id === activeRoundId
+                            ? 'Aktiv'
+                            : statusLabel(entry.round.status)
+                        }}
+                      </span>
+                    </span>
+                  </button>
+                } @empty {
+                  <div class="app-compact-empty">
+                    <strong>Noch kein Ausschuss zugeordnet.</strong>
+                    <span
+                      >Fügen Sie den ersten Ausschuss direkt in diesem Prüfungshalbjahr hinzu.</span
+                    >
+                  </div>
                 }
-              </button>
-            } @empty {
-              <div class="app-compact-empty">
-                <strong>Noch kein Ausschuss zugeordnet.</strong
-                ><span>Legen Sie die erste Prüfungsrunde über das Formular an.</span>
               </div>
-            }
+            </section>
+
+            <section class="app-detail-section" aria-labelledby="half-year-candidates-heading">
+              <header class="app-section-heading">
+                <div>
+                  <p class="app-eyebrow">Prüflinge</p>
+                  <h2 id="half-year-candidates-heading">Zuordnung im Halbjahr</h2>
+                </div>
+                <span tuiBadge appearance="info">{{ candidateCountFor(halfYear) }}</span>
+              </header>
+              @if (candidateCountFor(halfYear)) {
+                <p>
+                  Die Prüflinge dieses Halbjahrs werden in den jeweiligen Prüfungsrunden angezeigt.
+                </p>
+              } @else {
+                <div class="app-compact-empty">
+                  <strong>Noch keine Prüflinge zugeordnet.</strong>
+                  <span>Die Zuordnung erfolgt im passenden Ausschusskontext.</span>
+                </div>
+              }
+            </section>
           </div>
         </div>
       </section>
-    </div>
-  } @empty {
-    <div class="app-page-full">
-      <div class="app-empty-state">
-        <strong>Noch keine Prüfungshalbjahre</strong
-        ><span>Legen Sie Sommer oder Winter eines Jahres an.</span>
-      </div>
     </div>
   }
 </div>

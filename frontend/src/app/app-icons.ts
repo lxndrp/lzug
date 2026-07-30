@@ -5,6 +5,9 @@ const icon = (content: string): string[] => ['512 512', content];
 const arrowRight = icon(
   "<path fill='currentcolor' d='m359.873 121.377-22.627 22.627 95.997 95.997H16v32.001h417.24l-95.994 95.994 22.627 22.627L494.498 256z'/>",
 );
+const archive = icon(
+  "<path fill='currentcolor' d='M40 72h432v80H40zm32 112h368v272H72zm104 64v32h160v-32zM40 40h432v32H40z'/>",
+);
 const ban = icon(
   "<path fill='currentcolor' d='M425.706 86.294A240 240 0 0 0 86.294 425.705 240 240 0 0 0 425.706 86.294M256 48a207.1 207.1 0 0 1 135.528 50.345L98.345 391.528A207.1 207.1 0 0 1 48 256c0-114.691 93.309-208 208-208m0 416a207.08 207.08 0 0 1-134.986-49.887l293.1-293.1A207.08 207.08 0 0 1 464 256c0 114.691-93.309 208-208 208'/>",
 );
@@ -57,6 +60,7 @@ const x = icon(
 export const appIcons = {
   activate: checkCircle,
   add: plus,
+  archive,
   arrowRight,
   cancel: x,
   calendar,

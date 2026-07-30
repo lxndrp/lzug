@@ -83,6 +83,13 @@ export class PlanningApiService {
     return this.http.post<ExamHalfYear>('/api/exam-half-years', payload);
   }
 
+  updateExamHalfYear(
+    id: number,
+    payload: Partial<Pick<ExamHalfYear, 'season' | 'year' | 'status'>>,
+  ) {
+    return this.http.patch<ExamHalfYear>(`/api/exam-half-years/${id}`, payload);
+  }
+
   createExamRound(payload: ExamRoundCreate) {
     return this.http.post<ExamRound>('/api/exam-rounds', payload);
   }
