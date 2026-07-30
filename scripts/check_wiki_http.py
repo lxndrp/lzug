@@ -48,9 +48,7 @@ def main() -> int:
     if not wiki_root.is_dir():
         print(f"wiki: directory does not exist: {wiki_root}")
         return 1
-    pages = sorted(
-        path.stem for path in wiki_root.glob("*.md") if path.stem != "_Sidebar"
-    )
+    pages = sorted(path.stem for path in wiki_root.glob("*.md") if path.stem != "_Sidebar")
     if not pages:
         print("wiki: no flat Markdown pages found")
         return 1
