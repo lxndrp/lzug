@@ -32,7 +32,7 @@ jobs:
 
       - name: Check Wiki candidate with Gollum
         run: >-
-          docker run --rm --network none --entrypoint ruby
+          docker run --rm --network none --user "$(id -u):$(id -g)" --entrypoint ruby
           -v "$PWD:/workspace:ro" -w /workspace
           ghcr.io/gollum/gollum@sha256:6dc5ba588bca0d7c5a5964e0537d0ee4cfa7d0738959b530f9bebaa776d1c641
           scripts/check_wiki.rb wiki-candidate
