@@ -18,44 +18,8 @@ plugins:
             members_order: source
 nav:
   - Start: index.md
-  - Business Domain:
-      - Überblick: business-domain/index.md
-      - Kernprozesse des Prüfungsausschusses: business-domain/core-processes.md
-      - Rollen und Verantwortlichkeiten: business-domain/roles-and-responsibilities.md
-      - Glossar: business-domain/glossary.md
-      - Prozesssteckbriefe:
-          - Prüfungshalbjahr planen: business-domain/processes/plan-exam-half-year.md
-          - Zulassung und Anträge bewerten: business-domain/processes/assess-admission-and-applications.md
-          - Schriftliche Prüfungen organisieren: business-domain/processes/organise-written-examinations.md
-          - Mündliche Prüfung planen und durchführen: business-domain/processes/plan-and-conduct-oral-examinations.md
-          - Prüfungsleistungen bewerten: business-domain/processes/assess-examination-performances.md
-          - Ergebnis feststellen, dokumentieren und bekanntgeben: business-domain/processes/determine-document-and-communicate-results.md
-      - User Journeys:
-          - Prüfungshalbjahr planen: business-domain/user-journeys/plan-exam-half-year.md
-          - Verfügbarkeit melden: business-domain/user-journeys/report-availability.md
-          - Mündlichen Prüfungstag vorbereiten und durchführen: business-domain/user-journeys/prepare-and-conduct-oral-examination-day.md
-          - Dokumentation individuell bewerten: business-domain/user-journeys/assess-documentation.md
-          - Präsentation und Fachgespräch bewerten: business-domain/user-journeys/assess-presentation-and-expert-interview.md
-          - Ergebnis gemeinsam feststellen: business-domain/user-journeys/determine-results.md
-      - Entscheidungsmatrizen:
-          - Besetzung und Planbarkeit eines Prüfungstags: business-domain/decision-matrices/exam-day-staffing-and-feasibility.md
-          - Ausfall und Ersatzbesetzung: business-domain/decision-matrices/examiner-absence-and-replacement.md
-  - Für Nutzer:
-      - Überblick: users/index.md
-      - Grundbegriffe: users/concepts.md
-      - Prüfungshalbjahre: users/exam-half-years.md
-      - Stammdaten: users/master-data.md
-      - Terminplanung: users/scheduling.md
-  - Für Administratoren:
-      - Überblick: administrators/index.md
-      - Lokale Laufzeit: administrators/local-runtime.md
-      - Daten und Zurücksetzen: administrators/data-and-reset.md
   - Für Entwickler:
       - Überblick: developers/index.md
-      - Einrichtung: developers/setup.md
-      - Mitarbeit: developers/mitarbeit.md
-      - Arbeitsprozess: developers/arbeitsprozess.md
-      - Qualität und Sicherheitsprozess: developers/qualitaet-und-sicherheit.md
       - Synthetische Testdaten: developers/synthetic-fixtures.md
       - Reviews:
           - Review Policy: developers/reviews/index.md
@@ -90,3 +54,4 @@ nav:
           - ADR-0009 Toolchain und Tasks: developers/decisions/0009-toolchain-und-entwicklungs-tasks.md
           - ADR-0010 Vitest statt Karma/Jasmine: developers/decisions/0010-vitest-statt-karma-jasmine.md
           - ADR-0011 GitHub Wiki als Handbuchoberfläche: developers/decisions/0011-github-wiki-handbuch.md
+          - ADR-0012 Single Source of Truth: developers/decisions/0012-wiki-single-source-of-truth.md

@@ -2,14 +2,18 @@
 
 Dieses Handbuch beschreibt den aktuellen technischen Stand. Das öffentliche
 redaktionelle Handbuch liegt im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki)
-und wird nicht in diesem Repository gespiegelt. Beginnen Sie mit
-[Einrichtung](setup.md), wenn Sie lokal entwickeln, oder mit
-[Mitarbeit](mitarbeit.md), wenn Sie einen Beitrag vorbereiten möchten.
+und wird nicht in diesem Repository gespiegelt.
+
+Für Einrichtung, lokale Entwicklung und Qualitätssicherung gilt die Anleitung
+im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki). Für Beiträge gilt direkt
+[`CONTRIBUTING.md`](https://github.com/lxndrp/lzug/blob/master/CONTRIBUTING.md)
+im Repository-Wurzelverzeichnis.
 
 - **Architektur** erklärt die Rollen von Backend, Frontend, API und Qualitätssicherung.
 - **Referenz** enthält das fachliche Datenmodell, die aktuelle Datenbankschema-Referenz sowie die generierten Code-Referenzen.
 - **Entscheidungen** hält wichtige, bereits getroffene technische Entscheidungen als rückwirkende ADRs fest.
-- **Reviews** beschreibt das gemeinsame Qualitätsreview für Menschen und Agents sowie den Copilot-Pilotbetrieb.
+- **Reviews** beschreibt das gemeinsame Qualitätsreview und die zugehörigen
+  Nachweise für Menschen und Agents.
 - **Wiki-Publikation** beschreibt den getrennten Review- und Freigabeablauf für
   das Wiki-Repository.
 

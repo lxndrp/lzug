@@ -27,12 +27,10 @@ Workflows und diese Verfahrensbeschreibung.
    Er checkt den Default-Branch erneut, prüft portable Links und öffentliche
    Sicherheitsregeln und lädt jede Seite mit Gollum.
 
-Das Wiki-Repository ist initialisiert und veröffentlicht aktuell weiterhin nur
-den unveränderten Initialstand auf `master` (`1fb0b283c3820582f1e6e9e4a1505ac048f1f3ba`).
-Der erste Handbuchkandidat liegt zur Prüfung auf dem separaten Branch
-`codex/205-github-wiki-handbuch` (`2568bce`). Die Veröffentlichung dieses
-geprüften Commits in `master` bleibt bis zur expliziten Maintainer-Entscheidung
-ausgesetzt; dieser PR nimmt die öffentliche Mutation nicht vor.
+Das Wiki-Repository ist initialisiert. Der veröffentlichte Stand wird dort
+versioniert und ist die kanonische Quelle für das redaktionelle Handbuch. Die
+jeweils geprüfte Wiki-Commit-ID wird im zugehörigen GitHub-Issue dokumentiert;
+dieses Repository enthält bewusst keine Kopie der Wiki-Seiten.
 
 ## Inhaltliche Grenzen
 
@@ -54,4 +52,7 @@ WIKI_ROOT=/path/to/lzug.wiki task wiki:check
 
 Der Gollum-Lauf ist bewusst auf den isolierten, digest-gepinnten Container im
 GitHub-Workflow begrenzt. So wird die bestehende Python/npm-Toolchain des
-Projekts nicht um eine Ruby-Abhängigkeit erweitert.
+Projekts nicht um eine Ruby-Abhängigkeit erweitert. Der Post-Publish-Workflow
+prüft zusätzlich jede flache Wiki-Seite über ihre gerenderte GitHub-Route auf
+HTTP 200 und `Content-Type: text/html`; Weiterleitungen auf
+`raw.githubusercontent.com` sind Fehler.

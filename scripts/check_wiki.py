@@ -17,30 +17,44 @@ from scripts.check_synthetic_fixtures import scan_blocked_fingerprints, scan_dom
 REQUIRED_PAGES = {
     "Home.md",
     "_Sidebar.md",
-    "Fachlichkeit/index.md",
-    "Fachlichkeit/Kernprozesse.md",
-    "Fachlichkeit/Rollen-und-Verantwortlichkeiten.md",
-    "Fachlichkeit/Glossar.md",
-    "Nutzung/index.md",
-    "Nutzung/Grundbegriffe.md",
-    "Nutzung/Pruefungshalbjahre.md",
-    "Nutzung/Stammdaten.md",
-    "Nutzung/Terminplanung.md",
-    "Administration/index.md",
-    "Administration/Lokale-Laufzeit.md",
-    "Administration/Daten-und-Zuruecksetzen.md",
-    "Entwicklung/index.md",
-    "Entwicklung/Einrichtung.md",
-    "Entwicklung/Mitarbeit.md",
-    "Entwicklung/Arbeitsprozess.md",
-    "Entwicklung/Qualitaet-und-Sicherheit.md",
-    "Entwicklung/Architektur.md",
-    "Entwicklung/Dokumentation.md",
+    "Fachlichkeit.md",
+    "Fachlichkeit-Kernprozesse.md",
+    "Fachlichkeit-Rollen-und-Verantwortlichkeiten.md",
+    "Fachlichkeit-Glossar.md",
+    "Prozess-Pruefungshalbjahr-planen.md",
+    "Prozess-Zulassung-und-Antraege-bewerten.md",
+    "Prozess-Schriftliche-Pruefungen-organisieren.md",
+    "Prozess-Muendliche-Pruefung-planen-und-durchfuehren.md",
+    "Prozess-Pruefungsleistungen-bewerten.md",
+    "Prozess-Ergebnis-feststellen-und-bekanntgeben.md",
+    "User-Journey-Pruefungshalbjahr-planen.md",
+    "User-Journey-Verfuegbarkeit-melden.md",
+    "User-Journey-Muendlichen-Pruefungstag-vorbereiten-und-durchfuehren.md",
+    "User-Journey-Dokumentation-individuell-bewerten.md",
+    "User-Journey-Praesentation-und-Fachgespraech-bewerten.md",
+    "User-Journey-Ergebnis-gemeinsam-feststellen.md",
+    "Entscheidungsmatrix-Besetzung-und-Planbarkeit.md",
+    "Entscheidungsmatrix-Ausfall-und-Ersatzbesetzung.md",
+    "Nutzung.md",
+    "Nutzung-Grundbegriffe.md",
+    "Nutzung-Pruefungshalbjahre.md",
+    "Nutzung-Stammdaten.md",
+    "Nutzung-Terminplanung.md",
+    "Administration.md",
+    "Administration-Lokale-Laufzeit.md",
+    "Administration-Daten-und-Zuruecksetzen.md",
+    "Entwicklung.md",
+    "Entwicklung-Einrichtung.md",
+    "Entwicklung-Arbeitsprozess.md",
+    "Entwicklung-Qualitaet-und-Sicherheit.md",
+    "Entwicklung-Architektur.md",
+    "Entwicklung-Dokumentation.md",
 }
 LINK_PATTERN = re.compile(r"(?<!!)(?:\[[^\]]*\])\(([^)]+)\)")
 WIKI_SYNTAX_PATTERN = re.compile(r"\[\[[^\]]+\]\]|\{\{[^}]+\}\}")
 MARKDOWN_SUFFIXES = {".md", ".markdown"}
-ALLOWED_SECTIONS = {"Fachlichkeit", "Nutzung", "Administration", "Entwicklung"}
+REQUIRED_HOME_LINKS = {"Fachlichkeit", "Nutzung", "Administration", "Entwicklung"}
+REQUIRED_SIDEBAR_LINKS = REQUIRED_HOME_LINKS | {"Home"}
 
 
 def relative(path: Path) -> str:
@@ -59,34 +73,49 @@ def markdown_files(wiki_root: Path) -> list[Path]:
 def check_structure(wiki_root: Path, files: list[Path]) -> list[str]:
     actual = {path.relative_to(wiki_root).as_posix() for path in files}
     errors = [f"wiki: required page missing: {name}" for name in sorted(REQUIRED_PAGES - actual)]
-    unexpected = []
+    nested = sorted(name for name in actual if len(Path(name).parts) != 1)
+    errors.extend(f"wiki: page must be flat: {name}" for name in nested)
+    non_md = sorted(name for name in actual if Path(name).suffix != ".md")
+    errors.extend(f"wiki: page must use the .md extension: {name}" for name in non_md)
+    stems: dict[str, list[str]] = {}
     for name in sorted(actual):
-        parts = Path(name).parts
-        if len(parts) == 1 and name not in {"Home.md", "_Sidebar.md"}:
-            unexpected.append(name)
-        elif len(parts) > 1 and parts[0] not in ALLOWED_SECTIONS:
-            unexpected.append(name)
-    errors.extend(f"wiki: page is outside the approved structure: {name}" for name in unexpected)
+        stems.setdefault(Path(name).stem, []).append(name)
+    errors.extend(
+        f"wiki: page name is not unique: {', '.join(names)}"
+        for names in stems.values()
+        if len(names) > 1
+    )
     if not (wiki_root / "Home.md").is_file():
         errors.append("wiki: Home.md is required as the independent entry point")
-    home = (
-        (wiki_root / "Home.md").read_text(encoding="utf-8")
-        if (wiki_root / "Home.md").is_file()
-        else ""
-    )
-    for required_link in (
-        "Fachlichkeit/index.md",
-        "Nutzung/index.md",
-        "Administration/index.md",
-        "Entwicklung/index.md",
+    if not (wiki_root / "_Sidebar.md").is_file():
+        errors.append("wiki: _Sidebar.md is required")
+    for filename, required_links in (
+        ("Home.md", REQUIRED_HOME_LINKS),
+        ("_Sidebar.md", REQUIRED_SIDEBAR_LINKS),
     ):
-        if required_link not in home:
-            errors.append(f"wiki: Home.md does not link to {required_link}")
+        path = wiki_root / filename
+        if not path.is_file():
+            continue
+        linked = local_link_targets(path.read_text(encoding="utf-8"))
+        for required_link in sorted(required_links - linked):
+            errors.append(f"wiki: {filename} does not link to {required_link}")
     return errors
+
+
+def local_link_targets(text: str) -> set[str]:
+    targets = set()
+    for match in LINK_PATTERN.finditer(text):
+        target = match.group(1).strip().strip("<>")
+        parsed = urlsplit(target)
+        if parsed.scheme or parsed.netloc or parsed.path == "" or target.startswith("#"):
+            continue
+        targets.add(unquote(parsed.path))
+    return targets
 
 
 def check_links(wiki_root: Path, files: list[Path]) -> list[str]:
     errors = []
+    page_stems = {path.stem for path in files if path.parent == wiki_root and path.suffix == ".md"}
     for path in files:
         text = path.read_text(encoding="utf-8")
         for match in LINK_PATTERN.finditer(text):
@@ -97,14 +126,18 @@ def check_links(wiki_root: Path, files: list[Path]) -> list[str]:
             target_path = unquote(parsed.path)
             if not target_path:
                 continue
-            candidate = (path.parent / target_path).resolve()
-            try:
-                candidate.relative_to(wiki_root.resolve())
-            except ValueError:
-                errors.append(f"{relative(path)}: local link leaves wiki: {target}")
+            if target_path.endswith(tuple(MARKDOWN_SUFFIXES)):
+                errors.append(
+                    f"{relative(path)}: internal wiki link must be extensionless: {target}"
+                )
                 continue
-            if not candidate.is_file():
-                errors.append(f"{relative(path)}: local link target does not exist: {target}")
+            if "/" in target_path or target_path.startswith((".", "/")):
+                errors.append(
+                    f"{relative(path)}: internal wiki link must target a flat page: {target}"
+                )
+                continue
+            if target_path not in page_stems:
+                errors.append(f"{relative(path)}: local wiki page does not exist: {target}")
     return errors
 
 

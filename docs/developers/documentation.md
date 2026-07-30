@@ -2,14 +2,28 @@
 
 Produkt-, Fach- und Architekturdokumentation ist auf Deutsch; Code-Kommentare sind Englisch. Planung, Prioritäten und Liefertermine gehören in GitHub Issues und das Roadmap-Project, nicht in ADRs.
 
-Das öffentliche redaktionelle Handbuch liegt ausschließlich im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki). Die Dateien unter `docs/` sind die technische und fachliche Quellbasis des Hauptrepositorys; sie werden nicht als Wiki-Spiegel gepflegt.
+Das öffentliche redaktionelle Handbuch liegt ausschließlich im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki). Die Dateien unter `docs/` sind die technische Quellbasis des Hauptrepositorys; sie werden nicht als Wiki-Spiegel gepflegt.
 
-Die fachliche Referenz für Prozesse, Rollen, Begriffe und Entscheidungsregeln
-liegt unter [Business Domain](../business-domain/index.md). Sie beschreibt den
-vereinbarten Fachstand. GitHub-Epics, Stories und Tasks dokumentieren dagegen
-die veränderliche Umsetzung und verlinken mit Prozess-Labels und Rücklinks auf
-die jeweiligen Fachseiten. Technisches Datenmodell, API-Vertrag und
-Architektur verbleiben im Entwicklerhandbuch.
+Die vollständige fachliche Handbuchquelle liegt im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki). Dieses technische Handbuch beschreibt nur die code-, CI-, Security-, Release- und entscheidungsgebundenen Quellen. GitHub-Epics, Stories und Tasks dokumentieren die veränderliche Umsetzung.
+
+## Kanonische Ablage
+
+Jeder Inhalt besitzt genau eine kanonische Ablage:
+
+- Redaktionelle Anleitungen für Menschen zu Einrichtung, Arbeitsprozess und
+  Qualität liegen im GitHub Wiki.
+- Technische Architektur, Datenmodell, API-Vertrag, Datenbankschema, ADRs,
+  Frontend-Richtlinien, Reviews, Fixtures, Lizenz- und Release-Nachweise sowie
+  Wiki-Publikationsprüfungen liegen im Hauptrepository.
+- Generierte Python- und TypeScript-Referenzen entstehen aus dem Code und sind
+  CI-Artefakte; sie werden nicht als redaktionelle Kopie gepflegt.
+- Agentenspezifische Regeln liegen in `AGENTS.md` oder in dafür vorgesehenen
+  Codex-Artefakten, nicht in einer allgemeinen Entwickleranleitung.
+
+Gekürzte, ausführliche oder als Arbeitskopie bezeichnete Parallelfassungen
+werden nicht angelegt. Die fachliche Handbuchquelle liegt ebenfalls im
+[GitHub Wiki](https://github.com/lxndrp/lzug/wiki); technische Modelle und
+Verträge verbleiben im Entwicklerhandbuch.
 
 ## ADR-Konvention
 

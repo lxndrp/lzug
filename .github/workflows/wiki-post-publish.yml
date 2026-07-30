@@ -31,3 +31,8 @@ jobs:
           -v "$PWD:/workspace:ro" -w /workspace
           ghcr.io/gollum/gollum@sha256:6dc5ba588bca0d7c5a5964e0537d0ee4cfa7d0738959b530f9bebaa776d1c641
           scripts/check_wiki.rb published-wiki
+
+      - name: Check rendered GitHub Wiki routes
+        run: >-
+          python3 scripts/check_wiki_http.py published-wiki
+          "https://github.com/${{ github.repository }}/wiki"
