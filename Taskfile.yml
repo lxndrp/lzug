@@ -47,6 +47,12 @@ tasks:
       - task: docs:handbook
       - task: docs:frontend
 
+  wiki:check:
+    desc: Check a separately checked-out Wiki repository for links and public-safety policy
+    cmds:
+      - test -n "${WIKI_ROOT:-}" || { echo "set WIKI_ROOT to a local Wiki checkout"; exit 1; }
+      - python3 scripts/check_wiki.py "$WIKI_ROOT"
+
   quality:
     desc: Run the complete local quality assurance suite in parallel
     deps:

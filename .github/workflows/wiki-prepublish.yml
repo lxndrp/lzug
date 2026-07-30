@@ -1,0 +1,38 @@
+name: Wiki pre-publish check
+
+on:
+  workflow_dispatch:
+    inputs:
+      wiki_ref:
+        description: "Branch, tag, or commit in the separate Wiki repository to review"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check Wiki candidate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository checks
+        uses: actions/checkout@v7
+
+      - name: Checkout Wiki candidate
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository }}.wiki
+          ref: ${{ inputs.wiki_ref }}
+          path: wiki-candidate
+          persist-credentials: false
+
+      - name: Check portable Markdown and public-safety policy
+        run: python3 scripts/check_wiki.py wiki-candidate
+
+      - name: Check Wiki candidate with Gollum
+        run: >-
+          docker run --rm --network none --entrypoint ruby
+          -v "$PWD:/workspace:ro" -w /workspace
+          ghcr.io/gollum/gollum@sha256:6dc5ba588bca0d7c5a5964e0537d0ee4cfa7d0738959b530f9bebaa776d1c641
+          scripts/check_wiki.rb wiki-candidate
