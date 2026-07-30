@@ -55,5 +55,5 @@ ersetzt dessen frühere Zuordnung lokaler Abläufe zu `mise`.
 ## Referenzen
 
 - [ADR-0003: Toolchain mit mise, uv und npm](0003-toolchain-mise-uv-npm.md)
-- [Entwickler-Setup](../setup.md)
-- [Qualität und Sicherheitsprozess](../qualitaet-und-sicherheit.md)
+- [Entwickler-Setup im GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung-Einrichtung)
+- [Qualität und Sicherheitsprozess im GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung-Qualitaet-und-Sicherheit)

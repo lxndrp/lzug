@@ -54,9 +54,11 @@ Accessibility-Prüfungen. Die vollständige Dokumentation mit Python- und
 TypeScript-Referenzen entsteht mit `task docs`.
 
 Frontend-spezifische Befehle und die E2E-Isolation beschreibt
-[frontend/README.md](frontend/README.md). Architektur, API-Vertrag,
-Dokumentationsstandard und der vollständige [Arbeitsprozess](docs/developers/arbeitsprozess.md)
-stehen im [Entwicklerhandbuch](docs/developers/index.md).
+[frontend/README.md](frontend/README.md). Architektur, API-Vertrag und
+technische Dokumentationsstandards stehen im
+[Entwicklerhandbuch](docs/developers/index.md). Der vollständige
+Arbeitsprozess sowie Einrichtung und Qualitätssicherung sind im
+[GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung) beschrieben.
 
 Das öffentliche redaktionelle Handbuch liegt ausschließlich im separaten
 [GitHub Wiki](https://github.com/lxndrp/lzug/wiki) und wird nicht in diesem
