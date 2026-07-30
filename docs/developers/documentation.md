@@ -4,12 +4,7 @@ Produkt-, Fach- und Architekturdokumentation ist auf Deutsch; Code-Kommentare si
 
 Das öffentliche redaktionelle Handbuch liegt ausschließlich im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki). Die Dateien unter `docs/` sind die technische und fachliche Quellbasis des Hauptrepositorys; sie werden nicht als Wiki-Spiegel gepflegt.
 
-Die fachliche Referenz für Prozesse, Rollen, Begriffe und Entscheidungsregeln
-liegt unter [Business Domain](../business-domain/index.md). Sie beschreibt den
-vereinbarten Fachstand. GitHub-Epics, Stories und Tasks dokumentieren dagegen
-die veränderliche Umsetzung und verlinken mit Prozess-Labels und Rücklinks auf
-die jeweiligen Fachseiten. Technisches Datenmodell, API-Vertrag und
-Architektur verbleiben im Entwicklerhandbuch.
+Die vollständige fachliche Handbuchquelle liegt im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki). Dieses technische Handbuch beschreibt nur die code- und CI-gebundenen Quellen. GitHub-Epics, Stories und Tasks dokumentieren die veränderliche Umsetzung. Technisches Datenmodell, API-Vertrag und Architektur verbleiben im Entwicklerhandbuch.
 
 ## ADR-Konvention
 

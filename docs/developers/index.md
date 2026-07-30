@@ -3,8 +3,9 @@
 Dieses Handbuch beschreibt den aktuellen technischen Stand. Das öffentliche
 redaktionelle Handbuch liegt im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki)
 und wird nicht in diesem Repository gespiegelt. Beginnen Sie mit
-[Einrichtung](setup.md), wenn Sie lokal entwickeln, oder mit
-[Mitarbeit](mitarbeit.md), wenn Sie einen Beitrag vorbereiten möchten.
+[Einrichtung](setup.md), wenn Sie lokal entwickeln. Für Beiträge gilt direkt
+[`CONTRIBUTING.md`](https://github.com/lxndrp/lzug/blob/master/CONTRIBUTING.md)
+im Repository-Wurzelverzeichnis.
 
 - **Architektur** erklärt die Rollen von Backend, Frontend, API und Qualitätssicherung.
 - **Referenz** enthält das fachliche Datenmodell, die aktuelle Datenbankschema-Referenz sowie die generierten Code-Referenzen.

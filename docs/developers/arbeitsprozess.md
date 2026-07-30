@@ -25,7 +25,7 @@ Der Implementierungsstand wird im zugehörigen Issue kommentiert: an sinnvollen 
 
 ## Fachlichkeit und Rückverfolgbarkeit
 
-Die stabile fachliche Grundlage liegt unter [Business Domain](../business-domain/index.md):
+Die stabile fachliche Grundlage liegt im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki):
 Prozesslandkarte, Rollen und Verantwortlichkeiten, Glossar, Prozesssteckbriefe,
 User Journeys und Entscheidungsmatrizen beschreiben den aktuell vereinbarten
 Fachstand. Sie enthalten keine kurzfristige Planung, Priorisierung oder

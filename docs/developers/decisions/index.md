@@ -17,3 +17,4 @@ Historie, machen aber Kontext, Konsequenzen und Verweise dauerhaft auffindbar.
 | [0009](0009-toolchain-und-entwicklungs-tasks.md) | Toolchain und Entwicklungs-Tasks trennen | Akzeptiert |
 | [0010](0010-vitest-statt-karma-jasmine.md) | Vitest statt Karma und Jasmine für Frontend-Unit-Tests | Akzeptiert |
 | [0011](0011-github-wiki-handbuch.md) | GitHub Wiki als redaktionelle Handbuchoberfläche | Akzeptiert |
+| [0012](0012-wiki-single-source-of-truth.md) | Redaktionelle Single Source of Truth im GitHub Wiki | Akzeptiert |
