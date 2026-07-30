@@ -66,6 +66,7 @@ nav:
       - Lizenz und Release-Freigabe: developers/licensing.md
       - Frontend-Ausnahmen: developers/frontend-exceptions.md
       - Dokumentation: developers/documentation.md
+      - Wiki-Publikation: developers/wiki-publishing.md
       - Architektur:
           - Übersicht: developers/architecture/index.md
           - Backend und Datenzugriff: developers/architecture/backend.md
@@ -88,3 +89,4 @@ nav:
           - ADR-0008 Feiertagsprovider: developers/decisions/0008-feiertagsprovider.md
           - ADR-0009 Toolchain und Tasks: developers/decisions/0009-toolchain-und-entwicklungs-tasks.md
           - ADR-0010 Vitest statt Karma/Jasmine: developers/decisions/0010-vitest-statt-karma-jasmine.md
+          - ADR-0011 GitHub Wiki als Handbuchoberfläche: developers/decisions/0011-github-wiki-handbuch.md
