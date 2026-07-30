@@ -131,9 +131,18 @@ def validate_source() -> list[str]:
     return errors
 
 
-def scan_domains(path: Path, text: str) -> list[str]:
+def display_path(path: Path | str) -> str:
+    if isinstance(path, Path):
+        try:
+            return path.relative_to(ROOT).as_posix()
+        except ValueError:
+            return path.as_posix()
+    return path
+
+
+def scan_domains(path: Path | str, text: str) -> list[str]:
     errors = []
-    relative = path.relative_to(ROOT).as_posix()
+    relative = display_path(path)
     for line_number, line in enumerate(text.splitlines(), 1):
         for match in EMAIL_PATTERN.finditer(line):
             domain = match.group(1)
@@ -159,7 +168,7 @@ def scan_domains(path: Path, text: str) -> list[str]:
 
 
 def scan_blocked_fingerprints(
-    path: Path,
+    path: Path | str,
     text: str,
     fingerprint_data: dict | None = None,
 ) -> list[str]:
@@ -170,7 +179,7 @@ def scan_blocked_fingerprints(
         by_size[item["token_count"]][item["sha256"]] = item["category"]
 
     tokens = normalize_tokens(text)
-    relative = path.relative_to(ROOT).as_posix()
+    relative = display_path(path)
     errors = []
     seen = set()
     for size, blocked in by_size.items():
