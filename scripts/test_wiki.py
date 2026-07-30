@@ -52,6 +52,21 @@ class WikiValidatorTests(unittest.TestCase):
 
 
 class WikiHttpCheckTests(unittest.TestCase):
+    def test_github_home_redirect_is_checked_at_canonical_root(self):
+        redirect_headers = Message()
+        redirect_headers["Location"] = "https://github.com/wiki"
+        redirect = HTTPError(
+            "https://github.com/wiki/Home", 301, "Moved Permanently", redirect_headers, None
+        )
+        response = Mock(status=200, getcode=lambda: 200, geturl=lambda: "https://github.com/wiki")
+        headers = Message()
+        headers["Content-Type"] = "text/html"
+        response.headers = headers
+        response.close = Mock()
+        opener = Mock()
+        opener.open.side_effect = [redirect, response]
+        self.assertEqual([], check_page(opener, "https://github.com/wiki", "Home"))
+
     def test_rendered_page_requires_html(self):
         response = Mock(
             status=200, getcode=lambda: 200, geturl=lambda: "https://github.com/wiki/Home"
