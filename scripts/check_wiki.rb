@@ -9,11 +9,11 @@ wiki_root = ARGV.fetch(0)
 wiki = Gollum::Wiki.new(wiki_root)
 pages = wiki.pages
 required = [
-  "Home.md",
-  "Fachlichkeit/index.md",
-  "Nutzung/index.md",
-  "Administration/index.md",
-  "Entwicklung/index.md",
+  "Home",
+  "Fachlichkeit/index",
+  "Nutzung/index",
+  "Administration/index",
+  "Entwicklung/index",
 ]
 missing = required.reject { |path| wiki.page(path) }
 abort("gollum: required page missing: #{missing.join(', ')}") unless missing.empty?
