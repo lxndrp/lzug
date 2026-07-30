@@ -29,14 +29,13 @@ separat; seine Seiten werden nicht im Hauptrepository gespiegelt.
 
 Die technische Dokumentation im Hauptrepository umfasst:
 
-- [Versionierte Fach- und technische Quellen](docs/index.md): Prozesse,
-  Architektur, Verträge und Entscheidungen.
-- [Nutzungsanleitung](docs/users/index.md): technische Arbeitskopie der
-  vorhandenen Abläufe in der Anwendung.
-- [Lokale Administration](docs/administrators/index.md): Entwicklungsinstanz
-  einrichten, starten und zurücksetzen.
+- [Technische Dokumentation](docs/index.md): Architektur, Verträge,
+  Datenmodell, Entscheidungen und Qualitätssicherung.
 - [Entwicklerhandbuch](docs/developers/index.md): Architektur, Referenzen,
   Entscheidungen und Qualitätssicherung.
+
+Die vollständige Fachlichkeit sowie das Nutzer- und Administratorhandbuch
+liegen ausschließlich im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki).
 
 Für Beiträge und lokale Entwicklung ist [CONTRIBUTING.md](CONTRIBUTING.md) der
 Einstieg. Die lokale Dokumentation inklusive Code-Referenzen entsteht mit:
