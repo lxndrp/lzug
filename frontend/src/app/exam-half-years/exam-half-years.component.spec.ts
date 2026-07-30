@@ -97,9 +97,92 @@ describe('ExamHalfYearsComponent', () => {
       expect(select.options[select.selectedIndex]?.textContent?.trim()).not.toBe('');
     }
   });
+
+  it('shows master-detail counts and progress for the selected half-year', () => {
+    fixture.componentRef.setInput('candidateAssignments', [
+      {
+        id: 1,
+        candidate_id: 1,
+        exam_half_year_id: 1,
+        exam_round_id: 1,
+        round_candidate_id: 1,
+        assigned_at: '2026-07-01 09:00:00',
+        ended_at: null,
+        change_reason: null,
+      },
+      {
+        id: 2,
+        candidate_id: 2,
+        exam_half_year_id: 1,
+        exam_round_id: 1,
+        round_candidate_id: 2,
+        assigned_at: '2026-06-01 09:00:00',
+        ended_at: '2026-07-01 09:00:00',
+        change_reason: 'Ausschusswechsel',
+      },
+    ]);
+    fixture.detectChanges();
+    flushInitialLoad(
+      http,
+      [{ id: 1, season: 'winter', year: 2026, status: 'active' }],
+      [
+        {
+          id: 1,
+          exam_half_year_id: 1,
+          committee_id: 1,
+          name: 'Winter 2026 · Prüfungsausschuss Teststadt 1',
+          status: 'plan_confirmed',
+        },
+        {
+          id: 2,
+          exam_half_year_id: 1,
+          committee_id: 2,
+          name: 'Winter 2026 · Prüfungsausschuss Teststadt 2',
+          status: 'draft',
+        },
+      ],
+    );
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('.app-half-year-metrics')?.textContent).toContain('1');
+    expect(element.textContent).toContain('1 von 2 Prüfungsrunden bestätigt');
+    expect(element.textContent).toContain('Zuordnung im Halbjahr');
+    expect(element.textContent).toContain('Prüflinge');
+    expect(buttonByText(element, 'Abschließen')?.disabled).toBe(true);
+  });
+
+  it('updates a half-year through its inline editor', () => {
+    fixture.detectChanges();
+    flushInitialLoad(http, [{ id: 1, season: 'winter', year: 2026, status: 'active' }]);
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    buttonByText(element, 'Bearbeiten')?.click();
+    fixture.detectChanges();
+    element
+      .querySelector<HTMLFormElement>('[aria-label="Winter 2026 bearbeiten"]')!
+      .dispatchEvent(new Event('submit', { bubbles: true }));
+
+    const request = http.expectOne('/api/exam-half-years/1');
+    expect(request.request.method).toBe('PATCH');
+    expect(request.request.body).toEqual({ season: 'winter', year: 2026 });
+    request.flush({ id: 1, season: 'winter', year: 2027, status: 'active' });
+    flushInitialLoad(http, [{ id: 1, season: 'winter', year: 2027, status: 'active' }]);
+  });
 });
 
-function flushInitialLoad(http: HttpTestingController, halfYears: object[]): void {
+function flushInitialLoad(
+  http: HttpTestingController,
+  halfYears: object[],
+  rounds: object[] = [],
+): void {
   http.expectOne('/api/exam-half-years').flush({ items: halfYears, _links: {} });
-  http.expectOne('/api/exam-rounds').flush({ items: [], _links: {} });
+  http.expectOne('/api/exam-rounds').flush({ items: rounds, _links: {} });
+}
+
+function buttonByText(element: HTMLElement, text: string): HTMLButtonElement | undefined {
+  return Array.from(element.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+    button.textContent?.includes(text),
+  );
 }

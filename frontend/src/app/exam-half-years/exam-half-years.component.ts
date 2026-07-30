@@ -16,7 +16,7 @@ import { PlanningApiService } from '../api/planning-api.service';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
 
-type HalfYearDraft = Pick<ExamHalfYear, 'season' | 'year'>;
+export type HalfYearDraft = Pick<ExamHalfYear, 'season' | 'year'>;
 
 /** Manage exam half-years and the committee-specific rounds within one selected context. */
 @Component({
