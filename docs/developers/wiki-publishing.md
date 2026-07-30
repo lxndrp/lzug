@@ -27,10 +27,12 @@ Workflows und diese Verfahrensbeschreibung.
    Er checkt den Default-Branch erneut, prüft portable Links und öffentliche
    Sicherheitsregeln und lädt jede Seite mit Gollum.
 
-Der aktuelle Stand hat noch kein initialisiertes Wiki-Repository. Die erste
-Wiki-Mutation ist daher bis zur Maintainer-Entscheidung über Aktivierung,
-Default-Branch und den geprüften Initial-Commit blockiert. Dieser PR nimmt
-diese öffentliche Mutation nicht vor.
+Das Wiki-Repository ist initialisiert und veröffentlicht aktuell weiterhin nur
+den unveränderten Initialstand auf `master` (`1fb0b283c3820582f1e6e9e4a1505ac048f1f3ba`).
+Der erste Handbuchkandidat liegt zur Prüfung auf dem separaten Branch
+`codex/205-github-wiki-handbuch` (`2568bce`). Die Veröffentlichung dieses
+geprüften Commits in `master` bleibt bis zur expliziten Maintainer-Entscheidung
+ausgesetzt; dieser PR nimmt die öffentliche Mutation nicht vor.
 
 ## Inhaltliche Grenzen
 
