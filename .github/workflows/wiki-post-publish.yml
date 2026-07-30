@@ -3,6 +3,7 @@ name: Wiki post-publish check
 on:
   gollum:
   workflow_dispatch:
+  workflow_dispatch:
 
 permissions:
   contents: read
