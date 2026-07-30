@@ -18,7 +18,7 @@ Der aktuelle Prototyp unterstützt die Pflege von Prüfungshalbjahren,
 Ausschüssen, Prüflingen und Prüfungsorten sowie die Planung von möglichen
 Prüfungstagen, Verfügbarkeiten und Prüfungsvorschlägen. Der genaue Arbeitsstand
 steht in den [GitHub Issues](https://github.com/lxndrp/lzug/issues). Die
-operative Maintainer-Roadmap wird separat im GitHub Project gepflegt.
+operative Maintainer-Roadmap wird separat im nicht-öffentlichen GitHub Project gepflegt.
 
 ## Dokumentation
 
