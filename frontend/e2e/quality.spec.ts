@@ -332,21 +332,27 @@ test.describe('lzug browser workflows', () => {
       timeout: 30_000,
     });
 
+    const createHalfYearButton = page
+      .locator('.app-panel-header')
+      .getByRole('button', { name: 'Prüfungshalbjahr anlegen' });
+    await createHalfYearButton.click();
     await page.locator('#examHalfYearSeason').selectOption('summer');
     await page.locator('#examHalfYearYear').fill('2027');
     const halfYearResponse = page.waitForResponse(
       (response) =>
         response.url().endsWith('/api/exam-half-years') && response.request().method() === 'POST',
     );
-    await page.getByRole('button', { name: 'Prüfungshalbjahr anlegen' }).click();
+    await page
+      .getByRole('button', { name: 'Prüfungshalbjahr anlegen', exact: true })
+      .last()
+      .click();
     expect((await halfYearResponse).status()).toBe(201);
 
-    await page.locator('#roundHalfYear').selectOption({ label: 'Sommer 2027' });
     const roundResponse = page.waitForResponse(
       (response) =>
         response.url().endsWith('/api/exam-rounds') && response.request().method() === 'POST',
     );
-    await page.getByRole('button', { name: 'Prüfungsrunde anlegen' }).click();
+    await page.getByRole('button', { name: 'Ausschuss hinzufügen' }).click();
     expect((await roundResponse).status()).toBe(201);
     await expect(page).toHaveURL('/dashboard');
     await expect(page.getByLabel('Aktueller Prüfungskontext')).toContainText('Sommer 2027');

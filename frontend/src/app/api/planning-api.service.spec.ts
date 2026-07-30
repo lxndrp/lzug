@@ -112,6 +112,12 @@ describe('PlanningApiService', () => {
     expect(createHalfYear.request.body).toEqual({ season: 'summer', year: 2027, status: 'draft' });
     createHalfYear.flush({ id: 2, season: 'summer', year: 2027, status: 'draft' });
 
+    service.updateExamHalfYear(2, { season: 'winter', year: 2028 }).subscribe();
+    const updateHalfYear = http.expectOne('/api/exam-half-years/2');
+    expect(updateHalfYear.request.method).toBe('PATCH');
+    expect(updateHalfYear.request.body).toEqual({ season: 'winter', year: 2028 });
+    updateHalfYear.flush({ id: 2, season: 'winter', year: 2028, status: 'draft' });
+
     service
       .createExamRound({
         exam_half_year_id: 2,

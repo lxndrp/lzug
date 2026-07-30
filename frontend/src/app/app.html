@@ -317,6 +317,8 @@
               <app-exam-half-years
                 [committees]="masterData()?.committees || []"
                 [members]="masterData()?.members || []"
+                [candidates]="masterData()?.candidates || []"
+                [candidateAssignments]="masterData()?.candidateAssignments || []"
                 [activeRoundId]="round()?.id || null"
                 (roundSelected)="selectExamRound($event)"
               />
