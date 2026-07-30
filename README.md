@@ -22,9 +22,17 @@ operative Maintainer-Roadmap wird separat im GitHub Project gepflegt.
 
 ## Dokumentation
 
-Das versionierte Handbuch richtet sich an drei Zielgruppen:
+Das öffentliche redaktionelle Handbuch richtet sich an Fachlichkeit, Nutzer,
+Administratoren und Entwickler und liegt im
+[GitHub Wiki](https://github.com/lxndrp/lzug/wiki). Das Wiki-Repository ist
+separat; seine Seiten werden nicht im Hauptrepository gespiegelt.
 
-- [Nutzungsanleitung](docs/users/index.md): vorhandene Abläufe in der Anwendung.
+Die technische Dokumentation im Hauptrepository umfasst:
+
+- [Versionierte Fach- und technische Quellen](docs/index.md): Prozesse,
+  Architektur, Verträge und Entscheidungen.
+- [Nutzungsanleitung](docs/users/index.md): technische Arbeitskopie der
+  vorhandenen Abläufe in der Anwendung.
 - [Lokale Administration](docs/administrators/index.md): Entwicklungsinstanz
   einrichten, starten und zurücksetzen.
 - [Entwicklerhandbuch](docs/developers/index.md): Architektur, Referenzen,
@@ -39,6 +47,9 @@ task docs
 
 Das Ergebnis liegt unter `site/` und wird in CI als geschütztes Artefakt
 `lzug-documentation` bereitgestellt.
+
+Der kontrollierte Wiki-Review- und Veröffentlichungsablauf steht unter
+[Wiki-Publikation](docs/developers/wiki-publishing.md).
 
 ## Lizenz
 

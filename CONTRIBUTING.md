@@ -58,6 +58,13 @@ Frontend-spezifische Befehle und die E2E-Isolation beschreibt
 Dokumentationsstandard und der vollständige [Arbeitsprozess](docs/developers/arbeitsprozess.md)
 stehen im [Entwicklerhandbuch](docs/developers/index.md).
 
+Das öffentliche redaktionelle Handbuch liegt ausschließlich im separaten
+[GitHub Wiki](https://github.com/lxndrp/lzug/wiki) und wird nicht in diesem
+Repository gespiegelt. Wiki-Änderungen werden in einem separaten Clone mit dem
+manuellen `Wiki pre-publish check` gegen einen konkreten Branch oder Commit
+geprüft und erst nach Maintainer-Freigabe in den Default-Branch veröffentlicht.
+Der genaue Ablauf steht in der [Wiki-Publikation](docs/developers/wiki-publishing.md).
+
 ## Änderungen einreichen
 
 - Arbeit zu einem Issue erfolgt auf einem eigenen Branch
