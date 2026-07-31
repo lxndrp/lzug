@@ -17,9 +17,9 @@ import { AppView } from '../app-view';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
 
-type DashboardNavigation = 'planning' | 'candidates' | 'confirmedPlans';
+export type DashboardNavigation = 'planning' | 'candidates' | 'confirmedPlans';
 
-type DashboardTask = {
+export type DashboardTask = {
   label: string;
   hint: string;
   detail: string;
@@ -28,7 +28,7 @@ type DashboardTask = {
   target: DashboardNavigation;
 };
 
-type DashboardPrimaryAction = {
+export type DashboardPrimaryAction = {
   label: string;
   kind: 'generate' | 'confirm' | 'navigate';
   icon: 'proposal' | 'confirm' | 'arrowRight';
