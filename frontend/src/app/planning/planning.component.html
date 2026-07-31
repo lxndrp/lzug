@@ -1,5 +1,16 @@
 <div class="app-page-grid">
   <div class="app-page-full">
+    <section class="app-workflow-heading" aria-labelledby="workflowStageHeading">
+      <div>
+        <span class="app-eyebrow">{{ workflowStageLabel() }}</span>
+        <h2 id="workflowStageHeading">{{ workflowStageDescription() }}</h2>
+      </div>
+      <button tuiButton appearance="secondary" type="button" (click)="cancel.emit()">
+        Abbrechen und zur Übersicht
+      </button>
+    </section>
+  </div>
+  <div class="app-page-full">
     <nav class="app-wizard-steps" aria-label="Schritte der Terminorganisation">
       @for (step of wizardSteps; track step.id; let i = $index) {
         <button
@@ -8,7 +19,7 @@
           type="button"
           [class.is-active]="currentStep() === step.id"
           [attr.aria-current]="currentStep() === step.id ? 'step' : null"
-          [disabled]="i > maxReachableStepIndex()"
+          [disabled]="i < minReachableStepIndex() || i > maxReachableStepIndex()"
           (click)="selectStep(step.id)"
         >
           {{ step.label }}
@@ -72,10 +83,24 @@
               </tui-textfield>
             </div>
             <div class="app-field-full app-form-actions">
-              <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
-                <svg [cIcon]="icons.save" class="app-button-icon" aria-hidden="true"></svg>
-                Prüfungsrunde speichern
-              </button>
+              <span class="app-form-action-hint"
+                >Beim Anfragen werden Name und Fristen mitgespeichert.</span
+              >
+              <div class="app-inline-actions">
+                <button tuiButton appearance="secondary" type="submit" [disabled]="actionBusy">
+                  <svg [cIcon]="icons.save" class="app-button-icon" aria-hidden="true"></svg>
+                  Prüfungsrunde speichern
+                </button>
+                <button
+                  tuiButton
+                  appearance="primary"
+                  type="button"
+                  [disabled]="actionBusy"
+                  (click)="requestAvailabilityCoordination()"
+                >
+                  Verfügbarkeiten anfragen
+                </button>
+              </div>
             </div>
           </form>
         </div>
@@ -510,6 +535,17 @@
               <span>Aktivieren Sie mindestens ein Mitglied und einen möglichen Prüfungstag.</span>
             </div>
           }
+          <div class="app-inline-actions app-section-offset">
+            <button
+              tuiButton
+              appearance="primary"
+              type="button"
+              [disabled]="actionBusy"
+              (click)="generatePlanningProposal()"
+            >
+              Planungsvorschlag erzeugen
+            </button>
+          </div>
         </div>
       </section>
     </div>
@@ -564,18 +600,9 @@
           <div class="app-inline-actions app-section-offset">
             <button
               tuiButton
-              appearance="secondary"
-              type="button"
-              [disabled]="actionBusy"
-              (click)="generateProposal.emit()"
-            >
-              Planung erzeugen
-            </button>
-            <button
-              tuiButton
               appearance="primary"
               type="button"
-              [disabled]="actionBusy || !planningResult"
+              [disabled]="actionBusy || !canConfirmProposal()"
               (click)="confirmPlan.emit()"
             >
               Plan bestätigen
@@ -598,11 +625,11 @@
         appearance="secondary"
         type="button"
         (click)="previousStep()"
-        [disabled]="currentStep() === 'period'"
+        [disabled]="currentStepIndex() <= minReachableStepIndex()"
       >
         Zurück
       </button>
-      @if (currentStep() !== 'confirmation') {
+      @if (currentStep() === 'period' || currentStep() === 'conditions') {
         <button tuiButton appearance="primary" type="button" (click)="nextStep()">Weiter</button>
       }
     </div>

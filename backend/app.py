@@ -162,6 +162,21 @@ class LzugHandler(BaseHTTPRequestHandler):
             if (
                 len(path_parts) == 3
                 and path_parts[0] == "exam-rounds"
+                and path_parts[2] == "request-availabilities"
+            ):
+                exam_round = self.planning_service.request_availabilities(int(path_parts[1]))
+                self.respond(
+                    hateoas.resource_item(
+                        "exam-rounds",
+                        REST_RESOURCES["exam-rounds"],
+                        exam_round,
+                    )
+                )
+                return
+
+            if (
+                len(path_parts) == 3
+                and path_parts[0] == "exam-rounds"
                 and path_parts[2] == "confirm-plan"
             ):
                 confirmed_plan = self.planning_service.confirm_plan(int(path_parts[1]))

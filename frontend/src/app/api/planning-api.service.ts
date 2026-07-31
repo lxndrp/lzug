@@ -5,6 +5,7 @@ import { forkJoin, map, of, switchMap } from 'rxjs';
 import {
   ApiCollection,
   ApiRoot,
+  AvailabilityRequest,
   Candidate,
   CandidateCommitteeAssignment,
   CandidateDayGenerationResult,
@@ -61,6 +62,14 @@ export class PlanningApiService {
 
   updateExamRound(payload: ExamRoundUpdate) {
     return this.http.patch<ExamRound>(`/api/exam-rounds/${this.roundId}`, payload);
+  }
+
+  requestAvailabilities(payload: AvailabilityRequest) {
+    return this.updateExamRound(payload).pipe(
+      switchMap(() =>
+        this.http.post<ExamRound>(`/api/exam-rounds/${this.roundId}/request-availabilities`, {}),
+      ),
+    );
   }
 
   listExamHalfYears() {

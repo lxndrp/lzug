@@ -25,6 +25,17 @@ from backend.tests.helpers import TempDatabase
 
 
 class PlanningTests(unittest.TestCase):
+    def test_request_availabilities_moves_prepared_draft_into_coordination(self) -> None:
+        with TempDatabase() as db_path:
+            repository = ResourceRepository(db_path)
+            repository.update(EXAM_ROUND, 1, {"status": "draft"})
+
+            requested = PlanningService(db_path).request_availabilities(1)
+            persisted = repository.get(EXAM_ROUND, 1)
+
+        self.assertEqual("availability_requested", requested["status"])
+        self.assertEqual("availability_requested", persisted["status"])
+
     def test_missing_round_is_rejected(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
             with self.assertRaisesRegex(ValueError, "Exam round not found"):
@@ -190,6 +201,7 @@ class PlanningTests(unittest.TestCase):
                 "exam_half_year_id": 1,
                 "committee_id": committee["id"],
                 "name": "Winter 2026/27 PA 2",
+                "availability_deadline": "2026-10-15 18:00:00",
                 "created_by_member_id": members[0]["id"],
             },
         )
@@ -245,6 +257,7 @@ class PlanningTests(unittest.TestCase):
                         "responded_at": "2026-01-01T00:00:00+00:00",
                     },
                 )
+        PlanningService(repository.db_path).request_availabilities(exam_round["id"])
         return exam_round
 
 

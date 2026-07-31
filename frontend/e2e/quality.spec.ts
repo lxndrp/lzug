@@ -8,7 +8,7 @@ const productiveViews = [
   { name: 'Prüfungspläne', path: '/confirmed-plans' },
   { name: 'Prüflinge', path: '/candidates' },
   { name: 'Prüfungsausschüsse', path: '/committee' },
-  { name: 'Terminorganisation', path: '/planning' },
+  { name: 'Terminorganisation', path: '/scheduling-overview/1' },
   { name: 'Prüfungsorte', path: '/locations' },
 ] as const;
 
@@ -16,7 +16,7 @@ function overviewItem(
   id: number,
   name: string,
   status: string,
-  statusGroup: 'open' | 'coordination' | 'confirmed',
+  statusGroup: 'draft' | 'coordination' | 'planning' | 'confirmed',
   canContinue: boolean,
 ) {
   return {
@@ -39,49 +39,46 @@ const viewports = [
   { name: 'mobile', width: 390, height: 844 },
 ] as const;
 
+async function useDraftRound(page: Page): Promise<void> {
+  const response = await page.request.patch('/api/exam-rounds/1', {
+    data: { status: 'draft' },
+  });
+  expect(response.status(), await response.text()).toBe(200);
+}
+
 test.describe('lzug browser workflows', () => {
   test.describe.configure({ timeout: 60_000 });
 
-  test('generates and confirms a planning proposal', async ({ page }) => {
-    await page.goto('/');
-
-    await expect(page.getByRole('heading', { name: 'Übersicht' })).toBeVisible();
-
-    await page.getByRole('button', { name: 'Planung erzeugen' }).click();
-    await expect(page.getByText('Validierungsreport')).toBeVisible();
-    await expect(page.getByText('16 geplante Prüfungstermine')).toBeVisible();
-
-    await page.getByRole('button', { name: 'Plan bestätigen' }).click();
-    await page.getByRole('button', { name: 'Plan verbindlich bestätigen' }).click();
-    await expect(page.getByText('Plan bestätigt', { exact: true }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Plan bestätigen' })).toBeDisabled();
-  });
-
-  test('guides a persisted terminorganisation through every wizard step', async ({ page }) => {
-    await page.goto('/planning');
+  test('resumes coordination, plans, confirms, and opens the persisted exam plan', async ({
+    page,
+  }) => {
+    await page.goto('/scheduling-overview/1');
 
     await expect(
       page.getByRole('navigation', { name: 'Schritte der Terminorganisation' }),
     ).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Zeitraum' })).toHaveAttribute(
+    await expect(page.getByText('In Abstimmung', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Rückmeldungen' })).toHaveAttribute(
       'aria-current',
       'step',
     );
-    await expect(page.locator('#weekFrom')).toHaveValue('2026-W47');
-
-    await page.getByRole('button', { name: 'Weiter' }).click();
-    await expect(page.getByText('Mögliche Prüfungstage')).toBeVisible();
-    await page.getByRole('button', { name: 'Weiter' }).click();
-    await expect(page.locator('#roundName')).toHaveValue('Winter 2026/27');
-
-    await page.getByRole('button', { name: 'Weiter' }).click();
+    await expect(page.getByRole('button', { name: 'Zeitraum' })).toBeDisabled();
     await expect(page.getByLabel('Verfügbarkeiten nach Mitglied und Prüfungstag')).toBeVisible();
-    await page.getByRole('button', { name: 'Weiter' }).click();
-    await expect(page.getByText('Zusammenfassung vor der Bestätigung')).toBeVisible();
-    await expect(page.getByText('Rückmeldefrist', { exact: true })).toBeVisible();
 
-    await expect(page.getByRole('button', { name: 'Planung erzeugen' })).toBeEnabled();
-    await expect(page.getByRole('button', { name: 'Plan bestätigen' })).toBeDisabled();
+    await page.getByRole('button', { name: 'Planungsvorschlag erzeugen' }).click();
+    await expect(page.getByText('Planung', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Zusammenfassung vor der Bestätigung')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Plan bestätigen' })).toBeEnabled();
+
+    await page.getByRole('button', { name: 'Plan bestätigen' }).click();
+    await page.getByRole('button', { name: 'Plan verbindlich bestätigen' }).click();
+    await expect(page).toHaveURL('/confirmed-plans/1');
+    await expect(page.getByRole('heading', { name: 'Prüfungspläne' })).toBeVisible();
+    await expect(page.locator('.app-confirmed-plan').getByText('Winter 2026/27')).toBeVisible();
+
+    await page.goto('/scheduling-overview/1');
+    await expect(page).toHaveURL('/confirmed-plans/1');
+    await expect(page.getByRole('heading', { name: 'Prüfungspläne' })).toBeVisible();
   });
 
   test('groups terminorganisationen and continues an eligible round', async ({ page }) => {
@@ -90,9 +87,10 @@ test.describe('lzug browser workflows', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           items: [
-            overviewItem(1, 'Offene Runde', 'draft', 'open', true),
+            overviewItem(1, 'Offene Runde', 'draft', 'draft', true),
             overviewItem(2, 'Rückmeldungen', 'availability_requested', 'coordination', true),
-            overviewItem(3, 'Bestätigte Runde', 'plan_confirmed', 'confirmed', false),
+            overviewItem(3, 'Vorschlag', 'plan_proposed', 'planning', true),
+            overviewItem(4, 'Bestätigte Runde', 'plan_confirmed', 'confirmed', false),
           ],
           _links: {},
         }),
@@ -101,15 +99,41 @@ test.describe('lzug browser workflows', () => {
     await page.goto('/scheduling-overview');
 
     await expect(page.getByRole('heading', { name: 'Terminorganisationen' })).toBeVisible();
-    await expect(page.getByText('Offen', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Entwurf', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('In Abstimmung', { exact: true })).toBeVisible();
+    await expect(page.getByText('Planung', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('Bestätigt', { exact: true }).first()).toBeVisible();
-    await expect(page.locator('app-scheduling-overview').getByText('Plan bestätigt')).toBeVisible();
-    await page.getByRole('button', { name: 'Fortsetzen' }).first().click();
-    await expect(page).toHaveURL('/planning');
+    await page.getByRole('button', { name: 'Neue Terminorganisation' }).click();
+    await expect(page).toHaveURL('/scheduling-overview/1');
     await expect(
       page.getByRole('navigation', { name: 'Schritte der Terminorganisation' }),
     ).toBeVisible();
+    await page.goBack();
+    await expect(page).toHaveURL('/scheduling-overview');
+    await expect(page.getByRole('heading', { name: 'Terminorganisationen' })).toBeVisible();
+  });
+
+  test('moves a prepared draft into coordination', async ({ page }) => {
+    const draftResponse = await page.request.patch('/api/exam-rounds/1', {
+      data: { status: 'draft' },
+    });
+    expect(draftResponse.status(), await draftResponse.text()).toBe(200);
+
+    await page.goto('/scheduling-overview/1');
+    await expect(page.getByText('Entwurf', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Weiter' }).click();
+    await page.getByRole('button', { name: 'Weiter' }).click();
+
+    const requestResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/exam-rounds/1/request-availabilities') &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Verfügbarkeiten anfragen' }).click();
+    const requestResponse = await requestResponsePromise;
+    expect(requestResponse.status(), await requestResponse.text()).toBe(200);
+    await expect(page.getByText('In Abstimmung', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Verfügbarkeiten nach Mitglied und Prüfungstag')).toBeVisible();
   });
 
   test('shows confirmed plans correctly on desktop and mobile', async ({ page }) => {
@@ -214,7 +238,12 @@ test.describe('lzug browser workflows', () => {
   });
 
   test('keeps the active exam context visible in contextual views', async ({ page }) => {
-    for (const path of ['/candidates', '/scheduling-overview', '/confirmed-plans', '/planning']) {
+    for (const path of [
+      '/candidates',
+      '/scheduling-overview',
+      '/confirmed-plans',
+      '/scheduling-overview/1',
+    ]) {
       await page.goto(path);
       const context = page.getByLabel('Aktueller Prüfungskontext');
       await expect(context).toBeVisible();
@@ -286,7 +315,7 @@ test.describe('lzug browser workflows', () => {
   });
 
   test('updates exam round metadata and keeps it after reload', async ({ page }) => {
-    await page.goto('/planning');
+    await page.goto('/scheduling-overview/1');
     await advanceToRoundMetadata(page);
 
     await expect(page.locator('#roundName')).toHaveValue('Winter 2026/27', { timeout: 30_000 });
@@ -309,17 +338,23 @@ test.describe('lzug browser workflows', () => {
     await expect(page.locator('#roundName')).toHaveValue('Sommer 2027');
     await expect(page.locator('#availabilityDeadline')).toHaveValue('15.04.2027, 18:00');
     await expect(page.locator('#availabilityReminder')).toHaveValue('08.04.2027, 09:00');
+
+    await page.getByRole('button', { name: 'Abbrechen und zur Übersicht' }).click();
+    await expect(page).toHaveURL('/scheduling-overview');
+    await page.getByRole('button', { name: 'Rückmeldungen ansehen' }).click();
+    await expect(page).toHaveURL('/scheduling-overview/1');
+    await expect(page.getByLabel('Verfügbarkeiten nach Mitglied und Prüfungstag')).toBeVisible();
+
+    const persistedRoundResponse = await page.request.get('/api/exam-rounds/1');
+    expect(persistedRoundResponse.status(), await persistedRoundResponse.text()).toBe(200);
+    const persistedRound = (await persistedRoundResponse.json()) as Record<string, unknown>;
+    expect(persistedRound['name']).toBe('Sommer 2027');
+    expect(persistedRound['availability_deadline']).toBe('2027-04-15 18:00:00');
+    expect(persistedRound['availability_reminder_at']).toBe('2027-04-08 09:00:00');
   });
 
   async function advanceToRoundMetadata(page: Page): Promise<void> {
-    await expect(page.locator('#weekFrom')).toHaveValue('2026-W47');
-    const wizardActions = page.locator('.app-wizard-actions');
-    await wizardActions.getByRole('button', { name: 'Weiter', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Rahmenbedingungen' })).toHaveAttribute(
-      'aria-current',
-      'step',
-    );
-    await wizardActions.getByRole('button', { name: 'Weiter', exact: true }).click();
+    await page.getByRole('button', { name: 'Verfügbarkeitsanfrage' }).click();
     await expect(page.getByRole('button', { name: 'Verfügbarkeitsanfrage' })).toHaveAttribute(
       'aria-current',
       'step',
@@ -359,7 +394,8 @@ test.describe('lzug browser workflows', () => {
   });
 
   test('generates possible exam days while excluding state holidays', async ({ page }) => {
-    await page.goto('/planning');
+    await useDraftRound(page);
+    await page.goto('/scheduling-overview/1');
 
     const weekFrom = page.locator('#weekFrom');
     const weekTo = page.locator('#weekTo');
@@ -396,7 +432,8 @@ test.describe('lzug browser workflows', () => {
   });
 
   test('shows a contextual candidate toolbar with aligned filters', async ({ page }) => {
-    await page.goto('/planning');
+    await useDraftRound(page);
+    await page.goto('/scheduling-overview/1');
 
     const state = page.locator('#holidaySubdivisionCode');
     const location = page.locator('#defaultLocation');
@@ -540,7 +577,7 @@ test.describe('lzug browser workflows', () => {
       '/confirmed-plans',
       '/candidates',
       '/committee',
-      '/planning',
+      '/scheduling-overview/1',
       '/locations',
     ]) {
       await page.goto(path);

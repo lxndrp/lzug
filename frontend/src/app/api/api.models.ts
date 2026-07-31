@@ -14,7 +14,7 @@ export type ApiCollection<T> = {
   _links: Record<string, ApiLink>;
 };
 
-export type SchedulingStatusGroup = 'open' | 'coordination' | 'confirmed';
+export type SchedulingStatusGroup = 'draft' | 'coordination' | 'planning' | 'confirmed';
 
 export type SchedulingOverviewItem = {
   id: number;
@@ -103,6 +103,8 @@ export type ExamRoundUpdate = Pick<
   ExamRound,
   'name' | 'availability_deadline' | 'availability_reminder_at'
 >;
+
+export type AvailabilityRequest = ExamRoundUpdate;
 
 /**
  * Current server-side planning state.

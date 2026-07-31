@@ -17,10 +17,12 @@
       </button>
     </div>
   </section>
-} @else if (!plans().length) {
+} @else if (!visiblePlans().length) {
   <section class="app-panel">
     <div class="app-panel-body app-confirmed-message">
-      <strong>Keine bestätigten Prüfungspläne</strong>
+      <strong>{{
+        roundId ? 'Prüfungsplan nicht verfügbar' : 'Keine bestätigten Prüfungspläne'
+      }}</strong>
       <span
         >Bestätigte Termine erscheinen hier nach Ausschuss gruppiert. Planungsvorschläge finden Sie
         in der Terminorganisation.</span

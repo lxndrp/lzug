@@ -18,27 +18,15 @@
               tuiButton
               appearance="primary"
               type="button"
-              (click)="generateProposal.emit()"
-              [disabled]="loading || actionBusy || !canGeneratePlan()"
+              (click)="openView.emit('scheduling-overview')"
+              [disabled]="loading || actionBusy"
             >
               <svg [cIcon]="icons.proposal" class="app-button-icon" aria-hidden="true"></svg>
-              Planung erzeugen
+              Terminorganisationen öffnen
             </button>
-            <button
-              tuiButton
-              appearance="secondary"
-              type="button"
-              (click)="confirmPlan.emit()"
-              [disabled]="loading || actionBusy || !canConfirmPlan()"
-            >
-              <svg [cIcon]="icons.confirm" class="app-button-icon" aria-hidden="true"></svg>
-              Plan bestätigen
-            </button>
-            @if (!canConfirmPlan() && summary?.round?.status !== 'plan_confirmed') {
-              <span class="app-action-hint">
-                Die Bestätigung wird nach dem Planungsvorschlag verfügbar.
-              </span>
-            }
+            <span class="app-action-hint">
+              Bearbeitung und Bestätigung erfolgen im statusgesteuerten Arbeitsablauf.
+            </span>
           </div>
         </div>
       </div>

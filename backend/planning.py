@@ -46,6 +46,35 @@ class PlanningService:
     def __init__(self, db_path: Path = DEFAULT_DB_PATH):
         self.db_path = db_path
 
+    def request_availabilities(self, round_id: int) -> dict[str, Any]:
+        """Move a prepared draft into availability coordination.
+
+        The transition is idempotent so a retried request cannot skip a later
+        workflow phase. Planning settings, an active candidate day and a
+        response deadline must already be persisted before coordination starts.
+        """
+        with session_scope(self.db_path) as session:
+            store = Store(session)
+            context = self._load_context(store, round_id)
+            exam_round = context["round"]
+            if exam_round is None:
+                raise ValueError("Exam round not found")
+            if exam_round["status"] == "availability_requested":
+                return exam_round
+            if exam_round["status"] != "draft":
+                raise ValueError("Availabilities can only be requested for a draft round")
+            if context["settings"] is None:
+                raise ValueError("Planning settings not found")
+            if not context["candidate_days"]:
+                raise ValueError("No active candidate exam days found")
+            if not exam_round.get("availability_deadline"):
+                raise ValueError("Availability deadline is required")
+
+            return (
+                store.update(EXAM_ROUND, round_id, {"status": "availability_requested"})
+                or exam_round
+            )
+
     def generate_proposal(self, round_id: int) -> dict[str, Any]:
         """Create a replaceable proposal for an exam round.
 
@@ -69,6 +98,12 @@ class PlanningService:
             context = self._load_context(store, round_id)
             if context["round"] is None:
                 raise ValueError("Exam round not found")
+            if context["round"]["status"] not in {
+                "availability_requested",
+                "availability_closed",
+                "plan_proposed",
+            }:
+                raise ValueError("A proposal requires an availability coordination round")
             if context["settings"] is None:
                 raise ValueError("Planning settings not found")
             if not context["candidate_days"]:
@@ -109,10 +144,11 @@ class PlanningService:
             exam_round = store.get(EXAM_ROUND, round_id)
             if exam_round is None:
                 raise ValueError("Exam round not found")
-
             exam_days = store.where(EXAM_DAY, exam_round_id=round_id)
             if not exam_days:
                 raise ValueError("No planning proposal found")
+            if exam_round["status"] != "plan_proposed":
+                raise ValueError("Only a planning proposal can be confirmed")
 
             confirmed_conflicts = self._confirmed_conflicts(store, round_id, exam_days)
             if confirmed_conflicts:
