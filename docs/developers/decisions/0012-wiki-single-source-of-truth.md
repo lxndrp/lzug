@@ -28,10 +28,12 @@ widersprüchliche Handbuchstände erzeugen.
 
 ## Konsequenzen
 
-Die Wiki-Quelle wird separat geprüft und veröffentlicht. Der Hauptrepository-
-Validator prüft Struktur, Seitennamen, Home, Sidebar und extensionless Links.
-Der Post-Publish-Check prüft zusätzlich HTTP-Status und Content-Type der
-gerenderten Wiki-Routen; Weiterleitungen auf Rohdatenziele sind Fehler.
+Die Wiki-Quelle wird separat geprüft und veröffentlicht. `_Sidebar.md` ist die
+kanonische und vollständige Liste der öffentlichen Inhaltsseiten. Der
+Hauptrepository-Validator prüft die bidirektionale Synchronität, Struktur und
+sichere Routenform und erzeugt daraus nur für die Prüfung eine Sitemap. Lychee
+prüft Quelllinks sowie nach Veröffentlichung die erwarteten gerenderten
+Wiki-Routen; jede Weiterleitung ist dabei ein Fehler.
 
 Technische Dokumente dürfen aus dem Wiki verlinkt werden, werden aber nicht
 als zweite redaktionelle Fassung dorthin kopiert.
