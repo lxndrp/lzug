@@ -560,6 +560,19 @@ form.app-form-grid[tuiForm] {
   background: var(--app-color-canvas);
 }
 
+.app-list-toolbar {
+  align-items: end;
+}
+
+.app-toolbar-action {
+  display: flex;
+  align-items: end;
+}
+
+.app-toolbar-action [tuiButton] {
+  inline-size: 100%;
+}
+
 .app-form-grid label,
 .app-filter-bar label {
   margin-block-end: 0.375rem;
@@ -628,6 +641,26 @@ form.app-form-grid[tuiForm] {
   padding: 1.5rem;
   text-align: start;
   white-space: normal;
+}
+
+.app-table-empty [tuiButton],
+.app-compact-empty [tuiButton] {
+  margin-block-start: 0.5rem;
+}
+
+.app-context-summary {
+  display: grid;
+  gap: 0.125rem;
+  padding: 0.75rem 1rem;
+  border-inline-start: 0.25rem solid var(--app-color-primary);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-color-canvas);
+}
+
+.app-context-summary span {
+  color: var(--app-color-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
 }
 
 .app-table-empty span,
@@ -884,6 +917,11 @@ form.app-form-grid[tuiForm] {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.75rem;
   margin: 0;
+}
+
+.app-candidate-metrics,
+.app-committee-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
 }
 
 .app-metric-card {
