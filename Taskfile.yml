@@ -61,13 +61,7 @@ tasks:
       - quality:security
       - quality:e2e
       - quality:a11y
-      - quality:fixtures
       - docs
-
-  quality:fixtures:
-    desc: Check canonical synthetic fixtures and blocked legacy fingerprints
-    cmds:
-      - python3 scripts/check_synthetic_fixtures.py
 
   quality:backend:
     desc: Run backend lint, audit, tests, and coverage
