@@ -74,24 +74,26 @@ describe('CandidatesComponent', () => {
     expect(rows.some((row) => row.includes('Alpha, Prüfling'))).toBe(false);
   });
 
-  it('should provide consistent filter and form action regions', () => {
+  it('should provide a shared toolbar for filters and the create action', () => {
     const element = fixture.nativeElement as HTMLElement;
 
-    expect(element.querySelector('.app-filter-bar')?.getAttribute('role')).toBe('search');
+    const toolbar = element.querySelector('.app-list-toolbar');
+    expect(toolbar?.getAttribute('role')).toBe('toolbar');
+    expect(toolbar?.textContent).toContain('Neuen Prüfling anlegen');
     expect(element.querySelector('.app-form-actions')?.textContent).toContain(
       'Der Prüfling wird der aktuellen Runde zugeordnet.',
     );
     expect(element.querySelectorAll('.app-row-actions').length).toBeGreaterThan(0);
   });
 
-  it('should keep the create action in the list header and cancel without emitting', () => {
+  it('should keep the create action in the list toolbar and cancel without emitting', () => {
     const component = fixture.componentInstance;
     const element = fixture.nativeElement as HTMLElement;
     const trigger = buttonWithLabel('Neuen Prüfling anlegen');
     const editor = element.querySelector<HTMLElement>('#candidate-create-editor');
     vi.spyOn(component.createCandidate, 'emit').mockReturnValue(undefined);
 
-    expect(trigger.closest('.app-panel-header')).toBeTruthy();
+    expect(trigger.closest('.app-list-toolbar')).toBeTruthy();
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     expect(editor?.hidden).toBe(true);
 
@@ -107,6 +109,21 @@ describe('CandidatesComponent', () => {
     expect(inputValue('#candidateFirstName')).toBe('');
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     expect(editor?.hidden).toBe(true);
+  });
+
+  it('should offer candidate creation inside an empty list', () => {
+    const element = fixture.nativeElement as HTMLElement;
+    fixture.componentRef.setInput('masterData', { ...masterDataFixture, candidates: [] });
+    fixture.detectChanges();
+
+    const emptyAction = buttonWithLabel('Ersten Prüfling anlegen');
+    expect(emptyAction.closest('.app-table-empty')).toBeTruthy();
+    expect(element.textContent).toContain('Noch keine Prüflinge vorhanden.');
+
+    emptyAction.click();
+    fixture.detectChanges();
+
+    expect(element.querySelector<HTMLElement>('#candidate-create-editor')?.hidden).toBe(false);
   });
 
   it('should use Taiga form and header layout with app grid classes', () => {

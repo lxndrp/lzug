@@ -66,7 +66,6 @@ export class CommitteeComponent {
   ];
   protected readonly memberSideOptions = selectValues(this.memberSideSelectOptions);
   protected readonly memberSideStringify = selectStringify(() => this.memberSideSelectOptions);
-  protected readonly committeeStringify = selectStringify(() => this.committeeSelectOptions());
   protected readonly personStringify = selectStringify(() => this.personSelectOptions());
 
   protected readonly icons = appIcons;
@@ -147,9 +146,21 @@ export class CommitteeComponent {
 
   protected metrics() {
     return [
-      { label: 'Ausschüsse', value: this.masterDataView()?.committees?.length ?? 0 },
-      { label: 'Prüfer im Ausschuss', value: this.committeeMembers().length },
-      { label: 'Aktive Prüfer', value: this.activeMemberCount() },
+      {
+        label: 'Ausschüsse',
+        value: this.masterDataView()?.committees?.length ?? 0,
+        hint: 'insgesamt angelegt',
+      },
+      {
+        label: 'Prüfer im Ausschuss',
+        value: this.committeeMembers().length,
+        hint: 'im aktiven Ausschuss',
+      },
+      {
+        label: 'Aktive Prüfer',
+        value: this.activeMemberCount(),
+        hint: 'im aktiven Ausschuss',
+      },
     ];
   }
 
@@ -160,10 +171,6 @@ export class CommitteeComponent {
 
   protected isSelectedCommittee(committee: Committee): boolean {
     return this.selectedCommittee()?.id === committee.id;
-  }
-
-  protected committeeOptions(): readonly number[] {
-    return selectValues(this.committeeSelectOptions());
   }
 
   protected personOptions(): readonly number[] {
@@ -191,8 +198,11 @@ export class CommitteeComponent {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
     const data = new FormData(form);
-    const committeeId = Number(data.get('committee_id') || this.selectedCommittee()?.id);
+    const committeeId = this.selectedCommittee()?.id;
     const personId = this.selectedPersonId();
+    if (!committeeId) {
+      return;
+    }
     const payload: CommitteeMemberPayload = {
       person_id: personId ?? undefined,
       committee_id: committeeId,
@@ -208,10 +218,7 @@ export class CommitteeComponent {
     if (!personId) {
       delete (payload as Partial<CommitteeMemberPayload>).person_id;
     }
-    if (
-      !payload.committee_id ||
-      (!personId && (!payload.first_name || !payload.last_name || !payload.email))
-    ) {
+    if (!personId && (!payload.first_name || !payload.last_name || !payload.email)) {
       return;
     }
     this.pendingMemberForm = form;
@@ -279,13 +286,6 @@ export class CommitteeComponent {
 
   protected memberStatusLabel(value: string): string {
     return selectLabel(this.memberStatusSelectOptions, value, value);
-  }
-
-  private committeeSelectOptions(): readonly SelectOption<number>[] {
-    return (this.masterDataView()?.committees ?? []).map((committee) => ({
-      value: committee.id,
-      label: committee.name,
-    }));
   }
 
   private personSelectOptions(): readonly SelectOption<number>[] {

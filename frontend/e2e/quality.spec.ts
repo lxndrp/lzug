@@ -395,7 +395,7 @@ test.describe('lzug browser workflows', () => {
     await expect(page.getByText('04.06.2026 · Fronleichnam')).toBeVisible();
   });
 
-  test('shows readable selection values and aligned candidate filters', async ({ page }) => {
+  test('shows a contextual candidate toolbar with aligned filters', async ({ page }) => {
     await page.goto('/planning');
 
     const state = page.locator('#holidaySubdivisionCode');
@@ -427,6 +427,9 @@ test.describe('lzug browser workflows', () => {
     const filter = page.locator('#candidateFilter');
     await expect(page.getByRole('searchbox', { name: 'Suche' })).toBeVisible();
     await expect(page.getByRole('combobox', { name: 'Fachrichtung' })).toBeVisible();
+    await expect(page.getByRole('toolbar', { name: 'Prüflingsliste verwalten' })).toContainText(
+      'Neuen Prüfling anlegen',
+    );
     await expect(search).toHaveAttribute('tuiInput', '');
     await expect(filter.locator('option:checked')).toHaveText('Alle Fachrichtungen');
 
@@ -524,7 +527,8 @@ test.describe('lzug browser workflows', () => {
     await page.goto('/');
     await page.getByRole('link', { name: 'Prüflinge', exact: true }).click();
 
-    await expect(page.getByText('Keine passenden Prüflinge vorhanden.')).toBeVisible();
+    await expect(page.getByText('Noch keine Prüflinge vorhanden.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Ersten Prüfling anlegen' })).toBeVisible();
   });
 
   test('keeps application views within the mobile viewport', async ({ page }) => {
@@ -596,7 +600,7 @@ test.describe('lzug browser workflows', () => {
       },
       {
         path: '/committee',
-        action: 'Neuen Prüfer anlegen',
+        action: 'Prüfer hinzufügen',
         editor: '#member-create-editor',
         input: '#memberFirstName',
       },
@@ -618,9 +622,12 @@ test.describe('lzug browser workflows', () => {
           const editor = page.locator(item.editor);
 
           await expect(trigger).toHaveAccessibleName(item.action);
-          expect(await trigger.evaluate((element) => !!element.closest('.app-panel-header'))).toBe(
-            true,
-          );
+          expect(
+            await trigger.evaluate(
+              (element) =>
+                !!element.closest('.app-panel-header') || !!element.closest('.app-list-toolbar'),
+            ),
+          ).toBe(true);
           await expect(trigger).toHaveAttribute('aria-expanded', 'false');
           await expect(editor).toBeHidden();
 

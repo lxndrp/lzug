@@ -2,26 +2,21 @@
   <div class="app-page-full">
     <section class="app-panel">
       <header tuiHeader="body-m" class="app-panel-header">
-        <strong>Prüfungsausschuss</strong>
-        <span class="app-muted">Ausschüsse und ihre Mitglieder verwalten</span>
+        <div>
+          <strong>Prüfungsausschuss</strong>
+          <span class="app-muted app-block">Ausschüsse und ihre Mitglieder verwalten</span>
+        </div>
       </header>
       <div class="app-panel-body">
-        <table tuiTable class="app-compact-table">
-          <thead>
-            <tr>
-              <th scope="col">Kennzahl</th>
-              <th scope="col">Wert</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (metric of metrics(); track metric.label) {
-              <tr>
-                <td>{{ metric.label }}</td>
-                <td>{{ metric.value }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
+        <dl class="app-metric-grid app-committee-metrics">
+          @for (metric of metrics(); track metric.label) {
+            <div class="app-metric-card">
+              <dt>{{ metric.label }}</dt>
+              <dd>{{ metric.value }}</dd>
+              <span class="app-metric-hint">{{ metric.hint }}</span>
+            </div>
+          }
+        </dl>
       </div>
     </section>
   </div>
@@ -29,7 +24,7 @@
   <div class="app-page-span-4">
     <section class="app-panel">
       <header tuiHeader="body-m" class="app-panel-header">
-        <strong>Ausschüsse</strong>
+        <strong>Ausschussübersicht</strong>
         <div class="app-panel-header-actions">
           <button
             #committeeCreateButton
@@ -138,7 +133,19 @@
           } @empty {
             <div class="app-compact-empty">
               <strong>Keine Ausschüsse vorhanden.</strong>
-              <span>Legen Sie zuerst einen Ausschuss an.</span>
+              <span>Legen Sie zuerst einen Ausschuss an, um Mitglieder zu verwalten.</span>
+              <button
+                tuiButton
+                appearance="primary"
+                size="s"
+                type="button"
+                aria-controls="committee-create-editor"
+                [attr.aria-expanded]="creatingCommittee()"
+                (click)="toggleCommitteeCreation()"
+              >
+                <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
+                Jetzt Ausschuss anlegen
+              </button>
             </div>
           }
         </div>
@@ -150,6 +157,7 @@
     <section class="app-panel">
       <header tuiHeader="body-m" class="app-panel-header">
         <div>
+          <span class="app-eyebrow">Aktiver Ausschuss</span>
           <strong>{{ selectedCommitteeName() }}</strong>
           <span class="app-muted app-block">{{ activeMemberCount() }} aktive Prüfer</span>
         </div>
@@ -171,7 +179,7 @@
               class="app-button-icon"
               aria-hidden="true"
             ></svg>
-            {{ creatingMember() ? 'Anlegen abbrechen' : 'Neuen Prüfer anlegen' }}
+            {{ creatingMember() ? 'Anlegen abbrechen' : 'Prüfer hinzufügen' }}
           </button>
         </div>
       </header>
@@ -184,27 +192,19 @@
         >
           <header class="app-context-editor-header">
             <div>
-              <strong id="member-create-title">Prüfer anlegen</strong>
+              <strong id="member-create-title">Prüfer hinzufügen</strong>
               <span class="app-muted app-block"
-                >Kontaktdaten, Funktion und Vertreterseite erfassen</span
+                >Mitglied für {{ selectedCommitteeName() }} erfassen</span
               >
             </div>
             <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
           </header>
           <form #memberCreateForm tuiForm="m" class="app-form-grid" (submit)="saveMember($event)">
             <div class="app-field-full">
-              <label for="memberCommittee">Ausschuss <span aria-hidden="true">*</span></label>
-              <tui-textfield [stringify]="committeeStringify" [tuiTextfieldCleaner]="false">
-                <select
-                  tuiSelect
-                  id="memberCommittee"
-                  name="committee_id"
-                  [items]="committeeOptions()"
-                  [ngModel]="selectedCommitteeId()"
-                  (ngModelChange)="selectCommittee($event)"
-                  required
-                ></select>
-              </tui-textfield>
+              <div class="app-context-summary" role="status">
+                <span>Ausschuss</span>
+                <strong>{{ selectedCommitteeName() }}</strong>
+              </div>
             </div>
             <div class="app-field-full">
               <label for="existingPerson">Person zuordnen</label>
@@ -329,7 +329,7 @@
             </div>
             <div class="app-field-full app-form-actions">
               <span class="app-form-action-hint"
-                >Der Prüfer wird direkt dem gewählten Ausschuss zugeordnet.</span
+                >Der Prüfer wird direkt diesem Ausschuss zugeordnet.</span
               >
               <div class="app-form-action-buttons">
                 <button
@@ -408,7 +408,23 @@
                   <td colspan="6" class="app-table-empty-cell">
                     <div class="app-table-empty">
                       <strong>Keine Prüfer im ausgewählten Ausschuss.</strong>
-                      <span>Legen Sie den ersten Prüfer über die Aktion im Bereichskopf an.</span>
+                      <span
+                        >Legen Sie den ersten Prüfer direkt für
+                        {{ selectedCommitteeName() }} an.</span
+                      >
+                      <button
+                        tuiButton
+                        appearance="primary"
+                        size="s"
+                        type="button"
+                        aria-controls="member-create-editor"
+                        [attr.aria-expanded]="creatingMember()"
+                        [disabled]="!selectedCommittee() || actionBusy"
+                        (click)="toggleMemberCreation()"
+                      >
+                        <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
+                        Ersten Prüfer hinzufügen
+                      </button>
                     </div>
                   </td>
                 </tr>
