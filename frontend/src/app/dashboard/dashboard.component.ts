@@ -1,7 +1,6 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { TuiButton, TuiNotification } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
-import { TuiTable } from '@taiga-ui/addon-table';
 import { TuiHeader } from '@taiga-ui/layout';
 
 import {
@@ -18,13 +17,30 @@ import { AppView } from '../app-view';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
 
+export type DashboardNavigation = 'planning' | 'candidates' | 'confirmedPlans';
+
+export type DashboardTask = {
+  label: string;
+  hint: string;
+  detail: string;
+  color: string;
+  actionLabel: string;
+  target: DashboardNavigation;
+};
+
 @Component({
   selector: 'app-dashboard',
-  imports: [AppIconDirective, TuiBadge, TuiButton, TuiHeader, TuiNotification, TuiTable],
+  imports: [AppIconDirective, TuiBadge, TuiButton, TuiHeader, TuiNotification],
   templateUrl: './dashboard.component.html',
 })
 export class DashboardComponent {
   protected readonly icons = appIcons;
+  private readonly navigationTargets: Record<DashboardNavigation, AppView> = {
+    planning: 'planning',
+    candidates: 'candidates',
+    confirmedPlans: 'confirmed-plans',
+  };
+
   @Input() summary: RoundSummary | null = null;
   @Input() round: ExamRound | null = null;
   @Input() board: PlanningBoard | null = null;
@@ -98,32 +114,49 @@ export class DashboardComponent {
     return candidateDays.filter((day) => day.is_active).length;
   }
 
-  protected tasks() {
+  protected tasks(): DashboardTask[] {
+    const planConfirmed = this.summary?.round.status === 'plan_confirmed';
+
     return [
       {
         label: 'Verfügbarkeiten',
-        hint: 'Rückmeldungen der Ausschussmitglieder prüfen',
+        hint: this.pendingCount()
+          ? 'Offene Rückmeldungen der Ausschussmitglieder prüfen'
+          : 'Rückmeldungen der Ausschussmitglieder sind vollständig',
         detail: this.pendingCount()
           ? `${this.pendingCount()} Rückmeldungen offen`
           : 'Rückmeldungen vollständig',
         color: this.pendingCount() ? 'warning' : 'success',
-        view: 'scheduling-overview' as AppView,
+        actionLabel: 'Terminorganisation öffnen',
+        target: 'planning' as const,
       },
       {
         label: 'Prüflinge',
         hint: 'Stammdaten und Prüfungsbedarf kontrollieren',
         detail: `${this.summary?.counts?.candidates ?? 0} Prüflinge erfasst`,
         color: (this.summary?.counts?.candidates ?? 0) > 0 ? 'success' : 'warning',
-        view: 'candidates' as AppView,
+        actionLabel: 'Prüflinge öffnen',
+        target: 'candidates' as const,
       },
       {
-        label: 'Planung',
-        hint: 'Rahmen, Prüfungstage und Vorschlag bearbeiten',
+        label: planConfirmed ? 'Prüfungsplan' : 'Terminorganisation',
+        hint: planConfirmed
+          ? 'Bestätigte Termine und Ablauf einsehen'
+          : 'Rahmen, Prüfungstage und Vorschlag bearbeiten',
         detail: this.planTaskLabel(),
-        color: this.summary?.round.status === 'plan_confirmed' ? 'success' : 'info',
-        view: 'scheduling-overview' as AppView,
+        color: planConfirmed ? 'success' : 'info',
+        actionLabel: planConfirmed ? 'Prüfungsplan öffnen' : 'Terminorganisation öffnen',
+        target: (planConfirmed ? 'confirmedPlans' : 'planning') as DashboardNavigation,
       },
     ];
+  }
+
+  protected openTask(task: DashboardTask): void {
+    this.navigate(task.target);
+  }
+
+  protected openConfirmedPlan(): void {
+    this.navigate('confirmedPlans');
   }
 
   protected confirmedDays(): PlanningDayView[] {
@@ -266,5 +299,9 @@ export class DashboardComponent {
     return this.plannedSlotCount()
       ? `${this.plannedSlotCount()} Termine vorgeschlagen`
       : 'Noch kein Vorschlag';
+  }
+
+  private navigate(target: DashboardNavigation): void {
+    this.openView.emit(this.navigationTargets[target]);
   }
 }

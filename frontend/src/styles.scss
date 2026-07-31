@@ -855,6 +855,9 @@ form.app-form-grid[tuiForm] {
 .app-task-list {
   display: grid;
   gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .app-dashboard-hero {
@@ -897,15 +900,14 @@ form.app-form-grid[tuiForm] {
 
 .app-dashboard-actions {
   display: grid;
-  grid-template-columns: repeat(2, max-content);
+  grid-template-columns: max-content;
   justify-content: end;
   gap: 0.5rem;
 }
 
-.app-dashboard-actions .app-action-hint {
-  grid-column: 1 / -1;
-  max-width: 24rem;
-  margin: 0.125rem 0 0;
+.app-panel-header h2 {
+  margin: 0;
+  font-size: 1.125rem;
 }
 
 .app-eyebrow {
@@ -972,7 +974,7 @@ form.app-form-grid[tuiForm] {
   line-height: 1.25;
 }
 
-.app-task-link {
+.app-task-row {
   display: grid;
   grid-template-columns: minmax(8rem, 1fr) auto auto;
   align-items: center;
@@ -982,11 +984,9 @@ form.app-form-grid[tuiForm] {
   border: 1px solid var(--app-color-border);
   border-radius: var(--app-radius-sm);
   background: var(--app-color-surface);
-  color: inherit;
-  text-align: start;
 }
 
-.app-task-link:hover {
+.app-task-row:focus-within {
   border-color: var(--app-color-primary);
   background: var(--app-color-primary-soft);
 }
@@ -999,6 +999,74 @@ form.app-form-grid[tuiForm] {
 .app-task-copy small {
   color: var(--app-color-text-muted);
   font-size: 0.8125rem;
+}
+
+.app-task-action,
+.app-agenda-link {
+  justify-self: end;
+  min-height: 2.25rem;
+  padding-inline: 0.5rem;
+  text-align: end;
+  white-space: normal;
+}
+
+.app-task-action .app-icon-only,
+.app-agenda-link .app-icon-only {
+  flex: 0 0 auto;
+  margin-inline-start: 0.375rem;
+}
+
+.app-agenda-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.app-agenda-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem 0.75rem;
+  padding-block: 0.75rem;
+  border-block-end: 1px solid var(--app-color-border);
+}
+
+.app-agenda-item:first-child {
+  padding-block-start: 0;
+}
+
+.app-agenda-item:last-child {
+  padding-block-end: 0;
+  border-block-end: 0;
+}
+
+.app-agenda-date,
+.app-agenda-details {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.app-agenda-date strong {
+  font-size: 0.95rem;
+}
+
+.app-agenda-date span,
+.app-agenda-details span {
+  overflow-wrap: anywhere;
+}
+
+.app-agenda-date span,
+.app-agenda-details {
+  color: var(--app-color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.app-agenda-details {
+  grid-column: 1 / -1;
+}
+
+.app-agenda-link {
+  grid-column: 1 / -1;
+  justify-self: start;
 }
 
 .app-context-list {
@@ -1105,18 +1173,29 @@ form.app-form-grid[tuiForm] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .app-task-link {
+  .app-task-row {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .app-task-link .badge {
+  .app-task-row .badge {
     grid-column: 1;
     justify-self: start;
   }
 
-  .app-task-link .app-icon-only {
-    grid-column: 2;
-    grid-row: 1 / span 2;
+  .app-task-action {
+    grid-column: 1 / -1;
+    justify-self: start;
+    padding-inline: 0;
+    text-align: start;
+  }
+
+  .app-agenda-item {
+    grid-template-columns: 1fr;
+  }
+
+  .app-agenda-details,
+  .app-agenda-link {
+    grid-column: 1;
   }
 }
 
