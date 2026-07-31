@@ -23,16 +23,26 @@ jobs:
           persist-credentials: false
 
       - name: Check portable Markdown and public-safety policy
-        run: python3 scripts/check_wiki.py published-wiki
+        run: python3 scripts/check_wiki.py published-wiki --sitemap "$RUNNER_TEMP/sitemap.xml"
 
-      - name: Check published Wiki with Gollum
-        run: >-
-          docker run --rm --network none --user "$(id -u):$(id -g)" --entrypoint ruby
-          -v "$PWD:/workspace:ro" -w /workspace
-          ghcr.io/gollum/gollum@sha256:6dc5ba588bca0d7c5a5964e0537d0ee4cfa7d0738959b530f9bebaa776d1c641
-          scripts/check_wiki.rb published-wiki
+      - name: Check Wiki source links with Lychee
+        uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411 # v2.8.0
+        with:
+          lycheeVersion: v0.24.2
+          workingDirectory: published-wiki
+          args: --fallback-extensions md --no-progress '*.md'
 
-      - name: Check rendered GitHub Wiki routes
-        run: >-
-          python3 scripts/check_wiki_http.py published-wiki
-          "https://github.com/${{ github.repository }}/wiki"
+      - name: Check published Wiki routes from the generated sitemap
+        uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411 # v2.8.0
+        with:
+          lycheeVersion: v0.24.2
+          args: --max-redirects 0 --no-progress "${{ runner.temp }}/sitemap.xml"
+
+      - name: Upload generated sitemap for diagnostics
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: wiki-sitemap
+          path: ${{ runner.temp }}/sitemap.xml
+          if-no-files-found: warn
+          retention-days: 7
