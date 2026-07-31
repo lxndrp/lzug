@@ -32,7 +32,7 @@ describe('DashboardComponent', () => {
     expect(text).toContain('Prüfling Alpha');
     expect(text).toContain('MEP');
     expect(text).toContain('Testperson Alpha');
-    expect(text).toContain('Aufgaben');
+    expect(text).toContain('Nächste Schritte');
     expect(text).toContain('Rückmeldefrist');
     expect(text).toContain('15.10.2026');
   });
@@ -73,7 +73,7 @@ describe('DashboardComponent', () => {
     );
     expect(metrics.length).toBe(5);
     expect(element.querySelector('.app-task-copy')?.textContent).toContain(
-      'Rückmeldungen der Ausschussmitglieder prüfen',
+      'Offene Rückmeldungen der Ausschussmitglieder prüfen',
     );
     expect(element.querySelector('.app-context-list')?.textContent).toContain('Planungszeitraum');
   });
@@ -87,8 +87,7 @@ describe('DashboardComponent', () => {
     expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 
-  it('should emit planning actions when buttons are enabled', () => {
-    vi.spyOn(component.generateProposal, 'emit').mockReturnValue(undefined);
+  it('should emit the status-specific planning action', () => {
     vi.spyOn(component.confirmPlan, 'emit').mockReturnValue(undefined);
     component.summary = {
       ...summaryFixture,
@@ -97,23 +96,28 @@ describe('DashboardComponent', () => {
 
     fixture.detectChanges();
 
-    clickButton('Planung erzeugen');
     clickButton('Plan bestätigen');
 
-    expect(component.generateProposal.emit).toHaveBeenCalled();
     expect(component.confirmPlan.emit).toHaveBeenCalled();
   });
 
-  it('should disable plan generation after confirmation', () => {
+  it('should show the confirmed plan as the primary destination', () => {
     component.summary = {
       ...summaryFixture,
       round: { ...summaryFixture.round, status: 'plan_confirmed' },
     };
+    component.board = planningBoardFixture;
 
     fixture.detectChanges();
 
-    expect(button('Planung erzeugen')?.disabled).toBe(true);
-    expect(button('Plan bestätigen')?.disabled).toBe(true);
+    const element = fixture.nativeElement as HTMLElement;
+    expect(button('Planung erzeugen')).toBeUndefined();
+    expect(button('Plan bestätigen')).toBeUndefined();
+    expect(element.querySelector('.app-agenda-list')).toBeTruthy();
+    expect(element.querySelector('.app-agenda-list')?.textContent).toContain(
+      'Prüfungsausschuss Teststadt 1',
+    );
+    expect(element.querySelector('.app-agenda-list')?.textContent).toContain('2 Termine');
   });
 
   it('should open the view that belongs to a task', () => {
@@ -122,9 +126,32 @@ describe('DashboardComponent', () => {
     component.board = planningBoardFixture;
     fixture.detectChanges();
 
-    clickButton('Verfügbarkeiten');
+    const taskAction = (fixture.nativeElement as HTMLElement).querySelector(
+      '.app-task-action',
+    ) as HTMLButtonElement;
+    taskAction.click();
 
     expect(component.openView.emit).toHaveBeenCalledWith('planning');
+  });
+
+  it('should link each confirmed agenda entry to the confirmed plans view', () => {
+    vi.spyOn(component.openView, 'emit').mockReturnValue(undefined);
+    component.summary = {
+      ...summaryFixture,
+      round: { ...summaryFixture.round, status: 'plan_confirmed' },
+    };
+    component.board = planningBoardFixture;
+
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('table')).toBeNull();
+    const agendaLink = (fixture.nativeElement as HTMLElement).querySelector(
+      '.app-agenda-link',
+    ) as HTMLButtonElement;
+    expect(fixture.nativeElement.querySelectorAll('.app-agenda-link')).toHaveLength(1);
+    agendaLink.click();
+
+    expect(component.openView.emit).toHaveBeenCalledWith('confirmed-plans');
   });
 
   function textContent(): string {

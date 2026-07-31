@@ -18,27 +18,21 @@
               tuiButton
               appearance="primary"
               type="button"
-              (click)="generateProposal.emit()"
-              [disabled]="loading || actionBusy || !canGeneratePlan()"
+              (click)="openPrimaryAction()"
+              [disabled]="
+                loading ||
+                actionBusy ||
+                (primaryAction().kind === 'generate' && !canGeneratePlan()) ||
+                (primaryAction().kind === 'confirm' && !canConfirmPlan())
+              "
             >
-              <svg [cIcon]="icons.proposal" class="app-button-icon" aria-hidden="true"></svg>
-              Planung erzeugen
+              <svg
+                [cIcon]="icons[primaryAction().icon]"
+                class="app-button-icon"
+                aria-hidden="true"
+              ></svg>
+              {{ primaryAction().label }}
             </button>
-            <button
-              tuiButton
-              appearance="secondary"
-              type="button"
-              (click)="confirmPlan.emit()"
-              [disabled]="loading || actionBusy || !canConfirmPlan()"
-            >
-              <svg [cIcon]="icons.confirm" class="app-button-icon" aria-hidden="true"></svg>
-              Plan bestätigen
-            </button>
-            @if (!canConfirmPlan() && summary?.round?.status !== 'plan_confirmed') {
-              <span class="app-action-hint">
-                Die Bestätigung wird nach dem Planungsvorschlag verfügbar.
-              </span>
-            }
           </div>
         </div>
       </div>
@@ -67,33 +61,36 @@
   </div>
 
   <div class="app-page-span-7">
-    <section class="app-panel">
+    <section class="app-panel" aria-labelledby="dashboardTasksTitle">
       <header tuiHeader="body-m" class="app-panel-header">
         <div>
-          <span class="app-eyebrow">Nächste Schritte</span>
-          <strong class="app-block">Aufgaben</strong>
+          <span class="app-eyebrow">Arbeitsvorrat</span>
+          <h2 id="dashboardTasksTitle">Nächste Schritte</h2>
         </div>
         <span class="app-muted">Direkt zum betreffenden Bereich</span>
       </header>
       <div class="app-panel-body">
-        <div class="app-task-list">
+        <ul class="app-task-list" aria-labelledby="dashboardTasksTitle">
           @for (task of tasks(); track task.label) {
-            <button
-              tuiButton
-              appearance="flat"
-              type="button"
-              class="app-task-link"
-              (click)="openView.emit(task.view)"
-            >
-              <span class="app-task-copy">
+            <li class="app-task-row">
+              <div class="app-task-copy">
                 <strong>{{ task.label }}</strong>
                 <small>{{ task.hint }}</small>
-              </span>
+              </div>
               <span tuiBadge [appearance]="badgeAppearance(task.color)">{{ task.detail }}</span>
-              <svg [cIcon]="icons.arrowRight" class="app-icon-only" aria-hidden="true"></svg>
-            </button>
+              <button
+                tuiButton
+                appearance="flat"
+                type="button"
+                class="app-task-action"
+                (click)="openTask(task)"
+              >
+                {{ task.actionLabel }}
+                <svg [cIcon]="icons.arrowRight" class="app-icon-only" aria-hidden="true"></svg>
+              </button>
+            </li>
           }
-        </div>
+        </ul>
       </div>
     </section>
   </div>
@@ -244,35 +241,45 @@
   </div>
 
   <div class="app-page-span-4">
-    <section class="app-panel">
+    <section class="app-panel" aria-labelledby="dashboardAgendaTitle">
       <header tuiHeader="body-m" class="app-panel-header">
-        <strong>Bestätigte Termine</strong>
+        <h2 id="dashboardAgendaTitle">Bestätigte Termine</h2>
       </header>
       <div class="app-panel-body">
-        <table tuiTable class="app-compact-table">
-          <thead>
-            <tr>
-              <th scope="col">Datum</th>
-              <th scope="col">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (item of confirmedDays(); track item.day.id) {
-              <tr>
-                <td>{{ dateLabel(item.day.date) }}</td>
-                <td>
-                  <span tuiBadge [appearance]="badgeAppearance('success')">
-                    {{ item.slots.length }} Termine
-                  </span>
-                </td>
-              </tr>
-            } @empty {
-              <tr>
-                <td colspan="2">Noch keine bestätigten Termine.</td>
-              </tr>
-            }
-          </tbody>
-        </table>
+        <div class="app-agenda-list">
+          @for (item of confirmedDays(); track item.day.id) {
+            <article class="app-agenda-item">
+              <div class="app-agenda-date">
+                <strong>{{ dateLabel(item.day.date) }}</strong>
+                <span>{{ summary?.round?.committee_name || 'Prüfungsausschuss' }}</span>
+              </div>
+              <div class="app-agenda-details">
+                <span>{{ item.location?.name || 'Prüfungsort offen' }}</span>
+                <span class="app-muted">
+                  {{ item.location?.room ? 'Raum ' + item.location.room : 'Raum offen' }} ·
+                  {{ item.slots.length }} Termine
+                </span>
+              </div>
+              <button
+                tuiButton
+                appearance="flat"
+                type="button"
+                class="app-agenda-link"
+                (click)="openConfirmedPlan()"
+              >
+                Prüfungsplan öffnen
+                <svg [cIcon]="icons.arrowRight" class="app-icon-only" aria-hidden="true"></svg>
+              </button>
+            </article>
+          } @empty {
+            <div class="app-empty-state">
+              <strong>Noch keine bestätigten Termine</strong>
+              <span>
+                Sobald ein Plan bestätigt ist, erscheinen die Termine hier als kompakte Agenda.
+              </span>
+            </div>
+          }
+        </div>
       </div>
     </section>
   </div>
