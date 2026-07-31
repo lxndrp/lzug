@@ -2,14 +2,25 @@
   <div class="app-page-full">
     <section class="app-panel">
       <header tuiHeader="body-m" class="app-panel-header">
-        <strong>Prüflinge</strong>
+        <div>
+          <strong>Prüflinge</strong>
+          <span class="app-muted app-block">{{
+            activeRound?.name || 'Aktuelle Prüfungsrunde'
+          }}</span>
+        </div>
       </header>
       <div class="app-panel-body">
-        <dl class="app-key-value-list">
-          <dt>Gesamt</dt>
-          <dd>{{ candidateCount() }}</dd>
-          <dt>MEP</dt>
-          <dd>{{ mepCount() }}</dd>
+        <dl class="app-metric-grid app-candidate-metrics">
+          <div class="app-metric-card">
+            <dt>Prüflinge</dt>
+            <dd>{{ candidateCount() }}</dd>
+            <dd class="app-metric-hint">in der aktuellen Prüfungsrunde</dd>
+          </div>
+          <div class="app-metric-card">
+            <dt>MEP erforderlich</dt>
+            <dd>{{ mepCount() }}</dd>
+            <dd class="app-metric-hint">mit zusätzlichem Prüfungsbedarf</dd>
+          </div>
         </dl>
       </div>
     </section>
@@ -23,25 +34,6 @@
           <span class="app-muted app-block"
             >{{ filteredCandidates().length }} von {{ candidateCount() }} Prüflingen</span
           >
-        </div>
-        <div class="app-panel-header-actions">
-          <button
-            #candidateCreateButton
-            tuiButton
-            size="s"
-            type="button"
-            [appearance]="creatingCandidate() ? 'secondary' : 'primary'"
-            [attr.aria-expanded]="creatingCandidate()"
-            aria-controls="candidate-create-editor"
-            (click)="toggleCandidateCreation()"
-          >
-            <svg
-              [cIcon]="creatingCandidate() ? icons.cancel : icons.add"
-              class="app-button-icon"
-              aria-hidden="true"
-            ></svg>
-            {{ creatingCandidate() ? 'Anlegen abbrechen' : 'Neuen Prüfling anlegen' }}
-          </button>
         </div>
       </header>
       <div class="app-panel-body">
@@ -182,8 +174,12 @@
           </form>
         </section>
 
-        <div class="app-form-grid app-filter-bar" role="search" aria-label="Prüflingsliste filtern">
-          <div class="app-field-two-thirds">
+        <div
+          class="app-form-grid app-filter-bar app-list-toolbar"
+          role="toolbar"
+          aria-label="Prüflingsliste verwalten"
+        >
+          <div class="app-field-five-twelfths">
             <label for="candidateSearch">Suche</label>
             <tui-textfield>
               <input
@@ -208,6 +204,24 @@
                 (ngModelChange)="specialization.set($event)"
               ></select>
             </tui-textfield>
+          </div>
+          <div class="app-field-quarter app-toolbar-action">
+            <button
+              #candidateCreateButton
+              tuiButton
+              type="button"
+              [appearance]="creatingCandidate() ? 'secondary' : 'primary'"
+              [attr.aria-expanded]="creatingCandidate()"
+              aria-controls="candidate-create-editor"
+              (click)="toggleCandidateCreation()"
+            >
+              <svg
+                [cIcon]="creatingCandidate() ? icons.cancel : icons.add"
+                class="app-button-icon"
+                aria-hidden="true"
+              ></svg>
+              {{ creatingCandidate() ? 'Anlegen abbrechen' : 'Neuen Prüfling anlegen' }}
+            </button>
           </div>
         </div>
 
@@ -497,8 +511,27 @@
                 <tr>
                   <td colspan="7" class="app-table-empty-cell">
                     <div class="app-table-empty">
-                      <strong>Keine passenden Prüflinge vorhanden.</strong>
-                      <span>Ändern Sie Suche oder Fachrichtung, um weitere Einträge zu sehen.</span>
+                      @if (candidateCount() === 0) {
+                        <strong>Noch keine Prüflinge vorhanden.</strong>
+                        <span
+                          >Legen Sie den ersten Prüfling für die aktuelle Prüfungsrunde an.</span
+                        >
+                        <button
+                          tuiButton
+                          appearance="primary"
+                          size="s"
+                          type="button"
+                          (click)="toggleCandidateCreation()"
+                        >
+                          <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
+                          Ersten Prüfling anlegen
+                        </button>
+                      } @else {
+                        <strong>Keine passenden Prüflinge vorhanden.</strong>
+                        <span
+                          >Ändern Sie Suche oder Fachrichtung, um weitere Einträge zu sehen.</span
+                        >
+                      }
                     </div>
                   </td>
                 </tr>

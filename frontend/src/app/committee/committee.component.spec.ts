@@ -35,6 +35,8 @@ describe('CommitteeComponent', () => {
     expect(members).toContain('Testperson Alpha');
     expect(members).toContain('Testperson Beta');
     expect(members).not.toContain('Testperson Iota');
+    expect(element.querySelectorAll('.app-committee-metrics > div > dt')).toHaveLength(3);
+    expect(element.querySelectorAll('.app-committee-metrics > div > dd')).toHaveLength(6);
   });
 
   it('should emit selected committee changes', () => {
@@ -101,28 +103,30 @@ describe('CommitteeComponent', () => {
     expect(element.querySelector('.app-row-actions')?.textContent).toContain('Deaktivieren');
   });
 
-  it('should show readable member selections and only clear the optional person', () => {
+  it('should show the active committee as member context and only clear the optional person', () => {
     const element = fixture.nativeElement as HTMLElement;
-    const committee = element.querySelector<HTMLSelectElement>('#memberCommittee')!;
+    const committee = element.querySelector<HTMLSelectElement>('#memberCommittee');
     const person = element.querySelector<HTMLSelectElement>('#existingPerson')!;
     const status = element.querySelector<HTMLSelectElement>('#memberStatus')!;
     const role = element.querySelector<HTMLSelectElement>('#memberRole')!;
     const side = element.querySelector<HTMLSelectElement>('#memberSide')!;
 
-    expect(optionLabels(committee)).toContain('Prüfungsausschuss Teststadt 1');
+    expect(committee).toBeNull();
+    expect(element.querySelector('.app-context-summary')?.textContent).toContain(
+      'Prüfungsausschuss Teststadt 1',
+    );
     expect(optionLabels(person)).toContain('Neue Person erfassen');
     expect(optionLabels(person)).toContain('Testperson Alpha · testperson.alpha@example.invalid');
     expect(optionLabels(status)).toContain('Ordentlich');
     expect(optionLabels(role)).toContain('Mitglied');
     expect(optionLabels(side)).toContain('Arbeitgeber');
-    expect(committee.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();
     expect(person.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeTruthy();
     expect(status.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();
   });
 
-  it('should keep both create actions in their section headers and cancel safely', () => {
+  it('should keep create actions with their responsible sections and cancel safely', () => {
     const committeeTrigger = buttonWithLabel('Neuen Ausschuss anlegen');
-    const memberTrigger = buttonWithLabel('Neuen Prüfer anlegen');
+    const memberTrigger = buttonWithLabel('Prüfer hinzufügen');
     vi.spyOn(component.createCommittee, 'emit').mockReturnValue(undefined);
     vi.spyOn(component.createMember, 'emit').mockReturnValue(undefined);
 
@@ -150,6 +154,25 @@ describe('CommitteeComponent', () => {
     expect(memberTrigger.getAttribute('aria-expanded')).toBe('false');
   });
 
+  it('should offer committee creation inside an empty overview', () => {
+    fixture.componentRef.setInput('masterData', {
+      ...masterDataFixture,
+      committees: [],
+      members: [],
+    });
+    fixture.detectChanges();
+
+    const emptyAction = buttonWithLabel('Jetzt Ausschuss anlegen');
+    expect(emptyAction.closest('.app-compact-empty')).toBeTruthy();
+    emptyAction.click();
+    fixture.detectChanges();
+
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('#committee-create-editor')
+        ?.hidden,
+    ).toBe(false);
+  });
+
   it('should use Taiga form and header layout with app grid classes', () => {
     const element = fixture.nativeElement as HTMLElement;
 
@@ -159,7 +182,7 @@ describe('CommitteeComponent', () => {
     expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
     expect(element.querySelectorAll('input[tuiCheckbox]').length).toBe(1);
     expect(element.querySelectorAll('input.form-check-input').length).toBe(0);
-    expect(element.querySelectorAll('select[tuiSelect]').length).toBe(5);
+    expect(element.querySelectorAll('select[tuiSelect]').length).toBe(4);
     expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 
