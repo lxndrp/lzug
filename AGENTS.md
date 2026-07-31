@@ -26,10 +26,16 @@ die technische Referenz im [Entwicklerhandbuch](docs/developers/index.md).
 
 ## Threads und Worktrees
 
+- Die permanenten Planungsthreads `Fachlichkeit strukturieren`,
+  `Entwicklungsumgebung anpassen` und `Weiterentwicklung planen` bleiben
+  dauerhaft erhalten. Sie dürfen weder umbenannt noch archiviert oder für eine
+  Umsetzung verwendet werden.
 - Planung und Umsetzung eines Issues in getrennten Threads durchführen. Vor
   Beginn der Umsetzung muss die Bezeichnung des Umsetzungsthreads
   `<issue> (<type>): <title>` entsprechen; andernfalls ist sie zuerst zu
   korrigieren.
+- Einen Umsetzungsthread als unabhängigen neuen Task anlegen, nicht durch
+  Umbenennen, Delegation oder Übergabe eines permanenten Planungsthreads.
 - Beim Wechsel in die Umsetzung Issue-Nummer, Ziel, Akzeptanzkriterien,
   technische Entscheidungen, Randbedingungen und offene Punkte vollständig an
   den Umsetzungsthread übergeben.
