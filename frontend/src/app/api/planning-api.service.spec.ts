@@ -402,6 +402,25 @@ describe('PlanningApiService', () => {
     request.flush({ ...examRoundFixture, name: 'Sommer 2027' });
   });
 
+  it('should save round metadata before requesting availabilities', () => {
+    const payload = {
+      name: 'Winter 2026/27',
+      availability_deadline: '2026-10-15 18:00:00',
+      availability_reminder_at: '2026-10-08 09:00:00',
+    };
+    service.requestAvailabilities(payload).subscribe();
+
+    const update = http.expectOne('/api/exam-rounds/1');
+    expect(update.request.method).toBe('PATCH');
+    expect(update.request.body).toEqual(payload);
+    update.flush(examRoundFixture);
+
+    const request = http.expectOne('/api/exam-rounds/1/request-availabilities');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({});
+    request.flush({ ...examRoundFixture, status: 'availability_requested' });
+  });
+
   it('should expose possible day and availability write operations', () => {
     service.generateCandidateExamDays().subscribe();
     const generateDays = http.expectOne('/api/candidate-exam-days/generate');

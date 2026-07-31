@@ -77,6 +77,18 @@ describe('ConfirmedPlansComponent', () => {
     expect(element.textContent).toContain('Prüfling Plan-Beta');
   });
 
+  it('opens a round-specific confirmed plan without exposing other rounds', () => {
+    fixture.componentRef.setInput('roundId', 2);
+    fixture.detectChanges();
+    http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Prüfling Plan-Beta');
+    expect(text).not.toContain('Prüfling Plan-Alpha');
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('[role="tab"]')).toHaveLength(1);
+  });
+
   it('renders empty and retryable error states', () => {
     fixture.detectChanges();
     http.expectOne('/api/confirmed-plans').flush({ items: [], _links: {} });

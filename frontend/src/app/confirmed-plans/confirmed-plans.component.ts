@@ -1,4 +1,13 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  Input,
+  OnChanges,
+  OnInit,
+  SimpleChanges,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 
@@ -13,20 +22,33 @@ export type ViewState = 'loading' | 'ready' | 'error';
   templateUrl: './confirmed-plans.component.html',
   styleUrl: './confirmed-plans.component.css',
 })
-export class ConfirmedPlansComponent implements OnInit {
+export class ConfirmedPlansComponent implements OnInit, OnChanges {
   private readonly api = inject(PlanningApiService);
 
+  @Input() roundId: number | null = null;
   protected readonly state = signal<ViewState>('loading');
   protected readonly plans = signal<ConfirmedPlan[]>([]);
+  private readonly requestedRoundId = signal<number | null>(null);
   protected readonly selectedCommitteeId = signal<number | null>(null);
+  protected readonly visiblePlans = computed(() => {
+    const roundId = this.requestedRoundId();
+    return roundId === null ? this.plans() : this.plans().filter((plan) => plan.id === roundId);
+  });
   protected readonly committees = computed(() => {
     const seen = new Map<number, { id: number; name: string }>();
-    this.plans().forEach((plan) => seen.set(plan.committee.id, plan.committee));
+    this.visiblePlans().forEach((plan) => seen.set(plan.committee.id, plan.committee));
     return [...seen.values()].sort((left, right) => left.name.localeCompare(right.name));
   });
   protected readonly selectedPlans = computed(() =>
-    this.plans().filter((plan) => plan.committee.id === this.selectedCommitteeId()),
+    this.visiblePlans().filter((plan) => plan.committee.id === this.selectedCommitteeId()),
   );
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!changes['roundId']) return;
+
+    this.requestedRoundId.set(this.roundId);
+    this.selectFirstVisibleCommittee();
+  }
 
   ngOnInit(): void {
     this.load();
@@ -37,11 +59,15 @@ export class ConfirmedPlansComponent implements OnInit {
     this.api.getConfirmedPlans().subscribe({
       next: (plans) => {
         this.plans.set(plans);
-        this.selectedCommitteeId.set(plans[0]?.committee.id ?? null);
+        this.selectFirstVisibleCommittee();
         this.state.set('ready');
       },
       error: () => this.state.set('error'),
     });
+  }
+
+  private selectFirstVisibleCommittee(): void {
+    this.selectedCommitteeId.set(this.visiblePlans()[0]?.committee.id ?? null);
   }
 
   protected selectCommittee(id: number): void {

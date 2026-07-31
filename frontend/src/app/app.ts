@@ -17,6 +17,7 @@ import { TuiConfirmService } from '@taiga-ui/kit';
 import { filter, finalize, switchMap } from 'rxjs';
 
 import {
+  AvailabilityRequest,
   CandidateDayGenerationResult,
   CandidateExamDay,
   CommitteeMember,
@@ -56,7 +57,10 @@ import {
   PlanningComponent,
   PlanningSettingsPayload,
 } from './planning/planning.component';
-import { SchedulingOverviewComponent } from './scheduling-overview/scheduling-overview.component';
+import {
+  SchedulingOverviewAction,
+  SchedulingOverviewComponent,
+} from './scheduling-overview/scheduling-overview.component';
 import { ConfirmedPlansComponent } from './confirmed-plans/confirmed-plans.component';
 
 @Component({
@@ -109,6 +113,7 @@ export class App {
   protected readonly message = signal('Bereit');
   protected readonly loading = signal(false);
   protected readonly actionBusy = signal(false);
+  protected readonly contextualRoundId = signal<number | null>(null);
   protected readonly feedback = signal<{
     type: 'success' | 'error';
     title: string;
@@ -158,10 +163,6 @@ export class App {
     return 'Aktueller Prüfungskontext';
   });
 
-  protected readonly canContinueScheduling = computed(
-    () => !!this.activeContext() && this.round()?.status !== 'plan_confirmed',
-  );
-
   constructor() {
     this.router.events
       .pipe(
@@ -169,9 +170,9 @@ export class App {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((event) => {
-        this.activeView.set(this.viewFromUrl(event.urlAfterRedirects));
+        this.applyRoute(event.urlAfterRedirects, true);
       });
-    this.activeView.set(this.viewFromUrl(this.router.url));
+    this.applyRoute(this.router.url, false);
     this.refresh();
   }
 
@@ -188,6 +189,11 @@ export class App {
           this.masterData.set(masterData);
           if (!this.selectedCommitteeId()) {
             this.selectedCommitteeId.set(masterData.committees[0]?.id ?? null);
+          }
+          if (this.activeView() === 'planning' && round.status === 'plan_confirmed') {
+            void this.router.navigateByUrl(`/confirmed-plans/${round.id}`, {
+              replaceUrl: true,
+            });
           }
           this.message.set('Daten synchronisiert');
         },
@@ -255,12 +261,15 @@ export class App {
     this.showView('dashboard');
   }
 
-  protected continueSchedulingRound(id: number): void {
-    this.roundContext.select(id);
+  protected openSchedulingRound(action: SchedulingOverviewAction): void {
     this.lastPlanningResult.set(null);
     this.candidateDayGenerationResult.set(null);
-    this.refresh();
-    this.showView('planning');
+    const area = action.target === 'confirmed-plan' ? 'confirmed-plans' : 'scheduling-overview';
+    void this.router.navigateByUrl(`/${area}/${action.id}`);
+  }
+
+  protected cancelScheduling(): void {
+    this.showView('scheduling-overview');
   }
 
   protected roundStatusLabel(status: string): string {
@@ -534,6 +543,29 @@ export class App {
       });
   }
 
+  protected requestAvailabilities(payload: AvailabilityRequest): void {
+    this.actionBusy.set(true);
+    this.api
+      .requestAvailabilities(payload)
+      .pipe(finalize(() => this.actionBusy.set(false)))
+      .subscribe({
+        next: () => {
+          this.notify(
+            'success',
+            'Verfügbarkeiten angefragt',
+            'Die Terminorganisation ist jetzt in Abstimmung.',
+          );
+          this.refresh();
+        },
+        error: () =>
+          this.notify(
+            'error',
+            'Verfügbarkeiten nicht angefragt',
+            'Gespeicherte Angaben bleiben erhalten. Bitte Voraussetzungen prüfen.',
+          ),
+      });
+  }
+
   protected createCandidateDay(payload: CandidateExamDayPayload): void {
     this.actionBusy.set(true);
     this.api
@@ -678,6 +710,7 @@ export class App {
           const confirmed = result.counts['confirmed_slots'] ?? 0;
           this.notify('success', 'Plan bestätigt', `${confirmed} Termine sind verbindlich.`);
           this.refresh();
+          void this.router.navigateByUrl(`/confirmed-plans/${this.roundContext.roundId()}`);
         },
         error: () => this.notify('error', 'Plan nicht bestätigt', 'Bitte erneut versuchen.'),
       });
@@ -698,11 +731,15 @@ export class App {
       locations: 'locations',
       'exam-half-years': 'exam-half-years',
     };
-    return paths[view];
+    return view === 'planning' ? `scheduling-overview/${this.roundContext.roundId()}` : paths[view];
   }
 
   private viewFromUrl(url: string): AppView {
-    const segment = url.split('?')[0].split('#')[0].split('/').filter(Boolean)[0];
+    const segments = this.urlSegments(url);
+    if (segments[0] === 'scheduling-overview' && segments[1]) {
+      return 'planning';
+    }
+    const segment = segments[0];
     const views: Record<string, AppView> = {
       dashboard: 'dashboard',
       'scheduling-overview': 'scheduling-overview',
@@ -714,6 +751,35 @@ export class App {
       'exam-half-years': 'exam-half-years',
     };
     return views[segment ?? 'dashboard'] ?? 'dashboard';
+  }
+
+  private applyRoute(url: string, refreshWhenRoundChanges: boolean): void {
+    this.activeView.set(this.viewFromUrl(url));
+    const roundId = this.roundIdFromUrl(url);
+    this.contextualRoundId.set(roundId);
+    if (roundId === null || roundId === this.roundContext.roundId()) {
+      return;
+    }
+
+    this.roundContext.select(roundId);
+    this.lastPlanningResult.set(null);
+    this.candidateDayGenerationResult.set(null);
+    if (refreshWhenRoundChanges) {
+      this.refresh();
+    }
+  }
+
+  private roundIdFromUrl(url: string): number | null {
+    const segments = this.urlSegments(url);
+    if (!['scheduling-overview', 'confirmed-plans'].includes(segments[0] ?? '')) {
+      return null;
+    }
+    const id = Number(segments[1]);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  }
+
+  private urlSegments(url: string): string[] {
+    return url.split('?')[0].split('#')[0].split('/').filter(Boolean);
   }
 
   private fullMemberName(member: CommitteeMember): string {

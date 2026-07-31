@@ -28,13 +28,6 @@ export type DashboardTask = {
   target: DashboardNavigation;
 };
 
-export type DashboardPrimaryAction = {
-  label: string;
-  kind: 'generate' | 'confirm' | 'navigate';
-  icon: 'proposal' | 'confirm' | 'arrowRight';
-  target?: DashboardNavigation;
-};
-
 @Component({
   selector: 'app-dashboard',
   imports: [AppIconDirective, TuiBadge, TuiButton, TuiHeader, TuiNotification],
@@ -55,8 +48,6 @@ export class DashboardComponent {
   @Input() loading = false;
   @Input() actionBusy = false;
 
-  @Output() generateProposal = new EventEmitter<void>();
-  @Output() confirmPlan = new EventEmitter<void>();
   @Output() openView = new EventEmitter<AppView>();
 
   protected metrics() {
@@ -123,14 +114,6 @@ export class DashboardComponent {
     return candidateDays.filter((day) => day.is_active).length;
   }
 
-  protected canGeneratePlan(): boolean {
-    return this.summary?.round.status !== 'plan_confirmed';
-  }
-
-  protected canConfirmPlan(): boolean {
-    return this.summary?.round.status === 'plan_proposed';
-  }
-
   protected tasks(): DashboardTask[] {
     const planConfirmed = this.summary?.round.status === 'plan_confirmed';
 
@@ -168,39 +151,8 @@ export class DashboardComponent {
     ];
   }
 
-  protected primaryAction(): DashboardPrimaryAction {
-    switch (this.summary?.round.status) {
-      case 'plan_confirmed':
-        return {
-          label: 'Prüfungsplan öffnen',
-          kind: 'navigate',
-          icon: 'arrowRight',
-          target: 'confirmedPlans',
-        };
-      case 'plan_proposed':
-        return { label: 'Plan bestätigen', kind: 'confirm', icon: 'confirm' };
-      default:
-        return { label: 'Planung erzeugen', kind: 'generate', icon: 'proposal' };
-    }
-  }
-
   protected openTask(task: DashboardTask): void {
     this.navigate(task.target);
-  }
-
-  protected openPrimaryAction(): void {
-    const action = this.primaryAction();
-    switch (action.kind) {
-      case 'generate':
-        this.generateProposal.emit();
-        break;
-      case 'confirm':
-        this.confirmPlan.emit();
-        break;
-      case 'navigate':
-        this.navigate(action.target ?? 'planning');
-        break;
-    }
   }
 
   protected openConfirmedPlan(): void {

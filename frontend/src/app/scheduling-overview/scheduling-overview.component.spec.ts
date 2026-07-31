@@ -24,21 +24,27 @@ describe('SchedulingOverviewComponent', () => {
 
   afterEach(() => http.verify());
 
-  it('groups entries and continues an eligible round', () => {
+  it('groups entries and exposes exactly the status-specific primary action', () => {
     const component = fixture.componentInstance;
-    const continueSpy = vi.spyOn(component.continueRound, 'emit');
+    const openSpy = vi.spyOn(component.openRound, 'emit');
     fixture.detectChanges();
     http.expectOne('/api/scheduling-overview').flush({ items: overviewItems(), _links: {} });
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
-    expect(element.textContent).toContain('Offen');
+    expect(element.textContent).toContain('Entwurf');
     expect(element.textContent).toContain('In Abstimmung');
     expect(element.textContent).toContain('Bestätigt');
     expect(element.textContent).toContain('Winter 2026');
-    expect(element.textContent).toContain('Plan bestätigt');
-    click(element, 'Fortsetzen');
-    expect(continueSpy).toHaveBeenCalledWith(1);
+    expect(element.textContent).toContain('Planung');
+    expect(element.textContent).toContain('Neue Terminorganisation');
+    expect(element.textContent).toContain('Rückmeldungen ansehen');
+    expect(element.textContent).toContain('Vorschlag prüfen');
+    expect(element.textContent).toContain('Prüfungsplan anzeigen');
+    click(element, 'Neue Terminorganisation');
+    expect(openSpy).toHaveBeenCalledWith({ id: 1, target: 'workflow' });
+    click(element, 'Prüfungsplan anzeigen');
+    expect(openSpy).toHaveBeenCalledWith({ id: 4, target: 'confirmed-plan' });
   });
 
   it('renders a readable empty state', () => {
@@ -85,7 +91,7 @@ function overviewItems() {
       id: 1,
       name: 'Offene Runde',
       status: 'draft',
-      status_group: 'open',
+      status_group: 'draft',
       can_continue: true,
     },
     {
@@ -99,6 +105,14 @@ function overviewItems() {
     {
       ...shared,
       id: 3,
+      name: 'Vorschlag',
+      status: 'plan_proposed',
+      status_group: 'planning',
+      can_continue: true,
+    },
+    {
+      ...shared,
+      id: 4,
       name: 'Bestätigt',
       status: 'plan_confirmed',
       status_group: 'confirmed',

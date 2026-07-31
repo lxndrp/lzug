@@ -338,6 +338,18 @@ input:focus {
   background: var(--app-color-canvas);
 }
 
+.app-workflow-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.app-workflow-heading h2 {
+  margin: 0.25rem 0 0;
+  font-size: clamp(1.125rem, 2vw, 1.5rem);
+}
+
 .app-wizard-steps button {
   flex: 1 0 max-content;
 }
@@ -738,6 +750,11 @@ form.app-form-grid[tuiForm] {
 }
 
 @media (max-width: 767.98px) {
+  .app-workflow-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .app-wizard-steps {
     margin-inline: -0.25rem;
   }

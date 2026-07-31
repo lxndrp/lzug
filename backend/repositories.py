@@ -614,11 +614,11 @@ class ResourceRepository:
         must not leak into the confirmed exam-plan view.
         """
         groups = {
-            "draft": "open",
+            "draft": "draft",
             "availability_requested": "coordination",
             "availability_closed": "coordination",
-            "plan_proposed": "coordination",
-            "in_progress": "coordination",
+            "plan_proposed": "planning",
+            "in_progress": "planning",
             "plan_confirmed": "confirmed",
         }
         with session_scope(self.db_path) as session:

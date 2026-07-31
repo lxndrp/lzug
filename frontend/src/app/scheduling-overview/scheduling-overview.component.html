@@ -48,18 +48,9 @@
                   <span tuiBadge [appearance]="badgeAppearance(group.id)">{{
                     statusLabel(item.status)
                   }}</span>
-                  @if (item.can_continue) {
-                    <button
-                      tuiButton
-                      appearance="primary"
-                      type="button"
-                      (click)="continueRound.emit(item.id)"
-                    >
-                      Fortsetzen
-                    </button>
-                  } @else {
-                    <span class="app-muted">Plan bestätigt</span>
-                  }
+                  <button tuiButton appearance="primary" type="button" (click)="open(item)">
+                    {{ actionLabel(item) }}
+                  </button>
                 </div>
               </article>
             } @empty {

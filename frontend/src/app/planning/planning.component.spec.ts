@@ -25,8 +25,11 @@ describe('PlanningComponent', () => {
     }).compileComponents();
 
     fixture = TestBed.createComponent(PlanningComponent);
-    fixture.componentRef.setInput('round', examRoundFixture);
-    fixture.componentRef.setInput('summary', summaryFixture);
+    fixture.componentRef.setInput('round', { ...examRoundFixture, status: 'draft' });
+    fixture.componentRef.setInput('summary', {
+      ...summaryFixture,
+      round: { ...summaryFixture.round, status: 'draft' },
+    });
     fixture.componentRef.setInput('board', planningBoardFixture);
     fixture.componentRef.setInput('masterData', masterDataFixture);
     fixture.detectChanges();
@@ -93,6 +96,20 @@ describe('PlanningComponent', () => {
       name: 'Sommer 2027',
       availability_deadline: '2027-04-15 18:00:00',
       availability_reminder_at: '2027-04-08 09:00:00',
+    });
+  });
+
+  it('should persist metadata while requesting availabilities', () => {
+    showStep('request');
+    const component = fixture.componentInstance;
+    vi.spyOn(component.requestAvailabilities, 'emit').mockReturnValue(undefined);
+
+    clickButton('Verfügbarkeiten anfragen');
+
+    expect(component.requestAvailabilities.emit).toHaveBeenCalledWith({
+      name: examRoundFixture.name,
+      availability_deadline: examRoundFixture.availability_deadline,
+      availability_reminder_at: examRoundFixture.availability_reminder_at,
     });
   });
 
@@ -438,7 +455,7 @@ describe('PlanningComponent', () => {
     ).toBe('Fortgesetzter Entwurf');
   });
 
-  it('should advance and return through every valid wizard step', () => {
+  it('should keep draft navigation inside the editable draft phase', () => {
     const component = fixture.componentInstance as unknown as {
       currentStep: () => string;
       nextStep: () => void;
@@ -450,11 +467,25 @@ describe('PlanningComponent', () => {
     component.nextStep();
     expect(component.currentStep()).toBe('request');
     component.nextStep();
-    expect(component.currentStep()).toBe('responses');
-    component.nextStep();
-    expect(component.currentStep()).toBe('confirmation');
+    expect(component.currentStep()).toBe('request');
     component.previousStep();
-    expect(component.currentStep()).toBe('responses');
+    expect(component.currentStep()).toBe('conditions');
+  });
+
+  it('should resume coordination and planning at their status-specific workspaces', () => {
+    fixture.componentRef.setInput('round', {
+      ...examRoundFixture,
+      status: 'availability_requested',
+    });
+    fixture.detectChanges();
+    expect(currentStep()).toBe('responses');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('In Abstimmung');
+
+    fixture.componentRef.setInput('round', { ...examRoundFixture, status: 'plan_proposed' });
+    fixture.detectChanges();
+    expect(currentStep()).toBe('confirmation');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Vorschlag prüfen');
+    expect(button('Plan bestätigen')?.disabled).toBe(false);
   });
 
   it('should keep validation errors on the incomplete conditions, request, and responses steps', () => {
@@ -464,6 +495,8 @@ describe('PlanningComponent', () => {
       roundDraft: { name: string; availability_deadline: string };
       selectStep: (step: 'conditions' | 'request' | 'responses') => void;
       nextStep: () => void;
+      requestAvailabilityCoordination: () => void;
+      generatePlanningProposal: () => void;
       stepError: (step: 'conditions' | 'request' | 'responses') => string | undefined;
     };
 
@@ -475,38 +508,40 @@ describe('PlanningComponent', () => {
     component.roundDraft.name = '';
     component.roundDraft.availability_deadline = '';
     component.selectStep('request');
-    component.nextStep();
+    component.requestAvailabilityCoordination();
     expect(component.stepError('request')).toContain('Rückmeldefrist');
 
     component.masterData = { ...masterDataFixture, members: [] };
     component.selectStep('responses');
-    component.nextStep();
+    component.generatePlanningProposal();
     expect(component.stepError('responses')).toContain('aktives Ausschussmitglied');
   });
 
-  it('should render the confirmation summary and emit its actions', () => {
-    showStep('confirmation');
+  it('should generate a proposal from coordination and confirm a persisted proposal', () => {
+    fixture.componentRef.setInput('round', {
+      ...examRoundFixture,
+      status: 'availability_requested',
+    });
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    vi.spyOn(component.generateProposal, 'emit').mockReturnValue(undefined);
+    clickButton('Planungsvorschlag erzeugen');
+    expect(component.generateProposal.emit).toHaveBeenCalledOnce();
+
+    fixture.componentRef.setInput('round', { ...examRoundFixture, status: 'plan_proposed' });
     fixture.componentRef.setInput('planningResult', {
       status: 'plan_proposed',
       validation: { passed: true, messages: [] },
       counts: { planned_slots: 16 },
     });
-    const component = fixture.componentInstance;
-    vi.spyOn(component.generateProposal, 'emit').mockReturnValue(undefined);
     vi.spyOn(component.confirmPlan, 'emit').mockReturnValue(undefined);
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
     expect(element.textContent).toContain('Zusammenfassung vor der Bestätigung');
     expect(element.textContent).toContain('16 Prüfungstermine können bestätigt werden.');
-    Array.from(element.querySelectorAll('button'))
-      .find((button) => button.textContent?.includes('Planung erzeugen'))!
-      .click();
-    Array.from(element.querySelectorAll('button'))
-      .find((button) => button.textContent?.includes('Plan bestätigen'))!
-      .click();
+    clickButton('Plan bestätigen');
 
-    expect(component.generateProposal.emit).toHaveBeenCalledOnce();
     expect(component.confirmPlan.emit).toHaveBeenCalledOnce();
   });
 
@@ -533,6 +568,23 @@ describe('PlanningComponent', () => {
     expect(input).toBeTruthy();
     input!.value = value;
     input!.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+  }
+
+  function currentStep(): string {
+    return (fixture.componentInstance as unknown as { currentStep: () => string }).currentStep();
+  }
+
+  function button(label: string): HTMLButtonElement | undefined {
+    return Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find(
+      (item) => item.textContent?.includes(label),
+    );
+  }
+
+  function clickButton(label: string): void {
+    const element = button(label);
+    expect(element).toBeDefined();
+    element?.click();
     fixture.detectChanges();
   }
 

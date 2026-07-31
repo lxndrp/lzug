@@ -87,21 +87,25 @@ describe('DashboardComponent', () => {
     expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 
-  it('should emit the status-specific planning action', () => {
-    vi.spyOn(component.confirmPlan, 'emit').mockReturnValue(undefined);
-    component.summary = {
-      ...summaryFixture,
-      round: { ...summaryFixture.round, status: 'plan_proposed' },
-    };
+  it('should route planning work through the scheduling overview', () => {
+    vi.spyOn(component.openView, 'emit').mockReturnValue(undefined);
 
     fixture.detectChanges();
 
-    clickButton('Plan bestätigen');
+    clickButton('Terminorganisationen öffnen');
 
-    expect(component.confirmPlan.emit).toHaveBeenCalled();
+    expect(component.openView.emit).toHaveBeenCalledWith('scheduling-overview');
   });
 
-  it('should show the confirmed plan as the primary destination', () => {
+  it('should disable the overview action while another action is busy', () => {
+    component.actionBusy = true;
+
+    fixture.detectChanges();
+
+    expect(button('Terminorganisationen öffnen')?.disabled).toBe(true);
+  });
+
+  it('should show the confirmed plan as an agenda destination', () => {
     component.summary = {
       ...summaryFixture,
       round: { ...summaryFixture.round, status: 'plan_confirmed' },

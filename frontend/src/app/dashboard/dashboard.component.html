@@ -18,21 +18,15 @@
               tuiButton
               appearance="primary"
               type="button"
-              (click)="openPrimaryAction()"
-              [disabled]="
-                loading ||
-                actionBusy ||
-                (primaryAction().kind === 'generate' && !canGeneratePlan()) ||
-                (primaryAction().kind === 'confirm' && !canConfirmPlan())
-              "
+              (click)="openView.emit('scheduling-overview')"
+              [disabled]="loading || actionBusy"
             >
-              <svg
-                [cIcon]="icons[primaryAction().icon]"
-                class="app-button-icon"
-                aria-hidden="true"
-              ></svg>
-              {{ primaryAction().label }}
+              <svg [cIcon]="icons.proposal" class="app-button-icon" aria-hidden="true"></svg>
+              Terminorganisationen öffnen
             </button>
+            <span class="app-action-hint">
+              Bearbeitung und Bestätigung erfolgen im statusgesteuerten Arbeitsablauf.
+            </span>
           </div>
         </div>
       </div>

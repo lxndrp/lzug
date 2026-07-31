@@ -64,7 +64,7 @@ describe('App', () => {
 
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('h1')?.textContent).toContain('Übersicht');
-    expect(compiled.textContent).toContain('Planung erzeugen');
+    expect(compiled.textContent).toContain('Terminorganisationen öffnen');
     expect(compiled.textContent).toContain('Aktueller Prüfungskontext');
     expect(compiled.textContent).toContain('Winter 2026');
     expect(compiled.textContent).toContain('Prüfungsausschuss Teststadt 1');
@@ -161,16 +161,16 @@ describe('App', () => {
     expect(http.match((request) => request.method === 'DELETE').length).toBe(0);
   });
 
-  it('should keep direct internal workflow URLs in their contextual frame', async () => {
+  it('should keep round-specific workflow URLs in their contextual frame', async () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
     const router = TestBed.inject(Router);
     flushDashboardRequests(http);
 
-    await router.navigateByUrl('/planning');
+    await router.navigateByUrl('/scheduling-overview/1');
     fixture.detectChanges();
 
-    expect(router.url).toBe('/planning');
+    expect(router.url).toBe('/scheduling-overview/1');
     expect((fixture.nativeElement as HTMLElement).querySelector('h1')?.textContent).toContain(
       'Terminorganisation',
     );
