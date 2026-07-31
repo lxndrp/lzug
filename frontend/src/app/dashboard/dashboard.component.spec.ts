@@ -87,33 +87,22 @@ describe('DashboardComponent', () => {
     expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
   });
 
-  it('should emit planning actions when buttons are enabled', () => {
-    vi.spyOn(component.generateProposal, 'emit').mockReturnValue(undefined);
-    vi.spyOn(component.confirmPlan, 'emit').mockReturnValue(undefined);
-    component.summary = {
-      ...summaryFixture,
-      round: { ...summaryFixture.round, status: 'plan_proposed' },
-    };
+  it('should route planning work through the scheduling overview', () => {
+    vi.spyOn(component.openView, 'emit').mockReturnValue(undefined);
 
     fixture.detectChanges();
 
-    clickButton('Planung erzeugen');
-    clickButton('Plan bestätigen');
+    clickButton('Terminorganisationen öffnen');
 
-    expect(component.generateProposal.emit).toHaveBeenCalled();
-    expect(component.confirmPlan.emit).toHaveBeenCalled();
+    expect(component.openView.emit).toHaveBeenCalledWith('scheduling-overview');
   });
 
-  it('should disable plan generation after confirmation', () => {
-    component.summary = {
-      ...summaryFixture,
-      round: { ...summaryFixture.round, status: 'plan_confirmed' },
-    };
+  it('should disable the overview action while another action is busy', () => {
+    component.actionBusy = true;
 
     fixture.detectChanges();
 
-    expect(button('Planung erzeugen')?.disabled).toBe(true);
-    expect(button('Plan bestätigen')?.disabled).toBe(true);
+    expect(button('Terminorganisationen öffnen')?.disabled).toBe(true);
   });
 
   it('should open the view that belongs to a task', () => {
@@ -124,7 +113,7 @@ describe('DashboardComponent', () => {
 
     clickButton('Verfügbarkeiten');
 
-    expect(component.openView.emit).toHaveBeenCalledWith('planning');
+    expect(component.openView.emit).toHaveBeenCalledWith('scheduling-overview');
   });
 
   function textContent(): string {

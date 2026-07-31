@@ -90,14 +90,17 @@ export class PlanningComponent implements OnChanges, OnDestroy {
 
   @Output() saveSettings = new EventEmitter<PlanningSettingsPayload>();
   @Output() saveRound = new EventEmitter<RoundUpdatePayload>();
+  @Output() requestAvailabilities = new EventEmitter<RoundUpdatePayload>();
   @Output() createCandidateDay = new EventEmitter<CandidateExamDayPayload>();
   @Output() generateCandidateDays = new EventEmitter<PlanningSettingsPayload>();
   @Output() toggleCandidateDay = new EventEmitter<CandidateExamDay>();
   @Output() saveAvailability = new EventEmitter<AvailabilityPayload>();
   @Output() generateProposal = new EventEmitter<void>();
   @Output() confirmPlan = new EventEmitter<void>();
+  @Output() cancel = new EventEmitter<void>();
 
   protected readonly currentStep = signal<WizardStep>('period');
+  protected readonly minReachableStepIndex = signal<number>(0);
   protected readonly maxReachableStepIndex = signal<number>(0);
   protected readonly stepErrors = signal<Partial<Record<WizardStep, string>>>({});
   protected readonly wizardSteps: WizardStepDefinition[] = [
@@ -134,6 +137,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   protected readonly availabilityCellStates = signal<Record<string, AvailabilityCellState>>({});
   private readonly availabilityOverrides = signal<Record<string, AvailabilityValue>>({});
   private readonly savedStateTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private workflowKey = '';
   protected readonly federalStates = [
     { code: 'DE-BW', name: 'Baden-Württemberg' },
     { code: 'DE-BY', name: 'Bayern' },
@@ -161,6 +165,9 @@ export class PlanningComponent implements OnChanges, OnDestroy {
       this.syncDraft();
       this.syncSelectOptions();
     }
+    if (changes['round'] || changes['summary'] || changes['board']) {
+      this.syncWorkflowState();
+    }
   }
 
   ngOnDestroy(): void {
@@ -178,8 +185,15 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     this.currentStep.set(step);
   }
 
+  protected currentStepIndex(): number {
+    return this.wizardSteps.findIndex((item) => item.id === this.currentStep());
+  }
+
   protected nextStep(): void {
     const step = this.currentStep();
+    if (!['period', 'conditions'].includes(step)) {
+      return;
+    }
     const error = this.validateStep(step);
     if (error) {
       this.stepErrors.update((errors) => ({ ...errors, [step]: error }));
@@ -197,7 +211,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   protected previousStep(): void {
-    const index = this.wizardSteps.findIndex((item) => item.id === this.currentStep());
+    const index = this.currentStepIndex();
     const previous = this.wizardSteps[index - 1];
     if (previous) {
       this.currentStep.set(previous.id);
@@ -457,14 +471,24 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   protected submitRound(): void {
-    if (!this.roundDraft.name.trim()) {
+    const payload = this.roundPayload();
+    if (!payload) {
       return;
     }
-    this.saveRound.emit({
-      name: this.roundDraft.name.trim(),
-      availability_deadline: this.toApiDateTime(this.roundDraft.availability_deadline),
-      availability_reminder_at: this.toApiDateTime(this.roundDraft.availability_reminder_at),
-    });
+    this.saveRound.emit(payload);
+  }
+
+  protected requestAvailabilityCoordination(): void {
+    const error = this.validateStep('request');
+    if (error) {
+      this.stepErrors.update((errors) => ({ ...errors, request: error }));
+      return;
+    }
+    const payload = this.roundPayload();
+    if (payload) {
+      this.stepErrors.update((errors) => ({ ...errors, request: undefined }));
+      this.requestAvailabilities.emit(payload);
+    }
   }
 
   protected requestCandidateDayGeneration(): void {
@@ -474,8 +498,47 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     }
   }
 
+  protected generatePlanningProposal(): void {
+    const error = this.validateStep('responses');
+    if (error) {
+      this.stepErrors.update((errors) => ({ ...errors, responses: error }));
+      return;
+    }
+    this.stepErrors.update((errors) => ({ ...errors, responses: undefined }));
+    this.generateProposal.emit();
+  }
+
   protected canGenerateCandidateDays(): boolean {
     return this.settingsPayload() !== null;
+  }
+
+  protected canConfirmProposal(): boolean {
+    return (
+      this.round?.status === 'plan_proposed' && this.planningResult?.validation?.passed !== false
+    );
+  }
+
+  protected workflowStageLabel(): string {
+    const labels: Record<string, string> = {
+      draft: 'Entwurf',
+      availability_requested: 'In Abstimmung',
+      availability_closed: 'In Abstimmung',
+      plan_proposed: 'Planung',
+      in_progress: 'Planung',
+      plan_confirmed: 'Bestätigt',
+    };
+    return labels[this.round?.status ?? ''] ?? 'Terminorganisation';
+  }
+
+  protected workflowStageDescription(): string {
+    const descriptions: Record<string, string> = {
+      draft: 'Zeitraum und Rahmenbedingungen bearbeiten',
+      availability_requested: 'Verfügbarkeiten und Rückmeldungen koordinieren',
+      availability_closed: 'Rückmeldungen prüfen und Planung vorbereiten',
+      plan_proposed: 'Vorschlag prüfen und verbindlich bestätigen',
+      in_progress: 'Planung fortsetzen',
+    };
+    return descriptions[this.round?.status ?? ''] ?? 'Bearbeitungsstand wird geladen';
   }
 
   private validateStep(step: WizardStep): string | null {
@@ -519,6 +582,17 @@ export class PlanningComponent implements OnChanges, OnDestroy {
         ? Number(this.draft.default_location_id)
         : null,
       updated_by_member_id: updaterId,
+    };
+  }
+
+  private roundPayload(): RoundUpdatePayload | null {
+    if (!this.roundDraft.name.trim()) {
+      return null;
+    }
+    return {
+      name: this.roundDraft.name.trim(),
+      availability_deadline: this.toApiDateTime(this.roundDraft.availability_deadline),
+      availability_reminder_at: this.toApiDateTime(this.roundDraft.availability_reminder_at),
     };
   }
 
@@ -579,6 +653,36 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     this.availabilityReminderValue = this.roundDateTimeValue(
       this.roundDraft.availability_reminder_at,
     );
+  }
+
+  private syncWorkflowState(): void {
+    if (!this.round) {
+      return;
+    }
+    const key = `${this.round.id}:${this.round.status}`;
+    if (key === this.workflowKey) {
+      return;
+    }
+    this.workflowKey = key;
+
+    if (['availability_requested', 'availability_closed'].includes(this.round.status)) {
+      this.minReachableStepIndex.set(2);
+      this.maxReachableStepIndex.set(3);
+      this.currentStep.set('responses');
+      return;
+    }
+    if (['plan_proposed', 'in_progress'].includes(this.round.status)) {
+      this.minReachableStepIndex.set(4);
+      this.maxReachableStepIndex.set(4);
+      this.currentStep.set('confirmation');
+      return;
+    }
+
+    this.minReachableStepIndex.set(0);
+    const hasSettings = !!this.summary?.settings;
+    const hasActiveDay = this.activeCandidateDayCount() > 0;
+    this.maxReachableStepIndex.set(hasActiveDay ? 2 : hasSettings ? 1 : 0);
+    this.currentStep.set('period');
   }
 
   protected dateTimeLabel(value?: string | null): string {

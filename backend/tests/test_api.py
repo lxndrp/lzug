@@ -39,6 +39,7 @@ class ApiTests(unittest.TestCase):
             self.assertIn("/api/candidates/{id}", spec["paths"])
             self.assertIn("/api/exam-rounds/{id}", spec["paths"])
             self.assertIn("/api/exam-rounds/{id}/confirm-plan", spec["paths"])
+            self.assertIn("/api/exam-rounds/{id}/request-availabilities", spec["paths"])
             self.assertIn("/api/candidate-exam-days/generate", spec["paths"])
             self.assertIn("/api/confirmed-plans", spec["paths"])
             self.assertIn("Candidates", spec["components"]["schemas"])
@@ -119,12 +120,22 @@ class ApiTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertEqual("/api/scheduling-overview", overview["_links"]["self"]["href"])
             groups = {item["name"]: item for item in overview["items"]}
-            self.assertEqual("coordination", groups["Offene Runde"]["status_group"])
+            self.assertEqual("planning", groups["Offene Runde"]["status_group"])
             self.assertTrue(groups["Offene Runde"]["can_continue"])
             self.assertEqual("coordination", groups["Winter 2026/27"]["status_group"])
             self.assertEqual("confirmed", groups["Bestätigte Runde"]["status_group"])
             self.assertFalse(groups["Bestätigte Runde"]["can_continue"])
             self.assertNotIn("Archivierte Runde", groups)
+
+    def test_prepared_draft_can_request_availabilities(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, _draft = api.request("PATCH", "/api/exam-rounds/1", {"status": "draft"})
+            assert_status(status, HTTPStatus.OK)
+
+            status, requested = api.request("POST", "/api/exam-rounds/1/request-availabilities", {})
+
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("availability_requested", requested["status"])
 
     def test_collection_and_resource_responses_are_self_describing(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:

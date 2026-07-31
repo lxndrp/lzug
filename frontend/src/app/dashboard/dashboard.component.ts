@@ -32,8 +32,6 @@ export class DashboardComponent {
   @Input() loading = false;
   @Input() actionBusy = false;
 
-  @Output() generateProposal = new EventEmitter<void>();
-  @Output() confirmPlan = new EventEmitter<void>();
   @Output() openView = new EventEmitter<AppView>();
 
   protected metrics() {
@@ -91,14 +89,6 @@ export class DashboardComponent {
     return pending?.count ?? 0;
   }
 
-  protected canGeneratePlan(): boolean {
-    return this.summary?.round.status !== 'plan_confirmed';
-  }
-
-  protected canConfirmPlan(): boolean {
-    return this.summary?.round.status === 'plan_proposed';
-  }
-
   protected plannedSlotCount(): number {
     return this.board?.days.reduce((sum, item) => sum + item.slots.length, 0) ?? 0;
   }
@@ -117,7 +107,7 @@ export class DashboardComponent {
           ? `${this.pendingCount()} Rückmeldungen offen`
           : 'Rückmeldungen vollständig',
         color: this.pendingCount() ? 'warning' : 'success',
-        view: 'planning' as AppView,
+        view: 'scheduling-overview' as AppView,
       },
       {
         label: 'Prüflinge',
@@ -131,7 +121,7 @@ export class DashboardComponent {
         hint: 'Rahmen, Prüfungstage und Vorschlag bearbeiten',
         detail: this.planTaskLabel(),
         color: this.summary?.round.status === 'plan_confirmed' ? 'success' : 'info',
-        view: 'planning' as AppView,
+        view: 'scheduling-overview' as AppView,
       },
     ];
   }

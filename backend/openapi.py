@@ -167,6 +167,18 @@ def spec() -> dict[str, Any]:
                 },
             }
         },
+        "/api/exam-rounds/{id}/request-availabilities": {
+            "post": {
+                "summary": "Request committee availabilities",
+                "operationId": "requestCommitteeAvailabilities",
+                "parameters": [path_parameter("id")],
+                "responses": {
+                    "200": json_response("ExamRounds"),
+                    "400": json_response("Error"),
+                    "404": json_response("Error"),
+                },
+            }
+        },
     }
 
     for resource_name, resource in REST_RESOURCES.items():
@@ -255,7 +267,10 @@ def spec() -> dict[str, Any]:
                 "id": {"type": "integer"},
                 "name": {"type": "string"},
                 "status": {"type": "string"},
-                "status_group": {"type": "string", "enum": ["open", "coordination", "confirmed"]},
+                "status_group": {
+                    "type": "string",
+                    "enum": ["draft", "coordination", "planning", "confirmed"],
+                },
                 "committee_name": {"type": "string"},
                 "exam_half_year": {"$ref": "#/components/schemas/ExamHalfYears"},
                 "calendar_week_from": {"type": ["string", "null"]},

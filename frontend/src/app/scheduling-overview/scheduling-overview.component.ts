@@ -7,6 +7,10 @@ import { SchedulingOverviewItem, SchedulingStatusGroup } from '../api/api.models
 import { PlanningApiService } from '../api/planning-api.service';
 
 export type OverviewState = 'loading' | 'ready' | 'error';
+export type SchedulingOverviewAction = {
+  id: number;
+  target: 'workflow' | 'confirmed-plan';
+};
 
 @Component({
   selector: 'app-scheduling-overview',
@@ -17,7 +21,7 @@ export type OverviewState = 'loading' | 'ready' | 'error';
 export class SchedulingOverviewComponent implements OnInit {
   private readonly api = inject(PlanningApiService);
 
-  @Output() continueRound = new EventEmitter<number>();
+  @Output() openRound = new EventEmitter<SchedulingOverviewAction>();
 
   protected readonly state = signal<OverviewState>('loading');
   protected readonly items = signal<SchedulingOverviewItem[]>([]);
@@ -26,11 +30,20 @@ export class SchedulingOverviewComponent implements OnInit {
     label: string;
     description: string;
   }> = [
-    { id: 'open', label: 'Offen', description: 'Noch nicht begonnene Terminorganisationen.' },
+    {
+      id: 'draft',
+      label: 'Entwurf',
+      description: 'Zeitraum und Rahmenbedingungen festlegen.',
+    },
     {
       id: 'coordination',
       label: 'In Abstimmung',
-      description: 'Vorgänge mit laufenden Rückmeldungen oder einem Vorschlag.',
+      description: 'Verfügbarkeiten anfragen und Rückmeldungen einsehen.',
+    },
+    {
+      id: 'planning',
+      label: 'Planung',
+      description: 'Planungsvorschlag prüfen und bestätigen.',
     },
     { id: 'confirmed', label: 'Bestätigt', description: 'Abgeschlossene Terminorganisationen.' },
   ];
@@ -56,7 +69,7 @@ export class SchedulingOverviewComponent implements OnInit {
 
   protected statusLabel(status: string): string {
     const labels: Record<string, string> = {
-      draft: 'Offen',
+      draft: 'Entwurf',
       availability_requested: 'Rückmeldungen angefragt',
       availability_closed: 'Rückmeldungen vollständig',
       plan_proposed: 'Vorschlag liegt vor',
@@ -64,6 +77,25 @@ export class SchedulingOverviewComponent implements OnInit {
       plan_confirmed: 'Bestätigt',
     };
     return labels[status] ?? status;
+  }
+
+  protected actionLabel(item: SchedulingOverviewItem): string {
+    const labels: Record<string, string> = {
+      draft: 'Neue Terminorganisation',
+      availability_requested: 'Rückmeldungen ansehen',
+      availability_closed: 'Planung vorbereiten',
+      plan_proposed: 'Vorschlag prüfen',
+      in_progress: 'Planung fortsetzen',
+      plan_confirmed: 'Prüfungsplan anzeigen',
+    };
+    return labels[item.status] ?? 'Terminorganisation öffnen';
+  }
+
+  protected open(item: SchedulingOverviewItem): void {
+    this.openRound.emit({
+      id: item.id,
+      target: item.status === 'plan_confirmed' ? 'confirmed-plan' : 'workflow',
+    });
   }
 
   protected periodLabel(item: SchedulingOverviewItem): string {
@@ -76,6 +108,9 @@ export class SchedulingOverviewComponent implements OnInit {
   }
 
   protected badgeAppearance(group: SchedulingStatusGroup): string {
-    return group === 'confirmed' ? 'positive' : group === 'coordination' ? 'warning' : 'neutral';
+    if (group === 'confirmed') return 'positive';
+    if (group === 'coordination') return 'warning';
+    if (group === 'planning') return 'info';
+    return 'neutral';
   }
 }

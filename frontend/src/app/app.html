@@ -60,7 +60,7 @@
         <a
           class="app-nav-link"
           href="/scheduling-overview"
-          [class.is-active]="activeView() === 'scheduling-overview'"
+          [class.is-active]="activeView() === 'scheduling-overview' || activeView() === 'planning'"
           (click)="navigateFromShell('scheduling-overview', $event)"
         >
           <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
@@ -84,19 +84,6 @@
           <svg [cIcon]="icons.candidates" class="app-nav-icon" aria-hidden="true"></svg>
           Prüflinge
         </a>
-        @if (canContinueScheduling()) {
-          <p class="app-nav-title">Aktueller Arbeitsablauf</p>
-          <a
-            class="app-nav-link"
-            href="/planning"
-            [class.is-active]="activeView() === 'planning'"
-            (click)="navigateFromShell('planning', $event)"
-          >
-            <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
-            Terminorganisation fortsetzen
-          </a>
-        }
-
         <p class="app-nav-title">Globale Bereiche</p>
         <a
           class="app-nav-link"
@@ -248,16 +235,14 @@
                 [planningResult]="lastPlanningResult()"
                 [loading]="loading()"
                 [actionBusy]="actionBusy()"
-                (generateProposal)="generateProposal()"
-                (confirmPlan)="requestPlanConfirmation()"
                 (openView)="showView($event)"
               />
             }
             @case ('scheduling-overview') {
-              <app-scheduling-overview (continueRound)="continueSchedulingRound($event)" />
+              <app-scheduling-overview (openRound)="openSchedulingRound($event)" />
             }
             @case ('confirmed-plans') {
-              <app-confirmed-plans />
+              <app-confirmed-plans [roundId]="contextualRoundId()" />
             }
             @case ('candidates') {
               <app-candidates
@@ -293,12 +278,14 @@
                 [planningResult]="lastPlanningResult()"
                 (saveSettings)="savePlanningSettings($event)"
                 (saveRound)="saveExamRound($event)"
+                (requestAvailabilities)="requestAvailabilities($event)"
                 (createCandidateDay)="createCandidateDay($event)"
                 (generateCandidateDays)="generateCandidateDays($event)"
                 (toggleCandidateDay)="toggleCandidateDay($event)"
                 (saveAvailability)="saveAvailability($event)"
                 (generateProposal)="generateProposal()"
                 (confirmPlan)="requestPlanConfirmation()"
+                (cancel)="cancelScheduling()"
               />
             }
             @case ('locations') {
