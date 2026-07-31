@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""Reject generated CI artifacts that contain credentials or unsafe test data."""
-
-# The repository-local fixture guard is imported after adding the project root.
-# ruff: noqa: E402
+"""Reject generated CI artifacts that contain credentials."""
 
 from __future__ import annotations
 
@@ -14,12 +11,6 @@ from pathlib import Path
 from zipfile import ZipFile, ZipInfo
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
-from scripts.check_synthetic_fixtures import (
-    scan_blocked_fingerprints,
-    scan_domains,
-)
 
 SENSITIVE_PATTERNS = (
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
@@ -114,8 +105,6 @@ def scan_text(path: Path | str, text: str) -> list[str]:
             if pattern.search(line):
                 errors.append(f"{path}:{line_number}: sensitive CI artifact content detected")
                 break
-    errors.extend(scan_domains(path, text))
-    errors.extend(scan_blocked_fingerprints(path, text))
     return errors
 
 

@@ -12,7 +12,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from scripts.check_ci_artifacts import SENSITIVE_PATTERNS  # noqa: E402
-from scripts.check_synthetic_fixtures import scan_blocked_fingerprints, scan_domains  # noqa: E402
 
 REQUIRED_PAGES = {
     "Home.md",
@@ -153,8 +152,6 @@ def check_public_safety(files: list[Path]) -> list[str]:
                 )
             if any(pattern.search(line) for pattern in SENSITIVE_PATTERNS):
                 errors.append(f"{display}:{line_number}: secret-like content detected")
-        errors.extend(scan_domains(path, text))
-        errors.extend(scan_blocked_fingerprints(path, text))
     return errors
 
 

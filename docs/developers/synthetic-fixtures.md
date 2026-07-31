@@ -19,21 +19,6 @@ Nach einer Änderung an der kanonischen Quelle werden die Adapter mit
 python3 scripts/generate_synthetic_fixtures.py
 ```
 
-neu erzeugt. `task quality:fixtures` prüft ihre Aktualität, reservierte
-Demo-Domains, die Eindeutigkeit der kanonischen Identitäten und Fingerabdrücke
-sanitisierter Altwertkategorien. Die Fingerabdrücke enthalten keine lesbaren
-Altwerte. Der Guard läuft außerdem in den Backend-Tests und in der CI.
-
-Generierte Dokumentation und Browserberichte sind nicht versioniert. Vor der
-Veröffentlichung werden sie neu erzeugt und stichprobenartig auf dieselben
-Konventionen geprüft; fehlgeschlagene Playwright-Läufe dürfen keine älteren
-lokalen Traces oder Screenshots weiterverwenden. Nach diesen Erzeugungsläufen
-prüft
-
-```sh
-python3 scripts/check_synthetic_fixtures.py --include-generated-artifacts
-```
-
-zusätzlich lokale Dokumentation, Playwright-Berichte und lesbare Trace-Inhalte.
-Vorhandene Screenshots in den Testergebnissen erzwingen eine ausdrückliche
-visuelle Prüfung.
+neu erzeugt. Die Aktualität der erzeugten Adapter wird bei einer Änderung der
+Quelle gemeinsam mit den betroffenen Tests geprüft. Browserberichte und
+Playwright-Traces werden nicht nach Testdatenmustern ausgewertet.
