@@ -14,9 +14,11 @@ Workflows und diese Verfahrensbeschreibung.
    Review-Branch. Der Inhalt umfasst mindestens `Home.md` und `_Sidebar.md`
    sowie die vier Zielgruppenbereiche Fachlichkeit, Nutzung, Administration und
    Entwicklung.
-3. Vor einer Veröffentlichung wird der konkrete Wiki-Branch oder Commit über
-   `Actions -> Wiki pre-publish check` als `wiki_ref` geprüft. Der Check läuft
-   gegen genau diesen Inhalt, nicht gegen eine Kopie im Hauptrepository.
+3. `_Sidebar.md` ist die vollständige kanonische Liste der öffentlichen
+   Inhaltsseiten. Vor einer Veröffentlichung wird der konkrete Wiki-Branch oder
+   Commit über `Actions -> Wiki pre-publish check` als `wiki_ref` geprüft. Der
+   Check läuft gegen genau diesen Inhalt, nicht gegen eine Kopie im
+   Hauptrepository.
 4. Ein Maintainer prüft den Diff und die Prüfergebnisse. Erst diese explizite
    Entscheidung ist die Freigabe für die öffentliche Mutation.
 5. Der Maintainer veröffentlicht exakt den geprüften Commit in den
@@ -24,8 +26,9 @@ Workflows und diese Verfahrensbeschreibung.
    dem Hauptrepository und keinen Force-Push.
 6. Das `gollum`-Event startet danach den
    [Post-Publish-Check](https://github.com/lxndrp/lzug/blob/master/.github/workflows/wiki-post-publish.yml).
-   Er checkt den Default-Branch erneut, prüft portable Links und öffentliche
-   Sicherheitsregeln und lädt jede Seite mit Gollum.
+   Er prüft den Default-Branch erneut, erzeugt aus der Sidebar eine temporäre
+   Sitemap und lässt Lychee sowohl die Quelllinks als auch die erwarteten
+   gerenderten Wiki-Routen prüfen.
 
 Das Wiki-Repository ist initialisiert. Der veröffentlichte Stand wird dort
 versioniert und ist die kanonische Quelle für das redaktionelle Handbuch. Die
@@ -50,9 +53,10 @@ werden:
 WIKI_ROOT=/path/to/lzug.wiki task wiki:check
 ```
 
-Der Gollum-Lauf ist bewusst auf den isolierten, digest-gepinnten Container im
-GitHub-Workflow begrenzt. So wird die bestehende Python/npm-Toolchain des
-Projekts nicht um eine Ruby-Abhängigkeit erweitert. Der Post-Publish-Workflow
-prüft zusätzlich jede flache Wiki-Seite über ihre gerenderte GitHub-Route auf
-HTTP 200 und `Content-Type: text/html`; Weiterleitungen auf
-`raw.githubusercontent.com` sind Fehler.
+Der Task erzeugt die Sitemap nur in einem temporären Verzeichnis. Sie ist kein
+versioniertes Wiki-Artefakt und keine zweite Seitenliste. Der Python-Validator
+prüft die bidirektionale Sidebar-Synchronität, Routenform und öffentliche
+Sicherheitsregeln; Lychee `v0.24.2` prüft die Quelllinks. Nach Veröffentlichung
+prüft Lychee die aus der Sitemap abgeleiteten GitHub-Routen mit höchstens null
+Weiterleitungen; so sind Weiterleitungen auf Rohdaten oder andere Ziele Fehler.
+Der Workflow lädt die erzeugte Sitemap bei Bedarf als Diagnoseartefakt hoch.

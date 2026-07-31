@@ -48,10 +48,15 @@ tasks:
       - task: docs:frontend
 
   wiki:check:
-    desc: Check a separately checked-out Wiki repository for links and public-safety policy
+    desc: Check a separately checked-out Wiki repository, its sidebar sitemap, and source links
     cmds:
       - test -n "${WIKI_ROOT:-}" || { echo "set WIKI_ROOT to a local Wiki checkout"; exit 1; }
-      - python3 scripts/check_wiki.py "$WIKI_ROOT"
+      - >-
+        temporary_directory="$(mktemp -d)" && trap 'rm -rf "$temporary_directory"' EXIT &&
+        python3 scripts/check_wiki.py "$WIKI_ROOT" --sitemap "$temporary_directory/sitemap.xml" &&
+        docker run --rm --user "$(id -u):$(id -g)"
+        -v "$WIKI_ROOT:/wiki:ro" -w /wiki lycheeverse/lychee:0.24.2
+        --fallback-extensions md --no-progress '*.md'
 
   quality:
     desc: Run the complete local quality assurance suite in parallel
