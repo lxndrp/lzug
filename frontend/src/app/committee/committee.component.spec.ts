@@ -35,6 +35,8 @@ describe('CommitteeComponent', () => {
     expect(members).toContain('Testperson Alpha');
     expect(members).toContain('Testperson Beta');
     expect(members).not.toContain('Testperson Iota');
+    expect(element.querySelectorAll('.app-committee-metrics > div > dt')).toHaveLength(3);
+    expect(element.querySelectorAll('.app-committee-metrics > div > dd')).toHaveLength(6);
   });
 
   it('should emit selected committee changes', () => {

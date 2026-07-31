@@ -618,7 +618,9 @@ test.describe('lzug browser workflows', () => {
       for (const item of editors) {
         await test.step(`${viewport.name}: ${item.action}`, async () => {
           await page.goto(item.path);
-          const trigger = page.locator(`button[aria-controls="${item.editor.slice(1)}"]`);
+          const trigger = page.locator(
+            `${item.editor === '#candidate-create-editor' ? '.app-list-toolbar ' : ''}button[aria-controls="${item.editor.slice(1)}"]`,
+          );
           const editor = page.locator(item.editor);
 
           await expect(trigger).toHaveAccessibleName(item.action);

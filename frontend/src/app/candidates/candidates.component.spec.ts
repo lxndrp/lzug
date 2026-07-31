@@ -26,13 +26,16 @@ describe('CandidatesComponent', () => {
   });
 
   it('should render candidate rows with round metadata', () => {
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    const element = fixture.nativeElement as HTMLElement;
+    const text = element.textContent ?? '';
 
     expect(text).toContain('Alpha, Prüfling');
     expect(text).toContain('TEST-2026-0001');
     expect(text).toContain('2. Versuch');
     expect(text).toContain('MEP');
     expect((fixture.nativeElement as HTMLElement).querySelector('.app-table-scroll')).toBeTruthy();
+    expect(element.querySelectorAll('.app-candidate-metrics > div > dt')).toHaveLength(2);
+    expect(element.querySelectorAll('.app-candidate-metrics > div > dd')).toHaveLength(4);
   });
 
   it('should filter candidates by search input', () => {
