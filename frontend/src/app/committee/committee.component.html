@@ -139,8 +139,6 @@
                 appearance="primary"
                 size="s"
                 type="button"
-                aria-controls="committee-create-editor"
-                [attr.aria-expanded]="creatingCommittee()"
                 (click)="toggleCommitteeCreation()"
               >
                 <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
@@ -417,8 +415,6 @@
                         appearance="primary"
                         size="s"
                         type="button"
-                        aria-controls="member-create-editor"
-                        [attr.aria-expanded]="creatingMember()"
                         [disabled]="!selectedCommittee() || actionBusy"
                         (click)="toggleMemberCreation()"
                       >
