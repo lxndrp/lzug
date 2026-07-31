@@ -2,9 +2,7 @@
 
 Produkt-, Fach- und Architekturdokumentation ist auf Deutsch; Code-Kommentare sind Englisch. Planung, Prioritäten und Liefertermine gehören in GitHub Issues und das Roadmap-Project, nicht in ADRs.
 
-Das öffentliche redaktionelle Handbuch liegt ausschließlich im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki). Die Dateien unter `docs/` sind die technische Quellbasis des Hauptrepositorys; sie werden nicht als Wiki-Spiegel gepflegt.
-
-Die vollständige fachliche Handbuchquelle liegt im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki). Dieses technische Handbuch beschreibt nur die code-, CI-, Security-, Release- und entscheidungsgebundenen Quellen. GitHub-Epics, Stories und Tasks dokumentieren die veränderliche Umsetzung.
+Das öffentliche redaktionelle Handbuch liegt ausschließlich im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki). Die Dateien unter `docs/` sind die technische Quellbasis des Hauptrepositorys; sie werden nicht als Wiki-Spiegel gepflegt. Dieses technische Handbuch beschreibt nur die code-, CI-, Security-, Release- und entscheidungsgebundenen Quellen. GitHub-Epics, Stories und Tasks dokumentieren die veränderliche Umsetzung.
 
 ## Kanonische Ablage
 
@@ -21,9 +19,7 @@ Jeder Inhalt besitzt genau eine kanonische Ablage:
   Codex-Artefakten, nicht in einer allgemeinen Entwickleranleitung.
 
 Gekürzte, ausführliche oder als Arbeitskopie bezeichnete Parallelfassungen
-werden nicht angelegt. Die fachliche Handbuchquelle liegt ebenfalls im
-[GitHub Wiki](https://github.com/lxndrp/lzug/wiki); technische Modelle und
-Verträge verbleiben im Entwicklerhandbuch.
+werden nicht angelegt.
 
 ## ADR-Konvention
 

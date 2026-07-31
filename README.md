@@ -27,12 +27,9 @@ Administratoren und Entwickler und liegt im
 [GitHub Wiki](https://github.com/lxndrp/lzug/wiki). Das Wiki-Repository ist
 separat; seine Seiten werden nicht im Hauptrepository gespiegelt.
 
-Die technische Dokumentation im Hauptrepository umfasst:
-
-- [Technische Dokumentation](docs/index.md): Architektur, Verträge,
-  Datenmodell, Entscheidungen und Qualitätssicherung.
-- [Entwicklerhandbuch](docs/developers/index.md): Architektur, Referenzen,
-  Entscheidungen und Qualitätssicherung.
+Die technische Dokumentation im Hauptrepository beginnt im
+[Entwicklerhandbuch](docs/developers/index.md) und umfasst Architektur,
+Verträge, Datenmodell, Entscheidungen, Referenzen und Qualitätssicherung.
 
 Die vollständige Fachlichkeit sowie das Nutzer- und Administratorhandbuch
 liegen ausschließlich im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki).
