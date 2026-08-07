@@ -311,29 +311,6 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual("DE-NW", updated["holiday_subdivision_code"])
         self.assertEqual(1, len(settings))
 
-    def test_planning_settings_reject_plain_member_changing_max_exam_days_per_week(
-        self,
-    ) -> None:
-        with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
-            with self.assertRaisesRegex(
-                ValueError, "Only the chair or deputy chair may change max exam days per week"
-            ):
-                repository.save_planning_settings(
-                    {
-                        "exam_round_id": 1,
-                        "calendar_week_from": "2026-W47",
-                        "calendar_week_to": "2026-W50",
-                        "exams_per_day": 5,
-                        "max_exam_days_per_week": 3,
-                        "lunch_break_enabled": 0,
-                        "exclude_public_holidays": 0,
-                        "holiday_subdivision_code": None,
-                        "default_location_id": 1,
-                        "updated_by_member_id": 3,
-                    }
-                )
-
     def test_planning_settings_require_valid_state_for_holiday_exclusion(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)

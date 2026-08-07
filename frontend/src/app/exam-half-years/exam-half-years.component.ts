@@ -209,7 +209,7 @@ export class ExamHalfYearsComponent implements OnInit {
   }
 
   protected createRoundMembers(): CommitteeMember[] {
-    const id = this.createRoundCommitteeId();
+    const id = this.createRoundCommitteeId() ?? this.committees[0]?.id;
     return id ? this.members.filter((member) => member.committee_id === id) : [];
   }
 

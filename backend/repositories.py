@@ -798,10 +798,6 @@ class ResourceRepository:
             if location is None or location["committee_id"] != exam_round["committee_id"]:
                 raise ValueError("Default location does not belong to the exam round committee")
 
-        if "max_exam_days_per_week" in payload:
-            if updater["committee_role"] not in ("chair", "deputy_chair"):
-                raise ValueError("Only the chair or deputy chair may change max exam days per week")
-
         subdivision_code = payload.get("holiday_subdivision_code")
         if subdivision_code is not None and subdivision_code not in GERMAN_SUBDIVISION_CODES:
             raise ValueError("Unknown German federal state")
