@@ -50,7 +50,10 @@ describe('ExamHalfYearsComponent', () => {
     const roundForm = Array.from(host.querySelectorAll<HTMLFormElement>('form')).find((form) =>
       form.querySelector('#roundCommittee'),
     )!;
-    roundForm.querySelector<HTMLSelectElement>('#roundCommittee')!.value = '1';
+    const committeeSelect = roundForm.querySelector<HTMLSelectElement>('#roundCommittee')!;
+    committeeSelect.value = '1';
+    committeeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
     roundForm.querySelector<HTMLSelectElement>('#roundCreatedByMember')!.value = '10';
     roundForm.dispatchEvent(new Event('submit'));
 
