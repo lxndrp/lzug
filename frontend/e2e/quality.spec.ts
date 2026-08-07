@@ -387,7 +387,7 @@ test.describe('lzug browser workflows', () => {
     await page.locator('#roundCommittee').evaluate((el: HTMLSelectElement) => {
       el.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    await page.waitForTimeout(100);
+    await page.locator('#roundCreatedByMember option').nth(1).waitFor();
     await page.locator('#roundCreatedByMember').selectOption('1');
 
     const roundResponse = page.waitForResponse(
