@@ -383,6 +383,13 @@ test.describe('lzug browser workflows', () => {
       .click();
     expect((await halfYearResponse).status()).toBe(201);
 
+    await page.locator('#roundCommittee').selectOption('1');
+    await page.locator('#roundCommittee').evaluate((el: HTMLSelectElement) => {
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.waitForTimeout(100);
+    await page.locator('#roundCreatedByMember').selectOption('1');
+
     const roundResponse = page.waitForResponse(
       (response) =>
         response.url().endsWith('/api/exam-rounds') && response.request().method() === 'POST',
