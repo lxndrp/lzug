@@ -384,9 +384,7 @@ test.describe('lzug browser workflows', () => {
     expect((await halfYearResponse).status()).toBe(201);
 
     await page.locator('#roundCommittee').selectOption('1');
-    await page.locator('#roundCommittee').evaluate((el: HTMLSelectElement) => {
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    // Wait for Angular to process the change and populate member options
     await page.locator('#roundCreatedByMember option').nth(1).waitFor();
     await page.locator('#roundCreatedByMember').selectOption('1');
 
