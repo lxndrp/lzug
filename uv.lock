@@ -314,7 +314,7 @@ provides-extras = ["dev"]
 [package.metadata.requires-dev]
 dev = [
     { name = "mkdocs", specifier = ">=1.6,<2.0" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0,<2.0" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.6,<2.0" },
 ]
 
 [[package]]
