@@ -47,6 +47,8 @@ ARCHIVE_SUFFIXES = {".zip"}
 MAX_TEXT_BYTES = 8 * 1024 * 1024
 MAX_ARCHIVE_BYTES = 64 * 1024 * 1024
 MAX_ARCHIVE_MEMBER_BYTES = 8 * 1024 * 1024
+# Playwright trace streams are text but regularly exceed the normal member cap.
+MAX_TRACE_MEMBER_BYTES = MAX_ARCHIVE_BYTES
 MAX_ARCHIVE_MEMBERS = 2_000
 MAX_ARCHIVE_DEPTH = 3
 
@@ -122,17 +124,18 @@ def read_archive_member(
     member: ZipInfo,
     path: str,
     budget: ScanBudget,
+    max_bytes: int,
 ) -> tuple[bytes | None, list[str]]:
-    if member.file_size > MAX_ARCHIVE_MEMBER_BYTES:
+    if member.file_size > max_bytes:
         return None, [f"{path}: archive member exceeds scan size limit"]
     if not budget.reserve(member.file_size):
         return None, [f"{path}: archive scan size limit exceeded"]
     try:
         with archive.open(member) as stream:
-            data = stream.read(MAX_ARCHIVE_MEMBER_BYTES + 1)
+            data = stream.read(max_bytes + 1)
     except (KeyError, OSError, RuntimeError, ValueError, zipfile.BadZipFile) as error:
         return None, [f"{path}: unable to read archive member ({error.__class__.__name__})"]
-    if len(data) > MAX_ARCHIVE_MEMBER_BYTES:
+    if len(data) > max_bytes:
         return None, [f"{path}: archive member exceeds scan size limit"]
     return data, []
 
@@ -157,7 +160,12 @@ def scan_archive(
         path = member_path(archive_path, member.filename)
         if not is_text_member(member.filename) and not is_archive_member(member.filename):
             continue
-        data, read_errors = read_archive_member(archive, member, path, budget)
+        max_member_bytes = (
+            MAX_TRACE_MEMBER_BYTES
+            if member_suffix(member.filename) == ".trace"
+            else MAX_ARCHIVE_MEMBER_BYTES
+        )
+        data, read_errors = read_archive_member(archive, member, path, budget, max_member_bytes)
         errors.extend(read_errors)
         if data is None:
             continue
