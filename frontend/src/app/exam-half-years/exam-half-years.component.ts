@@ -163,10 +163,10 @@ export class ExamHalfYearsComponent implements OnInit {
     const data = new FormData(event.currentTarget as HTMLFormElement);
     const halfYear = this.selectedHalfYear();
     const committeeId = Number(data.get('committee_id'));
-    const creator =
-      this.members.find(
-        (member) => member.committee_id === committeeId && member.committee_role === 'chair',
-      ) ?? this.members.find((member) => member.committee_id === committeeId);
+    const creatorId = Number(data.get('created_by_member_id'));
+    const creator = this.members.find(
+      (member) => member.id === creatorId && member.committee_id === committeeId,
+    );
     const committee = this.committees.find((item) => item.id === committeeId);
     if (!halfYear || !committee || !creator || !this.canManageRounds(halfYear)) {
       this.error.set('Für das ausgewählte Halbjahr und den Ausschuss fehlen Angaben.');
@@ -195,6 +195,16 @@ export class ExamHalfYearsComponent implements OnInit {
 
   protected halfYearLabel(halfYear: ExamHalfYear): string {
     return `${halfYear.season === 'summer' ? 'Sommer' : 'Winter'} ${halfYear.year}`;
+  }
+
+  protected memberRoleLabel(role: string): string {
+    return (
+      {
+        chair: 'Vorsitz',
+        deputy_chair: 'Stellvertretender Vorsitz',
+        member: 'Mitglied',
+      }[role] ?? role
+    );
   }
 
   protected statusLabel(status: string): string {

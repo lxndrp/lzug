@@ -316,6 +316,25 @@
                       </select>
                     </tui-textfield>
                   </div>
+                  <div class="app-field-full">
+                    <label for="roundCreatedByMember"
+                      >Anlage dokumentieren für <span aria-hidden="true">*</span></label
+                    >
+                    <tui-textfield [tuiTextfieldCleaner]="false">
+                      <select id="roundCreatedByMember" name="created_by_member_id" required>
+                        <option value="" disabled>Person auswählen</option>
+                        @for (member of members; track member.id) {
+                          <option [value]="member.id">
+                            {{ member.first_name }} {{ member.last_name }} ·
+                            {{ memberRoleLabel(member.committee_role) }}
+                          </option>
+                        }
+                      </select>
+                    </tui-textfield>
+                    <span class="app-field-hint"
+                      >Die tatsächlich handelnde Person wird an der Prüfungsrunde hinterlegt.</span
+                    >
+                  </div>
                   <div class="app-field-full app-form-actions">
                     <span class="app-form-action-hint"
                       >Ein Ausschuss kann je Halbjahr nur einmal zugeordnet werden.</span

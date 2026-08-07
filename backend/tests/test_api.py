@@ -406,6 +406,13 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(1, settings["exclude_public_holidays"])
             self.assertEqual("DE-NW", settings["holiday_subdivision_code"])
 
+            status, _member = api.request(
+                "PATCH",
+                "/api/members/2",
+                {"committee_role": "deputy_chair", "is_active": True},
+            )
+            assert_status(status, HTTPStatus.OK)
+
             status, body = api.request(
                 "POST",
                 "/api/planning-settings",
@@ -422,8 +429,9 @@ class ApiTests(unittest.TestCase):
                     "updated_by_member_id": 2,
                 },
             )
-            assert_status(status, HTTPStatus.BAD_REQUEST)
-            self.assertIn("Only the committee chair", body["error"])
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(5, body["max_exam_days_per_week"])
+            self.assertEqual(2, body["updated_by_member_id"])
 
             status, availability = api.request(
                 "POST",

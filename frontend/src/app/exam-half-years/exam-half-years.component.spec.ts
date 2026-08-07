@@ -28,6 +28,17 @@ describe('ExamHalfYearsComponent', () => {
     const selection = vi
       .spyOn(fixture.componentInstance.roundSelected, 'emit')
       .mockReturnValue(undefined);
+    fixture.componentRef.setInput('members', [
+      ...membersFixture,
+      {
+        ...membersFixture[0],
+        id: 10,
+        person_id: 10,
+        first_name: 'Stellvertretung',
+        last_name: 'Alpha',
+        committee_role: 'deputy_chair',
+      },
+    ]);
     fixture.detectChanges();
     flushInitialLoad(http, [
       { id: 1, season: 'winter', year: 2026, status: 'active' },
@@ -40,6 +51,7 @@ describe('ExamHalfYearsComponent', () => {
       form.querySelector('#roundCommittee'),
     )!;
     roundForm.querySelector<HTMLSelectElement>('#roundCommittee')!.value = '1';
+    roundForm.querySelector<HTMLSelectElement>('#roundCreatedByMember')!.value = '10';
     roundForm.dispatchEvent(new Event('submit'));
 
     const request = http.expectOne('/api/exam-rounds');
@@ -47,7 +59,7 @@ describe('ExamHalfYearsComponent', () => {
     expect(request.request.body).toEqual({
       exam_half_year_id: 1,
       committee_id: 1,
-      created_by_member_id: 1,
+      created_by_member_id: 10,
       name: 'Winter 2026 · Prüfungsausschuss Teststadt 1',
     });
     request.flush({
@@ -90,7 +102,7 @@ describe('ExamHalfYearsComponent', () => {
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
-    for (const selector of ['#examHalfYearSeason', '#roundCommittee']) {
+    for (const selector of ['#examHalfYearSeason', '#roundCommittee', '#roundCreatedByMember']) {
       const select = element.querySelector<HTMLSelectElement>(selector)!;
       expect(select.required).toBe(true);
       expect(select.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();

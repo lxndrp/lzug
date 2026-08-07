@@ -597,13 +597,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   protected defaultUpdaterId(): number {
-    return (
-      this.masterData?.members.find(
-        (member) => member.committee_role === 'chair' && member.is_active,
-      )?.id ??
-      this.masterData?.members.find((member) => member.is_active)?.id ??
-      0
-    );
+    return this.masterData?.members.find((member) => member.is_active)?.id ?? 0;
   }
 
   private syncDraft(): void {
