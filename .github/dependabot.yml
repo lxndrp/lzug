@@ -19,6 +19,14 @@ updates:
         applies-to: security-updates
         patterns:
           - "@angular/*"
+      taiga-ui:
+        applies-to: version-updates
+        patterns:
+          - "@taiga-ui/*"
+      taiga-ui-security:
+        applies-to: security-updates
+        patterns:
+          - "@taiga-ui/*"
 
   - package-ecosystem: github-actions
     directory: /
