@@ -137,6 +137,9 @@ def read_archive_member(
         return None, [f"{path}: unable to read archive member ({error.__class__.__name__})"]
     if len(data) > max_bytes:
         return None, [f"{path}: archive member exceeds scan size limit"]
+    extra = len(data) - member.file_size
+    if extra > 0 and not budget.reserve(extra):
+        return None, [f"{path}: archive scan size limit exceeded"]
     return data, []
 
 
