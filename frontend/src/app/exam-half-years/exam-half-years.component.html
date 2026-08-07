@@ -309,7 +309,12 @@
                   <div class="app-field-full">
                     <label for="roundCommittee">Ausschuss <span aria-hidden="true">*</span></label>
                     <tui-textfield [tuiTextfieldCleaner]="false">
-                      <select id="roundCommittee" name="committee_id" required>
+                      <select
+                        id="roundCommittee"
+                        name="committee_id"
+                        required
+                        (change)="createRoundCommitteeId.set(+$any($event.target).value)"
+                      >
                         @for (committee of committees; track committee.id) {
                           <option [value]="committee.id">{{ committee.name }}</option>
                         }
@@ -322,8 +327,8 @@
                     >
                     <tui-textfield [tuiTextfieldCleaner]="false">
                       <select id="roundCreatedByMember" name="created_by_member_id" required>
-                        <option value="" disabled>Person auswählen</option>
-                        @for (member of members; track member.id) {
+                        <option value="" disabled selected>Person auswählen</option>
+                        @for (member of createRoundMembers(); track member.id) {
                           <option [value]="member.id">
                             {{ member.first_name }} {{ member.last_name }} ·
                             {{ memberRoleLabel(member.committee_role) }}

@@ -47,6 +47,7 @@ export class ExamHalfYearsComponent implements OnInit {
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly success = signal<string | null>(null);
+  protected readonly createRoundCommitteeId = signal<number | null>(null);
 
   protected readonly halfYearDraft: HalfYearDraft = {
     season: 'summer',
@@ -205,6 +206,11 @@ export class ExamHalfYearsComponent implements OnInit {
         member: 'Mitglied',
       }[role] ?? role
     );
+  }
+
+  protected createRoundMembers(): CommitteeMember[] {
+    const id = this.createRoundCommitteeId();
+    return id ? this.members.filter((member) => member.committee_id === id) : [];
   }
 
   protected statusLabel(status: string): string {

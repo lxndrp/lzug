@@ -73,7 +73,7 @@ describe('PlanningComponent', () => {
   });
 
   it('should not prioritize the chair when choosing the documented actor', () => {
-    const deputy = { ...membersFixture[0], id: 10, committee_role: 'member' };
+    const deputy = { ...membersFixture[0], id: 10, committee_role: 'deputy_chair' };
     fixture.componentRef.setInput('masterData', {
       ...masterDataFixture,
       members: [deputy, membersFixture[0]],
