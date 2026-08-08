@@ -343,7 +343,7 @@ def spec() -> dict[str, Any]:
                         "id": {"type": "integer"},
                         "name": {"type": "string"},
                         "committee": {"$ref": "#/components/schemas/ConfirmedPlanCommittee"},
-                        "exam_half_year": {"type": "object"},
+                        "exam_half_year": {"$ref": "#/components/schemas/ExamHalfYears"},
                     },
                     "required": ("id", "name", "committee", "exam_half_year"),
                 },

@@ -25,6 +25,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
   protected readonly state = signal<ExamDayViewState>('loading');
   protected readonly view = signal<ConfirmedPlanDayView | null>(null);
   private initialized = false;
+  private requestSequence = 0;
 
   ngOnChanges(changes: SimpleChanges): void {
     if (this.initialized && (changes['roundId'] || changes['dayId'])) this.load();
@@ -36,16 +37,27 @@ export class ExamDayComponent implements OnInit, OnChanges {
   }
 
   protected load(): void {
-    if (this.dayId === null) {
+    const requestSequence = ++this.requestSequence;
+    const requestedDayId = this.dayId;
+    const requestedRoundId = this.roundId;
+
+    if (requestedDayId === null) {
       this.view.set(null);
       this.state.set('not-found');
       return;
     }
 
     this.state.set('loading');
-    this.api.getConfirmedPlanDay(this.dayId).subscribe({
+    this.api.getConfirmedPlanDay(requestedDayId).subscribe({
       next: (view) => {
-        if (this.roundId !== null && view.plan.id !== this.roundId) {
+        if (
+          requestSequence !== this.requestSequence ||
+          this.dayId !== requestedDayId ||
+          this.roundId !== requestedRoundId
+        ) {
+          return;
+        }
+        if (requestedRoundId !== null && view.plan.id !== requestedRoundId) {
           this.view.set(null);
           this.state.set('not-found');
           return;
@@ -54,6 +66,13 @@ export class ExamDayComponent implements OnInit, OnChanges {
         this.state.set('ready');
       },
       error: (error: HttpErrorResponse) => {
+        if (
+          requestSequence !== this.requestSequence ||
+          this.dayId !== requestedDayId ||
+          this.roundId !== requestedRoundId
+        ) {
+          return;
+        }
         this.view.set(null);
         this.state.set(error.status === 404 ? 'not-found' : 'error');
       },
@@ -65,7 +84,10 @@ export class ExamDayComponent implements OnInit, OnChanges {
     return roundId === null ? '/confirmed-plans' : `/confirmed-plans/${roundId}`;
   }
 
-  protected goBack(event: Event): void {
+  protected goBack(event: MouseEvent): void {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
     event.preventDefault();
     void this.router.navigateByUrl(this.backHref());
   }

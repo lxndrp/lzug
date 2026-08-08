@@ -80,7 +80,10 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges {
     return `/confirmed-plans/${planId}/days/${dayId}`;
   }
 
-  protected openDay(planId: number, dayId: number, event: Event): void {
+  protected openDay(planId: number, dayId: number, event: MouseEvent): void {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
     event.preventDefault();
     void this.router.navigateByUrl(this.dayHref(planId, dayId));
   }

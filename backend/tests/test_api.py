@@ -50,6 +50,12 @@ class ApiTests(unittest.TestCase):
                     "exam_half_year"
                 ],
             )
+            self.assertEqual(
+                {"$ref": "#/components/schemas/ExamHalfYears"},
+                spec["components"]["schemas"]["ConfirmedPlanDayView"]["properties"]["plan"][
+                    "properties"
+                ]["exam_half_year"],
+            )
 
             status, headers, body = api.request_raw("GET", "/api/docs")
             assert_status(status, HTTPStatus.OK)

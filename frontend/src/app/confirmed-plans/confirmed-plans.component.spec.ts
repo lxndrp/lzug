@@ -109,6 +109,25 @@ describe('ConfirmedPlansComponent', () => {
     click(fixture.nativeElement as HTMLElement, 'Erneut versuchen');
     http.expectOne('/api/confirmed-plans').flush({ items: [], _links: {} });
   });
+
+  it('keeps modified day-link clicks as native navigation', () => {
+    fixture.detectChanges();
+    http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
+    fixture.detectChanges();
+
+    const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>(
+      'a[href="/confirmed-plans/1/days/1"]',
+    );
+    expect(link).not.toBeNull();
+    const event = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      metaKey: true,
+    });
+    link?.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+  });
 });
 
 function click(element: HTMLElement, label: string): void {
