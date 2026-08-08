@@ -46,6 +46,10 @@ die technische Referenz im [Entwicklerhandbuch](docs/developers/index.md).
   für Issue-Arbeit entstehen mit `scripts/create-issue-pr.sh`; sie schließen
   vollständige Umsetzungen mit `Closes #<nummer>`. CI und Review bleiben
   Voraussetzung für den Merge.
+- Qualifizierte Dependabot-PRs werden nur durch den dafür vorgesehenen Workflow
+  für Squash-Auto-Merge angemeldet. Das bestehende Ruleset und die CI bleiben
+  maßgeblich; Major-, GitHub-Actions-, konfliktbehaftete und nicht eindeutig
+  klassifizierte Updates bleiben manuell.
 - Der Merge-Closeout erfolgt nach Merge, erfolgreicher CI und Review im selben
   Umsetzungsthread: Zuerst den Worktree auf lokale Reständerungen prüfen. Bei
   Reständerungen den Closeout stoppen, die betroffenen Dateien benennen und
