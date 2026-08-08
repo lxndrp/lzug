@@ -307,7 +307,10 @@ test.describe('lzug browser workflows', () => {
     }
     await page.getByRole('button', { name: 'Prüfung starten' }).click();
     await expect(page.getByRole('button', { name: 'Gestartet' })).toBeVisible();
-    await expect(page.getByText('08:31')).toBeVisible();
+    const expectedStartedTime = new Intl.DateTimeFormat('de-DE', {
+      timeStyle: 'short',
+    }).format(new Date('2026-11-16T08:31:00+01:00'));
+    await expect(page.getByText(expectedStartedTime)).toBeVisible();
     await page.getByRole('link', { name: 'Zurück zum Prüfungsplan' }).click();
     await expect(page).toHaveURL('/confirmed-plans/1');
   });
