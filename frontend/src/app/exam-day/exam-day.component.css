@@ -1,0 +1,86 @@
+:host {
+  display: block;
+}
+
+.app-exam-day-message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.app-exam-day-header {
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.app-exam-day-header h2,
+.app-exam-day-header p {
+  margin: 0;
+}
+
+.app-exam-day-header h2 {
+  margin-top: 0.2rem;
+}
+
+.app-exam-day-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+}
+
+.app-exam-day-facts div {
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: 0.5rem;
+}
+
+.app-exam-day-facts dt {
+  color: var(--app-color-text-muted);
+  font-size: 0.85rem;
+}
+
+.app-exam-day-facts dd {
+  margin: 0.25rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.app-exam-day-section {
+  margin-top: 1.5rem;
+}
+
+.app-exam-day-section h3 {
+  margin: 0 0 0.75rem;
+}
+
+.app-exam-day-section table {
+  width: 100%;
+  min-width: 46rem;
+  border-collapse: collapse;
+}
+
+.app-exam-day-section th,
+.app-exam-day-section td {
+  padding: 0.65rem;
+  border-bottom: 1px solid var(--app-color-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .app-exam-day-header {
+    flex-direction: column;
+  }
+
+  .app-exam-day-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .app-exam-day-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

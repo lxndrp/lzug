@@ -10,6 +10,7 @@ import {
   CandidateCommitteeAssignment,
   CandidateDayGenerationResult,
   ConfirmedPlan,
+  ConfirmedPlanDayView,
   CandidateExamDay,
   CandidateView,
   Committee,
@@ -86,6 +87,10 @@ export class PlanningApiService {
 
   getConfirmedPlans() {
     return this.list<ConfirmedPlan>('/api/confirmed-plans');
+  }
+
+  getConfirmedPlanDay(dayId: number) {
+    return this.http.get<ConfirmedPlanDayView>(`/api/confirmed-plan-days/${dayId}`);
   }
 
   createExamHalfYear(payload: Pick<ExamHalfYear, 'season' | 'year' | 'status'>) {

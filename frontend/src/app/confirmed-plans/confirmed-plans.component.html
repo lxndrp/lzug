@@ -83,6 +83,14 @@
                   } @else {
                     <p>Prüfungsort nicht hinterlegt</p>
                   }
+                  <a
+                    tuiButton
+                    appearance="secondary"
+                    [href]="dayHref(plan.id, day.id)"
+                    (click)="openDay(plan.id, day.id, $event)"
+                  >
+                    Tagesansicht öffnen
+                  </a>
                 </header>
                 <div class="app-table-scroll" role="region" tabindex="0" aria-label="Prüfungsslots">
                   <table class="app-confirmed-slots">

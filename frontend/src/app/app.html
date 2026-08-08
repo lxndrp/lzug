@@ -244,6 +244,9 @@
             @case ('confirmed-plans') {
               <app-confirmed-plans [roundId]="contextualRoundId()" />
             }
+            @case ('exam-day') {
+              <app-exam-day [roundId]="contextualRoundId()" [dayId]="contextualDayId()" />
+            }
             @case ('candidates') {
               <app-candidates
                 [masterData]="masterData()"

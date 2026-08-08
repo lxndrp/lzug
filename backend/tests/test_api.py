@@ -42,6 +42,7 @@ class ApiTests(unittest.TestCase):
             self.assertIn("/api/exam-rounds/{id}/request-availabilities", spec["paths"])
             self.assertIn("/api/candidate-exam-days/generate", spec["paths"])
             self.assertIn("/api/confirmed-plans", spec["paths"])
+            self.assertIn("/api/confirmed-plan-days/{id}", spec["paths"])
             self.assertIn("Candidates", spec["components"]["schemas"])
             self.assertEqual(
                 {"$ref": "#/components/schemas/ExamHalfYears"},
@@ -61,6 +62,12 @@ class ApiTests(unittest.TestCase):
             assert_status(status, HTTPStatus.CREATED)
             self.assertEqual("plan_proposed", proposal["status"])
 
+            proposed_day_id = proposal["exam_days"][0]["id"]
+            status, _proposed_day = api.request(
+                "GET", f"/api/confirmed-plan-days/{proposed_day_id}"
+            )
+            assert_status(status, HTTPStatus.NOT_FOUND)
+
             status, empty_calendar = api.request("GET", "/api/confirmed-plans")
             assert_status(status, HTTPStatus.OK)
             self.assertEqual([], empty_calendar["items"])
@@ -79,6 +86,15 @@ class ApiTests(unittest.TestCase):
             self.assertIn("candidate", first_day["slots"][0])
             self.assertIn(first_day["slots"][0]["slot_type"], {"regular", "mep"})
             self.assertEqual("confirmed", first_day["assignments"][-1]["fallback_status"])
+
+            status, day_view = api.request("GET", f"/api/confirmed-plan-days/{first_day['id']}")
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(plan["id"], day_view["plan"]["id"])
+            self.assertEqual(first_day["id"], day_view["day"]["id"])
+            self.assertEqual(plan["name"], day_view["plan"]["name"])
+
+            status, _missing_day = api.request("GET", "/api/confirmed-plan-days/999999")
+            assert_status(status, HTTPStatus.NOT_FOUND)
 
     def test_scheduling_overview_groups_active_rounds_and_excludes_finished_work(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:

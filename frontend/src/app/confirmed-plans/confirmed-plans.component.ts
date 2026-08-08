@@ -8,6 +8,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { Router } from '@angular/router';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 
@@ -24,6 +25,7 @@ export type ViewState = 'loading' | 'ready' | 'error';
 })
 export class ConfirmedPlansComponent implements OnInit, OnChanges {
   private readonly api = inject(PlanningApiService);
+  private readonly router = inject(Router);
 
   @Input() roundId: number | null = null;
   protected readonly state = signal<ViewState>('loading');
@@ -72,6 +74,15 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges {
 
   protected selectCommittee(id: number): void {
     this.selectedCommitteeId.set(id);
+  }
+
+  protected dayHref(planId: number, dayId: number): string {
+    return `/confirmed-plans/${planId}/days/${dayId}`;
+  }
+
+  protected openDay(planId: number, dayId: number, event: Event): void {
+    event.preventDefault();
+    void this.router.navigateByUrl(this.dayHref(planId, dayId));
   }
 
   protected selectCommitteeWithKeyboard(event: KeyboardEvent, currentIndex: number): void {
