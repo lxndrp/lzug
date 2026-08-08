@@ -767,6 +767,28 @@ class ResourceRepository:
                 plans, key=lambda plan: (plan["committee"]["name"], plan["name"], plan["id"])
             )
 
+    def confirmed_plan_day(self, day_id: int) -> dict[str, Any] | None:
+        """Return one day from the published read model, or no result.
+
+        Reusing the confirmed-plan read model keeps the server-side state
+        boundary identical for the calendar and the operational day view.
+        Unknown, proposed, and cancelled days therefore never become usable
+        through the focused endpoint.
+        """
+        for plan in self.confirmed_plans():
+            for day in plan["days"]:
+                if day["id"] == day_id:
+                    return {
+                        "plan": {
+                            "id": plan["id"],
+                            "name": plan["name"],
+                            "committee": plan["committee"],
+                            "exam_half_year": plan["exam_half_year"],
+                        },
+                        "day": day,
+                    }
+        return None
+
     def _first(
         self,
         store: Store,

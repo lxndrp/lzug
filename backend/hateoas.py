@@ -165,6 +165,30 @@ def confirmed_plans(items: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def confirmed_plan_day(item: dict[str, Any]) -> dict[str, Any]:
+    plan = {
+        **item["plan"],
+        "exam_half_year": {
+            **item["plan"]["exam_half_year"],
+            "_links": {
+                "self": {"href": f"/api/exam-half-years/{item['plan']['exam_half_year']['id']}"},
+                "collection": {"href": "/api/exam-half-years"},
+            },
+        },
+    }
+    day = item["day"]
+    return {
+        **item,
+        "plan": plan,
+        "_links": {
+            "self": {"href": f"/api/confirmed-plan-days/{day['id']}"},
+            "api": {"href": "/api"},
+            "confirmed-plan": {"href": "/api/confirmed-plans"},
+            "round": {"href": f"/api/exam-rounds/{plan['id']}"},
+        },
+    }
+
+
 def planning_proposal(proposal: dict[str, Any]) -> dict[str, Any]:
     round_id = proposal["round_id"]
     linked = dict(proposal)

@@ -209,6 +209,39 @@ test.describe('lzug browser workflows', () => {
       'true',
     );
     await expect(page.getByText('Prüfling Plan-Beta')).toBeVisible();
+    await northTab.click();
+
+    const selectedPlan = confirmedPlan(
+      1,
+      'Prüfungsausschuss Plan Alpha',
+      'Prüfling',
+      'Plan-Alpha',
+      'mep',
+    );
+    await page.route('**/api/confirmed-plan-days/1', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          plan: {
+            id: selectedPlan.id,
+            name: selectedPlan.name,
+            committee: selectedPlan.committee,
+            exam_half_year: selectedPlan.exam_half_year,
+          },
+          day: selectedPlan.days[0],
+          _links: {},
+        }),
+      }),
+    );
+    await page.getByRole('link', { name: 'Tagesansicht öffnen' }).first().click();
+    await expect(page).toHaveURL('/confirmed-plans/1/days/1');
+    await expect(page.getByRole('heading', { name: 'Prüfungstag' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Prüfer- und Fallback-Besetzung' }),
+    ).toBeVisible();
+    await expect(page.getByText('IHK-Prüfungsnummer')).toBeVisible();
+    await page.getByRole('link', { name: 'Zurück zum Prüfungsplan' }).click();
+    await expect(page).toHaveURL('/confirmed-plans/1');
   });
 
   test('navigates through the application views', async ({ page }) => {
