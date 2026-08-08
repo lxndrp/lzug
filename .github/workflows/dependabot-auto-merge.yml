@@ -60,7 +60,10 @@ jobs:
         run: |
           mergeable=UNKNOWN
           for attempt in 1 2 3 4 5; do
-            mergeable="$(gh pr view "$PR_URL" --json mergeable --jq '.mergeable')"
+            if ! mergeable="$(gh pr view "$PR_URL" --json mergeable --jq '.mergeable')"; then
+              echo "Could not determine mergeability on attempt $attempt."
+              mergeable=UNKNOWN
+            fi
             if [ "$mergeable" != "UNKNOWN" ]; then
               break
             fi
