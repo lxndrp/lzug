@@ -33,7 +33,7 @@
       <div>
         <p class="app-eyebrow">Bestätigter Prüfungstag</p>
         <h2>{{ dateLabel(current.day.date) }}</h2>
-        <p class="app-muted">Read-only Tagesansicht für die Durchführung</p>
+        <p class="app-muted">Anwesenheit und tatsächlichen Prüfungsstart dokumentieren</p>
       </div>
       <a tuiButton appearance="secondary" [href]="backHref()" (click)="goBack($event)">
         Zurück zum Prüfungsplan
@@ -41,6 +41,14 @@
     </header>
 
     <div class="app-panel-body">
+      @if (actionMessage(); as message) {
+        <p class="app-exam-day-feedback app-exam-day-feedback-success" role="status">
+          {{ message }}
+        </p>
+      }
+      @if (actionError(); as message) {
+        <p class="app-exam-day-feedback app-exam-day-feedback-error" role="alert">{{ message }}</p>
+      }
       <dl class="app-exam-day-facts">
         <div>
           <dt>Ausschuss</dt>
@@ -62,7 +70,7 @@
 
       <section class="app-exam-day-section" aria-labelledby="examDaySlotsHeading">
         <h3 id="examDaySlotsHeading">Prüfungsslots</h3>
-        <div class="app-table-scroll" role="region" tabindex="0" aria-label="Prüfungsslots">
+        <div class="app-table-scroll" role="region" tabindex="0" aria-label="Prüfungsslots-Tabelle">
           <table class="app-exam-day-slots">
             <thead>
               <tr>
@@ -70,10 +78,15 @@
                 <th scope="col">Prüfung</th>
                 <th scope="col">Prüfling</th>
                 <th scope="col">IHK-Prüfungsnummer</th>
+                <th scope="col">Anwesenheit</th>
+                <th scope="col">Tatsächlicher Start</th>
+                <th scope="col">Aktion</th>
               </tr>
             </thead>
             <tbody>
               @for (slot of current.day.slots; track slot.id) {
+                @let candidateAttendance = candidateAttendanceFor(slot);
+                @let draft = attendanceDraft('candidate-' + slot.id, candidateAttendance);
                 <tr>
                   <td>{{ timeLabel(slot.starts_at) }}–{{ timeLabel(slot.ends_at) }}</td>
                   <td>
@@ -83,10 +96,65 @@
                   </td>
                   <td>{{ slot.candidate.first_name }} {{ slot.candidate.last_name }}</td>
                   <td>{{ slot.candidate.ihk_exam_number }}</td>
+                  <td>
+                    <span tuiBadge [appearance]="statusAppearance(candidateAttendance.status)">
+                      {{ statusLabel(candidateAttendance.status) }}
+                    </span>
+                    <span class="app-exam-day-arrival">{{
+                      arrivalLabel(candidateAttendance.arrived_at)
+                    }}</span>
+                    <label class="app-sr-only" [for]="'candidate-status-' + slot.id"
+                      >Status Prüfling</label
+                    >
+                    <select [id]="'candidate-status-' + slot.id" [(ngModel)]="draft.status">
+                      <option value="open">Offen</option>
+                      <option value="present">Anwesend</option>
+                      <option value="late">Verspätet</option>
+                      <option value="absent">Abwesend</option>
+                    </select>
+                    <label class="app-sr-only" [for]="'candidate-arrival-' + slot.id"
+                      >Ankunftszeit Prüfling</label
+                    >
+                    <input
+                      [id]="'candidate-arrival-' + slot.id"
+                      type="datetime-local"
+                      [(ngModel)]="draft.arrivedAt"
+                      [required]="draft.status === 'late'"
+                    />
+                  </td>
+                  <td>
+                    {{
+                      slot.actual_started_at
+                        ? arrivalLabel(slot.actual_started_at)
+                        : 'Noch nicht erfasst'
+                    }}
+                  </td>
+                  <td class="app-exam-day-actions">
+                    <button
+                      tuiButton
+                      appearance="secondary"
+                      type="button"
+                      [disabled]="hasSavingAction()"
+                      (click)="saveCandidateAttendance(slot.id, draft)"
+                    >
+                      {{
+                        isSaving('candidate-' + slot.id) ? 'Speichert …' : 'Anwesenheit speichern'
+                      }}
+                    </button>
+                    <button
+                      tuiButton
+                      appearance="primary"
+                      type="button"
+                      [disabled]="!!slot.actual_started_at || hasSavingAction()"
+                      (click)="startExamSlot(slot.id)"
+                    >
+                      {{ slot.actual_started_at ? 'Gestartet' : 'Prüfung starten' }}
+                    </button>
+                  </td>
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="4">Keine bestätigten Slots an diesem Tag.</td>
+                  <td colspan="7">Keine bestätigten Slots an diesem Tag.</td>
                 </tr>
               }
             </tbody>
@@ -105,10 +173,14 @@
                 <th scope="col">Vertreterseite</th>
                 <th scope="col">Tagesabschnitt</th>
                 <th scope="col">Fallback-Status</th>
+                <th scope="col">Anwesenheit</th>
+                <th scope="col">Aktion</th>
               </tr>
             </thead>
             <tbody>
               @for (assignment of current.day.assignments; track assignment.id) {
+                @let memberAttendance = memberAttendanceFor(assignment);
+                @let draft = attendanceDraft('member-' + assignment.id, memberAttendance);
                 <tr>
                   <td>
                     <span
@@ -124,10 +196,51 @@
                   <td>{{ representingSideLabel(assignment.member.representing_side) }}</td>
                   <td>{{ dayPartLabel(assignment.day_part) }}</td>
                   <td>{{ fallbackStatusLabel(assignment.fallback_status) }}</td>
+                  <td>
+                    <span tuiBadge [appearance]="statusAppearance(memberAttendance.status)">
+                      {{ statusLabel(memberAttendance.status) }}
+                    </span>
+                    <span class="app-exam-day-arrival">{{
+                      arrivalLabel(memberAttendance.arrived_at)
+                    }}</span>
+                    <label class="app-sr-only" [for]="'member-status-' + assignment.id"
+                      >Status Besetzung</label
+                    >
+                    <select [id]="'member-status-' + assignment.id" [(ngModel)]="draft.status">
+                      <option value="open">Offen</option>
+                      <option value="present">Anwesend</option>
+                      <option value="late">Verspätet</option>
+                      <option value="absent">Abwesend</option>
+                    </select>
+                    <label class="app-sr-only" [for]="'member-arrival-' + assignment.id"
+                      >Ankunftszeit Besetzung</label
+                    >
+                    <input
+                      [id]="'member-arrival-' + assignment.id"
+                      type="datetime-local"
+                      [(ngModel)]="draft.arrivedAt"
+                      [required]="draft.status === 'late'"
+                    />
+                  </td>
+                  <td class="app-exam-day-actions">
+                    <button
+                      tuiButton
+                      appearance="secondary"
+                      type="button"
+                      [disabled]="hasSavingAction()"
+                      (click)="saveMemberAttendance(assignment.id, draft)"
+                    >
+                      {{
+                        isSaving('member-' + assignment.id)
+                          ? 'Speichert …'
+                          : 'Anwesenheit speichern'
+                      }}
+                    </button>
+                  </td>
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="5">Keine bestätigte Prüfer- oder Fallback-Besetzung hinterlegt.</td>
+                  <td colspan="7">Keine bestätigte Prüfer- oder Fallback-Besetzung hinterlegt.</td>
                 </tr>
               }
             </tbody>

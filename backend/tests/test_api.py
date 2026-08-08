@@ -102,6 +102,98 @@ class ApiTests(unittest.TestCase):
             status, _missing_day = api.request("GET", "/api/confirmed-plan-days/999999")
             assert_status(status, HTTPStatus.NOT_FOUND)
 
+    def test_exam_day_attendance_and_start_rules_are_persistent_and_idempotent(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, _proposal = api.request("POST", "/api/planning-proposals", {"round_id": 1})
+            assert_status(status, HTTPStatus.CREATED)
+            status, _confirmed = api.request("POST", "/api/exam-rounds/1/confirm-plan", {})
+            assert_status(status, HTTPStatus.OK)
+            status, calendar = api.request("GET", "/api/confirmed-plans")
+            assert_status(status, HTTPStatus.OK)
+            day = calendar["items"][0]["days"][0]
+            slot = day["slots"][0]
+            morning_assignments = [
+                assignment
+                for assignment in day["assignments"]
+                if assignment["assignment_role"] == "examiner"
+                and assignment["day_part"] == "morning"
+            ]
+
+            status, error = api.request(
+                "PATCH",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/attendance",
+                {"status": "late"},
+            )
+            assert_status(status, HTTPStatus.BAD_REQUEST)
+            self.assertIn("Ankunftszeit", error["error"])
+
+            status, updated = api.request(
+                "PATCH",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/attendance",
+                {"status": "late", "arrived_at": "2026-11-16T08:24:00+01:00"},
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("late", updated["day"]["slots"][0]["candidate_attendance"]["status"])
+
+            status, updated = api.request(
+                "PATCH",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/attendance",
+                {"status": "present", "arrived_at": None},
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(
+                {"status": "present", "arrived_at": None},
+                updated["day"]["slots"][0]["candidate_attendance"],
+            )
+
+            status, blocked = api.request(
+                "POST",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/start",
+                {"actual_started_at": "2026-11-16T08:31:00+01:00"},
+            )
+            assert_status(status, HTTPStatus.BAD_REQUEST)
+            self.assertIn("reguläre Prüfer", blocked["error"])
+
+            for assignment in morning_assignments:
+                status, _updated = api.request(
+                    "PATCH",
+                    f"/api/confirmed-plan-days/{day['id']}/assignments/{assignment['id']}/attendance",
+                    {"status": "present", "arrived_at": "2026-11-16T08:10:00+01:00"},
+                )
+                assert_status(status, HTTPStatus.OK)
+
+            status, started = api.request(
+                "POST",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/start",
+                {"actual_started_at": "2026-11-16T08:31:00+01:00"},
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(
+                "2026-11-16T08:31:00+01:00", started["day"]["slots"][0]["actual_started_at"]
+            )
+
+            status, repeated = api.request(
+                "POST",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/start",
+                {},
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(
+                "2026-11-16T08:31:00+01:00", repeated["day"]["slots"][0]["actual_started_at"]
+            )
+
+            status, reloaded = api.request("GET", f"/api/confirmed-plan-days/{day['id']}")
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(
+                "present", reloaded["day"]["slots"][0]["candidate_attendance"]["status"]
+            )
+            reloaded_morning = next(
+                assignment
+                for assignment in reloaded["day"]["assignments"]
+                if assignment["id"] == morning_assignments[0]["id"]
+            )
+            self.assertEqual("present", reloaded_morning["attendance"]["status"])
+
     def test_scheduling_overview_groups_active_rounds_and_excludes_finished_work(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             for year, name, round_status in (

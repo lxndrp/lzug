@@ -158,8 +158,8 @@ test.describe('lzug browser workflows', () => {
         await expect(page.getByText('08:30–09:30', { exact: true })).toBeVisible();
         await expect(page.getByText('MEP-Prüfung')).toBeVisible();
         await expect(page.getByText('Ersatzprüfer/in')).toBeVisible();
-        await expect(page.getByText('Arbeitgeber', { exact: true })).toBeVisible();
-        await expect(page.getByText('Arbeitnehmer', { exact: true })).toBeVisible();
+        await expect(page.getByText('Arbeitgeber', { exact: true }).first()).toBeVisible();
+        await expect(page.getByText('Arbeitnehmer', { exact: true }).first()).toBeVisible();
         await expect(page.getByText('Schule', { exact: true })).toBeVisible();
         await expect(page.getByText('employee', { exact: true })).toHaveCount(0);
 
@@ -218,6 +218,7 @@ test.describe('lzug browser workflows', () => {
       'Plan-Alpha',
       'mep',
     );
+    const operationalDay = structuredClone(selectedPlan.days[0]);
     await page.route('**/api/confirmed-plan-days/1', (route) =>
       route.fulfill({
         contentType: 'application/json',
@@ -228,11 +229,58 @@ test.describe('lzug browser workflows', () => {
             committee: selectedPlan.committee,
             exam_half_year: selectedPlan.exam_half_year,
           },
-          day: selectedPlan.days[0],
+          day: operationalDay,
           _links: {},
         }),
       }),
     );
+    let startAttempts = 0;
+    await page.route('**/api/confirmed-plan-days/1/**', async (route) => {
+      const request = route.request();
+      const body = request.postDataJSON() as { status?: string; arrived_at?: string } | null;
+      if (request.method() === 'PATCH') {
+        const assignmentMatch = request.url().match(/assignments\/(\d+)\/attendance$/);
+        if (assignmentMatch) {
+          const assignment = operationalDay.assignments.find(
+            (item) => item.id === Number(assignmentMatch[1]),
+          );
+          if (assignment && body) {
+            assignment.attendance = { status: body.status!, arrived_at: body.arrived_at ?? null };
+          }
+        } else if (body) {
+          operationalDay.slots[0].candidate_attendance = {
+            status: body.status!,
+            arrived_at: body.arrived_at ?? null,
+          };
+        }
+      } else if (request.method() === 'POST') {
+        startAttempts += 1;
+        if (startAttempts === 1) {
+          await route.fulfill({
+            status: 400,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              error: 'Mindestens drei anwesende reguläre Prüfer sind erforderlich',
+            }),
+          });
+          return;
+        }
+        operationalDay.slots[0].actual_started_at = '2026-11-16T08:31:00+01:00';
+      }
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          plan: {
+            id: selectedPlan.id,
+            name: selectedPlan.name,
+            committee: selectedPlan.committee,
+            exam_half_year: selectedPlan.exam_half_year,
+          },
+          day: operationalDay,
+          _links: {},
+        }),
+      });
+    });
     await page.getByRole('link', { name: 'Tagesansicht öffnen' }).first().click();
     await expect(page).toHaveURL('/confirmed-plans/1/days/1');
     await expect(page.getByRole('heading', { name: 'Prüfungstag' })).toBeVisible();
@@ -240,6 +288,29 @@ test.describe('lzug browser workflows', () => {
       page.getByRole('heading', { name: 'Prüfer- und Fallback-Besetzung' }),
     ).toBeVisible();
     await expect(page.getByText('IHK-Prüfungsnummer')).toBeVisible();
+    await page.getByLabel('Status Prüfling').selectOption('present');
+    await page.getByLabel('Ankunftszeit Prüfling').fill('2026-11-16T08:24');
+    await page.getByRole('button', { name: 'Anwesenheit speichern' }).first().click();
+    await expect(page.getByText('Änderung gespeichert.')).toBeVisible();
+    await page.getByRole('button', { name: 'Prüfung starten' }).click();
+    await expect(page.getByRole('alert')).toContainText(
+      'Mindestens drei anwesende reguläre Prüfer',
+    );
+
+    const regularRows = page
+      .locator('.app-exam-day-assignments tbody tr')
+      .filter({ has: page.getByText('Prüfer/in') });
+    for (const row of await regularRows.all()) {
+      await row.getByRole('combobox').selectOption('present');
+      await row.locator('input[type="datetime-local"]').fill('2026-11-16T08:10');
+      await row.getByRole('button', { name: 'Anwesenheit speichern' }).click();
+    }
+    await page.getByRole('button', { name: 'Prüfung starten' }).click();
+    await expect(page.getByRole('button', { name: 'Gestartet' })).toBeVisible();
+    const expectedStartedTime = new Intl.DateTimeFormat('de-DE', {
+      timeStyle: 'short',
+    }).format(new Date('2026-11-16T08:31:00+01:00'));
+    await expect(page.getByText(expectedStartedTime)).toBeVisible();
     await page.getByRole('link', { name: 'Zurück zum Prüfungsplan' }).click();
     await expect(page).toHaveURL('/confirmed-plans/1');
   });
@@ -740,6 +811,35 @@ test.describe('lzug browser workflows', () => {
 });
 
 test.describe('lzug theme and accessibility matrix', () => {
+  test('keeps exam-day attendance controls keyboard-accessible @a11y', async ({ page }) => {
+    const plan = confirmedPlan(1, 'Prüfungsausschuss Accessibility', 'Prüfling', 'A11y', 'regular');
+    await page.route('**/api/confirmed-plan-days/1', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          plan: {
+            id: plan.id,
+            name: plan.name,
+            committee: plan.committee,
+            exam_half_year: plan.exam_half_year,
+          },
+          day: plan.days[0],
+          _links: {},
+        }),
+      }),
+    );
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/confirmed-plans/1/days/1');
+    await expect(page.getByRole('heading', { name: 'Prüfungstag' })).toBeVisible();
+    await page.getByLabel('Status Prüfling').focus();
+    await expect(page.getByLabel('Status Prüfling')).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(page.getByLabel('Ankunftszeit Prüfling')).toBeFocused();
+    expect((await new AxeBuilder({ page }).include('app-exam-day').analyze()).violations).toEqual(
+      [],
+    );
+  });
+
   test('keeps the closed mobile navigation out of the accessibility tree @a11y', async ({
     page,
   }) => {
@@ -852,6 +952,8 @@ function confirmedPlan(
             ends_at: '2026-11-16T09:30:00',
             sequence_number: 1,
             slot_type: slotType,
+            actual_started_at: null,
+            candidate_attendance: { status: 'open', arrived_at: null },
             candidate: {
               id,
               first_name: firstName,
@@ -866,6 +968,7 @@ function confirmedPlan(
             assignment_role: 'examiner',
             day_part: 'full_day',
             fallback_status: null,
+            attendance: { status: 'open', arrived_at: null },
             member: {
               id: id * 10,
               first_name: 'Testperson',
@@ -878,6 +981,7 @@ function confirmedPlan(
             assignment_role: 'fallback',
             day_part: 'morning',
             fallback_status: 'confirmed',
+            attendance: { status: 'open', arrived_at: null },
             member: {
               id: id * 10 + 1,
               first_name: 'Testperson',
@@ -888,13 +992,27 @@ function confirmedPlan(
           {
             id: id * 10 + 2,
             assignment_role: 'examiner',
-            day_part: 'afternoon',
+            day_part: 'full_day',
             fallback_status: null,
+            attendance: { status: 'open', arrived_at: null },
             member: {
               id: id * 10 + 2,
               first_name: 'Testperson',
               last_name: 'Langname-Schulseite',
               representing_side: 'school',
+            },
+          },
+          {
+            id: id * 10 + 3,
+            assignment_role: 'examiner',
+            day_part: 'full_day',
+            fallback_status: null,
+            attendance: { status: 'open', arrived_at: null },
+            member: {
+              id: id * 10 + 3,
+              first_name: 'Testperson',
+              last_name: 'Langname-Arbeitnehmerseite',
+              representing_side: 'employee',
             },
           },
         ],

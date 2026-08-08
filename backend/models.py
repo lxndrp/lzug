@@ -280,6 +280,7 @@ class ExamSlot(Base):
     ends_at: Mapped[str] = mapped_column(String)
     sequence_number: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String, server_default=sql_text("'proposed'"))
+    actual_started_at: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[str] = mapped_column(
         String,
         server_default=sql_text("CURRENT_TIMESTAMP"),
@@ -299,6 +300,43 @@ class ExamDayAssignment(Base):
     assignment_role: Mapped[str] = mapped_column(String)
     day_part: Mapped[str] = mapped_column(String)
     fallback_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+
+class CandidateExamAttendance(Base):
+    __tablename__ = "candidate_exam_attendance"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_slot_id: Mapped[int] = mapped_column(ForeignKey("exam_slot.id", ondelete="CASCADE"))
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'open'"))
+    arrived_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+
+class MemberExamAttendance(Base):
+    __tablename__ = "member_exam_attendance"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_day_id: Mapped[int] = mapped_column(ForeignKey("exam_day.id", ondelete="CASCADE"))
+    committee_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'open'"))
+    arrived_at: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[str] = mapped_column(
         String,
         server_default=sql_text("CURRENT_TIMESTAMP"),
@@ -590,6 +628,7 @@ EXAM_SLOT = Resource(
         "ends_at",
         "sequence_number",
         "status",
+        "actual_started_at",
         "created_at",
         "updated_at",
     ),
@@ -624,4 +663,25 @@ EXAM_DAY_ASSIGNMENT = Resource(
         "day_part",
         "fallback_status",
     ),
+)
+
+CANDIDATE_EXAM_ATTENDANCE = Resource(
+    model=CandidateExamAttendance,
+    fields=("exam_slot_id", "status", "arrived_at", "created_at", "updated_at"),
+    order_by=("exam_slot_id",),
+    writable_fields=("exam_slot_id", "status", "arrived_at"),
+)
+
+MEMBER_EXAM_ATTENDANCE = Resource(
+    model=MemberExamAttendance,
+    fields=(
+        "exam_day_id",
+        "committee_member_id",
+        "status",
+        "arrived_at",
+        "created_at",
+        "updated_at",
+    ),
+    order_by=("exam_day_id", "committee_member_id"),
+    writable_fields=("exam_day_id", "committee_member_id", "status", "arrived_at"),
 )

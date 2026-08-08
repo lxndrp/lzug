@@ -123,6 +123,45 @@ def spec() -> dict[str, Any]:
                 },
             }
         },
+        "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/attendance": {
+            "patch": {
+                "summary": "Record attendance for the candidate of a confirmed slot",
+                "operationId": "recordCandidateAttendance",
+                "parameters": [path_parameter("day_id"), path_parameter("slot_id")],
+                "requestBody": json_request("AttendanceWrite"),
+                "responses": {
+                    "200": json_response("ConfirmedPlanDayView"),
+                    "400": json_response("Error"),
+                    "404": json_response("Error"),
+                },
+            }
+        },
+        "/api/confirmed-plan-days/{day_id}/assignments/{assignment_id}/attendance": {
+            "patch": {
+                "summary": "Record attendance for a confirmed day assignment",
+                "operationId": "recordMemberAttendance",
+                "parameters": [path_parameter("day_id"), path_parameter("assignment_id")],
+                "requestBody": json_request("AttendanceWrite"),
+                "responses": {
+                    "200": json_response("ConfirmedPlanDayView"),
+                    "400": json_response("Error"),
+                    "404": json_response("Error"),
+                },
+            }
+        },
+        "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/start": {
+            "post": {
+                "summary": "Record the actual start of an eligible confirmed slot",
+                "operationId": "startConfirmedSlot",
+                "parameters": [path_parameter("day_id"), path_parameter("slot_id")],
+                "requestBody": json_request("ExamSlotStartWrite"),
+                "responses": {
+                    "200": json_response("ConfirmedPlanDayView"),
+                    "400": json_response("Error"),
+                    "404": json_response("Error"),
+                },
+            }
+        },
         "/api/candidate-committee-assignments": {
             "get": {
                 "summary": "List candidate committee assignment history",
@@ -378,9 +417,20 @@ def spec() -> dict[str, Any]:
                 "ends_at": {"type": "string"},
                 "sequence_number": {"type": "integer"},
                 "slot_type": {"type": "string"},
+                "actual_started_at": {"type": ["string", "null"]},
+                "candidate_attendance": {"$ref": "#/components/schemas/Attendance"},
                 "candidate": {"type": "object"},
             },
-            required=("id", "starts_at", "ends_at", "sequence_number", "slot_type", "candidate"),
+            required=(
+                "id",
+                "starts_at",
+                "ends_at",
+                "sequence_number",
+                "slot_type",
+                "actual_started_at",
+                "candidate_attendance",
+                "candidate",
+            ),
         ),
         "ConfirmedPlanAssignment": object_schema(
             {
@@ -388,9 +438,40 @@ def spec() -> dict[str, Any]:
                 "assignment_role": {"type": "string"},
                 "day_part": {"type": "string"},
                 "fallback_status": {"type": ["string", "null"]},
+                "attendance": {"$ref": "#/components/schemas/Attendance"},
                 "member": {"type": "object"},
             },
-            required=("id", "assignment_role", "day_part", "fallback_status", "member"),
+            required=(
+                "id",
+                "assignment_role",
+                "day_part",
+                "fallback_status",
+                "attendance",
+                "member",
+            ),
+        ),
+        "Attendance": object_schema(
+            {
+                "status": {
+                    "type": "string",
+                    "enum": ["open", "present", "late", "absent"],
+                },
+                "arrived_at": {"type": ["string", "null"]},
+            },
+            required=("status", "arrived_at"),
+        ),
+        "AttendanceWrite": object_schema(
+            {
+                "status": {
+                    "type": "string",
+                    "enum": ["open", "present", "late", "absent"],
+                },
+                "arrived_at": {"type": ["string", "null"]},
+            },
+            required=("status",),
+        ),
+        "ExamSlotStartWrite": object_schema(
+            {"actual_started_at": {"type": ["string", "null"]}},
         ),
         "PlanningProposalRequest": object_schema(
             {"round_id": {"type": "integer"}},

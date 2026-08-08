@@ -9,6 +9,22 @@
   gap: 0.75rem;
 }
 
+.app-exam-day-feedback {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.4rem;
+}
+
+.app-exam-day-feedback-success {
+  color: var(--app-color-success-text);
+  background: var(--app-color-success-soft);
+}
+
+.app-exam-day-feedback-error {
+  color: var(--app-color-danger-text);
+  background: var(--app-color-danger-soft);
+}
+
 .app-exam-day-header {
   align-items: flex-start;
   gap: 1rem;
@@ -57,7 +73,7 @@
 
 .app-exam-day-section table {
   width: 100%;
-  min-width: 46rem;
+  min-width: 78rem;
   border-collapse: collapse;
 }
 
@@ -67,6 +83,56 @@
   border-bottom: 1px solid var(--app-color-border);
   text-align: left;
   white-space: nowrap;
+}
+
+.app-exam-day-section td {
+  vertical-align: top;
+}
+
+.app-exam-day-arrival {
+  display: block;
+  margin: 0.35rem 0;
+  color: var(--app-color-text-muted);
+  font-size: 0.85rem;
+  white-space: normal;
+}
+
+.app-exam-day-section select,
+.app-exam-day-section input {
+  display: block;
+  width: 100%;
+  min-width: 12rem;
+  margin-top: 0.35rem;
+  padding: 0.45rem;
+  color: var(--app-color-text);
+  background: var(--app-color-surface);
+  border: 1px solid var(--app-color-border);
+  border-radius: 0.3rem;
+  font: inherit;
+}
+
+.app-exam-day-section select:focus,
+.app-exam-day-section input:focus {
+  outline: 3px solid var(--app-color-focus);
+  outline-offset: 1px;
+}
+
+.app-exam-day-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.app-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 @media (max-width: 720px) {

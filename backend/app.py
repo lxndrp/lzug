@@ -168,6 +168,22 @@ class LzugHandler(BaseHTTPRequestHandler):
         try:
             path_parts = self.path_parts(urlparse(self.path).path)
             if (
+                len(path_parts) == 5
+                and path_parts[0] == "confirmed-plan-days"
+                and path_parts[2] == "slots"
+                and path_parts[4] == "start"
+            ):
+                day_id = int(path_parts[1])
+                slot_id = int(path_parts[3])
+                self.repository.start_exam_slot(day_id, slot_id, self.read_json())
+                day = self.repository.confirmed_plan_day(day_id)
+                if day is None:
+                    self.respond({"error": "Confirmed exam day not found"}, HTTPStatus.NOT_FOUND)
+                    return
+                self.respond(hateoas.confirmed_plan_day(day))
+                return
+
+            if (
                 len(path_parts) == 3
                 and path_parts[0] == "exam-rounds"
                 and path_parts[2] == "request-availabilities"
@@ -242,9 +258,28 @@ class LzugHandler(BaseHTTPRequestHandler):
     def do_PATCH(self) -> None:
         """Dispatch partial updates through the repository validation boundary."""
         try:
-            resource_name, entity_id = self.resource_target(
-                self.path_parts(urlparse(self.path).path)
-            )
+            path_parts = self.path_parts(urlparse(self.path).path)
+            if (
+                len(path_parts) == 5
+                and path_parts[0] == "confirmed-plan-days"
+                and path_parts[2] in {"slots", "assignments"}
+                and path_parts[4] == "attendance"
+            ):
+                day_id = int(path_parts[1])
+                entity_id = int(path_parts[3])
+                payload = self.read_json()
+                if path_parts[2] == "slots":
+                    self.repository.save_candidate_attendance(day_id, entity_id, payload)
+                else:
+                    self.repository.save_member_attendance(day_id, entity_id, payload)
+                day = self.repository.confirmed_plan_day(day_id)
+                if day is None:
+                    self.respond({"error": "Confirmed exam day not found"}, HTTPStatus.NOT_FOUND)
+                    return
+                self.respond(hateoas.confirmed_plan_day(day))
+                return
+
+            resource_name, entity_id = self.resource_target(path_parts)
             if resource_name is None or entity_id is None:
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 return
