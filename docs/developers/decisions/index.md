@@ -18,3 +18,8 @@ Historie, machen aber Kontext, Konsequenzen und Verweise dauerhaft auffindbar.
 | [0010](0010-vitest-statt-karma-jasmine.md) | Vitest statt Karma und Jasmine für Frontend-Unit-Tests | Akzeptiert |
 | [0011](0011-github-wiki-handbuch.md) | GitHub Wiki als redaktionelle Handbuchoberfläche | Akzeptiert |
 | [0012](0012-wiki-single-source-of-truth.md) | Redaktionelle Single Source of Truth im GitHub Wiki | Akzeptiert |
+| [0013](0013-dezentrale-instanzen-je-ausschuss.md) | Dezentrale Instanzen je Ausschuss | Akzeptiert |
+| [0014](0014-oci-einzelcontainer-und-persistentes-data.md) | OCI-Einzelcontainer mit SQLite und persistentem `/data` | Akzeptiert |
+| [0015](0015-fluechtige-azure-demo.md) | Flüchtige Azure-Container-Apps-Demo | Akzeptiert |
+| [0016](0016-spaetere-mandantenflotte.md) | Spätere getrennte Mandantenflotte | Akzeptiert als Zielbild |
+| [0017](0017-erstveroeffentlichung-ohne-kubernetes.md) | Erstveröffentlichung ohne Kubernetes und Helm | Akzeptiert |
