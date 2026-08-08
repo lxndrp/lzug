@@ -14,6 +14,8 @@ im Repository-Wurzelverzeichnis.
 - **Entscheidungen** hält wichtige, bereits getroffene technische Entscheidungen als rückwirkende ADRs fest.
 - **Reviews** beschreibt das gemeinsame Qualitätsreview und die zugehörigen
   Nachweise für Menschen und Agents.
+- **Dependabot-Aktualisierungen** beschreibt Klassifikation, Sicherheitsgrenzen
+  und Merge-Lebenszyklus automatisierter Abhängigkeitsupdates.
 - **Wiki-Publikation** beschreibt den getrennten Review- und Freigabeablauf für
   das Wiki-Repository.
 

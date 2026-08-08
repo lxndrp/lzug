@@ -30,6 +30,7 @@ nav:
       - Lizenz und Release-Freigabe: developers/licensing.md
       - Frontend-Ausnahmen: developers/frontend-exceptions.md
       - Dokumentation: developers/documentation.md
+      - Dependabot-Aktualisierungen: developers/dependabot.md
       - Wiki-Publikation: developers/wiki-publishing.md
       - Architektur:
           - Übersicht: developers/architecture/index.md
