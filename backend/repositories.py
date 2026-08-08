@@ -691,17 +691,15 @@ class ResourceRepository:
                     if exam_day["status"] != "confirmed":
                         continue
                     slots = []
+                    day_slots = store.where(EXAM_SLOT, exam_day_id=exam_day["id"])
+                    day_slot_ids = {slot["id"] for slot in day_slots}
                     candidate_attendance = {
                         row["exam_slot_id"]: row
                         for row in store.all(CANDIDATE_EXAM_ATTENDANCE)
-                        if row["exam_slot_id"]
-                        in {
-                            candidate_slot["id"]
-                            for candidate_slot in store.where(EXAM_SLOT, exam_day_id=exam_day["id"])
-                        }
+                        if row["exam_slot_id"] in day_slot_ids
                     }
                     for slot in sorted(
-                        store.where(EXAM_SLOT, exam_day_id=exam_day["id"]),
+                        day_slots,
                         key=lambda row: (row["starts_at"], row["sequence_number"], row["id"]),
                     ):
                         if slot["status"] != "confirmed":
@@ -959,10 +957,8 @@ class ResourceRepository:
         arrived_at = payload.get("arrived_at", existing["arrived_at"] if existing else None)
         if status in {"open", "absent"}:
             arrived_at = None
-        elif not isinstance(arrived_at, str) or not arrived_at.strip():
-            raise ValueError(
-                "Für anwesende oder verspätete Personen ist die Ankunftszeit erforderlich"
-            )
+        elif status == "late" and (not isinstance(arrived_at, str) or not arrived_at.strip()):
+            raise ValueError("Für verspätete Personen ist die Ankunftszeit erforderlich")
         return {"status": status, "arrived_at": arrived_at}
 
     @staticmethod

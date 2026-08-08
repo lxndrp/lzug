@@ -135,6 +135,17 @@ class ApiTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertEqual("late", updated["day"]["slots"][0]["candidate_attendance"]["status"])
 
+            status, updated = api.request(
+                "PATCH",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/attendance",
+                {"status": "present", "arrived_at": None},
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(
+                {"status": "present", "arrived_at": None},
+                updated["day"]["slots"][0]["candidate_attendance"],
+            )
+
             status, blocked = api.request(
                 "POST",
                 f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/start",
@@ -173,7 +184,9 @@ class ApiTests(unittest.TestCase):
 
             status, reloaded = api.request("GET", f"/api/confirmed-plan-days/{day['id']}")
             assert_status(status, HTTPStatus.OK)
-            self.assertEqual("late", reloaded["day"]["slots"][0]["candidate_attendance"]["status"])
+            self.assertEqual(
+                "present", reloaded["day"]["slots"][0]["candidate_attendance"]["status"]
+            )
             reloaded_morning = next(
                 assignment
                 for assignment in reloaded["day"]["assignments"]

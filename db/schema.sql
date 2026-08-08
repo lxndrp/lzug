@@ -292,7 +292,11 @@ CREATE TABLE candidate_exam_attendance (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (exam_slot_id),
-  CHECK (status IN ('open', 'absent') OR arrived_at IS NOT NULL)
+  CHECK (
+    status = 'present'
+    OR (status = 'late' AND arrived_at IS NOT NULL)
+    OR (status IN ('open', 'absent') AND arrived_at IS NULL)
+  )
 );
 
 CREATE TABLE member_exam_attendance (
@@ -304,7 +308,11 @@ CREATE TABLE member_exam_attendance (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (exam_day_id, committee_member_id),
-  CHECK (status IN ('open', 'absent') OR arrived_at IS NOT NULL)
+  CHECK (
+    status = 'present'
+    OR (status = 'late' AND arrived_at IS NOT NULL)
+    OR (status IN ('open', 'absent') AND arrived_at IS NULL)
+  )
 );
 
 CREATE INDEX member_exam_attendance_day_status

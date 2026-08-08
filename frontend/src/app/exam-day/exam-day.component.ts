@@ -32,7 +32,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
   protected readonly view = signal<ConfirmedPlanDayView | null>(null);
   protected readonly actionMessage = signal<string | null>(null);
   protected readonly actionError = signal<string | null>(null);
-  protected readonly savingKey = signal<string | null>(null);
+  protected readonly savingKeys = signal<Set<string>>(new Set());
   protected readonly drafts = new Map<string, AttendanceDraft>();
   private initialized = false;
   private requestSequence = 0;
@@ -50,6 +50,9 @@ export class ExamDayComponent implements OnInit, OnChanges {
     const requestSequence = ++this.requestSequence;
     const requestedDayId = this.dayId;
     const requestedRoundId = this.roundId;
+    this.actionMessage.set(null);
+    this.actionError.set(null);
+    this.savingKeys.set(new Set());
 
     if (requestedDayId === null) {
       this.view.set(null);
@@ -173,25 +176,33 @@ export class ExamDayComponent implements OnInit, OnChanges {
   }
 
   protected isSaving(key: string): boolean {
-    return this.savingKey() === key;
+    return this.savingKeys().has(key);
+  }
+
+  protected hasSavingAction(): boolean {
+    return this.savingKeys().size > 0;
   }
 
   private saveAction(
     key: string,
     request: ReturnType<PlanningApiService['saveCandidateAttendance']>,
   ): void {
-    this.savingKey.set(key);
+    if (this.hasSavingAction()) return;
+    const actionSequence = this.requestSequence;
+    this.savingKeys.set(new Set([key]));
     this.actionMessage.set(null);
     this.actionError.set(null);
     request.subscribe({
       next: (view) => {
+        if (actionSequence !== this.requestSequence) return;
         this.view.set(view);
         this.resetDrafts(view);
-        this.savingKey.set(null);
+        this.savingKeys.set(new Set());
         this.actionMessage.set('Änderung gespeichert.');
       },
       error: (error: HttpErrorResponse) => {
-        this.savingKey.set(null);
+        if (actionSequence !== this.requestSequence) return;
+        this.savingKeys.set(new Set());
         this.actionError.set(error.error?.error ?? 'Die Änderung konnte nicht gespeichert werden.');
       },
     });

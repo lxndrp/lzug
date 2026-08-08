@@ -103,6 +103,42 @@ describe('ExamDayComponent', () => {
     expect(element.textContent).toContain('Mindestens drei anwesende reguläre Prüfer');
   });
 
+  it('allows present without arrival and resets feedback when changing days', () => {
+    fixture.detectChanges();
+    http.expectOne('/api/confirmed-plan-days/7').flush(dayView());
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const status = element.querySelector<HTMLSelectElement>('#candidate-status-7')!;
+    status.value = 'present';
+    status.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(element.querySelector<HTMLInputElement>('#candidate-arrival-7')!.required).toBe(false);
+
+    element.querySelectorAll<HTMLButtonElement>('.app-exam-day-actions button')[0].click();
+    const attendanceRequest = http.expectOne('/api/confirmed-plan-days/7/slots/7/attendance');
+    expect(attendanceRequest.request.body).toEqual({ status: 'present', arrived_at: null });
+    fixture.detectChanges();
+    expect(
+      [...element.querySelectorAll<HTMLButtonElement>('.app-exam-day-actions button')].every(
+        (button) => button.disabled,
+      ),
+    ).toBe(true);
+    attendanceRequest.flush(dayView());
+    fixture.detectChanges();
+
+    element.querySelectorAll<HTMLButtonElement>('.app-exam-day-actions button')[1].click();
+    const startRequest = http.expectOne('/api/confirmed-plan-days/7/slots/7/start');
+    startRequest.flush({ error: 'Start blockiert' }, { status: 400, statusText: 'Bad Request' });
+    fixture.detectChanges();
+    expect(element.textContent).toContain('Start blockiert');
+
+    fixture.componentRef.setInput('dayId', 8);
+    fixture.detectChanges();
+    expect(element.textContent).not.toContain('Start blockiert');
+    http.expectOne('/api/confirmed-plan-days/8').flush(dayView(8));
+  });
+
   it('offers a retryable error state', () => {
     fixture.detectChanges();
     http

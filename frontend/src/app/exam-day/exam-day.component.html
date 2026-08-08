@@ -119,7 +119,7 @@
                       [id]="'candidate-arrival-' + slot.id"
                       type="datetime-local"
                       [(ngModel)]="draft.arrivedAt"
-                      [required]="draft.status === 'present' || draft.status === 'late'"
+                      [required]="draft.status === 'late'"
                     />
                   </td>
                   <td>
@@ -134,7 +134,7 @@
                       tuiButton
                       appearance="secondary"
                       type="button"
-                      [disabled]="isSaving('candidate-' + slot.id)"
+                      [disabled]="hasSavingAction()"
                       (click)="saveCandidateAttendance(slot.id, draft)"
                     >
                       {{
@@ -145,7 +145,7 @@
                       tuiButton
                       appearance="primary"
                       type="button"
-                      [disabled]="!!slot.actual_started_at || isSaving('start-' + slot.id)"
+                      [disabled]="!!slot.actual_started_at || hasSavingAction()"
                       (click)="startExamSlot(slot.id)"
                     >
                       {{ slot.actual_started_at ? 'Gestartet' : 'Prüfung starten' }}
@@ -219,7 +219,7 @@
                       [id]="'member-arrival-' + assignment.id"
                       type="datetime-local"
                       [(ngModel)]="draft.arrivedAt"
-                      [required]="draft.status === 'present' || draft.status === 'late'"
+                      [required]="draft.status === 'late'"
                     />
                   </td>
                   <td class="app-exam-day-actions">
@@ -227,7 +227,7 @@
                       tuiButton
                       appearance="secondary"
                       type="button"
-                      [disabled]="isSaving('member-' + assignment.id)"
+                      [disabled]="hasSavingAction()"
                       (click)="saveMemberAttendance(assignment.id, draft)"
                     >
                       {{
