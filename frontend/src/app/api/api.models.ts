@@ -29,31 +29,48 @@ export type SchedulingOverviewItem = {
   _links: Record<string, ApiLink>;
 };
 
-export type ConfirmedPlan = {
+export type ConfirmedPlanContext = {
   id: number;
   name: string;
   committee: { id: number; name: string };
   exam_half_year: ExamHalfYear;
-  days: Array<{
+};
+
+export type ConfirmedPlanDay = {
+  id: number;
+  date: string;
+  location: { id: number; name: string; room: string; city: string } | null;
+  slots: Array<{
     id: number;
-    date: string;
-    location: { id: number; name: string; room: string; city: string } | null;
-    slots: Array<{
-      id: number;
-      starts_at: string;
-      ends_at: string;
-      sequence_number: number;
-      slot_type: 'regular' | 'mep' | string;
-      candidate: { id: number; first_name: string; last_name: string; ihk_exam_number: string };
-    }>;
-    assignments: Array<{
-      id: number;
-      assignment_role: 'examiner' | 'fallback' | string;
-      day_part: 'morning' | 'afternoon' | 'full_day' | string;
-      fallback_status: 'confirmed' | null | string;
-      member: { id: number; first_name: string; last_name: string; representing_side: string };
-    }>;
+    starts_at: string;
+    ends_at: string;
+    sequence_number: number;
+    slot_type: 'regular' | 'mep' | string;
+    candidate: { id: number; first_name: string; last_name: string; ihk_exam_number: string };
   }>;
+  assignments: Array<{
+    id: number;
+    assignment_role: 'examiner' | 'fallback' | string;
+    day_part: 'morning' | 'afternoon' | 'full_day' | string;
+    fallback_status: 'confirmed' | 'proposed' | null | string;
+    member: { id: number; first_name: string; last_name: string; representing_side: string };
+  }>;
+};
+
+export type ConfirmedPlan = ConfirmedPlanContext & {
+  days: Array<{
+    id: ConfirmedPlanDay['id'];
+    date: ConfirmedPlanDay['date'];
+    location: ConfirmedPlanDay['location'];
+    slots: ConfirmedPlanDay['slots'];
+    assignments: ConfirmedPlanDay['assignments'];
+  }>;
+};
+
+export type ConfirmedPlanDayView = {
+  plan: ConfirmedPlanContext;
+  day: ConfirmedPlanDay;
+  _links: Record<string, ApiLink>;
 };
 
 export type RoundSummary = {

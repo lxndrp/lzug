@@ -47,6 +47,25 @@ class OpenApiContractTests(unittest.TestCase):
                     status, _item = self.request(api, "GET", f"/api/{resource_name}/{item_id}")
                     self.assertEqual(HTTPStatus.OK, status)
 
+    def test_confirmed_day_read_model_matches_success_and_not_found_contracts(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, _proposal = self.request(
+                api, "POST", "/api/planning-proposals", {"round_id": 1}
+            )
+            self.assertEqual(HTTPStatus.CREATED, status)
+            status, _confirmed = self.request(api, "POST", "/api/exam-rounds/1/confirm-plan", {})
+            self.assertEqual(HTTPStatus.OK, status)
+            status, calendar = api.request("GET", "/api/confirmed-plans")
+            self.assertEqual(HTTPStatus.OK, status)
+            day_id = calendar["items"][0]["days"][0]["id"]
+
+            status, view = self.request(api, "GET", f"/api/confirmed-plan-days/{day_id}")
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertEqual(day_id, view["day"]["id"])
+
+            status, _missing = self.request(api, "GET", "/api/confirmed-plan-days/999999")
+            self.assertEqual(HTTPStatus.NOT_FOUND, status)
+
     def test_frontend_write_operations_match_the_openapi_responses(self) -> None:
         """Cover each Angular write flow with an actual API response."""
         with TempDatabase() as db_path, ApiServer(db_path) as api:

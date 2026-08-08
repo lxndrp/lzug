@@ -1,0 +1,139 @@
+@if (state() === 'loading') {
+  <section class="app-panel" aria-busy="true" aria-live="polite">
+    <div class="app-panel-body app-exam-day-message">Tagesansicht wird geladen …</div>
+  </section>
+} @else if (state() === 'not-found') {
+  <section class="app-panel" role="alert">
+    <div class="app-panel-body app-exam-day-message">
+      <strong>Prüfungstag nicht verfügbar</strong>
+      <span
+        >Dieser Prüfungstag ist unbekannt oder nicht als Bestandteil eines bestätigten Prüfungsplans
+        veröffentlicht.</span
+      >
+      <a tuiButton appearance="secondary" [href]="backHref()" (click)="goBack($event)">
+        Zum Prüfungsplan
+      </a>
+    </div>
+  </section>
+} @else if (state() === 'error') {
+  <section class="app-panel" role="alert">
+    <div class="app-panel-body app-exam-day-message">
+      <strong>Tagesansicht nicht verfügbar</strong>
+      <span
+        >Die bestätigten Daten konnten nicht geladen werden. Bitte versuchen Sie es erneut.</span
+      >
+      <button tuiButton appearance="secondary" type="button" (click)="load()">
+        Erneut versuchen
+      </button>
+    </div>
+  </section>
+} @else if (view(); as current) {
+  <section class="app-panel app-exam-day-view">
+    <header class="app-panel-header app-exam-day-header">
+      <div>
+        <p class="app-eyebrow">Bestätigter Prüfungstag</p>
+        <h2>{{ dateLabel(current.day.date) }}</h2>
+        <p class="app-muted">Read-only Tagesansicht für die Durchführung</p>
+      </div>
+      <a tuiButton appearance="secondary" [href]="backHref()" (click)="goBack($event)">
+        Zurück zum Prüfungsplan
+      </a>
+    </header>
+
+    <div class="app-panel-body">
+      <dl class="app-exam-day-facts">
+        <div>
+          <dt>Ausschuss</dt>
+          <dd>{{ current.plan.committee.name }}</dd>
+        </div>
+        <div>
+          <dt>Prüfungsrunde</dt>
+          <dd>{{ current.plan.name }}</dd>
+        </div>
+        <div>
+          <dt>Prüfungsort</dt>
+          <dd>{{ current.day.location?.name ?? 'Prüfungsort nicht hinterlegt' }}</dd>
+        </div>
+        <div>
+          <dt>Raum</dt>
+          <dd>{{ current.day.location?.room ?? 'Raum nicht hinterlegt' }}</dd>
+        </div>
+      </dl>
+
+      <section class="app-exam-day-section" aria-labelledby="examDaySlotsHeading">
+        <h3 id="examDaySlotsHeading">Prüfungsslots</h3>
+        <div class="app-table-scroll" role="region" tabindex="0" aria-label="Prüfungsslots">
+          <table class="app-exam-day-slots">
+            <thead>
+              <tr>
+                <th scope="col">Zeit</th>
+                <th scope="col">Prüfung</th>
+                <th scope="col">Prüfling</th>
+                <th scope="col">IHK-Prüfungsnummer</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (slot of current.day.slots; track slot.id) {
+                <tr>
+                  <td>{{ timeLabel(slot.starts_at) }}–{{ timeLabel(slot.ends_at) }}</td>
+                  <td>
+                    <span tuiBadge [appearance]="slot.slot_type === 'mep' ? 'warning' : 'neutral'">
+                      {{ examLabel(slot.slot_type) }}
+                    </span>
+                  </td>
+                  <td>{{ slot.candidate.first_name }} {{ slot.candidate.last_name }}</td>
+                  <td>{{ slot.candidate.ihk_exam_number }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="4">Keine bestätigten Slots an diesem Tag.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="app-exam-day-section" aria-labelledby="examDayCrewHeading">
+        <h3 id="examDayCrewHeading">Prüfer- und Fallback-Besetzung</h3>
+        <div class="app-table-scroll" role="region" tabindex="0" aria-label="Prüferbesetzung">
+          <table class="app-exam-day-assignments">
+            <thead>
+              <tr>
+                <th scope="col">Rolle</th>
+                <th scope="col">Person</th>
+                <th scope="col">Vertreterseite</th>
+                <th scope="col">Tagesabschnitt</th>
+                <th scope="col">Fallback-Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (assignment of current.day.assignments; track assignment.id) {
+                <tr>
+                  <td>
+                    <span
+                      tuiBadge
+                      [appearance]="
+                        assignment.assignment_role === 'fallback' ? 'warning' : 'positive'
+                      "
+                    >
+                      {{ roleLabel(assignment.assignment_role) }}
+                    </span>
+                  </td>
+                  <td>{{ assignment.member.first_name }} {{ assignment.member.last_name }}</td>
+                  <td>{{ representingSideLabel(assignment.member.representing_side) }}</td>
+                  <td>{{ dayPartLabel(assignment.day_part) }}</td>
+                  <td>{{ fallbackStatusLabel(assignment.fallback_status) }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5">Keine bestätigte Prüfer- oder Fallback-Besetzung hinterlegt.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </section>
+}

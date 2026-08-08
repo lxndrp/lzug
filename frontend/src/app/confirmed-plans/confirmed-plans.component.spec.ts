@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
 
 import { ConfirmedPlansComponent } from './confirmed-plans.component';
@@ -13,6 +14,7 @@ describe('ConfirmedPlansComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ConfirmedPlansComponent],
       providers: [
+        provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
         provideTaiga({ scrollbars: 'native' }),
@@ -41,6 +43,9 @@ describe('ConfirmedPlansComponent', () => {
     expect(element.textContent).toContain('Arbeitnehmer');
     expect(element.textContent).toContain('Schule');
     expect(element.textContent).toContain('ganztägig');
+    expect(
+      element.querySelector<HTMLAnchorElement>('a[href="/confirmed-plans/1/days/1"]'),
+    ).not.toBeNull();
     expect(element.textContent).not.toContain('employer');
     expect(element.textContent).not.toContain('employee');
     expect(element.textContent).not.toContain('school');
@@ -103,6 +108,25 @@ describe('ConfirmedPlansComponent', () => {
     fixture.detectChanges();
     click(fixture.nativeElement as HTMLElement, 'Erneut versuchen');
     http.expectOne('/api/confirmed-plans').flush({ items: [], _links: {} });
+  });
+
+  it('keeps modified day-link clicks as native navigation', () => {
+    fixture.detectChanges();
+    http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
+    fixture.detectChanges();
+
+    const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>(
+      'a[href="/confirmed-plans/1/days/1"]',
+    );
+    expect(link).not.toBeNull();
+    const event = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      metaKey: true,
+    });
+    link?.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
   });
 });
 
