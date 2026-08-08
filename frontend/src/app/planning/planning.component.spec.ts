@@ -4,6 +4,7 @@ import { PlanningComponent } from './planning.component';
 import {
   examRoundFixture,
   masterDataFixture,
+  membersFixture,
   planningBoardFixture,
   summaryFixture,
 } from '../testing/fixtures';
@@ -69,6 +70,18 @@ describe('PlanningComponent', () => {
         updated_by_member_id: 1,
       }),
     );
+  });
+
+  it('should not prioritize the chair when choosing the documented actor', () => {
+    const deputy = { ...membersFixture[0], id: 10, committee_role: 'deputy_chair' };
+    fixture.componentRef.setInput('masterData', {
+      ...masterDataFixture,
+      members: [deputy, membersFixture[0]],
+    });
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as { defaultUpdaterId: () => number };
+    expect(component.defaultUpdaterId()).toBe(10);
   });
 
   it('should emit editable exam round metadata', () => {

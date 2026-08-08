@@ -804,17 +804,6 @@ class ResourceRepository:
         if payload.get("exclude_public_holidays") and subdivision_code is None:
             raise ValueError("Federal state is required when public holidays are excluded")
 
-        existing = store.first(
-            PLANNING_SETTINGS,
-            exam_round_id=payload["exam_round_id"],
-        )
-        changes_week_limit = "max_exam_days_per_week" in payload and (
-            existing is None
-            or existing["max_exam_days_per_week"] != payload["max_exam_days_per_week"]
-        )
-        if changes_week_limit and updater["committee_role"] != "chair":
-            raise ValueError("Only the committee chair may change max_exam_days_per_week")
-
     def _availability_payload(
         self,
         store: Store,

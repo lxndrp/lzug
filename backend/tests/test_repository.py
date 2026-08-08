@@ -185,6 +185,26 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual("2027-04-15 18:00:00", updated["availability_deadline"])
         self.assertNotEqual(before["updated_at"], updated["updated_at"])
 
+    def test_exam_round_creation_records_deputy_chair_as_actor(self) -> None:
+        with TempDatabase() as db_path:
+            repository = ResourceRepository(db_path)
+            repository.update_membership(2, {"committee_role": "deputy_chair"})
+            half_year = repository.create(
+                EXAM_HALF_YEAR,
+                {"season": "summer", "year": 2027, "status": "active"},
+            )
+            created = repository.create(
+                EXAM_ROUND,
+                {
+                    "exam_half_year_id": half_year["id"],
+                    "committee_id": 1,
+                    "name": "Sommer 2027 · Prüfungsausschuss Teststadt 1",
+                    "created_by_member_id": 2,
+                },
+            )
+
+        self.assertEqual(2, created["created_by_member_id"])
+
     def test_update_exam_round_rejects_invalid_metadata(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
@@ -244,7 +264,7 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(half_year["id"], created["exam_half_year_id"])
         self.assertEqual(half_year["id"], summary["round"]["exam_half_year"]["id"])
 
-    def test_planning_settings_upsert_enforces_chair_for_week_limit(self) -> None:
+    def test_planning_settings_upsert_treats_deputy_chair_as_equal_actor(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
             updated = repository.save_planning_settings(
@@ -262,26 +282,31 @@ class RepositoryTests(unittest.TestCase):
                 }
             )
 
-            with self.assertRaises(ValueError):
-                repository.save_planning_settings(
-                    {
-                        "exam_round_id": 1,
-                        "calendar_week_from": "2026-W47",
-                        "calendar_week_to": "2026-W50",
-                        "exams_per_day": 5,
-                        "max_exam_days_per_week": 5,
-                        "lunch_break_enabled": 0,
-                        "exclude_public_holidays": 1,
-                        "holiday_subdivision_code": "DE-NW",
-                        "default_location_id": 2,
-                        "updated_by_member_id": 2,
-                    }
-                )
+            repository.update_membership(
+                2,
+                {"committee_role": "deputy_chair", "is_active": 1},
+            )
+            updated_by_deputy = repository.save_planning_settings(
+                {
+                    "exam_round_id": 1,
+                    "calendar_week_from": "2026-W47",
+                    "calendar_week_to": "2026-W50",
+                    "exams_per_day": 5,
+                    "max_exam_days_per_week": 5,
+                    "lunch_break_enabled": 0,
+                    "exclude_public_holidays": 1,
+                    "holiday_subdivision_code": "DE-NW",
+                    "default_location_id": 2,
+                    "updated_by_member_id": 2,
+                }
+            )
 
             settings = repository.list_filtered(PLANNING_SETTINGS, {"exam_round_id": 1})
 
         self.assertEqual(1, updated["id"])
         self.assertEqual(4, updated["max_exam_days_per_week"])
+        self.assertEqual(5, updated_by_deputy["max_exam_days_per_week"])
+        self.assertEqual(2, updated_by_deputy["updated_by_member_id"])
         self.assertEqual(1, updated["exclude_public_holidays"])
         self.assertEqual("DE-NW", updated["holiday_subdivision_code"])
         self.assertEqual(1, len(settings))
