@@ -86,7 +86,7 @@ describe('ExamDayComponent', () => {
     const attendanceRequest = http.expectOne('/api/confirmed-plan-days/7/slots/7/attendance');
     expect(attendanceRequest.request.body).toEqual({
       status: 'late',
-      arrived_at: '2026-11-16T07:24:00.000Z',
+      arrived_at: new Date('2026-11-16T08:24:00').toISOString(),
     });
     attendanceRequest.flush(dayView());
     fixture.detectChanges();
