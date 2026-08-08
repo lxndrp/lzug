@@ -11,6 +11,7 @@ from .holiday_provider import GERMAN_SUBDIVISION_CODES
 from .models import (
     CANDIDATE,
     CANDIDATE_COMMITTEE_ASSIGNMENT,
+    CANDIDATE_EXAM_ATTENDANCE,
     CANDIDATE_EXAM_DAY,
     COMMITTEE,
     COMMITTEE_MEMBER,
@@ -21,6 +22,7 @@ from .models import (
     EXAM_SLOT,
     LOCATION,
     MEMBER_AVAILABILITY,
+    MEMBER_EXAM_ATTENDANCE,
     PERSON,
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
@@ -36,6 +38,8 @@ SPECIALIZATION_LABELS = {
 }
 
 AVAILABILITY_VALUES = {"full_day", "morning", "afternoon", "unavailable", "pending"}
+ATTENDANCE_VALUES = {"open", "present", "late", "absent"}
+REPRESENTING_SIDES = {"employer", "employee", "school"}
 
 
 class ResourceRepository:
@@ -687,6 +691,15 @@ class ResourceRepository:
                     if exam_day["status"] != "confirmed":
                         continue
                     slots = []
+                    candidate_attendance = {
+                        row["exam_slot_id"]: row
+                        for row in store.all(CANDIDATE_EXAM_ATTENDANCE)
+                        if row["exam_slot_id"]
+                        in {
+                            candidate_slot["id"]
+                            for candidate_slot in store.where(EXAM_SLOT, exam_day_id=exam_day["id"])
+                        }
+                    }
                     for slot in sorted(
                         store.where(EXAM_SLOT, exam_day_id=exam_day["id"]),
                         key=lambda row: (row["starts_at"], row["sequence_number"], row["id"]),
@@ -708,6 +721,10 @@ class ResourceRepository:
                                 "ends_at": slot["ends_at"],
                                 "sequence_number": slot["sequence_number"],
                                 "slot_type": slot["slot_type"],
+                                "actual_started_at": slot["actual_started_at"],
+                                "candidate_attendance": self._attendance_view(
+                                    candidate_attendance.get(slot["id"])
+                                ),
                                 "candidate": {
                                     "id": candidate["id"],
                                     "first_name": candidate["first_name"],
@@ -717,6 +734,10 @@ class ResourceRepository:
                             }
                         )
                     assignments = []
+                    member_attendance = {
+                        (row["exam_day_id"], row["committee_member_id"]): row
+                        for row in store.where(MEMBER_EXAM_ATTENDANCE, exam_day_id=exam_day["id"])
+                    }
                     for assignment in store.where(EXAM_DAY_ASSIGNMENT, exam_day_id=exam_day["id"]):
                         member = members.get(assignment["committee_member_id"])
                         if member is None:
@@ -727,6 +748,11 @@ class ResourceRepository:
                                 "assignment_role": assignment["assignment_role"],
                                 "day_part": assignment["day_part"],
                                 "fallback_status": assignment["fallback_status"],
+                                "attendance": self._attendance_view(
+                                    member_attendance.get(
+                                        (exam_day["id"], assignment["committee_member_id"])
+                                    )
+                                ),
                                 "member": {
                                     "id": member["id"],
                                     "first_name": member["first_name"],
@@ -788,6 +814,169 @@ class ResourceRepository:
                         "day": day,
                     }
         return None
+
+    @staticmethod
+    def _attendance_view(row: dict[str, Any] | None) -> dict[str, Any]:
+        return {
+            "status": row["status"] if row else "open",
+            "arrived_at": row["arrived_at"] if row else None,
+        }
+
+    def save_candidate_attendance(
+        self, day_id: int, slot_id: int, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        with session_scope(self.db_path) as session:
+            store = Store(session)
+            self._confirmed_slot(store, day_id, slot_id)
+            existing = store.first(CANDIDATE_EXAM_ATTENDANCE, exam_slot_id=slot_id)
+            values = self._attendance_payload(payload, existing)
+            values["exam_slot_id"] = slot_id
+            if existing is None:
+                return store.create(CANDIDATE_EXAM_ATTENDANCE, values)
+            return store.update(CANDIDATE_EXAM_ATTENDANCE, existing["id"], values) or existing
+
+    def save_member_attendance(
+        self, day_id: int, assignment_id: int, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        with session_scope(self.db_path) as session:
+            store = Store(session)
+            assignment = self._confirmed_assignment(store, day_id, assignment_id)
+            member_id = assignment["committee_member_id"]
+            existing = store.first(
+                MEMBER_EXAM_ATTENDANCE,
+                exam_day_id=day_id,
+                committee_member_id=member_id,
+            )
+            values = self._attendance_payload(payload, existing)
+            values.update({"exam_day_id": day_id, "committee_member_id": member_id})
+            if existing is None:
+                return store.create(MEMBER_EXAM_ATTENDANCE, values)
+            return store.update(MEMBER_EXAM_ATTENDANCE, existing["id"], values) or existing
+
+    def start_exam_slot(self, day_id: int, slot_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        with session_scope(self.db_path) as session:
+            store = Store(session)
+            slot = self._confirmed_slot(store, day_id, slot_id)
+            candidate_attendance = store.first(CANDIDATE_EXAM_ATTENDANCE, exam_slot_id=slot_id)
+            if candidate_attendance is None or candidate_attendance["status"] not in {
+                "present",
+                "late",
+            }:
+                raise ValueError("Prüfling muss als anwesend oder verspätet erfasst sein")
+
+            present_sides: set[str] = set()
+            present_regular_members: set[int] = set()
+            for assignment in store.where(EXAM_DAY_ASSIGNMENT, exam_day_id=day_id):
+                if assignment["assignment_role"] != "examiner":
+                    continue
+                if not self._assignment_applies_to_slot(assignment, slot):
+                    continue
+                attendance = store.first(
+                    MEMBER_EXAM_ATTENDANCE,
+                    exam_day_id=day_id,
+                    committee_member_id=assignment["committee_member_id"],
+                )
+                if attendance is None or attendance["status"] not in {"present", "late"}:
+                    continue
+                member = store.get(COMMITTEE_MEMBER, assignment["committee_member_id"])
+                if member is None:
+                    continue
+                present_regular_members.add(member["id"])
+                present_sides.add(member["representing_side"])
+            if len(present_regular_members) < 3 or not REPRESENTING_SIDES.issubset(present_sides):
+                raise ValueError(
+                    "Mindestens drei anwesende reguläre Prüfer mit allen drei Vertreterseiten "
+                    "sind erforderlich"
+                )
+
+            requested_started_at = payload.get("actual_started_at")
+            if slot["actual_started_at"] is not None:
+                if requested_started_at and slot["actual_started_at"] != requested_started_at:
+                    raise ValueError(
+                        f"Prüfungsstart wurde bereits um {slot['actual_started_at']} erfasst"
+                    )
+                return slot
+
+            actual_started_at = (
+                requested_started_at or datetime.now(UTC).replace(microsecond=0).isoformat()
+            )
+            if not isinstance(actual_started_at, str) or not actual_started_at.strip():
+                raise ValueError("Tatsächlicher Startzeitpunkt ist erforderlich")
+
+            exam_slot = session.get(EXAM_SLOT.model, slot_id)
+            if exam_slot is None:
+                raise ValueError("Prüfungsslot nicht gefunden")
+            exam_slot.actual_started_at = actual_started_at
+            session.flush()
+            return {**slot, "actual_started_at": actual_started_at}
+
+    def _confirmed_slot(self, store: Store, day_id: int, slot_id: int) -> dict[str, Any]:
+        slot = store.get(EXAM_SLOT, slot_id)
+        day = store.get(EXAM_DAY, day_id)
+        if (
+            slot is None
+            or day is None
+            or slot["exam_day_id"] != day_id
+            or slot["status"] != "confirmed"
+            or day["status"] != "confirmed"
+        ):
+            raise ValueError(
+                "Nur ein bestätigter Prüfungsslot des ausgewählten Tages darf geändert werden"
+            )
+        exam_round = store.get(EXAM_ROUND, day["exam_round_id"])
+        if exam_round is None or exam_round["status"] != "plan_confirmed":
+            raise ValueError(
+                "Der Prüfungstag ist nicht Bestandteil eines bestätigten Prüfungsplans"
+            )
+        return slot
+
+    def _confirmed_assignment(
+        self, store: Store, day_id: int, assignment_id: int
+    ) -> dict[str, Any]:
+        assignment = store.get(EXAM_DAY_ASSIGNMENT, assignment_id)
+        day = store.get(EXAM_DAY, day_id)
+        if assignment is None or day is None or assignment["exam_day_id"] != day_id:
+            raise ValueError(
+                "Nur eine Besetzung des ausgewählten Prüfungstags darf geändert werden"
+            )
+        if day["status"] != "confirmed":
+            raise ValueError(
+                "Nur Besetzungen eines bestätigten Prüfungstags dürfen geändert werden"
+            )
+        exam_round = store.get(EXAM_ROUND, day["exam_round_id"])
+        if exam_round is None or exam_round["status"] != "plan_confirmed":
+            raise ValueError(
+                "Der Prüfungstag ist nicht Bestandteil eines bestätigten Prüfungsplans"
+            )
+        return assignment
+
+    def _attendance_payload(
+        self, payload: dict[str, Any], existing: dict[str, Any] | None
+    ) -> dict[str, Any]:
+        status = payload.get("status")
+        if status not in ATTENDANCE_VALUES:
+            raise ValueError("Unbekannter Anwesenheitsstatus")
+        arrived_at = payload.get("arrived_at", existing["arrived_at"] if existing else None)
+        if status in {"open", "absent"}:
+            arrived_at = None
+        elif not isinstance(arrived_at, str) or not arrived_at.strip():
+            raise ValueError(
+                "Für anwesende oder verspätete Personen ist die Ankunftszeit erforderlich"
+            )
+        return {"status": status, "arrived_at": arrived_at}
+
+    @staticmethod
+    def _assignment_applies_to_slot(assignment: dict[str, Any], slot: dict[str, Any]) -> bool:
+        day_part = assignment["day_part"]
+        if day_part == "full_day":
+            return True
+        try:
+            start = datetime.fromisoformat(slot["starts_at"].replace(" ", "T"))
+        except TypeError, ValueError:
+            return True
+        return (day_part == "morning" and start.hour < 12) or (
+            day_part == "afternoon" and start.hour >= 12
+        )
 
     def _first(
         self,

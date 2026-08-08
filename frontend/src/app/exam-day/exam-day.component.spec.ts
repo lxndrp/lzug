@@ -28,7 +28,7 @@ describe('ExamDayComponent', () => {
 
   afterEach(() => http.verify());
 
-  it('renders the selected confirmed day without write controls', () => {
+  it('renders the selected confirmed day with attendance and start controls', () => {
     fixture.detectChanges();
     http.expectOne('/api/confirmed-plan-days/7').flush(dayView());
     fixture.detectChanges();
@@ -42,8 +42,10 @@ describe('ExamDayComponent', () => {
     expect(element.textContent).toContain('IHK-PLAN-7');
     expect(element.textContent).toContain('Ersatzprüfer/in');
     expect(element.textContent).toContain('Bestätigt');
+    expect(element.textContent).toContain('Anwesenheit speichern');
+    expect(element.textContent).toContain('Prüfung starten');
     expect(element.querySelector('a[href="/confirmed-plans/1"]')).not.toBeNull();
-    expect(element.querySelectorAll('button')).toHaveLength(0);
+    expect(element.querySelectorAll('button')).toHaveLength(4);
   });
 
   it('does not present a day when the API returns not found or another round', () => {
@@ -65,6 +67,40 @@ describe('ExamDayComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Prüfungstag nicht verfügbar',
     );
+  });
+
+  it('persists candidate attendance and presents a server start error', () => {
+    fixture.detectChanges();
+    http.expectOne('/api/confirmed-plan-days/7').flush(dayView());
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const status = element.querySelector<HTMLSelectElement>('#candidate-status-7')!;
+    status.value = 'late';
+    status.dispatchEvent(new Event('change'));
+    const arrival = element.querySelector<HTMLInputElement>('#candidate-arrival-7')!;
+    arrival.value = '2026-11-16T08:24';
+    arrival.dispatchEvent(new Event('input'));
+    element.querySelectorAll<HTMLButtonElement>('.app-exam-day-actions button')[0].click();
+
+    const attendanceRequest = http.expectOne('/api/confirmed-plan-days/7/slots/7/attendance');
+    expect(attendanceRequest.request.body).toEqual({
+      status: 'late',
+      arrived_at: '2026-11-16T07:24:00.000Z',
+    });
+    attendanceRequest.flush(dayView());
+    fixture.detectChanges();
+    expect(element.textContent).toContain('Änderung gespeichert.');
+
+    element.querySelectorAll<HTMLButtonElement>('.app-exam-day-actions button')[1].click();
+    const startRequest = http.expectOne('/api/confirmed-plan-days/7/slots/7/start');
+    expect(startRequest.request.body).toHaveProperty('actual_started_at');
+    startRequest.flush(
+      { error: 'Mindestens drei anwesende reguläre Prüfer sind erforderlich' },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    fixture.detectChanges();
+    expect(element.textContent).toContain('Mindestens drei anwesende reguläre Prüfer');
   });
 
   it('offers a retryable error state', () => {
@@ -143,6 +179,8 @@ function dayView(dayId = 7) {
           ends_at: '2026-11-16 09:30:00',
           sequence_number: 1,
           slot_type: 'regular',
+          actual_started_at: null,
+          candidate_attendance: { status: 'open', arrived_at: null },
           candidate: {
             id: dayId,
             first_name: 'Prüfling',
@@ -157,6 +195,7 @@ function dayView(dayId = 7) {
           assignment_role: 'examiner',
           day_part: 'full_day',
           fallback_status: null,
+          attendance: { status: 'open', arrived_at: null },
           member: {
             id: 1,
             first_name: 'Testperson',
@@ -169,6 +208,7 @@ function dayView(dayId = 7) {
           assignment_role: 'fallback',
           day_part: 'morning',
           fallback_status: 'confirmed',
+          attendance: { status: 'open', arrived_at: null },
           member: {
             id: 2,
             first_name: 'Testperson',

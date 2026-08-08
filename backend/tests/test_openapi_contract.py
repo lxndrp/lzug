@@ -266,5 +266,16 @@ def _angular_operations(source: str) -> list[tuple[str, str]]:
 
 
 def _client_path(path: str) -> str:
-    normalized = re.sub(r"\$\{[^}]+\}", "{id}", path)
+    normalized = re.sub(
+        r"\$\{([^}]+)\}",
+        lambda match: "{"
+        + (
+            "id"
+            if match.group(1).startswith("this.")
+            or (match.group(1) == "dayId" and "/slots/" not in path and "/assignments/" not in path)
+            else re.sub(r"(?<!^)([A-Z])", r"_\1", match.group(1)).lower()
+        )
+        + "}",
+        path,
+    )
     return normalized.partition("?")[0]

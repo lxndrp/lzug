@@ -4,6 +4,7 @@ import { forkJoin, map, of, switchMap } from 'rxjs';
 
 import {
   ApiCollection,
+  AttendanceStatus,
   ApiRoot,
   AvailabilityRequest,
   Candidate,
@@ -91,6 +92,37 @@ export class PlanningApiService {
 
   getConfirmedPlanDay(dayId: number) {
     return this.http.get<ConfirmedPlanDayView>(`/api/confirmed-plan-days/${dayId}`);
+  }
+
+  saveCandidateAttendance(
+    dayId: number,
+    slotId: number,
+    status: AttendanceStatus,
+    arrivedAt: string | null,
+  ) {
+    return this.http.patch<ConfirmedPlanDayView>(
+      `/api/confirmed-plan-days/${dayId}/slots/${slotId}/attendance`,
+      { status, arrived_at: arrivedAt },
+    );
+  }
+
+  saveMemberAttendance(
+    dayId: number,
+    assignmentId: number,
+    status: AttendanceStatus,
+    arrivedAt: string | null,
+  ) {
+    return this.http.patch<ConfirmedPlanDayView>(
+      `/api/confirmed-plan-days/${dayId}/assignments/${assignmentId}/attendance`,
+      { status, arrived_at: arrivedAt },
+    );
+  }
+
+  startExamSlot(dayId: number, slotId: number, actualStartedAt: string | null = null) {
+    return this.http.post<ConfirmedPlanDayView>(
+      `/api/confirmed-plan-days/${dayId}/slots/${slotId}/start`,
+      actualStartedAt ? { actual_started_at: actualStartedAt } : {},
+    );
   }
 
   createExamHalfYear(payload: Pick<ExamHalfYear, 'season' | 'year' | 'status'>) {

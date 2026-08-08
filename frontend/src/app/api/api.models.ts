@@ -46,6 +46,8 @@ export type ConfirmedPlanDay = {
     ends_at: string;
     sequence_number: number;
     slot_type: 'regular' | 'mep' | string;
+    actual_started_at: string | null;
+    candidate_attendance: Attendance;
     candidate: { id: number; first_name: string; last_name: string; ihk_exam_number: string };
   }>;
   assignments: Array<{
@@ -53,8 +55,16 @@ export type ConfirmedPlanDay = {
     assignment_role: 'examiner' | 'fallback' | string;
     day_part: 'morning' | 'afternoon' | 'full_day' | string;
     fallback_status: 'confirmed' | 'proposed' | null | string;
+    attendance: Attendance;
     member: { id: number; first_name: string; last_name: string; representing_side: string };
   }>;
+};
+
+export type AttendanceStatus = 'open' | 'present' | 'late' | 'absent';
+
+export type Attendance = {
+  status: AttendanceStatus | string;
+  arrived_at: string | null;
 };
 
 export type ConfirmedPlan = ConfirmedPlanContext & {

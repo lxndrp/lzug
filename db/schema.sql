@@ -15,7 +15,8 @@ CREATE TABLE schema_migration (
 
 INSERT INTO schema_migration (name)
 VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.sql'),
-       ('003_add_exam_half_years.sql'), ('004_add_candidate_committee_assignments.sql');
+       ('003_add_exam_half_years.sql'), ('004_add_candidate_committee_assignments.sql'),
+       ('005_add_exam_day_attendance.sql');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
@@ -253,6 +254,7 @@ CREATE TABLE exam_slot (
   status TEXT NOT NULL DEFAULT 'proposed' CHECK (
     status IN ('proposed', 'confirmed', 'rescheduled', 'cancelled', 'completed')
   ),
+  actual_started_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (exam_day_id, sequence_number),
@@ -281,6 +283,32 @@ CREATE TABLE exam_day_assignment (
     OR (assignment_role = 'examiner' AND (fallback_status IS NULL OR fallback_status = 'not_required'))
   )
 );
+
+CREATE TABLE candidate_exam_attendance (
+  id INTEGER PRIMARY KEY,
+  exam_slot_id INTEGER NOT NULL REFERENCES exam_slot(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'present', 'late', 'absent')),
+  arrived_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (exam_slot_id),
+  CHECK (status IN ('open', 'absent') OR arrived_at IS NOT NULL)
+);
+
+CREATE TABLE member_exam_attendance (
+  id INTEGER PRIMARY KEY,
+  exam_day_id INTEGER NOT NULL REFERENCES exam_day(id) ON DELETE CASCADE,
+  committee_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'present', 'late', 'absent')),
+  arrived_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (exam_day_id, committee_member_id),
+  CHECK (status IN ('open', 'absent') OR arrived_at IS NOT NULL)
+);
+
+CREATE INDEX member_exam_attendance_day_status
+  ON member_exam_attendance(exam_day_id, status);
 
 CREATE TABLE absence_report (
   id INTEGER PRIMARY KEY,
