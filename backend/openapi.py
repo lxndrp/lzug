@@ -112,6 +112,17 @@ def spec() -> dict[str, Any]:
                 "responses": {"200": json_response("ConfirmedPlanCalendar")},
             }
         },
+        "/api/confirmed-plan-days/{id}": {
+            "get": {
+                "summary": "Get one confirmed exam day for operational viewing",
+                "operationId": "getConfirmedPlanDay",
+                "parameters": [path_parameter("id")],
+                "responses": {
+                    "200": json_response("ConfirmedPlanDayView"),
+                    "404": json_response("Error"),
+                },
+            }
+        },
         "/api/candidate-committee-assignments": {
             "get": {
                 "summary": "List candidate committee assignment history",
@@ -323,6 +334,23 @@ def spec() -> dict[str, Any]:
                 },
             },
             required=("id", "name", "committee", "exam_half_year", "days"),
+        ),
+        "ConfirmedPlanDayView": object_schema(
+            {
+                "plan": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "name": {"type": "string"},
+                        "committee": {"$ref": "#/components/schemas/ConfirmedPlanCommittee"},
+                        "exam_half_year": {"$ref": "#/components/schemas/ExamHalfYears"},
+                    },
+                    "required": ("id", "name", "committee", "exam_half_year"),
+                },
+                "day": {"$ref": "#/components/schemas/ConfirmedPlanDay"},
+                "_links": link_map(),
+            },
+            required=("plan", "day", "_links"),
         ),
         "ConfirmedPlanCommittee": object_schema(
             {"id": {"type": "integer"}, "name": {"type": "string"}}, required=("id", "name")

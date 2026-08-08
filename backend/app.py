@@ -82,6 +82,14 @@ class LzugHandler(BaseHTTPRequestHandler):
                 self.respond(hateoas.confirmed_plans(self.repository.confirmed_plans()))
                 return
 
+            if len(path_parts) == 2 and path_parts[0] == "confirmed-plan-days":
+                day = self.repository.confirmed_plan_day(int(path_parts[1]))
+                if day is None:
+                    self.respond({"error": "Confirmed exam day not found"}, HTTPStatus.NOT_FOUND)
+                    return
+                self.respond(hateoas.confirmed_plan_day(day))
+                return
+
             if path_parts and path_parts[0] == "candidate-committee-assignments":
                 if len(path_parts) == 1:
                     candidate_id = query.get("candidate_id", [None])[0]

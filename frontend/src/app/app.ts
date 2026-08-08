@@ -62,6 +62,7 @@ import {
   SchedulingOverviewComponent,
 } from './scheduling-overview/scheduling-overview.component';
 import { ConfirmedPlansComponent } from './confirmed-plans/confirmed-plans.component';
+import { ExamDayComponent } from './exam-day/exam-day.component';
 
 @Component({
   selector: 'app-root',
@@ -70,6 +71,7 @@ import { ConfirmedPlansComponent } from './confirmed-plans/confirmed-plans.compo
     CandidatesComponent,
     CommitteeComponent,
     ConfirmedPlansComponent,
+    ExamDayComponent,
     DashboardComponent,
     ExamHalfYearsComponent,
     LocationsComponent,
@@ -114,6 +116,7 @@ export class App {
   protected readonly loading = signal(false);
   protected readonly actionBusy = signal(false);
   protected readonly contextualRoundId = signal<number | null>(null);
+  protected readonly contextualDayId = signal<number | null>(null);
   protected readonly feedback = signal<{
     type: 'success' | 'error';
     title: string;
@@ -125,6 +128,7 @@ export class App {
       dashboard: 'Übersicht',
       'scheduling-overview': 'Terminorganisationen',
       'confirmed-plans': 'Prüfungspläne',
+      'exam-day': 'Prüfungstag',
       candidates: 'Prüflinge',
       committee: 'Prüfungsausschüsse',
       planning: 'Terminorganisation',
@@ -152,9 +156,14 @@ export class App {
   });
 
   protected readonly isContextualView = computed(() =>
-    ['dashboard', 'scheduling-overview', 'confirmed-plans', 'candidates', 'planning'].includes(
-      this.activeView(),
-    ),
+    [
+      'dashboard',
+      'scheduling-overview',
+      'confirmed-plans',
+      'exam-day',
+      'candidates',
+      'planning',
+    ].includes(this.activeView()),
   );
 
   protected readonly breadcrumb = computed(() => {
@@ -725,6 +734,7 @@ export class App {
       dashboard: 'dashboard',
       'scheduling-overview': 'scheduling-overview',
       'confirmed-plans': 'confirmed-plans',
+      'exam-day': 'confirmed-plans',
       candidates: 'candidates',
       committee: 'committee',
       planning: 'planning',
@@ -736,6 +746,9 @@ export class App {
 
   private viewFromUrl(url: string): AppView {
     const segments = this.urlSegments(url);
+    if (segments[0] === 'confirmed-plans' && segments[2] === 'days' && segments[3]) {
+      return 'exam-day';
+    }
     if (segments[0] === 'scheduling-overview' && segments[1]) {
       return 'planning';
     }
@@ -757,6 +770,7 @@ export class App {
     this.activeView.set(this.viewFromUrl(url));
     const roundId = this.roundIdFromUrl(url);
     this.contextualRoundId.set(roundId);
+    this.contextualDayId.set(this.dayIdFromUrl(url));
     if (roundId === null || roundId === this.roundContext.roundId()) {
       return;
     }
@@ -775,6 +789,13 @@ export class App {
       return null;
     }
     const id = Number(segments[1]);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  }
+
+  private dayIdFromUrl(url: string): number | null {
+    const segments = this.urlSegments(url);
+    if (segments[0] !== 'confirmed-plans' || segments[2] !== 'days') return null;
+    const id = Number(segments[3]);
     return Number.isInteger(id) && id > 0 ? id : null;
   }
 
