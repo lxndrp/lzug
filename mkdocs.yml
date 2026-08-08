@@ -56,3 +56,8 @@ nav:
           - ADR-0010 Vitest statt Karma/Jasmine: developers/decisions/0010-vitest-statt-karma-jasmine.md
           - ADR-0011 GitHub Wiki als Handbuchoberfläche: developers/decisions/0011-github-wiki-handbuch.md
           - ADR-0012 Single Source of Truth: developers/decisions/0012-wiki-single-source-of-truth.md
+          - ADR-0013 Instanzen je Ausschuss: developers/decisions/0013-dezentrale-instanzen-je-ausschuss.md
+          - ADR-0014 OCI und `/data`: developers/decisions/0014-oci-einzelcontainer-und-persistentes-data.md
+          - ADR-0015 Flüchtige Azure-Demo: developers/decisions/0015-fluechtige-azure-demo.md
+          - ADR-0016 Spätere Mandantenflotte: developers/decisions/0016-spaetere-mandantenflotte.md
+          - ADR-0017 Ohne Kubernetes und Helm: developers/decisions/0017-erstveroeffentlichung-ohne-kubernetes.md
