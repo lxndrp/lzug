@@ -136,6 +136,31 @@ def _ensure_writable_directory(directory: Path) -> None:
         ) from error
 
 
+def _ensure_writable_file(file_path: Path) -> None:
+    try:
+        descriptor = os.open(file_path, os.O_WRONLY | os.O_APPEND)
+    except OSError as error:
+        raise PersistenceConfigurationError(
+            f"Persistent file is not writable: {file_path} ({error})"
+        ) from error
+    else:
+        os.close(descriptor)
+
+
+def _ensure_free_space(directory: Path, minimum_free_bytes: int) -> None:
+    try:
+        free_bytes = shutil.disk_usage(directory).free
+    except OSError as error:
+        raise PersistenceConfigurationError(
+            f"Free space cannot be checked for {directory}: {error}"
+        ) from error
+    if free_bytes < minimum_free_bytes:
+        raise PersistenceConfigurationError(
+            f"Insufficient free space in {directory}: {free_bytes} bytes available, "
+            f"at least {minimum_free_bytes} required"
+        )
+
+
 def validate_persistence(
     paths: PersistencePaths,
     *,
@@ -145,30 +170,24 @@ def validate_persistence(
     """Validate directories, write access, free space, and database shape."""
     if minimum_free_bytes < 0:
         raise ValueError("minimum_free_bytes must not be negative")
-    for directory in paths.directories:
+    checked_directories: set[Path] = set()
+    for directory in (*paths.directories, paths.database.parent):
         _ensure_writable_directory(directory)
-        try:
-            free_bytes = shutil.disk_usage(directory).free
-        except OSError as error:
-            raise PersistenceConfigurationError(
-                f"Free space cannot be checked for {directory}: {error}"
-            ) from error
-        if free_bytes < minimum_free_bytes:
-            raise PersistenceConfigurationError(
-                f"Insufficient free space in {directory}: {free_bytes} bytes available, "
-                f"at least {minimum_free_bytes} required"
-            )
+        resolved_directory = directory.resolve()
+        if resolved_directory not in checked_directories:
+            _ensure_free_space(directory, minimum_free_bytes)
+            checked_directories.add(resolved_directory)
 
-    database_parent = paths.database.parent
-    _ensure_writable_directory(database_parent)
-    if paths.database.exists() and paths.database.is_dir():
-        raise PersistenceConfigurationError(f"Database path is a directory: {paths.database}")
-    if paths.database.exists() and paths.database.is_symlink():
+    if paths.database.is_symlink():
         raise PersistenceConfigurationError(
             f"Database path must not be a symlink: {paths.database}"
         )
+    if paths.database.exists() and paths.database.is_dir():
+        raise PersistenceConfigurationError(f"Database path is a directory: {paths.database}")
     if require_database and not paths.database.exists():
         raise PersistenceConfigurationError(f"Database does not exist: {paths.database}")
+    if paths.database.exists():
+        _ensure_writable_file(paths.database)
 
 
 def _configure_sqlite_connection(dbapi_connection, _connection_record) -> None:

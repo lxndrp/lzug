@@ -39,9 +39,9 @@ Prüfung, kein Backup-, Migrations- oder Wiederherstellungsmechanismus. Vor dem
 Start prüft das Backend außerdem die Existenz beziehungsweise Anlegbarkeit von
 `/data`, `/data/documents` und `/data/backups`, Schreibzugriff und den
 prüfbaren freien Speicher. Für lokale Tests können `LZUG_DATA_DIR`,
-`LZUG_DOCUMENTS_PATH` und `LZUG_BACKUPS_PATH` oder die gleichnamigen
-CLI-Optionen diese Pfade überschreiben; der Self-Hosting-Standard bleibt unter
-`/data`.
+`LZUG_DOCUMENTS_PATH` und `LZUG_BACKUPS_PATH` oder die entsprechenden
+CLI-Optionen `--data-dir`, `--documents` und `--backups` diese Pfade
+überschreiben; der Self-Hosting-Standard bleibt unter `/data`.
 
 Dokumente werden über `backend.document_storage.DocumentStorage` gespeichert.
 Der lokale Adapter verwendet zufällige interne 32-stellige Hexadezimal-IDs und

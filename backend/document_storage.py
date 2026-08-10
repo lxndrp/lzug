@@ -6,6 +6,7 @@ import hashlib
 import os
 import re
 import tempfile
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO, Protocol
@@ -141,7 +142,8 @@ class FilesystemDocumentStorage:
             raise DocumentStorageError(f"Document could not be stored: {storage_id}") from error
         finally:
             if temporary_path is not None:
-                temporary_path.unlink(missing_ok=True)
+                with suppress(OSError):
+                    temporary_path.unlink(missing_ok=True)
 
     def read(self, storage_id: str) -> bytes:
         path = self._path(storage_id)
@@ -153,7 +155,13 @@ class FilesystemDocumentStorage:
         except OSError as error:
             raise DocumentStorageError(f"Document could not be opened: {storage_id}") from error
         try:
-            with os.fdopen(descriptor, "rb") as document:
+            document = os.fdopen(descriptor, "rb")
+        except OSError as error:
+            with suppress(OSError):
+                os.close(descriptor)
+            raise DocumentStorageError(f"Document could not be opened: {storage_id}") from error
+        try:
+            with document:
                 return document.read()
         except OSError as error:
             raise DocumentStorageError(f"Document could not be read: {storage_id}") from error

@@ -78,6 +78,17 @@ class PersistenceConfigurationTests(unittest.TestCase):
             with self.assertRaisesRegex(PersistenceConfigurationError, "does not exist"):
                 validate_persistence(paths, minimum_free_bytes=0, require_database=True)
 
+    def test_validation_checks_an_existing_database_file_for_write_access(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = persistence_paths(data_dir=directory)
+            paths.database.touch()
+            with patch(
+                "backend.database._ensure_writable_file",
+                side_effect=PersistenceConfigurationError("database is read-only"),
+            ):
+                with self.assertRaisesRegex(PersistenceConfigurationError, "read-only"):
+                    validate_persistence(paths, minimum_free_bytes=0)
+
 
 class FilesystemDocumentStorageTests(unittest.TestCase):
     def test_put_read_and_delete_are_atomic_and_content_addressed_by_metadata(self) -> None:
@@ -115,6 +126,29 @@ class FilesystemDocumentStorageTests(unittest.TestCase):
                 storage.put("c" * 32, BrokenContent())
 
             self.assertEqual([], list(Path(directory).glob("*")))
+
+    def test_cleanup_failure_does_not_mask_a_successful_write(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            storage = FileSystemDocumentStorage(Path(directory))
+            with patch("pathlib.Path.unlink", side_effect=OSError("cleanup failed")):
+                stored = storage.put("e" * 32, b"content")
+
+            self.assertEqual(7, stored.size_bytes)
+            self.assertEqual(b"content", storage.read("e" * 32))
+
+    def test_fdopen_failure_closes_the_open_descriptor(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            storage = FileSystemDocumentStorage(Path(directory))
+            storage.put("f" * 32, b"content")
+            with patch(
+                "backend.document_storage.os.fdopen",
+                side_effect=OSError("fdopen failed"),
+            ):
+                with patch("backend.document_storage.os.close") as close:
+                    with self.assertRaisesRegex(DocumentStorageError, "opened"):
+                        storage.read("f" * 32)
+
+            close.assert_called_once()
 
     def test_display_filenames_cannot_become_paths(self) -> None:
         self.assertEqual("report.pdf", validate_document_filename("report.pdf"))
