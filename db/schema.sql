@@ -17,7 +17,7 @@ INSERT INTO schema_migration (name)
 VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.sql'),
        ('003_add_exam_half_years.sql'), ('004_add_candidate_committee_assignments.sql'),
        ('005_add_exam_day_attendance.sql'), ('006_add_exam_execution_status.sql'),
-       ('007_add_documents.sql');
+       ('007_add_documents.sql'), ('008_add_authentication_sessions.sql');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
@@ -62,14 +62,34 @@ CREATE TABLE user_account (
   id INTEGER PRIMARY KEY,
   person_id INTEGER UNIQUE REFERENCES person(id) ON DELETE SET NULL,
   email TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
+  password_hash TEXT,
   passkey_enabled INTEGER NOT NULL DEFAULT 0 CHECK (passkey_enabled IN (0, 1)),
   two_factor_enabled INTEGER NOT NULL DEFAULT 0 CHECK (two_factor_enabled IN (0, 1)),
+  is_operator INTEGER NOT NULL DEFAULT 0 CHECK (is_operator IN (0, 1)),
+  is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
   last_login_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CHECK (two_factor_enabled = 0 OR passkey_enabled = 1)
 );
+
+CREATE TABLE auth_session (
+  id INTEGER PRIMARY KEY,
+  account_id INTEGER NOT NULL REFERENCES user_account(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  csrf_token_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  revoked_at TEXT,
+  revoke_reason TEXT,
+  rotated_from_id INTEGER REFERENCES auth_session(id) ON DELETE SET NULL,
+  CHECK (expires_at > created_at),
+  CHECK (revoked_at IS NULL OR revoked_at >= created_at)
+);
+
+CREATE INDEX auth_session_account_active
+  ON auth_session(account_id, revoked_at, expires_at);
 
 CREATE TABLE location (
   id INTEGER PRIMARY KEY,

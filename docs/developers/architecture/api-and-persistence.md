@@ -6,6 +6,9 @@ Die JSON-API ist selbstbeschreibend:
 - `GET /api/health` liefert den Healthcheck.
 - `GET /api/health` liefert HTTP 200 bei bereiter Datenbank und HTTP 503, wenn
   die Datenbank fehlt, nicht initialisiert oder nicht erreichbar ist.
+- `GET /api/health`, `/api`, `/api/openapi.json` und `/api/docs` sind die bewusst
+  öffentlichen Transport-Endpunkte; Fachoperationen benötigen eine gültige
+  Session und zustandsändernde Requests zusätzlich CSRF-Schutz.
 - `GET /api/openapi.json` liefert den verbindlichen OpenAPI-3.1-Vertrag.
 - `GET /api/docs` liefert Swagger UI.
 

@@ -37,6 +37,7 @@ nav:
           - Backend und Datenzugriff: developers/architecture/backend.md
           - Frontend: developers/architecture/frontend.md
           - API und Persistenz: developers/architecture/api-and-persistence.md
+          - Authentifizierung und Sitzungen: developers/architecture/authentication.md
       - Referenz:
           - Fachliches Datenmodell: developers/domain-model.md
           - Datenbankschema: developers/database-schema.md

@@ -63,6 +63,45 @@ class Person(Base):
     updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
 
 
+class UserAccount(Base):
+    """Authentication identity, deliberately separate from committee roles."""
+
+    __tablename__ = "user_account"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    person_id: Mapped[int | None] = mapped_column(
+        ForeignKey("person.id", ondelete="SET NULL"), nullable=True
+    )
+    email: Mapped[str] = mapped_column(String)
+    password_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+    passkey_enabled: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
+    two_factor_enabled: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
+    is_operator: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
+    is_active: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    last_login_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class AuthSession(Base):
+    """Server-side session record; only hashes of bearer material are stored."""
+
+    __tablename__ = "auth_session"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("user_account.id", ondelete="CASCADE"))
+    token_hash: Mapped[str] = mapped_column(String, unique=True)
+    csrf_token_hash: Mapped[str] = mapped_column(String)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    expires_at: Mapped[str] = mapped_column(String)
+    last_seen_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    revoked_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    revoke_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    rotated_from_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_session.id", ondelete="SET NULL"), nullable=True
+    )
+
+
 class Location(Base):
     __tablename__ = "location"
 
