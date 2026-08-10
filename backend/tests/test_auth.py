@@ -8,6 +8,8 @@ from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 
 from backend.auth import AuthenticationRepository
+from backend.models import COMMITTEE
+from backend.repositories import ResourceRepository
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
 
@@ -130,12 +132,9 @@ class AuthenticationTests(unittest.TestCase):
 
     def test_missing_committee_or_round_membership_is_forbidden(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
-            status, committee = api.request(
-                "POST",
-                "/api/committees",
-                {"name": "Unassigned committee", "occupation": "Test"},
+            committee = ResourceRepository(db_path).create(
+                COMMITTEE, {"name": "Unassigned committee", "occupation": "Test"}
             )
-            assert_status(status, HTTPStatus.CREATED)
 
             status, error = api.request(
                 "POST",

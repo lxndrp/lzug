@@ -324,7 +324,9 @@ export class PlanningApiService {
     return this.http.delete<void>(`/api/locations/${id}`);
   }
 
-  savePlanningSettings(payload: Omit<PlanningSettings, 'id' | 'exam_round_id'>) {
+  savePlanningSettings(
+    payload: Omit<PlanningSettings, 'id' | 'exam_round_id' | 'updated_by_member_id'>,
+  ) {
     return this.http.post<PlanningSettings>('/api/planning-settings', {
       ...payload,
       exam_round_id: this.roundId,

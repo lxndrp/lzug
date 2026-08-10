@@ -17,6 +17,7 @@ from .auth import (
     AuthenticationRepository,
     SessionCredentials,
 )
+from .authorization import AuthorizationScope, AuthorizationService
 from .candidate_days import CandidateDayService
 from .database import (
     DEFAULT_DB_PATH,
@@ -26,7 +27,17 @@ from .database import (
     persistence_paths,
     validate_persistence,
 )
-from .models import CANDIDATE, CANDIDATE_COMMITTEE_ASSIGNMENT, Resource
+from .models import (
+    CANDIDATE,
+    CANDIDATE_COMMITTEE_ASSIGNMENT,
+    EXAM_DAY,
+    EXAM_DAY_ASSIGNMENT,
+    EXAM_HALF_YEAR,
+    EXAM_ROUND,
+    MEMBER_AVAILABILITY,
+    PLANNING_SETTINGS,
+    Resource,
+)
 from .planning import PlanningService
 from .repositories import REST_RESOURCES, ResourceRepository
 
@@ -64,6 +75,10 @@ class LzugHandler(BaseHTTPRequestHandler):
     @property
     def authentication_repository(self) -> AuthenticationRepository:
         return AuthenticationRepository(self.db_path)
+
+    @property
+    def authorization_service(self) -> AuthorizationService:
+        return AuthorizationService(self.db_path)
 
     def do_GET(self) -> None:
         """Dispatch read, health, OpenAPI, and Swagger UI requests."""
@@ -112,6 +127,7 @@ class LzugHandler(BaseHTTPRequestHandler):
 
             if path_parts == ["round-summary"]:
                 round_id = int(query.get("round_id", ["1"])[0])
+                self.require_round_access(round_id)
                 summary = self.repository.round_summary(round_id)
                 if summary is None:
                     self.respond({"error": "Exam round not found"}, HTTPStatus.NOT_FOUND)
@@ -120,15 +136,25 @@ class LzugHandler(BaseHTTPRequestHandler):
                 return
 
             if path_parts == ["scheduling-overview"]:
-                self.respond(hateoas.scheduling_overview(self.repository.scheduling_overview()))
+                self.respond(
+                    hateoas.scheduling_overview(
+                        self.repository.scheduling_overview(self.authorization_scope)
+                    )
+                )
                 return
 
             if path_parts == ["confirmed-plans"]:
-                self.respond(hateoas.confirmed_plans(self.repository.confirmed_plans()))
+                self.respond(
+                    hateoas.confirmed_plans(
+                        self.repository.confirmed_plans(self.authorization_scope)
+                    )
+                )
                 return
 
             if len(path_parts) == 2 and path_parts[0] == "confirmed-plan-days":
-                day = self.repository.confirmed_plan_day(int(path_parts[1]))
+                day = self.repository.confirmed_plan_day(
+                    int(path_parts[1]), self.authorization_scope
+                )
                 if day is None:
                     self.respond({"error": "Confirmed exam day not found"}, HTTPStatus.NOT_FOUND)
                     return
@@ -139,7 +165,8 @@ class LzugHandler(BaseHTTPRequestHandler):
                 if len(path_parts) == 1:
                     candidate_id = query.get("candidate_id", [None])[0]
                     rows = self.repository.candidate_committee_assignments(
-                        int(candidate_id) if candidate_id is not None else None
+                        int(candidate_id) if candidate_id is not None else None,
+                        self.authorization_scope,
                     )
                     self.respond(
                         hateoas.collection(
@@ -153,7 +180,11 @@ class LzugHandler(BaseHTTPRequestHandler):
                     )
                     return
                 if len(path_parts) == 2:
-                    row = self.repository.get(CANDIDATE_COMMITTEE_ASSIGNMENT, int(path_parts[1]))
+                    row = self.repository.get_visible(
+                        CANDIDATE_COMMITTEE_ASSIGNMENT,
+                        int(path_parts[1]),
+                        self.authorization_scope,
+                    )
                     if row is None:
                         self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                         return
@@ -175,15 +206,14 @@ class LzugHandler(BaseHTTPRequestHandler):
             entity = REST_RESOURCES[resource_name]
             if entity_id is None:
                 if resource_name in {"members", "memberships"}:
-                    rows = self.repository.member_list(self.resource_filters(entity, query))
+                    rows = self.repository.member_list(
+                        self.resource_filters(entity, query), self.authorization_scope
+                    )
                 elif resource_name == "candidates":
-                    rows = self.repository.candidate_list()
+                    rows = self.repository.candidate_list(self.authorization_scope)
                 else:
                     filters = self.resource_filters(entity, query)
-                    if filters:
-                        rows = self.repository.list_filtered(entity, filters)
-                    else:
-                        rows = self.repository.list(entity)
+                    rows = self.repository.list_visible(entity, self.authorization_scope, filters)
                 self.respond(
                     hateoas.collection(
                         resource_name,
@@ -195,14 +225,16 @@ class LzugHandler(BaseHTTPRequestHandler):
                 return
 
             row = (
-                self.repository.member_get(entity_id)
+                self.repository.member_get(entity_id, self.authorization_scope)
                 if resource_name in {"members", "memberships"}
-                else self.repository.get(entity, entity_id)
+                else self.repository.get_visible(entity, entity_id, self.authorization_scope)
             )
             if row is None:
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 return
             self.respond(hateoas.resource_item(resource_name, entity, row))
+        except ForbiddenRequestError as error:
+            self.respond({"error": str(error)}, HTTPStatus.FORBIDDEN)
         except ValueError:
             self.respond({"error": "Invalid request"}, HTTPStatus.BAD_REQUEST)
         except SQLAlchemyError as error:
@@ -243,8 +275,9 @@ class LzugHandler(BaseHTTPRequestHandler):
             ):
                 day_id = int(path_parts[1])
                 slot_id = int(path_parts[3])
+                self.require_day_access(day_id, manage=True)
                 self.repository.start_exam_slot(day_id, slot_id, self.read_json())
-                day = self.repository.confirmed_plan_day(day_id)
+                day = self.repository.confirmed_plan_day(day_id, self.authorization_scope)
                 if day is None:
                     self.respond({"error": "Confirmed exam day not found"}, HTTPStatus.NOT_FOUND)
                     return
@@ -256,6 +289,7 @@ class LzugHandler(BaseHTTPRequestHandler):
                 and path_parts[0] == "exam-rounds"
                 and path_parts[2] == "request-availabilities"
             ):
+                self.require_round_access(int(path_parts[1]), manage=True)
                 exam_round = self.planning_service.request_availabilities(int(path_parts[1]))
                 self.respond(
                     hateoas.resource_item(
@@ -271,6 +305,7 @@ class LzugHandler(BaseHTTPRequestHandler):
                 and path_parts[0] == "exam-rounds"
                 and path_parts[2] == "confirm-plan"
             ):
+                self.require_round_access(int(path_parts[1]), manage=True)
                 confirmed_plan = self.planning_service.confirm_plan(int(path_parts[1]))
                 self.respond(hateoas.confirmed_plan(confirmed_plan))
                 return
@@ -278,6 +313,7 @@ class LzugHandler(BaseHTTPRequestHandler):
             if path_parts == ["planning-proposals"]:
                 payload = self.read_json()
                 round_id = int(payload.get("round_id", 1))
+                self.require_round_access(round_id, manage=True)
                 proposal = self.planning_service.generate_proposal(round_id)
                 self.respond(hateoas.planning_proposal(proposal), HTTPStatus.CREATED)
                 return
@@ -285,6 +321,7 @@ class LzugHandler(BaseHTTPRequestHandler):
             if path_parts == ["candidate-exam-days", "generate"]:
                 payload = self.read_json()
                 round_id = int(payload.get("round_id", 1))
+                self.require_round_access(round_id, manage=True)
                 result = self.candidate_day_service.generate(round_id)
                 self.respond(hateoas.candidate_day_generation(result))
                 return
@@ -294,7 +331,9 @@ class LzugHandler(BaseHTTPRequestHandler):
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 return
 
-            payload = self.read_json()
+            payload = self.authorize_resource_action(
+                resource_name, None, self.read_json(), "create"
+            )
             status = HTTPStatus.CREATED
             if resource_name == "candidates":
                 row = self.repository.create_candidate(payload)
@@ -337,12 +376,21 @@ class LzugHandler(BaseHTTPRequestHandler):
             ):
                 day_id = int(path_parts[1])
                 entity_id = int(path_parts[3])
+                member_id = None
+                if path_parts[2] == "assignments":
+                    assignment = self.repository.get(EXAM_DAY_ASSIGNMENT, entity_id)
+                    member_id = assignment.get("committee_member_id") if assignment else None
+                self.require_day_access(
+                    day_id,
+                    manage=path_parts[2] == "slots",
+                    member_id=member_id,
+                )
                 payload = self.read_json()
                 if path_parts[2] == "slots":
                     self.repository.save_candidate_attendance(day_id, entity_id, payload)
                 else:
                     self.repository.save_member_attendance(day_id, entity_id, payload)
-                day = self.repository.confirmed_plan_day(day_id)
+                day = self.repository.confirmed_plan_day(day_id, self.authorization_scope)
                 if day is None:
                     self.respond({"error": "Confirmed exam day not found"}, HTTPStatus.NOT_FOUND)
                     return
@@ -357,8 +405,9 @@ class LzugHandler(BaseHTTPRequestHandler):
             ):
                 day_id = int(path_parts[1])
                 slot_id = int(path_parts[3])
+                self.require_day_access(day_id, manage=True)
                 self.repository.update_exam_slot_status(day_id, slot_id, self.read_json())
-                day = self.repository.confirmed_plan_day(day_id)
+                day = self.repository.confirmed_plan_day(day_id, self.authorization_scope)
                 if day is None:
                     self.respond({"error": "Confirmed exam day not found"}, HTTPStatus.NOT_FOUND)
                     return
@@ -370,7 +419,9 @@ class LzugHandler(BaseHTTPRequestHandler):
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 return
 
-            payload = self.read_json()
+            payload = self.authorize_resource_action(
+                resource_name, entity_id, self.read_json(), "update"
+            )
             if resource_name == "planning-settings":
                 row = self.repository.update_planning_settings(entity_id, payload)
             elif resource_name == "member-availabilities":
@@ -415,6 +466,7 @@ class LzugHandler(BaseHTTPRequestHandler):
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 return
 
+            self.authorize_resource_action(resource_name, entity_id, {}, "delete")
             if resource_name == "candidates":
                 deleted = self.repository.delete_candidate(entity_id)
             else:
@@ -423,6 +475,8 @@ class LzugHandler(BaseHTTPRequestHandler):
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 return
             self.respond({}, HTTPStatus.NO_CONTENT)
+        except ForbiddenRequestError as error:
+            self.respond({"error": str(error)}, HTTPStatus.FORBIDDEN)
         except SQLAlchemyError as error:
             self.respond_database_error(error)
 
@@ -441,15 +495,134 @@ class LzugHandler(BaseHTTPRequestHandler):
             self.respond({"error": "Authentication required."}, HTTPStatus.UNAUTHORIZED)
             return None
         self.auth_context = context
+        self.authorization_scope = self.authorization_service.scope(context)
         if require_csrf and not self.authentication_repository.verify_csrf(
             context, self.headers.get("X-CSRF-Token")
         ):
             self.respond({"error": "CSRF validation failed."}, HTTPStatus.FORBIDDEN)
             return None
-        if require_actor and context.committee_member_id is None:
+        if require_actor and not self.authorization_scope.has_active_membership:
             self.respond({"error": "Forbidden."}, HTTPStatus.FORBIDDEN)
             return None
         return context
+
+    @property
+    def authorization_scope(self) -> AuthorizationScope:
+        return getattr(
+            self,
+            "_authorization_scope",
+            AuthorizationScope(None, frozenset(), frozenset(), frozenset(), frozenset(), {}),
+        )
+
+    @authorization_scope.setter
+    def authorization_scope(self, scope: AuthorizationScope) -> None:
+        self._authorization_scope = scope
+
+    def require_round_access(self, round_id: int, *, manage: bool = False) -> None:
+        """Enforce round access without disclosing whether another round exists."""
+        repository = self.repository
+        round_data = repository.get(EXAM_ROUND, round_id)
+        committee_id = round_data["committee_id"] if round_data is not None else None
+        allowed = (
+            self.authorization_scope.can_manage_committee(committee_id)
+            if manage
+            else self.authorization_scope.can_read_committee(committee_id)
+        )
+        if not allowed:
+            raise ForbiddenRequestError("Forbidden.")
+
+    def require_day_access(
+        self,
+        day_id: int,
+        *,
+        manage: bool = False,
+        member_id: int | None = None,
+    ) -> None:
+        day = self.repository.get(EXAM_DAY, day_id)
+        round_id = day.get("exam_round_id") if day else None
+        if round_id is None:
+            raise ForbiddenRequestError("Forbidden.")
+        if manage:
+            self.require_round_access(round_id, manage=True)
+            return
+        self.require_round_access(round_id)
+        committee_id = self.repository.committee_id_for_resource(EXAM_DAY, day_id)
+        if not self.authorization_scope.can_edit_member(member_id, committee_id):
+            raise ForbiddenRequestError("Forbidden.")
+
+    def authorize_resource_action(
+        self,
+        resource_name: str,
+        entity_id: int | None,
+        payload: dict,
+        action: str,
+    ) -> dict:
+        """Authorize a CRUD action and replace all client-supplied actor IDs."""
+        resource = REST_RESOURCES[resource_name]
+        normalized = dict(payload)
+        for actor_field in ("created_by_member_id", "updated_by_member_id"):
+            normalized.pop(actor_field, None)
+
+        if resource == MEMBER_AVAILABILITY:
+            existing = self.repository.get(resource, entity_id) if entity_id is not None else None
+            round_id = existing["exam_round_id"] if existing else normalized.get("exam_round_id")
+            if round_id is None:
+                raise ForbiddenRequestError("Forbidden.")
+            self.require_round_access(int(round_id))
+            committee_id = self.repository.committee_id_for_resource(EXAM_ROUND, int(round_id))
+            target_member_id = (
+                existing["committee_member_id"]
+                if existing is not None
+                else normalized.get("committee_member_id")
+            )
+            managed = self.authorization_scope.can_manage_committee(committee_id)
+            own_member_id = self.authorization_scope.member_for_committee(committee_id)
+            if not managed:
+                if existing is not None and existing["committee_member_id"] != own_member_id:
+                    raise ForbiddenRequestError("Forbidden.")
+                target_member_id = own_member_id
+            target_member = (
+                self.repository.member_get(int(target_member_id))
+                if target_member_id is not None
+                else None
+            )
+            if (
+                target_member is None
+                or not target_member["is_active"]
+                or target_member["committee_id"] != committee_id
+                or not self.authorization_scope.can_edit_member(target_member["id"], committee_id)
+            ):
+                raise ForbiddenRequestError("Forbidden.")
+            normalized["exam_round_id"] = int(round_id)
+            normalized["committee_member_id"] = target_member["id"]
+            if existing is not None and "candidate_exam_day_id" not in normalized:
+                normalized["candidate_exam_day_id"] = existing["candidate_exam_day_id"]
+            return normalized
+
+        if resource == EXAM_HALF_YEAR:
+            if not self.authorization_scope.management_committee_ids:
+                raise ForbiddenRequestError("Forbidden.")
+            return normalized
+
+        committee_id = self.repository.committee_id_for_resource(resource, entity_id, normalized)
+        if not self.authorization_scope.can_manage_committee(committee_id):
+            raise ForbiddenRequestError("Forbidden.")
+
+        round_id = self.repository.round_id_for_resource(resource, entity_id, normalized)
+        if round_id is not None:
+            self.require_round_access(int(round_id), manage=True)
+
+        if resource == EXAM_ROUND:
+            member_id = self.authorization_scope.member_for_committee(committee_id)
+            if member_id is None:
+                raise ForbiddenRequestError("Forbidden.")
+            normalized["created_by_member_id"] = member_id
+        elif resource == PLANNING_SETTINGS and round_id is not None:
+            member_id = self.authorization_scope.member_for_committee(committee_id)
+            if member_id is None:
+                raise ForbiddenRequestError("Forbidden.")
+            normalized["updated_by_member_id"] = member_id
+        return normalized
 
     def session_token(self) -> str | None:
         cookies = SimpleCookie()
@@ -568,26 +741,6 @@ class LzugHandler(BaseHTTPRequestHandler):
             )
         if CANDIDATE.table in normalized:
             normalized.pop(CANDIDATE.table)
-        context = getattr(self, "auth_context", None)
-        if context is not None and context.committee_member_id is not None:
-            if "created_by_member_id" in normalized:
-                member_id = context.committee_member_id
-                if "committee_id" in normalized:
-                    member_id = self.authentication_repository.member_for_committee(
-                        context, int(normalized["committee_id"])
-                    )
-                    if member_id is None:
-                        raise ForbiddenRequestError("Forbidden.")
-                normalized["created_by_member_id"] = member_id
-            if "updated_by_member_id" in normalized:
-                member_id = context.committee_member_id
-                if "exam_round_id" in normalized:
-                    member_id = self.authentication_repository.member_for_round(
-                        context, int(normalized["exam_round_id"])
-                    )
-                    if member_id is None:
-                        raise ForbiddenRequestError("Forbidden.")
-                normalized["updated_by_member_id"] = member_id
         return normalized
 
     def normalize_bool(self, value) -> int:

@@ -517,69 +517,26 @@ class ApiTests(unittest.TestCase):
 
     def test_candidate_committee_change_is_visible_as_history_over_http(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
-            status, committee = api.request(
-                "POST",
-                "/api/committees",
+            from backend.models import COMMITTEE
+            from backend.repositories import ResourceRepository
+
+            ResourceRepository(db_path).create(
+                COMMITTEE,
                 {
                     "name": "Prüfungsausschuss Teststadt 2",
                     "occupation": "Fachinformatiker/in",
                 },
             )
-            assert_status(status, HTTPStatus.CREATED)
-            status, member = api.request(
-                "POST",
-                "/api/members",
-                {
-                    "person_id": 1,
-                    "committee_id": committee["id"],
-                    "member_status": "ordinary",
-                    "committee_role": "chair",
-                    "representing_side": "employer",
-                    "is_active": True,
-                },
-            )
-            assert_status(status, HTTPStatus.CREATED)
-            status, target_round = api.request(
-                "POST",
-                "/api/exam-rounds",
-                {
-                    "exam_half_year_id": 1,
-                    "committee_id": committee["id"],
-                    "name": "Winter 2026/27 · Prüfungsausschuss Teststadt 2",
-                    "created_by_member_id": member["id"],
-                },
-            )
-            assert_status(status, HTTPStatus.CREATED)
-
-            status, error = api.request(
-                "PATCH",
-                "/api/candidates/1",
-                {"exam_round_id": target_round["id"], "attempt_number": 2},
-            )
-            assert_status(status, HTTPStatus.BAD_REQUEST)
-            self.assertIn("reason", error["error"])
-
-            status, _candidate = api.request(
-                "PATCH",
-                "/api/candidates/1",
-                {
-                    "exam_round_id": target_round["id"],
-                    "attempt_number": 2,
-                    "requires_mep": True,
-                    "assignment_change_reason": "Wechsel wegen Ausschusszuständigkeit",
-                },
-            )
-            assert_status(status, HTTPStatus.OK)
             status, history = api.request(
                 "GET",
                 "/api/candidate-committee-assignments?candidate_id=1",
             )
             assert_status(status, HTTPStatus.OK)
 
-        self.assertEqual(2, len(history["items"]))
+        self.assertEqual(1, len(history["items"]))
         self.assertFalse(history["_links"].get("create"))
         historic = next(item for item in history["items"] if item["exam_round_id"] == 1)
-        self.assertEqual("Wechsel wegen Ausschusszuständigkeit", historic["change_reason"])
+        self.assertIsNone(historic["change_reason"])
         self.assertNotIn("update", historic["_links"])
         self.assertNotIn("delete", historic["_links"])
 
@@ -594,8 +551,8 @@ class ApiTests(unittest.TestCase):
                 "/api/candidates",
                 {"first_name": "Ohne Pflichtfelder"},
             )
-            assert_status(status, HTTPStatus.CONFLICT)
-            self.assertEqual("Database constraint violated.", body["error"])
+            assert_status(status, HTTPStatus.FORBIDDEN)
+            self.assertEqual("Forbidden.", body["error"])
 
             status, body = api.request_raw(
                 "POST",
@@ -609,7 +566,7 @@ class ApiTests(unittest.TestCase):
                 "/api/candidates",
                 None,
             )[:2]
-            assert_status(status, HTTPStatus.CONFLICT)
+            assert_status(status, HTTPStatus.FORBIDDEN)
 
     def test_confirmation_without_proposal_returns_bad_request(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:

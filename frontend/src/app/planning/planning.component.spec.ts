@@ -4,7 +4,6 @@ import { PlanningComponent } from './planning.component';
 import {
   examRoundFixture,
   masterDataFixture,
-  membersFixture,
   planningBoardFixture,
   summaryFixture,
 } from '../testing/fixtures';
@@ -67,21 +66,8 @@ describe('PlanningComponent', () => {
       expect.objectContaining({
         calendar_week_from: '2026-W48',
         calendar_week_to: '2026-W50',
-        updated_by_member_id: 1,
       }),
     );
-  });
-
-  it('should not prioritize the chair when choosing the documented actor', () => {
-    const deputy = { ...membersFixture[0], id: 10, committee_role: 'deputy_chair' };
-    fixture.componentRef.setInput('masterData', {
-      ...masterDataFixture,
-      members: [deputy, membersFixture[0]],
-    });
-    fixture.detectChanges();
-
-    const component = fixture.componentInstance as unknown as { defaultUpdaterId: () => number };
-    expect(component.defaultUpdaterId()).toBe(10);
   });
 
   it('should emit editable exam round metadata', () => {
@@ -179,15 +165,11 @@ describe('PlanningComponent', () => {
     const element = fixture.nativeElement as HTMLElement;
     const state = element.querySelector<HTMLSelectElement>('#holidaySubdivisionCode')!;
     const location = element.querySelector<HTMLSelectElement>('#defaultLocation')!;
-    const updater = element.querySelector<HTMLSelectElement>('#updatedByMember')!;
 
     expect(optionLabels(state)).toContain('Nordrhein-Westfalen');
     expect(optionLabels(location)).toContain('Prüfungszentrum Alpha (Test) · Testraum A-01');
-    expect(optionLabels(updater)).toContain('Testperson Alpha');
     expect(state.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();
     expect(location.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeTruthy();
-    expect(updater.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();
-    expect(updater.required).toBe(true);
   });
 
   it('should keep Taiga date values at the UI boundary while preserving API formats', () => {
