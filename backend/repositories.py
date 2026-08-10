@@ -40,6 +40,19 @@ SPECIALIZATION_LABELS = {
 AVAILABILITY_VALUES = {"full_day", "morning", "afternoon", "unavailable", "pending"}
 ATTENDANCE_VALUES = {"open", "present", "late", "absent"}
 REPRESENTING_SIDES = {"employer", "employee", "school"}
+EXECUTION_STATUS_VALUES = {"open", "running", "completed", "cancelled", "needs_follow_up"}
+EXECUTION_STATUS_TRANSITIONS = {
+    "open": {"cancelled"},
+    "running": {"completed", "needs_follow_up"},
+    "needs_follow_up": {"completed"},
+}
+EXECUTION_STATUS_SUMMARY_KEYS = (
+    "open",
+    "running",
+    "completed",
+    "cancelled",
+    "needs_follow_up",
+)
 
 
 class ResourceRepository:
@@ -720,6 +733,10 @@ class ResourceRepository:
                                 "sequence_number": slot["sequence_number"],
                                 "slot_type": slot["slot_type"],
                                 "actual_started_at": slot["actual_started_at"],
+                                "execution_status": slot["execution_status"],
+                                "status_changed_at": slot["status_changed_at"],
+                                "actual_completed_at": slot["actual_completed_at"],
+                                "status_reason": slot["status_reason"],
                                 "candidate_attendance": self._attendance_view(
                                     candidate_attendance.get(slot["id"])
                                 ),
@@ -776,6 +793,7 @@ class ResourceRepository:
                             ),
                             "slots": slots,
                             "assignments": assignments,
+                            "status_summary": self._execution_status_summary(slots),
                         }
                     )
                 plans.append(
@@ -851,10 +869,77 @@ class ResourceRepository:
                 return store.create(MEMBER_EXAM_ATTENDANCE, values)
             return store.update(MEMBER_EXAM_ATTENDANCE, existing["id"], values) or existing
 
+    def update_exam_slot_status(
+        self,
+        day_id: int,
+        slot_id: int,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        with session_scope(self.db_path) as session:
+            store = Store(session)
+            slot = self._confirmed_slot(store, day_id, slot_id)
+            target_status = payload.get("status")
+            if target_status not in EXECUTION_STATUS_VALUES:
+                raise ValueError("Unbekannter Durchführungsstatus")
+            if target_status == "running":
+                raise ValueError(
+                    "Der Status Läuft wird ausschließlich durch die Startaktion gesetzt"
+                )
+            if target_status == "cancelled" and slot["actual_started_at"] is not None:
+                raise ValueError(
+                    "Ein gestarteter Prüfungsslot kann nicht als ausgefallen markiert werden"
+                )
+            allowed = EXECUTION_STATUS_TRANSITIONS.get(slot["execution_status"], set())
+            if target_status not in allowed:
+                transition = (
+                    f"Der Statuswechsel von {slot['execution_status']} "
+                    f"zu {target_status} ist nicht erlaubt"
+                )
+                raise ValueError(transition)
+
+            reason = payload.get("reason")
+            if target_status in {"cancelled", "needs_follow_up"}:
+                if not isinstance(reason, str) or not reason.strip():
+                    raise ValueError(
+                        "Für einen Ausfall oder eine Nachbereitung ist eine Begründung erforderlich"
+                    )
+                reason = reason.strip()
+            else:
+                reason = slot["status_reason"]
+
+            changed_at = datetime.now(UTC).replace(microsecond=0).isoformat()
+            exam_slot = session.get(EXAM_SLOT.model, slot_id)
+            if exam_slot is None:
+                raise ValueError("Prüfungsslot nicht gefunden")
+            exam_slot.execution_status = target_status
+            exam_slot.status_changed_at = changed_at
+            exam_slot.status_reason = reason
+            if target_status == "completed":
+                exam_slot.actual_completed_at = changed_at
+            session.flush()
+            return {
+                **slot,
+                "execution_status": target_status,
+                "status_changed_at": changed_at,
+                "actual_completed_at": (
+                    changed_at if target_status == "completed" else slot["actual_completed_at"]
+                ),
+                "status_reason": reason,
+            }
+
     def start_exam_slot(self, day_id: int, slot_id: int, payload: dict[str, Any]) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
             store = Store(session)
             slot = self._confirmed_slot(store, day_id, slot_id)
+            if slot["execution_status"] not in {"open", "running"}:
+                raise ValueError(
+                    "Ein abgeschlossener oder ausgefallener Prüfungsslot "
+                    "kann nicht gestartet werden"
+                )
+            if slot["execution_status"] == "running" and slot["actual_started_at"] is None:
+                raise ValueError(
+                    "Der laufende Prüfungsslot hat keinen tatsächlichen Startzeitpunkt"
+                )
             candidate_attendance = store.first(CANDIDATE_EXAM_ATTENDANCE, exam_slot_id=slot_id)
             if candidate_attendance is None or candidate_attendance["status"] not in {
                 "present",
@@ -889,6 +974,8 @@ class ResourceRepository:
 
             requested_started_at = payload.get("actual_started_at")
             if slot["actual_started_at"] is not None:
+                if slot["execution_status"] != "running":
+                    raise ValueError("Der Prüfungsslot kann nicht erneut gestartet werden")
                 if requested_started_at and slot["actual_started_at"] != requested_started_at:
                     raise ValueError(
                         f"Prüfungsstart wurde bereits um {slot['actual_started_at']} erfasst"
@@ -905,8 +992,22 @@ class ResourceRepository:
             if exam_slot is None:
                 raise ValueError("Prüfungsslot nicht gefunden")
             exam_slot.actual_started_at = actual_started_at
+            exam_slot.execution_status = "running"
+            exam_slot.status_changed_at = actual_started_at
             session.flush()
-            return {**slot, "actual_started_at": actual_started_at}
+            return {
+                **slot,
+                "actual_started_at": actual_started_at,
+                "execution_status": "running",
+                "status_changed_at": actual_started_at,
+            }
+
+    @staticmethod
+    def _execution_status_summary(slots: list[dict[str, Any]]) -> dict[str, int]:
+        summary = {status: 0 for status in EXECUTION_STATUS_SUMMARY_KEYS}
+        for slot in slots:
+            summary[slot["execution_status"]] += 1
+        return summary
 
     def _confirmed_slot(self, store: Store, day_id: int, slot_id: int) -> dict[str, Any]:
         slot = store.get(EXAM_SLOT, slot_id)

@@ -280,6 +280,22 @@ class LzugHandler(BaseHTTPRequestHandler):
                 self.respond(hateoas.confirmed_plan_day(day))
                 return
 
+            if (
+                len(path_parts) == 5
+                and path_parts[0] == "confirmed-plan-days"
+                and path_parts[2] == "slots"
+                and path_parts[4] == "status"
+            ):
+                day_id = int(path_parts[1])
+                slot_id = int(path_parts[3])
+                self.repository.update_exam_slot_status(day_id, slot_id, self.read_json())
+                day = self.repository.confirmed_plan_day(day_id)
+                if day is None:
+                    self.respond({"error": "Confirmed exam day not found"}, HTTPStatus.NOT_FOUND)
+                    return
+                self.respond(hateoas.confirmed_plan_day(day))
+                return
+
             resource_name, entity_id = self.resource_target(path_parts)
             if resource_name is None or entity_id is None:
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)

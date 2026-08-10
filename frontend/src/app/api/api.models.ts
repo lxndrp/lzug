@@ -47,6 +47,10 @@ export type ConfirmedPlanDay = {
     sequence_number: number;
     slot_type: 'regular' | 'mep' | string;
     actual_started_at: string | null;
+    execution_status: ExecutionStatus;
+    status_changed_at: string;
+    actual_completed_at: string | null;
+    status_reason: string | null;
     candidate_attendance: Attendance;
     candidate: { id: number; first_name: string; last_name: string; ihk_exam_number: string };
   }>;
@@ -58,7 +62,16 @@ export type ConfirmedPlanDay = {
     attendance: Attendance;
     member: { id: number; first_name: string; last_name: string; representing_side: string };
   }>;
+  status_summary: ExecutionStatusSummary;
 };
+
+export type ExecutionStatus =
+  'open' | 'running' | 'completed' | 'cancelled' | 'needs_follow_up' | string;
+
+export type ExecutionStatusSummary = Record<
+  'open' | 'running' | 'completed' | 'cancelled' | 'needs_follow_up',
+  number
+>;
 
 export type AttendanceStatus = 'open' | 'present' | 'late' | 'absent';
 

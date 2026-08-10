@@ -354,6 +354,54 @@ class DatabaseTests(unittest.TestCase):
         self.assertIsNone(history[1][1])
         self.assertEqual([(1, 0), (2, 1)], active_flags)
 
+    def test_initialize_migrates_started_slots_to_running_execution_status(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            db_path = Path(directory) / "legacy-execution-status.sqlite3"
+            with closing(sqlite3.connect(db_path)) as connection:
+                connection.executescript("""
+                    CREATE TABLE schema_migration (name TEXT PRIMARY KEY);
+                    INSERT INTO schema_migration (name) VALUES
+                      ('001_add_holiday_planning_settings.sql'),
+                      ('002_add_person_memberships.sql'),
+                      ('003_add_exam_half_years.sql'),
+                      ('004_add_candidate_committee_assignments.sql'),
+                      ('005_add_exam_day_attendance.sql');
+                    CREATE TABLE exam_slot (
+                      id INTEGER PRIMARY KEY,
+                      actual_started_at TEXT
+                    );
+                    INSERT INTO exam_slot (id, actual_started_at)
+                    VALUES (1, '2026-11-16T08:31:00+01:00'), (2, NULL);
+                """)
+                connection.commit()
+
+            initialize(db_path)
+
+            with closing(sqlite3.connect(db_path)) as connection:
+                status_changed_at_column = next(
+                    row
+                    for row in connection.execute("PRAGMA table_info(exam_slot)")
+                    if row[1] == "status_changed_at"
+                )
+                connection.execute("INSERT INTO exam_slot (id, actual_started_at) VALUES (3, NULL)")
+                new_slot_status_changed_at = connection.execute(
+                    "SELECT status_changed_at FROM exam_slot WHERE id = 3"
+                ).fetchone()[0]
+                rows = connection.execute(
+                    "SELECT id, execution_status, status_changed_at " "FROM exam_slot ORDER BY id"
+                ).fetchall()
+                migrations = {
+                    row[0] for row in connection.execute("SELECT name FROM schema_migration")
+                }
+
+        self.assertEqual((1, "running", "2026-11-16T08:31:00+01:00"), rows[0])
+        self.assertEqual("open", rows[1][1])
+        self.assertIsNotNone(rows[1][2])
+        self.assertEqual(1, status_changed_at_column[3])
+        self.assertEqual("''", status_changed_at_column[4])
+        self.assertTrue(new_slot_status_changed_at)
+        self.assertIn("006_add_exam_execution_status.sql", migrations)
+
 
 if __name__ == "__main__":
     unittest.main()

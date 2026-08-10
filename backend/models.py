@@ -281,6 +281,16 @@ class ExamSlot(Base):
     sequence_number: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String, server_default=sql_text("'proposed'"))
     actual_started_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    execution_status: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("'open'"),
+    )
+    status_changed_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    actual_completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    status_reason: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[str] = mapped_column(
         String,
         server_default=sql_text("CURRENT_TIMESTAMP"),
@@ -629,6 +639,10 @@ EXAM_SLOT = Resource(
         "sequence_number",
         "status",
         "actual_started_at",
+        "execution_status",
+        "status_changed_at",
+        "actual_completed_at",
+        "status_reason",
         "created_at",
         "updated_at",
     ),

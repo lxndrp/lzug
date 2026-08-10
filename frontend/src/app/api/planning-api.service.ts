@@ -32,6 +32,7 @@ import {
   RoundCandidate,
   RoundSummary,
   SchedulingOverviewItem,
+  ExecutionStatus,
 } from './api.models';
 import { RoundContextService } from './round-context.service';
 
@@ -122,6 +123,13 @@ export class PlanningApiService {
     return this.http.post<ConfirmedPlanDayView>(
       `/api/confirmed-plan-days/${dayId}/slots/${slotId}/start`,
       actualStartedAt ? { actual_started_at: actualStartedAt } : {},
+    );
+  }
+
+  updateExamSlotStatus(dayId: number, slotId: number, status: ExecutionStatus, reason?: string) {
+    return this.http.patch<ConfirmedPlanDayView>(
+      `/api/confirmed-plan-days/${dayId}/slots/${slotId}/status`,
+      { status, ...(reason ? { reason } : {}) },
     );
   }
 
