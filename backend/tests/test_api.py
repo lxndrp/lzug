@@ -2,11 +2,35 @@ from __future__ import annotations
 
 import unittest
 from http import HTTPStatus
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
+
+from sqlalchemy.exc import SQLAlchemyError
 
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
 
 class ApiTests(unittest.TestCase):
+    def test_database_errors_use_public_messages(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            with patch(
+                "backend.app.ResourceRepository.candidate_list",
+                side_effect=SQLAlchemyError("private database details"),
+            ):
+                status, body = api.request("GET", "/api/candidates")
+
+        assert_status(status, HTTPStatus.INTERNAL_SERVER_ERROR)
+        self.assertEqual("Database operation failed.", body["error"])
+
+    def test_health_reports_uninitialized_database_as_not_ready(self) -> None:
+        with TemporaryDirectory() as directory:
+            with ApiServer(Path(directory) / "uninitialized.sqlite") as api:
+                status, health = api.request("GET", "/api/health")
+
+        assert_status(status, HTTPStatus.SERVICE_UNAVAILABLE)
+        self.assertEqual("unavailable", health["status"])
+
     def test_health_and_round_summary_are_served_from_seeded_database(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             status, health = api.request("GET", "/api/health")
@@ -479,7 +503,7 @@ class ApiTests(unittest.TestCase):
                 },
             )
             assert_status(status, HTTPStatus.CONFLICT)
-            self.assertIn("UNIQUE", error["error"])
+            self.assertEqual("Database constraint violated.", error["error"])
 
     def test_candidate_committee_change_is_visible_as_history_over_http(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
@@ -561,7 +585,7 @@ class ApiTests(unittest.TestCase):
                 {"first_name": "Ohne Pflichtfelder"},
             )
             assert_status(status, HTTPStatus.CONFLICT)
-            self.assertIn("NOT NULL", body["error"])
+            self.assertEqual("Database constraint violated.", body["error"])
 
             status, body = api.request_raw(
                 "POST",

@@ -2,41 +2,97 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import MetaData, Table, create_engine, event, select
+from sqlalchemy import MetaData, Table, create_engine, event, inspect, select
 from sqlalchemy.engine import Connection, Engine
+from sqlalchemy.engine.url import make_url
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
+from .models import Base
+
 ROOT_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_DB_PATH = ROOT_DIR / "var" / "lzug.sqlite3"
+DEFAULT_DB_PATH = Path("/data/lzug.sqlite")
+BUSY_TIMEOUT_MS = 5_000
+SQLITE_JOURNAL_MODE = "wal"
+SQLITE_SYNCHRONOUS = 1
+REQUIRED_TABLES = frozenset(Base.metadata.tables) | {"schema_migration"}
 SCHEMA_PATH = ROOT_DIR / "db" / "schema.sql"
 SEED_PATH = ROOT_DIR / "db" / "seed_demo.sql"
 MIGRATIONS_PATH = ROOT_DIR / "db" / "migrations"
 
 
+def database_path(value: str | Path | None = None) -> Path:
+    """Resolve a SQLite file path from a CLI value or environment setting.
+
+    ``sqlite:///`` URLs are accepted so deployment environments can expose one
+    standard database setting while the application continues to pass a Path
+    through its repository and service boundaries.
+    """
+    if value is None:
+        database_url_value = os.environ.get("LZUG_DATABASE_URL")
+        database_path_value = os.environ.get("LZUG_DATABASE_PATH")
+        if database_url_value and database_path_value:
+            raise ValueError("Set only one of LZUG_DATABASE_URL and LZUG_DATABASE_PATH")
+        value = database_url_value or database_path_value
+    if value is None:
+        return DEFAULT_DB_PATH
+
+    raw_value = str(value)
+    if not raw_value.startswith("sqlite:"):
+        return Path(raw_value).expanduser()
+
+    url = make_url(raw_value)
+    if url.drivername not in {"sqlite", "sqlite+pysqlite"}:
+        raise ValueError("Only SQLite database URLs are supported")
+    if url.query or not url.database or url.database == ":memory:":
+        raise ValueError("SQLite database URLs must address a file without query parameters")
+    return Path(url.database).expanduser()
+
+
 def database_url(db_path: Path = DEFAULT_DB_PATH) -> str:
-    return f"sqlite:///{db_path}"
+    return f"sqlite:///{Path(db_path)}"
+
+
+def _configure_sqlite_connection(dbapi_connection, _connection_record) -> None:
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA foreign_keys = ON")
+        cursor.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
+        journal_mode = cursor.execute("PRAGMA journal_mode = WAL").fetchone()[0]
+        if str(journal_mode).lower() != SQLITE_JOURNAL_MODE:
+            raise RuntimeError(f"SQLite WAL mode could not be enabled (got {journal_mode!r})")
+        cursor.execute("PRAGMA synchronous = NORMAL")
+    finally:
+        cursor.close()
 
 
 def engine_for(db_path: Path = DEFAULT_DB_PATH) -> Engine:
+    db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     engine = create_engine(database_url(db_path), future=True, poolclass=NullPool)
-
-    @event.listens_for(engine, "connect")
-    def _enable_foreign_keys(dbapi_connection, _connection_record) -> None:
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys = ON")
-        cursor.close()
-
+    event.listen(engine, "connect", _configure_sqlite_connection)
     return engine
 
 
 def connect(db_path: Path = DEFAULT_DB_PATH) -> Connection:
     return engine_for(db_path).connect()
+
+
+@contextmanager
+def connection_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[Connection]:
+    """Yield one connection and dispose its short-lived engine deterministically."""
+    engine = engine_for(db_path)
+    try:
+        with engine.connect() as connection:
+            yield connection
+    finally:
+        engine.dispose()
 
 
 @contextmanager
@@ -53,7 +109,8 @@ def session_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[Session]:
     Yields:
         An open SQLAlchemy session.
     """
-    session_factory = sessionmaker(bind=engine_for(db_path), future=True)
+    engine = engine_for(db_path)
+    session_factory = sessionmaker(bind=engine, future=True)
     session = session_factory()
     try:
         yield session
@@ -63,6 +120,7 @@ def session_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[Session]:
         raise
     finally:
         session.close()
+        engine.dispose()
 
 
 def initialize(
@@ -72,8 +130,10 @@ def initialize(
 ) -> None:
     if reset:
         db_path.unlink(missing_ok=True)
+        Path(f"{db_path}-wal").unlink(missing_ok=True)
+        Path(f"{db_path}-shm").unlink(missing_ok=True)
 
-    is_new_database = not db_path.exists()
+    is_new_database = not db_path.exists() or db_path.stat().st_size == 0
     if is_new_database:
         engine = engine_for(db_path)
         raw_connection = engine.raw_connection()
@@ -156,6 +216,39 @@ def apply_migrations(db_path: Path = DEFAULT_DB_PATH) -> None:
 
 
 def is_available(db_path: Path = DEFAULT_DB_PATH) -> bool:
-    with connect(db_path) as connection:
-        connection.execute(select(1))
-    return True
+    try:
+        with connection_scope(db_path) as connection:
+            connection.execute(select(1))
+        return True
+    except OSError, RuntimeError, SQLAlchemyError:
+        return False
+
+
+def sqlite_settings(connection: Connection) -> dict[str, str | int]:
+    """Return the effective connection settings used by readiness checks."""
+    return {
+        "foreign_keys": int(connection.exec_driver_sql("PRAGMA foreign_keys").scalar_one()),
+        "journal_mode": str(connection.exec_driver_sql("PRAGMA journal_mode").scalar_one()).lower(),
+        "synchronous": int(connection.exec_driver_sql("PRAGMA synchronous").scalar_one()),
+        "busy_timeout": int(connection.exec_driver_sql("PRAGMA busy_timeout").scalar_one()),
+    }
+
+
+def is_ready(db_path: Path = DEFAULT_DB_PATH) -> bool:
+    """Check that the database is reachable, initialized, and self-hosting-ready."""
+    if not db_path.exists():
+        return False
+    try:
+        with connection_scope(db_path) as connection:
+            tables = inspect(connection)
+            if not REQUIRED_TABLES.issubset({table for table in tables.get_table_names()}):
+                return False
+            settings = sqlite_settings(connection)
+            return settings == {
+                "foreign_keys": 1,
+                "journal_mode": SQLITE_JOURNAL_MODE,
+                "synchronous": SQLITE_SYNCHRONOUS,
+                "busy_timeout": BUSY_TIMEOUT_MS,
+            }
+    except OSError, RuntimeError, SQLAlchemyError:
+        return False

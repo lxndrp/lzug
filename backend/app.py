@@ -6,14 +6,13 @@ import argparse
 import json
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from . import hateoas, openapi
 from .candidate_days import CandidateDayService
-from .database import DEFAULT_DB_PATH, initialize, is_available
+from .database import DEFAULT_DB_PATH, database_path, initialize, is_ready
 from .models import CANDIDATE, CANDIDATE_COMMITTEE_ASSIGNMENT, Resource
 from .planning import PlanningService
 from .repositories import REST_RESOURCES, ResourceRepository
@@ -54,7 +53,11 @@ class LzugHandler(BaseHTTPRequestHandler):
                 return
 
             if path_parts == ["health"]:
-                self.respond(self.health())
+                ready = is_ready(self.db_path)
+                self.respond(
+                    hateoas.health("ok" if ready else "unavailable"),
+                    HTTPStatus.OK if ready else HTTPStatus.SERVICE_UNAVAILABLE,
+                )
                 return
 
             if path_parts == ["openapi.json"]:
@@ -161,7 +164,7 @@ class LzugHandler(BaseHTTPRequestHandler):
         except ValueError:
             self.respond({"error": "Invalid request"}, HTTPStatus.BAD_REQUEST)
         except SQLAlchemyError as error:
-            self.respond({"error": str(error)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            self.respond_database_error(error)
 
     def do_POST(self) -> None:
         """Dispatch creates and planning actions, translating domain errors to HTTP."""
@@ -250,10 +253,8 @@ class LzugHandler(BaseHTTPRequestHandler):
             )
         except ValueError as error:
             self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
-        except IntegrityError as error:
-            self.respond({"error": str(error)}, HTTPStatus.CONFLICT)
         except SQLAlchemyError as error:
-            self.respond({"error": str(error)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            self.respond_database_error(error)
 
     def do_PATCH(self) -> None:
         """Dispatch partial updates through the repository validation boundary."""
@@ -329,10 +330,8 @@ class LzugHandler(BaseHTTPRequestHandler):
             )
         except ValueError as error:
             self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
-        except IntegrityError as error:
-            self.respond({"error": str(error)}, HTTPStatus.CONFLICT)
         except SQLAlchemyError as error:
-            self.respond({"error": str(error)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            self.respond_database_error(error)
 
     def do_DELETE(self) -> None:
         try:
@@ -351,14 +350,24 @@ class LzugHandler(BaseHTTPRequestHandler):
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 return
             self.respond({}, HTTPStatus.NO_CONTENT)
-        except IntegrityError as error:
-            self.respond({"error": str(error)}, HTTPStatus.CONFLICT)
         except SQLAlchemyError as error:
-            self.respond({"error": str(error)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            self.respond_database_error(error)
 
     def health(self) -> dict:
-        status = "ok" if is_available(self.db_path) else "unavailable"
-        return hateoas.health(status)
+        return hateoas.health("ok" if is_ready(self.db_path) else "unavailable")
+
+    def respond_database_error(self, error: SQLAlchemyError) -> None:
+        """Map persistence failures to stable public HTTP messages and statuses."""
+        if isinstance(error, IntegrityError):
+            self.respond({"error": "Database constraint violated."}, HTTPStatus.CONFLICT)
+            return
+        if isinstance(error, OperationalError) and "locked" in str(error).lower():
+            self.respond(
+                {"error": "The database is busy; retry the request."},
+                HTTPStatus.SERVICE_UNAVAILABLE,
+            )
+            return
+        self.respond({"error": "Database operation failed."}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def resource_target(self, path_parts: list[str]) -> tuple[str | None, int | None]:
         if len(path_parts) not in (1, 2):
@@ -495,17 +504,33 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the lzug demo backend.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
+    parser.add_argument("--db", dest="db_value", help="SQLite database path")
+    parser.add_argument(
+        "--database-url",
+        help="SQLite database URL, for example sqlite:////data/lzug.sqlite",
+    )
     parser.add_argument("--init", action="store_true", help="Create schema before starting.")
     parser.add_argument("--seed", action="store_true", help="Load demo data with --init.")
     parser.add_argument("--reset", action="store_true", help="Delete the database before --init.")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.db_value and args.database_url:
+        parser.error("Use only one of --db and --database-url")
+    try:
+        args.db = database_path(args.database_url or args.db_value)
+    except ValueError as error:
+        parser.error(str(error))
+    return args
 
 
 def main() -> None:
     args = parse_args()
     if args.init:
         initialize(args.db, with_seed=args.seed, reset=args.reset)
+    if not is_ready(args.db):
+        raise SystemExit(
+            f"Database is not ready: {args.db}. "
+            "Start with --init or check the database configuration."
+        )
 
     LzugHandler.db_path = args.db
     server = ThreadingHTTPServer((args.host, args.port), LzugHandler)
