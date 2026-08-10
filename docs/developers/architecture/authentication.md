@@ -4,7 +4,7 @@ Die Authentifizierungsgrundlage trennt die technische Identität eines Kontos
 von fachlichen Ausschussrollen. Ein `user_account` kann optional mit einer
 `person` verknüpft sein und separat `is_operator` tragen. Betreiberrechte
 erzeugen keine Ausschussmitgliedschaft und damit keine fachlichen Rechte.
-Die vollständige Rollenprüfung folgt in #265; Kennwort, TOTP, Passkeys und OIDC
+Kennwort, TOTP, Passkeys und OIDC
 folgen in #266–#268.
 
 ## Sessionregeln
@@ -44,8 +44,29 @@ verknüpften Person aufgelöst. `created_by_member_id` und
 `updated_by_member_id` aus JSON werden nicht als Identitätsbeweis akzeptiert;
 der Server ersetzt sie durch die passende aktive Mitgliedschaft der
 angemeldeten Person. Ein Request kann damit weder eine fremde Identität noch
-Betreiberrechte in fachliche Rollen umwandeln. Die weitergehende
-Ausschussisolation und Aktionsautorisierung ist Aufgabe von #265.
+Betreiberrechte in fachliche Rollen umwandeln.
+
+## Ausschuss-Scope und Rollenrechte
+
+`backend.authorization.AuthorizationService` erstellt für jede gültige
+Session einen Scope ausschließlich aus aktiven Mitgliedschaften. Listen,
+Details, Suche und aggregierte Planungsansichten werden auf diese Ausschüsse
+begrenzt; indirekt verbundene Kandidaten-, Planungs-, Termin- und
+Rückmeldungsdaten verwenden denselben Scope. Ein fremder Detailzugriff wird
+ohne fremde Daten beantwortet.
+
+Stamm- und Planungsdaten dürfen nur Vorsitz und Stellvertretung der aktiven
+Mitgliedschaft verändern. Beide Rollen verwenden dieselbe Managementprüfung;
+`ordinary` und `deputy` verändern diese Fachrechte nicht. Reguläre Mitglieder
+dürfen ausschließlich ihre eigenen Verfügbarkeitsrückmeldungen und ihnen
+zugeordnete spätere Aufgaben ändern. Inaktive oder historisch beendete
+Mitgliedschaften werden weder als Actor noch als fachlicher Scope akzeptiert.
+
+Die Angular-Oberfläche übermittelt keine Auswahl für den dokumentierten Actor.
+Sie zeigt weiterhin fachliche Zielobjekte und Rückmeldungen, während die
+serverseitige Prüfung die Sicherheitsgrenze bildet. OpenAPI beschreibt für
+alle geschützten Fachoperationen die Session-/CSRF-Sicherheit sowie 401 und
+403.
 
 Angular nutzt die Standard-XSRF-Unterstützung von `HttpClient` mit den
 kanonischen Cookie-/Headernamen. Der E2E-Server stellt Sessions ausschließlich

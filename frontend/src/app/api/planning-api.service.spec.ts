@@ -123,7 +123,6 @@ describe('PlanningApiService', () => {
         exam_half_year_id: 2,
         committee_id: 1,
         name: 'Sommer 2027 · Prüfungsausschuss Teststadt 1',
-        created_by_member_id: 1,
       })
       .subscribe();
     const createRound = http.expectOne('/api/exam-rounds');
@@ -366,7 +365,6 @@ describe('PlanningApiService', () => {
         exclude_public_holidays: 1,
         holiday_subdivision_code: 'DE-NW',
         default_location_id: 1,
-        updated_by_member_id: 1,
       })
       .subscribe();
 
@@ -382,7 +380,6 @@ describe('PlanningApiService', () => {
       exclude_public_holidays: 1,
       holiday_subdivision_code: 'DE-NW',
       default_location_id: 1,
-      updated_by_member_id: 1,
     });
     request.flush({});
   });

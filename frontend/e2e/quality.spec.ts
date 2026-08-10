@@ -649,9 +649,11 @@ test.describe('lzug browser workflows', () => {
       .click();
     expect((await halfYearResponse).status()).toBe(201);
 
+    const newHalfYear = page.locator('article').filter({ hasText: 'Sommer 2027' });
+    await expect(newHalfYear).toBeVisible();
+    await newHalfYear.getByRole('button', { name: 'Öffnen' }).click();
+    await expect(page.getByRole('heading', { name: 'Sommer 2027' })).toBeVisible();
     await page.locator('#roundCommittee').selectOption('1');
-    await expect(page.locator('#roundCreatedByMember option[value="1"]')).toHaveCount(1);
-    await page.locator('#roundCreatedByMember').selectOption('1');
     const roundResponse = page.waitForResponse(
       (response) =>
         response.url().endsWith('/api/exam-rounds') && response.request().method() === 'POST',
@@ -706,20 +708,15 @@ test.describe('lzug browser workflows', () => {
 
     const state = page.locator('#holidaySubdivisionCode');
     const location = page.locator('#defaultLocation');
-    const updater = page.locator('#updatedByMember');
     await expect(location.locator('option:checked')).toHaveText(
       'Prüfungszentrum Alpha (Test) · Testraum A-01',
     );
-    await expect(updater.locator('option:checked')).toHaveText('Testperson Alpha');
     await expect(
       state.locator('xpath=ancestor::tui-textfield').locator('button[tuiButtonX]'),
     ).toHaveCount(0);
     await expect(
       location.locator('xpath=ancestor::tui-textfield').locator('button[tuiButtonX]'),
     ).toHaveCount(1);
-    await expect(
-      updater.locator('xpath=ancestor::tui-textfield').locator('button[tuiButtonX]'),
-    ).toHaveCount(0);
 
     const excludePublicHolidays = page.locator('#excludePublicHolidays');
     await excludePublicHolidays.check();
@@ -797,7 +794,7 @@ test.describe('lzug browser workflows', () => {
     await page.locator('#candidateFirstName').fill('E2E');
     await page.locator('#candidateLastName').fill('Testperson');
     await page.locator('#candidateExamNumber').fill('E2E-2026-001');
-    await page.getByRole('button', { name: 'Prüfling anlegen' }).click();
+    await page.getByRole('button', { name: 'Prüfling anlegen', exact: true }).click();
 
     const row = page.locator('tr').filter({ hasText: 'E2E-2026-001' });
     await expect(row).toBeVisible();

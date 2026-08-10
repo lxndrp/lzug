@@ -259,21 +259,6 @@
                 ></select>
               </tui-textfield>
             </div>
-            <div class="app-field-two-thirds">
-              <label for="updatedByMember"
-                >Änderung dokumentieren für <span aria-hidden="true">*</span></label
-              >
-              <tui-textfield [stringify]="updatedByMemberStringify" [tuiTextfieldCleaner]="false">
-                <select
-                  tuiSelect
-                  id="updatedByMember"
-                  name="updatedByMember"
-                  [items]="updatedByMemberOptions()"
-                  [(ngModel)]="draft.updated_by_member_id"
-                  required
-                ></select>
-              </tui-textfield>
-            </div>
             <div class="app-field-third app-field-align-end">
               <div class="app-form-check">
                 <input
