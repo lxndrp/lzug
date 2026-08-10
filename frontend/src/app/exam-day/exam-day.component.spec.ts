@@ -42,10 +42,12 @@ describe('ExamDayComponent', () => {
     expect(element.textContent).toContain('IHK-PLAN-7');
     expect(element.textContent).toContain('Ersatzprüfer/in');
     expect(element.textContent).toContain('Bestätigt');
+    expect(element.textContent).toContain('Zusammenfassung der Durchführung');
+    expect(element.textContent).toContain('Offen');
     expect(element.textContent).toContain('Anwesenheit speichern');
     expect(element.textContent).toContain('Prüfung starten');
     expect(element.querySelector('a[href="/confirmed-plans/1"]')).not.toBeNull();
-    expect(element.querySelectorAll('button')).toHaveLength(4);
+    expect(element.querySelectorAll('button')).toHaveLength(5);
   });
 
   it('does not present a day when the API returns not found or another round', () => {
@@ -152,6 +154,34 @@ describe('ExamDayComponent', () => {
     http.expectOne('/api/confirmed-plan-days/7').flush(dayView());
   });
 
+  it('persists a required reason for a status transition', () => {
+    fixture.detectChanges();
+    http.expectOne('/api/confirmed-plan-days/7').flush(dayView());
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const status = element.querySelector<HTMLSelectElement>('#execution-status-7')!;
+    status.value = 'cancelled';
+    status.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    element.querySelector<HTMLTextAreaElement>('#execution-reason-7')!.value =
+      'Prüfling kurzfristig erkrankt';
+    element
+      .querySelector<HTMLTextAreaElement>('#execution-reason-7')!
+      .dispatchEvent(new Event('input'));
+    element.querySelectorAll<HTMLButtonElement>('.app-exam-day-actions button')[2].click();
+
+    const request = http.expectOne('/api/confirmed-plan-days/7/slots/7/status');
+    expect(request.request.body).toEqual({
+      status: 'cancelled',
+      reason: 'Prüfling kurzfristig erkrankt',
+    });
+    request.flush(dayView(7, 'cancelled', 'Prüfling kurzfristig erkrankt'));
+    fixture.detectChanges();
+    expect(element.textContent).toContain('Ausgefallen');
+    expect(element.textContent).toContain('Prüfling kurzfristig erkrankt');
+  });
+
   it('ignores a response for a previous day after the route changes', () => {
     fixture.detectChanges();
     const firstRequest = http.expectOne('/api/confirmed-plan-days/7');
@@ -191,7 +221,7 @@ describe('ExamDayComponent', () => {
   });
 });
 
-function dayView(dayId = 7) {
+function dayView(dayId = 7, executionStatus = 'open', statusReason: string | null = null) {
   return {
     plan: {
       id: 1,
@@ -216,6 +246,10 @@ function dayView(dayId = 7) {
           sequence_number: 1,
           slot_type: 'regular',
           actual_started_at: null,
+          execution_status: executionStatus,
+          status_changed_at: '2026-11-16T08:00:00+01:00',
+          actual_completed_at: null,
+          status_reason: statusReason,
           candidate_attendance: { status: 'open', arrived_at: null },
           candidate: {
             id: dayId,
@@ -253,6 +287,13 @@ function dayView(dayId = 7) {
           },
         },
       ],
+      status_summary: {
+        open: executionStatus === 'open' ? 1 : 0,
+        running: executionStatus === 'running' ? 1 : 0,
+        completed: executionStatus === 'completed' ? 1 : 0,
+        cancelled: executionStatus === 'cancelled' ? 1 : 0,
+        needs_follow_up: executionStatus === 'needs_follow_up' ? 1 : 0,
+      },
     },
     _links: {},
   };

@@ -171,6 +171,10 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(
                 "2026-11-16T08:31:00+01:00", started["day"]["slots"][0]["actual_started_at"]
             )
+            self.assertEqual("running", started["day"]["slots"][0]["execution_status"])
+            self.assertEqual(
+                "2026-11-16T08:31:00+01:00", started["day"]["slots"][0]["status_changed_at"]
+            )
 
             status, repeated = api.request(
                 "POST",
@@ -181,6 +185,83 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(
                 "2026-11-16T08:31:00+01:00", repeated["day"]["slots"][0]["actual_started_at"]
             )
+
+            status, started_cancel_error = api.request(
+                "PATCH",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/status",
+                {"status": "cancelled", "reason": "Darf nach dem Start nicht ausfallen"},
+            )
+            assert_status(status, HTTPStatus.BAD_REQUEST)
+            self.assertIn("gestarteter", started_cancel_error["error"])
+
+            status, follow_up = api.request(
+                "PATCH",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/status",
+                {"status": "needs_follow_up"},
+            )
+            assert_status(status, HTTPStatus.BAD_REQUEST)
+            self.assertIn("Begründung", follow_up["error"])
+
+            status, follow_up = api.request(
+                "PATCH",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/status",
+                {"status": "needs_follow_up", "reason": "Nachweis der Prüfungsleistung fehlt"},
+            )
+            assert_status(status, HTTPStatus.OK)
+            follow_up_slot = follow_up["day"]["slots"][0]
+            self.assertEqual("needs_follow_up", follow_up_slot["execution_status"])
+            self.assertEqual("Nachweis der Prüfungsleistung fehlt", follow_up_slot["status_reason"])
+            self.assertIsNone(follow_up_slot["actual_completed_at"])
+
+            status, completed = api.request(
+                "PATCH",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/status",
+                {"status": "completed"},
+            )
+            assert_status(status, HTTPStatus.OK)
+            completed_slot = completed["day"]["slots"][0]
+            self.assertEqual("completed", completed_slot["execution_status"])
+            self.assertIsNotNone(completed_slot["actual_completed_at"])
+            self.assertEqual("Nachweis der Prüfungsleistung fehlt", completed_slot["status_reason"])
+
+            status, terminal_error = api.request(
+                "PATCH",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/status",
+                {"status": "needs_follow_up", "reason": "Darf nicht wieder geöffnet werden"},
+            )
+            assert_status(status, HTTPStatus.BAD_REQUEST)
+            self.assertIn("nicht erlaubt", terminal_error["error"])
+
+            cancelled_slot = day["slots"][1]
+            status, missing_reason = api.request(
+                "PATCH",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{cancelled_slot['id']}/status",
+                {"status": "cancelled"},
+            )
+            assert_status(status, HTTPStatus.BAD_REQUEST)
+            self.assertIn("Begründung", missing_reason["error"])
+
+            status, cancelled = api.request(
+                "PATCH",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{cancelled_slot['id']}/status",
+                {"status": "cancelled", "reason": "Prüfling kurzfristig erkrankt"},
+            )
+            assert_status(status, HTTPStatus.OK)
+            cancelled_view = next(
+                item for item in cancelled["day"]["slots"] if item["id"] == cancelled_slot["id"]
+            )
+            self.assertEqual("cancelled", cancelled_view["execution_status"])
+            self.assertEqual("Prüfling kurzfristig erkrankt", cancelled_view["status_reason"])
+
+            status, reloaded_statuses = api.request("GET", f"/api/confirmed-plan-days/{day['id']}")
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(1, reloaded_statuses["day"]["status_summary"]["completed"])
+            self.assertEqual(1, reloaded_statuses["day"]["status_summary"]["cancelled"])
+            reloaded_slot = next(
+                item for item in reloaded_statuses["day"]["slots"] if item["id"] == slot["id"]
+            )
+            self.assertIsNotNone(reloaded_slot["actual_completed_at"])
+            self.assertIsNotNone(reloaded_slot["status_changed_at"])
 
             status, reloaded = api.request("GET", f"/api/confirmed-plan-days/{day['id']}")
             assert_status(status, HTTPStatus.OK)

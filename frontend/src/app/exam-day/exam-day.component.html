@@ -68,6 +68,18 @@
         </div>
       </dl>
 
+      <section class="app-exam-day-summary" aria-labelledby="examDaySummaryHeading">
+        <h3 id="examDaySummaryHeading">Zusammenfassung der Durchführung</h3>
+        <dl class="app-exam-day-status-summary">
+          @for (status of executionSummaryStatuses; track status.value) {
+            <div>
+              <dt>{{ status.label }}</dt>
+              <dd>{{ executionStatusCount(current.day.status_summary, status.value) }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+
       <section class="app-exam-day-section" aria-labelledby="examDaySlotsHeading">
         <h3 id="examDaySlotsHeading">Prüfungsslots</h3>
         <div class="app-table-scroll" role="region" tabindex="0" aria-label="Prüfungsslots-Tabelle">
@@ -79,7 +91,9 @@
                 <th scope="col">Prüfling</th>
                 <th scope="col">IHK-Prüfungsnummer</th>
                 <th scope="col">Anwesenheit</th>
+                <th scope="col">Durchführung</th>
                 <th scope="col">Tatsächlicher Start</th>
+                <th scope="col">Abschluss</th>
                 <th scope="col">Aktion</th>
               </tr>
             </thead>
@@ -87,6 +101,7 @@
               @for (slot of current.day.slots; track slot.id) {
                 @let candidateAttendance = candidateAttendanceFor(slot);
                 @let draft = attendanceDraft('candidate-' + slot.id, candidateAttendance);
+                @let executionDraft = executionStatusDraft(slot);
                 <tr>
                   <td>{{ timeLabel(slot.starts_at) }}–{{ timeLabel(slot.ends_at) }}</td>
                   <td>
@@ -123,9 +138,57 @@
                     />
                   </td>
                   <td>
+                    <span tuiBadge [appearance]="executionStatusAppearance(slot.execution_status)">
+                      {{ executionStatusLabel(slot.execution_status) }}
+                    </span>
+                    <span class="app-exam-day-arrival">
+                      Letzte Änderung: {{ arrivalLabel(slot.status_changed_at) }}
+                    </span>
+                    @if (slot.status_reason) {
+                      <span class="app-exam-day-arrival">Begründung: {{ slot.status_reason }}</span>
+                    }
+                    <label class="app-sr-only" [for]="'execution-status-' + slot.id"
+                      >Durchführungsstatus</label
+                    >
+                    <select
+                      [id]="'execution-status-' + slot.id"
+                      [(ngModel)]="executionDraft.status"
+                      [disabled]="
+                        hasSavingAction() || isTerminalExecutionStatus(slot.execution_status)
+                      "
+                    >
+                      @for (
+                        option of executionStatusOptions(slot.execution_status);
+                        track option.value
+                      ) {
+                        <option [value]="option.value">{{ option.label }}</option>
+                      }
+                    </select>
+                    <label class="app-sr-only" [for]="'execution-reason-' + slot.id"
+                      >Begründung für den Durchführungsstatus</label
+                    >
+                    <textarea
+                      [id]="'execution-reason-' + slot.id"
+                      [(ngModel)]="executionDraft.reason"
+                      [required]="requiresExecutionReason(executionDraft.status)"
+                      [disabled]="
+                        hasSavingAction() || isTerminalExecutionStatus(slot.execution_status)
+                      "
+                      rows="2"
+                      placeholder="Begründung bei Ausfall oder Nachbereitung"
+                    ></textarea>
+                  </td>
+                  <td>
                     {{
                       slot.actual_started_at
                         ? arrivalLabel(slot.actual_started_at)
+                        : 'Noch nicht erfasst'
+                    }}
+                  </td>
+                  <td>
+                    {{
+                      slot.actual_completed_at
+                        ? arrivalLabel(slot.actual_completed_at)
                         : 'Noch nicht erfasst'
                     }}
                   </td>
@@ -150,11 +213,22 @@
                     >
                       {{ slot.actual_started_at ? 'Gestartet' : 'Prüfung starten' }}
                     </button>
+                    <button
+                      tuiButton
+                      appearance="secondary"
+                      type="button"
+                      [disabled]="
+                        executionDraft.status === slot.execution_status || hasSavingAction()
+                      "
+                      (click)="saveExecutionStatus(slot.id, executionDraft)"
+                    >
+                      {{ isSaving('execution-' + slot.id) ? 'Speichert …' : 'Status speichern' }}
+                    </button>
                   </td>
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="7">Keine bestätigten Slots an diesem Tag.</td>
+                  <td colspan="9">Keine bestätigten Slots an diesem Tag.</td>
                 </tr>
               }
             </tbody>

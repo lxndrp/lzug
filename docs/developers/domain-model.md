@@ -446,6 +446,11 @@ Felder:
 | `ends_at` | Zeitstempel | ja | Endzeit |
 | `sequence_number` | Integer | ja | Reihenfolge innerhalb des Tages |
 | `status` | Enum | ja | Status des Slots |
+| `actual_started_at` | Zeitstempel | nein | Tatsächlicher Start aus der Startkontrolle |
+| `execution_status` | Enum | ja | Aktueller Status der Durchführung |
+| `status_changed_at` | Zeitstempel | ja | Zeitpunkt der letzten Statusänderung |
+| `actual_completed_at` | Zeitstempel | nein | Tatsächlicher Abschlusszeitpunkt |
+| `status_reason` | Text | nein | Begründung für Ausfall oder Nachbereitung |
 | `created_at` | Zeitstempel | ja | Anlagezeitpunkt |
 | `updated_at` | Zeitstempel | ja | Letzte Änderung |
 
@@ -465,6 +470,11 @@ Mögliche Statuswerte:
 Fachliche Regeln:
 
 - Jeder Slot dauert 60 Minuten.
+- `status` beschreibt weiterhin den Planungsstatus; `execution_status` beschreibt den Ablauf der Durchführung.
+- `execution_status` beginnt mit `open` und wird nur durch die bestehende Startaktion aus #32 zu `running`.
+- Erlaubte weitere Übergänge sind `open` zu `cancelled`, `running` zu `completed` oder `needs_follow_up` sowie `needs_follow_up` zu `completed`.
+- `completed` und `cancelled` sind innerhalb der Durchführung terminal.
+- Ausfall und Nachbereitung benötigen eine persistierte Begründung; ein regulärer Abschluss erhält einen persistierten Abschlusszeitpunkt.
 - MEP-Slots liegen am Ende des Tages.
 - Die konkrete Reihenfolge regulärer Prüflinge spielt zunächst keine Rolle und kann später durch die IHK vorgegeben werden.
 - Abgesagte oder verschobene Prüfungen starten den Terminfindungsprozess neu.

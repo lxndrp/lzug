@@ -136,6 +136,19 @@ def spec() -> dict[str, Any]:
                 },
             }
         },
+        "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/status": {
+            "patch": {
+                "summary": "Advance the execution status of a confirmed slot",
+                "operationId": "updateConfirmedSlotStatus",
+                "parameters": [path_parameter("day_id"), path_parameter("slot_id")],
+                "requestBody": json_request("ExamSlotStatusWrite"),
+                "responses": {
+                    "200": json_response("ConfirmedPlanDayView"),
+                    "400": json_response("Error"),
+                    "404": json_response("Error"),
+                },
+            }
+        },
         "/api/confirmed-plan-days/{day_id}/assignments/{assignment_id}/attendance": {
             "patch": {
                 "summary": "Record attendance for a confirmed day assignment",
@@ -399,6 +412,7 @@ def spec() -> dict[str, Any]:
                 "id": {"type": "integer"},
                 "date": {"type": "string"},
                 "location": {"type": ["object", "null"]},
+                "status_summary": {"$ref": "#/components/schemas/ExecutionStatusSummary"},
                 "slots": {
                     "type": "array",
                     "items": {"$ref": "#/components/schemas/ConfirmedPlanSlot"},
@@ -408,7 +422,7 @@ def spec() -> dict[str, Any]:
                     "items": {"$ref": "#/components/schemas/ConfirmedPlanAssignment"},
                 },
             },
-            required=("id", "date", "location", "slots", "assignments"),
+            required=("id", "date", "location", "status_summary", "slots", "assignments"),
         ),
         "ConfirmedPlanSlot": object_schema(
             {
@@ -418,6 +432,13 @@ def spec() -> dict[str, Any]:
                 "sequence_number": {"type": "integer"},
                 "slot_type": {"type": "string"},
                 "actual_started_at": {"type": ["string", "null"]},
+                "execution_status": {
+                    "type": "string",
+                    "enum": ["open", "running", "completed", "cancelled", "needs_follow_up"],
+                },
+                "status_changed_at": {"type": "string"},
+                "actual_completed_at": {"type": ["string", "null"]},
+                "status_reason": {"type": ["string", "null"]},
                 "candidate_attendance": {"$ref": "#/components/schemas/Attendance"},
                 "candidate": {"type": "object"},
             },
@@ -428,6 +449,10 @@ def spec() -> dict[str, Any]:
                 "sequence_number",
                 "slot_type",
                 "actual_started_at",
+                "execution_status",
+                "status_changed_at",
+                "actual_completed_at",
+                "status_reason",
                 "candidate_attendance",
                 "candidate",
             ),
@@ -467,6 +492,23 @@ def spec() -> dict[str, Any]:
                     "enum": ["open", "present", "late", "absent"],
                 },
                 "arrived_at": {"type": ["string", "null"]},
+            },
+            required=("status",),
+        ),
+        "ExecutionStatusSummary": object_schema(
+            {
+                status: {"type": "integer", "minimum": 0}
+                for status in ("open", "running", "completed", "cancelled", "needs_follow_up")
+            },
+            required=("open", "running", "completed", "cancelled", "needs_follow_up"),
+        ),
+        "ExamSlotStatusWrite": object_schema(
+            {
+                "status": {
+                    "type": "string",
+                    "enum": ["open", "running", "completed", "cancelled", "needs_follow_up"],
+                },
+                "reason": {"type": ["string", "null"]},
             },
             required=("status",),
         ),

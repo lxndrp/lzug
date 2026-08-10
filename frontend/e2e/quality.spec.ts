@@ -266,6 +266,8 @@ test.describe('lzug browser workflows', () => {
           return;
         }
         operationalDay.slots[0].actual_started_at = '2026-11-16T08:31:00+01:00';
+        operationalDay.slots[0].execution_status = 'running';
+        operationalDay.slots[0].status_changed_at = '2026-11-16T08:31:00+01:00';
       }
       await route.fulfill({
         contentType: 'application/json',
@@ -310,9 +312,158 @@ test.describe('lzug browser workflows', () => {
     const expectedStartedTime = new Intl.DateTimeFormat('de-DE', {
       timeStyle: 'short',
     }).format(new Date('2026-11-16T08:31:00+01:00'));
-    await expect(page.getByText(expectedStartedTime)).toBeVisible();
+    await expect(
+      page.locator('.app-exam-day-slots tbody tr').first().locator('td').nth(6),
+    ).toContainText(expectedStartedTime);
     await page.getByRole('link', { name: 'Zurück zum Prüfungsplan' }).click();
     await expect(page).toHaveURL('/confirmed-plans/1');
+  });
+
+  test('tracks start, completion, failure, and follow-up in the exam-day view', async ({
+    page,
+  }) => {
+    const plan = confirmedPlan(1, 'Prüfungsausschuss Status', 'Prüfling', 'Status', 'regular');
+    const day = plan.days[0];
+    const firstSlot = day.slots[0];
+    day.slots.push(
+      {
+        ...structuredClone(firstSlot),
+        id: 2,
+        sequence_number: 2,
+        starts_at: '2026-11-16T09:30:00',
+        ends_at: '2026-11-16T10:30:00',
+        candidate: { ...firstSlot.candidate, id: 2, first_name: 'Prüfling', last_name: 'Ausfall' },
+      },
+      {
+        ...structuredClone(firstSlot),
+        id: 3,
+        sequence_number: 3,
+        starts_at: '2026-11-16T10:30:00',
+        ends_at: '2026-11-16T11:30:00',
+        candidate: {
+          ...firstSlot.candidate,
+          id: 3,
+          first_name: 'Prüfling',
+          last_name: 'Nachbereitung',
+        },
+      },
+    );
+    const updateSummary = () => {
+      day.status_summary = { open: 0, running: 0, completed: 0, cancelled: 0, needs_follow_up: 0 };
+      for (const slot of day.slots) day.status_summary[slot.execution_status] += 1;
+    };
+
+    await page.route('**/api/confirmed-plan-days/1', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          plan: {
+            id: plan.id,
+            name: plan.name,
+            committee: plan.committee,
+            exam_half_year: plan.exam_half_year,
+          },
+          day,
+          _links: {},
+        }),
+      }),
+    );
+    await page.route('**/api/confirmed-plan-days/1/slots/*/start', async (route) => {
+      const slotId = Number(
+        route
+          .request()
+          .url()
+          .match(/slots\/(\d+)\/start/)?.[1],
+      );
+      const slot = day.slots.find((item) => item.id === slotId)!;
+      slot.execution_status = 'running';
+      slot.actual_started_at = '2026-11-16T08:31:00+01:00';
+      slot.status_changed_at = slot.actual_started_at;
+      updateSummary();
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          plan: {
+            id: plan.id,
+            name: plan.name,
+            committee: plan.committee,
+            exam_half_year: plan.exam_half_year,
+          },
+          day,
+          _links: {},
+        }),
+      });
+    });
+    await page.route('**/api/confirmed-plan-days/1/slots/*/status', async (route) => {
+      const slotId = Number(
+        route
+          .request()
+          .url()
+          .match(/slots\/(\d+)\/status/)?.[1],
+      );
+      const slot = day.slots.find((item) => item.id === slotId)!;
+      const body = route.request().postDataJSON() as { status: string; reason?: string };
+      slot.execution_status = body.status;
+      slot.status_reason = body.reason ?? slot.status_reason;
+      slot.status_changed_at = '2026-11-16T12:00:00+01:00';
+      if (body.status === 'completed') slot.actual_completed_at = slot.status_changed_at;
+      updateSummary();
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          plan: {
+            id: plan.id,
+            name: plan.name,
+            committee: plan.committee,
+            exam_half_year: plan.exam_half_year,
+          },
+          day,
+          _links: {},
+        }),
+      });
+    });
+
+    await page.goto('/confirmed-plans/1/days/1');
+    await expect(page.getByText('Zusammenfassung der Durchführung')).toBeVisible();
+
+    const rows = page.locator('.app-exam-day-slots tbody tr');
+    await rows.nth(0).getByRole('button', { name: 'Prüfung starten' }).click();
+    await expect(rows.nth(0).getByRole('button', { name: 'Gestartet' })).toBeVisible();
+
+    await rows.nth(0).getByLabel('Durchführungsstatus', { exact: true }).selectOption('completed');
+    await rows.nth(0).getByRole('button', { name: 'Status speichern' }).click();
+    await expect(
+      rows.nth(0).locator('span[tuibadge]').filter({ hasText: 'Abgeschlossen' }),
+    ).toBeVisible();
+
+    await rows.nth(1).getByLabel('Durchführungsstatus', { exact: true }).selectOption('cancelled');
+    await rows
+      .nth(1)
+      .getByLabel('Begründung für den Durchführungsstatus')
+      .fill('Prüfling erkrankt');
+    await rows.nth(1).getByRole('button', { name: 'Status speichern' }).click();
+    await expect(
+      rows.nth(1).locator('span[tuibadge]').filter({ hasText: 'Ausgefallen' }),
+    ).toBeVisible();
+
+    await rows.nth(2).getByRole('button', { name: 'Prüfung starten' }).click();
+    await rows
+      .nth(2)
+      .getByLabel('Durchführungsstatus', { exact: true })
+      .selectOption('needs_follow_up');
+    await rows
+      .nth(2)
+      .getByLabel('Begründung für den Durchführungsstatus')
+      .fill('Dokumentation nachreichen');
+    await rows.nth(2).getByRole('button', { name: 'Status speichern' }).click();
+    await expect(
+      rows.nth(2).locator('span[tuibadge]').filter({ hasText: 'Nachzubereiten' }),
+    ).toBeVisible();
+    await rows.nth(2).getByLabel('Durchführungsstatus', { exact: true }).selectOption('completed');
+    await rows.nth(2).getByRole('button', { name: 'Status speichern' }).click();
+    await expect(
+      rows.nth(2).locator('span[tuibadge]').filter({ hasText: 'Abgeschlossen' }),
+    ).toBeVisible();
   });
 
   test('navigates through the application views', async ({ page }) => {
@@ -953,6 +1104,10 @@ function confirmedPlan(
             sequence_number: 1,
             slot_type: slotType,
             actual_started_at: null,
+            execution_status: 'open',
+            status_changed_at: '2026-11-16T08:00:00+01:00',
+            actual_completed_at: null,
+            status_reason: null,
             candidate_attendance: { status: 'open', arrived_at: null },
             candidate: {
               id,
@@ -1016,6 +1171,13 @@ function confirmedPlan(
             },
           },
         ],
+        status_summary: {
+          open: 1,
+          running: 0,
+          completed: 0,
+          cancelled: 0,
+          needs_follow_up: 0,
+        },
       },
     ],
   };

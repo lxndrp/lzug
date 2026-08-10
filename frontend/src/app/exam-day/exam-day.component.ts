@@ -10,6 +10,8 @@ import {
   AttendanceStatus,
   ConfirmedPlanDay,
   ConfirmedPlanDayView,
+  ExecutionStatus,
+  ExecutionStatusSummary,
 } from '../api/api.models';
 import { PlanningApiService } from '../api/planning-api.service';
 
@@ -34,6 +36,14 @@ export class ExamDayComponent implements OnInit, OnChanges {
   protected readonly actionError = signal<string | null>(null);
   protected readonly savingKeys = signal<Set<string>>(new Set());
   protected readonly drafts = new Map<string, AttendanceDraft>();
+  protected readonly executionDrafts = new Map<number, ExecutionStatusDraft>();
+  protected readonly executionSummaryStatuses = [
+    { value: 'open', label: 'Offen' },
+    { value: 'running', label: 'Läuft' },
+    { value: 'completed', label: 'Abgeschlossen' },
+    { value: 'cancelled', label: 'Ausgefallen' },
+    { value: 'needs_follow_up', label: 'Nachzubereiten' },
+  ] as const;
   private initialized = false;
   private requestSequence = 0;
 
@@ -150,6 +160,63 @@ export class ExamDayComponent implements OnInit, OnChanges {
     );
   }
 
+  protected executionStatusDraft(slot: ConfirmedPlanDay['slots'][number]): ExecutionStatusDraft {
+    const existing = this.executionDrafts.get(slot.id);
+    if (existing) return existing;
+    const draft = {
+      status: slot.execution_status,
+      reason: slot.status_reason ?? '',
+    };
+    this.executionDrafts.set(slot.id, draft);
+    return draft;
+  }
+
+  protected executionStatusOptions(status: ExecutionStatus): Array<ExecutionStatusOption> {
+    if (status === 'open') {
+      return [
+        { value: 'open', label: 'Offen' },
+        { value: 'cancelled', label: 'Ausgefallen' },
+      ];
+    }
+    if (status === 'running') {
+      return [
+        { value: 'running', label: 'Läuft' },
+        { value: 'completed', label: 'Abgeschlossen' },
+        { value: 'needs_follow_up', label: 'Nachzubereiten' },
+      ];
+    }
+    if (status === 'needs_follow_up') {
+      return [
+        { value: 'needs_follow_up', label: 'Nachzubereiten' },
+        { value: 'completed', label: 'Abgeschlossen' },
+      ];
+    }
+    return [{ value: status, label: this.executionStatusLabel(status) }];
+  }
+
+  protected requiresExecutionReason(status: ExecutionStatus): boolean {
+    return status === 'cancelled' || status === 'needs_follow_up';
+  }
+
+  protected isTerminalExecutionStatus(status: ExecutionStatus): boolean {
+    return status === 'completed' || status === 'cancelled';
+  }
+
+  protected saveExecutionStatus(slotId: number, draft: ExecutionStatusDraft): void {
+    const dayId = this.view()?.day.id;
+    if (dayId === undefined) return;
+    if (this.requiresExecutionReason(draft.status) && !draft.reason.trim()) {
+      this.actionError.set(
+        'Für einen Ausfall oder eine Nachbereitung ist eine Begründung erforderlich.',
+      );
+      return;
+    }
+    this.saveAction(
+      `execution-${slotId}`,
+      this.api.updateExamSlotStatus(dayId, slotId, draft.status, draft.reason.trim()),
+    );
+  }
+
   protected statusLabel(status: string): string {
     return (
       {
@@ -166,6 +233,31 @@ export class ExamDayComponent implements OnInit, OnChanges {
     if (status === 'late') return 'warning';
     if (status === 'absent') return 'negative';
     return 'neutral';
+  }
+
+  protected executionStatusLabel(status: string): string {
+    return (
+      {
+        open: 'Offen',
+        running: 'Läuft',
+        completed: 'Abgeschlossen',
+        cancelled: 'Ausgefallen',
+        needs_follow_up: 'Nachzubereiten',
+      }[status] ?? 'Unbekannter Durchführungsstatus'
+    );
+  }
+
+  protected executionStatusAppearance(
+    status: string,
+  ): 'neutral' | 'positive' | 'warning' | 'negative' {
+    if (status === 'running' || status === 'completed') return 'positive';
+    if (status === 'needs_follow_up') return 'warning';
+    if (status === 'cancelled') return 'negative';
+    return 'neutral';
+  }
+
+  protected executionStatusCount(summary: ExecutionStatusSummary, status: string): number {
+    return summary[status as keyof ExecutionStatusSummary] ?? 0;
   }
 
   protected arrivalLabel(value: string | null): string {
@@ -210,8 +302,10 @@ export class ExamDayComponent implements OnInit, OnChanges {
 
   private resetDrafts(view: ConfirmedPlanDayView): void {
     this.drafts.clear();
+    this.executionDrafts.clear();
     for (const slot of view.day.slots) {
       this.attendanceDraft(`candidate-${slot.id}`, this.candidateAttendanceFor(slot));
+      this.executionStatusDraft(slot);
     }
     for (const assignment of view.day.assignments) {
       this.attendanceDraft(`member-${assignment.id}`, this.memberAttendanceFor(assignment));
@@ -281,3 +375,5 @@ export class ExamDayComponent implements OnInit, OnChanges {
 }
 
 export type AttendanceDraft = { status: AttendanceStatus; arrivedAt: string };
+export type ExecutionStatusDraft = { status: ExecutionStatus; reason: string };
+export type ExecutionStatusOption = { value: ExecutionStatus; label: string };

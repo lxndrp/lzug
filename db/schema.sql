@@ -16,7 +16,7 @@ CREATE TABLE schema_migration (
 INSERT INTO schema_migration (name)
 VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.sql'),
        ('003_add_exam_half_years.sql'), ('004_add_candidate_committee_assignments.sql'),
-       ('005_add_exam_day_attendance.sql');
+       ('005_add_exam_day_attendance.sql'), ('006_add_exam_execution_status.sql');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
@@ -255,6 +255,12 @@ CREATE TABLE exam_slot (
     status IN ('proposed', 'confirmed', 'rescheduled', 'cancelled', 'completed')
   ),
   actual_started_at TEXT,
+  execution_status TEXT NOT NULL DEFAULT 'open' CHECK (
+    execution_status IN ('open', 'running', 'completed', 'cancelled', 'needs_follow_up')
+  ),
+  status_changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  actual_completed_at TEXT,
+  status_reason TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (exam_day_id, sequence_number),
