@@ -93,6 +93,10 @@ class ApiTests(unittest.TestCase):
             self.assertIn("/api/session/rotate", spec["paths"])
             self.assertIn("/api/session/logout", spec["paths"])
             self.assertEqual(
+                ["status", "reason", "migration", "_links"],
+                spec["components"]["schemas"]["Health"]["required"],
+            )
+            self.assertEqual(
                 {"sessionCookie": [], "csrfHeader": []},
                 spec["paths"]["/api/candidates"]["post"]["security"][0],
             )

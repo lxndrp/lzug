@@ -364,7 +364,7 @@ def spec() -> dict[str, Any]:
                 "migration": {"type": "object"},
                 "_links": link_map(),
             },
-            required=("status", "_links"),
+            required=("status", "reason", "migration", "_links"),
         ),
         "Error": object_schema({"error": {"type": "string"}}, required=("error",)),
         "Link": object_schema(

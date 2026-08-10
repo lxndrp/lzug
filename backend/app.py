@@ -873,9 +873,11 @@ def main() -> None:
             )
     except MigrationError as error:
         raise SystemExit(f"Database migration failed: {error}") from error
-    if not database_readiness(args.db)["ready"]:
+    readiness = database_readiness(args.db)
+    if not readiness["ready"]:
         raise SystemExit(
             f"Database is not ready: {args.db}. "
+            f"Reason: {readiness['reason']}. "
             "Start with --init to initialize or migrate it, then retry."
         )
 
