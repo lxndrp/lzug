@@ -43,6 +43,12 @@ class ApiTests(unittest.TestCase):
             self.assertIn("/api/candidate-exam-days/generate", spec["paths"])
             self.assertIn("/api/confirmed-plans", spec["paths"])
             self.assertIn("/api/confirmed-plan-days/{id}", spec["paths"])
+            self.assertEqual(
+                ["completed", "cancelled", "needs_follow_up"],
+                spec["components"]["schemas"]["ExamSlotStatusWrite"]["properties"]["status"][
+                    "enum"
+                ],
+            )
             self.assertIn("Candidates", spec["components"]["schemas"])
             self.assertEqual(
                 {"$ref": "#/components/schemas/ExamHalfYears"},

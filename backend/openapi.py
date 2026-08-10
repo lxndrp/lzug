@@ -506,7 +506,7 @@ def spec() -> dict[str, Any]:
             {
                 "status": {
                     "type": "string",
-                    "enum": ["open", "running", "completed", "cancelled", "needs_follow_up"],
+                    "enum": ["completed", "cancelled", "needs_follow_up"],
                 },
                 "reason": {"type": ["string", "null"]},
             },

@@ -256,6 +256,15 @@ class DatabaseTests(unittest.TestCase):
             initialize(db_path)
 
             with closing(sqlite3.connect(db_path)) as connection:
+                status_changed_at_column = next(
+                    row
+                    for row in connection.execute("PRAGMA table_info(exam_slot)")
+                    if row[1] == "status_changed_at"
+                )
+                connection.execute("INSERT INTO exam_slot (id, actual_started_at) VALUES (3, NULL)")
+                new_slot_status_changed_at = connection.execute(
+                    "SELECT status_changed_at FROM exam_slot WHERE id = 3"
+                ).fetchone()[0]
                 rows = connection.execute(
                     "SELECT id, execution_status, status_changed_at " "FROM exam_slot ORDER BY id"
                 ).fetchall()
@@ -266,6 +275,9 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual((1, "running", "2026-11-16T08:31:00+01:00"), rows[0])
         self.assertEqual("open", rows[1][1])
         self.assertIsNotNone(rows[1][2])
+        self.assertEqual(1, status_changed_at_column[3])
+        self.assertEqual("''", status_changed_at_column[4])
+        self.assertTrue(new_slot_status_changed_at)
         self.assertIn("006_add_exam_execution_status.sql", migrations)
 
 
