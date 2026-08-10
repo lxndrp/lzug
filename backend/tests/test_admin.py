@@ -69,23 +69,18 @@ class AdminAuthenticationTests(unittest.TestCase):
     def test_invitation_and_recovery_have_distinct_expiry_and_one_use_contracts(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
             service = OperatorAuthService(db_path)
-            bootstrap = service.bootstrap("operator@example.invalid")
-            invitation = service.invite("member@example.invalid")
-            recovery = service.recover(account_id=bootstrap.account["id"])
+            created_at = datetime(2026, 8, 10, 10, 0, tzinfo=UTC)
+            bootstrap = service.bootstrap("operator@example.invalid", now=created_at)
+            invitation = service.invite("member@example.invalid", now=created_at)
+            recovery = service.recover(account_id=bootstrap.account["id"], now=created_at)
 
-            invitation_created = datetime.fromisoformat(invitation.account["created_at"]).replace(
-                tzinfo=UTC
-            )
-            recovery_created = datetime.fromisoformat(recovery.account["created_at"]).replace(
-                tzinfo=UTC
-            )
             self.assertEqual(
                 timedelta(hours=24),
-                datetime.fromisoformat(invitation.expires_at) - invitation_created,
+                datetime.fromisoformat(invitation.expires_at) - created_at,
             )
             self.assertEqual(
                 timedelta(minutes=30),
-                datetime.fromisoformat(recovery.expires_at) - recovery_created,
+                datetime.fromisoformat(recovery.expires_at) - created_at,
             )
             expired_at = datetime.fromisoformat(recovery.expires_at) + timedelta(seconds=1)
             with self.assertRaisesRegex(AdminOperationError, "invalid, expired"):

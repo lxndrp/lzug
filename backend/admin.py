@@ -136,7 +136,7 @@ def run(payload: bytes, *, service: OperatorAuthService | None = None) -> int:
     try:
         request = json.loads(payload.decode("utf-8"))
         request = _require_mapping(request, "Request must be an object")
-    except (UnicodeDecodeError, json.JSONDecodeError):
+    except UnicodeDecodeError, json.JSONDecodeError:
         return _error("invalid_request", "Request is not valid JSON")
     except AdminOperationError as error:
         return _error(error.code, str(error))
@@ -153,7 +153,7 @@ def run(payload: bytes, *, service: OperatorAuthService | None = None) -> int:
         return EXIT_OK
     except AdminOperationError as error:
         return _error(error.code, str(error))
-    except (MigrationError, OSError, SQLAlchemyError, ValueError):
+    except MigrationError, OSError, SQLAlchemyError, ValueError:
         return _error("persistence_error", "Admin operation failed")
     except Exception:
         return _error("internal_error", "Admin operation failed")
