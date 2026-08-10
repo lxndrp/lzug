@@ -40,7 +40,7 @@ class ApiTests(unittest.TestCase):
                 connection.execute("DROP TABLE schema_migration_checksum")
                 connection.execute(
                     "DELETE FROM schema_migration "
-                    "WHERE name = '008_harden_migration_history.sql'"
+                    "WHERE name = '009_harden_migration_history.sql'"
                 )
                 connection.commit()
 
@@ -49,8 +49,8 @@ class ApiTests(unittest.TestCase):
 
         assert_status(status, HTTPStatus.SERVICE_UNAVAILABLE)
         self.assertEqual("migration_required", health["reason"])
-        self.assertEqual("007_add_documents.sql", health["migration"]["current"])
-        self.assertEqual(["008_harden_migration_history.sql"], health["migration"]["pending"])
+        self.assertEqual("008_add_authentication_sessions.sql", health["migration"]["current"])
+        self.assertEqual(["009_harden_migration_history.sql"], health["migration"]["pending"])
         self.assertNotIn("candidate", health)
 
     def test_health_and_round_summary_are_served_from_seeded_database(self) -> None:
@@ -89,6 +89,16 @@ class ApiTests(unittest.TestCase):
             self.assertIn("/api/candidate-exam-days/generate", spec["paths"])
             self.assertIn("/api/confirmed-plans", spec["paths"])
             self.assertIn("/api/confirmed-plan-days/{id}", spec["paths"])
+            self.assertIn("/api/session", spec["paths"])
+            self.assertIn("/api/session/rotate", spec["paths"])
+            self.assertIn("/api/session/logout", spec["paths"])
+            self.assertEqual(
+                {"sessionCookie": [], "csrfHeader": []},
+                spec["paths"]["/api/candidates"]["post"]["security"][0],
+            )
+            self.assertIn("401", spec["paths"]["/api/candidates"]["get"]["responses"])
+            self.assertIn("403", spec["paths"]["/api/candidates"]["post"]["responses"])
+            self.assertNotIn("security", spec["paths"]["/api/health"]["get"])
             self.assertEqual(
                 ["completed", "cancelled", "needs_follow_up"],
                 spec["components"]["schemas"]["ExamSlotStatusWrite"]["properties"]["status"][
@@ -678,7 +688,7 @@ class ApiTests(unittest.TestCase):
             )
             assert_status(status, HTTPStatus.OK)
             self.assertEqual(5, body["max_exam_days_per_week"])
-            self.assertEqual(2, body["updated_by_member_id"])
+            self.assertEqual(1, body["updated_by_member_id"])
 
             status, availability = api.request(
                 "POST",

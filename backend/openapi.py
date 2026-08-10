@@ -93,6 +93,41 @@ def spec() -> dict[str, Any]:
                 "responses": {"200": json_response("OpenApiDocument")},
             }
         },
+        "/api/session": {
+            "get": {
+                "summary": "Inspect the authenticated server-side session",
+                "operationId": "getSession",
+                "security": [{"sessionCookie": []}],
+                "responses": {
+                    "200": json_response("SessionView"),
+                    "401": json_response("Error"),
+                },
+            }
+        },
+        "/api/session/rotate": {
+            "post": {
+                "summary": "Rotate the authenticated session",
+                "operationId": "rotateSession",
+                "security": [{"sessionCookie": [], "csrfHeader": []}],
+                "responses": {
+                    "200": json_response("SessionRotated"),
+                    "401": json_response("Error"),
+                    "403": json_response("Error"),
+                },
+            }
+        },
+        "/api/session/logout": {
+            "post": {
+                "summary": "Revoke the authenticated session",
+                "operationId": "logoutSession",
+                "security": [{"sessionCookie": [], "csrfHeader": []}],
+                "responses": {
+                    "204": {"description": "Session revoked"},
+                    "401": json_response("Error"),
+                    "403": json_response("Error"),
+                },
+            }
+        },
         "/api/round-summary": {
             "get": {
                 "summary": "Round summary",
@@ -578,6 +613,26 @@ def spec() -> dict[str, Any]:
             },
             required=("round_id", "status", "exam_days", "counts", "_links"),
         ),
+        "SessionView": object_schema(
+            {
+                "authenticated": {"type": "boolean"},
+                "account_id": {"type": "integer"},
+                "person_id": {"type": ["integer", "null"]},
+                "committee_member_id": {"type": ["integer", "null"]},
+                "is_operator": {"type": "boolean"},
+            },
+            required=(
+                "authenticated",
+                "account_id",
+                "person_id",
+                "committee_member_id",
+                "is_operator",
+            ),
+        ),
+        "SessionRotated": object_schema(
+            {"status": {"type": "string", "const": "rotated"}, "expires_at": {"type": "string"}},
+            required=("status", "expires_at"),
+        ),
         "OpenApiDocument": {"type": "object"},
         "CandidateCommitteeAssignment": resource_schema(
             "candidate-committee-assignments",
@@ -611,6 +666,21 @@ def spec() -> dict[str, Any]:
             required=("items", "_links"),
         )
 
+    public_paths = {"/api", "/api/health", "/api/openapi.json"}
+    for path, operations in paths.items():
+        if path in public_paths or path == "/api/docs":
+            continue
+        for method, operation in operations.items():
+            if method not in {"get", "post", "patch", "delete"}:
+                continue
+            operation.setdefault("security", [{"sessionCookie": []}])
+            operation.setdefault("responses", {})["401"] = json_response("Error")
+            if method in {"post", "patch", "delete"} and path not in {
+                "/api/session",
+            }:
+                operation["security"] = [{"sessionCookie": [], "csrfHeader": []}]
+                operation["responses"]["403"] = json_response("Error")
+
     return {
         "openapi": "3.1.0",
         "info": {
@@ -620,7 +690,13 @@ def spec() -> dict[str, Any]:
         },
         "servers": [{"url": "http://127.0.0.1:8000"}],
         "paths": paths,
-        "components": {"schemas": schemas},
+        "components": {
+            "securitySchemes": {
+                "sessionCookie": {"type": "apiKey", "in": "cookie", "name": "__Host-lzug_session"},
+                "csrfHeader": {"type": "apiKey", "in": "header", "name": "X-CSRF-Token"},
+            },
+            "schemas": schemas,
+        },
     }
 
 

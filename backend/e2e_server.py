@@ -10,6 +10,7 @@ from typing import override
 from urllib.parse import urlparse
 
 from .app import LzugHandler, parse_args
+from .auth import AuthenticationRepository
 from .database import initialize
 
 
@@ -17,15 +18,35 @@ class E2EHandler(LzugHandler):
     """Expose a reset endpoint only from the Playwright-specific server."""
 
     reset_lock = Lock()
+    cookie_secure = False
+    session_cookie_name = "lzug_e2e_session"
+
+    @override
+    def do_GET(self) -> None:
+        with self.reset_lock:
+            super().do_GET()
+
+    @override
+    def do_PATCH(self) -> None:
+        with self.reset_lock:
+            super().do_PATCH()
+
+    @override
+    def do_DELETE(self) -> None:
+        with self.reset_lock:
+            super().do_DELETE()
 
     @override
     def do_POST(self) -> None:
         if urlparse(self.path).path == "/__e2e/reset":
             with self.reset_lock:
                 initialize(self.db_path, with_seed=True, reset=True)
+                credentials = AuthenticationRepository(self.db_path).create_session(1)
+            self.issue_session_cookies(credentials)
             self.respond({"status": "reset"}, HTTPStatus.OK)
             return
-        super().do_POST()
+        with self.reset_lock:
+            super().do_POST()
 
 
 def main() -> None:

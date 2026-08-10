@@ -7,5 +7,5 @@ CREATE TABLE IF NOT EXISTS schema_migration_checksum (
   checksum TEXT NOT NULL CHECK (length(checksum) = 64)
 );
 
-INSERT INTO schema_migration (name) VALUES ('008_harden_migration_history.sql');
+INSERT INTO schema_migration (name) VALUES ('009_harden_migration_history.sql');
 COMMIT;

@@ -251,17 +251,17 @@ class DatabaseTests(unittest.TestCase):
                 connection.execute("DROP TABLE schema_migration_checksum")
                 connection.execute(
                     "DELETE FROM schema_migration "
-                    "WHERE name = '008_harden_migration_history.sql'"
+                    "WHERE name = '009_harden_migration_history.sql'"
                 )
                 connection.commit()
 
             before = migration_status(db_path)
             self.assertEqual("migration_required", before["state"])
-            self.assertEqual("007_add_documents.sql", before["current"])
+            self.assertEqual("008_add_authentication_sessions.sql", before["current"])
             initialize(db_path)
             after = migration_status(db_path)
             self.assertEqual("ready", after["state"])
-            self.assertEqual("008_harden_migration_history.sql", after["current"])
+            self.assertEqual("009_harden_migration_history.sql", after["current"])
             self.assertTrue(list(db_path.parent.joinpath("backups").glob("*.sqlite")))
 
             history_before = after["history"]
@@ -272,10 +272,34 @@ class DatabaseTests(unittest.TestCase):
         with TempDatabase(with_seed=False) as db_path:
             with closing(sqlite3.connect(db_path)) as connection:
                 connection.execute("DROP TABLE schema_migration_checksum")
-                connection.execute("DROP TABLE document")
+                connection.execute("DROP TABLE auth_session")
+                connection.execute("ALTER TABLE user_account RENAME TO user_account_legacy")
+                connection.executescript("""
+                    CREATE TABLE user_account (
+                      id INTEGER PRIMARY KEY,
+                      person_id INTEGER UNIQUE REFERENCES person(id) ON DELETE SET NULL,
+                      email TEXT NOT NULL UNIQUE,
+                      password_hash TEXT NOT NULL,
+                      passkey_enabled INTEGER NOT NULL DEFAULT 0 CHECK (passkey_enabled IN (0, 1)),
+                      two_factor_enabled INTEGER NOT NULL DEFAULT 0
+                        CHECK (two_factor_enabled IN (0, 1)),
+                      last_login_at TEXT,
+                      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                      CHECK (two_factor_enabled = 0 OR passkey_enabled = 1)
+                    );
+                    INSERT INTO user_account (
+                      id, person_id, email, password_hash, passkey_enabled,
+                      two_factor_enabled, last_login_at, created_at, updated_at
+                    )
+                    SELECT id, person_id, email, password_hash, passkey_enabled,
+                           two_factor_enabled, last_login_at, created_at, updated_at
+                    FROM user_account_legacy;
+                    DROP TABLE user_account_legacy;
+                """)
                 connection.execute(
                     "DELETE FROM schema_migration WHERE name IN (?, ?)",
-                    ("007_add_documents.sql", "008_harden_migration_history.sql"),
+                    ("008_add_authentication_sessions.sql", "009_harden_migration_history.sql"),
                 )
                 connection.commit()
 
@@ -283,7 +307,7 @@ class DatabaseTests(unittest.TestCase):
             status = migration_status(db_path)
             self.assertEqual("ready", status["state"])
             self.assertEqual(
-                ["007_add_documents.sql", "008_harden_migration_history.sql"],
+                ["008_add_authentication_sessions.sql", "009_harden_migration_history.sql"],
                 [entry["name"] for entry in status["history"][-2:]],
             )
 
@@ -342,7 +366,7 @@ class DatabaseTests(unittest.TestCase):
                 connection.execute("DROP TABLE schema_migration_checksum")
                 connection.execute(
                     "DELETE FROM schema_migration "
-                    "WHERE name = '008_harden_migration_history.sql'"
+                    "WHERE name = '009_harden_migration_history.sql'"
                 )
                 connection.commit()
 
@@ -373,7 +397,7 @@ class DatabaseTests(unittest.TestCase):
             migration_directory.mkdir()
             for migration in Path("db/migrations").glob("*.sql"):
                 shutil.copy(migration, migration_directory / migration.name)
-            (migration_directory / "008_harden_migration_history.sql").write_text(
+            (migration_directory / "009_harden_migration_history.sql").write_text(
                 "BEGIN; ALTER TABLE missing_table ADD COLUMN broken TEXT; COMMIT;",
                 encoding="utf-8",
             )
@@ -382,25 +406,25 @@ class DatabaseTests(unittest.TestCase):
                 connection.execute("DROP TABLE schema_migration_checksum")
                 connection.execute(
                     "DELETE FROM schema_migration "
-                    "WHERE name = '008_harden_migration_history.sql'"
+                    "WHERE name = '009_harden_migration_history.sql'"
                 )
                 connection.commit()
 
             with patch("backend.database.MIGRATIONS_PATH", migration_directory):
-                with self.assertRaisesRegex(MigrationError, "008_harden_migration_history"):
+                with self.assertRaisesRegex(MigrationError, "009_harden_migration_history"):
                     initialize(db_path)
 
             with closing(sqlite3.connect(db_path)) as connection:
                 self.assertIsNone(
                     connection.execute(
                         "SELECT 1 FROM schema_migration "
-                        "WHERE name = '008_harden_migration_history.sql'"
+                        "WHERE name = '009_harden_migration_history.sql'"
                     ).fetchone()
                 )
 
             shutil.copy(
-                Path("db/migrations/008_harden_migration_history.sql"),
-                migration_directory / "008_harden_migration_history.sql",
+                Path("db/migrations/009_harden_migration_history.sql"),
+                migration_directory / "009_harden_migration_history.sql",
             )
             with patch("backend.database.MIGRATIONS_PATH", migration_directory):
                 initialize(db_path)
@@ -411,7 +435,7 @@ class DatabaseTests(unittest.TestCase):
             with closing(sqlite3.connect(db_path)) as connection:
                 connection.execute(
                     "DELETE FROM schema_migration WHERE name = ?",
-                    ("008_harden_migration_history.sql",),
+                    ("009_harden_migration_history.sql",),
                 )
                 connection.execute(
                     "INSERT INTO schema_migration (name) VALUES (?)", ("999_unknown.sql",)

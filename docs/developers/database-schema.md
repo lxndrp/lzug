@@ -3,13 +3,23 @@
 Die aktuelle, ausführbare Schema-Referenz ist `db/schema.sql` im Repository. Sie
 und die versionierten Migrationen unter `db/migrations/` sind maßgeblich für
 den tatsächlichen Datenbankstand. Der aktuelle Migrationsstand ist
-`008_harden_migration_history.sql`.
+`009_harden_migration_history.sql`.
 
 Das aktuelle Backend verwendet SQLite lokal und SQLAlchemy. Primärschlüssel,
 Enums, Zeitstempel und Booleans sind SQLite-kompatibel modelliert; mehrzeilige
 fachliche Regeln werden in Repositories und Services validiert. Die Entscheidung einschließlich des später möglichen PostgreSQL-Pfads hält [ADR-0001](decisions/0001-lokale-relationale-persistenz.md) fest.
 
 Diese Referenz ersetzt weder `db/schema.sql` noch die Migrationen.
+
+## Authentifizierungsdaten
+
+`user_account` beschreibt die technische Identität und trennt sie mit
+`is_operator` ausdrücklich von `committee_member` und dessen fachlichen Rollen.
+`auth_session` speichert ausschließlich Hashes des Session- und CSRF-Materials,
+den Ablauf, Widerruf und die optionale Rotationsherkunft. Die Migration
+`008_add_authentication_sessions.sql` ergänzt diese Tabellen für bestehende
+Datenbanken; die Rohwerte werden nur beim internen Erzeugen einer Session an
+den aufrufenden Service zurückgegeben.
 
 ## Betriebskonfiguration
 

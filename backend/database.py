@@ -353,10 +353,10 @@ def _migration_state(
         for name, checksum in checksum_by_name.items():
             if checksum != checksums[name]:
                 raise MigrationError(f"Checksum mismatch for migration {name}.")
-        if "008_harden_migration_history.sql" in names:
+        if "009_harden_migration_history.sql" in names:
             if set(checksum_by_name) != set(names):
                 raise MigrationError("Migration checksum history is incomplete.")
-    elif "008_harden_migration_history.sql" in names:
+    elif "009_harden_migration_history.sql" in names:
         raise MigrationError(
             "Migration history claims checksum protection without its metadata table."
         )
@@ -416,7 +416,7 @@ def _record_migration(engine: Engine, migration: Path) -> None:
                 f"Migration {migration.name} committed without recording its history."
             )
 
-        if migration.name == "008_harden_migration_history.sql":
+        if migration.name == "009_harden_migration_history.sql":
             checksum_table = Table(
                 "schema_migration_checksum", MetaData(), autoload_with=connection
             )
