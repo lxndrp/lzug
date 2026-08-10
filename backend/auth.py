@@ -115,6 +115,19 @@ class AuthenticationRepository:
                 self._revoke_account_sessions(session, account_id, "account-disabled")
             return True
 
+    def disable_account(self, account_id: int) -> tuple[dict[str, Any] | None, int]:
+        """Disable one account and revoke its sessions in the same transaction."""
+        with session_scope(self.db_path) as session:
+            account = session.get(UserAccount, account_id)
+            if account is None:
+                return None, 0
+            account.is_active = 0
+            account.updated_at = _timestamp(datetime.now(UTC))
+            revoked_sessions = self._revoke_account_sessions(
+                session, account_id, "account-disabled"
+            )
+            return self._account_view(account), revoked_sessions
+
     def create_session(
         self,
         account_id: int,

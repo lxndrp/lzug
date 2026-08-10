@@ -18,7 +18,7 @@ VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.s
        ('003_add_exam_half_years.sql'), ('004_add_candidate_committee_assignments.sql'),
        ('005_add_exam_day_attendance.sql'), ('006_add_exam_execution_status.sql'),
        ('007_add_documents.sql'), ('008_add_authentication_sessions.sql'),
-       ('009_harden_migration_history.sql');
+       ('009_harden_migration_history.sql'), ('010_add_operator_auth_tokens.sql');
 
 CREATE TABLE schema_migration_checksum (
   name TEXT PRIMARY KEY REFERENCES schema_migration(name) ON DELETE CASCADE,
@@ -34,7 +34,8 @@ INSERT INTO schema_migration_checksum (name, checksum) VALUES
   ('006_add_exam_execution_status.sql', '63686ec8511d0224bb1365d3fc00f432bcc897a9ae2927cfeee74c05d45f87a5'),
   ('007_add_documents.sql', '6b1b5ae1dd9b954b3d7bc139afb03c4b977f50ef187e4fe50bd1aaf21d35b95c'),
   ('008_add_authentication_sessions.sql', '926452905ea280e06b805b78a7074143e02a0d2439cd2d37ce1727e0ace3026c'),
-  ('009_harden_migration_history.sql', 'a71425eb5cd8674532cd8c05672fb28c977b86c27dac610ade1e57964c9ba7a1');
+  ('009_harden_migration_history.sql', 'a71425eb5cd8674532cd8c05672fb28c977b86c27dac610ade1e57964c9ba7a1'),
+  ('010_add_operator_auth_tokens.sql', '6e0f3400d0871ddee4ec840360990f6b6fcd5ac8233f67c31cf03d2c4499e25a');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
@@ -90,6 +91,10 @@ CREATE TABLE user_account (
   CHECK (two_factor_enabled = 0 OR passkey_enabled = 1)
 );
 
+CREATE UNIQUE INDEX user_account_one_operator
+  ON user_account(is_operator)
+  WHERE is_operator = 1;
+
 CREATE TABLE auth_session (
   id INTEGER PRIMARY KEY,
   account_id INTEGER NOT NULL REFERENCES user_account(id) ON DELETE CASCADE,
@@ -107,6 +112,21 @@ CREATE TABLE auth_session (
 
 CREATE INDEX auth_session_account_active
   ON auth_session(account_id, revoked_at, expires_at);
+
+CREATE TABLE auth_token (
+  id INTEGER PRIMARY KEY,
+  account_id INTEGER NOT NULL REFERENCES user_account(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('invitation', 'recovery')),
+  token_hash TEXT NOT NULL UNIQUE CHECK (length(token_hash) = 64),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at TEXT NOT NULL,
+  consumed_at TEXT,
+  CHECK (expires_at > created_at),
+  CHECK (consumed_at IS NULL OR consumed_at >= created_at)
+);
+
+CREATE INDEX auth_token_account_kind
+  ON auth_token(account_id, kind, expires_at);
 
 CREATE TABLE location (
   id INTEGER PRIMARY KEY,

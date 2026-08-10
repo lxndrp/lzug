@@ -73,9 +73,11 @@ class ApiTests(unittest.TestCase):
         with TempDatabase(with_seed=False) as db_path:
             with sqlite3.connect(db_path) as connection:
                 connection.execute("DROP TABLE schema_migration_checksum")
+                connection.execute("DROP TABLE auth_token")
+                connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration "
-                    "WHERE name = '009_harden_migration_history.sql'"
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?)",
+                    ("009_harden_migration_history.sql", "010_add_operator_auth_tokens.sql"),
                 )
                 connection.commit()
 
@@ -85,7 +87,13 @@ class ApiTests(unittest.TestCase):
         assert_status(status, HTTPStatus.SERVICE_UNAVAILABLE)
         self.assertEqual("migration_required", health["reason"])
         self.assertEqual("008_add_authentication_sessions.sql", health["migration"]["current"])
-        self.assertEqual(["009_harden_migration_history.sql"], health["migration"]["pending"])
+        self.assertEqual(
+            [
+                "009_harden_migration_history.sql",
+                "010_add_operator_auth_tokens.sql",
+            ],
+            health["migration"]["pending"],
+        )
         self.assertNotIn("candidate", health)
 
     def test_health_and_round_summary_are_served_from_seeded_database(self) -> None:

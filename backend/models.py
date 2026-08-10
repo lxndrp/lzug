@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import ForeignKey, Integer, String
+from sqlalchemy import ForeignKey, Index, Integer, String
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -82,6 +82,14 @@ class UserAccount(Base):
     created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
     updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
 
+    __table_args__ = (
+        Index(
+            "user_account_one_operator",
+            "is_operator",
+            sqlite_where=sql_text("is_operator = 1"),
+        ),
+    )
+
 
 class AuthSession(Base):
     """Server-side session record; only hashes of bearer material are stored."""
@@ -100,6 +108,22 @@ class AuthSession(Base):
     rotated_from_id: Mapped[int | None] = mapped_column(
         ForeignKey("auth_session.id", ondelete="SET NULL"), nullable=True
     )
+
+
+class AuthToken(Base):
+    """One-time invitation or recovery material; only its hash is persisted."""
+
+    __tablename__ = "auth_token"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("user_account.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String)
+    token_hash: Mapped[str] = mapped_column(String, unique=True)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    expires_at: Mapped[str] = mapped_column(String)
+    consumed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (Index("auth_token_account_kind", "account_id", "kind", "expires_at"),)
 
 
 class Location(Base):

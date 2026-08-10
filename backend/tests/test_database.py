@@ -249,10 +249,12 @@ class DatabaseTests(unittest.TestCase):
         with TempDatabase(with_seed=False) as db_path:
             with closing(sqlite3.connect(db_path)) as connection:
                 connection.execute("DROP TABLE schema_migration_checksum")
+                connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration "
-                    "WHERE name = '009_harden_migration_history.sql'"
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?)",
+                    ("009_harden_migration_history.sql", "010_add_operator_auth_tokens.sql"),
                 )
+                connection.execute("DROP TABLE auth_token")
                 connection.commit()
 
             before = migration_status(db_path)
@@ -261,7 +263,7 @@ class DatabaseTests(unittest.TestCase):
             initialize(db_path)
             after = migration_status(db_path)
             self.assertEqual("ready", after["state"])
-            self.assertEqual("009_harden_migration_history.sql", after["current"])
+            self.assertEqual("010_add_operator_auth_tokens.sql", after["current"])
             self.assertTrue(list(db_path.parent.joinpath("backups").glob("*.sqlite")))
 
             history_before = after["history"]
@@ -273,6 +275,8 @@ class DatabaseTests(unittest.TestCase):
             with closing(sqlite3.connect(db_path)) as connection:
                 connection.execute("DROP TABLE schema_migration_checksum")
                 connection.execute("DROP TABLE auth_session")
+                connection.execute("DROP TABLE auth_token")
+                connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute("ALTER TABLE user_account RENAME TO user_account_legacy")
                 connection.executescript("""
                     CREATE TABLE user_account (
@@ -298,8 +302,12 @@ class DatabaseTests(unittest.TestCase):
                     DROP TABLE user_account_legacy;
                 """)
                 connection.execute(
-                    "DELETE FROM schema_migration WHERE name IN (?, ?)",
-                    ("008_add_authentication_sessions.sql", "009_harden_migration_history.sql"),
+                    "DELETE FROM schema_migration WHERE name IN (?, ?, ?)",
+                    (
+                        "008_add_authentication_sessions.sql",
+                        "009_harden_migration_history.sql",
+                        "010_add_operator_auth_tokens.sql",
+                    ),
                 )
                 connection.commit()
 
@@ -307,8 +315,12 @@ class DatabaseTests(unittest.TestCase):
             status = migration_status(db_path)
             self.assertEqual("ready", status["state"])
             self.assertEqual(
-                ["008_add_authentication_sessions.sql", "009_harden_migration_history.sql"],
-                [entry["name"] for entry in status["history"][-2:]],
+                [
+                    "008_add_authentication_sessions.sql",
+                    "009_harden_migration_history.sql",
+                    "010_add_operator_auth_tokens.sql",
+                ],
+                [entry["name"] for entry in status["history"][-3:]],
             )
 
     def test_initialize_rejects_unversioned_legacy_round_schema(self) -> None:
@@ -364,10 +376,12 @@ class DatabaseTests(unittest.TestCase):
         with TempDatabase(with_seed=False) as db_path:
             with closing(sqlite3.connect(db_path)) as connection:
                 connection.execute("DROP TABLE schema_migration_checksum")
+                connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration "
-                    "WHERE name = '009_harden_migration_history.sql'"
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?)",
+                    ("009_harden_migration_history.sql", "010_add_operator_auth_tokens.sql"),
                 )
+                connection.execute("DROP TABLE auth_token")
                 connection.commit()
 
             started = Event()
@@ -404,10 +418,12 @@ class DatabaseTests(unittest.TestCase):
             initialize(db_path, with_seed=False, reset=True)
             with closing(sqlite3.connect(db_path)) as connection:
                 connection.execute("DROP TABLE schema_migration_checksum")
+                connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration "
-                    "WHERE name = '009_harden_migration_history.sql'"
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?)",
+                    ("009_harden_migration_history.sql", "010_add_operator_auth_tokens.sql"),
                 )
+                connection.execute("DROP TABLE auth_token")
                 connection.commit()
 
             with patch("backend.database.MIGRATIONS_PATH", migration_directory):

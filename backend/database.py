@@ -416,7 +416,7 @@ def _record_migration(engine: Engine, migration: Path) -> None:
                 f"Migration {migration.name} committed without recording its history."
             )
 
-        if migration.name == "009_harden_migration_history.sql":
+        if "schema_migration_checksum" in inspect(connection).get_table_names():
             checksum_table = Table(
                 "schema_migration_checksum", MetaData(), autoload_with=connection
             )

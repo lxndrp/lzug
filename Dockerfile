@@ -42,7 +42,7 @@ RUN groupadd --system --gid 10001 lzug \
 
 COPY --from=python-dependencies --chown=10001:10001 /src/.venv /opt/venv
 COPY --chown=10001:10001 \
-    backend/__init__.py backend/app.py backend/auth.py backend/authorization.py \
+    backend/__init__.py backend/admin.py backend/admin_service.py backend/app.py backend/auth.py backend/authorization.py \
     backend/candidate_days.py backend/contract.py backend/database.py \
     backend/document_storage.py backend/documents.py backend/hateoas.py \
     backend/healthcheck.py backend/holiday_provider.py backend/models.py \
