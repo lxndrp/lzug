@@ -39,6 +39,7 @@ nav:
           - API und Persistenz: developers/architecture/api-and-persistence.md
           - Authentifizierung und Sitzungen: developers/architecture/authentication.md
           - OCI-Runtime: developers/architecture/oci-runtime.md
+          - Docker-Compose-Referenzinstallation: developers/architecture/compose-self-hosting.md
       - Referenz:
           - Fachliches Datenmodell: developers/domain-model.md
           - Datenbankschema: developers/database-schema.md

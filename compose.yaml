@@ -1,0 +1,42 @@
+name: lzug
+
+services:
+  lzug:
+    image: ${LZUG_IMAGE:?Set LZUG_IMAGE to an immutable SemVer tag or digest}
+    user: "10001:10001"
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    stop_grace_period: 30s
+    ports:
+      - "${LZUG_BIND_ADDRESS:-127.0.0.1}:${LZUG_HOST_PORT:-8000}:${LZUG_PORT:-8000}"
+    volumes:
+      - type: volume
+        source: lzug_data
+        target: /data
+    environment:
+      LZUG_HOST: ${LZUG_HOST:-0.0.0.0}
+      LZUG_PORT: ${LZUG_PORT:-8000}
+      LZUG_STATIC_DIR: ${LZUG_STATIC_DIR:-/app/frontend}
+      LZUG_DATA_DIR: /data
+      LZUG_DATABASE_PATH: ${LZUG_DATABASE_PATH:-/data/lzug.sqlite}
+      LZUG_DATABASE_URL: ${LZUG_DATABASE_URL:-}
+      LZUG_DOCUMENTS_PATH: ${LZUG_DOCUMENTS_PATH:-/data/documents}
+      LZUG_BACKUPS_PATH: ${LZUG_BACKUPS_PATH:-/data/backups}
+      LZUG_HEALTHCHECK_URL: ${LZUG_HEALTHCHECK_URL:-http://127.0.0.1:${LZUG_PORT:-8000}/api/health}
+    healthcheck:
+      test: ["CMD", "python", "-m", "backend.healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+volumes:
+  lzug_data:
+    name: ${LZUG_DATA_VOLUME:-lzug_data}
