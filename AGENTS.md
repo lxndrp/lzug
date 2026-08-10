@@ -44,8 +44,16 @@ die technische Referenz im [Entwicklerhandbuch](docs/developers/index.md).
   `master` committen.
 - Fortschritt und Abschluss im zugehörigen Issue kommentieren. Pull Requests
   für Issue-Arbeit entstehen mit `scripts/create-issue-pr.sh`; sie schließen
-  vollständige Umsetzungen mit `Closes #<nummer>`. CI und Review bleiben
-  Voraussetzung für den Merge.
+  vollständige Umsetzungen mit `Closes #<nummer>`. Nach dem Anlegen eines Pull
+  Requests den Abschluss von CI und Code-Review abwarten und anschließend alle
+  Code-Review-Kommentare prüfen. Sinnvolle, zum Issue gehörende Hinweise
+  umsetzen und danach die betroffenen Prüfungen sowie CI erneut abwarten.
+  Erledigte Review-Threads erst nach Prüfung beziehungsweise Umsetzung als
+  `Resolved` markieren. Unklare, nicht sinnvolle oder außerhalb des
+  Issue-Scopes liegende Hinweise nicht stillschweigend auflösen, sondern
+  nachvollziehbar beantworten oder zur Entscheidung eskalieren. Erst mergen,
+  wenn die CI nach den letzten Änderungen erfolgreich ist und alle relevanten
+  Review-Kommentare geklärt sind.
 - Qualifizierte Dependabot-PRs werden nur durch den dafür vorgesehenen Workflow
   für Squash-Auto-Merge angemeldet. Das bestehende Ruleset und die CI bleiben
   maßgeblich; Major-, GitHub-Actions-, konfliktbehaftete und nicht eindeutig
