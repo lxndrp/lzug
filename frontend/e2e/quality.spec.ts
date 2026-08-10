@@ -42,8 +42,15 @@ const viewports = [
 async function useDraftRound(page: Page): Promise<void> {
   const response = await page.request.patch('/api/exam-rounds/1', {
     data: { status: 'draft' },
+    headers: await csrfHeaders(page),
   });
-  expect(response.status(), await response.text()).toBe(200);
+  expect(response.status()).toBe(200);
+}
+
+async function csrfHeaders(page: Page): Promise<Record<string, string>> {
+  const csrfCookie = (await page.context().cookies()).find((cookie) => cookie.name === 'lzug_csrf');
+  expect(csrfCookie?.value).toBeTruthy();
+  return { 'X-CSRF-Token': csrfCookie?.value ?? '' };
 }
 
 test.describe('lzug browser workflows', () => {
@@ -53,6 +60,9 @@ test.describe('lzug browser workflows', () => {
     page,
   }) => {
     await page.goto('/scheduling-overview/1');
+    await expect(page.getByText('Daten synchronisiert', { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
 
     await expect(
       page.getByRole('navigation', { name: 'Schritte der Terminorganisation' }),
@@ -116,8 +126,9 @@ test.describe('lzug browser workflows', () => {
   test('moves a prepared draft into coordination', async ({ page }) => {
     const draftResponse = await page.request.patch('/api/exam-rounds/1', {
       data: { status: 'draft' },
+      headers: await csrfHeaders(page),
     });
-    expect(draftResponse.status(), await draftResponse.text()).toBe(200);
+    expect(draftResponse.status()).toBe(200);
 
     await page.goto('/scheduling-overview/1');
     await expect(page.getByText('Entwurf', { exact: true })).toBeVisible();
@@ -131,7 +142,7 @@ test.describe('lzug browser workflows', () => {
     );
     await page.getByRole('button', { name: 'Verfügbarkeiten anfragen' }).click();
     const requestResponse = await requestResponsePromise;
-    expect(requestResponse.status(), await requestResponse.text()).toBe(200);
+    expect(requestResponse.status()).toBe(200);
     await expect(page.getByText('In Abstimmung', { exact: true })).toBeVisible();
     await expect(page.getByLabel('Verfügbarkeiten nach Mitglied und Prüfungstag')).toBeVisible();
   });
@@ -585,7 +596,7 @@ test.describe('lzug browser workflows', () => {
     await page.getByRole('button', { name: 'Prüfungsrunde speichern' }).click();
 
     const updateResponse = await updateResponsePromise;
-    expect(updateResponse.status(), await updateResponse.text()).toBe(200);
+    expect(updateResponse.status()).toBe(200);
     await expect(page.getByText('Prüfungsrunde gespeichert')).toBeVisible();
 
     await page.reload();
@@ -601,7 +612,7 @@ test.describe('lzug browser workflows', () => {
     await expect(page.getByLabel('Verfügbarkeiten nach Mitglied und Prüfungstag')).toBeVisible();
 
     const persistedRoundResponse = await page.request.get('/api/exam-rounds/1');
-    expect(persistedRoundResponse.status(), await persistedRoundResponse.text()).toBe(200);
+    expect(persistedRoundResponse.status()).toBe(200);
     const persistedRound = (await persistedRoundResponse.json()) as Record<string, unknown>;
     expect(persistedRound['name']).toBe('Sommer 2027');
     expect(persistedRound['availability_deadline']).toBe('2027-04-15 18:00:00');
@@ -679,9 +690,9 @@ test.describe('lzug browser workflows', () => {
     await page.getByRole('button', { name: 'Mögliche Tage berechnen' }).click();
 
     const settingsResponse = await settingsResponsePromise;
-    expect(settingsResponse.status(), await settingsResponse.text()).toBe(200);
+    expect(settingsResponse.status()).toBe(200);
     const generationResponse = await generationResponsePromise;
-    expect(generationResponse.status(), await generationResponse.text()).toBe(200);
+    expect(generationResponse.status()).toBe(200);
 
     await page.getByRole('button', { name: 'Weiter' }).click();
     await expect(page.getByText('4 Tage angelegt')).toBeVisible();
@@ -913,6 +924,9 @@ test.describe('lzug browser workflows', () => {
       for (const item of editors) {
         await test.step(`${viewport.name}: ${item.action}`, async () => {
           await page.goto(item.path);
+          const refreshButton = page.getByRole('button', { name: 'Aktualisieren' });
+          await expect(refreshButton).toBeEnabled();
+          await expect(refreshButton).toHaveCSS('opacity', '1');
           const trigger = page.locator(
             `${item.editor === '#candidate-create-editor' ? '.app-list-toolbar ' : ''}button[aria-controls="${item.editor.slice(1)}"]`,
           );

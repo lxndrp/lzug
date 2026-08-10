@@ -67,6 +67,16 @@ class ApiTests(unittest.TestCase):
             self.assertIn("/api/candidate-exam-days/generate", spec["paths"])
             self.assertIn("/api/confirmed-plans", spec["paths"])
             self.assertIn("/api/confirmed-plan-days/{id}", spec["paths"])
+            self.assertIn("/api/session", spec["paths"])
+            self.assertIn("/api/session/rotate", spec["paths"])
+            self.assertIn("/api/session/logout", spec["paths"])
+            self.assertEqual(
+                {"sessionCookie": [], "csrfHeader": []},
+                spec["paths"]["/api/candidates"]["post"]["security"][0],
+            )
+            self.assertIn("401", spec["paths"]["/api/candidates"]["get"]["responses"])
+            self.assertIn("403", spec["paths"]["/api/candidates"]["post"]["responses"])
+            self.assertNotIn("security", spec["paths"]["/api/health"]["get"])
             self.assertEqual(
                 ["completed", "cancelled", "needs_follow_up"],
                 spec["components"]["schemas"]["ExamSlotStatusWrite"]["properties"]["status"][
@@ -656,7 +666,7 @@ class ApiTests(unittest.TestCase):
             )
             assert_status(status, HTTPStatus.OK)
             self.assertEqual(5, body["max_exam_days_per_week"])
-            self.assertEqual(2, body["updated_by_member_id"])
+            self.assertEqual(1, body["updated_by_member_id"])
 
             status, availability = api.request(
                 "POST",

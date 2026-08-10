@@ -5,12 +5,18 @@ from __future__ import annotations
 import argparse
 import json
 from http import HTTPStatus
+from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from . import hateoas, openapi
+from .auth import (
+    AuthContext,
+    AuthenticationRepository,
+    SessionCredentials,
+)
 from .candidate_days import CandidateDayService
 from .database import (
     DEFAULT_DB_PATH,
@@ -35,6 +41,9 @@ class LzugHandler(BaseHTTPRequestHandler):
     """
 
     db_path = DEFAULT_DB_PATH
+    cookie_secure = True
+    session_cookie_name = "__Host-lzug_session"
+    csrf_cookie_name = "lzug_csrf"
 
     @property
     def repository(self) -> ResourceRepository:
@@ -47,6 +56,10 @@ class LzugHandler(BaseHTTPRequestHandler):
     @property
     def candidate_day_service(self) -> CandidateDayService:
         return CandidateDayService(self.db_path)
+
+    @property
+    def authentication_repository(self) -> AuthenticationRepository:
+        return AuthenticationRepository(self.db_path)
 
     def do_GET(self) -> None:
         """Dispatch read, health, OpenAPI, and Swagger UI requests."""
@@ -73,6 +86,24 @@ class LzugHandler(BaseHTTPRequestHandler):
 
             if path_parts == ["docs"]:
                 self.respond_html(self.docs_html())
+                return
+
+            if path_parts == ["session"]:
+                context = self.require_authenticated(require_actor=False)
+                if context is None:
+                    return
+                self.respond(
+                    {
+                        "authenticated": True,
+                        "account_id": context.account_id,
+                        "person_id": context.person_id,
+                        "committee_member_id": context.committee_member_id,
+                        "is_operator": context.is_operator,
+                    }
+                )
+                return
+
+            if self.require_authenticated() is None:
                 return
 
             if path_parts == ["round-summary"]:
@@ -177,6 +208,29 @@ class LzugHandler(BaseHTTPRequestHandler):
         """Dispatch creates and planning actions, translating domain errors to HTTP."""
         try:
             path_parts = self.path_parts(urlparse(self.path).path)
+            if path_parts == ["session", "rotate"]:
+                context = self.require_authenticated(require_actor=False, require_csrf=True)
+                if context is None:
+                    return
+                credentials = self.authentication_repository.rotate_session(self.session_token())
+                if credentials is None:
+                    self.respond({"error": "Authentication required."}, HTTPStatus.UNAUTHORIZED)
+                    return
+                self.issue_session_cookies(credentials)
+                self.respond({"status": "rotated", "expires_at": credentials.expires_at})
+                return
+
+            if path_parts == ["session", "logout"]:
+                context = self.require_authenticated(require_actor=False, require_csrf=True)
+                if context is None:
+                    return
+                self.authentication_repository.revoke_session(self.session_token(), reason="logout")
+                self.clear_session_cookies()
+                self.respond({}, HTTPStatus.NO_CONTENT)
+                return
+
+            if self.require_authenticated(require_csrf=True) is None:
+                return
             if (
                 len(path_parts) == 5
                 and path_parts[0] == "confirmed-plan-days"
@@ -266,6 +320,8 @@ class LzugHandler(BaseHTTPRequestHandler):
     def do_PATCH(self) -> None:
         """Dispatch partial updates through the repository validation boundary."""
         try:
+            if self.require_authenticated(require_csrf=True) is None:
+                return
             path_parts = self.path_parts(urlparse(self.path).path)
             if (
                 len(path_parts) == 5
@@ -342,6 +398,8 @@ class LzugHandler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:
         try:
+            if self.require_authenticated(require_csrf=True) is None:
+                return
             resource_name, entity_id = self.resource_target(
                 self.path_parts(urlparse(self.path).path)
             )
@@ -362,6 +420,66 @@ class LzugHandler(BaseHTTPRequestHandler):
 
     def health(self) -> dict:
         return hateoas.health("ok" if is_ready(self.db_path) else "unavailable")
+
+    def require_authenticated(
+        self,
+        *,
+        require_actor: bool = True,
+        require_csrf: bool = False,
+    ) -> AuthContext | None:
+        """Authenticate the request and enforce the shared CSRF policy."""
+        context = self.authentication_repository.authenticate(self.session_token())
+        if context is None:
+            self.respond({"error": "Authentication required."}, HTTPStatus.UNAUTHORIZED)
+            return None
+        self.auth_context = context
+        if require_csrf and not self.authentication_repository.verify_csrf(
+            context, self.headers.get("X-CSRF-Token")
+        ):
+            self.respond({"error": "CSRF validation failed."}, HTTPStatus.FORBIDDEN)
+            return None
+        if require_actor and context.committee_member_id is None:
+            self.respond({"error": "Forbidden."}, HTTPStatus.FORBIDDEN)
+            return None
+        return context
+
+    def session_token(self) -> str | None:
+        cookies = SimpleCookie()
+        try:
+            cookies.load(self.headers.get("Cookie", ""))
+        except CookieError:
+            return None
+        morsel = cookies.get(self.session_cookie_name)
+        return morsel.value if morsel is not None else None
+
+    def issue_session_cookies(self, credentials: SessionCredentials) -> None:
+        self._add_response_header("Set-Cookie", self._session_cookie(credentials.token))
+        self._add_response_header("Set-Cookie", self._csrf_cookie(credentials.csrf_token))
+
+    def clear_session_cookies(self) -> None:
+        self._add_response_header("Set-Cookie", self._session_cookie("", max_age=0))
+        self._add_response_header("Set-Cookie", self._csrf_cookie("", max_age=0))
+
+    def _session_cookie(self, value: str, *, max_age: int = 8 * 60 * 60) -> str:
+        return self._cookie(self.session_cookie_name, value, max_age=max_age, http_only=True)
+
+    def _csrf_cookie(self, value: str, *, max_age: int = 8 * 60 * 60) -> str:
+        return self._cookie(self.csrf_cookie_name, value, max_age=max_age, http_only=False)
+
+    def _cookie(self, name: str, value: str, *, max_age: int, http_only: bool) -> str:
+        attributes = [f"{name}={value}", f"Max-Age={max_age}", "Path=/", "SameSite=Strict"]
+        if self.cookie_secure:
+            attributes.append("Secure")
+        if http_only:
+            attributes.append("HttpOnly")
+        return "; ".join(attributes)
+
+    def _add_response_header(self, name: str, value: str) -> None:
+        headers = getattr(self, "_response_headers", None)
+        if headers is None:
+            headers = []
+            self._response_headers = headers
+        headers.append((name, value))
 
     def respond_database_error(self, error: SQLAlchemyError) -> None:
         """Map persistence failures to stable public HTTP messages and statuses."""
@@ -442,6 +560,22 @@ class LzugHandler(BaseHTTPRequestHandler):
             )
         if CANDIDATE.table in normalized:
             normalized.pop(CANDIDATE.table)
+        context = getattr(self, "auth_context", None)
+        if context is not None and context.committee_member_id is not None:
+            if "created_by_member_id" in normalized:
+                member_id = context.committee_member_id
+                if "committee_id" in normalized:
+                    member_id = self.authentication_repository.member_for_committee(
+                        context, int(normalized["committee_id"])
+                    )
+                normalized["created_by_member_id"] = member_id
+            if "updated_by_member_id" in normalized:
+                member_id = context.committee_member_id
+                if "exam_round_id" in normalized:
+                    member_id = self.authentication_repository.member_for_round(
+                        context, int(normalized["exam_round_id"])
+                    )
+                normalized["updated_by_member_id"] = member_id
         return normalized
 
     def normalize_bool(self, value) -> int:
@@ -460,21 +594,31 @@ class LzugHandler(BaseHTTPRequestHandler):
     def respond(self, payload, status: HTTPStatus = HTTPStatus.OK) -> None:
         body = b"" if status == HTTPStatus.NO_CONTENT else self.json_bytes(payload)
         self.send_response(status)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
         if body:
             self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        for name, value in getattr(self, "_response_headers", []):
+            self.send_header(name, value)
+        self._response_headers = []
         self.end_headers()
         if body:
             try:
                 self.wfile.write(body)
-            except BrokenPipeError:
+            except BrokenPipeError, ConnectionResetError:
                 pass
 
     def respond_html(self, html: str, status: HTTPStatus = HTTPStatus.OK) -> None:
         body = html.encode("utf-8")
         self.send_response(status)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        for name, value in getattr(self, "_response_headers", []):
+            self.send_header(name, value)
+        self._response_headers = []
         self.end_headers()
         self.wfile.write(body)
 

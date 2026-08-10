@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 from http import HTTPStatus
 
+from backend.auth import AuthenticationRepository
 from backend.e2e_server import E2EHandler
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
@@ -28,6 +29,7 @@ class E2EServerTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertEqual({"status": "reset"}, response)
 
+            api.credentials = AuthenticationRepository(db_path).create_session(1)
             status, candidates = api.request("GET", "/api/candidates")
             assert_status(status, HTTPStatus.OK)
             self.assertNotIn(

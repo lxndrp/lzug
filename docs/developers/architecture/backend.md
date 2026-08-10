@@ -43,6 +43,11 @@ prüfbaren freien Speicher. Für lokale Tests können `LZUG_DATA_DIR`,
 CLI-Optionen `--data-dir`, `--documents` und `--backups` diese Pfade
 überschreiben; der Self-Hosting-Standard bleibt unter `/data`.
 
+Die Authentifizierungs- und Sessiongrenze ist in [Authentifizierung und
+Sitzungen](authentication.md) beschrieben. Der HTTP-Handler schützt alle
+Fachoperationen vor dem Dispatch; Konten- und Sessionpflege bleibt hinter
+`backend.auth.AuthenticationRepository` und ist kein Netzwerk-Admin-Endpunkt.
+
 Dokumente werden über `backend.document_storage.DocumentStorage` gespeichert.
 Der lokale Adapter verwendet zufällige interne 32-stellige Hexadezimal-IDs und
 veröffentlicht Dateien atomar ohne Überschreiben. Der ursprüngliche Dateiname

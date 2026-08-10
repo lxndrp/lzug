@@ -8,6 +8,16 @@ fachliche Regeln werden in Repositories und Services validiert. Die Entscheidung
 
 Diese Referenz ersetzt weder `db/schema.sql` noch die Migrationen.
 
+## Authentifizierungsdaten
+
+`user_account` beschreibt die technische Identität und trennt sie mit
+`is_operator` ausdrücklich von `committee_member` und dessen fachlichen Rollen.
+`auth_session` speichert ausschließlich Hashes des Session- und CSRF-Materials,
+den Ablauf, Widerruf und die optionale Rotationsherkunft. Die Migration
+`008_add_authentication_sessions.sql` ergänzt diese Tabellen für bestehende
+Datenbanken; die Rohwerte werden nur beim internen Erzeugen einer Session an
+den aufrufenden Service zurückgegeben.
+
 ## Betriebskonfiguration
 
 Die Anwendung verwendet standardmäßig `/data/lzug.sqlite`. Ein anderer
