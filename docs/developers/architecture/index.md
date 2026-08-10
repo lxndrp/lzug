@@ -42,4 +42,6 @@ Betriebsmaßnahme.
 
 Die konkrete Einzelcontainer-Umsetzung, ihre Build-Stufen, die statische
 Auslieferung und die Docker-/Podman-Smoke-Prüfung beschreibt die
-[OCI-Runtime](oci-runtime.md).
+[OCI-Runtime](oci-runtime.md). Die kanonische
+[Docker-Compose-Referenzinstallation](compose-self-hosting.md) ergänzt den
+reproduzierbaren Self-Hosting- und Persistenzpfad.

@@ -174,6 +174,19 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  compose:
+    name: Compose configuration
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate Compose configuration and negative cases
+        env:
+          LZUG_IMAGE: lzug:0.1.0-local
+        run: scripts/validate-compose.sh
+
   e2e:
     name: Browser E2E
     runs-on: ubuntu-latest
