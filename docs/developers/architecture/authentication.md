@@ -15,6 +15,12 @@ Kontenpflege und keinen Login-Endpunkt. Spätere Anmeldeverfahren erzeugen eine
 Session ausschließlich über diesen Service beziehungsweise eine darauf
 aufbauende Fachschicht für die Betreiber-CLI.
 
+Die Konten-, Einladungs-, Sperr- und Recovery-Grundlage für diese Fachschicht
+liegt in `backend.admin_service`. Die portable Go-Grenze und ihr
+JSON-/Exit-Code-Vertrag sind in der [Betreiber-CLI-Referenz](operator-auth-cli.md)
+beschrieben. Der Betreiber bleibt ohne `person_id`; eine Betreiberoperation
+verleiht daher niemals eine Ausschussrolle.
+
 Eine Session besteht aus zufälligem opaque Bearer-Material und einem separaten
 CSRF-Token. In `auth_session` liegen nur SHA-256-Prüfwerte, nie die Token. Die
 Session ist standardmäßig acht Stunden absolut gültig. Eine Rotation widerruft

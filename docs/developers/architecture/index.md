@@ -45,3 +45,8 @@ Auslieferung und die Docker-/Podman-Smoke-Prüfung beschreibt die
 [OCI-Runtime](oci-runtime.md). Die kanonische
 [Docker-Compose-Referenzinstallation](compose-self-hosting.md) ergänzt den
 reproduzierbaren Self-Hosting- und Persistenzpfad.
+
+Die lokale Kontenpflege ohne Netzwerk-Admin-Endpunkt beschreibt die
+[Betreiber-CLI für Authentifizierung](operator-auth-cli.md). Sie bleibt eine
+separate Go-Betriebsgrenze und nutzt im Container ausschließlich den
+versionierten Python-Adminvertrag.
