@@ -306,7 +306,12 @@ def spec() -> dict[str, Any]:
             required=("name", "_links"),
         ),
         "Health": object_schema(
-            {"status": {"type": "string"}, "_links": link_map()},
+            {
+                "status": {"type": "string"},
+                "reason": {"type": "string"},
+                "migration": {"type": "object"},
+                "_links": link_map(),
+            },
             required=("status", "_links"),
         ),
         "Error": object_schema({"error": {"type": "string"}}, required=("error",)),

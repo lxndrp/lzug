@@ -1,6 +1,9 @@
 # Datenbankschema
 
-Die aktuelle, ausführbare Schema-Referenz ist `db/schema.sql` im Repository. Sie und die versionierten Migrationen unter `db/migrations/` sind maßgeblich für den tatsächlichen Datenbankstand.
+Die aktuelle, ausführbare Schema-Referenz ist `db/schema.sql` im Repository. Sie
+und die versionierten Migrationen unter `db/migrations/` sind maßgeblich für
+den tatsächlichen Datenbankstand. Der aktuelle Migrationsstand ist
+`008_harden_migration_history.sql`.
 
 Das aktuelle Backend verwendet SQLite lokal und SQLAlchemy. Primärschlüssel,
 Enums, Zeitstempel und Booleans sind SQLite-kompatibel modelliert; mehrzeilige
@@ -25,11 +28,27 @@ und kurzfristige konkurrierende Schreibzugriffe warten. WAL erzeugt neben der
 Datenbank temporäre `-wal`- und `-shm`-Dateien; das persistente Datenverzeichnis
 muss deshalb neben `lzug.sqlite` auch diese Laufzeitdateien zulassen.
 
-`--init` initialisiert das Schema und führt den vorhandenen Schema-Lebenszyklus
-aus. Ohne bereite Datenbank beendet sich der Backend-Start mit einem Fehler.
+`--init` erstellt neue Datenbanken aus `db/schema.sql` oder führt bei einem
+versionierten älteren Stand die noch fehlenden Migrationen in Reihenfolge aus.
+Ein nicht-leerer Bestand ohne `schema_migration`, mit unbekannter Version, einer
+Historienlücke oder einer falschen Prüfsumme wird nicht automatisch repariert.
 Der Healthcheck prüft dieselben Voraussetzungen und liefert bei fehlender
-Readiness HTTP 503. Sicherung, Wiederherstellung und Rollback bleiben dem
-nachgelagerten Betriebsumfang aus #117 vorbehalten.
+Readiness HTTP 503 inklusive des sicheren Fehlergrunds.
+
+Vor ausstehenden Migrationen legt die Anwendung eine SQLite-Schutzkopie unter
+`/data/backups` an. Diese Kopie schützt vor irreversiblen Änderungen, ist aber
+keine allgemeine Backup-/Restore-/Exportfunktion. Jede einzelne SQL-Migration
+läuft in ihrer eigenen Transaktion; der Historieneintrag wird erst nach dem
+Commit geschrieben. Scheitert eine Migration, bleibt sie nicht als erfolgreich
+markiert und der Server startet nicht. Bereits erfolgreich committete
+Migrationen werden nicht durch einen späteren Fehler automatisch zurückgesetzt;
+die Wiederherstellung aus der Schutzkopie gehört zum späteren Betriebsumfang.
+
+`schema_migration_checksum` enthält nur Migrationsnamen und SHA-256-Prüfsummen,
+keine Fachdaten. Die Readiness-Diagnose kann damit den aktuellen, Ziel- und
+ausstehenden Stand sowie die angewandte Historie ausgeben, ohne sensible Daten
+zu veröffentlichen. Ein zweiter gleichzeitiger Start wartet auf die
+datenbankbezogene Migrationssperre und prüft danach die Historie erneut.
 
 ## Dokumentmetadaten
 

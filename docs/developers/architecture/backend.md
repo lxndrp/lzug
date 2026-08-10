@@ -20,9 +20,19 @@ der Pfad kann mit `--db`, `LZUG_DATABASE_PATH` oder einer SQLite-URL über
 `--database-url` beziehungsweise `LZUG_DATABASE_URL` überschrieben werden.
 Lokale Entwicklung kann beispielsweise `LZUG_DATABASE_PATH=var/lzug.sqlite3`
 verwenden. `db/schema.sql` und `db/seed_demo.sql` sind die ausführbaren Quellen
-für Schema und Demo-Daten. Migrationen unter `db/migrations/` werden beim Start
-mit `--init` ausgeführt und in `schema_migration` protokolliert. Die Details
-stehen in der [Schema-Referenz](../database-schema.md).
+für neue Datenbanken. Migrationen unter `db/migrations/` werden mit `--init` in
+numerischer Reihenfolge genau einmal ausgeführt und in `schema_migration`
+protokolliert. Die zugehörigen SHA-256-Prüfsummen stehen in
+`schema_migration_checksum`; unbekannte, lückenhafte oder manipulierte Stände
+werden abgewiesen. Ein bestehender SQLite-Bestand ohne versionierte Historie
+wird nicht heuristisch übernommen.
+
+Vor einer ausstehenden Migration erzeugt der Start einen SQLite-Sicherheitssnapshot
+unter `/data/backups` beziehungsweise im konfigurierten Backup-Pfad. Das ist
+eine migrationsbezogene Schutzkopie und keine allgemeine Backup-, Restore- oder
+Exportfunktion. Migrationen werden über eine neben der Datenbank liegende
+Dateisperre serialisiert; der zweite Start wartet und prüft danach den bereits
+aktualisierten Stand erneut.
 
 Jede SQLAlchemy-Verbindung aktiviert Foreign Keys, WAL, `synchronous=NORMAL`
 und einen `busy_timeout` von fünf Sekunden. WAL erlaubt parallele Leser und
@@ -32,16 +42,26 @@ antwortet die API mit HTTP 503 und der Request kann wiederholt werden. Die
 Transaktionsgrenze bleibt `session_scope`: erfolgreiche fachlich zusammenhängende
 Änderungen werden gemeinsam committed, Fehler gemeinsam zurückgerollt.
 
-Der Start prüft nach optionaler Initialisierung die Erreichbarkeit, das Schema
-und die effektiven SQLite-Einstellungen. `GET /api/health` liefert bei
-bereiter Datenbank HTTP 200, sonst HTTP 503. Der Check ist eine Readiness-
-Prüfung, kein Backup-, Migrations- oder Wiederherstellungsmechanismus. Vor dem
+Der Start prüft nach optionaler Initialisierung die Erreichbarkeit, das Schema,
+die Migrationshistorie und die effektiven SQLite-Einstellungen. `GET
+/api/health` liefert bei bereiter Datenbank HTTP 200, sonst HTTP 503. Die
+Antwort enthält den sicheren Grund sowie aktuellen, Ziel- und ausstehenden
+Migrationsstand und die Historie; Fachdaten oder Verbindungsgeheimnisse werden
+nicht ausgegeben. Die API startet bei einem ungeeigneten Schema nicht. Vor dem
 Start prüft das Backend außerdem die Existenz beziehungsweise Anlegbarkeit von
 `/data`, `/data/documents` und `/data/backups`, Schreibzugriff und den
 prüfbaren freien Speicher. Für lokale Tests können `LZUG_DATA_DIR`,
 `LZUG_DOCUMENTS_PATH` und `LZUG_BACKUPS_PATH` oder die entsprechenden
 CLI-Optionen `--data-dir`, `--documents` und `--backups` diese Pfade
 überschreiben; der Self-Hosting-Standard bleibt unter `/data`.
+
+Fachliche Änderungen werden weiterhin ausschließlich über SQLAlchemy-Sessions
+und Repositories committed. Jede Migration besitzt ihre eigene SQL-Transaktion;
+erst nach erfolgreichem Commit wird der Historieneintrag geschrieben. Bei einem
+Fehler wird der Eintrag nicht vorgetäuscht und der Start bleibt geschlossen.
+SQLite kann bereits committed Migrationen nicht durch einen späteren Prozess
+automatisch zurückrollen; die Schutzkopie muss für eine Wiederherstellung
+manuell beziehungsweise durch den späteren Betriebsumfang verwendet werden.
 
 Dokumente werden über `backend.document_storage.DocumentStorage` gespeichert.
 Der lokale Adapter verwendet zufällige interne 32-stellige Hexadezimal-IDs und

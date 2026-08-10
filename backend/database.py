@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
+import sqlite3
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from fcntl import LOCK_EX, LOCK_UN, flock
 from pathlib import Path
 
-from sqlalchemy import MetaData, Table, create_engine, event, inspect, select
+from sqlalchemy import MetaData, Table, create_engine, event, insert, inspect, select
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import SQLAlchemyError
@@ -28,7 +32,10 @@ DEFAULT_MIN_FREE_BYTES = 64 * 1024 * 1024
 BUSY_TIMEOUT_MS = 5_000
 SQLITE_JOURNAL_MODE = "wal"
 SQLITE_SYNCHRONOUS = 1
-REQUIRED_TABLES = frozenset(Base.metadata.tables) | {"schema_migration"}
+REQUIRED_TABLES = frozenset(Base.metadata.tables) | {
+    "schema_migration",
+    "schema_migration_checksum",
+}
 SCHEMA_PATH = ROOT_DIR / "db" / "schema.sql"
 SEED_PATH = ROOT_DIR / "db" / "seed_demo.sql"
 MIGRATIONS_PATH = ROOT_DIR / "db" / "migrations"
@@ -36,6 +43,22 @@ MIGRATIONS_PATH = ROOT_DIR / "db" / "migrations"
 
 class PersistenceConfigurationError(RuntimeError):
     """Raised when persistent storage cannot serve the runtime."""
+
+
+class MigrationError(PersistenceConfigurationError):
+    """Raised when a database cannot be migrated to the application schema."""
+
+    def __init__(self, message: str, *, reason: str = "migration_error") -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
+@dataclass(frozen=True)
+class MigrationRecord:
+    """One safe-to-expose schema history entry."""
+
+    name: str
+    applied_at: str
 
 
 @dataclass(frozen=True)
@@ -254,96 +277,299 @@ def session_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[Session]:
         engine.dispose()
 
 
+def _migration_files() -> tuple[Path, ...]:
+    return tuple(
+        sorted(
+            migration
+            for migration in MIGRATIONS_PATH.glob("[0-9][0-9][0-9]_*.sql")
+            if not migration.name.startswith("000_")
+        )
+    )
+
+
+def _migration_checksums() -> dict[str, str]:
+    return {
+        migration.name: hashlib.sha256(migration.read_bytes()).hexdigest()
+        for migration in _migration_files()
+    }
+
+
+def _migration_table(connection: Connection) -> Table:
+    tables = set(inspect(connection).get_table_names())
+    if "schema_migration" not in tables:
+        raise MigrationError(
+            "Existing database has no versioned migration history; refusing to infer its schema."
+        )
+    table = Table("schema_migration", MetaData(), autoload_with=connection)
+    columns = {column.name for column in table.columns}
+    if not {"name", "applied_at"}.issubset(columns):
+        raise MigrationError("Migration history table is incompatible with this application.")
+    return table
+
+
+def _migration_state(
+    connection: Connection,
+) -> tuple[tuple[MigrationRecord, ...], tuple[Path, ...]]:
+    files = _migration_files()
+    checksums = _migration_checksums()
+    expected_names = tuple(migration.name for migration in files)
+    table = _migration_table(connection)
+    rows = connection.execute(select(table.c.name, table.c.applied_at)).all()
+    names = tuple(row.name for row in rows)
+    if len(set(names)) != len(names):
+        raise MigrationError("Migration history contains duplicate entries.")
+    unknown = sorted(set(names) - set(expected_names))
+    if unknown:
+        raise MigrationError(f"Migration history contains unknown entries: {', '.join(unknown)}.")
+    prefix = expected_names[: len(names)]
+    if set(names) != set(prefix):
+        raise MigrationError("Migration history has a gap or was recorded out of order.")
+
+    records_by_name = {row.name: MigrationRecord(row.name, str(row.applied_at)) for row in rows}
+    if any(row.applied_at is None for row in rows):
+        raise MigrationError("Migration history contains an entry without an application time.")
+    records = tuple(records_by_name[name] for name in prefix)
+
+    tables = set(inspect(connection).get_table_names())
+    checksum_table = None
+    if "schema_migration_checksum" in tables:
+        checksum_table = Table("schema_migration_checksum", MetaData(), autoload_with=connection)
+        checksum_columns = {column.name for column in checksum_table.columns}
+        if not {"name", "checksum"}.issubset(checksum_columns):
+            raise MigrationError("Migration checksum table is incompatible with this application.")
+        checksum_rows = connection.execute(
+            select(checksum_table.c.name, checksum_table.c.checksum)
+        ).all()
+        checksum_by_name = {row.name: row.checksum for row in checksum_rows}
+        if len(checksum_by_name) != len(checksum_rows):
+            raise MigrationError("Migration checksum history contains duplicate entries.")
+        unknown_checksums = sorted(set(checksum_by_name) - set(expected_names))
+        if unknown_checksums:
+            raise MigrationError(
+                "Migration checksum history contains unknown entries: "
+                + ", ".join(unknown_checksums)
+                + "."
+            )
+        for name, checksum in checksum_by_name.items():
+            if checksum != checksums[name]:
+                raise MigrationError(f"Checksum mismatch for migration {name}.")
+        if "008_harden_migration_history.sql" in names:
+            if set(checksum_by_name) != set(names):
+                raise MigrationError("Migration checksum history is incomplete.")
+    elif "008_harden_migration_history.sql" in names:
+        raise MigrationError(
+            "Migration history claims checksum protection without its metadata table."
+        )
+
+    pending = files[len(records) :]
+    return records, pending
+
+
+@contextmanager
+def _migration_lock(db_path: Path) -> Iterator[None]:
+    """Serialize migration and reset attempts across application processes."""
+    lock_path = Path(f"{db_path}.migration.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+") as lock_file:
+        flock(lock_file.fileno(), LOCK_EX)
+        try:
+            yield
+        finally:
+            flock(lock_file.fileno(), LOCK_UN)
+
+
+def _migration_backup(db_path: Path, backup_dir: Path) -> Path:
+    if backup_dir.exists() and backup_dir.is_symlink():
+        raise MigrationError("Migration backup directory must not be a symlink.")
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    backup_path = backup_dir / f"{db_path.stem}.migration-{timestamp}.sqlite"
+    temporary_path: Path | None = None
+    try:
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            dir=backup_dir, prefix=".lzug-migration-", suffix=".sqlite", delete=False
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+        with sqlite3.connect(str(db_path), timeout=BUSY_TIMEOUT_MS / 1000) as source:
+            with sqlite3.connect(str(temporary_path)) as destination:
+                source.backup(destination)
+                destination.commit()
+        os.replace(temporary_path, backup_path)
+        temporary_path = None
+        return backup_path
+    except (OSError, sqlite3.Error) as error:
+        raise MigrationError(f"Could not create migration safety snapshot: {error}") from error
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+
+
+def _record_migration(engine: Engine, migration: Path) -> None:
+    table = None
+    with engine.begin() as connection:
+        table = _migration_table(connection)
+        existing = connection.execute(
+            select(table.c.name).where(table.c.name == migration.name)
+        ).first()
+        if existing is None:
+            raise MigrationError(
+                f"Migration {migration.name} committed without recording its history."
+            )
+
+        if migration.name == "008_harden_migration_history.sql":
+            checksum_table = Table(
+                "schema_migration_checksum", MetaData(), autoload_with=connection
+            )
+            checksums = _migration_checksums()
+            applied_names = connection.scalars(select(table.c.name)).all()
+            existing_checksums = set(connection.scalars(select(checksum_table.c.name)))
+            for name in applied_names:
+                if name not in existing_checksums:
+                    connection.execute(
+                        insert(checksum_table).values(name=name, checksum=checksums[name])
+                    )
+
+
+def _apply_migrations_unlocked(db_path: Path, backup_dir: Path | None = None) -> None:
+    if not db_path.exists() or db_path.stat().st_size == 0:
+        raise MigrationError(
+            "Cannot migrate a missing or empty database.", reason="database_missing"
+        )
+    engine = engine_for(db_path)
+    try:
+        with engine.connect() as connection:
+            _records, pending = _migration_state(connection)
+        if pending:
+            _migration_backup(db_path, backup_dir or db_path.parent / "backups")
+        for migration in pending:
+            raw_connection = engine.raw_connection()
+            try:
+                raw_connection.executescript(migration.read_text(encoding="utf-8"))
+                raw_connection.commit()
+            except (OSError, sqlite3.Error) as error:
+                try:
+                    raw_connection.rollback()
+                except sqlite3.Error:
+                    pass
+                raise MigrationError(f"Migration {migration.name} failed: {error}") from error
+            finally:
+                raw_connection.close()
+            try:
+                _record_migration(engine, migration)
+            except MigrationError:
+                raise
+            except (OSError, SQLAlchemyError) as error:
+                raise MigrationError(
+                    f"Migration {migration.name} history could not be recorded: {error}"
+                ) from error
+        with engine.connect() as connection:
+            _migration_state(connection)
+    finally:
+        engine.dispose()
+
+
 def initialize(
     db_path: Path = DEFAULT_DB_PATH,
     with_seed: bool = False,
     reset: bool = False,
+    backup_dir: Path | None = None,
 ) -> None:
-    if reset:
-        db_path.unlink(missing_ok=True)
-        Path(f"{db_path}-wal").unlink(missing_ok=True)
-        Path(f"{db_path}-shm").unlink(missing_ok=True)
+    db_path = Path(db_path)
+    with _migration_lock(db_path):
+        if reset:
+            db_path.unlink(missing_ok=True)
+            Path(f"{db_path}-wal").unlink(missing_ok=True)
+            Path(f"{db_path}-shm").unlink(missing_ok=True)
 
-    is_new_database = not db_path.exists() or db_path.stat().st_size == 0
-    if is_new_database:
-        engine = engine_for(db_path)
-        raw_connection = engine.raw_connection()
-        try:
-            raw_connection.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
-            if with_seed:
-                raw_connection.executescript(SEED_PATH.read_text(encoding="utf-8"))
-            raw_connection.commit()
-        finally:
-            raw_connection.close()
-            engine.dispose()
+        is_new_database = not db_path.exists() or db_path.stat().st_size == 0
+        if is_new_database:
+            engine = engine_for(db_path)
+            raw_connection = engine.raw_connection()
+            try:
+                raw_connection.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+                if with_seed:
+                    raw_connection.executescript(SEED_PATH.read_text(encoding="utf-8"))
+                raw_connection.commit()
+            except (OSError, sqlite3.Error) as error:
+                try:
+                    raw_connection.rollback()
+                except sqlite3.Error:
+                    pass
+                raise MigrationError(f"Initial schema creation failed: {error}") from error
+            finally:
+                raw_connection.close()
+                engine.dispose()
 
-    apply_migrations(db_path)
+        _apply_migrations_unlocked(db_path, backup_dir)
 
 
-def apply_migrations(db_path: Path = DEFAULT_DB_PATH) -> None:
+def apply_migrations(
+    db_path: Path = DEFAULT_DB_PATH,
+    backup_dir: Path | None = None,
+) -> None:
+    db_path = Path(db_path)
+    with _migration_lock(db_path):
+        _apply_migrations_unlocked(db_path, backup_dir)
+
+
+def migration_status(db_path: Path = DEFAULT_DB_PATH) -> dict[str, object]:
+    """Return migration diagnostics containing only schema metadata."""
+    files = _migration_files()
+    target = files[-1].name if files else None
+    if not db_path.exists() or db_path.stat().st_size == 0:
+        return {
+            "state": "database_missing",
+            "current": None,
+            "target": target,
+            "pending": [migration.name for migration in files],
+            "history": [],
+        }
     engine = engine_for(db_path)
-    raw_connection = engine.raw_connection()
     try:
-        bootstrap = MIGRATIONS_PATH / "000_create_schema_migration.sql"
-        raw_connection.executescript(bootstrap.read_text(encoding="utf-8"))
-        raw_connection.commit()
+        with engine.connect() as connection:
+            records, pending = _migration_state(connection)
+        return {
+            "state": "migration_required" if pending else "ready",
+            "current": records[-1].name if records else None,
+            "target": target,
+            "pending": [migration.name for migration in pending],
+            "history": [
+                {"name": record.name, "applied_at": record.applied_at} for record in records
+            ],
+        }
+    except MigrationError, OSError, SQLAlchemyError:
+        return {
+            "state": "migration_error",
+            "current": None,
+            "target": target,
+            "pending": [],
+            "history": [],
+        }
     finally:
-        raw_connection.close()
+        engine.dispose()
 
-    migration_table = Table("schema_migration", MetaData(), autoload_with=engine)
-    with engine.connect() as connection:
-        applied = set(connection.scalars(select(migration_table.c.name)))
 
-    for migration in sorted(MIGRATIONS_PATH.glob("[0-9][0-9][0-9]_*.sql")):
-        if migration.name.startswith("000_"):
-            continue
-        if migration.name in applied:
-            continue
-        if migration.name == "002_add_person_memberships.sql":
-            with engine.connect() as connection:
-                has_members = connection.exec_driver_sql(
-                    "SELECT 1 FROM sqlite_master WHERE type = 'table' "
-                    "AND name = 'committee_member'"
-                ).first()
-            if has_members is None:
-                continue
-        if migration.name == "003_add_exam_half_years.sql":
-            with engine.connect() as connection:
-                has_rounds = connection.exec_driver_sql(
-                    "SELECT 1 FROM sqlite_master WHERE type = 'table' " "AND name = 'exam_round'"
-                ).first()
-            if has_rounds is None:
-                continue
-        if migration.name == "004_add_candidate_committee_assignments.sql":
-            with engine.connect() as connection:
-                has_round_candidates = connection.exec_driver_sql(
-                    "SELECT 1 FROM sqlite_master WHERE type = 'table' "
-                    "AND name = 'round_candidate'"
-                ).first()
-            if has_round_candidates is None:
-                continue
-        if migration.name == "005_add_exam_day_attendance.sql":
-            with engine.connect() as connection:
-                has_slots = connection.exec_driver_sql(
-                    "SELECT 1 FROM sqlite_master WHERE type = 'table' " "AND name = 'exam_slot'"
-                ).first()
-            if has_slots is None:
-                continue
-        if migration.name == "006_add_exam_execution_status.sql":
-            with engine.connect() as connection:
-                has_slots = connection.exec_driver_sql(
-                    "SELECT 1 FROM sqlite_master WHERE type = 'table' " "AND name = 'exam_slot'"
-                ).first()
-            if has_slots is None:
-                continue
-        raw_connection = engine.raw_connection()
-        try:
-            raw_connection.executescript(migration.read_text(encoding="utf-8"))
-            raw_connection.commit()
-        finally:
-            raw_connection.close()
-
-    engine.dispose()
+def database_readiness(db_path: Path = DEFAULT_DB_PATH) -> dict[str, object]:
+    """Return safe readiness and migration diagnostics for startup and health checks."""
+    migration = migration_status(db_path)
+    if migration["state"] != "ready":
+        return {"ready": False, "reason": migration["state"], "migration": migration}
+    try:
+        with connection_scope(db_path) as connection:
+            tables = inspect(connection)
+            if not REQUIRED_TABLES.issubset(set(tables.get_table_names())):
+                return {"ready": False, "reason": "schema_incomplete", "migration": migration}
+            settings = sqlite_settings(connection)
+            if settings != {
+                "foreign_keys": 1,
+                "journal_mode": SQLITE_JOURNAL_MODE,
+                "synchronous": SQLITE_SYNCHRONOUS,
+                "busy_timeout": BUSY_TIMEOUT_MS,
+            }:
+                return {"ready": False, "reason": "sqlite_settings_invalid", "migration": migration}
+    except OSError, RuntimeError, SQLAlchemyError:
+        return {"ready": False, "reason": "database_unavailable", "migration": migration}
+    return {"ready": True, "reason": "ready", "migration": migration}
 
 
 def is_available(db_path: Path = DEFAULT_DB_PATH) -> bool:
@@ -367,19 +593,4 @@ def sqlite_settings(connection: Connection) -> dict[str, str | int]:
 
 def is_ready(db_path: Path = DEFAULT_DB_PATH) -> bool:
     """Check that the database is reachable, initialized, and self-hosting-ready."""
-    if not db_path.exists():
-        return False
-    try:
-        with connection_scope(db_path) as connection:
-            tables = inspect(connection)
-            if not REQUIRED_TABLES.issubset({table for table in tables.get_table_names()}):
-                return False
-            settings = sqlite_settings(connection)
-            return settings == {
-                "foreign_keys": 1,
-                "journal_mode": SQLITE_JOURNAL_MODE,
-                "synchronous": SQLITE_SYNCHRONOUS,
-                "busy_timeout": BUSY_TIMEOUT_MS,
-            }
-    except OSError, RuntimeError, SQLAlchemyError:
-        return False
+    return bool(database_readiness(db_path)["ready"])

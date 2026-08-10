@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import sqlite3
 import tempfile
 import unittest
@@ -14,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from backend.database import (
     BUSY_TIMEOUT_MS,
     SQLITE_JOURNAL_MODE,
+    MigrationError,
     connect,
     connection_scope,
     database_path,
@@ -21,6 +23,7 @@ from backend.database import (
     engine_for,
     initialize,
     is_ready,
+    migration_status,
     sqlite_settings,
 )
 from backend.tests.helpers import TempDatabase
@@ -230,7 +233,7 @@ class DatabaseTests(unittest.TestCase):
 
         self.assertEqual([1], ids)
 
-    def test_initialize_migrates_existing_planning_settings(self) -> None:
+    def test_initialize_rejects_unversioned_existing_database(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             db_path = Path(directory) / "legacy.sqlite3"
             with closing(sqlite3.connect(db_path)) as connection:
@@ -239,21 +242,52 @@ class DatabaseTests(unittest.TestCase):
                     "(id INTEGER PRIMARY KEY, calendar_week_from TEXT, calendar_week_to TEXT)"
                 )
 
-            initialize(db_path)
+            with self.assertRaisesRegex(MigrationError, "no versioned migration history"):
+                initialize(db_path)
 
+    def test_initialize_upgrades_legacy_history_and_creates_safety_snapshot(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
             with closing(sqlite3.connect(db_path)) as connection:
-                columns = {
-                    row[1] for row in connection.execute("PRAGMA table_info(planning_settings)")
-                }
-                migrations = {
-                    row[0] for row in connection.execute("SELECT name FROM schema_migration")
-                }
+                connection.execute("DROP TABLE schema_migration_checksum")
+                connection.execute(
+                    "DELETE FROM schema_migration "
+                    "WHERE name = '008_harden_migration_history.sql'"
+                )
+                connection.commit()
 
-        self.assertIn("exclude_public_holidays", columns)
-        self.assertIn("holiday_subdivision_code", columns)
-        self.assertIn("001_add_holiday_planning_settings.sql", migrations)
+            before = migration_status(db_path)
+            self.assertEqual("migration_required", before["state"])
+            self.assertEqual("007_add_documents.sql", before["current"])
+            initialize(db_path)
+            after = migration_status(db_path)
+            self.assertEqual("ready", after["state"])
+            self.assertEqual("008_harden_migration_history.sql", after["current"])
+            self.assertTrue(list(db_path.parent.joinpath("backups").glob("*.sqlite")))
 
-    def test_initialize_groups_legacy_rounds_under_a_migrated_half_year(self) -> None:
+            history_before = after["history"]
+            initialize(db_path)
+            self.assertEqual(history_before, migration_status(db_path)["history"])
+
+    def test_initialize_runs_multiple_pending_migrations_in_order(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            with closing(sqlite3.connect(db_path)) as connection:
+                connection.execute("DROP TABLE schema_migration_checksum")
+                connection.execute("DROP TABLE document")
+                connection.execute(
+                    "DELETE FROM schema_migration WHERE name IN (?, ?)",
+                    ("007_add_documents.sql", "008_harden_migration_history.sql"),
+                )
+                connection.commit()
+
+            initialize(db_path)
+            status = migration_status(db_path)
+            self.assertEqual("ready", status["state"])
+            self.assertEqual(
+                ["007_add_documents.sql", "008_harden_migration_history.sql"],
+                [entry["name"] for entry in status["history"][-2:]],
+            )
+
+    def test_initialize_rejects_unversioned_legacy_round_schema(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             db_path = Path(directory) / "legacy-round.sqlite3"
             with closing(sqlite3.connect(db_path)) as connection:
@@ -271,22 +305,8 @@ class DatabaseTests(unittest.TestCase):
                 )
                 connection.commit()
 
-            initialize(db_path)
-
-            with closing(sqlite3.connect(db_path)) as connection:
-                half_year = connection.execute(
-                    "SELECT season, year, status FROM exam_half_year"
-                ).fetchone()
-                migrated_round = connection.execute(
-                    "SELECT exam_half_year_id FROM exam_round WHERE id = 17"
-                ).fetchone()
-                migrations = {
-                    row[0] for row in connection.execute("SELECT name FROM schema_migration")
-                }
-
-        self.assertEqual(("winter", 2026, "active"), half_year)
-        self.assertEqual(1, migrated_round[0])
-        self.assertIn("003_add_exam_half_years.sql", migrations)
+            with self.assertRaisesRegex(MigrationError, "no versioned migration history"):
+                initialize(db_path)
 
     def test_schema_marks_one_seeded_candidate_assignment_active_per_half_year(self) -> None:
         with TempDatabase() as db_path, connect(db_path) as connection:
@@ -303,104 +323,103 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(1, active_count)
         self.assertIn("004_add_candidate_committee_assignments.sql", migrations)
 
-    def test_initialize_migrates_legacy_candidate_assignments_without_losing_history(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            db_path = Path(directory) / "legacy-candidates.sqlite3"
+    def test_tampered_checksum_makes_database_unready(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
             with closing(sqlite3.connect(db_path)) as connection:
-                connection.executescript("""
-                    CREATE TABLE schema_migration (name TEXT PRIMARY KEY);
-                    INSERT INTO schema_migration (name) VALUES
-                      ('001_add_holiday_planning_settings.sql'),
-                      ('002_add_person_memberships.sql'),
-                      ('003_add_exam_half_years.sql');
-                    CREATE TABLE candidate (id INTEGER PRIMARY KEY);
-                    CREATE TABLE exam_half_year (id INTEGER PRIMARY KEY);
-                    CREATE TABLE exam_round (
-                      id INTEGER PRIMARY KEY,
-                      exam_half_year_id INTEGER NOT NULL
-                    );
-                    CREATE TABLE round_candidate (
-                      id INTEGER PRIMARY KEY,
-                      exam_round_id INTEGER NOT NULL,
-                      candidate_id INTEGER NOT NULL,
-                      attempt_number INTEGER NOT NULL,
-                      requires_mep INTEGER NOT NULL,
-                      created_at TEXT NOT NULL,
-                      updated_at TEXT NOT NULL
-                    );
-                    INSERT INTO candidate VALUES (1);
-                    INSERT INTO exam_half_year VALUES (1);
-                    INSERT INTO exam_round VALUES (1, 1), (2, 1);
-                    INSERT INTO round_candidate VALUES
-                      (1, 1, 1, 1, 0, '2026-01-01 08:00:00', '2026-02-01 08:00:00'),
-                      (2, 2, 1, 1, 0, '2026-02-01 08:00:00', '2026-02-01 08:00:00');
-                """)
-                connection.commit()
-
-            initialize(db_path)
-
-            with closing(sqlite3.connect(db_path)) as connection:
-                history = connection.execute(
-                    "SELECT exam_round_id, ended_at, change_reason "
-                    "FROM candidate_committee_assignment ORDER BY exam_round_id"
-                ).fetchall()
-                active_flags = connection.execute(
-                    "SELECT id, is_active FROM round_candidate ORDER BY id"
-                ).fetchall()
-
-        self.assertEqual(2, len(history))
-        self.assertIsNotNone(history[0][1])
-        self.assertIn("Migration", history[0][2])
-        self.assertIsNone(history[1][1])
-        self.assertEqual([(1, 0), (2, 1)], active_flags)
-
-    def test_initialize_migrates_started_slots_to_running_execution_status(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            db_path = Path(directory) / "legacy-execution-status.sqlite3"
-            with closing(sqlite3.connect(db_path)) as connection:
-                connection.executescript("""
-                    CREATE TABLE schema_migration (name TEXT PRIMARY KEY);
-                    INSERT INTO schema_migration (name) VALUES
-                      ('001_add_holiday_planning_settings.sql'),
-                      ('002_add_person_memberships.sql'),
-                      ('003_add_exam_half_years.sql'),
-                      ('004_add_candidate_committee_assignments.sql'),
-                      ('005_add_exam_day_attendance.sql');
-                    CREATE TABLE exam_slot (
-                      id INTEGER PRIMARY KEY,
-                      actual_started_at TEXT
-                    );
-                    INSERT INTO exam_slot (id, actual_started_at)
-                    VALUES (1, '2026-11-16T08:31:00+01:00'), (2, NULL);
-                """)
-                connection.commit()
-
-            initialize(db_path)
-
-            with closing(sqlite3.connect(db_path)) as connection:
-                status_changed_at_column = next(
-                    row
-                    for row in connection.execute("PRAGMA table_info(exam_slot)")
-                    if row[1] == "status_changed_at"
+                connection.execute(
+                    "UPDATE schema_migration_checksum SET checksum = "
+                    "'0000000000000000000000000000000000000000000000000000000000000000' "
+                    "WHERE name = '007_add_documents.sql'"
                 )
-                connection.execute("INSERT INTO exam_slot (id, actual_started_at) VALUES (3, NULL)")
-                new_slot_status_changed_at = connection.execute(
-                    "SELECT status_changed_at FROM exam_slot WHERE id = 3"
-                ).fetchone()[0]
-                rows = connection.execute(
-                    "SELECT id, execution_status, status_changed_at " "FROM exam_slot ORDER BY id"
-                ).fetchall()
-                migrations = {
-                    row[0] for row in connection.execute("SELECT name FROM schema_migration")
-                }
+                connection.commit()
 
-        self.assertEqual((1, "running", "2026-11-16T08:31:00+01:00"), rows[0])
-        self.assertEqual("open", rows[1][1])
-        self.assertIsNotNone(rows[1][2])
-        self.assertEqual(1, status_changed_at_column[3])
-        self.assertEqual("''", status_changed_at_column[4])
-        self.assertTrue(new_slot_status_changed_at)
-        self.assertIn("006_add_exam_execution_status.sql", migrations)
+            self.assertFalse(is_ready(db_path))
+            self.assertEqual("migration_error", migration_status(db_path)["state"])
+
+    def test_concurrent_initialization_is_serialized_and_idempotent(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            with closing(sqlite3.connect(db_path)) as connection:
+                connection.execute("DROP TABLE schema_migration_checksum")
+                connection.execute(
+                    "DELETE FROM schema_migration "
+                    "WHERE name = '008_harden_migration_history.sql'"
+                )
+                connection.commit()
+
+            started = Event()
+            errors: list[BaseException] = []
+
+            def initialize_concurrently() -> None:
+                started.wait(timeout=2)
+                try:
+                    initialize(db_path)
+                except BaseException as error:  # pragma: no cover - asserted below
+                    errors.append(error)
+
+            threads = [Thread(target=initialize_concurrently) for _ in range(2)]
+            for thread in threads:
+                thread.start()
+            started.set()
+            for thread in threads:
+                thread.join(timeout=5)
+
+            self.assertEqual([], errors)
+            self.assertEqual("ready", migration_status(db_path)["state"])
+
+    def test_failed_migration_can_be_retried_without_recording_a_false_success(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            db_path = Path(directory) / "retry.sqlite3"
+            migration_directory = Path(directory) / "migrations"
+            migration_directory.mkdir()
+            for migration in Path("db/migrations").glob("*.sql"):
+                shutil.copy(migration, migration_directory / migration.name)
+            (migration_directory / "008_harden_migration_history.sql").write_text(
+                "BEGIN; ALTER TABLE missing_table ADD COLUMN broken TEXT; COMMIT;",
+                encoding="utf-8",
+            )
+            initialize(db_path, with_seed=False, reset=True)
+            with closing(sqlite3.connect(db_path)) as connection:
+                connection.execute("DROP TABLE schema_migration_checksum")
+                connection.execute(
+                    "DELETE FROM schema_migration "
+                    "WHERE name = '008_harden_migration_history.sql'"
+                )
+                connection.commit()
+
+            with patch("backend.database.MIGRATIONS_PATH", migration_directory):
+                with self.assertRaisesRegex(MigrationError, "008_harden_migration_history"):
+                    initialize(db_path)
+
+            with closing(sqlite3.connect(db_path)) as connection:
+                self.assertIsNone(
+                    connection.execute(
+                        "SELECT 1 FROM schema_migration "
+                        "WHERE name = '008_harden_migration_history.sql'"
+                    ).fetchone()
+                )
+
+            shutil.copy(
+                Path("db/migrations/008_harden_migration_history.sql"),
+                migration_directory / "008_harden_migration_history.sql",
+            )
+            with patch("backend.database.MIGRATIONS_PATH", migration_directory):
+                initialize(db_path)
+            self.assertEqual("ready", migration_status(db_path)["state"])
+
+    def test_unknown_history_makes_database_unready(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            with closing(sqlite3.connect(db_path)) as connection:
+                connection.execute(
+                    "DELETE FROM schema_migration WHERE name = ?",
+                    ("008_harden_migration_history.sql",),
+                )
+                connection.execute(
+                    "INSERT INTO schema_migration (name) VALUES (?)", ("999_unknown.sql",)
+                )
+                connection.commit()
+
+            self.assertFalse(is_ready(db_path))
+            self.assertEqual("migration_error", migration_status(db_path)["state"])
 
 
 if __name__ == "__main__":
