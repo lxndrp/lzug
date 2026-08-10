@@ -35,6 +35,21 @@ Transaktionsgrenze bleibt `session_scope`: erfolgreiche fachlich zusammenhängen
 Der Start prüft nach optionaler Initialisierung die Erreichbarkeit, das Schema
 und die effektiven SQLite-Einstellungen. `GET /api/health` liefert bei
 bereiter Datenbank HTTP 200, sonst HTTP 503. Der Check ist eine Readiness-
-Prüfung, kein Backup-, Migrations- oder Wiederherstellungsmechanismus.
+Prüfung, kein Backup-, Migrations- oder Wiederherstellungsmechanismus. Vor dem
+Start prüft das Backend außerdem die Existenz beziehungsweise Anlegbarkeit von
+`/data`, `/data/documents` und `/data/backups`, Schreibzugriff und den
+prüfbaren freien Speicher. Für lokale Tests können `LZUG_DATA_DIR`,
+`LZUG_DOCUMENTS_PATH` und `LZUG_BACKUPS_PATH` oder die entsprechenden
+CLI-Optionen `--data-dir`, `--documents` und `--backups` diese Pfade
+überschreiben; der Self-Hosting-Standard bleibt unter `/data`.
+
+Dokumente werden über `backend.document_storage.DocumentStorage` gespeichert.
+Der lokale Adapter verwendet zufällige interne 32-stellige Hexadezimal-IDs und
+veröffentlicht Dateien atomar ohne Überschreiben. Der ursprüngliche Dateiname
+bleibt reine Metadaten und wird auf Pfad- und Steuerzeichen geprüft.
+`DocumentService` hält Dateiinhalt und SQLAlchemy-Metadaten mit Kompensation
+bei einem fehlgeschlagenen Gegenschritt zusammen. Ein S3-Adapter ist lediglich
+durch diese kleine Schnittstelle vorbereitet und nicht Teil der
+Erstveröffentlichung.
 
 Gesetzliche Feiertage werden bundes- und landesweit berücksichtigt. Gemeindespezifische Regeln leitet die Anwendung nicht aus einer reinen Bundeslandauswahl ab.

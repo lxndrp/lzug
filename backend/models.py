@@ -357,6 +357,21 @@ class MemberExamAttendance(Base):
     )
 
 
+class Document(Base):
+    """Database metadata for one document owned by a storage adapter."""
+
+    __tablename__ = "document"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    storage_id: Mapped[str] = mapped_column(String, unique=True)
+    original_filename: Mapped[str] = mapped_column(String)
+    media_type: Mapped[str] = mapped_column(String)
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    checksum_sha256: Mapped[str] = mapped_column(String)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
 @dataclass(frozen=True)
 class Resource:
     model: type[Base]
@@ -698,4 +713,25 @@ MEMBER_EXAM_ATTENDANCE = Resource(
     ),
     order_by=("exam_day_id", "committee_member_id"),
     writable_fields=("exam_day_id", "committee_member_id", "status", "arrived_at"),
+)
+
+DOCUMENT = Resource(
+    model=Document,
+    fields=(
+        "storage_id",
+        "original_filename",
+        "media_type",
+        "size_bytes",
+        "checksum_sha256",
+        "created_at",
+        "updated_at",
+    ),
+    order_by=("-created_at", "-id"),
+    writable_fields=(
+        "storage_id",
+        "original_filename",
+        "media_type",
+        "size_bytes",
+        "checksum_sha256",
+    ),
 )
