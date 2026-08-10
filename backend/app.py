@@ -341,9 +341,9 @@ class LzugHandler(BaseHTTPRequestHandler):
         return hateoas.health("ok" if is_ready(self.db_path) else "unavailable")
 
     def respond_database_error(self, error: SQLAlchemyError) -> None:
-        """Map persistence failures to stable HTTP classes without leaking internals."""
+        """Map persistence failures to stable public HTTP messages and statuses."""
         if isinstance(error, IntegrityError):
-            self.respond({"error": str(error)}, HTTPStatus.CONFLICT)
+            self.respond({"error": "Database constraint violated."}, HTTPStatus.CONFLICT)
             return
         if isinstance(error, OperationalError) and "locked" in str(error).lower():
             self.respond(
@@ -351,7 +351,7 @@ class LzugHandler(BaseHTTPRequestHandler):
                 HTTPStatus.SERVICE_UNAVAILABLE,
             )
             return
-        self.respond({"error": str(error)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+        self.respond({"error": "Database operation failed."}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def resource_target(self, path_parts: list[str]) -> tuple[str | None, int | None]:
         if len(path_parts) not in (1, 2):

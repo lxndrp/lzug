@@ -85,6 +85,17 @@ def connect(db_path: Path = DEFAULT_DB_PATH) -> Connection:
 
 
 @contextmanager
+def connection_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[Connection]:
+    """Yield one connection and dispose its short-lived engine deterministically."""
+    engine = engine_for(db_path)
+    try:
+        with engine.connect() as connection:
+            yield connection
+    finally:
+        engine.dispose()
+
+
+@contextmanager
 def session_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[Session]:
     """Yield a session that commits on success and rolls back on every error.
 
@@ -199,7 +210,7 @@ def apply_migrations(db_path: Path = DEFAULT_DB_PATH) -> None:
 
 def is_available(db_path: Path = DEFAULT_DB_PATH) -> bool:
     try:
-        with connect(db_path) as connection:
+        with connection_scope(db_path) as connection:
             connection.execute(select(1))
         return True
     except OSError, RuntimeError, SQLAlchemyError:
@@ -221,7 +232,7 @@ def is_ready(db_path: Path = DEFAULT_DB_PATH) -> bool:
     if not db_path.exists():
         return False
     try:
-        with connect(db_path) as connection:
+        with connection_scope(db_path) as connection:
             tables = inspect(connection)
             if not REQUIRED_TABLES.issubset({table for table in tables.get_table_names()}):
                 return False

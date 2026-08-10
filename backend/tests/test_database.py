@@ -15,6 +15,7 @@ from backend.database import (
     BUSY_TIMEOUT_MS,
     SQLITE_JOURNAL_MODE,
     connect,
+    connection_scope,
     database_path,
     database_url,
     engine_for,
@@ -26,6 +27,12 @@ from backend.tests.helpers import TempDatabase
 
 
 class DatabaseTests(unittest.TestCase):
+    def test_connection_scope_closes_the_connection_and_engine(self) -> None:
+        with TempDatabase() as db_path, connection_scope(db_path) as connection:
+            self.assertEqual(1, connection.execute(text("SELECT 1")).scalar_one())
+
+        self.assertTrue(connection.closed)
+
     def test_each_connection_uses_the_self_hosting_sqlite_settings(self) -> None:
         with TempDatabase() as db_path, connect(db_path) as connection:
             settings = sqlite_settings(connection)
