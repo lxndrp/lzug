@@ -5,10 +5,9 @@ Die JSON-API ist selbstbeschreibend:
 - `GET /api` liefert Einstiegspunkte.
 - `GET /api/health` liefert den Healthcheck.
 - `GET /api/health` liefert HTTP 200 bei bereiter Datenbank und HTTP 503, wenn
-  die Datenbank fehlt, nicht initialisiert oder nicht erreichbar ist.
-- `GET /api/health`, `/api`, `/api/openapi.json` und `/api/docs` sind die bewusst
-  öffentlichen Transport-Endpunkte; Fachoperationen benötigen eine gültige
-  Session und zustandsändernde Requests zusätzlich CSRF-Schutz.
+  die Datenbank fehlt, nicht initialisiert, migrationsbedürftig, inkonsistent
+  oder nicht erreichbar ist. Die Antwort nennt einen stabilen Grund und den
+  nicht-sensiblen Schema-/Migrationsstand.
 - `GET /api/openapi.json` liefert den verbindlichen OpenAPI-3.1-Vertrag.
 - `GET /api/docs` liefert Swagger UI.
 
@@ -18,7 +17,9 @@ Die Qualitätssicherung ist mehrschichtig: Backend mit unittest, Coverage, Ruff,
 
 SQLite ist die Datenbank der einzelnen Self-Hosting-Instanz. Das ausführbare
 Schema liegt in `db/schema.sql`, Änderungen in `db/migrations/`;
-`schema_migration` protokolliert ausgeführte Migrationen. Das Schema ist
+`schema_migration` protokolliert ausgeführte Migrationen; die separate Tabelle
+`schema_migration_checksum` schützt die Historie gegen veränderte
+Migrationsartefakte. Das Schema ist
 SQLite-kompatibel und PostgreSQL-nah angelegt. Mehrzeilige Fachregeln werden in
 Repository- und Service-Logik validiert. Foreign Keys, WAL,
 `synchronous=NORMAL` und ein Busy-Timeout von fünf Sekunden werden pro
@@ -26,7 +27,8 @@ Verbindung konfiguriert und von der Readiness-Prüfung verifiziert. Die aktuelle
 Referenz steht unter [Datenbankschema](../database-schema.md).
 
 SQLite ist für eine kleine, einzelne Instanz je Ausschuss geeignet. Es bietet
-keine zentrale Mandantenisolation und serialisiert Schreibzugriffe; eine
+keine zentrale Mandantenisolation und serialisiert Schreibzugriffe; Migrationsläufe
+werden zusätzlich über eine Dateisperre pro Datenbank serialisiert. Eine
 größere zentrale Mandantenflotte oder hohe parallele Schreiblast ist deshalb
 kein stillschweigender Zielpfad dieser Erstveröffentlichung. Dafür gelten
 [ADR-0013](../decisions/0013-dezentrale-instanzen-je-ausschuss.md) und

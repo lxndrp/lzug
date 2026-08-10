@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 import unittest
 from http import HTTPStatus
 from pathlib import Path
@@ -30,6 +31,27 @@ class ApiTests(unittest.TestCase):
 
         assert_status(status, HTTPStatus.SERVICE_UNAVAILABLE)
         self.assertEqual("unavailable", health["status"])
+        self.assertEqual("database_missing", health["reason"])
+        self.assertEqual("database_missing", health["migration"]["state"])
+
+    def test_health_reports_required_migration_without_exposing_data(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            with sqlite3.connect(db_path) as connection:
+                connection.execute("DROP TABLE schema_migration_checksum")
+                connection.execute(
+                    "DELETE FROM schema_migration "
+                    "WHERE name = '009_harden_migration_history.sql'"
+                )
+                connection.commit()
+
+            with ApiServer(db_path) as api:
+                status, health = api.request("GET", "/api/health")
+
+        assert_status(status, HTTPStatus.SERVICE_UNAVAILABLE)
+        self.assertEqual("migration_required", health["reason"])
+        self.assertEqual("008_add_authentication_sessions.sql", health["migration"]["current"])
+        self.assertEqual(["009_harden_migration_history.sql"], health["migration"]["pending"])
+        self.assertNotIn("candidate", health)
 
     def test_health_and_round_summary_are_served_from_seeded_database(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
@@ -70,6 +92,10 @@ class ApiTests(unittest.TestCase):
             self.assertIn("/api/session", spec["paths"])
             self.assertIn("/api/session/rotate", spec["paths"])
             self.assertIn("/api/session/logout", spec["paths"])
+            self.assertEqual(
+                ["status", "reason", "migration", "_links"],
+                spec["components"]["schemas"]["Health"]["required"],
+            )
             self.assertEqual(
                 {"sessionCookie": [], "csrfHeader": []},
                 spec["paths"]["/api/candidates"]["post"]["security"][0],

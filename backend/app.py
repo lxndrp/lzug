@@ -21,9 +21,10 @@ from .authorization import AuthorizationScope, AuthorizationService
 from .candidate_days import CandidateDayService
 from .database import (
     DEFAULT_DB_PATH,
+    MigrationError,
     PersistenceConfigurationError,
+    database_readiness,
     initialize,
-    is_ready,
     persistence_paths,
     validate_persistence,
 )
@@ -92,10 +93,14 @@ class LzugHandler(BaseHTTPRequestHandler):
                 return
 
             if path_parts == ["health"]:
-                ready = is_ready(self.db_path)
+                readiness = database_readiness(self.db_path)
                 self.respond(
-                    hateoas.health("ok" if ready else "unavailable"),
-                    HTTPStatus.OK if ready else HTTPStatus.SERVICE_UNAVAILABLE,
+                    hateoas.health(
+                        "ok" if readiness["ready"] else "unavailable",
+                        reason=readiness["reason"],
+                        migration=readiness["migration"],
+                    ),
+                    HTTPStatus.OK if readiness["ready"] else HTTPStatus.SERVICE_UNAVAILABLE,
                 )
                 return
 
@@ -481,7 +486,12 @@ class LzugHandler(BaseHTTPRequestHandler):
             self.respond_database_error(error)
 
     def health(self) -> dict:
-        return hateoas.health("ok" if is_ready(self.db_path) else "unavailable")
+        readiness = database_readiness(self.db_path)
+        return hateoas.health(
+            "ok" if readiness["ready"] else "unavailable",
+            reason=readiness["reason"],
+            migration=readiness["migration"],
+        )
 
     def require_authenticated(
         self,
@@ -853,12 +863,22 @@ def main() -> None:
         validate_persistence(args.paths)
     except PersistenceConfigurationError as error:
         raise SystemExit(f"Persistent storage is not ready: {error}") from error
-    if args.init:
-        initialize(args.db, with_seed=args.seed, reset=args.reset)
-    if not is_ready(args.db):
+    try:
+        if args.init:
+            initialize(
+                args.db,
+                with_seed=args.seed,
+                reset=args.reset,
+                backup_dir=args.paths.backups,
+            )
+    except MigrationError as error:
+        raise SystemExit(f"Database migration failed: {error}") from error
+    readiness = database_readiness(args.db)
+    if not readiness["ready"]:
         raise SystemExit(
             f"Database is not ready: {args.db}. "
-            "Start with --init or check the database configuration."
+            f"Reason: {readiness['reason']}. "
+            "Start with --init to initialize or migrate it, then retry."
         )
 
     try:

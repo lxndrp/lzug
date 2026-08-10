@@ -1,5 +1,5 @@
 -- lzug relationales Basisschema
--- Stand: 2026-06-24
+-- Stand: 2026-08-10
 --
 -- Ziel:
 -- - möglichst PostgreSQL-kompatibel
@@ -17,7 +17,24 @@ INSERT INTO schema_migration (name)
 VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.sql'),
        ('003_add_exam_half_years.sql'), ('004_add_candidate_committee_assignments.sql'),
        ('005_add_exam_day_attendance.sql'), ('006_add_exam_execution_status.sql'),
-       ('007_add_documents.sql'), ('008_add_authentication_sessions.sql');
+       ('007_add_documents.sql'), ('008_add_authentication_sessions.sql'),
+       ('009_harden_migration_history.sql');
+
+CREATE TABLE schema_migration_checksum (
+  name TEXT PRIMARY KEY REFERENCES schema_migration(name) ON DELETE CASCADE,
+  checksum TEXT NOT NULL CHECK (length(checksum) = 64)
+);
+
+INSERT INTO schema_migration_checksum (name, checksum) VALUES
+  ('001_add_holiday_planning_settings.sql', '50841191962f8c054b2c78863e30a2566a9d42d901f2469df24b6882bd32aaa1'),
+  ('002_add_person_memberships.sql', 'f6e2b7b3221cdff240b24c3f28f41b63cfb39a1d0b9a5ba323512245f547f8d0'),
+  ('003_add_exam_half_years.sql', 'e81323a22ef990782df6eb193c66b23f70ec269f3b06d17885bf77bf5345c67b'),
+  ('004_add_candidate_committee_assignments.sql', '66554074e75ad0668b08761ef725b84623ba7d6193fb0b6dbc403f7b0ac48a17'),
+  ('005_add_exam_day_attendance.sql', 'd9282f45a0d2abf28dd67361983789410146b842fec1f92a8af3d2b29225d34c'),
+  ('006_add_exam_execution_status.sql', '63686ec8511d0224bb1365d3fc00f432bcc897a9ae2927cfeee74c05d45f87a5'),
+  ('007_add_documents.sql', '6b1b5ae1dd9b954b3d7bc139afb03c4b977f50ef187e4fe50bd1aaf21d35b95c'),
+  ('008_add_authentication_sessions.sql', '926452905ea280e06b805b78a7074143e02a0d2439cd2d37ce1727e0ace3026c'),
+  ('009_harden_migration_history.sql', 'a71425eb5cd8674532cd8c05672fb28c977b86c27dac610ade1e57964c9ba7a1');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
