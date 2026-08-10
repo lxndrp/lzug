@@ -38,6 +38,7 @@ nav:
           - Frontend: developers/architecture/frontend.md
           - API und Persistenz: developers/architecture/api-and-persistence.md
           - Authentifizierung und Sitzungen: developers/architecture/authentication.md
+          - OCI-Runtime: developers/architecture/oci-runtime.md
       - Referenz:
           - Fachliches Datenmodell: developers/domain-model.md
           - Datenbankschema: developers/database-schema.md

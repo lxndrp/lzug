@@ -39,3 +39,7 @@ Die verbindlichen Entscheidungen und ihre Umsetzungsschnittstellen sind:
 Die vorhandene Backend-Sprache Python bleibt von diesen Entscheidungen
 unberührt. Ein Sprachwechsel ist ein separates Vorhaben und keine
 Betriebsmaßnahme.
+
+Die konkrete Einzelcontainer-Umsetzung, ihre Build-Stufen, die statische
+Auslieferung und die Docker-/Podman-Smoke-Prüfung beschreibt die
+[OCI-Runtime](oci-runtime.md).

@@ -9,10 +9,45 @@ from unittest.mock import patch
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from backend.tests.helpers import ApiServer, TempDatabase, assert_status
+from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler, assert_status
+
+
+class StaticTestHandler(TestLzugHandler):
+    static_dir: Path | None = None
 
 
 class ApiTests(unittest.TestCase):
+    def test_static_files_and_spa_fallback_do_not_hide_api_or_assets(self) -> None:
+        with TemporaryDirectory() as directory, TempDatabase() as db_path:
+            static_dir = Path(directory)
+            (static_dir / "index.html").write_text("<app-root>shell</app-root>", encoding="utf-8")
+            (static_dir / "main.123.js").write_text("console.log('ok')", encoding="utf-8")
+            with (
+                patch.object(StaticTestHandler, "static_dir", static_dir),
+                ApiServer(db_path, StaticTestHandler) as api,
+            ):
+                status, headers, body = api.request_raw("GET", "/dashboard")
+                assert_status(status, HTTPStatus.OK)
+                self.assertEqual("text/html", headers["content-type"].split(";")[0])
+                self.assertIn(b"<app-root>shell</app-root>", body)
+
+                status, headers, body = api.request_raw("GET", "/main.123.js")
+                assert_status(status, HTTPStatus.OK)
+                self.assertEqual("text/javascript", headers["content-type"])
+                self.assertEqual(b"console.log('ok')", body)
+
+                status, _headers, body = api.request_raw("GET", "/assets/missing.svg")
+                assert_status(status, HTTPStatus.NOT_FOUND)
+                self.assertIn(b"Not found", body)
+
+                status, _headers, body = api.request_raw("GET", "/api/health")
+                assert_status(status, HTTPStatus.OK)
+                self.assertIn(b'"status": "ok"', body)
+
+                status, _headers, body = api.request_raw("GET", "/%2e%2e/index.html")
+                assert_status(status, HTTPStatus.NOT_FOUND)
+                self.assertIn(b"Not found", body)
+
     def test_database_errors_use_public_messages(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             with patch(

@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import mimetypes
+import os
+import signal
+import threading
 from http import HTTPStatus
 from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
 
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
@@ -57,6 +62,7 @@ class LzugHandler(BaseHTTPRequestHandler):
     """
 
     db_path = DEFAULT_DB_PATH
+    static_dir: Path | None = None
     cookie_secure = True
     session_cookie_name = "__Host-lzug_session"
     csrf_cookie_name = "lzug_csrf"
@@ -85,6 +91,9 @@ class LzugHandler(BaseHTTPRequestHandler):
         """Dispatch read, health, OpenAPI, and Swagger UI requests."""
         try:
             parsed = urlparse(self.path)
+            if self.static_dir is not None and not self.is_api_path(parsed.path):
+                self.serve_static(parsed.path)
+                return
             path_parts = self.path_parts(parsed.path)
             query = parse_qs(parsed.query)
 
@@ -703,6 +712,70 @@ class LzugHandler(BaseHTTPRequestHandler):
             normalized = normalized[4:]
         return [part for part in normalized.split("/") if part]
 
+    @staticmethod
+    def is_api_path(path: str) -> bool:
+        """Keep API routes outside the static SPA fallback boundary."""
+        return path == "/api" or path.startswith("/api/")
+
+    def serve_static(self, request_path: str) -> None:
+        """Serve an asset or the Angular shell without allowing path escapes."""
+        static_dir = self.static_dir
+        if static_dir is None:
+            self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+            return
+
+        root = static_dir.resolve()
+        try:
+            decoded_path = unquote(request_path)
+            if "\x00" in decoded_path:
+                raise ValueError
+            relative_path = Path(decoded_path.lstrip("/"))
+            if any(part == ".." for part in relative_path.parts):
+                raise ValueError
+            candidate = (root / relative_path).resolve()
+            candidate.relative_to(root)
+        except ValueError, OSError:
+            self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+            return
+
+        asset_path = (
+            request_path in {"/favicon.ico", "/favicon.svg", "/robots.txt"}
+            or request_path == "/assets"
+            or request_path.startswith("/assets/")
+            or bool(Path(request_path).suffix)
+        )
+        if candidate.is_file():
+            self.respond_static_file(candidate)
+            return
+        if asset_path:
+            self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+            return
+
+        index_path = root / "index.html"
+        if not index_path.is_file():
+            self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+            return
+        self.respond_static_file(index_path, cache_control="no-cache")
+
+    def respond_static_file(self, file_path: Path, *, cache_control: str | None = None) -> None:
+        """Write one already validated static file to the HTTP response."""
+        try:
+            body = file_path.read_bytes()
+        except OSError:
+            self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+            return
+        content_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Cache-Control", cache_control or "public, max-age=31536000, immutable")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except BrokenPipeError, ConnectionResetError:
+            pass
+
     def resource_filters(self, resource: Resource, query: dict[str, list[str]]) -> dict:
         aliases = {"round_id": "exam_round_id"}
         fields = set(resource.readable_fields)
@@ -828,8 +901,13 @@ class LzugHandler(BaseHTTPRequestHandler):
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the lzug demo backend.")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--host", default=os.environ.get("LZUG_HOST", "127.0.0.1"))
+    parser.add_argument("--port", type=int, default=int(os.environ.get("LZUG_PORT", "8000")))
+    parser.add_argument(
+        "--static-dir",
+        default=os.environ.get("LZUG_STATIC_DIR"),
+        help="Angular production output directory",
+    )
     parser.add_argument("--db", dest="db_value", help="SQLite database path")
     parser.add_argument("--data-dir", help="Persistent data directory (default: /data)")
     parser.add_argument("--documents", help="Document storage directory")
@@ -852,8 +930,11 @@ def parse_args() -> argparse.Namespace:
             backups=args.backups,
         )
         args.db = args.paths.database
+        args.static_dir = Path(args.static_dir).expanduser() if args.static_dir else None
     except (ValueError, PersistenceConfigurationError) as error:
         parser.error(str(error))
+    if args.static_dir is not None and not (args.static_dir / "index.html").is_file():
+        parser.error(f"Static directory must contain index.html: {args.static_dir}")
     return args
 
 
@@ -887,10 +968,25 @@ def main() -> None:
         raise SystemExit(f"Persistent storage is not ready: {error}") from error
 
     LzugHandler.db_path = args.db
+    LzugHandler.static_dir = args.static_dir
     server = ThreadingHTTPServer((args.host, args.port), LzugHandler)
+    server.daemon_threads = True
     print(f"lzug backend listening on http://{args.host}:{args.port}")
     print(f"database: {args.db}")
-    server.serve_forever()
+
+    def request_shutdown(signum: int, _frame) -> None:
+        print(f"received signal {signum}; shutting down")
+        threading.Thread(target=server.shutdown, name="lzug-shutdown", daemon=True).start()
+
+    signal.signal(signal.SIGTERM, request_shutdown)
+    signal.signal(signal.SIGINT, request_shutdown)
+    server_thread = threading.Thread(target=server.serve_forever, name="lzug-http", daemon=True)
+    server_thread.start()
+    try:
+        server_thread.join()
+    finally:
+        server.server_close()
+        server_thread.join()
 
 
 if __name__ == "__main__":
