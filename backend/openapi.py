@@ -80,7 +80,10 @@ def spec() -> dict[str, Any]:
             "get": {
                 "summary": "Health check",
                 "operationId": "getHealth",
-                "responses": {"200": json_response("Health")},
+                "responses": {
+                    "200": json_response("Health"),
+                    "503": json_response("Health"),
+                },
             }
         },
         "/api/openapi.json": {

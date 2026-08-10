@@ -2,11 +2,21 @@ from __future__ import annotations
 
 import unittest
 from http import HTTPStatus
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
 
 class ApiTests(unittest.TestCase):
+    def test_health_reports_uninitialized_database_as_not_ready(self) -> None:
+        with TemporaryDirectory() as directory:
+            with ApiServer(Path(directory) / "uninitialized.sqlite") as api:
+                status, health = api.request("GET", "/api/health")
+
+        assert_status(status, HTTPStatus.SERVICE_UNAVAILABLE)
+        self.assertEqual("unavailable", health["status"])
+
     def test_health_and_round_summary_are_served_from_seeded_database(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             status, health = api.request("GET", "/api/health")
