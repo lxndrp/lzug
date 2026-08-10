@@ -55,8 +55,7 @@ die technische Referenz im [Entwicklerhandbuch](docs/developers/index.md).
   Reständerungen den Closeout stoppen, die betroffenen Dateien benennen und
   erst nach ausdrücklicher Entscheidung sichern oder verwerfen.
 - Ist der Worktree sauber, den zugehörigen Worktree sowie ausschließlich den
-  lokalen und Remote-Feature-Branch ohne weitere Rückfrage entfernen und den
-  Umsetzungsthread archivieren.
+  lokalen und Remote-Feature-Branch ohne weitere Rückfrage entfernen.
 
 ## Codex-Sandbox
 
