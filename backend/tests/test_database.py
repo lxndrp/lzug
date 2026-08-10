@@ -5,15 +5,128 @@ import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
+from threading import Event, Thread
+from unittest.mock import patch
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
-from backend.database import connect, initialize
+from backend.database import (
+    BUSY_TIMEOUT_MS,
+    SQLITE_JOURNAL_MODE,
+    connect,
+    connection_scope,
+    database_path,
+    database_url,
+    engine_for,
+    initialize,
+    is_ready,
+    sqlite_settings,
+)
 from backend.tests.helpers import TempDatabase
 
 
 class DatabaseTests(unittest.TestCase):
+    def test_connection_scope_closes_the_connection_and_engine(self) -> None:
+        with TempDatabase() as db_path, connection_scope(db_path) as connection:
+            self.assertEqual(1, connection.execute(text("SELECT 1")).scalar_one())
+
+        self.assertTrue(connection.closed)
+
+    def test_each_connection_uses_the_self_hosting_sqlite_settings(self) -> None:
+        with TempDatabase() as db_path, connect(db_path) as connection:
+            settings = sqlite_settings(connection)
+
+        self.assertEqual(
+            {
+                "foreign_keys": 1,
+                "journal_mode": SQLITE_JOURNAL_MODE,
+                "synchronous": 1,
+                "busy_timeout": BUSY_TIMEOUT_MS,
+            },
+            settings,
+        )
+
+    def test_database_path_accepts_paths_and_sqlite_urls(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "configured.sqlite"
+
+            self.assertEqual(path, database_path(path))
+            self.assertEqual(path, database_path(database_url(path)))
+
+    def test_database_path_reads_one_environment_setting(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "environment.sqlite"
+
+            with patch.dict(
+                "os.environ",
+                {"LZUG_DATABASE_URL": database_url(path), "LZUG_DATABASE_PATH": ""},
+            ):
+                self.assertEqual(path, database_path())
+
+            with patch.dict(
+                "os.environ",
+                {
+                    "LZUG_DATABASE_URL": database_url(path),
+                    "LZUG_DATABASE_PATH": str(path),
+                },
+            ):
+                with self.assertRaisesRegex(ValueError, "only one"):
+                    database_path()
+
+    def test_readiness_requires_an_initialized_database(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            db_path = Path(directory) / "readiness.sqlite"
+
+            self.assertFalse(is_ready(db_path))
+            initialize(db_path)
+            self.assertTrue(is_ready(db_path))
+
+    def test_busy_timeout_allows_a_waiting_writer_after_the_lock_is_released(self) -> None:
+        with TempDatabase() as db_path:
+            first_engine = engine_for(db_path)
+            second_engine = engine_for(db_path)
+            first = first_engine.connect()
+            second = second_engine.connect()
+            transaction = first.begin()
+            first.execute(text("UPDATE candidate SET last_name = 'Erster' WHERE id = 1"))
+
+            started = Event()
+            finished = Event()
+            errors: list[BaseException] = []
+
+            def write_from_second_connection() -> None:
+                started.set()
+                try:
+                    with second.begin():
+                        second.execute(
+                            text("UPDATE candidate SET last_name = 'Zweiter' WHERE id = 1")
+                        )
+                except BaseException as error:  # pragma: no cover - asserted below
+                    errors.append(error)
+                finally:
+                    finished.set()
+
+            writer = Thread(target=write_from_second_connection)
+            writer.start()
+            self.assertTrue(started.wait(timeout=1))
+            self.assertFalse(finished.wait(timeout=0.1))
+            transaction.commit()
+            self.assertTrue(finished.wait(timeout=2))
+            writer.join(timeout=1)
+
+            second.close()
+            first.close()
+            second_engine.dispose()
+            first_engine.dispose()
+
+            self.assertEqual([], errors)
+            with connect(db_path) as connection:
+                last_name = connection.execute(
+                    text("SELECT last_name FROM candidate WHERE id = 1")
+                ).scalar_one()
+            self.assertEqual("Zweiter", last_name)
+
     def test_seed_contains_full_demo_round(self) -> None:
         with TempDatabase() as db_path, connect(db_path) as connection:
             counts = {
@@ -52,6 +165,15 @@ class DatabaseTests(unittest.TestCase):
 
     def test_schema_enforces_core_constraints(self) -> None:
         with TempDatabase() as db_path, connect(db_path) as connection:
+            with self.assertRaises(IntegrityError):
+                connection.execute(
+                    text(
+                        "INSERT INTO round_candidate "
+                        "(exam_round_id, candidate_id, attempt_number) "
+                        "VALUES (999, 999, 1)"
+                    )
+                )
+
             with self.assertRaises(IntegrityError):
                 connection.execute(
                     text("""
