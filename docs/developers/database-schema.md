@@ -30,3 +30,12 @@ aus. Ohne bereite Datenbank beendet sich der Backend-Start mit einem Fehler.
 Der Healthcheck prüft dieselben Voraussetzungen und liefert bei fehlender
 Readiness HTTP 503. Sicherung, Wiederherstellung und Rollback bleiben dem
 nachgelagerten Betriebsumfang aus #117 vorbehalten.
+
+## Dokumentmetadaten
+
+Die Tabelle `document` enthält die interne `storage_id`, den geprüften
+Anzeigenamen, Medientyp, Größe und SHA-256-Prüfsumme. Die `storage_id` wird
+serverseitig erzeugt und darf nicht aus einem Benutzerpfad stammen. Der
+Dateiinhalt liegt getrennt unter `/data/documents`; die Datenbank enthält keine
+unkontrollierten Dateisystempfade. Backup- und Restore-Funktionen bleiben
+außerhalb von #118.

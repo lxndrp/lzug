@@ -16,7 +16,8 @@ CREATE TABLE schema_migration (
 INSERT INTO schema_migration (name)
 VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.sql'),
        ('003_add_exam_half_years.sql'), ('004_add_candidate_committee_assignments.sql'),
-       ('005_add_exam_day_attendance.sql'), ('006_add_exam_execution_status.sql');
+       ('005_add_exam_day_attendance.sql'), ('006_add_exam_execution_status.sql'),
+       ('007_add_documents.sql');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
@@ -319,6 +320,17 @@ CREATE TABLE member_exam_attendance (
     OR (status = 'late' AND arrived_at IS NOT NULL)
     OR (status IN ('open', 'absent') AND arrived_at IS NULL)
   )
+);
+
+CREATE TABLE document (
+  id INTEGER PRIMARY KEY,
+  storage_id TEXT NOT NULL UNIQUE,
+  original_filename TEXT NOT NULL,
+  media_type TEXT NOT NULL,
+  size_bytes INTEGER NOT NULL CHECK (size_bytes >= 0),
+  checksum_sha256 TEXT NOT NULL CHECK (length(checksum_sha256) = 64),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX member_exam_attendance_day_status

@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import os
+import shutil
+import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
 from sqlalchemy import MetaData, Table, create_engine, event, inspect, select
@@ -17,7 +20,11 @@ from sqlalchemy.pool import NullPool
 from .models import Base
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
+DEFAULT_DATA_DIR = Path("/data")
 DEFAULT_DB_PATH = Path("/data/lzug.sqlite")
+DEFAULT_DOCUMENTS_PATH = Path("/data/documents")
+DEFAULT_BACKUPS_PATH = Path("/data/backups")
+DEFAULT_MIN_FREE_BYTES = 64 * 1024 * 1024
 BUSY_TIMEOUT_MS = 5_000
 SQLITE_JOURNAL_MODE = "wal"
 SQLITE_SYNCHRONOUS = 1
@@ -25,6 +32,24 @@ REQUIRED_TABLES = frozenset(Base.metadata.tables) | {"schema_migration"}
 SCHEMA_PATH = ROOT_DIR / "db" / "schema.sql"
 SEED_PATH = ROOT_DIR / "db" / "seed_demo.sql"
 MIGRATIONS_PATH = ROOT_DIR / "db" / "migrations"
+
+
+class PersistenceConfigurationError(RuntimeError):
+    """Raised when persistent storage cannot serve the runtime."""
+
+
+@dataclass(frozen=True)
+class PersistencePaths:
+    """Runtime paths for the one persistent self-hosting data boundary."""
+
+    data_dir: Path = DEFAULT_DATA_DIR
+    database: Path = DEFAULT_DB_PATH
+    documents: Path = DEFAULT_DOCUMENTS_PATH
+    backups: Path = DEFAULT_BACKUPS_PATH
+
+    @property
+    def directories(self) -> tuple[Path, ...]:
+        return (self.data_dir, self.documents, self.backups)
 
 
 def database_path(value: str | Path | None = None) -> Path:
@@ -57,6 +82,93 @@ def database_path(value: str | Path | None = None) -> Path:
 
 def database_url(db_path: Path = DEFAULT_DB_PATH) -> str:
     return f"sqlite:///{Path(db_path)}"
+
+
+def persistence_paths(
+    *,
+    data_dir: str | Path | None = None,
+    database: str | Path | None = None,
+    documents: str | Path | None = None,
+    backups: str | Path | None = None,
+) -> PersistencePaths:
+    """Resolve runtime paths; defaults follow ADR-0014 below ``/data``."""
+    configured_data_dir = data_dir or os.environ.get("LZUG_DATA_DIR")
+    root = Path(configured_data_dir).expanduser() if configured_data_dir else DEFAULT_DATA_DIR
+    if database is None:
+        configured_database = os.environ.get("LZUG_DATABASE_PATH")
+        configured_url = os.environ.get("LZUG_DATABASE_URL")
+        if configured_database and configured_url:
+            raise ValueError("Set only one of LZUG_DATABASE_URL and LZUG_DATABASE_PATH")
+        database_value = configured_url or configured_database or root / "lzug.sqlite"
+    else:
+        database_value = database
+    documents_value = documents if documents is not None else os.environ.get("LZUG_DOCUMENTS_PATH")
+    backups_value = backups if backups is not None else os.environ.get("LZUG_BACKUPS_PATH")
+    return PersistencePaths(
+        data_dir=root,
+        database=database_path(database_value),
+        documents=Path(documents_value).expanduser() if documents_value else root / "documents",
+        backups=Path(backups_value).expanduser() if backups_value else root / "backups",
+    )
+
+
+def _ensure_writable_directory(directory: Path) -> None:
+    if directory.exists() and directory.is_symlink():
+        raise PersistenceConfigurationError(
+            f"Persistent directory must not be a symlink: {directory}"
+        )
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise PersistenceConfigurationError(
+            f"Persistent directory cannot be created: {directory} ({error})"
+        ) from error
+    if not directory.is_dir():
+        raise PersistenceConfigurationError(f"Persistent path is not a directory: {directory}")
+    try:
+        with tempfile.NamedTemporaryFile(dir=directory, prefix=".lzug-write-check-") as probe:
+            probe.write(b"lzug")
+            probe.flush()
+            os.fsync(probe.fileno())
+    except OSError as error:
+        raise PersistenceConfigurationError(
+            f"Persistent directory is not writable: {directory} ({error})"
+        ) from error
+
+
+def validate_persistence(
+    paths: PersistencePaths,
+    *,
+    minimum_free_bytes: int = DEFAULT_MIN_FREE_BYTES,
+    require_database: bool = False,
+) -> None:
+    """Validate directories, write access, free space, and database shape."""
+    if minimum_free_bytes < 0:
+        raise ValueError("minimum_free_bytes must not be negative")
+    for directory in paths.directories:
+        _ensure_writable_directory(directory)
+        try:
+            free_bytes = shutil.disk_usage(directory).free
+        except OSError as error:
+            raise PersistenceConfigurationError(
+                f"Free space cannot be checked for {directory}: {error}"
+            ) from error
+        if free_bytes < minimum_free_bytes:
+            raise PersistenceConfigurationError(
+                f"Insufficient free space in {directory}: {free_bytes} bytes available, "
+                f"at least {minimum_free_bytes} required"
+            )
+
+    database_parent = paths.database.parent
+    _ensure_writable_directory(database_parent)
+    if paths.database.exists() and paths.database.is_dir():
+        raise PersistenceConfigurationError(f"Database path is a directory: {paths.database}")
+    if paths.database.exists() and paths.database.is_symlink():
+        raise PersistenceConfigurationError(
+            f"Database path must not be a symlink: {paths.database}"
+        )
+    if require_database and not paths.database.exists():
+        raise PersistenceConfigurationError(f"Database does not exist: {paths.database}")
 
 
 def _configure_sqlite_connection(dbapi_connection, _connection_record) -> None:

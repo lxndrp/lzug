@@ -12,7 +12,14 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from . import hateoas, openapi
 from .candidate_days import CandidateDayService
-from .database import DEFAULT_DB_PATH, database_path, initialize, is_ready
+from .database import (
+    DEFAULT_DB_PATH,
+    PersistenceConfigurationError,
+    initialize,
+    is_ready,
+    persistence_paths,
+    validate_persistence,
+)
 from .models import CANDIDATE, CANDIDATE_COMMITTEE_ASSIGNMENT, Resource
 from .planning import PlanningService
 from .repositories import REST_RESOURCES, ResourceRepository
@@ -505,6 +512,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--db", dest="db_value", help="SQLite database path")
+    parser.add_argument("--data-dir", help="Persistent data directory (default: /data)")
+    parser.add_argument("--documents", help="Document storage directory")
+    parser.add_argument("--backups", help="Backup directory")
     parser.add_argument(
         "--database-url",
         help="SQLite database URL, for example sqlite:////data/lzug.sqlite",
@@ -516,14 +526,24 @@ def parse_args() -> argparse.Namespace:
     if args.db_value and args.database_url:
         parser.error("Use only one of --db and --database-url")
     try:
-        args.db = database_path(args.database_url or args.db_value)
-    except ValueError as error:
+        args.paths = persistence_paths(
+            data_dir=args.data_dir,
+            database=args.database_url or args.db_value,
+            documents=args.documents,
+            backups=args.backups,
+        )
+        args.db = args.paths.database
+    except (ValueError, PersistenceConfigurationError) as error:
         parser.error(str(error))
     return args
 
 
 def main() -> None:
     args = parse_args()
+    try:
+        validate_persistence(args.paths)
+    except PersistenceConfigurationError as error:
+        raise SystemExit(f"Persistent storage is not ready: {error}") from error
     if args.init:
         initialize(args.db, with_seed=args.seed, reset=args.reset)
     if not is_ready(args.db):
@@ -531,6 +551,11 @@ def main() -> None:
             f"Database is not ready: {args.db}. "
             "Start with --init or check the database configuration."
         )
+
+    try:
+        validate_persistence(args.paths, require_database=True)
+    except PersistenceConfigurationError as error:
+        raise SystemExit(f"Persistent storage is not ready: {error}") from error
 
     LzugHandler.db_path = args.db
     server = ThreadingHTTPServer((args.host, args.port), LzugHandler)
