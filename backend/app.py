@@ -31,6 +31,10 @@ from .planning import PlanningService
 from .repositories import REST_RESOURCES, ResourceRepository
 
 
+class ForbiddenRequestError(Exception):
+    """Signal a valid session without authorization for request context."""
+
+
 class LzugHandler(BaseHTTPRequestHandler):
     """Serve the versioned JSON API and its OpenAPI-backed interactive documentation.
 
@@ -312,6 +316,8 @@ class LzugHandler(BaseHTTPRequestHandler):
                 ),
                 status,
             )
+        except ForbiddenRequestError as error:
+            self.respond({"error": str(error)}, HTTPStatus.FORBIDDEN)
         except ValueError as error:
             self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
         except SQLAlchemyError as error:
@@ -391,6 +397,8 @@ class LzugHandler(BaseHTTPRequestHandler):
                     row,
                 )
             )
+        except ForbiddenRequestError as error:
+            self.respond({"error": str(error)}, HTTPStatus.FORBIDDEN)
         except ValueError as error:
             self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
         except SQLAlchemyError as error:
@@ -568,6 +576,8 @@ class LzugHandler(BaseHTTPRequestHandler):
                     member_id = self.authentication_repository.member_for_committee(
                         context, int(normalized["committee_id"])
                     )
+                    if member_id is None:
+                        raise ForbiddenRequestError("Forbidden.")
                 normalized["created_by_member_id"] = member_id
             if "updated_by_member_id" in normalized:
                 member_id = context.committee_member_id
@@ -575,6 +585,8 @@ class LzugHandler(BaseHTTPRequestHandler):
                     member_id = self.authentication_repository.member_for_round(
                         context, int(normalized["exam_round_id"])
                     )
+                    if member_id is None:
+                        raise ForbiddenRequestError("Forbidden.")
                 normalized["updated_by_member_id"] = member_id
         return normalized
 

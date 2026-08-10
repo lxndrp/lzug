@@ -128,6 +128,36 @@ class AuthenticationTests(unittest.TestCase):
         assert_status(status, HTTPStatus.FORBIDDEN)
         self.assertEqual("Forbidden.", error["error"])
 
+    def test_missing_committee_or_round_membership_is_forbidden(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, committee = api.request(
+                "POST",
+                "/api/committees",
+                {"name": "Unassigned committee", "occupation": "Test"},
+            )
+            assert_status(status, HTTPStatus.CREATED)
+
+            status, error = api.request(
+                "POST",
+                "/api/exam-rounds",
+                {
+                    "exam_half_year_id": 1,
+                    "committee_id": committee["id"],
+                    "name": "Unauthorized round",
+                    "created_by_member_id": 999999,
+                },
+            )
+            assert_status(status, HTTPStatus.FORBIDDEN)
+            self.assertEqual("Forbidden.", error["error"])
+
+            status, error = api.request(
+                "PATCH",
+                "/api/planning-settings/1",
+                {"exam_round_id": 999999, "updated_by_member_id": 999999},
+            )
+            assert_status(status, HTTPStatus.FORBIDDEN)
+            self.assertEqual("Forbidden.", error["error"])
+
     def test_cookie_contract_and_logout(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             status, headers, _body = api.request_raw("POST", "/api/session/logout")
