@@ -28,9 +28,9 @@ fi
 
 project="lzug-compose-smoke-$$"
 volume="$project-data"
-port=$((18000 + ($$ % 1000)))
+container_port=${LZUG_PORT:-8000}
 compose() {
-    LZUG_IMAGE="$image" LZUG_DATA_VOLUME="$volume" LZUG_HOST_PORT="$port" \
+    LZUG_IMAGE="$image" LZUG_DATA_VOLUME="$volume" LZUG_HOST_PORT=0 \
         "$engine" compose -p "$project" -f "$compose_file" "$@"
 }
 cleanup() {
@@ -40,6 +40,12 @@ trap cleanup EXIT HUP INT TERM
 
 "$root_dir/scripts/validate-compose.sh" >/dev/null
 compose up -d
+port="$(compose port lzug "$container_port/tcp" | sed -n 's/.*://p' | head -n 1)"
+if [ -z "$port" ]; then
+    echo "Compose did not publish an ephemeral host port." >&2
+    compose logs >&2 || true
+    exit 1
+fi
 url="http://127.0.0.1:$port"
 
 wait_ready() {

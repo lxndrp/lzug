@@ -59,6 +59,7 @@ beschrieben; Compose setzt deren `/data`-Defaults:
 | `LZUG_PORT` | `8000` | Container-Port und internes Healthcheck-Ziel |
 | `LZUG_STATIC_DIR` | `/app/frontend` | Angular-Produktionsbundle |
 | `LZUG_HEALTHCHECK_URL` | automatisch aus `LZUG_PORT` | Readiness-Endpunkt |
+| `LZUG_DATA_DIR` | `/data` | Wurzel des persistenten Datenvertrags |
 | `LZUG_DATABASE_PATH` | `/data/lzug.sqlite` | SQLite-Datei |
 | `LZUG_DATABASE_URL` | leer | alternative SQLite-Datei-URL; nicht zusammen mit `LZUG_DATABASE_PATH` |
 | `LZUG_DOCUMENTS_PATH` | `/data/documents` | Dokumentenspeicher |

@@ -41,7 +41,8 @@ case "$image" in
         exit 2
         ;;
 esac
-if ! printf '%s\n' "$image" | grep -Eq '(@sha256:[0-9a-fA-F]{64}|:[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?)$'; then
+semver_pattern=':(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+if ! printf '%s\n' "$image" | grep -Eq "(@sha256:[0-9a-fA-F]{64}|$semver_pattern)"; then
     echo "LZUG_IMAGE must end in an immutable SemVer tag or sha256 digest: $image" >&2
     exit 2
 fi
