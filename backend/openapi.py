@@ -335,6 +335,23 @@ def spec() -> dict[str, Any]:
             },
         }
 
+    public_paths = {"/api", "/api/health", "/api/openapi.json", "/api/docs"}
+    for path, operations in paths.items():
+        if path in public_paths:
+            continue
+        for method, operation in operations.items():
+            if method not in {"get", "post", "patch", "delete"}:
+                continue
+            if path not in {"/api/session", "/api/session/rotate", "/api/session/logout"}:
+                operation["security"] = (
+                    [{"sessionCookie": [], "csrfHeader": []}]
+                    if method in {"post", "patch", "delete"}
+                    else [{"sessionCookie": []}]
+                )
+            responses = operation.setdefault("responses", {})
+            responses.setdefault("401", json_response("Error"))
+            responses.setdefault("403", json_response("Error"))
+
     schemas = {
         "ApiRoot": object_schema(
             {"name": {"type": "string"}, "_links": link_map()},

@@ -135,9 +135,7 @@ export type ExamHalfYear = {
   updated_at?: string;
 };
 
-export type ExamRoundCreate = Pick<ExamRound, 'exam_half_year_id' | 'committee_id' | 'name'> & {
-  created_by_member_id: number;
-};
+export type ExamRoundCreate = Pick<ExamRound, 'exam_half_year_id' | 'committee_id' | 'name'>;
 
 export type ExamRoundUpdate = Pick<
   ExamRound,

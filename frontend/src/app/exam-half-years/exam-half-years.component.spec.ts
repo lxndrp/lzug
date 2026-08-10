@@ -4,7 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideTaiga } from '@taiga-ui/core';
 
 import { ExamHalfYearsComponent } from './exam-half-years.component';
-import { committeesFixture, membersFixture } from '../testing/fixtures';
+import { committeesFixture } from '../testing/fixtures';
 
 describe('ExamHalfYearsComponent', () => {
   let fixture: ComponentFixture<ExamHalfYearsComponent>;
@@ -18,7 +18,6 @@ describe('ExamHalfYearsComponent', () => {
 
     fixture = TestBed.createComponent(ExamHalfYearsComponent);
     fixture.componentRef.setInput('committees', committeesFixture);
-    fixture.componentRef.setInput('members', membersFixture);
     http = TestBed.inject(HttpTestingController);
   });
 
@@ -28,17 +27,6 @@ describe('ExamHalfYearsComponent', () => {
     const selection = vi
       .spyOn(fixture.componentInstance.roundSelected, 'emit')
       .mockReturnValue(undefined);
-    fixture.componentRef.setInput('members', [
-      ...membersFixture,
-      {
-        ...membersFixture[0],
-        id: 10,
-        person_id: 10,
-        first_name: 'Stellvertretung',
-        last_name: 'Alpha',
-        committee_role: 'deputy_chair',
-      },
-    ]);
     fixture.detectChanges();
     flushInitialLoad(http, [
       { id: 1, season: 'winter', year: 2026, status: 'active' },
@@ -54,7 +42,6 @@ describe('ExamHalfYearsComponent', () => {
     committeeSelect.value = '1';
     committeeSelect.dispatchEvent(new Event('change', { bubbles: true }));
     fixture.detectChanges();
-    roundForm.querySelector<HTMLSelectElement>('#roundCreatedByMember')!.value = '10';
     roundForm.dispatchEvent(new Event('submit'));
 
     const request = http.expectOne('/api/exam-rounds');
@@ -62,7 +49,6 @@ describe('ExamHalfYearsComponent', () => {
     expect(request.request.body).toEqual({
       exam_half_year_id: 1,
       committee_id: 1,
-      created_by_member_id: 10,
       name: 'Winter 2026 · Prüfungsausschuss Teststadt 1',
     });
     request.flush({
@@ -105,7 +91,7 @@ describe('ExamHalfYearsComponent', () => {
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
-    for (const selector of ['#examHalfYearSeason', '#roundCommittee', '#roundCreatedByMember']) {
+    for (const selector of ['#examHalfYearSeason', '#roundCommittee']) {
       const select = element.querySelector<HTMLSelectElement>(selector)!;
       expect(select.required).toBe(true);
       expect(select.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();

@@ -33,7 +33,10 @@ import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
 import { type SelectOption, selectStringify, selectValues } from '../select-options';
 
-export type PlanningSettingsPayload = Omit<PlanningSettings, 'id' | 'exam_round_id'>;
+export type PlanningSettingsPayload = Omit<
+  PlanningSettings,
+  'id' | 'exam_round_id' | 'updated_by_member_id'
+>;
 export type CandidateExamDayPayload = Omit<CandidateExamDay, 'id' | 'exam_round_id'>;
 export type RoundUpdatePayload = ExamRoundUpdate;
 export type AvailabilityPayload = Pick<
@@ -120,7 +123,6 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     exclude_public_holidays: 0,
     holiday_subdivision_code: null,
     default_location_id: null,
-    updated_by_member_id: 0,
   };
   protected readonly roundDraft = {
     name: '',
@@ -266,17 +268,9 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   protected readonly defaultLocationStringify = selectStringify(
     () => this.defaultLocationSelectOptions,
   );
-  protected updatedByMemberSelectOptions: readonly SelectOption<number>[] = [];
-  protected readonly updatedByMemberStringify = selectStringify(
-    () => this.updatedByMemberSelectOptions,
-  );
 
   protected defaultLocationOptions(): readonly number[] {
     return selectValues(this.defaultLocationSelectOptions);
-  }
-
-  protected updatedByMemberOptions(): readonly number[] {
-    return selectValues(this.updatedByMemberSelectOptions);
   }
 
   protected availabilityFor(memberId: number, dayId: number): AvailabilityValue {
@@ -543,7 +537,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
 
   private validateStep(step: WizardStep): string | null {
     if (step === 'period' && !this.settingsPayload()) {
-      return 'Bitte geben Sie Zeitraum, Bundesland bei Feiertagsauswahl und die dokumentierende Person an.';
+      return 'Bitte geben Sie Zeitraum und bei Feiertagsauswahl das Bundesland an.';
     }
     if (step === 'conditions' && this.activeCandidateDayCount() === 0) {
       return 'Bitte berechnen oder erfassen Sie mindestens einen aktiven möglichen Prüfungstag.';
@@ -561,9 +555,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   private settingsPayload(): PlanningSettingsPayload | null {
-    const updaterId = this.draft.updated_by_member_id || this.defaultUpdaterId();
     if (
-      !updaterId ||
       !this.draft.calendar_week_from ||
       !this.draft.calendar_week_to ||
       (this.draft.exclude_public_holidays && !this.draft.holiday_subdivision_code)
@@ -581,7 +573,6 @@ export class PlanningComponent implements OnChanges, OnDestroy {
       default_location_id: this.draft.default_location_id
         ? Number(this.draft.default_location_id)
         : null,
-      updated_by_member_id: updaterId,
     };
   }
 
@@ -594,14 +585,6 @@ export class PlanningComponent implements OnChanges, OnDestroy {
       availability_deadline: this.toApiDateTime(this.roundDraft.availability_deadline),
       availability_reminder_at: this.toApiDateTime(this.roundDraft.availability_reminder_at),
     };
-  }
-
-  protected defaultUpdaterId(): number {
-    return (
-      this.masterData?.members.find(
-        (member) => member.is_active && member.committee_id === this.round?.committee_id,
-      )?.id ?? 0
-    );
   }
 
   private syncDraft(): void {
@@ -621,7 +604,6 @@ export class PlanningComponent implements OnChanges, OnDestroy {
       settings?.default_location_id ??
       this.board?.locations.find((location) => location.is_active !== 0)?.id ??
       null;
-    this.draft.updated_by_member_id = settings?.updated_by_member_id ?? this.defaultUpdaterId();
   }
 
   private syncSelectOptions(): void {
@@ -629,12 +611,6 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     this.defaultLocationSelectOptions = locations.map((location) => ({
       value: location.id,
       label: `${location.name} · ${location.room}`,
-    }));
-
-    const members = this.masterData?.members ?? [];
-    this.updatedByMemberSelectOptions = members.map((member) => ({
-      value: member.id,
-      label: `${member.first_name} ${member.last_name}`,
     }));
   }
 
