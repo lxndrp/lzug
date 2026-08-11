@@ -41,8 +41,12 @@ trap cleanup EXIT INT TERM
     --mount "type=bind,source=$root_dir/db/seed_demo.sql,target=/app/db/seed_demo.sql,readonly" \
     "$image" --host 0.0.0.0 --port 8000 --init --seed >/dev/null
 
-port="$("$engine" port "$container" 8000/tcp | sed 's/.*://')"
-url="http://127.0.0.1:$port"
+resolve_url() {
+    port="$("$engine" port "$container" 8000/tcp | sed 's/.*://')"
+    url="http://127.0.0.1:$port"
+}
+
+resolve_url
 
 wait_for_health() {
     attempt=0
@@ -211,6 +215,7 @@ fi
 
 echo "Verifying readiness after restart."
 "$engine" restart "$container" >/dev/null
+resolve_url
 wait_for_health
 
 echo "Container runtime, authentication isolation, and security smoke test passed with $engine: $image"
