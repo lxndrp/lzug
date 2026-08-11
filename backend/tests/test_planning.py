@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
+from unittest.mock import patch
 
 from sqlalchemy import text
 
@@ -19,7 +21,7 @@ from backend.models import (
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
 )
-from backend.planning import PlanningService
+from backend.planning import PlanConflictError, PlanningService, PlanValidationError
 from backend.repositories import ResourceRepository
 from backend.tests.helpers import TempDatabase
 
@@ -108,6 +110,246 @@ class PlanningTests(unittest.TestCase):
         self.assertEqual(16, second["counts"]["planned_slots"])
         self.assertEqual(16, len(exam_slots))
 
+    def test_complete_proposal_can_be_read_reordered_and_saved_with_new_revision(self) -> None:
+        with TempDatabase() as db_path:
+            service = PlanningService(db_path)
+            generated = service.generate_proposal(1)
+            proposal = service.get_proposal(1)
+            first_day = proposal.days[0]
+            regular = [slot for slot in first_day.slots if slot.slot_type == "regular"]
+            mep = [slot for slot in first_day.slots if slot.slot_type == "mep"]
+            changed = replace(
+                proposal,
+                days=(
+                    replace(first_day, slots=tuple([*reversed(regular), *mep])),
+                    *proposal.days[1:],
+                ),
+            )
+
+            saved = service.save_proposal(changed)
+            persisted = service.get_proposal(1)
+
+        self.assertEqual(1, generated["revision"])
+        self.assertEqual(1, proposal.revision)
+        self.assertEqual(2, saved.revision)
+        self.assertEqual(saved, persisted)
+        self.assertEqual(
+            [slot.round_candidate_id for slot in reversed(regular)],
+            [slot.round_candidate_id for slot in saved.days[0].slots[: len(regular)]],
+        )
+        self.assertEqual(
+            list(range(1, len(saved.days[0].slots) + 1)),
+            [slot.sequence_number for slot in saved.days[0].slots],
+        )
+        self.assertEqual("2026-11-16 08:30:00", saved.days[0].slots[0].starts_at)
+
+    def test_stale_revision_and_validation_failure_leave_proposal_unchanged(self) -> None:
+        with TempDatabase() as db_path:
+            service = PlanningService(db_path)
+            service.generate_proposal(1)
+            original = service.get_proposal(1)
+            saved = service.save_proposal(original)
+
+            with self.assertRaises(PlanConflictError):
+                service.save_proposal(original)
+
+            invalid_slot = replace(
+                saved.days[0].slots[0],
+                round_candidate_id=saved.days[0].slots[1].round_candidate_id,
+            )
+            invalid = replace(
+                saved,
+                days=(
+                    replace(
+                        saved.days[0],
+                        slots=(invalid_slot, *saved.days[0].slots[1:]),
+                    ),
+                    *saved.days[1:],
+                ),
+            )
+            with self.assertRaises(PlanValidationError) as error:
+                service.save_proposal(invalid)
+            unchanged = service.get_proposal(1)
+
+        self.assertTrue(
+            {"regular_slot_count_invalid", "mep_slot_count_invalid"}
+            & {issue.code for issue in error.exception.issues}
+        )
+        self.assertEqual(saved, unchanged)
+
+    def test_status_conflict_and_persistence_error_roll_back_revision_and_rows(self) -> None:
+        with TempDatabase() as db_path:
+            service = PlanningService(db_path)
+            service.generate_proposal(1)
+            original = service.get_proposal(1)
+
+            with connect(db_path) as connection:
+                connection.execute(
+                    text("UPDATE exam_round SET status = 'availability_closed' WHERE id = 1")
+                )
+                connection.commit()
+            with self.assertRaises(PlanConflictError):
+                service.save_proposal(original)
+            with connect(db_path) as connection:
+                connection.execute(
+                    text("UPDATE exam_round SET status = 'plan_proposed' WHERE id = 1")
+                )
+                connection.commit()
+
+            persist = service._persist_aggregate
+
+            def persist_partly_then_fail(store, proposal):
+                persist(store, replace(proposal, days=proposal.days[:1]))
+                raise RuntimeError("simulated persistence failure")
+
+            with patch.object(
+                service,
+                "_persist_aggregate",
+                side_effect=persist_partly_then_fail,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "simulated persistence failure"):
+                    service.save_proposal(original)
+            unchanged = service.get_proposal(1)
+
+        self.assertEqual(original, unchanged)
+
+    def test_confirmation_reuses_full_validator(self) -> None:
+        with TempDatabase() as db_path:
+            service = PlanningService(db_path)
+            service.generate_proposal(1)
+            proposal = service.get_proposal(1)
+            with connect(db_path) as connection:
+                connection.execute(
+                    text("UPDATE exam_slot SET starts_at = '2026-11-16 09:00:00' WHERE id = :id"),
+                    {"id": proposal.days[0].slots[0].id},
+                )
+                connection.commit()
+
+            with self.assertRaises(PlanValidationError) as error:
+                service.confirm_plan(1)
+            repository = ResourceRepository(db_path)
+            exam_round = repository.get(EXAM_ROUND, 1)
+            exam_days = repository.list_filtered(EXAM_DAY, {"exam_round_id": 1})
+
+        self.assertIn("slot_schedule_invalid", {issue.code for issue in error.exception.issues})
+        self.assertEqual("plan_proposed", exam_round["status"])
+        self.assertTrue(all(day["status"] == "proposed" for day in exam_days))
+
+    def test_generic_writes_cannot_bypass_plan_aggregate(self) -> None:
+        with TempDatabase() as db_path:
+            service = PlanningService(db_path)
+            service.generate_proposal(1)
+            proposal = service.get_proposal(1)
+            repository = ResourceRepository(db_path)
+
+            for resource, resource_id in (
+                (EXAM_DAY, proposal.days[0].id),
+                (EXAM_SLOT, proposal.days[0].slots[0].id),
+                (EXAM_DAY_ASSIGNMENT, proposal.days[0].assignments[0].id),
+            ):
+                with self.subTest(resource=resource.table):
+                    with self.assertRaisesRegex(ValueError, "planning aggregate"):
+                        repository.create(resource, {})
+                    with self.assertRaisesRegex(ValueError, "planning aggregate"):
+                        repository.update(resource, resource_id, {})
+                    with self.assertRaisesRegex(ValueError, "planning aggregate"):
+                        repository.delete(resource, resource_id)
+
+    def test_validator_covers_day_slot_location_crew_and_capacity_rules(self) -> None:
+        with TempDatabase() as db_path:
+            service = PlanningService(db_path)
+            service.generate_proposal(1)
+            proposal = service.get_proposal(1)
+            repository = ResourceRepository(db_path)
+
+            invalid_location = replace(
+                proposal,
+                days=(replace(proposal.days[0], location_id=999999), *proposal.days[1:]),
+            )
+            with self.assertRaises(PlanValidationError) as location_error:
+                service.save_proposal(invalid_location)
+
+            without_fallback = replace(
+                proposal,
+                days=(
+                    replace(
+                        proposal.days[0],
+                        assignments=tuple(
+                            assignment
+                            for assignment in proposal.days[0].assignments
+                            if not (
+                                assignment.assignment_role == "fallback"
+                                and assignment.day_part == "morning"
+                            )
+                        ),
+                    ),
+                    *proposal.days[1:],
+                ),
+            )
+            with self.assertRaises(PlanValidationError) as crew_error:
+                service.save_proposal(without_fallback)
+
+            mep_day_index = next(
+                index
+                for index, day in enumerate(proposal.days)
+                if any(slot.slot_type == "mep" for slot in day.slots)
+            )
+            mep_day = proposal.days[mep_day_index]
+            mep_slots = [slot for slot in mep_day.slots if slot.slot_type == "mep"]
+            regular_slots = [slot for slot in mep_day.slots if slot.slot_type == "regular"]
+            reordered_days = list(proposal.days)
+            reordered_days[mep_day_index] = replace(
+                mep_day,
+                slots=tuple([mep_slots[0], *regular_slots, *mep_slots[1:]]),
+            )
+            with self.assertRaises(PlanValidationError) as mep_error:
+                service.save_proposal(replace(proposal, days=tuple(reordered_days)))
+
+            invalid_candidate_day = replace(
+                proposal.days[0],
+                slots=(
+                    replace(proposal.days[0].slots[0], round_candidate_id=999999),
+                    *proposal.days[0].slots[1:],
+                ),
+            )
+            with self.assertRaises(PlanValidationError) as candidate_error:
+                service.save_proposal(
+                    replace(proposal, days=(invalid_candidate_day, *proposal.days[1:]))
+                )
+
+            settings = repository.list_filtered(PLANNING_SETTINGS, {"exam_round_id": 1})[0]
+            repository.update(PLANNING_SETTINGS, settings["id"], {"exams_per_day": 1})
+            with self.assertRaises(PlanValidationError) as capacity_error:
+                service.save_proposal(proposal)
+            repository.update(
+                PLANNING_SETTINGS,
+                settings["id"],
+                {"exams_per_day": settings["exams_per_day"]},
+            )
+
+            candidate_day = repository.get(
+                CANDIDATE_EXAM_DAY, proposal.days[0].candidate_exam_day_id
+            )
+            repository.update(CANDIDATE_EXAM_DAY, candidate_day["id"], {"is_active": 0})
+            with self.assertRaises(PlanValidationError) as day_error:
+                service.save_proposal(proposal)
+
+        self.assertIn("location_invalid", {issue.code for issue in location_error.exception.issues})
+        self.assertIn("fallback_missing", {issue.code for issue in crew_error.exception.issues})
+        self.assertIn("mep_not_last", {issue.code for issue in mep_error.exception.issues})
+        self.assertIn(
+            "round_candidate_invalid",
+            {issue.code for issue in candidate_error.exception.issues},
+        )
+        self.assertIn(
+            "daily_capacity_exceeded",
+            {issue.code for issue in capacity_error.exception.issues},
+        )
+        self.assertIn(
+            "candidate_day_inactive",
+            {issue.code for issue in day_error.exception.issues},
+        )
+
     def test_confirm_plan_updates_statuses_and_blocks_replacement(self) -> None:
         with TempDatabase() as db_path:
             service = PlanningService(db_path)
@@ -143,12 +385,19 @@ class PlanningTests(unittest.TestCase):
 
             PlanningService(db_path).generate_proposal(other_round["id"])
             PlanningService(db_path).confirm_plan(other_round["id"])
-            proposal = PlanningService(db_path).generate_proposal(1)
+            with self.assertRaises(PlanValidationError) as error:
+                PlanningService(db_path).generate_proposal(1)
+            exam_round = repository.get(EXAM_ROUND, 1)
+            exam_days = repository.list_filtered(EXAM_DAY, {"exam_round_id": 1})
 
-        self.assertFalse(proposal["validation"]["passed"])
         self.assertTrue(
-            any("bestätigte Termine" in message for message in proposal["validation"]["messages"])
+            any(
+                issue.code in {"plan_empty", "regular_slot_count_invalid"}
+                for issue in error.exception.issues
+            )
         )
+        self.assertEqual("availability_requested", exam_round["status"])
+        self.assertEqual([], exam_days)
 
     def test_other_proposal_and_fallback_reserve_person_before_confirmation(self) -> None:
         with TempDatabase() as db_path:
@@ -159,13 +408,14 @@ class PlanningTests(unittest.TestCase):
 
             PlanningService(db_path).generate_proposal(other_round["id"])
             other_assignments = repository.list(EXAM_DAY_ASSIGNMENT)
-            proposal = PlanningService(db_path).generate_proposal(1)
+            with self.assertRaises(PlanValidationError):
+                PlanningService(db_path).generate_proposal(1)
+            exam_round = repository.get(EXAM_ROUND, 1)
+            exam_days = repository.list_filtered(EXAM_DAY, {"exam_round_id": 1})
 
         self.assertTrue(any(item["assignment_role"] == "fallback" for item in other_assignments))
-        self.assertFalse(proposal["validation"]["passed"])
-        self.assertTrue(
-            any("Planungsvorschläge" in message for message in proposal["validation"]["messages"])
-        )
+        self.assertEqual("availability_requested", exam_round["status"])
+        self.assertEqual([], exam_days)
 
     def _create_overlapping_round(self, repository: ResourceRepository) -> dict[str, object]:
         committee = repository.create(COMMITTEE, {"name": "PA 2", "occupation": "FI"})

@@ -54,6 +54,11 @@ EXECUTION_STATUS_SUMMARY_KEYS = (
     "cancelled",
     "needs_follow_up",
 )
+PLAN_AGGREGATE_RESOURCES = {EXAM_DAY, EXAM_SLOT, EXAM_DAY_ASSIGNMENT}
+PLAN_AGGREGATE_STATUSES = {"plan_proposed", "plan_confirmed"}
+PLAN_AGGREGATE_WRITE_ERROR = (
+    "Exam days, slots, and assignments must be changed through the planning aggregate"
+)
 
 
 class ResourceRepository:
@@ -197,6 +202,8 @@ class ResourceRepository:
         """
         with session_scope(self.db_path) as session:
             store = Store(session)
+            if resource in PLAN_AGGREGATE_RESOURCES:
+                raise ValueError(PLAN_AGGREGATE_WRITE_ERROR)
             if resource == PERSON:
                 return store.create(PERSON, self._person_payload(payload))
             if resource == COMMITTEE_MEMBER:
@@ -225,6 +232,8 @@ class ResourceRepository:
         """
         with session_scope(self.db_path) as session:
             store = Store(session)
+            if resource in PLAN_AGGREGATE_RESOURCES:
+                raise ValueError(PLAN_AGGREGATE_WRITE_ERROR)
             if resource == PERSON:
                 return store.update(PERSON, resource_id, self._person_payload(payload))
             if resource == COMMITTEE_MEMBER:
@@ -321,6 +330,8 @@ class ResourceRepository:
             raise ValueError("Creating member does not belong to the exam round committee")
         if not str(payload.get("name", "")).strip():
             raise ValueError("Exam round name is required")
+        if payload.get("status") in PLAN_AGGREGATE_STATUSES:
+            raise ValueError("Planning proposal statuses require the planning aggregate")
         return store.create(EXAM_ROUND, payload)
 
     def _create_round_candidate(self, store: Store, payload: dict[str, Any]) -> dict[str, Any]:
@@ -449,6 +460,8 @@ class ResourceRepository:
 
     def delete(self, resource: Resource, resource_id: int) -> bool:
         with session_scope(self.db_path) as session:
+            if resource in PLAN_AGGREGATE_RESOURCES:
+                raise ValueError(PLAN_AGGREGATE_WRITE_ERROR)
             return Store(session).delete(resource, resource_id)
 
     def candidate_list(self, scope: AuthorizationScope | None = None) -> list[dict[str, Any]]:
@@ -650,6 +663,12 @@ class ResourceRepository:
                 )
             if not str(merged.get("name", "")).strip():
                 raise ValueError("Exam round name is required")
+            if (
+                "status" in payload
+                and merged["status"] != existing["status"]
+                and {merged["status"], existing["status"]}.intersection(PLAN_AGGREGATE_STATUSES)
+            ):
+                raise ValueError("Planning proposal statuses require the planning aggregate")
             deadline = merged.get("availability_deadline")
             reminder = merged.get("availability_reminder_at")
             if deadline and reminder and reminder > deadline:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .models import CANDIDATE_COMMITTEE_ASSIGNMENT
-from .repositories import REST_RESOURCES
+from .repositories import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES
 from .version import application_version
 
 REST_SCHEMA_FIELDS = {
@@ -339,14 +339,24 @@ def spec() -> dict[str, Any]:
     for resource_name, resource in REST_RESOURCES.items():
         schema_name = schema_ref_name(resource_name)
         collection_schema = f"{schema_name}Collection"
-        paths[f"/api/{resource_name}"] = {
+        collection_operations = {
             "get": {
                 "summary": f"List {resource_name}",
                 "operationId": operation_id("list", resource_name),
                 "parameters": collection_parameters(resource),
                 "responses": {"200": json_response(collection_schema)},
-            },
-            "post": {
+            }
+        }
+        item_operations = {
+            "get": {
+                "summary": f"Get {resource_name} resource",
+                "operationId": operation_id("get", resource_name),
+                "parameters": [path_parameter("id")],
+                "responses": {"200": json_response(schema_name), "404": json_response("Error")},
+            }
+        }
+        if resource not in PLAN_AGGREGATE_RESOURCES:
+            collection_operations["post"] = {
                 "summary": f"Create or update {resource_name}",
                 "operationId": operation_id("create", resource_name),
                 "requestBody": json_request(f"{schema_name}Write"),
@@ -356,16 +366,8 @@ def spec() -> dict[str, Any]:
                     "400": json_response("Error"),
                     "409": json_response("Error"),
                 },
-            },
-        }
-        paths[f"/api/{resource_name}/{{id}}"] = {
-            "get": {
-                "summary": f"Get {resource_name} resource",
-                "operationId": operation_id("get", resource_name),
-                "parameters": [path_parameter("id")],
-                "responses": {"200": json_response(schema_name), "404": json_response("Error")},
-            },
-            "patch": {
+            }
+            item_operations["patch"] = {
                 "summary": f"Update {resource_name} resource",
                 "operationId": operation_id("update", resource_name),
                 "parameters": [path_parameter("id")],
@@ -376,8 +378,8 @@ def spec() -> dict[str, Any]:
                     "404": json_response("Error"),
                     "409": json_response("Error"),
                 },
-            },
-            "delete": {
+            }
+            item_operations["delete"] = {
                 "summary": f"Delete {resource_name} resource",
                 "operationId": operation_id("delete", resource_name),
                 "parameters": [path_parameter("id")],
@@ -386,8 +388,9 @@ def spec() -> dict[str, Any]:
                     "404": json_response("Error"),
                     "409": json_response("Error"),
                 },
-            },
-        }
+            }
+        paths[f"/api/{resource_name}"] = collection_operations
+        paths[f"/api/{resource_name}/{{id}}"] = item_operations
 
     public_paths = {
         "/api/health",
