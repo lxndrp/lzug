@@ -80,17 +80,17 @@ veröffentlichte Image enthält diese Seed-Datei nicht.
 
 ## Blockierende Security-Gates
 
-`.github/workflows/security.yml` besitzt global nur `contents: read`.
-`security-events: write` ist ausschließlich auf die beiden CodeQL-Matrixjobs
-begrenzt. Alle Actions dieses Workflows sind auf vollständige Commit-SHAs
-fixiert.
+`.github/workflows/security.yml` und `.github/workflows/oci.yml` besitzen
+global nur `contents: read`. `security-events: write` ist ausschließlich auf
+die beiden CodeQL-Matrixjobs begrenzt. Alle Actions dieser Workflows sind auf
+vollständige Commit-SHAs fixiert.
 
 | Gate | Blockierender Befund | Nachweis |
 | --- | --- | --- |
 | CodeQL für Python und JavaScript/TypeScript | `security-severity >= 7.0` | SARIF wird hochgeladen und zusätzlich durch `scripts/enforce_sarif_security.py` ausgewertet |
 | Trivy-Quellscan | Secrets oder High/Critical-Misconfiguration | aktueller Quellbaum ohne Git-, venv- oder `node_modules`-Inhalte |
-| Reproduzierbarer Image-Build und Runtime-Smoke | Buildfehler, abweichender Runtime-User oder verletzte HTTP-/Isolationsgrenze | Build aus Lockfiles, Image-User `10001:10001` und `scripts/container-smoke.sh` gegen das gebaute Image |
-| Trivy-Imagescan | behebbare High/Critical OS-/Bibliothekslücke, Secret oder Misconfiguration | tatsächlich gebautes lokales Image |
+| Reproduzierbarer Image-Build und Runtime-Smoke | Buildfehler, abweichender Runtime-User oder verletzte HTTP-/Isolationsgrenze | einmaliger Build aus Lockfiles, Image-User `10001:10001` und `scripts/container-smoke.sh` gegen das per Prüfsumme übergebene Build-Artefakt |
+| Trivy-Imagescan | behebbare High/Critical OS-/Bibliothekslücke, Secret oder Misconfiguration | dasselbe per Prüfsumme übergebene Image wie im Runtime-Smoke |
 | SBOM | fehlendes oder leeres CycloneDX-Dokument | 30 Tage aufbewahrtes CI-Artefakt |
 
 Trivy ist als vollständiger SHA der laut
@@ -99,6 +99,20 @@ abgesicherten Action 0.35.0 fixiert und verwendet die unveränderliche Version
 0.69.3. Der SARIF-Filter besitzt Positiv- und Negativtests; die Workflowtests
 prüfen SHA-Pins und blockierende Scannerkonfiguration. Scannerbefunde werden
 nicht durch gelockerte Schwellen oder pauschale Ignore-Dateien verborgen.
+
+Der OCI-Workflow läuft auf jedem Push nach `main` oder `master` und bei
+manueller Ausführung vollständig. In Pull Requests überspringt die
+konservative Klassifikation ausschließlich bekannte Dokumentations-,
+Prototyp- und Repository-Metadatenpfade; leere oder unbekannte Pfadmengen
+führen immer zum Build. Pull Requests lesen nur den gemeinsamen
+BuildKit-Cache. Ausschließlich ein Push auf den geschützten Hauptbranch darf
+ihn aktualisieren. Build, Runtime-Smoke und Image-Scan bleiben getrennte
+Statuschecks; das Image-Archiv wird einmal gebaut, mit SHA-256 abgesichert und
+in beiden Folgejobs gegen den eingebetteten Revision-Label geprüft. Der
+abschließende `OCI pull request gate`-Status akzeptiert entweder alle drei
+erfolgreichen OCI-Jobs oder ausschließlich den expliziten
+Dokumentations-/Metadaten-Skip. Fehlende, abgebrochene oder übersprungene
+Pflichtjobs können dadurch keinen Pull Request freigeben.
 
 GitHub Secret Scanning und Push Protection sind im öffentlichen Repository
 aktiv. Non-Provider-Patterns und Validity Checks werden vom aktuellen

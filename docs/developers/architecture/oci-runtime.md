@@ -114,7 +114,14 @@ nur Routen ohne Dateisuffix erhalten den Angular-SPA-Fallback. Damit kann ein
 Reverse Proxy später vor dem Container ergänzt werden, ohne dass dieser
 Runtime-Schritt bereits Compose oder eine Proxy-Konfiguration vorwegnimmt.
 
-Der Security-Workflow baut das Image, prüft den Non-Root-Vertrag, scannt es und
-erzeugt das CycloneDX-SBOM. #121 integriert anschließend den vollständigen
-Start-/Health-/SPA-Smoke als eigenen Pull-Request-CI-Job. Veröffentlichung und
-GHCR-Release bleiben dem getrennten Release-Prozess vorbehalten.
+Der OCI-Workflow baut das Image bei relevanten Pull Requests genau einmal und
+übergibt das per SHA-256 abgesicherte Docker-Archiv an zwei getrennte Jobs.
+Der Runtime-Job prüft Revision, Non-Root-Vertrag, Start, Health, API, SPA und
+die gehärteten Isolationsgrenzen. Der Scan-Job erzeugt aus demselben Image das
+CycloneDX-SBOM und blockiert behebbare High-/Critical-Befunde. Der
+content-addressed BuildKit-Cache beschleunigt Builds, ohne Lockfile- oder
+Kontextänderungen zu übergehen; Pull Requests dürfen den gemeinsamen Cache nur
+lesen, aktualisiert wird er ausschließlich auf dem geschützten Hauptbranch.
+Ein abschließender Gate-Job fasst Klassifikation, Build, Runtime und Scan zu
+einem stabilen verpflichtenden Pull-Request-Status zusammen. Veröffentlichung
+und GHCR-Release bleiben dem getrennten Release-Prozess vorbehalten.
