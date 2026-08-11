@@ -22,18 +22,11 @@ nicht ausgewählter `skipped` melden. Leere oder fehlende Ausgaben lassen das
 Gate fehlschlagen. Interne Jobnamen dürfen sich ändern, diese sieben Namen und
 ihre Semantik dagegen nicht ohne kontrollierte Migration der Required Checks.
 
-Bis zur Ruleset-Migration in #305 bleiben `CI overall` und
-`OCI pull request gate` als reine Kompatibilitätschecks sichtbar. Sie hängen
-von den neuen Gates ab und können diese daher nicht umgehen. Die bisher
-erforderlichen CodeQL-, Source-Scan- und OCI-Scan-Kontexte bleiben ebenfalls
-erhalten; ein nicht ausgewählter Detailjob meldet dabei `skipped`.
-
-Die Migration erfolgt ohne Schutzlücke: Zuerst werden die sieben stabilen
-Gates zusätzlich zu den bisherigen Required Checks verpflichtend. Erst nach
-einem erfolgreichen Pull-Request-Lauf mit beiden Namenssätzen werden die alten
-Ruleset-Einträge entfernt; anschließend entfallen die beiden
-Kompatibilitätsjobs. `strict_required_status_checks_policy` bleibt während der
-gesamten Umstellung aktiv.
+Das aktive Ruleset verlangt ausschließlich diese sieben stabilen Gate-Namen.
+`strict_required_status_checks_policy` bleibt aktiv, sodass jeder Pull Request
+nach Änderungen am Zielbranch erneut gegen dessen aktuellen Stand geprüft
+werden muss. Detailjobs wie CodeQL, Source- oder OCI-Scan bleiben sichtbar,
+sind aber keine eigenständige öffentliche Ruleset-Schnittstelle.
 
 Alle Domänen- und Overall-Details liegen im Workflow `Quality` und verwenden
 genau einen Klassifikationslauf. Das einmal gebaute, über seine Prüfsumme

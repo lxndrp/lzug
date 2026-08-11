@@ -232,8 +232,8 @@ class CiWorkflowContractTests(unittest.TestCase):
         self.assertIn('test "$result" = "success"', self.workflow)
         self.assertIn('test "$result" = "skipped"', self.workflow)
         self.assertEqual(8, self.workflow.count('require_result "$'))
-        self.assertIn("name: CI overall", self.workflow)
-        self.assertIn("Kept until #305 migrates", self.workflow)
+        self.assertNotIn("name: CI overall", self.workflow)
+        self.assertNotIn("required-check-compatibility", self.workflow)
 
     def test_browser_jobs_keep_separate_versioned_caches_and_install_contract(self) -> None:
         self.assertEqual(
