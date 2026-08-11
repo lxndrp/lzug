@@ -16,6 +16,8 @@ im Repository-Wurzelverzeichnis.
   Nachweise für Menschen und Agents.
 - **Dependabot-Aktualisierungen** beschreibt Klassifikation, Sicherheitsgrenzen
   und Merge-Lebenszyklus automatisierter Abhängigkeitsupdates.
+- **Continuous Integration** beschreibt Workflow-Verantwortungen, konservative
+  Pfadklassifikation, Gesamtstatus und Browsercache-Vertrag.
 - **Wiki-Publikation** beschreibt den getrennten Review- und Freigabeablauf für
   das Wiki-Repository.
 

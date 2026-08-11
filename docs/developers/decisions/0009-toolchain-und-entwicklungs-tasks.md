@@ -21,11 +21,13 @@ Entwicklungsabläufe; `task setup`, `task test`, `task docs`, `task quality` und
 `task dev` sowie ihre dokumentierten Teilaufgaben ersetzen die bisherigen
 `mise run`-Befehle.
 
-GitHub Actions bleibt unverändert. Die Pipeline ist keine lokale
-Entwickler-Schnittstelle: Sie modelliert bewusst getrennte Jobs, nutzt
-jobspezifische Caches und veröffentlicht Coverage- sowie getrennte
-Playwright-Artefakte. Die darin ausgeführten Prüfkommandos entsprechen weiter
-den lokalen Workflow-Schritten.
+GitHub Actions ist keine lokale Entwickler-Schnittstelle: Die Pipeline
+modelliert bewusst getrennte Jobs, wählt ihre Jobs konservativ nach
+Änderungsumfang, nutzt jobspezifische Caches und veröffentlicht Coverage- sowie
+getrennte Playwright-Artefakte. Der immer laufende Gesamtstatus und die
+Pfadklassifikation sind unter [Continuous Integration](../continuous-integration.md)
+dokumentiert. Die darin ausgeführten Prüfkommandos entsprechen weiter den
+lokalen Workflow-Schritten.
 
 ## Konsequenzen
 
@@ -75,5 +77,6 @@ ersetzt dessen frühere Zuordnung lokaler Abläufe zu `mise`.
 ## Referenzen
 
 - [ADR-0003: Toolchain mit mise, uv und npm](0003-toolchain-mise-uv-npm.md)
+- [Continuous Integration](../continuous-integration.md)
 - [Entwickler-Setup im GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung-Einrichtung)
 - [Qualität und Sicherheitsprozess im GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung-Qualitaet-und-Sicherheit)
