@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import re
 import unittest
 from http import HTTPStatus
@@ -65,6 +66,30 @@ class OpenApiContractTests(unittest.TestCase):
 
             status, _missing = self.request(api, "GET", "/api/confirmed-plan-days/999999")
             self.assertEqual(HTTPStatus.NOT_FOUND, status)
+
+    def test_planning_proposal_success_conflict_and_validation_contracts(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, _generated = self.request(
+                api, "POST", "/api/planning-proposals", {"round_id": 1}
+            )
+            self.assertEqual(HTTPStatus.CREATED, status)
+            path = "/api/exam-rounds/1/planning-proposal"
+            status, proposal = self.request(api, "GET", path)
+            self.assertEqual(HTTPStatus.OK, status)
+
+            stale = copy.deepcopy(proposal)
+            status, saved = self.request(api, "PUT", path, proposal)
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertEqual(proposal["revision"] + 1, saved["revision"])
+            status, _conflict = self.request(api, "PUT", path, stale)
+            self.assertEqual(HTTPStatus.CONFLICT, status)
+
+            invalid = copy.deepcopy(saved)
+            invalid["exam_days"][0]["slots"][0]["round_candidate_id"] = invalid["exam_days"][0][
+                "slots"
+            ][1]["round_candidate_id"]
+            status, _validation = self.request(api, "PUT", path, invalid)
+            self.assertEqual(HTTPStatus.UNPROCESSABLE_ENTITY, status)
 
     def test_frontend_write_operations_match_the_openapi_responses(self) -> None:
         """Cover each Angular write flow with an actual API response."""
@@ -238,7 +263,7 @@ class OpenApiContractTests(unittest.TestCase):
             (method.upper(), path)
             for path, item in spec()["paths"].items()
             for method in item
-            if method in {"get", "post", "patch", "delete"}
+            if method in {"get", "post", "put", "patch", "delete"}
         }
         self.assertSetEqual(set(operations) - documented, set())
 

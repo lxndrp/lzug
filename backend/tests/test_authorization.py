@@ -11,6 +11,7 @@ from backend.models import (
     EXAM_ROUND,
     PERSON,
 )
+from backend.planning import PlanningService
 from backend.repositories import ResourceRepository
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
@@ -147,6 +148,70 @@ class AuthorizationTests(unittest.TestCase):
                 assert_status(status, HTTPStatus.OK)
                 self.assertEqual(2, settings["exams_per_day"])
                 self.assertEqual(self.members[person_number], settings["updated_by_member_id"])
+
+    def test_planning_proposal_is_restricted_to_chair_and_deputy_without_disclosure(
+        self,
+    ) -> None:
+        PlanningService(self.db_path).generate_proposal(1)
+        deputy_account = self.authentication.create_account(
+            "testperson.beta@example.invalid", person_id=2
+        )
+        member_account = self.authentication.create_account(
+            "testperson.gamma@example.invalid", person_id=3
+        )
+        chair_credentials = self.authentication.create_session(1)
+        deputy_credentials = self.authentication.create_session(deputy_account["id"])
+        member_credentials = self.authentication.create_session(member_account["id"])
+        foreign_chair_credentials = self.credentials(9)
+        path = "/api/exam-rounds/1/planning-proposal"
+
+        with ApiServer(self.db_path) as api:
+            status, chair_proposal = api.request("GET", path, credentials=chair_credentials)
+            assert_status(status, HTTPStatus.OK)
+
+            status, deputy_proposal = api.request("GET", path, credentials=deputy_credentials)
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(chair_proposal, deputy_proposal)
+            status, saved = api.request(
+                "PUT", path, deputy_proposal, credentials=deputy_credentials
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(deputy_proposal["revision"] + 1, saved["revision"])
+
+            for credentials in (member_credentials, foreign_chair_credentials):
+                status, error = api.request("GET", path, credentials=credentials)
+                assert_status(status, HTTPStatus.FORBIDDEN)
+                self.assertEqual({"error": "Forbidden."}, error)
+                status, error = api.request("PUT", path, saved, credentials=credentials)
+                assert_status(status, HTTPStatus.FORBIDDEN)
+                self.assertEqual({"error": "Forbidden."}, error)
+
+            status, missing = api.request(
+                "GET",
+                "/api/exam-rounds/999999/planning-proposal",
+                credentials=foreign_chair_credentials,
+            )
+            assert_status(status, HTTPStatus.FORBIDDEN)
+            self.assertEqual({"error": "Forbidden."}, missing)
+
+            for credentials in (member_credentials, foreign_chair_credentials):
+                status, error = api.request(
+                    "POST",
+                    "/api/exam-rounds/1/confirm-plan",
+                    {},
+                    credentials=credentials,
+                )
+                assert_status(status, HTTPStatus.FORBIDDEN)
+                self.assertEqual({"error": "Forbidden."}, error)
+
+            status, confirmed = api.request(
+                "POST",
+                "/api/exam-rounds/1/confirm-plan",
+                {},
+                credentials=deputy_credentials,
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("plan_confirmed", confirmed["status"])
 
     def test_member_status_does_not_change_member_rights_and_foreign_feedback_is_denied(
         self,

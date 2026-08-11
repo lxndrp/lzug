@@ -272,12 +272,19 @@ class PlanningService:
                 raise ValueError("Exam round not found")
             exam_days = store.where(EXAM_DAY, exam_round_id=round_id)
             if not exam_days:
-                raise ValueError("No planning proposal found")
+                raise PlanConflictError("No planning proposal found")
             if exam_round["status"] != "plan_proposed":
-                raise ValueError("Only a planning proposal can be confirmed")
+                raise PlanConflictError("Only a planning proposal can be confirmed")
 
             proposal = self._read_proposal(store, round_id)
             self._raise_for_invalid_proposal(store, proposal)
+            confirmed_revision = self._claim_revision(
+                store,
+                round_id,
+                proposal.revision,
+                allowed_statuses={"plan_proposed"},
+                target_status="plan_confirmed",
+            )
 
             confirmed_days = []
             confirmed_slot_count = 0
@@ -302,11 +309,10 @@ class PlanningService:
                             {"fallback_status": "confirmed"},
                         )
 
-            store.update(EXAM_ROUND, round_id, {"status": "plan_confirmed"})
             return {
                 "round_id": round_id,
                 "status": "plan_confirmed",
-                "revision": proposal.revision,
+                "revision": confirmed_revision,
                 "exam_days": confirmed_days,
                 "counts": {
                     "confirmed_exam_days": len(confirmed_days),
@@ -531,6 +537,7 @@ class PlanningService:
         return [
             {
                 "id": day.id,
+                "candidate_exam_day_id": day.candidate_exam_day_id,
                 "date": day.date,
                 "location_id": day.location_id,
                 "status": day.status,
@@ -546,9 +553,28 @@ class PlanningService:
                     }
                     for slot in day.slots
                 ],
+                "assignments": [
+                    {
+                        "id": assignment.id,
+                        "committee_member_id": assignment.committee_member_id,
+                        "assignment_role": assignment.assignment_role,
+                        "day_part": assignment.day_part,
+                        "fallback_status": assignment.fallback_status,
+                    }
+                    for assignment in day.assignments
+                ],
             }
             for day in proposal.days
         ]
+
+    @classmethod
+    def proposal_payload(cls, proposal: PlanningProposal) -> dict[str, Any]:
+        """Serialize the complete editable aggregate for the HTTP boundary."""
+        return {
+            "round_id": proposal.round_id,
+            "revision": proposal.revision,
+            "exam_days": cls._proposal_days(proposal),
+        }
 
     def _raise_for_invalid_proposal(self, store: Store, proposal: PlanningProposal) -> None:
         issues = self._validate_proposal(store, proposal)

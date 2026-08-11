@@ -124,7 +124,7 @@ class ApiServer(AbstractContextManager):
                 f"{self.handler_type.session_cookie_name}={active_credentials.token}; "
                 f"{self.handler_type.csrf_cookie_name}={active_credentials.csrf_token}"
             )
-            if method.upper() in {"POST", "PATCH", "DELETE"}:
+            if method.upper() in {"POST", "PUT", "PATCH", "DELETE"}:
                 headers["X-CSRF-Token"] = active_credentials.csrf_token
 
         request = (

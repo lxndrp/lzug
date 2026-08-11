@@ -298,6 +298,29 @@ def spec() -> dict[str, Any]:
                 },
             }
         },
+        "/api/exam-rounds/{id}/planning-proposal": {
+            "get": {
+                "summary": "Get the complete editable planning proposal",
+                "operationId": "getPlanningProposal",
+                "parameters": [path_parameter("id")],
+                "responses": {
+                    "200": json_response("EditablePlanningProposal"),
+                    "409": json_response("PlanningConflictProblem"),
+                },
+            },
+            "put": {
+                "summary": "Atomically replace the complete planning proposal",
+                "operationId": "replacePlanningProposal",
+                "parameters": [path_parameter("id")],
+                "requestBody": json_request("PlanningProposalWrite"),
+                "responses": {
+                    "200": json_response("EditablePlanningProposal"),
+                    "400": json_response("Error"),
+                    "409": json_response("PlanningConflictProblem"),
+                    "422": json_response("PlanningValidationProblem"),
+                },
+            },
+        },
         "/api/candidate-exam-days/generate": {
             "post": {
                 "summary": "Generate candidate exam days from the configured calendar weeks",
@@ -318,7 +341,8 @@ def spec() -> dict[str, Any]:
                     "200": json_response("ConfirmedPlan"),
                     "400": json_response("Error"),
                     "404": json_response("Error"),
-                    "409": json_response("Error"),
+                    "409": json_response("PlanningConflictProblem"),
+                    "422": json_response("PlanningValidationProblem"),
                 },
             }
         },
@@ -404,12 +428,12 @@ def spec() -> dict[str, Any]:
         if path in public_paths:
             continue
         for method, operation in operations.items():
-            if method not in {"get", "post", "patch", "delete"}:
+            if method not in {"get", "post", "put", "patch", "delete"}:
                 continue
             if path not in {"/api/session", "/api/session/rotate", "/api/session/logout"}:
                 operation["security"] = (
                     [{"sessionCookie": [], "csrfHeader": []}]
-                    if method in {"post", "patch", "delete"}
+                    if method in {"post", "put", "patch", "delete"}
                     else [{"sessionCookie": []}]
                 )
             responses = operation.setdefault("responses", {})
@@ -715,6 +739,132 @@ def spec() -> dict[str, Any]:
             {"round_id": {"type": "integer"}},
             required=("round_id",),
         ),
+        "PlanningProposalSlot": object_schema(
+            {
+                "id": {"type": ["integer", "null"]},
+                "round_candidate_id": {"type": "integer"},
+                "slot_type": {"type": "string", "enum": ["regular", "mep"]},
+                "starts_at": {"type": "string"},
+                "ends_at": {"type": "string"},
+                "sequence_number": {"type": "integer"},
+                "status": {"type": "string", "const": "proposed"},
+            },
+            required=(
+                "id",
+                "round_candidate_id",
+                "slot_type",
+                "starts_at",
+                "ends_at",
+                "sequence_number",
+                "status",
+            ),
+        ),
+        "PlanningProposalAssignment": object_schema(
+            {
+                "id": {"type": ["integer", "null"]},
+                "committee_member_id": {"type": "integer"},
+                "assignment_role": {
+                    "type": "string",
+                    "enum": ["examiner", "fallback"],
+                },
+                "day_part": {"type": "string", "enum": ["morning", "afternoon"]},
+                "fallback_status": {"type": ["string", "null"]},
+            },
+            required=(
+                "id",
+                "committee_member_id",
+                "assignment_role",
+                "day_part",
+                "fallback_status",
+            ),
+        ),
+        "PlanningProposalDay": object_schema(
+            {
+                "id": {"type": ["integer", "null"]},
+                "candidate_exam_day_id": {"type": "integer"},
+                "date": {"type": "string"},
+                "location_id": {"type": "integer"},
+                "status": {"type": "string", "const": "proposed"},
+                "slots": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/PlanningProposalSlot"},
+                },
+                "assignments": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/PlanningProposalAssignment"},
+                },
+            },
+            required=(
+                "id",
+                "candidate_exam_day_id",
+                "date",
+                "location_id",
+                "status",
+                "slots",
+                "assignments",
+            ),
+        ),
+        "PlanningProposalWrite": object_schema(
+            {
+                "round_id": {"type": "integer"},
+                "revision": {"type": "integer", "minimum": 0},
+                "exam_days": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/PlanningProposalDay"},
+                },
+            },
+            required=("round_id", "revision", "exam_days"),
+        ),
+        "EditablePlanningProposal": object_schema(
+            {
+                "round_id": {"type": "integer"},
+                "revision": {"type": "integer", "minimum": 0},
+                "exam_days": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/PlanningProposalDay"},
+                },
+                "_links": link_map(),
+            },
+            required=("round_id", "revision", "exam_days", "_links"),
+        ),
+        "PlanningValidationViolation": object_schema(
+            {
+                "code": {"type": "string"},
+                "message": {"type": "string"},
+                "day_id": {"type": ["integer", "null"]},
+                "slot_id": {"type": ["integer", "null"]},
+                "member_id": {"type": ["integer", "null"]},
+            },
+            required=("code", "message", "day_id", "slot_id", "member_id"),
+        ),
+        "PlanningValidationProblem": object_schema(
+            {
+                "error": object_schema(
+                    {
+                        "code": {"type": "string", "const": "planning_proposal_invalid"},
+                        "message": {"type": "string"},
+                        "violations": {
+                            "type": "array",
+                            "items": {"$ref": "#/components/schemas/PlanningValidationViolation"},
+                        },
+                    },
+                    required=("code", "message", "violations"),
+                )
+            },
+            required=("error",),
+        ),
+        "PlanningConflictProblem": object_schema(
+            {
+                "error": object_schema(
+                    {
+                        "code": {"type": "string", "const": "planning_proposal_conflict"},
+                        "message": {"type": "string"},
+                    },
+                    required=("code", "message"),
+                )
+            },
+            required=("error",),
+        ),
         "CandidateExamDayGenerationRequest": object_schema(
             {"round_id": {"type": "integer"}},
             required=("round_id",),
@@ -749,22 +899,32 @@ def spec() -> dict[str, Any]:
             {
                 "round_id": {"type": "integer"},
                 "status": {"type": "string"},
+                "revision": {"type": "integer", "minimum": 0},
                 "exam_days": {"type": "array", "items": {"type": "object"}},
                 "validation": {"type": "object"},
                 "counts": {"type": "object"},
                 "_links": link_map(),
             },
-            required=("round_id", "status", "exam_days", "validation", "counts", "_links"),
+            required=(
+                "round_id",
+                "status",
+                "revision",
+                "exam_days",
+                "validation",
+                "counts",
+                "_links",
+            ),
         ),
         "ConfirmedPlan": object_schema(
             {
                 "round_id": {"type": "integer"},
                 "status": {"type": "string"},
+                "revision": {"type": "integer", "minimum": 0},
                 "exam_days": {"type": "array", "items": {"type": "object"}},
                 "counts": {"type": "object"},
                 "_links": link_map(),
             },
-            required=("round_id", "status", "exam_days", "counts", "_links"),
+            required=("round_id", "status", "revision", "exam_days", "counts", "_links"),
         ),
         "SessionView": object_schema(
             {
@@ -831,11 +991,11 @@ def spec() -> dict[str, Any]:
         if path in public_paths or path == "/api/docs":
             continue
         for method, operation in operations.items():
-            if method not in {"get", "post", "patch", "delete"}:
+            if method not in {"get", "post", "put", "patch", "delete"}:
                 continue
             operation.setdefault("security", [{"sessionCookie": []}])
             operation.setdefault("responses", {})["401"] = json_response("Error")
-            if method in {"post", "patch", "delete"} and path not in {
+            if method in {"post", "put", "patch", "delete"} and path not in {
                 "/api/session",
             }:
                 operation["security"] = [{"sessionCookie": [], "csrfHeader": []}]

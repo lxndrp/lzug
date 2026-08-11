@@ -158,6 +158,10 @@ class ApiTests(unittest.TestCase):
             self.assertIn("/api/candidates/{id}", spec["paths"])
             self.assertIn("/api/exam-rounds/{id}", spec["paths"])
             self.assertIn("/api/exam-rounds/{id}/confirm-plan", spec["paths"])
+            self.assertEqual(
+                {"get", "put"},
+                set(spec["paths"]["/api/exam-rounds/{id}/planning-proposal"]),
+            )
             self.assertIn("/api/exam-rounds/{id}/request-availabilities", spec["paths"])
             self.assertIn("/api/candidate-exam-days/generate", spec["paths"])
             self.assertIn("/api/confirmed-plans", spec["paths"])
@@ -190,6 +194,18 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(
                 {"sessionCookie": [], "csrfHeader": []},
                 spec["paths"]["/api/candidates"]["post"]["security"][0],
+            )
+            self.assertEqual(
+                {"sessionCookie": []},
+                spec["paths"]["/api/exam-rounds/{id}/planning-proposal"]["get"]["security"][0],
+            )
+            self.assertEqual(
+                {"sessionCookie": [], "csrfHeader": []},
+                spec["paths"]["/api/exam-rounds/{id}/planning-proposal"]["put"]["security"][0],
+            )
+            self.assertEqual(
+                ["round_id", "revision", "exam_days"],
+                spec["components"]["schemas"]["PlanningProposalWrite"]["required"],
             )
             self.assertIn("401", spec["paths"]["/api/candidates"]["get"]["responses"])
             self.assertIn("403", spec["paths"]["/api/candidates"]["post"]["responses"])
@@ -689,11 +705,12 @@ class ApiTests(unittest.TestCase):
             )[:2]
             assert_status(status, HTTPStatus.FORBIDDEN)
 
-    def test_confirmation_without_proposal_returns_bad_request(self) -> None:
+    def test_confirmation_without_proposal_returns_conflict(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             status, body = api.request("POST", "/api/exam-rounds/1/confirm-plan", {})
-            assert_status(status, HTTPStatus.BAD_REQUEST)
-            self.assertEqual("No planning proposal found", body["error"])
+            assert_status(status, HTTPStatus.CONFLICT)
+            self.assertEqual("planning_proposal_conflict", body["error"]["code"])
+            self.assertEqual("No planning proposal found", body["error"]["message"])
 
     def test_planning_settings_and_availabilities_are_writable(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
@@ -821,9 +838,72 @@ class ApiTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertEqual("plan_proposed", summary["round"]["status"])
 
+    def test_complete_planning_proposal_can_be_read_and_atomically_replaced(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, generated = api.request("POST", "/api/planning-proposals", {"round_id": 1})
+            assert_status(status, HTTPStatus.CREATED)
+
+            status, proposal = api.request("GET", "/api/exam-rounds/1/planning-proposal")
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(generated["revision"], proposal["revision"])
+            self.assertTrue(proposal["exam_days"][0]["assignments"])
+            self.assertIn("candidate_exam_day_id", proposal["exam_days"][0])
+
+            original_revision = proposal["revision"]
+            first_day = proposal["exam_days"][0]
+            regular_slots = [slot for slot in first_day["slots"] if slot["slot_type"] == "regular"]
+            mep_slots = [slot for slot in first_day["slots"] if slot["slot_type"] == "mep"]
+            first_day["slots"] = [*reversed(regular_slots), *mep_slots]
+            status, saved = api.request("PUT", "/api/exam-rounds/1/planning-proposal", proposal)
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(original_revision + 1, saved["revision"])
+            self.assertEqual(
+                [slot["round_candidate_id"] for slot in reversed(regular_slots)],
+                [
+                    slot["round_candidate_id"]
+                    for slot in saved["exam_days"][0]["slots"][: len(regular_slots)]
+                ],
+            )
+
+            status, conflict = api.request("PUT", "/api/exam-rounds/1/planning-proposal", proposal)
+            assert_status(status, HTTPStatus.CONFLICT)
+            self.assertEqual("planning_proposal_conflict", conflict["error"]["code"])
+            status, unchanged = api.request("GET", "/api/exam-rounds/1/planning-proposal")
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(saved, unchanged)
+
+    def test_planning_validation_problem_is_structured_and_does_not_change_proposal(
+        self,
+    ) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, _generated = api.request("POST", "/api/planning-proposals", {"round_id": 1})
+            assert_status(status, HTTPStatus.CREATED)
+            status, proposal = api.request("GET", "/api/exam-rounds/1/planning-proposal")
+            assert_status(status, HTTPStatus.OK)
+            first_day = proposal["exam_days"][0]
+            first_day["slots"][0]["round_candidate_id"] = first_day["slots"][1][
+                "round_candidate_id"
+            ]
+
+            status, problem = api.request("PUT", "/api/exam-rounds/1/planning-proposal", proposal)
+            assert_status(status, HTTPStatus.UNPROCESSABLE_ENTITY)
+            self.assertEqual("planning_proposal_invalid", problem["error"]["code"])
+            self.assertTrue(problem["error"]["violations"])
+            self.assertEqual(
+                {"code", "message", "day_id", "slot_id", "member_id"},
+                set(problem["error"]["violations"][0]),
+            )
+
+            status, unchanged = api.request("GET", "/api/exam-rounds/1/planning-proposal")
+            assert_status(status, HTTPStatus.OK)
+            self.assertNotEqual(
+                first_day["slots"][0]["round_candidate_id"],
+                unchanged["exam_days"][0]["slots"][0]["round_candidate_id"],
+            )
+
     def test_plan_resources_are_read_only_outside_the_aggregate_path(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
-            status, _proposal = api.request(
+            status, proposal = api.request(
                 "POST",
                 "/api/planning-proposals",
                 {"round_id": 1},
@@ -916,7 +996,7 @@ class ApiTests(unittest.TestCase):
 
     def test_planning_proposal_can_be_confirmed_over_http(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
-            status, _proposal = api.request(
+            status, proposal = api.request(
                 "POST",
                 "/api/planning-proposals",
                 {"round_id": 1},
@@ -929,6 +1009,7 @@ class ApiTests(unittest.TestCase):
             )
             assert_status(status, HTTPStatus.OK)
             self.assertEqual("plan_confirmed", confirmed["status"])
+            self.assertEqual(proposal["revision"] + 1, confirmed["revision"])
             self.assertEqual(16, confirmed["counts"]["confirmed_slots"])
             self.assertEqual(
                 "/api/round-summary?round_id=1",
@@ -938,6 +1019,10 @@ class ApiTests(unittest.TestCase):
             status, summary = api.request("GET", "/api/round-summary?round_id=1")
             assert_status(status, HTTPStatus.OK)
             self.assertEqual("plan_confirmed", summary["round"]["status"])
+
+            status, conflict = api.request("POST", "/api/exam-rounds/1/confirm-plan", {})
+            assert_status(status, HTTPStatus.CONFLICT)
+            self.assertEqual("planning_proposal_conflict", conflict["error"]["code"])
 
 
 if __name__ == "__main__":
