@@ -33,6 +33,7 @@ from .database import (
     persistence_paths,
     validate_persistence,
 )
+from .local_auth import LocalAuthError, LocalAuthService
 from .models import (
     CANDIDATE,
     CANDIDATE_COMMITTEE_ASSIGNMENT,
@@ -86,6 +87,10 @@ class LzugHandler(BaseHTTPRequestHandler):
     @property
     def authorization_service(self) -> AuthorizationService:
         return AuthorizationService(self.db_path)
+
+    @property
+    def local_auth_service(self) -> LocalAuthService:
+        return LocalAuthService(self.db_path)
 
     def do_GET(self) -> None:
         """Dispatch read, health, OpenAPI, and Swagger UI requests."""
@@ -258,6 +263,92 @@ class LzugHandler(BaseHTTPRequestHandler):
         """Dispatch creates and planning actions, translating domain errors to HTTP."""
         try:
             path_parts = self.path_parts(urlparse(self.path).path)
+            if path_parts == ["auth", "login"]:
+                payload = self.read_json()
+                result = self.local_auth_service.login(
+                    payload.get("email", "") if isinstance(payload.get("email", ""), str) else "",
+                    (
+                        payload.get("password", "")
+                        if isinstance(payload.get("password", ""), str)
+                        else ""
+                    ),
+                    (
+                        payload.get("second_factor", "")
+                        if isinstance(payload.get("second_factor", ""), str)
+                        else ""
+                    ),
+                    remote_key=self.client_address[0],
+                )
+                self.issue_session_cookies(result.credentials)
+                self.respond(
+                    {
+                        "authenticated": True,
+                        "account_id": result.account_id,
+                        "expires_at": result.credentials.expires_at,
+                    }
+                )
+                return
+
+            if path_parts == ["auth", "invitation", "prepare"]:
+                preparation = self.local_auth_service.prepare_invitation(
+                    self.read_json().get("token", "")
+                )
+                self.respond(
+                    {
+                        "email": preparation.email,
+                        "expires_at": preparation.expires_at,
+                        "totp_secret": preparation.totp_secret,
+                    }
+                )
+                return
+
+            if path_parts == ["auth", "invitation", "activate"]:
+                payload = self.read_json()
+                account, recovery_codes = self.local_auth_service.activate_invitation(
+                    payload.get("token", ""),
+                    payload.get("password", ""),
+                    payload.get("totp_secret", ""),
+                    payload.get("totp_code", ""),
+                )
+                self.respond(
+                    {
+                        "activated": True,
+                        "account": account,
+                        "recovery_codes": recovery_codes,
+                    }
+                )
+                return
+
+            if path_parts == ["auth", "recovery", "prepare"]:
+                preparation = self.local_auth_service.prepare_recovery(
+                    self.read_json().get("token", "")
+                )
+                self.respond(
+                    {
+                        "email": preparation.email,
+                        "expires_at": preparation.expires_at,
+                        "totp_secret": preparation.totp_secret,
+                    }
+                )
+                return
+
+            if path_parts == ["auth", "recovery", "complete"]:
+                payload = self.read_json()
+                account, recovery_codes = self.local_auth_service.complete_recovery(
+                    payload.get("token", ""),
+                    payload.get("password", ""),
+                    payload.get("totp_secret", ""),
+                    payload.get("totp_code", ""),
+                )
+                self.respond(
+                    {
+                        "recovered": True,
+                        "account": account,
+                        "recovery_codes": recovery_codes,
+                    }
+                )
+                return
+
             if path_parts == ["session", "rotate"]:
                 context = self.require_authenticated(require_actor=False, require_csrf=True)
                 if context is None:
@@ -371,6 +462,17 @@ class LzugHandler(BaseHTTPRequestHandler):
             )
         except ForbiddenRequestError as error:
             self.respond({"error": str(error)}, HTTPStatus.FORBIDDEN)
+        except LocalAuthError as error:
+            status = (
+                HTTPStatus.TOO_MANY_REQUESTS
+                if error.code == "rate_limited"
+                else HTTPStatus.UNAUTHORIZED
+            )
+            if error.code in {"invalid_factor", "token_invalid"}:
+                status = HTTPStatus.BAD_REQUEST
+            if error.retry_after is not None:
+                self._add_response_header("Retry-After", str(error.retry_after))
+            self.respond({"error": str(error)}, status)
         except ValueError as error:
             self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
         except SQLAlchemyError as error:

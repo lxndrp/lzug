@@ -3,7 +3,7 @@
 Die aktuelle, ausführbare Schema-Referenz ist `db/schema.sql` im Repository. Sie
 und die versionierten Migrationen unter `db/migrations/` sind maßgeblich für
 den tatsächlichen Datenbankstand. Der aktuelle Migrationsstand ist
-`009_harden_migration_history.sql`.
+`011_add_local_password_totp_auth.sql`.
 
 Das aktuelle Backend verwendet SQLite lokal und SQLAlchemy. Primärschlüssel,
 Enums, Zeitstempel und Booleans sind SQLite-kompatibel modelliert; mehrzeilige
@@ -19,7 +19,12 @@ Diese Referenz ersetzt weder `db/schema.sql` noch die Migrationen.
 den Ablauf, Widerruf und die optionale Rotationsherkunft. Die Migration
 `008_add_authentication_sessions.sql` ergänzt diese Tabellen für bestehende
 Datenbanken; die Rohwerte werden nur beim internen Erzeugen einer Session an
-den aufrufenden Service zurückgegeben.
+den aufrufenden Service zurückgegeben. `011_add_local_password_totp_auth.sql`
+ergänzt die verschlüsselte TOTP-Secret-Spalte, den zuletzt akzeptierten
+TOTP-Zeitschritt und `auth_recovery_code`. Die Tabelle enthält ausschließlich
+Argon2id-Hashes der einmalig ausgegebenen Recovery-Codes sowie deren
+Verbrauchszeitpunkt; Einladungstoken und Betreiber-Recovery-Token bleiben als
+SHA-256-Prüfwerte in `auth_token` getrennt.
 
 ## Betriebskonfiguration
 

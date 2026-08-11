@@ -1,6 +1,9 @@
 import { Routes } from '@angular/router';
 
 export const routes: Routes = [
+  { path: 'login', children: [] },
+  { path: 'activate', children: [] },
+  { path: 'recover', children: [] },
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
   { path: 'dashboard', children: [] },
   { path: 'scheduling-overview', children: [] },

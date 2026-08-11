@@ -1,322 +1,335 @@
 <tui-root>
-  <div class="app-shell" [class.sidebar-collapsed]="!sidebarVisible()">
-    <aside
-      id="appSidebar"
-      class="app-sidebar"
-      [class.show]="sidebarVisible()"
-      [class.hide]="!sidebarVisible()"
-      [class.is-visible]="sidebarVisible()"
-      [attr.inert]="sidebarVisible() ? null : ''"
-      [attr.aria-hidden]="sidebarVisible() ? null : 'true'"
-      role="complementary"
-      aria-label="Prüfungsverwaltung"
-    >
-      <div class="app-sidebar-header">
-        <a class="app-brand" href="/dashboard" (click)="navigateFromShell('dashboard', $event)"
-          >LZUG</a
-        >
+  @if (auth.state() === 'checking') {
+    <main class="auth-page" aria-labelledby="auth-loading-title">
+      <section class="auth-card" aria-live="polite">
+        <h1 id="auth-loading-title">Anmeldung wird geprüft</h1>
+        <p>Ihre sichere Sitzung wird geladen.</p>
+      </section>
+    </main>
+  } @else if (auth.state() === 'anonymous') {
+    <app-auth-flow />
+  } @else {
+    <div class="app-shell" [class.sidebar-collapsed]="!sidebarVisible()">
+      <aside
+        id="appSidebar"
+        class="app-sidebar"
+        [class.show]="sidebarVisible()"
+        [class.hide]="!sidebarVisible()"
+        [class.is-visible]="sidebarVisible()"
+        [attr.inert]="sidebarVisible() ? null : ''"
+        [attr.aria-hidden]="sidebarVisible() ? null : 'true'"
+        role="complementary"
+        aria-label="Prüfungsverwaltung"
+      >
+        <div class="app-sidebar-header">
+          <a class="app-brand" href="/dashboard" (click)="navigateFromShell('dashboard', $event)"
+            >LZUG</a
+          >
+          <button
+            #sidebarClose
+            tuiButton
+            appearance="flat"
+            class="app-sidebar-close"
+            type="button"
+            aria-label="Navigation schließen"
+            (click)="closeSidebar()"
+          >
+            <span class="app-menu-icon is-close" aria-hidden="true"></span>
+          </button>
+        </div>
+
+        <nav class="app-navigation" aria-label="Hauptnavigation">
+          <p class="app-nav-title">Prüfungskontext</p>
+          <a
+            class="app-nav-link"
+            href="/exam-half-years"
+            [class.is-active]="activeView() === 'exam-half-years'"
+            (click)="navigateFromShell('exam-half-years', $event)"
+          >
+            <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
+            Prüfungskontext auswählen
+          </a>
+          @if (activeContext(); as context) {
+            <div class="app-nav-context" aria-label="Aktiver Kontext in der Navigation">
+              <strong>Aktiver Kontext</strong>
+              <span>{{ context.halfYear }}</span>
+              <span>{{ context.committee }}</span>
+            </div>
+          }
+
+          <p class="app-nav-title">Aktueller Prüfungskontext</p>
+          <a
+            class="app-nav-link"
+            href="/dashboard"
+            [class.is-active]="activeView() === 'dashboard'"
+            (click)="navigateFromShell('dashboard', $event)"
+          >
+            <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
+            Übersicht
+          </a>
+          <a
+            class="app-nav-link"
+            href="/scheduling-overview"
+            [class.is-active]="
+              activeView() === 'scheduling-overview' || activeView() === 'planning'
+            "
+            (click)="navigateFromShell('scheduling-overview', $event)"
+          >
+            <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
+            Terminorganisationen
+          </a>
+          <a
+            class="app-nav-link"
+            href="/confirmed-plans"
+            [class.is-active]="activeView() === 'confirmed-plans'"
+            (click)="navigateFromShell('confirmed-plans', $event)"
+          >
+            <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
+            Prüfungspläne
+          </a>
+          <a
+            class="app-nav-link"
+            href="/candidates"
+            [class.is-active]="activeView() === 'candidates'"
+            (click)="navigateFromShell('candidates', $event)"
+          >
+            <svg [cIcon]="icons.candidates" class="app-nav-icon" aria-hidden="true"></svg>
+            Prüflinge
+          </a>
+          <p class="app-nav-title">Globale Bereiche</p>
+          <a
+            class="app-nav-link"
+            href="/committee"
+            [class.is-active]="activeView() === 'committee'"
+            (click)="navigateFromShell('committee', $event)"
+          >
+            <svg [cIcon]="icons.committee" class="app-nav-icon" aria-hidden="true"></svg>
+            Prüfungsausschüsse
+          </a>
+          <a
+            class="app-nav-link"
+            href="/locations"
+            [class.is-active]="activeView() === 'locations'"
+            (click)="navigateFromShell('locations', $event)"
+          >
+            <svg [cIcon]="icons.locations" class="app-nav-icon" aria-hidden="true"></svg>
+            Prüfungsorte
+          </a>
+        </nav>
+      </aside>
+
+      @if (sidebarVisible()) {
         <button
-          #sidebarClose
-          tuiButton
-          appearance="flat"
-          class="app-sidebar-close"
+          class="app-sidebar-backdrop"
           type="button"
           aria-label="Navigation schließen"
           (click)="closeSidebar()"
-        >
-          <span class="app-menu-icon is-close" aria-hidden="true"></span>
-        </button>
+        ></button>
+      }
+
+      <div class="app-wrapper">
+        <header class="app-header">
+          <div class="app-header-inner">
+            <button
+              #sidebarToggle
+              tuiButton
+              appearance="flat"
+              class="app-sidebar-toggle"
+              type="button"
+              [attr.aria-controls]="'appSidebar'"
+              [attr.aria-expanded]="sidebarVisible()"
+              [attr.aria-label]="sidebarVisible() ? 'Navigation schließen' : 'Navigation öffnen'"
+              [class.is-open]="sidebarVisible()"
+              (click)="toggleSidebar()"
+            >
+              <span class="app-menu-icon header-toggler-icon" aria-hidden="true"></span>
+            </button>
+            <a
+              class="app-header-title"
+              href="/dashboard"
+              (click)="navigateFromShell('dashboard', $event)"
+              >Prüfungsverwaltung</a
+            >
+            <span class="app-spacer"></span>
+            <span class="app-header-status">
+              {{ loading() ? 'Daten werden geladen' : message() }}
+            </span>
+            <button
+              tuiButton
+              appearance="secondary"
+              class="app-refresh-button"
+              type="button"
+              (click)="refresh()"
+              [disabled]="loading()"
+            >
+              <svg [cIcon]="icons.reload" class="app-button-icon" aria-hidden="true"></svg>
+              Aktualisieren
+            </button>
+          </div>
+          @if (loading()) {
+            <div class="app-progress" role="progressbar" aria-label="Daten werden geladen">
+              <span></span>
+            </div>
+          }
+        </header>
+
+        <main class="app-content">
+          <div class="app-content-inner">
+            <header class="app-page-header">
+              <nav class="app-breadcrumb app-muted" aria-label="Breadcrumb">
+                <a href="/dashboard" (click)="navigateFromShell('dashboard', $event)"
+                  >Prüfungsverwaltung</a
+                >
+                <span aria-hidden="true">/</span>
+                <span>{{ breadcrumb() }}</span>
+              </nav>
+              <h1>{{ pageTitle() }}</h1>
+            </header>
+
+            @if (isContextualView()) {
+              @if (activeContext(); as context) {
+                <section class="app-active-context" aria-labelledby="activeContextHeading">
+                  <div>
+                    <p class="app-eyebrow" id="activeContextHeading">Aktueller Prüfungskontext</p>
+                    <dl>
+                      <div>
+                        <dt>Prüfungshalbjahr</dt>
+                        <dd>{{ context.halfYear }}</dd>
+                      </div>
+                      <div>
+                        <dt>Prüfungsrunde</dt>
+                        <dd>{{ context.round }}</dd>
+                      </div>
+                      <div>
+                        <dt>Ausschuss</dt>
+                        <dd>{{ context.committee }}</dd>
+                      </div>
+                      <div>
+                        <dt>Bearbeitungsstand</dt>
+                        <dd>{{ context.status }}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                  <a
+                    tuiButton
+                    appearance="secondary"
+                    href="/exam-half-years"
+                    (click)="navigateFromShell('exam-half-years', $event)"
+                    >Prüfungskontext wechseln</a
+                  >
+                </section>
+              } @else {
+                <section class="app-active-context app-active-context-empty" role="status">
+                  <div>
+                    <p class="app-eyebrow">Prüfungskontext erforderlich</p>
+                    <p>
+                      Wählen Sie ein Prüfungshalbjahr und einen Ausschuss aus, um rundenspezifisch
+                      zu arbeiten.
+                    </p>
+                  </div>
+                  <a
+                    tuiButton
+                    appearance="primary"
+                    href="/exam-half-years"
+                    (click)="navigateFromShell('exam-half-years', $event)"
+                    >Prüfungskontext auswählen</a
+                  >
+                </section>
+              }
+            }
+
+            @switch (activeView()) {
+              @case ('dashboard') {
+                <app-dashboard
+                  [summary]="summary()"
+                  [round]="round()"
+                  [board]="board()"
+                  [planningResult]="lastPlanningResult()"
+                  [loading]="loading()"
+                  [actionBusy]="actionBusy()"
+                  (openView)="showView($event)"
+                />
+              }
+              @case ('scheduling-overview') {
+                <app-scheduling-overview (openRound)="openSchedulingRound($event)" />
+              }
+              @case ('confirmed-plans') {
+                <app-confirmed-plans [roundId]="contextualRoundId()" />
+              }
+              @case ('exam-day') {
+                <app-exam-day [roundId]="contextualRoundId()" [dayId]="contextualDayId()" />
+              }
+              @case ('candidates') {
+                <app-candidates
+                  [masterData]="masterData()"
+                  [activeRound]="round()"
+                  [actionBusy]="actionBusy()"
+                  (createCandidate)="createCandidate($event)"
+                  (updateCandidate)="updateCandidate($event)"
+                  (deleteCandidate)="
+                    requestCandidateDeletion($event.id, $event.first_name + ' ' + $event.last_name)
+                  "
+                />
+              }
+              @case ('committee') {
+                <app-committee
+                  [masterData]="masterData()"
+                  [selectedCommitteeIdInput]="selectedCommitteeId()"
+                  [actionBusy]="actionBusy()"
+                  (selectedCommitteeIdChange)="selectCommittee($event)"
+                  (createCommittee)="createCommittee($event)"
+                  (createMember)="createMember($event)"
+                  (toggleMember)="toggleMember($event)"
+                />
+              }
+              @case ('planning') {
+                <app-planning
+                  [round]="round()"
+                  [summary]="summary()"
+                  [board]="board()"
+                  [masterData]="masterData()"
+                  [actionBusy]="actionBusy()"
+                  [candidateDayGenerationResult]="candidateDayGenerationResult()"
+                  [planningResult]="lastPlanningResult()"
+                  (saveSettings)="savePlanningSettings($event)"
+                  (saveRound)="saveExamRound($event)"
+                  (requestAvailabilities)="requestAvailabilities($event)"
+                  (createCandidateDay)="createCandidateDay($event)"
+                  (generateCandidateDays)="generateCandidateDays($event)"
+                  (toggleCandidateDay)="toggleCandidateDay($event)"
+                  (saveAvailability)="saveAvailability($event)"
+                  (generateProposal)="generateProposal()"
+                  (confirmPlan)="requestPlanConfirmation()"
+                  (cancel)="cancelScheduling()"
+                />
+              }
+              @case ('locations') {
+                <app-locations
+                  [masterData]="masterData()"
+                  [actionBusy]="actionBusy()"
+                  (createLocation)="createLocation($event)"
+                  (updateLocation)="updateLocation($event)"
+                  (toggleLocation)="toggleLocation($event)"
+                  (deleteLocation)="
+                    requestLocationDeletion($event.id, $event.name + ' · ' + $event.room)
+                  "
+                />
+              }
+              @case ('exam-half-years') {
+                <app-exam-half-years
+                  [committees]="masterData()?.committees || []"
+                  [candidates]="masterData()?.candidates || []"
+                  [candidateAssignments]="masterData()?.candidateAssignments || []"
+                  [activeRoundId]="round()?.id || null"
+                  (roundSelected)="selectExamRound($event)"
+                />
+              }
+            }
+          </div>
+        </main>
       </div>
-
-      <nav class="app-navigation" aria-label="Hauptnavigation">
-        <p class="app-nav-title">Prüfungskontext</p>
-        <a
-          class="app-nav-link"
-          href="/exam-half-years"
-          [class.is-active]="activeView() === 'exam-half-years'"
-          (click)="navigateFromShell('exam-half-years', $event)"
-        >
-          <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
-          Prüfungskontext auswählen
-        </a>
-        @if (activeContext(); as context) {
-          <div class="app-nav-context" aria-label="Aktiver Kontext in der Navigation">
-            <strong>Aktiver Kontext</strong>
-            <span>{{ context.halfYear }}</span>
-            <span>{{ context.committee }}</span>
-          </div>
-        }
-
-        <p class="app-nav-title">Aktueller Prüfungskontext</p>
-        <a
-          class="app-nav-link"
-          href="/dashboard"
-          [class.is-active]="activeView() === 'dashboard'"
-          (click)="navigateFromShell('dashboard', $event)"
-        >
-          <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
-          Übersicht
-        </a>
-        <a
-          class="app-nav-link"
-          href="/scheduling-overview"
-          [class.is-active]="activeView() === 'scheduling-overview' || activeView() === 'planning'"
-          (click)="navigateFromShell('scheduling-overview', $event)"
-        >
-          <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
-          Terminorganisationen
-        </a>
-        <a
-          class="app-nav-link"
-          href="/confirmed-plans"
-          [class.is-active]="activeView() === 'confirmed-plans'"
-          (click)="navigateFromShell('confirmed-plans', $event)"
-        >
-          <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
-          Prüfungspläne
-        </a>
-        <a
-          class="app-nav-link"
-          href="/candidates"
-          [class.is-active]="activeView() === 'candidates'"
-          (click)="navigateFromShell('candidates', $event)"
-        >
-          <svg [cIcon]="icons.candidates" class="app-nav-icon" aria-hidden="true"></svg>
-          Prüflinge
-        </a>
-        <p class="app-nav-title">Globale Bereiche</p>
-        <a
-          class="app-nav-link"
-          href="/committee"
-          [class.is-active]="activeView() === 'committee'"
-          (click)="navigateFromShell('committee', $event)"
-        >
-          <svg [cIcon]="icons.committee" class="app-nav-icon" aria-hidden="true"></svg>
-          Prüfungsausschüsse
-        </a>
-        <a
-          class="app-nav-link"
-          href="/locations"
-          [class.is-active]="activeView() === 'locations'"
-          (click)="navigateFromShell('locations', $event)"
-        >
-          <svg [cIcon]="icons.locations" class="app-nav-icon" aria-hidden="true"></svg>
-          Prüfungsorte
-        </a>
-      </nav>
-    </aside>
-
-    @if (sidebarVisible()) {
-      <button
-        class="app-sidebar-backdrop"
-        type="button"
-        aria-label="Navigation schließen"
-        (click)="closeSidebar()"
-      ></button>
-    }
-
-    <div class="app-wrapper">
-      <header class="app-header">
-        <div class="app-header-inner">
-          <button
-            #sidebarToggle
-            tuiButton
-            appearance="flat"
-            class="app-sidebar-toggle"
-            type="button"
-            [attr.aria-controls]="'appSidebar'"
-            [attr.aria-expanded]="sidebarVisible()"
-            [attr.aria-label]="sidebarVisible() ? 'Navigation schließen' : 'Navigation öffnen'"
-            [class.is-open]="sidebarVisible()"
-            (click)="toggleSidebar()"
-          >
-            <span class="app-menu-icon header-toggler-icon" aria-hidden="true"></span>
-          </button>
-          <a
-            class="app-header-title"
-            href="/dashboard"
-            (click)="navigateFromShell('dashboard', $event)"
-            >Prüfungsverwaltung</a
-          >
-          <span class="app-spacer"></span>
-          <span class="app-header-status">
-            {{ loading() ? 'Daten werden geladen' : message() }}
-          </span>
-          <button
-            tuiButton
-            appearance="secondary"
-            class="app-refresh-button"
-            type="button"
-            (click)="refresh()"
-            [disabled]="loading()"
-          >
-            <svg [cIcon]="icons.reload" class="app-button-icon" aria-hidden="true"></svg>
-            Aktualisieren
-          </button>
-        </div>
-        @if (loading()) {
-          <div class="app-progress" role="progressbar" aria-label="Daten werden geladen">
-            <span></span>
-          </div>
-        }
-      </header>
-
-      <main class="app-content">
-        <div class="app-content-inner">
-          <header class="app-page-header">
-            <nav class="app-breadcrumb app-muted" aria-label="Breadcrumb">
-              <a href="/dashboard" (click)="navigateFromShell('dashboard', $event)"
-                >Prüfungsverwaltung</a
-              >
-              <span aria-hidden="true">/</span>
-              <span>{{ breadcrumb() }}</span>
-            </nav>
-            <h1>{{ pageTitle() }}</h1>
-          </header>
-
-          @if (isContextualView()) {
-            @if (activeContext(); as context) {
-              <section class="app-active-context" aria-labelledby="activeContextHeading">
-                <div>
-                  <p class="app-eyebrow" id="activeContextHeading">Aktueller Prüfungskontext</p>
-                  <dl>
-                    <div>
-                      <dt>Prüfungshalbjahr</dt>
-                      <dd>{{ context.halfYear }}</dd>
-                    </div>
-                    <div>
-                      <dt>Prüfungsrunde</dt>
-                      <dd>{{ context.round }}</dd>
-                    </div>
-                    <div>
-                      <dt>Ausschuss</dt>
-                      <dd>{{ context.committee }}</dd>
-                    </div>
-                    <div>
-                      <dt>Bearbeitungsstand</dt>
-                      <dd>{{ context.status }}</dd>
-                    </div>
-                  </dl>
-                </div>
-                <a
-                  tuiButton
-                  appearance="secondary"
-                  href="/exam-half-years"
-                  (click)="navigateFromShell('exam-half-years', $event)"
-                  >Prüfungskontext wechseln</a
-                >
-              </section>
-            } @else {
-              <section class="app-active-context app-active-context-empty" role="status">
-                <div>
-                  <p class="app-eyebrow">Prüfungskontext erforderlich</p>
-                  <p>
-                    Wählen Sie ein Prüfungshalbjahr und einen Ausschuss aus, um rundenspezifisch zu
-                    arbeiten.
-                  </p>
-                </div>
-                <a
-                  tuiButton
-                  appearance="primary"
-                  href="/exam-half-years"
-                  (click)="navigateFromShell('exam-half-years', $event)"
-                  >Prüfungskontext auswählen</a
-                >
-              </section>
-            }
-          }
-
-          @switch (activeView()) {
-            @case ('dashboard') {
-              <app-dashboard
-                [summary]="summary()"
-                [round]="round()"
-                [board]="board()"
-                [planningResult]="lastPlanningResult()"
-                [loading]="loading()"
-                [actionBusy]="actionBusy()"
-                (openView)="showView($event)"
-              />
-            }
-            @case ('scheduling-overview') {
-              <app-scheduling-overview (openRound)="openSchedulingRound($event)" />
-            }
-            @case ('confirmed-plans') {
-              <app-confirmed-plans [roundId]="contextualRoundId()" />
-            }
-            @case ('exam-day') {
-              <app-exam-day [roundId]="contextualRoundId()" [dayId]="contextualDayId()" />
-            }
-            @case ('candidates') {
-              <app-candidates
-                [masterData]="masterData()"
-                [activeRound]="round()"
-                [actionBusy]="actionBusy()"
-                (createCandidate)="createCandidate($event)"
-                (updateCandidate)="updateCandidate($event)"
-                (deleteCandidate)="
-                  requestCandidateDeletion($event.id, $event.first_name + ' ' + $event.last_name)
-                "
-              />
-            }
-            @case ('committee') {
-              <app-committee
-                [masterData]="masterData()"
-                [selectedCommitteeIdInput]="selectedCommitteeId()"
-                [actionBusy]="actionBusy()"
-                (selectedCommitteeIdChange)="selectCommittee($event)"
-                (createCommittee)="createCommittee($event)"
-                (createMember)="createMember($event)"
-                (toggleMember)="toggleMember($event)"
-              />
-            }
-            @case ('planning') {
-              <app-planning
-                [round]="round()"
-                [summary]="summary()"
-                [board]="board()"
-                [masterData]="masterData()"
-                [actionBusy]="actionBusy()"
-                [candidateDayGenerationResult]="candidateDayGenerationResult()"
-                [planningResult]="lastPlanningResult()"
-                (saveSettings)="savePlanningSettings($event)"
-                (saveRound)="saveExamRound($event)"
-                (requestAvailabilities)="requestAvailabilities($event)"
-                (createCandidateDay)="createCandidateDay($event)"
-                (generateCandidateDays)="generateCandidateDays($event)"
-                (toggleCandidateDay)="toggleCandidateDay($event)"
-                (saveAvailability)="saveAvailability($event)"
-                (generateProposal)="generateProposal()"
-                (confirmPlan)="requestPlanConfirmation()"
-                (cancel)="cancelScheduling()"
-              />
-            }
-            @case ('locations') {
-              <app-locations
-                [masterData]="masterData()"
-                [actionBusy]="actionBusy()"
-                (createLocation)="createLocation($event)"
-                (updateLocation)="updateLocation($event)"
-                (toggleLocation)="toggleLocation($event)"
-                (deleteLocation)="
-                  requestLocationDeletion($event.id, $event.name + ' · ' + $event.room)
-                "
-              />
-            }
-            @case ('exam-half-years') {
-              <app-exam-half-years
-                [committees]="masterData()?.committees || []"
-                [candidates]="masterData()?.candidates || []"
-                [candidateAssignments]="masterData()?.candidateAssignments || []"
-                [activeRoundId]="round()?.id || null"
-                (roundSelected)="selectExamRound($event)"
-              />
-            }
-          }
-        </div>
-      </main>
     </div>
-  </div>
+  }
 </tui-root>
 @if (feedback(); as currentFeedback) {
   <div

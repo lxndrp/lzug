@@ -128,6 +128,59 @@ def spec() -> dict[str, Any]:
                 },
             }
         },
+        "/api/auth/login": {
+            "post": {
+                "summary": "Authenticate with password and TOTP or one recovery code",
+                "operationId": "loginWithPasswordAndTotp",
+                "requestBody": json_request("AuthLoginWrite"),
+                "responses": {
+                    "200": json_response("AuthLogin"),
+                    "401": json_response("Error"),
+                    "429": json_response("Error"),
+                },
+            }
+        },
+        "/api/auth/invitation/prepare": {
+            "post": {
+                "summary": "Prepare an invitation activation without consuming its token",
+                "operationId": "prepareInvitationActivation",
+                "requestBody": json_request("AuthTokenWrite"),
+                "responses": {
+                    "200": json_response("InvitationPreparation"),
+                    "400": json_response("Error"),
+                },
+            }
+        },
+        "/api/auth/invitation/activate": {
+            "post": {
+                "summary": "Activate an invited account and issue recovery codes once",
+                "operationId": "activateInvitation",
+                "requestBody": json_request("AuthActivationWrite"),
+                "responses": {
+                    "200": json_response("AuthActivation"),
+                    "400": json_response("Error"),
+                },
+            }
+        },
+        "/api/auth/recovery/prepare": {
+            "post": {
+                "summary": "Prepare recovery without consuming its operator token",
+                "operationId": "prepareRecovery",
+                "requestBody": json_request("AuthTokenWrite"),
+                "responses": {
+                    "200": json_response("RecoveryPreparation"),
+                    "400": json_response("Error"),
+                },
+            }
+        },
+        "/api/auth/recovery/complete": {
+            "post": {
+                "summary": "Replace local factors using a one-time recovery token",
+                "operationId": "completeRecovery",
+                "requestBody": json_request("AuthActivationWrite"),
+                "responses": {"200": json_response("AuthRecovery"), "400": json_response("Error")},
+            }
+        },
         "/api/round-summary": {
             "get": {
                 "summary": "Round summary",
@@ -335,7 +388,17 @@ def spec() -> dict[str, Any]:
             },
         }
 
-    public_paths = {"/api", "/api/health", "/api/openapi.json", "/api/docs"}
+    public_paths = {
+        "/api",
+        "/api/health",
+        "/api/openapi.json",
+        "/api/docs",
+        "/api/auth/login",
+        "/api/auth/invitation/prepare",
+        "/api/auth/invitation/activate",
+        "/api/auth/recovery/prepare",
+        "/api/auth/recovery/complete",
+    }
     for path, operations in paths.items():
         if path in public_paths:
             continue
@@ -367,6 +430,74 @@ def spec() -> dict[str, Any]:
             required=("status", "reason", "migration", "_links"),
         ),
         "Error": object_schema({"error": {"type": "string"}}, required=("error",)),
+        "AuthTokenWrite": object_schema(
+            {"token": {"type": "string", "minLength": 1}}, required=("token",)
+        ),
+        "AuthLoginWrite": object_schema(
+            {
+                "email": {"type": "string", "format": "email"},
+                "password": {"type": "string", "writeOnly": True},
+                "second_factor": {"type": "string", "writeOnly": True},
+            },
+            required=("email", "password", "second_factor"),
+        ),
+        "AuthActivationWrite": object_schema(
+            {
+                "token": {"type": "string", "writeOnly": True},
+                "password": {"type": "string", "writeOnly": True},
+                "totp_secret": {"type": "string", "writeOnly": True},
+                "totp_code": {"type": "string", "writeOnly": True, "pattern": "^[0-9]{6}$"},
+            },
+            required=("token", "password", "totp_secret", "totp_code"),
+        ),
+        "AuthAccount": object_schema(
+            {
+                "id": {"type": "integer"},
+                "email": {"type": "string"},
+                "is_operator": {"type": "boolean"},
+            },
+            required=("id", "email", "is_operator"),
+        ),
+        "AuthLogin": object_schema(
+            {
+                "authenticated": {"type": "boolean", "const": True},
+                "account_id": {"type": "integer"},
+                "expires_at": {"type": "string"},
+            },
+            required=("authenticated", "account_id", "expires_at"),
+        ),
+        "InvitationPreparation": object_schema(
+            {
+                "email": {"type": "string"},
+                "expires_at": {"type": "string"},
+                "totp_secret": {"type": "string"},
+            },
+            required=("email", "expires_at", "totp_secret"),
+        ),
+        "RecoveryPreparation": object_schema(
+            {
+                "email": {"type": "string"},
+                "expires_at": {"type": "string"},
+                "totp_secret": {"type": "string"},
+            },
+            required=("email", "expires_at", "totp_secret"),
+        ),
+        "AuthActivation": object_schema(
+            {
+                "activated": {"type": "boolean", "const": True},
+                "account": {"$ref": "#/components/schemas/AuthAccount"},
+                "recovery_codes": {"type": "array", "items": {"type": "string"}},
+            },
+            required=("activated", "account", "recovery_codes"),
+        ),
+        "AuthRecovery": object_schema(
+            {
+                "recovered": {"type": "boolean", "const": True},
+                "account": {"$ref": "#/components/schemas/AuthAccount"},
+                "recovery_codes": {"type": "array", "items": {"type": "string"}},
+            },
+            required=("recovered", "account", "recovery_codes"),
+        ),
         "Link": object_schema(
             {
                 "href": {"type": "string"},
@@ -683,7 +814,16 @@ def spec() -> dict[str, Any]:
             required=("items", "_links"),
         )
 
-    public_paths = {"/api", "/api/health", "/api/openapi.json"}
+    public_paths = {
+        "/api",
+        "/api/health",
+        "/api/openapi.json",
+        "/api/auth/login",
+        "/api/auth/invitation/prepare",
+        "/api/auth/invitation/activate",
+        "/api/auth/recovery/prepare",
+        "/api/auth/recovery/complete",
+    }
     for path, operations in paths.items():
         if path in public_paths or path == "/api/docs":
             continue

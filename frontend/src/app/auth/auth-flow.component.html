@@ -1,0 +1,223 @@
+<main class="auth-page" aria-labelledby="auth-title">
+  <section class="auth-card">
+    <p class="auth-kicker">LZUG · lokale Anmeldung</p>
+    @if (screen() === 'login') {
+      <h1 id="auth-title">Anmelden</h1>
+      <p class="auth-intro">Melden Sie sich mit Ihrem Kennwort und einem TOTP-Code an.</p>
+      <form (ngSubmit)="submitLogin()" aria-describedby="auth-help auth-error">
+        <label for="auth-email">E-Mail-Adresse</label>
+        <input
+          id="auth-email"
+          name="email"
+          type="email"
+          autocomplete="username"
+          required
+          [(ngModel)]="email"
+        />
+        <label for="auth-password">Kennwort</label>
+        <input
+          id="auth-password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+          [(ngModel)]="password"
+        />
+        <label for="auth-factor">TOTP-Code oder Recovery-Code</label>
+        <input
+          id="auth-factor"
+          name="secondFactor"
+          inputmode="text"
+          autocomplete="one-time-code"
+          required
+          [(ngModel)]="secondFactor"
+        />
+        <p id="auth-help" class="auth-hint">
+          Der TOTP-Code ist nur kurz gültig. Ein Recovery-Code kann einmalig als Ersatz verwendet
+          werden.
+        </p>
+        @if (error(); as message) {
+          <p id="auth-error" class="auth-error" role="alert">{{ message }}</p>
+        }
+        <button type="submit" [disabled]="busy()">
+          {{ busy() ? 'Anmeldung wird geprüft …' : 'Anmelden' }}
+        </button>
+      </form>
+      <nav class="auth-links" aria-label="Weitere Anmeldeoptionen">
+        <a routerLink="/activate">Einladung aktivieren</a>
+        <a routerLink="/recover">Recovery durchführen</a>
+      </nav>
+    } @else if (screen() === 'activate') {
+      <h1 id="auth-title">Einladung aktivieren</h1>
+      <p class="auth-intro">
+        Geben Sie den einmaligen Token aus der Betreiber-Übergabe hier ein. Tokens werden nicht Teil
+        der Adresse.
+      </p>
+      @if (!preparation() && !completion()) {
+        <form (ngSubmit)="prepare()" aria-describedby="auth-error">
+          <label for="activation-token">Einladungstoken</label>
+          <input
+            id="activation-token"
+            name="token"
+            type="password"
+            autocomplete="off"
+            required
+            [(ngModel)]="token"
+          />
+          @if (error(); as message) {
+            <p id="auth-error" class="auth-error" role="alert">{{ message }}</p>
+          }
+          <button type="submit" [disabled]="busy()">Einrichtung beginnen</button>
+        </form>
+      } @else if (preparation() && !completion()) {
+        <p class="auth-success" role="status">
+          Einladung für <strong>{{ preparation()?.email }}</strong> erkannt.
+        </p>
+        <div class="auth-secret" aria-labelledby="totp-secret-label">
+          <span id="totp-secret-label">TOTP-Einrichtungswert</span>
+          <code>{{ totpSecret }}</code>
+          <small
+            >Nur in Ihrer TOTP-App hinterlegen. Dieser Wert wird nicht in der Adresse
+            gespeichert.</small
+          >
+        </div>
+        <form (ngSubmit)="complete()" aria-describedby="auth-error">
+          <label for="activation-password">Neues Kennwort</label>
+          <input
+            id="activation-password"
+            name="password"
+            type="password"
+            autocomplete="new-password"
+            minlength="12"
+            required
+            [(ngModel)]="password"
+          />
+          <label for="activation-password-confirmation">Kennwort wiederholen</label>
+          <input
+            id="activation-password-confirmation"
+            name="passwordConfirmation"
+            type="password"
+            autocomplete="new-password"
+            required
+            [(ngModel)]="passwordConfirmation"
+          />
+          <label for="activation-totp">TOTP-Code zur Bestätigung</label>
+          <input
+            id="activation-totp"
+            name="totpCode"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            pattern="[0-9]{6}"
+            required
+            [(ngModel)]="totpCode"
+          />
+          @if (error(); as message) {
+            <p id="auth-error" class="auth-error" role="alert">{{ message }}</p>
+          }
+          <button type="submit" [disabled]="busy()">Aktivierung abschließen</button>
+        </form>
+      } @else if (completion(); as result) {
+        <h2>Recovery-Codes sicher verwahren</h2>
+        <p class="auth-success" role="status">
+          Die Aktivierung ist abgeschlossen. Diese Codes werden jetzt genau einmal angezeigt.
+        </p>
+        <ul class="auth-recovery-codes" aria-label="Einmalige Recovery-Codes">
+          @for (code of result.recovery_codes; track code) {
+            <li>
+              <code>{{ code }}</code>
+            </li>
+          }
+        </ul>
+        <button type="button" (click)="switchScreen('login')">Zur Anmeldung</button>
+      }
+      @if (!completion()) {
+        <button class="auth-secondary" type="button" (click)="switchScreen('login')">
+          Zurück zur Anmeldung
+        </button>
+      }
+    } @else {
+      <h1 id="auth-title">Recovery</h1>
+      <p class="auth-intro">Setzen Sie Kennwort und TOTP mit dem kurzlebigen Recovery-Token neu.</p>
+      @if (!preparation() && !completion()) {
+        <form (ngSubmit)="prepare()" aria-describedby="auth-error">
+          <label for="recovery-token">Recovery-Token</label>
+          <input
+            id="recovery-token"
+            name="token"
+            type="password"
+            autocomplete="off"
+            required
+            [(ngModel)]="token"
+          />
+          @if (error(); as message) {
+            <p id="auth-error" class="auth-error" role="alert">{{ message }}</p>
+          }
+          <button type="submit" [disabled]="busy()">Recovery beginnen</button>
+        </form>
+      } @else if (preparation() && !completion()) {
+        <p class="auth-success" role="status">
+          Recovery für <strong>{{ preparation()?.email }}</strong> erkannt.
+        </p>
+        <form (ngSubmit)="complete()" aria-describedby="auth-error">
+          <div class="auth-secret" aria-labelledby="recovery-secret-label">
+            <span id="recovery-secret-label">Neuer TOTP-Einrichtungswert</span>
+            <code>{{ totpSecret }}</code>
+            <small>Nur in Ihrer TOTP-App hinterlegen.</small>
+          </div>
+          <label for="recovery-password">Neues Kennwort</label>
+          <input
+            id="recovery-password"
+            name="password"
+            type="password"
+            autocomplete="new-password"
+            minlength="12"
+            required
+            [(ngModel)]="password"
+          />
+          <label for="recovery-password-confirmation">Kennwort wiederholen</label>
+          <input
+            id="recovery-password-confirmation"
+            name="passwordConfirmation"
+            type="password"
+            autocomplete="new-password"
+            required
+            [(ngModel)]="passwordConfirmation"
+          />
+          <label for="recovery-totp">TOTP-Code zur Bestätigung</label>
+          <input
+            id="recovery-totp"
+            name="totpCode"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            pattern="[0-9]{6}"
+            required
+            [(ngModel)]="totpCode"
+          />
+          @if (error(); as message) {
+            <p id="auth-error" class="auth-error" role="alert">{{ message }}</p>
+          }
+          <button type="submit" [disabled]="busy()">Recovery abschließen</button>
+        </form>
+      } @else if (completion(); as result) {
+        <h2>Neue Recovery-Codes sicher verwahren</h2>
+        <p class="auth-success" role="status">
+          Die lokalen Faktoren wurden neu registriert. Die Codes werden jetzt genau einmal
+          angezeigt.
+        </p>
+        <ul class="auth-recovery-codes" aria-label="Einmalige Recovery-Codes">
+          @for (code of result.recovery_codes; track code) {
+            <li>
+              <code>{{ code }}</code>
+            </li>
+          }
+        </ul>
+        <button type="button" (click)="switchScreen('login')">Zur Anmeldung</button>
+      }
+      @if (!completion()) {
+        <button class="auth-secondary" type="button" (click)="switchScreen('login')">
+          Zurück zur Anmeldung
+        </button>
+      }
+    }
+  </section>
+</main>

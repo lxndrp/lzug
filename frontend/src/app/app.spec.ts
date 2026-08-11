@@ -1,12 +1,14 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
+import { signal } from '@angular/core';
 import { provideRouter, Router } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
 import { TuiConfirmService } from '@taiga-ui/kit';
 import { of } from 'rxjs';
 
 import { App } from './app';
+import { AuthService } from './auth/auth.service';
 import { RoundContextService } from './api/round-context.service';
 import { routes } from './app.routes';
 import {
@@ -46,6 +48,14 @@ describe('App', () => {
         provideHttpClientTesting(),
         provideTaiga({ scrollbars: 'native' }),
         TuiConfirmService,
+        {
+          provide: AuthService,
+          useValue: {
+            state: signal('authenticated'),
+            initialize: () => of(true),
+            markAnonymous: vi.fn(),
+          },
+        },
       ],
     }).compileComponents();
   });
@@ -68,6 +78,22 @@ describe('App', () => {
     expect(compiled.textContent).toContain('Aktueller Prüfungskontext');
     expect(compiled.textContent).toContain('Winter 2026');
     expect(compiled.textContent).toContain('Prüfungsausschuss Teststadt 1');
+  });
+
+  it('refreshes the dashboard after a later login', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+
+    const auth = TestBed.inject(AuthService) as unknown as {
+      state: { set(value: 'anonymous' | 'authenticated'): void };
+    };
+    auth.state.set('anonymous');
+    fixture.detectChanges();
+    auth.state.set('authenticated');
+    fixture.detectChanges();
+
+    flushDashboardRequests(http);
   });
 
   it('should expose the sidebar visibility through accessible toggle state', () => {

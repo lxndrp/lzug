@@ -4,16 +4,18 @@ Die Authentifizierungsgrundlage trennt die technische Identität eines Kontos
 von fachlichen Ausschussrollen. Ein `user_account` kann optional mit einer
 `person` verknüpft sein und separat `is_operator` tragen. Betreiberrechte
 erzeugen keine Ausschussmitgliedschaft und damit keine fachlichen Rechte.
-Kennwort, TOTP, Passkeys und OIDC
-folgen in #266–#268.
+Kennwort und verpflichtendes TOTP sind in #266 ergänzt; Passkeys und OIDC
+bleiben die getrennten Folgearbeiten #267 und #268.
 
 ## Sessionregeln
 
 `backend.auth.AuthenticationRepository` ist die interne, testbare Grenze für
-Konten- und Sessionpflege. Es gibt in dieser Stufe keinen Netzwerk-Endpunkt zur
-Kontenpflege und keinen Login-Endpunkt. Spätere Anmeldeverfahren erzeugen eine
-Session ausschließlich über diesen Service beziehungsweise eine darauf
-aufbauende Fachschicht für die Betreiber-CLI.
+Konten- und Sessionpflege. Konten, Einladungen, Sperrung und Recovery werden
+weiterhin ausschließlich über die lokale Betreiber-CLI ausgelöst. Das Backend
+stellt dafür keine Netzwerk-Admin-Endpunkte bereit. Die öffentlichen lokalen
+Auth-Endpunkte sind auf Login, Einladungsaktivierung und Recovery begrenzt.
+Eine erfolgreiche lokale Anmeldung erzeugt eine Session ausschließlich über
+den Repository-Service.
 
 Die Konten-, Einladungs-, Sperr- und Recovery-Grundlage für diese Fachschicht
 liegt in `backend.admin_service`. Die portable Go-Grenze und ihr
@@ -78,3 +80,44 @@ Angular nutzt die Standard-XSRF-Unterstützung von `HttpClient` mit den
 kanonischen Cookie-/Headernamen. Der E2E-Server stellt Sessions ausschließlich
 für den isolierten Playwright-Reset bereit; diese Route existiert nicht im
 Produktionsserver.
+
+## Lokale Anmeldung mit Kennwort und TOTP
+
+`backend.local_auth.LocalAuthService` verarbeitet die fünf öffentlichen
+Vorgänge `/api/auth/login`, `/api/auth/invitation/prepare`,
+`/api/auth/invitation/activate`, `/api/auth/recovery/prepare` und
+`/api/auth/recovery/complete`. Token werden nur im JSON-Body angenommen; sie
+erscheinen weder in URLs noch in Fehlern, Logs oder Analytics. Die Antworten
+verwenden für unbekannte Konten und falsche Faktoren dieselbe generische
+Fehlermeldung.
+
+Bei der Einladungsaktivierung liefert die Anwendung ein zufälliges TOTP-Secret
+über die einmalige HTTPS-Antwort. Die Aktivierung ist erst nach Bestätigung
+des TOTP-Codes erfolgreich und verbraucht den kurzlebigen Einladungstoken
+atomar. Das Secret wird mit Fernet verschlüsselt gespeichert; der Schlüssel
+liegt in `LZUG_AUTH_ENCRYPTION_KEY` oder in der mit Modus 0600 geschützten
+Datei `.lzug-auth.key` neben der Datenbank. Er muss in der Sicherungs- und
+Betriebsdokumentation wie anderes lokales Geheimnis behandelt werden.
+
+Kennwörter werden ausschließlich mit Argon2id gehasht. Die dokumentierten
+Startparameter sind `time_cost=3`, `memory_cost=65536 KiB`, `parallelism=4`,
+`hash_len=32` und `salt_len=16`; `argon2-cffi` markiert veraltete Parameter
+und löst beim erfolgreichen Login einen kontrollierten Rehash aus. Diese
+Parameter sind bewusst im Service zentralisiert und dürfen später nur mit
+Migration der Betriebs- und Performanceannahmen angepasst werden.
+
+TOTP verwendet `pyotp` mit sechs Stellen, 30-Sekunden-Zeitfenster und einem
+akzeptierten Drift von höchstens einem Fenster. Nach erfolgreicher Prüfung
+wird das angenommene Zeitfenster atomar als `totp_last_step` fortgeschrieben;
+eine Wiederholung desselben Codes kann dadurch nicht erneut anmelden.
+Recovery-Codes sind davon fachlich getrennt: Sie werden bei Aktivierung oder
+Recovery genau einmal angezeigt, nur als Argon2id-Hash gespeichert und in
+einem atomaren Update verbraucht. Ein Betreiber-Recovery-Token aus #269 ist
+dagegen ein kurzlebiger, einmaliger Auslöser für die Neuregistrierung der
+lokalen Faktoren.
+
+Die lokale Einzelinstanz begrenzt fehlgeschlagene Loginversuche pro
+IP-/normalisierter E-Mail-Kombination auf fünf Versuche in fünf Minuten. Bei
+Überschreitung wird HTTP 429 mit `Retry-After` geliefert. Das ist ein
+prozesslokaler Schutz für eine einzelne Instanz; ein verteiltes Rate-Limit ist
+nicht Bestandteil des Self-Hosting-Modells.

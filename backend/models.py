@@ -79,6 +79,9 @@ class UserAccount(Base):
     is_operator: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
     is_active: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
     last_login_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    totp_secret_encrypted: Mapped[str | None] = mapped_column(String, nullable=True)
+    totp_last_step: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    totp_enabled: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
     created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
     updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
 
@@ -124,6 +127,20 @@ class AuthToken(Base):
     consumed_at: Mapped[str | None] = mapped_column(String, nullable=True)
 
     __table_args__ = (Index("auth_token_account_kind", "account_id", "kind", "expires_at"),)
+
+
+class AuthRecoveryCode(Base):
+    """One Argon2id hash for a single-use local recovery code."""
+
+    __tablename__ = "auth_recovery_code"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("user_account.id", ondelete="CASCADE"))
+    code_hash: Mapped[str] = mapped_column(String)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    consumed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (Index("auth_recovery_code_account_active", "account_id", "consumed_at"),)
 
 
 class Location(Base):
