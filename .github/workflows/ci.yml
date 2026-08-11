@@ -9,6 +9,8 @@ on:
     branches:
       - main
       - master
+  schedule:
+    - cron: "17 3 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -19,8 +21,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  classify:
+    name: Change classification
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+      frontend: ${{ steps.changes.outputs.frontend }}
+      npm_security: ${{ steps.changes.outputs.npm_security }}
+      documentation: ${{ steps.changes.outputs.documentation }}
+      compose: ${{ steps.changes.outputs.compose }}
+      e2e: ${{ steps.changes.outputs.e2e }}
+      a11y: ${{ steps.changes.outputs.a11y }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed paths conservatively
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            printf '%s\n' \
+              'backend=true' \
+              'frontend=true' \
+              'npm_security=true' \
+              'documentation=true' \
+              'compose=true' \
+              'e2e=true' \
+              'a11y=true' \
+              "classification=full-$EVENT_NAME" \
+              | tee -a "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only -z "$BASE_SHA" "$HEAD_SHA" \
+            | python3 scripts/classify_ci_paths.py \
+            | tee -a "$GITHUB_OUTPUT"
+
   backend:
     name: Backend
+    needs: classify
+    if: needs.classify.outputs.backend == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -65,6 +112,8 @@ jobs:
 
   frontend:
     name: Frontend
+    needs: classify
+    if: needs.classify.outputs.frontend == 'true'
     runs-on: ubuntu-latest
 
     defaults:
@@ -107,8 +156,10 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  npm-security:
+  npm_security:
     name: npm production security gate
+    needs: classify
+    if: needs.classify.outputs.npm_security == 'true'
     runs-on: ubuntu-latest
 
     defaults:
@@ -131,6 +182,8 @@ jobs:
 
   documentation:
     name: Documentation
+    needs: classify
+    if: needs.classify.outputs.documentation == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -176,6 +229,8 @@ jobs:
 
   compose:
     name: Compose configuration
+    needs: classify
+    if: needs.classify.outputs.compose == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -189,6 +244,8 @@ jobs:
 
   e2e:
     name: Browser E2E
+    needs: classify
+    if: needs.classify.outputs.e2e == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -219,9 +276,30 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Install Playwright browser
+      - name: Resolve Playwright version
+        id: playwright_version
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        run: echo "version=$(node -p \"require('./package-lock.json').packages['node_modules/@playwright/test'].version\")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Playwright browser cache
+        id: playwright_cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright_version.outputs.version }}
+
+      - name: Install Playwright browser
+        id: playwright_install
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_CACHE_HIT: ${{ steps.playwright_cache.outputs.cache-hit }}
+        run: |
+          started_at="$(date +%s)"
+          npx playwright install --with-deps chromium
+          elapsed_seconds="$(( $(date +%s) - started_at ))"
+          echo "Playwright cache hit: ${PLAYWRIGHT_CACHE_HIT:-false}"
+          echo "Playwright install seconds: $elapsed_seconds"
+          echo "seconds=$elapsed_seconds" >> "$GITHUB_OUTPUT"
 
       - name: Run browser workflows
         working-directory: frontend
@@ -243,6 +321,8 @@ jobs:
 
   a11y:
     name: Accessibility
+    needs: classify
+    if: needs.classify.outputs.a11y == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -273,9 +353,30 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Install Playwright browser
+      - name: Resolve Playwright version
+        id: playwright_version
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        run: echo "version=$(node -p \"require('./package-lock.json').packages['node_modules/@playwright/test'].version\")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Playwright browser cache
+        id: playwright_cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright_version.outputs.version }}
+
+      - name: Install Playwright browser
+        id: playwright_install
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_CACHE_HIT: ${{ steps.playwright_cache.outputs.cache-hit }}
+        run: |
+          started_at="$(date +%s)"
+          npx playwright install --with-deps chromium
+          elapsed_seconds="$(( $(date +%s) - started_at ))"
+          echo "Playwright cache hit: ${PLAYWRIGHT_CACHE_HIT:-false}"
+          echo "Playwright install seconds: $elapsed_seconds"
+          echo "seconds=$elapsed_seconds" >> "$GITHUB_OUTPUT"
 
       - name: Run accessibility checks
         working-directory: frontend
@@ -294,3 +395,58 @@ jobs:
           path: frontend/playwright-report
           if-no-files-found: warn
           retention-days: 7
+
+  gate:
+    name: CI overall
+    needs:
+      - classify
+      - backend
+      - frontend
+      - npm_security
+      - documentation
+      - compose
+      - e2e
+      - a11y
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require every selected quality job
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          BACKEND_SELECTED: ${{ needs.classify.outputs.backend }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          FRONTEND_SELECTED: ${{ needs.classify.outputs.frontend }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          NPM_SECURITY_SELECTED: ${{ needs.classify.outputs.npm_security }}
+          NPM_SECURITY_RESULT: ${{ needs.npm_security.result }}
+          DOCUMENTATION_SELECTED: ${{ needs.classify.outputs.documentation }}
+          DOCUMENTATION_RESULT: ${{ needs.documentation.result }}
+          COMPOSE_SELECTED: ${{ needs.classify.outputs.compose }}
+          COMPOSE_RESULT: ${{ needs.compose.result }}
+          E2E_SELECTED: ${{ needs.classify.outputs.e2e }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+          A11Y_SELECTED: ${{ needs.classify.outputs.a11y }}
+          A11Y_RESULT: ${{ needs.a11y.result }}
+        run: |
+          set -eu
+          test "$CLASSIFY_RESULT" = "success"
+
+          require_result() {
+            selected="$1"
+            result="$2"
+            if [ "$selected" = "true" ]; then
+              test "$result" = "success"
+            else
+              test "$selected" = "false"
+              test "$result" = "skipped"
+            fi
+          }
+
+          require_result "$BACKEND_SELECTED" "$BACKEND_RESULT"
+          require_result "$FRONTEND_SELECTED" "$FRONTEND_RESULT"
+          require_result "$NPM_SECURITY_SELECTED" "$NPM_SECURITY_RESULT"
+          require_result "$DOCUMENTATION_SELECTED" "$DOCUMENTATION_RESULT"
+          require_result "$COMPOSE_SELECTED" "$COMPOSE_RESULT"
+          require_result "$E2E_SELECTED" "$E2E_RESULT"
+          require_result "$A11Y_SELECTED" "$A11Y_RESULT"
