@@ -1,35 +1,39 @@
 from __future__ import annotations
 
-import os
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from backend import version
+from backend.build_metadata import BuildMetadata
 
 
 class VersionTests(unittest.TestCase):
     def tearDown(self) -> None:
-        version._source_version.cache_clear()
+        version.build_metadata.cache_clear()
 
-    def test_source_version_is_read_once(self) -> None:
-        version._source_version.cache_clear()
+    def test_injected_metadata_is_read_once(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = Path(directory) / "build-metadata.json"
+            BuildMetadata.create("a" * 40).write(metadata)
+            version.build_metadata.cache_clear()
 
-        with (
-            patch.dict(os.environ, {"LZUG_VERSION": ""}),
-            patch.object(Path, "read_text", return_value="1.2.3\n") as read_text,
-        ):
-            self.assertEqual("1.2.3", version.application_version())
-            self.assertEqual("1.2.3", version.application_version())
+            with patch.object(version, "BUILD_METADATA_PATH", metadata):
+                self.assertEqual(f"0.0.0-dev+sha.{'a' * 40}", version.application_version())
+                self.assertEqual("a" * 40, version.build_revision())
+                metadata.unlink()
+                self.assertEqual("a" * 40, version.build_revision())
 
-        read_text.assert_called_once_with(encoding="utf-8")
+    def test_packaged_release_metadata_is_the_only_runtime_version_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = Path(directory) / "build-metadata.json"
+            BuildMetadata.create("b" * 40, "v1.2.3").write(metadata)
+            version.build_metadata.cache_clear()
 
-    def test_environment_override_remains_dynamic(self) -> None:
-        with patch.dict(os.environ, {"LZUG_VERSION": "1.2.3"}):
-            self.assertEqual("1.2.3", version.application_version())
-
-        with patch.dict(os.environ, {"LZUG_VERSION": "2.0.0"}):
-            self.assertEqual("2.0.0", version.application_version())
+            with patch.object(version, "BUILD_METADATA_PATH", metadata):
+                self.assertEqual("1.2.3", version.application_version())
+                self.assertEqual("b" * 40, version.build_revision())
 
 
 if __name__ == "__main__":

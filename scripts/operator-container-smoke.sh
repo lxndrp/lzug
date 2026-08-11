@@ -27,11 +27,15 @@ container="lzug-operator-smoke-$$"
 volume="$container-data"
 if [ -z "$admin_binary" ]; then
     admin_binary="$temporary_directory/lzug-admin"
-    application_version=$(cat "$root_dir/VERSION")
+    revision=$(git -C "$root_dir" rev-parse HEAD)
+    application_version=$(
+        python3 "$root_dir/scripts/build_metadata.py" \
+            --revision "$revision" --field identity
+    )
     (
         cd "$root_dir"
         go build -trimpath \
-            -ldflags="-s -w -X main.applicationVersion=$application_version" \
+            -ldflags="-s -w -X main.applicationVersion=$application_version -X main.applicationRevision=$revision" \
             -o "$admin_binary" ./cmd/lzug-admin
     )
 fi
@@ -62,6 +66,10 @@ if [ "$attempt" -eq 30 ]; then
     "$engine" logs "$container" >&2 || true
     exit 1
 fi
+
+"$engine" exec "$container" cat /app/build-metadata.json > "$temporary_directory/container-metadata.json"
+"$admin_binary" --build-metadata > "$temporary_directory/cli-metadata.json"
+cmp "$temporary_directory/container-metadata.json" "$temporary_directory/cli-metadata.json"
 
 invitation=$(
     "$admin_binary" --engine "$engine" --container "$container" \

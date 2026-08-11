@@ -86,8 +86,10 @@ FULL_FILES = {
     ".node-version",
     ".python-version",
     "Taskfile.yml",
-    "VERSION",
+    "backend/build_metadata.py",
     "pyproject.toml",
+    "scripts/build-frontend.sh",
+    "scripts/build_metadata.py",
     "scripts/classify_quality_paths.py",
     "scripts/release.py",
 }

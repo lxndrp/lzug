@@ -12,16 +12,16 @@ from scripts.release import (
     finalize_release_notes,
     image_references,
     parse_release_tag,
-    validate_source_metadata,
 )
 
 
 class ReleaseContractTests(unittest.TestCase):
-    def test_only_stable_prefixed_semver_tags_are_accepted(self) -> None:
+    def test_only_supported_prefixed_semver_tags_are_accepted(self) -> None:
         self.assertEqual("1.2.3", parse_release_tag("v1.2.3").version)
         self.assertEqual("0.4.0", parse_release_tag("v0.4.0").version)
+        self.assertEqual("1.0.0-rc.1", parse_release_tag("v1.0.0-rc.1").version)
 
-        for tag in ("1.2.3", "v1.2", "v01.2.3", "v1.2.3-rc.1", "latest"):
+        for tag in ("1.2.3", "v1.2", "v01.2.3", "v1.2.3-beta.1", "latest"):
             with self.subTest(tag=tag), self.assertRaises(ValueError):
                 parse_release_tag(tag)
 
@@ -37,28 +37,15 @@ class ReleaseContractTests(unittest.TestCase):
             image_references("lxndrp/lzug", "v1.2.3", sha),
         )
 
-    def test_source_and_package_versions_must_match(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "frontend").mkdir()
-            (root / "VERSION").write_text("1.2.3\n", encoding="utf-8")
-            (root / "pyproject.toml").write_text(
-                '[project]\nname = "lzug"\nversion = "1.2.3"\n', encoding="utf-8"
-            )
-            (root / "frontend/package.json").write_text(
-                '{"name":"frontend","version":"1.2.3"}', encoding="utf-8"
-            )
-            (root / "frontend/package-lock.json").write_text(
-                '{"name":"frontend","version":"1.2.3",' '"packages":{"":{"version":"1.2.3"}}}',
-                encoding="utf-8",
-            )
-
-            validate_source_metadata(root / "VERSION", "1.2.3")
-            (root / "frontend/package.json").write_text(
-                '{"name":"frontend","version":"1.2.2"}', encoding="utf-8"
-            )
-            with self.assertRaises(ValueError):
-                validate_source_metadata(root / "VERSION", "1.2.3")
+    def test_release_candidate_does_not_move_stable_image_aliases(self) -> None:
+        sha = "b" * 40
+        self.assertEqual(
+            [
+                "ghcr.io/lxndrp/lzug:1.0.0-rc.1",
+                f"ghcr.io/lxndrp/lzug:sha-{sha}",
+            ],
+            image_references("lxndrp/lzug", "v1.0.0-rc.1", sha),
+        )
 
     def test_changelog_section_must_be_dated_unique_and_non_empty(self) -> None:
         changelog = """# Changelog
@@ -125,39 +112,27 @@ class ReleaseContractTests(unittest.TestCase):
             )
             notes = root / "notes.md"
             tags = root / "tags.txt"
-            (root / "frontend").mkdir()
-            (root / "VERSION").write_text("1.2.3\n", encoding="utf-8")
-            (root / "pyproject.toml").write_text(
-                '[project]\nname = "lzug"\nversion = "1.2.3"\n', encoding="utf-8"
-            )
-            (root / "frontend/package.json").write_text(
-                '{"name":"frontend","version":"1.2.3"}', encoding="utf-8"
-            )
-            (root / "frontend/package-lock.json").write_text(
-                '{"name":"frontend","version":"1.2.3",' '"packages":{"":{"version":"1.2.3"}}}',
-                encoding="utf-8",
-            )
-
-            with mock.patch(
-                "sys.argv",
-                [
-                    "release.py",
-                    "prepare",
-                    "--tag",
-                    "v1.2.3",
-                    "--sha",
-                    "a" * 40,
-                    "--repository",
-                    "lxndrp/lzug",
-                    "--changelog",
-                    str(changelog),
-                    "--version-file",
-                    str(root / "VERSION"),
-                    "--notes",
-                    str(notes),
-                    "--tags",
-                    str(tags),
-                ],
+            with (
+                mock.patch("scripts.release.verify_tag_target"),
+                mock.patch(
+                    "sys.argv",
+                    [
+                        "release.py",
+                        "prepare",
+                        "--tag",
+                        "v1.2.3",
+                        "--sha",
+                        "a" * 40,
+                        "--repository",
+                        "lxndrp/lzug",
+                        "--changelog",
+                        str(changelog),
+                        "--notes",
+                        str(notes),
+                        "--tags",
+                        str(tags),
+                    ],
+                ),
             ):
                 main()
 

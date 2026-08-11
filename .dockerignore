@@ -2,12 +2,15 @@
 
 !Dockerfile
 !.dockerignore
-!VERSION
 !pyproject.toml
 !uv.lock
 
 !backend/
 !backend/*.py
+
+!scripts/
+!scripts/__init__.py
+!scripts/build_metadata.py
 
 !db/
 !db/schema.sql

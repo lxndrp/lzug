@@ -21,6 +21,7 @@ jobs:
       contents: read
     outputs:
       version: ${{ steps.release.outputs.version }}
+      build-identity: ${{ steps.release.outputs.build_identity }}
       image: ${{ steps.release.outputs.image }}
       canonical-ref: ${{ steps.release.outputs.canonical_ref }}
     steps:
@@ -31,15 +32,19 @@ jobs:
 
       - name: Validate SemVer and changelog entry
         id: release
-        run: >-
-          python3 scripts/release.py prepare
-          --tag "$GITHUB_REF_NAME"
-          --sha "$GITHUB_SHA"
-          --repository "$GITHUB_REPOSITORY"
-          --changelog CHANGELOG.md
-          --notes release-notes.md
-          --tags release-tags.txt
-          --github-output "$GITHUB_OUTPUT"
+        run: |
+          python3 scripts/build_metadata.py \
+            --tag "$GITHUB_REF_NAME" \
+            --revision "$GITHUB_SHA" \
+            --output build-metadata.json >/dev/null
+          python3 scripts/release.py prepare \
+            --tag "$GITHUB_REF_NAME" \
+            --sha "$GITHUB_SHA" \
+            --repository "$GITHUB_REPOSITORY" \
+            --changelog CHANGELOG.md \
+            --notes release-notes.md \
+            --tags release-tags.txt \
+            --github-output "$GITHUB_OUTPUT"
 
       - name: Require the tagged commit on master
         run: |
@@ -77,9 +82,16 @@ jobs:
     env:
       CANONICAL_REF: ${{ needs.verify.outputs.canonical-ref }}
       VERSION: ${{ needs.verify.outputs.version }}
+      BUILD_IDENTITY: ${{ needs.verify.outputs.build-identity }}
     steps:
       - name: Checkout the tagged source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.26.5"
+          cache: true
 
       - name: Prepare release notes and expected tags
         run: >-
@@ -123,7 +135,10 @@ jobs:
           file: Dockerfile
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
-          build-args: VCS_REF=${{ github.sha }}
+          build-args: |
+            BUILD_IDENTITY=${{ env.BUILD_IDENTITY }}
+            RELEASE_TAG=${{ github.ref_name }}
+            VCS_REF=${{ github.sha }}
           outputs: type=docker,dest=${{ runner.temp }}/lzug-release-image.tar
           cache-from: type=gha,scope=lzug-oci-${{ runner.arch }}
           provenance: false
@@ -141,8 +156,18 @@ jobs:
 
       - name: Test the exact release image
         run: |
-          test "$(docker run --rm --entrypoint cat "$CANONICAL_REF" /app/VERSION)" = "$VERSION"
+          test "$(docker run --rm --entrypoint python "$CANONICAL_REF" -c 'import json; print(json.load(open("/app/build-metadata.json"))["identity"])')" = "$VERSION"
           scripts/container-smoke.sh "$CANONICAL_REF"
+
+      - name: Compare release image and operator CLI identity
+        run: |
+          go build -trimpath \
+            -ldflags="-s -w -X main.applicationVersion=$BUILD_IDENTITY -X main.applicationRevision=$GITHUB_SHA -X main.applicationTag=$GITHUB_REF_NAME" \
+            -o lzug-admin ./cmd/lzug-admin
+          docker run --rm --entrypoint cat "$CANONICAL_REF" \
+            /app/build-metadata.json > image-build-metadata.json
+          ./lzug-admin --build-metadata > cli-build-metadata.json
+          cmp image-build-metadata.json cli-build-metadata.json
 
       - name: Generate release CycloneDX SBOM
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0

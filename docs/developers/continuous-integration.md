@@ -103,7 +103,7 @@ sie nicht um den gemeinsamen Angular-Worktree-Cache konkurrieren. In CI bleiben
 sie getrennte Detailjobs. Der produktive npm-Audit liegt in
 `task quality:security`. Image- und Quellcode-Scans sowie CodeQL bleiben wegen
 ihrer Trivy-/GitHub-Bindung gehostete Ergänzungen; der lokale OCI-Task baut
-dagegen dasselbe Dockerfile als `lzug:0.1.0-quality`, dessen Image die
+dagegen dasselbe Dockerfile als `lzug:0.0.0-dev.local`, dessen Image die
 Overall-Verträge verwenden.
 
 Für eng begrenzte Änderungen werden nur die betroffenen Teilaufgaben gewählt.

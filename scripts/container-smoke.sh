@@ -87,8 +87,17 @@ assert_status "Missing static asset" 404 \
     "$(curl --silent --output /dev/null --write-out '%{http_code}' "$url/assets/missing.svg")"
 
 test "$("$engine" exec "$container" id -u)" = "10001"
-expected_version=$("$engine" exec "$container" cat /app/VERSION)
+"$engine" exec "$container" cat /app/build-metadata.json > "$temporary_directory/backend-metadata.json"
+"$engine" exec "$container" cat /app/frontend/build-metadata.json > "$temporary_directory/frontend-metadata.json"
+cmp "$temporary_directory/backend-metadata.json" "$temporary_directory/frontend-metadata.json"
+expected_version=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["identity"])' \
+    < "$temporary_directory/backend-metadata.json")
+metadata_revision=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["revision"])' \
+    < "$temporary_directory/backend-metadata.json")
 expected_revision=$("$engine" image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image")
+expected_image_version=$("$engine" image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$image")
+test "$metadata_revision" = "$expected_revision"
+test "$expected_version" = "$expected_image_version"
 curl --silent --show-error --fail "$url/api/health" | \
     EXPECTED_VERSION="$expected_version" EXPECTED_REVISION="$expected_revision" python3 -c '
 import json

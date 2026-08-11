@@ -11,14 +11,18 @@ Node.js/npm und uv sind nicht enthalten.
 ## Lokaler Build
 
 ```sh
-docker build --tag lzug:local --build-arg VCS_REF="$(git rev-parse HEAD)" .
+revision="$(git rev-parse HEAD)"
+identity="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
+docker build --tag lzug:local \
+  --build-arg "BUILD_IDENTITY=$identity" \
+  --build-arg "VCS_REF=$revision" .
 ```
 
 Der Build benötigt eine laufende Docker- oder Podman-Engine sowie Zugriff auf
 die jeweiligen Container-Registries für die ausdrücklich gepinnten
 Build-Basen. `npm ci` und `uv sync --locked` brechen bei Abweichungen von den
 Lockfiles ab. `task quality:oci` baut dasselbe Dockerfile als
-`lzug:0.1.0-quality`; `task quality:overall` verwendet dieses Image für die
+`lzug:0.0.0-dev.local`; `task quality:overall` verwendet dieses Image für die
 Container-, Compose- und Betreiber-CLI-Verträge. `task dev` und `task test`
 bleiben davon getrennt.
 

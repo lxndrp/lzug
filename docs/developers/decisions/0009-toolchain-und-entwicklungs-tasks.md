@@ -59,7 +59,7 @@ Qualitätsbereichen aus #230:
 | OCI- oder Compose-Konfiguration | `task quality:oci` und die betroffenen Untertasks von `task quality:overall` |
 | Unklar, querschnittlich oder Toolchain | `task quality` |
 
-`task quality:oci` baut einmal das lokale Image `lzug:0.1.0-quality`.
+`task quality:oci` baut einmal das lokale Image `lzug:0.0.0-dev.local`.
 Container-, Compose- und Betreiber-CLI-Vertrag verwenden dieses Image gemeinsam
 im Overall-Lauf. Die Prüfungen benötigen eine Docker-kompatible Engine; die
 Smoke-Skripte unterstützen weiterhin Docker oder Podman und melden eine

@@ -1,15 +1,14 @@
 # Releases und GHCR
 
-!!! warning "Übergang bis #307 und #308"
+!!! warning "Übergang bis #308"
 
     [ADR-0018](decisions/0018-semver-release-und-milestones.md) ersetzt den
     bisherigen manuellen Tag-Ablauf durch einen festgehaltenen
     Kandidat-Commit, ein Release-Issue und ein zusätzliches Environment-Gate.
-    Die vorhandene Automation bildet diesen Vertrag noch nicht ab. Bis #307
-    und #308 abgeschlossen sind, darf kein Release-Tag erzeugt und keine
-    Produktveröffentlichung ausgelöst werden. `VERSION` ist in diesem
-    Übergang nur ein abzulösender Bestandswert, keine Quelle für einen
-    veröffentlichten oder geplanten Stand.
+    Die Build-Metadaten-Schnittstelle aus #307 ist umgesetzt. Die vorhandene
+    Automation bildet den kandidatenbasierten Freigabeablauf aber noch nicht
+    ab. Bis #308 abgeschlossen ist, darf kein Release-Tag erzeugt und keine
+    Produktveröffentlichung ausgelöst werden.
 
 ## Zielvertrag
 
@@ -33,8 +32,8 @@ stillschweigend ausgelassen werden.
 
 Der Release-Workflow darf einen Milestone nur auf Vollständigkeit prüfen. Er
 darf dessen Namen weder als Versionsquelle noch als Build-Eingabe verwenden.
-Normale Entwicklungsbuilds verwenden keine geplante Releaseversion. #307
-implementiert die Build-Metadaten-Schnittstelle, #308 den Kandidaten- und
+Normale Entwicklungsbuilds verwenden keine geplante Releaseversion. Die
+Build-Metadaten-Schnittstelle ist umgesetzt; #308 ergänzt den Kandidaten- und
 Freigabeablauf.
 
 ## Noch vorhandener Bestandsprozess
@@ -45,11 +44,39 @@ Ein Merge allein veröffentlicht nichts. Nur ein Maintainer darf nach
 abgeschlossener Qualitätssicherung einen Release-Tag pushen; der Workflow
 bietet keinen manuellen Dispatch und erzeugt selbst keinen Git-Tag.
 
-## Noch vorhandener Versionsvertrag
+## Build-Metadaten-Schnittstelle
 
-Öffentliche Releases verwenden ausschließlich stabile SemVer-Tags der Form
-`vMAJOR.MINOR.PATCH`. Pre-Releases und abweichende Tags werden fail-closed
-abgewiesen. Die Änderungsklassen sind:
+`backend.build_metadata.BuildMetadata` definiert genau ein byte-stabiles
+JSON-Objekt mit `identity`, vollständiger `revision`, `release` und optionalem
+`tag`. Backend, kompiliertes Frontend, Betreiber-CLI und OCI-Image verwenden
+dasselbe Objekt beziehungsweise dieselben validierten Felder. Die Runtime-
+Smoke-Tests vergleichen Backend, Frontend, CLI und OCI-Labels automatisiert.
+
+Ein normaler Commit erhält ausschließlich die Entwicklungsidentität
+`0.0.0-dev+sha.<40-stellige Commit-SHA>`. Ein Release erhält seine Identität
+nur aus einem Tag `vMAJOR.MINOR.PATCH` oder `vMAJOR.MINOR.PATCH-rc.N`, der auf
+exakt den gebauten Commit aufgelöst wurde. Abweichende Tags, verkürzte oder
+nicht hexadezimale Revisionen und widersprüchliche JSON-Felder werden
+fail-closed abgewiesen. Milestones und die Paketversionen in `pyproject.toml`
+und `frontend/package.json` sind keine Build-Eingaben.
+
+Lokale Builds leiten die Metadaten reproduzierbar aus `git rev-parse HEAD` ab:
+
+```sh
+python3 scripts/build_metadata.py
+npm --prefix frontend run build:ci
+task quality:operator
+task quality:oci
+```
+
+Das OCI-Image enthält dasselbe JSON unter `/app/build-metadata.json` und im
+Frontend-Bundle. `lzug-admin --build-metadata` gibt es in derselben kanonischen
+Form aus; `--version` zeigt dessen `identity`. Eine Umgebungsvariable kann
+keine andere Releaseversion vortäuschen.
+
+Öffentliche stabile Releases verwenden SemVer-Tags der Form
+`vMAJOR.MINOR.PATCH`; geplante Vorabreleases verwenden ausschließlich
+`vMAJOR.MINOR.PATCH-rc.N`. Die Änderungsklassen sind:
 
 - `PATCH`: kompatible Fehler- oder Sicherheitskorrektur,
 - `MINOR`: kompatible neue Funktion,
@@ -57,20 +84,10 @@ abgewiesen. Die Änderungsklassen sind:
 
 Vor dem Tag verschiebt der Release-PR die freizugebenden Einträge aus
 `[Unreleased]` in `CHANGELOG.md` nach
-`[MAJOR.MINOR.PATCH] - YYYY-MM-DD`. Genau dieser datierte Abschnitt wird zu den
-Release Notes. Ein fehlender, leerer oder doppelter Abschnitt blockiert die
-Veröffentlichung.
-
-Der folgende Absatz beschreibt den noch vorhandenen, durch #307 abzulösenden
-Bestandsvertrag: `VERSION` ist derzeit die Anwendungsversion im Source-Code.
-Der Release-PR
-gleicht damit die Python-Metadaten in `pyproject.toml` und die privaten
-Frontend-Metadaten in `frontend/package.json` samt Lockfile ab. Der Workflow
-weist einen Tag zurück, sobald Tag, `VERSION` und beide Paketmetadaten
-voneinander abweichen. Backend, OpenAPI, öffentlicher Health-Endpunkt und die
-angemeldete Oberfläche verwenden denselben Wert; das OCI-Image ergänzt die
-Commit-Revision. Portable Builds von `lzug-admin` erhalten die Version über
-Go-Linker-Metadaten und zeigen sie mit `lzug-admin --version` an.
+`[MAJOR.MINOR.PATCH] - YYYY-MM-DD` beziehungsweise
+`[MAJOR.MINOR.PATCH-rc.N] - YYYY-MM-DD`. Genau dieser datierte Abschnitt wird
+zu den Release Notes. Ein fehlender, leerer oder doppelter Abschnitt blockiert
+die Veröffentlichung.
 
 ## Ausgesetzter Maintainer-Ablauf
 
@@ -80,9 +97,8 @@ Release-Issue für einen unveränderlich festgehaltenen Kandidat-Commit; das
 Schließen durch einen berechtigten Maintainer und die Freigabe des GitHub-
 Environments `release` sind getrennte Gates.
 
-1. Einen eigenen Release-PR erstellen, `VERSION`, Python-/Frontend-Metadaten
-   und Lockfile angleichen und den datierten Changelog-Abschnitt ergänzen.
-   Normale Review- und Merge-Regeln gelten unverändert.
+1. Einen eigenen Release-PR erstellen und den datierten Changelog-Abschnitt
+   ergänzen. Normale Review- und Merge-Regeln gelten unverändert.
 2. Nach dem Merge prüfen, dass für exakt diesen `master`-Commit die Workflows
    `CI`, `OCI`, `Security` und `Operator CLI` erfolgreich abgeschlossen sind.
 3. Nach ausdrücklicher Freigabe einen annotierten, nach Möglichkeit signierten
@@ -116,6 +132,10 @@ ghcr.io/lxndrp/lzug:1.2
 ghcr.io/lxndrp/lzug:1
 ghcr.io/lxndrp/lzug:sha-<40-stellige SHA>
 ```
+
+Ein Vorabrelease wie `v1.0.0-rc.1` veröffentlicht ausschließlich
+`1.0.0-rc.1` und `sha-<SHA>`. Er bewegt keine stabilen Major- oder Minor-
+Aliase.
 
 Der Workflow pusht kein `latest`. Nach dem Push liest er für jeden Tag das
 Registry-Manifest und verlangt denselben `sha256`-Digest. Anschließend erzeugt
