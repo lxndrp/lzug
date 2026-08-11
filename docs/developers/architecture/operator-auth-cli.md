@@ -83,12 +83,13 @@ ausgegeben. Passkeys und OIDC bleiben die getrennten Folgearbeiten #267 und
 Die CLI wird unabhängig vom OCI-Image gebaut:
 
 ```sh
-go test ./...
-go build -trimpath ./cmd/lzug-admin
-GOOS=linux GOARCH=amd64 go build -trimpath ./cmd/lzug-admin
-GOOS=darwin GOARCH=amd64 go build -trimpath ./cmd/lzug-admin
-GOOS=windows GOARCH=amd64 go build -trimpath ./cmd/lzug-admin
+task test:operator
+task quality:operator
 ```
+
+Der Qualitätstask führt die Vertragstests aus und baut die sechs portablen
+Kombinationen aus Linux, macOS und Windows für amd64 und arm64 in ein
+temporäres Verzeichnis. Dadurch bleibt `dist/` unverändert.
 
 Die Python-Contract- und Persistenztests laufen mit `uv run --locked
 --extra dev python -m unittest`. Das vollständige `task quality` bleibt die

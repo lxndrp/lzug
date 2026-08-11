@@ -6,7 +6,12 @@ Akzeptiert, rückwirkend dokumentiert am 26.07.2026.
 
 ## Kontext und Entscheidung
 
-Das Projekt benötigt reproduzierbare Runtime-Versionen und Lockfile-basierte Abhängigkeiten für Python und das Angular-Frontend. `mise` verwaltet Python 3.14.6, Node.js 26.5.0, uv und Task. `uv` erzeugt die Python-Umgebung und löst Abhängigkeiten gegen `uv.lock` auf. Task orchestriert die projektweiten Entwicklungsabläufe. Das Frontend verwendet npm mit `frontend/package-lock.json`; pnpm wird nicht verwendet.
+Das Projekt benötigt reproduzierbare Runtime-Versionen und Lockfile-basierte
+Abhängigkeiten. `mise` verwaltet Python 3.14.6, Node.js 26.5.0, Go 1.26.5, uv
+und Task. `uv` erzeugt die Python-Umgebung und löst Abhängigkeiten gegen
+`uv.lock` auf. Task orchestriert die projektweiten Entwicklungsabläufe. Das
+Frontend verwendet npm mit `frontend/package-lock.json`; pnpm wird nicht
+verwendet.
 
 ## Konsequenzen
 

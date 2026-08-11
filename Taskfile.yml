@@ -21,14 +21,16 @@ tasks:
       - .venv/bin/python --version
       - node --version
       - npm --version
+      - go version
       - >-
         cd frontend && node -e "const { chromium } = require('@playwright/test'); const { existsSync } = require('node:fs'); const executablePath = chromium.executablePath(); if (!existsSync(executablePath)) { console.error('Playwright Chromium is missing at ' + executablePath + '; run task setup'); process.exit(1); } console.log('Playwright Chromium: ' + executablePath);"
 
   test:
-    desc: Run all backend and frontend unit tests
+    desc: Run all backend, frontend, and operator unit tests
     cmds:
       - task: test:backend
       - task: test:frontend
+      - task: test:operator
 
   test:backend:
     desc: Run backend unit tests
@@ -40,6 +42,11 @@ tasks:
     dir: frontend
     cmds:
       - npm run test:ci
+
+  test:operator:
+    desc: Run Go operator CLI contract tests
+    cmds:
+      - go test ./...
 
   docs:
     desc: Build the local handbook and generated code references
@@ -64,6 +71,8 @@ tasks:
       - quality:backend
       - quality:frontend
       - quality:security
+      - quality:operator
+      - quality:compose
       - quality:e2e
       - quality:a11y
       - docs
@@ -90,6 +99,28 @@ tasks:
     dir: frontend
     cmds:
       - npm run security:check
+
+  quality:operator:
+    desc: Run Go operator CLI tests and all portable CI builds
+    cmds:
+      - task: test:operator
+      - |
+        set -eu
+        temporary_directory="$(mktemp -d)"
+        trap 'rm -rf "$temporary_directory"' EXIT
+        for goos in linux darwin windows; do
+          for goarch in amd64 arm64; do
+            GOOS="$goos" GOARCH="$goarch" \
+              go build -trimpath -ldflags="-s -w" \
+              -o "$temporary_directory/lzug-admin-$goos-$goarch" \
+              ./cmd/lzug-admin
+          done
+        done
+
+  quality:compose:
+    desc: Validate Compose configuration with Docker or Podman
+    cmds:
+      - LZUG_IMAGE=lzug:0.1.0-local scripts/validate-compose.sh
 
   quality:e2e:
     desc: Run browser end-to-end tests
