@@ -4,6 +4,7 @@ from typing import Any
 
 from .models import Resource
 from .repositories import REST_RESOURCES
+from .version import application_version, build_revision
 
 RELATED_RESOURCE_FIELDS = {
     "committee_id": "committees",
@@ -23,6 +24,7 @@ RELATED_RESOURCE_FIELDS = {
 def api_root() -> dict[str, Any]:
     return {
         "name": "lzug API",
+        "version": application_version(),
         "_links": {
             "self": {"href": "/api"},
             "health": {"href": "/api/health"},
@@ -54,6 +56,8 @@ def health(status: str) -> dict[str, Any]:
     """Expose only public readiness, never persistence or domain details."""
     return {
         "status": status,
+        "version": application_version(),
+        "revision": build_revision(),
         "_links": {
             "self": {"href": "/api/health"},
         },

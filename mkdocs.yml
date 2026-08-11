@@ -28,6 +28,7 @@ nav:
           - Prüfung der öffentlichen Git-Historie: developers/reviews/public-history-audit.md
       - Frontend-Richtlinie: developers/frontend-guidelines.md
       - Lizenz und Release-Freigabe: developers/licensing.md
+      - Releases und GHCR: developers/releases.md
       - Frontend-Ausnahmen: developers/frontend-exceptions.md
       - Dokumentation: developers/documentation.md
       - Continuous Integration: developers/continuous-integration.md

@@ -35,6 +35,15 @@ func TestContainerNamesAreStrictlyValidated(t *testing.T) {
 	}
 }
 
+func TestVersionTextUsesBuildMetadata(t *testing.T) {
+	previous := applicationVersion
+	applicationVersion = "1.2.3"
+	t.Cleanup(func() { applicationVersion = previous })
+	if got := versionText(); got != "lzug-admin 1.2.3" {
+		t.Fatalf("unexpected version text %q", got)
+	}
+}
+
 func TestTransportPreservesJSONStreamsAndRemoteExitCode(t *testing.T) {
 	argsFile := filepath.Join(t.TempDir(), "args")
 	t.Setenv("LZUG_CLI_HELPER", "1")

@@ -29,6 +29,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONPATH="/app" \
     PYTHONDONTWRITEBYTECODE="1" \
     PYTHONUNBUFFERED="1" \
+    LZUG_REVISION="$VCS_REF" \
     LZUG_DATA_DIR="/data" \
     LZUG_STATIC_DIR="/app/frontend"
 
@@ -41,12 +42,13 @@ RUN groupadd --system --gid 10001 lzug \
     && chown -R 10001:10001 /app /data
 
 COPY --from=python-dependencies --chown=10001:10001 /src/.venv /opt/venv
+COPY --chown=10001:10001 VERSION ./VERSION
 COPY --chown=10001:10001 \
     backend/__init__.py backend/admin.py backend/admin_service.py backend/app.py backend/auth.py backend/authorization.py \
     backend/candidate_days.py backend/contract.py backend/database.py \
     backend/document_storage.py backend/documents.py backend/hateoas.py \
     backend/healthcheck.py backend/holiday_provider.py backend/local_auth.py backend/models.py \
-    backend/openapi.py backend/planning.py backend/repositories.py backend/security.py backend/store.py \
+    backend/openapi.py backend/planning.py backend/repositories.py backend/security.py backend/store.py backend/version.py \
     ./backend/
 COPY --chown=10001:10001 db/schema.sql ./db/schema.sql
 COPY --chown=10001:10001 db/migrations ./db/migrations

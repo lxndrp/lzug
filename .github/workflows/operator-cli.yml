@@ -49,4 +49,10 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: mkdir -p dist && go build -trimpath -ldflags="-s -w" -o "dist/lzug-admin-${{ matrix.goos }}-${{ matrix.goarch }}" ./cmd/lzug-admin
+        run: |
+          application_version=$(cat VERSION)
+          mkdir -p dist
+          go build -trimpath \
+            -ldflags="-s -w -X main.applicationVersion=$application_version" \
+            -o "dist/lzug-admin-${{ matrix.goos }}-${{ matrix.goarch }}" \
+            ./cmd/lzug-admin

@@ -116,6 +116,9 @@
             Prüfungsorte
           </a>
         </nav>
+        @if (applicationVersion(); as version) {
+          <p class="app-version">Version {{ version }}</p>
+        }
       </aside>
 
       @if (sidebarVisible()) {

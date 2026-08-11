@@ -78,6 +78,7 @@ describe('App', () => {
     expect(compiled.textContent).toContain('Aktueller Prüfungskontext');
     expect(compiled.textContent).toContain('Winter 2026');
     expect(compiled.textContent).toContain('Prüfungsausschuss Teststadt 1');
+    expect(compiled.textContent).toContain('Version 0.1.0');
   });
 
   it('refreshes the dashboard after a later login', () => {

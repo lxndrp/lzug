@@ -112,10 +112,11 @@ tasks:
         set -eu
         temporary_directory="$(mktemp -d)"
         trap 'rm -rf "$temporary_directory"' EXIT
+        application_version="$(cat VERSION)"
         for goos in linux darwin windows; do
           for goarch in amd64 arm64; do
             GOOS="$goos" GOARCH="$goarch" \
-              go build -trimpath -ldflags="-s -w" \
+              go build -trimpath -ldflags="-s -w -X main.applicationVersion=$application_version" \
               -o "$temporary_directory/lzug-admin-$goos-$goarch" \
               ./cmd/lzug-admin
           done
