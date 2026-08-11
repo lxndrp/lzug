@@ -46,6 +46,9 @@ class OciWorkflowContractTests(unittest.TestCase):
         self.assertIn('engine="${CONTAINER_ENGINE:-}"', taskfile)
         self.assertIn("command -v docker", taskfile)
         self.assertIn("command -v podman", taskfile)
+        self.assertIn("CONTAINER_ENGINE must be docker or podman.", taskfile)
+        self.assertIn('command -v "$engine"', taskfile)
+        self.assertIn('"$engine" info', taskfile)
         self.assertIn('"$engine" build --build-arg VCS_REF=local', taskfile)
 
     def test_compose_health_probe_tolerates_an_empty_process_list(self) -> None:

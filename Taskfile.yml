@@ -157,6 +157,21 @@ tasks:
             exit 77
           fi
         fi
+        case "$engine" in
+          docker|podman) ;;
+          *)
+            echo "CONTAINER_ENGINE must be docker or podman." >&2
+            exit 64
+            ;;
+        esac
+        if ! command -v "$engine" >/dev/null 2>&1; then
+          echo "${engine} executable is unavailable." >&2
+          exit 77
+        fi
+        if ! "$engine" info >/dev/null 2>&1; then
+          echo "${engine} is installed but its engine is unavailable." >&2
+          exit 77
+        fi
         "$engine" build --build-arg VCS_REF=local -t lzug:0.1.0-quality .
 
   quality:container:
