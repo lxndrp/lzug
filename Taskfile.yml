@@ -21,6 +21,7 @@ tasks:
       - .venv/bin/python --version
       - node --version
       - npm --version
+      - command -v go >/dev/null || { echo "Go is missing; run mise install"; exit 1; }
       - go version
       - >-
         cd frontend && node -e "const { chromium } = require('@playwright/test'); const { existsSync } = require('node:fs'); const executablePath = chromium.executablePath(); if (!existsSync(executablePath)) { console.error('Playwright Chromium is missing at ' + executablePath + '; run task setup'); process.exit(1); } console.log('Playwright Chromium: ' + executablePath);"
