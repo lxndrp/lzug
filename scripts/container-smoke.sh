@@ -44,19 +44,22 @@ trap cleanup EXIT INT TERM
 port="$("$engine" port "$container" 8000/tcp | sed 's/.*://')"
 url="http://127.0.0.1:$port"
 
-i=0
-while [ "$i" -lt 30 ]; do
-    if curl --silent --show-error --fail "$url/api/health" >/dev/null 2>&1; then
-        break
-    fi
-    i=$((i + 1))
-    sleep 1
-done
-if [ "$i" -eq 30 ]; then
+wait_for_health() {
+    attempt=0
+    while [ "$attempt" -lt 30 ]; do
+        if curl --silent --show-error --fail "$url/api/health" >/dev/null 2>&1; then
+            return 0
+        fi
+        attempt=$((attempt + 1))
+        sleep 1
+    done
     echo "Container did not become ready." >&2
     "$engine" logs "$container" >&2 || true
-    exit 1
-fi
+    return 1
+}
+
+echo "Verifying container readiness and public HTTP boundary."
+wait_for_health
 
 curl --silent --show-error --fail "$url/" | grep -F '<app-root' >/dev/null
 curl --silent --show-error --fail "$url/dashboard" | grep -F '<app-root' >/dev/null
@@ -82,6 +85,7 @@ test "$(curl --silent --output /dev/null --write-out '%{http_code}' "$url/api")"
 test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
     --header 'Origin: https://blocked.example.invalid' "$url/api/health")" = "403"
 
+echo "Verifying operator, actor, and committee isolation."
 operator_credentials=$("$engine" exec "$container" python -c '
 import json
 from backend.auth import AuthenticationRepository
@@ -148,6 +152,7 @@ created_round=$(curl --silent --show-error --fail \
     "$url/api/exam-rounds")
 test "$(printf '%s' "$created_round" | python3 -c 'import json,sys; print(json.load(sys.stdin)["created_by_member_id"])')" = "1"
 
+echo "Verifying session-cookie and secret-free logging boundaries."
 curl --silent --show-error --dump-header "$headers" --output /dev/null \
     --request POST \
     --header "Cookie: __Host-lzug_session=$actor_token" \
@@ -167,7 +172,8 @@ if "$engine" logs "$container" 2>&1 | grep -F "$log_marker" >/dev/null; then
     exit 1
 fi
 
+echo "Verifying readiness after restart."
 "$engine" restart "$container" >/dev/null
-curl --silent --show-error --fail "$url/api/health" >/dev/null
+wait_for_health
 
 echo "Container runtime, authentication isolation, and security smoke test passed with $engine: $image"

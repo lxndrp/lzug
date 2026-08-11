@@ -30,14 +30,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE="1" \
     PYTHONUNBUFFERED="1" \
     LZUG_DATA_DIR="/data" \
-    LZUG_STATIC_DIR="/app/frontend" \
-    LZUG_HTTPS_ONLY="true" \
-    LZUG_SESSION_TTL_SECONDS="28800" \
-    LZUG_MAX_REQUEST_BYTES="1048576" \
-    LZUG_AUTH_RATE_LIMIT="20" \
-    LZUG_AUTH_RATE_WINDOW_SECONDS="60" \
-    LZUG_MAX_UPLOAD_BYTES="10485760" \
-    LZUG_ALLOWED_UPLOAD_MEDIA_TYPES="application/pdf,image/jpeg,image/png,text/plain"
+    LZUG_STATIC_DIR="/app/frontend"
 
 WORKDIR /app
 

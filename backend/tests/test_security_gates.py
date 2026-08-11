@@ -62,7 +62,12 @@ class SarifSecurityGateTests(unittest.TestCase):
         self.assertIn("scanners: vuln,secret,misconfig", workflow)
         self.assertIn("format: cyclonedx", workflow)
         self.assertIn("security-events: write", workflow)
+        self.assertIn('python-version: "3.14.6"', workflow)
         self.assertIn('scripts/container-smoke.sh "$IMAGE_REF"', workflow)
+
+        dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
+        self.assertNotIn("LZUG_AUTH_RATE_LIMIT=", dockerfile)
+        self.assertNotIn("LZUG_AUTH_RATE_WINDOW_SECONDS=", dockerfile)
 
 
 if __name__ == "__main__":
