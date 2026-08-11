@@ -19,7 +19,8 @@ VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.s
        ('005_add_exam_day_attendance.sql'), ('006_add_exam_execution_status.sql'),
        ('007_add_documents.sql'), ('008_add_authentication_sessions.sql'),
        ('009_harden_migration_history.sql'), ('010_add_operator_auth_tokens.sql'),
-       ('011_add_local_password_totp_auth.sql');
+       ('011_add_local_password_totp_auth.sql'),
+       ('012_add_plan_revision.sql');
 
 CREATE TABLE schema_migration_checksum (
   name TEXT PRIMARY KEY REFERENCES schema_migration(name) ON DELETE CASCADE,
@@ -37,7 +38,8 @@ INSERT INTO schema_migration_checksum (name, checksum) VALUES
   ('008_add_authentication_sessions.sql', '926452905ea280e06b805b78a7074143e02a0d2439cd2d37ce1727e0ace3026c'),
   ('009_harden_migration_history.sql', 'a71425eb5cd8674532cd8c05672fb28c977b86c27dac610ade1e57964c9ba7a1'),
   ('010_add_operator_auth_tokens.sql', '6e0f3400d0871ddee4ec840360990f6b6fcd5ac8233f67c31cf03d2c4499e25a'),
-  ('011_add_local_password_totp_auth.sql', '7f17cd3e4b2eb0f359c4e55902f0e5f25068703d804d9d6279597770beb6eef1');
+  ('011_add_local_password_totp_auth.sql', '7f17cd3e4b2eb0f359c4e55902f0e5f25068703d804d9d6279597770beb6eef1'),
+  ('012_add_plan_revision.sql', 'e9462145b627eb238219d728d2b1263dd16e6d5eb30d33dbb1f7f0c61226e8fb');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
@@ -203,6 +205,7 @@ CREATE TABLE exam_round (
       'cancelled'
     )
   ),
+  plan_revision INTEGER NOT NULL DEFAULT 0 CHECK (plan_revision >= 0),
   availability_deadline TEXT,
   availability_reminder_at TEXT,
   created_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
