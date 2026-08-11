@@ -121,12 +121,17 @@ jobs:
       - name: Require every selected security check
         env:
           CLASSIFY_RESULT: ${{ needs.classify.result }}
+          SECURITY_SELECTED: ${{ needs.classify.outputs.security }}
           CODEQL_SELECTED: ${{ needs.classify.outputs.codeql }}
           CODEQL_RESULT: ${{ needs.codeql.result }}
           SOURCE_SCAN_RESULT: ${{ needs.source-scan.result }}
         run: |
           test "$CLASSIFY_RESULT" = "success"
           test "$SOURCE_SCAN_RESULT" = "success"
+          case "$SECURITY_SELECTED:$CODEQL_SELECTED" in
+            true:true | true:false | false:false) ;;
+            *) exit 1 ;;
+          esac
           if [ "$CODEQL_SELECTED" = "true" ]; then
             test "$CODEQL_RESULT" = "success"
           else

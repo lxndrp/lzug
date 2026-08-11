@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -272,6 +273,10 @@ class StableQualityGateContractTests(unittest.TestCase):
 
     def test_operator_cli_details_are_selected_and_stably_gated(self) -> None:
         workflow = Path(".github/workflows/operator-cli.yml").read_text(encoding="utf-8")
+        checkout_refs = re.findall(r"^\s*uses:\s*actions/checkout@([^\s]+)", workflow, re.MULTILINE)
+
+        self.assertEqual(3, len(checkout_refs))
+        self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in checkout_refs))
         self.assertEqual(2, workflow.count("if: needs.classify.outputs.operator_cli == 'true'"))
         self.assertIn("name: Quality / Operator CLI", workflow)
         self.assertIn("if: always()", workflow)

@@ -64,6 +64,8 @@ class SarifSecurityGateTests(unittest.TestCase):
         self.assertIn("python3 scripts/classify_quality_paths.py", workflow)
         self.assertIn("if: needs.classify.outputs.codeql == 'true'", workflow)
         self.assertIn("name: Quality / Security", workflow)
+        self.assertIn("SECURITY_SELECTED: ${{ needs.classify.outputs.security }}", workflow)
+        self.assertIn('case "$SECURITY_SELECTED:$CODEQL_SELECTED" in', workflow)
         self.assertIn('test "$SOURCE_SCAN_RESULT" = "success"', workflow)
 
         dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
