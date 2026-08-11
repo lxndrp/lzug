@@ -207,6 +207,12 @@ class ApiTests(unittest.TestCase):
                 ["round_id", "revision", "exam_days"],
                 spec["components"]["schemas"]["PlanningProposalWrite"]["required"],
             )
+            self.assertEqual(
+                ["morning", "afternoon", "full_day"],
+                spec["components"]["schemas"]["PlanningProposalAssignment"]["properties"][
+                    "day_part"
+                ]["enum"],
+            )
             self.assertIn("401", spec["paths"]["/api/candidates"]["get"]["responses"])
             self.assertIn("403", spec["paths"]["/api/candidates"]["post"]["responses"])
             self.assertNotIn("security", spec["paths"]["/api/health"]["get"])

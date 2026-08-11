@@ -262,8 +262,10 @@ class PlanningService:
             The confirmed days and aggregate confirmation counts.
 
         Raises:
-            ValueError: If the round or a proposal is absent, or contains a
-                cancelled day.
+            ValueError: If the exam round is absent or the persisted proposal
+                violates a mandatory planning rule.
+            PlanConflictError: If no proposal exists or the round status or
+                revision changed before confirmation.
         """
         with session_scope(self.db_path) as session:
             store = Store(session)

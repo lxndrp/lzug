@@ -767,7 +767,10 @@ def spec() -> dict[str, Any]:
                     "type": "string",
                     "enum": ["examiner", "fallback"],
                 },
-                "day_part": {"type": "string", "enum": ["morning", "afternoon"]},
+                "day_part": {
+                    "type": "string",
+                    "enum": ["morning", "afternoon", "full_day"],
+                },
                 "fallback_status": {"type": ["string", "null"]},
             },
             required=(
