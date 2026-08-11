@@ -15,11 +15,14 @@ tasks:
   doctor:
     desc: Check the local toolchain, virtual environment, and Playwright Chromium
     cmds:
+      - command -v uv >/dev/null || { echo "uv is missing; run mise install"; exit 1; }
       - uv --version
       - test "$(uv cache dir)" = "$HOME/.cache/uv" || { echo "uv cache must be $HOME/.cache/uv (configure Codex globally, not in this repository)"; exit 1; }
       - test -x .venv/bin/python || { echo ".venv/bin/python is missing; run task setup"; exit 1; }
       - .venv/bin/python --version
+      - command -v node >/dev/null || { echo "Node.js is missing; run mise install"; exit 1; }
       - node --version
+      - command -v npm >/dev/null || { echo "npm is missing; run mise install"; exit 1; }
       - npm --version
       - command -v go >/dev/null || { echo "Go is missing; run mise install"; exit 1; }
       - go version
