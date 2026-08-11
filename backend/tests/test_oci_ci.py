@@ -40,6 +40,22 @@ class OciWorkflowContractTests(unittest.TestCase):
         self.assertIn("provenance: false", workflow)
         self.assertIn("sbom: false", workflow)
 
+    def test_local_image_build_supports_docker_and_podman(self) -> None:
+        taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
+
+        self.assertIn('engine="${CONTAINER_ENGINE:-}"', taskfile)
+        self.assertIn("command -v docker", taskfile)
+        self.assertIn("command -v podman", taskfile)
+        self.assertIn("CONTAINER_ENGINE must be docker or podman.", taskfile)
+        self.assertIn('command -v "$engine"', taskfile)
+        self.assertIn('"$engine" info', taskfile)
+        self.assertIn('"$engine" build --build-arg VCS_REF=local', taskfile)
+
+    def test_compose_health_probe_tolerates_an_empty_process_list(self) -> None:
+        smoke = Path("scripts/compose-smoke.sh").read_text(encoding="utf-8")
+
+        self.assertIn('if parsed else ""', smoke)
+
 
 if __name__ == "__main__":
     unittest.main()
