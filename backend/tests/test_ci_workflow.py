@@ -6,6 +6,16 @@ from pathlib import Path
 
 from scripts.classify_quality_paths import QualitySelection, classify_paths
 
+STABLE_QUALITY_GATES = (
+    "Quality / Backend",
+    "Quality / Frontend",
+    "Quality / Operator CLI",
+    "Quality / OCI",
+    "Quality / Documentation",
+    "Quality / Security",
+    "Quality / Overall",
+)
+
 
 class QualityPathClassificationTests(unittest.TestCase):
     def assert_selection(self, paths: list[str], **selected: bool) -> None:
@@ -214,12 +224,7 @@ class CiWorkflowContractTests(unittest.TestCase):
                 self.assertIn(f"if: needs.classify.outputs.{output} == 'true'", self.workflow)
 
     def test_stable_domain_gates_check_selected_and_skipped_results(self) -> None:
-        for gate in (
-            "Quality / Backend",
-            "Quality / Frontend",
-            "Quality / Documentation",
-            "Quality / Overall",
-        ):
+        for gate in STABLE_QUALITY_GATES:
             with self.subTest(gate=gate):
                 self.assertIn(f"name: {gate}", self.workflow)
         self.assertIn("if: always()", self.workflow)
@@ -263,15 +268,7 @@ class StableQualityGateContractTests(unittest.TestCase):
 
     def test_all_stable_gate_names_exist_exactly_once(self) -> None:
         workflows = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
-        for gate in (
-            "Quality / Backend",
-            "Quality / Frontend",
-            "Quality / Operator CLI",
-            "Quality / OCI",
-            "Quality / Documentation",
-            "Quality / Security",
-            "Quality / Overall",
-        ):
+        for gate in STABLE_QUALITY_GATES:
             with self.subTest(gate=gate):
                 self.assertEqual(1, workflows.count(f"name: {gate}"))
 
