@@ -44,6 +44,12 @@ task docs
 Das Ergebnis liegt unter `site/` und wird in CI als geschütztes Artefakt
 `lzug-documentation` bereitgestellt.
 
+Die lokalen Prüfungen werden passend zum Änderungsumfang gewählt. Zum Beispiel
+prüft `task quality:operator` die Go-basierte Betreiber-CLI vollständig,
+während `task quality` die breite Abnahme für unklare oder querschnittliche
+Änderungen einschließlich der Compose-Konfiguration ausführt. Die kompakte
+Auswahlmatrix steht in [ADR-0009](docs/developers/decisions/0009-toolchain-und-entwicklungs-tasks.md).
+
 Der kontrollierte Wiki-Review- und Veröffentlichungsablauf steht unter
 [Wiki-Publikation](docs/developers/wiki-publishing.md).
 

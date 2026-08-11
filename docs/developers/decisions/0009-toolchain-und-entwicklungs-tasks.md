@@ -14,7 +14,7 @@ bleiben, aber über eine klar erkennbare öffentliche Schnittstelle laufen.
 
 ## Entscheidung
 
-`mise` verwaltet ausschließlich die Toolchains Python, Node.js, uv und Task.
+`mise` verwaltet ausschließlich die Toolchains Python, Node.js, Go, uv und Task.
 Task wird über den Aqua-Backend-Eintrag `aqua:go-task/task` bereitgestellt.
 `Taskfile.yml` ist die einzige öffentliche Schnittstelle für lokale
 Entwicklungsabläufe; `task setup`, `task test`, `task docs`, `task quality` und
@@ -35,9 +35,29 @@ gesperrten Entwicklungsabhängigkeiten, Frontend-Aufgaben verwenden ihr
 Arbeitsverzeichnis und `npm ci`. Die Einrichtung installiert außerdem den
 Playwright-Chromium-Browser; `task doctor` prüft Toolchain, virtuelle
 Python-Umgebung und die verwendete Browser-Executable ohne vollständigen
-Qualitätslauf. `task quality` behält die parallele Ausführung der bisherigen
-Prüfabschnitte bei und führt Browser-End-to-End- sowie Accessibility-Prüfungen
-parallel aus.
+Qualitätslauf. `task quality` führt Backend, Frontend, Security,
+Operator-CLI, Compose-Konfiguration, Dokumentation, Browser-End-to-End und
+Accessibility parallel aus. `task quality:operator` prüft den Go-Vertrag und
+baut dieselben sechs portablen Ziele wie CI ohne Änderungen an `dist/`.
+
+Die lokale Prüfung wird bewusst nach Risiko und betroffenen Schnittstellen
+gewählt; Task klassifiziert dafür keine Pfade. Die Teilaufgaben entsprechen den
+Qualitätsbereichen aus #230:
+
+| Änderungsumfang | Passende lokale Prüfung |
+| --- | --- |
+| Technische Dokumentation | `task docs` |
+| Eng begrenzter Backend- oder Frontend-Test | `task test:backend` oder `task test:frontend` |
+| Produktiver Backend- oder Frontend-Vertrag | Betroffener `quality`-Teil sowie `task docs`, `task quality:e2e` und `task quality:a11y` |
+| npm-Produktionsabhängigkeiten | `task quality:security` und betroffener Frontend-Teil |
+| Operator-CLI | `task test:operator`, bei produktiven Änderungen `task quality:operator` |
+| Compose-Konfiguration | `task quality:compose` mit lokaler Docker- oder Podman-kompatibler Engine |
+| Unklar, querschnittlich oder Toolchain | `task quality` |
+
+`task quality:compose` verwendet denselben Konfigurationsvertrag wie CI. Die
+Prüfung benötigt eine Docker- oder Podman-kompatible Engine und scheitert bei
+fehlender Engine mit einer verständlichen Meldung. Image-Build und Runtime-Smoke
+gehören weiterhin nicht zum regulären Qualitätslauf.
 
 ADR-0003 bleibt als historische Toolchain-Entscheidung bestehen; dieser ADR
 ersetzt dessen frühere Zuordnung lokaler Abläufe zu `mise`.
