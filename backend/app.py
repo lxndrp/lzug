@@ -8,6 +8,7 @@ import mimetypes
 import os
 import signal
 import threading
+from datetime import timedelta
 from http import HTTPStatus
 from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -47,10 +48,19 @@ from .models import (
 )
 from .planning import PlanningService
 from .repositories import REST_RESOURCES, ResourceRepository
+from .security import RequestRateLimiter, RuntimeSecurityConfig
 
 
 class ForbiddenRequestError(Exception):
     """Signal a valid session without authorization for request context."""
+
+
+class RequestTooLargeError(ValueError):
+    """Signal a request body beyond the configured production limit."""
+
+
+class UnsupportedMediaTypeError(ValueError):
+    """Signal a body that is not JSON at the HTTP boundary."""
 
 
 class LzugHandler(BaseHTTPRequestHandler):
@@ -65,8 +75,13 @@ class LzugHandler(BaseHTTPRequestHandler):
     db_path = DEFAULT_DB_PATH
     static_dir: Path | None = None
     cookie_secure = True
+    https_only = True
     session_cookie_name = "__Host-lzug_session"
     csrf_cookie_name = "lzug_csrf"
+    cors_allowed_origins: frozenset[str] = frozenset()
+    session_ttl = timedelta(hours=8)
+    max_request_bytes = 1024 * 1024
+    auth_rate_limiter = RequestRateLimiter(20, timedelta(minutes=1))
 
     @property
     def repository(self) -> ResourceRepository:
@@ -90,11 +105,13 @@ class LzugHandler(BaseHTTPRequestHandler):
 
     @property
     def local_auth_service(self) -> LocalAuthService:
-        return LocalAuthService(self.db_path)
+        return LocalAuthService(self.db_path, session_ttl=self.session_ttl)
 
     def do_GET(self) -> None:
         """Dispatch read, health, OpenAPI, and Swagger UI requests."""
         try:
+            if not self.require_allowed_origin():
+                return
             parsed = urlparse(self.path)
             if self.static_dir is not None and not self.is_api_path(parsed.path):
                 self.serve_static(parsed.path)
@@ -102,28 +119,23 @@ class LzugHandler(BaseHTTPRequestHandler):
             path_parts = self.path_parts(parsed.path)
             query = parse_qs(parsed.query)
 
-            if path_parts == []:
-                self.respond(hateoas.api_root())
-                return
-
             if path_parts == ["health"]:
                 readiness = database_readiness(self.db_path)
                 self.respond(
-                    hateoas.health(
-                        "ok" if readiness["ready"] else "unavailable",
-                        reason=readiness["reason"],
-                        migration=readiness["migration"],
-                    ),
+                    hateoas.health("ok" if readiness["ready"] else "unavailable"),
                     HTTPStatus.OK if readiness["ready"] else HTTPStatus.SERVICE_UNAVAILABLE,
                 )
                 return
 
-            if path_parts == ["openapi.json"]:
-                self.respond(openapi.spec())
-                return
-
-            if path_parts == ["docs"]:
-                self.respond_html(self.docs_html())
+            if path_parts in ([], ["openapi.json"], ["docs"]):
+                if self.require_authenticated(require_actor=False) is None:
+                    return
+                if path_parts == []:
+                    self.respond(hateoas.api_root())
+                elif path_parts == ["openapi.json"]:
+                    self.respond(openapi.spec())
+                else:
+                    self.respond_html(self.docs_html())
                 return
 
             if path_parts == ["session"]:
@@ -262,7 +274,15 @@ class LzugHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         """Dispatch creates and planning actions, translating domain errors to HTTP."""
         try:
+            if not self.require_allowed_origin():
+                return
             path_parts = self.path_parts(urlparse(self.path).path)
+            if (
+                path_parts
+                and path_parts[0] == "auth"
+                and not self.allow_public_auth_request(path_parts)
+            ):
+                return
             if path_parts == ["auth", "login"]:
                 payload = self.read_json()
                 result = self.local_auth_service.login(
@@ -353,7 +373,9 @@ class LzugHandler(BaseHTTPRequestHandler):
                 context = self.require_authenticated(require_actor=False, require_csrf=True)
                 if context is None:
                     return
-                credentials = self.authentication_repository.rotate_session(self.session_token())
+                credentials = self.authentication_repository.rotate_session(
+                    self.session_token(), ttl=self.session_ttl
+                )
                 if credentials is None:
                     self.respond({"error": "Authentication required."}, HTTPStatus.UNAUTHORIZED)
                     return
@@ -462,6 +484,10 @@ class LzugHandler(BaseHTTPRequestHandler):
             )
         except ForbiddenRequestError as error:
             self.respond({"error": str(error)}, HTTPStatus.FORBIDDEN)
+        except RequestTooLargeError as error:
+            self.respond({"error": str(error)}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+        except UnsupportedMediaTypeError as error:
+            self.respond({"error": str(error)}, HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
         except LocalAuthError as error:
             status = (
                 HTTPStatus.TOO_MANY_REQUESTS
@@ -481,6 +507,8 @@ class LzugHandler(BaseHTTPRequestHandler):
     def do_PATCH(self) -> None:
         """Dispatch partial updates through the repository validation boundary."""
         try:
+            if not self.require_allowed_origin():
+                return
             if self.require_authenticated(require_csrf=True) is None:
                 return
             path_parts = self.path_parts(urlparse(self.path).path)
@@ -566,6 +594,10 @@ class LzugHandler(BaseHTTPRequestHandler):
             )
         except ForbiddenRequestError as error:
             self.respond({"error": str(error)}, HTTPStatus.FORBIDDEN)
+        except RequestTooLargeError as error:
+            self.respond({"error": str(error)}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+        except UnsupportedMediaTypeError as error:
+            self.respond({"error": str(error)}, HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
         except ValueError as error:
             self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
         except SQLAlchemyError as error:
@@ -573,6 +605,8 @@ class LzugHandler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:
         try:
+            if not self.require_allowed_origin():
+                return
             if self.require_authenticated(require_csrf=True) is None:
                 return
             resource_name, entity_id = self.resource_target(
@@ -596,13 +630,26 @@ class LzugHandler(BaseHTTPRequestHandler):
         except SQLAlchemyError as error:
             self.respond_database_error(error)
 
+    def do_OPTIONS(self) -> None:
+        """Answer only explicit, allowlisted API CORS preflight requests."""
+        origin = self.headers.get("Origin")
+        if not self.is_api_path(urlparse(self.path).path) or not origin:
+            self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+            return
+        if not self.require_allowed_origin():
+            return
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self.send_header("Cache-Control", "no-store")
+        self.send_security_headers()
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token")
+        self.send_header("Access-Control-Max-Age", "600")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def health(self) -> dict:
         readiness = database_readiness(self.db_path)
-        return hateoas.health(
-            "ok" if readiness["ready"] else "unavailable",
-            reason=readiness["reason"],
-            migration=readiness["migration"],
-        )
+        return hateoas.health("ok" if readiness["ready"] else "unavailable")
 
     def require_authenticated(
         self,
@@ -626,6 +673,89 @@ class LzugHandler(BaseHTTPRequestHandler):
             self.respond({"error": "Forbidden."}, HTTPStatus.FORBIDDEN)
             return None
         return context
+
+    def require_allowed_origin(self) -> bool:
+        """Reject browser cross-origin requests unless the origin is exact and explicit."""
+        origin = self.headers.get("Origin")
+        if (
+            origin is None
+            or self.origin_is_same_host(origin)
+            or self.allowed_cors_origin(origin) is not None
+        ):
+            return True
+        self.respond({"error": "Cross-origin request is not allowed."}, HTTPStatus.FORBIDDEN)
+        return False
+
+    def origin_is_same_host(self, origin: str) -> bool:
+        origin_authority = self.normalized_origin_authority(origin)
+        if origin_authority is None:
+            return False
+        scheme, hostname, port = origin_authority
+        host_authority = self.normalized_host_authority(self.headers.get("Host", ""), scheme=scheme)
+        return host_authority == (hostname, port)
+
+    @staticmethod
+    def normalized_origin_authority(origin: str) -> tuple[str, str, int] | None:
+        """Return a canonical browser origin while rejecting malformed authorities."""
+        try:
+            parsed = urlparse(origin)
+            port = parsed.port
+        except ValueError:
+            return None
+        if (
+            parsed.scheme not in {"http", "https"}
+            or parsed.hostname is None
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path
+            or parsed.params
+            or parsed.query
+            or parsed.fragment
+        ):
+            return None
+        return (
+            parsed.scheme,
+            parsed.hostname.lower(),
+            port or (443 if parsed.scheme == "https" else 80),
+        )
+
+    @staticmethod
+    def normalized_host_authority(host: str, *, scheme: str) -> tuple[str, int] | None:
+        """Normalize Host using the request-origin scheme without trusting malformed ports."""
+        try:
+            parsed = urlparse(f"{scheme}://{host}")
+            port = parsed.port
+        except ValueError:
+            return None
+        if (
+            scheme not in {"http", "https"}
+            or parsed.hostname is None
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in {"", "/"}
+            or parsed.params
+            or parsed.query
+            or parsed.fragment
+        ):
+            return None
+        return parsed.hostname.lower(), port or (443 if scheme == "https" else 80)
+
+    def allowed_cors_origin(self, requested_origin: str) -> str | None:
+        """Select only a validated configured value for a reflected CORS header."""
+        return next(
+            (allowed for allowed in self.cors_allowed_origins if requested_origin == allowed),
+            None,
+        )
+
+    def allow_public_auth_request(self, path_parts: list[str]) -> bool:
+        endpoint = "/".join(path_parts)
+        remote_key = self.client_address[0] if self.client_address else "unknown"
+        retry_after = self.auth_rate_limiter.check(f"{remote_key}:{endpoint}")
+        if retry_after is None:
+            return True
+        self._add_response_header("Retry-After", str(retry_after))
+        self.respond({"error": "Too many requests."}, HTTPStatus.TOO_MANY_REQUESTS)
+        return False
 
     @property
     def authorization_scope(self) -> AuthorizationScope:
@@ -763,10 +893,20 @@ class LzugHandler(BaseHTTPRequestHandler):
         self._add_response_header("Set-Cookie", self._csrf_cookie("", max_age=0))
 
     def _session_cookie(self, value: str, *, max_age: int = 8 * 60 * 60) -> str:
-        return self._cookie(self.session_cookie_name, value, max_age=max_age, http_only=True)
+        return self._cookie(
+            self.session_cookie_name,
+            value,
+            max_age=int(self.session_ttl.total_seconds()) if value else max_age,
+            http_only=True,
+        )
 
     def _csrf_cookie(self, value: str, *, max_age: int = 8 * 60 * 60) -> str:
-        return self._cookie(self.csrf_cookie_name, value, max_age=max_age, http_only=False)
+        return self._cookie(
+            self.csrf_cookie_name,
+            value,
+            max_age=int(self.session_ttl.total_seconds()) if value else max_age,
+            http_only=False,
+        )
 
     def _cookie(self, name: str, value: str, *, max_age: int, http_only: bool) -> str:
         attributes = [f"{name}={value}", f"Max-Age={max_age}", "Path=/", "SameSite=Strict"]
@@ -869,7 +1009,7 @@ class LzugHandler(BaseHTTPRequestHandler):
         content_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
         self.send_response(HTTPStatus.OK)
         self.send_header("Cache-Control", cache_control or "public, max-age=31536000, immutable")
-        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_security_headers()
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -895,12 +1035,26 @@ class LzugHandler(BaseHTTPRequestHandler):
         return value
 
     def read_json(self) -> dict:
-        length = int(self.headers.get("Content-Length", "0"))
+        if self.headers.get("Transfer-Encoding"):
+            raise ValueError("Transfer-Encoding is not supported")
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError as error:
+            raise ValueError("Invalid Content-Length") from error
+        if length < 0:
+            raise ValueError("Invalid Content-Length")
         if length == 0:
             return {}
+        if length > self.max_request_bytes:
+            raise RequestTooLargeError(f"Request body exceeds {self.max_request_bytes} bytes.")
+        if self.headers.get_content_type() != "application/json":
+            raise UnsupportedMediaTypeError("Content-Type must be application/json.")
         try:
-            payload = json.loads(self.rfile.read(length).decode("utf-8"))
-        except json.JSONDecodeError as error:
+            body = self.rfile.read(length)
+            if len(body) != length:
+                raise ValueError("Incomplete request body")
+            payload = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
             raise ValueError("Invalid JSON body") from error
         if not isinstance(payload, dict):
             raise ValueError("JSON body must be an object")
@@ -945,7 +1099,7 @@ class LzugHandler(BaseHTTPRequestHandler):
         body = b"" if status == HTTPStatus.NO_CONTENT else self.json_bytes(payload)
         self.send_response(status)
         self.send_header("Cache-Control", "no-store")
-        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_security_headers()
         if body:
             self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -963,7 +1117,7 @@ class LzugHandler(BaseHTTPRequestHandler):
         body = html.encode("utf-8")
         self.send_response(status)
         self.send_header("Cache-Control", "no-store")
-        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_security_headers()
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         for name, value in getattr(self, "_response_headers", []):
@@ -981,24 +1135,47 @@ class LzugHandler(BaseHTTPRequestHandler):
 <head>
   <meta charset="utf-8">
   <title>lzug API Docs</title>
-  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css">
 </head>
 <body>
-  <div id="swagger-ui"></div>
-  <script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"></script>
-  <script>
-    window.onload = () => {
-      window.ui = SwaggerUIBundle({
-        url: "/api/openapi.json",
-        dom_id: "#swagger-ui"
-      });
-    };
-  </script>
+  <main>
+    <h1>lzug API</h1>
+    <p>Die maschinenlesbare Beschreibung ist als
+      <a href="/api/openapi.json">OpenAPI-Dokument</a> verfügbar.</p>
+  </main>
 </body>
 </html>"""
 
+    def send_security_headers(self) -> None:
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Permissions-Policy", "camera=(), geolocation=(), microphone=()")
+        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+        self.send_header("Cross-Origin-Resource-Policy", "same-origin")
+        self.send_header("X-Permitted-Cross-Domain-Policies", "none")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; "
+            "form-action 'self'; object-src 'none'; script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; font-src 'self' data:; "
+            "img-src 'self' data:; connect-src 'self'",
+        )
+        if self.https_only:
+            self.send_header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        origin = self.headers.get("Origin")
+        allowed_origin = self.allowed_cors_origin(origin) if origin is not None else None
+        if allowed_origin is not None:
+            self.send_header("Access-Control-Allow-Origin", allowed_origin)
+            self.send_header("Access-Control-Allow-Credentials", "true")
+            self.send_header("Vary", "Origin")
+
+    def log_request(self, code: int | str = "-", size: int | str = "-") -> None:
+        """Log only transport metadata, never client addresses, queries, headers, or bodies."""
+        path = urlparse(self.path).path
+        print(f"http_request method={self.command} path={path} status={code} bytes={size}")
+
     def log_message(self, format: str, *args) -> None:
-        print(f"{self.address_string()} - {format % args}")
+        print("http_server event=protocol_message")
 
 
 def parse_args() -> argparse.Namespace:
@@ -1043,6 +1220,10 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     try:
+        runtime_security = RuntimeSecurityConfig.from_environment()
+    except ValueError as error:
+        raise SystemExit(f"Invalid security configuration: {error}") from error
+    try:
         validate_persistence(args.paths)
     except PersistenceConfigurationError as error:
         raise SystemExit(f"Persistent storage is not ready: {error}") from error
@@ -1071,6 +1252,18 @@ def main() -> None:
 
     LzugHandler.db_path = args.db
     LzugHandler.static_dir = args.static_dir
+    LzugHandler.cookie_secure = runtime_security.https_only
+    LzugHandler.session_cookie_name = (
+        "__Host-lzug_session" if runtime_security.https_only else "lzug_session"
+    )
+    LzugHandler.https_only = runtime_security.https_only
+    LzugHandler.cors_allowed_origins = runtime_security.cors_allowed_origins
+    LzugHandler.session_ttl = runtime_security.session_ttl
+    LzugHandler.max_request_bytes = runtime_security.max_request_bytes
+    LzugHandler.auth_rate_limiter = RequestRateLimiter(
+        runtime_security.auth_rate_limit,
+        runtime_security.auth_rate_window,
+    )
     server = ThreadingHTTPServer((args.host, args.port), LzugHandler)
     server.daemon_threads = True
     print(f"lzug backend listening on http://{args.host}:{args.port}")

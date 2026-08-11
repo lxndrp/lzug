@@ -45,8 +45,8 @@ COPY --chown=10001:10001 \
     backend/__init__.py backend/admin.py backend/admin_service.py backend/app.py backend/auth.py backend/authorization.py \
     backend/candidate_days.py backend/contract.py backend/database.py \
     backend/document_storage.py backend/documents.py backend/hateoas.py \
-    backend/healthcheck.py backend/holiday_provider.py backend/models.py \
-    backend/openapi.py backend/planning.py backend/repositories.py backend/store.py \
+    backend/healthcheck.py backend/holiday_provider.py backend/local_auth.py backend/models.py \
+    backend/openapi.py backend/planning.py backend/repositories.py backend/security.py backend/store.py \
     ./backend/
 COPY --chown=10001:10001 db/schema.sql ./db/schema.sql
 COPY --chown=10001:10001 db/migrations ./db/migrations

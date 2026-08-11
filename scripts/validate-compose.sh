@@ -73,6 +73,15 @@ assert any(volume.get("target") == "/data" for volume in service["volumes"])
 assert service["healthcheck"]["test"][-3:] == ["python", "-m", "backend.healthcheck"]
 assert service.get("privileged", False) is False
 assert all("docker.sock" not in str(volume) for volume in service["volumes"])
+environment = service["environment"]
+assert environment["LZUG_HTTPS_ONLY"] == "true"
+assert environment["LZUG_CORS_ALLOWED_ORIGINS"] in {"", None}
+assert environment["LZUG_SESSION_TTL_SECONDS"] == "28800"
+assert environment["LZUG_MAX_REQUEST_BYTES"] == "1048576"
+assert environment["LZUG_AUTH_RATE_LIMIT"] == "20"
+assert environment["LZUG_AUTH_RATE_WINDOW_SECONDS"] == "60"
+assert environment["LZUG_MAX_UPLOAD_BYTES"] == "10485760"
+assert environment["LZUG_ALLOWED_UPLOAD_MEDIA_TYPES"] == "application/pdf,image/jpeg,image/png,text/plain"
 for port in service["ports"]:
     if isinstance(port, dict):
         assert port["host_ip"] in {"127.0.0.1", "::1"}

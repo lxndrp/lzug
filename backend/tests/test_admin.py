@@ -86,7 +86,8 @@ class AdminAuthenticationTests(unittest.TestCase):
             with self.assertRaisesRegex(AdminOperationError, "invalid, expired"):
                 service.consume(recovery.token, "recovery", now=expired_at)
             self.assertEqual(
-                invitation.account["id"], service.consume(invitation.token, "invitation")["id"]
+                invitation.account["id"],
+                service.consume(invitation.token, "invitation", now=expired_at)["id"],
             )
 
     def test_disable_revokes_sessions_and_operator_has_no_domain_actor(self) -> None:

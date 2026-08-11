@@ -25,8 +25,10 @@ verleiht daher niemals eine Ausschussrolle.
 
 Eine Session besteht aus zufälligem opaque Bearer-Material und einem separaten
 CSRF-Token. In `auth_session` liegen nur SHA-256-Prüfwerte, nie die Token. Die
-Session ist standardmäßig acht Stunden absolut gültig. Eine Rotation widerruft
-die alte Session atomar und erzeugt eine neue; Logout, Kontensperrung und
+Session ist standardmäßig acht Stunden absolut gültig. Über
+`LZUG_SESSION_TTL_SECONDS` sind ausschließlich 5 Minuten bis 24 Stunden
+zulässig; Cookie und serverseitige Ablaufzeit verwenden denselben Wert. Eine
+Rotation widerruft die alte Session atomar und erzeugt eine neue; Logout, Kontensperrung und
 expliziter Widerruf machen aktive Sessions sofort ungültig. Abgelaufene,
 widerrufene oder inaktive Konten werden identisch als nicht authentifiziert
 behandelt.
@@ -40,9 +42,11 @@ liefern HTTP 403. GET-Fachoperationen benötigen kein CSRF-Token.
 
 ## HTTP-Grenze
 
-`/api/health`, `/api`, `/api/openapi.json` und `/api/docs` sind bewusst öffentlich.
-Health enthält ausschließlich Readiness-Status und Links, niemals Fachdaten.
-Alle anderen Fachoperationen benötigen eine gültige Session. HTTP 401 bedeutet
+`/api/health` ist als einzige öffentliche GET-API bewusst freigegeben und
+enthält ausschließlich Readiness-Status und Self-Link, niemals Fach-,
+Persistenz- oder Migrationsdaten. `/api`, OpenAPI und API-Dokumentation
+benötigen eine Session. Die zwingend öffentlichen lokalen Auth-POST-Routen
+sind unten einzeln begründet. Alle Fachoperationen benötigen eine gültige Session. HTTP 401 bedeutet
 fehlende, ungültige, abgelaufene oder widerrufene Authentifizierung. HTTP 403
 ist für eine gültige Session ohne zulässigen Fach-Actor sowie CSRF- und spätere
 Rollenfehler reserviert.
@@ -121,3 +125,8 @@ IP-/normalisierter E-Mail-Kombination auf fünf Versuche in fünf Minuten. Bei
 Überschreitung wird HTTP 429 mit `Retry-After` geliefert. Das ist ein
 prozesslokaler Schutz für eine einzelne Instanz; ein verteiltes Rate-Limit ist
 nicht Bestandteil des Self-Hosting-Modells.
+
+Zusätzlich begrenzt die HTTP-Grenze alle öffentlichen Auth-Routen je IP und
+Route standardmäßig auf 20 Requests pro 60 Sekunden. Die Grenzen sind über
+`LZUG_AUTH_RATE_LIMIT` und `LZUG_AUTH_RATE_WINDOW_SECONDS` konfigurierbar; die
+zulässigen Bereiche werden beim Start fail-closed validiert.

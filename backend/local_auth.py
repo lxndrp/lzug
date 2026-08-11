@@ -196,8 +196,16 @@ def _recovery_code() -> str:
 class LocalAuthService:
     """Transactional local authentication and first-factor activation."""
 
-    def __init__(self, db_path: Path = DEFAULT_DB_PATH):
+    def __init__(
+        self,
+        db_path: Path = DEFAULT_DB_PATH,
+        *,
+        session_ttl: timedelta = SESSION_TTL,
+    ):
+        if session_ttl <= timedelta(0):
+            raise ValueError("Session lifetime must be positive")
         self.db_path = Path(db_path)
+        self.session_ttl = session_ttl
         self.authentication = AuthenticationRepository(self.db_path)
 
     def prepare_invitation(self, token: str, *, now: datetime | None = None) -> AuthPreparation:
@@ -335,7 +343,7 @@ class LocalAuthService:
                 account.last_login_at = _timestamp(current)
                 self.authentication._revoke_account_sessions(session, account.id, "new-login")
                 credentials = self.authentication._create_session(
-                    session, account, current, SESSION_TTL
+                    session, account, current, self.session_ttl
                 )
                 success = True
                 return LocalAuthResult(credentials, account.id)

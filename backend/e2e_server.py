@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 from .app import LzugHandler, parse_args
 from .auth import AuthenticationRepository
 from .database import initialize
+from .security import RequestRateLimiter, RuntimeSecurityConfig
 
 
 class E2EHandler(LzugHandler):
@@ -19,6 +20,7 @@ class E2EHandler(LzugHandler):
 
     reset_lock = Lock()
     cookie_secure = False
+    https_only = False
     session_cookie_name = "lzug_e2e_session"
 
     @override
@@ -51,10 +53,18 @@ class E2EHandler(LzugHandler):
 
 def main() -> None:
     args = parse_args()
+    runtime_security = RuntimeSecurityConfig.from_environment()
     database_path: Path = args.db
     initialize(database_path, with_seed=True, reset=True)
 
     E2EHandler.db_path = database_path
+    E2EHandler.cors_allowed_origins = runtime_security.cors_allowed_origins
+    E2EHandler.session_ttl = runtime_security.session_ttl
+    E2EHandler.max_request_bytes = runtime_security.max_request_bytes
+    E2EHandler.auth_rate_limiter = RequestRateLimiter(
+        runtime_security.auth_rate_limit,
+        runtime_security.auth_rate_window,
+    )
     server = ThreadingHTTPServer((args.host, args.port), E2EHandler)
     print(f"lzug E2E backend listening on http://{args.host}:{args.port}")
     print(f"database: {database_path}")

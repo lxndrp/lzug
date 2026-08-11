@@ -30,7 +30,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `.venv/bin/python -m backend.e2e_server --host 127.0.0.1 --port ${backendPort} --db var/e2e/lzug-e2e-${runId}.sqlite3`,
+      command: `LZUG_CORS_ALLOWED_ORIGINS=${frontendUrl} .venv/bin/python -m backend.e2e_server --host 127.0.0.1 --port ${backendPort} --db var/e2e/lzug-e2e-${runId}.sqlite3`,
       cwd: '..',
       url: `${backendUrl}/api/health`,
       reuseExistingServer: false,
