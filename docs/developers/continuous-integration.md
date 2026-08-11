@@ -28,13 +28,6 @@ von den neuen Gates ab und können diese daher nicht umgehen. Die bisher
 erforderlichen CodeQL-, Source-Scan- und OCI-Scan-Kontexte bleiben ebenfalls
 erhalten; ein nicht ausgewählter Detailjob meldet dabei `skipped`.
 
-Die Migration erfolgt ohne Schutzlücke: Zuerst werden die sieben stabilen
-Gates zusätzlich zu den bisherigen Required Checks verpflichtend. Erst nach
-einem erfolgreichen Pull-Request-Lauf mit beiden Namenssätzen werden die alten
-Ruleset-Einträge entfernt; anschließend entfallen die beiden
-Kompatibilitätsjobs. `strict_required_status_checks_policy` bleibt während der
-gesamten Umstellung aktiv.
-
 Alle Domänen- und Overall-Details liegen im Workflow `Quality` und verwenden
 genau einen Klassifikationslauf. Das einmal gebaute, über seine Prüfsumme
 abgesicherte Image wird vom OCI-Scan und den ausgewählten Overall-Verträgen
