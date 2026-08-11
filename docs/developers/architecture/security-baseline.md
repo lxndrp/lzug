@@ -82,8 +82,9 @@ veröffentlichte Image enthält diese Seed-Datei nicht.
 
 Der konsolidierte Workflow `.github/workflows/ci.yml` besitzt global nur
 `contents: read`. `security-events: write` ist ausschließlich auf die beiden
-CodeQL-Matrixjobs begrenzt. Alle Actions des Qualitätsworkflows sind auf
-vollständige Commit-SHAs fixiert.
+CodeQL-Matrixjobs begrenzt. Alle Actions sämtlicher Workflows sind auf
+vollständige Commit-SHAs fixiert; ein repositoryweiter Vertragstest verhindert
+bewegliche Tag-Referenzen auch in Release-, Dependabot- und Wiki-Abläufen.
 
 | Gate | Blockierender Befund | Nachweis |
 | --- | --- | --- |
@@ -110,9 +111,7 @@ Image-Build, Image-Scan und die Container-, Compose- sowie CLI-zu-Container-
 Verträge bleiben getrennte Statuschecks. Das Image-Archiv wird einmal gebaut,
 mit SHA-256 abgesichert und in jedem ausgewählten Folgejob vor Verwendung
 geprüft. `Quality / OCI` verlangt Build und Scan, `Quality / Overall` die
-ausgewählten Laufzeitverträge. Der vorübergehende
-`OCI pull request gate`-Kompatibilitätsstatus hängt vom neuen OCI-Gate ab und
-kann es nicht umgehen.
+ausgewählten Laufzeitverträge.
 
 GitHub Secret Scanning und Push Protection sind im öffentlichen Repository
 aktiv. Non-Provider-Patterns und Validity Checks werden vom aktuellen

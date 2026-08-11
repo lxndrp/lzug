@@ -51,12 +51,8 @@ class SarifSecurityGateTests(unittest.TestCase):
             self.assertEqual([target], sarif_paths(Path(directory)))
             self.assertEqual([], findings([target], 7.0))
 
-    def test_security_workflow_uses_blocking_gates_and_full_action_shas(self) -> None:
+    def test_security_workflow_uses_blocking_gates(self) -> None:
         workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
-        action_refs = re.findall(r"^\s*uses:\s*[^@\s]+@([^\s]+)", workflow, re.MULTILINE)
-
-        self.assertTrue(action_refs)
-        self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs))
         self.assertIn('exit-code: "1"', workflow)
         self.assertIn("scanners: secret,misconfig", workflow)
         self.assertIn("security-events: write", workflow)
@@ -71,6 +67,14 @@ class SarifSecurityGateTests(unittest.TestCase):
         dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
         self.assertNotIn("LZUG_AUTH_RATE_LIMIT=", dockerfile)
         self.assertNotIn("LZUG_AUTH_RATE_WINDOW_SECONDS=", dockerfile)
+
+    def test_all_workflow_actions_use_full_commit_shas(self) -> None:
+        for path in sorted(Path(".github/workflows").glob("*.yml")):
+            with self.subTest(workflow=path.name):
+                workflow = path.read_text(encoding="utf-8")
+                action_refs = re.findall(r"^\s*uses:\s*[^@\s]+@([^\s]+)", workflow, re.MULTILINE)
+                self.assertTrue(action_refs)
+                self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs))
 
 
 if __name__ == "__main__":
