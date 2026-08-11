@@ -58,12 +58,23 @@ wait_for_health() {
     return 1
 }
 
+assert_status() {
+    description=$1
+    expected=$2
+    actual=$3
+    if [ "$actual" != "$expected" ]; then
+        echo "$description: expected HTTP $expected, received $actual." >&2
+        exit 1
+    fi
+}
+
 echo "Verifying container readiness and public HTTP boundary."
 wait_for_health
 
 curl --silent --show-error --fail "$url/" | grep -F '<app-root' >/dev/null
 curl --silent --show-error --fail "$url/dashboard" | grep -F '<app-root' >/dev/null
-[ "$(curl --silent --output /dev/null --write-out '%{http_code}' "$url/assets/missing.svg")" = 404 ]
+assert_status "Missing static asset" 404 \
+    "$(curl --silent --output /dev/null --write-out '%{http_code}' "$url/assets/missing.svg")"
 
 test "$("$engine" exec "$container" id -u)" = "10001"
 curl --silent --show-error --fail "$url/api/health" | python3 -c '
@@ -80,10 +91,13 @@ grep -Eiq '^Content-Security-Policy: .*frame-ancestors.*none' "$headers"
 grep -Eiq '^Strict-Transport-Security: max-age=31536000' "$headers"
 grep -Eiq '^X-Content-Type-Options: nosniff' "$headers"
 grep -Eiq '^X-Frame-Options: DENY' "$headers"
-test "$(curl --silent --output /dev/null --write-out '%{http_code}' "$url/api/candidates")" = "401"
-test "$(curl --silent --output /dev/null --write-out '%{http_code}' "$url/api")" = "401"
-test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
-    --header 'Origin: https://blocked.example.invalid' "$url/api/health")" = "403"
+assert_status "Unauthenticated domain API" 401 \
+    "$(curl --silent --output /dev/null --write-out '%{http_code}' "$url/api/candidates")"
+assert_status "Unauthenticated API root" 401 \
+    "$(curl --silent --output /dev/null --write-out '%{http_code}' "$url/api")"
+assert_status "Disallowed Origin" 403 \
+    "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+        --header 'Origin: https://blocked.example.invalid' "$url/api/health")"
 
 echo "Verifying operator, actor, and committee isolation."
 operator_credentials=$("$engine" exec "$container" python -c '
@@ -96,8 +110,10 @@ credentials = repository.create_session(account["id"])
 print(json.dumps({"token": credentials.token, "csrf": credentials.csrf_token}))
 ')
 operator_token=$(printf '%s' "$operator_credentials" | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
-test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
-    --header "Cookie: __Host-lzug_session=$operator_token" "$url/api/candidates")" = "403"
+assert_status "Operator without domain role" 403 \
+    "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+        --header "Cookie: __Host-lzug_session=$operator_token" "$url/api/candidates")"
+echo "Operator/domain-role separation passed."
 
 actor_credentials=$("$engine" exec "$container" python -c '
 import json
@@ -108,6 +124,7 @@ print(json.dumps({"token": credentials.token, "csrf": credentials.csrf_token}))
 ')
 actor_token=$(printf '%s' "$actor_credentials" | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
 actor_csrf=$(printf '%s' "$actor_credentials" | python3 -c 'import json,sys; print(json.load(sys.stdin)["csrf"])')
+echo "Actor session created."
 
 isolated_round=$("$engine" exec "$container" python -c '
 from backend.models import COMMITTEE, EXAM_ROUND
@@ -131,9 +148,11 @@ exam_round = repository.create(EXAM_ROUND, {
 })
 print(exam_round["id"])
 ')
-test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
-    --header "Cookie: __Host-lzug_session=$actor_token" \
-    "$url/api/exam-rounds/$isolated_round")" = "403"
+assert_status "Foreign committee round" 403 \
+    "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+        --header "Cookie: __Host-lzug_session=$actor_token" \
+        "$url/api/exam-rounds/$isolated_round")"
+echo "Committee isolation passed."
 
 half_year=$(curl --silent --show-error --fail \
     --request POST \
@@ -143,6 +162,7 @@ half_year=$(curl --silent --show-error --fail \
     --data '{"season":"summer","year":2030,"status":"draft"}' \
     "$url/api/exam-half-years")
 half_year_id=$(printf '%s' "$half_year" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+echo "Authorized half-year creation passed."
 created_round=$(curl --silent --show-error --fail \
     --request POST \
     --header 'Content-Type: application/json' \
@@ -150,7 +170,12 @@ created_round=$(curl --silent --show-error --fail \
     --header "X-CSRF-Token: $actor_csrf" \
     --data "{\"exam_half_year_id\":$half_year_id,\"committee_id\":1,\"name\":\"Actor boundary\",\"created_by_member_id\":999999}" \
     "$url/api/exam-rounds")
-test "$(printf '%s' "$created_round" | python3 -c 'import json,sys; print(json.load(sys.stdin)["created_by_member_id"])')" = "1"
+created_by=$(printf '%s' "$created_round" | python3 -c 'import json,sys; print(json.load(sys.stdin)["created_by_member_id"])')
+if [ "$created_by" != "1" ]; then
+    echo "Server-derived actor: expected member 1, received $created_by." >&2
+    exit 1
+fi
+echo "Server-derived actor passed."
 
 echo "Verifying session-cookie and secret-free logging boundaries."
 curl --silent --show-error --dump-header "$headers" --output /dev/null \
@@ -162,11 +187,12 @@ grep -Eiq '^Set-Cookie: __Host-lzug_session=.*Secure.*HttpOnly' "$headers"
 grep -Eiq '^Set-Cookie: lzug_csrf=.*SameSite=Strict.*Secure' "$headers"
 
 log_marker="container-secret-marker-$$"
-test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
-    --request POST \
-    --header 'Content-Type: application/json' \
-    --data "{\"email\":\"$log_marker@example.invalid\",\"password\":\"$log_marker\",\"second_factor\":\"000000\"}" \
-    "$url/api/auth/login")" = "401"
+assert_status "Invalid login" 401 \
+    "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+        --request POST \
+        --header 'Content-Type: application/json' \
+        --data "{\"email\":\"$log_marker@example.invalid\",\"password\":\"$log_marker\",\"second_factor\":\"000000\"}" \
+        "$url/api/auth/login")"
 if "$engine" logs "$container" 2>&1 | grep -F "$log_marker" >/dev/null; then
     echo "Container logs exposed request secret material." >&2
     exit 1
