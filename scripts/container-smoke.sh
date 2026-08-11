@@ -87,12 +87,21 @@ assert_status "Missing static asset" 404 \
     "$(curl --silent --output /dev/null --write-out '%{http_code}' "$url/assets/missing.svg")"
 
 test "$("$engine" exec "$container" id -u)" = "10001"
-curl --silent --show-error --fail "$url/api/health" | python3 -c '
+expected_version=$("$engine" exec "$container" cat /app/VERSION)
+expected_revision=$("$engine" image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image")
+curl --silent --show-error --fail "$url/api/health" | \
+    EXPECTED_VERSION="$expected_version" EXPECTED_REVISION="$expected_revision" python3 -c '
 import json
+import os
 import sys
 
 payload = json.load(sys.stdin)
-assert payload == {"status": "ok", "_links": {"self": {"href": "/api/health"}}}
+assert payload == {
+    "status": "ok",
+    "version": os.environ["EXPECTED_VERSION"],
+    "revision": os.environ["EXPECTED_REVISION"],
+    "_links": {"self": {"href": "/api/health"}},
+}
 '
 
 headers="$temporary_directory/headers"
@@ -209,12 +218,13 @@ grep -Eiq '^Set-Cookie: __Host-lzug_session=.*Secure.*HttpOnly' "$headers"
 grep -Eiq '^Set-Cookie: lzug_csrf=.*SameSite=Strict.*Secure' "$headers"
 
 log_marker="container-secret-marker-$$"
-assert_status "Invalid login" 401 \
-    "$(curl --silent --output /dev/null --write-out '%{http_code}' \
-        --request POST \
-        --header 'Content-Type: application/json' \
-        --data "{\"email\":\"$log_marker@example.invalid\",\"password\":\"$log_marker\",\"second_factor\":\"000000\"}" \
-        "$url/api/auth/login")"
+invalid_login_body="$temporary_directory/invalid-login-response.json"
+invalid_login_status=$(curl --silent --output "$invalid_login_body" --write-out '%{http_code}' \
+    --request POST \
+    --header 'Content-Type: application/json' \
+    --data "{\"email\":\"$log_marker@example.invalid\",\"password\":\"$log_marker\",\"second_factor\":\"000000\"}" \
+    "$url/api/auth/login")
+assert_status "Invalid login" 401 "$invalid_login_status" "$invalid_login_body"
 if "$engine" logs "$container" 2>&1 | grep -F "$log_marker" >/dev/null; then
     echo "Container logs exposed request secret material." >&2
     exit 1

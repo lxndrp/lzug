@@ -21,6 +21,7 @@ const (
 )
 
 var containerNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`)
+var applicationVersion = "development"
 
 type request struct {
 	Version   int            `json:"version"`
@@ -41,6 +42,10 @@ type runner struct {
 }
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--version" {
+		_, _ = fmt.Fprintln(os.Stdout, versionText())
+		return
+	}
 	opts, err := parseOptions(os.Args[1:], os.Stdin)
 	if err != nil {
 		writeLocalError(os.Stdout, "invalid_request", err.Error())
@@ -70,6 +75,10 @@ func main() {
 		writeLocalError(os.Stdout, class, "Container engine could not be invoked")
 	}
 	os.Exit(code)
+}
+
+func versionText() string {
+	return "lzug-admin " + applicationVersion
 }
 
 func parseOptions(args []string, input io.Reader) (options, error) {

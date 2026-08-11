@@ -53,6 +53,13 @@ Auswahlmatrix steht in [ADR-0009](docs/developers/decisions/0009-toolchain-und-e
 Der kontrollierte Wiki-Review- und Veröffentlichungsablauf steht unter
 [Wiki-Publikation](docs/developers/wiki-publishing.md).
 
+Versionierte OCI-Images werden erst nach einem ausdrücklich freigegebenen,
+vollständig grünen SemVer-Release in GHCR bereitgestellt. Der
+[Release-Prozess](docs/developers/releases.md) dokumentiert Digest, SBOM und
+Herkunftsnachweise; die
+[Compose-Referenzinstallation](docs/developers/architecture/compose-self-hosting.md)
+verwendet eine konkrete Version oder einen Digest und niemals `latest`.
+
 ## Lizenz
 
 Dieses Projekt steht unter der [GNU Affero General Public License

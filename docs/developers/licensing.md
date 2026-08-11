@@ -46,13 +46,13 @@ with GPLv3 code; its additional section 13 network obligation applies to the
 combined program. The exact obligations still depend on the way components are
 combined and on preserving every third-party notice.
 
-| Candidate for lzug | Strategic effect | Compatibility implication for the current frontend |
-| --- | --- | --- |
-| `GPL-2.0-only` | Strong copyleft with no later-version option | Does not provide a safe GPL route for a combined work containing the Apache-2.0 Taiga UI and RxJS code. |
-| `GPL-2.0-or-later` | Preserves GPLv2 as the default while allowing a GPLv3 distribution where needed | Technically compatible through the later-version path, but does not impose the AGPL network obligation. |
-| `GPL-3.0-or-later` | Strong copyleft and direct Apache-2.0 compatibility | No special source offer for users who only interact with a modified server remotely. |
-| `AGPL-3.0-or-later` | GPLv3-compatible copyleft plus a source offer for remote network users | **Confirmed for lzug** because publicly operated modified versions should remain source-available to interacting users. |
-| `Apache-2.0` | Permissive reuse and direct compatibility with the frontend dependencies | Would give up the current reciprocal-copyleft and network-source objectives. |
+| Candidate for lzug  | Strategic effect                                                                | Compatibility implication for the current frontend                                                                      |
+| ------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `GPL-2.0-only`      | Strong copyleft with no later-version option                                    | Does not provide a safe GPL route for a combined work containing the Apache-2.0 Taiga UI and RxJS code.                 |
+| `GPL-2.0-or-later`  | Preserves GPLv2 as the default while allowing a GPLv3 distribution where needed | Technically compatible through the later-version path, but does not impose the AGPL network obligation.                 |
+| `GPL-3.0-or-later`  | Strong copyleft and direct Apache-2.0 compatibility                             | No special source offer for users who only interact with a modified server remotely.                                    |
+| `AGPL-3.0-or-later` | GPLv3-compatible copyleft plus a source offer for remote network users          | **Confirmed for lzug** because publicly operated modified versions should remain source-available to interacting users. |
+| `Apache-2.0`        | Permissive reuse and direct compatibility with the frontend dependencies        | Would give up the current reciprocal-copyleft and network-source objectives.                                            |
 
 ### Confirmed decision
 
@@ -89,12 +89,13 @@ counsel before a commercial offer is marketed or signed.
 - Documentation: the tracked source and documentation counts are included in
   the inventory report; documentation licensing must not be inferred from the
   software license.
-- OCI: no OCI artifact exists yet. When one is introduced, the release-pipeline
-  owner must generate and archive a CycloneDX JSON SBOM from the exact image
-  digest, including OS packages, Python packages, npm packages, and notices.
+- OCI: Noch wurde kein öffentlicher Produkt-Release ausgelöst. Der
+  [Release-Prozess](releases.md) erzeugt und archiviert die CycloneDX-JSON-SBOM
+  aus dem exakt geprüften Image und bindet sie mit einer signierten
+  Attestation an dessen Digest.
 
-The report script is intentionally preparatory. It does not claim that a
-public-release SBOM exists.
+The report script is intentionally preparatory. A public-release SBOM exists
+only after a fully successful tagged release workflow.
 
 ## Primary sources
 

@@ -4,6 +4,7 @@ from typing import Any
 
 from .models import CANDIDATE_COMMITTEE_ASSIGNMENT
 from .repositories import REST_RESOURCES
+from .version import application_version
 
 REST_SCHEMA_FIELDS = {
     "specialization": {
@@ -414,12 +415,21 @@ def spec() -> dict[str, Any]:
 
     schemas = {
         "ApiRoot": object_schema(
-            {"name": {"type": "string"}, "_links": link_map()},
-            required=("name", "_links"),
+            {
+                "name": {"type": "string"},
+                "version": {"type": "string"},
+                "_links": link_map(),
+            },
+            required=("name", "version", "_links"),
         ),
         "Health": object_schema(
-            {"status": {"type": "string"}, "_links": link_map()},
-            required=("status", "_links"),
+            {
+                "status": {"type": "string"},
+                "version": {"type": "string"},
+                "revision": {"type": "string"},
+                "_links": link_map(),
+            },
+            required=("status", "version", "revision", "_links"),
         ),
         "Error": object_schema({"error": {"type": "string"}}, required=("error",)),
         "AuthTokenWrite": object_schema(
@@ -832,7 +842,7 @@ def spec() -> dict[str, Any]:
         "openapi": "3.1.0",
         "info": {
             "title": "lzug API",
-            "version": "0.1.0",
+            "version": application_version(),
             "description": "JSON API fuer Pruefungsrunden mit HAL-nahen HATEOAS-Links.",
         },
         "servers": [{"url": "http://127.0.0.1:8000"}],
