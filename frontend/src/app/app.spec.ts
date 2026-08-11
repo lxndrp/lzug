@@ -80,6 +80,22 @@ describe('App', () => {
     expect(compiled.textContent).toContain('Prüfungsausschuss Teststadt 1');
   });
 
+  it('refreshes the dashboard after a later login', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+
+    const auth = TestBed.inject(AuthService) as unknown as {
+      state: { set(value: 'anonymous' | 'authenticated'): void };
+    };
+    auth.state.set('anonymous');
+    fixture.detectChanges();
+    auth.state.set('authenticated');
+    fixture.detectChanges();
+
+    flushDashboardRequests(http);
+  });
+
   it('should expose the sidebar visibility through accessible toggle state', () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);

@@ -1,6 +1,8 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { NavigationEnd, Router, RouterLink } from '@angular/router';
+import { filter } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AuthService } from './auth.service';
 import type { AuthCompletion, AuthPreparation } from './auth.service';
@@ -15,6 +17,7 @@ export type AuthScreen = 'login' | 'activate' | 'recover';
 })
 export class AuthFlowComponent {
   private readonly auth = inject(AuthService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
 
   protected readonly busy = signal(false);
@@ -29,6 +32,19 @@ export class AuthFlowComponent {
   protected totpSecret = '';
   protected totpCode = '';
   protected passwordConfirmation = '';
+
+  constructor() {
+    this.router.events
+      .pipe(
+        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((event) => {
+        const screen = this.screenFromUrl(event.urlAfterRedirects);
+        if (screen !== this.screen()) this.reset();
+        this.screen.set(screen);
+      });
+  }
 
   protected submitLogin(): void {
     this.run(() => this.auth.login(this.email, this.password, this.secondFactor));

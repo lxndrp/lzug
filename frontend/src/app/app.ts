@@ -7,6 +7,7 @@ import {
   ViewChild,
   afterNextRender,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -177,6 +178,14 @@ export class App {
   });
 
   constructor() {
+    let previousAuthState: ReturnType<AuthService['state']> | undefined;
+    effect(() => {
+      const authState = this.auth.state();
+      if (previousAuthState === 'anonymous' && authState === 'authenticated') {
+        this.refresh();
+      }
+      previousAuthState = authState;
+    });
     this.router.events
       .pipe(
         filter((event): event is NavigationEnd => event instanceof NavigationEnd),

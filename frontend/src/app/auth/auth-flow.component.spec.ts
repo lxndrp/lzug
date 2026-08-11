@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
 import { routes } from '../app.routes';
@@ -53,6 +53,18 @@ describe('AuthFlowComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Anmeldung nicht möglich.');
     expect(fixture.nativeElement.textContent).not.toContain(instance.password);
     expect(fixture.nativeElement.textContent).not.toContain(instance.secondFactor);
+  });
+
+  it('supports alphanumeric recovery codes and follows auth route changes', async () => {
+    const factor = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+      '#auth-factor',
+    );
+    expect(factor?.getAttribute('inputmode')).toBe('text');
+
+    await TestBed.inject(Router).navigateByUrl('/activate');
+    fixture.detectChanges();
+
+    expect((component as unknown as { screen: () => string }).screen()).toBe('activate');
   });
 
   it('activates an invitation and displays recovery codes only after completion', () => {
