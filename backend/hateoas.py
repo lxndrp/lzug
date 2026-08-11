@@ -211,6 +211,28 @@ def planning_proposal(proposal: dict[str, Any]) -> dict[str, Any]:
     return linked
 
 
+def editable_planning_proposal(proposal: dict[str, Any]) -> dict[str, Any]:
+    """Link one complete, revisioned proposal at its aggregate resource."""
+    round_id = proposal["round_id"]
+    linked = dict(proposal)
+    linked["_links"] = {
+        "self": {
+            "href": f"/api/exam-rounds/{round_id}/planning-proposal",
+        },
+        "update": {
+            "href": f"/api/exam-rounds/{round_id}/planning-proposal",
+            "method": "PUT",
+        },
+        "confirm-plan": {
+            "href": f"/api/exam-rounds/{round_id}/confirm-plan",
+            "method": "POST",
+        },
+        "round": {"href": f"/api/exam-rounds/{round_id}"},
+        "api": {"href": "/api"},
+    }
+    return linked
+
+
 def confirmed_plan(result: dict[str, Any]) -> dict[str, Any]:
     round_id = result["round_id"]
     linked = dict(result)

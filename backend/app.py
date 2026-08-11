@@ -47,7 +47,15 @@ from .models import (
     PLANNING_SETTINGS,
     Resource,
 )
-from .planning import PlanningService
+from .planning import (
+    PlanAssignment,
+    PlanConflictError,
+    PlanDay,
+    PlanningProposal,
+    PlanningService,
+    PlanSlot,
+    PlanValidationError,
+)
 from .repositories import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES, ResourceRepository
 from .security import RequestRateLimiter, RuntimeSecurityConfig
 
@@ -62,6 +70,78 @@ class RequestTooLargeError(ValueError):
 
 class UnsupportedMediaTypeError(ValueError):
     """Signal a body that is not JSON at the HTTP boundary."""
+
+
+def planning_proposal_from_payload(round_id: int, payload: dict) -> PlanningProposal:
+    """Parse one complete proposal while keeping the path as authoritative scope."""
+
+    def integer(container: dict, field: str, *, nullable: bool = False) -> int | None:
+        value = container.get(field)
+        if nullable and value is None:
+            return None
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ValueError(f"{field} must be an integer")
+        return value
+
+    payload_round_id = integer(payload, "round_id")
+    if payload_round_id != round_id:
+        raise ValueError("round_id must match the request path")
+    raw_days = payload.get("exam_days")
+    if not isinstance(raw_days, list):
+        raise ValueError("exam_days must be an array")
+
+    days = []
+    for raw_day in raw_days:
+        if not isinstance(raw_day, dict):
+            raise ValueError("Each exam day must be an object")
+        raw_slots = raw_day.get("slots")
+        raw_assignments = raw_day.get("assignments")
+        if not isinstance(raw_slots, list) or not isinstance(raw_assignments, list):
+            raise ValueError("Each exam day needs slots and assignments arrays")
+        slots = []
+        for raw_slot in raw_slots:
+            if not isinstance(raw_slot, dict):
+                raise ValueError("Each slot must be an object")
+            slot_type = raw_slot.get("slot_type")
+            if not isinstance(slot_type, str):
+                raise ValueError("slot_type must be a string")
+            slots.append(
+                PlanSlot(
+                    id=integer(raw_slot, "id", nullable=True),
+                    round_candidate_id=integer(raw_slot, "round_candidate_id"),
+                    slot_type=slot_type,
+                )
+            )
+        assignments = []
+        for raw_assignment in raw_assignments:
+            if not isinstance(raw_assignment, dict):
+                raise ValueError("Each assignment must be an object")
+            assignment_role = raw_assignment.get("assignment_role")
+            day_part = raw_assignment.get("day_part")
+            if not isinstance(assignment_role, str) or not isinstance(day_part, str):
+                raise ValueError("Assignment role and day part must be strings")
+            assignments.append(
+                PlanAssignment(
+                    id=integer(raw_assignment, "id", nullable=True),
+                    committee_member_id=integer(raw_assignment, "committee_member_id"),
+                    assignment_role=assignment_role,
+                    day_part=day_part,
+                )
+            )
+        days.append(
+            PlanDay(
+                id=integer(raw_day, "id", nullable=True),
+                candidate_exam_day_id=integer(raw_day, "candidate_exam_day_id"),
+                location_id=integer(raw_day, "location_id"),
+                slots=tuple(slots),
+                assignments=tuple(assignments),
+            )
+        )
+    return PlanningProposal(
+        round_id=round_id,
+        revision=integer(payload, "revision"),
+        days=tuple(days),
+    )
 
 
 @dataclass(frozen=True)
@@ -239,6 +319,21 @@ class LzugHandler(BaseHTTPRequestHandler):
                 )
                 return
 
+            if (
+                len(path_parts) == 3
+                and path_parts[0] == "exam-rounds"
+                and path_parts[2] == "planning-proposal"
+            ):
+                round_id = int(path_parts[1])
+                self.require_round_access(round_id, manage=True)
+                proposal = self.planning_service.get_proposal(round_id)
+                self.respond(
+                    hateoas.editable_planning_proposal(
+                        self.planning_service.proposal_payload(proposal)
+                    )
+                )
+                return
+
             if len(path_parts) == 2 and path_parts[0] == "confirmed-plan-days":
                 day = self.repository.confirmed_plan_day(
                     int(path_parts[1]), self.authorization_scope
@@ -332,6 +427,8 @@ class LzugHandler(BaseHTTPRequestHandler):
             )
         except ForbiddenRequestError as error:
             self.respond({"error": str(error)}, HTTPStatus.FORBIDDEN)
+        except PlanConflictError as error:
+            self.respond_plan_conflict(error)
         except ValueError:
             self.respond({"error": "Invalid request"}, HTTPStatus.BAD_REQUEST)
         except SQLAlchemyError as error:
@@ -565,6 +662,47 @@ class LzugHandler(BaseHTTPRequestHandler):
             if error.retry_after is not None:
                 self._add_response_header("Retry-After", str(error.retry_after))
             self.respond({"error": str(error)}, status)
+        except PlanValidationError as error:
+            self.respond_plan_validation(error)
+        except PlanConflictError as error:
+            self.respond_plan_conflict(error)
+        except ValueError as error:
+            self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+        except SQLAlchemyError as error:
+            self.respond_database_error(error)
+
+    def do_PUT(self) -> None:
+        """Replace a complete planning proposal through its aggregate endpoint."""
+        try:
+            if not self.require_allowed_origin():
+                return
+            if self.require_authenticated(require_csrf=True) is None:
+                return
+            path_parts = self.path_parts(urlparse(self.path).path)
+            if not (
+                len(path_parts) == 3
+                and path_parts[0] == "exam-rounds"
+                and path_parts[2] == "planning-proposal"
+            ):
+                self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                return
+            round_id = int(path_parts[1])
+            self.require_round_access(round_id, manage=True)
+            proposal = planning_proposal_from_payload(round_id, self.read_json())
+            saved = self.planning_service.save_proposal(proposal)
+            self.respond(
+                hateoas.editable_planning_proposal(self.planning_service.proposal_payload(saved))
+            )
+        except ForbiddenRequestError as error:
+            self.respond({"error": str(error)}, HTTPStatus.FORBIDDEN)
+        except PlanValidationError as error:
+            self.respond_plan_validation(error)
+        except PlanConflictError as error:
+            self.respond_plan_conflict(error)
+        except RequestTooLargeError as error:
+            self.respond({"error": str(error)}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+        except UnsupportedMediaTypeError as error:
+            self.respond({"error": str(error)}, HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
         except ValueError as error:
             self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
         except SQLAlchemyError as error:
@@ -709,7 +847,7 @@ class LzugHandler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.NO_CONTENT)
         self.send_header("Cache-Control", "no-store")
         self.send_security_headers()
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token")
         self.send_header("Access-Control-Max-Age", "600")
         self.send_header("Content-Length", "0")
@@ -1003,6 +1141,40 @@ class LzugHandler(BaseHTTPRequestHandler):
             )
             return
         self.respond({"error": "Database operation failed."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def respond_plan_conflict(self, error: PlanConflictError) -> None:
+        """Expose optimistic-lock and state conflicts without persistence details."""
+        self.respond(
+            {
+                "error": {
+                    "code": "planning_proposal_conflict",
+                    "message": str(error),
+                }
+            },
+            HTTPStatus.CONFLICT,
+        )
+
+    def respond_plan_validation(self, error: PlanValidationError) -> None:
+        """Expose stable, object-addressable planning rule violations."""
+        self.respond(
+            {
+                "error": {
+                    "code": "planning_proposal_invalid",
+                    "message": "Planning proposal violates mandatory rules.",
+                    "violations": [
+                        {
+                            "code": issue.code,
+                            "message": issue.message,
+                            "day_id": issue.day_id,
+                            "slot_id": issue.slot_id,
+                            "member_id": issue.member_id,
+                        }
+                        for issue in error.issues
+                    ],
+                }
+            },
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+        )
 
     def resource_target(self, path_parts: list[str]) -> tuple[str | None, int | None]:
         if len(path_parts) not in (1, 2):
