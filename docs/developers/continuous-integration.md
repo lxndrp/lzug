@@ -11,7 +11,7 @@ verbindliche Schnittstelle:
 | `Quality / Backend` | Alle ausgewählten Python-Prüfungen einschließlich Abhängigkeitsaudit sind erfolgreich; andernfalls sind die Detailjobs nachweislich übersprungen. |
 | `Quality / Frontend` | Alle ausgewählten Angular-Prüfungen und der bei Abhängigkeitsänderungen ausgewählte npm-Sicherheitscheck sind erfolgreich oder nachweislich übersprungen. |
 | `Quality / Operator CLI` | Go-Vertrag und alle portablen Builds sind erfolgreich oder nachweislich übersprungen. |
-| `Quality / OCI` | Image-Build, Runtime-Smoke, Scan und SBOM sind erfolgreich oder nachweislich übersprungen. |
+| `Quality / OCI` | Der ausgewählte Image-Build sowie Scan und SBOM sind erfolgreich; andernfalls ist der Scan nachweislich übersprungen. |
 | `Quality / Documentation` | Die ausgewählte technische Dokumentation ist erfolgreich gebaut oder nachweislich übersprungen. |
 | `Quality / Security` | Der immer ausgeführte Secret-/Misconfiguration-Scan und gegebenenfalls CodeQL sind erfolgreich. |
 | `Quality / Overall` | Alle ausgewählten systemübergreifenden Detailverträge sind erfolgreich; nicht ausgewählte Details sind nachweislich übersprungen. |
@@ -28,19 +28,21 @@ von den neuen Gates ab und können diese daher nicht umgehen. Die bisher
 erforderlichen CodeQL-, Source-Scan- und OCI-Scan-Kontexte bleiben ebenfalls
 erhalten; ein nicht ausgewählter Detailjob meldet dabei `skipped`.
 
-Die Detailjobs bleiben bis zu ihrer weiteren Konsolidierung auf `CI`,
-`Operator CLI`, `OCI` und `Security` verteilt. Alle vier Workflows verwenden
-bereits dieselbe Klassifikation; es gibt keine eigene OCI- oder CLI-Pfadmatrix.
-Wiki-Publishing und Dependabot-Auto-Merge bleiben ereignisbasierte, unabhängige
-Automationen.
+Alle Domänen- und Overall-Details liegen im Workflow `Quality` und verwenden
+genau einen Klassifikationslauf. Das einmal gebaute, über seine Prüfsumme
+abgesicherte Image wird vom OCI-Scan und den ausgewählten Overall-Verträgen
+wiederverwendet. Container-Runtime, Compose und CLI-zu-Container bleiben damit
+systemübergreifende Details und werden nicht fälschlich als isolierte
+OCI-Prüfungen eingeordnet. Wiki-Publishing und Dependabot-Auto-Merge bleiben
+ereignisbasierte, unabhängige Automationen.
 
 ## Zentrale, konservative Pfadklassifikation
 
 `scripts/classify_quality_paths.py` ist die einzige Quelle für die
 Domänenauswahl Backend, Frontend, Betreiber-CLI, OCI, Dokumentation, Security
-und Overall. Interne Flags wählen zusätzlich npm-Audit, CodeQL, Compose,
-Browser-E2E und Accessibility aus. Mehrere geänderte Pfade vereinigen ihre
-Auswahlmengen.
+und Overall. Interne Flags wählen zusätzlich npm-Audit, CodeQL, Image-Build,
+Container-Runtime, Compose, CLI-zu-Container, Browser-E2E und Accessibility
+aus. Mehrere geänderte Pfade vereinigen ihre Auswahlmengen.
 
 | Änderung | Ausgewählte Domänen und Details |
 | --- | --- |
@@ -48,15 +50,15 @@ Auswahlmengen.
 | `docs/**`, `mkdocs.yml`, Changelog oder technische README-Dateien | Dokumentation |
 | `backend/tests/**` oder statische Prototyp-Testhilfen | Backend |
 | Produktives `backend/**`, `db/**`, Schema, Migrationen oder Fixtures | Backend, OCI, Dokumentation, Security und Overall mit getrennten E2E-/a11y-Details |
-| Betreiberprotokoll in `backend/admin.py` oder `backend/admin_service.py` | wie produktives Backend, zusätzlich Betreiber-CLI |
+| Betreiberprotokoll in `backend/admin.py` oder `backend/admin_service.py` | wie produktives Backend, zusätzlich Betreiber-CLI und CLI-zu-Container |
 | Frontend-Produktcode und produktive Build-Konfiguration | Frontend, OCI, Dokumentation, Security und Overall mit getrennten E2E-/a11y-Details |
 | Reine Frontend-Unit-Tests und zugehörige Unit-/Lint-Konfiguration | Frontend |
 | Playwright-Tests, Playwright-Konfiguration oder E2E-Server | Overall mit getrennten E2E-/a11y-Details |
 | `uv.lock` | Backend, OCI, Dokumentation, Security und Overall |
 | `frontend/package.json` oder `frontend/package-lock.json` | Frontend einschließlich npm-Audit, OCI, Dokumentation, Security und Overall |
 | Reiner Go-Code oder `go.mod` | Betreiber-CLI; keine Browser- oder OCI-Prüfung |
-| Dockerfile, Docker-Kontext oder Container-Smoke | OCI und Overall |
-| Compose-Konfiguration und deren Laufzeitvertrag | Overall mit Compose-Detail |
+| Dockerfile, Docker-Kontext oder Container-Smoke | OCI und Overall mit Container- und CLI-zu-Container-Vertrag |
+| Compose-Konfiguration und deren Laufzeitvertrag | Overall mit Image-, Compose- und CLI-zu-Container-Detail |
 | Security-Gate-Logik | Security mit CodeQL |
 | CI, Toolchain, gemeinsame Qualitätsskripte, leere oder unbekannte Grenzen | fail-closed alle Domänen und Details |
 
@@ -93,16 +95,21 @@ kürzerer Laufzeit und stabilen E2E-/Accessibility-Ergebnissen bestehen.
 
 Der Klassifizierer entscheidet die gehostete Auswahl. Lokal entsprechen ihm
 die Teilaufgaben `task quality:backend`, `task quality:frontend`,
-`task quality:operator`, `task docs`, `task quality:compose`,
-`task quality:e2e` und `task quality:a11y`. Der produktive npm-Audit liegt in
-`task quality:security` und ergänzt Frontend-Abhängigkeitsänderungen. OCI-Build,
-Image-Scan, Container-Runtime-Smoke, CodeQL und der gehostete Source-Scan
-bleiben artefakt- beziehungsweise GitHub-gebunden; lokal decken die betroffenen
-Backend-/Frontend-Tasks und fokussierten Vertragstests die Änderung ab.
+`task quality:operator`, `task quality:oci`, `task docs` und
+`task quality:overall`. Overall bündelt lokal denselben Container-, Compose-,
+CLI-zu-Container-, E2E- und Accessibility-Vertrag wie CI; die beiden
+Browserprüfungen bleiben eigene Untertasks und laufen lokal nacheinander, damit
+sie nicht um den gemeinsamen Angular-Worktree-Cache konkurrieren. In CI bleiben
+sie getrennte Detailjobs. Der produktive npm-Audit liegt in
+`task quality:security`. Image- und Quellcode-Scans sowie CodeQL bleiben wegen
+ihrer Trivy-/GitHub-Bindung gehostete Ergänzungen; der lokale OCI-Task baut
+dagegen dasselbe Dockerfile als `lzug:0.1.0-quality`, dessen Image die
+Overall-Verträge verwenden.
 
 Für eng begrenzte Änderungen werden nur die betroffenen Teilaufgaben gewählt.
-Produktive Web-Grenzen ergänzen E2E und a11y getrennt, Compose-Grenzen
-`quality:compose`. Bei CI-, Toolchain-, Security-, gemeinsamen oder unklaren
-Änderungen bleibt `task quality` der lokale Vollauf. Vor Browserprüfungen ist
-`task doctor` auszuführen. Die allgemeine lokale Auswahlmatrix steht ergänzend
-in [ADR-0009](decisions/0009-toolchain-und-entwicklungs-tasks.md).
+Produktive Web-Grenzen ergänzen E2E und a11y getrennt, Compose-Grenzen den
+Compose- und CLI-zu-Container-Untertask. Bei CI-, Toolchain-, Security-,
+gemeinsamen oder unklaren Änderungen bleibt `task quality` der lokale Vollauf.
+Vor Browserprüfungen ist `task doctor` auszuführen. Die allgemeine lokale
+Auswahlmatrix steht ergänzend in
+[ADR-0009](decisions/0009-toolchain-und-entwicklungs-tasks.md).

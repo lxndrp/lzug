@@ -80,9 +80,9 @@ veröffentlichte Image enthält diese Seed-Datei nicht.
 
 ## Blockierende Security-Gates
 
-`.github/workflows/security.yml` und `.github/workflows/oci.yml` besitzen
-global nur `contents: read`. `security-events: write` ist ausschließlich auf
-die beiden CodeQL-Matrixjobs begrenzt. Alle Actions dieser Workflows sind auf
+Der konsolidierte Workflow `.github/workflows/ci.yml` besitzt global nur
+`contents: read`. `security-events: write` ist ausschließlich auf die beiden
+CodeQL-Matrixjobs begrenzt. Alle Actions des Qualitätsworkflows sind auf
 vollständige Commit-SHAs fixiert.
 
 | Gate | Blockierender Befund | Nachweis |
@@ -100,19 +100,19 @@ abgesicherten Action 0.35.0 fixiert und verwendet die unveränderliche Version
 prüfen SHA-Pins und blockierende Scannerkonfiguration. Scannerbefunde werden
 nicht durch gelockerte Schwellen oder pauschale Ignore-Dateien verborgen.
 
-Der OCI-Workflow läuft auf jedem Push nach `main` oder `master` und bei
-manueller Ausführung vollständig. In Pull Requests überspringt die
-konservative Klassifikation ausschließlich bekannte Dokumentations-,
-Prototyp- und Repository-Metadatenpfade; leere oder unbekannte Pfadmengen
-führen immer zum Build. Pull Requests lesen nur den gemeinsamen
-BuildKit-Cache. Ausschließlich ein Push auf den geschützten Hauptbranch darf
-ihn aktualisieren. Build, Runtime-Smoke und Image-Scan bleiben getrennte
-Statuschecks; das Image-Archiv wird einmal gebaut, mit SHA-256 abgesichert und
-in beiden Folgejobs gegen den eingebetteten Revision-Label geprüft. Der
-abschließende `OCI pull request gate`-Status akzeptiert entweder alle drei
-erfolgreichen OCI-Jobs oder ausschließlich den expliziten
-Dokumentations-/Metadaten-Skip. Fehlende, abgebrochene oder übersprungene
-Pflichtjobs können dadurch keinen Pull Request freigeben.
+Der Qualitätsworkflow läuft auf jedem Push nach `main` oder `master`, im
+wöchentlichen Zeitplan und bei manueller Ausführung vollständig. In Pull
+Requests wählt die zentrale konservative Klassifikation die betroffenen
+Domänen und Overall-Verträge; leere oder unbekannte Pfadmengen führen immer zum
+Vollauf. Pull Requests lesen nur den gemeinsamen BuildKit-Cache.
+Ausschließlich ein Push auf den geschützten Hauptbranch darf ihn aktualisieren.
+Image-Build, Image-Scan und die Container-, Compose- sowie CLI-zu-Container-
+Verträge bleiben getrennte Statuschecks. Das Image-Archiv wird einmal gebaut,
+mit SHA-256 abgesichert und in jedem ausgewählten Folgejob vor Verwendung
+geprüft. `Quality / OCI` verlangt Build und Scan, `Quality / Overall` die
+ausgewählten Laufzeitverträge. Der vorübergehende
+`OCI pull request gate`-Kompatibilitätsstatus hängt vom neuen OCI-Gate ab und
+kann es nicht umgehen.
 
 GitHub Secret Scanning und Push Protection sind im öffentlichen Repository
 aktiv. Non-Provider-Patterns und Validity Checks werden vom aktuellen

@@ -40,29 +40,21 @@ trap cleanup EXIT HUP INT TERM
 
 "$root_dir/scripts/validate-compose.sh" >/dev/null
 compose up -d
-port="$(compose port lzug "$container_port/tcp" | sed -n 's/.*://p' | head -n 1)"
-if [ -z "$port" ]; then
-    echo "Compose did not publish an ephemeral host port." >&2
-    compose logs >&2 || true
-    exit 1
-fi
-url="http://127.0.0.1:$port"
 
-wait_ready() {
-    attempts=0
-    while [ "$attempts" -lt 45 ]; do
-        if curl --silent --show-error --fail "$url/api/health" >/dev/null 2>&1; then
-            return 0
-        fi
-        attempts=$((attempts + 1))
-        sleep 1
-    done
-    compose logs >&2 || true
-    return 1
+resolve_url() {
+    port="$(compose port lzug "$container_port" | sed -n 's/.*://p' | head -n 1)"
+    if [ -z "$port" ]; then
+        echo "Compose did not publish an ephemeral host port." >&2
+        compose logs >&2 || true
+        exit 1
+    fi
+    url="http://127.0.0.1:$port"
 }
 
-wait_ready
-test "$(compose ps --format json | python3 -c '
+resolve_url
+
+health_status() {
+    compose ps --format json | python3 -c '
 import json
 import sys
 
@@ -73,15 +65,34 @@ except json.JSONDecodeError:
     parsed = [json.loads(line) for line in raw.splitlines() if line.strip()]
 if isinstance(parsed, dict):
     parsed = [parsed]
-print(parsed[0]["Health"])
-')" = "healthy"
+print(parsed[0].get("Health", "") if parsed else "")
+'
+}
+
+wait_ready() {
+    attempts=0
+    while [ "$attempts" -lt 45 ]; do
+        if curl --silent --show-error --fail "$url/api/health" >/dev/null 2>&1 \
+            && [ "$(health_status)" = "healthy" ]; then
+            return 0
+        fi
+        attempts=$((attempts + 1))
+        sleep 1
+    done
+    compose logs >&2 || true
+    return 1
+}
+
+wait_ready
 test "$(compose exec -T lzug id -u)" = "10001"
 compose exec -T lzug python -c 'from pathlib import Path; Path("/data/compose-smoke-marker").write_text("persisted", encoding="utf-8")' >/dev/null
 compose restart lzug >/dev/null
+resolve_url
 wait_ready
 test "$(compose exec -T lzug python -c 'from pathlib import Path; print(Path("/data/compose-smoke-marker").read_text(encoding="utf-8"))')" = "persisted"
 compose stop lzug >/dev/null
 compose start lzug >/dev/null
+resolve_url
 wait_ready
 test "$(compose exec -T lzug python -c 'from pathlib import Path; print(Path("/data/compose-smoke-marker").read_text(encoding="utf-8"))')" = "persisted"
 

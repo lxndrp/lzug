@@ -52,7 +52,7 @@ class SarifSecurityGateTests(unittest.TestCase):
             self.assertEqual([], findings([target], 7.0))
 
     def test_security_workflow_uses_blocking_gates_and_full_action_shas(self) -> None:
-        workflow = Path(".github/workflows/security.yml").read_text(encoding="utf-8")
+        workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
         action_refs = re.findall(r"^\s*uses:\s*[^@\s]+@([^\s]+)", workflow, re.MULTILINE)
 
         self.assertTrue(action_refs)

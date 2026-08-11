@@ -46,6 +46,8 @@ class QualityPathClassificationTests(unittest.TestCase):
                     security=True,
                     overall=True,
                     codeql=True,
+                    image=True,
+                    container=True,
                     e2e=True,
                     a11y=True,
                 )
@@ -59,6 +61,8 @@ class QualityPathClassificationTests(unittest.TestCase):
             security=True,
             overall=True,
             codeql=True,
+            image=True,
+            container=True,
             e2e=True,
             a11y=True,
         )
@@ -83,6 +87,8 @@ class QualityPathClassificationTests(unittest.TestCase):
             documentation=True,
             security=True,
             overall=True,
+            image=True,
+            container=True,
             e2e=True,
             a11y=True,
         )
@@ -94,12 +100,20 @@ class QualityPathClassificationTests(unittest.TestCase):
             security=True,
             overall=True,
             npm_security=True,
+            image=True,
+            container=True,
             e2e=True,
             a11y=True,
         )
 
     def test_compose_contract_runs_compose_job(self) -> None:
-        self.assert_selection(["compose.yaml"], overall=True, compose=True)
+        self.assert_selection(
+            ["compose.yaml"],
+            overall=True,
+            image=True,
+            compose=True,
+            operator_container=True,
+        )
 
     def test_cli_and_oci_changes_select_only_their_required_domains(self) -> None:
         self.assert_selection(
@@ -110,6 +124,9 @@ class QualityPathClassificationTests(unittest.TestCase):
             ["Dockerfile"],
             oci=True,
             overall=True,
+            image=True,
+            container=True,
+            operator_container=True,
         )
 
     def test_operator_protocol_boundary_selects_cli_and_web_contracts(self) -> None:
@@ -122,6 +139,9 @@ class QualityPathClassificationTests(unittest.TestCase):
             security=True,
             overall=True,
             codeql=True,
+            image=True,
+            container=True,
+            operator_container=True,
             e2e=True,
             a11y=True,
         )
@@ -178,9 +198,15 @@ class CiWorkflowContractTests(unittest.TestCase):
         for output in (
             "backend",
             "frontend",
+            "operator_cli",
+            "oci",
             "npm_security",
             "documentation",
+            "codeql",
+            "image",
+            "container",
             "compose",
+            "operator_container",
             "e2e",
             "a11y",
         ):
@@ -200,12 +226,15 @@ class CiWorkflowContractTests(unittest.TestCase):
         self.assertIn('test "$CLASSIFY_RESULT" = "success"', self.workflow)
         self.assertIn('test "$result" = "success"', self.workflow)
         self.assertIn('test "$result" = "skipped"', self.workflow)
-        self.assertEqual(5, self.workflow.count('require_result "$'))
+        self.assertEqual(8, self.workflow.count('require_result "$'))
         self.assertIn("name: CI overall", self.workflow)
         self.assertIn("Kept until #305 migrates", self.workflow)
 
     def test_browser_jobs_keep_separate_versioned_caches_and_install_contract(self) -> None:
-        self.assertEqual(2, self.workflow.count("uses: actions/cache@v6"))
+        self.assertEqual(
+            2,
+            self.workflow.count("actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9"),
+        )
         self.assertEqual(2, self.workflow.count("path: ~/.cache/ms-playwright"))
         self.assertEqual(
             2,
@@ -224,28 +253,16 @@ class CiWorkflowContractTests(unittest.TestCase):
 
 class StableQualityGateContractTests(unittest.TestCase):
     def test_every_quality_workflow_uses_the_central_classifier(self) -> None:
-        for path in (
-            ".github/workflows/ci.yml",
-            ".github/workflows/oci.yml",
-            ".github/workflows/operator-cli.yml",
-            ".github/workflows/security.yml",
-        ):
-            with self.subTest(path=path):
-                workflow = Path(path).read_text(encoding="utf-8")
-                self.assertIn("python3 scripts/classify_quality_paths.py", workflow)
-                self.assertNotIn("classify_ci_paths.py", workflow)
-                self.assertNotIn("classify_oci_paths.py", workflow)
+        workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertEqual(1, workflow.count("name: Change classification"))
+        self.assertEqual(2, workflow.count("python3 scripts/classify_quality_paths.py"))
+        self.assertNotIn("classify_ci_paths.py", workflow)
+        self.assertNotIn("classify_oci_paths.py", workflow)
+        for removed in ("operator-cli.yml", "oci.yml", "security.yml"):
+            self.assertFalse((Path(".github/workflows") / removed).exists())
 
     def test_all_stable_gate_names_exist_exactly_once(self) -> None:
-        workflows = "\n".join(
-            Path(path).read_text(encoding="utf-8")
-            for path in (
-                ".github/workflows/ci.yml",
-                ".github/workflows/oci.yml",
-                ".github/workflows/operator-cli.yml",
-                ".github/workflows/security.yml",
-            )
-        )
+        workflows = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
         for gate in (
             "Quality / Backend",
             "Quality / Frontend",
@@ -258,26 +275,37 @@ class StableQualityGateContractTests(unittest.TestCase):
             with self.subTest(gate=gate):
                 self.assertEqual(1, workflows.count(f"name: {gate}"))
 
-    def test_quality_workflows_cannot_publish_a_release(self) -> None:
-        for path in (
-            ".github/workflows/ci.yml",
-            ".github/workflows/oci.yml",
-            ".github/workflows/operator-cli.yml",
-            ".github/workflows/security.yml",
+    def test_overall_keeps_distinct_integration_details(self) -> None:
+        workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+        for detail in (
+            "name: Browser E2E",
+            "name: Accessibility",
+            "name: Container runtime contract",
+            "name: Compose runtime contract",
+            "name: Operator CLI-to-container contract",
         ):
-            with self.subTest(path=path):
-                workflow = Path(path).read_text(encoding="utf-8")
-                self.assertNotIn("packages: write", workflow)
-                self.assertNotIn("push-to-registry: true", workflow)
-                self.assertNotIn("gh release create", workflow)
+            with self.subTest(detail=detail):
+                self.assertIn(detail, workflow)
+        self.assertIn('scripts/operator-container-smoke.sh "$IMAGE_REF"', workflow)
+
+    def test_all_actions_in_the_quality_workflow_are_pinned(self) -> None:
+        workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+        action_refs = re.findall(r"^\s*uses:\s*[^@\s]+@([^\s]+)", workflow, re.MULTILINE)
+        self.assertTrue(action_refs)
+        self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs))
+
+    def test_quality_workflows_cannot_publish_a_release(self) -> None:
+        workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertNotIn("packages: write", workflow)
+        self.assertNotIn("push-to-registry: true", workflow)
+        self.assertNotIn("gh release create", workflow)
+        self.assertNotIn('tags:\n      - "v', workflow)
 
     def test_operator_cli_details_are_selected_and_stably_gated(self) -> None:
-        workflow = Path(".github/workflows/operator-cli.yml").read_text(encoding="utf-8")
-        checkout_refs = re.findall(r"^\s*uses:\s*actions/checkout@([^\s]+)", workflow, re.MULTILINE)
-
-        self.assertEqual(3, len(checkout_refs))
-        self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in checkout_refs))
+        workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertEqual(2, workflow.count("if: needs.classify.outputs.operator_cli == 'true'"))
+        self.assertIn("name: Go contract tests", workflow)
+        self.assertIn("name: Build operator CLI", workflow)
         self.assertIn("name: Quality / Operator CLI", workflow)
         self.assertIn("if: always()", workflow)
 

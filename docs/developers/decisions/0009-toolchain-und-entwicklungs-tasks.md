@@ -37,10 +37,13 @@ gesperrten Entwicklungsabhängigkeiten, Frontend-Aufgaben verwenden ihr
 Arbeitsverzeichnis und `npm ci`. Die Einrichtung installiert außerdem den
 Playwright-Chromium-Browser; `task doctor` prüft Toolchain, virtuelle
 Python-Umgebung und die verwendete Browser-Executable ohne vollständigen
-Qualitätslauf. `task quality` führt Backend, Frontend, Security,
-Operator-CLI, Compose-Konfiguration, Dokumentation, Browser-End-to-End und
-Accessibility parallel aus. `task quality:operator` prüft den Go-Vertrag und
-baut dieselben sechs portablen Ziele wie CI ohne Änderungen an `dist/`.
+Qualitätslauf. `task quality` führt Backend, Frontend, Security, Operator-CLI,
+OCI-Build, Dokumentation und Overall parallel aus. `task quality:overall`
+bündelt Container-, Compose-, CLI-zu-Container-, Browser-End-to-End- und
+Accessibility-Verträge. Die beiden Browser-Tasks bleiben separat aufrufbar,
+werden im lokalen Vollauf jedoch seriell ausgeführt. `task quality:operator`
+prüft den Go-Vertrag und baut
+dieselben sechs portablen Ziele wie CI ohne Änderungen an `dist/`.
 
 Die lokale Prüfung wird bewusst nach Risiko und betroffenen Schnittstellen
 gewählt; Task klassifiziert dafür keine Pfade. Die Teilaufgaben entsprechen den
@@ -50,16 +53,18 @@ Qualitätsbereichen aus #230:
 | --- | --- |
 | Technische Dokumentation | `task docs` |
 | Eng begrenzter Backend- oder Frontend-Test | `task test:backend` oder `task test:frontend` |
-| Produktiver Backend- oder Frontend-Vertrag | Betroffener `quality`-Teil sowie `task docs`, `task quality:e2e` und `task quality:a11y` |
+| Produktiver Backend- oder Frontend-Vertrag | Betroffener `quality`-Teil sowie `task docs` und die ausgewählten Untertasks von `task quality:overall` |
 | npm-Produktionsabhängigkeiten | `task quality:security` und betroffener Frontend-Teil |
 | Operator-CLI | `task test:operator`, bei produktiven Änderungen `task quality:operator` |
-| Compose-Konfiguration | `task quality:compose` mit lokaler Docker- oder Podman-kompatibler Engine |
+| OCI- oder Compose-Konfiguration | `task quality:oci` und die betroffenen Untertasks von `task quality:overall` |
 | Unklar, querschnittlich oder Toolchain | `task quality` |
 
-`task quality:compose` verwendet denselben Konfigurationsvertrag wie CI. Die
-Prüfung benötigt eine Docker- oder Podman-kompatible Engine und scheitert bei
-fehlender Engine mit einer verständlichen Meldung. Image-Build und Runtime-Smoke
-gehören weiterhin nicht zum regulären Qualitätslauf.
+`task quality:oci` baut einmal das lokale Image `lzug:0.1.0-quality`.
+Container-, Compose- und Betreiber-CLI-Vertrag verwenden dieses Image gemeinsam
+im Overall-Lauf. Die Prüfungen benötigen eine Docker-kompatible Engine; die
+Smoke-Skripte unterstützen weiterhin Docker oder Podman und melden eine
+fehlende Engine verständlich. Gehostete Trivy- und CodeQL-Scans bleiben
+bewusst CI-spezifisch.
 
 ADR-0003 bleibt als historische Toolchain-Entscheidung bestehen; dieser ADR
 ersetzt dessen frühere Zuordnung lokaler Abläufe zu `mise`.
