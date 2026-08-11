@@ -434,6 +434,7 @@ class ApiTests(unittest.TestCase):
 
     def test_scheduling_overview_groups_active_rounds_and_excludes_finished_work(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
+            round_ids = {}
             for year, name, round_status in (
                 (2027, "Offene Runde", "draft"),
                 (2028, "Bestätigte Runde", "plan_confirmed"),
@@ -445,28 +446,31 @@ class ApiTests(unittest.TestCase):
                     {"season": "summer", "year": year, "status": "draft"},
                 )
                 assert_status(status, HTTPStatus.CREATED)
-                status, _round = api.request(
+                status, created_round = api.request(
                     "POST",
                     "/api/exam-rounds",
                     {
                         "exam_half_year_id": half_year["id"],
                         "committee_id": 1,
                         "name": name,
-                        "status": round_status,
+                        "status": "draft",
                         "created_by_member_id": 1,
                     },
                 )
                 assert_status(status, HTTPStatus.CREATED)
+                round_ids[name] = (created_round["id"], round_status)
 
-            status, open_round = api.request("GET", "/api/exam-rounds?status=draft")
-            assert_status(status, HTTPStatus.OK)
-            open_round_id = next(
-                item["id"] for item in open_round["items"] if item["name"] == "Offene Runde"
-            )
-            status, _updated = api.request(
-                "PATCH", f"/api/exam-rounds/{open_round_id}", {"status": "plan_proposed"}
-            )
-            assert_status(status, HTTPStatus.OK)
+            with sqlite3.connect(db_path) as connection:
+                for round_id, round_status in round_ids.values():
+                    connection.execute(
+                        "UPDATE exam_round SET status = ? WHERE id = ?",
+                        (round_status, round_id),
+                    )
+                connection.execute(
+                    "UPDATE exam_round SET status = 'plan_proposed' WHERE id = ?",
+                    (round_ids["Offene Runde"][0],),
+                )
+                connection.commit()
 
             status, overview = api.request("GET", "/api/scheduling-overview")
             assert_status(status, HTTPStatus.OK)
@@ -816,6 +820,99 @@ class ApiTests(unittest.TestCase):
             status, summary = api.request("GET", "/api/round-summary?round_id=1")
             assert_status(status, HTTPStatus.OK)
             self.assertEqual("plan_proposed", summary["round"]["status"])
+
+    def test_plan_resources_are_read_only_outside_the_aggregate_path(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, _proposal = api.request(
+                "POST",
+                "/api/planning-proposals",
+                {"round_id": 1},
+            )
+            assert_status(status, HTTPStatus.CREATED)
+
+            status, specification = api.request("GET", "/api/openapi.json")
+            assert_status(status, HTTPStatus.OK)
+            for resource_name in ("exam-days", "exam-slots", "exam-day-assignments"):
+                status, collection = api.request("GET", f"/api/{resource_name}")
+                assert_status(status, HTTPStatus.OK)
+                self.assertNotIn("create", collection["_links"])
+                self.assertNotIn("update", collection["items"][0]["_links"])
+                self.assertNotIn("delete", collection["items"][0]["_links"])
+                self.assertEqual(
+                    {"get"},
+                    set(specification["paths"][f"/api/{resource_name}"]),
+                )
+                self.assertEqual(
+                    {"get"},
+                    set(specification["paths"][f"/api/{resource_name}/{{id}}"]),
+                )
+
+                resource_id = collection["items"][0]["id"]
+                create_payload = {
+                    field: collection["items"][0][field]
+                    for field in {
+                        "exam-days": (
+                            "exam_round_id",
+                            "location_id",
+                            "date",
+                            "status",
+                            "lunch_break_enabled",
+                            "created_from_proposal",
+                        ),
+                        "exam-slots": (
+                            "exam_day_id",
+                            "round_candidate_id",
+                            "slot_type",
+                            "starts_at",
+                            "ends_at",
+                            "sequence_number",
+                            "status",
+                        ),
+                        "exam-day-assignments": (
+                            "exam_day_id",
+                            "committee_member_id",
+                            "assignment_role",
+                            "day_part",
+                            "fallback_status",
+                        ),
+                    }[resource_name]
+                }
+                for method, path, payload in (
+                    ("POST", f"/api/{resource_name}", create_payload),
+                    ("PATCH", f"/api/{resource_name}/{resource_id}", {}),
+                    ("DELETE", f"/api/{resource_name}/{resource_id}", None),
+                ):
+                    status, body = api.request(method, path, payload)
+                    assert_status(status, HTTPStatus.BAD_REQUEST)
+                    self.assertIn("planning aggregate", body["error"])
+
+            status, body = api.request(
+                "PATCH",
+                "/api/exam-rounds/1",
+                {"status": "completed"},
+            )
+            assert_status(status, HTTPStatus.BAD_REQUEST)
+            self.assertIn("planning aggregate", body["error"])
+
+            status, half_year = api.request(
+                "POST",
+                "/api/exam-half-years",
+                {"season": "summer", "year": 2099, "status": "draft"},
+            )
+            assert_status(status, HTTPStatus.CREATED)
+            status, body = api.request(
+                "POST",
+                "/api/exam-rounds",
+                {
+                    "exam_half_year_id": half_year["id"],
+                    "committee_id": 1,
+                    "name": "Bypass",
+                    "status": "plan_proposed",
+                    "created_by_member_id": 1,
+                },
+            )
+            assert_status(status, HTTPStatus.BAD_REQUEST)
+            self.assertIn("planning aggregate", body["error"])
 
     def test_planning_proposal_can_be_confirmed_over_http(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:

@@ -48,7 +48,7 @@ from .models import (
     Resource,
 )
 from .planning import PlanningService
-from .repositories import REST_RESOURCES, ResourceRepository
+from .repositories import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES, ResourceRepository
 from .security import RequestRateLimiter, RuntimeSecurityConfig
 
 
@@ -308,6 +308,8 @@ class LzugHandler(BaseHTTPRequestHandler):
                         entity,
                         rows,
                         parsed.query,
+                        allow_create=entity not in PLAN_AGGREGATE_RESOURCES,
+                        allow_item_mutation=entity not in PLAN_AGGREGATE_RESOURCES,
                     )
                 )
                 return
@@ -320,7 +322,14 @@ class LzugHandler(BaseHTTPRequestHandler):
             if row is None:
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 return
-            self.respond(hateoas.resource_item(resource_name, entity, row))
+            self.respond(
+                hateoas.resource_item(
+                    resource_name,
+                    entity,
+                    row,
+                    allow_item_mutation=entity not in PLAN_AGGREGATE_RESOURCES,
+                )
+            )
         except ForbiddenRequestError as error:
             self.respond({"error": str(error)}, HTTPStatus.FORBIDDEN)
         except ValueError:
@@ -684,6 +693,8 @@ class LzugHandler(BaseHTTPRequestHandler):
             self.respond({}, HTTPStatus.NO_CONTENT)
         except ForbiddenRequestError as error:
             self.respond({"error": str(error)}, HTTPStatus.FORBIDDEN)
+        except ValueError as error:
+            self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
         except SQLAlchemyError as error:
             self.respond_database_error(error)
 

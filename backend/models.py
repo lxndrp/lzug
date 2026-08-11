@@ -202,6 +202,7 @@ class ExamRound(Base):
     committee_id: Mapped[int] = mapped_column(ForeignKey("committee.id"))
     name: Mapped[str] = mapped_column(String)
     status: Mapped[str] = mapped_column(String, server_default=sql_text("'draft'"))
+    plan_revision: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
     availability_deadline: Mapped[str | None] = mapped_column(String, nullable=True)
     availability_reminder_at: Mapped[str | None] = mapped_column(String, nullable=True)
     created_by_member_id: Mapped[int] = mapped_column(ForeignKey("committee_member.id"))

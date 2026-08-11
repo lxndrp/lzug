@@ -251,11 +251,12 @@ class DatabaseTests(unittest.TestCase):
                 connection.execute("DROP TABLE schema_migration_checksum")
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?)",
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
                         "011_add_local_password_totp_auth.sql",
+                        "012_add_plan_revision.sql",
                     ),
                 )
                 connection.execute("DROP TABLE auth_token")
@@ -263,6 +264,7 @@ class DatabaseTests(unittest.TestCase):
                 connection.execute("ALTER TABLE user_account DROP COLUMN totp_enabled")
                 connection.execute("ALTER TABLE user_account DROP COLUMN totp_last_step")
                 connection.execute("ALTER TABLE user_account DROP COLUMN totp_secret_encrypted")
+                connection.execute("ALTER TABLE exam_round DROP COLUMN plan_revision")
                 connection.commit()
 
             before = migration_status(db_path)
@@ -271,7 +273,7 @@ class DatabaseTests(unittest.TestCase):
             initialize(db_path)
             after = migration_status(db_path)
             self.assertEqual("ready", after["state"])
-            self.assertEqual("011_add_local_password_totp_auth.sql", after["current"])
+            self.assertEqual("012_add_plan_revision.sql", after["current"])
             self.assertTrue(list(db_path.parent.joinpath("backups").glob("*.sqlite")))
 
             history_before = after["history"]
@@ -311,14 +313,16 @@ class DatabaseTests(unittest.TestCase):
                     DROP TABLE user_account_legacy;
                 """)
                 connection.execute(
-                    "DELETE FROM schema_migration WHERE name IN (?, ?, ?, ?)",
+                    "DELETE FROM schema_migration WHERE name IN (?, ?, ?, ?, ?)",
                     (
                         "008_add_authentication_sessions.sql",
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
                         "011_add_local_password_totp_auth.sql",
+                        "012_add_plan_revision.sql",
                     ),
                 )
+                connection.execute("ALTER TABLE exam_round DROP COLUMN plan_revision")
                 connection.commit()
 
             initialize(db_path)
@@ -330,8 +334,9 @@ class DatabaseTests(unittest.TestCase):
                     "009_harden_migration_history.sql",
                     "010_add_operator_auth_tokens.sql",
                     "011_add_local_password_totp_auth.sql",
+                    "012_add_plan_revision.sql",
                 ],
-                [entry["name"] for entry in status["history"][-4:]],
+                [entry["name"] for entry in status["history"][-5:]],
             )
 
     def test_initialize_rejects_unversioned_legacy_round_schema(self) -> None:
@@ -389,11 +394,12 @@ class DatabaseTests(unittest.TestCase):
                 connection.execute("DROP TABLE schema_migration_checksum")
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?)",
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
                         "011_add_local_password_totp_auth.sql",
+                        "012_add_plan_revision.sql",
                     ),
                 )
                 connection.execute("DROP TABLE auth_token")
@@ -401,6 +407,7 @@ class DatabaseTests(unittest.TestCase):
                 connection.execute("ALTER TABLE user_account DROP COLUMN totp_enabled")
                 connection.execute("ALTER TABLE user_account DROP COLUMN totp_last_step")
                 connection.execute("ALTER TABLE user_account DROP COLUMN totp_secret_encrypted")
+                connection.execute("ALTER TABLE exam_round DROP COLUMN plan_revision")
                 connection.commit()
 
             started = Event()
@@ -439,11 +446,12 @@ class DatabaseTests(unittest.TestCase):
                 connection.execute("DROP TABLE schema_migration_checksum")
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?)",
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
                         "011_add_local_password_totp_auth.sql",
+                        "012_add_plan_revision.sql",
                     ),
                 )
                 connection.execute("DROP TABLE auth_token")
@@ -451,6 +459,7 @@ class DatabaseTests(unittest.TestCase):
                 connection.execute("ALTER TABLE user_account DROP COLUMN totp_enabled")
                 connection.execute("ALTER TABLE user_account DROP COLUMN totp_last_step")
                 connection.execute("ALTER TABLE user_account DROP COLUMN totp_secret_encrypted")
+                connection.execute("ALTER TABLE exam_round DROP COLUMN plan_revision")
                 connection.commit()
 
             with patch("backend.database.MIGRATIONS_PATH", migration_directory):

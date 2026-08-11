@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from backend.models import COMMITTEE, EXAM_DAY, EXAM_DAY_ASSIGNMENT, EXAM_ROUND, PERSON
+from backend.models import COMMITTEE, EXAM_DAY_ASSIGNMENT, PERSON
+from backend.planning import PlanningService
 from backend.repositories import ResourceRepository
 from backend.tests.helpers import TempDatabase
 
@@ -37,66 +38,16 @@ class PersonMembershipTests(unittest.TestCase):
             )
         self.assertEqual("testperson.normalisierung@example.invalid", person["email"])
 
-    def test_manual_assignment_rejects_person_in_other_committee(self) -> None:
+    def test_manual_assignment_cannot_bypass_plan_aggregate(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
-            committee = repository.create(COMMITTEE, {"name": "PA 2", "occupation": "FI"})
-            membership = repository.create_membership(
-                {
-                    "person_id": 1,
-                    "committee_id": committee["id"],
-                    "member_status": "ordinary",
-                    "committee_role": "chair",
-                    "representing_side": "employer",
-                    "is_active": 1,
-                }
-            )
-            other_round = repository.create(
-                EXAM_ROUND,
-                {
-                    "exam_half_year_id": 1,
-                    "committee_id": committee["id"],
-                    "name": "Sommer",
-                    "created_by_member_id": membership["id"],
-                },
-            )
-            other_day = repository.create(
-                EXAM_DAY,
-                {
-                    "exam_round_id": other_round["id"],
-                    "location_id": 1,
-                    "date": "2026-11-16",
-                    "status": "proposed",
-                    "lunch_break_enabled": 1,
-                    "created_from_proposal": 1,
-                },
-            )
-            repository.create(
-                EXAM_DAY_ASSIGNMENT,
-                {
-                    "exam_day_id": other_day["id"],
-                    "committee_member_id": membership["id"],
-                    "assignment_role": "examiner",
-                    "day_part": "morning",
-                    "fallback_status": None,
-                },
-            )
-            current_day = repository.create(
-                EXAM_DAY,
-                {
-                    "exam_round_id": 1,
-                    "location_id": 1,
-                    "date": "2026-11-16",
-                    "status": "proposed",
-                    "lunch_break_enabled": 1,
-                    "created_from_proposal": 1,
-                },
-            )
-            with self.assertRaisesRegex(ValueError, "PA 2.*2026-11-16"):
+            PlanningService(db_path).generate_proposal(1)
+            proposal = PlanningService(db_path).get_proposal(1)
+            with self.assertRaisesRegex(ValueError, "planning aggregate"):
                 repository.create(
                     EXAM_DAY_ASSIGNMENT,
                     {
-                        "exam_day_id": current_day["id"],
+                        "exam_day_id": proposal.days[0].id,
                         "committee_member_id": 1,
                         "assignment_role": "examiner",
                         "day_part": "morning",
