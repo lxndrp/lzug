@@ -82,8 +82,9 @@ veröffentlichte Image enthält diese Seed-Datei nicht.
 
 Der konsolidierte Workflow `.github/workflows/ci.yml` besitzt global nur
 `contents: read`. `security-events: write` ist ausschließlich auf die beiden
-CodeQL-Matrixjobs begrenzt. Alle Actions des Qualitätsworkflows sind auf
-vollständige Commit-SHAs fixiert.
+CodeQL-Matrixjobs begrenzt. Alle Actions sämtlicher Workflows sind auf
+vollständige Commit-SHAs fixiert; ein repositoryweiter Vertragstest verhindert
+bewegliche Tag-Referenzen auch in Release-, Dependabot- und Wiki-Abläufen.
 
 | Gate | Blockierender Befund | Nachweis |
 | --- | --- | --- |
