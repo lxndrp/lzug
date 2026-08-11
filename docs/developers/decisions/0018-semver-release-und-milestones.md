@@ -13,23 +13,25 @@ aber keinen gebauten Stand, und ein Commit auf `master` ist noch kein
 freigegebener Release. Für einen reproduzierbaren Veröffentlichungsprozess
 müssen technische Identität, Freigabe und fachliche Zielmenge getrennt sein.
 
-Der Bestand liefert zwei konkrete Versionsziele: `VERSION` steht vor der
-Umstellung auf `0.1.0`, und der Milestone „Version 1 – Wintererprobung“ nennt
-die stabile Version 1. Daraus werden `v0.1.0` und `v1.0.0` abgeleitet. Für eine
-weitere Versionsnummer oder einen Release Candidate gibt es derzeit keine
-belastbare Planung.
+Der Bestand liefert mit `VERSION=0.1.0` einen technischen Ausgangspunkt und
+mit der Wintererprobung ein fachliches Ziel für Version 1. Die bisherige
+direkte Planung von `v0.1.0` auf `v1.0.0` vermischt jedoch mehrere unabhängig
+abnehmbare Fachprozesse, Betriebsfähigkeit und Pilotierung. Die offenen Issues
+erlauben einen belastbaren Zuschnitt entlang tatsächlich verfügbarer
+Fachprozesse. Schriftliche Prüfungen (#165) sind ein eigenständig nutzbarer,
+noch nicht verfeinerter Prozess und folgen deshalb erst nach Version 1.
 
 ## Entscheidung
 
 ### Verantwortlichkeiten
 
-| Gegenstand | Verantwortung | Keine Verantwortung |
-| --- | --- | --- |
-| SemVer-Tag | unveränderliche technische Versionsquelle eines freigegebenen Commits | Planung, Aufwand oder Iteration |
-| Kandidat-Commit | vollständig geprüfter, auf `master` erreichbarer Commit, dessen vollständige SHA im Release-Issue festgehalten wird | veröffentlichte Version oder beweglicher Zeiger auf den neuesten Stand |
-| GitHub Release | freigegebene Darstellung genau eines Tags mit Notes, Assets und Nachweisen | Wahl des Kandidaten oder fachliche Planung |
-| Release-Milestone | fachliche und technische Zielmenge für genau eine geplante SemVer-Version | Build-Eingabe oder technische Versionsquelle |
-| GitHub Project | operative Quelle für Status, Priorität, Iteration, Termine und Aufwand | Release- oder Build-Identität |
+| Gegenstand        | Verantwortung                                                                                                        | Keine Verantwortung                                                    |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| SemVer-Tag        | unveränderliche technische Versionsquelle eines freigegebenen Commits                                                | Planung, Aufwand oder Iteration                                        |
+| Kandidat-Commit   | vollständig geprüfter, auf `master` erreichbarer Commit, dessen vollständige SHA im Release-Issue festgehalten wird  | veröffentlichte Version oder beweglicher Zeiger auf den neuesten Stand |
+| GitHub Release    | freigegebene Darstellung genau eines Tags mit Notes, Assets und Nachweisen                                           | Wahl des Kandidaten oder fachliche Planung                             |
+| Release-Milestone | fachliche Zielmenge für genau eine geplante SemVer-Version; technische Voraussetzungen können Teil ihrer Issues sein | Build-Eingabe oder technische Versionsquelle                           |
+| GitHub Project    | operative Quelle für Status, Priorität, Iteration, Termine und Aufwand                                               | Release- oder Build-Identität                                          |
 
 Ein Release-Milestone heißt exakt wie sein vorgesehener Tag: `vMAJOR.MINOR.PATCH`
 oder bei einem tatsächlich geplanten Vorabrelease
@@ -57,7 +59,30 @@ Ein Release Candidate ist eine veröffentlichte SemVer-Pre-Release-Version und
 verwendet einen annotierten Tag `vMAJOR.MINOR.PATCH-rc.N` sowie einen GitHub
 Pre-Release. Er wird nur geplant, wenn dafür ein eigener Milestone und ein
 konkreter Abnahmezweck bestehen. Kandidat-Commit und Release Candidate sind
-damit ausdrücklich nicht dasselbe. Aktuell wird kein RC-Milestone angelegt.
+damit ausdrücklich nicht dasselbe. `v1.0.0-rc.1` dient der integrierten
+Wintererprobung; `v1.0.0` folgt erst nach ausgewerteter Pilotnutzung und einem
+eigenen stabilen Freigabe-Gate.
+
+### Versionsfolge und fachliche Releasegrenzen
+
+| Milestone     | Ein erstmals geschlossen nutzbarer Umfang                                                                      |
+| ------------- | -------------------------------------------------------------------------------------------------------------- |
+| `v0.1.0`      | reproduzierbare Versions-, Qualitäts- und Release-Infrastruktur; noch kein fachlicher Vollständigkeitsanspruch |
+| `v0.2.0`      | Planungsvorschläge kontrolliert und barrierefrei bearbeiten                                                    |
+| `v0.3.0`      | Ausfälle, Benachrichtigungen und Kalenderereignisse zusammenhängend behandeln                                  |
+| `v0.4.0`      | mündliche Prüfungstage dokumentieren, bewerten und fachlich abschließen                                        |
+| `v0.5.0`      | bestätigte Pläne kontrolliert ändern und Prüfungshalbjahre abschließen sowie historisch einsehen               |
+| `v0.6.0`      | eine Instanz mit dokumentierten Backup-, Restore-, Upgrade- und Rollback-Pfaden selbst betreiben               |
+| `v1.0.0-rc.1` | den integrierten Stand unter realen Bedingungen in der Wintererprobung abnehmen                                |
+| `v1.0.0`      | den ausgewerteten Pilotstand ohne bekannte blockierende Befunde stabil freigeben                               |
+| `v1.1.0`      | schriftliche Prüfungen als eigenständig nutzbaren Fachprozess organisieren                                     |
+
+Eine Minor-Version vor `1.0.0` ist damit kein beliebiger Zwischenstand,
+sondern die kleinste fachlich oder betrieblich eigenständig abnehmbare
+Erweiterung. Patch-Versionen bleiben rückwärtskompatiblen Korrekturen eines
+bereits veröffentlichten Umfangs vorbehalten. Für `v1.1.0` wird bis zur
+Verfeinerung von #165 bewusst weder ein Datum noch eine Project-Iteration
+erfunden.
 
 ### Freigabeverfahren
 
@@ -72,6 +97,11 @@ damit ausdrücklich nicht dasselbe. Aktuell wird kein RC-Milestone angelegt.
    zusätzlich im GitHub-Environment `release` auf einen Required Reviewer.
 5. Erst danach erzeugt die Automation den annotierten Tag am unveränderten
    Kandidat-Commit, das GitHub Release und die zusammengehörigen Artefakte.
+
+Manuell angelegte Release-Issues verwenden das standardisierte Issue-Formular
+`Release-Freigabe`. Automatisch erzeugte Release-Issues aus #308 müssen
+denselben Pflichtumfang abbilden. Die stabile Freigabe nach dem Winterpilot ist
+als reguläres Gate #318 geplant.
 
 #308 setzt dieses Verfahren um. Bis #307 und #308 abgeschlossen sind, wird
 kein Release erzeugt. Insbesondere ist die vorhandene taggetriebene Automation
@@ -88,12 +118,13 @@ nicht rückwirkend zu veröffentlichten Versionen erklärt.
 
 ## Milestone-Migration
 
-- „Fachlich vollständiger Prototyp“ wird unter Erhalt von Fälligkeit,
-  Beschreibungserläuterung und Issue-Historie in `v0.1.0` umbenannt. Der
-  bisherige Quellstand `0.1.0` und der fachlich vollständige Prototyp bilden
-  gemeinsam das erste konkrete Releaseziel.
+- „Fachlich vollständiger Prototyp“ wurde unter Erhalt seiner Issue-Historie
+  zunächst in `v0.1.0` umbenannt. Die offenen Issues werden anschließend
+  verlustfrei auf die fachlichen Zielmengen `v0.1.0` bis `v0.6.0` verteilt;
+  geschlossene Zuordnungen bleiben als Planungshistorie sichtbar.
 - „Version 1 – Wintererprobung“ wird unter denselben Bedingungen in `v1.0.0`
-  umbenannt.
+  umbenannt. Die Pilot-Zielmenge wechselt nach `v1.0.0-rc.1`; `v1.0.0`
+  bezeichnet nur noch die stabile Freigabe nach ausgewerteter Erprobung.
 - Die offenen, für die erste Veröffentlichung erforderlichen Issues aus
   „Veröffentlichungs- und Betriebsfähigkeit“ wechseln nach `v0.1.0`.
   Release-unabhängige Demo-, Konzept- und nachrangige Themen verlieren ihre
@@ -109,7 +140,8 @@ Die vollständige, prüfbare Zuordnung steht im
 
 ## Konsequenzen
 
-- Es existieren genau zwei aktive Release-Milestones: `v0.1.0` und `v1.0.0`.
+- Es existiert eine nachvollziehbare Releasefolge von `v0.1.0` bis `v1.1.0`;
+  `v1.0.0-rc.1` trennt Pilotierung und stabile Freigabe.
 - Offene Issues ohne belastbaren Releasebezug bleiben ausdrücklich ohne
   Milestone; Iteration, Zieltermin und Priorität werden weiterhin im Project
   gepflegt.
@@ -126,9 +158,12 @@ Die vollständige, prüfbare Zuordnung steht im
 - Jeden offenen Themencontainer einer Version zuordnen: würde nicht terminierte
   Demo-, Konzept- und Tooling-Arbeit ohne fachliche Grundlage in einen Release
   ziehen.
-- Den fachlich vollständigen Prototyp als erfundenes `v1.0.0-rc.1` behandeln:
-  dafür existiert weder ein beschlossener RC-Abnahmezweck noch eine vorhandene
-  Versionsplanung.
+- Direkt von `v0.1.0` auf `v1.0.0` planen: würde mehrere eigenständig nutzbare
+  Fachprozesse in ein langes, kaum belastbar prognostizierbares Release ziehen.
+- Die Wintererprobung unmittelbar als stabile `v1.0.0` veröffentlichen: würde
+  Pilotbefunde erst nach dem Stabilitätsversprechen sichtbar machen.
+- #165 gemeinsam mit Zulassung und Anträgen (#164) bündeln: beide Prozesse sind
+  unabhängig nutzbar und fachlich nicht hinreichend gekoppelt.
 - `VERSION` dauerhaft als Quell- und Planungsstand verwenden: ein normaler
   Commit könnte damit weiterhin eine veröffentlichte Version vortäuschen.
 
@@ -142,4 +177,6 @@ Die vollständige, prüfbare Zuordnung steht im
   [#306](https://github.com/lxndrp/lzug/issues/306),
   [#307](https://github.com/lxndrp/lzug/issues/307),
   [#308](https://github.com/lxndrp/lzug/issues/308) und
-  [#273](https://github.com/lxndrp/lzug/issues/273)
+  [#273](https://github.com/lxndrp/lzug/issues/273),
+  [#165](https://github.com/lxndrp/lzug/issues/165) sowie
+  [#318](https://github.com/lxndrp/lzug/issues/318)

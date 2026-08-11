@@ -18,8 +18,18 @@ trennt fünf Zuständigkeiten: Der SemVer-Milestone plant die Zielmenge, der
 Kandidat-Commit fixiert den geprüften Quellstand, der annotierte Tag ist die
 technische Versionsquelle, der GitHub Release veröffentlicht Notes und Assets,
 und das Project steuert Status, Priorität, Iteration, Termine und Aufwand. Die
-[kontrollierte Zuordnung](release-milestones.md) umfasst aktuell `v0.1.0` und
-`v1.0.0`.
+[kontrollierte Zuordnung](release-milestones.md) schneidet die Vorabversionen
+entlang eigenständig nutzbarer Fachprozesse, trennt `v1.0.0-rc.1` als
+Winterpilot von der stabilen `v1.0.0` und plant schriftliche Prüfungen mit
+`v1.1.0` erst nach der stabilen Freigabe.
+
+Jedes manuell angelegte Freigabe-Issue verwendet das standardisierte
+GitHub-Issue-Formular `Release-Freigabe`. #308 muss automatisch erzeugte
+Freigabe-Issues inhaltlich äquivalent aufbauen. Pflichtfelder und einzeln
+verbindliche Checkboxen verhindern, dass Kandidat, Qualitäts- und
+Security-Nachweise, Betriebs- und Wiederherstellungsprüfung, Pilotbefunde,
+Releaseinformationen oder die ausdrückliche Maintainer-Entscheidung
+stillschweigend ausgelassen werden.
 
 Der Release-Workflow darf einen Milestone nur auf Vollständigkeit prüfen. Er
 darf dessen Namen weder als Versionsquelle noch als Build-Eingabe verwenden.

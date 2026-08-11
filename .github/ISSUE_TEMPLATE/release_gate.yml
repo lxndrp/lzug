@@ -1,0 +1,238 @@
+name: Release-Freigabe
+description: Einen unveränderlichen Kandidat-Commit kontrolliert als SemVer-Version freigeben
+title: "Release: v"
+labels:
+  - "type: task"
+  - "review:operations"
+  - "review:code-quality"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Dieses Formular ist das verbindliche Freigabe-Gate für genau einen Kandidat-Commit. Es erzeugt selbst keinen Tag und keinen GitHub Release. Erst das Schließen durch eine berechtigte Maintainer-Person darf nach #308 die serverseitige Prüfung und Veröffentlichung auslösen.
+
+        Alle Nachweise müssen auf denselben vollständigen Commit verweisen. Vertrauliche, personenbezogene oder produktive Daten gehören nicht in das Issue.
+  - type: input
+    id: version
+    attributes:
+      label: SemVer-Version
+      description: Exakter geplanter Tag einschließlich führendem v.
+      placeholder: vMAJOR.MINOR.PATCH oder vMAJOR.MINOR.PATCH-rc.N
+    validations:
+      required: true
+  - type: dropdown
+    id: release-class
+    attributes:
+      label: Releaseklasse
+      options:
+        - Stabile Version
+        - Release Candidate
+        - Rückwärtskompatibles Patch-Release
+    validations:
+      required: true
+  - type: input
+    id: milestone
+    attributes:
+      label: Release-Milestone
+      description: Muss exakt der SemVer-Version entsprechen.
+      placeholder: vMAJOR.MINOR.PATCH
+    validations:
+      required: true
+  - type: input
+    id: candidate-sha
+    attributes:
+      label: Kandidat-Commit
+      description: Vollständige 40-stellige SHA eines auf master erreichbaren und vollständig geprüften Commits.
+      placeholder: 0123456789abcdef0123456789abcdef01234567
+    validations:
+      required: true
+  - type: input
+    id: predecessor
+    attributes:
+      label: Vorgänger, erprobter RC oder begründete Nichtanwendbarkeit
+      description: Link auf den vorherigen Release; für eine stabile Version nach Pilot zusätzlich auf den ausgewerteten RC. Beim ersten Release ausdrücklich begründen, warum kein Vorgänger existiert.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Freigegebener Umfang
+      description: Fachliche Fähigkeiten, betriebliche Änderungen und bewusst nicht enthaltene Themen zusammenfassen.
+      placeholder: |
+        Enthalten:
+        - ...
+        Nicht enthalten:
+        - ...
+    validations:
+      required: true
+  - type: checkboxes
+    id: candidate-contract
+    attributes:
+      label: Kandidat und Zielmenge
+      options:
+        - label: Der Release-Milestone heißt exakt wie die angegebene SemVer-Version.
+          required: true
+        - label: Alle regulären Issues des Milestones sind geschlossen; dieses Freigabe-Issue ist das einzige offene Gate.
+          required: true
+        - label: Der Umfang ist eingefroren; zusätzliche Funktionen sind später geplant.
+          required: true
+        - label: Der Kandidat ist mit vollständiger SHA festgehalten, auf `master` erreichbar und seit der Prüfung unverändert.
+          required: true
+        - label: Für die Version existieren vor der Freigabe weder Tag noch veröffentlichter GitHub Release.
+          required: true
+        - label: Version, Milestone, Changelog-Abschnitt und geplanter Tag stimmen exakt überein.
+          required: true
+  - type: textarea
+    id: ci-evidence
+    attributes:
+      label: CI- und Qualitätsnachweise
+      description: Erfolgreiche Läufe für exakt den Kandidat-Commit verlinken.
+      placeholder: |
+        - CI overall: ...
+        - Security: ...
+        - OCI: ...
+        - Operator CLI: ...
+    validations:
+      required: true
+  - type: checkboxes
+    id: quality-gates
+    attributes:
+      label: Qualitätsgates
+      options:
+        - label: Backend-Tests, Architekturprüfungen und Coverage-Gates sind erfolgreich.
+          required: true
+        - label: Frontend-Tests, Build und Formatprüfung sind erfolgreich.
+          required: true
+        - label: Browser-E2E und Accessibility-Prüfungen sind erfolgreich.
+          required: true
+        - label: Entwickler- und Betriebsdokumentation baut ohne Warnungen; Links und öffentliche Statusaussagen sind geprüft.
+          required: true
+        - label: Betreiber-CLI-Verträge und alle vorgesehenen Plattform-Builds sind erfolgreich.
+          required: true
+        - label: OCI-Build, Runtime-Smoke-Test, Compose-Konfiguration und Healthcheck sind erfolgreich.
+          required: true
+  - type: textarea
+    id: security-evidence
+    attributes:
+      label: Security- und Lieferkettennachweise
+      description: Relevante Läufe, Ausnahmen und Restrisiken verlinken.
+      placeholder: |
+        - CodeQL und Secret-Scan: ...
+        - Abhängigkeitsprüfung: ...
+        - SBOM, Provenance und Signaturprüfung: ...
+    validations:
+      required: true
+  - type: checkboxes
+    id: security-gates
+    attributes:
+      label: Security und Lieferkette
+      options:
+        - label: CodeQL, Secret- und Misconfiguration-Scans sind erfolgreich.
+          required: true
+        - label: Backend-, Frontend-, Actions- und Container-Abhängigkeiten sind geprüft; blockierende Befunde sind geschlossen.
+          required: true
+        - label: CycloneDX-SBOM und Provenance werden aus dem Kandidat-Commit erzeugt und dem Release zugeordnet.
+          required: true
+        - label: Artefakte werden ausschließlich durch den vertrauenswürdigen GitHub-Workflow gebaut und signiert.
+          required: true
+        - label: Bekannte, akzeptierte Restrisiken besitzen eine dokumentierte Maintainer-Entscheidung.
+          required: true
+  - type: textarea
+    id: operations-evidence
+    attributes:
+      label: Betriebs- und Wiederherstellungsnachweise
+      description: Prüfumgebung, Runbooks und Ergebnislinks nennen; keine produktiven Daten verwenden.
+      placeholder: |
+        - Neuinstallation und Healthcheck: ...
+        - Upgrade: ...
+        - Backup und Restore: ...
+        - Rollback: ...
+    validations:
+      required: true
+  - type: checkboxes
+    id: operations-gates
+    attributes:
+      label: Betrieb und Daten
+      options:
+        - label: Neuinstallation und Start mit der dokumentierten Referenzkonfiguration sind erfolgreich.
+          required: true
+        - label: Upgrade vom unterstützten Vorgänger erhält Konfiguration und Daten oder die Nichtanwendbarkeit beim ersten Release ist ausdrücklich begründet.
+          required: true
+        - label: Backup und Restore wurden für den beanspruchten Betriebsumfang mit Integritätsprüfung durchgeführt oder eine noch nicht beanspruchte Betriebsfähigkeit ist ausdrücklich abgegrenzt.
+          required: true
+        - label: Der dokumentierte Rollback-Pfad wurde geprüft oder seine begründete Grenze ist ausdrücklich akzeptiert.
+          required: true
+        - label: Persistenz, Berechtigungen, Secrets, Healthcheck und Ressourcenanforderungen sind dokumentiert und geprüft.
+          required: true
+  - type: textarea
+    id: pilot-findings
+    attributes:
+      label: Pilot- und Befundauswertung
+      description: Für stabile Freigaben den erprobten RC und alle Befunde verlinken; sonst Nichtanwendbarkeit begründen.
+      placeholder: |
+        Erprobter RC: ...
+        Blockierende Befunde: ...
+        Nachgelagerte Befunde: ...
+        Akzeptierte Einschränkungen: ...
+    validations:
+      required: true
+  - type: checkboxes
+    id: pilot-gates
+    attributes:
+      label: Pilot und Befunde
+      options:
+        - label: Alle Befunde sind erfasst, klassifiziert und verlinkt oder die Nichtanwendbarkeit ist begründet.
+          required: true
+        - label: Kein als release-blockierend klassifizierter Befund ist offen.
+          required: true
+        - label: Nachgelagerte Befunde besitzen Issue, Priorität und begründete Releasezuordnung oder bewusste Nichtzuordnung.
+          required: true
+  - type: textarea
+    id: release-information
+    attributes:
+      label: Release Notes, Einschränkungen und Kommunikation
+      description: Changelog, Upgradehinweise, bekannte Einschränkungen und Kommunikation verlinken.
+    validations:
+      required: true
+  - type: checkboxes
+    id: documentation-gates
+    attributes:
+      label: Releaseinformationen
+      options:
+        - label: Der versionsbezogene Changelog-Abschnitt ist vollständig, eindeutig und frei von offenen Platzhaltern.
+          required: true
+        - label: Breaking Changes, Migrationen, Upgrade-/Rollback-Grenzen und bekannte Einschränkungen sind hervorgehoben.
+          required: true
+        - label: Lizenz-, Drittanbieter- und Datenschutzangaben sind für den freizugebenden Umfang geprüft.
+          required: true
+        - label: Release Notes verweisen auf SBOM, Provenance, Artefakte und Betriebsdokumentation.
+          required: true
+  - type: textarea
+    id: final-decision
+    attributes:
+      label: Abschließende Freigabeentscheidung
+      description: Maintainer-Entscheidung, Datum, Restrisiken und Required Reviewer dokumentieren.
+      placeholder: |
+        Entscheidung: GO / NO-GO
+        Freigebende Person: ...
+        Datum: ...
+        Verbleibende Restrisiken: ...
+    validations:
+      required: true
+  - type: checkboxes
+    id: approval-gates
+    attributes:
+      label: Verbindliche Freigabe
+      options:
+        - label: Die freigebende Maintainer-Person hat alle Nachweise auf denselben Kandidat-Commit geprüft.
+          required: true
+        - label: Die Entscheidung ist `GO`; bei `NO-GO` bleibt das Issue offen und ein neuer Kandidat wird nach Korrektur bestimmt.
+          required: true
+        - label: Das Schließen ist die ausdrückliche Freigabe für serverseitige Validierung und Environment-Gate aus #308.
+          required: true
+        - label: Tags, GitHub Release, OCI-Image und CLI-Artefakte werden nicht manuell erzeugt oder überschrieben.
+          required: true
+  - type: markdown
+    attributes:
+      value: |
+        Nach dem Schließen kommentiert #308 Tag, GitHub Release, Artefakt-Digests, SBOM, Provenance und endgültige Workflow-Nachweise. Ein fehlgeschlagener oder unvollständiger Lauf gilt nicht als veröffentlichter Release.
