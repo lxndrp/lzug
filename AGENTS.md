@@ -31,7 +31,7 @@ die technische Referenz im [Entwicklerhandbuch](docs/developers/index.md).
   dauerhaft erhalten. Sie dürfen weder umbenannt noch archiviert oder für eine
   Umsetzung verwendet werden.
 - Der Thread `Fachlichkeit strukturieren` darf die Ergebnisse fachlicher
-  Klärungen in GitHub-Issues dokumentieren, bestehende Issues refinen und ihre
+  Klärungen in GitHub Issues dokumentieren, bestehende Issues refinen und ihre
   fachliche Einordnung pflegen. Er erstellt oder ändert dabei weder Produktcode
   noch technische Umsetzungen.
 - Planung und Umsetzung eines Issues in getrennten Threads durchführen. Vor
