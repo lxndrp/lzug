@@ -656,12 +656,7 @@ class PlanningService:
             for index, (slot, (start, end)) in enumerate(
                 zip(day.slots, expected_times, strict=True), start=1
             ):
-                round_candidate = store.get(ROUND_CANDIDATE, slot.round_candidate_id)
-                if (
-                    round_candidate is None
-                    or slot.round_candidate_id not in active_candidates
-                    or round_candidate["exam_round_id"] != proposal.round_id
-                ):
+                if slot.round_candidate_id not in active_candidates:
                     reject(
                         "round_candidate_invalid",
                         "Slots may only use active candidates of the round",

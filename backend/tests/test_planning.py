@@ -305,6 +305,18 @@ class PlanningTests(unittest.TestCase):
             with self.assertRaises(PlanValidationError) as mep_error:
                 service.save_proposal(replace(proposal, days=tuple(reordered_days)))
 
+            invalid_candidate_day = replace(
+                proposal.days[0],
+                slots=(
+                    replace(proposal.days[0].slots[0], round_candidate_id=999999),
+                    *proposal.days[0].slots[1:],
+                ),
+            )
+            with self.assertRaises(PlanValidationError) as candidate_error:
+                service.save_proposal(
+                    replace(proposal, days=(invalid_candidate_day, *proposal.days[1:]))
+                )
+
             settings = repository.list_filtered(PLANNING_SETTINGS, {"exam_round_id": 1})[0]
             repository.update(PLANNING_SETTINGS, settings["id"], {"exams_per_day": 1})
             with self.assertRaises(PlanValidationError) as capacity_error:
@@ -325,6 +337,10 @@ class PlanningTests(unittest.TestCase):
         self.assertIn("location_invalid", {issue.code for issue in location_error.exception.issues})
         self.assertIn("fallback_missing", {issue.code for issue in crew_error.exception.issues})
         self.assertIn("mep_not_last", {issue.code for issue in mep_error.exception.issues})
+        self.assertIn(
+            "round_candidate_invalid",
+            {issue.code for issue in candidate_error.exception.issues},
+        )
         self.assertIn(
             "daily_capacity_exceeded",
             {issue.code for issue in capacity_error.exception.issues},
