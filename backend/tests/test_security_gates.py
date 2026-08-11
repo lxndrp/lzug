@@ -59,11 +59,8 @@ class SarifSecurityGateTests(unittest.TestCase):
         self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs))
         self.assertIn('exit-code: "1"', workflow)
         self.assertIn("scanners: secret,misconfig", workflow)
-        self.assertIn("scanners: vuln,secret,misconfig", workflow)
-        self.assertIn("format: cyclonedx", workflow)
         self.assertIn("security-events: write", workflow)
         self.assertIn('python-version: "3.14.6"', workflow)
-        self.assertIn('scripts/container-smoke.sh "$IMAGE_REF"', workflow)
 
         dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
         self.assertNotIn("LZUG_AUTH_RATE_LIMIT=", dockerfile)

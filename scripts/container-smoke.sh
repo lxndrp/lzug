@@ -66,8 +66,14 @@ assert_status() {
     description=$1
     expected=$2
     actual=$3
+    response_body=${4:-}
     if [ "$actual" != "$expected" ]; then
         echo "$description: expected HTTP $expected, received $actual." >&2
+        if [ -n "$response_body" ] && [ -s "$response_body" ]; then
+            echo "Response body:" >&2
+            cat "$response_body" >&2
+            echo >&2
+        fi
         exit 1
     fi
 }
@@ -159,14 +165,15 @@ assert_status "Concealed foreign committee round" 404 \
     "$(curl --silent --output /dev/null --write-out '%{http_code}' \
         --header "Cookie: __Host-lzug_session=$actor_token" \
         "$url/api/exam-rounds/$isolated_round_id")"
-assert_status "Foreign committee write" 403 \
-    "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+foreign_write_body="$temporary_directory/foreign-write-response.json"
+foreign_write_status=$(curl --silent --output "$foreign_write_body" --write-out '%{http_code}' \
         --request POST \
         --header 'Content-Type: application/json' \
         --header "Cookie: __Host-lzug_session=$actor_token" \
         --header "X-CSRF-Token: $actor_csrf" \
         --data "{\"exam_half_year_id\":1,\"committee_id\":$isolated_committee_id,\"name\":\"Forbidden round\",\"created_by_member_id\":1}" \
-        "$url/api/exam-rounds")"
+        "$url/api/exam-rounds")
+assert_status "Foreign committee write" 403 "$foreign_write_status" "$foreign_write_body"
 echo "Committee read concealment and write isolation passed."
 
 half_year=$(curl --silent --show-error --fail \

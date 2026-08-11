@@ -1,0 +1,209 @@
+name: OCI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_REF: lzug-ci:${{ github.sha }}
+
+jobs:
+  classify:
+    name: OCI path classification
+    runs-on: ubuntu-latest
+    outputs:
+      relevant: ${{ steps.changes.outputs.relevant }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed paths conservatively
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            printf '%s\n' 'relevant=true' 'classification=push-or-manual' | tee -a "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only -z "$BASE_SHA" "$HEAD_SHA" \
+            | python3 scripts/classify_oci_paths.py \
+            | tee -a "$GITHUB_OUTPUT"
+
+  build:
+    name: OCI build
+    needs: classify
+    if: needs.classify.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Build the release image once
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: Dockerfile
+          tags: ${{ env.IMAGE_REF }}
+          build-args: VCS_REF=${{ github.sha }}
+          outputs: type=docker,dest=${{ runner.temp }}/lzug-image.tar
+          cache-from: type=gha,scope=lzug-oci-${{ runner.arch }}
+          cache-to: ${{ github.event_name == 'push' && format('type=gha,mode=max,scope=lzug-oci-{0}', runner.arch) || '' }}
+          provenance: false
+          sbom: false
+
+      - name: Record the immutable image archive checksum
+        working-directory: ${{ runner.temp }}
+        run: sha256sum lzug-image.tar > lzug-image.tar.sha256
+
+      - name: Upload the built image
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: lzug-oci-image
+          path: |
+            ${{ runner.temp }}/lzug-image.tar
+            ${{ runner.temp }}/lzug-image.tar.sha256
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  runtime-smoke:
+    name: OCI runtime smoke
+    needs:
+      - classify
+      - build
+    if: needs.classify.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout runtime smoke inputs
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Download the built image
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lzug-oci-image
+          path: ${{ runner.temp }}/lzug-oci-image
+
+      - name: Load and verify the exact built image
+        working-directory: ${{ runner.temp }}/lzug-oci-image
+        run: |
+          sha256sum --check lzug-image.tar.sha256
+          docker load --input lzug-image.tar
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE_REF")" = "$GITHUB_SHA"
+          test "$(docker image inspect --format '{{.Config.User}}' "$IMAGE_REF")" = "10001:10001"
+
+      - name: Verify health, API, SPA, and hardened runtime contracts
+        run: scripts/container-smoke.sh "$IMAGE_REF"
+
+  image-scan:
+    name: Container, dependencies, and SBOM
+    needs:
+      - classify
+      - build
+    if: needs.classify.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout scan inputs
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Download the built image
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lzug-oci-image
+          path: ${{ runner.temp }}/lzug-oci-image
+
+      - name: Load the exact built image for scanning
+        working-directory: ${{ runner.temp }}/lzug-oci-image
+        run: |
+          sha256sum --check lzug-image.tar.sha256
+          docker load --input lzug-image.tar
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE_REF")" = "$GITHUB_SHA"
+
+      - name: Generate CycloneDX SBOM
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          version: v0.69.3
+          image-ref: ${{ env.IMAGE_REF }}
+          format: cyclonedx
+          output: lzug.sbom.cdx.json
+          scanners: vuln
+          exit-code: "0"
+          hide-progress: true
+
+      - name: Validate the SBOM artifact
+        run: >-
+          python3 -c 'import json; from pathlib import Path;
+          payload=json.loads(Path("lzug.sbom.cdx.json").read_text());
+          assert payload["bomFormat"] == "CycloneDX";
+          assert payload.get("components"), "SBOM contains no components"'
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: lzug-sbom
+          path: lzug.sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Block high and critical image findings
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          version: v0.69.3
+          image-ref: ${{ env.IMAGE_REF }}
+          scanners: vuln,secret,misconfig
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          hide-progress: true
+
+  gate:
+    name: OCI pull request gate
+    needs:
+      - classify
+      - build
+      - runtime-smoke
+      - image-scan
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every relevant OCI check
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          RELEVANT: ${{ needs.classify.outputs.relevant }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          SMOKE_RESULT: ${{ needs.runtime-smoke.result }}
+          SCAN_RESULT: ${{ needs.image-scan.result }}
+        run: |
+          test "$CLASSIFY_RESULT" = "success"
+          if [ "$RELEVANT" = "false" ]; then
+            test "$BUILD_RESULT" = "skipped"
+            test "$SMOKE_RESULT" = "skipped"
+            test "$SCAN_RESULT" = "skipped"
+            exit 0
+          fi
+          test "$RELEVANT" = "true"
+          test "$BUILD_RESULT" = "success"
+          test "$SMOKE_RESULT" = "success"
+          test "$SCAN_RESULT" = "success"
