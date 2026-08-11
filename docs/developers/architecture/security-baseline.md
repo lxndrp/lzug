@@ -18,10 +18,12 @@ Ohne Session sind ausschließlich folgende Routen erreichbar:
 
 `/api`, `/api/openapi.json`, `/api/docs` und alle Fachrouten benötigen eine
 gültige Session. Fehlende oder ungültige Authentifizierung liefert 401. Eine
-gültige Session ohne aktiven Fach-Actor, ein fremder Ausschusskontext, ein
-unzulässiges Recht oder eine fehlerhafte CSRF-Prüfung liefert 403. Vom Client
-übermittelte `created_by_member_id`- und `updated_by_member_id`-Werte werden
-entfernt und aus der Session neu aufgelöst.
+gültige Session ohne aktiven Fach-Actor, ein schreibender fremder
+Ausschusskontext, ein unzulässiges Recht oder eine fehlerhafte CSRF-Prüfung
+liefert 403. Lesende Zugriffe auf fremde Ausschussressourcen liefern 404, damit
+deren Existenz nicht offengelegt wird. Vom Client übermittelte
+`created_by_member_id`- und `updated_by_member_id`-Werte werden entfernt und
+aus der Session neu aufgelöst.
 
 Die produktive Runtime sendet `Content-Security-Policy`, `X-Frame-Options`,
 `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`,
@@ -71,9 +73,10 @@ schreibgeschütztem Root-Dateisystem, Capability-Drop und
 
 `scripts/container-smoke.sh` bindet synthetische Seed-Daten ausschließlich für
 den Test ein. Der Test prüft Non-Root, minimales öffentliches Health,
-Security-Header, 401, Operator-/Actor-403, fremde Ausschussisolation,
-serverseitiges Überschreiben eines manipulierten Actors, sichere Cookies und
-secret-freie Logs. Das veröffentlichte Image enthält diese Seed-Datei nicht.
+Security-Header, 401, Operator-/Actor-403, verdeckte fremde Reads mit 404,
+schreibende Ausschussisolation mit 403, serverseitiges Überschreiben eines
+manipulierten Actors, sichere Cookies und secret-freie Logs. Das
+veröffentlichte Image enthält diese Seed-Datei nicht.
 
 ## Blockierende Security-Gates
 

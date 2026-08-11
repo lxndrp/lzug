@@ -54,8 +54,9 @@ werden.
   Build-Toolchain oder eingebettete Secrets und unterstützt read-only Root-FS,
   Capability-Drop und `no-new-privileges`.
 - Die HTTP-Runtime erzwingt Session, CSRF, Actor- und Ausschusskontext
-  serverseitig. Health ist die einzige öffentliche GET-API und enthält nur den
-  Readiness-Status.
+  serverseitig. Unberechtigte Schreibzugriffe liefern 403; lesende Zugriffe auf
+  fremde Ausschussressourcen verbergen deren Existenz mit 404. Health ist die
+  einzige öffentliche GET-API und enthält nur den Readiness-Status.
 - Security-Header, same-origin CORS, sichere Cookies, Request-/Upload-Limits,
   Auth-Rate-Limits und secret-freie Access-Logs sind produktive Defaults.
 

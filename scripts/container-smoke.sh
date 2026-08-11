@@ -127,6 +127,7 @@ actor_csrf=$(printf '%s' "$actor_credentials" | python3 -c 'import json,sys; pri
 echo "Actor session created."
 
 isolated_round=$("$engine" exec "$container" python -c '
+import json
 from backend.models import COMMITTEE, EXAM_ROUND
 from backend.repositories import ResourceRepository
 
@@ -146,13 +147,23 @@ exam_round = repository.create(EXAM_ROUND, {
     "name": "Isolated round",
     "created_by_member_id": membership["id"],
 })
-print(exam_round["id"])
+print(json.dumps({"committee_id": committee["id"], "round_id": exam_round["id"]}))
 ')
-assert_status "Foreign committee round" 403 \
+isolated_committee_id=$(printf '%s' "$isolated_round" | python3 -c 'import json,sys; print(json.load(sys.stdin)["committee_id"])')
+isolated_round_id=$(printf '%s' "$isolated_round" | python3 -c 'import json,sys; print(json.load(sys.stdin)["round_id"])')
+assert_status "Concealed foreign committee round" 404 \
     "$(curl --silent --output /dev/null --write-out '%{http_code}' \
         --header "Cookie: __Host-lzug_session=$actor_token" \
-        "$url/api/exam-rounds/$isolated_round")"
-echo "Committee isolation passed."
+        "$url/api/exam-rounds/$isolated_round_id")"
+assert_status "Foreign committee write" 403 \
+    "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+        --request POST \
+        --header 'Content-Type: application/json' \
+        --header "Cookie: __Host-lzug_session=$actor_token" \
+        --header "X-CSRF-Token: $actor_csrf" \
+        --data "{\"exam_half_year_id\":1,\"committee_id\":$isolated_committee_id,\"name\":\"Forbidden round\",\"created_by_member_id\":1}" \
+        "$url/api/exam-rounds")"
+echo "Committee read concealment and write isolation passed."
 
 half_year=$(curl --silent --show-error --fail \
     --request POST \
