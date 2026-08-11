@@ -49,7 +49,9 @@ class OciWorkflowContractTests(unittest.TestCase):
         self.assertIn("CONTAINER_ENGINE must be docker or podman.", taskfile)
         self.assertIn('command -v "$engine"', taskfile)
         self.assertIn('"$engine" info', taskfile)
-        self.assertIn('"$engine" build --build-arg VCS_REF=local', taskfile)
+        self.assertIn('build_identity="$(python3 scripts/build_metadata.py', taskfile)
+        self.assertIn('--build-arg "BUILD_IDENTITY=$build_identity"', taskfile)
+        self.assertIn('--build-arg "VCS_REF=$revision"', taskfile)
 
     def test_compose_health_probe_tolerates_an_empty_process_list(self) -> None:
         smoke = Path("scripts/compose-smoke.sh").read_text(encoding="utf-8")

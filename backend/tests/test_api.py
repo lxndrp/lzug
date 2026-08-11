@@ -129,8 +129,8 @@ class ApiTests(unittest.TestCase):
             status, health = api.request("GET", "/api/health")
             assert_status(status, HTTPStatus.OK)
             self.assertEqual("ok", health["status"])
-            self.assertEqual("0.1.0", health["version"])
-            self.assertEqual("unknown", health["revision"])
+            self.assertRegex(health["version"], r"^0\.0\.0-dev\+sha\.[0-9a-f]{40}$")
+            self.assertRegex(health["revision"], r"^[0-9a-f]{40}$")
             self.assertEqual("/api/health", health["_links"]["self"]["href"])
 
             status, summary = api.request("GET", "/api/round-summary?round_id=1")

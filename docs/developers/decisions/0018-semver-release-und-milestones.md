@@ -43,10 +43,10 @@ verwendet werden.
 ### Entwicklungsstände und Release Candidates
 
 Ein normaler Commit, Branch-Build oder Pull Request besitzt keine geplante
-Release-Version. #307 ersetzt die heutige mehrdeutige `VERSION`-Semantik durch
-eine gemeinsame Build-Metadaten-Schnittstelle. Entwicklungsidentitäten müssen
-den vollständigen Commit enthalten und eindeutig als Entwicklung markiert
-sein; die genaue artefaktgerechte Kodierung wird dort implementiert.
+Release-Version. Die gemeinsame Build-Metadaten-Schnittstelle ersetzt die
+frühere mehrdeutige `VERSION`-Semantik. Entwicklungsidentitäten enthalten den
+vollständigen Commit und sind als `0.0.0-dev+sha.<Commit-SHA>` eindeutig als
+Entwicklung markiert.
 
 Ein Kandidat entsteht erst, wenn das letzte reguläre Issue eines
 Release-Milestones geschlossen ist. Die vertrauenswürdige Automation aus #308
@@ -103,7 +103,7 @@ Manuell angelegte Release-Issues verwenden das standardisierte Issue-Formular
 denselben Pflichtumfang abbilden. Die stabile Freigabe nach dem Winterpilot ist
 als reguläres Gate #318 geplant.
 
-#308 setzt dieses Verfahren um. Bis #307 und #308 abgeschlossen sind, wird
+#308 setzt dieses Verfahren um. Bis #308 abgeschlossen ist, wird
 kein Release erzeugt. Insbesondere ist die vorhandene taggetriebene Automation
 kein Ersatz für den hier beschlossenen Kandidaten- und Freigabevertrag.
 

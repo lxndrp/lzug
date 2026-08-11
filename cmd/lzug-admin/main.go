@@ -22,6 +22,15 @@ const (
 
 var containerNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`)
 var applicationVersion = "development"
+var applicationRevision = "unknown"
+var applicationTag = ""
+
+type buildMetadata struct {
+	Identity string  `json:"identity"`
+	Release  bool    `json:"release"`
+	Revision string  `json:"revision"`
+	Tag      *string `json:"tag"`
+}
 
 type request struct {
 	Version   int            `json:"version"`
@@ -44,6 +53,10 @@ type runner struct {
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "--version" {
 		_, _ = fmt.Fprintln(os.Stdout, versionText())
+		return
+	}
+	if len(os.Args) == 2 && os.Args[1] == "--build-metadata" {
+		_ = json.NewEncoder(os.Stdout).Encode(cliBuildMetadata())
 		return
 	}
 	opts, err := parseOptions(os.Args[1:], os.Stdin)
@@ -79,6 +92,19 @@ func main() {
 
 func versionText() string {
 	return "lzug-admin " + applicationVersion
+}
+
+func cliBuildMetadata() buildMetadata {
+	metadata := buildMetadata{
+		Identity: applicationVersion,
+		Release:  applicationTag != "",
+		Revision: applicationRevision,
+	}
+	if applicationTag != "" {
+		tag := applicationTag
+		metadata.Tag = &tag
+	}
+	return metadata
 }
 
 func parseOptions(args []string, input io.Reader) (options, error) {

@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 env:
-  IMAGE_REF: lzug-ci:0.1.0-ci.${{ github.run_id }}
+  IMAGE_REF: lzug-ci:0.0.0-dev.run-${{ github.run_id }}
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -270,10 +270,11 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
-          application_version=$(cat VERSION)
+          application_version=$(python3 scripts/build_metadata.py \
+            --revision "$GITHUB_SHA" --field identity)
           mkdir -p dist
           go build -trimpath \
-            -ldflags="-s -w -X main.applicationVersion=$application_version" \
+            -ldflags="-s -w -X main.applicationVersion=$application_version -X main.applicationRevision=$GITHUB_SHA" \
             -o "dist/lzug-admin-${{ matrix.goos }}-${{ matrix.goarch }}" \
             ./cmd/lzug-admin
 
@@ -287,13 +288,21 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - name: Derive development build identity
+        id: build_metadata
+        run: |
+          identity=$(python3 scripts/build_metadata.py \
+            --revision "$GITHUB_SHA" --field identity)
+          echo "identity=$identity" >> "$GITHUB_OUTPUT"
       - name: Build the quality image once
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: Dockerfile
           tags: ${{ env.IMAGE_REF }}
-          build-args: VCS_REF=${{ github.sha }}
+          build-args: |
+            BUILD_IDENTITY=${{ steps.build_metadata.outputs.identity }}
+            VCS_REF=${{ github.sha }}
           outputs: type=docker,dest=${{ runner.temp }}/lzug-image.tar
           cache-from: type=gha,scope=lzug-quality-${{ runner.arch }}
           cache-to: ${{ github.event_name == 'push' && format('type=gha,mode=max,scope=lzug-quality-{0}', runner.arch) || '' }}
@@ -334,6 +343,7 @@ jobs:
           sha256sum --check lzug-image.tar.sha256
           docker load --input lzug-image.tar
           test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE_REF")" = "$GITHUB_SHA"
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$IMAGE_REF")" = "0.0.0-dev+sha.$GITHUB_SHA"
       - name: Generate CycloneDX SBOM
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:

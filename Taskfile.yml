@@ -111,11 +111,13 @@ tasks:
         set -eu
         temporary_directory="$(mktemp -d)"
         trap 'rm -rf "$temporary_directory"' EXIT
-        application_version="$(cat VERSION)"
+        revision="$(git rev-parse HEAD)"
+        application_version="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
         for goos in linux darwin windows; do
           for goarch in amd64 arm64; do
             GOOS="$goos" GOARCH="$goarch" \
-              go build -trimpath -ldflags="-s -w -X main.applicationVersion=$application_version" \
+              go build -trimpath \
+              -ldflags="-s -w -X main.applicationVersion=$application_version -X main.applicationRevision=$revision" \
               -o "$temporary_directory/lzug-admin-$goos-$goarch" \
               ./cmd/lzug-admin
           done
@@ -172,28 +174,33 @@ tasks:
           echo "${engine} is installed but its engine is unavailable." >&2
           exit 77
         fi
-        "$engine" build --build-arg VCS_REF=local -t lzug:0.1.0-quality .
+        revision="$(git rev-parse HEAD)"
+        build_identity="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
+        "$engine" build \
+          --build-arg "BUILD_IDENTITY=$build_identity" \
+          --build-arg "VCS_REF=$revision" \
+          -t lzug:0.0.0-dev.local .
 
   quality:container:
     desc: Run the packaged container runtime contract
     deps:
       - quality:image
     cmds:
-      - scripts/container-smoke.sh lzug:0.1.0-quality
+      - scripts/container-smoke.sh lzug:0.0.0-dev.local
 
   quality:operator-container:
     desc: Run the operator CLI against the packaged application container
     deps:
       - quality:image
     cmds:
-      - scripts/operator-container-smoke.sh lzug:0.1.0-quality
+      - scripts/operator-container-smoke.sh lzug:0.0.0-dev.local
 
   quality:compose:
     desc: Validate the Compose runtime and persistence contract
     deps:
       - quality:image
     cmds:
-      - LZUG_IMAGE=lzug:0.1.0-quality scripts/compose-smoke.sh
+      - LZUG_IMAGE=lzug:0.0.0-dev.local scripts/compose-smoke.sh
 
   quality:e2e:
     desc: Run browser end-to-end tests

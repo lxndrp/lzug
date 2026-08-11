@@ -4,43 +4,56 @@
 from __future__ import annotations
 
 import argparse
-import json
 import re
-import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
-SEMVER_TAG = re.compile(r"^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
-COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
+from backend.build_metadata import COMMIT_SHA, SEMVER_TAG, BuildMetadata
+from scripts.build_metadata import verify_tag_target
+
 REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 CHANGELOG_HEADING = re.compile(
-    r"^## \[((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))\]" r" - (\d{4}-\d{2}-\d{2})$"
+    r"^## \[((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\."
+    r"(?:0|[1-9][0-9]*)(?:-rc\.(?:0|[1-9][0-9]*))?)\] - (\d{4}-\d{2}-\d{2})$"
 )
 
 
 @dataclass(frozen=True)
 class Release:
-    """A stable SemVer release derived from a Git tag."""
+    """A SemVer release derived from a Git tag."""
 
     major: int
     minor: int
     patch: int
+    release_candidate: int | None = None
 
     @property
     def version(self) -> str:
         """Return the version without the Git tag prefix."""
 
-        return f"{self.major}.{self.minor}.{self.patch}"
+        version = f"{self.major}.{self.minor}.{self.patch}"
+        if self.release_candidate is not None:
+            return f"{version}-rc.{self.release_candidate}"
+        return version
 
 
 def parse_release_tag(tag: str) -> Release:
-    """Parse the only Git tag shape accepted by the public release workflow."""
+    """Parse the SemVer tag shapes accepted by the release contract."""
 
     match = SEMVER_TAG.fullmatch(tag)
     if match is None:
-        raise ValueError("release tag must be a stable SemVer tag in the form vMAJOR.MINOR.PATCH")
-    return Release(*(int(part) for part in match.groups()))
+        raise ValueError(
+            "release tag must be SemVer in the form "
+            "vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-rc.N"
+        )
+    major, minor, patch, release_candidate = match.groups()
+    return Release(
+        int(major),
+        int(minor),
+        int(patch),
+        int(release_candidate) if release_candidate is not None else None,
+    )
 
 
 def image_references(repository: str, tag: str, sha: str) -> list[str]:
@@ -52,42 +65,11 @@ def image_references(repository: str, tag: str, sha: str) -> list[str]:
         raise ValueError("commit SHA must contain exactly 40 lowercase hex characters")
     release = parse_release_tag(tag)
     image = f"ghcr.io/{repository.lower()}"
-    return [
-        f"{image}:{release.version}",
-        f"{image}:{release.major}.{release.minor}",
-        f"{image}:{release.major}",
-        f"{image}:sha-{sha}",
-    ]
-
-
-def validate_source_metadata(version_file: Path, expected: str) -> None:
-    """Require one version across the canonical file and package metadata."""
-
-    source_version = version_file.read_text(encoding="utf-8").strip()
-    if source_version != expected:
-        raise ValueError(
-            f"release tag version {expected} does not match {version_file}: {source_version}"
-        )
-    root = version_file.resolve().parent
-    python_version = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))[
-        "project"
-    ]["version"]
-    frontend_version = json.loads((root / "frontend/package.json").read_text(encoding="utf-8"))[
-        "version"
-    ]
-    frontend_lock = json.loads((root / "frontend/package-lock.json").read_text(encoding="utf-8"))
-    lock_versions = {
-        frontend_lock["version"],
-        frontend_lock["packages"][""]["version"],
-    }
-    if (
-        python_version != source_version
-        or frontend_version != source_version
-        or lock_versions != {source_version}
-    ):
-        raise ValueError(
-            "VERSION, Python metadata, and frontend package metadata must contain one version"
-        )
+    references = [f"{image}:{release.version}"]
+    if release.release_candidate is None:
+        references.extend([f"{image}:{release.major}.{release.minor}", f"{image}:{release.major}"])
+    references.append(f"{image}:sha-{sha}")
+    return references
 
 
 def extract_changelog(changelog: str, version: str) -> str:
@@ -126,7 +108,10 @@ def write_release_inputs(args: argparse.Namespace) -> None:
     """Validate release inputs and write release notes and expected image tags."""
 
     release = parse_release_tag(args.tag)
-    validate_source_metadata(Path(args.version_file), release.version)
+    metadata = BuildMetadata.create(args.sha, args.tag)
+    verify_tag_target(args.tag, args.sha)
+    if metadata.identity != release.version:
+        raise ValueError("release tag and build metadata identity differ")
     references = image_references(args.repository, args.tag, args.sha)
     changelog = Path(args.changelog).read_text(encoding="utf-8")
     changes = extract_changelog(changelog, release.version)
@@ -138,6 +123,7 @@ def write_release_inputs(args: argparse.Namespace) -> None:
         output = Path(args.github_output)
         with output.open("a", encoding="utf-8") as stream:
             stream.write(f"version={release.version}\n")
+            stream.write(f"build_identity={metadata.identity}\n")
             stream.write(f"image=ghcr.io/{args.repository.lower()}\n")
             stream.write(f"canonical_ref={references[0]}\n")
 
@@ -210,7 +196,6 @@ def parser() -> argparse.ArgumentParser:
     prepare.add_argument("--sha", required=True)
     prepare.add_argument("--repository", required=True)
     prepare.add_argument("--changelog", required=True)
-    prepare.add_argument("--version-file", default="VERSION")
     prepare.add_argument("--notes", required=True)
     prepare.add_argument("--tags", required=True)
     prepare.add_argument("--github-output")

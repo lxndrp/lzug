@@ -1,27 +1,36 @@
-"""Canonical application version and build revision metadata."""
+"""Runtime access to canonical application build metadata."""
 
 from __future__ import annotations
 
-import os
+import subprocess
 from functools import cache
 from pathlib import Path
 
+from .build_metadata import BuildMetadata
+
+BUILD_METADATA_PATH = Path(__file__).resolve().parent.parent / "build-metadata.json"
+
 
 @cache
-def _source_version() -> str:
-    return (Path(__file__).resolve().parent.parent / "VERSION").read_text(encoding="utf-8").strip()
+def build_metadata() -> BuildMetadata:
+    """Read injected metadata or derive a development identity from Git."""
+
+    if BUILD_METADATA_PATH.is_file():
+        return BuildMetadata.read(BUILD_METADATA_PATH)
+
+    revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+    ).stdout.strip()
+    return BuildMetadata.create(revision)
 
 
 def application_version() -> str:
-    """Return the release version embedded in this source or image."""
+    """Return the canonical release or development identity."""
 
-    override = os.environ.get("LZUG_VERSION", "").strip()
-    if override:
-        return override
-    return _source_version()
+    return build_metadata().identity
 
 
 def build_revision() -> str:
-    """Return the source commit recorded by the OCI build."""
+    """Return the full immutable source revision."""
 
-    return os.environ.get("LZUG_REVISION", "unknown").strip() or "unknown"
+    return build_metadata().revision
