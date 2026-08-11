@@ -4,38 +4,6 @@ import re
 import unittest
 from pathlib import Path
 
-from scripts.classify_oci_paths import requires_oci_pipeline
-
-
-class OciPathClassificationTests(unittest.TestCase):
-    def test_known_documentation_and_metadata_only_changes_are_skipped(self) -> None:
-        self.assertFalse(
-            requires_oci_pipeline(
-                [
-                    "README.md",
-                    "docs/developers/architecture/oci-runtime.md",
-                    ".github/ISSUE_TEMPLATE/bug_report.yml",
-                    ".vscode/setup.md",
-                    "prototypes/pruefungsrunde-prototyp/index.html",
-                ]
-            )
-        )
-
-    def test_runtime_and_unknown_paths_run_the_pipeline(self) -> None:
-        for path in (
-            "Dockerfile",
-            "backend/app.py",
-            "frontend/src/main.ts",
-            "scripts/container-smoke.sh",
-            ".github/workflows/oci.yml",
-            "unexpected/new-build-input",
-        ):
-            with self.subTest(path=path):
-                self.assertTrue(requires_oci_pipeline(["README.md", path]))
-
-    def test_empty_change_set_fails_closed(self) -> None:
-        self.assertTrue(requires_oci_pipeline([]))
-
 
 class OciWorkflowContractTests(unittest.TestCase):
     def test_workflow_reuses_one_checksummed_image_for_smoke_and_scan(self) -> None:
@@ -50,7 +18,11 @@ class OciWorkflowContractTests(unittest.TestCase):
         self.assertIn('scripts/container-smoke.sh "$IMAGE_REF"', workflow)
         self.assertIn("scanners: vuln,secret,misconfig", workflow)
         self.assertIn("format: cyclonedx", workflow)
+        self.assertIn("python3 scripts/classify_quality_paths.py", workflow)
+        self.assertIn("if: needs.classify.outputs.oci == 'true'", workflow)
+        self.assertIn("name: Quality / OCI", workflow)
         self.assertIn("name: OCI pull request gate", workflow)
+        self.assertIn("Kept until #305 migrates", workflow)
         self.assertIn("if: always()", workflow)
         self.assertIn('test "$BUILD_RESULT" = "success"', workflow)
         self.assertIn('test "$SMOKE_RESULT" = "success"', workflow)

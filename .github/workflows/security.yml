@@ -19,8 +19,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  classify:
+    name: Quality change classification
+    runs-on: ubuntu-latest
+    outputs:
+      security: ${{ steps.changes.outputs.security }}
+      codeql: ${{ steps.changes.outputs.codeql }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed paths conservatively
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            python3 scripts/classify_quality_paths.py \
+              --full-reason "full-$EVENT_NAME" \
+              | tee -a "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only -z "$BASE_SHA" "$HEAD_SHA" \
+            | python3 scripts/classify_quality_paths.py \
+            | tee -a "$GITHUB_OUTPUT"
+
   codeql:
     name: CodeQL (${{ matrix.language }})
+    needs: classify
+    if: needs.classify.outputs.codeql == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -76,3 +108,33 @@ jobs:
           exit-code: "1"
           hide-progress: true
           skip-dirs: .git,.venv,frontend/node_modules
+
+  gate:
+    name: Quality / Security
+    needs:
+      - classify
+      - codeql
+      - source-scan
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every selected security check
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          SECURITY_SELECTED: ${{ needs.classify.outputs.security }}
+          CODEQL_SELECTED: ${{ needs.classify.outputs.codeql }}
+          CODEQL_RESULT: ${{ needs.codeql.result }}
+          SOURCE_SCAN_RESULT: ${{ needs.source-scan.result }}
+        run: |
+          test "$CLASSIFY_RESULT" = "success"
+          test "$SOURCE_SCAN_RESULT" = "success"
+          case "$SECURITY_SELECTED:$CODEQL_SELECTED" in
+            true:true | true:false | false:false) ;;
+            *) exit 1 ;;
+          esac
+          if [ "$CODEQL_SELECTED" = "true" ]; then
+            test "$CODEQL_RESULT" = "success"
+          else
+            test "$CODEQL_SELECTED" = "false"
+            test "$CODEQL_RESULT" = "skipped"
+          fi

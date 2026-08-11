@@ -27,8 +27,9 @@ jobs:
     outputs:
       backend: ${{ steps.changes.outputs.backend }}
       frontend: ${{ steps.changes.outputs.frontend }}
-      npm_security: ${{ steps.changes.outputs.npm_security }}
       documentation: ${{ steps.changes.outputs.documentation }}
+      overall: ${{ steps.changes.outputs.overall }}
+      npm_security: ${{ steps.changes.outputs.npm_security }}
       compose: ${{ steps.changes.outputs.compose }}
       e2e: ${{ steps.changes.outputs.e2e }}
       a11y: ${{ steps.changes.outputs.a11y }}
@@ -48,20 +49,13 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$EVENT_NAME" != "pull_request" ]; then
-            printf '%s\n' \
-              'backend=true' \
-              'frontend=true' \
-              'npm_security=true' \
-              'documentation=true' \
-              'compose=true' \
-              'e2e=true' \
-              'a11y=true' \
-              "classification=full-$EVENT_NAME" \
+            python3 scripts/classify_quality_paths.py \
+              --full-reason "full-$EVENT_NAME" \
               | tee -a "$GITHUB_OUTPUT"
             exit 0
           fi
           git diff --name-only -z "$BASE_SHA" "$HEAD_SHA" \
-            | python3 scripts/classify_ci_paths.py \
+            | python3 scripts/classify_quality_paths.py \
             | tee -a "$GITHUB_OUTPUT"
 
   backend:
@@ -400,38 +394,46 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-  gate:
-    name: CI overall
+  backend-gate:
+    name: Quality / Backend
     needs:
       - classify
       - backend
-      - frontend
-      - npm_security
-      - documentation
-      - compose
-      - e2e
-      - a11y
     if: always()
     runs-on: ubuntu-latest
 
     steps:
-      - name: Require every selected quality job
+      - name: Require the selected backend checks
         env:
           CLASSIFY_RESULT: ${{ needs.classify.result }}
-          BACKEND_SELECTED: ${{ needs.classify.outputs.backend }}
-          BACKEND_RESULT: ${{ needs.backend.result }}
+          SELECTED: ${{ needs.classify.outputs.backend }}
+          DETAIL_RESULT: ${{ needs.backend.result }}
+        run: |
+          test "$CLASSIFY_RESULT" = "success"
+          if [ "$SELECTED" = "true" ]; then
+            test "$DETAIL_RESULT" = "success"
+          else
+            test "$SELECTED" = "false"
+            test "$DETAIL_RESULT" = "skipped"
+          fi
+
+  frontend-gate:
+    name: Quality / Frontend
+    needs:
+      - classify
+      - frontend
+      - npm_security
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require the selected frontend checks
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
           FRONTEND_SELECTED: ${{ needs.classify.outputs.frontend }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           NPM_SECURITY_SELECTED: ${{ needs.classify.outputs.npm_security }}
           NPM_SECURITY_RESULT: ${{ needs.npm_security.result }}
-          DOCUMENTATION_SELECTED: ${{ needs.classify.outputs.documentation }}
-          DOCUMENTATION_RESULT: ${{ needs.documentation.result }}
-          COMPOSE_SELECTED: ${{ needs.classify.outputs.compose }}
-          COMPOSE_RESULT: ${{ needs.compose.result }}
-          E2E_SELECTED: ${{ needs.classify.outputs.e2e }}
-          E2E_RESULT: ${{ needs.e2e.result }}
-          A11Y_SELECTED: ${{ needs.classify.outputs.a11y }}
-          A11Y_RESULT: ${{ needs.a11y.result }}
         run: |
           set -eu
           test "$CLASSIFY_RESULT" = "success"
@@ -447,10 +449,92 @@ jobs:
             fi
           }
 
-          require_result "$BACKEND_SELECTED" "$BACKEND_RESULT"
           require_result "$FRONTEND_SELECTED" "$FRONTEND_RESULT"
           require_result "$NPM_SECURITY_SELECTED" "$NPM_SECURITY_RESULT"
-          require_result "$DOCUMENTATION_SELECTED" "$DOCUMENTATION_RESULT"
+
+  documentation-gate:
+    name: Quality / Documentation
+    needs:
+      - classify
+      - documentation
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require the selected documentation checks
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          SELECTED: ${{ needs.classify.outputs.documentation }}
+          DETAIL_RESULT: ${{ needs.documentation.result }}
+        run: |
+          test "$CLASSIFY_RESULT" = "success"
+          if [ "$SELECTED" = "true" ]; then
+            test "$DETAIL_RESULT" = "success"
+          else
+            test "$SELECTED" = "false"
+            test "$DETAIL_RESULT" = "skipped"
+          fi
+
+  overall-gate:
+    name: Quality / Overall
+    needs:
+      - classify
+      - compose
+      - e2e
+      - a11y
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require every selected cross-domain check
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          OVERALL_SELECTED: ${{ needs.classify.outputs.overall }}
+          COMPOSE_SELECTED: ${{ needs.classify.outputs.compose }}
+          COMPOSE_RESULT: ${{ needs.compose.result }}
+          E2E_SELECTED: ${{ needs.classify.outputs.e2e }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+          A11Y_SELECTED: ${{ needs.classify.outputs.a11y }}
+          A11Y_RESULT: ${{ needs.a11y.result }}
+        run: |
+          set -eu
+          test "$CLASSIFY_RESULT" = "success"
+          test "$OVERALL_SELECTED" = "true" -o "$OVERALL_SELECTED" = "false"
+
+          require_result() {
+            selected="$1"
+            result="$2"
+            if [ "$selected" = "true" ]; then
+              test "$result" = "success"
+            else
+              test "$selected" = "false"
+              test "$result" = "skipped"
+            fi
+          }
+
           require_result "$COMPOSE_SELECTED" "$COMPOSE_RESULT"
           require_result "$E2E_SELECTED" "$E2E_RESULT"
           require_result "$A11Y_SELECTED" "$A11Y_RESULT"
+
+  required-check-compatibility:
+    # Kept until #305 migrates the active ruleset to the stable Quality gates.
+    name: CI overall
+    needs:
+      - backend-gate
+      - frontend-gate
+      - documentation-gate
+      - overall-gate
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preserve the existing required check without bypassing new gates
+        env:
+          BACKEND_GATE: ${{ needs.backend-gate.result }}
+          FRONTEND_GATE: ${{ needs.frontend-gate.result }}
+          DOCUMENTATION_GATE: ${{ needs.documentation-gate.result }}
+          OVERALL_GATE: ${{ needs.overall-gate.result }}
+        run: |
+          test "$BACKEND_GATE" = "success"
+          test "$FRONTEND_GATE" = "success"
+          test "$DOCUMENTATION_GATE" = "success"
+          test "$OVERALL_GATE" = "success"

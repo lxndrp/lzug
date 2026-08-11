@@ -23,10 +23,10 @@ env:
 
 jobs:
   classify:
-    name: OCI path classification
+    name: Quality change classification
     runs-on: ubuntu-latest
     outputs:
-      relevant: ${{ steps.changes.outputs.relevant }}
+      oci: ${{ steps.changes.outputs.oci }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -40,18 +40,21 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          set -euo pipefail
           if [ "$EVENT_NAME" != "pull_request" ]; then
-            printf '%s\n' 'relevant=true' 'classification=push-or-manual' | tee -a "$GITHUB_OUTPUT"
+            python3 scripts/classify_quality_paths.py \
+              --full-reason "full-$EVENT_NAME" \
+              | tee -a "$GITHUB_OUTPUT"
             exit 0
           fi
           git diff --name-only -z "$BASE_SHA" "$HEAD_SHA" \
-            | python3 scripts/classify_oci_paths.py \
+            | python3 scripts/classify_quality_paths.py \
             | tee -a "$GITHUB_OUTPUT"
 
   build:
     name: OCI build
     needs: classify
-    if: needs.classify.outputs.relevant == 'true'
+    if: needs.classify.outputs.oci == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -93,7 +96,7 @@ jobs:
     needs:
       - classify
       - build
-    if: needs.classify.outputs.relevant == 'true'
+    if: needs.classify.outputs.oci == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout runtime smoke inputs
@@ -121,7 +124,7 @@ jobs:
     needs:
       - classify
       - build
-    if: needs.classify.outputs.relevant == 'true'
+    if: needs.classify.outputs.oci == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout scan inputs
@@ -179,7 +182,7 @@ jobs:
           hide-progress: true
 
   gate:
-    name: OCI pull request gate
+    name: Quality / OCI
     needs:
       - classify
       - build
@@ -191,19 +194,31 @@ jobs:
       - name: Require every relevant OCI check
         env:
           CLASSIFY_RESULT: ${{ needs.classify.result }}
-          RELEVANT: ${{ needs.classify.outputs.relevant }}
+          SELECTED: ${{ needs.classify.outputs.oci }}
           BUILD_RESULT: ${{ needs.build.result }}
           SMOKE_RESULT: ${{ needs.runtime-smoke.result }}
           SCAN_RESULT: ${{ needs.image-scan.result }}
         run: |
           test "$CLASSIFY_RESULT" = "success"
-          if [ "$RELEVANT" = "false" ]; then
+          if [ "$SELECTED" = "false" ]; then
             test "$BUILD_RESULT" = "skipped"
             test "$SMOKE_RESULT" = "skipped"
             test "$SCAN_RESULT" = "skipped"
             exit 0
           fi
-          test "$RELEVANT" = "true"
+          test "$SELECTED" = "true"
           test "$BUILD_RESULT" = "success"
           test "$SMOKE_RESULT" = "success"
           test "$SCAN_RESULT" = "success"
+
+  required-check-compatibility:
+    # Kept until #305 migrates the active ruleset to the stable Quality gates.
+    name: OCI pull request gate
+    needs: gate
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preserve the existing required check without bypassing the new gate
+        env:
+          OCI_GATE: ${{ needs.gate.result }}
+        run: test "$OCI_GATE" = "success"
