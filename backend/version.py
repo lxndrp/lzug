@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 import os
+from functools import cache
 from pathlib import Path
+
+
+@cache
+def _source_version() -> str:
+    return (Path(__file__).resolve().parent.parent / "VERSION").read_text(encoding="utf-8").strip()
 
 
 def application_version() -> str:
@@ -12,7 +18,7 @@ def application_version() -> str:
     override = os.environ.get("LZUG_VERSION", "").strip()
     if override:
         return override
-    return (Path(__file__).resolve().parent.parent / "VERSION").read_text(encoding="utf-8").strip()
+    return _source_version()
 
 
 def build_revision() -> str:
