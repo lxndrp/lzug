@@ -45,11 +45,21 @@ def _origins(environment: Mapping[str, str]) -> frozenset[str]:
     configured = environment.get("LZUG_CORS_ALLOWED_ORIGINS", "")
     origins = frozenset(origin.strip() for origin in configured.split(",") if origin.strip())
     for origin in origins:
-        parsed = urlparse(origin)
+        try:
+            parsed = urlparse(origin)
+            parsed_port = parsed.port
+        except ValueError as error:
+            raise ValueError(
+                "LZUG_CORS_ALLOWED_ORIGINS must contain comma-separated exact HTTP origins"
+            ) from error
         if (
             origin == "*"
+            or any(ord(character) < 32 or ord(character) == 127 for character in origin)
             or parsed.scheme not in {"http", "https"}
             or not parsed.netloc
+            or parsed.hostname is None
+            or parsed_port is None
+            and ":" in parsed.netloc.rsplit("]", 1)[-1]
             or parsed.username is not None
             or parsed.password is not None
             or parsed.path not in {"", "/"}

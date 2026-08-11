@@ -680,16 +680,72 @@ class LzugHandler(BaseHTTPRequestHandler):
         if (
             origin is None
             or self.origin_is_same_host(origin)
-            or origin in self.cors_allowed_origins
+            or self.allowed_cors_origin(origin) is not None
         ):
             return True
         self.respond({"error": "Cross-origin request is not allowed."}, HTTPStatus.FORBIDDEN)
         return False
 
     def origin_is_same_host(self, origin: str) -> bool:
-        parsed = urlparse(origin)
-        host = self.headers.get("Host", "").lower()
-        return parsed.scheme in {"http", "https"} and parsed.netloc.lower() == host
+        origin_authority = self.normalized_origin_authority(origin)
+        if origin_authority is None:
+            return False
+        scheme, hostname, port = origin_authority
+        host_authority = self.normalized_host_authority(self.headers.get("Host", ""), scheme=scheme)
+        return host_authority == (hostname, port)
+
+    @staticmethod
+    def normalized_origin_authority(origin: str) -> tuple[str, str, int] | None:
+        """Return a canonical browser origin while rejecting malformed authorities."""
+        try:
+            parsed = urlparse(origin)
+            port = parsed.port
+        except ValueError:
+            return None
+        if (
+            parsed.scheme not in {"http", "https"}
+            or parsed.hostname is None
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path
+            or parsed.params
+            or parsed.query
+            or parsed.fragment
+        ):
+            return None
+        return (
+            parsed.scheme,
+            parsed.hostname.lower(),
+            port or (443 if parsed.scheme == "https" else 80),
+        )
+
+    @staticmethod
+    def normalized_host_authority(host: str, *, scheme: str) -> tuple[str, int] | None:
+        """Normalize Host using the request-origin scheme without trusting malformed ports."""
+        try:
+            parsed = urlparse(f"{scheme}://{host}")
+            port = parsed.port
+        except ValueError:
+            return None
+        if (
+            scheme not in {"http", "https"}
+            or parsed.hostname is None
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in {"", "/"}
+            or parsed.params
+            or parsed.query
+            or parsed.fragment
+        ):
+            return None
+        return parsed.hostname.lower(), port or (443 if scheme == "https" else 80)
+
+    def allowed_cors_origin(self, requested_origin: str) -> str | None:
+        """Select only a validated configured value for a reflected CORS header."""
+        return next(
+            (allowed for allowed in self.cors_allowed_origins if requested_origin == allowed),
+            None,
+        )
 
     def allow_public_auth_request(self, path_parts: list[str]) -> bool:
         endpoint = "/".join(path_parts)
@@ -1107,8 +1163,9 @@ class LzugHandler(BaseHTTPRequestHandler):
         if self.https_only:
             self.send_header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
         origin = self.headers.get("Origin")
-        if origin in self.cors_allowed_origins:
-            self.send_header("Access-Control-Allow-Origin", origin)
+        allowed_origin = self.allowed_cors_origin(origin) if origin is not None else None
+        if allowed_origin is not None:
+            self.send_header("Access-Control-Allow-Origin", allowed_origin)
             self.send_header("Access-Control-Allow-Credentials", "true")
             self.send_header("Vary", "Origin")
 

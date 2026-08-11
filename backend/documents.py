@@ -101,11 +101,21 @@ class DocumentService:
         self.storage = storage
         self.db_path = db_path
         self.max_size_bytes = configured_maximum if max_size_bytes is None else max_size_bytes
-        self.allowed_media_types = frozenset(
+        selected_media_types = (
             configured_types if allowed_media_types is None else allowed_media_types
         )
-        if self.max_size_bytes <= 0 or not self.allowed_media_types:
-            raise ValueError("Document upload policy must not be empty")
+        self.allowed_media_types = frozenset(
+            media_type.strip().lower() for media_type in selected_media_types
+        )
+        if (
+            self.max_size_bytes <= 0
+            or not self.allowed_media_types
+            or any(
+                MEDIA_TYPE_PATTERN.fullmatch(media_type) is None
+                for media_type in self.allowed_media_types
+            )
+        ):
+            raise ValueError("Document upload policy must contain a positive size and exact types")
 
     def create(
         self,

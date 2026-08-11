@@ -41,7 +41,14 @@ class RuntimeSecurityConfigurationTests(unittest.TestCase):
             config.cors_allowed_origins,
         )
 
-        for invalid in ("*", "https://example.invalid/", "https://user@example.invalid"):
+        for invalid in (
+            "*",
+            "https://example.invalid/",
+            "https://user@example.invalid",
+            "https://example.invalid:not-a-port",
+            "https://[invalid",
+            "https://example.invalid\r\nX-Injected: true",
+        ):
             with self.subTest(invalid=invalid):
                 with self.assertRaisesRegex(ValueError, "exact HTTP origins"):
                     RuntimeSecurityConfig.from_environment({"LZUG_CORS_ALLOWED_ORIGINS": invalid})
@@ -108,6 +115,34 @@ class HttpSecurityTests(unittest.TestCase):
             )
             assert_status(status, HTTPStatus.FORBIDDEN)
             self.assertEqual("Cross-origin request is not allowed.", error["error"])
+
+    def test_same_origin_normalizes_default_ports_and_rejects_malformed_hosts(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, headers, _body = api.request_raw(
+                "GET",
+                "/api/health",
+                authenticated=False,
+                request_headers={
+                    "Host": "app.example.invalid:443",
+                    "Origin": "https://app.example.invalid",
+                },
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertNotIn("access-control-allow-origin", headers)
+
+            for malformed_host in ("app.example.invalid:not-a-port", "[invalid"):
+                with self.subTest(malformed_host=malformed_host):
+                    status, error = api.request(
+                        "GET",
+                        "/api/health",
+                        authenticated=False,
+                        request_headers={
+                            "Host": malformed_host,
+                            "Origin": "https://app.example.invalid",
+                        },
+                    )
+                    assert_status(status, HTTPStatus.FORBIDDEN)
+                    self.assertEqual("Cross-origin request is not allowed.", error["error"])
 
     def test_json_body_type_size_and_public_auth_rate_limit_are_enforced(self) -> None:
         payload = {

@@ -251,6 +251,22 @@ class DocumentServiceTests(unittest.TestCase):
                     media_type="image/svg+xml",
                 )
 
+    def test_injected_upload_media_type_allowlist_is_case_insensitive(self) -> None:
+        with TempDatabase() as db_path, tempfile.TemporaryDirectory() as directory:
+            service = DocumentService(
+                FileSystemDocumentStorage(Path(directory)),
+                db_path,
+                allowed_media_types={"Application/PDF"},
+            )
+
+            metadata = service.create(
+                b"document",
+                original_filename="document.pdf",
+                media_type="application/pdf",
+            )
+
+            self.assertEqual("application/pdf", metadata["media_type"])
+
     def test_upload_policy_rejects_wildcards_and_unbounded_sizes(self) -> None:
         with self.assertRaisesRegex(ValueError, "exact media types"):
             document_upload_policy({"LZUG_ALLOWED_UPLOAD_MEDIA_TYPES": "image/*"})
