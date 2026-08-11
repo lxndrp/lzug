@@ -46,14 +46,16 @@ die technische Referenz im [Entwicklerhandbuch](docs/developers/index.md).
   für Issue-Arbeit entstehen mit `scripts/create-issue-pr.sh`; sie schließen
   vollständige Umsetzungen mit `Closes #<nummer>`. Nach dem Anlegen eines Pull
   Requests den Abschluss von CI und Code-Review abwarten und anschließend alle
-  Code-Review-Kommentare prüfen. Sinnvolle, zum Issue gehörende Hinweise
-  umsetzen und danach die betroffenen Prüfungen sowie CI erneut abwarten.
-  Erledigte Review-Threads erst nach Prüfung beziehungsweise Umsetzung als
-  `Resolved` markieren. Unklare, nicht sinnvolle oder außerhalb des
-  Issue-Scopes liegende Hinweise nicht stillschweigend auflösen, sondern
+  Kommentare und Befunde mit Pull-Request-Bezug prüfen. Dazu zählen
+  Review-Threads, allgemeine Pull-Request-Kommentare, Security-Audits,
+  Code-Scanning-Alerts und automatisierte Prüfhinweise. Sinnvolle, zum Issue
+  gehörende Hinweise umsetzen und danach die betroffenen Prüfungen sowie CI
+  erneut abwarten. Erledigte Review-Threads erst nach Prüfung beziehungsweise
+  Umsetzung als `Resolved` markieren. Unklare, nicht sinnvolle oder außerhalb
+  des Issue-Scopes liegende Hinweise nicht stillschweigend auflösen, sondern
   nachvollziehbar beantworten oder zur Entscheidung eskalieren. Erst mergen,
   wenn die CI nach den letzten Änderungen erfolgreich ist und alle relevanten
-  Review-Kommentare geklärt sind.
+  Kommentare und Befunde geklärt sind.
 - Qualifizierte Dependabot-PRs werden nur durch den dafür vorgesehenen Workflow
   für Squash-Auto-Merge angemeldet. Das bestehende Ruleset und die CI bleiben
   maßgeblich; Major-, GitHub-Actions-, konfliktbehaftete und nicht eindeutig
