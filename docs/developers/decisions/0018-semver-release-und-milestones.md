@@ -1,0 +1,145 @@
+# ADR-0018: SemVer, Releases und Release-Milestones trennen
+
+## Status
+
+Akzeptiert am 11.08.2026.
+
+## Kontext
+
+Die Datei `VERSION`, Paketmetadaten, Git-Tags, GitHub Releases und drei offen
+geführte thematische Milestones wurden bisher teilweise als überlappende
+Versions- und Planungsquellen verstanden. Ein geplanter Milestone bezeichnet
+aber keinen gebauten Stand, und ein Commit auf `master` ist noch kein
+freigegebener Release. Für einen reproduzierbaren Veröffentlichungsprozess
+müssen technische Identität, Freigabe und fachliche Zielmenge getrennt sein.
+
+Der Bestand liefert zwei konkrete Versionsziele: `VERSION` steht vor der
+Umstellung auf `0.1.0`, und der Milestone „Version 1 – Wintererprobung“ nennt
+die stabile Version 1. Daraus werden `v0.1.0` und `v1.0.0` abgeleitet. Für eine
+weitere Versionsnummer oder einen Release Candidate gibt es derzeit keine
+belastbare Planung.
+
+## Entscheidung
+
+### Verantwortlichkeiten
+
+| Gegenstand | Verantwortung | Keine Verantwortung |
+| --- | --- | --- |
+| SemVer-Tag | unveränderliche technische Versionsquelle eines freigegebenen Commits | Planung, Aufwand oder Iteration |
+| Kandidat-Commit | vollständig geprüfter, auf `master` erreichbarer Commit, dessen vollständige SHA im Release-Issue festgehalten wird | veröffentlichte Version oder beweglicher Zeiger auf den neuesten Stand |
+| GitHub Release | freigegebene Darstellung genau eines Tags mit Notes, Assets und Nachweisen | Wahl des Kandidaten oder fachliche Planung |
+| Release-Milestone | fachliche und technische Zielmenge für genau eine geplante SemVer-Version | Build-Eingabe oder technische Versionsquelle |
+| GitHub Project | operative Quelle für Status, Priorität, Iteration, Termine und Aufwand | Release- oder Build-Identität |
+
+Ein Release-Milestone heißt exakt wie sein vorgesehener Tag: `vMAJOR.MINOR.PATCH`
+oder bei einem tatsächlich geplanten Vorabrelease
+`vMAJOR.MINOR.PATCH-rc.N`. Ein Milestone darf von Build- und
+Release-Automation gelesen werden, um Vollständigkeit zu prüfen; sein Name darf
+aber niemals in ein Artefakt injiziert oder zum Erzeugen einer Version
+verwendet werden.
+
+### Entwicklungsstände und Release Candidates
+
+Ein normaler Commit, Branch-Build oder Pull Request besitzt keine geplante
+Release-Version. #307 ersetzt die heutige mehrdeutige `VERSION`-Semantik durch
+eine gemeinsame Build-Metadaten-Schnittstelle. Entwicklungsidentitäten müssen
+den vollständigen Commit enthalten und eindeutig als Entwicklung markiert
+sein; die genaue artefaktgerechte Kodierung wird dort implementiert.
+
+Ein Kandidat entsteht erst, wenn das letzte reguläre Issue eines
+Release-Milestones geschlossen ist. Die vertrauenswürdige Automation aus #308
+legt dann genau ein Release-Issue an und hält darin die vollständige SHA des zu
+diesem Zeitpunkt geprüften `master`-Commits fest. Spätere Merges bewegen diesen
+Kandidaten nicht. Erfordert das Gate eine Korrektur, wird sie über ein
+zugehöriges Issue umgesetzt und anschließend ein neuer Kandidat bestimmt.
+
+Ein Release Candidate ist eine veröffentlichte SemVer-Pre-Release-Version und
+verwendet einen annotierten Tag `vMAJOR.MINOR.PATCH-rc.N` sowie einen GitHub
+Pre-Release. Er wird nur geplant, wenn dafür ein eigener Milestone und ein
+konkreter Abnahmezweck bestehen. Kandidat-Commit und Release Candidate sind
+damit ausdrücklich nicht dasselbe. Aktuell wird kein RC-Milestone angelegt.
+
+### Freigabeverfahren
+
+1. Alle regulären Issues des Release-Milestones sind geschlossen.
+2. Die Kandidatenautomation erzeugt das einzige verbleibende Release-Issue,
+   hält die Kandidat-SHA fest und ordnet es demselben Milestone zu.
+3. Das Release-Issue dokumentiert Scope-Freeze, die stabilen Qualitätsgates
+   aus dem [CI-Vertrag](../continuous-integration.md), Security- und
+   Betriebsprüfung, Release Notes und die ausdrückliche Freigabe.
+4. Nur das Schließen durch eine Person mit `maintain` oder `admin` startet die
+   erneute serverseitige Validierung. Der Veröffentlichungsjob wartet
+   zusätzlich im GitHub-Environment `release` auf einen Required Reviewer.
+5. Erst danach erzeugt die Automation den annotierten Tag am unveränderten
+   Kandidat-Commit, das GitHub Release und die zusammengehörigen Artefakte.
+
+#308 setzt dieses Verfahren um. Bis #307 und #308 abgeschlossen sind, wird
+kein Release erzeugt. Insbesondere ist die vorhandene taggetriebene Automation
+kein Ersatz für den hier beschlossenen Kandidaten- und Freigabevertrag.
+
+### Rückwirkungsfreiheit
+
+Ein veröffentlichter Tag wird niemals verschoben oder für einen anderen Commit
+neu verwendet. Versionsidentität, GitHub Release und veröffentlichte
+Artefakt-Digests werden nicht nachträglich umgedeutet. Korrekturen erscheinen
+unter einer neuen höheren SemVer-Version; verworfene oder fehlerhafte Releases
+bleiben nachvollziehbar dokumentiert. Historische thematische Milestones werden
+nicht rückwirkend zu veröffentlichten Versionen erklärt.
+
+## Milestone-Migration
+
+- „Fachlich vollständiger Prototyp“ wird unter Erhalt von Fälligkeit,
+  Beschreibungserläuterung und Issue-Historie in `v0.1.0` umbenannt. Der
+  bisherige Quellstand `0.1.0` und der fachlich vollständige Prototyp bilden
+  gemeinsam das erste konkrete Releaseziel.
+- „Version 1 – Wintererprobung“ wird unter denselben Bedingungen in `v1.0.0`
+  umbenannt.
+- Die offenen, für die erste Veröffentlichung erforderlichen Issues aus
+  „Veröffentlichungs- und Betriebsfähigkeit“ wechseln nach `v0.1.0`.
+  Release-unabhängige Demo-, Konzept- und nachrangige Themen verlieren ihre
+  Milestone-Zuordnung. Der Themencontainer wird anschließend als historisch
+  gekennzeichnet und geschlossen; seine geschlossenen Issues und externen
+  Verweise bleiben erhalten.
+- „Öffentlicher Quellcode-Prototyp“ bleibt unverändert geschlossen. Er
+  dokumentiert eine Repository-Freigabe, keinen nachträglich erfundenen
+  Produktrelease.
+
+Die vollständige, prüfbare Zuordnung steht im
+[Migrationsregister](../release-milestones.md).
+
+## Konsequenzen
+
+- Es existieren genau zwei aktive Release-Milestones: `v0.1.0` und `v1.0.0`.
+- Offene Issues ohne belastbaren Releasebezug bleiben ausdrücklich ohne
+  Milestone; Iteration, Zieltermin und Priorität werden weiterhin im Project
+  gepflegt.
+- Epics, deren Children mehrere oder keine Releases betreffen, erhalten selbst
+  keinen Release-Milestone. Die Releasezuordnung liegt auf den tatsächlich
+  auszuliefernden Arbeitspaketen.
+- #307 darf Versionsdaten ausschließlich aus Tag beziehungsweise Commit
+  ableiten. #308 darf Milestones nur als Vollständigkeitsgate verwenden.
+
+## Alternativen
+
+- Thematische Milestones parallel zu Release-Milestones weiterführen: würde
+  ihre Semantik erneut vermischen und Project-Felder duplizieren.
+- Jeden offenen Themencontainer einer Version zuordnen: würde nicht terminierte
+  Demo-, Konzept- und Tooling-Arbeit ohne fachliche Grundlage in einen Release
+  ziehen.
+- Den fachlich vollständigen Prototyp als erfundenes `v1.0.0-rc.1` behandeln:
+  dafür existiert weder ein beschlossener RC-Abnahmezweck noch eine vorhandene
+  Versionsplanung.
+- `VERSION` dauerhaft als Quell- und Planungsstand verwenden: ein normaler
+  Commit könnte damit weiterhin eine veröffentlichte Version vortäuschen.
+
+## Referenzen
+
+- [Release- und Milestone-Migrationsregister](../release-milestones.md)
+- [Releases und GHCR](../releases.md)
+- [Stabiler Qualitätsvertrag](../continuous-integration.md)
+- Issues [#301](https://github.com/lxndrp/lzug/issues/301),
+  [#303](https://github.com/lxndrp/lzug/issues/303),
+  [#306](https://github.com/lxndrp/lzug/issues/306),
+  [#307](https://github.com/lxndrp/lzug/issues/307),
+  [#308](https://github.com/lxndrp/lzug/issues/308) und
+  [#273](https://github.com/lxndrp/lzug/issues/273)

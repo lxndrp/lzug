@@ -23,3 +23,4 @@ Historie, machen aber Kontext, Konsequenzen und Verweise dauerhaft auffindbar.
 | [0015](0015-fluechtige-azure-demo.md) | Flüchtige Azure-Container-Apps-Demo | Akzeptiert |
 | [0016](0016-spaetere-mandantenflotte.md) | Spätere getrennte Mandantenflotte | Akzeptiert als Zielbild |
 | [0017](0017-erstveroeffentlichung-ohne-kubernetes.md) | Erstveröffentlichung ohne Kubernetes und Helm | Akzeptiert |
+| [0018](0018-semver-release-und-milestones.md) | SemVer, Releases und Release-Milestones trennen | Akzeptiert |

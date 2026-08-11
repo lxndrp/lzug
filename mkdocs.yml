@@ -29,6 +29,7 @@ nav:
       - Frontend-Richtlinie: developers/frontend-guidelines.md
       - Lizenz und Release-Freigabe: developers/licensing.md
       - Releases und GHCR: developers/releases.md
+      - Release-Milestones: developers/release-milestones.md
       - Frontend-Ausnahmen: developers/frontend-exceptions.md
       - Dokumentation: developers/documentation.md
       - Continuous Integration: developers/continuous-integration.md
@@ -68,3 +69,4 @@ nav:
           - ADR-0015 Flüchtige Azure-Demo: developers/decisions/0015-fluechtige-azure-demo.md
           - ADR-0016 Spätere Mandantenflotte: developers/decisions/0016-spaetere-mandantenflotte.md
           - ADR-0017 Ohne Kubernetes und Helm: developers/decisions/0017-erstveroeffentlichung-ohne-kubernetes.md
+          - ADR-0018 SemVer und Release-Milestones: developers/decisions/0018-semver-release-und-milestones.md
