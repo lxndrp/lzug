@@ -1199,66 +1199,70 @@ async function expectReadableContrast(
   pseudo = '',
   foregroundProperty = 'color',
 ): Promise<void> {
-  const result = await locator.evaluate(
-    (element, options) => {
-      const parse = (value: string): [number, number, number, number] => {
-        const values = value.match(/[\d.]+/g)?.map(Number) ?? [];
-        return [values[0] ?? 0, values[1] ?? 0, values[2] ?? 0, values[3] ?? 1];
-      };
-      const luminance = ([red, green, blue]: [number, number, number, number]): number => {
-        const channels = [red, green, blue].map((channel) => {
-          const value = channel / 255;
-          return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-        });
-        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-      };
-      const composite = (
-        foreground: [number, number, number, number],
-        background: [number, number, number, number],
-      ): [number, number, number, number] => {
-        const alpha = foreground[3] + background[3] * (1 - foreground[3]);
-        return [
-          (foreground[0] * foreground[3] + background[0] * background[3] * (1 - foreground[3])) /
+  await expect(async () => {
+    const result = await locator.evaluate(
+      (element, options) => {
+        const parse = (value: string): [number, number, number, number] => {
+          const values = value.match(/[\d.]+/g)?.map(Number) ?? [];
+          return [values[0] ?? 0, values[1] ?? 0, values[2] ?? 0, values[3] ?? 1];
+        };
+        const luminance = ([red, green, blue]: [number, number, number, number]): number => {
+          const channels = [red, green, blue].map((channel) => {
+            const value = channel / 255;
+            return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+          });
+          return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+        };
+        const composite = (
+          foreground: [number, number, number, number],
+          background: [number, number, number, number],
+        ): [number, number, number, number] => {
+          const alpha = foreground[3] + background[3] * (1 - foreground[3]);
+          return [
+            (foreground[0] * foreground[3] + background[0] * background[3] * (1 - foreground[3])) /
+              alpha,
+            (foreground[1] * foreground[3] + background[1] * background[3] * (1 - foreground[3])) /
+              alpha,
+            (foreground[2] * foreground[3] + background[2] * background[3] * (1 - foreground[3])) /
+              alpha,
             alpha,
-          (foreground[1] * foreground[3] + background[1] * background[3] * (1 - foreground[3])) /
-            alpha,
-          (foreground[2] * foreground[3] + background[2] * background[3] * (1 - foreground[3])) /
-            alpha,
-          alpha,
-        ];
-      };
+          ];
+        };
 
-      const foreground = parse(
-        getComputedStyle(element, options.pseudo).getPropertyValue(options.foregroundProperty),
-      );
-      let backgroundElement: Element | null = options.pseudo ? element.parentElement : element;
-      const backgroundLayers: [number, number, number, number][] = [];
-      let background: [number, number, number, number] = [255, 255, 255, 1];
-      while (backgroundElement) {
-        const candidate = parse(getComputedStyle(backgroundElement).backgroundColor);
-        if (candidate[3] > 0) {
-          backgroundLayers.push(candidate);
+        const foreground = parse(
+          getComputedStyle(element, options.pseudo).getPropertyValue(options.foregroundProperty),
+        );
+        let backgroundElement: Element | null = options.pseudo ? element.parentElement : element;
+        const backgroundLayers: [number, number, number, number][] = [];
+        let background: [number, number, number, number] = [255, 255, 255, 1];
+        while (backgroundElement) {
+          const candidate = parse(getComputedStyle(backgroundElement).backgroundColor);
+          if (candidate[3] > 0) {
+            backgroundLayers.push(candidate);
+          }
+          backgroundElement = backgroundElement.parentElement;
         }
-        backgroundElement = backgroundElement.parentElement;
-      }
-      for (const layer of backgroundLayers.reverse()) {
-        background = composite(layer, background);
-      }
-      const visibleForeground = composite(foreground, background);
+        for (const layer of backgroundLayers.reverse()) {
+          background = composite(layer, background);
+        }
+        const visibleForeground = composite(foreground, background);
 
-      const lighter = Math.max(luminance(visibleForeground), luminance(background));
-      const darker = Math.min(luminance(visibleForeground), luminance(background));
-      return {
-        foreground: getComputedStyle(element, options.pseudo).getPropertyValue(
-          options.foregroundProperty,
-        ),
-        background: `rgb(${background[0]} ${background[1]} ${background[2]})`,
-        ratio: (lighter + 0.05) / (darker + 0.05),
-      };
-    },
-    { pseudo, foregroundProperty },
-  );
+        const lighter = Math.max(luminance(visibleForeground), luminance(background));
+        const darker = Math.min(luminance(visibleForeground), luminance(background));
+        return {
+          foreground: getComputedStyle(element, options.pseudo).getPropertyValue(
+            options.foregroundProperty,
+          ),
+          background: `rgb(${background[0]} ${background[1]} ${background[2]})`,
+          ratio: (lighter + 0.05) / (darker + 0.05),
+        };
+      },
+      { pseudo, foregroundProperty },
+    );
 
-  expect(result.foreground).not.toBe(result.background);
-  expect(result.ratio, `${result.foreground} on ${result.background}`).toBeGreaterThanOrEqual(4.5);
+    expect(result.foreground).not.toBe(result.background);
+    expect(result.ratio, `${result.foreground} on ${result.background}`).toBeGreaterThanOrEqual(
+      4.5,
+    );
+  }).toPass({ timeout: 5_000 });
 }

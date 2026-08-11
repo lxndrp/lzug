@@ -85,6 +85,7 @@ Die CLI wird unabhängig vom OCI-Image gebaut:
 ```sh
 task test:operator
 task quality:operator
+task quality:operator-container
 ```
 
 Der Qualitätstask führt die Vertragstests aus und baut die sechs portablen

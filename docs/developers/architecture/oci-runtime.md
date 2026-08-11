@@ -17,8 +17,10 @@ docker build --tag lzug:local --build-arg VCS_REF="$(git rev-parse HEAD)" .
 Der Build benötigt eine laufende Docker- oder Podman-Engine sowie Zugriff auf
 die jeweiligen Container-Registries für die ausdrücklich gepinnten
 Build-Basen. `npm ci` und `uv sync --locked` brechen bei Abweichungen von den
-Lockfiles ab. Die vorhandenen lokalen Entwicklungsabläufe mit `task dev`,
-`task test` und `task quality` bleiben davon getrennt.
+Lockfiles ab. `task quality:oci` baut dasselbe Dockerfile als
+`lzug:0.1.0-quality`; `task quality:overall` verwendet dieses Image für die
+Container-, Compose- und Betreiber-CLI-Verträge. `task dev` und `task test`
+bleiben davon getrennt.
 
 ## Docker- und Podman-Betrieb
 

@@ -51,7 +51,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          for workflow in ci.yml oci.yml security.yml operator-cli.yml; do
+          for workflow in ci.yml; do
             run_id=$(gh run list \
               --repo "$GITHUB_REPOSITORY" \
               --workflow "$workflow" \

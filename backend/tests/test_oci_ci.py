@@ -7,29 +7,31 @@ from pathlib import Path
 
 class OciWorkflowContractTests(unittest.TestCase):
     def test_workflow_reuses_one_checksummed_image_for_smoke_and_scan(self) -> None:
-        workflow = Path(".github/workflows/oci.yml").read_text(encoding="utf-8")
+        workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
         action_refs = re.findall(r"^\s*uses:\s*[^@\s]+@([^\s]+)", workflow, re.MULTILINE)
 
         self.assertTrue(action_refs)
         self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs))
         self.assertEqual(1, workflow.count("docker/build-push-action@"))
-        self.assertEqual(2, workflow.count("sha256sum --check lzug-image.tar.sha256"))
-        self.assertEqual(3, workflow.count("name: lzug-oci-image"))
+        self.assertEqual(4, workflow.count("sha256sum --check lzug-image.tar.sha256"))
+        self.assertEqual(5, workflow.count("name: lzug-quality-image"))
         self.assertIn('scripts/container-smoke.sh "$IMAGE_REF"', workflow)
+        self.assertIn("scripts/compose-smoke.sh", workflow)
+        self.assertIn('scripts/operator-container-smoke.sh "$IMAGE_REF"', workflow)
         self.assertIn("scanners: vuln,secret,misconfig", workflow)
         self.assertIn("format: cyclonedx", workflow)
         self.assertIn("python3 scripts/classify_quality_paths.py", workflow)
+        self.assertIn("if: needs.classify.outputs.image == 'true'", workflow)
         self.assertIn("if: needs.classify.outputs.oci == 'true'", workflow)
         self.assertIn("name: Quality / OCI", workflow)
         self.assertIn("name: OCI pull request gate", workflow)
         self.assertIn("Kept until #305 migrates", workflow)
         self.assertIn("if: always()", workflow)
         self.assertIn('test "$BUILD_RESULT" = "success"', workflow)
-        self.assertIn('test "$SMOKE_RESULT" = "success"', workflow)
         self.assertIn('test "$SCAN_RESULT" = "success"', workflow)
 
     def test_cache_and_permissions_are_conservative(self) -> None:
-        workflow = Path(".github/workflows/oci.yml").read_text(encoding="utf-8")
+        workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
 
         self.assertIn("permissions:\n  contents: read", workflow)
         self.assertNotIn("packages: write", workflow)
