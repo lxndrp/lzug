@@ -22,6 +22,7 @@ import { syntheticFixtures } from './synthetic-fixtures.generated';
 
 export const apiRootFixture: ApiRoot = {
   name: 'lzug API',
+  version: '0.1.0',
   _links: {},
 };
 

@@ -41,3 +41,8 @@ Der genaue Ablauf steht in der [Wiki-Publikation](docs/developers/wiki-publishin
 - Ein vollständiger Pull Request enthält `Closes #<nummer>`, eine
   Teilumsetzung eine nicht schließende Verknüpfung.
 - CI und Review sind Voraussetzung für den Merge.
+
+Release-Tags und öffentliche Artefakte bleiben Maintainer-Aufgaben. Der
+verbindliche SemVer-, Changelog-, GitHub-Release- und GHCR-Ablauf steht im
+[Release-Prozess](docs/developers/releases.md); ein Pull Request oder Merge
+allein löst keine Veröffentlichung aus.

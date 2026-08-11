@@ -6,6 +6,7 @@ export type ApiLink = {
 
 export type ApiRoot = {
   name: string;
+  version: string;
   _links: Record<string, ApiLink>;
 };
 

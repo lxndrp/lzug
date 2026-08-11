@@ -10,15 +10,15 @@ Proxy kann dadurch den Container erreichen; Compose veröffentlicht keinen
 ## Voraussetzungen und Image-Vertrag
 
 Docker Compose v2 oder ein äquivalenter Podman-Compose-Befehl wird benötigt.
-Die Compose-Datei akzeptiert ausschließlich eine unveränderliche
-SemVer-Referenz wie `registry.example/lzug:1.2.3` oder einen Digest wie
-`registry.example/lzug@sha256:<64 hexadezimalen Zeichen>`. `latest` und
+Die Compose-Datei akzeptiert ausschließlich eine konkrete SemVer-Referenz wie
+`ghcr.io/lxndrp/lzug:1.2.3` oder vorzugsweise den in den Releaseinformationen
+ausgewiesenen Digest
+`ghcr.io/lxndrp/lzug@sha256:<64 hexadezimale Zeichen>`. Die Beispielversion ist
+durch eine tatsächlich veröffentlichte Version zu ersetzen. `latest` und
 Platzhalter werden von `scripts/validate-compose.sh` abgewiesen.
 
-Zum Zeitpunkt dieses Changes existiert für `lxndrp/lzug` noch kein abrufbares
-GHCR-Paket. Deshalb enthält `.env.example` absichtlich keinen erfundenen
-Pull-Pfad. Sobald #123 ein Release veröffentlicht hat, wird die echte
-Referenz in `.env` eingetragen. Bis dahin ist der lokale Nachweis möglich:
+Solange noch kein öffentlicher Release existiert, bleibt `LZUG_IMAGE` in
+`.env.example` bewusst leer. Der lokale Nachweis bleibt unverändert möglich:
 
 ```sh
 cp .env.example .env
@@ -29,14 +29,15 @@ rm .env.bak
 
 Die lokale `0.1.0-local`-Markierung ist kein veröffentlichtes Release und
 wird nicht als Pull-Erfolg ausgegeben. Für eine veröffentlichte Installation
-setzt `.env` die echte SemVer- oder Digest-Referenz; Repository-Secrets gehören
-nicht in diese Datei.
+setzt `.env` die echte SemVer- oder Digest-Referenz aus dem zugehörigen
+[GitHub Release](../releases.md); Repository-Secrets gehören nicht in diese
+Datei.
 
 ## Installation und Konfiguration
 
 ```sh
 cp .env.example .env
-# LZUG_IMAGE auf eine veröffentlichte SemVer- oder Digest-Referenz setzen
+# Beispielsweise LZUG_IMAGE=ghcr.io/lxndrp/lzug:1.2.3 oder ...@sha256:<digest>
 scripts/validate-compose.sh
 docker compose pull
 docker compose up -d
@@ -49,28 +50,28 @@ externen Proxy auf `127.0.0.1` bleiben. Die vollständigen Runtime-Variablen
 des Images sind in der [OCI-Runtime-Dokumentation](oci-runtime.md)
 beschrieben; Compose setzt deren `/data`-Defaults:
 
-| Variable | Compose-Default | Zweck |
-| --- | --- | --- |
-| `LZUG_IMAGE` | erforderlich | veröffentlichte SemVer- oder Digest-Referenz |
-| `LZUG_BIND_ADDRESS` | `127.0.0.1` | Host-Bind-Adresse des Ports |
-| `LZUG_HOST_PORT` | `8000` | lokaler Host-Port des Reverse Proxy-Ziels |
-| `LZUG_DATA_VOLUME` | `lzug_data` | stabiler Name des persistenten Volumes |
-| `LZUG_HOST` | `0.0.0.0` | Container-Bind-Adresse |
-| `LZUG_PORT` | `8000` | Container-Port und internes Healthcheck-Ziel |
-| `LZUG_STATIC_DIR` | `/app/frontend` | Angular-Produktionsbundle |
-| `LZUG_HEALTHCHECK_URL` | automatisch aus `LZUG_PORT` | Readiness-Endpunkt |
-| `LZUG_HTTPS_ONLY` | `true` | Secure-Cookies und HSTS hinter dem Reverse Proxy |
-| `LZUG_CORS_ALLOWED_ORIGINS` | leer | same-origin; exakte optionale Origins |
-| `LZUG_SESSION_TTL_SECONDS` | `28800` | gemeinsame Cookie-/Server-Sessionlaufzeit |
-| `LZUG_MAX_REQUEST_BYTES` | `1048576` | maximales JSON-Request-Body |
-| `LZUG_AUTH_RATE_LIMIT` / `LZUG_AUTH_RATE_WINDOW_SECONDS` | `20` / `60` | öffentliches Auth-Limit je IP und Route |
-| `LZUG_MAX_UPLOAD_BYTES` | `10485760` | maximale Dokumentgröße |
-| `LZUG_ALLOWED_UPLOAD_MEDIA_TYPES` | PDF, JPEG, PNG, Text | exakte Upload-Allowlist |
-| `LZUG_DATA_DIR` | `/data` | Wurzel des persistenten Datenvertrags |
-| `LZUG_DATABASE_PATH` | `/data/lzug.sqlite` | SQLite-Datei |
-| `LZUG_DATABASE_URL` | leer | alternative SQLite-Datei-URL; nicht zusammen mit `LZUG_DATABASE_PATH` |
-| `LZUG_DOCUMENTS_PATH` | `/data/documents` | Dokumentenspeicher |
-| `LZUG_BACKUPS_PATH` | `/data/backups` | Migrations-/Sicherungsablage |
+| Variable                                                 | Compose-Default             | Zweck                                                                 |
+| -------------------------------------------------------- | --------------------------- | --------------------------------------------------------------------- |
+| `LZUG_IMAGE`                                             | erforderlich                | veröffentlichte SemVer- oder Digest-Referenz                          |
+| `LZUG_BIND_ADDRESS`                                      | `127.0.0.1`                 | Host-Bind-Adresse des Ports                                           |
+| `LZUG_HOST_PORT`                                         | `8000`                      | lokaler Host-Port des Reverse Proxy-Ziels                             |
+| `LZUG_DATA_VOLUME`                                       | `lzug_data`                 | stabiler Name des persistenten Volumes                                |
+| `LZUG_HOST`                                              | `0.0.0.0`                   | Container-Bind-Adresse                                                |
+| `LZUG_PORT`                                              | `8000`                      | Container-Port und internes Healthcheck-Ziel                          |
+| `LZUG_STATIC_DIR`                                        | `/app/frontend`             | Angular-Produktionsbundle                                             |
+| `LZUG_HEALTHCHECK_URL`                                   | automatisch aus `LZUG_PORT` | Readiness-Endpunkt                                                    |
+| `LZUG_HTTPS_ONLY`                                        | `true`                      | Secure-Cookies und HSTS hinter dem Reverse Proxy                      |
+| `LZUG_CORS_ALLOWED_ORIGINS`                              | leer                        | same-origin; exakte optionale Origins                                 |
+| `LZUG_SESSION_TTL_SECONDS`                               | `28800`                     | gemeinsame Cookie-/Server-Sessionlaufzeit                             |
+| `LZUG_MAX_REQUEST_BYTES`                                 | `1048576`                   | maximales JSON-Request-Body                                           |
+| `LZUG_AUTH_RATE_LIMIT` / `LZUG_AUTH_RATE_WINDOW_SECONDS` | `20` / `60`                 | öffentliches Auth-Limit je IP und Route                               |
+| `LZUG_MAX_UPLOAD_BYTES`                                  | `10485760`                  | maximale Dokumentgröße                                                |
+| `LZUG_ALLOWED_UPLOAD_MEDIA_TYPES`                        | PDF, JPEG, PNG, Text        | exakte Upload-Allowlist                                               |
+| `LZUG_DATA_DIR`                                          | `/data`                     | Wurzel des persistenten Datenvertrags                                 |
+| `LZUG_DATABASE_PATH`                                     | `/data/lzug.sqlite`         | SQLite-Datei                                                          |
+| `LZUG_DATABASE_URL`                                      | leer                        | alternative SQLite-Datei-URL; nicht zusammen mit `LZUG_DATABASE_PATH` |
+| `LZUG_DOCUMENTS_PATH`                                    | `/data/documents`           | Dokumentenspeicher                                                    |
+| `LZUG_BACKUPS_PATH`                                      | `/data/backups`             | Migrations-/Sicherungsablage                                          |
 
 `LZUG_DATABASE_URL` und `LZUG_DATABASE_PATH` dürfen nicht gleichzeitig einen
 Wert tragen. Es gibt keine Authentifizierungs-, Autorisierungs- oder

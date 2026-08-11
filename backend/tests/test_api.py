@@ -95,7 +95,7 @@ class ApiTests(unittest.TestCase):
 
         assert_status(status, HTTPStatus.SERVICE_UNAVAILABLE)
         self.assertEqual("unavailable", health["status"])
-        self.assertEqual({"status", "_links"}, set(health))
+        self.assertEqual({"status", "version", "revision", "_links"}, set(health))
 
     def test_health_reports_required_migration_without_exposing_data(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
@@ -122,13 +122,15 @@ class ApiTests(unittest.TestCase):
 
         assert_status(status, HTTPStatus.SERVICE_UNAVAILABLE)
         self.assertEqual("unavailable", health["status"])
-        self.assertEqual({"status", "_links"}, set(health))
+        self.assertEqual({"status", "version", "revision", "_links"}, set(health))
 
     def test_health_and_round_summary_are_served_from_seeded_database(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             status, health = api.request("GET", "/api/health")
             assert_status(status, HTTPStatus.OK)
             self.assertEqual("ok", health["status"])
+            self.assertEqual("0.1.0", health["version"])
+            self.assertEqual("unknown", health["revision"])
             self.assertEqual("/api/health", health["_links"]["self"]["href"])
 
             status, summary = api.request("GET", "/api/round-summary?round_id=1")
@@ -177,7 +179,7 @@ class ApiTests(unittest.TestCase):
                 spec["components"]["schemas"]["RecoveryPreparation"]["properties"],
             )
             self.assertEqual(
-                ["status", "_links"],
+                ["status", "version", "revision", "_links"],
                 spec["components"]["schemas"]["Health"]["required"],
             )
             self.assertEqual({"sessionCookie": []}, spec["paths"]["/api"]["get"]["security"][0])

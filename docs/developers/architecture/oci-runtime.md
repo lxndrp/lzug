@@ -74,23 +74,23 @@ beim Beenden auf.
 Die Konfiguration erfolgt über CLI-Parameter oder Umgebungsvariablen. Die
 wichtigsten Werte sind:
 
-| Zweck | CLI | Umgebungsvariable | Standard |
-| --- | --- | --- | --- |
-| HTTP-Adresse | `--host` | `LZUG_HOST` | `0.0.0.0` im Image |
-| HTTP-Port | `--port` | `LZUG_PORT` | `8000` |
-| statische Ausgabe | `--static-dir` | `LZUG_STATIC_DIR` | `/app/frontend` im Image |
-| Datenverzeichnis | `--data-dir` | `LZUG_DATA_DIR` | `/data` |
-| SQLite-Pfad/URL | `--db`/`--database-url` | `LZUG_DATABASE_PATH`/`LZUG_DATABASE_URL` | `/data/lzug.sqlite` |
-| Dokumente | `--documents` | `LZUG_DOCUMENTS_PATH` | `/data/documents` |
-| Migration-Backups | `--backups` | `LZUG_BACKUPS_PATH` | `/data/backups` |
-| Healthcheck-URL | — | `LZUG_HEALTHCHECK_URL` | `http://127.0.0.1:8000/api/health` |
-| HTTPS-/Cookie-Modus | — | `LZUG_HTTPS_ONLY` | `true` |
-| CORS-Allowlist | — | `LZUG_CORS_ALLOWED_ORIGINS` | leer/same-origin |
-| Sessionlaufzeit | — | `LZUG_SESSION_TTL_SECONDS` | `28800` |
-| JSON-Größenlimit | — | `LZUG_MAX_REQUEST_BYTES` | `1048576` |
-| Auth-Rate-Limit | — | `LZUG_AUTH_RATE_LIMIT` / `LZUG_AUTH_RATE_WINDOW_SECONDS` | `20` / `60` |
-| Uploadgrenze | — | `LZUG_MAX_UPLOAD_BYTES` | `10485760` |
-| Uploadtypen | — | `LZUG_ALLOWED_UPLOAD_MEDIA_TYPES` | PDF, JPEG, PNG, Text |
+| Zweck               | CLI                     | Umgebungsvariable                                        | Standard                           |
+| ------------------- | ----------------------- | -------------------------------------------------------- | ---------------------------------- |
+| HTTP-Adresse        | `--host`                | `LZUG_HOST`                                              | `0.0.0.0` im Image                 |
+| HTTP-Port           | `--port`                | `LZUG_PORT`                                              | `8000`                             |
+| statische Ausgabe   | `--static-dir`          | `LZUG_STATIC_DIR`                                        | `/app/frontend` im Image           |
+| Datenverzeichnis    | `--data-dir`            | `LZUG_DATA_DIR`                                          | `/data`                            |
+| SQLite-Pfad/URL     | `--db`/`--database-url` | `LZUG_DATABASE_PATH`/`LZUG_DATABASE_URL`                 | `/data/lzug.sqlite`                |
+| Dokumente           | `--documents`           | `LZUG_DOCUMENTS_PATH`                                    | `/data/documents`                  |
+| Migration-Backups   | `--backups`             | `LZUG_BACKUPS_PATH`                                      | `/data/backups`                    |
+| Healthcheck-URL     | —                       | `LZUG_HEALTHCHECK_URL`                                   | `http://127.0.0.1:8000/api/health` |
+| HTTPS-/Cookie-Modus | —                       | `LZUG_HTTPS_ONLY`                                        | `true`                             |
+| CORS-Allowlist      | —                       | `LZUG_CORS_ALLOWED_ORIGINS`                              | leer/same-origin                   |
+| Sessionlaufzeit     | —                       | `LZUG_SESSION_TTL_SECONDS`                               | `28800`                            |
+| JSON-Größenlimit    | —                       | `LZUG_MAX_REQUEST_BYTES`                                 | `1048576`                          |
+| Auth-Rate-Limit     | —                       | `LZUG_AUTH_RATE_LIMIT` / `LZUG_AUTH_RATE_WINDOW_SECONDS` | `20` / `60`                        |
+| Uploadgrenze        | —                       | `LZUG_MAX_UPLOAD_BYTES`                                  | `10485760`                         |
+| Uploadtypen         | —                       | `LZUG_ALLOWED_UPLOAD_MEDIA_TYPES`                        | PDF, JPEG, PNG, Text               |
 
 Secrets, Zugangsdaten, Umgebungswerte und Demo-Daten werden weder in den
 Build-Stufen noch im Image festgelegt. Das Root-Dateisystem kann
@@ -124,4 +124,10 @@ Kontextänderungen zu übergehen; Pull Requests dürfen den gemeinsamen Cache nu
 lesen, aktualisiert wird er ausschließlich auf dem geschützten Hauptbranch.
 Ein abschließender Gate-Job fasst Klassifikation, Build, Runtime und Scan zu
 einem stabilen verpflichtenden Pull-Request-Status zusammen. Veröffentlichung
-und GHCR-Release bleiben dem getrennten Release-Prozess vorbehalten.
+und GHCR-Release bleiben dem getrennten, nur durch einen freigegebenen
+SemVer-Tag startenden [Release-Prozess](../releases.md) vorbehalten. Dieser
+prüft die grünen Qualitätsläufe des exakten `master`-Commits, testet das
+Release-Image erneut, veröffentlicht SemVer-, Major-, Major.Minor- und
+Commit-SHA-Tags auf denselben Registry-Digest und hängt CycloneDX-SBOM sowie
+signierte Provenance- und SBOM-Attestations an den GitHub Release. Ein
+`latest`-Tag wird nicht erzeugt.

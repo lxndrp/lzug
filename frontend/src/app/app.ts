@@ -122,6 +122,7 @@ export class App {
   protected readonly actionBusy = signal(false);
   protected readonly contextualRoundId = signal<number | null>(null);
   protected readonly contextualDayId = signal<number | null>(null);
+  protected readonly applicationVersion = signal<string | null>(null);
   protected readonly feedback = signal<{
     type: 'success' | 'error';
     title: string;
@@ -207,7 +208,8 @@ export class App {
       .refreshDashboard()
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
-        next: ({ round, summary, board, masterData }) => {
+        next: ({ root, round, summary, board, masterData }) => {
+          this.applicationVersion.set(root.version);
           this.round.set(round);
           this.summary.set(summary);
           this.board.set(board);
