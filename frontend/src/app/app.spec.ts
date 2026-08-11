@@ -1,12 +1,14 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
+import { signal } from '@angular/core';
 import { provideRouter, Router } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
 import { TuiConfirmService } from '@taiga-ui/kit';
 import { of } from 'rxjs';
 
 import { App } from './app';
+import { AuthService } from './auth/auth.service';
 import { RoundContextService } from './api/round-context.service';
 import { routes } from './app.routes';
 import {
@@ -46,6 +48,14 @@ describe('App', () => {
         provideHttpClientTesting(),
         provideTaiga({ scrollbars: 'native' }),
         TuiConfirmService,
+        {
+          provide: AuthService,
+          useValue: {
+            state: signal('authenticated'),
+            initialize: () => of(true),
+            markAnonymous: vi.fn(),
+          },
+        },
       ],
     }).compileComponents();
   });

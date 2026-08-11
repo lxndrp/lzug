@@ -70,9 +70,13 @@ werden identisch abgewiesen. `consume-invitation` und `consume-recovery` lesen
 einen Token ausschließlich aus stdin und sind für Integrations- und spätere
 Auth-Flows vorgesehen.
 
-Kennwort, Argon2id, TOTP, Recovery-Codes, Passkeys, OIDC und ein Zwischenlogin
-gehören nicht zu #269. Sie werden in den nachgelagerten Auth-Issues auf diesem
-Token-/Kontenfundament aufgebaut.
+Kennwort, Argon2id, TOTP und Recovery-Codes gehören weiterhin nicht zum
+Betreiber-CLI-Vertrag #269. #266 verwendet die dort ausgegebenen Einladungs-
+und Betreiber-Recovery-Token ausschließlich über die öffentlichen lokalen
+Auth-Flows und erweitert die CLI nicht. Recovery-Codes sind davon strikt
+getrennte Mitgliedsgeheimnisse: Sie werden niemals von der CLI erzeugt oder
+ausgegeben. Passkeys und OIDC bleiben die getrennten Folgearbeiten #267 und
+#268.
 
 ## Builds und lokale Prüfung
 

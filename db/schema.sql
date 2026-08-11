@@ -1,5 +1,5 @@
 -- lzug relationales Basisschema
--- Stand: 2026-08-10
+-- Stand: 2026-08-11
 --
 -- Ziel:
 -- - möglichst PostgreSQL-kompatibel
@@ -18,7 +18,8 @@ VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.s
        ('003_add_exam_half_years.sql'), ('004_add_candidate_committee_assignments.sql'),
        ('005_add_exam_day_attendance.sql'), ('006_add_exam_execution_status.sql'),
        ('007_add_documents.sql'), ('008_add_authentication_sessions.sql'),
-       ('009_harden_migration_history.sql'), ('010_add_operator_auth_tokens.sql');
+       ('009_harden_migration_history.sql'), ('010_add_operator_auth_tokens.sql'),
+       ('011_add_local_password_totp_auth.sql');
 
 CREATE TABLE schema_migration_checksum (
   name TEXT PRIMARY KEY REFERENCES schema_migration(name) ON DELETE CASCADE,
@@ -35,7 +36,8 @@ INSERT INTO schema_migration_checksum (name, checksum) VALUES
   ('007_add_documents.sql', '6b1b5ae1dd9b954b3d7bc139afb03c4b977f50ef187e4fe50bd1aaf21d35b95c'),
   ('008_add_authentication_sessions.sql', '926452905ea280e06b805b78a7074143e02a0d2439cd2d37ce1727e0ace3026c'),
   ('009_harden_migration_history.sql', 'a71425eb5cd8674532cd8c05672fb28c977b86c27dac610ade1e57964c9ba7a1'),
-  ('010_add_operator_auth_tokens.sql', '6e0f3400d0871ddee4ec840360990f6b6fcd5ac8233f67c31cf03d2c4499e25a');
+  ('010_add_operator_auth_tokens.sql', '6e0f3400d0871ddee4ec840360990f6b6fcd5ac8233f67c31cf03d2c4499e25a'),
+  ('011_add_local_password_totp_auth.sql', '7f17cd3e4b2eb0f359c4e55902f0e5f25068703d804d9d6279597770beb6eef1');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
@@ -86,6 +88,9 @@ CREATE TABLE user_account (
   is_operator INTEGER NOT NULL DEFAULT 0 CHECK (is_operator IN (0, 1)),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
   last_login_at TEXT,
+  totp_secret_encrypted TEXT,
+  totp_last_step INTEGER,
+  totp_enabled INTEGER NOT NULL DEFAULT 0 CHECK (totp_enabled IN (0, 1)),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CHECK (two_factor_enabled = 0 OR passkey_enabled = 1)
@@ -127,6 +132,18 @@ CREATE TABLE auth_token (
 
 CREATE INDEX auth_token_account_kind
   ON auth_token(account_id, kind, expires_at);
+
+CREATE TABLE auth_recovery_code (
+  id INTEGER PRIMARY KEY,
+  account_id INTEGER NOT NULL REFERENCES user_account(id) ON DELETE CASCADE,
+  code_hash TEXT NOT NULL CHECK (length(code_hash) >= 64),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  consumed_at TEXT,
+  CHECK (consumed_at IS NULL OR consumed_at >= created_at)
+);
+
+CREATE INDEX auth_recovery_code_account_active
+  ON auth_recovery_code(account_id, consumed_at);
 
 CREATE TABLE location (
   id INTEGER PRIMARY KEY,

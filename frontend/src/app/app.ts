@@ -63,11 +63,14 @@ import {
 } from './scheduling-overview/scheduling-overview.component';
 import { ConfirmedPlansComponent } from './confirmed-plans/confirmed-plans.component';
 import { ExamDayComponent } from './exam-day/exam-day.component';
+import { AuthFlowComponent } from './auth/auth-flow.component';
+import { AuthService } from './auth/auth.service';
 
 @Component({
   selector: 'app-root',
   imports: [
     AppIconDirective,
+    AuthFlowComponent,
     CandidatesComponent,
     CommitteeComponent,
     ConfirmedPlansComponent,
@@ -85,6 +88,7 @@ import { ExamDayComponent } from './exam-day/exam-day.component';
   styleUrl: './app.css',
 })
 export class App {
+  protected readonly auth = inject(AuthService);
   private readonly api = inject(PlanningApiService);
   private readonly roundContext = inject(RoundContextService);
   private readonly confirm = inject(TuiConfirmService);
@@ -182,10 +186,13 @@ export class App {
         this.applyRoute(event.urlAfterRedirects, true);
       });
     this.applyRoute(this.router.url, false);
-    this.refresh();
+    this.auth.initialize().subscribe((authenticated) => {
+      if (authenticated) this.refresh();
+    });
   }
 
   protected refresh(): void {
+    if (this.auth.state() !== 'authenticated') return;
     this.loading.set(true);
     this.api
       .refreshDashboard()
@@ -206,7 +213,13 @@ export class App {
           }
           this.message.set('Daten synchronisiert');
         },
-        error: () => this.message.set('Synchronisierung nicht möglich'),
+        error: (error: { status?: number }) => {
+          if (error.status === 401) {
+            this.auth.markAnonymous();
+            return;
+          }
+          this.message.set('Synchronisierung nicht möglich');
+        },
       });
   }
 

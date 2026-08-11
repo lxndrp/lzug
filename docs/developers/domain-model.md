@@ -112,17 +112,22 @@ Felder:
 | `id` | UUID/Integer | ja | Eindeutige ID |
 | `committee_member_id` | Fremdschlüssel | nein | Zugehöriges Ausschussmitglied |
 | `email` | Text | ja | Login-E-Mail |
-| `password_hash` | Text | ja | Passwort-Hash |
+| `password_hash` | Text | ja | Argon2id-Hash des Kennworts |
 | `passkey_enabled` | Boolean | ja | Ob Passkey aktiv ist |
 | `two_factor_enabled` | Boolean | ja | Ob 2FA aktiv ist |
+| `totp_secret_encrypted` | Text | nein | Verschlüsseltes TOTP-Secret |
+| `totp_last_step` | Integer | nein | Zuletzt akzeptiertes TOTP-Zeitfenster |
+| `totp_enabled` | Boolean | ja | Ob die lokale TOTP-Anmeldung aktiviert ist |
 | `last_login_at` | Zeitstempel | nein | Letzter Login |
 | `created_at` | Zeitstempel | ja | Anlagezeitpunkt |
 | `updated_at` | Zeitstempel | ja | Letzte Änderung |
 
 Fachliche Regeln:
 
-- Zum Start genügt Passwort-Login.
-- 2FA ist nur optional, wenn auch Passkey-Unterstützung angeboten wird.
+- Lokale Anmeldung benötigt immer Kennwort und TOTP; Passwort-only ist nicht
+  zulässig.
+- `auth_recovery_code` speichert einmalig verbrauchbare Recovery-Code-Hashes;
+  der Betreiber-Recovery-Token bleibt davon getrennt.
 
 ### Prüfungsort
 

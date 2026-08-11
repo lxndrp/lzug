@@ -74,10 +74,18 @@ class ApiTests(unittest.TestCase):
             with sqlite3.connect(db_path) as connection:
                 connection.execute("DROP TABLE schema_migration_checksum")
                 connection.execute("DROP TABLE auth_token")
+                connection.execute("DROP TABLE auth_recovery_code")
+                connection.execute("ALTER TABLE user_account DROP COLUMN totp_secret_encrypted")
+                connection.execute("ALTER TABLE user_account DROP COLUMN totp_last_step")
+                connection.execute("ALTER TABLE user_account DROP COLUMN totp_enabled")
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?)",
-                    ("009_harden_migration_history.sql", "010_add_operator_auth_tokens.sql"),
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?)",
+                    (
+                        "009_harden_migration_history.sql",
+                        "010_add_operator_auth_tokens.sql",
+                        "011_add_local_password_totp_auth.sql",
+                    ),
                 )
                 connection.commit()
 
@@ -91,6 +99,7 @@ class ApiTests(unittest.TestCase):
             [
                 "009_harden_migration_history.sql",
                 "010_add_operator_auth_tokens.sql",
+                "011_add_local_password_totp_auth.sql",
             ],
             health["migration"]["pending"],
         )
@@ -135,6 +144,19 @@ class ApiTests(unittest.TestCase):
             self.assertIn("/api/session", spec["paths"])
             self.assertIn("/api/session/rotate", spec["paths"])
             self.assertIn("/api/session/logout", spec["paths"])
+            for auth_path in (
+                "/api/auth/login",
+                "/api/auth/invitation/prepare",
+                "/api/auth/invitation/activate",
+                "/api/auth/recovery/prepare",
+                "/api/auth/recovery/complete",
+            ):
+                self.assertIn(auth_path, spec["paths"])
+                self.assertNotIn("security", spec["paths"][auth_path]["post"])
+            self.assertIn(
+                "totp_secret",
+                spec["components"]["schemas"]["RecoveryPreparation"]["properties"],
+            )
             self.assertEqual(
                 ["status", "reason", "migration", "_links"],
                 spec["components"]["schemas"]["Health"]["required"],
