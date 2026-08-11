@@ -19,9 +19,11 @@ class StaticTestHandler(TestLzugHandler):
 class ApiTests(unittest.TestCase):
     def test_static_files_and_spa_fallback_do_not_hide_api_or_assets(self) -> None:
         with TemporaryDirectory() as directory, TempDatabase() as db_path:
-            static_dir = Path(directory)
+            static_dir = Path(directory) / "static"
+            static_dir.mkdir()
             (static_dir / "index.html").write_text("<app-root>shell</app-root>", encoding="utf-8")
             (static_dir / "main.123.js").write_text("console.log('ok')", encoding="utf-8")
+            (static_dir / "archive.unknown").write_bytes(b"opaque")
             with (
                 patch.object(StaticTestHandler, "static_dir", static_dir),
                 ApiServer(db_path, StaticTestHandler) as api,
@@ -36,6 +38,11 @@ class ApiTests(unittest.TestCase):
                 self.assertEqual("text/javascript", headers["content-type"])
                 self.assertEqual(b"console.log('ok')", body)
 
+                status, headers, body = api.request_raw("GET", "/archive.unknown")
+                assert_status(status, HTTPStatus.OK)
+                self.assertEqual("application/octet-stream", headers["content-type"])
+                self.assertEqual(b"opaque", body)
+
                 status, _headers, body = api.request_raw("GET", "/assets/missing.svg")
                 assert_status(status, HTTPStatus.NOT_FOUND)
                 self.assertIn(b"Not found", body)
@@ -47,6 +54,28 @@ class ApiTests(unittest.TestCase):
                 status, _headers, body = api.request_raw("GET", "/%2e%2e/index.html")
                 assert_status(status, HTTPStatus.NOT_FOUND)
                 self.assertIn(b"Not found", body)
+
+    def test_static_asset_index_excludes_symlinks_outside_the_root(self) -> None:
+        with TemporaryDirectory() as directory, TempDatabase() as db_path:
+            root = Path(directory)
+            static_dir = root / "static"
+            static_dir.mkdir()
+            (static_dir / "index.html").write_text("shell", encoding="utf-8")
+            outside = root / "outside.txt"
+            outside.write_text("secret", encoding="utf-8")
+            try:
+                (static_dir / "escape.txt").symlink_to(outside)
+            except OSError as error:
+                self.skipTest(f"Symlinks are unavailable: {error}")
+
+            with (
+                patch.object(StaticTestHandler, "static_dir", static_dir),
+                ApiServer(db_path, StaticTestHandler) as api,
+            ):
+                status, _headers, body = api.request_raw("GET", "/escape.txt")
+
+            assert_status(status, HTTPStatus.NOT_FOUND)
+            self.assertNotIn(b"secret", body)
 
     def test_database_errors_use_public_messages(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import mimetypes
 import os
 import signal
 import threading
+from dataclasses import dataclass
 from datetime import timedelta
+from functools import lru_cache
 from http import HTTPStatus
 from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -61,6 +62,62 @@ class RequestTooLargeError(ValueError):
 
 class UnsupportedMediaTypeError(ValueError):
     """Signal a body that is not JSON at the HTTP boundary."""
+
+
+@dataclass(frozen=True)
+class StaticAsset:
+    """One trusted immutable response loaded from the configured static root."""
+
+    body: bytes
+    content_type: str
+
+
+STATIC_CONTENT_TYPES = {
+    ".css": "text/css",
+    ".gif": "image/gif",
+    ".htm": "text/html",
+    ".html": "text/html",
+    ".ico": "image/x-icon",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".js": "text/javascript",
+    ".json": "application/json",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".ttf": "font/ttf",
+    ".txt": "text/plain",
+    ".webmanifest": "application/manifest+json",
+    ".webp": "image/webp",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".xml": "application/xml",
+}
+
+
+@lru_cache(maxsize=8)
+def trusted_static_assets(root: Path) -> dict[str, StaticAsset]:
+    """Load regular in-root assets without carrying request paths into filesystem APIs."""
+    trusted_root = root.resolve(strict=True)
+    assets: dict[str, StaticAsset] = {}
+    for discovered in trusted_root.rglob("*"):
+        try:
+            if discovered.is_symlink():
+                continue
+            resolved = discovered.resolve(strict=True)
+            resolved.relative_to(trusted_root)
+            if not resolved.is_file():
+                continue
+            body = resolved.read_bytes()
+            route = "/" + discovered.relative_to(trusted_root).as_posix()
+        except OSError, ValueError:
+            continue
+        assets[route] = StaticAsset(
+            body=body,
+            content_type=STATIC_CONTENT_TYPES.get(
+                resolved.suffix.lower(), "application/octet-stream"
+            ),
+        )
+    return assets
 
 
 class LzugHandler(BaseHTTPRequestHandler):
@@ -966,55 +1023,49 @@ class LzugHandler(BaseHTTPRequestHandler):
             self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
             return
 
-        root = static_dir.resolve()
         try:
             decoded_path = unquote(request_path)
-            if "\x00" in decoded_path:
+            if (
+                not decoded_path.startswith("/")
+                or any(ord(character) < 32 or ord(character) == 127 for character in decoded_path)
+                or any(part in {".", ".."} for part in decoded_path.split("/"))
+            ):
                 raise ValueError
-            relative_path = Path(decoded_path.lstrip("/"))
-            if any(part == ".." for part in relative_path.parts):
-                raise ValueError
-            candidate = (root / relative_path).resolve()
-            candidate.relative_to(root)
+            assets = trusted_static_assets(static_dir)
         except ValueError, OSError:
             self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
             return
 
+        asset = assets.get(decoded_path)
         asset_path = (
-            request_path in {"/favicon.ico", "/favicon.svg", "/robots.txt"}
-            or request_path == "/assets"
-            or request_path.startswith("/assets/")
-            or bool(Path(request_path).suffix)
+            decoded_path in {"/favicon.ico", "/favicon.svg", "/robots.txt"}
+            or decoded_path == "/assets"
+            or decoded_path.startswith("/assets/")
+            or "." in decoded_path.rsplit("/", 1)[-1]
         )
-        if candidate.is_file():
-            self.respond_static_file(candidate)
+        if asset is not None:
+            self.respond_static_asset(asset)
             return
         if asset_path:
             self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
             return
 
-        index_path = root / "index.html"
-        if not index_path.is_file():
+        index_asset = assets.get("/index.html")
+        if index_asset is None:
             self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
             return
-        self.respond_static_file(index_path, cache_control="no-cache")
+        self.respond_static_asset(index_asset, cache_control="no-cache")
 
-    def respond_static_file(self, file_path: Path, *, cache_control: str | None = None) -> None:
-        """Write one already validated static file to the HTTP response."""
-        try:
-            body = file_path.read_bytes()
-        except OSError:
-            self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
-            return
-        content_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+    def respond_static_asset(self, asset: StaticAsset, *, cache_control: str | None = None) -> None:
+        """Write one preloaded trusted asset without reflecting request metadata."""
         self.send_response(HTTPStatus.OK)
         self.send_header("Cache-Control", cache_control or "public, max-age=31536000, immutable")
         self.send_security_headers()
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Type", asset.content_type)
+        self.send_header("Content-Length", str(len(asset.body)))
         self.end_headers()
         try:
-            self.wfile.write(body)
+            self.wfile.write(asset.body)
         except BrokenPipeError, ConnectionResetError:
             pass
 
