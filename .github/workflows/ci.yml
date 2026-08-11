@@ -279,7 +279,9 @@ jobs:
       - name: Resolve Playwright version
         id: playwright_version
         working-directory: frontend
-        run: echo "version=$(node -p \"require('./package-lock.json').packages['node_modules/@playwright/test'].version\")" >> "$GITHUB_OUTPUT"
+        run: |
+          node -e "console.log('version=' + require('./package-lock.json').packages['node_modules/@playwright/test'].version)" \
+            >> "$GITHUB_OUTPUT"
 
       - name: Restore Playwright browser cache
         id: playwright_cache
@@ -356,7 +358,9 @@ jobs:
       - name: Resolve Playwright version
         id: playwright_version
         working-directory: frontend
-        run: echo "version=$(node -p \"require('./package-lock.json').packages['node_modules/@playwright/test'].version\")" >> "$GITHUB_OUTPUT"
+        run: |
+          node -e "console.log('version=' + require('./package-lock.json').packages['node_modules/@playwright/test'].version)" \
+            >> "$GITHUB_OUTPUT"
 
       - name: Restore Playwright browser cache
         id: playwright_cache
