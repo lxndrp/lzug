@@ -65,7 +65,7 @@ except json.JSONDecodeError:
     parsed = [json.loads(line) for line in raw.splitlines() if line.strip()]
 if isinstance(parsed, dict):
     parsed = [parsed]
-print(parsed[0].get("Health", ""))
+print(parsed[0].get("Health", "") if parsed else "")
 '
 }
 
