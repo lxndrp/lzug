@@ -84,6 +84,13 @@ wichtigsten Werte sind:
 | Dokumente | `--documents` | `LZUG_DOCUMENTS_PATH` | `/data/documents` |
 | Migration-Backups | `--backups` | `LZUG_BACKUPS_PATH` | `/data/backups` |
 | Healthcheck-URL | — | `LZUG_HEALTHCHECK_URL` | `http://127.0.0.1:8000/api/health` |
+| HTTPS-/Cookie-Modus | — | `LZUG_HTTPS_ONLY` | `true` |
+| CORS-Allowlist | — | `LZUG_CORS_ALLOWED_ORIGINS` | leer/same-origin |
+| Sessionlaufzeit | — | `LZUG_SESSION_TTL_SECONDS` | `28800` |
+| JSON-Größenlimit | — | `LZUG_MAX_REQUEST_BYTES` | `1048576` |
+| Auth-Rate-Limit | — | `LZUG_AUTH_RATE_LIMIT` / `LZUG_AUTH_RATE_WINDOW_SECONDS` | `20` / `60` |
+| Uploadgrenze | — | `LZUG_MAX_UPLOAD_BYTES` | `10485760` |
+| Uploadtypen | — | `LZUG_ALLOWED_UPLOAD_MEDIA_TYPES` | PDF, JPEG, PNG, Text |
 
 Secrets, Zugangsdaten, Umgebungswerte und Demo-Daten werden weder in den
 Build-Stufen noch im Image festgelegt. Das Root-Dateisystem kann
@@ -92,13 +99,22 @@ flüchtige Schreibpfad. Der Prozess ist nicht privilegiert, verwirft keine
 Anwendungssicherheitsregeln und beendet den HTTP-Server über einen
 SIGTERM-/SIGINT-gesteuerten Shutdown-Pfad.
 
-`/api`, `/api/health`, `/api/openapi.json` und `/api/docs` bleiben API-Routen.
+Der Build-Kontext ist über `.dockerignore` deny-by-default begrenzt. Das Image
+enthält keine Git-Historie, `.env`-Dateien, Tests, Seed-Daten oder lokalen
+Auth-Schlüssel. Ohne `LZUG_AUTH_ENCRYPTION_KEY` erzeugt die Anwendung den
+Fernet-Schlüssel mit Modus 0600 im persistenten `/data`-Vertrag; er muss mit
+dem Datenbestand gesichert werden und gehört nicht in Image oder Compose-Datei.
+
+`/api`, `/api/health`, `/api/openapi.json` und `/api/docs` bleiben API-Routen;
+nur Health ist ohne Session als GET-API öffentlich. Die erforderlichen
+Login-/Aktivierungs-/Recovery-POST-Routen und sämtliche Schutzparameter sind
+in der [Security-Baseline](security-baseline.md) inventarisiert.
 Vorhandene Assets werden direkt ausgeliefert, fehlende Assets liefern 404 und
 nur Routen ohne Dateisuffix erhalten den Angular-SPA-Fallback. Damit kann ein
 Reverse Proxy später vor dem Container ergänzt werden, ohne dass dieser
 Runtime-Schritt bereits Compose oder eine Proxy-Konfiguration vorwegnimmt.
 
-Die Pull-Request-CI baut das Image und führt die Containerprüfung erst in
-#121 ein. Dieses Issue liefert dafür das reproduzierbare Image und das
-lokal/automatisierbare Prüfskript, aber keinen Release-, GHCR- oder
-Compose-Prozess.
+Der Security-Workflow baut das Image, prüft den Non-Root-Vertrag, scannt es und
+erzeugt das CycloneDX-SBOM. #121 integriert anschließend den vollständigen
+Start-/Health-/SPA-Smoke als eigenen Pull-Request-CI-Job. Veröffentlichung und
+GHCR-Release bleiben dem getrennten Release-Prozess vorbehalten.

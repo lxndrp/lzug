@@ -45,6 +45,9 @@ Auslieferung und die Docker-/Podman-Smoke-Prüfung beschreibt die
 [OCI-Runtime](oci-runtime.md). Die kanonische
 [Docker-Compose-Referenzinstallation](compose-self-hosting.md) ergänzt den
 reproduzierbaren Self-Hosting- und Persistenzpfad.
+Die [Veröffentlichungs- und Runtime-Sicherheitsbaseline](security-baseline.md)
+inventarisiert die öffentliche HTTP-Grenze, die blockierenden Security-Gates
+und die sichere Produktionskonfiguration.
 
 Die lokale Kontenpflege ohne Netzwerk-Admin-Endpunkt beschreibt die
 [Betreiber-CLI für Authentifizierung](operator-auth-cli.md). Sie bleibt eine

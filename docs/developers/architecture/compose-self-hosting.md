@@ -59,6 +59,13 @@ beschrieben; Compose setzt deren `/data`-Defaults:
 | `LZUG_PORT` | `8000` | Container-Port und internes Healthcheck-Ziel |
 | `LZUG_STATIC_DIR` | `/app/frontend` | Angular-Produktionsbundle |
 | `LZUG_HEALTHCHECK_URL` | automatisch aus `LZUG_PORT` | Readiness-Endpunkt |
+| `LZUG_HTTPS_ONLY` | `true` | Secure-Cookies und HSTS hinter dem Reverse Proxy |
+| `LZUG_CORS_ALLOWED_ORIGINS` | leer | same-origin; exakte optionale Origins |
+| `LZUG_SESSION_TTL_SECONDS` | `28800` | gemeinsame Cookie-/Server-Sessionlaufzeit |
+| `LZUG_MAX_REQUEST_BYTES` | `1048576` | maximales JSON-Request-Body |
+| `LZUG_AUTH_RATE_LIMIT` / `LZUG_AUTH_RATE_WINDOW_SECONDS` | `20` / `60` | öffentliches Auth-Limit je IP und Route |
+| `LZUG_MAX_UPLOAD_BYTES` | `10485760` | maximale Dokumentgröße |
+| `LZUG_ALLOWED_UPLOAD_MEDIA_TYPES` | PDF, JPEG, PNG, Text | exakte Upload-Allowlist |
 | `LZUG_DATA_DIR` | `/data` | Wurzel des persistenten Datenvertrags |
 | `LZUG_DATABASE_PATH` | `/data/lzug.sqlite` | SQLite-Datei |
 | `LZUG_DATABASE_URL` | leer | alternative SQLite-Datei-URL; nicht zusammen mit `LZUG_DATABASE_PATH` |

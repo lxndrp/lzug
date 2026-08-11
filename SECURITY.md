@@ -1,59 +1,73 @@
-# Sicherheitsmeldungen
+# Sicherheitsrichtlinie
 
-lzug ist derzeit ein privates Repository und ein ausdrücklich nicht
-produktionsreifer Quellcode-Prototyp. Es gibt deshalb keine zugesicherte
-Sicherheits- oder Supportabdeckung für produktive Installationen.
+lzug ist ein öffentlich entwickeltes Projekt vor der ersten stabilen
+Produktionsfreigabe. Self-Hosting und Release-Kandidaten erhalten automatisierte
+Security-Prüfungen; daraus entsteht noch keine Zusicherung für ungeprüfte
+Installationen oder ältere Stände.
 
 ## Unterstützte Stände
 
-Aktuell wird ausschließlich der jeweils freigegebene Stand von `master` im
-Rahmen der Entwicklung bewertet. Es gibt noch keine veröffentlichten Releases
-und keine zugesicherten Sicherheitsupdates für ältere Stände.
+Aktuell wird ausschließlich der freigegebene Stand von `master` unterstützt.
+Es gibt noch keine stabilen Releases und keine Sicherheitsupdates für ältere
+Commits. Nach der ersten versionierten Veröffentlichung wird diese Tabelle um
+die konkret unterstützten Release-Linien ergänzt.
 
-## Sicherheitslücken melden
+| Stand | Unterstützt |
+| --- | --- |
+| aktueller `master` | ja |
+| ältere Commits und Vorabstände | nein |
 
-Bitte veröffentliche vermutete Sicherheitslücken nicht als GitHub Issue und
-teile sie nicht in öffentlichen Pull Requests oder Diskussionen. Nutze nach
-Aktivierung der Repository-Funktion den privaten Meldeweg für
-Sicherheitslücken (GitHub Private Vulnerability Reporting). Bis dahin wende
-dich vertraulich an den Repository-Maintainer über GitHub und veröffentliche
-keine technischen Details.
+## Sicherheitslücken vertraulich melden
 
-Eine Meldung sollte, soweit ohne Gefährdung möglich, den betroffenen Commit
-oder Pfad, eine Beschreibung der Auswirkung, reproduzierbare Schritte und eine
-Einschätzung der Schwere enthalten. Zugangsdaten, Tokens und personenbezogene
-Daten dürfen nicht mitgesendet werden.
+Bitte veröffentliche vermutete Sicherheitslücken nicht als Issue, Pull Request
+oder Diskussion. Verwende stattdessen das aktivierte
+[Private Vulnerability Reporting](https://github.com/lxndrp/lzug/security/advisories/new).
 
-Meldungen werden nach bestem Vermögen geprüft. Eine Eingangsbestätigung,
-zeitliche Behebung oder Veröffentlichung eines Advisories kann derzeit nicht
-zugesichert werden.
+Eine Meldung sollte, soweit ohne zusätzliche Gefährdung möglich, enthalten:
+
+- betroffene Version, Commit oder Komponente;
+- Auswirkung und realistisches Angriffsszenario;
+- reproduzierbare Schritte oder einen minimalen Nachweis;
+- bekannte Abhilfen oder Randbedingungen.
+
+Sende keine realen Zugangsdaten, Tokens, TOTP-Secrets oder personenbezogenen
+Daten. Verwende ausschließlich synthetische Beispiele.
+
+Der Maintainer bestätigt Meldungen und stimmt Prüfung, Behebung, Advisory und
+Veröffentlichung nach bestem Vermögen vertraulich ab. Eine feste Reaktions-
+oder Behebungsfrist kann vor dem ersten stabilen Release noch nicht zugesichert
+werden.
 
 ## Technische Baseline
 
-- Der CI-Workflow besitzt ausschließlich die für den Lauf erforderlichen
-  lesenden Repository-Rechte.
-- Die externe Action `astral-sh/setup-uv` ist auf einen konkreten Commit-SHA
-  gepinnt. GitHub-eigene Actions folgen ihren gepflegten Major-Tags.
-- Dependabot überwacht Python-, npm- und GitHub-Action-Abhängigkeiten.
-- Der Produktionsaudit für npm-Abhängigkeiten ist Bestandteil der CI. Eine
-  offene Warnung in einer ausschließlich für die Entwicklungsumgebung
-  verwendeten transitiven Abhängigkeit ist bewertet und wird nicht durch eine
-  gelockerte Prüfung verborgen.
-- Secret Scanning, Push Protection und Code Scanning werden vor dem
-  Sichtbarkeitswechsel geprüft und, sobald die Repository-Sichtbarkeit und der
-  GitHub-Tarif dies erlauben, aktiviert. Der abschließende Nachweis gehört zu
-  #194 und #195.
+- GitHub Secret Scanning und Push Protection sind aktiviert; Private
+  Vulnerability Reporting ist der verbindliche Meldeweg.
+- CodeQL analysiert Python und JavaScript/TypeScript. High/Critical-SARIF-
+  Befunde ab `security-severity 7.0` blockieren den Workflow zusätzlich zur
+  Code-Scanning-Auswertung.
+- Trivy prüft den Quellbaum auf Secrets/Misconfiguration sowie das tatsächlich
+  gebaute Image auf behebbare High/Critical-Abhängigkeiten, Secrets und
+  Misconfiguration. Ein CycloneDX-SBOM wird als CI-Artefakt erzeugt.
+- Der Security-Workflow besitzt minimal erforderliche Tokenrechte; sämtliche
+  dort verwendeten Actions sind auf vollständige Commit-SHAs fixiert.
+- Das OCI-Image läuft als UID/GID `10001:10001`, enthält weder Demo-Daten noch
+  Build-Toolchain oder eingebettete Secrets und unterstützt read-only Root-FS,
+  Capability-Drop und `no-new-privileges`.
+- Die HTTP-Runtime erzwingt Session, CSRF, Actor- und Ausschusskontext
+  serverseitig. Health ist die einzige öffentliche GET-API und enthält nur den
+  Readiness-Status.
+- Security-Header, same-origin CORS, sichere Cookies, Request-/Upload-Limits,
+  Auth-Rate-Limits und secret-freie Access-Logs sind produktive Defaults.
 
-Vor einer öffentlichen Freigabe werden außerdem Repository-Einstellungen,
-Actions-Berechtigungen, Secrets, Environments, Deploy Keys, Webhooks,
-Collaborators, Logs und Artefakte separat geprüft. Dieses Dokument ersetzt
-keine produktive Betriebs- oder Datenschutzfreigabe.
+Die vollständige technische Begründung, Grenzwerte und Gate-Matrix stehen in der
+[Veröffentlichungs- und Runtime-Sicherheitsbaseline](docs/developers/architecture/security-baseline.md).
 
-## Sicherheitsgrenzen des Prototyps
+## Sicherheitsgrenzen
 
-- Die Anwendung enthält keine produktive Authentifizierung oder Autorisierung.
-- Demo- und Testdaten müssen synthetisch bleiben.
-- Das Projekt ist keine offizielle Anwendung oder Veröffentlichung einer IHK.
-- Self-Hosting, Containerbetrieb, öffentliche Demo und produktive Nutzung sind
-  durch dieses Dokument nicht zugesichert; sie gehören zum getrennten Release-
-  und Betriebsgate in Epic #113.
+- Kontenpflege erfolgt ausschließlich über die lokale Betreiber-CLI; es gibt
+  keinen Netzwerk-Admin-Endpunkt und keinen direkten SQLite-Zugriff der Go-CLI.
+- Betreiberidentität verleiht keine fachliche Ausschussrolle.
+- Passkeys und OIDC sind nicht Bestandteil dieser Baseline und bleiben die
+  getrennten Ausbaustufen #267 und #268.
+- Demo- und Testdaten müssen synthetisch bleiben. lzug ist keine offizielle
+  Anwendung oder Veröffentlichung einer IHK.

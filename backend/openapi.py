@@ -389,10 +389,7 @@ def spec() -> dict[str, Any]:
         }
 
     public_paths = {
-        "/api",
         "/api/health",
-        "/api/openapi.json",
-        "/api/docs",
         "/api/auth/login",
         "/api/auth/invitation/prepare",
         "/api/auth/invitation/activate",
@@ -421,13 +418,8 @@ def spec() -> dict[str, Any]:
             required=("name", "_links"),
         ),
         "Health": object_schema(
-            {
-                "status": {"type": "string"},
-                "reason": {"type": "string"},
-                "migration": {"type": "object"},
-                "_links": link_map(),
-            },
-            required=("status", "reason", "migration", "_links"),
+            {"status": {"type": "string"}, "_links": link_map()},
+            required=("status", "_links"),
         ),
         "Error": object_schema({"error": {"type": "string"}}, required=("error",)),
         "AuthTokenWrite": object_schema(
@@ -815,9 +807,7 @@ def spec() -> dict[str, Any]:
         )
 
     public_paths = {
-        "/api",
         "/api/health",
-        "/api/openapi.json",
         "/api/auth/login",
         "/api/auth/invitation/prepare",
         "/api/auth/invitation/activate",

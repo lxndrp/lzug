@@ -50,25 +50,14 @@ def api_root() -> dict[str, Any]:
     }
 
 
-def health(
-    status: str,
-    *,
-    reason: str | None = None,
-    migration: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    payload: dict[str, Any] = {
+def health(status: str) -> dict[str, Any]:
+    """Expose only public readiness, never persistence or domain details."""
+    return {
         "status": status,
         "_links": {
             "self": {"href": "/api/health"},
-            "api": {"href": "/api"},
-            "openapi": {"href": "/api/openapi.json"},
         },
     }
-    if reason is not None:
-        payload["reason"] = reason
-    if migration is not None:
-        payload["migration"] = migration
-    return payload
 
 
 def collection(

@@ -1,0 +1,133 @@
+name: Security
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - python
+          - javascript-typescript
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+
+      - name: Analyze
+        id: analyze
+        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          output: codeql-results
+          upload: always
+
+      - name: Block high and critical SAST findings
+        env:
+          SARIF_OUTPUT: ${{ steps.analyze.outputs.sarif-output }}
+        run: python3 scripts/enforce_sarif_security.py "$SARIF_OUTPUT" --minimum 7.0
+
+  source-scan:
+    name: Source secrets and misconfiguration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Scan the source tree
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          version: v0.69.3
+          scan-type: fs
+          scan-ref: .
+          scanners: secret,misconfig
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          hide-progress: true
+          skip-dirs: .git,.venv,frontend/node_modules
+
+  container-scan:
+    name: Container, dependencies, and SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Build the release image
+        env:
+          IMAGE_REF: lzug-security:${{ github.sha }}
+        run: docker build --build-arg "VCS_REF=${{ github.sha }}" --tag "$IMAGE_REF" .
+
+      - name: Verify the non-root image contract
+        env:
+          IMAGE_REF: lzug-security:${{ github.sha }}
+        run: test "$(docker image inspect --format '{{.Config.User}}' "$IMAGE_REF")" = "10001:10001"
+
+      - name: Verify the hardened runtime boundary
+        env:
+          IMAGE_REF: lzug-security:${{ github.sha }}
+        run: scripts/container-smoke.sh "$IMAGE_REF"
+
+      - name: Generate CycloneDX SBOM
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          version: v0.69.3
+          image-ref: lzug-security:${{ github.sha }}
+          format: cyclonedx
+          output: lzug.sbom.cdx.json
+          scanners: vuln
+          exit-code: "0"
+          hide-progress: true
+
+      - name: Validate the SBOM artifact
+        run: >-
+          python3 -c 'import json; from pathlib import Path;
+          payload=json.loads(Path("lzug.sbom.cdx.json").read_text());
+          assert payload["bomFormat"] == "CycloneDX";
+          assert payload.get("components"), "SBOM contains no components"'
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: lzug-sbom
+          path: lzug.sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Block high and critical image findings
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          version: v0.69.3
+          image-ref: lzug-security:${{ github.sha }}
+          scanners: vuln,secret,misconfig
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          hide-progress: true

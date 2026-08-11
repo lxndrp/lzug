@@ -20,7 +20,12 @@ from backend.document_storage import (
     InvalidStorageIdError,
     validate_document_filename,
 )
-from backend.documents import DocumentService
+from backend.documents import (
+    DocumentService,
+    DocumentSizeLimitError,
+    UnsupportedDocumentMediaTypeError,
+    document_upload_policy,
+)
 from backend.tests.helpers import TempDatabase
 
 
@@ -186,14 +191,20 @@ class DocumentServiceTests(unittest.TestCase):
             with patch("backend.documents.Store.create", side_effect=RuntimeError("db failed")):
                 with self.assertRaisesRegex(RuntimeError, "db failed"):
                     with patch("backend.documents.new_storage_id", return_value="d" * 32):
-                        service.create(b"content", original_filename="document.txt")
+                        service.create(
+                            b"content",
+                            original_filename="document.txt",
+                            media_type="text/plain",
+                        )
             self.assertEqual([], list(Path(directory).glob("*")))
 
     def test_missing_content_is_an_inconsistency_not_a_silent_success(self) -> None:
         with TempDatabase() as db_path, tempfile.TemporaryDirectory() as directory:
             storage = FileSystemDocumentStorage(Path(directory))
             service = DocumentService(storage, db_path)
-            metadata = service.create(b"content", original_filename="document.txt")
+            metadata = service.create(
+                b"content", original_filename="document.txt", media_type="text/plain"
+            )
             storage.delete(metadata["storage_id"])
 
             with self.assertRaises(DocumentStorageError):
@@ -203,8 +214,45 @@ class DocumentServiceTests(unittest.TestCase):
         with TempDatabase() as db_path, tempfile.TemporaryDirectory() as directory:
             storage = FileSystemDocumentStorage(Path(directory))
             service = DocumentService(storage, db_path)
-            metadata = service.create(b"content", original_filename="document.txt")
+            metadata = service.create(
+                b"content", original_filename="document.txt", media_type="text/plain"
+            )
             with patch("backend.documents.Store.delete", side_effect=RuntimeError("db failed")):
                 with self.assertRaisesRegex(RuntimeError, "db failed"):
                     service.delete(metadata["id"])
             self.assertEqual(b"content", storage.read(metadata["storage_id"]))
+
+    def test_upload_size_is_enforced_for_bytes_and_streams_before_metadata(self) -> None:
+        with TempDatabase() as db_path, tempfile.TemporaryDirectory() as directory:
+            storage = FileSystemDocumentStorage(Path(directory))
+            service = DocumentService(storage, db_path, max_size_bytes=4)
+
+            with self.assertRaises(DocumentSizeLimitError):
+                service.create(
+                    b"12345", original_filename="large.pdf", media_type="application/pdf"
+                )
+            with self.assertRaises(DocumentSizeLimitError):
+                service.create(
+                    io.BytesIO(b"12345"),
+                    original_filename="stream.pdf",
+                    media_type="application/pdf",
+                )
+
+            self.assertEqual([], list(Path(directory).glob("*")))
+
+    def test_upload_media_type_uses_an_exact_allowlist(self) -> None:
+        with TempDatabase() as db_path, tempfile.TemporaryDirectory() as directory:
+            service = DocumentService(FileSystemDocumentStorage(Path(directory)), db_path)
+
+            with self.assertRaises(UnsupportedDocumentMediaTypeError):
+                service.create(
+                    b"<svg/>",
+                    original_filename="active.svg",
+                    media_type="image/svg+xml",
+                )
+
+    def test_upload_policy_rejects_wildcards_and_unbounded_sizes(self) -> None:
+        with self.assertRaisesRegex(ValueError, "exact media types"):
+            document_upload_policy({"LZUG_ALLOWED_UPLOAD_MEDIA_TYPES": "image/*"})
+        with self.assertRaisesRegex(ValueError, "between"):
+            document_upload_policy({"LZUG_MAX_UPLOAD_BYTES": "0"})

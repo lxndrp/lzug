@@ -14,6 +14,9 @@ from backend.database import initialize, is_ready
 
 
 class TestLzugHandler(LzugHandler):
+    def log_request(self, code: int | str = "-", size: int | str = "-") -> None:
+        pass
+
     def log_message(self, format: str, *args) -> None:
         pass
 
@@ -83,9 +86,15 @@ class ApiServer(AbstractContextManager):
         *,
         authenticated: bool = True,
         credentials: SessionCredentials | None = None,
+        request_headers: dict[str, str] | None = None,
     ) -> tuple[int, Any]:
         status, _headers, body = self.request_raw(
-            method, path, payload, authenticated=authenticated, credentials=credentials
+            method,
+            path,
+            payload,
+            authenticated=authenticated,
+            credentials=credentials,
+            request_headers=request_headers,
         )
         return status, self._read_json(body)
 
@@ -97,6 +106,7 @@ class ApiServer(AbstractContextManager):
         *,
         authenticated: bool = True,
         credentials: SessionCredentials | None = None,
+        request_headers: dict[str, str] | None = None,
     ) -> tuple[int, dict[str, str], bytes]:
         body = b""
         headers = {
@@ -107,6 +117,7 @@ class ApiServer(AbstractContextManager):
             body = json.dumps(payload).encode("utf-8")
             headers["Content-Type"] = "application/json"
             headers["Content-Length"] = str(len(body))
+        headers.update(request_headers or {})
         active_credentials = credentials or self.credentials
         if authenticated and active_credentials is not None:
             headers["Cookie"] = (

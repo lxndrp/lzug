@@ -30,7 +30,14 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE="1" \
     PYTHONUNBUFFERED="1" \
     LZUG_DATA_DIR="/data" \
-    LZUG_STATIC_DIR="/app/frontend"
+    LZUG_STATIC_DIR="/app/frontend" \
+    LZUG_HTTPS_ONLY="true" \
+    LZUG_SESSION_TTL_SECONDS="28800" \
+    LZUG_MAX_REQUEST_BYTES="1048576" \
+    LZUG_AUTH_RATE_LIMIT="20" \
+    LZUG_AUTH_RATE_WINDOW_SECONDS="60" \
+    LZUG_MAX_UPLOAD_BYTES="10485760" \
+    LZUG_ALLOWED_UPLOAD_MEDIA_TYPES="application/pdf,image/jpeg,image/png,text/plain"
 
 WORKDIR /app
 
@@ -45,8 +52,8 @@ COPY --chown=10001:10001 \
     backend/__init__.py backend/admin.py backend/admin_service.py backend/app.py backend/auth.py backend/authorization.py \
     backend/candidate_days.py backend/contract.py backend/database.py \
     backend/document_storage.py backend/documents.py backend/hateoas.py \
-    backend/healthcheck.py backend/holiday_provider.py backend/models.py \
-    backend/openapi.py backend/planning.py backend/repositories.py backend/store.py \
+    backend/healthcheck.py backend/holiday_provider.py backend/local_auth.py backend/models.py \
+    backend/openapi.py backend/planning.py backend/repositories.py backend/security.py backend/store.py \
     ./backend/
 COPY --chown=10001:10001 db/schema.sql ./db/schema.sql
 COPY --chown=10001:10001 db/migrations ./db/migrations
