@@ -174,8 +174,9 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs))
         self.assertIn('tags:\n      - "v*.*.*"', workflow)
         self.assertNotIn("workflow_dispatch:", workflow)
-        for required in ("ci.yml", "oci.yml", "security.yml", "operator-cli.yml"):
-            self.assertIn(required, workflow)
+        self.assertIn("for workflow in ci.yml", workflow)
+        for obsolete in ("oci.yml", "security.yml", "operator-cli.yml"):
+            self.assertNotIn(obsolete, workflow)
         self.assertIn("git merge-base --is-ancestor", workflow)
         self.assertIn("name: Test the exact release image", workflow)
         self.assertIn('scripts/container-smoke.sh "$CANONICAL_REF"', workflow)

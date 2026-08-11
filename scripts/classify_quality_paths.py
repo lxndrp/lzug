@@ -19,7 +19,10 @@ class QualitySelection:
     overall: bool = False
     npm_security: bool = False
     codeql: bool = False
+    image: bool = False
+    container: bool = False
     compose: bool = False
+    operator_container: bool = False
     e2e: bool = False
     a11y: bool = False
 
@@ -139,6 +142,8 @@ def _web_product_selection(*, backend: bool = False, frontend: bool = False) -> 
         security=True,
         overall=True,
         codeql=True,
+        image=True,
+        container=True,
         e2e=True,
         a11y=True,
     )
@@ -165,6 +170,8 @@ def selection_for_path(path: str) -> QualitySelection:
             documentation=True,
             security=True,
             overall=True,
+            image=True,
+            container=True,
             e2e=True,
             a11y=True,
         )
@@ -176,6 +183,8 @@ def selection_for_path(path: str) -> QualitySelection:
             security=True,
             overall=True,
             npm_security=True,
+            image=True,
+            container=True,
             e2e=True,
             a11y=True,
         )
@@ -183,16 +192,29 @@ def selection_for_path(path: str) -> QualitySelection:
     if normalized in OVERALL_BROWSER_FILES or normalized.startswith("frontend/e2e/"):
         return QualitySelection(overall=True, e2e=True, a11y=True)
     if normalized in OVERALL_COMPOSE_FILES:
-        return QualitySelection(overall=True, compose=True)
+        return QualitySelection(
+            overall=True,
+            image=True,
+            compose=True,
+            operator_container=True,
+        )
     if normalized in OCI_FILES:
-        return QualitySelection(oci=True, overall=True)
+        return QualitySelection(
+            oci=True,
+            overall=True,
+            image=True,
+            container=True,
+            operator_container=True,
+        )
 
     if normalized.startswith("backend/tests/") or normalized.startswith("prototypes/"):
         return QualitySelection(backend=True)
     if normalized.startswith("backend/"):
         selection = _web_product_selection(backend=True)
         if normalized in OPERATOR_PROTOCOL_FILES:
-            selection = selection.merge(QualitySelection(operator_cli=True))
+            selection = selection.merge(
+                QualitySelection(operator_cli=True, operator_container=True)
+            )
         return selection
     if normalized.startswith(("db/", "fixtures/")):
         return _web_product_selection(backend=True)

@@ -1,4 +1,4 @@
-name: CI
+name: Quality
 
 on:
   push:
@@ -16,6 +16,9 @@ on:
 permissions:
   contents: read
 
+env:
+  IMAGE_REF: lzug-ci:0.1.0-ci.${{ github.run_id }}
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -27,16 +30,23 @@ jobs:
     outputs:
       backend: ${{ steps.changes.outputs.backend }}
       frontend: ${{ steps.changes.outputs.frontend }}
+      operator_cli: ${{ steps.changes.outputs.operator_cli }}
+      oci: ${{ steps.changes.outputs.oci }}
       documentation: ${{ steps.changes.outputs.documentation }}
+      security: ${{ steps.changes.outputs.security }}
       overall: ${{ steps.changes.outputs.overall }}
       npm_security: ${{ steps.changes.outputs.npm_security }}
+      codeql: ${{ steps.changes.outputs.codeql }}
+      image: ${{ steps.changes.outputs.image }}
+      container: ${{ steps.changes.outputs.container }}
       compose: ${{ steps.changes.outputs.compose }}
+      operator_container: ${{ steps.changes.outputs.operator_container }}
       e2e: ${{ steps.changes.outputs.e2e }}
       a11y: ${{ steps.changes.outputs.a11y }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
@@ -66,10 +76,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
 
@@ -97,7 +107,7 @@ jobs:
         run: uv run pip-audit --skip-editable
 
       - name: Upload backend coverage
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: backend-coverage
           path: coverage.xml
@@ -116,10 +126,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: .node-version
           cache: npm
@@ -143,7 +153,7 @@ jobs:
         run: npm run test:coverage
 
       - name: Upload frontend coverage
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: frontend-coverage
           path: frontend/coverage/frontend/lcov.info
@@ -162,10 +172,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: .node-version
           cache: npm
@@ -182,10 +192,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
 
@@ -198,7 +208,7 @@ jobs:
         run: uv sync --locked --extra dev
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: .node-version
           cache: npm
@@ -214,27 +224,229 @@ jobs:
           cd frontend && npm run docs
 
       - name: Upload documentation
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: lzug-documentation
           path: site
           if-no-files-found: error
           retention-days: 7
 
-  compose:
-    name: Compose configuration
+  operator-test:
+    name: Go contract tests
     needs: classify
+    if: needs.classify.outputs.operator_cli == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - name: Test
+        run: go test ./cmd/lzug-admin
+
+  operator-build:
+    name: Build operator CLI (${{ matrix.goos }}/${{ matrix.goarch }})
+    needs: classify
+    if: needs.classify.outputs.operator_cli == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - name: Build portable binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          application_version=$(cat VERSION)
+          mkdir -p dist
+          go build -trimpath \
+            -ldflags="-s -w -X main.applicationVersion=$application_version" \
+            -o "dist/lzug-admin-${{ matrix.goos }}-${{ matrix.goarch }}" \
+            ./cmd/lzug-admin
+
+  image-build:
+    name: OCI image build
+    needs: classify
+    if: needs.classify.outputs.image == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - name: Build the quality image once
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: Dockerfile
+          tags: ${{ env.IMAGE_REF }}
+          build-args: VCS_REF=${{ github.sha }}
+          outputs: type=docker,dest=${{ runner.temp }}/lzug-image.tar
+          cache-from: type=gha,scope=lzug-quality-${{ runner.arch }}
+          cache-to: ${{ github.event_name == 'push' && format('type=gha,mode=max,scope=lzug-quality-{0}', runner.arch) || '' }}
+          provenance: false
+          sbom: false
+      - name: Record the immutable image archive checksum
+        working-directory: ${{ runner.temp }}
+        run: sha256sum lzug-image.tar > lzug-image.tar.sha256
+      - name: Upload the built image
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: lzug-quality-image
+          path: |
+            ${{ runner.temp }}/lzug-image.tar
+            ${{ runner.temp }}/lzug-image.tar.sha256
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  image-scan:
+    name: Container, dependencies, and SBOM
+    needs:
+      - classify
+      - image-build
+    if: needs.classify.outputs.oci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout scan inputs
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Download the built image
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lzug-quality-image
+          path: ${{ runner.temp }}/lzug-quality-image
+      - name: Load the exact built image for scanning
+        working-directory: ${{ runner.temp }}/lzug-quality-image
+        run: |
+          sha256sum --check lzug-image.tar.sha256
+          docker load --input lzug-image.tar
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE_REF")" = "$GITHUB_SHA"
+      - name: Generate CycloneDX SBOM
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          version: v0.69.3
+          image-ref: ${{ env.IMAGE_REF }}
+          format: cyclonedx
+          output: lzug.sbom.cdx.json
+          scanners: vuln
+          exit-code: "0"
+          hide-progress: true
+      - name: Validate the SBOM artifact
+        run: >-
+          python3 -c 'import json; from pathlib import Path;
+          payload=json.loads(Path("lzug.sbom.cdx.json").read_text());
+          assert payload["bomFormat"] == "CycloneDX";
+          assert payload.get("components"), "SBOM contains no components"'
+      - name: Upload SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: lzug-sbom
+          path: lzug.sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Block high and critical image findings
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          version: v0.69.3
+          image-ref: ${{ env.IMAGE_REF }}
+          scanners: vuln,secret,misconfig
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          hide-progress: true
+
+  container-runtime:
+    name: Container runtime contract
+    needs:
+      - classify
+      - image-build
+    if: needs.classify.outputs.container == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout runtime inputs
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Download the built image
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lzug-quality-image
+          path: ${{ runner.temp }}/lzug-quality-image
+      - name: Load and verify the exact built image
+        working-directory: ${{ runner.temp }}/lzug-quality-image
+        run: |
+          sha256sum --check lzug-image.tar.sha256
+          docker load --input lzug-image.tar
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE_REF")" = "$GITHUB_SHA"
+          test "$(docker image inspect --format '{{.Config.User}}' "$IMAGE_REF")" = "10001:10001"
+      - name: Verify health, API, SPA, and hardened runtime contracts
+        run: scripts/container-smoke.sh "$IMAGE_REF"
+
+  compose:
+    name: Compose runtime contract
+    needs:
+      - classify
+      - image-build
     if: needs.classify.outputs.compose == 'true'
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Validate Compose configuration and negative cases
+      - name: Checkout runtime inputs
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Download the built image
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lzug-quality-image
+          path: ${{ runner.temp }}/lzug-quality-image
+      - name: Load the exact built image
+        working-directory: ${{ runner.temp }}/lzug-quality-image
+        run: |
+          sha256sum --check lzug-image.tar.sha256
+          docker load --input lzug-image.tar
+      - name: Verify Compose configuration, health, and persistence
         env:
-          LZUG_IMAGE: lzug:0.1.0-local
-        run: scripts/validate-compose.sh
+          LZUG_IMAGE: ${{ env.IMAGE_REF }}
+        run: scripts/compose-smoke.sh
+
+  operator-container:
+    name: Operator CLI-to-container contract
+    needs:
+      - classify
+      - image-build
+    if: needs.classify.outputs.operator_container == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout runtime inputs
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - name: Download the built image
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lzug-quality-image
+          path: ${{ runner.temp }}/lzug-quality-image
+      - name: Load the exact built image
+        working-directory: ${{ runner.temp }}/lzug-quality-image
+        run: |
+          sha256sum --check lzug-image.tar.sha256
+          docker load --input lzug-image.tar
+      - name: Verify the operator transport against the packaged application
+        run: scripts/operator-container-smoke.sh "$IMAGE_REF"
 
   e2e:
     name: Browser E2E
@@ -244,10 +456,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
 
@@ -260,7 +472,7 @@ jobs:
         run: uv sync --locked --extra dev
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: .node-version
           cache: npm
@@ -279,7 +491,7 @@ jobs:
 
       - name: Restore Playwright browser cache
         id: playwright_cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright_version.outputs.version }}
@@ -307,7 +519,7 @@ jobs:
         run: python scripts/check_ci_artifacts.py frontend/playwright-report frontend/test-results
 
       - name: Upload browser E2E report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: failure() && steps.artifact_guard.outcome == 'success'
         with:
           name: playwright-e2e-report
@@ -323,10 +535,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
 
@@ -339,7 +551,7 @@ jobs:
         run: uv sync --locked --extra dev
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: .node-version
           cache: npm
@@ -358,7 +570,7 @@ jobs:
 
       - name: Restore Playwright browser cache
         id: playwright_cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright_version.outputs.version }}
@@ -386,13 +598,68 @@ jobs:
         run: python scripts/check_ci_artifacts.py frontend/playwright-report frontend/test-results
 
       - name: Upload accessibility report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: failure() && steps.artifact_guard.outcome == 'success'
         with:
           name: playwright-a11y-report
           path: frontend/playwright-report
           if-no-files-found: warn
           retention-days: 7
+
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    needs: classify
+    if: needs.classify.outputs.codeql == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - python
+          - javascript-typescript
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14.6"
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+      - name: Analyze
+        id: analyze
+        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          output: codeql-results
+          upload: always
+      - name: Block high and critical SAST findings
+        env:
+          SARIF_OUTPUT: ${{ steps.analyze.outputs.sarif-output }}
+        run: python3 scripts/enforce_sarif_security.py "$SARIF_OUTPUT" --minimum 7.0
+
+  source-scan:
+    name: Source secrets and misconfiguration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Scan the source tree
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          version: v0.69.3
+          scan-type: fs
+          scan-ref: .
+          scanners: secret,misconfig
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          hide-progress: true
+          skip-dirs: .git,.venv,frontend/node_modules
 
   backend-gate:
     name: Quality / Backend
@@ -452,6 +719,61 @@ jobs:
           require_result "$FRONTEND_SELECTED" "$FRONTEND_RESULT"
           require_result "$NPM_SECURITY_SELECTED" "$NPM_SECURITY_RESULT"
 
+  operator-gate:
+    name: Quality / Operator CLI
+    needs:
+      - classify
+      - operator-test
+      - operator-build
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every selected operator CLI check
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          SELECTED: ${{ needs.classify.outputs.operator_cli }}
+          TEST_RESULT: ${{ needs.operator-test.result }}
+          BUILD_RESULT: ${{ needs.operator-build.result }}
+        run: |
+          test "$CLASSIFY_RESULT" = "success"
+          if [ "$SELECTED" = "false" ]; then
+            test "$TEST_RESULT" = "skipped"
+            test "$BUILD_RESULT" = "skipped"
+            exit 0
+          fi
+          test "$SELECTED" = "true"
+          test "$TEST_RESULT" = "success"
+          test "$BUILD_RESULT" = "success"
+
+  oci-gate:
+    name: Quality / OCI
+    needs:
+      - classify
+      - image-build
+      - image-scan
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every selected OCI check
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          OCI_SELECTED: ${{ needs.classify.outputs.oci }}
+          IMAGE_SELECTED: ${{ needs.classify.outputs.image }}
+          IMAGE_RESULT: ${{ needs.image-build.result }}
+          SCAN_RESULT: ${{ needs.image-scan.result }}
+        run: |
+          set -eu
+          test "$CLASSIFY_RESULT" = "success"
+          test "$IMAGE_SELECTED" = "true" -o "$IMAGE_SELECTED" = "false"
+          if [ "$OCI_SELECTED" = "false" ]; then
+            test "$SCAN_RESULT" = "skipped"
+            exit 0
+          fi
+          test "$OCI_SELECTED" = "true"
+          test "$IMAGE_SELECTED" = "true"
+          test "$IMAGE_RESULT" = "success"
+          test "$SCAN_RESULT" = "success"
+
   documentation-gate:
     name: Quality / Documentation
     needs:
@@ -475,11 +797,44 @@ jobs:
             test "$DETAIL_RESULT" = "skipped"
           fi
 
+  security-gate:
+    name: Quality / Security
+    needs:
+      - classify
+      - codeql
+      - source-scan
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every selected security check
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          SECURITY_SELECTED: ${{ needs.classify.outputs.security }}
+          CODEQL_SELECTED: ${{ needs.classify.outputs.codeql }}
+          CODEQL_RESULT: ${{ needs.codeql.result }}
+          SOURCE_SCAN_RESULT: ${{ needs.source-scan.result }}
+        run: |
+          test "$CLASSIFY_RESULT" = "success"
+          test "$SOURCE_SCAN_RESULT" = "success"
+          case "$SECURITY_SELECTED:$CODEQL_SELECTED" in
+            true:true | true:false | false:false) ;;
+            *) exit 1 ;;
+          esac
+          if [ "$CODEQL_SELECTED" = "true" ]; then
+            test "$CODEQL_RESULT" = "success"
+          else
+            test "$CODEQL_SELECTED" = "false"
+            test "$CODEQL_RESULT" = "skipped"
+          fi
+
   overall-gate:
     name: Quality / Overall
     needs:
       - classify
+      - image-build
+      - container-runtime
       - compose
+      - operator-container
       - e2e
       - a11y
     if: always()
@@ -490,8 +845,14 @@ jobs:
         env:
           CLASSIFY_RESULT: ${{ needs.classify.result }}
           OVERALL_SELECTED: ${{ needs.classify.outputs.overall }}
+          IMAGE_SELECTED: ${{ needs.classify.outputs.image }}
+          IMAGE_RESULT: ${{ needs.image-build.result }}
+          CONTAINER_SELECTED: ${{ needs.classify.outputs.container }}
+          CONTAINER_RESULT: ${{ needs.container-runtime.result }}
           COMPOSE_SELECTED: ${{ needs.classify.outputs.compose }}
           COMPOSE_RESULT: ${{ needs.compose.result }}
+          OPERATOR_CONTAINER_SELECTED: ${{ needs.classify.outputs.operator_container }}
+          OPERATOR_CONTAINER_RESULT: ${{ needs.operator-container.result }}
           E2E_SELECTED: ${{ needs.classify.outputs.e2e }}
           E2E_RESULT: ${{ needs.e2e.result }}
           A11Y_SELECTED: ${{ needs.classify.outputs.a11y }}
@@ -512,7 +873,10 @@ jobs:
             fi
           }
 
+          require_result "$IMAGE_SELECTED" "$IMAGE_RESULT"
+          require_result "$CONTAINER_SELECTED" "$CONTAINER_RESULT"
           require_result "$COMPOSE_SELECTED" "$COMPOSE_RESULT"
+          require_result "$OPERATOR_CONTAINER_SELECTED" "$OPERATOR_CONTAINER_RESULT"
           require_result "$E2E_SELECTED" "$E2E_RESULT"
           require_result "$A11Y_SELECTED" "$A11Y_RESULT"
 
@@ -522,7 +886,10 @@ jobs:
     needs:
       - backend-gate
       - frontend-gate
+      - operator-gate
+      - oci-gate
       - documentation-gate
+      - security-gate
       - overall-gate
     if: always()
     runs-on: ubuntu-latest
@@ -531,10 +898,28 @@ jobs:
         env:
           BACKEND_GATE: ${{ needs.backend-gate.result }}
           FRONTEND_GATE: ${{ needs.frontend-gate.result }}
+          OPERATOR_GATE: ${{ needs.operator-gate.result }}
+          OCI_GATE: ${{ needs.oci-gate.result }}
           DOCUMENTATION_GATE: ${{ needs.documentation-gate.result }}
+          SECURITY_GATE: ${{ needs.security-gate.result }}
           OVERALL_GATE: ${{ needs.overall-gate.result }}
         run: |
           test "$BACKEND_GATE" = "success"
           test "$FRONTEND_GATE" = "success"
+          test "$OPERATOR_GATE" = "success"
+          test "$OCI_GATE" = "success"
           test "$DOCUMENTATION_GATE" = "success"
+          test "$SECURITY_GATE" = "success"
           test "$OVERALL_GATE" = "success"
+
+  oci-required-check-compatibility:
+    # Kept until #305 migrates the active ruleset to the stable Quality gates.
+    name: OCI pull request gate
+    needs: oci-gate
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preserve the existing required check without bypassing the new gate
+        env:
+          OCI_GATE: ${{ needs.oci-gate.result }}
+        run: test "$OCI_GATE" = "success"
