@@ -62,7 +62,10 @@ verwendet eine konkrete Version oder einen Digest und niemals `latest`.
 
 ## Lizenz
 
-Dieses Projekt steht unter der [GNU Affero General Public License
-3.0-or-later](LICENSE). Änderungen an einer netzwerkbasiert betriebenen
-Version müssen den interagierenden Nutzenden den entsprechenden Quellcode
-zugänglich machen.
+Der Projektcode und ausführbare Beispiele stehen unter der
+[GNU Affero General Public License 3.0-or-later](LICENSE). Änderungen an einer
+netzwerkbasiert betriebenen Version müssen den interagierenden Nutzenden den
+entsprechenden Quellcode zugänglich machen. Originale Dokumentationsprosa und
+-diagramme stehen innerhalb der in [`docs/LICENSE.md`](docs/LICENSE.md)
+festgelegten Grenze unter `CC-BY-4.0`. Drittmaterial behält die in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) dokumentierte Lizenz.

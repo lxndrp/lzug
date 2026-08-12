@@ -191,6 +191,12 @@ gh attestation verify \
 
 ## Fehler- und Wiederanlaufverhalten
 
+Dieser Abschnitt beschreibt ausschließlich Release-Recovery. Er ist kein
+Produkt-Rollback: Er setzt weder SQLite, Dokumente, Authentifizierungszustand
+noch ein betriebenes Image auf einen früheren konsistenten Stand zurück.
+Upgrade, allgemeines Backup und Restore sowie Produkt-Rollback werden für
+`v0.1.0` ausdrücklich nicht unterstützt und sind für `v0.6.0` geplant.
+
 Vor Build, Smoke-Test, Scan, Push und Attestations existiert kein GitHub
 Release. Danach erstellt oder aktualisiert der Workflow zunächst ausschließlich
 einen Draft, lädt alle Nachweise hoch und veröffentlicht ihn erst im letzten

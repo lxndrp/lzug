@@ -1,6 +1,11 @@
 Copyright (c) 2026 lzug contributors.
 
-This project is licensed under the GNU Affero General Public License version 3 or any later version.
+Project source code, executable examples, configuration, and generated code
+references are licensed under the GNU Affero General Public License version 3
+or any later version. Original non-code documentation content is separately
+licensed under CC-BY-4.0 within the boundary recorded in docs/LICENSE.md.
+Third-party material retains its own license as recorded in
+THIRD_PARTY_NOTICES.md.
 
                     GNU AFFERO GENERAL PUBLIC LICENSE
                        Version 3, 19 November 2007
