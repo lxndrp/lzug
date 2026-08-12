@@ -1,14 +1,11 @@
 # Releases und GHCR
 
-!!! warning "Übergang bis #308"
+!!! danger "Keine manuelle Veröffentlichung"
 
-    [ADR-0018](decisions/0018-semver-release-und-milestones.md) ersetzt den
-    bisherigen manuellen Tag-Ablauf durch einen festgehaltenen
-    Kandidat-Commit, ein Release-Issue und ein zusätzliches Environment-Gate.
-    Die Build-Metadaten-Schnittstelle aus #307 ist umgesetzt. Die vorhandene
-    Automation bildet den kandidatenbasierten Freigabeablauf aber noch nicht
-    ab. Bis #308 abgeschlossen ist, darf kein Release-Tag erzeugt und keine
-    Produktveröffentlichung ausgelöst werden.
+    Maintainer erzeugen oder verschieben Release-Tags, GitHub Releases,
+    OCI-Tags und spätere CLI-Artefakte nicht manuell. Nur ein automatisch
+    erzeugtes Release-Issue, sein berechtigtes Schließen und die getrennte
+    Freigabe des GitHub-Environments `release` dürfen den Publish-Job starten.
 
 ## Zielvertrag
 
@@ -22,27 +19,36 @@ entlang eigenständig nutzbarer Fachprozesse, trennt `v1.0.0-rc.1` als
 Winterpilot von der stabilen `v1.0.0` und plant schriftliche Prüfungen mit
 `v1.1.0` erst nach der stabilen Freigabe.
 
-Jedes manuell angelegte Freigabe-Issue verwendet das standardisierte
-GitHub-Issue-Formular `Release-Freigabe`. #308 muss automatisch erzeugte
-Freigabe-Issues inhaltlich äquivalent aufbauen. Pflichtfelder und einzeln
-verbindliche Checkboxen verhindern, dass Kandidat, Qualitäts- und
+Das standardisierte GitHub-Issue-Formular `Release-Freigabe` dokumentiert den
+Pflichtumfang für besondere manuelle Gates. Die Kandidatenautomation erzeugt
+inhaltlich äquivalente Freigabe-Issues mit einem versionierten, nicht
+nachbaubaren Maschinenmarker. Pflichtfelder und einzeln verbindliche
+Checkboxen verhindern, dass Kandidat, Qualitäts- und
 Security-Nachweise, Betriebs- und Wiederherstellungsprüfung, Pilotbefunde,
 Releaseinformationen oder die ausdrückliche Maintainer-Entscheidung
 stillschweigend ausgelassen werden.
 
 Der Release-Workflow darf einen Milestone nur auf Vollständigkeit prüfen. Er
 darf dessen Namen weder als Versionsquelle noch als Build-Eingabe verwenden.
-Normale Entwicklungsbuilds verwenden keine geplante Releaseversion. Die
-Build-Metadaten-Schnittstelle ist umgesetzt; #308 ergänzt den Kandidaten- und
-Freigabeablauf.
+Normale Entwicklungsbuilds verwenden keine geplante Releaseversion.
 
-## Noch vorhandener Bestandsprozess
+## Kandidatenautomation
 
-Der derzeitige, ausgesetzte Prozess veröffentlicht ein geprüftes
-lzug-OCI-Image nachvollziehbar in GHCR und erzeugt dazu einen GitHub Release.
-Ein Merge allein veröffentlicht nichts. Nur ein Maintainer darf nach
-abgeschlossener Qualitätssicherung einen Release-Tag pushen; der Workflow
-bietet keinen manuellen Dispatch und erzeugt selbst keinen Git-Tag.
+`.github/workflows/release-candidate.yml` reagiert auf das Schließen eines
+regulären Milestone-Issues. Der Workflow pinnt den zu diesem Zeitpunkt
+aktuellen `master`-Commit, wartet begrenzt auf seine sieben stabilen
+Qualitätsgates und prüft das aktive strikte Ruleset. Nur wenn kein anderes
+reguläres Milestone-Issue offen ist, erzeugt oder setzt er genau ein offenes
+Release-Issue zurück. Er checkt ausschließlich das geschützte `master`-Tooling
+ohne persistierte Zugangsdaten aus und besitzt neben Lesezugriff nur
+`issues: write`.
+
+Das automatisch erzeugte Issue enthält einen exakten Maschinenmarker, Tag,
+Kandidat-SHA und auslösendes Issue. Ein vorhandenes offenes Gate wird bei einer
+notwendigen Korrektur vollständig auf den neuen geprüften Kandidaten
+zurückgesetzt, damit alte Nachweise und Checkboxen nicht stillschweigend für
+einen anderen Commit gelten. Ein bereits abgeschlossenes Gate erzeugt keinen
+zweiten Release.
 
 ## Build-Metadaten-Schnittstelle
 
@@ -89,23 +95,34 @@ Vor dem Tag verschiebt der Release-PR die freizugebenden Einträge aus
 zu den Release Notes. Ein fehlender, leerer oder doppelter Abschnitt blockiert
 die Veröffentlichung.
 
-## Ausgesetzter Maintainer-Ablauf
+## Maintainer-Ablauf
 
-Dieser Ablauf ist bis zur Umsetzung des in ADR-0018 festgelegten Verfahrens
-ausgesetzt. Der spätere Normablauf beginnt mit dem automatisiert erzeugten
-Release-Issue für einen unveränderlich festgehaltenen Kandidat-Commit; das
-Schließen durch einen berechtigten Maintainer und die Freigabe des GitHub-
-Environments `release` sind getrennte Gates.
+1. Vor dem letzten regulären Milestone-Issue verschiebt ein eigener Release-PR
+   die freizugebenden Changelog-Einträge in den datierten Versionsabschnitt.
+   Normale Review- und Merge-Regeln gelten unverändert.
+2. Das letzte reguläre Issue schließen und den automatisch erzeugten Kandidaten
+   einschließlich SHA und Qualitätsläufen prüfen.
+3. Das Release-Issue vollständig kuratieren. Es dokumentiert Scope-Freeze,
+   Security, Lieferkette, Betrieb, Wiederherstellung, Befunde, Release Notes und
+   die ausdrückliche `GO`-Entscheidung.
+4. Nur eine Person mit `maintain` oder `admin` schließt das Release-Issue. Der
+   Workflow prüft Autor, Marker, Milestone, Kandidat, Ruleset, Checks,
+   Berechtigung und vorhandene Tags/Releases erneut serverseitig.
+5. Den Environment-geschützten Publish-Job separat freigeben. Erst dieser Job
+   erzeugt den annotierten Remote-Tag und erhält Schreibrechte auf Contents,
+   Packages und Attestations.
+6. Der Lauf gilt erst nach erfolgreicher anonymer Digestprüfung,
+   Attestationsprüfung und Veröffentlichung des vollständigen GitHub Release
+   als abgeschlossen.
 
-1. Einen eigenen Release-PR erstellen und den datierten Changelog-Abschnitt
-   ergänzen. Normale Review- und Merge-Regeln gelten unverändert.
-2. Nach dem Merge prüfen, dass für exakt diesen `master`-Commit die Workflows
-   `CI`, `OCI`, `Security` und `Operator CLI` erfolgreich abgeschlossen sind.
-3. Nach ausdrücklicher Freigabe einen annotierten, nach Möglichkeit signierten
-   Tag `vMAJOR.MINOR.PATCH` auf diesen Commit setzen und ausschließlich diesen
-   Tag pushen.
-4. Den Workflow `Release` beobachten. Er muss vollständig grün sein, bevor der
-   Release als veröffentlicht gilt.
+Das Environment `release` verlangt derzeit `lxndrp` als Required Reviewer und
+akzeptiert ausschließlich Deployments vom geschützten Branch. Weil aktuell nur
+eine Maintainer-Person vorhanden ist, bleibt `prevent_self_review` gemäß
+ADR-0018 deaktiviert. GitHub meldet `can_admins_bypass: true`; dieser nur in den
+Environment-Einstellungen angebotene Bypass bleibt als sichtbare
+Maintainer-Härtung zu deaktivieren, sobald die organisatorische Freigaberegel
+dies zulässt. Sobald eine zweite unabhängige Maintainer-Rolle existiert, werden
+zusätzlich Selbstfreigaben verhindert und die Reviewer-Zuordnung überprüft.
 
 Beim allerersten Push legt GHCR ein Container-Paket zunächst privat an. Diese
 Sichtbarkeit ist eine einmalige, ausdrückliche Maintainer-Entscheidung und wird
@@ -116,10 +133,18 @@ Workflow aus GHCR ab und prüft den Digest anonym; eine private oder nicht
 abrufbare Referenz lässt den Release als unvollständig fehlschlagen.
 
 Der Workflow akzeptiert nur einen Commit, der von `master` erreichbar ist und
-für den alle vier Push-Workflows erfolgreich waren. Er baut das Release-Image
-danach einmal, prüft an genau diesem Image Revision, Non-Root-Vertrag,
-Health/API/SPA, Laufzeithärtung und High-/Critical-Befunde und übergibt nur das
-per SHA-256 geprüfte Image an den Publish-Job.
+für den die sieben stabilen Quality-Gates erfolgreich sind. Vor dem
+Environment-Gate erzeugt er ausschließlich einen lokalen annotierten Tag als
+Versionsquelle, baut das Release-Image einmal, prüft Revision, Non-Root-
+Vertrag, Health/API/SPA, CLI-Identität, Laufzeithärtung und
+High-/Critical-Befunde und übergibt nur die per SHA-256 und Manifest geprüften
+Inputs an den Publish-Job.
+
+Das versionierte `release-manifest.json` ist der Integrationspunkt für #273.
+Spätere CLI-Binaries werden vor dem Environment-Gate unter
+`release-assets/cli/` erzeugt und im Manifest bytegenau gehasht. Der
+Publish-Job darf nur diese qualifizierten Dateien zusammen mit den danach
+erzeugten Attestations hochladen.
 
 ## Veröffentlichte Tags und Nachweise
 
@@ -150,7 +175,7 @@ bewusst bestätigt.
 Die finalen Releaseinformationen enthalten:
 
 - die konkrete Image-Referenz mit Digest,
-- alle vier Tags,
+- alle für die Releaseklasse vorgesehenen Tags,
 - die CycloneDX-SBOM als Release-Artefakt,
 - die signierten Provenance- und SBOM-Bundles,
 - Links zu beiden GitHub-Attestations und zum Build-Lauf,
@@ -173,6 +198,11 @@ Schritt. Ein Teilfehler kann dadurch zwar bereits unveränderliche GHCR-Inhalte
 oder einen Draft hinterlassen, aber keinen irreführend vollständigen GitHub
 Release. Ein Wiederanlauf darf denselben Draft aktualisieren; einen bereits
 veröffentlichten Release überschreibt er nicht.
+
+Ein fehlgeschlagener oder abgebrochener Lauf öffnet das Release-Issue wieder
+und verlinkt den unvollständigen Lauf. Ein bereits exakt für dieses Gate
+erzeugter annotierter Tag darf beim erneuten Schließen wiederverwendet werden;
+ein abweichender, leichter oder verschobener Tag blockiert fail-closed.
 
 Fehlgeschlagene Läufe werden nicht durch einen neuen Versions- oder bewegten
 Major-/Minor-Tag kaschiert. Ursache beheben, dieselbe Workflow-Ausführung erneut

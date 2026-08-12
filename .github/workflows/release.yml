@@ -1,91 +1,99 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  issues:
+    types:
+      - closed
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
-  verify:
-    name: Verify release authorization and quality
+  authorize:
+    name: Authorize immutable release candidate
+    if: github.event.issue.pull_request == null
     runs-on: ubuntu-latest
     permissions:
-      actions: read
+      checks: read
       contents: read
+      issues: write
     outputs:
-      version: ${{ steps.release.outputs.version }}
-      build-identity: ${{ steps.release.outputs.build_identity }}
-      image: ${{ steps.release.outputs.image }}
-      canonical-ref: ${{ steps.release.outputs.canonical_ref }}
+      eligible: ${{ steps.gate.outputs.eligible }}
+      tag: ${{ steps.gate.outputs.tag }}
+      version: ${{ steps.gate.outputs.version }}
+      sha: ${{ steps.gate.outputs.sha }}
+      image: ${{ steps.gate.outputs.image }}
+      canonical_ref: ${{ steps.gate.outputs.canonical_ref }}
+      issue_number: ${{ steps.gate.outputs.issue_number }}
+      issue_url: ${{ steps.gate.outputs.issue_url }}
     steps:
-      - name: Checkout the tagged source
+      - name: Checkout trusted release tooling from master
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          fetch-depth: 0
+          ref: master
+          persist-credentials: false
 
-      - name: Validate SemVer and changelog entry
-        id: release
-        run: |
-          python3 scripts/build_metadata.py \
-            --tag "$GITHUB_REF_NAME" \
-            --revision "$GITHUB_SHA" \
-            --output build-metadata.json >/dev/null
-          python3 scripts/release.py prepare \
-            --tag "$GITHUB_REF_NAME" \
-            --sha "$GITHUB_SHA" \
-            --repository "$GITHUB_REPOSITORY" \
-            --changelog CHANGELOG.md \
-            --notes release-notes.md \
-            --tags release-tags.txt \
-            --github-output "$GITHUB_OUTPUT"
-
-      - name: Require the tagged commit on master
-        run: |
-          git fetch --no-tags origin master
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/master
-
-      - name: Require successful quality workflows for the exact commit
+      - name: Validate bot marker, maintainer, master, ruleset, and checks
+        id: gate
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -eu
-          for workflow in ci.yml; do
-            run_id=$(gh run list \
-              --repo "$GITHUB_REPOSITORY" \
-              --workflow "$workflow" \
-              --commit "$GITHUB_SHA" \
-              --event push \
-              --status success \
-              --limit 1 \
-              --json databaseId \
-              --jq '.[0].databaseId // empty')
-            if [ -z "$run_id" ]; then
-              echo "No successful $workflow push run found for $GITHUB_SHA." >&2
-              exit 1
-            fi
-            printf '%s: %s\n' "$workflow" "$run_id"
-          done
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: >-
+          python3 scripts/release_gate.py
+          --repository "$GITHUB_REPOSITORY"
+          authorize
+          --issue "$ISSUE_NUMBER"
+          --github-output "$GITHUB_OUTPUT"
 
-  build-test:
-    name: Build, smoke-test, and scan release image
-    needs: verify
+  qualify:
+    name: Qualify exact candidate without publishing
+    needs: authorize
+    if: needs.authorize.outputs.eligible == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
     env:
-      CANONICAL_REF: ${{ needs.verify.outputs.canonical-ref }}
-      VERSION: ${{ needs.verify.outputs.version }}
-      BUILD_IDENTITY: ${{ needs.verify.outputs.build-identity }}
+      CANDIDATE_SHA: ${{ needs.authorize.outputs.sha }}
+      RELEASE_TAG: ${{ needs.authorize.outputs.tag }}
+      VERSION: ${{ needs.authorize.outputs.version }}
+      IMAGE: ${{ needs.authorize.outputs.image }}
+      CANONICAL_REF: ${{ needs.authorize.outputs.canonical_ref }}
     steps:
-      - name: Checkout the tagged source
+      - name: Checkout the immutable candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.authorize.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Create a local annotated tag as the build identity source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          test -z "$(git tag --list "$RELEASE_TAG")"
+          git -c user.name=github-actions -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
+            tag --annotate "$RELEASE_TAG" "$CANDIDATE_SHA" \
+            --message "Local qualification for $RELEASE_TAG"
+          python3 scripts/build_metadata.py \
+            --tag "$RELEASE_TAG" \
+            --revision "$CANDIDATE_SHA" \
+            --output build-metadata.json >/dev/null
+
+      - name: Prepare curated notes and exact OCI tags
+        id: release
+        run: >-
+          python3 scripts/release.py prepare
+          --tag "$RELEASE_TAG"
+          --sha "$CANDIDATE_SHA"
+          --repository "$GITHUB_REPOSITORY"
+          --changelog CHANGELOG.md
+          --notes release-notes.md
+          --tags release-tags.txt
+          --github-output "$GITHUB_OUTPUT"
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
@@ -93,76 +101,49 @@ jobs:
           go-version: "1.26.5"
           cache: true
 
-      - name: Prepare release notes and expected tags
-        run: >-
-          python3 scripts/release.py prepare
-          --tag "$GITHUB_REF_NAME"
-          --sha "$GITHUB_SHA"
-          --repository "$GITHUB_REPOSITORY"
-          --changelog CHANGELOG.md
-          --notes release-notes.md
-          --tags expected-release-tags.txt
-
-      - name: Derive all tags without latest
-        id: metadata
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
-        with:
-          images: ghcr.io/${{ github.repository }}
-          flavor: latest=false
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha,format=long
-
-      - name: Validate generated image tags
-        run: |
-          printf '%s\n' "${{ steps.metadata.outputs.tags }}" > release-tags.txt
-          cmp expected-release-tags.txt release-tags.txt
-          python3 scripts/release.py check-tags \
-            --tag "$GITHUB_REF_NAME" \
-            --sha "$GITHUB_SHA" \
-            --repository "$GITHUB_REPOSITORY" \
-            --tags release-tags.txt
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
-      - name: Build the release image once
+      - name: Build the release image once without publishing
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: Dockerfile
-          tags: ${{ steps.metadata.outputs.tags }}
-          labels: ${{ steps.metadata.outputs.labels }}
+          tags: ${{ needs.authorize.outputs.canonical_ref }}
           build-args: |
-            BUILD_IDENTITY=${{ env.BUILD_IDENTITY }}
-            RELEASE_TAG=${{ github.ref_name }}
-            VCS_REF=${{ github.sha }}
+            BUILD_IDENTITY=${{ needs.authorize.outputs.version }}
+            RELEASE_TAG=${{ needs.authorize.outputs.tag }}
+            VCS_REF=${{ needs.authorize.outputs.sha }}
           outputs: type=docker,dest=${{ runner.temp }}/lzug-release-image.tar
-          cache-from: type=gha,scope=lzug-oci-${{ runner.arch }}
+          cache-from: type=gha,scope=lzug-release-${{ runner.arch }}
           provenance: false
           sbom: false
 
-      - name: Load and validate every tag on the exact image
+      - name: Load and validate every OCI tag on the exact image
         run: |
-          docker load --input "${{ runner.temp }}/lzug-release-image.tar"
+          set -euo pipefail
+          docker load --input "${RUNNER_TEMP}/lzug-release-image.tar"
           expected_id=$(docker image inspect --format '{{.Id}}' "$CANONICAL_REF")
           while IFS= read -r reference; do
+            docker tag "$CANONICAL_REF" "$reference"
             test "$(docker image inspect --format '{{.Id}}' "$reference")" = "$expected_id"
           done < release-tags.txt
-          test "$(docker image inspect --format '{{ index .Config.Labels \"org.opencontainers.image.revision\" }}' "$CANONICAL_REF")" = "$GITHUB_SHA"
+          python3 scripts/release.py check-tags \
+            --tag "$RELEASE_TAG" \
+            --sha "$CANDIDATE_SHA" \
+            --repository "$GITHUB_REPOSITORY" \
+            --tags release-tags.txt
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$CANONICAL_REF")" = "$CANDIDATE_SHA"
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$CANONICAL_REF")" = "$VERSION"
           test "$(docker image inspect --format '{{.Config.User}}' "$CANONICAL_REF")" = "10001:10001"
 
-      - name: Test the exact release image
+      - name: Test the exact release image and CLI identity
         run: |
+          set -euo pipefail
           test "$(docker run --rm --entrypoint python "$CANONICAL_REF" -c 'import json; print(json.load(open("/app/build-metadata.json"))["identity"])')" = "$VERSION"
           scripts/container-smoke.sh "$CANONICAL_REF"
-
-      - name: Compare release image and operator CLI identity
-        run: |
           go build -trimpath \
-            -ldflags="-s -w -X main.applicationVersion=$BUILD_IDENTITY -X main.applicationRevision=$GITHUB_SHA -X main.applicationTag=$GITHUB_REF_NAME" \
+            -ldflags="-s -w -X main.applicationVersion=$VERSION -X main.applicationRevision=$CANDIDATE_SHA -X main.applicationTag=$RELEASE_TAG" \
             -o lzug-admin ./cmd/lzug-admin
           docker run --rm --entrypoint cat "$CANONICAL_REF" \
             /app/build-metadata.json > image-build-metadata.json
@@ -173,14 +154,14 @@ jobs:
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           version: v0.69.3
-          image-ref: ${{ env.CANONICAL_REF }}
+          image-ref: ${{ needs.authorize.outputs.canonical_ref }}
           format: cyclonedx
           output: lzug.sbom.cdx.json
           scanners: vuln
           exit-code: "0"
           hide-progress: true
 
-      - name: Validate the release SBOM
+      - name: Validate the SBOM and block high or critical findings
         run: >-
           python3 -c 'import json; from pathlib import Path;
           payload=json.loads(Path("lzug.sbom.cdx.json").read_text());
@@ -191,7 +172,7 @@ jobs:
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           version: v0.69.3
-          image-ref: ${{ env.CANONICAL_REF }}
+          image-ref: ${{ needs.authorize.outputs.canonical_ref }}
           scanners: vuln,secret,misconfig
           vuln-type: os,library
           severity: HIGH,CRITICAL
@@ -199,62 +180,101 @@ jobs:
           exit-code: "1"
           hide-progress: true
 
-      - name: Checksum the tested release inputs
-        working-directory: ${{ runner.temp }}
+      - name: Stage checksummed release inputs and CLI extension point
         run: |
-          cp "$GITHUB_WORKSPACE/lzug.sbom.cdx.json" .
-          cp "$GITHUB_WORKSPACE/release-notes.md" .
-          cp "$GITHUB_WORKSPACE/release-tags.txt" .
+          set -euo pipefail
+          staging="$RUNNER_TEMP/lzug-release-inputs"
+          mkdir -p "$staging/release-assets/cli"
+          cp "$RUNNER_TEMP/lzug-release-image.tar" "$staging/"
+          cp lzug.sbom.cdx.json release-notes.md release-tags.txt "$staging/"
+          python3 scripts/release.py manifest \
+            --tag "$RELEASE_TAG" \
+            --sha "$CANDIDATE_SHA" \
+            --repository "$GITHUB_REPOSITORY" \
+            --tags release-tags.txt \
+            --assets "$staging/release-assets" \
+            --output "$staging/release-manifest.json"
+          cd "$staging"
           sha256sum \
             lzug-release-image.tar \
             lzug.sbom.cdx.json \
             release-notes.md \
-            release-tags.txt > release-inputs.sha256
+            release-tags.txt \
+            release-manifest.json > release-inputs.sha256
 
-      - name: Upload the tested release inputs
+      - name: Upload the qualified immutable inputs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: lzug-release-inputs
-          path: |
-            ${{ runner.temp }}/lzug-release-image.tar
-            ${{ runner.temp }}/lzug.sbom.cdx.json
-            ${{ runner.temp }}/release-notes.md
-            ${{ runner.temp }}/release-tags.txt
-            ${{ runner.temp }}/release-inputs.sha256
+          path: ${{ runner.temp }}/lzug-release-inputs
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
 
   publish:
-    name: Publish GHCR image and GitHub release
+    name: Publish complete GHCR image and GitHub release
     needs:
-      - verify
-      - build-test
+      - authorize
+      - qualify
+    if: needs.authorize.outputs.eligible == 'true'
     runs-on: ubuntu-latest
     environment: release
     permissions:
       attestations: write
+      checks: read
       contents: write
       id-token: write
+      issues: write
       packages: write
     env:
-      IMAGE: ${{ needs.verify.outputs.image }}
-      VERSION: ${{ needs.verify.outputs.version }}
+      CANDIDATE_SHA: ${{ needs.authorize.outputs.sha }}
+      RELEASE_TAG: ${{ needs.authorize.outputs.tag }}
+      VERSION: ${{ needs.authorize.outputs.version }}
+      IMAGE: ${{ needs.authorize.outputs.image }}
+      CANONICAL_REF: ${{ needs.authorize.outputs.canonical_ref }}
+      RELEASE_ISSUE: ${{ needs.authorize.outputs.issue_number }}
+      RELEASE_ISSUE_URL: ${{ needs.authorize.outputs.issue_url }}
     steps:
-      - name: Checkout release tooling
+      - name: Checkout the immutable candidate tooling
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.authorize.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Download the tested release inputs
+      - name: Download the qualified inputs
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: lzug-release-inputs
           path: ${{ runner.temp }}/lzug-release-inputs
 
-      - name: Verify and load the tested image
+      - name: Verify the qualified input boundary
         working-directory: ${{ runner.temp }}/lzug-release-inputs
         run: |
+          set -euo pipefail
           sha256sum --check release-inputs.sha256
+          python3 "$GITHUB_WORKSPACE/scripts/release.py" check-manifest \
+            --tag "$RELEASE_TAG" \
+            --sha "$CANDIDATE_SHA" \
+            --repository "$GITHUB_REPOSITORY" \
+            --tags release-tags.txt \
+            --assets release-assets \
+            --manifest release-manifest.json
           docker load --input lzug-release-image.tar
+          while IFS= read -r reference; do
+            docker tag "$CANONICAL_REF" "$reference"
+          done < release-tags.txt
+
+      - name: Repeat authorization and create the annotated remote tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 scripts/release_gate.py
+          --repository "$GITHUB_REPOSITORY"
+          create-tag
+          --issue "$RELEASE_ISSUE"
+          --github-output "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
@@ -263,15 +283,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push all tags and require one digest
-        id: publish
+      - name: Push all OCI tags and require one digest
+        id: image
         working-directory: ${{ runner.temp }}/lzug-release-inputs
         run: |
-          set -eu
+          set -euo pipefail
           while IFS= read -r reference; do
             docker push "$reference"
           done < release-tags.txt
-
           digest=
           while IFS= read -r reference; do
             current="sha256:$(docker buildx imagetools inspect "$reference" --raw | sha256sum | cut -d ' ' -f 1)"
@@ -282,14 +301,14 @@ jobs:
             fi
           done < release-tags.txt
           test -n "$digest"
-          printf 'digest=%s\n' "$digest" | tee -a "$GITHUB_OUTPUT"
+          printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
 
       - name: Attest build provenance
         id: provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
-          subject-name: ${{ env.IMAGE }}
-          subject-digest: ${{ steps.publish.outputs.digest }}
+          subject-name: ${{ needs.authorize.outputs.image }}
+          subject-digest: ${{ steps.image.outputs.digest }}
           push-to-registry: true
           create-storage-record: false
 
@@ -297,18 +316,24 @@ jobs:
         id: sbom
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
-          subject-name: ${{ env.IMAGE }}
-          subject-digest: ${{ steps.publish.outputs.digest }}
+          subject-name: ${{ needs.authorize.outputs.image }}
+          subject-digest: ${{ steps.image.outputs.digest }}
           sbom-path: ${{ runner.temp }}/lzug-release-inputs/lzug.sbom.cdx.json
           push-to-registry: true
           create-storage-record: false
 
-      - name: Verify anonymous GHCR access
+      - name: Verify anonymous image and signed provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           docker logout ghcr.io
-          docker buildx imagetools inspect "$IMAGE@${{ steps.publish.outputs.digest }}" >/dev/null
+          docker buildx imagetools inspect "$IMAGE@${{ steps.image.outputs.digest }}" >/dev/null
+          gh attestation verify \
+            "oci://$IMAGE@${{ steps.image.outputs.digest }}" \
+            --repo "$GITHUB_REPOSITORY"
 
-      - name: Assemble release evidence and notes
+      - name: Assemble evidence and curated release notes
         working-directory: ${{ runner.temp }}/lzug-release-inputs
         env:
           PROVENANCE_BUNDLE: ${{ steps.provenance.outputs.bundle-path }}
@@ -316,56 +341,106 @@ jobs:
           SBOM_BUNDLE: ${{ steps.sbom.outputs.bundle-path }}
           SBOM_URL: ${{ steps.sbom.outputs.attestation-url }}
         run: |
-          cp "$PROVENANCE_BUNDLE" "lzug-$VERSION.provenance.json"
-          cp "$SBOM_BUNDLE" "lzug-$VERSION.sbom-attestation.json"
-          mv lzug.sbom.cdx.json "lzug-$VERSION.sbom.cdx.json"
+          set -euo pipefail
+          cp "$PROVENANCE_BUNDLE" "release-assets/lzug-$VERSION.provenance.json"
+          cp "$SBOM_BUNDLE" "release-assets/lzug-$VERSION.sbom-attestation.json"
+          mv lzug.sbom.cdx.json "release-assets/lzug-$VERSION.sbom.cdx.json"
+          cp release-manifest.json "release-assets/lzug-$VERSION.release-manifest.json"
           python3 "$GITHUB_WORKSPACE/scripts/release.py" finalize \
             --base release-notes.md \
             --output release-information.md \
             --tags release-tags.txt \
             --image "$IMAGE" \
-            --digest "${{ steps.publish.outputs.digest }}" \
+            --digest "${{ steps.image.outputs.digest }}" \
             --sbom-asset "lzug-$VERSION.sbom.cdx.json" \
             --provenance-url "$PROVENANCE_URL" \
             --sbom-url "$SBOM_URL" \
             --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --issue-url "$RELEASE_ISSUE_URL" \
             --repository "$GITHUB_REPOSITORY"
-          sha256sum \
-            "lzug-$VERSION.sbom.cdx.json" \
-            "lzug-$VERSION.provenance.json" \
-            "lzug-$VERSION.sbom-attestation.json" > "lzug-$VERSION.checksums.txt"
+          checksums="$RUNNER_TEMP/lzug-$VERSION.checksums.txt"
+          (cd release-assets && find . -type f -print0 | sort -z | xargs -0 sha256sum) \
+            > "$checksums"
+          mv "$checksums" "release-assets/lzug-$VERSION.checksums.txt"
 
-      - name: Create or update the draft release
+      - name: Create or update only a draft release
         working-directory: ${{ runner.temp }}/lzug-release-inputs
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -eu
-          if state=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft 2>/dev/null); then
+          set -euo pipefail
+          prerelease=()
+          case "$RELEASE_TAG" in
+            *-rc.*) prerelease=(--prerelease) ;;
+          esac
+          if state=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null); then
             test "$state" = "true"
-            gh release edit "$GITHUB_REF_NAME" \
+            gh release edit "$RELEASE_TAG" \
+              --target "$CANDIDATE_SHA" \
               --title "lzug $VERSION" \
               --notes-file release-information.md
           else
-            gh release create "$GITHUB_REF_NAME" \
+            gh release create "$RELEASE_TAG" \
               --verify-tag \
+              --target "$CANDIDATE_SHA" \
               --draft \
+              "${prerelease[@]}" \
               --title "lzug $VERSION" \
               --notes-file release-information.md
           fi
 
-      - name: Upload all release evidence
+      - name: Upload every checksummed release asset
         working-directory: ${{ runner.temp }}/lzug-release-inputs
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "$GITHUB_REF_NAME" --clobber \
-            "lzug-$VERSION.sbom.cdx.json#CycloneDX SBOM" \
-            "lzug-$VERSION.provenance.json#Signed build provenance" \
-            "lzug-$VERSION.sbom-attestation.json#Signed SBOM attestation" \
-            "lzug-$VERSION.checksums.txt#Release evidence checksums"
+          set -euo pipefail
+          find release-assets -type f -print0 | sort -z | \
+            xargs -0 gh release upload "$RELEASE_TAG" --clobber
 
-      - name: Publish the complete release
+      - name: Publish only the complete release
+        working-directory: ${{ runner.temp }}/lzug-release-inputs
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit "$GITHUB_REF_NAME" --draft=false
+        run: |
+          set -euo pipefail
+          gh release edit "$RELEASE_TAG" --draft=false
+          gh release view "$RELEASE_TAG" \
+            --json isDraft,tagName,targetCommitish,url \
+            --jq 'select(.isDraft == false and .tagName == env.RELEASE_TAG and .targetCommitish == env.CANDIDATE_SHA)'
+
+      - name: Record reciprocal release evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment "$RELEASE_ISSUE" --repo "$GITHUB_REPOSITORY" --body \
+            "Release $RELEASE_TAG ist vollständig veröffentlicht: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG. OCI-Digest: ${{ steps.image.outputs.digest }}. SBOM, Provenance, Prüfsummen und der Workflow-Lauf sind im Release verlinkt."
+
+  recover:
+    name: Reopen incomplete release gate
+    needs:
+      - authorize
+      - qualify
+      - publish
+    if: always() && needs.authorize.outputs.eligible == 'true' && (needs.qualify.result == 'failure' || needs.qualify.result == 'cancelled' || needs.publish.result == 'failure' || needs.publish.result == 'cancelled')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout trusted recovery tooling from master
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: master
+          persist-credentials: false
+
+      - name: Reopen the gate and document the incomplete run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ISSUE: ${{ needs.authorize.outputs.issue_number }}
+        run: >-
+          python3 scripts/release_gate.py
+          --repository "$GITHUB_REPOSITORY"
+          report-failure
+          --issue "$RELEASE_ISSUE"
+          --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

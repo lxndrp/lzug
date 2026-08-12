@@ -4,13 +4,19 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
-from backend.build_metadata import COMMIT_SHA, SEMVER_TAG, BuildMetadata
-from scripts.build_metadata import verify_tag_target
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from backend.build_metadata import COMMIT_SHA, SEMVER_TAG, BuildMetadata  # noqa: E402
+from scripts.build_metadata import verify_tag_target  # noqa: E402
 
 REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 CHANGELOG_HEADING = re.compile(
@@ -104,6 +110,75 @@ def validate_attestation_url(value: str) -> str:
     return value
 
 
+def validate_github_url(value: str) -> str:
+    """Accept only a concrete GitHub HTTPS URL."""
+
+    parsed = urlparse(value)
+    if parsed.scheme != "https" or parsed.netloc != "github.com" or not parsed.path:
+        raise ValueError("GitHub URL must be an https://github.com URL")
+    return value
+
+
+def asset_hashes(root: Path) -> dict[str, str]:
+    """Return stable SHA-256 hashes for every qualified extension asset."""
+
+    if not root.is_dir():
+        raise ValueError("release assets path must be a directory")
+    hashes: dict[str, str] = {}
+    for path in sorted(entry for entry in root.rglob("*") if entry.is_file()):
+        relative = path.relative_to(root).as_posix()
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        hashes[relative] = digest.hexdigest()
+    return hashes
+
+
+def release_manifest(args: argparse.Namespace) -> dict[str, object]:
+    """Build the immutable qualification manifest, including future CLI assets."""
+
+    release = parse_release_tag(args.tag)
+    if COMMIT_SHA.fullmatch(args.sha) is None:
+        raise ValueError("commit SHA must contain exactly 40 lowercase hex characters")
+    actual_tags = [
+        line.strip()
+        for line in Path(args.tags).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    expected_tags = image_references(args.repository, args.tag, args.sha)
+    if actual_tags != expected_tags:
+        raise ValueError("release manifest tags do not match the release identity")
+    return {
+        "schema": "https://github.com/lxndrp/lzug/releases/manifest/v1",
+        "tag": args.tag,
+        "version": release.version,
+        "revision": args.sha,
+        "image": f"ghcr.io/{args.repository.lower()}",
+        "image_tags": actual_tags,
+        "assets": asset_hashes(Path(args.assets)),
+    }
+
+
+def write_release_manifest(args: argparse.Namespace) -> None:
+    """Write the exact qualification manifest consumed by the publish job."""
+
+    payload = release_manifest(args)
+    Path(args.output).write_text(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+
+
+def check_release_manifest(args: argparse.Namespace) -> None:
+    """Fail unless identity and qualified extension assets remain byte-identical."""
+
+    expected = release_manifest(args)
+    actual = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+    if actual != expected:
+        raise ValueError("release manifest differs from the qualified inputs")
+
+
 def write_release_inputs(args: argparse.Namespace) -> None:
     """Validate release inputs and write release notes and expected image tags."""
 
@@ -148,6 +223,7 @@ def finalize_release_notes(args: argparse.Namespace) -> None:
         raise ValueError("image digest must be a lowercase sha256 digest")
     provenance_url = validate_attestation_url(args.provenance_url)
     sbom_url = validate_attestation_url(args.sbom_url)
+    issue_url = validate_github_url(args.issue_url)
     tags = [
         line.strip()
         for line in Path(args.tags).read_text(encoding="utf-8").splitlines()
@@ -172,6 +248,7 @@ unveränderlichen Manifest-Digest:
 - Build-Provenance: [signierter Herkunftsnachweis]({provenance_url})
 - SBOM-Attestation: [signierter SBOM-Nachweis]({sbom_url})
 - Build-Lauf: [GitHub Actions]({args.run_url})
+- Freigabe-Gate: [Release-Issue]({issue_url})
 
 Der Herkunftsnachweis lässt sich mit GitHub CLI prüfen:
 
@@ -208,6 +285,24 @@ def parser() -> argparse.ArgumentParser:
     check_tags.add_argument("--tags", required=True)
     check_tags.set_defaults(handler=check_image_tags)
 
+    manifest = commands.add_parser("manifest")
+    manifest.add_argument("--tag", required=True)
+    manifest.add_argument("--sha", required=True)
+    manifest.add_argument("--repository", required=True)
+    manifest.add_argument("--tags", required=True)
+    manifest.add_argument("--assets", required=True)
+    manifest.add_argument("--output", required=True)
+    manifest.set_defaults(handler=write_release_manifest)
+
+    check_manifest = commands.add_parser("check-manifest")
+    check_manifest.add_argument("--tag", required=True)
+    check_manifest.add_argument("--sha", required=True)
+    check_manifest.add_argument("--repository", required=True)
+    check_manifest.add_argument("--tags", required=True)
+    check_manifest.add_argument("--assets", required=True)
+    check_manifest.add_argument("--manifest", required=True)
+    check_manifest.set_defaults(handler=check_release_manifest)
+
     finalize = commands.add_parser("finalize")
     finalize.add_argument("--base", required=True)
     finalize.add_argument("--output", required=True)
@@ -218,6 +313,7 @@ def parser() -> argparse.ArgumentParser:
     finalize.add_argument("--provenance-url", required=True)
     finalize.add_argument("--sbom-url", required=True)
     finalize.add_argument("--run-url", required=True)
+    finalize.add_argument("--issue-url", required=True)
     finalize.add_argument("--repository", required=True)
     finalize.set_defaults(handler=finalize_release_notes)
     return root

@@ -92,6 +92,7 @@ FULL_FILES = {
     "scripts/build_metadata.py",
     "scripts/classify_quality_paths.py",
     "scripts/release.py",
+    "scripts/release_gate.py",
 }
 FRONTEND_ONLY_FILES = {
     "frontend/.editorconfig",
