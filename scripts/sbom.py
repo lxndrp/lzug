@@ -48,12 +48,12 @@ def syft_binary() -> str:
     return result.stdout.strip()
 
 
-def require_pinned_syft(root: Path = ROOT) -> str:
+def require_pinned_syft(executable: str, root: Path = ROOT) -> str:
     """Fail unless the active Syft binary matches the repository pin."""
 
     expected = configured_syft_version(root)
     result = subprocess.run(
-        [syft_binary(), "version", "-o", "json"],
+        [executable, "version", "-o", "json"],
         cwd=root,
         check=True,
         capture_output=True,
@@ -65,11 +65,11 @@ def require_pinned_syft(root: Path = ROOT) -> str:
     return actual
 
 
-def dependency_command(output: Path, source_version: str) -> list[str]:
+def dependency_command(output: Path, source_version: str, executable: str = "syft") -> list[str]:
     """Build the pinned Syft command for the cross-ecosystem dependency SBOM."""
 
     return [
-        syft_binary(),
+        executable,
         "scan",
         "dir:.",
         "--source-name",
@@ -101,11 +101,11 @@ def dependency_command(output: Path, source_version: str) -> list[str]:
     ]
 
 
-def image_command(output: Path, image: str) -> list[str]:
+def image_command(output: Path, image: str, executable: str = "syft") -> list[str]:
     """Build the pinned Syft command for the exact final OCI image."""
 
     return [
-        syft_binary(),
+        executable,
         "scan",
         image,
         "--output",
@@ -114,12 +114,16 @@ def image_command(output: Path, image: str) -> list[str]:
 
 
 def cli_command(
-    output: Path, artifact: Path, source_version: str, source_name: str = CLI_SOURCE_NAME
+    output: Path,
+    artifact: Path,
+    source_version: str,
+    source_name: str = CLI_SOURCE_NAME,
+    executable: str = "syft",
 ) -> list[str]:
     """Build the pinned Syft command for one already built native CLI artifact."""
 
     return [
-        syft_binary(),
+        executable,
         "scan",
         f"file:{artifact.resolve()}",
         "--source-name",
@@ -150,33 +154,36 @@ def run_syft(command: list[str], root: Path = ROOT) -> None:
 def generate_dependencies(args: argparse.Namespace) -> None:
     """Generate the dependency-review SBOM from locks and installed metadata."""
 
-    require_pinned_syft()
+    executable = syft_binary()
+    require_pinned_syft(executable)
     if not (ROOT / ".venv").is_dir():
         raise RuntimeError(".venv is missing; run task setup before generating the SBOM")
     output = Path(args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    run_syft(dependency_command(output, args.source_version))
+    run_syft(dependency_command(output, args.source_version, executable))
 
 
 def generate_image(args: argparse.Namespace) -> None:
     """Generate the OCI SBOM from one exact locally available image."""
 
-    require_pinned_syft()
+    executable = syft_binary()
+    require_pinned_syft(executable)
     output = Path(args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    run_syft(image_command(output, args.image))
+    run_syft(image_command(output, args.image, executable))
 
 
 def generate_cli(args: argparse.Namespace) -> None:
     """Generate an SBOM for one native CLI binary built by the caller."""
 
-    require_pinned_syft()
+    executable = syft_binary()
+    require_pinned_syft(executable)
     artifact = Path(args.artifact).resolve()
     if not artifact.is_file():
         raise RuntimeError(f"CLI artifact does not exist: {artifact}")
     output = Path(args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    run_syft(cli_command(output, artifact, args.source_version, args.source_name))
+    run_syft(cli_command(output, artifact, args.source_version, args.source_name, executable))
 
 
 def component_purl_type(component: dict[str, Any]) -> str | None:

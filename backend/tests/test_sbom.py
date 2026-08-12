@@ -50,6 +50,7 @@ class SbomContractTests(unittest.TestCase):
     def test_dependency_generation_uses_standard_format_and_only_agreed_catalogers(self) -> None:
         command = dependency_command(Path("result.cdx.json"), "0.1.0")
 
+        self.assertEqual("syft", command[0])
         self.assertIn("cyclonedx-json@1.6=result.cdx.json", command)
         catalogers = command[command.index("--override-default-catalogers") + 1]
         self.assertEqual(
@@ -60,6 +61,7 @@ class SbomContractTests(unittest.TestCase):
     def test_cli_generation_scans_one_already_built_artifact(self) -> None:
         command = cli_command(Path("result.cdx.json"), Path("dist/lzug-admin"), "0.1.0")
 
+        self.assertEqual("syft", command[0])
         self.assertIn("file:", command[2])
         self.assertTrue(command[2].endswith("/dist/lzug-admin"))
         self.assertIn("cyclonedx-json@1.6=result.cdx.json", command)
