@@ -73,10 +73,15 @@ ist kein Produkt-Rollback.
 
 ## Lizenz, Datenschutz und Pilot
 
-- `python3 scripts/inventory_licenses.py` prüft die installierte, locked
-  Python-Umgebung gegen `uv.lock` und inventarisiert alle npm-Lockfile-Einträge.
-  Unsichere Metadaten bleiben pro Distribution als manuelle oder unbekannte
-  Entscheidung sichtbar. Der Bericht ist keine Rechtsberatung.
+- `task sbom` erzeugt mit der gepinnten Syft-Version die kanonische
+  CycloneDX-Dependency-SBOM aus der installierten locked Python-Umgebung,
+  `frontend/package-lock.json` und `go.mod`. Fehlende oder mehrdeutige
+  Lizenzmetadaten bleiben sichtbar und erfordern menschliche Prüfung. Die SBOM
+  ist keine Rechtsberatung.
+- `task sbom:cli` stellt für #273 denselben Syft-/CycloneDX-Vertrag pro bereits
+  gebautem nativen Binary bereit. #328 veröffentlicht keine CLI-Artefakte;
+  Buildmatrix, Manifest, Checksums und Attestations bleiben Bestandteil von
+  #273 auf dem kritischen Pfad `#328 → #273 → #325`.
 - Projektcode ist `AGPL-3.0-or-later`; originale Dokumentationsprosa ist nach
   der in [`docs/LICENSE.md`](../LICENSE.md) festgelegten Grenze `CC-BY-4.0`.
   Drittmaterial behält seine eigene Lizenz.
@@ -87,6 +92,6 @@ ist kein Produkt-Rollback.
   Die integrierte Wintererprobung ist `v1.0.0-rc.1` zugeordnet.
 
 Der Release-Workflow ergänzt bei einer späteren tatsächlichen Veröffentlichung
-den konkreten GHCR-Digest, die CycloneDX-SBOM, Provenance, Attestations,
-Prüfsummen und Lauf-Links. Diese dynamischen Nachweise werden nicht vorab
-erfunden oder als bereits vorhanden dargestellt.
+den konkreten GHCR-Digest, Image- und Dependency-SBOM, Provenance,
+Attestations, Prüfsummen und Lauf-Links. Diese dynamischen Nachweise werden
+nicht vorab erfunden oder als bereits vorhanden dargestellt.

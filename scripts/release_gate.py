@@ -214,7 +214,7 @@ Nachweise:
 - [ ] CodeQL, Secret- und Misconfiguration-Scans sind erfolgreich.
 - [ ] Backend-, Frontend-, Actions- und Container-Abhängigkeiten sind geprüft.
 - [ ] Kein release-blockierender Security- oder Scanning-Befund ist offen.
-- [ ] CycloneDX-SBOM und Provenance werden aus dem Kandidaten erzeugt.
+- [ ] CycloneDX-Image-/Dependency-SBOM und Provenance werden aus dem Kandidaten erzeugt.
 - [ ] Artefakte werden ausschließlich durch den vertrauenswürdigen Workflow gebaut und attestiert.
 - [ ] Akzeptierte Restrisiken besitzen eine dokumentierte Maintainer-Entscheidung.
 
@@ -276,7 +276,7 @@ Entscheidung, freigebende Person, Datum und Restrisiken:
 
 Ein fehlgeschlagener oder unvollständiger Lauf gilt nicht als veröffentlichter
 Release. Die Automation veröffentlicht zuletzt den vollständigen GitHub Release
-und dokumentiert Tag, Digest, SBOM, Attestations und Workflow-Lauf hier.
+und dokumentiert Tag, Digest, beide SBOMs, Attestations und Workflow-Lauf hier.
 """
 
 

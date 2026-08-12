@@ -14,19 +14,20 @@ remains marked private for now; its lockfile contains license metadata. The
 Python lockfile records package versions while the installed distributions
 provide the license metadata.
 
-The reproducible baseline command is:
+After `task setup`, the reproducible baseline command is:
 
 ```sh
-python3 scripts/inventory_licenses.py > /tmp/lzug-license-inventory.json
+task sbom OUTPUT=/tmp/lzug.dependencies.sbom.cdx.json
 ```
 
-The command first requires `uv sync --locked --extra dev --check` to confirm
-the existing environment without changing it. The report compares installed
-Python versions with `uv.lock`, records every npm lockfile package, and keeps
-ambiguous or unknown metadata as individual review entries. It contains only
-lockfile hashes, package metadata, and aggregate source/documentation
-statistics. It does not include source contents, secrets, environment
-variables, or personal data.
+The task uses the repository-pinned Syft version and emits CycloneDX 1.6. It
+catalogs installed Python distribution metadata from the locked `.venv`, the
+complete production and development graph from `frontend/package-lock.json`,
+and third-party Go modules declared by `go.mod`. The accompanying validator
+checks the standard structure, generator version, expected ecosystems, npm
+license metadata, and the current Go boundary. The SBOM contains package
+metadata and package-manager locations, but no source contents, secrets,
+environment variables, or personal data.
 
 ## Evidence from the current manifests
 
@@ -34,38 +35,36 @@ The production npm dependency set contains Angular packages marked MIT,
 Taiga UI packages marked Apache-2.0, RxJS marked Apache-2.0, Source Sans 3
 marked OFL-1.1, `tslib` marked 0BSD, and `zone.js` marked MIT. The complete
 lockfile also contains development-only tooling under additional SPDX
-expressions. The report is the source of the exact version and count snapshot;
-this page intentionally does not duplicate a mutable package list.
+expressions. The generated dependency SBOM is the source of the exact version
+snapshot; this page intentionally does not duplicate a mutable package list.
 
-Python distributions declaring PEP 639 `License-Expression` are recorded
-without inference. Unambiguous legacy `License` values and exact classifiers
-are normalized with their source retained. Generic BSD and dual-license
-metadata remain manual review entries instead of being presented as resolved.
-An absent usable declaration remains `unknown`. These categories make the
-metadata review reproducible; they do not determine legal compatibility.
+Syft records Python `License-Expression` and legacy `License` metadata without
+project-specific normalization. Missing, generic, or ambiguous values remain
+visible in the CycloneDX components instead of being turned into inferred SPDX
+expressions. That limitation is deliberate: the SBOM makes package metadata
+reviewable, but does not determine legal compatibility.
 
-For the locked `v0.1.0` review state, the inventory records all 708 npm package
-entries with 0 unknown licenses. The checked Python environment contains 62
-third-party distributions: 34 provide `License-Expression`, 26 have one
-unambiguous normalized legacy result, 2 require manual review, and 0 are
-unknown. `colorama` 0.4.6 is present in the cross-platform lock but is not
-installed on this platform; the report keeps it visible under
-`locked_but_not_installed` instead of inventing installed metadata.
+For the locked `v0.1.0` review state, Syft deduplicates 708 npm lockfile paths
+to 668 third-party name/version components plus the frontend root component;
+all 669 carry license metadata. The checked environment contributes the lzug
+distribution and 62 installed third-party Python distributions. Platform-
+conditional packages that are locked but not installed are not presented as
+runtime components; `uv.lock` remains the authority for that cross-platform
+resolution boundary.
 
-The two manual Python entries are individually classified:
+The standard metadata leaves the following Python review points visible:
 
-- `Jinja2` 3.1.6 declares only the generic classifier `BSD License`; the
-  installed metadata does not identify a specific BSD variant. Its packaged
-  and upstream license text remains authoritative, so the inventory does not
-  synthesize an SPDX expression.
+- `Jinja2` 3.1.6, `markdown-it-py` 4.2.0, `pathspec` 1.1.1 and `pip-audit`
+  2.10.1 do not produce a CycloneDX license value from their installed
+  metadata in the pinned Syft version.
 - `python-dateutil` 2.9.0.post0 declares `Dual License` and lists Apache plus a
-  generic BSD classifier. `Apache-2.0` is identifiable, but the BSD variant is
-  not specified by that metadata. The inventory therefore preserves both
-  candidates and requires a human review of the packaged/upstream texts.
+  generic BSD classifier. The CycloneDX value preserves `Dual License`; it does
+  not identify the BSD variant.
 
-This is an explicit metadata limitation, not an assertion that either package
-is incompatible or legally cleared. A changed lockfile or distribution
-metadata requires a fresh report and review.
+These are explicit metadata limitations, not assertions that a package is
+incompatible or legally cleared. Packaged and upstream license texts remain
+authoritative. A changed lockfile or distribution metadata requires a fresh
+SBOM and human review.
 
 The local CoreUI-derived SVG path definitions are a separate notice item. The
 upstream CoreUI Icons Free license distinguishes SVG/JS icons (CC BY 4.0) from
@@ -117,21 +116,35 @@ counsel before a commercial offer is marketed or signed.
 
 ## Inventory and SBOM responsibilities
 
-- Python: `uv.lock` is the version input. License expressions must be resolved
-  from the installed locked distributions and reviewed before release.
-- npm: `frontend/package-lock.json` is the version and license input. Production
-  and development scopes must remain distinguishable.
+- Dependency SBOM: `lzug.dependencies.sbom.cdx.json` is the canonical
+  release- and license-review inventory. Python versions originate in
+  `uv.lock` and license values in the installed locked distributions. npm
+  versions, scopes and license values originate in
+  `frontend/package-lock.json`. `go.mod` currently declares no third-party Go
+  modules. Adding a Go module makes its absence from this SBOM a failing
+  contract.
+- Image SBOM: `lzug.image.sbom.cdx.json` describes only packages present in the
+  exact final OCI image. It intentionally excludes npm build dependencies and
+  the separate Go CLI. The release workflow binds only this SBOM to the image
+  digest with a signed SBOM attestation.
+- Native CLI SBOM: `task sbom:cli ARTIFACT=<binary> OUTPUT=<sbom>` scans one
+  already built binary and requires the Go main module, standard library and
+  every third-party module declared in `go.mod`. Issue #273 owns the six
+  platform builds, release-asset naming, manifest integration, checksums and
+  artifact attestations. This issue provides only their common Syft/CycloneDX
+  boundary and does not build or publish a CLI binary.
 - Documentation: original prose, diagrams, and other non-code content follow
   the explicit [`CC-BY-4.0` boundary](../LICENSE.md). Code, executable examples,
   generated code references, and third-party content are excluded from that
   grant and retain their respective licenses.
-- OCI: Noch wurde kein öffentlicher Produkt-Release ausgelöst. Der
-  [Release-Prozess](releases.md) erzeugt und archiviert die CycloneDX-JSON-SBOM
-  aus dem exakt geprüften Image und bindet sie mit einer signierten
-  Attestation an dessen Digest.
+- Release: Noch wurde kein öffentlicher Produkt-Release ausgelöst. Der
+  [Release-Prozess](releases.md) erzeugt die rollenbezogenen CycloneDX-Artefakte
+  mit derselben gepinnten Syft-Version und weist ihre unterschiedlichen
+  Verantwortungen in den Release Notes aus.
 
-The report script is intentionally preparatory. A public-release SBOM exists
-only after a fully successful tagged release workflow.
+The dependency SBOM is preparatory review evidence. Public release assets and
+the digest-bound image attestation exist only after a fully successful tagged
+release workflow.
 
 ## Primary sources
 

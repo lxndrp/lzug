@@ -22,9 +22,10 @@ Build-Identität in Backend, Frontend, CLI oder OCI ab.
   Dokumentation, Security und den Gesamtstatus.
 - Fail-closed Release-Infrastruktur mit unveränderlichem Kandidat-Commit,
   getrenntem Maintainer-/Environment-Gate sowie kuratierten Release Notes.
-- Qualifizierte Lieferkettennachweise für GHCR-Digest, CycloneDX-SBOM,
-  Provenance, Attestations und Prüfsummen, die der Release-Workflow bei einer
-  späteren Veröffentlichung an diese Notes anhängt.
+- Qualifizierte Lieferkettennachweise für GHCR-Digest, getrennte
+  CycloneDX-Image-/Dependency-SBOMs, Provenance, Attestations und Prüfsummen,
+  die der Release-Workflow bei einer späteren Veröffentlichung an diese Notes
+  anhängt.
 - Compose-Referenz für konkrete GHCR-Versionen und vorzugsweise unveränderliche
   Digests einschließlich Non-Root-, Health- und `/data`-Persistenzvertrag.
 

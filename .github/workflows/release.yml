@@ -101,6 +101,25 @@ jobs:
           go-version: "1.26.5"
           cache: true
 
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14.6"
+
+      - name: Set up UV
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+
+      - name: Install the locked dependency-review environment
+        run: uv sync --locked --extra dev
+
+      - name: Download the pinned Syft binary
+        id: syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          syft-version: v1.51.0
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
@@ -150,23 +169,23 @@ jobs:
           ./lzug-admin --build-metadata > cli-build-metadata.json
           cmp image-build-metadata.json cli-build-metadata.json
 
-      - name: Generate release CycloneDX SBOM
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
-        with:
-          version: v0.69.3
-          image-ref: ${{ needs.authorize.outputs.canonical_ref }}
-          format: cyclonedx
-          output: lzug.sbom.cdx.json
-          scanners: vuln
-          exit-code: "0"
-          hide-progress: true
-
-      - name: Validate the SBOM and block high or critical findings
-        run: >-
-          python3 -c 'import json; from pathlib import Path;
-          payload=json.loads(Path("lzug.sbom.cdx.json").read_text());
-          assert payload["bomFormat"] == "CycloneDX";
-          assert payload.get("components"), "SBOM contains no components"'
+      - name: Generate and validate both canonical CycloneDX SBOMs
+        env:
+          SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
+        run: |
+          set -euo pipefail
+          python3 scripts/sbom.py generate-dependencies \
+            --source-version "$VERSION" \
+            --output lzug.dependencies.sbom.cdx.json
+          python3 scripts/sbom.py validate \
+            --kind dependencies \
+            --input lzug.dependencies.sbom.cdx.json
+          python3 scripts/sbom.py generate-image \
+            --image "$CANONICAL_REF" \
+            --output lzug.image.sbom.cdx.json
+          python3 scripts/sbom.py validate \
+            --kind image \
+            --input lzug.image.sbom.cdx.json
 
       - name: Block high and critical image findings
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
@@ -186,7 +205,8 @@ jobs:
           staging="$RUNNER_TEMP/lzug-release-inputs"
           mkdir -p "$staging/release-assets/cli"
           cp "$RUNNER_TEMP/lzug-release-image.tar" "$staging/"
-          cp lzug.sbom.cdx.json release-notes.md release-tags.txt "$staging/"
+          cp lzug.dependencies.sbom.cdx.json lzug.image.sbom.cdx.json \
+            release-notes.md release-tags.txt "$staging/"
           python3 scripts/release.py manifest \
             --tag "$RELEASE_TAG" \
             --sha "$CANDIDATE_SHA" \
@@ -197,7 +217,8 @@ jobs:
           cd "$staging"
           sha256sum \
             lzug-release-image.tar \
-            lzug.sbom.cdx.json \
+            lzug.dependencies.sbom.cdx.json \
+            lzug.image.sbom.cdx.json \
             release-notes.md \
             release-tags.txt \
             release-manifest.json > release-inputs.sha256
@@ -318,7 +339,7 @@ jobs:
         with:
           subject-name: ${{ needs.authorize.outputs.image }}
           subject-digest: ${{ steps.image.outputs.digest }}
-          sbom-path: ${{ runner.temp }}/lzug-release-inputs/lzug.sbom.cdx.json
+          sbom-path: ${{ runner.temp }}/lzug-release-inputs/lzug.image.sbom.cdx.json
           push-to-registry: true
           create-storage-record: false
 
@@ -344,7 +365,10 @@ jobs:
           set -euo pipefail
           cp "$PROVENANCE_BUNDLE" "release-assets/lzug-$VERSION.provenance.json"
           cp "$SBOM_BUNDLE" "release-assets/lzug-$VERSION.sbom-attestation.json"
-          mv lzug.sbom.cdx.json "release-assets/lzug-$VERSION.sbom.cdx.json"
+          mv lzug.image.sbom.cdx.json \
+            "release-assets/lzug-$VERSION.image.sbom.cdx.json"
+          mv lzug.dependencies.sbom.cdx.json \
+            "release-assets/lzug-$VERSION.dependencies.sbom.cdx.json"
           cp release-manifest.json "release-assets/lzug-$VERSION.release-manifest.json"
           python3 "$GITHUB_WORKSPACE/scripts/release.py" finalize \
             --base release-notes.md \
@@ -352,7 +376,8 @@ jobs:
             --tags release-tags.txt \
             --image "$IMAGE" \
             --digest "${{ steps.image.outputs.digest }}" \
-            --sbom-asset "lzug-$VERSION.sbom.cdx.json" \
+            --image-sbom-asset "lzug-$VERSION.image.sbom.cdx.json" \
+            --dependency-sbom-asset "lzug-$VERSION.dependencies.sbom.cdx.json" \
             --provenance-url "$PROVENANCE_URL" \
             --sbom-url "$SBOM_URL" \
             --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \

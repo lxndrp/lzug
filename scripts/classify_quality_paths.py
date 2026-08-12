@@ -93,6 +93,7 @@ FULL_FILES = {
     "scripts/classify_quality_paths.py",
     "scripts/release.py",
     "scripts/release_gate.py",
+    "scripts/sbom.py",
 }
 FRONTEND_ONLY_FILES = {
     "frontend/.editorconfig",
@@ -230,7 +231,9 @@ def selection_for_path(path: str) -> QualitySelection:
     if normalized.startswith("frontend/"):
         return QualitySelection.full()
 
-    if normalized == "go.mod" or normalized.startswith("cmd/lzug-admin/"):
+    if normalized == "go.mod":
+        return QualitySelection(operator_cli=True, oci=True, image=True)
+    if normalized.startswith("cmd/lzug-admin/"):
         return QualitySelection(operator_cli=True)
     return QualitySelection.full()
 

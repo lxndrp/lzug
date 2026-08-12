@@ -4,9 +4,9 @@ This file covers third-party material used by the source repository, the
 installed locked Python environment, and the production frontend. Exact npm
 versions and license expressions come from `frontend/package-lock.json`.
 Python versions come from `uv.lock`; expressions are read from the installed,
-locked distribution metadata. Run `python3 scripts/inventory_licenses.py` for
-the reproducible per-package snapshot. The upstream license texts remain
-authoritative.
+locked distribution metadata. After `task setup`, run
+`task sbom OUTPUT=/tmp/lzug.dependencies.sbom.cdx.json` for the standardized
+CycloneDX snapshot. The upstream license texts remain authoritative.
 
 ## CoreUI Icons Free
 
@@ -51,22 +51,19 @@ distributed.
 | `@fontsource/source-sans-3` | OFL-1.1 |
 
 The transitive production closure and all development packages are not
-duplicated here because they change with the lockfile. The inventory report
-records every lockfile package, version, license expression, and unknown entry;
-the release process must attach the report and preserve the package-provided
-license files in any distributable bundle.
+duplicated here because they change with the lockfile. The canonical dependency
+SBOM records their deduplicated name/version components and license metadata;
+the release process attaches that standard artifact and must preserve the
+package-provided license files in any distributable bundle.
 
 ## Python dependencies
 
 Python runtime, development, and documentation dependencies are version-locked
-in `uv.lock`. The inventory first verifies the environment with
-`uv sync --locked --extra dev --check`, then compares every installed
-distribution version with the lock and records its PEP 639
-`License-Expression` or the exact legacy metadata used for classification.
-Entries whose metadata does not determine one SPDX expression remain listed
-individually as `manual-review-required`; missing metadata remains `unknown`.
-This classification is release-review evidence, not legal advice or a promise
-of license compatibility.
+in `uv.lock`. Syft catalogs the installed locked distributions and preserves
+their PEP 639 or legacy license metadata without project-specific SPDX
+inference. Missing, generic, or ambiguous metadata remains visible for manual
+review. This standard artifact is release-review evidence, not legal advice or
+a promise of license compatibility.
 
 ## Documentation content
 

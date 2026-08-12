@@ -123,8 +123,10 @@ Runtime-Schritt bereits Compose oder eine Proxy-Konfiguration vorwegnimmt.
 Der OCI-Workflow baut das Image bei relevanten Pull Requests genau einmal und
 übergibt das per SHA-256 abgesicherte Docker-Archiv an zwei getrennte Jobs.
 Der Runtime-Job prüft Revision, Non-Root-Vertrag, Start, Health, API, SPA und
-die gehärteten Isolationsgrenzen. Der Scan-Job erzeugt aus demselben Image das
-CycloneDX-SBOM und blockiert behebbare High-/Critical-Befunde. Der
+die gehärteten Isolationsgrenzen. Der Scan-Job erzeugt mit Syft aus demselben
+Image die kanonische CycloneDX-Image-SBOM und daneben aus den locked
+Python-/npm-/Go-Eingaben eine getrennte Dependency-SBOM für Release- und
+Lizenzreview. Trivy blockiert weiterhin behebbare High-/Critical-Befunde. Der
 content-addressed BuildKit-Cache beschleunigt Builds, ohne Lockfile- oder
 Kontextänderungen zu übergehen; Pull Requests dürfen den gemeinsamen Cache nur
 lesen, aktualisiert wird er ausschließlich auf dem geschützten Hauptbranch.
@@ -134,6 +136,7 @@ und GHCR-Release bleiben dem getrennten, nur durch einen freigegebenen
 SemVer-Tag startenden [Release-Prozess](../releases.md) vorbehalten. Dieser
 prüft die grünen Qualitätsläufe des exakten `master`-Commits, testet das
 Release-Image erneut, veröffentlicht SemVer-, Major-, Major.Minor- und
-Commit-SHA-Tags auf denselben Registry-Digest und hängt CycloneDX-SBOM sowie
-signierte Provenance- und SBOM-Attestations an den GitHub Release. Ein
+Commit-SHA-Tags auf denselben Registry-Digest und hängt beide
+CycloneDX-Artefakte sowie signierte Provenance- und Image-SBOM-Attestations an
+den GitHub Release. Ein
 `latest`-Tag wird nicht erzeugt.

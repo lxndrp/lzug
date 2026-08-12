@@ -78,7 +78,25 @@ tasks:
       - quality:operator
       - quality:oci
       - quality:overall
+      - quality:sbom
       - docs
+
+  quality:sbom:
+    desc: Generate and validate the canonical dependency SBOM
+    cmds:
+      - |
+        set -eu
+        temporary_directory="$(mktemp -d)"
+        trap 'rm -rf "$temporary_directory"' EXIT
+        revision="$(git rev-parse HEAD)"
+        source_version="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
+        uv sync --locked --extra dev --check
+        python3 scripts/sbom.py generate-dependencies \
+          --source-version "$source_version" \
+          --output "$temporary_directory/lzug.dependencies.sbom.cdx.json"
+        python3 scripts/sbom.py validate \
+          --kind dependencies \
+          --input "$temporary_directory/lzug.dependencies.sbom.cdx.json"
 
   quality:backend:
     desc: Run backend lint, audit, tests, and coverage
@@ -263,6 +281,60 @@ tasks:
     dir: frontend
     cmds:
       - npx playwright install chromium
+
+  sbom:
+    desc: Generate the canonical dependency and license-review CycloneDX SBOM
+    vars:
+      OUTPUT: '{{default "lzug.dependencies.sbom.cdx.json" .OUTPUT}}'
+    cmds:
+      - |
+        set -eu
+        revision="$(git rev-parse HEAD)"
+        source_version="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
+        uv sync --locked --extra dev --check
+        python3 scripts/sbom.py generate-dependencies \
+          --source-version "$source_version" \
+          --output "{{.OUTPUT}}"
+        python3 scripts/sbom.py validate \
+          --kind dependencies \
+          --input "{{.OUTPUT}}"
+
+  sbom:image:
+    desc: Generate the canonical CycloneDX SBOM for an exact local OCI image
+    requires:
+      vars:
+        - IMAGE
+    vars:
+      OUTPUT: '{{default "lzug.image.sbom.cdx.json" .OUTPUT}}'
+    cmds:
+      - >-
+        python3 scripts/sbom.py generate-image
+        --image "{{.IMAGE}}"
+        --output "{{.OUTPUT}}"
+      - >-
+        python3 scripts/sbom.py validate
+        --kind image
+        --input "{{.OUTPUT}}"
+
+  sbom:cli:
+    desc: Generate CycloneDX for one native CLI artifact built by the caller
+    requires:
+      vars:
+        - ARTIFACT
+        - OUTPUT
+    cmds:
+      - |
+        set -eu
+        revision="$(git rev-parse HEAD)"
+        source_version="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
+        python3 scripts/sbom.py generate-cli \
+          --artifact "{{.ARTIFACT}}" \
+          --source-name "$(basename "{{.ARTIFACT}}")" \
+          --source-version "$source_version" \
+          --output "{{.OUTPUT}}"
+        python3 scripts/sbom.py validate \
+          --kind cli \
+          --input "{{.OUTPUT}}"
 
   dev:backend:
     desc: Start the backend development server

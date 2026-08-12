@@ -134,7 +134,7 @@ body:
           required: true
         - label: Backend-, Frontend-, Actions- und Container-Abhängigkeiten sind geprüft; blockierende Befunde sind geschlossen.
           required: true
-        - label: CycloneDX-SBOM und Provenance werden aus dem Kandidat-Commit erzeugt und dem Release zugeordnet.
+        - label: CycloneDX-Image-/Dependency-SBOM und Provenance werden aus dem Kandidat-Commit erzeugt und dem Release zugeordnet.
           required: true
         - label: Artefakte werden ausschließlich durch den vertrauenswürdigen GitHub-Workflow gebaut und signiert.
           required: true
