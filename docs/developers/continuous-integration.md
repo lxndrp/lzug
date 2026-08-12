@@ -42,6 +42,28 @@ systemübergreifende Details und werden nicht fälschlich als isolierte
 OCI-Prüfungen eingeordnet. Wiki-Publishing und Dependabot-Auto-Merge bleiben
 ereignisbasierte, unabhängige Automationen.
 
+### Runner-Zeit der verpflichtenden CodeQL-Analysen
+
+Die breitere Absicherung erhöht die GitHub-Runner-Zeit auch für reine Prozess-
+und Dokumentationsänderungen bewusst. Die drei CodeQL-Jobs des Pull-Request-
+Laufs [31584452018](https://github.com/lxndrp/lzug/actions/runs/31584452018)
+benötigten zusammen 179 Jobsekunden: JavaScript/TypeScript 63 Sekunden, Python
+58 Sekunden und Go 58 Sekunden. Der Pull Request ändert den CI-Workflow und
+wählt deshalb einen Vollauf; für schmale Änderungsklassen werden die Kosten
+daher transparent aus gemessenen Komponenten projiziert und nicht als
+beobachteter synthetischer Lauf ausgegeben:
+
+| Änderungsklasse | Gemessene bisherige Basis | Basis ohne temporäre Kompatibilitäts-Gates | Mit drei CodeQL-Jobs | Differenz zur bisherigen Basis |
+| --- | --- | --- | --- | --- |
+| reine Prozessänderung | 46 s / 11 Jobs, Lauf [31544583374](https://github.com/lxndrp/lzug/actions/runs/31544583374) | 40 s / 9 Jobs | 219 s / 12 Jobs | +173 s / +1 Job |
+| reine Dokumentationsänderung | 85 s / 12 Jobs, Lauf [31544471092](https://github.com/lxndrp/lzug/actions/runs/31544471092) | 78 s / 10 Jobs | 257 s / 13 Jobs | +172 s / +1 Job |
+
+Die frühere Basis enthielt zwei inzwischen entfernte Kompatibilitäts-Gates mit
+zusammen sechs beziehungsweise sieben Jobsekunden. Die Projektion addiert die
+gemessenen CodeQL-Zeiten zur bereinigten Basis. Sie macht damit die dauerhaften
+Mehrkosten des ausnahmslosen Merge-Schutzes nachvollziehbar, ohne parallele
+Joblaufzeiten mit der verstrichenen Workflow-Zeit zu verwechseln.
+
 ## Zentrale, konservative Pfadklassifikation
 
 `scripts/classify_quality_paths.py` ist die einzige Quelle für die
@@ -53,8 +75,8 @@ aus. Mehrere geänderte Pfade vereinigen ihre Auswahlmengen.
 
 | Änderung | Ausgewählte Domänen und Details |
 | --- | --- |
-| Reine Prozess- und Metadaten, etwa `AGENTS.md` | keine Anwendungsdomäne; nur Klassifizierer, stabile Gates, der bewusst breite Source-Scan und beide CodeQL-Analysen |
-| `docs/**`, `mkdocs.yml`, Changelog oder technische README-Dateien | Dokumentation sowie beide CodeQL-Analysen |
+| Reine Prozess- und Metadaten, etwa `AGENTS.md` | keine Anwendungsdomäne; nur Klassifizierer, stabile Gates, der bewusst breite Source-Scan und alle drei CodeQL-Analysen |
+| `docs/**`, `mkdocs.yml`, Changelog oder technische README-Dateien | Dokumentation sowie alle drei CodeQL-Analysen |
 | `backend/tests/**` oder statische Prototyp-Testhilfen | Backend |
 | Produktives `backend/**`, `db/**`, Schema, Migrationen oder Fixtures | Backend, OCI, Dokumentation, Security und Overall mit getrennten E2E-/a11y-Details |
 | Betreiberprotokoll in `backend/admin.py` oder `backend/admin_service.py` | wie produktives Backend, zusätzlich Betreiber-CLI und CLI-zu-Container |

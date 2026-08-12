@@ -17,8 +17,8 @@ class SecurityGateTests(unittest.TestCase):
             "if: github.event_name == 'pull_request' || " "needs.classify.outputs.codeql == 'true'",
             workflow,
         )
-        self.assertIn("- language: go", workflow)
-        self.assertIn("build-mode: autobuild", workflow)
+        self.assertIn("- go", workflow)
+        self.assertIn("matrix.language == 'go' && 'autobuild' || 'none'", workflow)
         self.assertNotIn("Block high and critical SAST findings", workflow)
         self.assertNotIn("scripts/enforce_sarif_security.py", workflow)
         self.assertIn("name: Quality / Security", workflow)
