@@ -26,7 +26,6 @@ nav:
           - Review Policy: developers/reviews/index.md
           - Reviewkriterien: developers/reviews/kriterien.md
           - Copilot-Pilotphase: developers/reviews/copilot-pilot.md
-          - Prüfung der öffentlichen Git-Historie: developers/reviews/public-history-audit.md
       - Frontend-Richtlinie: developers/frontend-guidelines.md
       - Lizenz und Release-Freigabe: developers/licensing.md
       - Datenschutzabgrenzung: developers/privacy.md

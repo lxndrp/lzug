@@ -261,6 +261,22 @@ class CiWorkflowContractTests(unittest.TestCase):
         self.assertIn("name: Browser E2E", self.workflow)
         self.assertIn("name: Accessibility", self.workflow)
 
+    def test_failed_browser_reports_are_uploaded_directly_for_seven_days(self) -> None:
+        e2e_job = self.workflow.split("\n  e2e:\n", 1)[1].split("\n  a11y:\n", 1)[0]
+        a11y_job = self.workflow.split("\n  a11y:\n", 1)[1].split("\n  codeql:\n", 1)[0]
+
+        for job, report_name in (
+            (e2e_job, "playwright-e2e-report"),
+            (a11y_job, "playwright-a11y-report"),
+        ):
+            with self.subTest(report=report_name):
+                self.assertIn("uses: actions/upload-artifact@", job)
+                self.assertIn("if: failure()", job)
+                self.assertIn(f"name: {report_name}", job)
+                self.assertIn("path: frontend/playwright-report", job)
+                self.assertIn("if-no-files-found: warn", job)
+                self.assertIn("retention-days: 7", job)
+
 
 class StableQualityGateContractTests(unittest.TestCase):
     def test_every_quality_workflow_uses_the_central_classifier(self) -> None:
