@@ -122,6 +122,8 @@ Wiederholung desselben Commits verglichen. Maßgeblich sind Cache-Treffer,
 Installationsdauer und gesamte Dauer beider Browserjobs. Der konkrete Nachweis
 gehört in den umsetzenden Pull Request; der Cache bleibt nur bei reproduzierbar
 kürzerer Laufzeit und stabilen E2E-/Accessibility-Ergebnissen bestehen.
+Schlägt einer der Browserjobs fehl, stellt er seinen Playwright-Report
+unmittelbar für sieben Tage als GitHub-Actions-Artefakt bereit.
 
 ## Lokale Auswahl
 

@@ -5,22 +5,27 @@ from __future__ import annotations
 
 import argparse
 import re
-import sys
 from collections import Counter
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit
 from xml.etree.ElementTree import Element, ElementTree, SubElement
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
-from scripts.check_ci_artifacts import SENSITIVE_PATTERNS  # noqa: E402
-
 DEFAULT_WIKI_BASE_URL = "https://github.com/lxndrp/lzug/wiki"
 LINK_PATTERN = re.compile(r"(?<!!)(?:\[[^\]]*\])\(([^)]+)\)")
 MARKDOWN_SUFFIXES = {".md", ".markdown"}
 SIDEBAR_FILENAME = "_Sidebar.md"
 WIKI_SYNTAX_PATTERN = re.compile(r"\[\[[^\]]+\]\]|\{\{[^}]+\}\}")
+SECRET_LIKE_PATTERNS = (
+    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+    re.compile(
+        r"(?i)['\"]?(?:authorization|proxy-authorization)['\"]?\s*:\s*" r"(?:bearer|basic)\s+\S+"
+    ),
+    re.compile(r"(?i)['\"]?(?:cookie|set-cookie)['\"]?\s*:\s*['\"]?[^\s<]+"),
+    re.compile(
+        r"(?i)['\"]?(?:api[_-]?key|access[_-]?token|client[_-]?secret)['\"]?" r"\s*[:=]\s*['\"]?\S+"
+    ),
+)
 
 
 def relative(path: Path) -> str:
@@ -148,7 +153,7 @@ def check_public_safety(files: list[Path]) -> list[str]:
                 errors.append(
                     f"{display}:{line_number}: Gollum-specific link/template syntax is forbidden"
                 )
-            if any(pattern.search(line) for pattern in SENSITIVE_PATTERNS):
+            if any(pattern.search(line) for pattern in SECRET_LIKE_PATTERNS):
                 errors.append(f"{display}:{line_number}: secret-like content detected")
     return errors
 
