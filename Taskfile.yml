@@ -122,7 +122,7 @@ tasks:
       - npm run security:check
 
   quality:operator:
-    desc: Run Go operator CLI tests and all portable CI builds
+    desc: Run Go operator CLI tests, reproducible archives, and all portable builds
     cmds:
       - task: test:operator
       - |
@@ -131,14 +131,17 @@ tasks:
         trap 'rm -rf "$temporary_directory"' EXIT
         revision="$(git rev-parse HEAD)"
         application_version="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
-        for goos in linux darwin windows; do
-          for goarch in amd64 arm64; do
-            GOOS="$goos" GOARCH="$goarch" \
-              go build -trimpath \
-              -ldflags="-s -w -X main.applicationVersion=$application_version -X main.applicationRevision=$revision" \
-              -o "$temporary_directory/lzug-admin-$goos-$goarch" \
-              ./cmd/lzug-admin
-          done
+        for run in first second; do
+          python3 scripts/build_cli_release.py \
+            --version "$application_version" \
+            --revision "$revision" \
+            --output "$temporary_directory/$run/release-assets/cli" \
+            --work-dir "$temporary_directory/$run/build"
+        done
+        for archive in "$temporary_directory/first/release-assets/cli"/*; do
+          test -f "$archive"
+          relative="${archive#"$temporary_directory/first/release-assets/cli/"}"
+          cmp "$archive" "$temporary_directory/second/release-assets/cli/$relative"
         done
 
   quality:oci:
