@@ -1,9 +1,12 @@
 # Third-party notices
 
-This file covers third-party material used by the source repository and the
-production frontend. Exact versions and license expressions are derived from
-`frontend/package-lock.json`; run `python3 scripts/inventory_licenses.py` for a
-reproducible snapshot. The upstream license texts remain authoritative.
+This file covers third-party material used by the source repository, the
+installed locked Python environment, and the production frontend. Exact npm
+versions and license expressions come from `frontend/package-lock.json`.
+Python versions come from `uv.lock`; expressions are read from the installed,
+locked distribution metadata. Run `python3 scripts/inventory_licenses.py` for
+the reproducible per-package snapshot. The upstream license texts remain
+authoritative.
 
 ## CoreUI Icons Free
 
@@ -53,13 +56,27 @@ records every lockfile package, version, license expression, and unknown entry;
 the release process must attach the report and preserve the package-provided
 license files in any distributable bundle.
 
-## Python and documentation dependencies
+## Python dependencies
 
-Python and documentation dependencies are version-locked in `uv.lock`, but
-that file does not carry license expressions. Their installed distribution
-metadata must be resolved and reviewed before a public release. Documentation
-content is not automatically covered by the software license; its copyright
-and reuse terms must be decided together with the project copyright notice.
+Python runtime, development, and documentation dependencies are version-locked
+in `uv.lock`. The inventory first verifies the environment with
+`uv sync --locked --extra dev --check`, then compares every installed
+distribution version with the lock and records its PEP 639
+`License-Expression` or the exact legacy metadata used for classification.
+Entries whose metadata does not determine one SPDX expression remain listed
+individually as `manual-review-required`; missing metadata remains `unknown`.
+This classification is release-review evidence, not legal advice or a promise
+of license compatibility.
+
+## Documentation content
+
+Original lzug documentation prose, diagrams, and other non-code content are
+licensed separately under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), as defined in
+[`docs/LICENSE.md`](docs/LICENSE.md). Source code, executable examples, and
+generated code references remain under the project software license.
+Third-party material, including CoreUI icon artwork, remains under its own
+license and is not relicensed by this documentation grant.
 
 ## Project license boundary
 

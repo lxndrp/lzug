@@ -18,6 +18,7 @@ plugins:
             members_order: source
 nav:
   - Start: index.md
+  - Dokumentationslizenz: LICENSE.md
   - Für Entwickler:
       - Überblick: developers/index.md
       - Synthetische Testdaten: developers/synthetic-fixtures.md
@@ -28,7 +29,9 @@ nav:
           - Prüfung der öffentlichen Git-Historie: developers/reviews/public-history-audit.md
       - Frontend-Richtlinie: developers/frontend-guidelines.md
       - Lizenz und Release-Freigabe: developers/licensing.md
+      - Datenschutzabgrenzung: developers/privacy.md
       - Releases und GHCR: developers/releases.md
+      - Release- und Betriebsnachweise v0.1.0: developers/release-evidence-v0.1.0.md
       - Release-Milestones: developers/release-milestones.md
       - Frontend-Ausnahmen: developers/frontend-exceptions.md
       - Dokumentation: developers/documentation.md
