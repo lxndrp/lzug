@@ -127,7 +127,11 @@ def asset_hashes(root: Path) -> dict[str, str]:
     hashes: dict[str, str] = {}
     for path in sorted(entry for entry in root.rglob("*") if entry.is_file()):
         relative = path.relative_to(root).as_posix()
-        hashes[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        hashes[relative] = digest.hexdigest()
     return hashes
 
 

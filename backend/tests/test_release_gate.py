@@ -11,6 +11,7 @@ from scripts.release_gate import (
     Candidate,
     GateError,
     authorize,
+    create_annotated_tag,
     parse_candidate,
     render_candidate,
     required_checks_pass,
@@ -166,6 +167,16 @@ class ReleaseGateContractTests(unittest.TestCase):
                 authorize(FakeGitHub(author="attacker"), 400, output)
             with self.assertRaises(GateError):
                 authorize(FakeGitHub(permission="write"), 400, output)
+
+    def test_tag_creation_rejects_an_ineligible_issue_cleanly(self) -> None:
+        client = FakeGitHub()
+        client.issue["labels"] = []
+        client.issue["body"] = "regular issue"
+        with TemporaryDirectory() as directory:
+            output = Path(directory) / "output"
+            with self.assertRaisesRegex(GateError, "not eligible"):
+                create_annotated_tag(client, 400, output)
+            self.assertFalse(output.with_suffix(".authorization").exists())
 
 
 if __name__ == "__main__":

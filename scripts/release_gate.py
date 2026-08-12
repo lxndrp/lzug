@@ -516,9 +516,14 @@ def create_annotated_tag(client: GitHub, issue_number: int, output: Path) -> Non
     """Create the exact annotated tag after repeating all authorization checks."""
 
     temporary = output.with_suffix(".authorization")
-    authorize(client, issue_number, temporary)
-    values = dict(line.split("=", 1) for line in temporary.read_text(encoding="utf-8").splitlines())
-    temporary.unlink()
+    try:
+        if not authorize(client, issue_number, temporary):
+            raise GateError("release issue is not eligible for tag creation")
+        values = dict(
+            line.split("=", 1) for line in temporary.read_text(encoding="utf-8").splitlines()
+        )
+    finally:
+        temporary.unlink(missing_ok=True)
     candidate = Candidate(values["tag"], values["sha"], 1)
     encoded_tag = quote(candidate.tag, safe="")
     existing = client.request(
