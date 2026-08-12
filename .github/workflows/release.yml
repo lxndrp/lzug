@@ -207,6 +207,39 @@ jobs:
           cp "$RUNNER_TEMP/lzug-release-image.tar" "$staging/"
           cp lzug.dependencies.sbom.cdx.json lzug.image.sbom.cdx.json \
             release-notes.md release-tags.txt "$staging/"
+          python3 scripts/build_cli_release.py \
+            --version "$VERSION" \
+            --revision "$CANDIDATE_SHA" \
+            --tag "$RELEASE_TAG" \
+            --output "$staging/release-assets/cli" \
+            --work-dir "$RUNNER_TEMP/lzug-cli-build"
+          for target in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64 windows-arm64; do
+            archive_stem="lzug-admin-$VERSION-$target"
+            python3 scripts/sbom.py generate-cli \
+              --source-version "$VERSION" \
+              --source-name "$archive_stem" \
+              --artifact "$RUNNER_TEMP/lzug-cli-build/binaries/lzug-admin-$target" \
+              --output "$staging/release-assets/cli/$archive_stem.sbom.cdx.json"
+            python3 scripts/sbom.py validate \
+              --kind cli \
+              --input "$staging/release-assets/cli/$archive_stem.sbom.cdx.json"
+          done
+          python3 scripts/release.py cli-checksums \
+            --version "$VERSION" \
+            --assets "$staging/release-assets" \
+            --output "$staging/release-assets/cli/lzug-admin-$VERSION.checksums.txt"
+          mkdir -p "$RUNNER_TEMP/lzug-cli-identity-check"
+          tar -xzf \
+            "$staging/release-assets/cli/lzug-admin-$VERSION-linux-amd64.tar.gz" \
+            -C "$RUNNER_TEMP/lzug-cli-identity-check"
+          python3 scripts/build_metadata.py \
+            --revision "$CANDIDATE_SHA" \
+            --tag "$RELEASE_TAG" \
+            > "$RUNNER_TEMP/lzug-cli-identity-check/expected.json"
+          "$RUNNER_TEMP/lzug-cli-identity-check/lzug-admin" --build-metadata \
+            > "$RUNNER_TEMP/lzug-cli-identity-check/actual.json"
+          cmp "$RUNNER_TEMP/lzug-cli-identity-check/expected.json" \
+            "$RUNNER_TEMP/lzug-cli-identity-check/actual.json"
           python3 scripts/release.py manifest \
             --tag "$RELEASE_TAG" \
             --sha "$CANDIDATE_SHA" \
@@ -297,6 +330,15 @@ jobs:
           --issue "$RELEASE_ISSUE"
           --github-output "$GITHUB_OUTPUT"
 
+      - name: Attest the six CLI archives
+        id: cli_provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: |
+            ${{ runner.temp }}/lzug-release-inputs/release-assets/cli/*.tar.gz
+            ${{ runner.temp }}/lzug-release-inputs/release-assets/cli/*.zip
+          show-summary: true
+
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
@@ -353,6 +395,11 @@ jobs:
           gh attestation verify \
             "oci://$IMAGE@${{ steps.image.outputs.digest }}" \
             --repo "$GITHUB_REPOSITORY"
+          for asset in "$RUNNER_TEMP"/lzug-release-inputs/release-assets/cli/*.tar.gz \
+            "$RUNNER_TEMP"/lzug-release-inputs/release-assets/cli/*.zip; do
+            test -f "$asset"
+            gh attestation verify "$asset" --repo "$GITHUB_REPOSITORY"
+          done
 
       - name: Assemble evidence and curated release notes
         working-directory: ${{ runner.temp }}/lzug-release-inputs
@@ -361,10 +408,13 @@ jobs:
           PROVENANCE_URL: ${{ steps.provenance.outputs.attestation-url }}
           SBOM_BUNDLE: ${{ steps.sbom.outputs.bundle-path }}
           SBOM_URL: ${{ steps.sbom.outputs.attestation-url }}
+          CLI_PROVENANCE_BUNDLE: ${{ steps.cli_provenance.outputs.bundle-path }}
+          CLI_PROVENANCE_URL: ${{ steps.cli_provenance.outputs.attestation-url }}
         run: |
           set -euo pipefail
           cp "$PROVENANCE_BUNDLE" "release-assets/lzug-$VERSION.provenance.json"
           cp "$SBOM_BUNDLE" "release-assets/lzug-$VERSION.sbom-attestation.json"
+          cp "$CLI_PROVENANCE_BUNDLE" "release-assets/lzug-$VERSION.cli.provenance.json"
           mv lzug.image.sbom.cdx.json \
             "release-assets/lzug-$VERSION.image.sbom.cdx.json"
           mv lzug.dependencies.sbom.cdx.json \
@@ -380,6 +430,9 @@ jobs:
             --dependency-sbom-asset "lzug-$VERSION.dependencies.sbom.cdx.json" \
             --provenance-url "$PROVENANCE_URL" \
             --sbom-url "$SBOM_URL" \
+            --cli-provenance-url "$CLI_PROVENANCE_URL" \
+            --cli-manifest-asset "release-manifest.json" \
+            --cli-checksums-asset "cli/lzug-admin-$VERSION.checksums.txt" \
             --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
             --issue-url "$RELEASE_ISSUE_URL" \
             --repository "$GITHUB_REPOSITORY"

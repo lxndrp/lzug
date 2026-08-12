@@ -237,3 +237,59 @@ Die Compose-Referenz akzeptiert ein lokales Test-Image, einen konkreten
 veröffentlichten `MAJOR.MINOR.PATCH`-Tag oder vorzugsweise den Digest aus den
 Releaseinformationen. Sie verwendet niemals `latest`. Beispiele stehen unter
 [Docker-Compose-Referenzinstallation](architecture/compose-self-hosting.md).
+
+### Betreiber-CLI aus einem Release installieren und verifizieren
+
+Jedes Release veröffentlicht genau sechs versionierte Archive unter den
+Release-Assets. Die Matrix ist `linux`, `darwin` und `windows`, jeweils mit
+`amd64` und `arm64`; Linux und macOS verwenden `.tar.gz`, Windows `.zip`.
+Archive und die jeweils zugehörigen CycloneDX-SBOMs liegen unter
+`release-assets/cli/`. Das Manifest und die Checksums werden aus demselben
+Kandidaten-Commit erzeugt.
+
+Unter Linux oder macOS werden das passende Archiv und
+`lzug-admin-<version>.checksums.txt` heruntergeladen und in ein leeres
+Verzeichnis gelegt. Der Checksum-Eintrag wird auf den lokalen Archivnamen
+reduziert, weil GitHub Release-Assets ohne das Verzeichnispräfix speichern:
+
+```sh
+version=0.1.0
+archive="lzug-admin-${version}-linux-amd64.tar.gz"
+expected=$(awk -v archive="$archive" '$2 == archive { print $1; found = 1 } END { if (!found) exit 1 }' \
+  "lzug-admin-${version}.checksums.txt")
+actual=$(sha256sum "$archive" | awk '{ print $1 }')
+test "$actual" = "$expected"
+```
+
+Der konkrete Vergleich muss den ausgegebenen Hash mit dem ersten Feld der
+gefilterten Checksum-Zeile vergleichen. Für macOS kann dafür `shasum -a 256`
+statt `sha256sum` verwendet werden. Anschließend wird das Archiv entpackt und
+`lzug-admin --version` ausgeführt. Die sechs Archive tragen die Identität
+`<version>`; `lzug-admin --build-metadata` muss zusätzlich die im Release
+genannte Kandidaten-Revision und das Tag ausgeben.
+
+Unter Windows wird die gleiche Prüfung in PowerShell ausgeführt:
+
+```powershell
+$archive = "lzug-admin-0.1.0-windows-amd64.zip"
+$expected = (Get-Content "lzug-admin-0.1.0.checksums.txt" |
+  Where-Object { $_ -match "  $([regex]::Escape($archive))$" }).Split()[0]
+$actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($actual -ne $expected) { throw "CLI checksum mismatch" }
+Expand-Archive $archive -DestinationPath .
+.\lzug-admin.exe --version
+```
+
+Nach der Checksum-Prüfung kann die signierte Herkunft des Archivs mit GitHub
+CLI geprüft werden:
+
+```sh
+gh attestation verify ./lzug-admin-0.1.0-linux-amd64.tar.gz \
+  --repo lxndrp/lzug
+```
+
+Ein fehlendes Archive, ein abweichender Hash, eine fehlende SBOM oder eine
+fehlende Attestation ist kein teilweise nutzbarer Release, sondern ein
+Fehlerfall. Das Manifest wird nicht manuell repariert; der Release-Gate-Lauf
+öffnet sich wieder und muss nach der Korrektur denselben vollständigen
+Kandidaten erneut qualifizieren.

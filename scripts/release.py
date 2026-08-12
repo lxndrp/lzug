@@ -16,6 +16,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from backend.build_metadata import COMMIT_SHA, SEMVER_TAG, BuildMetadata  # noqa: E402
+from scripts.build_cli_release import (  # noqa: E402
+    CLI_TARGETS,
+    archive_name,
+    checksums_name,
+    sbom_name,
+)
 from scripts.build_metadata import verify_tag_target  # noqa: E402
 
 REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -135,6 +141,88 @@ def asset_hashes(root: Path) -> dict[str, str]:
     return hashes
 
 
+def cli_asset_paths(version: str) -> tuple[list[str], list[str], str]:
+    """Return the exact archive, SBOM, and checksum paths for one release."""
+
+    archives = [
+        f"cli/{archive_name(version, goos, goarch, extension)}"
+        for goos, goarch, extension in CLI_TARGETS
+    ]
+    sboms = [
+        f"cli/{sbom_name(version, goos, goarch, extension)}"
+        for goos, goarch, extension in CLI_TARGETS
+    ]
+    return archives, sboms, f"cli/{checksums_name(version)}"
+
+
+def cli_checksum_content(root: Path, version: str) -> str:
+    """Render the deterministic checksum file for all CLI archives and SBOMs."""
+
+    archives, sboms, _ = cli_asset_paths(version)
+    paths = [root / path for path in sorted(archives + sboms)]
+    if any(not path.is_file() for path in paths):
+        raise ValueError("all CLI archives and SBOMs are required before checksums")
+    lines = []
+    for path in paths:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        lines.append(f"{digest}  {path.name}")
+    return "\n".join(lines) + "\n"
+
+
+def write_cli_checksums(args: argparse.Namespace) -> None:
+    """Write the checksums that bind the six CLI archives and SBOMs."""
+
+    _, _, checksum = cli_asset_paths(args.version)
+    output = Path(args.output)
+    expected = Path(args.assets)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if output.resolve() != (expected / checksum).resolve():
+        raise ValueError("CLI checksum output must be inside release-assets")
+    output.write_text(cli_checksum_content(expected, args.version), encoding="utf-8")
+
+
+def validate_cli_assets(root: Path, version: str, hashes: dict[str, str]) -> dict[str, object]:
+    """Validate the complete six-platform CLI asset boundary."""
+
+    archives, sboms, checksum = cli_asset_paths(version)
+    expected = set(archives + sboms + [checksum])
+    if set(hashes) != expected:
+        missing = sorted(expected - set(hashes))
+        unexpected = sorted(set(hashes) - expected)
+        raise ValueError(
+            "CLI asset set must contain exactly six archives, six SBOMs, and one checksum file; "
+            f"missing={missing!r}, unexpected={unexpected!r}"
+        )
+
+    checksum_path = root / checksum
+    if checksum_path.read_text(encoding="utf-8") != cli_checksum_content(root, version):
+        raise ValueError("CLI checksum file does not match the qualified archives and SBOMs")
+
+    details = []
+    for (goos, goarch, extension), archive_path, sbom_path in zip(
+        CLI_TARGETS, archives, sboms, strict=True
+    ):
+        payload = json.loads((root / sbom_path).read_text(encoding="utf-8"))
+        source = payload.get("metadata", {}).get("component", {})
+        expected_source = Path(archive_path).stem.removesuffix(".tar")
+        if source.get("type") != "file" or source.get("name") != expected_source:
+            raise ValueError(f"CLI SBOM source does not match {archive_path}")
+        if source.get("version") != version:
+            raise ValueError(f"CLI SBOM version does not match {version}: {sbom_path}")
+        details.append(
+            {
+                "archive": archive_path,
+                "platform": goos,
+                "architecture": goarch,
+                "format": extension,
+                "sha256": hashes[archive_path],
+                "sbom": sbom_path,
+                "sbom_sha256": hashes[sbom_path],
+            }
+        )
+    return {"artifact_count": len(details), "artifacts": details}
+
+
 def release_manifest(args: argparse.Namespace) -> dict[str, object]:
     """Build the immutable qualification manifest, including future CLI assets."""
 
@@ -149,6 +237,8 @@ def release_manifest(args: argparse.Namespace) -> dict[str, object]:
     expected_tags = image_references(args.repository, args.tag, args.sha)
     if actual_tags != expected_tags:
         raise ValueError("release manifest tags do not match the release identity")
+    hashes = asset_hashes(Path(args.assets))
+    cli = validate_cli_assets(Path(args.assets), release.version, hashes)
     return {
         "schema": "https://github.com/lxndrp/lzug/releases/manifest/v1",
         "tag": args.tag,
@@ -156,7 +246,8 @@ def release_manifest(args: argparse.Namespace) -> dict[str, object]:
         "revision": args.sha,
         "image": f"ghcr.io/{args.repository.lower()}",
         "image_tags": actual_tags,
-        "assets": asset_hashes(Path(args.assets)),
+        "assets": hashes,
+        "cli": cli,
     }
 
 
@@ -249,6 +340,10 @@ unveränderlichen Manifest-Digest:
   (CycloneDX-Artefakt für Lizenz- und Lieferkettenreview)
 - Build-Provenance: [signierter Herkunftsnachweis]({provenance_url})
 - SBOM-Attestation: [signierter SBOM-Nachweis]({sbom_url})
+- Betreiber-CLI: sechs versionierte Archive für Linux, macOS und Windows auf
+  `amd64` und `arm64`, gebunden durch `{args.cli_manifest_asset}`
+- Betreiber-CLI-SBOMs und Checksums: `{args.cli_checksums_asset}`
+- CLI-Provenance: [signierter Herkunftsnachweis]({args.cli_provenance_url})
 - Build-Lauf: [GitHub Actions]({args.run_url})
 - Freigabe-Gate: [Release-Issue]({issue_url})
 
@@ -296,6 +391,12 @@ def parser() -> argparse.ArgumentParser:
     manifest.add_argument("--output", required=True)
     manifest.set_defaults(handler=write_release_manifest)
 
+    cli_checksums = commands.add_parser("cli-checksums")
+    cli_checksums.add_argument("--version", required=True)
+    cli_checksums.add_argument("--assets", required=True)
+    cli_checksums.add_argument("--output", required=True)
+    cli_checksums.set_defaults(handler=write_cli_checksums)
+
     check_manifest = commands.add_parser("check-manifest")
     check_manifest.add_argument("--tag", required=True)
     check_manifest.add_argument("--sha", required=True)
@@ -315,6 +416,9 @@ def parser() -> argparse.ArgumentParser:
     finalize.add_argument("--dependency-sbom-asset", required=True)
     finalize.add_argument("--provenance-url", required=True)
     finalize.add_argument("--sbom-url", required=True)
+    finalize.add_argument("--cli-provenance-url", required=True)
+    finalize.add_argument("--cli-manifest-asset", required=True)
+    finalize.add_argument("--cli-checksums-asset", required=True)
     finalize.add_argument("--run-url", required=True)
     finalize.add_argument("--issue-url", required=True)
     finalize.add_argument("--repository", required=True)
