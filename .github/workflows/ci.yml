@@ -619,7 +619,7 @@ jobs:
   codeql:
     name: CodeQL (${{ matrix.language }})
     needs: classify
-    if: needs.classify.outputs.codeql == 'true'
+    if: github.event_name == 'pull_request' || needs.classify.outputs.codeql == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -643,15 +643,9 @@ jobs:
           languages: ${{ matrix.language }}
           queries: security-extended
       - name: Analyze
-        id: analyze
         uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         with:
-          output: codeql-results
           upload: always
-      - name: Block high and critical SAST findings
-        env:
-          SARIF_OUTPUT: ${{ steps.analyze.outputs.sarif-output }}
-        run: python3 scripts/enforce_sarif_security.py "$SARIF_OUTPUT" --minimum 7.0
 
   source-scan:
     name: Source secrets and misconfiguration
@@ -823,6 +817,7 @@ jobs:
           CODEQL_SELECTED: ${{ needs.classify.outputs.codeql }}
           CODEQL_RESULT: ${{ needs.codeql.result }}
           SOURCE_SCAN_RESULT: ${{ needs.source-scan.result }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           test "$CLASSIFY_RESULT" = "success"
           test "$SOURCE_SCAN_RESULT" = "success"
@@ -830,7 +825,7 @@ jobs:
             true:true | true:false | false:false) ;;
             *) exit 1 ;;
           esac
-          if [ "$CODEQL_SELECTED" = "true" ]; then
+          if [ "$EVENT_NAME" = "pull_request" ] || [ "$CODEQL_SELECTED" = "true" ]; then
             test "$CODEQL_RESULT" = "success"
           else
             test "$CODEQL_SELECTED" = "false"

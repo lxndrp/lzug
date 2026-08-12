@@ -42,9 +42,10 @@ werden.
 
 - GitHub Secret Scanning und Push Protection sind aktiviert; Private
   Vulnerability Reporting ist der verbindliche Meldeweg.
-- CodeQL analysiert Python und JavaScript/TypeScript. High/Critical-SARIF-
-  Befunde ab `security-severity 7.0` blockieren den Workflow zusätzlich zur
-  Code-Scanning-Auswertung.
+- CodeQL analysiert Python und JavaScript/TypeScript auf jedem Pull Request.
+  GitHubs native Ruleset-Regel `Require code scanning results` blockiert
+  Security-Befunde ab `high_or_higher`; normale Fehlerwarnungen sind mit
+  `alerts_threshold=none` nicht Teil der Merge-Sperre.
 - Trivy prüft den Quellbaum auf Secrets/Misconfiguration sowie das tatsächlich
   gebaute Image auf behebbare High/Critical-Abhängigkeiten, Secrets und
   Misconfiguration. Ein CycloneDX-SBOM wird als CI-Artefakt erzeugt.

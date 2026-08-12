@@ -127,9 +127,6 @@ OPERATOR_PROTOCOL_FILES = {
     "backend/admin.py",
     "backend/admin_service.py",
 }
-SECURITY_FILES = {
-    "scripts/enforce_sarif_security.py",
-}
 
 
 def _normalized(path: str) -> str:
@@ -235,9 +232,6 @@ def selection_for_path(path: str) -> QualitySelection:
 
     if normalized == "go.mod" or normalized.startswith("cmd/lzug-admin/"):
         return QualitySelection(operator_cli=True)
-    if normalized in SECURITY_FILES:
-        return QualitySelection(security=True, codeql=True)
-
     return QualitySelection.full()
 
 

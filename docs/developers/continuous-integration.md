@@ -13,7 +13,7 @@ verbindliche Schnittstelle:
 | `Quality / Operator CLI` | Go-Vertrag und alle portablen Builds sind erfolgreich oder nachweislich übersprungen. |
 | `Quality / OCI` | Der ausgewählte Image-Build sowie Scan und SBOM sind erfolgreich; andernfalls ist der Scan nachweislich übersprungen. |
 | `Quality / Documentation` | Die ausgewählte technische Dokumentation ist erfolgreich gebaut oder nachweislich übersprungen. |
-| `Quality / Security` | Der immer ausgeführte Secret-/Misconfiguration-Scan und gegebenenfalls CodeQL sind erfolgreich. |
+| `Quality / Security` | Der immer ausgeführte Secret-/Misconfiguration-Scan und die auf Pull Requests immer ausgeführten CodeQL-Analysen sind erfolgreich. |
 | `Quality / Overall` | Alle ausgewählten systemübergreifenden Detailverträge sind erfolgreich; nicht ausgewählte Details sind nachweislich übersprungen. |
 
 Jedes Gate läuft mit `if: always()` und prüft Klassifizierergebnis,
@@ -22,11 +22,17 @@ nicht ausgewählter `skipped` melden. Leere oder fehlende Ausgaben lassen das
 Gate fehlschlagen. Interne Jobnamen dürfen sich ändern, diese sieben Namen und
 ihre Semantik dagegen nicht ohne kontrollierte Migration der Required Checks.
 
-Das aktive Ruleset verlangt ausschließlich diese sieben stabilen Gate-Namen.
+Das aktive Ruleset verlangt diese sieben stabilen Gate-Namen und zusätzlich
+GitHubs native Regel `Require code scanning results` für das Werkzeug `CodeQL`.
+Normale Fehlerwarnungen blockieren dabei nicht (`alerts_threshold=none`),
+Security-Befunde ab `high_or_higher` dagegen schon. Die Python- und
+JavaScript/TypeScript-Analysen laufen auf jedem Pull Request und laden ihre
+Ergebnisse hoch, damit die native Regel für jeden Commit auswertbar ist.
 `strict_required_status_checks_policy` bleibt aktiv, sodass jeder Pull Request
 nach Änderungen am Zielbranch erneut gegen dessen aktuellen Stand geprüft
-werden muss. Detailjobs wie CodeQL, Source- oder OCI-Scan bleiben sichtbar,
-sind aber keine eigenständige öffentliche Ruleset-Schnittstelle.
+werden muss. Die CodeQL-Jobkontexte sind nach der kontrollierten Migration
+keine zusätzlichen Required Status Checks; Source- und OCI-Scans werden weiter
+über ihre stabilen Quality-Gates abgesichert.
 
 Alle Domänen- und Overall-Details liegen im Workflow `Quality` und verwenden
 genau einen Klassifikationslauf. Das einmal gebaute, über seine Prüfsumme
@@ -40,14 +46,15 @@ ereignisbasierte, unabhängige Automationen.
 
 `scripts/classify_quality_paths.py` ist die einzige Quelle für die
 Domänenauswahl Backend, Frontend, Betreiber-CLI, OCI, Dokumentation, Security
-und Overall. Interne Flags wählen zusätzlich npm-Audit, CodeQL, Image-Build,
+und Overall. Interne Flags wählen zusätzlich npm-Audit, CodeQL außerhalb von
+Pull Requests, Image-Build,
 Container-Runtime, Compose, CLI-zu-Container, Browser-E2E und Accessibility
 aus. Mehrere geänderte Pfade vereinigen ihre Auswahlmengen.
 
 | Änderung | Ausgewählte Domänen und Details |
 | --- | --- |
-| Reine Prozess- und Metadaten, etwa `AGENTS.md` | keine Anwendungsdomäne; nur Klassifizierer, stabile Gates und der bewusst breite Source-Scan |
-| `docs/**`, `mkdocs.yml`, Changelog oder technische README-Dateien | Dokumentation |
+| Reine Prozess- und Metadaten, etwa `AGENTS.md` | keine Anwendungsdomäne; nur Klassifizierer, stabile Gates, der bewusst breite Source-Scan und beide CodeQL-Analysen |
+| `docs/**`, `mkdocs.yml`, Changelog oder technische README-Dateien | Dokumentation sowie beide CodeQL-Analysen |
 | `backend/tests/**` oder statische Prototyp-Testhilfen | Backend |
 | Produktives `backend/**`, `db/**`, Schema, Migrationen oder Fixtures | Backend, OCI, Dokumentation, Security und Overall mit getrennten E2E-/a11y-Details |
 | Betreiberprotokoll in `backend/admin.py` oder `backend/admin_service.py` | wie produktives Backend, zusätzlich Betreiber-CLI und CLI-zu-Container |

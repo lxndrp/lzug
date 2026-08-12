@@ -88,7 +88,7 @@ bewegliche Tag-Referenzen auch in Release-, Dependabot- und Wiki-Abläufen.
 
 | Gate | Blockierender Befund | Nachweis |
 | --- | --- | --- |
-| CodeQL für Python und JavaScript/TypeScript | `security-severity >= 7.0` | SARIF wird hochgeladen und zusätzlich durch `scripts/enforce_sarif_security.py` ausgewertet |
+| CodeQL für Python und JavaScript/TypeScript | Security-Befund ab `high_or_higher` | SARIF wird auf jedem Pull Request hochgeladen und durch die native Ruleset-Regel `Require code scanning results` ausgewertet; normale Fehlerwarnungen blockieren nicht (`alerts_threshold=none`) |
 | Trivy-Quellscan | Secrets oder High/Critical-Misconfiguration | aktueller Quellbaum ohne Git-, venv- oder `node_modules`-Inhalte |
 | Reproduzierbarer Image-Build und Runtime-Smoke | Buildfehler, abweichender Runtime-User oder verletzte HTTP-/Isolationsgrenze | einmaliger Build aus Lockfiles, Image-User `10001:10001` und `scripts/container-smoke.sh` gegen das per Prüfsumme übergebene Build-Artefakt |
 | Trivy-Imagescan | behebbare High/Critical OS-/Bibliothekslücke, Secret oder Misconfiguration | dasselbe per Prüfsumme übergebene Image wie im Runtime-Smoke |
@@ -97,8 +97,8 @@ bewegliche Tag-Referenzen auch in Release-, Dependabot- und Wiki-Abläufen.
 Trivy ist als vollständiger SHA der laut
 [offiziellem Advisory](https://github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23)
 abgesicherten Action 0.35.0 fixiert und verwendet die unveränderliche Version
-0.69.3. Der SARIF-Filter besitzt Positiv- und Negativtests; die Workflowtests
-prüfen SHA-Pins und blockierende Scannerkonfiguration. Scannerbefunde werden
+0.69.3. Die Workflowtests prüfen SHA-Pins, den vollständigen CodeQL-PR-Vertrag
+und die blockierende Scannerkonfiguration. Scannerbefunde werden
 nicht durch gelockerte Schwellen oder pauschale Ignore-Dateien verborgen.
 
 Der Qualitätsworkflow läuft auf jedem Push nach `main` oder `master`, im
