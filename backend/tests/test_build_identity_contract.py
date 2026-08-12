@@ -48,10 +48,10 @@ class BuildIdentityContractTests(unittest.TestCase):
 
         self.assertIn('--revision "$GITHUB_SHA" --field identity', ci)
         self.assertIn("BUILD_IDENTITY=${{ steps.build_metadata.outputs.identity }}", ci)
-        self.assertIn('--tag "$GITHUB_REF_NAME"', release)
-        self.assertIn('--revision "$GITHUB_SHA"', release)
-        self.assertIn("RELEASE_TAG=${{ github.ref_name }}", release)
-        self.assertIn("applicationTag=$GITHUB_REF_NAME", release)
+        self.assertIn('--tag "$RELEASE_TAG"', release)
+        self.assertIn('--revision "$CANDIDATE_SHA"', release)
+        self.assertIn("RELEASE_TAG: ${{ needs.authorize.outputs.tag }}", release)
+        self.assertIn("applicationTag=$RELEASE_TAG", release)
         self.assertIn("cmp image-build-metadata.json cli-build-metadata.json", release)
 
 

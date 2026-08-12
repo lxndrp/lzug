@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,10 +9,12 @@ from types import SimpleNamespace
 from unittest import mock
 
 from scripts.release import (
+    check_release_manifest,
     extract_changelog,
     finalize_release_notes,
     image_references,
     parse_release_tag,
+    write_release_manifest,
 )
 
 
@@ -90,6 +93,7 @@ class ReleaseContractTests(unittest.TestCase):
                     provenance_url="https://github.com/lxndrp/lzug/attestations/1",
                     sbom_url="https://github.com/lxndrp/lzug/attestations/2",
                     run_url="https://github.com/lxndrp/lzug/actions/runs/3",
+                    issue_url="https://github.com/lxndrp/lzug/issues/4",
                     repository="lxndrp/lzug",
                 )
             )
@@ -99,6 +103,36 @@ class ReleaseContractTests(unittest.TestCase):
             self.assertIn("lzug-1.2.3.sbom.cdx.json", notes)
             self.assertIn("attestations/1", notes)
             self.assertIn("attestations/2", notes)
+            self.assertIn("issues/4", notes)
+
+    def test_release_manifest_reserves_a_checksummed_cli_asset_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tags = root / "tags.txt"
+            assets = root / "assets"
+            output = root / "manifest.json"
+            assets.mkdir()
+            (assets / "lzug-admin-linux-amd64").write_bytes(b"cli")
+            sha = "a" * 40
+            tags.write_text(
+                "\n".join(image_references("lxndrp/lzug", "v1.2.3", sha)) + "\n",
+                encoding="utf-8",
+            )
+            arguments = SimpleNamespace(
+                tag="v1.2.3",
+                sha=sha,
+                repository="lxndrp/lzug",
+                tags=str(tags),
+                assets=str(assets),
+                output=str(output),
+                manifest=str(output),
+            )
+
+            write_release_manifest(arguments)
+            check_release_manifest(arguments)
+            (assets / "lzug-admin-linux-amd64").write_bytes(b"changed")
+            with self.assertRaises(ValueError):
+                check_release_manifest(arguments)
 
     def test_prepare_cli_writes_deterministic_inputs(self) -> None:
         from scripts.release import main
@@ -141,21 +175,39 @@ class ReleaseContractTests(unittest.TestCase):
 
 
 class ReleaseWorkflowTests(unittest.TestCase):
+    def test_release_scripts_run_directly_without_an_installed_project(self) -> None:
+        for script in ("scripts/release.py", "scripts/release_gate.py"):
+            with self.subTest(script=script):
+                result = subprocess.run(
+                    ["python3", script, "--help"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(0, result.returncode, result.stderr)
+
     def test_workflow_is_fail_closed_and_uses_pinned_actions(self) -> None:
         workflow = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
         action_refs = re.findall(r"^\s*uses:\s*[^@\s]+@([^\s]+)", workflow, re.MULTILINE)
 
         self.assertTrue(action_refs)
         self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs))
-        self.assertIn('tags:\n      - "v*.*.*"', workflow)
+        self.assertIn("issues:\n    types:\n      - closed", workflow)
         self.assertNotIn("workflow_dispatch:", workflow)
-        self.assertIn("for workflow in ci.yml", workflow)
-        for obsolete in ("oci.yml", "security.yml", "operator-cli.yml"):
-            self.assertNotIn(obsolete, workflow)
-        self.assertIn("git merge-base --is-ancestor", workflow)
-        self.assertIn("name: Test the exact release image", workflow)
+        self.assertIn("python3 scripts/release_gate.py", workflow)
+        self.assertIn("name: Qualify exact candidate without publishing", workflow)
+        self.assertIn("Create a local annotated tag as the build identity source", workflow)
+        self.assertIn("name: Test the exact release image and CLI identity", workflow)
         self.assertIn('scripts/container-smoke.sh "$CANONICAL_REF"', workflow)
         self.assertIn("Block high and critical image findings", workflow)
+
+        candidate = Path(".github/workflows/release-candidate.yml").read_text(encoding="utf-8")
+        candidate_refs = re.findall(r"^\s*uses:\s*[^@\s]+@([^\s]+)", candidate, re.MULTILINE)
+        self.assertTrue(candidate_refs)
+        self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in candidate_refs))
+        self.assertIn("issues: write", candidate)
+        self.assertNotIn("contents: write", candidate)
+        self.assertNotIn("packages: write", candidate)
 
     def test_publish_permissions_tags_and_draft_release_are_explicit(self) -> None:
         workflow = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
@@ -165,17 +217,20 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("id-token: write", workflow)
         self.assertIn("attestations: write", workflow)
         self.assertIn("environment: release", workflow)
-        self.assertIn("latest=false", workflow)
-        self.assertIn("type=semver,pattern={{version}}", workflow)
-        self.assertIn("type=semver,pattern={{major}}.{{minor}}", workflow)
-        self.assertIn("type=semver,pattern={{major}}", workflow)
-        self.assertIn("type=sha,format=long", workflow)
+        self.assertIn("create-tag", workflow)
+        self.assertIn("release-manifest.json", workflow)
+        self.assertIn("release-assets/cli", workflow)
         self.assertIn("push-to-registry: true", workflow)
-        self.assertIn("name: Verify anonymous GHCR access", workflow)
+        self.assertIn("name: Verify anonymous image and signed provenance", workflow)
         self.assertIn("docker logout ghcr.io", workflow)
         self.assertIn("gh release create", workflow)
         self.assertIn("--draft", workflow)
-        self.assertLess(workflow.index("gh release upload"), workflow.index("--draft=false"))
+        self.assertLess(
+            workflow.index("Upload every checksummed release asset"),
+            workflow.index("Publish only the complete release"),
+        )
+        self.assertIn("gh attestation verify", workflow)
+        self.assertIn("Reopen incomplete release gate", workflow)
         self.assertNotIn(":latest", workflow)
 
 
