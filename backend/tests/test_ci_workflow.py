@@ -131,6 +131,12 @@ class QualityPathClassificationTests(unittest.TestCase):
             operator_cli=True,
         )
         self.assert_selection(
+            ["go.mod"],
+            operator_cli=True,
+            oci=True,
+            image=True,
+        )
+        self.assert_selection(
             ["Dockerfile"],
             oci=True,
             overall=True,

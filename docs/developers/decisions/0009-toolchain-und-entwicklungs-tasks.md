@@ -14,11 +14,14 @@ bleiben, aber über eine klar erkennbare öffentliche Schnittstelle laufen.
 
 ## Entscheidung
 
-`mise` verwaltet ausschließlich die Toolchains Python, Node.js, Go, uv und Task.
-Task wird über den Aqua-Backend-Eintrag `aqua:go-task/task` bereitgestellt.
+`mise` verwaltet ausschließlich die Toolchains Python, Node.js, Go, uv, Task
+und Syft. Task und Syft werden über Aqua-Backend-Einträge bereitgestellt. Syft
+ersetzt die projektspezifische Lizenzinventur durch standardisierte
+CycloneDX-Artefakte; diese konkrete Wiederverwendung in lokaler Prüfung, CI und
+Release belegt den zusätzlichen Toolnutzen.
 `Taskfile.yml` ist die einzige öffentliche Schnittstelle für lokale
-Entwicklungsabläufe; `task setup`, `task test`, `task docs`, `task quality` und
-`task dev` sowie ihre dokumentierten Teilaufgaben ersetzen die bisherigen
+Entwicklungsabläufe; `task setup`, `task test`, `task docs`, `task sbom`,
+`task quality` und `task dev` sowie ihre dokumentierten Teilaufgaben ersetzen die bisherigen
 `mise run`-Befehle.
 
 GitHub Actions ist keine lokale Entwickler-Schnittstelle: Die Pipeline
@@ -38,7 +41,8 @@ Arbeitsverzeichnis und `npm ci`. Die Einrichtung installiert außerdem den
 Playwright-Chromium-Browser; `task doctor` prüft Toolchain, virtuelle
 Python-Umgebung und die verwendete Browser-Executable ohne vollständigen
 Qualitätslauf. `task quality` führt Backend, Frontend, Security, Operator-CLI,
-OCI-Build, Dokumentation und Overall parallel aus. `task quality:overall`
+OCI-Build, standardisierte Dependency-SBOM, Dokumentation und Overall parallel
+aus. `task quality:overall`
 bündelt Container-, Compose-, CLI-zu-Container-, Browser-End-to-End- und
 Accessibility-Verträge. Die beiden Browser-Tasks bleiben separat aufrufbar,
 werden im lokalen Vollauf jedoch seriell ausgeführt. `task quality:operator`

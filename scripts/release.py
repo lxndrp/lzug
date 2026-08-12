@@ -244,7 +244,9 @@ unveränderlichen Manifest-Digest:
 {tag_list}
 
 - Image: `{args.image}@{args.digest}`
-- CycloneDX-SBOM: `{args.sbom_asset}` (Release-Artefakt und signierte Attestation)
+- Image-SBOM: `{args.image_sbom_asset}` (CycloneDX; an Digest attestiert)
+- Dependency-SBOM: `{args.dependency_sbom_asset}`
+  (CycloneDX-Artefakt für Lizenz- und Lieferkettenreview)
 - Build-Provenance: [signierter Herkunftsnachweis]({provenance_url})
 - SBOM-Attestation: [signierter SBOM-Nachweis]({sbom_url})
 - Build-Lauf: [GitHub Actions]({args.run_url})
@@ -309,7 +311,8 @@ def parser() -> argparse.ArgumentParser:
     finalize.add_argument("--tags", required=True)
     finalize.add_argument("--image", required=True)
     finalize.add_argument("--digest", required=True)
-    finalize.add_argument("--sbom-asset", required=True)
+    finalize.add_argument("--image-sbom-asset", required=True)
+    finalize.add_argument("--dependency-sbom-asset", required=True)
     finalize.add_argument("--provenance-url", required=True)
     finalize.add_argument("--sbom-url", required=True)
     finalize.add_argument("--run-url", required=True)

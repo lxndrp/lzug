@@ -21,7 +21,7 @@ class ReleaseEvidenceContractTests(unittest.TestCase):
             "weder ein fachlich vollständiges noch ein produktionsreifes",
             "Upgrade, allgemeines Backup und Restore sowie Produkt-Rollback",
             "realer Pilot",
-            "CycloneDX-SBOM",
+            "CycloneDX-Image-/Dependency-SBOMs",
         ):
             with self.subTest(boundary=boundary):
                 self.assertIn(boundary, compact_section)
@@ -49,7 +49,7 @@ class ReleaseEvidenceContractTests(unittest.TestCase):
         self.assertIn("CC-BY-4.0", documentation_license)
         self.assertIn("AGPL-3.0-or-later", documentation_license)
         self.assertIn("nicht als allgemeine Datenschutzkonformität", compact_privacy)
-        self.assertIn("manual-review-required", notices)
+        self.assertIn("visible for manual review", " ".join(notices.split()))
 
 
 if __name__ == "__main__":

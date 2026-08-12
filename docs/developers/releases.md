@@ -141,10 +141,11 @@ High-/Critical-Befunde und übergibt nur die per SHA-256 und Manifest geprüften
 Inputs an den Publish-Job.
 
 Das versionierte `release-manifest.json` ist der Integrationspunkt für #273.
-Spätere CLI-Binaries werden vor dem Environment-Gate unter
-`release-assets/cli/` erzeugt und im Manifest bytegenau gehasht. Der
-Publish-Job darf nur diese qualifizierten Dateien zusammen mit den danach
-erzeugten Attestations hochladen.
+Die dort für `v0.1.0` erzeugten CLI-Binaries werden vor dem Environment-Gate
+unter `release-assets/cli/` abgelegt, mit `task sbom:cli` einzeln inventarisiert
+und im Manifest bytegenau gehasht. Der Publish-Job darf nur diese qualifizierten
+Dateien zusammen mit den danach erzeugten Attestations hochladen. #328 baut
+oder veröffentlicht diese Binaries nicht.
 
 ## Veröffentlichte Tags und Nachweise
 
@@ -163,10 +164,16 @@ Ein Vorabrelease wie `v1.0.0-rc.1` veröffentlicht ausschließlich
 Aliase.
 
 Der Workflow pusht kein `latest`. Nach dem Push liest er für jeden Tag das
-Registry-Manifest und verlangt denselben `sha256`-Digest. Anschließend erzeugt
-GitHub mit kurzlebiger OIDC-Identität zwei signierte Sigstore-Attestations:
-SLSA-Build-Provenance und die CycloneDX-SBOM des geprüften Images. Der
-Publish-Job besitzt nur die benötigten Schreibrechte für Packages,
+Registry-Manifest und verlangt denselben `sha256`-Digest. Die Qualifizierung
+erzeugt mit der gepinnten Syft-Version zwei CycloneDX-1.6-Artefakte: Die
+Image-SBOM beschreibt ausschließlich das geprüfte OCI-Image; die
+Dependency-SBOM inventarisiert die locked Python- und npm-Abhängigkeiten sowie
+vorhandene Drittmodule aus `go.mod` für Lieferketten- und Lizenzreview.
+Anschließend erzeugt GitHub mit kurzlebiger OIDC-Identität zwei signierte
+Sigstore-Attestations: SLSA-Build-Provenance und die Image-SBOM. Nur die
+Image-SBOM wird an den OCI-Digest gebunden; die Dependency-SBOM behauptet nicht,
+dass npm-Buildwerkzeuge oder eine separat gebaute CLI im Image enthalten sind.
+Der Publish-Job besitzt nur die benötigten Schreibrechte für Packages,
 Attestations, OIDC und den GitHub Release; Build und Prüfung laufen read-only.
 Das Paket ist über das OCI-Source-Label und den Workflow-`GITHUB_TOKEN` mit dem
 Repository verknüpft; die öffentliche Sichtbarkeit wird trotzdem separat und
@@ -176,10 +183,18 @@ Die finalen Releaseinformationen enthalten:
 
 - die konkrete Image-Referenz mit Digest,
 - alle für die Releaseklasse vorgesehenen Tags,
-- die CycloneDX-SBOM als Release-Artefakt,
+- Image- und Dependency-SBOM als getrennte CycloneDX-Release-Artefakte,
 - die signierten Provenance- und SBOM-Bundles,
 - Links zu beiden GitHub-Attestations und zum Build-Lauf,
 - SHA-256-Prüfsummen der beigefügten Nachweise.
+
+`release-assets/cli/` und das versionierte Release-Manifest sind der
+verbindliche Erweiterungspunkt für #273. Für jedes dort erzeugte native Binary
+liefert `task sbom:cli` denselben gepinnten Syft-/CycloneDX-Vertrag und prüft das
+Hauptmodul, die Go-Standardbibliothek sowie deklarierte Drittmodule. #273
+entscheidet und implementiert Buildmatrix, Assetnamen, Manifestaufnahme,
+Checksums und artefaktbezogene Attestations. Bereits unabhängig davon verlangt
+die Dependency-SBOM alle Drittmodule aus `go.mod` für den Lizenzreview.
 
 Der Herkunftsnachweis eines veröffentlichten Digests lässt sich prüfen mit:
 

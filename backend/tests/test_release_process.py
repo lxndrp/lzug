@@ -89,7 +89,8 @@ class ReleaseContractTests(unittest.TestCase):
                     tags=str(tags),
                     image="ghcr.io/lxndrp/lzug",
                     digest="sha256:" + "a" * 64,
-                    sbom_asset="lzug-1.2.3.sbom.cdx.json",
+                    image_sbom_asset="lzug-1.2.3.image.sbom.cdx.json",
+                    dependency_sbom_asset="lzug-1.2.3.dependencies.sbom.cdx.json",
                     provenance_url="https://github.com/lxndrp/lzug/attestations/1",
                     sbom_url="https://github.com/lxndrp/lzug/attestations/2",
                     run_url="https://github.com/lxndrp/lzug/actions/runs/3",
@@ -100,7 +101,8 @@ class ReleaseContractTests(unittest.TestCase):
 
             notes = output.read_text(encoding="utf-8")
             self.assertIn("sha256:" + "a" * 64, notes)
-            self.assertIn("lzug-1.2.3.sbom.cdx.json", notes)
+            self.assertIn("lzug-1.2.3.image.sbom.cdx.json", notes)
+            self.assertIn("lzug-1.2.3.dependencies.sbom.cdx.json", notes)
             self.assertIn("attestations/1", notes)
             self.assertIn("attestations/2", notes)
             self.assertIn("issues/4", notes)
@@ -198,6 +200,10 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("name: Qualify exact candidate without publishing", workflow)
         self.assertIn("Create a local annotated tag as the build identity source", workflow)
         self.assertIn("name: Test the exact release image and CLI identity", workflow)
+        self.assertIn("name: Generate and validate both canonical CycloneDX SBOMs", workflow)
+        self.assertIn("anchore/sbom-action/download-syft@", workflow)
+        self.assertIn("lzug.dependencies.sbom.cdx.json", workflow)
+        self.assertIn("lzug.image.sbom.cdx.json", workflow)
         self.assertIn('scripts/container-smoke.sh "$CANONICAL_REF"', workflow)
         self.assertIn("Block high and critical image findings", workflow)
 

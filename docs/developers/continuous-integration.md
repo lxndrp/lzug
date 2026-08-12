@@ -11,7 +11,7 @@ verbindliche Schnittstelle:
 | `Quality / Backend` | Alle ausgewählten Python-Prüfungen einschließlich Abhängigkeitsaudit sind erfolgreich; andernfalls sind die Detailjobs nachweislich übersprungen. |
 | `Quality / Frontend` | Alle ausgewählten Angular-Prüfungen und der bei Abhängigkeitsänderungen ausgewählte npm-Sicherheitscheck sind erfolgreich oder nachweislich übersprungen. |
 | `Quality / Operator CLI` | Go-Vertrag und alle portablen Builds sind erfolgreich oder nachweislich übersprungen. |
-| `Quality / OCI` | Der ausgewählte Image-Build sowie Scan und SBOM sind erfolgreich; andernfalls ist der Scan nachweislich übersprungen. |
+| `Quality / OCI` | Der ausgewählte Image-Build, Trivy-Scan sowie die mit Syft erzeugten und validierten Image-/Dependency-SBOMs sind erfolgreich; andernfalls ist der Scan nachweislich übersprungen. |
 | `Quality / Documentation` | Die ausgewählte technische Dokumentation ist erfolgreich gebaut oder nachweislich übersprungen. |
 | `Quality / Security` | Der immer ausgeführte Secret-/Misconfiguration-Scan und die auf Pull Requests immer ausgeführten CodeQL-Analysen sind erfolgreich. |
 | `Quality / Overall` | Alle ausgewählten systemübergreifenden Detailverträge sind erfolgreich; nicht ausgewählte Details sind nachweislich übersprungen. |
@@ -41,6 +41,19 @@ wiederverwendet. Container-Runtime, Compose und CLI-zu-Container bleiben damit
 systemübergreifende Details und werden nicht fälschlich als isolierte
 OCI-Prüfungen eingeordnet. Wiki-Publishing und Dependabot-Auto-Merge bleiben
 ereignisbasierte, unabhängige Automationen.
+
+Der OCI-Scan erzeugt zwei CycloneDX-1.6-Artefakte mit der repositoryweit
+gepinnten Syft-Version. `lzug.image.sbom.cdx.json` beschreibt das exakt einmal
+gebaute finale Image. `lzug.dependencies.sbom.cdx.json` ist die kanonische
+Quelle für das Python-, npm- und Go-Abhängigkeits-/Lizenzreview. Beide werden
+30 Tage gemeinsam als `lzug-sboms` aufbewahrt; Trivy bleibt ausschließlich für
+Security-Scans verantwortlich.
+
+Für #273 stellt dieselbe Grenze `task sbom:cli ARTIFACT=<binary>
+OUTPUT=<sbom>` bereit. Der Task scannt ein bereits gebautes natives Binary und
+prüft Hauptmodul, Standardbibliothek sowie deklarierte Go-Drittmodule; er baut
+und veröffentlicht selbst kein Artefakt. #273 integriert ihn pro Plattform in
+Qualifizierung, Manifest, Checksums und Attestations.
 
 ### Runner-Zeit der verpflichtenden CodeQL-Analysen
 
