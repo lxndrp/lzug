@@ -219,6 +219,11 @@ class CiWorkflowContractTests(unittest.TestCase):
             "if: github.event_name == 'pull_request' || " "needs.classify.outputs.codeql == 'true'",
             self.workflow,
         )
+        self.assertIn("- language: python\n            build-mode: none", self.workflow)
+        self.assertIn("- language: javascript-typescript\n            build-mode: none", self.workflow)
+        self.assertIn("- language: go\n            build-mode: autobuild", self.workflow)
+        self.assertIn("build-mode: ${{ matrix.build-mode }}", self.workflow)
+        self.assertIn("if: matrix.language == 'go'", self.workflow)
 
     def test_stable_domain_gates_check_selected_and_skipped_results(self) -> None:
         for gate in STABLE_QUALITY_GATES:

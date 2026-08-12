@@ -25,9 +25,9 @@ ihre Semantik dagegen nicht ohne kontrollierte Migration der Required Checks.
 Das aktive Ruleset verlangt diese sieben stabilen Gate-Namen und zusätzlich
 GitHubs native Regel `Require code scanning results` für das Werkzeug `CodeQL`.
 Normale Fehlerwarnungen blockieren dabei nicht (`alerts_threshold=none`),
-Security-Befunde ab `high_or_higher` dagegen schon. Die Python- und
-JavaScript/TypeScript-Analysen laufen auf jedem Pull Request und laden ihre
-Ergebnisse hoch, damit die native Regel für jeden Commit auswertbar ist.
+Security-Befunde ab `high_or_higher` dagegen schon. Die Python-,
+JavaScript/TypeScript- und Go-Analysen laufen auf jedem Pull Request und laden
+ihre Ergebnisse hoch, damit die native Regel für jeden Commit auswertbar ist.
 `strict_required_status_checks_policy` bleibt aktiv, sodass jeder Pull Request
 nach Änderungen am Zielbranch erneut gegen dessen aktuellen Stand geprüft
 werden muss. Die CodeQL-Jobkontexte sind nach der kontrollierten Migration

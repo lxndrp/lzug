@@ -88,7 +88,7 @@ bewegliche Tag-Referenzen auch in Release-, Dependabot- und Wiki-Abläufen.
 
 | Gate | Blockierender Befund | Nachweis |
 | --- | --- | --- |
-| CodeQL für Python und JavaScript/TypeScript | Security-Befund ab `high_or_higher` | SARIF wird auf jedem Pull Request hochgeladen und durch die native Ruleset-Regel `Require code scanning results` ausgewertet; normale Fehlerwarnungen blockieren nicht (`alerts_threshold=none`) |
+| CodeQL für Python, JavaScript/TypeScript und Go | Security-Befund ab `high_or_higher` | SARIF wird auf jedem Pull Request hochgeladen und durch die native Ruleset-Regel `Require code scanning results` ausgewertet; normale Fehlerwarnungen blockieren nicht (`alerts_threshold=none`) |
 | Trivy-Quellscan | Secrets oder High/Critical-Misconfiguration | aktueller Quellbaum ohne Git-, venv- oder `node_modules`-Inhalte |
 | Reproduzierbarer Image-Build und Runtime-Smoke | Buildfehler, abweichender Runtime-User oder verletzte HTTP-/Isolationsgrenze | einmaliger Build aus Lockfiles, Image-User `10001:10001` und `scripts/container-smoke.sh` gegen das per Prüfsumme übergebene Build-Artefakt |
 | Trivy-Imagescan | behebbare High/Critical OS-/Bibliothekslücke, Secret oder Misconfiguration | dasselbe per Prüfsumme übergebene Image wie im Runtime-Smoke |

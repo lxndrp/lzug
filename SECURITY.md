@@ -42,7 +42,7 @@ werden.
 
 - GitHub Secret Scanning und Push Protection sind aktiviert; Private
   Vulnerability Reporting ist der verbindliche Meldeweg.
-- CodeQL analysiert Python und JavaScript/TypeScript auf jedem Pull Request.
+- CodeQL analysiert Python, JavaScript/TypeScript und Go auf jedem Pull Request.
   GitHubs native Ruleset-Regel `Require code scanning results` blockiert
   Security-Befunde ab `high_or_higher`; normale Fehlerwarnungen sind mit
   `alerts_threshold=none` nicht Teil der Merge-Sperre.
