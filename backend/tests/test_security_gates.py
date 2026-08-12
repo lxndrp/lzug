@@ -1,56 +1,11 @@
 from __future__ import annotations
 
-import json
 import re
-import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.enforce_sarif_security import findings, sarif_paths
 
-
-def sarif(severity: str | None) -> dict:
-    properties = {} if severity is None else {"security-severity": severity}
-    return {
-        "version": "2.1.0",
-        "runs": [
-            {
-                "tool": {
-                    "driver": {
-                        "name": "test",
-                        "rules": [{"id": "test/rule", "properties": properties}],
-                    }
-                },
-                "results": [
-                    {
-                        "ruleId": "test/rule",
-                        "ruleIndex": 0,
-                        "message": {"text": "Synthetic finding"},
-                    }
-                ],
-            }
-        ],
-    }
-
-
-class SarifSecurityGateTests(unittest.TestCase):
-    def test_high_findings_block_and_lower_findings_pass(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            target = Path(directory) / "result.sarif"
-            target.write_text(json.dumps(sarif("9.8")), encoding="utf-8")
-            self.assertEqual([("result.sarif", "Synthetic finding", 9.8)], findings([target], 7.0))
-
-            target.write_text(json.dumps(sarif("6.9")), encoding="utf-8")
-            self.assertEqual([], findings([target], 7.0))
-
-    def test_missing_security_severity_is_not_misclassified(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            target = Path(directory) / "result.sarif"
-            target.write_text(json.dumps(sarif(None)), encoding="utf-8")
-
-            self.assertEqual([target], sarif_paths(Path(directory)))
-            self.assertEqual([], findings([target], 7.0))
-
+class SecurityGateTests(unittest.TestCase):
     def test_security_workflow_uses_blocking_gates(self) -> None:
         workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn('exit-code: "1"', workflow)
@@ -58,10 +13,21 @@ class SarifSecurityGateTests(unittest.TestCase):
         self.assertIn("security-events: write", workflow)
         self.assertIn('python-version: "3.14.6"', workflow)
         self.assertIn("python3 scripts/classify_quality_paths.py", workflow)
-        self.assertIn("if: needs.classify.outputs.codeql == 'true'", workflow)
+        self.assertIn(
+            "if: github.event_name == 'pull_request' || " "needs.classify.outputs.codeql == 'true'",
+            workflow,
+        )
+        self.assertIn("- go", workflow)
+        self.assertIn("matrix.language == 'go' && 'autobuild' || 'none'", workflow)
+        self.assertNotIn("Block high and critical SAST findings", workflow)
+        self.assertNotIn("scripts/enforce_sarif_security.py", workflow)
         self.assertIn("name: Quality / Security", workflow)
         self.assertIn("SECURITY_SELECTED: ${{ needs.classify.outputs.security }}", workflow)
         self.assertIn('case "$SECURITY_SELECTED:$CODEQL_SELECTED" in', workflow)
+        self.assertIn(
+            'if [ "$EVENT_NAME" = "pull_request" ] || ' '[ "$CODEQL_SELECTED" = "true" ]; then',
+            workflow,
+        )
         self.assertIn('test "$SOURCE_SCAN_RESULT" = "success"', workflow)
 
         dockerfile = Path("Dockerfile").read_text(encoding="utf-8")

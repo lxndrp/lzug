@@ -156,13 +156,6 @@ class QualityPathClassificationTests(unittest.TestCase):
             a11y=True,
         )
 
-    def test_security_gate_logic_selects_only_security(self) -> None:
-        self.assert_selection(
-            ["scripts/enforce_sarif_security.py"],
-            security=True,
-            codeql=True,
-        )
-
     def test_ci_toolchain_and_unknown_paths_fail_closed_to_full_ci(self) -> None:
         full = QualitySelection.full()
         for path in (
@@ -212,7 +205,6 @@ class CiWorkflowContractTests(unittest.TestCase):
             "oci",
             "npm_security",
             "documentation",
-            "codeql",
             "image",
             "container",
             "compose",
@@ -222,6 +214,20 @@ class CiWorkflowContractTests(unittest.TestCase):
         ):
             with self.subTest(output=output):
                 self.assertIn(f"if: needs.classify.outputs.{output} == 'true'", self.workflow)
+
+        self.assertIn(
+            "if: github.event_name == 'pull_request' || " "needs.classify.outputs.codeql == 'true'",
+            self.workflow,
+        )
+        self.assertIn(
+            "language:\n          - python\n          - javascript-typescript\n          - go",
+            self.workflow,
+        )
+        self.assertIn(
+            "build-mode: ${{ matrix.language == 'go' && 'autobuild' || 'none' }}",
+            self.workflow,
+        )
+        self.assertIn("if: matrix.language == 'go'", self.workflow)
 
     def test_stable_domain_gates_check_selected_and_skipped_results(self) -> None:
         for gate in STABLE_QUALITY_GATES:

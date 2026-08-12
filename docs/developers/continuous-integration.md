@@ -13,7 +13,7 @@ verbindliche Schnittstelle:
 | `Quality / Operator CLI` | Go-Vertrag und alle portablen Builds sind erfolgreich oder nachweislich übersprungen. |
 | `Quality / OCI` | Der ausgewählte Image-Build sowie Scan und SBOM sind erfolgreich; andernfalls ist der Scan nachweislich übersprungen. |
 | `Quality / Documentation` | Die ausgewählte technische Dokumentation ist erfolgreich gebaut oder nachweislich übersprungen. |
-| `Quality / Security` | Der immer ausgeführte Secret-/Misconfiguration-Scan und gegebenenfalls CodeQL sind erfolgreich. |
+| `Quality / Security` | Der immer ausgeführte Secret-/Misconfiguration-Scan und die auf Pull Requests immer ausgeführten CodeQL-Analysen sind erfolgreich. |
 | `Quality / Overall` | Alle ausgewählten systemübergreifenden Detailverträge sind erfolgreich; nicht ausgewählte Details sind nachweislich übersprungen. |
 
 Jedes Gate läuft mit `if: always()` und prüft Klassifizierergebnis,
@@ -22,11 +22,17 @@ nicht ausgewählter `skipped` melden. Leere oder fehlende Ausgaben lassen das
 Gate fehlschlagen. Interne Jobnamen dürfen sich ändern, diese sieben Namen und
 ihre Semantik dagegen nicht ohne kontrollierte Migration der Required Checks.
 
-Das aktive Ruleset verlangt ausschließlich diese sieben stabilen Gate-Namen.
+Das aktive Ruleset verlangt diese sieben stabilen Gate-Namen und zusätzlich
+GitHubs native Regel `Require code scanning results` für das Werkzeug `CodeQL`.
+Normale Fehlerwarnungen blockieren dabei nicht (`alerts_threshold=none`),
+Security-Befunde ab `high_or_higher` dagegen schon. Die Python-,
+JavaScript/TypeScript- und Go-Analysen laufen auf jedem Pull Request und laden
+ihre Ergebnisse hoch, damit die native Regel für jeden Commit auswertbar ist.
 `strict_required_status_checks_policy` bleibt aktiv, sodass jeder Pull Request
 nach Änderungen am Zielbranch erneut gegen dessen aktuellen Stand geprüft
-werden muss. Detailjobs wie CodeQL, Source- oder OCI-Scan bleiben sichtbar,
-sind aber keine eigenständige öffentliche Ruleset-Schnittstelle.
+werden muss. Die CodeQL-Jobkontexte sind nach der kontrollierten Migration
+keine zusätzlichen Required Status Checks; Source- und OCI-Scans werden weiter
+über ihre stabilen Quality-Gates abgesichert.
 
 Alle Domänen- und Overall-Details liegen im Workflow `Quality` und verwenden
 genau einen Klassifikationslauf. Das einmal gebaute, über seine Prüfsumme
@@ -36,18 +42,41 @@ systemübergreifende Details und werden nicht fälschlich als isolierte
 OCI-Prüfungen eingeordnet. Wiki-Publishing und Dependabot-Auto-Merge bleiben
 ereignisbasierte, unabhängige Automationen.
 
+### Runner-Zeit der verpflichtenden CodeQL-Analysen
+
+Die breitere Absicherung erhöht die GitHub-Runner-Zeit auch für reine Prozess-
+und Dokumentationsänderungen bewusst. Die drei CodeQL-Jobs des Pull-Request-
+Laufs [31584452018](https://github.com/lxndrp/lzug/actions/runs/31584452018)
+benötigten zusammen 179 Jobsekunden: JavaScript/TypeScript 63 Sekunden, Python
+58 Sekunden und Go 58 Sekunden. Der Pull Request ändert den CI-Workflow und
+wählt deshalb einen Vollauf; für schmale Änderungsklassen werden die Kosten
+daher transparent aus gemessenen Komponenten projiziert und nicht als
+beobachteter synthetischer Lauf ausgegeben:
+
+| Änderungsklasse | Gemessene bisherige Basis | Basis ohne temporäre Kompatibilitäts-Gates | Mit drei CodeQL-Jobs | Differenz zur bisherigen Basis |
+| --- | --- | --- | --- | --- |
+| reine Prozessänderung | 46 s / 11 Jobs, Lauf [31544583374](https://github.com/lxndrp/lzug/actions/runs/31544583374) | 40 s / 9 Jobs | 219 s / 12 Jobs | +173 s / +1 Job |
+| reine Dokumentationsänderung | 85 s / 12 Jobs, Lauf [31544471092](https://github.com/lxndrp/lzug/actions/runs/31544471092) | 78 s / 10 Jobs | 257 s / 13 Jobs | +172 s / +1 Job |
+
+Die frühere Basis enthielt zwei inzwischen entfernte Kompatibilitäts-Gates mit
+zusammen sechs beziehungsweise sieben Jobsekunden. Die Projektion addiert die
+gemessenen CodeQL-Zeiten zur bereinigten Basis. Sie macht damit die dauerhaften
+Mehrkosten des ausnahmslosen Merge-Schutzes nachvollziehbar, ohne parallele
+Joblaufzeiten mit der verstrichenen Workflow-Zeit zu verwechseln.
+
 ## Zentrale, konservative Pfadklassifikation
 
 `scripts/classify_quality_paths.py` ist die einzige Quelle für die
 Domänenauswahl Backend, Frontend, Betreiber-CLI, OCI, Dokumentation, Security
-und Overall. Interne Flags wählen zusätzlich npm-Audit, CodeQL, Image-Build,
+und Overall. Interne Flags wählen zusätzlich npm-Audit, CodeQL außerhalb von
+Pull Requests, Image-Build,
 Container-Runtime, Compose, CLI-zu-Container, Browser-E2E und Accessibility
 aus. Mehrere geänderte Pfade vereinigen ihre Auswahlmengen.
 
 | Änderung | Ausgewählte Domänen und Details |
 | --- | --- |
-| Reine Prozess- und Metadaten, etwa `AGENTS.md` | keine Anwendungsdomäne; nur Klassifizierer, stabile Gates und der bewusst breite Source-Scan |
-| `docs/**`, `mkdocs.yml`, Changelog oder technische README-Dateien | Dokumentation |
+| Reine Prozess- und Metadaten, etwa `AGENTS.md` | keine Anwendungsdomäne; nur Klassifizierer, stabile Gates, der bewusst breite Source-Scan und alle drei CodeQL-Analysen |
+| `docs/**`, `mkdocs.yml`, Changelog oder technische README-Dateien | Dokumentation sowie alle drei CodeQL-Analysen |
 | `backend/tests/**` oder statische Prototyp-Testhilfen | Backend |
 | Produktives `backend/**`, `db/**`, Schema, Migrationen oder Fixtures | Backend, OCI, Dokumentation, Security und Overall mit getrennten E2E-/a11y-Details |
 | Betreiberprotokoll in `backend/admin.py` oder `backend/admin_service.py` | wie produktives Backend, zusätzlich Betreiber-CLI und CLI-zu-Container |
