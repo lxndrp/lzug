@@ -12,7 +12,8 @@ class BuildIdentityContractTests(unittest.TestCase):
             for path in (
                 "Dockerfile",
                 "Taskfile.yml",
-                ".github/workflows/ci.yml",
+                ".github/workflows/pull-request.yml",
+                ".github/workflows/quality.yml",
                 ".github/workflows/release.yml",
                 "scripts/container-smoke.sh",
                 "scripts/operator-container-smoke.sh",
@@ -42,11 +43,19 @@ class BuildIdentityContractTests(unittest.TestCase):
         self.assertIn('cmp "$temporary_directory/container-metadata.json"', operator_smoke)
 
     def test_ci_and_release_derive_identity_from_commit_and_tag(self) -> None:
-        ci = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+        workflows = "\n".join(
+            Path(path).read_text(encoding="utf-8")
+            for path in (
+                ".github/workflows/pull-request.yml",
+                ".github/workflows/quality.yml",
+            )
+        )
+        taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
         release = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
 
-        self.assertIn('--revision "$GITHUB_SHA" --field identity', ci)
-        self.assertIn("BUILD_IDENTITY=${{ steps.build_metadata.outputs.identity }}", ci)
+        self.assertIn("task quality:oci", workflows)
+        self.assertIn('--revision "$revision" --field identity', taskfile)
+        self.assertIn('--build-arg "BUILD_IDENTITY=$build_identity"', taskfile)
         self.assertIn('--tag "$RELEASE_TAG" --revision "$TARGET_SHA"', release)
         self.assertIn("RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}", release)
         self.assertIn("VCS_REF=${{ env.TARGET_SHA }}", release)

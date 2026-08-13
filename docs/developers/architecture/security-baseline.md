@@ -80,9 +80,11 @@ veröffentlichte Image enthält diese Seed-Datei nicht.
 
 ## Blockierende Security-Gates
 
-Der konsolidierte Workflow `.github/workflows/ci.yml` besitzt global nur
-`contents: read`. `security-events: write` ist ausschließlich auf die beiden
-CodeQL-Matrixjobs begrenzt. Alle Actions sämtlicher Workflows sind auf
+Die getrennten Workflows `.github/workflows/pull-request.yml` und
+`.github/workflows/quality.yml` besitzen global nur `contents: read`; der
+Pull-Request-Workflow darf zusätzlich die geänderten PR-Dateien lesen.
+`security-events: write` ist ausschließlich auf die CodeQL-Matrixjobs begrenzt.
+Alle Actions sämtlicher Workflows sind auf
 vollständige Commit-SHAs fixiert; ein repositoryweiter Vertragstest verhindert
 bewegliche Tag-Referenzen auch in Release-, Dependabot- und Wiki-Abläufen.
 
@@ -101,17 +103,16 @@ abgesicherten Action 0.35.0 fixiert und verwendet die unveränderliche Version
 und die blockierende Scannerkonfiguration. Scannerbefunde werden
 nicht durch gelockerte Schwellen oder pauschale Ignore-Dateien verborgen.
 
-Der Qualitätsworkflow läuft auf jedem Push nach `main` oder `master`, im
+Der Workflow `Quality` läuft auf jedem Push nach `main` oder `master`, im
 wöchentlichen Zeitplan und bei manueller Ausführung vollständig. In Pull
-Requests wählt die zentrale konservative Klassifikation die betroffenen
-Domänen und Overall-Verträge; leere oder unbekannte Pfadmengen führen immer zum
-Vollauf. Pull Requests lesen nur den gemeinsamen BuildKit-Cache.
-Ausschließlich ein Push auf den geschützten Hauptbranch darf ihn aktualisieren.
-Image-Build, Image-Scan und die Container-, Compose- sowie CLI-zu-Container-
-Verträge bleiben getrennte Statuschecks. Das Image-Archiv wird einmal gebaut,
-mit SHA-256 abgesichert und in jedem ausgewählten Folgejob vor Verwendung
-geprüft. `Quality / OCI` verlangt Build und Scan, `Quality / Overall` die
-ausgewählten Laufzeitverträge.
+Requests wählt `dorny/paths-filter` die fünf Domänen Dokumentation, Backend,
+Frontend, CLI und Container; leere oder unbekannte Pfadmengen führen immer zum
+Vollauf. Der Containerjob baut das lokale Image einmal und verwendet exakt
+dieses Image für SBOM, Scan sowie Container-, Compose- und
+CLI-zu-Container-Verträge. Die fünf immer vorhandenen `Pull Request / …`-Gates
+verlangen ausgewählte Details und bestätigen nicht ausgewählte Details
+ausdrücklich als übersprungen. CodeQL und der breite Source-Scan bleiben für
+jeden Pull Request zusätzlich verpflichtend.
 
 GitHub Secret Scanning und Push Protection sind im öffentlichen Repository
 aktiv. Non-Provider-Patterns und Validity Checks werden vom aktuellen
