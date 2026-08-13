@@ -299,6 +299,18 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("docker logout ghcr.io", workflow)
         self.assertIn("gh release create", workflow)
         self.assertIn("--draft", workflow)
+        self.assertNotIn('--target "$CANDIDATE_SHA"', publish)
+        self.assertIn("--json isDraft,tagName,url", publish)
+        self.assertNotIn("targetCommitish", publish)
+        self.assertIn('test "$(git cat-file -t "$tag_ref")" = tag', publish)
+        self.assertIn(
+            'test "$(git rev-parse "${tag_ref}^{}")" = "$CANDIDATE_SHA"',
+            publish,
+        )
+        self.assertIn(
+            "lzug-release-candidate:v1 issue=$RELEASE_ISSUE candidate=$CANDIDATE_SHA",
+            publish,
+        )
         self.assertLess(
             workflow.index("Upload every checksummed release asset"),
             workflow.index("Publish only the complete release"),

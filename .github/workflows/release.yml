@@ -463,13 +463,11 @@ jobs:
           if state=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null); then
             test "$state" = "true"
             gh release edit "$RELEASE_TAG" \
-              --target "$CANDIDATE_SHA" \
               --title "lzug $VERSION" \
               --notes-file release-information.md
           else
             gh release create "$RELEASE_TAG" \
               --verify-tag \
-              --target "$CANDIDATE_SHA" \
               --draft \
               "${prerelease[@]}" \
               --title "lzug $VERSION" \
@@ -493,8 +491,13 @@ jobs:
           set -euo pipefail
           gh release edit "$RELEASE_TAG" --draft=false
           gh release view "$RELEASE_TAG" \
-            --json isDraft,tagName,targetCommitish,url \
-            --jq 'select(.isDraft == false and .tagName == env.RELEASE_TAG and .targetCommitish == env.CANDIDATE_SHA)'
+            --json isDraft,tagName,url \
+            --jq 'select(.isDraft == false and .tagName == env.RELEASE_TAG)'
+          tag_ref="refs/tags/$RELEASE_TAG"
+          test "$(git cat-file -t "$tag_ref")" = tag
+          test "$(git rev-parse "${tag_ref}^{}")" = "$CANDIDATE_SHA"
+          git cat-file tag "$tag_ref" | grep --fixed-strings --line-regexp \
+            "lzug-release-candidate:v1 issue=$RELEASE_ISSUE candidate=$CANDIDATE_SHA"
 
       - name: Record reciprocal release evidence
         env:
