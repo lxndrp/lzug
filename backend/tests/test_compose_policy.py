@@ -44,7 +44,14 @@ class ComposePolicyTests(unittest.TestCase):
         self.assertEqual(image_reference_errors(f"lzug@sha256:{'a' * 64}"), [])
 
     def test_rejects_mutable_placeholder_and_unversioned_images(self) -> None:
-        for image in ("lzug:latest", "REPLACE_IMAGE", "lzug:dev"):
+        for image in (
+            "lzug:latest",
+            "REPLACE_IMAGE",
+            "lzug:dev",
+            "lzug:01.2.3",
+            "lzug:1.2.3-01",
+            "lzug:1.2.3-0." + "--." * 10_000,
+        ):
             with self.subTest(image=image):
                 self.assertTrue(image_reference_errors(image))
 

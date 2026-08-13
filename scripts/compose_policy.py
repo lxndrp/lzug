@@ -6,17 +6,57 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 from pathlib import Path
 from typing import Any
 
-SEMVER_IMAGE = re.compile(
-    r":(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
-    r"(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
-    r"(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?"
-    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+SEMVER_IDENTIFIER_CHARACTERS = frozenset(
+    "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-"
 )
-DIGEST_IMAGE = re.compile(r"@sha256:[0-9a-fA-F]{64}$")
+HEXADECIMAL_CHARACTERS = frozenset("0123456789abcdefABCDEF")
+
+
+def _valid_identifiers(value: str, *, reject_numeric_leading_zero: bool) -> bool:
+    identifiers = value.split(".")
+    return all(
+        identifier
+        and all(character in SEMVER_IDENTIFIER_CHARACTERS for character in identifier)
+        and not (
+            reject_numeric_leading_zero
+            and identifier.isdigit()
+            and len(identifier) > 1
+            and identifier.startswith("0")
+        )
+        for identifier in identifiers
+    )
+
+
+def _has_semver_tag(image: str) -> bool:
+    last_path_component = image.rsplit("/", 1)[-1]
+    if ":" not in last_path_component:
+        return False
+    version = last_path_component.rsplit(":", 1)[1]
+
+    core_and_prerelease, separator, build = version.partition("+")
+    if separator and not _valid_identifiers(build, reject_numeric_leading_zero=False):
+        return False
+    if "+" in build:
+        return False
+
+    core, separator, prerelease = core_and_prerelease.partition("-")
+    if separator and not _valid_identifiers(prerelease, reject_numeric_leading_zero=True):
+        return False
+    parts = core.split(".")
+    return len(parts) == 3 and all(
+        part.isdigit() and (part == "0" or not part.startswith("0")) for part in parts
+    )
+
+
+def _has_sha256_digest(image: str) -> bool:
+    marker = "@sha256:"
+    if marker not in image:
+        return False
+    digest = image.rsplit(marker, 1)[1]
+    return len(digest) == 64 and all(character in HEXADECIMAL_CHARACTERS for character in digest)
 
 
 def image_reference_errors(image: object) -> list[str]:
@@ -26,7 +66,7 @@ def image_reference_errors(image: object) -> list[str]:
         return ["services.lzug.image must not use the mutable latest tag"]
     if "REPLACE" in image or "<" in image or ">" in image:
         return ["services.lzug.image must not contain a placeholder"]
-    if not (SEMVER_IMAGE.search(image) or DIGEST_IMAGE.search(image)):
+    if not (_has_semver_tag(image) or _has_sha256_digest(image)):
         return ["services.lzug.image must end in an immutable SemVer tag or sha256 digest"]
     return []
 
