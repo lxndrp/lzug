@@ -25,6 +25,9 @@ CLI_SOURCE_NAME = "lzug-admin"
 RELEASE_SOURCE_NAME = "lzug-release"
 SYFT_TOOL_KEY = "aqua:anchore/syft"
 SUBJECT_CHECKSUM_PATTERN = re.compile(r"^([0-9a-f]{64}) ([ *])(.+)$")
+GHCR_IMAGE_PATTERN = re.compile(
+    r"^ghcr[.]io/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?/" r"[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$"
+)
 
 
 def configured_syft_version(root: Path = ROOT) -> str:
@@ -216,6 +219,32 @@ def _component_key(component: dict[str, Any]) -> str:
     return json.dumps(normalized, sort_keys=True, separators=(",", ":"))
 
 
+def release_archive_names(version: str) -> set[str]:
+    """Return the exact six native CLI archive names for one release."""
+
+    return {
+        f"lzug-admin-{version}-{goos}-{goarch}.{extension}"
+        for goos, goarch, extension in (
+            ("linux", "amd64", "tar.gz"),
+            ("linux", "arm64", "tar.gz"),
+            ("darwin", "amd64", "tar.gz"),
+            ("darwin", "arm64", "tar.gz"),
+            ("windows", "amd64", "zip"),
+            ("windows", "arm64", "zip"),
+        )
+    }
+
+
+def release_subject_type(name: str, version: str) -> str:
+    """Classify one exact release subject or reject an unexpected name."""
+
+    if name in release_archive_names(version):
+        return "file"
+    if GHCR_IMAGE_PATTERN.fullmatch(name):
+        return "container"
+    raise ValueError(f"unexpected release subject name: {name}")
+
+
 def aggregate_release_sbom(
     payloads: list[dict[str, Any]],
     source_version: str,
@@ -272,7 +301,7 @@ def aggregate_release_sbom(
             {
                 "bom-ref": "urn:lzug:subject:sha256:"
                 + hashlib.sha256(f"{name}\0{digest}".encode()).hexdigest(),
-                "type": "container" if name.startswith("ghcr.io/") else "file",
+                "type": release_subject_type(name, source_version),
                 "name": name,
                 "version": source_version,
                 "hashes": [{"alg": "SHA-256", "content": digest.removeprefix("sha256:")}],
@@ -541,13 +570,16 @@ def validate_release(payload: dict[str, Any]) -> dict[str, Any]:
         for component in components
         if {"name": "lzug:release:subject", "value": "true"} in component.get("properties", [])
     ]
-    archive_pattern = re.compile(
-        rf"^lzug-admin-{re.escape(version)}-(?:linux|darwin|windows)-"
-        r"(?:amd64|arm64)\.(?:tar\.gz|zip)$"
-    )
-    archives = [item for item in subjects if archive_pattern.fullmatch(str(item.get("name", "")))]
-    images = [item for item in subjects if item.get("type") == "container"]
-    if len(archives) != 6 or len(images) != 1 or len(subjects) != 7:
+    archive_names = {str(item.get("name", "")) for item in subjects if item.get("type") == "file"}
+    image_names = {
+        str(item.get("name", "")) for item in subjects if item.get("type") == "container"
+    }
+    if (
+        archive_names != release_archive_names(version)
+        or len(image_names) != 1
+        or not GHCR_IMAGE_PATTERN.fullmatch(next(iter(image_names), ""))
+        or len(subjects) != 7
+    ):
         raise ValueError("release SBOM must identify six CLI archives and one OCI image")
     for subject in subjects:
         hashes = subject.get("hashes", [])

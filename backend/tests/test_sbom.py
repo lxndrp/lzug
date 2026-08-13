@@ -185,6 +185,22 @@ class SbomContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "six CLI archives and one OCI image"):
             validate_release(report)
 
+    def test_release_sbom_rejects_an_embedded_ghcr_host_name(self) -> None:
+        subjects = release_subjects("1.2.3")
+        subjects[-1] = (
+            "https://example.invalid/ghcr.io/lxndrp/lzug",
+            subjects[-1][1],
+        )
+
+        with self.assertRaisesRegex(ValueError, "unexpected release subject name"):
+            aggregate_release_sbom(
+                release_detail_payloads(),
+                "1.2.3",
+                "v1.2.3",
+                "a" * 40,
+                subjects,
+            )
+
 
 def release_detail_payloads() -> list[dict]:
     dependency = payload(
@@ -224,7 +240,7 @@ def release_subjects(version: str) -> list[tuple[str, str]]:
         (f"lzug-admin-{version}-darwin-arm64.tar.gz", digest),
         (f"lzug-admin-{version}-windows-amd64.zip", digest),
         (f"lzug-admin-{version}-windows-arm64.zip", digest),
-        (f"ghcr.io/lxndrp/lzug:{version}", "sha256:" + "c" * 64),
+        ("ghcr.io/lxndrp/lzug", "sha256:" + "c" * 64),
     ]
 
 
