@@ -6,6 +6,14 @@
     Releases oder OCI-Tags manuell. Der Workflow erstellt den annotierten Tag
     erst nach der Freigabe des GitHub-Environments `release`.
 
+!!! info "Beschlossener Zielablauf"
+
+    [ADR-0020](decisions/0020-minimaler-releaseablauf-mit-github-bordmitteln.md)
+    ersetzt die Issue- und Milestone-gesteuerte Release-Automation durch einen
+    ausdrücklich auf `master` gestarteten, environment-geschützten Ablauf.
+    Bis zur technischen Migration in #347 beschreibt diese Seite darunter den
+    operativen Bestand. `v0.1.0` wird durch die Migration nicht verändert.
+
 ## Zielvertrag
 
 Der [SemVer- und Release-Vertrag](decisions/0019-tag-zentrierter-releaseprozess.md)

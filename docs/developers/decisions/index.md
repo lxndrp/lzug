@@ -24,4 +24,5 @@ Historie, machen aber Kontext, Konsequenzen und Verweise dauerhaft auffindbar.
 | [0016](0016-spaetere-mandantenflotte.md) | Spätere getrennte Mandantenflotte | Akzeptiert als Zielbild |
 | [0017](0017-erstveroeffentlichung-ohne-kubernetes.md) | Erstveröffentlichung ohne Kubernetes und Helm | Akzeptiert |
 | [0018](0018-semver-release-und-milestones.md) | SemVer, Releases und Release-Milestones trennen | Teilweise abgelöst |
-| [0019](0019-tag-zentrierter-releaseprozess.md) | Tag-zentrierter minimaler Releaseprozess | Akzeptiert |
+| [0019](0019-tag-zentrierter-releaseprozess.md) | Tag-zentrierter minimaler Releaseprozess | Teilweise abgelöst |
+| [0020](0020-minimaler-releaseablauf-mit-github-bordmitteln.md) | Minimaler Releaseablauf mit GitHub-Bordmitteln | Akzeptiert |
