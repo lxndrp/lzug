@@ -26,3 +26,4 @@ Historie, machen aber Kontext, Konsequenzen und Verweise dauerhaft auffindbar.
 | [0018](0018-semver-release-und-milestones.md) | SemVer, Releases und Release-Milestones trennen | Teilweise abgelöst |
 | [0019](0019-tag-zentrierter-releaseprozess.md) | Tag-zentrierter minimaler Releaseprozess | Teilweise abgelöst |
 | [0020](0020-minimaler-releaseablauf-mit-github-bordmitteln.md) | Minimaler Releaseablauf mit GitHub-Bordmitteln | Akzeptiert |
+| [0021](0021-goreleaser-fuer-die-betreiber-cli.md) | GoReleaser für die Betreiber-CLI | Akzeptiert |

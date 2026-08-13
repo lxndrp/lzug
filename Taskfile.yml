@@ -26,6 +26,8 @@ tasks:
       - npm --version
       - command -v go >/dev/null || { echo "Go is missing; run mise install"; exit 1; }
       - go version
+      - command -v goreleaser >/dev/null || { echo "GoReleaser is missing; run mise install"; exit 1; }
+      - goreleaser --version
       - >-
         cd frontend && node -e "const { chromium } = require('@playwright/test'); const { existsSync } = require('node:fs'); const executablePath = chromium.executablePath(); if (!existsSync(executablePath)) { console.error('Playwright Chromium is missing at ' + executablePath + '; run task setup'); process.exit(1); } console.log('Playwright Chromium: ' + executablePath);"
 
@@ -122,27 +124,26 @@ tasks:
       - npm run security:check
 
   quality:operator:
-    desc: Run Go operator CLI tests, reproducible archives, and all portable builds
+    desc: Run Go operator CLI tests and verify reproducible GoReleaser archives
     cmds:
       - task: test:operator
+      - goreleaser check
       - |
         set -eu
+        test ! -e dist || { echo "root dist directory must not exist before CLI verification" >&2; exit 1; }
         temporary_directory="$(mktemp -d)"
-        trap 'rm -rf "$temporary_directory"' EXIT
+        trap 'rm -rf dist "$temporary_directory"; rm -f .goreleaser-build-metadata.json' EXIT
         revision="$(git rev-parse HEAD)"
         application_version="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
         for run in first second; do
-          python3 scripts/build_cli_release.py \
-            --version "$application_version" \
-            --revision "$revision" \
-            --output "$temporary_directory/$run/release-assets/cli" \
-            --work-dir "$temporary_directory/$run/build"
+          goreleaser release --snapshot --clean
+          mv dist "$temporary_directory/$run"
         done
-        for archive in "$temporary_directory/first/release-assets/cli"/*; do
-          test -f "$archive"
-          relative="${archive#"$temporary_directory/first/release-assets/cli/"}"
-          cmp "$archive" "$temporary_directory/second/release-assets/cli/$relative"
-        done
+        python3 scripts/verify_cli_release.py \
+          --first "$temporary_directory/first" \
+          --second "$temporary_directory/second" \
+          --version "$application_version" \
+          --revision "$revision"
 
   quality:oci:
     desc: Build the local OCI quality image

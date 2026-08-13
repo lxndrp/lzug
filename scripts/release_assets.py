@@ -13,13 +13,16 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from scripts.build_cli_release import (  # noqa: E402
-    CLI_TARGETS,
-    archive_name,
-)
-
 VERSION_PATTERN = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?$")
 DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
+CLI_TARGETS = (
+    ("linux", "amd64", "tar.gz"),
+    ("linux", "arm64", "tar.gz"),
+    ("darwin", "amd64", "tar.gz"),
+    ("darwin", "arm64", "tar.gz"),
+    ("windows", "amd64", "zip"),
+    ("windows", "arm64", "zip"),
+)
 
 
 def installable_archive_names(version: str) -> set[str]:
@@ -28,7 +31,8 @@ def installable_archive_names(version: str) -> set[str]:
     if not VERSION_PATTERN.fullmatch(version):
         raise ValueError(f"invalid release version: {version}")
     return {
-        archive_name(version, goos, goarch, extension) for goos, goarch, extension in CLI_TARGETS
+        f"lzug-admin-{version}-{goos}-{goarch}.{extension}"
+        for goos, goarch, extension in CLI_TARGETS
     }
 
 

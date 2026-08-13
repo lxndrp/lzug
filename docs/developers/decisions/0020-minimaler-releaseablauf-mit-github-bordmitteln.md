@@ -99,7 +99,7 @@ Release bilden den Audit-Trail der Plattform.
 | Release-Anteile in `backend/tests/test_sbom.py` | Auf den verbleibenden sichtbaren SBOM-Vertrag begrenzen; keine Workflow- oder Retry-Steuerung testen |
 | `scripts/sbom.py` | Lokale/CI-SBOM-Verträge und eine nötige deterministische Zusammenführung zur einzigen sichtbaren CycloneDX-SBOM behalten, release-spezifische Subject- und Attestation-Orchestrierung zugunsten von Syft/Anchore und GitHub Attestations entfernen |
 | `scripts/build_metadata.py` | Behalten; der gemeinsame Tag-, Versions- und Revisionsvertrag ist Produktmetadatenlogik |
-| `scripts/build_cli_release.py` und `backend/tests/test_cli_release.py` | Bis zur getrennten GoReleaser-Entscheidung in #345 unverändert lassen |
+| CLI-Verpackung | Nach der positiven Entscheidung in [ADR-0021](0021-goreleaser-fuer-die-betreiber-cli.md) mit GoReleaser bauen; Release, Attestations und aggregierte SBOM bleiben bei #347 |
 | `backend/tests/test_release_evidence_contract.py` und `docs/developers/release-evidence-v0.1.0.md` | Als historischen Nachweis für `v0.1.0` unverändert lassen |
 
 Release-Notes-Extraktion, OCI-Tag-Semantik, der Vertrag aus sechs nativen
@@ -117,8 +117,9 @@ Release-Zustandsmaschine mehr aufbauen.
 - #344 muss vor #347 einen eindeutig identifizierbaren vollständigen
   `master`-Workflow bereitstellen. Interne Jobnamen dieses Workflows sind kein
   Releasevertrag.
-- #345 kann die Verpackung der Betreiber-CLI unabhängig evaluieren. Das
-  Ergebnis ändert weder Auslöser noch Freigabe- und Taggrenze dieses ADRs.
+- [ADR-0021](0021-goreleaser-fuer-die-betreiber-cli.md) führt GoReleaser nur
+  für Build und Verpackung der Betreiber-CLI ein. Das Ergebnis ändert weder
+  Auslöser noch Freigabe- und Taggrenze dieses ADRs.
 - #347 implementiert und bereinigt den Zielablauf. Bis zu dessen Merge bleibt
   die derzeit dokumentierte Issue-gesteuerte Automation der operative Bestand.
 - Milestone-Zuordnungen und Releasefolge aus ADR-0018 bleiben unverändert; sie

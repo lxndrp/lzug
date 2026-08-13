@@ -46,7 +46,9 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertNotIn("release-candidate", self.workflow)
 
     def test_release_packages_without_repeating_quality_gates(self) -> None:
-        self.assertIn("scripts/build_cli_release.py", self.workflow)
+        self.assertIn("goreleaser release --clean", self.workflow)
+        self.assertIn("goreleaser/goreleaser-action@", self.workflow)
+        self.assertNotIn("scripts/build_cli_release.py", self.workflow)
         self.assertIn("scripts/sbom.py generate-dependencies", self.workflow)
         self.assertIn("scripts/sbom.py generate-image", self.workflow)
         self.assertIn("scripts/sbom.py aggregate", self.workflow)
@@ -84,6 +86,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
             "Checkout the canonical tag for publication",
             "Extract release notes",
             "Set up Go",
+            "Set up GoReleaser",
             "Set up Python",
             "Set up UV",
             "Install locked SBOM dependencies",

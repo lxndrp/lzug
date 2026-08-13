@@ -219,8 +219,8 @@ jobs:
             found && /^## / { exit }
             found { print }
             END { if (!found) exit 1 }
-          ' CHANGELOG.md > release-notes.md
-          test -s release-notes.md
+          ' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+          test -s "$RUNNER_TEMP/release-notes.md"
 
       - name: Set up Go
         if: steps.existing_release.outputs.complete != 'true'
@@ -228,6 +228,14 @@ jobs:
         with:
           go-version: "1.26.5"
           cache: true
+
+      - name: Set up GoReleaser
+        if: steps.existing_release.outputs.complete != 'true'
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: v2.17.1
+          install-only: true
 
       - name: Set up Python
         if: steps.existing_release.outputs.complete != 'true'
@@ -322,10 +330,10 @@ jobs:
           set -euo pipefail
           detailed_sboms="$RUNNER_TEMP/lzug-release-sboms"
           subject_checksums="$RUNNER_TEMP/lzug-release-subjects.checksums.txt"
-          mkdir -p release-assets/cli "$RUNNER_TEMP/lzug-cli-build" "$detailed_sboms/cli"
-          python3 scripts/build_cli_release.py \
-            --version "$VERSION" --revision "$TARGET_SHA" --tag "$RELEASE_TAG" \
-            --output release-assets/cli --work-dir "$RUNNER_TEMP/lzug-cli-build"
+          mkdir -p release-assets/cli "$detailed_sboms/cli"
+          goreleaser release --clean
+          cp dist/lzug-admin-"$VERSION"-*.tar.gz dist/lzug-admin-"$VERSION"-*.zip \
+            release-assets/cli/
           python3 scripts/sbom.py generate-dependencies \
             --source-version "$VERSION" --output "$detailed_sboms/dependencies.cdx.json"
           python3 scripts/sbom.py generate-image \
@@ -336,9 +344,14 @@ jobs:
           )
           for target in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64 windows-arm64; do
             archive_stem="lzug-admin-$VERSION-$target"
+            goos="${target%-*}"
+            goarch="${target#*-}"
+            binary="$(jq -er --arg goos "$goos" --arg goarch "$goarch" \
+              '.[] | select(.type == "Binary" and .goos == $goos and .goarch == $goarch) | .path' \
+              dist/artifacts.json)"
             python3 scripts/sbom.py generate-cli \
               --source-version "$VERSION" --source-name "$archive_stem" \
-              --artifact "$RUNNER_TEMP/lzug-cli-build/binaries/lzug-admin-$target" \
+              --artifact "$binary" \
               --output "$detailed_sboms/cli/$archive_stem.cdx.json"
             aggregate_inputs+=(--input "$detailed_sboms/cli/$archive_stem.cdx.json")
           done
@@ -404,12 +417,12 @@ jobs:
               echo "A published GitHub Release already exists for $RELEASE_TAG." >&2
               exit 1
             }
-            gh release edit "$RELEASE_TAG" --repo "$GH_REPO" --title "lzug ${{ steps.release.outputs.version }}" --notes-file release-notes.md
+            gh release edit "$RELEASE_TAG" --repo "$GH_REPO" --title "lzug ${{ steps.release.outputs.version }}" --notes-file "$RUNNER_TEMP/release-notes.md"
           else
             prerelease=()
             [[ "$RELEASE_TAG" == *-rc.* ]] && prerelease=(--prerelease)
             gh release create "$RELEASE_TAG" --repo "$GH_REPO" --verify-tag --draft "${prerelease[@]}" \
-              --title "lzug ${{ steps.release.outputs.version }}" --notes-file release-notes.md
+              --title "lzug ${{ steps.release.outputs.version }}" --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
 
       - name: Upload release assets and publish

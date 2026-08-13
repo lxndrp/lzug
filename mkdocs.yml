@@ -74,3 +74,4 @@ nav:
           - ADR-0018 SemVer und Release-Milestones: developers/decisions/0018-semver-release-und-milestones.md
           - ADR-0019 Tag-zentrierter Releaseprozess: developers/decisions/0019-tag-zentrierter-releaseprozess.md
           - ADR-0020 Minimaler Releaseablauf: developers/decisions/0020-minimaler-releaseablauf-mit-github-bordmitteln.md
+          - ADR-0021 GoReleaser für Betreiber-CLI: developers/decisions/0021-goreleaser-fuer-die-betreiber-cli.md

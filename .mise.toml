@@ -5,6 +5,7 @@ go = "1.26.5"
 uv = "latest"
 "aqua:go-task/task" = "3.52.0"
 "aqua:anchore/syft" = "1.51.0"
+"aqua:goreleaser/goreleaser" = "2.17.1"
 
 [settings]
 python.uv_venv_auto = "create|source"

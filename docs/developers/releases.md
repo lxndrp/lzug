@@ -89,6 +89,13 @@ Der Workflow baut aus dem Tag nur die zu veröffentlichenden Artefakte:
   das OCI-Image und die aus den detaillierten Scans zusammengeführten
   Laufzeit- und Build-Abhängigkeiten.
 
+Die sechs CLI-Archive werden gemäß
+[ADR-0021](decisions/0021-goreleaser-fuer-die-betreiber-cli.md) mit der
+gepinnten GoReleaser-Version gebaut. GoReleaser veröffentlicht dabei nicht
+selbst und erzeugt ausdrücklich keine Checksummendatei. Der Release-Workflow
+verwendet seine Binärartefakte nur für temporäre Detail-SBOMs und übernimmt die
+sechs Archive in den nachgelagerten GitHub-Release- und Attestationsvertrag.
+
 Damit enthält ein künftiger GitHub Release genau sieben Assets. Separate
 Prüfsummendateien, plattformspezifische CLI-SBOMs, Dependency-/Image-SBOMs,
 Provenance-JSONs und Release-Manifeste werden nicht als Release-Assets
