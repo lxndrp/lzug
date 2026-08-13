@@ -153,52 +153,30 @@ class SbomContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "build-only ecosystems"):
             validate_image(invalid)
 
-    def test_release_sbom_aggregates_eight_detailed_boms_and_seven_subjects(self) -> None:
+    def test_release_sbom_aggregates_eight_detailed_boms(self) -> None:
         details = release_detail_payloads()
-        subjects = release_subjects("1.2.3")
 
         report = aggregate_release_sbom(
             details,
             "1.2.3",
             "v1.2.3",
             "a" * 40,
-            subjects,
         )
         summary = validate_release(report)
 
-        self.assertEqual(7, summary["subjects"])
         self.assertEqual({"golang": 2, "npm": 1, "pypi": 1}, summary["purl_types"])
         self.assertEqual(
             report,
-            aggregate_release_sbom(details, "1.2.3", "v1.2.3", "a" * 40, subjects),
+            aggregate_release_sbom(details, "1.2.3", "v1.2.3", "a" * 40),
         )
 
-    def test_release_sbom_fails_closed_for_incomplete_delivery_subjects(self) -> None:
-        report = aggregate_release_sbom(
-            release_detail_payloads(),
-            "1.2.3",
-            "v1.2.3",
-            "a" * 40,
-            release_subjects("1.2.3")[:-1],
-        )
-
-        with self.assertRaisesRegex(ValueError, "six CLI archives and one OCI image"):
-            validate_release(report)
-
-    def test_release_sbom_rejects_an_embedded_ghcr_host_name(self) -> None:
-        subjects = release_subjects("1.2.3")
-        subjects[-1] = (
-            "https://example.invalid/ghcr.io/lxndrp/lzug",
-            subjects[-1][1],
-        )
-
-        with self.assertRaisesRegex(ValueError, "unexpected release subject name"):
+    def test_release_sbom_fails_closed_for_incomplete_detailed_inventory(self) -> None:
+        with self.assertRaisesRegex(ValueError, "requires dependency, image, and six CLI SBOMs"):
             aggregate_release_sbom(
-                release_detail_payloads(),
+                release_detail_payloads()[:-1],
                 "1.2.3",
                 "v1.2.3",
                 "a" * 40,
-                subjects,
             )
 
 
@@ -229,19 +207,6 @@ def release_detail_payloads() -> list[dict]:
         )
     ]
     return [dependency, image, *cli_payloads]
-
-
-def release_subjects(version: str) -> list[tuple[str, str]]:
-    digest = "sha256:" + "b" * 64
-    return [
-        (f"lzug-admin-{version}-linux-amd64.tar.gz", digest),
-        (f"lzug-admin-{version}-linux-arm64.tar.gz", digest),
-        (f"lzug-admin-{version}-darwin-amd64.tar.gz", digest),
-        (f"lzug-admin-{version}-darwin-arm64.tar.gz", digest),
-        (f"lzug-admin-{version}-windows-amd64.zip", digest),
-        (f"lzug-admin-{version}-windows-arm64.zip", digest),
-        ("ghcr.io/lxndrp/lzug", "sha256:" + "c" * 64),
-    ]
 
 
 if __name__ == "__main__":

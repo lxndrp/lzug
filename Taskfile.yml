@@ -100,6 +100,17 @@ tasks:
           --kind dependencies \
           --input "$temporary_directory/lzug.dependencies.sbom.cdx.json"
 
+  quality:release:
+    desc: Check the release workflow, aggregate SBOM, metadata, and GoReleaser contracts
+    cmds:
+      - >-
+        {{.UV}} python -m unittest
+        backend.tests.test_release_process
+        backend.tests.test_sbom
+        backend.tests.test_build_metadata
+        backend.tests.test_build_identity_contract
+      - goreleaser check
+
   quality:backend:
     desc: Run backend lint, audit, tests, and coverage
     cmds:

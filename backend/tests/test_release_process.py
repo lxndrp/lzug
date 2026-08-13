@@ -4,13 +4,12 @@ import re
 import unittest
 from pathlib import Path
 
-from scripts.release_assets import expected_release_asset_names, validate_published_release
-
 
 class ReleaseWorkflowTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.workflow = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
+        cls.preflight, cls.publish = cls.workflow.split("\n  publish:\n", 1)
 
     def test_release_uses_only_pinned_actions(self) -> None:
         action_refs = re.findall(r"^\s*uses:\s*[^@\s]+@([^\s]+)", self.workflow, re.MULTILINE)
@@ -18,176 +17,88 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertTrue(action_refs)
         self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs))
 
-    def test_last_regular_milestone_issue_creates_a_gate(self) -> None:
-        self.assertIn("issues:\n    types:\n      - closed", self.workflow)
-        self.assertIn("workflow_dispatch:", self.workflow)
-        self.assertIn("type: release", self.workflow)
-        self.assertIn("gh issue create", self.workflow)
-        self.assertIn("open_regular", self.workflow)
-        self.assertIn("Milestone $release_tag has multiple release gates.", self.workflow)
+    def test_dispatch_requires_an_explicit_semver_tag_on_master(self) -> None:
+        self.assertIn("workflow_dispatch:", self.preflight)
+        self.assertIn("release_tag:", self.preflight)
+        self.assertIn('test "$GITHUB_REF" = refs/heads/master', self.preflight)
+        self.assertIn("git/ref/heads/master", self.preflight)
+        self.assertIn("BuildMetadata.create", self.preflight)
+        self.assertIn("CHANGELOG.md must contain exactly one dated section", self.preflight)
+        self.assertNotIn("issues:", self.preflight)
+        self.assertNotIn("milestone", self.workflow.lower())
+        self.assertNotIn("type: release", self.workflow)
+        self.assertNotIn("gh issue", self.workflow)
 
-    def test_ci_is_read_once_before_environment_approval(self) -> None:
-        preflight, publish = self.workflow.split("\n  publish:\n", 1)
+    def test_preflight_reads_one_complete_master_quality_workflow(self) -> None:
+        self.assertIn("actions/workflows/quality.yml/runs", self.preflight)
+        self.assertIn(".head_sha == $sha", self.preflight)
+        self.assertIn('.head_branch == "master"', self.preflight)
+        self.assertIn('.conclusion == "success"', self.preflight)
+        self.assertNotIn("check-runs", self.workflow)
+        self.assertNotIn("Quality / Backend", self.workflow)
+        self.assertNotIn("Quality / Overall", self.workflow)
+        self.assertNotIn("sleep ", self.workflow)
 
-        self.assertIn("/commits/$target_sha/check-runs", preflight)
-        self.assertIn("Quality / Overall", preflight)
-        self.assertIn("environment: release", publish)
-        self.assertNotIn("/commits/$target_sha/check-runs", publish)
-        self.assertNotIn("sleep 30", self.workflow)
+    def test_environment_approval_precedes_immutable_tag_and_tag_checkout(self) -> None:
+        self.assertIn("environment: release", self.publish)
+        self.assertIn('git cat-file -t "$RELEASE_TAG"', self.publish)
+        self.assertIn('git rev-parse "$RELEASE_TAG^{}"', self.publish)
+        self.assertIn('tag --annotate "$RELEASE_TAG" "$TARGET_SHA"', self.publish)
+        self.assertIn('git checkout --detach "$RELEASE_TAG"', self.publish)
+        self.assertIn('--tag "$RELEASE_TAG" --revision "$TARGET_SHA"', self.publish)
+        self.assertNotIn("git tag --force", self.workflow)
+        self.assertNotIn("git push --force", self.workflow)
 
-    def test_tag_is_the_only_release_identity_after_approval(self) -> None:
-        publish = self.workflow.split("\n  publish:\n", 1)[1]
+    def test_retry_only_reuses_the_exact_tag_and_an_unpublished_draft(self) -> None:
+        self.assertIn("Existing release tag points to a different commit.", self.publish)
+        self.assertIn("A published GitHub Release is terminal", self.publish)
+        self.assertIn('test "$draft" = true', self.publish)
+        self.assertIn("Create or update the draft release", self.publish)
+        self.assertIn("--clobber", self.publish)
+        self.assertNotIn("release_assets.py", self.workflow)
+        self.assertNotIn("v0.1.0", self.workflow)
+        self.assertFalse(Path("scripts/release_assets.py").exists())
 
-        self.assertIn('tag --annotate "$RELEASE_TAG" "$TARGET_SHA"', publish)
-        self.assertIn('git checkout --detach "$RELEASE_TAG"', publish)
-        self.assertIn('--tag "$RELEASE_TAG" --revision "$TARGET_SHA"', publish)
-        self.assertIn("Release $RELEASE_TAG wurde veröffentlicht", publish)
-        self.assertNotIn("CANDIDATE_SHA", self.workflow)
-        self.assertNotIn("release-candidate", self.workflow)
+    def test_release_builds_only_the_seven_visible_tag_bound_assets(self) -> None:
+        self.assertIn("goreleaser release --clean", self.publish)
+        self.assertIn("goreleaser/goreleaser-action@", self.publish)
+        self.assertIn("linux-amd64 linux-arm64 darwin-amd64 darwin-arm64", self.publish)
+        self.assertIn("scripts/sbom.py aggregate", self.publish)
+        self.assertIn("release-assets/lzug-$VERSION.sbom.cdx.json", self.publish)
+        self.assertIn("actions/attest@", self.publish)
+        self.assertIn("subject-checksums: ${{ runner.temp }}/lzug-release-subjects", self.publish)
+        self.assertIn("Upload the seven release assets and publish last", self.publish)
+        self.assertNotIn("release-assets/lzug-$VERSION.dependencies", self.publish)
+        self.assertNotIn("release-assets/lzug-$VERSION.image", self.publish)
+        self.assertNotIn("release-assets/cli/$archive_stem.cdx", self.publish)
+        self.assertNotIn('checksums.txt" release-assets', self.publish)
+        self.assertNotIn("release-manifest.json", self.publish)
 
-    def test_release_packages_without_repeating_quality_gates(self) -> None:
-        self.assertIn("goreleaser release --clean", self.workflow)
-        self.assertIn("goreleaser/goreleaser-action@", self.workflow)
-        self.assertNotIn("scripts/build_cli_release.py", self.workflow)
-        self.assertIn("scripts/sbom.py generate-dependencies", self.workflow)
-        self.assertIn("scripts/sbom.py generate-image", self.workflow)
-        self.assertIn("scripts/sbom.py aggregate", self.workflow)
-        self.assertIn("actions/attest@", self.workflow)
-        self.assertIn("subject-checksums: ${{ runner.temp }}/lzug-release-subjects", self.workflow)
-        self.assertIn("release-assets/lzug-$VERSION.sbom.cdx.json", self.workflow)
-        self.assertNotIn("release-assets/lzug-$VERSION.dependencies.sbom", self.workflow)
-        self.assertNotIn("release-assets/lzug-$VERSION.image.sbom", self.workflow)
-        self.assertNotIn("release-assets/cli/$archive_stem.sbom", self.workflow)
-        self.assertNotIn("release-assets/cli/lzug-admin-$VERSION.checksums", self.workflow)
-        self.assertIn("gh release create", self.workflow)
-        self.assertIn("--draft", self.workflow)
-        self.assertNotIn("scripts/container-smoke.sh", self.workflow)
-        self.assertNotIn("scripts/operator-container-smoke.sh", self.workflow)
-        self.assertNotIn("trivy-action", self.workflow)
-        self.assertNotIn("release-manifest.json", self.workflow)
-        self.assertNotIn("upload-artifact", self.workflow)
-        self.assertNotIn("download-artifact", self.workflow)
-
-    def test_complete_published_release_skips_every_publication_step(self) -> None:
-        workflow_checkout = self.workflow.index("Checkout the release workflow")
-        existing_release = self.workflow.index("Accept an already complete published release")
-        tag_checkout = self.workflow.index("Checkout the canonical tag for publication")
-        setup = self.workflow.index("Set up Go")
-        self.assertLess(workflow_checkout, existing_release)
-        self.assertLess(existing_release, tag_checkout)
-        self.assertLess(existing_release, setup)
-        self.assertIn("ref: ${{ github.sha }}", self.workflow)
-        self.assertIn(
-            'gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100"',
-            self.workflow,
-        )
-
-        guarded_steps = (
-            "Checkout the canonical tag for publication",
-            "Extract release notes",
-            "Set up Go",
-            "Set up GoReleaser",
-            "Set up Python",
-            "Set up UV",
-            "Install locked SBOM dependencies",
-            "Download Syft",
-            "Set up Docker Buildx",
-            "Log in to GHCR",
-            "Reuse an existing version image when completing v0.1.0",
-            "Resolve the published image digest",
-            "Build CLI archives and aggregate release SBOM",
-            "Attest CLI archives",
-            "Attest aggregate release SBOM",
-            "Attest OCI provenance and SBOM",
-            "Attest OCI SBOM",
-            "Create or update the draft release",
-            "Upload release assets and publish",
-        )
-        for step in guarded_steps:
-            with self.subTest(step=step):
-                self.assertRegex(
-                    self.workflow,
-                    rf"- name: {re.escape(step)}\n"
-                    r"\s+if: steps\.existing_release\.outputs\.complete != 'true'",
-                )
-        self.assertRegex(
-            self.workflow,
-            r"- name: Build and publish OCI image from the tag\n"
-            r"\s+if: >-\n"
-            r"\s+steps\.existing_release\.outputs\.complete != 'true'",
-        )
-
-    def test_complete_matching_published_release_is_accepted(self) -> None:
-        release = complete_release("v1.2.3", "1.2.3")
-
-        validate_published_release(release, "v1.2.3", "1.2.3")
-
-    def test_visible_asset_contract_is_exact_and_generation_aware(self) -> None:
-        current = expected_release_asset_names("1.2.3")
-        legacy = expected_release_asset_names("0.1.0")
-
-        self.assertEqual(7, len(current))
-        self.assertEqual({"lzug-1.2.3.sbom.cdx.json"}, {name for name in current if "sbom" in name})
-        self.assertEqual(20, len(legacy))
-        self.assertIn("lzug-0.1.0.release-manifest.json", legacy)
-
-    def test_unexpected_future_release_asset_is_rejected(self) -> None:
-        release = complete_release("v1.2.3", "1.2.3")
-        release["assets"].append(asset("legacy-provenance.json"))
-
-        with self.assertRaisesRegex(ValueError, "contains unexpected assets"):
-            validate_published_release(release, "v1.2.3", "1.2.3")
-
-    def test_incomplete_published_release_is_rejected(self) -> None:
-        release = complete_release("v1.2.3", "1.2.3")
-        release["assets"].pop()
-
-        with self.assertRaisesRegex(ValueError, "is missing assets"):
-            validate_published_release(release, "v1.2.3", "1.2.3")
-
-    def test_incomplete_published_asset_metadata_is_rejected(self) -> None:
-        for field, value, message in (
-            ("state", "new", "is not uploaded"),
-            ("size", 0, "is empty"),
-            ("digest", None, "has no SHA-256 digest"),
+    def test_release_does_not_repeat_quality_or_security_checks(self) -> None:
+        for forbidden in (
+            "task quality",
+            "container-smoke.sh",
+            "operator-container-smoke.sh",
+            "compose-smoke.sh",
+            "trivy-action",
+            "npm test",
+            "python -m unittest",
+            "upload-artifact",
+            "download-artifact",
         ):
-            with self.subTest(field=field):
-                release = complete_release("v1.2.3", "1.2.3")
-                release["assets"][0][field] = value
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, self.publish)
 
-                with self.assertRaisesRegex(ValueError, message):
-                    validate_published_release(release, "v1.2.3", "1.2.3")
-
-    def test_mismatched_published_release_is_rejected(self) -> None:
-        release = complete_release("v1.2.3", "1.2.3")
-
-        with self.assertRaisesRegex(ValueError, "does not belong to canonical tag"):
-            validate_published_release(release, "v1.2.4", "1.2.4")
-
-    def test_removed_release_control_scripts_are_not_reintroduced(self) -> None:
-        self.assertFalse(Path(".github/workflows/release-candidate.yml").exists())
-        self.assertFalse(Path(".github/ISSUE_TEMPLATE/release_gate.yml").exists())
-        self.assertFalse(Path("scripts/release.py").exists())
-        self.assertFalse(Path("scripts/release_gate.py").exists())
-
-
-def asset(name: str) -> dict[str, object]:
-    return {
-        "name": name,
-        "state": "uploaded",
-        "size": 1,
-        "digest": "sha256:" + "a" * 64,
-    }
-
-
-def complete_release(tag: str, version: str) -> dict[str, object]:
-    return {
-        "tag_name": tag,
-        "draft": False,
-        "prerelease": "-rc." in version,
-        "published_at": "2026-08-13T10:37:56Z",
-        "assets": [asset(name) for name in expected_release_asset_names(version)],
-    }
+    def test_removed_release_control_files_stay_absent(self) -> None:
+        for path in (
+            ".github/workflows/release-candidate.yml",
+            ".github/ISSUE_TEMPLATE/release_gate.yml",
+            "scripts/release.py",
+            "scripts/release_gate.py",
+            "scripts/release_assets.py",
+        ):
+            with self.subTest(path=path):
+                self.assertFalse(Path(path).exists())
 
 
 if __name__ == "__main__":

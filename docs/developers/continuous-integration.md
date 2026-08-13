@@ -112,11 +112,9 @@ fehlenden Schutzes:
 4. Erst der unter dieser Zielkonfiguration erneut geprüfte Pull Request darf
    durch einen Maintainer gemergt werden.
 
-Der derzeitige Release-Workflow fragt bis zur getrennten Umsetzung von #347
-noch die historischen sieben Check-Namen ab. Zwischen #344 und #347 wird kein
-neuer Release veröffentlicht; `v0.1.0` bleibt unverändert. #347 ersetzt diese
-interne Checkliste gemäß ADR-0020 durch den erfolgreichen vollständigen
-`Quality`-Workflow-Lauf derselben `master`-SHA.
+Der Release-Workflow liest ausschließlich den erfolgreichen vollständigen
+`Quality`-Workflow-Lauf derselben `master`-SHA. Er fragt keine internen
+Jobnamen ab und wiederholt keine der hier beschriebenen Qualitätsprüfungen.
 
 ## Messung der Vereinfachung und Laufzeit
 
@@ -147,6 +145,8 @@ Die lokale Auswahl bleibt in `Taskfile.yml` kanonisch:
 - `task quality:backend`, `task quality:frontend`, `task quality:operator`,
   `task quality:oci`, `task quality:overall` und `task docs` für begrenzte
   Änderungen,
+- `task quality:release` für den Release-, Metadaten-, GoReleaser- und
+  aggregierten SBOM-Vertrag ohne Veröffentlichung,
 - `task quality` für CI-, Toolchain-, Dependency-, Security- oder andere
   querschnittliche Änderungen.
 

@@ -94,7 +94,7 @@ bewegliche Tag-Referenzen auch in Release-, Dependabot- und Wiki-Abläufen.
 | Trivy-Quellscan | Secrets oder High/Critical-Misconfiguration | aktueller Quellbaum ohne Git-, venv- oder `node_modules`-Inhalte |
 | Reproduzierbarer Image-Build und Runtime-Smoke | Buildfehler, abweichender Runtime-User oder verletzte HTTP-/Isolationsgrenze | einmaliger Build aus Lockfiles, Image-User `10001:10001` und `scripts/container-smoke.sh` gegen das per Prüfsumme übergebene Build-Artefakt |
 | Trivy-Imagescan | behebbare High/Critical OS-/Bibliothekslücke, Secret oder Misconfiguration | dasselbe per Prüfsumme übergebene Image wie im Runtime-Smoke |
-| Syft-SBOM-Vertrag | fehlende, leere oder strukturell widersprüchliche CycloneDX-1.6-Image-/Dependency-SBOM; fehlende npm-Lizenzmetadaten oder nicht erfasste deklarierte Go-Drittmodule; ab #273 zusätzlich unvollständige artefaktbezogene CLI-SBOMs | Image und Dependency gemeinsam 30 Tage als CI-Artefakt `lzug-sboms`; CLI-Artefakte folgen mit #273 |
+| Syft-SBOM-Vertrag | fehlende, leere oder strukturell widersprüchliche CycloneDX-1.6-Image-/Dependency-SBOM; fehlende npm-Lizenzmetadaten oder nicht erfasste deklarierte Go-Drittmodule | Image und Dependency gemeinsam 30 Tage als CI-Artefakt `lzug-sboms`; der Release erzeugt die detaillierten CLI-Inventare nur temporär für die aggregierte SBOM |
 
 Trivy ist als vollständiger SHA der laut
 [offiziellem Advisory](https://github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23)

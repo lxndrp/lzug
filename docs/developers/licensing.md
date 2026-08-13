@@ -141,8 +141,9 @@ counsel before a commercial offer is marketed or signed.
   grant and retain their respective licenses.
 - Release: Der [Release-Prozess](releases.md) erzeugt die detaillierten
   rollenbezogenen CycloneDX-Daten mit derselben gepinnten Syft-Version, führt
-  sie in genau einer sichtbaren Release-SBOM zusammen und bindet sie an die
-  ausgelieferten Subjects. Die detaillierten Dateien bleiben temporär.
+  sie in genau einer sichtbaren Release-SBOM zusammen und lässt GitHub
+  Attestations diese über eine temporäre Digestliste an die ausgelieferten
+  Artefakte binden. Die detaillierten Dateien bleiben temporär.
 
 The dependency SBOM is preparatory review evidence. The aggregate public
 release SBOM, release assets, and digest-bound attestations exist only after a
