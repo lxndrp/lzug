@@ -281,6 +281,7 @@ jobs:
       issues: write
       packages: write
     env:
+      GH_REPO: ${{ github.repository }}
       CANDIDATE_SHA: ${{ needs.authorize.outputs.sha }}
       RELEASE_TAG: ${{ needs.authorize.outputs.tag }}
       VERSION: ${{ needs.authorize.outputs.version }}

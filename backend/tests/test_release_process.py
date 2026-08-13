@@ -269,12 +269,14 @@ class ReleaseWorkflowTests(unittest.TestCase):
 
     def test_publish_permissions_tags_and_draft_release_are_explicit(self) -> None:
         workflow = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
+        publish = workflow.split("\n  publish:\n", 1)[1].split("\n  recover:\n", 1)[0]
 
         self.assertIn("contents: write", workflow)
         self.assertIn("packages: write", workflow)
         self.assertIn("id-token: write", workflow)
         self.assertIn("attestations: write", workflow)
         self.assertIn("environment: release", workflow)
+        self.assertIn("GH_REPO: ${{ github.repository }}", publish)
         self.assertIn("create-tag", workflow)
         self.assertIn("release-manifest.json", workflow)
         self.assertIn("release-assets/cli", workflow)
