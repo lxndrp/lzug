@@ -3,7 +3,7 @@
 Das GitHub Wiki ist ein separates Git-Repository. Es ist die einzige Quelle
 für die öffentlichen Handbuchseiten; das Hauptrepository enthält keine
 gespiegelten Wiki-Dateien. Das Hauptrepository enthält nur die Prüfprogramme,
-Workflows und diese Verfahrensbeschreibung.
+den einzelnen Post-Publish-Workflow und diese Verfahrensbeschreibung.
 
 ## Review- und Veröffentlichungsablauf
 
@@ -15,10 +15,9 @@ Workflows und diese Verfahrensbeschreibung.
    sowie die vier Zielgruppenbereiche Fachlichkeit, Nutzung, Administration und
    Entwicklung.
 3. `_Sidebar.md` ist die vollständige kanonische Liste der öffentlichen
-   Inhaltsseiten. Vor einer Veröffentlichung wird der konkrete Wiki-Branch oder
-   Commit über `Actions -> Wiki pre-publish check` als `wiki_ref` geprüft. Der
-   Check läuft gegen genau diesen Inhalt, nicht gegen eine Kopie im
-   Hauptrepository.
+   Inhaltsseiten. Vor einer Veröffentlichung prüft der Maintainer den konkret
+   ausgecheckten Stand lokal mit
+   `WIKI_ROOT=/path/to/lzug.wiki task wiki:check`.
 4. Ein Maintainer prüft den Diff und die Prüfergebnisse. Erst diese explizite
    Entscheidung ist die Freigabe für die öffentliche Mutation.
 5. Der Maintainer veröffentlicht exakt den geprüften Commit in den
@@ -26,14 +25,13 @@ Workflows und diese Verfahrensbeschreibung.
    dem Hauptrepository und keinen Force-Push.
 6. Das `gollum`-Event startet danach den
    [Post-Publish-Check](https://github.com/lxndrp/lzug/blob/master/.github/workflows/wiki-post-publish.yml).
-   Er prüft den Default-Branch erneut, erzeugt aus der Sidebar eine temporäre
-   Sitemap und lässt Lychee sowohl die Quelllinks als auch die erwarteten
-   gerenderten Wiki-Routen prüfen.
+   Er leitet aus der Sidebar die erwarteten gerenderten Wiki-Routen ab und
+   prüft sie mit Lychee ohne Weiterleitungen.
 
 Das Wiki-Repository ist initialisiert. Der veröffentlichte Stand wird dort
 versioniert und ist die kanonische Quelle für das redaktionelle Handbuch. Die
-jeweils geprüfte Wiki-Commit-ID wird im zugehörigen GitHub-Issue dokumentiert;
-dieses Repository enthält bewusst keine Kopie der Wiki-Seiten.
+Dokumentation einer Wiki-Commit-ID in einem GitHub-Issue ist keine generelle
+Prozesspflicht; dieses Repository enthält bewusst keine Kopie der Wiki-Seiten.
 
 ## Inhaltliche Grenzen
 
@@ -53,10 +51,13 @@ werden:
 WIKI_ROOT=/path/to/lzug.wiki task wiki:check
 ```
 
-Der Task erzeugt die Sitemap nur in einem temporären Verzeichnis. Sie ist kein
-versioniertes Wiki-Artefakt und keine zweite Seitenliste. Der Python-Validator
-prüft die bidirektionale Sidebar-Synchronität, Routenform und öffentliche
-Sicherheitsregeln; Lychee `v0.24.2` prüft die Quelllinks. Nach Veröffentlichung
-prüft Lychee die aus der Sitemap abgeleiteten GitHub-Routen mit höchstens null
-Weiterleitungen; so sind Weiterleitungen auf Rohdaten oder andere Ziele Fehler.
-Der Workflow lädt die erzeugte Sitemap bei Bedarf als Diagnoseartefakt hoch.
+Der kleine Python-Validator prüft nur die lzug-spezifische Invariante, dass die
+flachen Inhaltsseiten und die kanonische `_Sidebar.md` vollständig
+übereinstimmen. Lychee `v0.24.2` übernimmt die generische Markdown- und
+Quelllinkprüfung. Nach Veröffentlichung erzeugt der rein lesende
+`gollum`-Workflow aus der Sidebar eine temporäre Markdown-Liste und prüft nur
+die erwarteten GitHub-Routen mit höchstens null Weiterleitungen; so sind
+Weiterleitungen auf Rohdaten oder andere Ziele Fehler. Die Liste wird nicht als
+CI-Artefakt hochgeladen. Weder der lokale Task noch der Workflow pushen in das
+Wiki oder benötigen ein zusätzliches Schreib-Token. Die langfristige
+Publikationsarchitektur bleibt Gegenstand von #206.

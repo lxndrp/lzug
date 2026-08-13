@@ -3,11 +3,9 @@ import unittest
 from pathlib import Path
 
 from scripts.check_wiki import (
-    check_internal_wiki_route_syntax,
-    check_public_safety,
-    check_structure,
+    check_sidebar_routes,
     markdown_files,
-    write_sitemap,
+    write_routes,
 )
 
 
@@ -21,22 +19,19 @@ class WikiValidatorTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def test_sidebar_complete_candidate_creates_deterministic_sitemap(self):
+    def test_sidebar_complete_candidate_creates_deterministic_routes(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.create_candidate(root)
-            files = markdown_files(root)
-            self.assertEqual([], check_structure(root, files))
-            sitemap = root / "temporary" / "sitemap.xml"
-            write_sitemap(sitemap, {"Nutzung", "Home", "Fachlichkeit"}, "https://example.test/wiki")
+            pages, errors = check_sidebar_routes(root, markdown_files(root))
+            self.assertEqual([], errors)
+            routes = root / "temporary" / "routes.md"
+            write_routes(routes, pages, "https://example.test/wiki")
             self.assertEqual(
-                "<?xml version='1.0' encoding='utf-8'?>\n"
-                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-                "<url><loc>https://example.test/wiki/Fachlichkeit</loc></url>"
-                "<url><loc>https://example.test/wiki</loc></url>"
-                "<url><loc>https://example.test/wiki/Nutzung</loc></url>"
-                "</urlset>",
-                sitemap.read_text(encoding="utf-8"),
+                "- <https://example.test/wiki/Fachlichkeit>\n"
+                "- <https://example.test/wiki>\n"
+                "- <https://example.test/wiki/Nutzung>\n",
+                routes.read_text(encoding="utf-8"),
             )
 
     def test_orphan_content_page_is_rejected(self):
@@ -44,9 +39,10 @@ class WikiValidatorTests(unittest.TestCase):
             root = Path(directory)
             self.create_candidate(root)
             (root / "Verwaist.md").write_text("# Verwaist\n", encoding="utf-8")
+            _, errors = check_sidebar_routes(root, markdown_files(root))
             self.assertIn(
                 "wiki: content page is missing from _Sidebar.md: Verwaist",
-                check_structure(root, markdown_files(root)),
+                errors,
             )
 
     def test_missing_or_duplicate_sidebar_target_is_rejected(self):
@@ -58,25 +54,30 @@ class WikiValidatorTests(unittest.TestCase):
                 "- [Fachlichkeit](Fachlichkeit)\n- [Nutzung](Nutzung)\n",
                 encoding="utf-8",
             )
-            errors = check_structure(root, markdown_files(root))
+            _, errors = check_sidebar_routes(root, markdown_files(root))
             self.assertIn("wiki: sidebar target is duplicated: Home", errors)
             self.assertIn("wiki: sidebar target does not exist: Missing", errors)
 
-    def test_raw_markdown_route_is_rejected(self):
+    def test_raw_markdown_sidebar_route_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.create_candidate(root)
-            (root / "Home.md").write_text("[Fachlichkeit](Fachlichkeit.md)\n", encoding="utf-8")
-            errors = check_internal_wiki_route_syntax(markdown_files(root))
-            self.assertTrue(any("must be extensionless" in error for error in errors))
+            (root / "_Sidebar.md").write_text(
+                "- [Home](Home.md)\n- [Fachlichkeit](Fachlichkeit)\n- [Nutzung](Nutzung)\n",
+                encoding="utf-8",
+            )
+            _, errors = check_sidebar_routes(root, markdown_files(root))
+            self.assertTrue(any("extensionless flat page" in error for error in errors))
 
-    def test_secret_like_content_is_rejected(self):
+    def test_nested_content_page_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.create_candidate(root)
-            (root / "Home.md").write_text("api_key: not-for-publication\n", encoding="utf-8")
-            errors = check_public_safety(markdown_files(root))
-            self.assertTrue(any("secret-like content detected" in error for error in errors))
+            nested = root / "nested"
+            nested.mkdir()
+            (nested / "Details.md").write_text("# Details\n", encoding="utf-8")
+            _, errors = check_sidebar_routes(root, markdown_files(root))
+            self.assertIn("wiki: page must be flat: nested/Details.md", errors)
 
 
 if __name__ == "__main__":
