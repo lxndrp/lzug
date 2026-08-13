@@ -62,6 +62,7 @@ jobs:
       VERSION: ${{ needs.authorize.outputs.version }}
       IMAGE: ${{ needs.authorize.outputs.image }}
       CANONICAL_REF: ${{ needs.authorize.outputs.canonical_ref }}
+      RELEASE_ISSUE: ${{ needs.authorize.outputs.issue_number }}
     steps:
       - name: Checkout the immutable candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -74,10 +75,17 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
-          test -z "$(git tag --list "$RELEASE_TAG")"
-          git -c user.name=github-actions -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
-            tag --annotate "$RELEASE_TAG" "$CANDIDATE_SHA" \
-            --message "Local qualification for $RELEASE_TAG"
+          tag_ref="refs/tags/$RELEASE_TAG"
+          if git show-ref --verify --quiet "$tag_ref"; then
+            test "$(git cat-file -t "$tag_ref")" = tag
+            test "$(git rev-parse "${tag_ref}^{}")" = "$CANDIDATE_SHA"
+            git cat-file tag "$tag_ref" | grep --fixed-strings --line-regexp \
+              "lzug-release-candidate:v1 issue=$RELEASE_ISSUE candidate=$CANDIDATE_SHA"
+          else
+            git -c user.name=github-actions -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
+              tag --annotate "$RELEASE_TAG" "$CANDIDATE_SHA" \
+              --message "Local qualification for $RELEASE_TAG"
+          fi
           python3 scripts/build_metadata.py \
             --tag "$RELEASE_TAG" \
             --revision "$CANDIDATE_SHA" \

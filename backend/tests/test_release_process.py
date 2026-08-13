@@ -267,6 +267,20 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertNotIn("contents: write", candidate)
         self.assertNotIn("packages: write", candidate)
 
+    def test_qualification_reuses_only_the_exact_candidate_tag(self) -> None:
+        workflow = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
+        qualify = workflow.split("\n  qualify:\n", 1)[1].split("\n  publish:\n", 1)[0]
+
+        self.assertIn("RELEASE_ISSUE: ${{ needs.authorize.outputs.issue_number }}", qualify)
+        self.assertIn('git show-ref --verify --quiet "$tag_ref"', qualify)
+        self.assertIn('test "$(git cat-file -t "$tag_ref")" = tag', qualify)
+        self.assertIn('test "$(git rev-parse "${tag_ref}^{}")" = "$CANDIDATE_SHA"', qualify)
+        self.assertIn(
+            "lzug-release-candidate:v1 issue=$RELEASE_ISSUE candidate=$CANDIDATE_SHA",
+            qualify,
+        )
+        self.assertNotIn('test -z "$(git tag --list "$RELEASE_TAG")"', qualify)
+
     def test_publish_permissions_tags_and_draft_release_are_explicit(self) -> None:
         workflow = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
         publish = workflow.split("\n  publish:\n", 1)[1].split("\n  recover:\n", 1)[0]
