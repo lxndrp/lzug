@@ -18,6 +18,8 @@ im Repository-Wurzelverzeichnis.
   und Merge-Lebenszyklus automatisierter Abhängigkeitsupdates.
 - **Continuous Integration** beschreibt Workflow-Verantwortungen, konservative
   Pfadklassifikation, Gesamtstatus und Browsercache-Vertrag.
+- **Closeout-Monitor** beschreibt den rein meldenden Abgleich abgeschlossener
+  Issue-Umsetzungen mit GitHub-, Worktree- und Branch-Zuständen.
 - **Wiki-Publikation** beschreibt den getrennten Review- und Freigabeablauf für
   das Wiki-Repository.
 

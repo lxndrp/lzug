@@ -35,6 +35,7 @@ nav:
       - Frontend-Ausnahmen: developers/frontend-exceptions.md
       - Dokumentation: developers/documentation.md
       - Continuous Integration: developers/continuous-integration.md
+      - Closeout-Monitor: developers/closeout-monitor.md
       - Dependabot-Aktualisierungen: developers/dependabot.md
       - Wiki-Publikation: developers/wiki-publishing.md
       - Architektur:
