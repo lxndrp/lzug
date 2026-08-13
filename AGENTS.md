@@ -46,10 +46,13 @@ die technische Referenz im [Entwicklerhandbuch](docs/developers/index.md).
 - Jeder Umsetzungsthread arbeitet ausschließlich in einem eigenen Worktree auf
   einem Feature-Branch `codex/<issue>-<kurzer-name>`; niemals direkt auf
   `master` committen.
-- Fortschritt und Abschluss im zugehörigen Issue kommentieren. Pull Requests
-  für Issue-Arbeit entstehen mit `scripts/create-issue-pr.sh`; sie schließen
-  vollständige Umsetzungen mit `Closes #<nummer>`. Nach dem Anlegen eines Pull
-  Requests den Abschluss von CI und Code-Review abwarten und anschließend alle
+- Fortschritt und Abschluss im zugehörigen Issue kommentieren. Vor dem Pull
+  Request Assignees, Milestone und Project-Zuordnung des Issues mit `gh issue
+  view` prüfen und mit `task pr:create` explizit übernehmen; nicht gesetzte
+  Issue-Felder bleiben leer. Vollständige Umsetzungen enthalten eine eigene
+  Zeile `Closes #<nummer>`. Nach dem Anlegen Project, Milestone, Assignees und
+  schließende Issue-Verknüpfung mit `gh pr view` prüfen. Anschließend den
+  Abschluss von CI und Code-Review abwarten und alle
   Kommentare und Befunde mit Pull-Request-Bezug prüfen. Dazu zählen
   Review-Threads, allgemeine Pull-Request-Kommentare, Security-Audits,
   Code-Scanning-Alerts und automatisierte Prüfhinweise. Sinnvolle, zum Issue
