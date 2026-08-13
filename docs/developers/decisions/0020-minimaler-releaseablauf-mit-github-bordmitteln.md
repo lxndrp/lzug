@@ -120,8 +120,8 @@ Release-Zustandsmaschine mehr aufbauen.
 - [ADR-0021](0021-goreleaser-fuer-die-betreiber-cli.md) führt GoReleaser nur
   für Build und Verpackung der Betreiber-CLI ein. Das Ergebnis ändert weder
   Auslöser noch Freigabe- und Taggrenze dieses ADRs.
-- #347 implementiert und bereinigt den Zielablauf. Bis zu dessen Merge bleibt
-  die derzeit dokumentierte Issue-gesteuerte Automation der operative Bestand.
+- #347 implementiert und bereinigt den Zielablauf; mit dessen Merge ersetzt der
+  manuell gestartete Workflow die Issue-gesteuerte Automation vollständig.
 - Milestone-Zuordnungen und Releasefolge aus ADR-0018 bleiben unverändert; sie
   werden lediglich nicht mehr von der Veröffentlichungsautomation gelesen.
 

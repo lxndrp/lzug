@@ -47,7 +47,7 @@ Snapshot-Archive und prüft Matrix, Namen, Inhalte, Metadaten, fehlende
 Checksummendatei sowie Bytegleichheit der Binärdateien und Archive. Damit wird
 Verhalten statt GoReleaser-interner Verdrahtung abgesichert.
 
-## Übergabe an #347
+## Integration in #347
 
 - GoReleaser schreibt Archive, Binärdateien und `artifacts.json` nach `dist/`.
 - Der Releaseablauf übernimmt ausschließlich die sechs Archive als sichtbare

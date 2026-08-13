@@ -12,6 +12,16 @@ Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Notes
 und veröffentlicht nur aus dem nach der Environment-Freigabe erzeugten,
 annotierten SemVer-Tag.
 
+### Changed
+
+- Der Release-Workflow wird ausdrücklich auf `master` mit dem vorgesehenen
+  SemVer-Tag gestartet, verwendet den vollständigen `Quality`-Lauf derselben
+  SHA und veröffentlicht nach Environment-Freigabe ausschließlich taggebundene
+  OCI-, CLI-, SBOM- und Attestationsartefakte.
+- Issue-/Milestone-Gates, einzelne Quality-Check-Abfragen, historische
+  Bestandsvalidierung und `v0.1.0`-Sonderpfade wurden aus der aktiven
+  Release-Automation entfernt.
+
 ## [0.1.0] - 2026-08-12
 
 ### Added

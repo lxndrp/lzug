@@ -134,9 +134,10 @@ Ein abschließender Gate-Job fasst Klassifikation, Build, Runtime und Scan zu
 einem stabilen verpflichtenden Pull-Request-Status zusammen. Veröffentlichung
 und GHCR-Release bleiben dem getrennten, nur durch einen freigegebenen
 SemVer-Tag startenden [Release-Prozess](../releases.md) vorbehalten. Dieser
-prüft die grünen Qualitätsläufe des exakten `master`-Commits, testet das
-Release-Image erneut, veröffentlicht SemVer-, Major-, Major.Minor- und
-Commit-SHA-Tags auf denselben Registry-Digest und hängt beide
-CycloneDX-Artefakte sowie signierte Provenance- und Image-SBOM-Attestations an
-den GitHub Release. Ein
+prüft den erfolgreichen vollständigen `Quality`-Workflow der exakten
+`master`-SHA, wiederholt keine Runtime- oder Security-Prüfungen und
+veröffentlicht SemVer-, Major-, Major.Minor- und Commit-SHA-Tags auf denselben
+Registry-Digest. Genau eine aggregierte CycloneDX-SBOM ist sichtbares
+Release-Asset; Provenance sowie die detaillierte Image-SBOM werden über GitHub
+Attestations an die ausgelieferten Digests gebunden. Ein
 `latest`-Tag wird nicht erzeugt.
