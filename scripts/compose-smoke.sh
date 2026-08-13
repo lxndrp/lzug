@@ -3,28 +3,15 @@
 set -eu
 
 root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$root_dir/scripts/container-contract.sh"
 compose_file="$root_dir/compose.yaml"
-engine=${CONTAINER_ENGINE:-}
 image=${LZUG_IMAGE:-}
 
-if [ -z "$engine" ]; then
-    if command -v docker >/dev/null 2>&1; then
-        engine=docker
-    elif command -v podman >/dev/null 2>&1; then
-        engine=podman
-    else
-        echo "No Docker or Podman executable found." >&2
-        exit 77
-    fi
-fi
 if [ -z "$image" ]; then
     echo "Set LZUG_IMAGE to an existing local or published immutable image." >&2
     exit 2
 fi
-if ! "$engine" info >/dev/null 2>&1; then
-    echo "$engine is installed but its engine is unavailable." >&2
-    exit 77
-fi
+lzug_require_container_engine
 
 project="lzug-compose-smoke-$$"
 volume="$project-data"
@@ -38,7 +25,6 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-"$root_dir/scripts/validate-compose.sh" >/dev/null
 compose up -d
 
 resolve_url() {
@@ -72,7 +58,7 @@ print(parsed[0].get("Health", "") if parsed else "")
 wait_ready() {
     attempts=0
     while [ "$attempts" -lt 45 ]; do
-        if curl --silent --show-error --fail "$url/api/health" >/dev/null 2>&1 \
+        if lzug_http_health_is_ready "$url" \
             && [ "$(health_status)" = "healthy" ]; then
             return 0
         fi
@@ -84,7 +70,9 @@ wait_ready() {
 }
 
 wait_ready
-test "$(compose exec -T lzug id -u)" = "10001"
+container_id=$(compose ps -q lzug)
+test -n "$container_id"
+lzug_assert_runtime_user "$container_id"
 compose exec -T lzug python -c 'from pathlib import Path; Path("/data/compose-smoke-marker").write_text("persisted", encoding="utf-8")' >/dev/null
 compose restart lzug >/dev/null
 resolve_url

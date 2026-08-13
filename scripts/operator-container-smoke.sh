@@ -3,24 +3,11 @@
 set -eu
 
 root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$root_dir/scripts/container-contract.sh"
 image="${1:-lzug:smoke}"
-engine="${CONTAINER_ENGINE:-}"
 admin_binary="${LZUG_ADMIN_BINARY:-}"
 
-if [ -z "$engine" ]; then
-    if command -v docker >/dev/null 2>&1; then
-        engine=docker
-    elif command -v podman >/dev/null 2>&1; then
-        engine=podman
-    else
-        echo "No Docker or Podman executable found." >&2
-        exit 77
-    fi
-fi
-if ! "$engine" info >/dev/null 2>&1; then
-    echo "${engine} is installed but its engine is unavailable." >&2
-    exit 77
-fi
+lzug_require_container_engine
 
 temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/lzug-operator-container.XXXXXX")
 container="lzug-operator-smoke-$$"
@@ -40,34 +27,20 @@ if [ -z "$admin_binary" ]; then
     )
 fi
 cleanup() {
-    "$engine" rm --force "$container" >/dev/null 2>&1 || true
-    "$engine" volume rm "$volume" >/dev/null 2>&1 || true
+    lzug_cleanup_contract_container "$container" "$volume"
     rm -rf "$temporary_directory"
 }
 trap cleanup EXIT INT TERM
 
-"$engine" volume create "$volume" >/dev/null
-"$engine" run --detach --name "$container" \
-    --read-only --tmpfs /tmp \
-    --mount "type=volume,source=$volume,target=/data" \
-    --mount "type=bind,source=$root_dir/db/seed_demo.sql,target=/app/db/seed_demo.sql,readonly" \
-    "$image" --host 0.0.0.0 --port 8000 --init --seed >/dev/null
-
-attempt=0
-while [ "$attempt" -lt 30 ]; do
-    if "$engine" exec "$container" python -m backend.healthcheck >/dev/null 2>&1; then
-        break
-    fi
-    attempt=$((attempt + 1))
-    sleep 1
-done
-if [ "$attempt" -eq 30 ]; then
+lzug_start_contract_container "$container" "$volume" "$image"
+if ! lzug_wait_for_container_health "$container" 30; then
     echo "Container did not become ready for the operator contract." >&2
     "$engine" logs "$container" >&2 || true
     exit 1
 fi
 
-"$engine" exec "$container" cat /app/build-metadata.json > "$temporary_directory/container-metadata.json"
+lzug_assert_runtime_user "$container"
+lzug_copy_build_metadata "$container" "$temporary_directory/container-metadata.json"
 "$admin_binary" --build-metadata > "$temporary_directory/cli-metadata.json"
 cmp "$temporary_directory/container-metadata.json" "$temporary_directory/cli-metadata.json"
 

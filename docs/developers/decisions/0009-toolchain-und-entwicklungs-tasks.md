@@ -65,9 +65,13 @@ Qualitätsbereichen aus #230:
 
 `task quality:oci` baut einmal das lokale Image `lzug:0.0.0-dev.local`.
 Container-, Compose- und Betreiber-CLI-Vertrag verwenden dieses Image gemeinsam
-im Overall-Lauf. Die Prüfungen benötigen eine Docker-kompatible Engine; die
-Smoke-Skripte unterstützen weiterhin Docker oder Podman und melden eine
-fehlende Engine verständlich. Gehostete Trivy- und CodeQL-Scans bleiben
+im Overall-Lauf. `task quality:compose-config` trennt dabei die generische
+Standardprüfung über `compose config --quiet` von der kleinen getesteten
+lzug-Runtime-Policy. Die Laufzeitprüfungen benötigen eine Docker-kompatible
+Engine; ihre gemeinsame Orchestrierung unterstützt weiterhin Docker oder
+Podman und meldet eine fehlende Engine verständlich. Trivy Config oder Conftest
+werden mangels zusätzlichem Nachweis gegenüber Compose plus exakter
+Projektpolicy nicht eingeführt. Gehostete Trivy-Image- und CodeQL-Scans bleiben
 bewusst CI-spezifisch.
 
 ADR-0003 bleibt als historische Toolchain-Entscheidung bestehen; dieser ADR

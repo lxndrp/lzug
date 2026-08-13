@@ -222,32 +222,8 @@ tasks:
     cmds:
       - |
         set -eu
-        engine="${CONTAINER_ENGINE:-}"
-        if [ -z "$engine" ]; then
-          if command -v docker >/dev/null 2>&1; then
-            engine=docker
-          elif command -v podman >/dev/null 2>&1; then
-            engine=podman
-          else
-            echo "No Docker or Podman executable found." >&2
-            exit 77
-          fi
-        fi
-        case "$engine" in
-          docker|podman) ;;
-          *)
-            echo "CONTAINER_ENGINE must be docker or podman." >&2
-            exit 64
-            ;;
-        esac
-        if ! command -v "$engine" >/dev/null 2>&1; then
-          echo "${engine} executable is unavailable." >&2
-          exit 77
-        fi
-        if ! "$engine" info >/dev/null 2>&1; then
-          echo "${engine} is installed but its engine is unavailable." >&2
-          exit 77
-        fi
+        . scripts/container-contract.sh
+        lzug_require_container_engine
         revision="$(git rev-parse HEAD)"
         build_identity="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
         "$engine" build \
@@ -270,11 +246,23 @@ tasks:
       - scripts/operator-container-smoke.sh lzug:0.0.0-dev.local
 
   quality:compose:
-    desc: Validate the Compose runtime and persistence contract
+    desc: Run the Compose runtime and persistence contract
     deps:
       - quality:image
+      - quality:compose-config
     cmds:
       - LZUG_IMAGE=lzug:0.0.0-dev.local scripts/compose-smoke.sh
+
+  quality:compose-config:
+    desc: Validate Compose with standard tooling and the separate lzug policy
+    cmds:
+      - >-
+        LZUG_IMAGE=ghcr.io/lxndrp/lzug:0.0.0-dev.local
+        scripts/compose-command.sh config --quiet
+      - >-
+        LZUG_IMAGE=ghcr.io/lxndrp/lzug:0.0.0-dev.local
+        scripts/validate-compose.sh
+      - '{{.UV}} python -m unittest backend.tests.test_compose_policy'
 
   quality:e2e:
     desc: Run browser end-to-end tests
