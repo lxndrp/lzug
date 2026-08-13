@@ -25,10 +25,12 @@ class OciWorkflowContractTests(unittest.TestCase):
 
     def test_local_image_build_supports_docker_and_podman(self) -> None:
         taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
-        self.assertIn('engine="${CONTAINER_ENGINE:-}"', taskfile)
-        self.assertIn("command -v docker", taskfile)
-        self.assertIn("command -v podman", taskfile)
-        self.assertIn("CONTAINER_ENGINE must be docker or podman.", taskfile)
+        contract = Path("scripts/container-contract.sh").read_text(encoding="utf-8")
+        self.assertIn("lzug_require_container_engine", taskfile)
+        self.assertIn("engine=${CONTAINER_ENGINE:-}", contract)
+        self.assertIn("command -v docker", contract)
+        self.assertIn("command -v podman", contract)
+        self.assertIn("CONTAINER_ENGINE must be docker or podman.", contract)
         self.assertIn('build_identity="$(python3 scripts/build_metadata.py', taskfile)
         self.assertIn('--build-arg "BUILD_IDENTITY=$build_identity"', taskfile)
         self.assertIn('--build-arg "VCS_REF=$revision"', taskfile)
@@ -36,6 +38,13 @@ class OciWorkflowContractTests(unittest.TestCase):
     def test_compose_health_probe_tolerates_an_empty_process_list(self) -> None:
         smoke = Path("scripts/compose-smoke.sh").read_text(encoding="utf-8")
         self.assertIn('if parsed else ""', smoke)
+
+    def test_compose_standard_validation_and_policy_are_separate(self) -> None:
+        taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
+        validator = Path("scripts/validate-compose.sh").read_text(encoding="utf-8")
+        self.assertIn("scripts/compose-command.sh config --quiet", taskfile)
+        self.assertIn("scripts/compose_policy.py", validator)
+        self.assertNotIn("config --quiet", validator)
 
 
 if __name__ == "__main__":

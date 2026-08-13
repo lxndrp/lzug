@@ -73,7 +73,9 @@ Es prüft Engine-Verfügbarkeit, Readiness, API-Health, Root-/SPA-Auslieferung,
 ein fehlendes Asset, einen Neustart und die erneute Readiness. Rückgabecode
 `77` kennzeichnet ausschließlich eine fehlende oder nicht erreichbare lokale
 Engine. Der Smoke-Test verwendet ein temporäres Container-Volume und räumt es
-beim Beenden auf.
+beim Beenden auf. Container-, Compose- und CLI-zu-Container-Smoke verwenden
+dafür gemeinsam `scripts/container-contract.sh`; die einzelnen Skripte enthalten
+nur noch ihre fachlich unterschiedlichen HTTP-, Persistenz- und CLI-Nachweise.
 
 ## Laufzeitkonfiguration und Sicherheitsgrenzen
 

@@ -34,13 +34,15 @@ class BuildIdentityContractTests(unittest.TestCase):
     def test_runtime_contract_compares_backend_frontend_cli_and_oci(self) -> None:
         container_smoke = Path("scripts/container-smoke.sh").read_text(encoding="utf-8")
         operator_smoke = Path("scripts/operator-container-smoke.sh").read_text(encoding="utf-8")
+        container_contract = Path("scripts/container-contract.sh").read_text(encoding="utf-8")
+        runtime_contract = "\n".join((container_smoke, operator_smoke, container_contract))
 
-        self.assertIn('cmp "$temporary_directory/backend-metadata.json"', container_smoke)
-        self.assertIn("frontend-metadata.json", container_smoke)
-        self.assertIn("org.opencontainers.image.version", container_smoke)
-        self.assertIn("org.opencontainers.image.revision", container_smoke)
-        self.assertIn("--build-metadata", operator_smoke)
-        self.assertIn('cmp "$temporary_directory/container-metadata.json"', operator_smoke)
+        self.assertIn('cmp "$temporary_directory/backend-metadata.json"', runtime_contract)
+        self.assertIn("frontend-metadata.json", runtime_contract)
+        self.assertIn("org.opencontainers.image.version", runtime_contract)
+        self.assertIn("org.opencontainers.image.revision", runtime_contract)
+        self.assertIn("--build-metadata", runtime_contract)
+        self.assertIn('cmp "$temporary_directory/container-metadata.json"', runtime_contract)
 
     def test_ci_and_release_derive_identity_from_commit_and_tag(self) -> None:
         workflows = "\n".join(

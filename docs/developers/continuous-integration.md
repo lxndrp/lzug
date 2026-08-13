@@ -143,8 +143,8 @@ notwendige Pfad maßgeblich, nicht ihre Summe.
 Die lokale Auswahl bleibt in `Taskfile.yml` kanonisch:
 
 - `task quality:backend`, `task quality:frontend`, `task quality:operator`,
-  `task quality:oci`, `task quality:overall` und `task docs` für begrenzte
-  Änderungen,
+  `task quality:oci`, `task quality:compose-config`, `task quality:overall` und
+  `task docs` für begrenzte Änderungen,
 - `task quality:release` für den Release-, Metadaten-, GoReleaser- und
   aggregierten SBOM-Vertrag ohne Veröffentlichung,
 - `task quality` für CI-, Toolchain-, Dependency-, Security- oder andere
@@ -152,6 +152,9 @@ Die lokale Auswahl bleibt in `Taskfile.yml` kanonisch:
 
 E2E und Accessibility bleiben getrennte Tasks. Vor gezielten Browserprüfungen
 ist `task doctor` auszuführen. Lokale Docker- und Podman-Prüfungen nutzen
-denselben gebauten Image-Vertrag; CodeQL und der gehostete Source-Scan bleiben
-GitHub-gebundene Ergänzungen. Die allgemeine risikobasierte Auswahl ist in
+denselben gebauten Image-Vertrag und dieselbe Container-Orchestrierung;
+`quality:compose-config` verwendet mit beiden Engines deren
+Standard-Compose-Validierung vor der getrennten lzug-Policy. CodeQL und der
+gehostete Source-Scan bleiben GitHub-gebundene Ergänzungen. Die allgemeine
+risikobasierte Auswahl ist in
 [ADR-0009](decisions/0009-toolchain-und-entwicklungs-tasks.md) beschrieben.

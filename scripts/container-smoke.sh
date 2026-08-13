@@ -3,43 +3,22 @@
 set -eu
 
 root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$root_dir/scripts/container-contract.sh"
 image="${1:-lzug:smoke}"
-engine="${CONTAINER_ENGINE:-}"
-
-if [ -z "$engine" ]; then
-    if command -v docker >/dev/null 2>&1; then
-        engine=docker
-    elif command -v podman >/dev/null 2>&1; then
-        engine=podman
-    else
-        echo "No Docker or Podman executable found." >&2
-        exit 77
-    fi
-fi
-
-if ! "$engine" info >/dev/null 2>&1; then
-    echo "${engine} is installed but its engine is unavailable." >&2
-    exit 77
-fi
+lzug_require_container_engine
 
 suffix="lzug-smoke-$$"
 volume="$suffix-data"
 container="$suffix-app"
 temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/lzug-container-smoke.XXXXXX")
 cleanup() {
-    "$engine" rm --force "$container" >/dev/null 2>&1 || true
-    "$engine" volume rm "$volume" >/dev/null 2>&1 || true
+    lzug_cleanup_contract_container "$container" "$volume"
     rm -rf "$temporary_directory"
 }
 trap cleanup EXIT INT TERM
 
-"$engine" volume create "$volume" >/dev/null
-"$engine" run --detach --name "$container" \
-    --read-only --tmpfs /tmp \
-    --publish 127.0.0.1::8000 \
-    --mount "type=volume,source=$volume,target=/data" \
-    --mount "type=bind,source=$root_dir/db/seed_demo.sql,target=/app/db/seed_demo.sql,readonly" \
-    "$image" --host 0.0.0.0 --port 8000 --init --seed >/dev/null
+lzug_start_contract_container "$container" "$volume" "$image" \
+    --publish 127.0.0.1::8000
 
 resolve_url() {
     port="$("$engine" port "$container" 8000/tcp | sed 's/.*://')"
@@ -49,17 +28,11 @@ resolve_url() {
 resolve_url
 
 wait_for_health() {
-    attempt=0
-    while [ "$attempt" -lt 30 ]; do
-        if curl --silent --show-error --fail "$url/api/health" >/dev/null 2>&1; then
-            return 0
-        fi
-        attempt=$((attempt + 1))
-        sleep 1
-    done
-    echo "Container did not become ready." >&2
-    "$engine" logs "$container" >&2 || true
-    return 1
+    if ! lzug_wait_for_http_health "$url" 30; then
+        echo "Container did not become ready." >&2
+        "$engine" logs "$container" >&2 || true
+        return 1
+    fi
 }
 
 assert_status() {
@@ -86,8 +59,8 @@ curl --silent --show-error --fail "$url/dashboard" | grep -F '<app-root' >/dev/n
 assert_status "Missing static asset" 404 \
     "$(curl --silent --output /dev/null --write-out '%{http_code}' "$url/assets/missing.svg")"
 
-test "$("$engine" exec "$container" id -u)" = "10001"
-"$engine" exec "$container" cat /app/build-metadata.json > "$temporary_directory/backend-metadata.json"
+lzug_assert_runtime_user "$container"
+lzug_copy_build_metadata "$container" "$temporary_directory/backend-metadata.json"
 "$engine" exec "$container" cat /app/frontend/build-metadata.json > "$temporary_directory/frontend-metadata.json"
 cmp "$temporary_directory/backend-metadata.json" "$temporary_directory/frontend-metadata.json"
 expected_version=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["identity"])' \
