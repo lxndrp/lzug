@@ -42,19 +42,6 @@ def archive_name(version: str, goos: str, goarch: str, extension: str) -> str:
     return f"{artifact_stem(version, goos, goarch)}.{extension}"
 
 
-def sbom_name(version: str, goos: str, goarch: str, extension: str) -> str:
-    """Return the exact published SBOM name paired with one archive."""
-
-    del extension
-    return f"{artifact_stem(version, goos, goarch)}.sbom.cdx.json"
-
-
-def checksums_name(version: str) -> str:
-    """Return the checksum file name for the native CLI asset set."""
-
-    return f"lzug-admin-{version}.checksums.txt"
-
-
 def binary_name(goos: str, goarch: str) -> str:
     """Return the unversioned binary name stored in an archive."""
 

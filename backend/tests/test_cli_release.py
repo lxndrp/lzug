@@ -14,7 +14,6 @@ from scripts.build_cli_release import (
     archive_binary,
     build_command,
     build_release,
-    checksums_name,
 )
 
 
@@ -31,7 +30,6 @@ class CliReleaseBuilderTests(unittest.TestCase):
             },
             {(goos, goarch) for goos, goarch, _ in CLI_TARGETS},
         )
-        self.assertEqual("lzug-admin-1.2.3.checksums.txt", checksums_name("1.2.3"))
 
     def test_go_command_is_reproducible_and_identity_complete(self) -> None:
         metadata = BuildMetadata.create("a" * 40, "v1.2.3")

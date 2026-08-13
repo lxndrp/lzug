@@ -7,12 +7,14 @@ from pathlib import Path
 from scripts.sbom import (
     CYCLONEDX_SPEC_VERSION,
     DEPENDENCY_SOURCE_NAME,
+    aggregate_release_sbom,
     cli_command,
     configured_syft_version,
     dependency_command,
     validate_cli,
     validate_dependencies,
     validate_image,
+    validate_release,
 )
 
 
@@ -150,6 +152,80 @@ class SbomContractTests(unittest.TestCase):
         invalid["components"].append(component("rxjs", "7.8.2", "pkg:npm/rxjs@7.8.2", "Apache-2.0"))
         with self.assertRaisesRegex(ValueError, "build-only ecosystems"):
             validate_image(invalid)
+
+    def test_release_sbom_aggregates_eight_detailed_boms_and_seven_subjects(self) -> None:
+        details = release_detail_payloads()
+        subjects = release_subjects("1.2.3")
+
+        report = aggregate_release_sbom(
+            details,
+            "1.2.3",
+            "v1.2.3",
+            "a" * 40,
+            subjects,
+        )
+        summary = validate_release(report)
+
+        self.assertEqual(7, summary["subjects"])
+        self.assertEqual({"golang": 2, "npm": 1, "pypi": 1}, summary["purl_types"])
+        self.assertEqual(
+            report,
+            aggregate_release_sbom(details, "1.2.3", "v1.2.3", "a" * 40, subjects),
+        )
+
+    def test_release_sbom_fails_closed_for_incomplete_delivery_subjects(self) -> None:
+        report = aggregate_release_sbom(
+            release_detail_payloads(),
+            "1.2.3",
+            "v1.2.3",
+            "a" * 40,
+            release_subjects("1.2.3")[:-1],
+        )
+
+        with self.assertRaisesRegex(ValueError, "six CLI archives and one OCI image"):
+            validate_release(report)
+
+
+def release_detail_payloads() -> list[dict]:
+    dependency = payload(
+        component("lzug", "1.2.3", "pkg:pypi/lzug@1.2.3", "AGPL-3.0-or-later"),
+        component("rxjs", "7.8.2", "pkg:npm/rxjs@7.8.2", "Apache-2.0"),
+    )
+    image = payload(
+        component("lzug", "1.2.3", "pkg:pypi/lzug@1.2.3", "AGPL-3.0-or-later"),
+        source_name="ghcr.io/lxndrp/lzug:1.2.3",
+    )
+    cli_component = component(
+        "github.com/lxndrp/lzug/operator-cli",
+        "1.2.3",
+        "pkg:golang/github.com/lxndrp/lzug/operator-cli@1.2.3",
+    )
+    stdlib = component("stdlib", "go1.26.5", "pkg:golang/stdlib@go1.26.5")
+    cli_payloads = [
+        payload(cli_component, stdlib, source_name=f"lzug-admin-{target}")
+        for target in (
+            "linux-amd64",
+            "linux-arm64",
+            "darwin-amd64",
+            "darwin-arm64",
+            "windows-amd64",
+            "windows-arm64",
+        )
+    ]
+    return [dependency, image, *cli_payloads]
+
+
+def release_subjects(version: str) -> list[tuple[str, str]]:
+    digest = "sha256:" + "b" * 64
+    return [
+        (f"lzug-admin-{version}-linux-amd64.tar.gz", digest),
+        (f"lzug-admin-{version}-linux-arm64.tar.gz", digest),
+        (f"lzug-admin-{version}-darwin-amd64.tar.gz", digest),
+        (f"lzug-admin-{version}-darwin-arm64.tar.gz", digest),
+        (f"lzug-admin-{version}-windows-amd64.zip", digest),
+        (f"lzug-admin-{version}-windows-arm64.zip", digest),
+        (f"ghcr.io/lxndrp/lzug:{version}", "sha256:" + "c" * 64),
+    ]
 
 
 if __name__ == "__main__":

@@ -43,6 +43,13 @@ und Recovery-Komplexität ohne eine zusätzliche fachliche Aussage.
 - Der Publish-Job baut weiterhin die auszuliefernden Artefakte, führt aber
   keine Smoke-Tests, Trivy-Scans, interne Artefaktübergaben oder
   Attestation-Wiederholungen aus.
+- Künftige GitHub Releases veröffentlichen genau sechs installierbare
+  CLI-Archive und eine aggregierte CycloneDX-SBOM. Detaillierte SBOMs und
+  Subject-Prüfsummen bleiben temporäre Eingaben signierter Attestations;
+  GitHubs Asset-Digests ersetzen eine eigene sichtbare Prüfsummendatei.
+- Ein bereits veröffentlichter Release schließt einen Retry nur bei seinem
+  generationsspezifisch vollständigen Bestand idempotent ab. Der historische
+  Release `v0.1.0` bleibt dabei unverändert.
 - Ein Milestone ist kein technischer Inhaltsfilter: Der Tag markiert den
   erfolgreich geprüften `master`-Stand zum Zeitpunkt der Freigabe.
 
