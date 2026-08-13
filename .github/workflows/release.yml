@@ -139,10 +139,10 @@ jobs:
       RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}
       TARGET_SHA: ${{ needs.preflight.outputs.target_sha }}
     steps:
-      - name: Checkout the release target
+      - name: Checkout the release workflow
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ needs.preflight.outputs.target_sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Create or reuse the annotated canonical tag
@@ -157,10 +157,7 @@ jobs:
               tag --annotate "$RELEASE_TAG" "$TARGET_SHA" --message "Release $RELEASE_TAG"
             git push origin "refs/tags/$RELEASE_TAG"
           fi
-          git checkout --detach "$RELEASE_TAG"
-          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
-
-      - name: Derive release metadata, notes, and OCI references
+      - name: Derive release metadata and OCI references
         id: release
         run: |
           set -euo pipefail
@@ -180,14 +177,6 @@ jobs:
             echo "$image:sha-$TARGET_SHA"
             echo EOF
           } >> "$GITHUB_OUTPUT"
-          awk -v version="$version" '
-            $0 ~ "^## \\[" version "\\] - " { found = 1; next }
-            found && /^## / { exit }
-            found { print }
-            END { if (!found) exit 1 }
-          ' CHANGELOG.md > release-notes.md
-          test -s release-notes.md
-
       - name: Accept an already complete published release
         id: existing_release
         env:
@@ -211,6 +200,27 @@ jobs:
             echo "Multiple GitHub Releases exist for $RELEASE_TAG." >&2
             exit 1
           fi
+
+      - name: Checkout the canonical tag for publication
+        if: steps.existing_release.outputs.complete != 'true'
+        run: |
+          set -euo pipefail
+          git checkout --detach "$RELEASE_TAG"
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+
+      - name: Extract release notes
+        if: steps.existing_release.outputs.complete != 'true'
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          awk -v version="$VERSION" '
+            $0 ~ "^## \\[" version "\\] - " { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+            END { if (!found) exit 1 }
+          ' CHANGELOG.md > release-notes.md
+          test -s release-notes.md
 
       - name: Set up Go
         if: steps.existing_release.outputs.complete != 'true'
