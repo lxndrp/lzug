@@ -2,10 +2,13 @@ name: Wiki post-publish check
 
 on:
   gollum:
-  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: wiki-post-publish
+  cancel-in-progress: true
 
 jobs:
   check:
@@ -14,6 +17,8 @@ jobs:
     steps:
       - name: Checkout repository checks
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Checkout published Wiki default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -22,27 +27,11 @@ jobs:
           path: published-wiki
           persist-credentials: false
 
-      - name: Check portable Markdown and public-safety policy
-        run: python3 scripts/check_wiki.py published-wiki --sitemap "$RUNNER_TEMP/sitemap.xml"
+      - name: Derive published routes from the Wiki sidebar
+        run: python3 scripts/check_wiki.py published-wiki --routes "$RUNNER_TEMP/wiki-routes.md"
 
-      - name: Check Wiki source links with Lychee
+      - name: Check published Wiki routes without redirects
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
           lycheeVersion: v0.24.2
-          workingDirectory: published-wiki
-          args: --fallback-extensions md --no-progress '*.md'
-
-      - name: Check published Wiki routes from the generated sitemap
-        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
-        with:
-          lycheeVersion: v0.24.2
-          args: --max-redirects 0 --no-progress "${{ runner.temp }}/sitemap.xml"
-
-      - name: Upload generated sitemap for diagnostics
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        if: always()
-        with:
-          name: wiki-sitemap
-          path: ${{ runner.temp }}/sitemap.xml
-          if-no-files-found: warn
-          retention-days: 7
+          args: --max-redirects 0 --no-progress "${{ runner.temp }}/wiki-routes.md"

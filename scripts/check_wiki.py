@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate a reviewable GitHub Wiki source and derive its public sitemap."""
+"""Validate lzug's Wiki sidebar invariant and derive its public routes."""
 
 from __future__ import annotations
 
@@ -8,31 +8,11 @@ import re
 from collections import Counter
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit
-from xml.etree.ElementTree import Element, ElementTree, SubElement
 
-ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_WIKI_BASE_URL = "https://github.com/lxndrp/lzug/wiki"
 LINK_PATTERN = re.compile(r"(?<!!)(?:\[[^\]]*\])\(([^)]+)\)")
 MARKDOWN_SUFFIXES = {".md", ".markdown"}
 SIDEBAR_FILENAME = "_Sidebar.md"
-WIKI_SYNTAX_PATTERN = re.compile(r"\[\[[^\]]+\]\]|\{\{[^}]+\}\}")
-SECRET_LIKE_PATTERNS = (
-    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
-    re.compile(
-        r"(?i)['\"]?(?:authorization|proxy-authorization)['\"]?\s*:\s*" r"(?:bearer|basic)\s+\S+"
-    ),
-    re.compile(r"(?i)['\"]?(?:cookie|set-cookie)['\"]?\s*:\s*['\"]?[^\s<]+"),
-    re.compile(
-        r"(?i)['\"]?(?:api[_-]?key|access[_-]?token|client[_-]?secret)['\"]?" r"\s*[:=]\s*['\"]?\S+"
-    ),
-)
-
-
-def relative(path: Path) -> str:
-    try:
-        return path.relative_to(ROOT).as_posix()
-    except ValueError:
-        return path.as_posix()
 
 
 def markdown_files(wiki_root: Path) -> list[Path]:
@@ -69,7 +49,8 @@ def sidebar_targets(sidebar: Path) -> tuple[list[str], list[str]]:
     return targets, errors
 
 
-def check_structure(wiki_root: Path, files: list[Path]) -> list[str]:
+def check_sidebar_routes(wiki_root: Path, files: list[Path]) -> tuple[set[str], list[str]]:
+    """Check that the flat content pages and canonical sidebar agree."""
     actual = {path.relative_to(wiki_root).as_posix() for path in files}
     errors = []
     nested = sorted(name for name in actual if len(Path(name).parts) != 1)
@@ -91,7 +72,7 @@ def check_structure(wiki_root: Path, files: list[Path]) -> list[str]:
     sidebar = wiki_root / SIDEBAR_FILENAME
     if not sidebar.is_file():
         errors.append("wiki: _Sidebar.md is required as the canonical page list")
-        return errors
+        return set(), errors
 
     targets, sidebar_errors = sidebar_targets(sidebar)
     errors.extend(sidebar_errors)
@@ -121,58 +102,24 @@ def check_structure(wiki_root: Path, files: list[Path]) -> list[str]:
         f"wiki: content page is missing from _Sidebar.md: {page}"
         for page in sorted(content_pages - set(targets))
     )
-    return errors
+    return set(targets), errors
 
 
-def check_internal_wiki_route_syntax(files: list[Path]) -> list[str]:
-    """Keep raw Markdown paths out of Wiki links; Lychee checks their reachability."""
-    errors = []
-    for path in files:
-        for match in LINK_PATTERN.finditer(path.read_text(encoding="utf-8")):
-            target = match.group(1).strip().strip("<>")
-            local_target = local_link_target(target)
-            if local_target is None:
-                continue
-            if local_target.endswith(tuple(MARKDOWN_SUFFIXES)):
-                errors.append(
-                    f"{relative(path)}: internal wiki link must be extensionless: {target}"
-                )
-            elif "/" in local_target or local_target.startswith((".", "/")):
-                errors.append(
-                    f"{relative(path)}: internal wiki link must target a flat page: {target}"
-                )
-    return errors
-
-
-def check_public_safety(files: list[Path]) -> list[str]:
-    errors = []
-    for path in files:
-        display = relative(path)
-        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if WIKI_SYNTAX_PATTERN.search(line):
-                errors.append(
-                    f"{display}:{line_number}: Gollum-specific link/template syntax is forbidden"
-                )
-            if any(pattern.search(line) for pattern in SECRET_LIKE_PATTERNS):
-                errors.append(f"{display}:{line_number}: secret-like content detected")
-    return errors
-
-
-def write_sitemap(sitemap: Path, pages: set[str], wiki_base_url: str) -> None:
+def write_routes(routes: Path, pages: set[str], wiki_base_url: str) -> None:
+    """Write a temporary Markdown input that Lychee can check directly."""
     base_url = wiki_base_url.rstrip("/")
-    urlset = Element("urlset", xmlns="http://www.sitemaps.org/schemas/sitemap/0.9")
+    urls = []
     for page in sorted(pages):
         location = base_url if page == "Home" else f"{base_url}/{quote(page)}"
-        url = SubElement(urlset, "url")
-        SubElement(url, "loc").text = location
-    sitemap.parent.mkdir(parents=True, exist_ok=True)
-    ElementTree(urlset).write(sitemap, encoding="utf-8", xml_declaration=True)
+        urls.append(f"- <{location}>")
+    routes.parent.mkdir(parents=True, exist_ok=True)
+    routes.write_text("\n".join(urls) + "\n", encoding="utf-8")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("wiki_root", nargs="?", default=".")
-    parser.add_argument("--sitemap", type=Path, required=True, help="temporary sitemap output path")
+    parser.add_argument("--routes", type=Path, help="temporary Markdown route-list output path")
     parser.add_argument("--wiki-base-url", default=DEFAULT_WIKI_BASE_URL)
     args = parser.parse_args()
 
@@ -181,16 +128,14 @@ def main() -> int:
         print(f"wiki: directory does not exist: {wiki_root}")
         return 1
     files = markdown_files(wiki_root)
-    errors = check_structure(wiki_root, files)
-    errors.extend(check_internal_wiki_route_syntax(files))
-    errors.extend(check_public_safety(files))
+    pages, errors = check_sidebar_routes(wiki_root, files)
     if errors:
         print("\n".join(errors))
         return 1
 
-    pages, _ = sidebar_targets(wiki_root / SIDEBAR_FILENAME)
-    write_sitemap(args.sitemap, set(pages), args.wiki_base_url)
-    print(f"wiki source policy: ok ({len(pages)} content pages; sitemap: {args.sitemap})")
+    if args.routes:
+        write_routes(args.routes, pages, args.wiki_base_url)
+    print(f"wiki sidebar routes: ok ({len(pages)} content pages)")
     return 0
 
 

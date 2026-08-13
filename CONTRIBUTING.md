@@ -27,8 +27,8 @@ und technische Dokumentationsstandards stehen im
 Das öffentliche redaktionelle Handbuch liegt ausschließlich im separaten
 [GitHub Wiki](https://github.com/lxndrp/lzug/wiki) und wird nicht in diesem
 Repository gespiegelt. Wiki-Änderungen werden in einem separaten Clone mit dem
-manuellen `Wiki pre-publish check` gegen einen konkreten Branch oder Commit
-geprüft und erst nach Maintainer-Freigabe in den Default-Branch veröffentlicht.
+lokalen `task wiki:check` geprüft und erst nach Maintainer-Freigabe manuell in
+den Default-Branch veröffentlicht.
 Der genaue Ablauf steht in der [Wiki-Publikation](docs/developers/wiki-publishing.md).
 
 ## Änderungen einreichen
