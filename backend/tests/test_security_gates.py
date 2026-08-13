@@ -6,41 +6,36 @@ from pathlib import Path
 
 
 class SecurityGateTests(unittest.TestCase):
-    def test_security_workflow_uses_blocking_gates(self) -> None:
-        workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
-        self.assertIn('exit-code: "1"', workflow)
-        self.assertIn("scanners: secret,misconfig", workflow)
-        self.assertIn("security-events: write", workflow)
-        self.assertIn('python-version: "3.14.6"', workflow)
-        self.assertIn("python3 scripts/classify_quality_paths.py", workflow)
-        self.assertIn(
-            "if: github.event_name == 'pull_request' || " "needs.classify.outputs.codeql == 'true'",
-            workflow,
-        )
-        self.assertIn("- go", workflow)
-        self.assertIn("matrix.language == 'go' && 'autobuild' || 'none'", workflow)
-        self.assertNotIn("Block high and critical SAST findings", workflow)
-        self.assertNotIn("scripts/enforce_sarif_security.py", workflow)
-        self.assertIn("name: Quality / Security", workflow)
-        self.assertIn("SECURITY_SELECTED: ${{ needs.classify.outputs.security }}", workflow)
-        self.assertIn('case "$SECURITY_SELECTED:$CODEQL_SELECTED" in', workflow)
-        self.assertIn(
-            'if [ "$EVENT_NAME" = "pull_request" ] || ' '[ "$CODEQL_SELECTED" = "true" ]; then',
-            workflow,
-        )
-        self.assertIn('test "$SOURCE_SCAN_RESULT" = "success"', workflow)
-
-        dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
-        self.assertNotIn("LZUG_AUTH_RATE_LIMIT=", dockerfile)
-        self.assertNotIn("LZUG_AUTH_RATE_WINDOW_SECONDS=", dockerfile)
-
     def test_all_workflow_actions_use_full_commit_shas(self) -> None:
         for path in sorted(Path(".github/workflows").glob("*.yml")):
+            workflow = path.read_text(encoding="utf-8")
+            action_refs = re.findall(r"^\s*uses:\s*[^@\s]+@([^\s]+)", workflow, re.MULTILINE)
             with self.subTest(workflow=path.name):
-                workflow = path.read_text(encoding="utf-8")
-                action_refs = re.findall(r"^\s*uses:\s*[^@\s]+@([^\s]+)", workflow, re.MULTILINE)
                 self.assertTrue(action_refs)
                 self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs))
+
+    def test_pr_and_full_workflows_keep_source_and_code_scanning(self) -> None:
+        for path in (
+            Path(".github/workflows/pull-request.yml"),
+            Path(".github/workflows/quality.yml"),
+        ):
+            workflow = path.read_text(encoding="utf-8")
+            with self.subTest(workflow=path.name):
+                self.assertIn("security-events: write", workflow)
+                self.assertIn("language: [python, javascript-typescript, go]", workflow)
+                self.assertIn("github/codeql-action/init@", workflow)
+                self.assertIn("github/codeql-action/analyze@", workflow)
+                self.assertIn("scanners: secret,misconfig", workflow)
+                self.assertIn('exit-code: "1"', workflow)
+
+    def test_pr_gates_require_the_common_security_results(self) -> None:
+        workflow = Path(".github/workflows/pull-request.yml").read_text(encoding="utf-8")
+        self.assertEqual(5, workflow.count("CODEQL: ${{ needs.codeql.result }}"))
+        self.assertEqual(5, workflow.count("SOURCE_SCAN: ${{ needs.source-scan.result }}"))
+        self.assertEqual(
+            5,
+            workflow.count('test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success'),
+        )
 
 
 if __name__ == "__main__":

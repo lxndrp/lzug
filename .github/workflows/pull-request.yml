@@ -1,0 +1,488 @@
+name: Pull Request
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  IMAGE_REF: lzug:0.0.0-dev.local
+
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Select quality domains
+    runs-on: ubuntu-latest
+    outputs:
+      docs: ${{ steps.domains.outputs.docs == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
+      backend: ${{ steps.domains.outputs.backend == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
+      frontend: ${{ steps.domains.outputs.frontend == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
+      cli: ${{ steps.domains.outputs.cli == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
+      container: ${{ steps.domains.outputs.container == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
+      browser: ${{ steps.domains.outputs.browser == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
+    steps:
+      - name: Select known domains
+        id: domains
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          predicate-quantifier: some-with-excludes
+          filters: |
+            docs:
+              - 'docs/**'
+              - 'mkdocs.yml'
+              - 'README.md'
+              - 'CHANGELOG.md'
+              - 'frontend/**/*.md'
+              - 'frontend/THIRD_PARTY_NOTICES.md'
+            backend:
+              - 'backend/**'
+              - 'db/**'
+              - 'fixtures/**'
+              - 'prototypes/**'
+            frontend:
+              - 'frontend/**'
+              - '!frontend/**/*.md'
+              - '!frontend/THIRD_PARTY_NOTICES.md'
+            cli:
+              - 'cmd/lzug-admin/**'
+            container:
+              - '.dockerignore'
+              - '.env.example'
+              - 'Dockerfile'
+              - 'compose.yaml'
+            browser:
+              - 'backend/**'
+              - 'db/**'
+              - 'fixtures/**'
+              - 'frontend/src/**'
+              - 'frontend/e2e/**'
+              - 'frontend/playwright.config.ts'
+              - '!backend/tests/**'
+              - '!frontend/**/*.spec.ts'
+            full:
+              - '.github/**'
+              - '.mise.toml'
+              - '.node-version'
+              - '.python-version'
+              - 'Taskfile.yml'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'frontend/package.json'
+              - 'frontend/package-lock.json'
+              - 'go.mod'
+              - 'scripts/**'
+
+      - name: Detect unknown paths
+        id: unknown
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          predicate-quantifier: every
+          filters: |
+            unknown:
+              - '**'
+              - '!backend/**'
+              - '!cmd/**'
+              - '!db/**'
+              - '!docs/**'
+              - '!fixtures/**'
+              - '!frontend/**'
+              - '!prototypes/**'
+              - '!scripts/**'
+              - '!.github/**'
+              - '!.vscode/**'
+              - '!.dockerignore'
+              - '!.env.example'
+              - '!.gitignore'
+              - '!.mise.toml'
+              - '!.node-version'
+              - '!.python-version'
+              - '!AGENTS.md'
+              - '!CHANGELOG.md'
+              - '!CODE_OF_CONDUCT.md'
+              - '!CONTRIBUTING.md'
+              - '!Dockerfile'
+              - '!LICENSE'
+              - '!README.md'
+              - '!SECURITY.md'
+              - '!SUPPORT.md'
+              - '!THIRD_PARTY_NOTICES.md'
+              - '!Taskfile.yml'
+              - '!compose.yaml'
+              - '!go.mod'
+              - '!mkdocs.yml'
+              - '!pyproject.toml'
+              - '!uv.lock'
+
+  docs:
+    name: Documentation details
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14.6"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+      - name: Install locked dependencies
+        run: uv sync --locked --extra dev && npm ci --prefix frontend
+      - name: Build documentation
+        run: task docs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: lzug-documentation
+          path: site
+          if-no-files-found: error
+          retention-days: 7
+
+  backend:
+    name: Backend details
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14.6"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+      - name: Install locked dependencies
+        run: uv sync --locked --extra dev
+      - name: Run backend quality
+        run: task quality:backend && uv run coverage xml
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: backend-coverage
+          path: coverage.xml
+          if-no-files-found: error
+          retention-days: 7
+
+  frontend:
+    name: Frontend details
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+      - name: Install locked dependencies
+        run: npm ci --prefix frontend
+      - name: Run frontend quality and production dependency audit
+        run: task quality:frontend quality:security
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/frontend/lcov.info
+          if-no-files-found: error
+          retention-days: 7
+
+  cli:
+    name: CLI details
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+      - name: Test and reproducibly build the CLI
+        run: task quality:operator
+
+  container:
+    name: Container details
+    needs: changes
+    if: needs.changes.outputs.container == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14.6"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+      - name: Install locked backend dependencies
+        run: uv sync --locked --extra dev
+      - name: Download the pinned Syft binary
+        id: syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          syft-version: v1.51.0
+      - name: Build once and verify all packaged runtime contracts
+        env:
+          SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
+        run: task quality:oci quality:container quality:compose quality:operator-container quality:sbom
+      - name: Generate and validate the image SBOM
+        env:
+          SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
+        run: |
+          source_version=$(python3 scripts/build_metadata.py --revision "$GITHUB_SHA" --field identity)
+          python3 scripts/sbom.py generate-dependencies --source-version "$source_version" --output lzug.dependencies.sbom.cdx.json
+          python3 scripts/sbom.py validate --kind dependencies --input lzug.dependencies.sbom.cdx.json
+          python3 scripts/sbom.py generate-image --image "$IMAGE_REF" --output lzug.image.sbom.cdx.json
+          python3 scripts/sbom.py validate --kind image --input lzug.image.sbom.cdx.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: lzug-sboms
+          path: |
+            lzug.dependencies.sbom.cdx.json
+            lzug.image.sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Block high and critical image findings
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          version: v0.69.3
+          image-ref: ${{ env.IMAGE_REF }}
+          scanners: vuln,secret,misconfig
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          hide-progress: true
+
+  e2e:
+    name: Browser E2E details
+    needs: changes
+    if: needs.changes.outputs.browser == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14.6"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: node -e "console.log('version=' + require('./frontend/package-lock.json').packages['node_modules/@playwright/test'].version)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
+      - name: Install locked dependencies and Chromium
+        run: |
+          uv sync --locked --extra dev
+          npm ci --prefix frontend
+          cd frontend && npx playwright install --with-deps chromium
+      - name: Run browser end-to-end tests
+        run: npm --prefix frontend run test:e2e
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: failure()
+        with:
+          name: playwright-e2e-report
+          path: frontend/playwright-report
+          if-no-files-found: warn
+          retention-days: 7
+
+  a11y:
+    name: Accessibility details
+    needs: changes
+    if: needs.changes.outputs.browser == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14.6"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: node -e "console.log('version=' + require('./frontend/package-lock.json').packages['node_modules/@playwright/test'].version)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
+      - name: Install locked dependencies and Chromium
+        run: |
+          uv sync --locked --extra dev
+          npm ci --prefix frontend
+          cd frontend && npx playwright install --with-deps chromium
+      - name: Run accessibility tests
+        run: npm --prefix frontend run test:a11y
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: failure()
+        with:
+          name: playwright-a11y-report
+          path: frontend/playwright-report
+          if-no-files-found: warn
+          retention-days: 7
+
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript, go]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        if: matrix.language == 'go'
+        with:
+          go-version: "1.26.5"
+      - uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.language == 'go' && 'autobuild' || 'none' }}
+          queries: security-extended
+      - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          category: ".github/workflows/ci.yml:codeql/language:${{ matrix.language }}"
+          upload: always
+
+  source-scan:
+    name: Source secrets and misconfiguration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          version: v0.69.3
+          scan-type: fs
+          scan-ref: .
+          scanners: secret,misconfig
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          hide-progress: true
+          skip-dirs: .git,.venv,frontend/node_modules
+
+  docs-gate:
+    name: Pull Request / Documentation
+    needs: [changes, docs, codeql, source-scan]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          CHANGES: ${{ needs.changes.result }}
+          SELECTED: ${{ needs.changes.outputs.docs }}
+          DETAIL: ${{ needs.docs.result }}
+          CODEQL: ${{ needs.codeql.result }}
+          SOURCE_SCAN: ${{ needs.source-scan.result }}
+        run: test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success && { test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped; }
+
+  backend-gate:
+    name: Pull Request / Backend
+    needs: [changes, backend, e2e, a11y, codeql, source-scan]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          CHANGES: ${{ needs.changes.result }}
+          SELECTED: ${{ needs.changes.outputs.backend }}
+          DETAIL: ${{ needs.backend.result }}
+          BROWSER: ${{ needs.changes.outputs.browser }}
+          E2E: ${{ needs.e2e.result }}
+          A11Y: ${{ needs.a11y.result }}
+          CODEQL: ${{ needs.codeql.result }}
+          SOURCE_SCAN: ${{ needs.source-scan.result }}
+        run: |
+          test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success
+          test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
+          test "$BROWSER:$E2E:$A11Y" = true:success:success || test "$BROWSER:$E2E:$A11Y" = false:skipped:skipped
+
+  frontend-gate:
+    name: Pull Request / Frontend
+    needs: [changes, frontend, e2e, a11y, codeql, source-scan]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          CHANGES: ${{ needs.changes.result }}
+          SELECTED: ${{ needs.changes.outputs.frontend }}
+          DETAIL: ${{ needs.frontend.result }}
+          BROWSER: ${{ needs.changes.outputs.browser }}
+          E2E: ${{ needs.e2e.result }}
+          A11Y: ${{ needs.a11y.result }}
+          CODEQL: ${{ needs.codeql.result }}
+          SOURCE_SCAN: ${{ needs.source-scan.result }}
+        run: |
+          test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success
+          test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
+          test "$BROWSER:$E2E:$A11Y" = true:success:success || test "$BROWSER:$E2E:$A11Y" = false:skipped:skipped
+
+  cli-gate:
+    name: Pull Request / CLI
+    needs: [changes, cli, codeql, source-scan]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          CHANGES: ${{ needs.changes.result }}
+          SELECTED: ${{ needs.changes.outputs.cli }}
+          DETAIL: ${{ needs.cli.result }}
+          CODEQL: ${{ needs.codeql.result }}
+          SOURCE_SCAN: ${{ needs.source-scan.result }}
+        run: test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success && { test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped; }
+
+  container-gate:
+    name: Pull Request / Container
+    needs: [changes, container, codeql, source-scan]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          CHANGES: ${{ needs.changes.result }}
+          SELECTED: ${{ needs.changes.outputs.container }}
+          DETAIL: ${{ needs.container.result }}
+          CODEQL: ${{ needs.codeql.result }}
+          SOURCE_SCAN: ${{ needs.source-scan.result }}
+        run: test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success && { test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped; }

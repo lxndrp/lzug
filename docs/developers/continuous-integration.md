@@ -1,162 +1,150 @@
 # Continuous Integration
 
-## Stabiler Qualitätsvertrag
+## Zwei getrennte Qualitätsabläufe
 
-Pull Requests werden nach sieben Qualitätsdomänen geprüft. Ihre folgenden
-Gate-Namen sind die öffentliche, für Rulesets und nachgelagerte Release-Regeln
-verbindliche Schnittstelle:
+Pull Requests und der integrierte Stand besitzen bewusst unterschiedliche
+Workflows:
 
-| Stabiler Check | Erfolgsbedingung |
+- `.github/workflows/pull-request.yml` wählt mit der auf einen Commit gepinnten
+  Action `dorny/paths-filter` nur die betroffenen Qualitätsdomänen aus.
+- `.github/workflows/quality.yml` prüft jeden Push auf `master`, den
+  Wochenzeitplan und jeden manuellen Start vollständig. Dieser Workflow enthält
+  weder Pfadklassifikation noch Kompatibilitäts-Gates für Required Checks.
+
+Der erfolgreiche vollständige Workflow-Lauf `Quality` auf einer konkreten
+`master`-SHA ist damit der Qualitätsnachweis, den der in
+[ADR-0020](decisions/0020-minimaler-releaseablauf-mit-github-bordmitteln.md)
+beschlossene Releaseablauf verwendet. Interne Jobnamen sind kein
+Releasevertrag.
+
+## Stabiler Pull-Request-Vertrag
+
+Das Ruleset verlangt genau diese fünf immer vorhandenen Gate-Namen:
+
+| Required Check | Ausgeführte Qualitätsaussage |
 | --- | --- |
-| `Quality / Backend` | Alle ausgewählten Python-Prüfungen einschließlich Abhängigkeitsaudit sind erfolgreich; andernfalls sind die Detailjobs nachweislich übersprungen. |
-| `Quality / Frontend` | Alle ausgewählten Angular-Prüfungen und der bei Abhängigkeitsänderungen ausgewählte npm-Sicherheitscheck sind erfolgreich oder nachweislich übersprungen. |
-| `Quality / Operator CLI` | Go-Vertrag und alle portablen Builds sind erfolgreich oder nachweislich übersprungen. |
-| `Quality / OCI` | Der ausgewählte Image-Build, Trivy-Scan sowie die mit Syft erzeugten und validierten Image-/Dependency-SBOMs sind erfolgreich; andernfalls ist der Scan nachweislich übersprungen. |
-| `Quality / Documentation` | Die ausgewählte technische Dokumentation ist erfolgreich gebaut oder nachweislich übersprungen. |
-| `Quality / Security` | Der immer ausgeführte Secret-/Misconfiguration-Scan und die auf Pull Requests immer ausgeführten CodeQL-Analysen sind erfolgreich. |
-| `Quality / Overall` | Alle ausgewählten systemübergreifenden Detailverträge sind erfolgreich; nicht ausgewählte Details sind nachweislich übersprungen. |
+| `Pull Request / Documentation` | strikter MkDocs-Build und TypeDoc |
+| `Pull Request / Backend` | Ruff, Black, Python-Audit, Tests und Coverage; bei produktiven Webänderungen zusätzlich E2E und Accessibility |
+| `Pull Request / Frontend` | ESLint, Prettier, Angular-Build, Tests, Coverage und npm-Produktionsaudit; bei produktiven Webänderungen zusätzlich E2E und Accessibility |
+| `Pull Request / CLI` | Go-Vertrag sowie reproduzierbare Archive für Linux, macOS und Windows auf amd64 und arm64 |
+| `Pull Request / Container` | einmal gebautes OCI-Image, SBOMs, Image-Scan sowie Container-, Compose- und CLI-zu-Container-Verträge |
 
-Jedes Gate läuft mit `if: always()` und prüft Klassifizierergebnis,
-Auswahlflag und Detailjobstatus. Ein ausgewählter Detailjob muss `success`, ein
-nicht ausgewählter `skipped` melden. Leere oder fehlende Ausgaben lassen das
-Gate fehlschlagen. Interne Jobnamen dürfen sich ändern, diese sieben Namen und
-ihre Semantik dagegen nicht ohne kontrollierte Migration der Required Checks.
+Jedes Gate läuft mit `if: always()`. Ist seine Domäne nicht ausgewählt, prüft
+es ausdrücklich den Status `skipped` des Detailjobs und wird selbst
+erfolgreich. Ausgewählte Details müssen dagegen `success` melden. Ein Fehler
+der Pfadauswahl, des breiten Source-Scans oder einer CodeQL-Analyse lässt alle
+Gates fail-closed fehlschlagen.
 
-Das aktive Ruleset verlangt diese sieben stabilen Gate-Namen und zusätzlich
-GitHubs native Regel `Require code scanning results` für das Werkzeug `CodeQL`.
-Normale Fehlerwarnungen blockieren dabei nicht (`alerts_threshold=none`),
-Security-Befunde ab `high_or_higher` dagegen schon. Die Python-,
-JavaScript/TypeScript- und Go-Analysen laufen auf jedem Pull Request und laden
-ihre Ergebnisse hoch, damit die native Regel für jeden Commit auswertbar ist.
-`strict_required_status_checks_policy` bleibt aktiv, sodass jeder Pull Request
-nach Änderungen am Zielbranch erneut gegen dessen aktuellen Stand geprüft
-werden muss. Die CodeQL-Jobkontexte sind nach der kontrollierten Migration
-keine zusätzlichen Required Status Checks; Source- und OCI-Scans werden weiter
-über ihre stabilen Quality-Gates abgesichert.
+CodeQL analysiert Python, JavaScript/TypeScript und Go auf jedem Pull Request.
+GitHubs native Ruleset-Regel `Require code scanning results` bleibt mit
+`security_alerts_threshold=high_or_higher` aktiv. Der Trivy-Scan auf Secrets
+und Fehlkonfigurationen bleibt ebenfalls bewusst breit. Beide Nachweise sind
+keine zusätzliche projektspezifische Qualitätsdomäne.
 
-Alle Domänen- und Overall-Details liegen im Workflow `Quality` und verwenden
-genau einen Klassifikationslauf. Das einmal gebaute, über seine Prüfsumme
-abgesicherte Image wird vom OCI-Scan und den ausgewählten Overall-Verträgen
-wiederverwendet. Container-Runtime, Compose und CLI-zu-Container bleiben damit
-systemübergreifende Details und werden nicht fälschlich als isolierte
-OCI-Prüfungen eingeordnet. Wiki-Publishing und Dependabot-Auto-Merge bleiben
-ereignisbasierte, unabhängige Automationen.
+Beide Workflows setzen für CodeQL weiterhin die vor #344 verwendete Kategorie
+`.github/workflows/ci.yml:codeql/language:<Sprache>`. Dieser Wert ist eine
+stabile Analyse-ID und kein Verweis auf einen vorhandenen Workflow. Er bewahrt
+beim Workflow-Split die Vergleichbarkeit mit den auf `master` registrierten
+Analysen und darf bei einer späteren Dateiumbenennung nicht implizit wechseln.
 
-Der OCI-Scan erzeugt zwei CycloneDX-1.6-Artefakte mit der repositoryweit
-gepinnten Syft-Version. `lzug.image.sbom.cdx.json` beschreibt das exakt einmal
-gebaute finale Image. `lzug.dependencies.sbom.cdx.json` ist die kanonische
-Quelle für das Python-, npm- und Go-Abhängigkeits-/Lizenzreview. Beide werden
-30 Tage gemeinsam als `lzug-sboms` aufbewahrt; Trivy bleibt ausschließlich für
-Security-Scans verantwortlich.
+## Konservative Pfadauswahl
 
-Für #273 stellt dieselbe Grenze `task sbom:cli ARTIFACT=<binary>
-OUTPUT=<sbom>` bereit. Der Task scannt ein bereits gebautes natives Binary und
-prüft Hauptmodul, Standardbibliothek sowie deklarierte Go-Drittmodule; er baut
-und veröffentlicht selbst kein Artefakt. #273 integriert ihn pro Plattform in
-Qualifizierung, Manifest, Checksums und Attestations.
+Die fünf Domänen entsprechen fachlich verständlichen Repositorygrenzen:
 
-### Runner-Zeit der verpflichtenden CodeQL-Analysen
-
-Die breitere Absicherung erhöht die GitHub-Runner-Zeit auch für reine Prozess-
-und Dokumentationsänderungen bewusst. Die drei CodeQL-Jobs des Pull-Request-
-Laufs [31584452018](https://github.com/lxndrp/lzug/actions/runs/31584452018)
-benötigten zusammen 179 Jobsekunden: JavaScript/TypeScript 63 Sekunden, Python
-58 Sekunden und Go 58 Sekunden. Der Pull Request ändert den CI-Workflow und
-wählt deshalb einen Vollauf; für schmale Änderungsklassen werden die Kosten
-daher transparent aus gemessenen Komponenten projiziert und nicht als
-beobachteter synthetischer Lauf ausgegeben:
-
-| Änderungsklasse | Gemessene bisherige Basis | Basis ohne temporäre Kompatibilitäts-Gates | Mit drei CodeQL-Jobs | Differenz zur bisherigen Basis |
-| --- | --- | --- | --- | --- |
-| reine Prozessänderung | 46 s / 11 Jobs, Lauf [31544583374](https://github.com/lxndrp/lzug/actions/runs/31544583374) | 40 s / 9 Jobs | 219 s / 12 Jobs | +173 s / +1 Job |
-| reine Dokumentationsänderung | 85 s / 12 Jobs, Lauf [31544471092](https://github.com/lxndrp/lzug/actions/runs/31544471092) | 78 s / 10 Jobs | 257 s / 13 Jobs | +172 s / +1 Job |
-
-Die frühere Basis enthielt zwei inzwischen entfernte Kompatibilitäts-Gates mit
-zusammen sechs beziehungsweise sieben Jobsekunden. Die Projektion addiert die
-gemessenen CodeQL-Zeiten zur bereinigten Basis. Sie macht damit die dauerhaften
-Mehrkosten des ausnahmslosen Merge-Schutzes nachvollziehbar, ohne parallele
-Joblaufzeiten mit der verstrichenen Workflow-Zeit zu verwechseln.
-
-## Zentrale, konservative Pfadklassifikation
-
-`scripts/classify_quality_paths.py` ist die einzige Quelle für die
-Domänenauswahl Backend, Frontend, Betreiber-CLI, OCI, Dokumentation, Security
-und Overall. Interne Flags wählen zusätzlich npm-Audit, CodeQL außerhalb von
-Pull Requests, Image-Build,
-Container-Runtime, Compose, CLI-zu-Container, Browser-E2E und Accessibility
-aus. Mehrere geänderte Pfade vereinigen ihre Auswahlmengen.
-
-| Änderung | Ausgewählte Domänen und Details |
+| Änderung | Auswahl |
 | --- | --- |
-| Reine Prozess- und Metadaten, etwa `AGENTS.md` | keine Anwendungsdomäne; nur Klassifizierer, stabile Gates, der bewusst breite Source-Scan und alle drei CodeQL-Analysen |
-| `docs/**`, `mkdocs.yml`, Changelog oder technische README-Dateien | Dokumentation sowie alle drei CodeQL-Analysen |
-| `backend/tests/**` oder statische Prototyp-Testhilfen | Backend |
-| Produktives `backend/**`, `db/**`, Schema, Migrationen oder Fixtures | Backend, OCI, Dokumentation, Security und Overall mit getrennten E2E-/a11y-Details |
-| Betreiberprotokoll in `backend/admin.py` oder `backend/admin_service.py` | wie produktives Backend, zusätzlich Betreiber-CLI und CLI-zu-Container |
-| Frontend-Produktcode und produktive Build-Konfiguration | Frontend, OCI, Dokumentation, Security und Overall mit getrennten E2E-/a11y-Details |
-| Reine Frontend-Unit-Tests und zugehörige Unit-/Lint-Konfiguration | Frontend |
-| Playwright-Tests, Playwright-Konfiguration oder E2E-Server | Overall mit getrennten E2E-/a11y-Details |
-| `uv.lock` | Backend, OCI, Dokumentation, Security und Overall |
-| `frontend/package.json` oder `frontend/package-lock.json` | Frontend einschließlich npm-Audit, OCI, Dokumentation, Security und Overall |
-| Reiner Go-Code oder `go.mod` | Betreiber-CLI; keine Browser- oder OCI-Prüfung |
-| Dockerfile, Docker-Kontext oder Container-Smoke | OCI und Overall mit Container- und CLI-zu-Container-Vertrag |
-| Compose-Konfiguration und deren Laufzeitvertrag | Overall mit Image-, Compose- und CLI-zu-Container-Detail |
-| Security-Gate-Logik | Security mit CodeQL |
-| CI, Toolchain, gemeinsame Qualitätsskripte, leere oder unbekannte Grenzen | fail-closed alle Domänen und Details |
+| `docs/**`, MkDocs, Changelog oder dokumentierende README-Dateien | Dokumentation |
+| `backend/**`, Datenbankschema, Migrationen, Fixtures oder Prototypen | Backend |
+| Frontend-Code und Frontend-Konfiguration außer reinen Markdown-Dateien | Frontend |
+| `cmd/lzug-admin/**` | CLI |
+| Dockerfile, Docker-Kontext, Compose-Referenz oder Umgebungsbeispiel | Container |
+| produktives Backend, Datenmodell, Fixtures, Frontend-Produktcode oder Playwright | zusätzlich getrennte E2E- und Accessibility-Jobs |
+| Workflows, Toolchain, Taskfile, Lockfiles, Dependency-Manifeste oder `scripts/**` | alle fünf Domänen und beide Browserjobs |
+| leerer oder keiner bekannten Grenze zugeordneter Pfad | alle fünf Domänen und beide Browserjobs |
 
-Pushes nach `main` oder `master`, der wöchentliche CI-Zeitplan und manuelle
-Läufe verwenden `--full-reason` und wählen unabhängig von geänderten Pfaden
-alles aus. Die Klassifikations- und Workflow-Verträge werden als Python-Tests
-ausgeführt.
+Reine Backend-Tests und `*.spec.ts`-Frontend-Tests wählen keine Browserjobs.
+Mehrere Änderungen vereinigen ihre Domänen. Prozessdateien wie `AGENTS.md`,
+`CONTRIBUTING.md` oder Issue-Prozessvorlagen sind bekannte Grenzen ohne
+Anwendungsdomäne; die fünf Gates bleiben sichtbar erfolgreich, während
+CodeQL und Source-Scan weiterhin laufen.
 
-## Release-Trennung
+Die Pfadfilter-Action liest bei Pull Requests die geänderten Dateien über die
+GitHub-API. Ein zweiter Filter verwendet die `every`-Semantik, um jeden nicht
+bekannten Pfad zu erkennen. Dadurch kann eine neue Repositorygrenze nicht
+unbemerkt sämtliche fachlichen Prüfungen überspringen.
 
-Normale Qualitätsworkflows reagieren ausschließlich auf Pull Requests, Branch-
-Pushes, Zeitplan oder manuellen Vollauf. Sie besitzen weder Schreibrecht auf
-Packages noch einen Veröffentlichungsschritt. Nach dem letzten regulären
-Milestone-Issue erzeugt der Release-Workflow höchstens ein offenes Gate-Issue
-und liest die erfolgreichen Checks des einmal bestimmten `master`-Commits.
-Nur nach der Freigabe des Environments `release` darf
-`.github/workflows/release.yml` den annotierten Tag, GHCR-Inhalte oder einen
-GitHub Release erzeugen. Ein normaler Pull Request, Merge oder erfolgreicher
-Qualitätslauf löst deshalb niemals eine Veröffentlichung aus.
+## Vollständiger `master`-Vertrag
 
-## Playwright-Browsercache
+`quality.yml` führt unabhängig vom Änderungsumfang parallel aus:
 
-Beide Browserjobs verwenden weiterhin
-`npx playwright install --with-deps chromium`. Davor wird
-`~/.cache/ms-playwright` mit einem Schlüssel aus Betriebssystem, Architektur und
-der in `frontend/package-lock.json` gelockten `@playwright/test`-Version
-wiederhergestellt. Ein Cache-Treffer ersetzt nur den Browserdownload, nicht die
-Installation beziehungsweise Prüfung der Systemabhängigkeiten.
+- Backend-, Frontend-, Dokumentations- und CLI-Qualität,
+- npm- und Python-Abhängigkeitsaudits,
+- OCI-Build, Dependency- und Image-SBOM, Trivy-Image-Scan,
+- Container-, Compose- und CLI-zu-Container-Verträge,
+- Browser-E2E und Accessibility als getrennte Jobs,
+- Source-Scan und CodeQL für alle drei vorhandenen Sprachen.
 
-Bei Änderungen am Cache-Vertrag werden ein kalter Lauf und die warme
-Wiederholung desselben Commits verglichen. Maßgeblich sind Cache-Treffer,
-Installationsdauer und gesamte Dauer beider Browserjobs. Der konkrete Nachweis
-gehört in den umsetzenden Pull Request; der Cache bleibt nur bei reproduzierbar
-kürzerer Laufzeit und stabilen E2E-/Accessibility-Ergebnissen bestehen.
-Schlägt einer der Browserjobs fehl, stellt er seinen Playwright-Report
-unmittelbar für sieben Tage als GitHub-Actions-Artefakt bereit.
+Die Domänenjobs rufen dieselben `task`-Teilaufgaben auf wie die lokale
+Qualitätssicherung. Der vollständige Lauf besitzt keine Pfadausgaben, keine
+ausgewählten oder übersprungenen Details und keinen künstlichen
+Required-Check-Gesamtstatus. Sein Workflow-Ergebnis ist der vollständige
+Nachweis für die geprüfte SHA.
 
-## Lokale Auswahl
+## Kontrollierte Ruleset-Migration
 
-Der Klassifizierer entscheidet die gehostete Auswahl. Lokal entsprechen ihm
-die Teilaufgaben `task quality:backend`, `task quality:frontend`,
-`task quality:operator`, `task quality:oci`, `task docs` und
-`task quality:overall`. Overall bündelt lokal denselben Container-, Compose-,
-CLI-zu-Container-, E2E- und Accessibility-Vertrag wie CI; die beiden
-Browserprüfungen bleiben eigene Untertasks und laufen lokal nacheinander, damit
-sie nicht um den gemeinsamen Angular-Worktree-Cache konkurrieren. In CI bleiben
-sie getrennte Detailjobs. Der produktive npm-Audit liegt in
-`task quality:security`. Image- und Quellcode-Scans sowie CodeQL bleiben wegen
-ihrer Trivy-/GitHub-Bindung gehostete Ergänzungen; der lokale OCI-Task baut
-dagegen dasselbe Dockerfile als `lzug:0.0.0-dev.local`, dessen Image die
-Overall-Verträge verwenden.
+Die Migration von den früheren sieben `Quality / …`-Checks erfolgt ohne Phase
+fehlenden Schutzes:
 
-Für eng begrenzte Änderungen werden nur die betroffenen Teilaufgaben gewählt.
-Produktive Web-Grenzen ergänzen E2E und a11y getrennt, Compose-Grenzen den
-Compose- und CLI-zu-Container-Untertask. Bei CI-, Toolchain-, Security-,
-gemeinsamen oder unklaren Änderungen bleibt `task quality` der lokale Vollauf.
-Vor Browserprüfungen ist `task doctor` auszuführen. Die allgemeine lokale
-Auswahlmatrix steht ergänzend in
-[ADR-0009](decisions/0009-toolchain-und-entwicklungs-tasks.md).
+1. Ein Pull Request führt zunächst die fünf neuen Gates sowie CodeQL und den
+   Source-Scan erfolgreich aus, während die bisherigen Required Checks noch
+   aktiv sind.
+2. Das aktive Ruleset wird in einer einzelnen kontrollierten Änderung von den
+   sieben alten auf die fünf neuen Gate-Namen umgestellt.
+3. `strict_required_status_checks_policy=true`, die native CodeQL-Regel, das
+   aktive Enforcement und die leere Bypass-Liste bleiben unverändert.
+4. Erst der unter dieser Zielkonfiguration erneut geprüfte Pull Request darf
+   durch einen Maintainer gemergt werden.
+
+Der derzeitige Release-Workflow fragt bis zur getrennten Umsetzung von #347
+noch die historischen sieben Check-Namen ab. Zwischen #344 und #347 wird kein
+neuer Release veröffentlicht; `v0.1.0` bleibt unverändert. #347 ersetzt diese
+interne Checkliste gemäß ADR-0020 durch den erfolgreichen vollständigen
+`Quality`-Workflow-Lauf derselben `master`-SHA.
+
+## Messung der Vereinfachung und Laufzeit
+
+Vor #344 bestanden die eigene PR-/Master-Orchestrierung aus 904 Workflowzeilen,
+274 Zeilen Python-Klassifizierer und 453 Zeilen zugehörigen Workflow-, OCI- und
+Security-Vertragstests, zusammen 1.631 Zeilen. Die Umstellung entfernt den
+Klassifizierer vollständig. Die beiden getrennten Workflows und die auf
+Verhalten reduzierten Vertragstests umfassen zusammen 952 Zeilen: 679 Zeilen
+beziehungsweise 41,6 % weniger eigener Orchestrierungs- und Testcode.
+
+Für die Laufzeit bleiben verstrichene Workflow-Zeit und summierte
+Runner-Jobsekunden getrennt. Die belegte Ausgangsbasis für reine Dokumentation
+ist Lauf
+[`31544471092`](https://github.com/lxndrp/lzug/actions/runs/31544471092)
+mit 85 Sekunden und zwölf Jobs. Für eine reine CLI-Änderung existiert im
+aktuellen Workflowbestand kein isolierter historischer PR-Lauf; deshalb wird
+kein synthetischer Ist-Wert als Messung ausgegeben. Stattdessen vergleicht der
+umsetzende Pull Request die realen Laufzeiten der neuen Dokumentations- und
+CLI-Details sowie der gemeinsamen CodeQL-/Source-Scan-Komponenten mit den
+entsprechenden Jobs des letzten vollständigen Ausgangslaufs. Da diese
+Komponenten parallel laufen, ist für die PR-Dauer jeweils der längste
+notwendige Pfad maßgeblich, nicht ihre Summe.
+
+## Lokale Qualitätssicherung
+
+Die lokale Auswahl bleibt in `Taskfile.yml` kanonisch:
+
+- `task quality:backend`, `task quality:frontend`, `task quality:operator`,
+  `task quality:oci`, `task quality:overall` und `task docs` für begrenzte
+  Änderungen,
+- `task quality` für CI-, Toolchain-, Dependency-, Security- oder andere
+  querschnittliche Änderungen.
+
+E2E und Accessibility bleiben getrennte Tasks. Vor gezielten Browserprüfungen
+ist `task doctor` auszuführen. Lokale Docker- und Podman-Prüfungen nutzen
+denselben gebauten Image-Vertrag; CodeQL und der gehostete Source-Scan bleiben
+GitHub-gebundene Ergänzungen. Die allgemeine risikobasierte Auswahl ist in
+[ADR-0009](decisions/0009-toolchain-und-entwicklungs-tasks.md) beschrieben.
