@@ -31,6 +31,48 @@ tasks:
       - >-
         cd frontend && node -e "const { chromium } = require('@playwright/test'); const { existsSync } = require('node:fs'); const executablePath = chromium.executablePath(); if (!existsSync(executablePath)) { console.error('Playwright Chromium is missing at ' + executablePath + '; run task setup'); process.exit(1); } console.log('Playwright Chromium: ' + executablePath);"
 
+  pr:create:
+    desc: Create an issue-linked pull request with the standard GitHub CLI
+    requires:
+      vars:
+        - ISSUE
+        - TITLE
+        - BODY_FILE
+    vars:
+      ASSIGNEES: '{{default "" .ASSIGNEES}}'
+      MILESTONE: '{{default "" .MILESTONE}}'
+      DRAFT: '{{default "false" .DRAFT}}'
+    env:
+      PR_ISSUE: '{{.ISSUE}}'
+      PR_TITLE: '{{.TITLE}}'
+      PR_BODY_FILE: '{{.BODY_FILE}}'
+      PR_ASSIGNEES: '{{.ASSIGNEES}}'
+      PR_MILESTONE: '{{.MILESTONE}}'
+      PR_DRAFT: '{{.DRAFT}}'
+    cmds:
+      - |
+        set -eu
+        test -f "$PR_BODY_FILE" || { echo "BODY_FILE does not exist: $PR_BODY_FILE" >&2; exit 2; }
+        grep -Fqx "Closes #$PR_ISSUE" "$PR_BODY_FILE" || { echo "BODY_FILE must contain an exact 'Closes #$PR_ISSUE' line" >&2; exit 2; }
+        set --
+        if [ -n "$PR_ASSIGNEES" ]; then
+          set -- "$@" --assignee "$PR_ASSIGNEES"
+        fi
+        if [ -n "$PR_MILESTONE" ]; then
+          set -- "$@" --milestone "$PR_MILESTONE"
+        fi
+        case "$PR_DRAFT" in
+          true) set -- "$@" --draft ;;
+          false) ;;
+          *) echo "DRAFT must be true or false" >&2; exit 2 ;;
+        esac
+        gh pr create \
+          --base master \
+          --title "$PR_TITLE" \
+          --body-file "$PR_BODY_FILE" \
+          --project "lzug Roadmap" \
+          "$@"
+
   test:
     desc: Run all backend, frontend, and operator unit tests
     cmds:
