@@ -96,6 +96,11 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 self.assertNotIn("packages: write", workflow)
                 self.assertNotIn("gh release create", workflow)
 
+    def test_codeql_analysis_identity_survives_the_workflow_split(self) -> None:
+        category = 'category: ".github/workflows/ci.yml:codeql/language:${{ matrix.language }}"'
+        self.assertEqual(1, self.pull_request.count(category))
+        self.assertEqual(1, self.quality.count(category))
+
 
 if __name__ == "__main__":
     unittest.main()

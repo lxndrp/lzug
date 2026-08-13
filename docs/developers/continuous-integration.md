@@ -41,6 +41,12 @@ GitHubs native Ruleset-Regel `Require code scanning results` bleibt mit
 und Fehlkonfigurationen bleibt ebenfalls bewusst breit. Beide Nachweise sind
 keine zusätzliche projektspezifische Qualitätsdomäne.
 
+Beide Workflows setzen für CodeQL weiterhin die vor #344 verwendete Kategorie
+`.github/workflows/ci.yml:codeql/language:<Sprache>`. Dieser Wert ist eine
+stabile Analyse-ID und kein Verweis auf einen vorhandenen Workflow. Er bewahrt
+beim Workflow-Split die Vergleichbarkeit mit den auf `master` registrierten
+Analysen und darf bei einer späteren Dateiumbenennung nicht implizit wechseln.
+
 ## Konservative Pfadauswahl
 
 Die fünf Domänen entsprechen fachlich verständlichen Repositorygrenzen:
@@ -111,8 +117,8 @@ Vor #344 bestanden die eigene PR-/Master-Orchestrierung aus 904 Workflowzeilen,
 274 Zeilen Python-Klassifizierer und 453 Zeilen zugehörigen Workflow-, OCI- und
 Security-Vertragstests, zusammen 1.631 Zeilen. Die Umstellung entfernt den
 Klassifizierer vollständig. Die beiden getrennten Workflows und die auf
-Verhalten reduzierten Vertragstests umfassen zusammen 945 Zeilen: 686 Zeilen
-beziehungsweise 42,1 % weniger eigener Orchestrierungs- und Testcode.
+Verhalten reduzierten Vertragstests umfassen zusammen 952 Zeilen: 679 Zeilen
+beziehungsweise 41,6 % weniger eigener Orchestrierungs- und Testcode.
 
 Für die Laufzeit bleiben verstrichene Workflow-Zeit und summierte
 Runner-Jobsekunden getrennt. Die belegte Ausgangsbasis für reine Dokumentation
