@@ -125,26 +125,28 @@ counsel before a commercial offer is marketed or signed.
   contract.
 - Image SBOM: `lzug.image.sbom.cdx.json` describes only packages present in the
   exact final OCI image. It intentionally excludes npm build dependencies and
-  the separate Go CLI. The release workflow binds only this SBOM to the image
-  digest with a signed SBOM attestation.
+  the separate Go CLI. During a release it is a temporary input bound to the
+  image digest with a signed SBOM attestation, not a separate release asset.
 - Native CLI SBOM: `task sbom:cli ARTIFACT=<binary> OUTPUT=<sbom>` scans one
   already built binary and requires the Go main module, standard library and
   every third-party module declared in `go.mod`. Issue #273 owns the six
-  platform builds, release-asset naming, manifest integration, checksums and
-  artifact attestations. This issue provides only their common Syft/CycloneDX
-  boundary and does not build or publish a CLI binary.
+  platform builds, release-asset naming and artifact attestations. During a
+  release the detailed CLI SBOMs are temporary inputs to the single aggregate
+  release SBOM and are not published individually. This issue provides only
+  their common Syft/CycloneDX boundary and does not build or publish a CLI
+  binary.
 - Documentation: original prose, diagrams, and other non-code content follow
   the explicit [`CC-BY-4.0` boundary](../LICENSE.md). Code, executable examples,
   generated code references, and third-party content are excluded from that
   grant and retain their respective licenses.
-- Release: Noch wurde kein öffentlicher Produkt-Release ausgelöst. Der
-  [Release-Prozess](releases.md) erzeugt die rollenbezogenen CycloneDX-Artefakte
-  mit derselben gepinnten Syft-Version und weist ihre unterschiedlichen
-  Verantwortungen in den Release Notes aus.
+- Release: Der [Release-Prozess](releases.md) erzeugt die detaillierten
+  rollenbezogenen CycloneDX-Daten mit derselben gepinnten Syft-Version, führt
+  sie in genau einer sichtbaren Release-SBOM zusammen und bindet sie an die
+  ausgelieferten Subjects. Die detaillierten Dateien bleiben temporär.
 
-The dependency SBOM is preparatory review evidence. Public release assets and
-the digest-bound image attestation exist only after a fully successful tagged
-release workflow.
+The dependency SBOM is preparatory review evidence. The aggregate public
+release SBOM, release assets, and digest-bound attestations exist only after a
+fully successful tagged release workflow.
 
 ## Primary sources
 

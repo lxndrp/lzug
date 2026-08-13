@@ -36,16 +36,24 @@ der Milestone ist ein Freigabe-Gate, kein technischer Inhaltsfilter.
    fehlgeschlagene CI beendet den Lauf ohne Polling; das Gate-Issue bleibt offen.
 4. Der Publish-Job wartet auf die Required-Reviewer-Freigabe des Environments
    `release`. Das ist die einzige menschliche GO-Entscheidung.
-5. Der Job erzeugt den annotierten SemVer-Tag auf dem vorgeprüften Commit,
-   checkt ausschließlich diesen Tag aus und baut die Release-Artefakte.
-6. Der Job erstellt oder aktualisiert zuerst einen GitHub-Draft-Release, lädt
-   dessen Assets hoch und veröffentlicht ihn zuletzt. Danach schließt er das
-   Release-Issue mit dem Release-Link.
+5. Der Job erzeugt den annotierten SemVer-Tag auf dem vorgeprüften Commit und
+   checkt ausschließlich diesen Tag aus.
+6. Existiert zu diesem Tag bereits ein veröffentlichter Release, akzeptiert der
+   Workflow ihn nur bei passendem Release- und Vorabversionsstatus sowie einem
+   vollständigen Satz nichtleerer, hochgeladener und SHA-256-digestierter
+   Kern-Assets. Dann überspringt er alle Build-, SBOM-, Attestation- und
+   Upload-Schritte und schließt nur noch das Release-Issue.
+7. Andernfalls baut der Job die Release-Artefakte, erstellt oder aktualisiert
+   zuerst einen GitHub-Draft-Release, lädt dessen Assets hoch und veröffentlicht
+   ihn zuletzt. Danach schließt er das Release-Issue mit dem Release-Link.
 
 Ein fehlgeschlagener Lauf lässt das Gate-Issue offen. Ein Maintainer startet
 den Retry über `Release` und übergibt dessen Issue-Nummer. Existiert der Tag
 bereits, ist ausschließlich er die Quelle für den erneuten Lauf; der Tag wird
-nicht verschoben oder ersetzt.
+nicht verschoben oder ersetzt. Ein abweichender oder unvollständiger bereits
+veröffentlichter Release wird nicht repariert oder überschrieben, sondern
+beendet den Retry fail-closed. Ein vorhandener Draft wird weiterhin aus dem
+kanonischen Tag neu aufgebaut und erst nach dem vollständigen Upload sichtbar.
 
 ## CI und Lieferartefakte
 
@@ -67,23 +75,39 @@ Der Workflow baut aus dem Tag nur die zu veröffentlichenden Artefakte:
   `sha-<Commit>`; Vorabreleases erhalten nur ihren vollständigen SemVer- und
   SHA-Tag.
 - Sechs Betreiber-CLI-Archive für Linux, macOS und Windows auf `amd64` und
-  `arm64`, jeweils mit CycloneDX-SBOM und sichtbarer SHA-256-Prüfsummendatei.
-- Getrennte Dependency- und Image-SBOM sowie GitHub-Attestations für die CLI
-  und das OCI-Image.
+  `arm64`.
+- Genau eine zusammengefasste sichtbare CycloneDX-Datei
+  `lzug-MAJOR.MINOR.PATCH.sbom.cdx.json`. Sie inventarisiert die sechs Archive,
+  das OCI-Image und die aus den detaillierten Scans zusammengeführten
+  Laufzeit- und Build-Abhängigkeiten.
+
+Damit enthält ein künftiger GitHub Release genau sieben Assets. Separate
+Prüfsummendateien, plattformspezifische CLI-SBOMs, Dependency-/Image-SBOMs,
+Provenance-JSONs und Release-Manifeste werden nicht als Release-Assets
+veröffentlicht. GitHub berechnet und zeigt für jedes Asset dessen SHA-256-Digest.
+
+Der Workflow erzeugt die detaillierten Dependency-, Image- und CLI-SBOMs nur
+temporär. Aus ihnen entsteht die aggregierte Release-SBOM. Eine signierte
+SBOM-Attestation bindet diese über eine ebenfalls nur temporäre Subjectliste
+gemeinsam an die sechs Archiv-Digests und den OCI-Digest. Die detaillierte
+Image-SBOM wird zusätzlich direkt an den OCI-Digest attestiert und mit der
+Attestation in die Registry geschrieben. Die aggregierte SBOM ist damit kein
+ungebundener Begleittext; Attestations sind die kanonischen Herkunfts- und
+Integritätsnachweise.
 
 Der Workflow erzeugt keinen `latest`-Tag. Ein bereits vorhandenes
 versionsbezogenes OCI-Image wird beim einmaligen `v0.1.0`-Übergang nur bei
 passender Versions- und Revisionsmetadaten wiederverwendet; es wird nicht
 überschrieben.
 
-Die Prüfsumme eines heruntergeladenen CLI-Archivs lässt sich beispielsweise so
-prüfen:
+Den von GitHub erfassten Digest eines Release-Assets zeigt die Release-Ansicht.
+Er lässt sich außerdem über die API lesen und lokal vergleichen:
 
 ```sh
 version=0.1.0
 archive="lzug-admin-${version}-linux-amd64.tar.gz"
-expected=$(awk -v archive="$archive" '$2 == archive { print $1; found = 1 } END { if (!found) exit 1 }' \
-  "lzug-admin-${version}.checksums.txt")
+expected=$(gh release view "v$version" --repo lxndrp/lzug --json assets \
+  --jq ".assets[] | select(.name == \"$archive\") | .digest" | sed 's/^sha256://')
 actual=$(sha256sum "$archive" | awk '{ print $1 }')
 test "$actual" = "$expected"
 ```
@@ -104,10 +128,12 @@ Der erste GHCR-Push kann ein neues Paket zunächst privat anlegen. Seine
 Package-Einstellungen. Ein fehlgeschlagener Publish erzeugt keinen sichtbaren
 GitHub Release, weil dieser bis zum letzten Schritt Draft bleibt.
 
-`v0.1.0` ist ein Übergangsfall: Sein bereits vorhandener annotierter Tag wird
-per manuellem Workflow-Dispatch als kanonische Quelle verwendet. Der Workflow
-vervollständigt nur den noch fehlenden GitHub Release und überschreibt keine
-bereits vorhandenen versionsbezogenen OCI-Referenzen.
+`v0.1.0` ist ein unveränderter Übergangsbestand aus der vorigen
+Release-Generation. Der idempotente Retry akzeptiert ihn nur mit seinem exakten
+historischen Satz aus 20 vollständig hochgeladenen und SHA-256-digestierten
+Assets. Er löscht, ersetzt oder ergänzt dort keine Assets und überschreibt auch
+keine versionsbezogenen OCI-Referenzen. Der Sieben-Asset-Vertrag gilt erst für
+nachfolgende Releases.
 
 Produkt-Backup, Restore und Rollback sind nicht Teil dieses
 Release-Wiederanlaufs. Die fachliche Betriebsgrenze bleibt für `v0.1.0` in den

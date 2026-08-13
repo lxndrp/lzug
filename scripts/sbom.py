@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import copy
+import hashlib
 import json
 import os
 import re
@@ -11,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tomllib
+import uuid
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -19,7 +22,12 @@ ROOT = Path(__file__).resolve().parents[1]
 CYCLONEDX_SPEC_VERSION = "1.6"
 DEPENDENCY_SOURCE_NAME = "lzug-dependencies"
 CLI_SOURCE_NAME = "lzug-admin"
+RELEASE_SOURCE_NAME = "lzug-release"
 SYFT_TOOL_KEY = "aqua:anchore/syft"
+SUBJECT_CHECKSUM_PATTERN = re.compile(r"^([0-9a-f]{64}) ([ *])(.+)$")
+GHCR_IMAGE_PATTERN = re.compile(
+    r"^ghcr[.]io/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?/" r"[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$"
+)
 
 
 def configured_syft_version(root: Path = ROOT) -> str:
@@ -184,6 +192,174 @@ def generate_cli(args: argparse.Namespace) -> None:
     output = Path(args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     run_syft(cli_command(output, artifact, args.source_version, args.source_name, executable))
+
+
+def read_subject_checksums(path: Path) -> list[tuple[str, str]]:
+    """Read a shasum-compatible subject list as ``(name, digest)`` pairs."""
+
+    subjects: list[tuple[str, str]] = []
+    names: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        match = SUBJECT_CHECKSUM_PATTERN.fullmatch(line)
+        if not match:
+            raise ValueError(f"invalid release subject checksum line: {line}")
+        digest, _mode, name = match.groups()
+        if name in names:
+            raise ValueError(f"duplicate release subject: {name}")
+        names.add(name)
+        subjects.append((name, f"sha256:{digest}"))
+    if not subjects:
+        raise ValueError("release subject checksum list is empty")
+    return subjects
+
+
+def _component_key(component: dict[str, Any]) -> str:
+    normalized = copy.deepcopy(component)
+    normalized.pop("bom-ref", None)
+    return json.dumps(normalized, sort_keys=True, separators=(",", ":"))
+
+
+def release_archive_names(version: str) -> set[str]:
+    """Return the exact six native CLI archive names for one release."""
+
+    return {
+        f"lzug-admin-{version}-{goos}-{goarch}.{extension}"
+        for goos, goarch, extension in (
+            ("linux", "amd64", "tar.gz"),
+            ("linux", "arm64", "tar.gz"),
+            ("darwin", "amd64", "tar.gz"),
+            ("darwin", "arm64", "tar.gz"),
+            ("windows", "amd64", "zip"),
+            ("windows", "arm64", "zip"),
+        )
+    }
+
+
+def release_subject_type(name: str, version: str) -> str:
+    """Classify one exact release subject or reject an unexpected name."""
+
+    if name in release_archive_names(version):
+        return "file"
+    if GHCR_IMAGE_PATTERN.fullmatch(name):
+        return "container"
+    raise ValueError(f"unexpected release subject name: {name}")
+
+
+def aggregate_release_sbom(
+    payloads: list[dict[str, Any]],
+    source_version: str,
+    release_tag: str,
+    revision: str,
+    subjects: list[tuple[str, str]],
+) -> dict[str, Any]:
+    """Combine temporary detailed SBOMs into one deterministic release inventory."""
+
+    if release_tag != f"v{source_version}":
+        raise ValueError("release tag must match the aggregate SBOM version")
+    if not re.fullmatch(r"[0-9a-f]{40}", revision):
+        raise ValueError("release revision must be a full commit SHA")
+    if len(payloads) != 8:
+        raise ValueError("release aggregation requires dependency, image, and six CLI SBOMs")
+
+    components_by_key: dict[str, tuple[dict[str, Any], set[str]]] = {}
+    syft_tool: dict[str, Any] | None = None
+    for payload in payloads:
+        components = validate_common(payload)
+        source = payload.get("metadata", {}).get("component", {})
+        source_name = source.get("name")
+        if not isinstance(source_name, str) or not source_name:
+            raise ValueError("detailed SBOM has no source component name")
+        tools = payload.get("metadata", {}).get("tools", {}).get("components", [])
+        current_syft = next(tool for tool in tools if tool.get("name") == "syft")
+        if syft_tool is None:
+            syft_tool = copy.deepcopy(current_syft)
+
+        for component in components:
+            key = _component_key(component)
+            if key not in components_by_key:
+                normalized = copy.deepcopy(component)
+                normalized.pop("bom-ref", None)
+                components_by_key[key] = (normalized, set())
+            components_by_key[key][1].add(source_name)
+
+    merged_components: list[dict[str, Any]] = []
+    for key, (component, sources) in sorted(components_by_key.items()):
+        component["bom-ref"] = (
+            "urn:lzug:component:sha256:" + hashlib.sha256(key.encode("utf-8")).hexdigest()
+        )
+        properties = component.setdefault("properties", [])
+        if not isinstance(properties, list):
+            raise ValueError("detailed SBOM component properties must be a list")
+        properties.append({"name": "lzug:release:sbom-sources", "value": ",".join(sorted(sources))})
+        merged_components.append(component)
+
+    subject_components: list[dict[str, Any]] = []
+    for name, digest in sorted(subjects):
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+            raise ValueError(f"release subject has invalid SHA-256 digest: {name}")
+        subject_components.append(
+            {
+                "bom-ref": "urn:lzug:subject:sha256:"
+                + hashlib.sha256(f"{name}\0{digest}".encode()).hexdigest(),
+                "type": release_subject_type(name, source_version),
+                "name": name,
+                "version": source_version,
+                "hashes": [{"alg": "SHA-256", "content": digest.removeprefix("sha256:")}],
+                "properties": [{"name": "lzug:release:subject", "value": "true"}],
+            }
+        )
+
+    serial = uuid.uuid5(
+        uuid.NAMESPACE_URL, f"https://github.com/lxndrp/lzug/{release_tag}/{revision}"
+    )
+    return {
+        "$schema": f"https://cyclonedx.org/schema/bom-{CYCLONEDX_SPEC_VERSION}.schema.json",
+        "bomFormat": "CycloneDX",
+        "specVersion": CYCLONEDX_SPEC_VERSION,
+        "serialNumber": f"urn:uuid:{serial}",
+        "version": 1,
+        "metadata": {
+            "component": {
+                "bom-ref": f"pkg:generic/lzug@{source_version}",
+                "type": "application",
+                "name": RELEASE_SOURCE_NAME,
+                "version": source_version,
+            },
+            "tools": {
+                "components": [
+                    syft_tool,
+                    {
+                        "type": "application",
+                        "name": "lzug-sbom-aggregate",
+                        "version": "1",
+                    },
+                ]
+            },
+            "properties": [
+                {"name": "lzug:release:tag", "value": release_tag},
+                {"name": "lzug:release:revision", "value": revision},
+                {"name": "lzug:release:detailed-sbom-count", "value": str(len(payloads))},
+            ],
+        },
+        "components": subject_components + merged_components,
+    }
+
+
+def aggregate(args: argparse.Namespace) -> None:
+    """Write the visible aggregate release SBOM from temporary detailed inputs."""
+
+    payloads = [json.loads(Path(path).read_text(encoding="utf-8")) for path in args.input]
+    subjects = read_subject_checksums(Path(args.subject_checksums))
+    result = aggregate_release_sbom(
+        payloads,
+        args.source_version,
+        args.release_tag,
+        args.revision,
+        subjects,
+    )
+    output = Path(args.output).resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def component_purl_type(component: dict[str, Any]) -> str | None:
@@ -369,6 +545,63 @@ def validate_image(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_release(payload: dict[str, Any]) -> dict[str, Any]:
+    """Validate the aggregate visible SBOM and its complete delivery subject set."""
+
+    components = validate_common(payload)
+    source = payload.get("metadata", {}).get("component", {})
+    version = source.get("version")
+    if source.get("name") != RELEASE_SOURCE_NAME or not isinstance(version, str):
+        raise ValueError(f"release SBOM source must be {RELEASE_SOURCE_NAME}")
+    properties = {
+        item.get("name"): item.get("value")
+        for item in payload.get("metadata", {}).get("properties", [])
+        if isinstance(item, dict)
+    }
+    if properties.get("lzug:release:tag") != f"v{version}":
+        raise ValueError("release SBOM tag does not match its version")
+    if not re.fullmatch(r"[0-9a-f]{40}", str(properties.get("lzug:release:revision", ""))):
+        raise ValueError("release SBOM has no full revision")
+    if properties.get("lzug:release:detailed-sbom-count") != "8":
+        raise ValueError("release SBOM must aggregate exactly eight detailed SBOMs")
+
+    subjects = [
+        component
+        for component in components
+        if {"name": "lzug:release:subject", "value": "true"} in component.get("properties", [])
+    ]
+    archive_names = {str(item.get("name", "")) for item in subjects if item.get("type") == "file"}
+    image_names = {
+        str(item.get("name", "")) for item in subjects if item.get("type") == "container"
+    }
+    if (
+        archive_names != release_archive_names(version)
+        or len(image_names) != 1
+        or not GHCR_IMAGE_PATTERN.fullmatch(next(iter(image_names), ""))
+        or len(subjects) != 7
+    ):
+        raise ValueError("release SBOM must identify six CLI archives and one OCI image")
+    for subject in subjects:
+        hashes = subject.get("hashes", [])
+        if (
+            len(hashes) != 1
+            or hashes[0].get("alg") != "SHA-256"
+            or not re.fullmatch(r"[0-9a-f]{64}", str(hashes[0].get("content", "")))
+        ):
+            raise ValueError(f"release SBOM subject has no SHA-256 digest: {subject.get('name')}")
+
+    counts = Counter(filter(None, (component_purl_type(item) for item in components)))
+    for required in ("pypi", "npm", "golang"):
+        if not counts[required]:
+            raise ValueError(f"release SBOM contains no {required} components")
+    return {
+        "components": len(components),
+        "purl_types": dict(sorted(counts.items())),
+        "subjects": len(subjects),
+        "scope": "six native CLI archives, one OCI image, and their release dependency inventory",
+    }
+
+
 def validate(args: argparse.Namespace) -> None:
     """Validate and summarize one canonical CycloneDX artifact."""
 
@@ -377,8 +610,10 @@ def validate(args: argparse.Namespace) -> None:
         summary = validate_dependencies(payload, (ROOT / "go.mod").read_text(encoding="utf-8"))
     elif args.kind == "cli":
         summary = validate_cli(payload, (ROOT / "go.mod").read_text(encoding="utf-8"))
-    else:
+    elif args.kind == "image":
         summary = validate_image(payload)
+    else:
+        summary = validate_release(payload)
     print(json.dumps(summary, indent=2, sort_keys=True))
 
 
@@ -405,8 +640,17 @@ def parser() -> argparse.ArgumentParser:
     cli.add_argument("--output", required=True)
     cli.set_defaults(handler=generate_cli)
 
+    aggregate_command = commands.add_parser("aggregate")
+    aggregate_command.add_argument("--input", action="append", required=True)
+    aggregate_command.add_argument("--output", required=True)
+    aggregate_command.add_argument("--release-tag", required=True)
+    aggregate_command.add_argument("--revision", required=True)
+    aggregate_command.add_argument("--source-version", required=True)
+    aggregate_command.add_argument("--subject-checksums", required=True)
+    aggregate_command.set_defaults(handler=aggregate)
+
     check = commands.add_parser("validate")
-    check.add_argument("--kind", choices=("dependencies", "image", "cli"), required=True)
+    check.add_argument("--kind", choices=("dependencies", "image", "cli", "release"), required=True)
     check.add_argument("--input", required=True)
     check.set_defaults(handler=validate)
     return root
