@@ -2,9 +2,11 @@
 
 ## Status
 
-Akzeptiert am 13.08.2026. Löst ADR-0018 hinsichtlich Kandidaten- und
-Veröffentlichungsablauf ab; die Trennung von SemVer-Milestones, Project und
-technischer Versionsidentität bleibt bestehen.
+Teilweise abgelöst durch
+[ADR-0020](0020-minimaler-releaseablauf-mit-github-bordmitteln.md) am
+13.08.2026. Der annotierte Tag als einzige technische Release-Identität und die
+Environment-Freigabe bleiben akzeptiert; Issue-Auslöser, Gate-Steuerung,
+CI-Abfrage und Wiederanlauf sind historisch.
 
 ## Kontext
 
