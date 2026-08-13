@@ -67,15 +67,22 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertNotIn("download-artifact", self.workflow)
 
     def test_complete_published_release_skips_every_publication_step(self) -> None:
+        workflow_checkout = self.workflow.index("Checkout the release workflow")
         existing_release = self.workflow.index("Accept an already complete published release")
+        tag_checkout = self.workflow.index("Checkout the canonical tag for publication")
         setup = self.workflow.index("Set up Go")
+        self.assertLess(workflow_checkout, existing_release)
+        self.assertLess(existing_release, tag_checkout)
         self.assertLess(existing_release, setup)
+        self.assertIn("ref: ${{ github.sha }}", self.workflow)
         self.assertIn(
             'gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100"',
             self.workflow,
         )
 
         guarded_steps = (
+            "Checkout the canonical tag for publication",
+            "Extract release notes",
             "Set up Go",
             "Set up Python",
             "Set up UV",
