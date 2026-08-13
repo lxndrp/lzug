@@ -113,13 +113,13 @@ ausgeführt.
 
 Normale Qualitätsworkflows reagieren ausschließlich auf Pull Requests, Branch-
 Pushes, Zeitplan oder manuellen Vollauf. Sie besitzen weder Schreibrecht auf
-Packages noch einen Veröffentlichungsschritt. Der Kandidatenworkflow darf nach
-dem letzten regulären Milestone-Issue ausschließlich ein Release-Issue
-erzeugen. Nur `.github/workflows/release.yml` darf nach dem berechtigten
-Schließen dieses Bot-Issues und einer zusätzlichen Freigabe des Environments
-`release` GHCR-Inhalte, den annotierten Tag oder einen GitHub Release erzeugen.
-Ein normaler Pull Request, Merge oder erfolgreicher Qualitätslauf löst deshalb
-niemals eine Veröffentlichung aus.
+Packages noch einen Veröffentlichungsschritt. Nach dem letzten regulären
+Milestone-Issue erzeugt der Release-Workflow höchstens ein offenes Gate-Issue
+und liest die erfolgreichen Checks des einmal bestimmten `master`-Commits.
+Nur nach der Freigabe des Environments `release` darf
+`.github/workflows/release.yml` den annotierten Tag, GHCR-Inhalte oder einen
+GitHub Release erzeugen. Ein normaler Pull Request, Merge oder erfolgreicher
+Qualitätslauf löst deshalb niemals eine Veröffentlichung aus.
 
 ## Playwright-Browsercache
 

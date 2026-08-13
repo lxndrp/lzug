@@ -9,8 +9,8 @@ Versionen folgen [Semantic Versioning](https://semver.org/lang/de/).
 Bei einer Release-Vorbereitung verschiebt ein Maintainer die freizugebenden
 Einträge in genau einen Abschnitt `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`. Der
 Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Notes
-und weist einen Kandidaten ohne passenden Abschnitt oder mit abweichender
-Build-Identität in Backend, Frontend, CLI oder OCI ab.
+und veröffentlicht nur aus dem nach der Environment-Freigabe erzeugten,
+annotierten SemVer-Tag.
 
 ## [0.1.0] - 2026-08-12
 
@@ -20,8 +20,8 @@ Build-Identität in Backend, Frontend, CLI oder OCI ab.
   Frontend, Betreiber-CLI und OCI-Image.
 - Sieben stabile Quality-Gates für Backend, Frontend, Betreiber-CLI, OCI,
   Dokumentation, Security und den Gesamtstatus.
-- Fail-closed Release-Infrastruktur mit unveränderlichem Kandidat-Commit,
-  getrenntem Maintainer-/Environment-Gate sowie kuratierten Release Notes.
+- Fail-closed Release-Infrastruktur mit annotiertem SemVer-Tag als kanonischer
+  Identität, Environment-Gate und kuratierten Release Notes.
 - Qualifizierte Lieferkettennachweise für GHCR-Digest, getrennte
   CycloneDX-Image-/Dependency-SBOMs, Provenance, Attestations und Prüfsummen,
   die der Release-Workflow bei einer späteren Veröffentlichung an diese Notes

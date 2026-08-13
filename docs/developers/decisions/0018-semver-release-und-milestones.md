@@ -2,7 +2,9 @@
 
 ## Status
 
-Akzeptiert am 11.08.2026.
+Teilweise abgelöst durch [ADR-0019](0019-tag-zentrierter-releaseprozess.md)
+am 13.08.2026. Die Milestone- und SemVer-Zuordnung bleibt akzeptiert; der
+Kandidaten- und Veröffentlichungsablauf ist historisch.
 
 ## Kontext
 
