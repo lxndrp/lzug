@@ -36,11 +36,16 @@ Der genaue Ablauf steht in der [Wiki-Publikation](docs/developers/wiki-publishin
 - Änderungen gehören zu einem GitHub Issue und bleiben klein sowie thematisch
   zusammenhängend.
 - Commits werden auf Englisch geschrieben.
-- Öffne den Pull Request mit `scripts/create-issue-pr.sh`; das Script übernimmt
-  Project, Milestone und Assignees aus dem Issue.
+- Prüfe Project, Milestone und Assignees des Issues mit `gh issue view` und
+  öffne den Pull Request mit `task pr:create`. Übergib gesetzte Assignees und
+  den Milestone explizit; die Task ordnet den PR dem Project `lzug Roadmap` zu.
 - Ein vollständiger Pull Request enthält `Closes #<nummer>`, eine
   Teilumsetzung eine nicht schließende Verknüpfung.
+- Prüfe die Zuordnungen nach dem Erstellen mit `gh pr view`.
 - CI und Review sind Voraussetzung für den Merge.
+
+Die vollständigen Befehle und der Ablauf bis zum Closeout stehen im
+[Pull-Request-Lifecycle](docs/developers/pull-requests.md).
 
 Release-Tags und öffentliche Artefakte bleiben Maintainer-Aufgaben. Der
 verbindliche SemVer-, Changelog-, GitHub-Release- und GHCR-Ablauf steht im

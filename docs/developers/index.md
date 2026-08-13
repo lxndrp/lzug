@@ -14,6 +14,8 @@ im Repository-Wurzelverzeichnis.
 - **Entscheidungen** hält wichtige, bereits getroffene technische Entscheidungen als rückwirkende ADRs fest.
 - **Reviews** beschreibt das gemeinsame Qualitätsreview und die zugehörigen
   Nachweise für Menschen und Agents.
+- **Pull-Request-Lifecycle** beschreibt die reproduzierbare Erstellung,
+  Zuordnungsprüfung, Abnahme und Bereinigung eines Issue-Pull-Requests.
 - **Dependabot-Aktualisierungen** beschreibt Klassifikation, Sicherheitsgrenzen
   und Merge-Lebenszyklus automatisierter Abhängigkeitsupdates.
 - **Continuous Integration** beschreibt Workflow-Verantwortungen, konservative

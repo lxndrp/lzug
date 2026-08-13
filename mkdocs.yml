@@ -21,6 +21,7 @@ nav:
   - Dokumentationslizenz: LICENSE.md
   - Für Entwickler:
       - Überblick: developers/index.md
+      - Pull-Request-Lifecycle: developers/pull-requests.md
       - Synthetische Testdaten: developers/synthetic-fixtures.md
       - Reviews:
           - Review Policy: developers/reviews/index.md
