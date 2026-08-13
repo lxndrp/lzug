@@ -5,7 +5,17 @@ import tomllib
 import unittest
 from pathlib import Path
 
-from scripts.release import extract_changelog
+
+def changelog_section(changelog: str, version: str) -> str:
+    """Return the one dated changelog section asserted by this evidence test."""
+
+    heading = re.compile(rf"^## \[{re.escape(version)}\] - \d{{4}}-\d{{2}}-\d{{2}}$", re.MULTILINE)
+    matches = list(heading.finditer(changelog))
+    if len(matches) != 1:
+        raise ValueError(f"expected exactly one dated changelog section for {version}")
+    start = matches[0].end()
+    next_heading = re.search(r"^## ", changelog[start:], re.MULTILINE)
+    return changelog[start : start + next_heading.start() if next_heading else None].strip()
 
 
 class ReleaseEvidenceContractTests(unittest.TestCase):
@@ -15,7 +25,7 @@ class ReleaseEvidenceContractTests(unittest.TestCase):
         self.assertEqual(
             1, len(re.findall(r"^## \[0\.1\.0\] - \d{4}-\d{2}-\d{2}$", changelog, re.MULTILINE))
         )
-        section = extract_changelog(changelog, "0.1.0")
+        section = changelog_section(changelog, "0.1.0")
         compact_section = " ".join(section.split())
         for boundary in (
             "weder ein fachlich vollständiges noch ein produktionsreifes",

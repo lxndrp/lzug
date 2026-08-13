@@ -16,7 +16,6 @@ class BuildIdentityContractTests(unittest.TestCase):
                 ".github/workflows/release.yml",
                 "scripts/container-smoke.sh",
                 "scripts/operator-container-smoke.sh",
-                "scripts/release.py",
             )
         )
         self.assertNotIn("cat VERSION", active_contract)
@@ -48,11 +47,10 @@ class BuildIdentityContractTests(unittest.TestCase):
 
         self.assertIn('--revision "$GITHUB_SHA" --field identity', ci)
         self.assertIn("BUILD_IDENTITY=${{ steps.build_metadata.outputs.identity }}", ci)
-        self.assertIn('--tag "$RELEASE_TAG"', release)
-        self.assertIn('--revision "$CANDIDATE_SHA"', release)
-        self.assertIn("RELEASE_TAG: ${{ needs.authorize.outputs.tag }}", release)
-        self.assertIn("applicationTag=$RELEASE_TAG", release)
-        self.assertIn("cmp image-build-metadata.json cli-build-metadata.json", release)
+        self.assertIn('--tag "$RELEASE_TAG" --revision "$TARGET_SHA"', release)
+        self.assertIn("RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}", release)
+        self.assertIn("VCS_REF=${{ env.TARGET_SHA }}", release)
+        self.assertNotIn("CANDIDATE_SHA", release)
 
 
 if __name__ == "__main__":

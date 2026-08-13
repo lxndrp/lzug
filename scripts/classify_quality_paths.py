@@ -91,8 +91,6 @@ FULL_FILES = {
     "scripts/build-frontend.sh",
     "scripts/build_metadata.py",
     "scripts/classify_quality_paths.py",
-    "scripts/release.py",
-    "scripts/release_gate.py",
     "scripts/sbom.py",
 }
 FRONTEND_ONLY_FILES = {
