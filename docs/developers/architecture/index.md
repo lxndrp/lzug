@@ -12,7 +12,10 @@ Angular-Frontend
   -> SQLite-Datenbank
 ```
 
-Python `3.14.6`, Node.js `26.5.0`, npm, `mise`, `uv` und Task sind projektweit festgelegt. Die Pins liegen in `.mise.toml`, `.python-version`, `.node-version`, `uv.lock` und `frontend/package-lock.json`; die lokalen Workflows stehen in `Taskfile.yml`.
+Python `3.14.6`, Node.js `26.5.0`, npm, `mise`, `uv`, Task, Syft und
+GoReleaser sind projektweit festgelegt. Die Pins liegen in `.mise.toml`,
+`.python-version`, `.node-version`, `uv.lock` und
+`frontend/package-lock.json`; die lokalen Workflows stehen in `Taskfile.yml`.
 
 Die Architekturentscheidungen stehen als [ADRs](../decisions/index.md).
 

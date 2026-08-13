@@ -8,7 +8,8 @@ Akzeptiert, rückwirkend dokumentiert am 26.07.2026.
 
 Das Projekt benötigt reproduzierbare Runtime-Versionen und Lockfile-basierte
 Abhängigkeiten. `mise` verwaltet Python 3.14.6, Node.js 26.5.0, Go 1.26.5, uv,
-Task und das für CycloneDX-SBOMs gepinnte Syft. `uv` erzeugt die
+Task, das für CycloneDX-SBOMs gepinnte Syft und GoReleaser für die sechs
+nativen Betreiber-CLI-Archive. `uv` erzeugt die
 Python-Umgebung und löst Abhängigkeiten gegen
 `uv.lock` auf. Task orchestriert die projektweiten Entwicklungsabläufe. Das
 Frontend verwendet npm mit `frontend/package-lock.json`; pnpm wird nicht

@@ -19,6 +19,7 @@ __pycache__/
 # Build artifacts
 build/
 site/
+.goreleaser-build-metadata.json
 
 # Logs
 *.log

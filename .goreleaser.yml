@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/goreleaser/goreleaser/v2.17.1/www/docs/static/schema.json
+version: 2
+
+project_name: lzug-admin
+
+before:
+  hooks:
+    - >-
+      python3 scripts/build_metadata.py
+      --revision {{ .FullCommit }}
+      {{ if not .IsSnapshot }}--tag {{ .Tag }}{{ end }}
+      --output .goreleaser-build-metadata.json
+
+builds:
+  - id: lzug-admin
+    main: ./cmd/lzug-admin
+    binary: lzug-admin
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+      - -buildvcs=false
+    ldflags:
+      - >-
+        -buildid= -s -w
+        -X main.applicationVersion={{ .Version }}
+        -X main.applicationRevision={{ .FullCommit }}
+        -X main.applicationTag={{ if .IsSnapshot }}{{ else }}{{ .Tag }}{{ end }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: lzug-admin
+    ids:
+      - lzug-admin
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: lzug-admin-{{ .Version }}-{{ .Os }}-{{ .Arch }}
+    builds_info:
+      owner: root
+      group: root
+      mode: 0755
+      mtime: "1970-01-01T00:00:00Z"
+    files:
+      - src: .goreleaser-build-metadata.json
+        dst: build-metadata.json
+        info:
+          owner: root
+          group: root
+          mode: 0644
+          mtime: "1970-01-01T00:00:00Z"
+
+checksum:
+  disable: true
+
+changelog:
+  disable: true
+
+release:
+  disable: true
+
+snapshot:
+  version_template: 0.0.0-dev+sha.{{ .FullCommit }}

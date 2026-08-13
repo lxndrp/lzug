@@ -26,7 +26,7 @@ Das Ruleset verlangt genau diese fünf immer vorhandenen Gate-Namen:
 | `Pull Request / Documentation` | strikter MkDocs-Build und TypeDoc |
 | `Pull Request / Backend` | Ruff, Black, Python-Audit, Tests und Coverage; bei produktiven Webänderungen zusätzlich E2E und Accessibility |
 | `Pull Request / Frontend` | ESLint, Prettier, Angular-Build, Tests, Coverage und npm-Produktionsaudit; bei produktiven Webänderungen zusätzlich E2E und Accessibility |
-| `Pull Request / CLI` | Go-Vertrag sowie reproduzierbare Archive für Linux, macOS und Windows auf amd64 und arm64 |
+| `Pull Request / CLI` | Go-Vertrag sowie mit GoReleaser reproduzierbar gebaute Archive für Linux, macOS und Windows auf amd64 und arm64 |
 | `Pull Request / Container` | einmal gebautes OCI-Image, SBOMs, Image-Scan sowie Container-, Compose- und CLI-zu-Container-Verträge |
 
 Jedes Gate läuft mit `if: always()`. Ist seine Domäne nicht ausgewählt, prüft
@@ -89,6 +89,13 @@ Qualitätssicherung. Der vollständige Lauf besitzt keine Pfadausgaben, keine
 ausgewählten oder übersprungenen Details und keinen künstlichen
 Required-Check-Gesamtstatus. Sein Workflow-Ergebnis ist der vollständige
 Nachweis für die geprüfte SHA.
+
+`task quality:operator` validiert die gepinnte GoReleaser-Konfiguration und
+baut den vollständigen Sechs-Plattform-Snapshot zweimal. Die Prüfung vergleicht
+Binärdateien und Archive bytegenau und kontrolliert Namen, Inhalte,
+Build-Metadaten sowie die Abwesenheit einer GoReleaser-Checksummendatei. Der
+Releaseablauf übernimmt später nur diese sechs Archive; Attestations und die
+eine aggregierte CycloneDX-SBOM bleiben davon getrennt.
 
 ## Kontrollierte Ruleset-Migration
 
