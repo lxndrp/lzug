@@ -3,7 +3,7 @@
 Das GitHub Wiki ist ein separates Git-Repository. Es ist die einzige Quelle
 für die öffentlichen Handbuchseiten; das Hauptrepository enthält keine
 gespiegelten Wiki-Dateien. Das Hauptrepository enthält nur die Prüfprogramme,
-Workflows und diese Verfahrensbeschreibung.
+den einzelnen Post-Publish-Workflow und diese Verfahrensbeschreibung.
 
 ## Review- und Veröffentlichungsablauf
 
