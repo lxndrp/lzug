@@ -137,7 +137,9 @@ VALUES
 {sql_rows(member_rows)};
 
 INSERT INTO user_account (id, person_id, email, password_hash)
-VALUES (1, 1, {sql_value(members[0]["email"])}, 'demo-password-hash');
+VALUES
+  (1, 1, 'demo.alpha@example.invalid', 'demo-password-hash'),
+  (2, 3, 'demo.gamma@example.invalid', 'demo-password-hash');
 
 INSERT INTO location
   (id, committee_id, name, street, postal_code, city, room)

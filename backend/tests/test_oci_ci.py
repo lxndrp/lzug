@@ -14,7 +14,7 @@ class OciWorkflowContractTests(unittest.TestCase):
             with self.subTest(workflow=path.name):
                 self.assertIn(
                     "task quality:oci quality:container quality:compose "
-                    "quality:operator-container quality:sbom",
+                    "quality:operator-container quality:demo quality:sbom",
                     workflow,
                 )
                 self.assertIn("anchore/sbom-action/download-syft@", workflow)

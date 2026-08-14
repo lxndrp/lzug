@@ -27,7 +27,9 @@ VALUES
   (8, 8, 1, 'deputy', 'member', 'school');
 
 INSERT INTO user_account (id, person_id, email, password_hash)
-VALUES (1, 1, 'testperson.alpha@example.invalid', 'demo-password-hash');
+VALUES
+  (1, 1, 'demo.alpha@example.invalid', 'demo-password-hash'),
+  (2, 3, 'demo.gamma@example.invalid', 'demo-password-hash');
 
 INSERT INTO location
   (id, committee_id, name, street, postal_code, city, room)

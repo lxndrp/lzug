@@ -11,6 +11,9 @@ export type AuthSession = {
   person_id: number | null;
   committee_member_id: number | null;
   is_operator: boolean;
+  demo_role?: 'chair' | 'examiner';
+  display_name?: string;
+  capabilities?: string[];
 };
 
 export type AuthPreparation = {
@@ -65,6 +68,16 @@ export class AuthService {
           void this.router.navigateByUrl('/dashboard', { replaceUrl: true });
         }),
       );
+  }
+
+  acceptAuthentication() {
+    return this.http.get<AuthSession>('/api/session').pipe(
+      tap((session) => {
+        this.session.set(session);
+        this.state.set('authenticated');
+        void this.router.navigateByUrl('/dashboard', { replaceUrl: true });
+      }),
+    );
   }
 
   prepareInvitation(token: string) {

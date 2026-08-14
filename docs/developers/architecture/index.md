@@ -45,7 +45,8 @@ Betriebsmaßnahme.
 
 Die konkrete Einzelcontainer-Umsetzung, ihre Build-Stufen, die statische
 Auslieferung und die Docker-/Podman-Smoke-Prüfung beschreibt die
-[OCI-Runtime](oci-runtime.md). Die kanonische
+[OCI-Runtime](oci-runtime.md). Der getrennte flüchtige Vertrag steht unter
+[Demo-Runtime](demo-runtime.md). Die kanonische
 [Docker-Compose-Referenzinstallation](compose-self-hosting.md) ergänzt den
 reproduzierbaren Self-Hosting- und Persistenzpfad.
 Die [Veröffentlichungs- und Runtime-Sicherheitsbaseline](security-baseline.md)

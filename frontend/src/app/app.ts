@@ -66,6 +66,7 @@ import { ConfirmedPlansComponent } from './confirmed-plans/confirmed-plans.compo
 import { ExamDayComponent } from './exam-day/exam-day.component';
 import { AuthFlowComponent } from './auth/auth-flow.component';
 import { AuthService } from './auth/auth.service';
+import { RuntimeNoticeComponent } from './runtime/runtime-notice.component';
 
 @Component({
   selector: 'app-root',
@@ -80,6 +81,7 @@ import { AuthService } from './auth/auth.service';
     ExamHalfYearsComponent,
     LocationsComponent,
     PlanningComponent,
+    RuntimeNoticeComponent,
     SchedulingOverviewComponent,
     TuiButton,
     TuiNotification,
