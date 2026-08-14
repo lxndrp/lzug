@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,9 +14,11 @@ from demo.artifacts import (
     DemoArtifactError,
     build_app_manifest,
     build_seed,
+    canonical_digest,
     initialize_workdir,
     sha256_file,
     validate_runtime_binding,
+    verify_seed,
 )
 
 
@@ -78,6 +82,57 @@ class DemoArtifactTests(unittest.TestCase):
             restarted_app, restarted_seed = validate_runtime_binding(app_manifest, data_dir)
             self.assertEqual(loaded_app, restarted_app)
             self.assertEqual(loaded_seed, restarted_seed)
+
+    def test_publish_verification_rejects_self_consistent_environment_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            expected_database = root / "expected.sqlite"
+            expected_manifest_path = root / "expected.json"
+            expected_manifest = build_seed(
+                Path("."),
+                expected_database,
+                expected_manifest_path,
+                product_tag=self.product_tag,
+                product_commit=self.product_commit,
+            )
+            drift_database = root / "drift.sqlite"
+            shutil.copyfile(expected_database, drift_database)
+            with sqlite3.connect(drift_database) as connection:
+                self.assertEqual(
+                    ("delete",), connection.execute("PRAGMA journal_mode = DELETE").fetchone()
+                )
+                connection.execute("PRAGMA page_size = 8192")
+                connection.execute("VACUUM")
+                self.assertEqual((8192,), connection.execute("PRAGMA page_size").fetchone())
+                self.assertEqual(("ok",), connection.execute("PRAGMA integrity_check").fetchone())
+            self.assertNotEqual(sha256_file(expected_database), sha256_file(drift_database))
+            drift_manifest = {**expected_manifest, "snapshot_sha256": sha256_file(drift_database)}
+            drift_binding = {
+                key: value for key, value in drift_manifest.items() if key != "seed_revision"
+            }
+            drift_manifest["seed_revision"] = canonical_digest(drift_binding)
+            drift_manifest_path = root / "drift.json"
+            drift_manifest_path.write_text(
+                json.dumps(drift_manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                drift_manifest,
+                verify_seed(drift_database, drift_manifest_path),
+            )
+            with self.assertRaisesRegex(DemoArtifactError, "expected manifest"):
+                verify_seed(
+                    drift_database,
+                    drift_manifest_path,
+                    expected_manifest_path=expected_manifest_path,
+                )
+            with self.assertRaisesRegex(DemoArtifactError, "expected revision"):
+                verify_seed(
+                    drift_database,
+                    drift_manifest_path,
+                    expected_revision=expected_manifest["seed_revision"],
+                )
 
     def test_init_reset_removes_changes_files_and_old_sessions(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -7,6 +7,7 @@ root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 app_image=${1:-lzug-demo-app:local}
 seed_image=${2:-lzug-demo-seed:local}
 product_image=${3:-lzug:0.0.0-dev.local}
+expected_seed_revision=${4:-}
 lzug_require_container_engine
 
 suffix="lzug-demo-smoke-$$"
@@ -73,7 +74,9 @@ assert payload["reset_status"] == "scheduled"
 assert len(payload["seed_revision"]) == 64
 assert payload["reset_timezone"] == "Europe/Berlin"
 assert "snapshot_sha256" not in payload
-' "$status_file"
+if sys.argv[2]:
+    assert payload["seed_revision"] == sys.argv[2]
+' "$status_file" "$expected_seed_revision"
 curl --silent --show-error --fail "$url/" | grep -F '<app-root' >/dev/null
 "$engine" exec "$container" grep -R -F "/api/demo/session" /app/frontend >/dev/null
 
