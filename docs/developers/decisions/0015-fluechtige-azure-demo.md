@@ -51,5 +51,6 @@ entschieden.
 
 - [Architekturübersicht](../architecture/index.md)
 - [ADR-0014: OCI-Einzelcontainer mit SQLite und persistentem `/data`](0014-oci-einzelcontainer-und-persistentes-data.md)
+- [ADR-0022: Tag-gebundene Demo-Assembly und inhaltsadressierter Seed](0022-tag-gebundene-demo-assembly-und-seed.md)
 - Epic [#113](https://github.com/lxndrp/lzug/issues/113)
 - Folge-Issues [#124](https://github.com/lxndrp/lzug/issues/124) bis [#129](https://github.com/lxndrp/lzug/issues/129)

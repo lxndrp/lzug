@@ -57,6 +57,7 @@ from .planning import (
     PlanValidationError,
 )
 from .repositories import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES, ResourceRepository
+from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from .security import RequestRateLimiter, RuntimeSecurityConfig
 
 
@@ -217,8 +218,10 @@ class LzugHandler(BaseHTTPRequestHandler):
     csrf_cookie_name = "lzug_csrf"
     cors_allowed_origins: frozenset[str] = frozenset()
     session_ttl = timedelta(hours=8)
+    forced_session_ttl: timedelta | None = None
     max_request_bytes = 1024 * 1024
     auth_rate_limiter = RequestRateLimiter(20, timedelta(minutes=1))
+    runtime_policy: RuntimePolicy = ProductRuntimePolicy()
 
     @property
     def repository(self) -> ResourceRepository:
@@ -264,6 +267,9 @@ class LzugHandler(BaseHTTPRequestHandler):
                 )
                 return
 
+            if self.runtime_policy.handle_public_get(self, path_parts):
+                return
+
             if path_parts in ([], ["openapi.json"], ["docs"]):
                 if self.require_authenticated(require_actor=False) is None:
                     return
@@ -286,6 +292,7 @@ class LzugHandler(BaseHTTPRequestHandler):
                         "person_id": context.person_id,
                         "committee_member_id": context.committee_member_id,
                         "is_operator": context.is_operator,
+                        **self.runtime_policy.session_view(context),
                     }
                 )
                 return
@@ -440,11 +447,18 @@ class LzugHandler(BaseHTTPRequestHandler):
             if not self.require_allowed_origin():
                 return
             path_parts = self.path_parts(urlparse(self.path).path)
+            if self.runtime_policy.handle_public_post(self, path_parts):
+                return
             if (
                 path_parts
                 and path_parts[0] == "auth"
-                and not self.allow_public_auth_request(path_parts)
+                and (
+                    not self.runtime_policy.allow_product_auth()
+                    or not self.allow_public_auth_request(path_parts)
+                )
             ):
+                if not self.runtime_policy.allow_product_auth():
+                    self.respond({"error": "Forbidden."}, HTTPStatus.FORBIDDEN)
                 return
             if path_parts == ["auth", "login"]:
                 payload = self.read_json()
@@ -536,6 +550,7 @@ class LzugHandler(BaseHTTPRequestHandler):
                 context = self.require_authenticated(require_actor=False, require_csrf=True)
                 if context is None:
                     return
+                self.runtime_policy.authorize_mutation(self, "POST", path_parts, context)
                 credentials = self.authentication_repository.rotate_session(
                     self.session_token(), ttl=self.session_ttl
                 )
@@ -550,13 +565,16 @@ class LzugHandler(BaseHTTPRequestHandler):
                 context = self.require_authenticated(require_actor=False, require_csrf=True)
                 if context is None:
                     return
+                self.runtime_policy.authorize_mutation(self, "POST", path_parts, context)
                 self.authentication_repository.revoke_session(self.session_token(), reason="logout")
                 self.clear_session_cookies()
                 self.respond({}, HTTPStatus.NO_CONTENT)
                 return
 
-            if self.require_authenticated(require_csrf=True) is None:
+            context = self.require_authenticated(require_csrf=True)
+            if context is None:
                 return
+            self.runtime_policy.authorize_mutation(self, "POST", path_parts, context)
             if (
                 len(path_parts) == 5
                 and path_parts[0] == "confirmed-plan-days"
@@ -676,9 +694,11 @@ class LzugHandler(BaseHTTPRequestHandler):
         try:
             if not self.require_allowed_origin():
                 return
-            if self.require_authenticated(require_csrf=True) is None:
+            context = self.require_authenticated(require_csrf=True)
+            if context is None:
                 return
             path_parts = self.path_parts(urlparse(self.path).path)
+            self.runtime_policy.authorize_mutation(self, "PUT", path_parts, context)
             if not (
                 len(path_parts) == 3
                 and path_parts[0] == "exam-rounds"
@@ -713,9 +733,11 @@ class LzugHandler(BaseHTTPRequestHandler):
         try:
             if not self.require_allowed_origin():
                 return
-            if self.require_authenticated(require_csrf=True) is None:
+            context = self.require_authenticated(require_csrf=True)
+            if context is None:
                 return
             path_parts = self.path_parts(urlparse(self.path).path)
+            self.runtime_policy.authorize_mutation(self, "PATCH", path_parts, context)
             if (
                 len(path_parts) == 5
                 and path_parts[0] == "confirmed-plan-days"
@@ -811,11 +833,12 @@ class LzugHandler(BaseHTTPRequestHandler):
         try:
             if not self.require_allowed_origin():
                 return
-            if self.require_authenticated(require_csrf=True) is None:
+            context = self.require_authenticated(require_csrf=True)
+            if context is None:
                 return
-            resource_name, entity_id = self.resource_target(
-                self.path_parts(urlparse(self.path).path)
-            )
+            path_parts = self.path_parts(urlparse(self.path).path)
+            self.runtime_policy.authorize_mutation(self, "DELETE", path_parts, context)
+            resource_name, entity_id = self.resource_target(path_parts)
             if resource_name is None or entity_id is None:
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 return
@@ -1451,7 +1474,7 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def main() -> None:
+def main(handler_type: type[LzugHandler] = LzugHandler) -> None:
     args = parse_args()
     try:
         runtime_security = RuntimeSecurityConfig.from_environment()
@@ -1484,21 +1507,21 @@ def main() -> None:
     except PersistenceConfigurationError as error:
         raise SystemExit(f"Persistent storage is not ready: {error}") from error
 
-    LzugHandler.db_path = args.db
-    LzugHandler.static_dir = args.static_dir
-    LzugHandler.cookie_secure = runtime_security.https_only
-    LzugHandler.session_cookie_name = (
+    handler_type.db_path = args.db
+    handler_type.static_dir = args.static_dir
+    handler_type.cookie_secure = runtime_security.https_only
+    handler_type.session_cookie_name = (
         "__Host-lzug_session" if runtime_security.https_only else "lzug_session"
     )
-    LzugHandler.https_only = runtime_security.https_only
-    LzugHandler.cors_allowed_origins = runtime_security.cors_allowed_origins
-    LzugHandler.session_ttl = runtime_security.session_ttl
-    LzugHandler.max_request_bytes = runtime_security.max_request_bytes
-    LzugHandler.auth_rate_limiter = RequestRateLimiter(
+    handler_type.https_only = runtime_security.https_only
+    handler_type.cors_allowed_origins = runtime_security.cors_allowed_origins
+    handler_type.session_ttl = handler_type.forced_session_ttl or runtime_security.session_ttl
+    handler_type.max_request_bytes = runtime_security.max_request_bytes
+    handler_type.auth_rate_limiter = RequestRateLimiter(
         runtime_security.auth_rate_limit,
         runtime_security.auth_rate_window,
     )
-    server = ThreadingHTTPServer((args.host, args.port), LzugHandler)
+    server = ThreadingHTTPServer((args.host, args.port), handler_type)
     server.daemon_threads = True
     print(f"lzug backend listening on http://{args.host}:{args.port}")
     print(f"database: {args.db}")

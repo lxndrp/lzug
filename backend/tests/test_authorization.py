@@ -156,12 +156,9 @@ class AuthorizationTests(unittest.TestCase):
         deputy_account = self.authentication.create_account(
             "testperson.beta@example.invalid", person_id=2
         )
-        member_account = self.authentication.create_account(
-            "testperson.gamma@example.invalid", person_id=3
-        )
         chair_credentials = self.authentication.create_session(1)
         deputy_credentials = self.authentication.create_session(deputy_account["id"])
-        member_credentials = self.authentication.create_session(member_account["id"])
+        member_credentials = self.authentication.create_session(2)
         foreign_chair_credentials = self.credentials(9)
         path = "/api/exam-rounds/1/planning-proposal"
 

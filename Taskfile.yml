@@ -123,6 +123,7 @@ tasks:
       - quality:overall
       - quality:sbom
       - quality:infra
+      - quality:demo
       - docs
 
   quality:infra:
@@ -211,6 +212,33 @@ tasks:
     desc: Build the local OCI quality image
     deps:
       - quality:image
+
+  quality:demo:
+    desc: Build and verify the separate demo app and seed OCI pair
+    deps:
+      - quality:image
+    cmds:
+      - |
+        set -eu
+        . scripts/container-contract.sh
+        lzug_require_container_engine
+        revision="$(git rev-parse HEAD)"
+        product_tag="v0.1.1"
+        build_identity="$(PRODUCT_TAG="$product_tag" PRODUCT_COMMIT="$revision" python3 -c \
+          'import os; from backend.build_metadata import BuildMetadata; print(BuildMetadata.create(os.environ["PRODUCT_COMMIT"], os.environ["PRODUCT_TAG"]).identity)')"
+        "$engine" build -f Dockerfile.demo-seed \
+          --build-arg "PRODUCT_TAG=$product_tag" \
+          --build-arg "VCS_REF=$revision" \
+          -t lzug-demo-seed:0.1.1-local .
+        "$engine" build -f Dockerfile.demo \
+          --build-arg "BUILD_IDENTITY=$build_identity" \
+          --build-arg "PRODUCT_TAG=$product_tag" \
+          --build-arg "VCS_REF=$revision" \
+          -t lzug-demo-app:0.1.1-local .
+        scripts/demo-container-smoke.sh \
+          lzug-demo-app:0.1.1-local \
+          lzug-demo-seed:0.1.1-local \
+          lzug:0.0.0-dev.local
 
   quality:overall:
     desc: Run all local cross-domain integration contracts in parallel

@@ -55,13 +55,22 @@ jobs:
             cli:
               - 'cmd/lzug-admin/**'
               - '.goreleaser.yml'
+            infra:
+              - 'infra/**'
             container:
               - '.dockerignore'
               - '.env.example'
               - 'Dockerfile'
+              - 'Dockerfile.demo'
+              - 'Dockerfile.demo-seed'
               - 'compose.yaml'
-            infra:
-              - 'infra/**'
+              - 'demo/**'
+              - 'db/**'
+              - 'fixtures/**'
+              - 'frontend/demo-overlays/**'
+              - 'scripts/build-frontend.sh'
+              - 'scripts/demo-container-smoke.sh'
+              - 'scripts/generate_synthetic_fixtures.py'
             browser:
               - 'backend/**'
               - 'db/**'
@@ -264,7 +273,7 @@ jobs:
       - name: Build once and verify all packaged runtime contracts
         env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
-        run: task quality:oci quality:container quality:compose quality:operator-container quality:sbom
+        run: task quality:oci quality:container quality:compose quality:operator-container quality:demo quality:sbom
       - name: Generate and validate the image SBOM
         env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}

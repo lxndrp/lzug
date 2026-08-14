@@ -86,7 +86,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "task quality:operator",
             "task quality:infra",
             "task quality:oci quality:container quality:compose "
-            "quality:operator-container quality:sbom",
+            "quality:operator-container quality:demo quality:sbom",
             "task docs",
         ):
             with self.subTest(task=task):

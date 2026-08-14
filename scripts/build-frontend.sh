@@ -19,4 +19,9 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 cd "$root_dir/frontend"
-./node_modules/.bin/ng build --configuration production
+configuration=${LZUG_FRONTEND_CONFIGURATION:-production}
+case "$configuration" in
+    production|demo) ;;
+    *) echo "Unsupported frontend configuration: $configuration" >&2; exit 2 ;;
+esac
+./node_modules/.bin/ng build --configuration "$configuration"

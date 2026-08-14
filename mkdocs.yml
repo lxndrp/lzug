@@ -48,6 +48,7 @@ nav:
           - Betreiber-CLI für Authentifizierung: developers/architecture/operator-auth-cli.md
           - OCI-Runtime: developers/architecture/oci-runtime.md
           - Docker-Compose-Referenzinstallation: developers/architecture/compose-self-hosting.md
+          - Flüchtige Demo-Runtime: developers/architecture/demo-runtime.md
       - Referenz:
           - Fachliches Datenmodell: developers/domain-model.md
           - Datenbankschema: developers/database-schema.md
@@ -76,3 +77,4 @@ nav:
           - ADR-0019 Tag-zentrierter Releaseprozess: developers/decisions/0019-tag-zentrierter-releaseprozess.md
           - ADR-0020 Minimaler Releaseablauf: developers/decisions/0020-minimaler-releaseablauf-mit-github-bordmitteln.md
           - ADR-0021 GoReleaser für Betreiber-CLI: developers/decisions/0021-goreleaser-fuer-die-betreiber-cli.md
+          - ADR-0022 Tag-gebundene Demo-Assembly: developers/decisions/0022-tag-gebundene-demo-assembly-und-seed.md

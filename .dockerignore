@@ -1,6 +1,8 @@
 **
 
 !Dockerfile
+!Dockerfile.demo
+!Dockerfile.demo-seed
 !.dockerignore
 !pyproject.toml
 !uv.lock
@@ -11,11 +13,19 @@
 !scripts/
 !scripts/__init__.py
 !scripts/build_metadata.py
+!scripts/generate_synthetic_fixtures.py
 
 !db/
 !db/schema.sql
+!db/seed_demo.sql
 !db/migrations/
 !db/migrations/**
+
+!demo/
+!demo/*.py
+
+!fixtures/
+!fixtures/synthetic-fixtures.json
 
 !frontend/
 !frontend/package.json
@@ -27,3 +37,5 @@
 !frontend/public/**
 !frontend/src/
 !frontend/src/**
+!frontend/demo-overlays/
+!frontend/demo-overlays/**
