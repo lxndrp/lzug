@@ -12,7 +12,7 @@ Historie, machen aber Kontext, Konsequenzen und Verweise dauerhaft auffindbar.
 | [0004](0004-angular-rest-integration.md) | Angular und REST-Integration | Akzeptiert |
 | [0005](0005-taiga-ui.md) | Taiga UI | Akzeptiert |
 | [0006](0006-openapi-http-vertrag.md) | HTTP-API als OpenAPI-Vertrag | Akzeptiert |
-| [0007](0007-dokumentation-und-code-referenz.md) | MkDocs und Code-Referenzen | Akzeptiert |
+| [0007](0007-dokumentation-und-code-referenz.md) | MkDocs und Code-Referenzen | Teilweise abgelöst |
 | [0008](0008-feiertagsprovider.md) | Kuratierte Feiertagsdaten | Akzeptiert |
 | [0009](0009-toolchain-und-entwicklungs-tasks.md) | Toolchain und Entwicklungs-Tasks trennen | Akzeptiert |
 | [0010](0010-vitest-statt-karma-jasmine.md) | Vitest statt Karma und Jasmine für Frontend-Unit-Tests | Akzeptiert |
@@ -28,3 +28,4 @@ Historie, machen aber Kontext, Konsequenzen und Verweise dauerhaft auffindbar.
 | [0020](0020-minimaler-releaseablauf-mit-github-bordmitteln.md) | Minimaler Releaseablauf mit GitHub-Bordmitteln | Akzeptiert |
 | [0021](0021-goreleaser-fuer-die-betreiber-cli.md) | GoReleaser für die Betreiber-CLI | Akzeptiert |
 | [0022](0022-tag-gebundene-demo-assembly-und-seed.md) | Tag-gebundene Demo-Assembly und inhaltsadressierter Seed | Akzeptiert |
+| [0023](0023-oeffentliche-web-und-dokumentationspublikation.md) | Öffentliche Web- und Dokumentationspublikation | Akzeptiert |

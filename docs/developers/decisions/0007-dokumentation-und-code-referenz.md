@@ -2,7 +2,10 @@
 
 ## Status
 
-Akzeptiert, rückwirkend dokumentiert am 26.07.2026.
+Teilweise abgelöst durch
+[ADR-0023](0023-oeffentliche-web-und-dokumentationspublikation.md) für die
+öffentliche Publikationsarchitektur. Die Entscheidung zu MkDocs,
+mkdocstrings und TypeDoc als Referenzgeneratoren bleibt gültig.
 
 ## Kontext und Entscheidung
 

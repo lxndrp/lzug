@@ -1,0 +1,18 @@
+<article class="home publication-home">
+  <section class="publication-hero" aria-labelledby="publication-title">
+    <p class="publication-kicker">Prüfungen gemeinsam verlässlich planen</p>
+    <h1 id="publication-title">{{ .Title }}</h1>
+    <p class="publication-lead">{{ .Description }}</p>
+    <div class="publication-actions">
+      <a class="publication-button publication-button-primary" href="{{ relURL "handbuch/" }}">Handbuch öffnen</a>
+      <a class="publication-button" href="{{ relURL "referenz/" }}">Referenzen ansehen</a>
+    </div>
+    {{ .Content }}
+  </section>
+  <section class="publication-features" aria-labelledby="publication-areas">
+    <h2 id="publication-areas" class="publication-visually-hidden">Bereiche</h2>
+    <article><h3>Produkt und Demo</h3><p>Ein klarer Einstieg führt später zur flüchtigen Demo.</p></article>
+    <article><h3>Öffentliches Handbuch</h3><p>Redaktionelle Inhalte bleiben im GitHub Wiki kanonisch.</p></article>
+    <article><h3>Technische Referenz</h3><p>API, Code und Schema bleiben revisionsgebunden.</p></article>
+  </section>
+</article>
