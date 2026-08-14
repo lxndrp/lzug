@@ -117,7 +117,7 @@ jobs:
             --product-tag "$PRODUCT_TAG" \
             --product-commit "$TARGET_SHA"
           seed_revision=$(jq -er '.seed_revision' "$temporary_directory/manifest.json")
-          schema_fingerprint=$(jq -er '.schema_fingerprint' "$temporary_directory/manifest.json")
+          schema_fingerprint=$(jq -er '.schema.fingerprint' "$temporary_directory/manifest.json")
           app_image="ghcr.io/${GH_REPO,,}-demo-app"
           seed_image="ghcr.io/${GH_REPO,,}-demo-seed"
           {

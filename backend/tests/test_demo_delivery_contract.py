@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+import re
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
+from demo.artifacts import build_seed
+
 
 class DemoDeliveryContractTests(unittest.TestCase):
+    product_tag = "v0.1.1"
+    product_commit = "948cab736131894950dbad57533e80f7238dd545"
+
     def test_product_image_excludes_demo_provider_and_demo_images_are_separate(self) -> None:
         product = Path("Dockerfile").read_text(encoding="utf-8")
         demo_app = Path("Dockerfile.demo").read_text(encoding="utf-8")
@@ -31,6 +39,33 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertEqual(4, workflow.count("uses: actions/attest@"))
         self.assertNotIn(":latest", workflow)
         self.assertNotIn(":demo", workflow)
+
+    def test_publish_reads_schema_fingerprint_from_canonical_seed_manifest(self) -> None:
+        workflow = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")
+        selector_match = re.search(
+            r"schema_fingerprint=\$\(jq -er '([^']+)' " r'"\$temporary_directory/manifest\.json"\)',
+            workflow,
+        )
+        self.assertIsNotNone(selector_match)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.json"
+            manifest = build_seed(
+                Path("."),
+                root / "lzug.sqlite",
+                manifest_path,
+                product_tag=self.product_tag,
+                product_commit=self.product_commit,
+            )
+            selected_fingerprint = subprocess.run(
+                ["jq", "-er", selector_match.group(1), manifest_path],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+
+        self.assertEqual(manifest["schema"]["fingerprint"], selected_fingerprint)
 
     def test_complete_quality_includes_demo_pair(self) -> None:
         taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
