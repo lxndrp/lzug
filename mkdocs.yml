@@ -36,6 +36,7 @@ nav:
       - Frontend-Ausnahmen: developers/frontend-exceptions.md
       - Dokumentation: developers/documentation.md
       - Continuous Integration: developers/continuous-integration.md
+      - Azure-Demo-Deployment: developers/demo-deployment.md
       - Dependabot-Aktualisierungen: developers/dependabot.md
       - Wiki-Publikation: developers/wiki-publishing.md
       - Architektur:

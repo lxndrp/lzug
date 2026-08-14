@@ -20,6 +20,8 @@ im Repository-Wurzelverzeichnis.
   und Merge-Lebenszyklus automatisierter Abhängigkeitsupdates.
 - **Continuous Integration** beschreibt Workflow-Verantwortungen, konservative
   Pfadklassifikation, Gesamtstatus und Browsercache-Vertrag.
+- **Azure-Demo-Deployment** beschreibt OIDC, minimale Rechte, das atomare
+  Digest-Paar, Readiness-/Smoke-Nachweise und Rollback.
 - **Wiki-Publikation** beschreibt den getrennten Review- und Freigabeablauf für
   das Wiki-Repository.
 
