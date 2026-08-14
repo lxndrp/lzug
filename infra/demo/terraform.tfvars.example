@@ -1,5 +1,12 @@
 azure_subscription_id = "00000000-0000-0000-0000-000000000000"
-image_reference       = "ghcr.io/lxndrp/demo-artifact@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+demo_artifact_pair = {
+  app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+  product_tag        = "v0.1.1"
+  product_commit     = "0123456789abcdef0123456789abcdef01234567"
+  schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
+  seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
+}
 
 budget_amount_eur     = 25
 budget_contact_emails = ["demo-operations@example.invalid"]

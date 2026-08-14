@@ -61,6 +61,13 @@ class DemoArtifactTests(unittest.TestCase):
 
             data_dir = root / "data"
             initialize_workdir(first_db, first_manifest, data_dir)
+            runtime_status = json.loads(
+                (data_dir / "demo-runtime-status.json").read_text(encoding="utf-8")
+            )
+            self.assertTrue(runtime_status["initialized"])
+            self.assertEqual("ready", runtime_status["initialization_status"])
+            self.assertEqual(first["seed_revision"], runtime_status["seed_revision"])
+            self.assertEqual(runtime_status["initialized_at"], runtime_status["last_reset_at"])
             loaded_app, loaded_seed = validate_runtime_binding(app_manifest, data_dir)
             self.assertEqual(self.product_commit, loaded_app["product"]["commit"])
             self.assertEqual(first["seed_revision"], loaded_seed["seed_revision"])
@@ -126,6 +133,41 @@ class DemoArtifactTests(unittest.TestCase):
             app_manifest.write_text(json.dumps(value), encoding="utf-8")
 
             with self.assertRaisesRegex(DemoArtifactError, "different product tags"):
+                validate_runtime_binding(app_manifest, data_dir)
+
+    def test_runtime_validation_fails_closed_without_matching_init_status(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            seed_db = root / "seed.sqlite"
+            seed_manifest = root / "seed.json"
+            app_manifest = root / "app.json"
+            manifest = build_seed(
+                Path("."),
+                seed_db,
+                seed_manifest,
+                product_tag=self.product_tag,
+                product_commit=self.product_commit,
+            )
+            build_app_manifest(
+                Path("."),
+                app_manifest,
+                product_tag=self.product_tag,
+                product_commit=self.product_commit,
+            )
+            data_dir = root / "data"
+            initialize_workdir(seed_db, seed_manifest, data_dir)
+            runtime_status_path = data_dir / "demo-runtime-status.json"
+            runtime_status = json.loads(runtime_status_path.read_text(encoding="utf-8"))
+            runtime_status["seed_revision"] = "0" * 64
+            runtime_status_path.write_text(json.dumps(runtime_status), encoding="utf-8")
+
+            with self.assertRaisesRegex(DemoArtifactError, "different seed revision"):
+                validate_runtime_binding(app_manifest, data_dir)
+
+            runtime_status["seed_revision"] = manifest["seed_revision"]
+            runtime_status_path.write_text(json.dumps(runtime_status), encoding="utf-8")
+            runtime_status_path.unlink()
+            with self.assertRaisesRegex(DemoArtifactError, "Could not read demo runtime status"):
                 validate_runtime_binding(app_manifest, data_dir)
 
     @staticmethod

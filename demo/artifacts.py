@@ -7,6 +7,7 @@ import hashlib
 import json
 import shutil
 import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -212,6 +213,45 @@ def initialize_workdir(seed_database: Path, seed_manifest: Path, target: Path) -
     shutil.copyfile(seed_manifest, resolved / "demo-seed-manifest.json")
     (resolved / "documents").mkdir()
     (resolved / "backups").mkdir()
+    initialized_at = datetime.now(UTC).isoformat()
+    runtime_status = {
+        "initialized": True,
+        "initialization_status": "ready",
+        "initialized_at": initialized_at,
+        "last_reset_at": initialized_at,
+        "seed_revision": manifest["seed_revision"],
+    }
+    temporary_status = resolved / ".demo-runtime-status.json"
+    temporary_status.write_text(
+        json.dumps(runtime_status, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    temporary_status.replace(resolved / "demo-runtime-status.json")
+
+
+def load_runtime_status(data_dir: Path, seed_manifest: dict[str, Any]) -> dict[str, Any]:
+    status_path = data_dir / "demo-runtime-status.json"
+    try:
+        status = json.loads(status_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise DemoArtifactError(
+            f"Could not read demo runtime status {status_path}: {error}"
+        ) from error
+    if status.get("initialized") is not True or status.get("initialization_status") != "ready":
+        raise DemoArtifactError("Demo runtime initialization is not ready")
+    if status.get("seed_revision") != seed_manifest.get("seed_revision"):
+        raise DemoArtifactError("Demo runtime status targets a different seed revision")
+    for field in ("initialized_at", "last_reset_at"):
+        value = status.get(field)
+        if not isinstance(value, str):
+            raise DemoArtifactError(f"Demo runtime status is missing {field}")
+        try:
+            parsed = datetime.fromisoformat(value)
+        except ValueError as error:
+            raise DemoArtifactError(f"Demo runtime status has invalid {field}") from error
+        if parsed.tzinfo is None:
+            raise DemoArtifactError(f"Demo runtime status {field} must include a timezone")
+    return status
 
 
 def validate_runtime_binding(app_manifest_path: Path, data_dir: Path) -> tuple[dict, dict]:
@@ -225,6 +265,7 @@ def validate_runtime_binding(app_manifest_path: Path, data_dir: Path) -> tuple[d
         raise DemoArtifactError("Demo app and seed target different product commits")
     if app_manifest["schema"]["fingerprint"] != seed_manifest.get("schema", {}).get("fingerprint"):
         raise DemoArtifactError("Demo app and seed target different schema fingerprints")
+    load_runtime_status(data_dir, seed_manifest)
     database = data_dir / "lzug.sqlite"
     readiness = database_readiness(database)
     if not readiness["ready"]:

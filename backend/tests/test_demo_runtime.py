@@ -47,6 +47,18 @@ class DemoRuntimeTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        (root / "demo-runtime-status.json").write_text(
+            json.dumps(
+                {
+                    "initialized": True,
+                    "initialization_status": "ready",
+                    "initialized_at": "2026-08-14T01:00:00+00:00",
+                    "last_reset_at": "2026-08-14T01:00:00+00:00",
+                    "seed_revision": "seed-revision",
+                }
+            ),
+            encoding="utf-8",
+        )
         DemoTestHandler.runtime_policy = DemoRuntimePolicy(app_manifest, seed_manifest)
         DemoTestHandler.session_ttl = timedelta(minutes=60)
 
@@ -61,6 +73,8 @@ class DemoRuntimeTests(unittest.TestCase):
             self.assertEqual("seed-revision", payload["seed_revision"])
             self.assertEqual("Europe/Berlin", payload["reset_timezone"])
             self.assertEqual("ready", payload["initialization_status"])
+            self.assertEqual("2026-08-14T01:00:00+00:00", payload["initialized_at"])
+            self.assertEqual("2026-08-14T01:00:00+00:00", payload["last_reset_at"])
             self.assertEqual("scheduled", payload["reset_status"])
             self.assertNotIn("snapshot_sha256", payload)
 

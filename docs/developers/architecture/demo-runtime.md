@@ -16,7 +16,10 @@ Frontend-Provider.
 Der Init-Container prüft dessen Digest und kopiert Datenbank und Manifest in
 ein leeres oder zurückzusetzendes `/data`. App- und Seed-Manifest müssen in
 Produkt-Tag, Commit und Schemafingerprint übereinstimmen; andernfalls startet
-die Demo nicht.
+die Demo nicht. Nach erfolgreicher Initialisierung schreibt der Initializer
+atomar `demo-runtime-status.json` mit Seed-Revision, `initialized_at` und
+`last_reset_at`. Ein fehlender, ungültiger oder zu einem anderen Seed gehöriger
+Statusmarker verhindert den App-Start.
 
 Lokale Entwicklung darf einen expliziten Test-Tag verwenden:
 
@@ -36,7 +39,8 @@ scripts/demo-container-smoke.sh lzug-demo-app:local lzug-demo-seed:local
 ## Öffentliche Schnittstellen
 
 - `GET /api/demo/status` nennt Produktversion und Commit, Seed-Revision,
-  Schemafingerprint sowie den nächsten Reset, aber keine Geheimnisse.
+  Schemafingerprint, Initialisierungszeit, letzten und nächsten Reset, aber
+  keine Geheimnisse.
 - `POST /api/demo/session` akzeptiert ausschließlich `chair` oder `examiner`
   und erzeugt eine zufällige Sitzung mit 60 Minuten Laufzeit.
 - `GET /api/session` ergänzt in der Demo Anzeigename, Rolle und Capabilities.
@@ -58,4 +62,6 @@ Containerneustart allein reichen nicht als Löschbeweis.
 Während des Resets ist die Demo kurzzeitig nicht erreichbar. Alte Sessions
 und sämtliche während der Nutzung erzeugten Daten verlieren danach ihre
 Gültigkeit. Die Oberfläche weist dauerhaft auf diese Grenze und das Verbot
-realer personenbezogener Daten hin.
+realer personenbezogener Daten hin. Die konkrete Azure-Assembly, die minimale
+Runtime-Rolle sowie Fehler- und Rollbackabläufe sind in
+`infra/demo/README.md` dokumentiert.

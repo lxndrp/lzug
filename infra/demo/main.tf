@@ -61,11 +61,28 @@ resource "azurerm_container_app" "demo" {
       concurrent_requests = 20
     }
 
+    init_container {
+      name   = "lzug-demo-seed"
+      image  = var.demo_artifact_pair.seed_image
+      cpu    = 0.25
+      memory = "0.5Gi"
+
+      volume_mounts {
+        name = "demo-data"
+        path = "/data"
+      }
+    }
+
     container {
-      name   = "lzug"
-      image  = var.image_reference
+      name   = "lzug-demo-app"
+      image  = var.demo_artifact_pair.app_image
       cpu    = 0.5
       memory = "1Gi"
+
+      env {
+        name  = "LZUG_DATA_DIR"
+        value = "/data"
+      }
 
       dynamic "env" {
         for_each = var.container_environment
@@ -95,6 +112,16 @@ resource "azurerm_container_app" "demo" {
         timeout                 = 5
         failure_count_threshold = 3
       }
+
+      volume_mounts {
+        name = "demo-data"
+        path = "/data"
+      }
+    }
+
+    volume {
+      name         = "demo-data"
+      storage_type = "EmptyDir"
     }
   }
 }
