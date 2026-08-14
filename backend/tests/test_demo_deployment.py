@@ -171,8 +171,14 @@ class DemoDeploymentTests(unittest.TestCase):
         pull_request = Path(".github/workflows/pull-request.yml").read_text(encoding="utf-8")
         full_quality = Path(".github/workflows/quality.yml").read_text(encoding="utf-8")
         taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
-        self.assertIn("task quality:infra quality:demo-deployment", pull_request)
-        self.assertIn("task quality:infra quality:demo-deployment", full_quality)
+        pull_request_infra = pull_request.split("\n  infra:\n", 1)[1].split("\n  e2e:\n", 1)[0]
+        full_quality_infra = full_quality.split("\n  infra:\n", 1)[1].split(
+            "\n  container:\n", 1
+        )[0]
+        for workflow_infra in (pull_request_infra, full_quality_infra):
+            self.assertIn("actions/setup-python@", workflow_infra)
+            self.assertIn("astral-sh/setup-uv@", workflow_infra)
+            self.assertIn("task quality:infra quality:demo-deployment", workflow_infra)
         self.assertIn("quality:demo-deployment:", taskfile)
 
 
