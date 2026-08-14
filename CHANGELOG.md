@@ -12,6 +12,24 @@ Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Notes
 und veröffentlicht nur aus dem nach der Environment-Freigabe erzeugten,
 annotierten SemVer-Tag.
 
+## [0.1.2] - 2026-08-15
+
+### Fixed
+
+- Erfolgreiche Azure-REST-Antworten ohne JSON-Body werden korrekt
+  statusbasiert verarbeitet, ohne die leere Ausgabe als JSON zu parsen.
+- Das Demo-Seed-Image wird genau einmal gebaut, vor Belegung des
+  unveränderlichen Tags anhand der eingebetteten Datenbank, des Manifests, des
+  Schemafingerprints und der Seed-Revision fail-closed geprüft und anschließend
+  als exakt dasselbe Image veröffentlicht.
+
+### Scope and compatibility
+
+- `v0.1.2` bereitet ausschließlich diese kompatiblen Korrekturen seit
+  `v0.1.1` vor. Der Abschnitt beansprucht weder eine bereits erfolgte
+  Veröffentlichung noch neue Digests; Tag, Veröffentlichung und Deployment
+  bleiben getrennten Maintainer-Freigaben vorbehalten.
+
 ## [0.1.1] - 2026-08-14
 
 ### Added
