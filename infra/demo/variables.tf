@@ -104,8 +104,8 @@ variable "budget_start_date" {
   type        = string
 
   validation {
-    condition     = can(regex("^[0-9]{4}-[0-9]{2}-01T00:00:00Z$", var.budget_start_date))
-    error_message = "budget_start_date must be the first day of a month in the form YYYY-MM-01T00:00:00Z."
+    condition     = can(regex("^[0-9]{4}-[0-9]{2}-01T00:00:00Z$", var.budget_start_date)) && can(timecmp(var.budget_start_date, "1970-01-01T00:00:00Z"))
+    error_message = "budget_start_date must be a valid first-of-month RFC3339 UTC timestamp in the form YYYY-MM-01T00:00:00Z."
   }
 }
 
@@ -114,8 +114,8 @@ variable "budget_end_date" {
   type        = string
 
   validation {
-    condition     = can(regex("^[0-9]{4}-[0-9]{2}-01T00:00:00Z$", var.budget_end_date)) && timecmp(var.budget_end_date, var.budget_start_date) > 0
-    error_message = "budget_end_date must be a first-of-month RFC3339 timestamp later than budget_start_date."
+    condition     = can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}T00:00:00Z$", var.budget_end_date)) && can(timecmp(var.budget_end_date, var.budget_start_date)) && timecmp(var.budget_end_date, var.budget_start_date) > 0
+    error_message = "budget_end_date must be a valid RFC3339 UTC timestamp later than budget_start_date."
   }
 }
 

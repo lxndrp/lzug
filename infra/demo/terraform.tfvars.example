@@ -11,7 +11,7 @@ demo_artifact_pair = {
 budget_amount_eur     = 25
 budget_contact_emails = ["demo-operations@example.invalid"]
 budget_start_date     = "2026-09-01T00:00:00Z"
-budget_end_date       = "2036-09-01T00:00:00Z"
+budget_end_date       = "2028-07-31T00:00:00Z"
 
 # Change this only when a second isolated deployment shares the subscription.
 name_prefix = "lzug-demo"

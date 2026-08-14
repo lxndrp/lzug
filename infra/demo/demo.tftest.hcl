@@ -62,7 +62,7 @@ run "demo_contract" {
     budget_amount_eur     = 25
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
-    budget_end_date       = "2036-09-01T00:00:00Z"
+    budget_end_date       = "2028-07-31T00:00:00Z"
   }
 
   assert {
@@ -195,8 +195,86 @@ run "reject_moving_demo_tags" {
     budget_amount_eur     = 25
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
-    budget_end_date       = "2036-09-01T00:00:00Z"
+    budget_end_date       = "2028-07-31T00:00:00Z"
   }
 
   expect_failures = [var.demo_artifact_pair]
+}
+
+run "reject_invalid_budget_end_calendar_date" {
+  command = plan
+
+  plan_options {
+    refresh = false
+  }
+
+  variables {
+    azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+    demo_artifact_pair = {
+      app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+      product_tag        = "v0.1.1"
+      product_commit     = "0123456789abcdef0123456789abcdef01234567"
+      schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
+      seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
+    }
+    budget_amount_eur     = 25
+    budget_contact_emails = ["demo-operations@example.invalid"]
+    budget_start_date     = "2026-09-01T00:00:00Z"
+    budget_end_date       = "2028-02-31T00:00:00Z"
+  }
+
+  expect_failures = [var.budget_end_date]
+}
+
+run "reject_invalid_budget_end_timestamp" {
+  command = plan
+
+  plan_options {
+    refresh = false
+  }
+
+  variables {
+    azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+    demo_artifact_pair = {
+      app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+      product_tag        = "v0.1.1"
+      product_commit     = "0123456789abcdef0123456789abcdef01234567"
+      schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
+      seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
+    }
+    budget_amount_eur     = 25
+    budget_contact_emails = ["demo-operations@example.invalid"]
+    budget_start_date     = "2026-09-01T00:00:00Z"
+    budget_end_date       = "2028-07-31T00:00:00"
+  }
+
+  expect_failures = [var.budget_end_date]
+}
+
+run "reject_budget_end_not_later" {
+  command = plan
+
+  plan_options {
+    refresh = false
+  }
+
+  variables {
+    azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+    demo_artifact_pair = {
+      app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+      product_tag        = "v0.1.1"
+      product_commit     = "0123456789abcdef0123456789abcdef01234567"
+      schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
+      seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
+    }
+    budget_amount_eur     = 25
+    budget_contact_emails = ["demo-operations@example.invalid"]
+    budget_start_date     = "2026-09-01T00:00:00Z"
+    budget_end_date       = "2026-08-31T00:00:00Z"
+  }
+
+  expect_failures = [var.budget_end_date]
 }
