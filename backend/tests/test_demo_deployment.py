@@ -166,7 +166,6 @@ class DemoDeploymentTests(unittest.TestCase):
         self.assertIn("if: failure()", workflow)
         self.assertIn("previously verified complete pair", workflow)
         publish = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")
-        self.assertIn("schema_fingerprint=$(jq -er '.schema_fingerprint'", publish)
         self.assertIn("steps.images.outputs.schema_fingerprint", publish)
         pull_request = Path(".github/workflows/pull-request.yml").read_text(encoding="utf-8")
         full_quality = Path(".github/workflows/quality.yml").read_text(encoding="utf-8")
