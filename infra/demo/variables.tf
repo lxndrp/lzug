@@ -30,13 +30,27 @@ variable "name_prefix" {
   }
 }
 
-variable "image_reference" {
-  description = "Immutable GHCR image reference selected by the still-open demo artifact decision in issue #124."
-  type        = string
+variable "demo_artifact_pair" {
+  description = "Previously verified immutable demo app/seed pair and its shared product, schema, and seed binding."
+  type = object({
+    app_image          = string
+    seed_image         = string
+    product_tag        = string
+    product_commit     = string
+    schema_fingerprint = string
+    seed_revision      = string
+  })
 
   validation {
-    condition     = can(regex("^ghcr\\.io/lxndrp/[a-z0-9][a-z0-9._/-]*@sha256:[0-9a-f]{64}$", var.image_reference))
-    error_message = "image_reference must be an lxndrp GHCR package followed by @sha256:<64 lowercase hexadecimal characters>."
+    condition = (
+      can(regex("^ghcr\\.io/lxndrp/lzug-demo-app@sha256:[0-9a-f]{64}$", var.demo_artifact_pair.app_image)) &&
+      can(regex("^ghcr\\.io/lxndrp/lzug-demo-seed@sha256:[0-9a-f]{64}$", var.demo_artifact_pair.seed_image)) &&
+      can(regex("^v[0-9]+\\.[0-9]+\\.[0-9]+([+-][0-9A-Za-z.-]+)?$", var.demo_artifact_pair.product_tag)) &&
+      can(regex("^[0-9a-f]{40}$", var.demo_artifact_pair.product_commit)) &&
+      can(regex("^[0-9a-f]{64}$", var.demo_artifact_pair.schema_fingerprint)) &&
+      can(regex("^[0-9a-f]{64}$", var.demo_artifact_pair.seed_revision))
+    )
+    error_message = "demo_artifact_pair must contain the two canonical digest-pinned demo packages and valid shared product, schema, and seed identifiers."
   }
 }
 
@@ -46,8 +60,11 @@ variable "container_environment" {
   default     = {}
 
   validation {
-    condition     = alltrue([for name in keys(var.container_environment) : can(regex("^[A-Z_][A-Z0-9_]*$", name))])
-    error_message = "container_environment keys must be uppercase environment variable names."
+    condition = alltrue([
+      for name in keys(var.container_environment) :
+      can(regex("^[A-Z_][A-Z0-9_]*$", name)) && name != "LZUG_DATA_DIR"
+    ])
+    error_message = "container_environment keys must be uppercase environment variable names and must not replace LZUG_DATA_DIR."
   }
 }
 

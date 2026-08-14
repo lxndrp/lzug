@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from backend.app import ForbiddenRequestError, LzugHandler
 from backend.auth import AuthContext, AuthenticationError
 
-from .artifacts import load_manifest
+from .artifacts import load_manifest, load_runtime_status
 
 DEMO_ROLES = {
     "chair": {"account_id": 1, "person_id": 1, "display_name": "Testperson Alpha"},
@@ -39,6 +39,7 @@ class DemoRuntimePolicy:
     def __init__(self, app_manifest_path: Path, seed_manifest_path: Path):
         self.app_manifest = load_manifest(app_manifest_path)
         self.seed_manifest = load_manifest(seed_manifest_path)
+        self.runtime_status = load_runtime_status(seed_manifest_path.parent, self.seed_manifest)
 
     def handle_public_get(self, handler: LzugHandler, path_parts: list[str]) -> bool:
         if path_parts != ["demo", "status"]:
@@ -51,8 +52,10 @@ class DemoRuntimePolicy:
                 "product_commit": self.app_manifest["product"]["commit"],
                 "seed_revision": self.seed_manifest["seed_revision"],
                 "schema_fingerprint": self.seed_manifest["schema"]["fingerprint"],
-                "initialized": True,
-                "initialization_status": "ready",
+                "initialized": self.runtime_status["initialized"],
+                "initialization_status": self.runtime_status["initialization_status"],
+                "initialized_at": self.runtime_status["initialized_at"],
+                "last_reset_at": self.runtime_status["last_reset_at"],
                 "reset_status": "scheduled",
                 "next_reset_at": next_reset.isoformat(),
                 "reset_timezone": "Europe/Berlin",
