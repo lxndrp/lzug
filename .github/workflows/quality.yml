@@ -112,6 +112,20 @@ jobs:
           version: 3.52.0
       - run: task quality:operator
 
+  infra:
+    name: Infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: 1.12.5
+          tofu_wrapper: false
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+      - run: task quality:infra
+
   container:
     name: Container
     runs-on: ubuntu-latest

@@ -33,3 +33,8 @@ frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
 var/
+
+# OpenTofu
+*.tfplan
+*.tfstate
+*.tfstate.*

@@ -28,6 +28,7 @@ jobs:
       cli: ${{ steps.domains.outputs.cli == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       container: ${{ steps.domains.outputs.container == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       browser: ${{ steps.domains.outputs.browser == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
+      infra: ${{ steps.domains.outputs.infra == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
     steps:
       - name: Select known domains
         id: domains
@@ -59,6 +60,8 @@ jobs:
               - '.env.example'
               - 'Dockerfile'
               - 'compose.yaml'
+            infra:
+              - 'infra/**'
             browser:
               - 'backend/**'
               - 'db/**'
@@ -95,6 +98,7 @@ jobs:
               - '!docs/**'
               - '!fixtures/**'
               - '!frontend/**'
+              - '!infra/**'
               - '!prototypes/**'
               - '!scripts/**'
               - '!.github/**'
@@ -290,6 +294,23 @@ jobs:
           exit-code: "1"
           hide-progress: true
 
+  infra:
+    name: Infrastructure details
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: 1.12.5
+          tofu_wrapper: false
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+      - name: Validate and mock-plan the demo infrastructure
+        run: task quality:infra
+
   e2e:
     name: Browser E2E details
     needs: changes
@@ -482,7 +503,7 @@ jobs:
 
   container-gate:
     name: Pull Request / Container
-    needs: [changes, container, codeql, source-scan]
+    needs: [changes, container, infra, codeql, source-scan]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -490,6 +511,11 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           SELECTED: ${{ needs.changes.outputs.container }}
           DETAIL: ${{ needs.container.result }}
+          INFRA_SELECTED: ${{ needs.changes.outputs.infra }}
+          INFRA_DETAIL: ${{ needs.infra.result }}
           CODEQL: ${{ needs.codeql.result }}
           SOURCE_SCAN: ${{ needs.source-scan.result }}
-        run: test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success && { test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped; }
+        run: |
+          test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success
+          test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
+          test "$INFRA_SELECTED:$INFRA_DETAIL" = true:success || test "$INFRA_SELECTED:$INFRA_DETAIL" = false:skipped

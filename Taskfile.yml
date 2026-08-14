@@ -122,7 +122,17 @@ tasks:
       - quality:oci
       - quality:overall
       - quality:sbom
+      - quality:infra
       - docs
+
+  quality:infra:
+    desc: Format, validate, and mock-plan the public demo infrastructure without cloud access
+    dir: infra/demo
+    cmds:
+      - tofu fmt -check -recursive
+      - tofu init -backend=false -lockfile=readonly
+      - tofu validate
+      - tofu test
 
   quality:sbom:
     desc: Generate and validate the canonical dependency SBOM
