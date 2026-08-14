@@ -63,6 +63,14 @@ die technische Referenz im [Entwicklerhandbuch](docs/developers/index.md).
   nachvollziehbar beantworten oder zur Entscheidung eskalieren. Erst mergen,
   wenn die CI nach den letzten Änderungen erfolgreich ist und alle relevanten
   Kommentare und Befunde geklärt sind.
+- Copilot-Code-Reviews sind eine optionale, bewusst manuell angeforderte
+  Zusatzperspektive und kein Merge-Gate. Bei Änderungen an Authentifizierung,
+  Autorisierung, Sitzungen, Kryptographie, Datenmigrationen, Persistenz- oder
+  Löschinvarianten, öffentlichen API-Verträgen, Cross-Stack-Abläufen,
+  GitHub-Actions, Release- oder Container-Konfiguration sowie bei größeren
+  schwer überblickbaren Änderungen den Maintainer darauf hinweisen. Die
+  Entscheidung liegt beim Maintainer; eine nicht angeforderte oder ausgebliebene
+  Copilot-Review blockiert den Fortschritt nicht.
 - Qualifizierte Dependabot-PRs werden nur durch den dafür vorgesehenen Workflow
   für Squash-Auto-Merge angemeldet. Das bestehende Ruleset und die CI bleiben
   maßgeblich; Major-, GitHub-Actions-, konfliktbehaftete und nicht eindeutig
