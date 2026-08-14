@@ -27,7 +27,7 @@ Das Ruleset verlangt genau diese fünf immer vorhandenen Gate-Namen:
 | `Pull Request / Backend` | Ruff, Black, Python-Audit, Tests und Coverage; bei produktiven Webänderungen zusätzlich E2E und Accessibility |
 | `Pull Request / Frontend` | ESLint, Prettier, Angular-Build, Tests, Coverage und npm-Produktionsaudit; bei produktiven Webänderungen zusätzlich E2E und Accessibility |
 | `Pull Request / CLI` | Go-Vertrag sowie mit GoReleaser reproduzierbar gebaute Archive für Linux, macOS und Windows auf amd64 und arm64 |
-| `Pull Request / Container` | einmal gebautes OCI-Image, SBOMs, Image-Scan sowie Container-, Compose- und CLI-zu-Container-Verträge |
+| `Pull Request / Container` | einmal gebautes OCI-Image, SBOMs, Image-Scan sowie Container-, Compose- und CLI-zu-Container-Verträge; bei Infrastrukturänderungen zusätzlich OpenTofu-Format, -Validierung und gemockter Plan |
 
 Jedes Gate läuft mit `if: always()`. Ist seine Domäne nicht ausgewählt, prüft
 es ausdrücklich den Status `skipped` des Detailjobs und wird selbst
@@ -49,7 +49,9 @@ Analysen und darf bei einer späteren Dateiumbenennung nicht implizit wechseln.
 
 ## Konservative Pfadauswahl
 
-Die fünf Domänen entsprechen fachlich verständlichen Repositorygrenzen:
+Die Pfadauswahl bildet fachlich verständliche Repositorygrenzen auf fünf
+stabile Gates ab. Infrastruktur ist eine eigene Detaildomäne und läuft in das
+bestehende Container-Gate ein:
 
 | Änderung | Auswahl |
 | --- | --- |
@@ -58,9 +60,10 @@ Die fünf Domänen entsprechen fachlich verständlichen Repositorygrenzen:
 | Frontend-Code und Frontend-Konfiguration außer reinen Markdown-Dateien | Frontend |
 | `cmd/lzug-admin/**` | CLI |
 | Dockerfile, Docker-Kontext, Compose-Referenz oder Umgebungsbeispiel | Container |
+| `infra/**` | Infrastruktur; der Nachweis läuft in das stabile Container-Gate ein |
 | produktives Backend, Datenmodell, Fixtures, Frontend-Produktcode oder Playwright | zusätzlich getrennte E2E- und Accessibility-Jobs |
-| Workflows, Toolchain, Taskfile, Lockfiles, Dependency-Manifeste oder `scripts/**` | alle fünf Domänen und beide Browserjobs |
-| leerer oder keiner bekannten Grenze zugeordneter Pfad | alle fünf Domänen und beide Browserjobs |
+| Workflows, Toolchain, Taskfile, Lockfiles, Dependency-Manifeste oder `scripts/**` | alle Detaildomänen und beide Browserjobs |
+| leerer oder keiner bekannten Grenze zugeordneter Pfad | alle Detaildomänen und beide Browserjobs |
 
 Reine Backend-Tests und `*.spec.ts`-Frontend-Tests wählen keine Browserjobs.
 Mehrere Änderungen vereinigen ihre Domänen. Prozessdateien wie `AGENTS.md`,
@@ -78,6 +81,7 @@ unbemerkt sämtliche fachlichen Prüfungen überspringen.
 `quality.yml` führt unabhängig vom Änderungsumfang parallel aus:
 
 - Backend-, Frontend-, Dokumentations- und CLI-Qualität,
+- OpenTofu-Format, -Validierung und gemockter Infrastrukturplan ohne Cloudzugriff,
 - npm- und Python-Abhängigkeitsaudits,
 - OCI-Build, Dependency- und Image-SBOM, Trivy-Image-Scan,
 - Container-, Compose- und CLI-zu-Container-Verträge,
@@ -121,9 +125,11 @@ Jobnamen ab und wiederholt keine der hier beschriebenen Qualitätsprüfungen.
 Vor #344 bestanden die eigene PR-/Master-Orchestrierung aus 904 Workflowzeilen,
 274 Zeilen Python-Klassifizierer und 453 Zeilen zugehörigen Workflow-, OCI- und
 Security-Vertragstests, zusammen 1.631 Zeilen. Die Umstellung entfernt den
-Klassifizierer vollständig. Die beiden getrennten Workflows und die auf
-Verhalten reduzierten Vertragstests umfassen zusammen 952 Zeilen: 679 Zeilen
-beziehungsweise 41,6 % weniger eigener Orchestrierungs- und Testcode.
+Klassifizierer vollständig. Bei Abschluss dieser Umstellung umfassten die
+beiden getrennten Workflows und die auf Verhalten reduzierten Vertragstests
+zusammen 952 Zeilen: 679 Zeilen beziehungsweise 41,6 % weniger eigener
+Orchestrierungs- und Testcode. Spätere Domänen wie die Infrastrukturprüfung
+sind nicht Teil dieser historischen Messung.
 
 Für die Laufzeit bleiben verstrichene Workflow-Zeit und summierte
 Runner-Jobsekunden getrennt. Die belegte Ausgangsbasis für reine Dokumentation
@@ -143,8 +149,8 @@ notwendige Pfad maßgeblich, nicht ihre Summe.
 Die lokale Auswahl bleibt in `Taskfile.yml` kanonisch:
 
 - `task quality:backend`, `task quality:frontend`, `task quality:operator`,
-  `task quality:oci`, `task quality:compose-config`, `task quality:overall` und
-  `task docs` für begrenzte Änderungen,
+  `task quality:infra`, `task quality:oci`, `task quality:compose-config`,
+  `task quality:overall` und `task docs` für begrenzte Änderungen,
 - `task quality:release` für den Release-, Metadaten-, GoReleaser- und
   aggregierten SBOM-Vertrag ohne Veröffentlichung,
 - `task quality` für CI-, Toolchain-, Dependency-, Security- oder andere

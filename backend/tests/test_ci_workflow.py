@@ -32,7 +32,15 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d",
             self.pull_request,
         )
-        for domain in ("docs", "backend", "frontend", "cli", "container", "browser"):
+        for domain in (
+            "docs",
+            "backend",
+            "frontend",
+            "cli",
+            "container",
+            "browser",
+            "infra",
+        ):
             with self.subTest(domain=domain):
                 self.assertIn(f"      {domain}: ${{{{", self.pull_request)
         self.assertIn("predicate-quantifier: every", self.pull_request)
@@ -63,6 +71,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "name: Frontend",
             "name: Documentation",
             "name: CLI",
+            "name: Infrastructure",
             "name: Container",
             "name: Browser E2E",
             "name: Accessibility",
@@ -75,6 +84,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "task quality:backend",
             "task quality:frontend quality:security",
             "task quality:operator",
+            "task quality:infra",
             "task quality:oci quality:container quality:compose "
             "quality:operator-container quality:sbom",
             "task docs",
