@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import json
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts.demo_deployment import (
     ArtifactPair,
+    AzureTarget,
     DeploymentError,
+    deploy,
     deployment_body,
     readiness_observation,
     validate_demo_status,
@@ -66,6 +72,69 @@ class DemoDeploymentTests(unittest.TestCase):
         self.assertNotEqual(self.pair.app_image, previous["app_image"])
         self.assertNotEqual(self.pair.seed_image, previous["seed_image"])
         self.assertEqual("old", resource["properties"]["template"]["revisionSuffix"])
+
+    def test_deploy_accepts_successful_patch_without_response_body(self) -> None:
+        responses = (
+            subprocess.CompletedProcess([], 0, json.dumps(self.resource()), ""),
+            subprocess.CompletedProcess([], 0, "", ""),
+        )
+        target = AzureTarget(
+            "11111111-1111-1111-1111-111111111111",
+            "lzug-demo-rg",
+            "lzug-demo-app",
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            record = Path(temporary_directory) / "deployment.json"
+            with patch("scripts.demo_deployment.subprocess.run", side_effect=responses) as run:
+                deploy(target, self.pair, "gh-123-1", record)
+
+            evidence = json.loads(record.read_text(encoding="utf-8"))
+
+        self.assertEqual(self.pair.app_image, evidence["target"]["app_image"])
+        self.assertEqual("gh-123-1", evidence["revision_suffix"])
+        patch_command = run.call_args_list[1].args[0]
+        self.assertEqual("patch", patch_command[patch_command.index("--method") + 1])
+        self.assertEqual("none", patch_command[patch_command.index("--output") + 1])
+
+    def test_deploy_still_requires_json_from_the_initial_read(self) -> None:
+        response = subprocess.CompletedProcess([], 0, "", "")
+        target = AzureTarget(
+            "11111111-1111-1111-1111-111111111111",
+            "lzug-demo-rg",
+            "lzug-demo-app",
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            record = Path(temporary_directory) / "deployment.json"
+            with (
+                patch("scripts.demo_deployment.subprocess.run", return_value=response),
+                self.assertRaisesRegex(DeploymentError, "returned invalid JSON"),
+            ):
+                deploy(target, self.pair, "gh-123-1", record)
+
+            self.assertFalse(record.exists())
+
+    def test_deploy_fails_closed_when_the_patch_is_rejected(self) -> None:
+        responses = (
+            subprocess.CompletedProcess([], 0, json.dumps(self.resource()), ""),
+            subprocess.CompletedProcess([], 1, "", "Azure rejected the update"),
+        )
+        target = AzureTarget(
+            "11111111-1111-1111-1111-111111111111",
+            "lzug-demo-rg",
+            "lzug-demo-app",
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            record = Path(temporary_directory) / "deployment.json"
+            with (
+                patch("scripts.demo_deployment.subprocess.run", side_effect=responses),
+                self.assertRaisesRegex(DeploymentError, "Azure rejected the update"),
+            ):
+                deploy(target, self.pair, "gh-123-1", record)
+
+            self.assertFalse(record.exists())
 
     def test_update_rejects_moving_tags_partial_assembly_and_wrong_revision_mode(self) -> None:
         moving = ArtifactPair(

@@ -11,7 +11,7 @@ import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, overload
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlsplit
 from urllib.request import Request, urlopen
@@ -210,7 +210,34 @@ def validate_demo_status(payload: Any, pair: ArtifactPair) -> None:
             raise DeploymentError(f"Demo API reported an unexpected {field}")
 
 
-def _az_rest(method: str, uri: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+@overload
+def _az_rest(
+    method: str,
+    uri: str,
+    body: dict[str, Any] | None = None,
+    *,
+    expect_json: Literal[True] = True,
+) -> dict[str, Any]: ...
+
+
+@overload
+def _az_rest(
+    method: str,
+    uri: str,
+    body: dict[str, Any] | None = None,
+    *,
+    expect_json: Literal[False],
+) -> None: ...
+
+
+def _az_rest(
+    method: str,
+    uri: str,
+    body: dict[str, Any] | None = None,
+    *,
+    expect_json: bool = True,
+) -> dict[str, Any] | None:
+    """Run an Azure REST request and parse only responses with a JSON contract."""
     command = [
         "az",
         "rest",
@@ -220,7 +247,7 @@ def _az_rest(method: str, uri: str, body: dict[str, Any] | None = None) -> dict[
         "--uri",
         uri,
         "--output",
-        "json",
+        "json" if expect_json else "none",
     ]
     if body is not None:
         command.extend(("--body", json.dumps(body, separators=(",", ":"))))
@@ -228,10 +255,15 @@ def _az_rest(method: str, uri: str, body: dict[str, Any] | None = None) -> dict[
     if result.returncode:
         detail = result.stderr.strip() or "Azure REST request failed without details"
         raise DeploymentError(detail)
+    if not expect_json:
+        return None
     try:
-        return json.loads(result.stdout)
+        payload = json.loads(result.stdout)
     except json.JSONDecodeError as error:
         raise DeploymentError("Azure REST request returned invalid JSON") from error
+    if not isinstance(payload, dict):
+        raise DeploymentError("Azure REST request returned a non-object JSON response")
+    return payload
 
 
 def _http_get(url: str, *, expect_json: bool) -> tuple[Any, str]:
@@ -257,7 +289,7 @@ def deploy(target: AzureTarget, pair: ArtifactPair, revision_suffix: str, record
     target.validate()
     current = _az_rest("get", target.resource_uri)
     body, previous = deployment_body(current, pair, revision_suffix)
-    _az_rest("patch", target.resource_uri, body)
+    _az_rest("patch", target.resource_uri, body, expect_json=False)
     record.parent.mkdir(parents=True, exist_ok=True)
     record.write_text(
         json.dumps(
