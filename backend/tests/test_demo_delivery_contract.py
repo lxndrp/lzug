@@ -40,6 +40,37 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertNotIn(":latest", workflow)
         self.assertNotIn(":demo", workflow)
 
+    def test_publish_builds_inspects_and_pushes_the_same_seed_image(self) -> None:
+        workflow = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")
+        dockerfile = Path("Dockerfile.demo-seed").read_text(encoding="utf-8")
+
+        build = workflow.index("- name: Build the demo seed candidate exactly once")
+        inspect = workflow.index(
+            "- name: Inspect the embedded seed and derive immutable references"
+        )
+        reject = workflow.index("- name: Reject moving or replacing an existing demo reference")
+        push = workflow.index("- name: Tag and publish the inspected demo seed")
+        attest = workflow.index("- name: Attest demo application provenance")
+
+        self.assertLess(build, inspect)
+        self.assertLess(inspect, reject)
+        self.assertLess(reject, push)
+        self.assertLess(push, attest)
+        self.assertIn("load: true", workflow[build:inspect])
+        self.assertIn('docker create "$SEED_CANDIDATE"', workflow[inspect:reject])
+        self.assertIn('--expected-product-tag "$PRODUCT_TAG"', workflow[inspect:reject])
+        self.assertIn('--expected-product-commit "$TARGET_SHA"', workflow[inspect:reject])
+        self.assertIn(
+            '--expected-schema-fingerprint "$expected_schema_fingerprint"',
+            workflow[inspect:reject],
+        )
+        self.assertIn('docker tag "$SEED_CANDIDATE" "$SEED_REF"', workflow[push:attest])
+        self.assertIn('docker push "$SEED_REF"', workflow[push:attest])
+        self.assertIn('docker buildx imagetools inspect "$SEED_REF"', workflow[push:attest])
+        self.assertIn("^sha256:[0-9a-f]{64}$", workflow[push:attest])
+        self.assertNotIn("demo.artifacts build-seed", workflow)
+        self.assertEqual(1, dockerfile.count("demo.artifacts build-seed"))
+
     def test_publish_reads_schema_fingerprint_from_canonical_seed_manifest(self) -> None:
         workflow = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")
         selector_match = re.search(

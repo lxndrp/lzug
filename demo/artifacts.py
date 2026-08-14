@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import sqlite3
 from datetime import UTC, datetime
@@ -194,10 +195,52 @@ def load_manifest(path: Path) -> dict[str, Any]:
     return manifest
 
 
-def initialize_workdir(seed_database: Path, seed_manifest: Path, target: Path) -> None:
-    manifest = load_manifest(seed_manifest)
-    if sha256_file(seed_database) != manifest.get("snapshot_sha256"):
+def _validate_seed_manifest(manifest: dict[str, Any]) -> None:
+    seed_revision = manifest.get("seed_revision")
+    if not isinstance(seed_revision, str) or re.fullmatch(r"[0-9a-f]{64}", seed_revision) is None:
+        raise DemoArtifactError("Seed manifest has an invalid seed revision")
+    binding = {key: value for key, value in manifest.items() if key != "seed_revision"}
+    if canonical_digest(binding) != seed_revision:
+        raise DemoArtifactError("Seed revision does not match its manifest")
+
+
+def verify_seed(
+    database: Path,
+    manifest_path: Path,
+    *,
+    expected_manifest_path: Path | None = None,
+    expected_revision: str | None = None,
+    expected_product_tag: str | None = None,
+    expected_product_commit: str | None = None,
+    expected_schema_fingerprint: str | None = None,
+) -> dict[str, Any]:
+    """Verify a prepared seed and its optional publish-time expectations."""
+    manifest = load_manifest(manifest_path)
+    _validate_seed_manifest(manifest)
+    if sha256_file(database) != manifest.get("snapshot_sha256"):
         raise DemoArtifactError("Seed snapshot digest does not match its manifest")
+    if expected_manifest_path is not None:
+        expected_manifest = load_manifest(expected_manifest_path)
+        _validate_seed_manifest(expected_manifest)
+        if manifest_path.read_bytes() != expected_manifest_path.read_bytes():
+            raise DemoArtifactError("Seed manifest does not match the expected manifest")
+    if expected_revision is not None and manifest["seed_revision"] != expected_revision:
+        raise DemoArtifactError("Seed revision does not match the expected revision")
+    product = manifest.get("product", {})
+    if expected_product_tag is not None and product.get("tag") != expected_product_tag:
+        raise DemoArtifactError("Seed manifest does not match the expected product tag")
+    if expected_product_commit is not None and product.get("commit") != expected_product_commit:
+        raise DemoArtifactError("Seed manifest does not match the expected product commit")
+    if (
+        expected_schema_fingerprint is not None
+        and manifest.get("schema", {}).get("fingerprint") != expected_schema_fingerprint
+    ):
+        raise DemoArtifactError("Seed manifest does not match the expected schema fingerprint")
+    return manifest
+
+
+def initialize_workdir(seed_database: Path, seed_manifest: Path, target: Path) -> None:
+    manifest = verify_seed(seed_database, seed_manifest)
     resolved = target.resolve()
     if resolved == Path("/") or len(resolved.parts) < 2:
         raise DemoArtifactError(f"Unsafe demo data target: {resolved}")
@@ -284,6 +327,15 @@ def parse_args() -> argparse.Namespace:
     seed.add_argument("--product-tag", required=True)
     seed.add_argument("--product-commit", required=True)
 
+    verify = subparsers.add_parser("verify-seed")
+    verify.add_argument("--database", type=Path, required=True)
+    verify.add_argument("--manifest", type=Path, required=True)
+    verify.add_argument("--expected-manifest", type=Path)
+    verify.add_argument("--expected-revision")
+    verify.add_argument("--expected-product-tag")
+    verify.add_argument("--expected-product-commit")
+    verify.add_argument("--expected-schema-fingerprint")
+
     app = subparsers.add_parser("build-app-manifest")
     app.add_argument("--source-root", type=Path, default=Path("."))
     app.add_argument("--output", type=Path, required=True)
@@ -306,6 +358,16 @@ def main() -> None:
             args.manifest,
             product_tag=args.product_tag,
             product_commit=args.product_commit,
+        )
+    elif args.command == "verify-seed":
+        verify_seed(
+            args.database,
+            args.manifest,
+            expected_manifest_path=args.expected_manifest,
+            expected_revision=args.expected_revision,
+            expected_product_tag=args.expected_product_tag,
+            expected_product_commit=args.expected_product_commit,
+            expected_schema_fingerprint=args.expected_schema_fingerprint,
         )
     elif args.command == "build-app-manifest":
         build_app_manifest(
