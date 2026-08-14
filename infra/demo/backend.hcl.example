@@ -1,0 +1,7 @@
+# Non-sensitive coordinates of the pre-existing, protected state store.
+# Authentication is supplied through Azure CLI locally or OIDC in GitHub Actions.
+resource_group_name  = "lzug-tofu-state-rg"
+storage_account_name = "replacewithuniquestateaccount"
+container_name       = "tfstate"
+key                  = "lzug/demo.tfstate"
+use_azuread_auth     = true

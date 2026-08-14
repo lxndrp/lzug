@@ -1,0 +1,10 @@
+azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+image_reference       = "ghcr.io/lxndrp/demo-artifact@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+budget_amount_eur     = 25
+budget_contact_emails = ["demo-operations@example.invalid"]
+budget_start_date     = "2026-09-01T00:00:00Z"
+budget_end_date       = "2036-09-01T00:00:00Z"
+
+# Change this only when a second isolated deployment shares the subscription.
+name_prefix = "lzug-demo"
