@@ -123,6 +123,7 @@ tasks:
       - quality:overall
       - quality:sbom
       - quality:infra
+      - quality:demo-deployment
       - quality:demo
       - docs
 
@@ -134,6 +135,11 @@ tasks:
       - tofu init -backend=false -lockfile=readonly
       - tofu validate
       - tofu test
+
+  quality:demo-deployment:
+    desc: Validate the secret-free OIDC demo deployment and smoke-test contract
+    cmds:
+      - '{{.UV}} python -m unittest backend.tests.test_demo_deployment'
 
   quality:sbom:
     desc: Generate and validate the canonical dependency SBOM

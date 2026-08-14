@@ -47,7 +47,8 @@ freigegebenen `tofu apply` keine Cloudänderung aus.
   nicht geraten: Sie müssen nach Maintainer-Entscheidung ergänzt werden.
 - OIDC-Rollen für Deployment, Auswahl und unabhängige Lieferkettenprüfung des
   freigegebenen Digest-Paars, öffentlicher Smoke-Test und Deploymentnachweis
-  gehören zu #126. Der nächtliche Laufzeitreset ist davon getrennt und benötigt
+  sind im [Deploymentvertrag](../../docs/developers/demo-deployment.md)
+  beschrieben. Der nächtliche Laufzeitreset ist davon getrennt und benötigt
   weder GitHub Scheduler noch GitHub-Zugang.
 
 ## Zustand und Berechtigungen

@@ -318,7 +318,7 @@ jobs:
         with:
           version: 3.52.0
       - name: Validate and mock-plan the demo infrastructure
-        run: task quality:infra
+        run: task quality:infra quality:demo-deployment
 
   e2e:
     name: Browser E2E details

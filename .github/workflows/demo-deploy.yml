@@ -1,0 +1,218 @@
+name: Deploy public demo
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Deploy a newly approved pair or explicitly roll back to a known pair
+        required: true
+        type: choice
+        options:
+          - deploy
+          - rollback
+      app_image:
+        description: Immutable ghcr.io/lxndrp/lzug-demo-app@sha256 digest
+        required: true
+        type: string
+      seed_image:
+        description: Immutable ghcr.io/lxndrp/lzug-demo-seed@sha256 digest
+        required: true
+        type: string
+      product_tag:
+        description: Product tag shared by the verified pair, for example v0.1.1
+        required: true
+        type: string
+      product_commit:
+        description: Full 40-character product commit shared by the pair
+        required: true
+        type: string
+      schema_fingerprint:
+        description: Full schema fingerprint from the verified seed manifest
+        required: true
+        type: string
+      seed_revision:
+        description: Full seed revision from the verified seed manifest
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: demo-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ${{ inputs.operation == 'rollback' && 'Roll back public demo' || 'Deploy public demo' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: demo
+      url: ${{ vars.DEMO_URL }}
+    permissions:
+      contents: read
+      id-token: write
+      packages: read
+    env:
+      APP_IMAGE: ${{ inputs.app_image }}
+      SEED_IMAGE: ${{ inputs.seed_image }}
+      PRODUCT_TAG: ${{ inputs.product_tag }}
+      PRODUCT_COMMIT: ${{ inputs.product_commit }}
+      SCHEMA_FINGERPRINT: ${{ inputs.schema_fingerprint }}
+      SEED_REVISION: ${{ inputs.seed_revision }}
+      DEMO_URL: ${{ vars.DEMO_URL }}
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_CONTAINER_APP: ${{ vars.AZURE_CONTAINER_APP }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Validate protected branch and secret-free inputs
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/master || {
+            echo "Demo deployments must be dispatched from master." >&2
+            exit 1
+          }
+          for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_RESOURCE_GROUP AZURE_CONTAINER_APP DEMO_URL; do
+            test -n "${!name:-}" || {
+              echo "Required demo Environment variable is missing: $name" >&2
+              exit 1
+            }
+          done
+          python3 scripts/demo_deployment.py validate-inputs \
+            --app-image "$APP_IMAGE" \
+            --seed-image "$SEED_IMAGE" \
+            --product-tag "$PRODUCT_TAG" \
+            --product-commit "$PRODUCT_COMMIT" \
+            --schema-fingerprint "$SCHEMA_FINGERPRINT" \
+            --seed-revision "$SEED_REVISION" \
+            --demo-url "$DEMO_URL"
+
+      - name: Authenticate to GHCR without a long-lived credential
+        run: echo "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Verify provenance and SBOM attestations for both selected digests
+        run: |
+          set -euo pipefail
+          for image in "$APP_IMAGE" "$SEED_IMAGE"; do
+            gh attestation verify "oci://$image" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow lxndrp/lzug/.github/workflows/demo-publish.yml \
+              --bundle-from-oci \
+              --predicate-type https://slsa.dev/provenance/v1
+            gh attestation verify "oci://$image" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow lxndrp/lzug/.github/workflows/demo-publish.yml \
+              --bundle-from-oci \
+              --predicate-type https://cyclonedx.org/bom
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Log in to Azure using GitHub OIDC
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Update the app and seed as one Container Apps revision
+        run: |
+          set -euo pipefail
+          revision_suffix="gh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          python3 scripts/demo_deployment.py deploy \
+            --subscription-id "$AZURE_SUBSCRIPTION_ID" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --container-app "$AZURE_CONTAINER_APP" \
+            --app-image "$APP_IMAGE" \
+            --seed-image "$SEED_IMAGE" \
+            --product-tag "$PRODUCT_TAG" \
+            --product-commit "$PRODUCT_COMMIT" \
+            --schema-fingerprint "$SCHEMA_FINGERPRINT" \
+            --seed-revision "$SEED_REVISION" \
+            --revision-suffix "$revision_suffix" \
+            --record "$RUNNER_TEMP/demo-deployment.json"
+          echo "revision_suffix=$revision_suffix" >> "$GITHUB_OUTPUT"
+        id: deployment
+
+      - name: Wait for the new Azure revision to become ready
+        run: |
+          python3 scripts/demo_deployment.py wait-readiness \
+            --subscription-id "$AZURE_SUBSCRIPTION_ID" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --container-app "$AZURE_CONTAINER_APP" \
+            --app-image "$APP_IMAGE" \
+            --seed-image "$SEED_IMAGE" \
+            --product-tag "$PRODUCT_TAG" \
+            --product-commit "$PRODUCT_COMMIT" \
+            --schema-fingerprint "$SCHEMA_FINGERPRINT" \
+            --seed-revision "$SEED_REVISION" \
+            --revision-suffix "${{ steps.deployment.outputs.revision_suffix }}"
+
+      - name: Wait separately for application health
+        run: |
+          python3 scripts/demo_deployment.py wait-health \
+            --demo-url "$DEMO_URL" \
+            --app-image "$APP_IMAGE" \
+            --seed-image "$SEED_IMAGE" \
+            --product-tag "$PRODUCT_TAG" \
+            --product-commit "$PRODUCT_COMMIT" \
+            --schema-fingerprint "$SCHEMA_FINGERPRINT" \
+            --seed-revision "$SEED_REVISION"
+
+      - name: Smoke-test health, API, and the central frontend route
+        run: |
+          python3 scripts/demo_deployment.py smoke \
+            --demo-url "$DEMO_URL" \
+            --app-image "$APP_IMAGE" \
+            --seed-image "$SEED_IMAGE" \
+            --product-tag "$PRODUCT_TAG" \
+            --product-commit "$PRODUCT_COMMIT" \
+            --schema-fingerprint "$SCHEMA_FINGERPRINT" \
+            --seed-revision "$SEED_REVISION"
+
+      - name: Record the deployment evidence
+        if: success()
+        run: |
+          previous_app=$(jq -er '.previous.app_image' "$RUNNER_TEMP/demo-deployment.json")
+          previous_seed=$(jq -er '.previous.seed_image' "$RUNNER_TEMP/demo-deployment.json")
+          {
+            echo "### ${{ inputs.operation == 'rollback' && 'Demo rollback' || 'Demo deployment' }} succeeded"
+            echo "- URL: $DEMO_URL"
+            echo "- App: \`$APP_IMAGE\`"
+            echo "- Seed: \`$SEED_IMAGE\`"
+            echo "- Product tag: \`$PRODUCT_TAG\`"
+            echo "- Product commit: \`$PRODUCT_COMMIT\`"
+            echo "- Schema fingerprint: \`$SCHEMA_FINGERPRINT\`"
+            echo "- Seed revision: \`$SEED_REVISION\`"
+            echo "- Azure revision suffix: \`${{ steps.deployment.outputs.revision_suffix }}\`"
+            echo "- Previous app digest: \`$previous_app\`"
+            echo "- Previous seed digest: \`$previous_seed\`"
+            echo "- Azure readiness, HTTP health, demo API, OpenAPI and frontend checks passed."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Explain failure and collect non-sensitive diagnostics
+        if: failure()
+        run: |
+          {
+            echo "### Demo ${{ inputs.operation }} failed"
+            echo "The run is not deployment evidence. Inspect the first failed readiness, health, or smoke step."
+            echo "Do not change one digest independently. Re-run only after correcting the platform fault, or dispatch an explicit \`rollback\` with a previously verified complete pair."
+          } >> "$GITHUB_STEP_SUMMARY"
+          if test -f "$RUNNER_TEMP/demo-deployment.json"; then
+            previous_app=$(jq -er '.previous.app_image' "$RUNNER_TEMP/demo-deployment.json")
+            previous_seed=$(jq -er '.previous.seed_image' "$RUNNER_TEMP/demo-deployment.json")
+            {
+              echo "- Previous app digest: \`$previous_app\`"
+              echo "- Previous seed digest: \`$previous_seed\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          python3 scripts/demo_deployment.py diagnostics \
+            --subscription-id "$AZURE_SUBSCRIPTION_ID" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --container-app "$AZURE_CONTAINER_APP" || true

@@ -29,6 +29,12 @@ Das Ruleset verlangt genau diese fünf immer vorhandenen Gate-Namen:
 | `Pull Request / CLI` | Go-Vertrag sowie mit GoReleaser reproduzierbar gebaute Archive für Linux, macOS und Windows auf amd64 und arm64 |
 | `Pull Request / Container` | einmal gebautes OCI-Image, SBOMs, Image-Scan sowie Container-, Compose- und CLI-zu-Container-Verträge; bei Infrastrukturänderungen zusätzlich OpenTofu-Format, -Validierung und gemockter Plan |
 
+Das manuelle Azure-Demo-Deployment ist vom CI- und Publish-Lebenszyklus
+getrennt. Es verwendet ausschließlich OIDC, ein geschütztes GitHub Environment
+und ein zuvor geprüftes App-/Seed-Digest-Paar. Der repositoryseitige Vertrag
+wird mit `task quality:demo-deployment` ohne Cloudzugriff geprüft; Details
+stehen unter [Azure-Demo deployen](demo-deployment.md).
+
 Jedes Gate läuft mit `if: always()`. Ist seine Domäne nicht ausgewählt, prüft
 es ausdrücklich den Status `skipped` des Detailjobs und wird selbst
 erfolgreich. Ausgewählte Details müssen dagegen `success` melden. Ein Fehler
