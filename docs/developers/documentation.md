@@ -25,6 +25,11 @@ werden nicht angelegt.
 
 Dauerhafte technische Entscheidungen stehen als ADR unter `docs/developers/decisions/`. Der Dateiname hat das Muster `NNNN-kebab-case.md`. Jeder ADR enthält Status, ursprüngliches Entscheidungsdatum, Kontext, Entscheidung, Konsequenzen, Alternativen und Referenzen. Ein akzeptierter ADR wird nicht inhaltlich umgeschrieben; eine spätere Änderung erhält einen neuen ADR, der den vorherigen ablöst oder ergänzt.
 
+Die Zielarchitektur für den späteren gemeinsamen Produkt-, Wiki- und
+Referenzauftritt steht unter
+[Öffentliche Publikationsarchitektur](publication-architecture.md). Der lokale
+Spike aktiviert keine externe Veröffentlichung.
+
 Öffentliche Python-Module, Services, Repositories, fachliche Klassen und nicht offensichtliche Funktionen verwenden Google-Style-Docstrings. Beschreiben Sie Invarianten, sichtbare Seiteneffekte, Fehler und Transaktionsgrenzen, ohne triviale Implementierungsdetails oder Typen zu wiederholen.
 
 Exportierte TypeScript-Services, Modelle und fachliche Komponenten oder Methoden verwenden TSDoc. Kommentare erklären Semantik, Zustandsübergänge, Ownership und Seiteneffekte; HTTP-Verträge bleiben in OpenAPI.

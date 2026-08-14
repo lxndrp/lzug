@@ -20,3 +20,6 @@ Referenz- und Validierungsbuild; CI stellt den Build als geschütztes Artefakt
 `lzug-documentation` bereit. Der Review- und Veröffentlichungsablauf für das
 separate Wiki steht unter
 [Wiki-Publikation](developers/wiki-publishing.md).
+
+Die entschiedene, aber noch nicht extern aktivierte Zielarchitektur steht unter
+[Öffentliche Publikationsarchitektur](developers/publication-architecture.md).

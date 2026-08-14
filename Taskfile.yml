@@ -102,6 +102,35 @@ tasks:
       - task: docs:handbook
       - task: docs:frontend
 
+  docs:publication-spike:
+    desc: Build the local public documentation architecture spike without publishing it
+    vars:
+      OUTPUT: '{{default "build/publication-spike" .OUTPUT}}'
+      WIKI_ROOT: '{{default "prototypes/publication/wiki" .WIKI_ROOT}}'
+    cmds:
+      - >-
+        {{.UV}} python -m scripts.publication_spike build
+        --wiki-root "{{.WIKI_ROOT}}"
+        --typedoc frontend/node_modules/.bin/typedoc
+        --output "{{.OUTPUT}}"
+
+  docs:publication-spike:check:
+    desc: Build the publication spike twice and verify byte-identical output
+    vars:
+      WIKI_ROOT: '{{default "prototypes/publication/wiki" .WIKI_ROOT}}'
+    cmds:
+      - >-
+        {{.UV}} python -m scripts.publication_spike check
+        --wiki-root "{{.WIKI_ROOT}}"
+        --typedoc frontend/node_modules/.bin/typedoc
+
+  docs:publication-spike:browser:
+    desc: Check the built publication spike on desktop and mobile with axe
+    deps:
+      - docs:publication-spike
+    cmds:
+      - node scripts/check_publication_spike.mjs
+
   wiki:check:
     desc: Check a local Wiki checkout before manually publishing it
     cmds:

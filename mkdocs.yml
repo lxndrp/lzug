@@ -79,3 +79,5 @@ nav:
           - ADR-0020 Minimaler Releaseablauf: developers/decisions/0020-minimaler-releaseablauf-mit-github-bordmitteln.md
           - ADR-0021 GoReleaser für Betreiber-CLI: developers/decisions/0021-goreleaser-fuer-die-betreiber-cli.md
           - ADR-0022 Tag-gebundene Demo-Assembly: developers/decisions/0022-tag-gebundene-demo-assembly-und-seed.md
+          - ADR-0023 Öffentliche Publikationsarchitektur: developers/decisions/0023-oeffentliche-web-und-dokumentationspublikation.md
+      - Öffentliche Publikationsarchitektur: developers/publication-architecture.md
