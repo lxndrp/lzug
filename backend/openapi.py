@@ -79,11 +79,32 @@ def spec() -> dict[str, Any]:
         },
         "/api/health": {
             "get": {
-                "summary": "Health check",
+                "summary": "Process liveness check",
                 "operationId": "getHealth",
+                "responses": {"200": json_response("Health")},
+            }
+        },
+        "/api/ready": {
+            "get": {
+                "summary": "Application readiness check",
+                "operationId": "getReadiness",
                 "responses": {
                     "200": json_response("Health"),
                     "503": json_response("Health"),
+                },
+            }
+        },
+        "/api/observability/frontend-errors": {
+            "post": {
+                "summary": "Record a coarse frontend failure classification",
+                "operationId": "recordFrontendError",
+                "requestBody": json_request("FrontendError"),
+                "responses": {
+                    "202": {"description": "Accepted"},
+                    "400": json_response("Error"),
+                    "413": json_response("Error"),
+                    "415": json_response("Error"),
+                    "429": json_response("Error"),
                 },
             }
         },
@@ -418,6 +439,8 @@ def spec() -> dict[str, Any]:
 
     public_paths = {
         "/api/health",
+        "/api/ready",
+        "/api/observability/frontend-errors",
         "/api/auth/login",
         "/api/auth/invitation/prepare",
         "/api/auth/invitation/activate",
@@ -457,6 +480,13 @@ def spec() -> dict[str, Any]:
                 "_links": link_map(),
             },
             required=("status", "version", "revision", "_links"),
+        ),
+        "FrontendError": object_schema(
+            {
+                "kind": {"type": "string", "enum": ["bootstrap", "http", "runtime"]},
+                "status": {"type": "integer", "minimum": 0, "maximum": 599},
+            },
+            required=("kind",),
         ),
         "Error": object_schema({"error": {"type": "string"}}, required=("error",)),
         "AuthTokenWrite": object_schema(
@@ -984,6 +1014,8 @@ def spec() -> dict[str, Any]:
 
     public_paths = {
         "/api/health",
+        "/api/ready",
+        "/api/observability/frontend-errors",
         "/api/auth/login",
         "/api/auth/invitation/prepare",
         "/api/auth/invitation/activate",

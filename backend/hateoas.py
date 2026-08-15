@@ -28,6 +28,7 @@ def api_root() -> dict[str, Any]:
         "_links": {
             "self": {"href": "/api"},
             "health": {"href": "/api/health"},
+            "readiness": {"href": "/api/ready"},
             "openapi": {"href": "/api/openapi.json"},
             "docs": {"href": "/api/docs"},
             "round-summary": {"href": "/api/round-summary?round_id=1"},
@@ -52,14 +53,16 @@ def api_root() -> dict[str, Any]:
     }
 
 
-def health(status: str) -> dict[str, Any]:
-    """Expose only public readiness, never persistence or domain details."""
+def health(status: str, signal: str = "health") -> dict[str, Any]:
+    """Expose one minimal public health signal without infrastructure details."""
+    if signal not in {"health", "ready"}:
+        raise ValueError("Unknown health signal")
     return {
         "status": status,
         "version": application_version(),
         "revision": build_revision(),
         "_links": {
-            "self": {"href": "/api/health"},
+            "self": {"href": f"/api/{signal}"},
         },
     }
 

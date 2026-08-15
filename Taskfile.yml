@@ -42,6 +42,7 @@ tasks:
       ASSIGNEES: '{{default "" .ASSIGNEES}}'
       MILESTONE: '{{default "" .MILESTONE}}'
       DRAFT: '{{default "false" .DRAFT}}'
+      LINK_MODE: '{{default "closes" .LINK_MODE}}'
     env:
       PR_ISSUE: '{{.ISSUE}}'
       PR_TITLE: '{{.TITLE}}'
@@ -49,11 +50,17 @@ tasks:
       PR_ASSIGNEES: '{{.ASSIGNEES}}'
       PR_MILESTONE: '{{.MILESTONE}}'
       PR_DRAFT: '{{.DRAFT}}'
+      PR_LINK_MODE: '{{.LINK_MODE}}'
     cmds:
       - |
         set -eu
         test -f "$PR_BODY_FILE" || { echo "BODY_FILE does not exist: $PR_BODY_FILE" >&2; exit 2; }
-        grep -Fqx "Closes #$PR_ISSUE" "$PR_BODY_FILE" || { echo "BODY_FILE must contain an exact 'Closes #$PR_ISSUE' line" >&2; exit 2; }
+        case "$PR_LINK_MODE" in
+          closes) link_line="Closes #$PR_ISSUE" ;;
+          tracks) link_line="Tracks #$PR_ISSUE" ;;
+          *) echo "LINK_MODE must be closes or tracks" >&2; exit 2 ;;
+        esac
+        grep -Fqx "$link_line" "$PR_BODY_FILE" || { echo "BODY_FILE must contain an exact '$link_line' line" >&2; exit 2; }
         set --
         if [ -n "$PR_ASSIGNEES" ]; then
           set -- "$@" --assignee "$PR_ASSIGNEES"

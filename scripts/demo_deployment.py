@@ -158,6 +158,10 @@ def deployment_body(
 
     app["image"] = pair.app_image
     seed["image"] = pair.seed_image
+    deployment_digest = _named_entry(
+        app.get("env"), "LZUG_DEPLOYMENT_DIGEST", "deployment digest environment variable"
+    )
+    deployment_digest["value"] = pair.app_image.rsplit("@", 1)[1]
     template["revisionSuffix"] = revision_suffix
     return {"properties": {"template": template}}, previous
 
@@ -192,6 +196,13 @@ def validate_health(payload: Any, pair: ArtifactPair) -> None:
         raise DeploymentError("Health endpoint did not report status=ok")
     if payload.get("revision") != pair.product_commit:
         raise DeploymentError("Health endpoint reported an unexpected product commit")
+
+
+def validate_application_readiness(payload: Any, pair: ArtifactPair) -> None:
+    if not isinstance(payload, dict) or payload.get("status") != "ready":
+        raise DeploymentError("Readiness endpoint did not report status=ready")
+    if payload.get("revision") != pair.product_commit:
+        raise DeploymentError("Readiness endpoint reported an unexpected product commit")
 
 
 def validate_demo_status(payload: Any, pair: ArtifactPair) -> None:
@@ -361,10 +372,27 @@ def wait_for_health(demo_url: str, pair: ArtifactPair, timeout_seconds: int) -> 
     raise DeploymentError(f"Health wait timed out: {last_error}")
 
 
+def wait_for_application_readiness(demo_url: str, pair: ArtifactPair, timeout_seconds: int) -> None:
+    root = validate_demo_url(demo_url)
+    deadline = time.monotonic() + timeout_seconds
+    last_error = "readiness endpoint was not requested"
+    while time.monotonic() < deadline:
+        try:
+            payload, _content_type = _http_get(urljoin(root, "api/ready"), expect_json=True)
+            validate_application_readiness(payload, pair)
+            return
+        except DeploymentError as error:
+            last_error = str(error)
+            time.sleep(10)
+    raise DeploymentError(f"Application readiness wait timed out: {last_error}")
+
+
 def smoke(demo_url: str, pair: ArtifactPair) -> None:
     root = validate_demo_url(demo_url)
     health, _ = _http_get(urljoin(root, "api/health"), expect_json=True)
     validate_health(health, pair)
+    readiness, _ = _http_get(urljoin(root, "api/ready"), expect_json=True)
+    validate_application_readiness(readiness, pair)
     status, _ = _http_get(urljoin(root, "api/demo/status"), expect_json=True)
     validate_demo_status(status, pair)
     authentication_error, content_type = _http_get(
@@ -451,6 +479,11 @@ def parse_args() -> argparse.Namespace:
     health.add_argument("--demo-url", required=True)
     health.add_argument("--timeout-seconds", type=int, default=600)
 
+    application_readiness = commands.add_parser("wait-application-readiness")
+    _add_pair(application_readiness)
+    application_readiness.add_argument("--demo-url", required=True)
+    application_readiness.add_argument("--timeout-seconds", type=int, default=600)
+
     smoke_parser = commands.add_parser("smoke")
     _add_pair(smoke_parser)
     smoke_parser.add_argument("--demo-url", required=True)
@@ -483,6 +516,10 @@ def main() -> None:
             print(json.dumps(observation, indent=2, sort_keys=True))
         elif args.command == "wait-health":
             wait_for_health(args.demo_url, _pair_from_args(args), args.timeout_seconds)
+        elif args.command == "wait-application-readiness":
+            wait_for_application_readiness(
+                args.demo_url, _pair_from_args(args), args.timeout_seconds
+            )
         elif args.command == "smoke":
             smoke(args.demo_url, _pair_from_args(args))
         else:

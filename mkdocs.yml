@@ -37,6 +37,7 @@ nav:
       - Dokumentation: developers/documentation.md
       - Continuous Integration: developers/continuous-integration.md
       - Azure-Demo-Deployment: developers/demo-deployment.md
+      - Demo-Beobachtbarkeit: developers/demo-observability.md
       - Dependabot-Aktualisierungen: developers/dependabot.md
       - Wiki-Publikation: developers/wiki-publishing.md
       - Architektur:

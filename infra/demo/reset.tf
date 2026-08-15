@@ -189,6 +189,28 @@ resource "azurerm_logic_app_action_custom" "check_demo_status" {
       uri    = "https://${azurerm_container_app.demo.ingress[0].fqdn}/api/demo/status"
     }
     runAfter = {
+      Check_readiness = ["Succeeded"]
+    }
+  })
+
+  depends_on = [azurerm_logic_app_action_custom.check_readiness]
+}
+
+resource "azurerm_logic_app_action_custom" "check_readiness" {
+  name         = "Check_readiness"
+  logic_app_id = azurerm_logic_app_workflow.demo_reset.id
+  body = jsonencode({
+    type = "Http"
+    inputs = {
+      method = "GET"
+      uri    = "https://${azurerm_container_app.demo.ingress[0].fqdn}/api/ready"
+      retryPolicy = {
+        type     = "fixed"
+        count    = 30
+        interval = "PT10S"
+      }
+    }
+    runAfter = {
       Check_health = ["Succeeded"]
     }
   })

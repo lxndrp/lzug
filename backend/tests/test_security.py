@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import io
+import json
 import unittest
 from contextlib import redirect_stdout
 from datetime import timedelta
 from http import HTTPStatus
 from unittest.mock import patch
 
-from backend.app import LzugHandler
+from backend.app import LzugHandler, ObservabilityHTTPServer
 from backend.security import RequestRateLimiter, RuntimeSecurityConfig
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler, assert_status
 
@@ -63,12 +64,28 @@ class RuntimeSecurityConfigurationTests(unittest.TestCase):
 
 
 class HttpSecurityTests(unittest.TestCase):
-    def test_only_health_and_required_auth_flows_are_public_api_boundaries(self) -> None:
+    def test_unhandled_server_errors_emit_no_exception_or_client_details(self) -> None:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ObservabilityHTTPServer.handle_error(None, object(), ("192.0.2.1", 1234))
+
+        event = json.loads(output.getvalue())
+        self.assertEqual("backend_error", event["event"])
+        self.assertEqual("unhandled_request", event["category"])
+        self.assertNotIn("192.0.2.1", output.getvalue())
+
+    def test_operational_signals_and_required_auth_flows_are_public_boundaries(
+        self,
+    ) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             status, health = api.request("GET", "/api/health", authenticated=False)
             assert_status(status, HTTPStatus.OK)
             self.assertEqual("ok", health["status"])
             self.assertNotIn("candidate", str(health).lower())
+
+            status, readiness = api.request("GET", "/api/ready", authenticated=False)
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("ready", readiness["status"])
 
             for path in ("/api", "/api/openapi.json", "/api/docs", "/api/candidates"):
                 with self.subTest(path=path):
@@ -211,9 +228,83 @@ class HttpSecurityTests(unittest.TestCase):
 
         assert_status(status, HTTPStatus.OK)
         logged = output.getvalue()
-        self.assertIn("method=GET path=/api/health status=200", logged)
+        entries = [json.loads(line) for line in logged.splitlines()]
+        self.assertIn(
+            {
+                "bytes": 0,
+                "deployment_digest": "unknown",
+                "event": "http_request",
+                "method": "GET",
+                "path": "/api/health",
+                "status": 200,
+            },
+            entries,
+        )
         self.assertNotIn(secret_marker, logged)
         self.assertNotIn("127.0.0.1", logged)
+
+    def test_frontend_error_signal_rejects_details_and_logs_only_classification(self) -> None:
+        output = io.StringIO()
+        with (
+            TempDatabase() as db_path,
+            redirect_stdout(output),
+            ApiServer(db_path, LoggingHandler) as api,
+        ):
+            status, _headers, body = api.request_raw(
+                "POST",
+                "/api/observability/frontend-errors",
+                {"kind": "http", "status": 503},
+                authenticated=False,
+                request_headers={
+                    "Origin": "http://127.0.0.1",
+                    "Sec-Fetch-Site": "same-origin",
+                },
+            )
+            assert_status(status, HTTPStatus.ACCEPTED)
+            self.assertEqual(b"{}", body.replace(b"\n", b"").replace(b" ", b""))
+
+            rejected, response = api.request(
+                "POST",
+                "/api/observability/frontend-errors",
+                {"kind": "runtime", "message": "person@example.invalid secret"},
+                authenticated=False,
+                request_headers={
+                    "Origin": "http://127.0.0.1",
+                    "Sec-Fetch-Site": "same-origin",
+                },
+            )
+
+        assert_status(rejected, HTTPStatus.BAD_REQUEST)
+        self.assertEqual("Invalid frontend error fields", response["error"])
+        logged = output.getvalue()
+        self.assertIn('"event":"frontend_error"', logged)
+        self.assertIn('"kind":"http"', logged)
+        self.assertNotIn("person@example.invalid", logged)
+        self.assertNotIn("secret", logged)
+
+    def test_frontend_error_signal_is_not_an_unbound_public_log_sink(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            for headers in (
+                {},
+                {"Origin": "http://127.0.0.1"},
+                {
+                    "Origin": "https://attacker.example.invalid",
+                    "Sec-Fetch-Site": "cross-site",
+                },
+            ):
+                with self.subTest(headers=headers):
+                    status, error = api.request(
+                        "POST",
+                        "/api/observability/frontend-errors",
+                        {"kind": "runtime"},
+                        authenticated=False,
+                        request_headers=headers,
+                    )
+                    assert_status(status, HTTPStatus.FORBIDDEN)
+                    self.assertIn(
+                        error["error"],
+                        {"Forbidden.", "Cross-origin request is not allowed."},
+                    )
 
 
 if __name__ == "__main__":

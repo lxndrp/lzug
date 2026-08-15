@@ -69,8 +69,10 @@ Der Lauf prüft und dokumentiert folgende getrennte Stufen:
 4. atomare Änderung beider Images im bestehenden ACA-Revisionstemplate,
 5. Azure-Readiness: `Succeeded`, neue erwartete Revision,
    `latestReadyRevisionName == latestRevisionName` und exakt beide Digests,
-6. davon getrennt HTTP-Health mit `status = ok` und erwartetem Produkt-Commit,
-7. Smoke gegen die unverändert öffentlichen Routen `/api/health`,
+6. davon getrennt HTTP-Liveness mit `status = ok` und erwartetem Produkt-Commit,
+7. davon getrennt Application-Readiness über `/api/ready` mit
+   `status = ready` und erwartetem Produkt-Commit,
+8. Smoke gegen die unverändert öffentlichen Routen `/api/health`, `/api/ready`,
    `/api/demo/status` und `/`, sowie gegen die geschützte Route
    `/api/openapi.json`. Der anonyme OpenAPI-Aufruf muss exakt `HTTP 401` mit
    der JSON-Antwort `{"error": "Authentication required."}` liefern.
@@ -117,6 +119,9 @@ task quality:demo-deployment
 
 Ein erfolgreicher lokaler Test ersetzt weder die geschützte Environment-
 Freigabe noch einen echten Deploymentlauf.
+
+Der Betriebs- und Alarmvertrag ist unter
+[Demo-Beobachtbarkeit](demo-observability.md) dokumentiert.
 
 ## Referenzen
 

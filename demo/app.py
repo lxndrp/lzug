@@ -8,6 +8,7 @@ from pathlib import Path
 
 from backend.app import LzugHandler
 from backend.app import main as product_main
+from backend.observability import emit_event
 
 from .artifacts import DemoArtifactError, validate_runtime_binding
 from .runtime_policy import DemoRuntimePolicy
@@ -25,13 +26,13 @@ def main() -> None:
         os.environ.get("LZUG_DEMO_APP_MANIFEST", "/app/demo-app-manifest.json")
     )
     try:
-        _app_manifest, seed_manifest = validate_runtime_binding(app_manifest_path, data_dir)
+        _app_manifest, _seed_manifest = validate_runtime_binding(app_manifest_path, data_dir)
         DemoHandler.runtime_policy = DemoRuntimePolicy(
             app_manifest_path, data_dir / "demo-seed-manifest.json"
         )
     except DemoArtifactError as error:
         raise SystemExit(f"Demo artifact validation failed: {error}") from error
-    print(f"demo seed revision: {seed_manifest['seed_revision']}")
+    emit_event("runtime", severity="info", signal="demo_seed_validated")
     product_main(DemoHandler)
 
 

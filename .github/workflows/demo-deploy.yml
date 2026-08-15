@@ -165,7 +165,18 @@ jobs:
             --schema-fingerprint "$SCHEMA_FINGERPRINT" \
             --seed-revision "$SEED_REVISION"
 
-      - name: Smoke-test health, demo API, protected OpenAPI, and the central frontend route
+      - name: Wait separately for application readiness
+        run: |
+          python3 scripts/demo_deployment.py wait-application-readiness \
+            --demo-url "$DEMO_URL" \
+            --app-image "$APP_IMAGE" \
+            --seed-image "$SEED_IMAGE" \
+            --product-tag "$PRODUCT_TAG" \
+            --product-commit "$PRODUCT_COMMIT" \
+            --schema-fingerprint "$SCHEMA_FINGERPRINT" \
+            --seed-revision "$SEED_REVISION"
+
+      - name: Smoke-test health, readiness, demo API, protected OpenAPI, and the central frontend route
         run: |
           python3 scripts/demo_deployment.py smoke \
             --demo-url "$DEMO_URL" \
@@ -193,7 +204,7 @@ jobs:
             echo "- Azure revision suffix: \`${{ steps.deployment.outputs.revision_suffix }}\`"
             echo "- Previous app digest: \`$previous_app\`"
             echo "- Previous seed digest: \`$previous_seed\`"
-            echo "- Azure readiness, HTTP health, demo API, protected OpenAPI authentication boundary, and frontend checks passed."
+            echo "- Azure readiness, HTTP liveness, application readiness, demo API, protected OpenAPI authentication boundary, and frontend checks passed."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Explain failure and collect non-sensitive diagnostics

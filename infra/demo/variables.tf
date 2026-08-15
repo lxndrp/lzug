@@ -89,6 +89,78 @@ variable "budget_amount_eur" {
   }
 }
 
+variable "log_retention_days" {
+  description = "Bounded Log Analytics retention for demo operational data."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.log_retention_days >= 30 && var.log_retention_days <= 90
+    error_message = "log_retention_days must remain between 30 and 90 days."
+  }
+}
+
+variable "log_daily_quota_gb" {
+  description = "Hard daily Log Analytics ingestion cap for the small public demo."
+  type        = number
+  default     = 0.5
+
+  validation {
+    condition     = var.log_daily_quota_gb >= 0.1 && var.log_daily_quota_gb <= 1
+    error_message = "log_daily_quota_gb must remain between 0.1 and 1 GB."
+  }
+}
+
+variable "application_insights_daily_cap_gb" {
+  description = "Daily cap for external availability telemetry when monitoring is activated."
+  type        = number
+  default     = 0.1
+
+  validation {
+    condition     = var.application_insights_daily_cap_gb >= 0.1 && var.application_insights_daily_cap_gb <= 0.5
+    error_message = "application_insights_daily_cap_gb must remain between 0.1 and 0.5 GB."
+  }
+}
+
+variable "external_monitoring_enabled" {
+  description = "Fail-closed gate for the #127-dependent external availability tests and alerts."
+  type        = bool
+  default     = false
+}
+
+variable "landingpage_url" {
+  description = "Public #127 landing page HTTPS URL without credentials, query, or fragment."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !var.external_monitoring_enabled || can(regex("^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[^?#]*)?$", var.landingpage_url))
+    error_message = "landingpage_url must be an HTTPS URL when external monitoring is enabled."
+  }
+}
+
+variable "uptime_frequency_seconds" {
+  description = "Low-volume interval for both external availability tests."
+  type        = number
+  default     = 300
+
+  validation {
+    condition     = contains([300, 600, 900], var.uptime_frequency_seconds)
+    error_message = "uptime_frequency_seconds must be 300, 600, or 900."
+  }
+}
+
+variable "uptime_geo_locations" {
+  description = "Small explicit set of Azure availability-test locations."
+  type        = list(string)
+  default     = ["emea-nl-ams-azr", "emea-gb-db3-azr"]
+
+  validation {
+    condition     = length(var.uptime_geo_locations) >= 1 && length(var.uptime_geo_locations) <= 3
+    error_message = "uptime_geo_locations must contain one to three locations."
+  }
+}
+
 variable "budget_contact_emails" {
   description = "Maintainer addresses that receive actual and forecast budget alerts."
   type        = list(string)

@@ -79,6 +79,19 @@ class PullRequestCreationTaskTests(unittest.TestCase):
         self.assertIn("BODY_FILE must contain an exact 'Closes #329' line", result.stderr)
         self.assertFalse(self.arguments_file.exists())
 
+    def test_accepts_exact_tracking_reference_for_external_activation_gates(self) -> None:
+        result = self.run_task("## Summary\n\nTracks #329\n", "LINK_MODE=tracks")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(self.arguments_file.exists())
+
+    def test_tracking_mode_rejects_a_closing_reference(self) -> None:
+        result = self.run_task("## Summary\n\nCloses #329\n", "LINK_MODE=tracks")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("BODY_FILE must contain an exact 'Tracks #329' line", result.stderr)
+        self.assertFalse(self.arguments_file.exists())
+
     def test_omits_issue_metadata_that_is_not_set(self) -> None:
         result = self.run_task("## Summary\n\nCloses #329\n")
 

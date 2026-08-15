@@ -38,10 +38,13 @@ freigegebenen `tofu apply` keine Cloudänderung aus.
   `containerApps/stop/action` und `containerApps/start/action`; die Zuweisung
   gilt nur für diese eine Container App. Es existieren weder Controller-Image
   noch Azure-Client-Secret.
-- Log Analytics bewahrt Logs 30 Tage auf und begrenzt die tägliche Aufnahme
-  auf 0,5 GB. Ein monatliches Resource-Group-Budget meldet 80 Prozent der
-  tatsächlichen Kosten und 100 Prozent der prognostizierten Kosten. Azure
-  Budgets alarmieren; sie stoppen Ressourcen nicht automatisch.
+- Log Analytics bewahrt Logs standardmäßig 30 Tage auf und begrenzt die
+  tägliche Aufnahme auf 0,5 GB. Strukturierte Frontend-/Backendfehler,
+  Uptime-Tests, dieselbe testbare Action Group und der detaillierte
+  Aktivierungsvertrag sind unter
+  [Demo-Beobachtbarkeit](../../docs/developers/demo-observability.md)
+  dokumentiert. Das Budget meldet 80 Prozent der tatsächlichen und 100 Prozent
+  der prognostizierten Kosten; es stoppt Ressourcen nicht automatisch.
 - Das GitHub Environment erlaubt Deployments nur von geschützten Branches,
   verhindert Selbstfreigaben und Admin-Bypass. Erforderliche Reviewer werden
   nicht geraten: Sie müssen nach Maintainer-Entscheidung ergänzt werden.
@@ -92,8 +95,9 @@ task quality:infra
 
 Der Test prüft Region, Single Revision und Skalierung, beide Digests, Init-
 Container, das einzige `EmptyDir` unter `/data`, Berliner Zeit, Managed
-Identity, die drei RBAC-Aktionen, Stop-/Start-Reihenfolge, Health-/Statusprüfung,
-letzten Reset, Rollback-Output, Budget und GitHub Environment. Ein eigener
+Identity, die drei RBAC-Aktionen, Stop-/Start-Reihenfolge, getrennte
+Liveness-/Readiness-/Statusprüfung, letzten Reset, Rollback-Output, Budget,
+Loggrenzen, Uptime-Alarme und GitHub Environment. Ein eigener
 Negativtest verwirft bewegliche Demo-Tags. Das ersetzt keinen authentifizierten
 Azure-Plan.
 
@@ -114,6 +118,7 @@ tofu show demo.tfplan
 tofu apply demo.tfplan
 tofu output demo_url
 tofu output health_endpoint
+tofu output readiness_endpoint
 tofu output demo_status_endpoint
 tofu output -json deployment
 ```
@@ -134,7 +139,8 @@ endet erst, wenn alle folgenden Signale erfolgreich sind:
 1. Stop-Request mit Managed Identity und Zustand `Stopped`,
 2. Start derselben unveränderten Single Revision und Zustand `Running`,
 3. erfolgreicher `GET /api/health`,
-4. erfolgreicher `GET /api/demo/status` mit `initialized = true`, Status
+4. erfolgreicher `GET /api/ready`,
+5. erfolgreicher `GET /api/demo/status` mit `initialized = true`, Status
    `ready`, erwarteter Seed-Revision, `Europe/Berlin` und einem höchstens
    15 Minuten alten `last_reset_at`.
 
