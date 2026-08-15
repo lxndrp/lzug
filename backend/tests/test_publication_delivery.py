@@ -43,7 +43,9 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn('credentials: "omit"', script)
         self.assertIn('referrerPolicy: "no-referrer"', script)
         self.assertIn('redirect: "error"', script)
-        self.assertIn("`${demoUrl}/api/health`", script)
+        self.assertIn("`${demoUrl}/api/ready`", script)
+        self.assertNotIn("`${demoUrl}/api/health`", script)
+        self.assertIn('payload.status === "ready"', script)
         self.assertIn('button.textContent = "Erneut versuchen"', script)
         self.assertIn(
             "chromiumSandbox: true", (ROOT / "scripts/check_publication_spike.mjs").read_text()

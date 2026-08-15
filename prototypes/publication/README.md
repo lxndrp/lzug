@@ -30,9 +30,9 @@ Lockdatei in dieses Repository. Die Ausgabe unter
 Suchindex und `quellen.json` mit Hauptrepository-, Wiki- und Theme-Revision.
 `docs:publication-spike:check` baut zweimal und vergleicht alle Ausgabedateien
 bytegenau. Das kleine repository-eigene Root-Layout enthält den Produkt- und
-Demo-Einstieg. Der Warm-up ruft ausschließlich `/api/health` ohne Cookies oder
+Demo-Einstieg. Der Warm-up ruft ausschließlich `/api/ready` ohne Cookies oder
 Referrer auf, wartet höchstens 90 Sekunden in zwölf begrenzten Versuchen und
-leitet erst bei `status=ok` weiter. Danach bietet dieselbe primäre Aktion einen
+leitet erst bei `status=ready` weiter. Danach bietet dieselbe primäre Aktion einen
 neuen Versuch an.
 
 Der Workflow `Public site` baut bei Pull Requests und Pushes auf `master` nur

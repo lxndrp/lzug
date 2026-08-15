@@ -190,17 +190,17 @@ try {
   const warmup = await warmupContext.newPage();
   warmup.setDefaultTimeout(10_000);
   warmup.setDefaultNavigationTimeout(15_000);
-  let healthRequests = 0;
+  let readinessRequests = 0;
   await warmup.route(
-    "https://demo.example.invalid/api/health",
+    "https://demo.example.invalid/api/ready",
     async (route) => {
-      healthRequests += 1;
+      readinessRequests += 1;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          status: "ok",
-          _links: { self: { href: "/api/health" } },
+          status: "ready",
+          _links: { self: { href: "/api/ready" } },
         }),
       });
     },
@@ -213,9 +213,9 @@ try {
     .getByRole("button", { name: "Demo starten" })
     .click({ noWaitAfter: true });
   await warmup.waitForURL("https://demo.example.invalid/");
-  if (healthRequests !== 1)
+  if (readinessRequests !== 1)
     throw new Error(
-      `warm-up used ${healthRequests} health requests before success`,
+      `warm-up used ${readinessRequests} readiness requests before success`,
     );
   await warmupContext.close();
 
@@ -224,7 +224,7 @@ try {
   });
   const failure = await failureContext.newPage();
   failure.setDefaultTimeout(10_000);
-  await failure.route("https://demo.example.invalid/api/health", (route) =>
+  await failure.route("https://demo.example.invalid/api/ready", (route) =>
     route.fulfill({
       status: 503,
       contentType: "application/json",

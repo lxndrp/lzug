@@ -73,7 +73,7 @@ variable "container_environment" {
 }
 
 variable "landingpage_origin" {
-  description = "Exact HTTPS origin allowed to call the public health endpoint from the static landing page."
+  description = "Exact HTTPS origin allowed to call the public readiness endpoint from the static landing page."
   type        = string
   default     = "https://lxndrp.github.io"
 

@@ -215,7 +215,7 @@ Der Build pinnt Hugo Extended 0.165.0 und Relearn-Commit
 `8bb66fa674351f3a0b0917a7552caac686eca920`. Er nutzt echte Generatorgrenzen,
 aktiviert aber keine Pages-, Netlify- oder Read-the-Docs-Ressource. Der
 Produkt- und Demo-Einstieg bindet die Demo-URL beim Build, erklärt den
-Scale-to-zero-Kaltstart und verwendet einen begrenzten Health-Warm-up. Der
+Scale-to-zero-Kaltstart und verwendet einen begrenzten Readiness-Warm-up. Der
 Browsercheck prüft Desktop und Mobil in hellem und dunklem Farbschema,
 Landmarks, Überlauf, blockierende axe-Befunde sowie die erfolgreiche
-Health-Weiterleitung.
+Readiness-Weiterleitung.

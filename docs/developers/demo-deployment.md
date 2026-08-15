@@ -38,7 +38,7 @@ bereit:
 | `DEMO_URL` | öffentlicher HTTPS-Origin ohne Pfad, beispielsweise `https://demo.example.org` |
 
 Die statische Site bindet dieselbe öffentliche Demo-URL in ihr geprüftes
-Artefakt. Die Container App erlaubt für den Health-Warm-up über
+Artefakt. Die Container App erlaubt für den Readiness-Warm-up über
 `LZUG_CORS_ALLOWED_ORIGINS` ausschließlich die deklarierte
 `landingpage_origin`; standardmäßig ist dies `https://lxndrp.github.io`.
 

@@ -24,14 +24,14 @@
   const delay = (milliseconds) =>
     new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 
-  const checkHealth = async () => {
+  const checkReadiness = async () => {
     const controller = new AbortController();
     const requestTimeout = window.setTimeout(
       () => controller.abort(),
       requestTimeoutMs,
     );
     try {
-      const response = await fetch(`${demoUrl}/api/health`, {
+      const response = await fetch(`${demoUrl}/api/ready`, {
         method: "GET",
         mode: "cors",
         credentials: "omit",
@@ -49,7 +49,7 @@
       return (
         payload !== null &&
         typeof payload === "object" &&
-        payload.status === "ok"
+        payload.status === "ready"
       );
     } catch {
       return false;
@@ -81,7 +81,7 @@
       attempt <= maximumAttempts && Date.now() < deadline;
       attempt += 1
     ) {
-      if (await checkHealth()) {
+      if (await checkReadiness()) {
         show("Demo ist bereit", "Weiterleitung …");
         window.location.assign(`${demoUrl}/`);
         return;
