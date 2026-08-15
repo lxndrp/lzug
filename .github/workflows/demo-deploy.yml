@@ -19,7 +19,7 @@ on:
         required: true
         type: string
       product_tag:
-        description: Product tag shared by the verified pair, for example v0.1.1
+        description: Release or snapshot source tag shared by the verified pair
         required: true
         type: string
       product_commit:
@@ -50,6 +50,7 @@ jobs:
       name: demo
       url: ${{ vars.DEMO_URL }}
     permissions:
+      attestations: read
       contents: read
       id-token: write
       packages: read
@@ -99,15 +100,27 @@ jobs:
       - name: Verify provenance and SBOM attestations for both selected digests
         run: |
           set -euo pipefail
+          case "$PRODUCT_TAG" in
+            demo/*-SNAPSHOT.*)
+              signer_workflow=lxndrp/lzug/.github/workflows/demo-snapshot.yml
+              ;;
+            v*)
+              signer_workflow=lxndrp/lzug/.github/workflows/demo-publish.yml
+              ;;
+            *)
+              echo "Unsupported demo artifact source tag." >&2
+              exit 1
+              ;;
+          esac
           for image in "$APP_IMAGE" "$SEED_IMAGE"; do
             gh attestation verify "oci://$image" \
               --repo "$GITHUB_REPOSITORY" \
-              --signer-workflow lxndrp/lzug/.github/workflows/demo-publish.yml \
+              --signer-workflow "$signer_workflow" \
               --bundle-from-oci \
               --predicate-type https://slsa.dev/provenance/v1
             gh attestation verify "oci://$image" \
               --repo "$GITHUB_REPOSITORY" \
-              --signer-workflow lxndrp/lzug/.github/workflows/demo-publish.yml \
+              --signer-workflow "$signer_workflow" \
               --bundle-from-oci \
               --predicate-type https://cyclonedx.org/bom
           done
@@ -197,7 +210,7 @@ jobs:
             echo "- URL: $DEMO_URL"
             echo "- App: \`$APP_IMAGE\`"
             echo "- Seed: \`$SEED_IMAGE\`"
-            echo "- Product tag: \`$PRODUCT_TAG\`"
+            echo "- Demo source tag: \`$PRODUCT_TAG\`"
             echo "- Product commit: \`$PRODUCT_COMMIT\`"
             echo "- Schema fingerprint: \`$SCHEMA_FINGERPRINT\`"
             echo "- Seed revision: \`$SEED_REVISION\`"

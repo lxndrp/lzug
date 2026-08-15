@@ -16,6 +16,13 @@ Project-Felder bleiben Planungsdaten; sie sind keine Eingaben des
 Release-Workflows. Der annotierte Git-Tag ist die einzige technische Identität
 eines Releases.
 
+Der getrennte
+[Demo-Snapshot-Kanal](decisions/0024-manuell-promotete-demo-snapshots.md)
+verwendet ausschließlich `demo/...-SNAPSHOT.<kurze SHA>`-Tags. Diese Tags sind
+keine Produkt-Releases: Sie erzeugen weder GitHub Release, Produktimage noch
+Betreiber-CLI oder Self-Hosting-Artefakte und ändern den folgenden
+SemVer-Vertrag nicht.
+
 Ein normaler Commit, Branch-Build oder Pull Request verwendet die
 Entwicklungsidentität `0.0.0-dev+sha.<40-stellige Commit-SHA>`. Ein Release
 verwendet ausschließlich einen annotierten Tag der Form `vMAJOR.MINOR.PATCH`

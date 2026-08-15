@@ -21,6 +21,21 @@ atomar `demo-runtime-status.json` mit Seed-Revision, `initialized_at` und
 `last_reset_at`. Ein fehlender, ungültiger oder zu einem anderen Seed gehöriger
 Statusmarker verhindert den App-Start.
 
+Die Assembly akzeptiert zwei strikt getrennte Identitätskanäle:
+
+- Der bestehende releasegebundene Kanal baut aus einem veröffentlichten
+  SemVer-Produkt-Tag.
+- Der Snapshot-Kanal baut ausschließlich aus einem annotierten Tag der Form
+  `demo/vMAJOR.MINOR.PATCH-SNAPSHOT.<kurze SHA>`. Seine sichtbare Identität ist
+  beispielsweise `v0.2.0-SNAPSHOT@16a87c5`, sein Metadatenfeld `release`
+  bleibt `false`, und er ist weder Produkt-Release noch Self-Hosting-Artefakt.
+
+App- und Seed-Manifest binden in beiden Kanälen denselben Kanal, Tag,
+Zielversion, sichtbare Identität, vollständigen Commit und Schemafingerprint.
+Der Seed ergänzt seine inhaltsadressierte Revision. Die Promotion- und
+Deploymentgrenzen des Snapshot-Kanals beschreibt
+[ADR-0024](../decisions/0024-manuell-promotete-demo-snapshots.md).
+
 Lokale Entwicklung darf einen expliziten Test-Tag verwenden:
 
 ```bash

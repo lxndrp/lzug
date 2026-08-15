@@ -11,6 +11,9 @@ COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 SEMVER_TAG = re.compile(
     r"^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)" r"(?:-rc\.(0|[1-9][0-9]*))?$"
 )
+DEMO_SNAPSHOT_TAG = re.compile(
+    r"^demo/(v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))" r"-SNAPSHOT\.([0-9a-f]{7})$"
+)
 
 
 @dataclass(frozen=True)
@@ -23,7 +26,13 @@ class BuildMetadata:
     tag: str | None
 
     @classmethod
-    def create(cls, revision: str, tag: str | None = None) -> BuildMetadata:
+    def create(
+        cls,
+        revision: str,
+        tag: str | None = None,
+        *,
+        allow_demo_snapshot: bool = False,
+    ) -> BuildMetadata:
         """Create validated metadata for a development or tagged release build."""
 
         if COMMIT_SHA.fullmatch(revision) is None:
@@ -34,6 +43,20 @@ class BuildMetadata:
                 revision=revision,
                 release=False,
                 tag=None,
+            )
+
+        snapshot = DEMO_SNAPSHOT_TAG.fullmatch(tag)
+        if snapshot is not None:
+            if not allow_demo_snapshot:
+                raise ValueError("demo snapshot tags are reserved for the demo assembly")
+            short_revision = snapshot.group(5)
+            if not revision.startswith(short_revision):
+                raise ValueError("demo snapshot tag revision does not match the built commit")
+            return cls(
+                identity=f"{snapshot.group(1)}-SNAPSHOT@{short_revision}",
+                revision=revision,
+                release=False,
+                tag=tag,
             )
 
         match = SEMVER_TAG.fullmatch(tag)
@@ -57,7 +80,14 @@ class BuildMetadata:
             raise ValueError("build metadata release must be a boolean")
         if value["tag"] is not None and not isinstance(value["tag"], str):
             raise ValueError("build metadata tag must be a string or null")
-        expected = cls.create(value["revision"], value["tag"])
+        expected = cls.create(
+            value["revision"],
+            value["tag"],
+            allow_demo_snapshot=(
+                isinstance(value["tag"], str)
+                and DEMO_SNAPSHOT_TAG.fullmatch(value["tag"]) is not None
+            ),
+        )
         if value["identity"] != expected.identity or value["release"] != expected.release:
             raise ValueError("build metadata fields do not describe one canonical identity")
         return expected

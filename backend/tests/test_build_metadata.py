@@ -36,6 +36,22 @@ class BuildMetadataTests(unittest.TestCase):
             with self.subTest(tag=tag), self.assertRaises(ValueError):
                 BuildMetadata.create("a" * 40, tag)
 
+    def test_demo_snapshot_is_non_release_and_requires_explicit_opt_in(self) -> None:
+        revision = "abcdef0123456789abcdef0123456789abcdef01"
+        tag = "demo/v0.2.0-SNAPSHOT.abcdef0"
+        with self.assertRaisesRegex(ValueError, "reserved for the demo assembly"):
+            BuildMetadata.create(revision, tag)
+
+        metadata = BuildMetadata.create(revision, tag, allow_demo_snapshot=True)
+
+        self.assertEqual("v0.2.0-SNAPSHOT@abcdef0", metadata.identity)
+        self.assertFalse(metadata.release)
+        self.assertEqual(tag, metadata.tag)
+        self.assertEqual(metadata, BuildMetadata.from_json(metadata.to_json()))
+
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            BuildMetadata.create("0" * 40, tag, allow_demo_snapshot=True)
+
     def test_json_is_reproducible_and_rejects_inconsistent_identity(self) -> None:
         metadata = BuildMetadata.create("c" * 40)
         with tempfile.TemporaryDirectory() as directory:

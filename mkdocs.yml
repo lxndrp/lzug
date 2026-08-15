@@ -81,4 +81,5 @@ nav:
           - ADR-0021 GoReleaser für Betreiber-CLI: developers/decisions/0021-goreleaser-fuer-die-betreiber-cli.md
           - ADR-0022 Tag-gebundene Demo-Assembly: developers/decisions/0022-tag-gebundene-demo-assembly-und-seed.md
           - ADR-0023 Öffentliche Publikationsarchitektur: developers/decisions/0023-oeffentliche-web-und-dokumentationspublikation.md
+          - ADR-0024 Manuell promotete Demo-Snapshots: developers/decisions/0024-manuell-promotete-demo-snapshots.md
       - Öffentliche Publikationsarchitektur: developers/publication-architecture.md

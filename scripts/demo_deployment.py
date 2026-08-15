@@ -17,12 +17,14 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlsplit
 from urllib.request import Request, urlopen
 
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from demo.identity import DemoIdentity  # noqa: E402
+
 API_VERSION = "2025-07-01"
 APP_IMAGE_PATTERN = re.compile(r"^ghcr\.io/lxndrp/lzug-demo-app@sha256:[0-9a-f]{64}$")
 SEED_IMAGE_PATTERN = re.compile(r"^ghcr\.io/lxndrp/lzug-demo-seed@sha256:[0-9a-f]{64}$")
-PRODUCT_TAG_PATTERN = re.compile(
-    r"^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)" r"(?:-rc\.(0|[1-9][0-9]*))?$"
-)
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 DIGEST_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 AZURE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.()-]{0,89}$")
@@ -46,7 +48,6 @@ class ArtifactPair:
         checks = (
             (APP_IMAGE_PATTERN, self.app_image, "app_image"),
             (SEED_IMAGE_PATTERN, self.seed_image, "seed_image"),
-            (PRODUCT_TAG_PATTERN, self.product_tag, "product_tag"),
             (COMMIT_PATTERN, self.product_commit, "product_commit"),
             (DIGEST_PATTERN, self.schema_fingerprint, "schema_fingerprint"),
             (DIGEST_PATTERN, self.seed_revision, "seed_revision"),
@@ -54,6 +55,10 @@ class ArtifactPair:
         for pattern, value, label in checks:
             if pattern.fullmatch(value) is None:
                 raise DeploymentError(f"Invalid immutable demo pair field: {label}")
+        try:
+            DemoIdentity.create(self.product_tag, self.product_commit)
+        except ValueError as error:
+            raise DeploymentError("Invalid immutable demo pair field: product_tag") from error
 
 
 @dataclass(frozen=True)
@@ -207,7 +212,7 @@ def validate_application_readiness(payload: Any, pair: ArtifactPair) -> None:
 
 def validate_demo_status(payload: Any, pair: ArtifactPair) -> None:
     expected = {
-        "product_version": pair.product_tag.removeprefix("v"),
+        "product_version": DemoIdentity.create(pair.product_tag, pair.product_commit).identity,
         "product_commit": pair.product_commit,
         "schema_fingerprint": pair.schema_fingerprint,
         "seed_revision": pair.seed_revision,
