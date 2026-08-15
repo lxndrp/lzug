@@ -1,0 +1,87 @@
+# ADR-0024: Manuell promotete Demo-Snapshots
+
+## Status
+
+Akzeptiert am 15.08.2026. Erweitert
+[ADR-0022](0022-tag-gebundene-demo-assembly-und-seed.md), ohne den
+Produkt-Releasevertrag aus
+[ADR-0020](0020-minimaler-releaseablauf-mit-github-bordmitteln.md) zu ändern.
+
+## Kontext
+
+Die öffentliche Demo soll einen aktuellen, vollständig geprüften Stand von
+`master` zeigen können, ohne dafür einen künstlichen Produkt-Patch-Release zu
+erzeugen. Ein normaler Branch-, Pull-Request- oder Testlauf darf weder
+veröffentlichen noch deployen. Gleichzeitig dürfen Build, Seed, Nachweise und
+Azure-Revision nicht aus dem veränderlichen Inhalt eines Milestones abgeleitet
+werden.
+
+## Entscheidung
+
+Ein Maintainer setzt bewusst einen neuen annotierten Tag im engen Namespace
+`demo/vMAJOR.MINOR.PATCH-SNAPSHOT.<7-stellige Commit-SHA>`. Dieser Tag-Push ist
+die einzige manuelle Promotion. Er startet genau den Workflow
+`.github/workflows/demo-snapshot.yml`; der Workflow erzeugt, verschiebt oder
+ersetzt den Tag nicht und besitzt keinen manuellen Dispatch.
+
+Der Preflight akzeptiert ausschließlich einen neu erzeugten annotierten Tag,
+der auf die zum Prüfzeitpunkt aktuelle `master`-SHA zeigt. Der SHA-Suffix muss
+mit dem vollständigen Commit übereinstimmen. Für genau diese SHA muss ein
+vollständig erfolgreicher `Quality`-Lauf aus einem `master`-Push existieren.
+Die Zielversion muss einen einzelnen offenen Release-Milestone mit zukünftigem
+Fälligkeitsdatum bezeichnen, neuer als der letzte stabile Release sein und darf
+weder als Produkt-Tag noch als Produkt-Release existieren. Der Milestone ist
+damit nur eine semantische Zulässigkeitsprüfung; Tag und Commit bleiben die
+einzigen Build-Eingaben.
+
+Die sichtbare Identität lautet
+`vMAJOR.MINOR.PATCH-SNAPSHOT@<kurze SHA>`. Der OCI-Tag ersetzt `@` durch eine
+registry-taugliche Form und ist nur ein unveränderlicher Publikationsname;
+Deployment und Nachweise verwenden ausschließlich die kanonischen App- und
+Seed-Digests. Beide Images werden aus dem getaggten Stand gebaut, tragen in
+ihren Manifesten übereinstimmend Kanal, Zielversion, Snapshot-Identität, Tag,
+vollständige SHA und Schemafingerprint und erhalten jeweils eine eigene
+CycloneDX-SBOM sowie Provenance-Attestation. Der Seed bindet zusätzlich seine
+inhaltsadressierte Revision.
+
+Nach erfolgreicher Attestierung deployt derselbe Lauf das vollständige
+Digestpaar per bestehender GitHub-OIDC-Identität in das Environment `demo`.
+Nach dem autorisierten Tag-Push gibt es keinen weiteren manuellen Dispatch und
+kein Required-Reviewer-Gate. Atomare Azure-Revision, Readiness, Liveness,
+Anwendungs-Readiness und der vollständige Smoke-Vertrag bleiben unverändert.
+Ein Rückfall verwendet weiterhin ausschließlich ein früheres, vollständig
+geprüftes Digestpaar über den bestehenden manuellen Rollback-Pfad.
+
+Das bestehende Environment verwendet dafür ausgewählte Branch-/Tag-Regeln:
+`master` bleibt für den manuellen Release-/Rollback-Pfad erlaubt,
+`demo/*-SNAPSHOT.*` ausschließlich für die Snapshot-Tags. Der Preflight prüft
+diese Regeln und die Abwesenheit eines Required Reviewers, bevor er OCI-
+Referenzen belegt.
+
+Der reguläre releasegebundene Demo-Publish bleibt erhalten. Er akzeptiert nur
+veröffentlichte SemVer-Produkt-Releases und nutzt weiterhin sein eigenes
+`release`-Gate. Snapshot-Tags erzeugen weder Produktimage noch Betreiber-CLI,
+GitHub Release oder Self-Hosting-Artefakt. Ein späterer Nightly-Kanal benötigt
+einen anderen Namen, einen zeitgesteuerten Auslöser und eine eigene
+Entscheidung.
+
+## Fehler- und Wiederanlaufvertrag
+
+Nicht-`master`- oder überholte SHAs, unvollständige Quality-Evidenz,
+ungeeignete Milestones und Zielversionen, bewegte Tags sowie bereits belegte
+OCI-Referenzen brechen vor dem jeweils nächsten irreversiblen Schritt ab.
+Snapshot-Tags und OCI-Tags werden nie repariert oder wiederverwendet. Scheitert
+ein Lauf nach einer Teilpublikation, ist der Lauf kein Deploymentnachweis; ein
+neuer Snapshot benötigt einen neuen aktuellen `master`-Commit und einen neuen
+Tag. Scheitert Azure nach der atomaren Revisionserzeugung, dokumentiert der
+Lauf das vorherige Paar für den vorhandenen kontrollierten Rollback.
+
+Reine Test-, Assertion-, Branch- oder Pull-Request-Änderungen lösen den
+Snapshotpfad nicht aus. Auch ein Merge auf `master` genügt nicht: Ohne den
+bewussten annotierten Tag-Push erfolgen weder Publish noch Deployment.
+
+## Referenzen
+
+- [Demo-Runtime-Vertrag](../architecture/demo-runtime.md)
+- [Azure-Demo-Deployment](../demo-deployment.md)
+- [Issue #380](https://github.com/lxndrp/lzug/issues/380)

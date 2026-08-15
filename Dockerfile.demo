@@ -8,14 +8,14 @@ ARG VCS_REF
 WORKDIR /src
 COPY backend/__init__.py backend/build_metadata.py ./backend/
 COPY scripts/__init__.py scripts/build_metadata.py ./scripts/
-COPY demo/__init__.py demo/artifacts.py ./demo/
+COPY demo/__init__.py demo/artifacts.py demo/identity.py ./demo/
 COPY db ./db
 RUN set -eu; \
     test -n "$BUILD_IDENTITY"; \
     test -n "$PRODUCT_TAG"; \
     test -n "$VCS_REF"; \
     BUILD_REVISION="$VCS_REF" BUILD_RELEASE_TAG="$PRODUCT_TAG" python -c \
-      'import os; from pathlib import Path; from backend.build_metadata import BuildMetadata; BuildMetadata.create(os.environ["BUILD_REVISION"], os.environ["BUILD_RELEASE_TAG"]).write(Path("/build-metadata.json"))'; \
+      'import os; from pathlib import Path; from backend.build_metadata import BuildMetadata; BuildMetadata.create(os.environ["BUILD_REVISION"], os.environ["BUILD_RELEASE_TAG"], allow_demo_snapshot=True).write(Path("/build-metadata.json"))'; \
     test "$(python -c 'from pathlib import Path; from backend.build_metadata import BuildMetadata; print(BuildMetadata.read(Path("/build-metadata.json")).identity)')" = "$BUILD_IDENTITY"; \
     python -m demo.artifacts build-app-manifest --source-root /src \
       --output /demo-app-manifest.json --product-tag "$PRODUCT_TAG" \
@@ -80,7 +80,7 @@ COPY --chown=10001:10001 \
     backend/healthcheck.py backend/holiday_provider.py backend/local_auth.py backend/models.py \
     backend/observability.py backend/openapi.py backend/planning.py backend/repositories.py backend/runtime_policy.py backend/security.py backend/store.py backend/version.py \
     ./backend/
-COPY --chown=10001:10001 demo/__init__.py demo/app.py demo/artifacts.py demo/runtime_policy.py ./demo/
+COPY --chown=10001:10001 demo/__init__.py demo/app.py demo/artifacts.py demo/identity.py demo/runtime_policy.py ./demo/
 COPY --chown=10001:10001 db/schema.sql ./db/schema.sql
 COPY --chown=10001:10001 db/migrations ./db/migrations
 COPY --from=frontend-build --chown=10001:10001 /src/frontend/dist/frontend/browser ./frontend

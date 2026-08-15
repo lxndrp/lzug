@@ -210,9 +210,13 @@ tasks:
       - tofu test
 
   quality:demo-deployment:
-    desc: Validate the secret-free OIDC demo deployment and smoke-test contract
+    desc: Validate release and snapshot demo promotion, OIDC deployment, and smoke contracts
     cmds:
-      - '{{.UV}} python -m unittest backend.tests.test_demo_deployment'
+      - >-
+        {{.UV}} python -m unittest
+        backend.tests.test_demo_deployment
+        backend.tests.test_demo_snapshot
+        backend.tests.test_demo_delivery_contract
 
   quality:sbom:
     desc: Generate and validate the canonical dependency SBOM
@@ -302,7 +306,7 @@ tasks:
         . scripts/container-contract.sh
         lzug_require_container_engine
         revision="$(git rev-parse HEAD)"
-        product_tag="v0.1.1"
+        short_revision="$(echo "$revision" | cut -c1-7)"
         temporary_directory="$(mktemp -d)"
         seed_container=""
         cleanup() {
@@ -312,42 +316,50 @@ tasks:
           rm -rf "$temporary_directory"
         }
         trap cleanup EXIT
-        build_identity="$(PRODUCT_TAG="$product_tag" PRODUCT_COMMIT="$revision" python3 -c \
-          'import os; from backend.build_metadata import BuildMetadata; print(BuildMetadata.create(os.environ["PRODUCT_COMMIT"], os.environ["PRODUCT_TAG"]).identity)')"
-        "$engine" build -f Dockerfile.demo-seed \
-          --build-arg "PRODUCT_TAG=$product_tag" \
-          --build-arg "VCS_REF=$revision" \
-          -t lzug-demo-seed:0.1.1-local .
-        seed_container=$("$engine" create lzug-demo-seed:0.1.1-local)
-        "$engine" cp \
-          "$seed_container:/opt/lzug-demo/seed/lzug.sqlite" \
-          "$temporary_directory/lzug.sqlite"
-        "$engine" cp \
-          "$seed_container:/opt/lzug-demo/seed/manifest.json" \
-          "$temporary_directory/manifest.json"
-        "$engine" rm "$seed_container" >/dev/null
-        seed_container=""
-        expected_schema_fingerprint=$(python3 -c \
-          'from pathlib import Path; from demo.artifacts import schema_binding; print(schema_binding(Path("."))["fingerprint"])')
-        python3 -m demo.artifacts verify-seed \
-          --database "$temporary_directory/lzug.sqlite" \
-          --manifest "$temporary_directory/manifest.json" \
-          --expected-product-tag "$product_tag" \
-          --expected-product-commit "$revision" \
-          --expected-schema-fingerprint "$expected_schema_fingerprint"
-        seed_revision=$(python3 -c \
-          'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["seed_revision"])' \
-          "$temporary_directory/manifest.json")
-        "$engine" build -f Dockerfile.demo \
-          --build-arg "BUILD_IDENTITY=$build_identity" \
-          --build-arg "PRODUCT_TAG=$product_tag" \
-          --build-arg "VCS_REF=$revision" \
-          -t lzug-demo-app:0.1.1-local .
-        scripts/demo-container-smoke.sh \
-          lzug-demo-app:0.1.1-local \
-          lzug-demo-seed:0.1.1-local \
-          lzug:0.0.0-dev.local \
-          "$seed_revision"
+        for channel_and_tag in \
+          "release|v0.1.1" \
+          "snapshot|demo/v0.2.0-SNAPSHOT.$short_revision"; do
+          channel=${channel_and_tag%%|*}
+          product_tag=${channel_and_tag#*|}
+          build_identity="$(PRODUCT_TAG="$product_tag" PRODUCT_COMMIT="$revision" python3 -c \
+            'import os; from backend.build_metadata import BuildMetadata; print(BuildMetadata.create(os.environ["PRODUCT_COMMIT"], os.environ["PRODUCT_TAG"], allow_demo_snapshot=True).identity)')"
+          seed_image="lzug-demo-seed:$channel-local"
+          app_image="lzug-demo-app:$channel-local"
+          "$engine" build -f Dockerfile.demo-seed \
+            --build-arg "PRODUCT_TAG=$product_tag" \
+            --build-arg "VCS_REF=$revision" \
+            -t "$seed_image" .
+          seed_container=$("$engine" create "$seed_image")
+          "$engine" cp \
+            "$seed_container:/opt/lzug-demo/seed/lzug.sqlite" \
+            "$temporary_directory/lzug.sqlite"
+          "$engine" cp \
+            "$seed_container:/opt/lzug-demo/seed/manifest.json" \
+            "$temporary_directory/manifest.json"
+          "$engine" rm "$seed_container" >/dev/null
+          seed_container=""
+          expected_schema_fingerprint=$(python3 -c \
+            'from pathlib import Path; from demo.artifacts import schema_binding; print(schema_binding(Path("."))["fingerprint"])')
+          python3 -m demo.artifacts verify-seed \
+            --database "$temporary_directory/lzug.sqlite" \
+            --manifest "$temporary_directory/manifest.json" \
+            --expected-product-tag "$product_tag" \
+            --expected-product-commit "$revision" \
+            --expected-schema-fingerprint "$expected_schema_fingerprint"
+          seed_revision=$(python3 -c \
+            'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["seed_revision"])' \
+            "$temporary_directory/manifest.json")
+          "$engine" build -f Dockerfile.demo \
+            --build-arg "BUILD_IDENTITY=$build_identity" \
+            --build-arg "PRODUCT_TAG=$product_tag" \
+            --build-arg "VCS_REF=$revision" \
+            -t "$app_image" .
+          scripts/demo-container-smoke.sh \
+            "$app_image" \
+            "$seed_image" \
+            lzug:0.0.0-dev.local \
+            "$seed_revision"
+        done
 
   quality:overall:
     desc: Run all local cross-domain integration contracts in parallel

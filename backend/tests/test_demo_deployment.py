@@ -251,6 +251,30 @@ class DemoDeploymentTests(unittest.TestCase):
                 self.pair,
             )
 
+    def test_snapshot_pair_uses_visible_non_release_identity_in_demo_status(self) -> None:
+        revision = "abcdef0123456789abcdef0123456789abcdef01"
+        pair = ArtifactPair(
+            app_image=self.pair.app_image,
+            seed_image=self.pair.seed_image,
+            product_tag="demo/v0.2.0-SNAPSHOT.abcdef0",
+            product_commit=revision,
+            schema_fingerprint=self.pair.schema_fingerprint,
+            seed_revision=self.pair.seed_revision,
+        )
+        pair.validate()
+        validate_demo_status(
+            {
+                "product_version": "v0.2.0-SNAPSHOT@abcdef0",
+                "product_commit": revision,
+                "schema_fingerprint": pair.schema_fingerprint,
+                "seed_revision": pair.seed_revision,
+                "initialized": True,
+                "initialization_status": "ready",
+                "reset_timezone": "Europe/Berlin",
+            },
+            pair,
+        )
+
     def test_protected_openapi_accepts_only_401_with_structured_auth_body(self) -> None:
         authentication_error = {"error": "Authentication required."}
         with patch(
@@ -357,6 +381,7 @@ class DemoDeploymentTests(unittest.TestCase):
         self.assertIn("contents: read", workflow)
         self.assertIn("id-token: write", workflow)
         self.assertIn("packages: read", workflow)
+        self.assertIn("attestations: read", workflow)
         self.assertIn("name: demo", workflow)
         self.assertIn("url: ${{ vars.DEMO_URL }}", workflow)
         self.assertIn("azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca", workflow)
@@ -364,6 +389,9 @@ class DemoDeploymentTests(unittest.TestCase):
         self.assertNotIn("AZURE_CREDENTIALS", workflow)
         self.assertEqual(2, workflow.count("gh attestation verify"))
         self.assertIn('for image in "$APP_IMAGE" "$SEED_IMAGE"', workflow)
+        self.assertIn("demo/*-SNAPSHOT.*)", workflow)
+        self.assertIn("demo-snapshot.yml", workflow)
+        self.assertIn("demo-publish.yml", workflow)
         self.assertIn("--predicate-type https://cyclonedx.org/bom", workflow)
         self.assertIn("Wait for the new Azure revision to become ready", workflow)
         self.assertIn("Wait separately for application health", workflow)

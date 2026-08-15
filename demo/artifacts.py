@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from backend.build_metadata import BuildMetadata
+from demo.identity import DemoIdentity
 
 MANIFEST_VERSION = 1
 FIXED_TIMESTAMP = "2026-01-01T00:00:00+00:00"
@@ -130,7 +130,7 @@ def build_seed(
 
     if not product_tag or not product_commit:
         raise DemoArtifactError("Product tag and commit are required")
-    BuildMetadata.create(product_commit, product_tag)
+    identity = DemoIdentity.create(product_tag, product_commit)
     database.parent.mkdir(parents=True, exist_ok=True)
     initialize(database, with_seed=True, reset=True, backup_dir=database.parent / "backups")
     _normalize_timestamps(database)
@@ -142,7 +142,7 @@ def build_seed(
     schema = schema_binding(source_root)
     binding = {
         "manifest_version": MANIFEST_VERSION,
-        "product": {"tag": product_tag, "commit": product_commit},
+        "product": identity.product,
         "schema": schema,
         "fixture_sha256": sha256_file(source_root / "fixtures/synthetic-fixtures.json"),
         "generator_sha256": sha256_file(source_root / "scripts/generate_synthetic_fixtures.py"),
@@ -167,14 +167,10 @@ def build_app_manifest(
     product_tag: str,
     product_commit: str,
 ) -> dict[str, Any]:
-    metadata = BuildMetadata.create(product_commit, product_tag)
+    identity = DemoIdentity.create(product_tag, product_commit)
     manifest = {
         "manifest_version": MANIFEST_VERSION,
-        "product": {
-            "tag": product_tag,
-            "version": metadata.identity,
-            "commit": product_commit,
-        },
+        "product": identity.product,
         "schema": schema_binding(source_root),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -302,10 +298,8 @@ def validate_runtime_binding(app_manifest_path: Path, data_dir: Path) -> tuple[d
 
     app_manifest = load_manifest(app_manifest_path)
     seed_manifest = load_manifest(data_dir / "demo-seed-manifest.json")
-    if app_manifest["product"]["tag"] != seed_manifest.get("product", {}).get("tag"):
-        raise DemoArtifactError("Demo app and seed target different product tags")
-    if app_manifest["product"]["commit"] != seed_manifest.get("product", {}).get("commit"):
-        raise DemoArtifactError("Demo app and seed target different product commits")
+    if app_manifest["product"] != seed_manifest.get("product"):
+        raise DemoArtifactError("Demo app and seed target different product identities")
     if app_manifest["schema"]["fingerprint"] != seed_manifest.get("schema", {}).get("fingerprint"):
         raise DemoArtifactError("Demo app and seed target different schema fingerprints")
     load_runtime_status(data_dir, seed_manifest)

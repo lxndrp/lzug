@@ -6,6 +6,28 @@ unveränderliches Demo-Artefaktpaar in die unter
 aus. Er provisioniert keine Infrastruktur und erzeugt keine Identitäten,
 Rollen oder GitHub-Environments.
 
+Für einen manuell promoteten Entwicklungs-Snapshot gilt daneben der
+zusammenhängende Workflow `Promote demo snapshot`: Ein Maintainer setzt einen
+neuen annotierten `demo/...-SNAPSHOT.<kurze SHA>`-Tag auf der aktuellen grünen
+`master`-SHA. Der Tag-Push startet Preflight, Build, separate SBOM- und
+Provenance-Attestierung, OCI-Publish und anschließend unmittelbar denselben
+OIDC-, Digestpaar-, Readiness- und Smoke-Vertrag in `demo`. Es gibt für diesen
+Pfad weder `workflow_dispatch` noch ein weiteres Required-Reviewer-Gate nach
+dem Tag-Push. Branches, Pull Requests, andere Tags und reine Teständerungen
+lösen ihn nicht aus.
+
+Der bestehende manuelle Workflow bleibt für releasegebundene Deployments und
+den ausdrücklichen Rollback auf ein früher vollständig geprüftes Paar erhalten.
+
+Vor der ersten Snapshot-Promotion muss die bestehende Deployment-Branch-/Tag-
+Policy des Environments einmalig auf „Selected branches and tags“ umgestellt
+sein. Sie enthält exakt die Branch-Regel `master` für den bestehenden
+manuellen Deploy-/Rollback-Pfad und die Tag-Regel `demo/*-SNAPSHOT.*` für die
+automatische Snapshot-Promotion. Ein Required Reviewer ist dort nicht
+konfiguriert; der annotierte Tag-Push ist bereits das Maintainer-GO. Der
+Snapshot-Preflight liest diese Konfiguration und bricht vor jedem OCI-Publish
+ab, solange sie fehlt oder widersprüchlich ist.
+
 ## Freigabe- und Eingabevertrag
 
 Der Workflow wird ausschließlich von `master` und im geschützten GitHub
@@ -19,23 +41,26 @@ Publish-Laufs immer alle sechs Werte gemeinsam:
 - Schemafingerprint und Seed-Revision.
 
 Beide OCI-Referenzen werden vor der Azure-Anmeldung gegen die vom Workflow
-`.github/workflows/demo-publish.yml` signierten Provenance- und
-SBOM-Attestations geprüft. Bewegliche Tags, abweichende Paketnamen,
-unvollständige Digests und unvollständige Bindungswerte brechen den Lauf ab.
+`.github/workflows/demo-publish.yml` oder bei einem Snapshot gegen den Signer
+`.github/workflows/demo-snapshot.yml` signierten Provenance- und
+SBOM-Attestations geprüft. Damit kann auch der kontrollierte manuelle Rollback
+ein früheres vollständig geprüftes Release- oder Snapshot-Paar verwenden.
+Bewegliche Tags, abweichende Paketnamen, unvollständige Digests und
+unvollständige Bindungswerte brechen den Lauf ab.
 
 ## Secret-freie GitHub- und Azure-Konfiguration
 
 Das Environment `demo` stellt ausschließlich diese nicht geheimen Variablen
 bereit:
 
-| Variable | Inhalt |
-| --- | --- |
-| `AZURE_CLIENT_ID` | Client-ID der ausschließlich für dieses Deployment verwendeten Entra-Anwendung oder User-Assigned Identity |
-| `AZURE_TENANT_ID` | Azure-Tenant-ID |
-| `AZURE_SUBSCRIPTION_ID` | Azure-Subscription-ID |
-| `AZURE_RESOURCE_GROUP` | Resource Group der Demo |
-| `AZURE_CONTAINER_APP` | Name der Demo-Container-App |
-| `DEMO_URL` | öffentlicher HTTPS-Origin ohne Pfad, beispielsweise `https://demo.example.org` |
+| Variable                | Inhalt                                                                                                     |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `AZURE_CLIENT_ID`       | Client-ID der ausschließlich für dieses Deployment verwendeten Entra-Anwendung oder User-Assigned Identity |
+| `AZURE_TENANT_ID`       | Azure-Tenant-ID                                                                                            |
+| `AZURE_SUBSCRIPTION_ID` | Azure-Subscription-ID                                                                                      |
+| `AZURE_RESOURCE_GROUP`  | Resource Group der Demo                                                                                    |
+| `AZURE_CONTAINER_APP`   | Name der Demo-Container-App                                                                                |
+| `DEMO_URL`              | öffentlicher HTTPS-Origin ohne Pfad, beispielsweise `https://demo.example.org`                             |
 
 Die statische Site bindet dieselbe öffentliche Demo-URL in ihr geprüftes
 Artefakt. Die Container App erlaubt für den Readiness-Warm-up über

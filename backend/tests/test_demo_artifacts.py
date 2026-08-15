@@ -187,8 +187,38 @@ class DemoArtifactTests(unittest.TestCase):
             value["product"]["tag"] = "v0.1.2"
             app_manifest.write_text(json.dumps(value), encoding="utf-8")
 
-            with self.assertRaisesRegex(DemoArtifactError, "different product tags"):
+            with self.assertRaisesRegex(DemoArtifactError, "different product identities"):
                 validate_runtime_binding(app_manifest, data_dir)
+
+    def test_snapshot_manifests_bind_non_release_identity_and_target_version(self) -> None:
+        revision = "abcdef0123456789abcdef0123456789abcdef01"
+        tag = "demo/v0.2.0-SNAPSHOT.abcdef0"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            seed = build_seed(
+                Path("."),
+                root / "seed.sqlite",
+                root / "seed.json",
+                product_tag=tag,
+                product_commit=revision,
+            )
+            app = build_app_manifest(
+                Path("."),
+                root / "app.json",
+                product_tag=tag,
+                product_commit=revision,
+            )
+
+        expected = {
+            "channel": "snapshot",
+            "commit": revision,
+            "identity": "v0.2.0-SNAPSHOT@abcdef0",
+            "tag": tag,
+            "target_version": "v0.2.0",
+            "version": "v0.2.0-SNAPSHOT@abcdef0",
+        }
+        self.assertEqual(expected, seed["product"])
+        self.assertEqual(expected, app["product"])
 
     def test_runtime_validation_fails_closed_without_matching_init_status(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
