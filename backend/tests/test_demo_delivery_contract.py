@@ -123,7 +123,6 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("Snapshot tags must be new and must never be moved", workflow)
         self.assertIn("Could not verify target product-tag availability", workflow)
         self.assertIn("refs/remotes/origin/master", workflow)
-        self.assertIn("validate-quality", workflow)
         self.assertIn("validate-milestone", workflow)
         self.assertIn("validate-releases", workflow)
         self.assertIn("Verify automatic demo Environment tag policy", workflow)
@@ -134,11 +133,35 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertNotIn("git push ", workflow)
         self.assertNotIn("environment: release", workflow)
         self.assertNotIn(":latest", workflow)
+        self.assertNotIn("actions: read", workflow)
+        self.assertNotIn("actions/workflows/quality.yml/runs", workflow)
+        self.assertNotIn("validate-quality", workflow)
+
+        quality_job = workflow.index("  quality:\n")
+        publish = workflow.index("  publish:\n")
+        deploy = workflow.index("  deploy:\n")
+        self.assertLess(quality_job, publish)
+        self.assertLess(publish, deploy)
+
+        quality_contract = workflow[quality_job:publish]
+        self.assertIn("needs: preflight", quality_contract)
+        self.assertIn("uses: ./.github/workflows/quality.yml", quality_contract)
+        self.assertIn(
+            "revision: ${{ needs.preflight.outputs.target_sha }}",
+            quality_contract,
+        )
+
+        publish_contract = workflow[publish:deploy]
+        self.assertIn("needs: [preflight, quality]", publish_contract)
+        self.assertNotIn("if: always()", publish_contract)
+
+        deploy_contract = workflow[deploy:]
+        self.assertIn("      - publish", deploy_contract)
+        self.assertNotIn("if: always()", deploy_contract)
 
         build = workflow.index("- name: Build the snapshot seed candidate exactly once")
         reject = workflow.index("- name: Reject occupied snapshot OCI references")
         attest = workflow.index("- name: Attest snapshot application provenance")
-        deploy = workflow.index("  deploy:\n")
         smoke = workflow.index("- name: Smoke-test health, readiness, demo API")
         self.assertLess(build, reject)
         self.assertLess(reject, attest)

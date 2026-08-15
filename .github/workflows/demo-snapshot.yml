@@ -16,7 +16,6 @@ jobs:
     name: Verify promoted current master snapshot
     runs-on: ubuntu-latest
     permissions:
-      actions: read
       contents: read
     outputs:
       snapshot_tag: ${{ steps.contract.outputs.snapshot_tag }}
@@ -100,17 +99,6 @@ jobs:
             echo "target_sha=$target_sha"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Verify complete Quality evidence for the exact master SHA
-        env:
-          GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ github.token }}
-          TARGET_SHA: ${{ steps.contract.outputs.target_sha }}
-        run: |
-          set -euo pipefail
-          gh api \
-            "repos/$GH_REPO/actions/workflows/quality.yml/runs?head_sha=$TARGET_SHA&per_page=100" | \
-            python3 scripts/demo_snapshot.py validate-quality --revision "$TARGET_SHA"
-
       - name: Verify existing open future release milestone
         env:
           GH_REPO: ${{ github.repository }}
@@ -152,9 +140,19 @@ jobs:
             exit 1
           }
 
+  quality:
+    name: Run complete Quality for the exact snapshot target
+    needs: preflight
+    uses: ./.github/workflows/quality.yml
+    permissions:
+      contents: read
+      security-events: write
+    with:
+      revision: ${{ needs.preflight.outputs.target_sha }}
+
   publish:
     name: Build, publish, and attest snapshot pair
-    needs: preflight
+    needs: [preflight, quality]
     runs-on: ubuntu-latest
     permissions:
       attestations: write

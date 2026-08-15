@@ -26,8 +26,11 @@ ersetzt den Tag nicht und besitzt keinen manuellen Dispatch.
 
 Der Preflight akzeptiert ausschließlich einen neu erzeugten annotierten Tag,
 der auf die zum Prüfzeitpunkt aktuelle `master`-SHA zeigt. Der SHA-Suffix muss
-mit dem vollständigen Commit übereinstimmen. Für genau diese SHA muss ein
-vollständig erfolgreicher `Quality`-Lauf aus einem `master`-Push existieren.
+mit dem vollständigen Commit übereinstimmen. Nach diesem günstigen Source- und
+Policy-Preflight ruft der Snapshot-Workflow den kanonischen vollständigen
+`Quality`-Workflow als wiederverwendbaren Workflow für exakt diese SHA auf.
+Ein früherer Push-, Pull-Request- oder Dispatch-Lauf ist keine Ersatz-Evidenz;
+erst der erfolgreiche commit-exakte Aufruf gibt Publish und Deployment frei.
 Die Zielversion muss einen einzelnen offenen Release-Milestone mit zukünftigem
 Fälligkeitsdatum bezeichnen, neuer als der letzte stabile Release sein und darf
 weder als Produkt-Tag noch als Produkt-Release existieren. Der Milestone ist
@@ -70,6 +73,8 @@ Entscheidung.
 Nicht-`master`- oder überholte SHAs, unvollständige Quality-Evidenz,
 ungeeignete Milestones und Zielversionen, bewegte Tags sowie bereits belegte
 OCI-Referenzen brechen vor dem jeweils nächsten irreversiblen Schritt ab.
+Eine fehlgeschlagene commit-exakte Quality-Prüfung überspringt Publish und
+Deployment vollständig.
 Snapshot-Tags und OCI-Tags werden nie repariert oder wiederverwendet. Scheitert
 ein Lauf nach einer Teilpublikation, ist der Lauf kein Deploymentnachweis; ein
 neuer Snapshot benötigt einen neuen aktuellen `master`-Commit und einen neuen

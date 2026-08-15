@@ -8,12 +8,19 @@ on:
   schedule:
     - cron: "17 3 * * 1"
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      revision:
+        description: Immutable commit revision to check out for a caller.
+        required: false
+        type: string
 
 permissions:
   contents: read
 
 env:
   IMAGE_REF: lzug:0.0.0-dev.local
+  QUALITY_REVISION: ${{ inputs.revision || github.sha }}
 
 concurrency:
   group: quality-${{ github.ref }}
@@ -25,6 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
@@ -48,6 +57,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: .node-version
@@ -70,6 +81,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
@@ -98,6 +111,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: "1.26.5"
@@ -117,6 +132,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
@@ -137,6 +154,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
@@ -162,7 +181,7 @@ jobs:
         env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
         run: |
-          source_version=$(python3 scripts/build_metadata.py --revision "$GITHUB_SHA" --field identity)
+          source_version=$(python3 scripts/build_metadata.py --revision "$QUALITY_REVISION" --field identity)
           python3 scripts/sbom.py generate-dependencies --source-version "$source_version" --output lzug.dependencies.sbom.cdx.json
           python3 scripts/sbom.py validate --kind dependencies --input lzug.dependencies.sbom.cdx.json
           python3 scripts/sbom.py generate-image --image "$IMAGE_REF" --output lzug.image.sbom.cdx.json
@@ -191,6 +210,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
@@ -226,6 +247,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
@@ -268,6 +291,8 @@ jobs:
         language: [python, javascript-typescript, go]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         if: matrix.language == 'go'
         with:
@@ -287,6 +312,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           version: v0.69.3

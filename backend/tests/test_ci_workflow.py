@@ -79,6 +79,16 @@ class QualityWorkflowContractTests(unittest.TestCase):
             with self.subTest(job=job):
                 self.assertIn(job, self.quality)
 
+    def test_quality_is_reusable_for_an_explicit_immutable_revision(self) -> None:
+        self.assertIn("workflow_call:\n    inputs:\n      revision:", self.quality)
+        self.assertIn("required: false", self.quality)
+        self.assertIn("QUALITY_REVISION: ${{ inputs.revision || github.sha }}", self.quality)
+        self.assertEqual(
+            10,
+            self.quality.count("ref: ${{ inputs.revision || github.sha }}"),
+        )
+        self.assertIn('--revision "$QUALITY_REVISION"', self.quality)
+
     def test_local_quality_tasks_are_the_ci_domain_contract(self) -> None:
         for task in (
             "task quality:backend",
