@@ -58,6 +58,11 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("environment:\n      name: github-pages", workflow)
         self.assertIn("actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d", workflow)
         self.assertIn("enablement: false", workflow)
+        self.assertEqual(
+            2,
+            workflow.count("mise x hugo-extended@0.165.0 -- task docs:publication"),
+        )
+        self.assertNotIn("run: task docs:publication", workflow)
         self.assertNotIn("schedule:", workflow)
 
 
