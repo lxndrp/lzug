@@ -34,6 +34,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         script = (ROOT / "prototypes/publication/relearn/static/js/demo-warmup.js").read_text(
             encoding="utf-8"
         )
+        browser_check = (ROOT / "scripts/check_publication_spike.mjs").read_text(encoding="utf-8")
         template = (ROOT / "prototypes/publication/relearn/layouts/home/article.html").read_text(
             encoding="utf-8"
         )
@@ -47,13 +48,17 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertNotIn("`${demoUrl}/api/health`", script)
         self.assertIn('payload.status === "ready"', script)
         self.assertIn('button.textContent = "Erneut versuchen"', script)
-        self.assertIn(
-            "chromiumSandbox: true", (ROOT / "scripts/check_publication_spike.mjs").read_text()
-        )
-        self.assertIn(
-            'browserChannel !== "chrome"',
-            (ROOT / "scripts/check_publication_spike.mjs").read_text(),
-        )
+        self.assertIn("chromiumSandbox: true", browser_check)
+        self.assertIn('browserChannel !== "chrome"', browser_check)
+        self.assertIn('.getAttribute("data-demo-url")', browser_check)
+        self.assertIn("configuredValue !== configuredUrl.origin", browser_check)
+        self.assertIn("`${warmupDemoOrigin}/api/ready`", browser_check)
+        self.assertIn("`${warmupDemoOrigin}/`", browser_check)
+        self.assertIn("`${failureDemoOrigin}/api/ready`", browser_check)
+        self.assertEqual(2, browser_check.count('route.abort("blockedbyclient")'))
+        self.assertIn("failedReadinessRequests !== 2", browser_check)
+        self.assertNotIn("demo.example.invalid", browser_check)
+        self.assertNotIn("DEMO_URL", browser_check)
 
     def test_favicon_uses_the_publication_base_path_and_existing_product_asset(self) -> None:
         favicon_partial = (

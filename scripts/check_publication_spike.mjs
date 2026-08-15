@@ -60,6 +60,35 @@ const browser = await chromium.launch({
   chromiumSandbox: true,
   ...(browserChannel === "chrome" ? { channel: browserChannel } : {}),
 });
+
+async function readDemoOrigin(page) {
+  const configuredValue = await page
+    .locator("[data-demo-start]")
+    .getAttribute("data-demo-url");
+  if (!configuredValue) {
+    throw new Error("homepage does not configure a demo URL");
+  }
+
+  let configuredUrl;
+  try {
+    configuredUrl = new URL(configuredValue);
+  } catch {
+    throw new Error("homepage configures an invalid demo URL");
+  }
+  if (
+    configuredUrl.protocol !== "https:" ||
+    configuredUrl.username ||
+    configuredUrl.password ||
+    configuredUrl.pathname !== "/" ||
+    configuredUrl.search ||
+    configuredUrl.hash ||
+    configuredValue !== configuredUrl.origin
+  ) {
+    throw new Error("homepage demo URL must be an HTTPS origin");
+  }
+  return configuredUrl.origin;
+}
+
 const results = [];
 try {
   for (const candidate of [
@@ -204,29 +233,30 @@ try {
   const warmup = await warmupContext.newPage();
   warmup.setDefaultTimeout(10_000);
   warmup.setDefaultNavigationTimeout(15_000);
+  await warmup.goto(baseUrl, { waitUntil: "networkidle" });
+  const warmupDemoOrigin = await readDemoOrigin(warmup);
   let readinessRequests = 0;
-  await warmup.route(
-    "https://demo.example.invalid/api/ready",
-    async (route) => {
-      readinessRequests += 1;
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          status: "ready",
-          _links: { self: { href: "/api/ready" } },
-        }),
-      });
-    },
+  await warmup.route(`${warmupDemoOrigin}/**`, (route) =>
+    route.abort("blockedbyclient"),
   );
-  await warmup.route("https://demo.example.invalid/", (route) =>
+  await warmup.route(`${warmupDemoOrigin}/api/ready`, async (route) => {
+    readinessRequests += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "ready",
+        _links: { self: { href: "/api/ready" } },
+      }),
+    });
+  });
+  await warmup.route(`${warmupDemoOrigin}/`, (route) =>
     route.fulfill({ status: 200, body: "Demo" }),
   );
-  await warmup.goto(baseUrl, { waitUntil: "networkidle" });
   await warmup
     .getByRole("button", { name: "Demo starten" })
     .click({ noWaitAfter: true });
-  await warmup.waitForURL("https://demo.example.invalid/");
+  await warmup.waitForURL(`${warmupDemoOrigin}/`);
   if (readinessRequests !== 1)
     throw new Error(
       `warm-up used ${readinessRequests} readiness requests before success`,
@@ -238,14 +268,20 @@ try {
   });
   const failure = await failureContext.newPage();
   failure.setDefaultTimeout(10_000);
-  await failure.route("https://demo.example.invalid/api/ready", (route) =>
-    route.fulfill({
+  await failure.goto(baseUrl, { waitUntil: "networkidle" });
+  const failureDemoOrigin = await readDemoOrigin(failure);
+  let failedReadinessRequests = 0;
+  await failure.route(`${failureDemoOrigin}/**`, (route) =>
+    route.abort("blockedbyclient"),
+  );
+  await failure.route(`${failureDemoOrigin}/api/ready`, (route) => {
+    failedReadinessRequests += 1;
+    return route.fulfill({
       status: 503,
       contentType: "application/json",
       body: JSON.stringify({ status: "unavailable" }),
-    }),
-  );
-  await failure.goto(baseUrl, { waitUntil: "networkidle" });
+    });
+  });
   await failure.locator("[data-demo-start]").evaluate((element) => {
     element.dataset.demoMaximumAttempts = "1";
     element.dataset.demoTotalTimeoutMs = "1000";
@@ -262,6 +298,17 @@ try {
     !(await retry.evaluate((element) => element === document.activeElement))
   ) {
     throw new Error("failed warm-up did not restore focus to the retry action");
+  }
+  const retryResponse = failure.waitForResponse(
+    (response) => response.url() === `${failureDemoOrigin}/api/ready`,
+  );
+  await retry.click({ noWaitAfter: true });
+  await retryResponse;
+  await failure.getByText("Demo konnte nicht gestartet werden").waitFor();
+  if (failedReadinessRequests !== 2) {
+    throw new Error(
+      `failed warm-up used ${failedReadinessRequests} readiness requests across retry`,
+    );
   }
   await failureContext.close();
 } finally {
