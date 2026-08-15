@@ -4,16 +4,23 @@ import json
 import subprocess
 import tempfile
 import unittest
+from email.message import Message
+from http import HTTPStatus
+from io import BytesIO
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, call, patch
+from urllib.error import HTTPError
 
 from scripts.demo_deployment import (
     ArtifactPair,
     AzureTarget,
     DeploymentError,
+    _http_get,
     deploy,
     deployment_body,
     readiness_observation,
+    smoke,
+    validate_authentication_required,
     validate_demo_status,
     validate_demo_url,
     validate_health,
@@ -59,6 +66,30 @@ class DemoDeploymentTests(unittest.TestCase):
                 },
             }
         }
+
+    @staticmethod
+    def http_response(status: HTTPStatus, body: object, content_type: str) -> MagicMock:
+        response = MagicMock()
+        response.getcode.return_value = status
+        response.headers.get_content_type.return_value = content_type
+        response.read.return_value = (
+            json.dumps(body).encode("utf-8")
+            if content_type == "application/json"
+            else str(body).encode()
+        )
+        return response
+
+    @staticmethod
+    def http_error(status: HTTPStatus, body: object) -> HTTPError:
+        headers = Message()
+        headers["Content-Type"] = "application/json"
+        return HTTPError(
+            "https://demo.example.org/api/openapi.json",
+            status,
+            status.phrase,
+            headers,
+            BytesIO(json.dumps(body).encode("utf-8")),
+        )
 
     def test_atomic_revision_update_changes_only_both_images_and_suffix(self) -> None:
         resource = self.resource()
@@ -201,6 +232,90 @@ class DemoDeploymentTests(unittest.TestCase):
                 self.pair,
             )
 
+    def test_protected_openapi_accepts_only_401_with_structured_auth_body(self) -> None:
+        authentication_error = {"error": "Authentication required."}
+        with patch(
+            "scripts.demo_deployment.urlopen",
+            side_effect=self.http_error(HTTPStatus.UNAUTHORIZED, authentication_error),
+        ):
+            payload, content_type = _http_get(
+                "https://demo.example.org/api/openapi.json",
+                expect_json=True,
+                expected_status=HTTPStatus.UNAUTHORIZED,
+            )
+
+        validate_authentication_required(payload, content_type)
+
+    def test_protected_openapi_rejects_anonymous_200_and_other_statuses(self) -> None:
+        authentication_error = {"error": "Authentication required."}
+        responses = (
+            self.http_response(HTTPStatus.OK, authentication_error, "application/json"),
+            self.http_error(HTTPStatus.FORBIDDEN, authentication_error),
+        )
+        for response, actual_status in zip(
+            responses, (HTTPStatus.OK, HTTPStatus.FORBIDDEN), strict=True
+        ):
+            with (
+                self.subTest(status=actual_status),
+                patch("scripts.demo_deployment.urlopen", side_effect=[response]),
+                self.assertRaisesRegex(
+                    DeploymentError,
+                    f"returned HTTP {actual_status}; expected HTTP 401",
+                ),
+            ):
+                _http_get(
+                    "https://demo.example.org/api/openapi.json",
+                    expect_json=True,
+                    expected_status=HTTPStatus.UNAUTHORIZED,
+                )
+
+    def test_protected_openapi_rejects_unexpected_auth_body(self) -> None:
+        for payload, content_type in (
+            ({"error": "Forbidden."}, "application/json"),
+            ({"error": "Authentication required.", "detail": "extra"}, "application/json"),
+            ({"error": "Authentication required."}, "text/plain"),
+        ):
+            with (
+                self.subTest(payload=payload, content_type=content_type),
+                self.assertRaises(DeploymentError),
+            ):
+                validate_authentication_required(payload, content_type)
+
+    def test_smoke_keeps_health_demo_status_and_frontend_checks(self) -> None:
+        responses = (
+            ({"status": "ok", "revision": self.pair.product_commit}, "application/json"),
+            (
+                {
+                    "product_version": "0.1.1",
+                    "product_commit": self.pair.product_commit,
+                    "schema_fingerprint": self.pair.schema_fingerprint,
+                    "seed_revision": self.pair.seed_revision,
+                    "initialized": True,
+                    "initialization_status": "ready",
+                    "reset_timezone": "Europe/Berlin",
+                },
+                "application/json",
+            ),
+            ({"error": "Authentication required."}, "application/json"),
+            ("<app-root></app-root>", "text/html"),
+        )
+        with patch("scripts.demo_deployment._http_get", side_effect=responses) as http_get:
+            smoke("https://demo.example.org", self.pair)
+
+        self.assertEqual(
+            [
+                call("https://demo.example.org/api/health", expect_json=True),
+                call("https://demo.example.org/api/demo/status", expect_json=True),
+                call(
+                    "https://demo.example.org/api/openapi.json",
+                    expect_json=True,
+                    expected_status=HTTPStatus.UNAUTHORIZED,
+                ),
+                call("https://demo.example.org/", expect_json=False),
+            ],
+            http_get.call_args_list,
+        )
+
     def test_demo_url_is_an_https_origin_only(self) -> None:
         self.assertEqual("https://demo.example.org/", validate_demo_url("https://demo.example.org"))
         for invalid in (
@@ -231,9 +346,16 @@ class DemoDeploymentTests(unittest.TestCase):
         self.assertIn("--predicate-type https://cyclonedx.org/bom", workflow)
         self.assertIn("Wait for the new Azure revision to become ready", workflow)
         self.assertIn("Wait separately for application health", workflow)
-        self.assertIn("Smoke-test health, API, and the central frontend route", workflow)
+        self.assertIn(
+            "Smoke-test health, demo API, protected OpenAPI, and the central frontend route",
+            workflow,
+        )
+        self.assertIn("protected OpenAPI authentication boundary", workflow)
         self.assertIn("if: failure()", workflow)
         self.assertIn("previously verified complete pair", workflow)
+        deployment_docs = Path("docs/developers/demo-deployment.md").read_text(encoding="utf-8")
+        self.assertIn("HTTP 401", deployment_docs)
+        self.assertIn('{"error": "Authentication required."}', deployment_docs)
         publish = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")
         self.assertIn("steps.images.outputs.schema_fingerprint", publish)
         pull_request = Path(".github/workflows/pull-request.yml").read_text(encoding="utf-8")
