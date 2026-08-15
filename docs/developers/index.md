@@ -22,6 +22,9 @@ im Repository-Wurzelverzeichnis.
   Pfadklassifikation, Gesamtstatus und Browsercache-Vertrag.
 - **Azure-Demo-Deployment** beschreibt OIDC, minimale Rechte, das atomare
   Digest-Paar, Readiness-/Smoke-Nachweise und Rollback.
+- **Demo-Beobachtbarkeit** trennt Liveness und Readiness, definiert
+  datensparsame strukturierte Logs, Uptime-/Budgetalarme und das externe
+  Aktivierungsgate.
 - **Wiki-Publikation** beschreibt den getrennten Review- und Freigabeablauf für
   das Wiki-Repository.
 

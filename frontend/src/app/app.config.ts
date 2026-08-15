@@ -20,12 +20,19 @@ import { TUI_GERMAN_LANGUAGE } from '@taiga-ui/i18n/languages/german';
 
 import { routes } from './app.routes';
 import { AuthService } from './auth/auth.service';
+import {
+  providePrivacyPreservingErrorHandler,
+  reportFrontendError,
+} from './observability/error-reporter';
 
 const withSessionCredentials: HttpInterceptorFn = (request, next) =>
   next(request.clone({ withCredentials: true })).pipe(
     catchError((error: { status?: number }) => {
       if (error.status === 401 && !request.url.endsWith('/api/auth/login')) {
         inject(AuthService).markAnonymous();
+      }
+      if (typeof error.status === 'number' && error.status >= 500) {
+        reportFrontendError('http', error.status);
       }
       return throwError(() => error);
     }),
@@ -34,6 +41,7 @@ const withSessionCredentials: HttpInterceptorFn = (request, next) =>
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
+    providePrivacyPreservingErrorHandler(),
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
     provideHttpClient(

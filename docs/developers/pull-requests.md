@@ -3,7 +3,7 @@
 Issue-Arbeit wird auf einem eigenen Feature-Branch gegen `master` eingereicht.
 Die GitHub CLI bildet Titel, Beschreibung, Assignees, Milestone, Project und
 Draft-Status nativ ab. `task pr:create` legt dafür nur die einheitlichen
-Projektparameter fest und prüft die schließende Issue-Verknüpfung; ein
+Projektparameter fest und prüft die gewählte Issue-Verknüpfung; ein
 zusätzliches Script oder Token ist nicht erforderlich.
 
 ## Pull Request erstellen
@@ -18,6 +18,10 @@ gh issue view 329 \
 
 Die Beschreibung wird aus `.github/pull_request_template.md` abgeleitet. Eine
 vollständige Umsetzung enthält eine eigene, ausgefüllte Zeile `Closes #329`.
+Bleibt ein ausdrücklich dokumentiertes externes Aktivierungs- oder
+Abnahmegate offen, wird stattdessen `Tracks #329` verwendet und
+`LINK_MODE=tracks` an `task pr:create` übergeben; der Task akzeptiert nie beide
+Varianten stillschweigend.
 Bei einer Teilumsetzung wird der Pull Request direkt mit `gh pr create` und
 einer nicht schließenden Verknüpfung wie `Related to #329` erstellt; die Task
 ist absichtlich vollständigen Issue-Umsetzungen vorbehalten.

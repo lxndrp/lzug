@@ -11,6 +11,24 @@ mock_provider "azurerm" {
     }
   }
 
+  mock_resource "azurerm_monitor_action_group" {
+    defaults = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.Insights/actionGroups/lzug-demo-operations"
+    }
+  }
+
+  mock_resource "azurerm_application_insights" {
+    defaults = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.Insights/components/lzug-demo-uptime"
+    }
+  }
+
+  mock_resource "azurerm_application_insights_standard_web_test" {
+    defaults = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.Insights/webTests/lzug-demo-test"
+    }
+  }
+
   mock_resource "azurerm_container_app_environment" {
     defaults = {
       id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.App/managedEnvironments/lzug-demo-env"
@@ -114,16 +132,42 @@ run "demo_contract" {
   assert {
     condition = (
       azurerm_container_app_environment.demo.public_network_access == "Enabled" &&
-      length(azurerm_container_app.demo.template[0].container[0].env) == 1 &&
+      length(azurerm_container_app.demo.template[0].container[0].env) == 2 &&
       azurerm_container_app.demo.template[0].container[0].env[0].name == "LZUG_DATA_DIR" &&
-      azurerm_container_app.demo.template[0].container[0].env[0].value == "/data"
+      azurerm_container_app.demo.template[0].container[0].env[0].value == "/data" &&
+      azurerm_container_app.demo.template[0].container[0].env[1].name == "LZUG_DEPLOYMENT_DIGEST" &&
+      azurerm_container_app.demo.template[0].container[0].env[1].value == "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     )
-    error_message = "The app must use only the declared public ingress and the shared /data runtime path by default."
+    error_message = "The app must use only the declared public ingress, shared /data path, and immutable deployment digest by default."
   }
 
   assert {
-    condition     = azurerm_consumption_budget_resource_group.demo.amount == 25
-    error_message = "The configured monthly budget must be part of every plan."
+    condition = (
+      azurerm_container_app.demo.template[0].container[0].liveness_probe[0].path == "/api/health" &&
+      azurerm_container_app.demo.template[0].container[0].readiness_probe[0].path == "/api/ready"
+    )
+    error_message = "Liveness and application readiness must remain separate signals."
+  }
+
+  assert {
+    condition = (
+      azurerm_consumption_budget_resource_group.demo.amount == 25 &&
+      alltrue([
+        for notification in azurerm_consumption_budget_resource_group.demo.notification :
+        toset(notification.contact_groups) == toset([azurerm_monitor_action_group.demo.id])
+      ])
+    )
+    error_message = "The configured monthly budget and testable action group must be part of every plan."
+  }
+
+  assert {
+    condition = (
+      azurerm_log_analytics_workspace.demo.retention_in_days == 30 &&
+      azurerm_log_analytics_workspace.demo.daily_quota_gb == 0.5 &&
+      strcontains(azurerm_monitor_scheduled_query_rules_alert.application_errors.query, "frontend_error") &&
+      strcontains(azurerm_monitor_scheduled_query_rules_alert.application_errors.query, "backend_error")
+    )
+    error_message = "Log retention, ingestion volume, and application error detection must remain bounded."
   }
 
   assert {
@@ -162,16 +206,65 @@ run "demo_contract" {
       strcontains(jsondecode(azurerm_logic_app_action_custom.stop_demo.body).inputs.uri, "/stop?api-version=") &&
       strcontains(jsondecode(azurerm_logic_app_action_custom.start_demo.body).inputs.uri, "/start?api-version=") &&
       jsondecode(azurerm_logic_app_action_custom.check_health.body).inputs.uri == output.health_endpoint &&
+      jsondecode(azurerm_logic_app_action_custom.check_readiness.body).inputs.uri == output.readiness_endpoint &&
       jsondecode(azurerm_logic_app_action_custom.check_demo_status.body).inputs.uri == output.demo_status_endpoint &&
       strcontains(azurerm_logic_app_action_custom.validate_demo_status.body, var.demo_artifact_pair.seed_revision) &&
       strcontains(azurerm_logic_app_action_custom.validate_demo_status.body, "last_reset_at")
     )
-    error_message = "The reset workflow must stop/start through managed identity and verify health, expected seed, initialization, and last reset."
+    error_message = "The reset workflow must stop/start through managed identity and verify liveness, readiness, expected seed, initialization, and last reset."
   }
 
   assert {
     condition     = output.deployment.artifact_pair == var.demo_artifact_pair && output.deployment.reset_timezone == "Europe/Berlin"
     error_message = "The handoff and rollback output must preserve the complete verified digest pair and Berlin reset contract."
+  }
+}
+
+run "external_observability_activation_contract" {
+  command = plan
+
+  plan_options {
+    refresh = false
+  }
+
+  variables {
+    azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+    demo_artifact_pair = {
+      app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+      product_tag        = "v0.1.1"
+      product_commit     = "0123456789abcdef0123456789abcdef01234567"
+      schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
+      seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
+    }
+    budget_amount_eur           = 25
+    budget_contact_emails       = ["demo-operations@example.invalid"]
+    budget_start_date           = "2026-09-01T00:00:00Z"
+    budget_end_date             = "2028-07-31T00:00:00Z"
+    external_monitoring_enabled = true
+    landingpage_url             = "https://www.example.invalid/demo/"
+  }
+
+  assert {
+    condition = (
+      length(azurerm_application_insights_standard_web_test.demo) == 2 &&
+      azurerm_application_insights_standard_web_test.demo["landingpage"].request[0].url == var.landingpage_url &&
+      endswith(azurerm_application_insights_standard_web_test.demo["warmup"].request[0].url, "/api/ready") &&
+      length(azurerm_monitor_metric_alert.uptime) == 2
+    )
+    error_message = "Activation must create exactly the #127 landing page and readiness warm-up tests with alerts."
+  }
+
+  assert {
+    condition = alltrue([
+      for alert in values(azurerm_monitor_metric_alert.uptime) :
+      alert.application_insights_web_test_location_availability_criteria[0].failed_location_count == 1 &&
+      alltrue([
+        for action in alert.action :
+        action.action_group_id == azurerm_monitor_action_group.demo.id
+      ])
+    ])
+    error_message = "Every uptime signal must alert through the testable operations action group."
   }
 }
 

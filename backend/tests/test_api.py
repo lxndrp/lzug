@@ -88,13 +88,16 @@ class ApiTests(unittest.TestCase):
         assert_status(status, HTTPStatus.INTERNAL_SERVER_ERROR)
         self.assertEqual("Database operation failed.", body["error"])
 
-    def test_health_reports_uninitialized_database_as_not_ready(self) -> None:
+    def test_health_stays_live_while_readiness_reports_uninitialized_database(self) -> None:
         with TemporaryDirectory() as directory:
             with ApiServer(Path(directory) / "uninitialized.sqlite") as api:
                 status, health = api.request("GET", "/api/health")
+                ready_status, readiness = api.request("GET", "/api/ready")
 
-        assert_status(status, HTTPStatus.SERVICE_UNAVAILABLE)
-        self.assertEqual("unavailable", health["status"])
+        assert_status(status, HTTPStatus.OK)
+        self.assertEqual("ok", health["status"])
+        assert_status(ready_status, HTTPStatus.SERVICE_UNAVAILABLE)
+        self.assertEqual("unavailable", readiness["status"])
         self.assertEqual({"status", "version", "revision", "_links"}, set(health))
 
     def test_health_reports_required_migration_without_exposing_data(self) -> None:
@@ -118,7 +121,7 @@ class ApiTests(unittest.TestCase):
                 connection.commit()
 
             with ApiServer(db_path) as api:
-                status, health = api.request("GET", "/api/health")
+                status, health = api.request("GET", "/api/ready")
 
         assert_status(status, HTTPStatus.SERVICE_UNAVAILABLE)
         self.assertEqual("unavailable", health["status"])
@@ -132,6 +135,11 @@ class ApiTests(unittest.TestCase):
             self.assertRegex(health["version"], r"^0\.0\.0-dev\+sha\.[0-9a-f]{40}$")
             self.assertRegex(health["revision"], r"^[0-9a-f]{40}$")
             self.assertEqual("/api/health", health["_links"]["self"]["href"])
+
+            status, readiness = api.request("GET", "/api/ready")
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("ready", readiness["status"])
+            self.assertEqual("/api/ready", readiness["_links"]["self"]["href"])
 
             status, summary = api.request("GET", "/api/round-summary?round_id=1")
             assert_status(status, HTTPStatus.OK)

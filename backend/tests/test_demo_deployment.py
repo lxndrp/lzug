@@ -20,6 +20,7 @@ from scripts.demo_deployment import (
     deployment_body,
     readiness_observation,
     smoke,
+    validate_application_readiness,
     validate_authentication_required,
     validate_demo_status,
     validate_demo_url,
@@ -51,6 +52,13 @@ class DemoDeploymentTests(unittest.TestCase):
                         {
                             "name": "lzug-demo-app",
                             "image": "ghcr.io/lxndrp/lzug-demo-app@sha256:" + "1" * 64,
+                            "env": [
+                                {"name": "LZUG_DATA_DIR", "value": "/data"},
+                                {
+                                    "name": "LZUG_DEPLOYMENT_DIGEST",
+                                    "value": "sha256:" + "1" * 64,
+                                },
+                            ],
                             "volumeMounts": [{"volumeName": "demo-data", "mountPath": "/data"}],
                         }
                     ],
@@ -98,6 +106,10 @@ class DemoDeploymentTests(unittest.TestCase):
 
         self.assertEqual(self.pair.app_image, template["containers"][0]["image"])
         self.assertEqual(self.pair.seed_image, template["initContainers"][0]["image"])
+        self.assertEqual(
+            "sha256:" + "a" * 64,
+            template["containers"][0]["env"][1]["value"],
+        )
         self.assertEqual("gh-123-1", template["revisionSuffix"])
         self.assertEqual(resource["properties"]["template"]["volumes"], template["volumes"])
         self.assertNotEqual(self.pair.app_image, previous["app_image"])
@@ -204,6 +216,9 @@ class DemoDeploymentTests(unittest.TestCase):
 
     def test_health_and_demo_api_bind_the_running_product_schema_and_seed(self) -> None:
         validate_health({"status": "ok", "revision": self.pair.product_commit}, self.pair)
+        validate_application_readiness(
+            {"status": "ready", "revision": self.pair.product_commit}, self.pair
+        )
         validate_demo_status(
             {
                 "product_version": "0.1.1",
@@ -218,6 +233,10 @@ class DemoDeploymentTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(DeploymentError, "unexpected product commit"):
             validate_health({"status": "ok", "revision": "f" * 40}, self.pair)
+        with self.assertRaisesRegex(DeploymentError, "status=ready"):
+            validate_application_readiness(
+                {"status": "unavailable", "revision": self.pair.product_commit}, self.pair
+            )
         with self.assertRaisesRegex(DeploymentError, "seed_revision"):
             validate_demo_status(
                 {
@@ -284,6 +303,7 @@ class DemoDeploymentTests(unittest.TestCase):
     def test_smoke_keeps_health_demo_status_and_frontend_checks(self) -> None:
         responses = (
             ({"status": "ok", "revision": self.pair.product_commit}, "application/json"),
+            ({"status": "ready", "revision": self.pair.product_commit}, "application/json"),
             (
                 {
                     "product_version": "0.1.1",
@@ -305,6 +325,7 @@ class DemoDeploymentTests(unittest.TestCase):
         self.assertEqual(
             [
                 call("https://demo.example.org/api/health", expect_json=True),
+                call("https://demo.example.org/api/ready", expect_json=True),
                 call("https://demo.example.org/api/demo/status", expect_json=True),
                 call(
                     "https://demo.example.org/api/openapi.json",
@@ -346,8 +367,10 @@ class DemoDeploymentTests(unittest.TestCase):
         self.assertIn("--predicate-type https://cyclonedx.org/bom", workflow)
         self.assertIn("Wait for the new Azure revision to become ready", workflow)
         self.assertIn("Wait separately for application health", workflow)
+        self.assertIn("Wait separately for application readiness", workflow)
         self.assertIn(
-            "Smoke-test health, demo API, protected OpenAPI, and the central frontend route",
+            "Smoke-test health, readiness, demo API, protected OpenAPI, "
+            "and the central frontend route",
             workflow,
         )
         self.assertIn("protected OpenAPI authentication boundary", workflow)

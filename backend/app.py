@@ -47,6 +47,7 @@ from .models import (
     PLANNING_SETTINGS,
     Resource,
 )
+from .observability import emit_event, safe_http_path
 from .planning import (
     PlanAssignment,
     PlanConflictError,
@@ -71,6 +72,18 @@ class RequestTooLargeError(ValueError):
 
 class UnsupportedMediaTypeError(ValueError):
     """Signal a body that is not JSON at the HTTP boundary."""
+
+
+class ObservabilityHTTPServer(ThreadingHTTPServer):
+    """Suppress exception details while retaining a structured failure signal."""
+
+    def handle_error(self, request, client_address) -> None:
+        emit_event(
+            "backend_error",
+            severity="error",
+            category="unhandled_request",
+            status=500,
+        )
 
 
 def planning_proposal_from_payload(round_id: int, payload: dict) -> PlanningProposal:
@@ -221,6 +234,8 @@ class LzugHandler(BaseHTTPRequestHandler):
     forced_session_ttl: timedelta | None = None
     max_request_bytes = 1024 * 1024
     auth_rate_limiter = RequestRateLimiter(20, timedelta(minutes=1))
+    observability_rate_limiter = RequestRateLimiter(30, timedelta(minutes=1))
+    observability_global_rate_limiter = RequestRateLimiter(120, timedelta(minutes=1))
     runtime_policy: RuntimePolicy = ProductRuntimePolicy()
 
     @property
@@ -260,9 +275,15 @@ class LzugHandler(BaseHTTPRequestHandler):
             query = parse_qs(parsed.query)
 
             if path_parts == ["health"]:
+                self.respond(hateoas.health("ok"))
+                return
+
+            if path_parts == ["ready"]:
                 readiness = database_readiness(self.db_path)
                 self.respond(
-                    hateoas.health("ok" if readiness["ready"] else "unavailable"),
+                    hateoas.health(
+                        "ready" if readiness["ready"] else "unavailable", signal="ready"
+                    ),
                     HTTPStatus.OK if readiness["ready"] else HTTPStatus.SERVICE_UNAVAILABLE,
                 )
                 return
@@ -447,6 +468,9 @@ class LzugHandler(BaseHTTPRequestHandler):
             if not self.require_allowed_origin():
                 return
             path_parts = self.path_parts(urlparse(self.path).path)
+            if path_parts == ["observability", "frontend-errors"]:
+                self.receive_frontend_error()
+                return
             if self.runtime_policy.handle_public_post(self, path_parts):
                 return
             if (
@@ -877,8 +901,56 @@ class LzugHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def health(self) -> dict:
+        return hateoas.health("ok")
+
+    def readiness(self) -> dict:
         readiness = database_readiness(self.db_path)
-        return hateoas.health("ok" if readiness["ready"] else "unavailable")
+        return hateoas.health("ready" if readiness["ready"] else "unavailable", signal="ready")
+
+    def receive_frontend_error(self) -> None:
+        """Accept only a coarse, rate-limited browser failure classification."""
+        origin = self.headers.get("Origin")
+        if (
+            origin is None
+            or not self.origin_is_same_host(origin)
+            or self.headers.get("Sec-Fetch-Site") != "same-origin"
+        ):
+            self.respond({"error": "Forbidden."}, HTTPStatus.FORBIDDEN)
+            return
+        remote_key = self.client_address[0] if self.client_address else "unknown"
+        retry_after = self.observability_global_rate_limiter.check("global")
+        client_retry_after = self.observability_rate_limiter.check(remote_key)
+        retry_after = max(retry_after or 0, client_retry_after or 0) or None
+        if retry_after is not None:
+            self._add_response_header("Retry-After", str(retry_after))
+            self.respond({"error": "Too many requests."}, HTTPStatus.TOO_MANY_REQUESTS)
+            return
+        length = self.headers.get("Content-Length", "0")
+        try:
+            if int(length) > 256:
+                raise RequestTooLargeError("Observability event exceeds 256 bytes.")
+        except ValueError as error:
+            raise ValueError("Invalid Content-Length") from error
+        payload = self.read_json()
+        if not isinstance(payload.get("kind"), str) or payload["kind"] not in {
+            "bootstrap",
+            "http",
+            "runtime",
+        }:
+            raise ValueError("Invalid frontend error kind")
+        expected_fields = {"kind"} if payload["kind"] != "http" else {"kind", "status"}
+        if set(payload) != expected_fields:
+            raise ValueError("Invalid frontend error fields")
+        status = payload.get("status", 0)
+        if not isinstance(status, int) or isinstance(status, bool) or not 0 <= status <= 599:
+            raise ValueError("Invalid frontend error status")
+        emit_event(
+            "frontend_error",
+            severity="error",
+            kind=payload["kind"],
+            status=status,
+        )
+        self.respond({}, HTTPStatus.ACCEPTED)
 
     def require_authenticated(
         self,
@@ -1353,6 +1425,22 @@ class LzugHandler(BaseHTTPRequestHandler):
         raise ValueError("Expected boolean value")
 
     def respond(self, payload, status: HTTPStatus = HTTPStatus.OK) -> None:
+        is_expected_not_ready = (
+            status == HTTPStatus.SERVICE_UNAVAILABLE and urlparse(self.path).path == "/api/ready"
+        )
+        if status >= HTTPStatus.INTERNAL_SERVER_ERROR and not is_expected_not_ready:
+            emit_event(
+                "backend_error",
+                severity="error",
+                category="http_response",
+                method=(
+                    self.command
+                    if self.command in {"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+                    else "UNKNOWN"
+                ),
+                path=safe_http_path(urlparse(self.path).path),
+                status=int(status),
+            )
         body = b"" if status == HTTPStatus.NO_CONTENT else self.json_bytes(payload)
         self.send_response(status)
         self.send_header("Cache-Control", "no-store")
@@ -1428,11 +1516,20 @@ class LzugHandler(BaseHTTPRequestHandler):
 
     def log_request(self, code: int | str = "-", size: int | str = "-") -> None:
         """Log only transport metadata, never client addresses, queries, headers, or bodies."""
-        path = urlparse(self.path).path
-        print(f"http_request method={self.command} path={path} status={code} bytes={size}")
+        emit_event(
+            "http_request",
+            method=(
+                self.command
+                if self.command in {"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"}
+                else "UNKNOWN"
+            ),
+            path=safe_http_path(urlparse(self.path).path),
+            status=int(code) if str(code).isdigit() else 0,
+            bytes=int(size) if str(size).isdigit() else 0,
+        )
 
     def log_message(self, format: str, *args) -> None:
-        print("http_server event=protocol_message")
+        emit_event("http_server", severity="warning", signal="protocol_message")
 
 
 def parse_args() -> argparse.Namespace:
@@ -1521,13 +1618,12 @@ def main(handler_type: type[LzugHandler] = LzugHandler) -> None:
         runtime_security.auth_rate_limit,
         runtime_security.auth_rate_window,
     )
-    server = ThreadingHTTPServer((args.host, args.port), handler_type)
+    server = ObservabilityHTTPServer((args.host, args.port), handler_type)
     server.daemon_threads = True
-    print(f"lzug backend listening on http://{args.host}:{args.port}")
-    print(f"database: {args.db}")
+    emit_event("runtime", severity="info", signal="started")
 
     def request_shutdown(signum: int, _frame) -> None:
-        print(f"received signal {signum}; shutting down")
+        emit_event("runtime", severity="info", signal="shutdown_requested")
         threading.Thread(target=server.shutdown, name="lzug-shutdown", daemon=True).start()
 
     signal.signal(signal.SIGTERM, request_shutdown)

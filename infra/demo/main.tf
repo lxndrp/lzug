@@ -18,8 +18,8 @@ resource "azurerm_log_analytics_workspace" "demo" {
   location            = azurerm_resource_group.demo.location
   resource_group_name = azurerm_resource_group.demo.name
   sku                 = "PerGB2018"
-  retention_in_days   = 30
-  daily_quota_gb      = 0.5
+  retention_in_days   = var.log_retention_days
+  daily_quota_gb      = var.log_daily_quota_gb
   tags                = local.common_tags
 }
 
@@ -84,6 +84,11 @@ resource "azurerm_container_app" "demo" {
         value = "/data"
       }
 
+      env {
+        name  = "LZUG_DEPLOYMENT_DIGEST"
+        value = split("@", var.demo_artifact_pair.app_image)[1]
+      }
+
       dynamic "env" {
         for_each = var.container_environment
         content {
@@ -95,7 +100,7 @@ resource "azurerm_container_app" "demo" {
       readiness_probe {
         transport               = "HTTP"
         port                    = var.container_port
-        path                    = "/api/health"
+        path                    = "/api/ready"
         initial_delay           = 5
         interval_seconds        = 10
         timeout                 = 5
@@ -142,7 +147,7 @@ resource "azurerm_consumption_budget_resource_group" "demo" {
     threshold      = 80
     operator       = "GreaterThanOrEqualTo"
     threshold_type = "Actual"
-    contact_emails = var.budget_contact_emails
+    contact_groups = [azurerm_monitor_action_group.demo.id]
   }
 
   notification {
@@ -150,7 +155,7 @@ resource "azurerm_consumption_budget_resource_group" "demo" {
     threshold      = 100
     operator       = "GreaterThanOrEqualTo"
     threshold_type = "Forecasted"
-    contact_emails = var.budget_contact_emails
+    contact_groups = [azurerm_monitor_action_group.demo.id]
   }
 }
 
