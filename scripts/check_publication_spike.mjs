@@ -102,8 +102,19 @@ try {
     page.setDefaultTimeout(10_000);
     page.setDefaultNavigationTimeout(15_000);
     const consoleErrors = [];
+    const failedResponses = [];
     page.on("console", (message) => {
-      if (message.type() === "error") consoleErrors.push(message.text());
+      if (message.type() === "error") {
+        const { url, lineNumber, columnNumber } = message.location();
+        consoleErrors.push(
+          `${message.text()} (${url || "unknown URL"}:${lineNumber}:${columnNumber})`,
+        );
+      }
+    });
+    page.on("response", (pageResponse) => {
+      if (pageResponse.status() >= 400) {
+        failedResponses.push(`${pageResponse.status()} ${pageResponse.url()}`);
+      }
     });
     const response = await page.goto(baseUrl, { waitUntil: "networkidle" });
     if (!response?.ok())
@@ -153,9 +164,12 @@ try {
         `${candidate.name}: blocking axe violations ${JSON.stringify(details)}`,
       );
     }
-    if (consoleErrors.length)
+    if (consoleErrors.length || failedResponses.length)
       throw new Error(
-        `${candidate.name}: console errors ${consoleErrors.join(" | ")}`,
+        `${candidate.name}: browser errors ${[
+          ...consoleErrors,
+          ...failedResponses,
+        ].join(" | ")}`,
       );
     await page.screenshot({
       path: join(evidence, `${candidate.name}.png`),

@@ -55,6 +55,16 @@ class PublicationDeliveryContractTests(unittest.TestCase):
             (ROOT / "scripts/check_publication_spike.mjs").read_text(),
         )
 
+    def test_favicon_uses_the_publication_base_path_and_existing_product_asset(self) -> None:
+        favicon_partial = (
+            ROOT / "prototypes/publication/relearn/layouts/partials/favicon.html"
+        ).read_text(encoding="utf-8")
+
+        self.assertTrue((ROOT / "frontend/public/favicon.svg").is_file())
+        self.assertIn('rel="icon"', favicon_partial)
+        self.assertIn('{{ "images/favicon.svg" | relURL }}', favicon_partial)
+        self.assertIn('"images/favicon.svg"', (ROOT / "scripts/publication_spike.py").read_text())
+
     def test_pages_deployment_is_manual_fail_closed_and_cannot_enable_pages(self) -> None:
         workflow = (ROOT / ".github/workflows/publication.yml").read_text(encoding="utf-8")
 

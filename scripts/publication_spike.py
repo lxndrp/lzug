@@ -25,6 +25,7 @@ RELEARN_REVISION = "8bb66fa674351f3a0b0917a7552caac686eca920"
 MARKDOWN_LINK = re.compile(r"(?P<prefix>\[[^\]]+\]\()(?P<target>[^)]+)(?P<suffix>\))")
 EXPECTED_OUTPUTS = (
     "index.html",
+    "images/favicon.svg",
     "js/demo-warmup.js",
     "handbuch/index.html",
     "referenz/index.html",
@@ -173,10 +174,15 @@ def configure_relearn(root: Path, site: Path, base_url: str, demo_url: str) -> N
     (site / "layouts" / "home").mkdir(parents=True)
     (site / "layouts" / "partials").mkdir(parents=True)
     (site / "assets" / "css").mkdir(parents=True)
+    (site / "static" / "images").mkdir(parents=True)
     (site / "static" / "js").mkdir(parents=True)
     shutil.copyfile(
         root / "prototypes" / "publication" / "relearn" / "layouts" / "home" / "article.html",
         site / "layouts" / "home" / "article.html",
+    )
+    shutil.copyfile(
+        root / "prototypes" / "publication" / "relearn" / "layouts" / "partials" / "favicon.html",
+        site / "layouts" / "partials" / "favicon.html",
     )
     shutil.copyfile(
         root / "prototypes" / "publication" / "relearn" / "assets" / "css" / "custom.css",
@@ -185,6 +191,10 @@ def configure_relearn(root: Path, site: Path, base_url: str, demo_url: str) -> N
     shutil.copyfile(
         root / "prototypes" / "publication" / "relearn" / "static" / "js" / "demo-warmup.js",
         site / "static" / "js" / "demo-warmup.js",
+    )
+    shutil.copyfile(
+        root / "frontend" / "public" / "favicon.svg",
+        site / "static" / "images" / "favicon.svg",
     )
     repository_revision = run("git", "rev-parse", "HEAD", cwd=root)
     (site / "layouts" / "partials" / "assetbusting.gotmpl").write_text(
