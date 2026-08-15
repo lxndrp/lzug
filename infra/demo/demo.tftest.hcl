@@ -132,13 +132,15 @@ run "demo_contract" {
   assert {
     condition = (
       azurerm_container_app_environment.demo.public_network_access == "Enabled" &&
-      length(azurerm_container_app.demo.template[0].container[0].env) == 2 &&
+      length(azurerm_container_app.demo.template[0].container[0].env) == 3 &&
       azurerm_container_app.demo.template[0].container[0].env[0].name == "LZUG_DATA_DIR" &&
       azurerm_container_app.demo.template[0].container[0].env[0].value == "/data" &&
       azurerm_container_app.demo.template[0].container[0].env[1].name == "LZUG_DEPLOYMENT_DIGEST" &&
-      azurerm_container_app.demo.template[0].container[0].env[1].value == "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      azurerm_container_app.demo.template[0].container[0].env[1].value == "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" &&
+      azurerm_container_app.demo.template[0].container[0].env[2].name == "LZUG_CORS_ALLOWED_ORIGINS" &&
+      azurerm_container_app.demo.template[0].container[0].env[2].value == "https://lxndrp.github.io"
     )
-    error_message = "The app must use only the declared public ingress, shared /data path, and immutable deployment digest by default."
+    error_message = "The app must retain the shared /data path, immutable deployment digest, and exact landing-page CORS origin by default."
   }
 
   assert {

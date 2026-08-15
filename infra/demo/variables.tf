@@ -62,9 +62,24 @@ variable "container_environment" {
   validation {
     condition = alltrue([
       for name in keys(var.container_environment) :
-      can(regex("^[A-Z_][A-Z0-9_]*$", name)) && name != "LZUG_DATA_DIR"
+      can(regex("^[A-Z_][A-Z0-9_]*$", name)) &&
+      !contains(
+        ["LZUG_DATA_DIR", "LZUG_DEPLOYMENT_DIGEST", "LZUG_CORS_ALLOWED_ORIGINS"],
+        name,
+      )
     ])
-    error_message = "container_environment keys must be uppercase environment variable names and must not replace LZUG_DATA_DIR."
+    error_message = "container_environment keys must be uppercase environment variable names and must not replace managed data, deployment, or CORS settings."
+  }
+}
+
+variable "landingpage_origin" {
+  description = "Exact HTTPS origin allowed to call the public readiness endpoint from the static landing page."
+  type        = string
+  default     = "https://lxndrp.github.io"
+
+  validation {
+    condition     = can(regex("^https://[A-Za-z0-9.-]+(:[0-9]+)?$", var.landingpage_origin))
+    error_message = "landingpage_origin must be one exact HTTPS origin without credentials, path, query, fragment, or wildcard."
   }
 }
 

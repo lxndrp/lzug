@@ -28,7 +28,13 @@ Dauerhafte technische Entscheidungen stehen als ADR unter `docs/developers/decis
 Die Zielarchitektur für den späteren gemeinsamen Produkt-, Wiki- und
 Referenzauftritt steht unter
 [Öffentliche Publikationsarchitektur](publication-architecture.md). Der lokale
-Spike aktiviert keine externe Veröffentlichung.
+Build unter `task docs:publication` erzeugt das vollständige statische
+Artefakt; `task docs:publication:check` prüft die Reproduzierbarkeit und
+`task docs:publication:browser` den sichtbaren Einstieg. Der Workflow
+`Public site` führt diese Prüfungen repositoryseitig aus. Pull Requests und
+Pushes laden nur ein Workflow-Artefakt hoch. Eine Veröffentlichung ist davon
+getrennt und ausschließlich nach dem dokumentierten manuellen Maintainer-Gate
+möglich.
 
 Öffentliche Python-Module, Services, Repositories, fachliche Klassen und nicht offensichtliche Funktionen verwenden Google-Style-Docstrings. Beschreiben Sie Invarianten, sichtbare Seiteneffekte, Fehler und Transaktionsgrenzen, ohne triviale Implementierungsdetails oder Typen zu wiederholen.
 

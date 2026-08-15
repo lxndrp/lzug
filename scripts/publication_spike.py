@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from urllib.parse import urlparse
 
 from backend.openapi import spec as openapi_spec
 
@@ -24,6 +25,7 @@ RELEARN_REVISION = "8bb66fa674351f3a0b0917a7552caac686eca920"
 MARKDOWN_LINK = re.compile(r"(?P<prefix>\[[^\]]+\]\()(?P<target>[^)]+)(?P<suffix>\))")
 EXPECTED_OUTPUTS = (
     "index.html",
+    "js/demo-warmup.js",
     "handbuch/index.html",
     "referenz/index.html",
     "referenz/api/index.html",
@@ -131,9 +133,28 @@ def prepare_relearn_checkout(destination: Path) -> None:
         raise ValueError("Relearn checkout does not match the pinned revision")
 
 
-def configure_relearn(root: Path, site: Path) -> None:
+def public_url(value: str, *, allow_path: bool) -> str:
+    parsed = urlparse(value)
+    if (
+        parsed.scheme != "https"
+        or not parsed.netloc
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.params
+        or parsed.query
+        or parsed.fragment
+        or (not allow_path and parsed.path not in {"", "/"})
+    ):
+        raise ValueError(
+            "public URLs must be absolute HTTPS URLs without credentials, query, or fragment"
+        )
+    normalized_path = parsed.path.rstrip("/")
+    return f"{parsed.scheme}://{parsed.netloc}{normalized_path}"
+
+
+def configure_relearn(root: Path, site: Path, base_url: str, demo_url: str) -> None:
     (site / "hugo.toml").write_text(
-        "baseURL = 'https://lxndrp.github.io/lzug/'\n"
+        f"baseURL = {json.dumps(base_url + '/', ensure_ascii=False)}\n"
         "title = 'lzug'\n"
         "theme = 'relearn'\n"
         "defaultContentLanguage = 'de'\n"
@@ -144,6 +165,7 @@ def configure_relearn(root: Path, site: Path) -> None:
         "  disableLanguageSwitchingButton = true\n"
         "  disableThemeSwitchingButton = false\n"
         "  linkTitle = 'lzug'\n"
+        f"  demoURL = {json.dumps(demo_url, ensure_ascii=False)}\n"
         "  [[params.themeVariant]]\n    identifier = 'relearn-light'\n    name = 'Hell'\n"
         "  [[params.themeVariant]]\n    identifier = 'relearn-dark'\n    name = 'Dunkel'\n",
         encoding="utf-8",
@@ -151,6 +173,7 @@ def configure_relearn(root: Path, site: Path) -> None:
     (site / "layouts" / "home").mkdir(parents=True)
     (site / "layouts" / "partials").mkdir(parents=True)
     (site / "assets" / "css").mkdir(parents=True)
+    (site / "static" / "js").mkdir(parents=True)
     shutil.copyfile(
         root / "prototypes" / "publication" / "relearn" / "layouts" / "home" / "article.html",
         site / "layouts" / "home" / "article.html",
@@ -158,6 +181,10 @@ def configure_relearn(root: Path, site: Path) -> None:
     shutil.copyfile(
         root / "prototypes" / "publication" / "relearn" / "assets" / "css" / "custom.css",
         site / "assets" / "css" / "custom.css",
+    )
+    shutil.copyfile(
+        root / "prototypes" / "publication" / "relearn" / "static" / "js" / "demo-warmup.js",
+        site / "static" / "js" / "demo-warmup.js",
     )
     repository_revision = run("git", "rev-parse", "HEAD", cwd=root)
     (site / "layouts" / "partials" / "assetbusting.gotmpl").write_text(
@@ -284,10 +311,16 @@ def write_content(root: Path, wiki_root: Path, site: Path, repository_revision: 
     )
 
 
-def prepare_site(root: Path, wiki_root: Path, destination: Path) -> None:
+def prepare_site(
+    root: Path,
+    wiki_root: Path,
+    destination: Path,
+    base_url: str,
+    demo_url: str,
+) -> None:
     destination.mkdir(parents=True)
     prepare_relearn_checkout(destination / "themes" / "relearn")
-    configure_relearn(root, destination)
+    configure_relearn(root, destination, base_url, demo_url)
     write_content(root, wiki_root, destination, run("git", "rev-parse", "HEAD", cwd=root))
 
 
@@ -352,6 +385,14 @@ def parse_args() -> argparse.Namespace:
         subparser = subparsers.add_parser(command)
         subparser.add_argument("--wiki-root", type=Path, required=True)
         subparser.add_argument("--typedoc", type=Path, required=True)
+        subparser.add_argument(
+            "--base-url",
+            default=os.environ.get("PUBLICATION_BASE_URL", "https://lxndrp.github.io/lzug"),
+        )
+        subparser.add_argument(
+            "--demo-url",
+            default=os.environ.get("DEMO_URL", "https://demo.example.invalid"),
+        )
         if command == "build":
             subparser.add_argument("--output", type=Path, required=True)
     return parser.parse_args()
@@ -365,9 +406,11 @@ def main() -> int:
     )
     wiki_root = args.wiki_root.resolve()
     typedoc = args.typedoc.resolve()
+    base_url = public_url(args.base_url, allow_path=True)
+    demo_url = public_url(args.demo_url, allow_path=False)
     with tempfile.TemporaryDirectory(prefix="lzug-publication-spike-") as temporary:
         site = Path(temporary) / "relearn-site"
-        prepare_site(root, wiki_root, site)
+        prepare_site(root, wiki_root, site, base_url, demo_url)
         if args.command == "build":
             output = ensure_safe_output(root, args.output)
             render(root, site, output, typedoc)

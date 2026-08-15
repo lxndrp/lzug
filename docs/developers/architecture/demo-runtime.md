@@ -44,7 +44,15 @@ scripts/demo-container-smoke.sh lzug-demo-app:local lzug-demo-seed:local
 - `POST /api/demo/session` akzeptiert ausschließlich `chair` oder `examiner`
   und erzeugt eine zufällige Sitzung mit 60 Minuten Laufzeit.
 - `GET /api/session` ergänzt in der Demo Anzeigename, Rolle und Capabilities.
-- `/api/health` bleibt der minimale allgemeine Readiness-Vertrag.
+- `/api/health` bleibt der minimale allgemeine Liveness-Vertrag; `/api/ready`
+  signalisiert davon getrennt die vollständig initialisierte Demo.
+
+Die statische Landingpage ruft ausschließlich den Readiness-Vertrag auf. Die
+Demo-Runtime setzt dafür `LZUG_CORS_ALLOWED_ORIGINS` auf die exakte
+GitHub-Pages-Origin `https://lxndrp.github.io`; der Projektpfad `/lzug` gehört
+nicht zu einer Origin. Wildcards und weitere Origins bleiben ausgeschlossen.
+Der Browseraufruf überträgt weder Cookies noch Referrer und leitet erst bei
+`status = ready` zur Demo weiter.
 
 Die Rollenwahl ersetzt nur in dieser Assembly die lokale Anmeldung. Einladung,
 Recovery und Betreiberzugänge sind nicht öffentlich erreichbar. Sämtliche

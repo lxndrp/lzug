@@ -37,6 +37,11 @@ bereit:
 | `AZURE_CONTAINER_APP` | Name der Demo-Container-App |
 | `DEMO_URL` | öffentlicher HTTPS-Origin ohne Pfad, beispielsweise `https://demo.example.org` |
 
+Die statische Site bindet dieselbe öffentliche Demo-URL in ihr geprüftes
+Artefakt. Die Container App erlaubt für den Readiness-Warm-up über
+`LZUG_CORS_ALLOWED_ORIGINS` ausschließlich die deklarierte
+`landingpage_origin`; standardmäßig ist dies `https://lxndrp.github.io`.
+
 Es existiert kein Client-Secret. Die Federated Credential akzeptiert nur den
 GitHub-OIDC-Subject `repo:lxndrp/lzug:environment:demo` und den Audience-Wert
 `api://AzureADTokenExchange`. GitHub benötigt für den Job ausschließlich
