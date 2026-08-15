@@ -30,28 +30,6 @@ def snapshot_identity(tag: str, revision: str) -> DemoIdentity:
     return identity
 
 
-def validate_quality_runs(payload: Any, revision: str) -> dict[str, Any]:
-    runs = payload.get("workflow_runs") if isinstance(payload, dict) else None
-    if not isinstance(runs, list):
-        raise SnapshotContractError("quality evidence response has an invalid shape")
-    matches = [
-        run
-        for run in runs
-        if isinstance(run, dict)
-        and run.get("head_sha") == revision
-        and run.get("head_branch") == "master"
-        and run.get("event") == "push"
-        and run.get("status") == "completed"
-        and run.get("conclusion") == "success"
-        and run.get("path") == ".github/workflows/quality.yml"
-    ]
-    if not matches:
-        raise SnapshotContractError(
-            f"no successful complete master Quality workflow exists for {revision}"
-        )
-    return max(matches, key=lambda run: str(run.get("created_at", "")))
-
-
 def validate_milestones(
     payload: Any, target_version: str, *, now: datetime | None = None
 ) -> dict[str, Any]:
@@ -121,9 +99,6 @@ def parser() -> argparse.ArgumentParser:
         default="identity",
     )
 
-    quality = commands.add_parser("validate-quality")
-    quality.add_argument("--revision", required=True)
-
     milestone = commands.add_parser("validate-milestone")
     milestone.add_argument("--target-version", required=True)
 
@@ -137,9 +112,6 @@ def main() -> None:
     try:
         if args.command == "identity":
             print(getattr(snapshot_identity(args.tag, args.revision), args.field))
-        elif args.command == "validate-quality":
-            run = validate_quality_runs(_read_json(), args.revision)
-            print(run.get("html_url", run.get("id", "verified")))
         elif args.command == "validate-milestone":
             milestone = validate_milestones(_read_json(), args.target_version)
             print(milestone.get("html_url", milestone.get("number", "verified")))

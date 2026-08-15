@@ -9,12 +9,33 @@ Rollen oder GitHub-Environments.
 Für einen manuell promoteten Entwicklungs-Snapshot gilt daneben der
 zusammenhängende Workflow `Promote demo snapshot`: Ein Maintainer setzt einen
 neuen annotierten `demo/...-SNAPSHOT.<kurze SHA>`-Tag auf der aktuellen grünen
-`master`-SHA. Der Tag-Push startet Preflight, Build, separate SBOM- und
-Provenance-Attestierung, OCI-Publish und anschließend unmittelbar denselben
-OIDC-, Digestpaar-, Readiness- und Smoke-Vertrag in `demo`. Es gibt für diesen
-Pfad weder `workflow_dispatch` noch ein weiteres Required-Reviewer-Gate nach
-dem Tag-Push. Branches, Pull Requests, andere Tags und reine Teständerungen
-lösen ihn nicht aus.
+`master`-SHA. Der Tag-Push startet den günstigen Source-/Policy-Preflight,
+danach den vollständigen kanonischen `Quality`-Workflow für exakt den
+Tag-Zielcommit und erst bei dessen Erfolg Build, separate SBOM- und
+Provenance-Attestierung, OCI-Publish sowie unmittelbar denselben OIDC-,
+Digestpaar-, Readiness- und Smoke-Vertrag in `demo`. Es gibt für diesen Pfad
+weder `workflow_dispatch` noch ein weiteres Required-Reviewer-Gate nach dem
+Tag-Push. Branches, Pull Requests, andere Tags und reine Teständerungen lösen
+ihn nicht aus.
+
+Vor jeder Tag-Ableitung aktualisiert der Maintainer den Remote-Stand und leitet
+SHA, Suffix und Tag ausschließlich aus dem frisch gelesenen `origin/master`
+ab:
+
+```sh
+git fetch --no-tags origin master
+snapshot_sha=$(git rev-parse refs/remotes/origin/master)
+test "$(git rev-parse HEAD)" = "$snapshot_sha"
+snapshot_short=$(git rev-parse --short=7 "$snapshot_sha")
+snapshot_tag="demo/v0.2.0-SNAPSHOT.$snapshot_short"
+git tag -a "$snapshot_tag" "$snapshot_sha" -m "Promote $snapshot_tag"
+git push origin "refs/tags/$snapshot_tag"
+```
+
+Ein fehlgeschlagener Snapshot-Tag bleibt unveränderliche Historie. Er wird
+weder lokal noch remote gelöscht, verschoben oder unter demselben Namen erneut
+verwendet. Ein weiterer Promotionsversuch beginnt nach einem erneuten Fetch mit
+einem neuen aktuellen `master`-Commit und dessen neuem Tag.
 
 Der bestehende manuelle Workflow bleibt für releasegebundene Deployments und
 den ausdrücklichen Rollback auf ein früher vollständig geprüftes Paar erhalten.
