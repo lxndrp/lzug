@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 from dataclasses import asdict, dataclass
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Literal, overload
 from urllib.error import HTTPError, URLError
@@ -210,6 +211,13 @@ def validate_demo_status(payload: Any, pair: ArtifactPair) -> None:
             raise DeploymentError(f"Demo API reported an unexpected {field}")
 
 
+def validate_authentication_required(payload: Any, content_type: str) -> None:
+    if content_type != "application/json":
+        raise DeploymentError("Protected OpenAPI route did not return a JSON authentication error")
+    if payload != {"error": "Authentication required."}:
+        raise DeploymentError("Protected OpenAPI route returned an unexpected authentication error")
+
+
 @overload
 def _az_rest(
     method: str,
@@ -266,17 +274,32 @@ def _az_rest(
     return payload
 
 
-def _http_get(url: str, *, expect_json: bool) -> tuple[Any, str]:
+def _http_get(
+    url: str,
+    *,
+    expect_json: bool,
+    expected_status: HTTPStatus = HTTPStatus.OK,
+) -> tuple[Any, str]:
     request = Request(url, headers={"User-Agent": "lzug-demo-deployment/1"})
     try:
-        with urlopen(request, timeout=20) as response:
-            content_type = response.headers.get_content_type()
-            body = response.read().decode("utf-8")
+        response = urlopen(request, timeout=20)
     except HTTPError as error:
-        raise DeploymentError(f"GET {url} returned HTTP {error.code}") from error
+        response = error
     except (URLError, TimeoutError) as error:
         detail = getattr(error, "reason", str(error))
         raise DeploymentError(f"GET {url} failed: {detail}") from error
+    with response:
+        status = response.getcode()
+        if status != expected_status:
+            raise DeploymentError(
+                f"GET {url} returned HTTP {status}; expected HTTP {expected_status}"
+            )
+        try:
+            content_type = response.headers.get_content_type()
+            body = response.read().decode("utf-8")
+        except (URLError, TimeoutError) as error:
+            detail = getattr(error, "reason", str(error))
+            raise DeploymentError(f"GET {url} failed: {detail}") from error
     if expect_json:
         try:
             return json.loads(body), content_type
@@ -344,9 +367,12 @@ def smoke(demo_url: str, pair: ArtifactPair) -> None:
     validate_health(health, pair)
     status, _ = _http_get(urljoin(root, "api/demo/status"), expect_json=True)
     validate_demo_status(status, pair)
-    openapi, _ = _http_get(urljoin(root, "api/openapi.json"), expect_json=True)
-    if not isinstance(openapi, dict) or not str(openapi.get("openapi", "")).startswith("3."):
-        raise DeploymentError("Central API route did not return the OpenAPI 3 contract")
+    authentication_error, content_type = _http_get(
+        urljoin(root, "api/openapi.json"),
+        expect_json=True,
+        expected_status=HTTPStatus.UNAUTHORIZED,
+    )
+    validate_authentication_required(authentication_error, content_type)
     frontend, content_type = _http_get(root, expect_json=False)
     if content_type != "text/html" or "<app-root" not in frontend:
         raise DeploymentError("Central frontend route did not return the Angular application shell")
