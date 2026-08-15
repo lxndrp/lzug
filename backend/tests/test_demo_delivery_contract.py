@@ -105,7 +105,7 @@ class DemoDeliveryContractTests(unittest.TestCase):
 
         self.assertIn("quality:demo:", taskfile)
         self.assertIn("scripts/demo-container-smoke.sh", taskfile)
-        self.assertIn('snapshot|demo/v0.2.0-SNAPSHOT.$short_revision', taskfile)
+        self.assertIn("snapshot|demo/v0.2.0-SNAPSHOT.$short_revision", taskfile)
         self.assertIn("quality:demo", pull_request)
         self.assertIn("quality:demo", quality)
 
