@@ -1,18 +1,33 @@
 <article class="home publication-home">
   <section class="publication-hero" aria-labelledby="publication-title">
-    <p class="publication-kicker">Prüfungen gemeinsam verlässlich planen</p>
+    <p class="publication-kicker">Prüfungsorganisation, die gemeinsam trägt</p>
     <h1 id="publication-title">{{ .Title }}</h1>
     <p class="publication-lead">{{ .Description }}</p>
     <div class="publication-actions">
-      <a class="publication-button publication-button-primary" href="{{ relURL "handbuch/" }}">Handbuch öffnen</a>
-      <a class="publication-button" href="{{ relURL "referenz/" }}">Referenzen ansehen</a>
+      <button
+        class="publication-button publication-button-primary"
+        type="button"
+        data-demo-start
+        data-demo-url="{{ .Site.Params.demoURL }}"
+        data-demo-maximum-attempts="12"
+        data-demo-total-timeout-ms="90000"
+        aria-describedby="demo-explanation"
+      >Demo starten</button>
+      <a class="publication-button" href="{{ relURL "handbuch/" }}">Handbuch öffnen</a>
     </div>
-    {{ .Content }}
+    <div class="publication-demo" aria-live="polite" aria-atomic="true">
+      <p id="demo-explanation" class="publication-demo-explanation">
+        Die Demo spart Ressourcen und pausiert bei Inaktivität. Der erste Start kann deshalb bis zu 90 Sekunden dauern.
+      </p>
+      <p class="publication-demo-status" data-demo-status hidden></p>
+      <p class="publication-demo-detail" data-demo-detail hidden></p>
+    </div>
   </section>
   <section class="publication-features" aria-labelledby="publication-areas">
     <h2 id="publication-areas" class="publication-visually-hidden">Bereiche</h2>
-    <article><h3>Produkt und Demo</h3><p>Ein klarer Einstieg führt später zur flüchtigen Demo.</p></article>
-    <article><h3>Öffentliches Handbuch</h3><p>Redaktionelle Inhalte bleiben im GitHub Wiki kanonisch.</p></article>
-    <article><h3>Technische Referenz</h3><p>API, Code und Schema bleiben revisionsgebunden.</p></article>
+    <article><h3>Gemeinsam planen</h3><p>Prüfungstermine, Beteiligte und Abläufe übersichtlich koordinieren.</p></article>
+    <article><h3>Unverbindlich ausprobieren</h3><p>Die öffentliche Demo enthält ausschließlich vorbereitete, flüchtige Beispieldaten.</p></article>
+    <article><h3>Offen nachvollziehen</h3><p><a href="https://github.com/lxndrp/lzug">Quellcode</a>, <a href="{{ relURL "handbuch/" }}">Handbuch</a> und <a href="{{ relURL "referenz/" }}">technische Referenz</a> bleiben direkt erreichbar.</p></article>
   </section>
 </article>
+<script src="{{ relURL "js/demo-warmup.js" }}" defer></script>

@@ -1,0 +1,137 @@
+name: Public site
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      confirm_publication:
+        description: Publish the rebuilt master artifact after the separate Maintainer GO
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-site-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_URL: https://lxndrp.github.io/lzug
+  DEMO_URL: https://lzug-demo-app.calmsea-4e736077.germanywestcentral.azurecontainerapps.io
+
+jobs:
+  build:
+    name: Build and check static artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Validate the manual publication gate
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          CONFIRM_PUBLICATION: ${{ inputs.confirm_publication }}
+        run: |
+          test "$GITHUB_REF" = "refs/heads/master" || {
+            echo "Public site deployment may only be dispatched from master." >&2
+            exit 1
+          }
+          test "$CONFIRM_PUBLICATION" = "true" || {
+            echo "Public site deployment requires the explicit confirmation input." >&2
+            exit 1
+          }
+
+      - name: Checkout canonical Wiki
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: published-wiki
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14.6"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+        with:
+          install: false
+          cache: true
+
+      - name: Install locked build and browser dependencies
+        run: |
+          mise install hugo-extended@0.165.0
+          uv sync --locked --extra dev
+          npm ci --prefix frontend
+          cd frontend && npx playwright install --with-deps chromium
+
+      - name: Verify reproducible public artifact
+        run: task docs:publication:check WIKI_ROOT=published-wiki DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+
+      - name: Build public artifact
+        run: task docs:publication WIKI_ROOT=published-wiki DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+
+      - name: Check responsive warm-up flow and accessibility
+        run: node scripts/check_publication_spike.mjs build/publication build/publication-evidence
+
+      - name: Upload checked artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: lzug-public-site
+          path: build/publication
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Prepare Pages deployment artifact after the manual gate
+        if: github.event_name == 'workflow_dispatch' && inputs.confirm_publication == true
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: build/publication
+          include-hidden-files: true
+          retention-days: 1
+
+      - name: Upload browser evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: public-site-browser-evidence
+          path: build/publication-evidence
+          if-no-files-found: warn
+          retention-days: 7
+
+  deploy:
+    name: Deploy manually approved artifact
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm_publication == true
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Verify that Pages was configured after the separate Maintainer GO
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+        with:
+          enablement: false
+
+      - name: Deploy the checked artifact
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

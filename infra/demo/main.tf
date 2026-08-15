@@ -89,6 +89,11 @@ resource "azurerm_container_app" "demo" {
         value = split("@", var.demo_artifact_pair.app_image)[1]
       }
 
+      env {
+        name  = "LZUG_CORS_ALLOWED_ORIGINS"
+        value = var.landingpage_origin
+      }
+
       dynamic "env" {
         for_each = var.container_environment
         content {

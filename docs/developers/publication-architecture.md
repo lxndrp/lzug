@@ -168,18 +168,16 @@ Generatorgrenze ohne eine vorgezogene Abhängigkeit.
 
 ## Trigger, Konkurrenzschutz und Konsistenz
 
-Die spätere Publikationspipeline verwendet ein einziges Workflow-Artefakt und
-trennt Build von Deployment:
+Der Workflow `Public site` baut und prüft ein einziges Artefakt und trennt
+diesen repositoryseitigen Vertrag vom noch nicht aktivierten Deployment:
 
-- `pull_request`: baut und prüft nur; keine öffentliche Mutation.
+- `pull_request`: baut und prüft mit dem beim Start aufgelösten Wiki-Commit;
+  keine öffentliche Mutation.
 - `push` auf `master`: baut aus dem exakten `GITHUB_SHA` und dem beim Start
-  aufgelösten Wiki-Commit.
-- `gollum`: startet erst nach einer Wiki-Mutation, verwendet den letzten
-  `master`-Commit und den danach aufgelösten Wiki-Commit. Es ist ausdrücklich
-  kein Pre-Publish-Gate für das Wiki.
-- `workflow_dispatch`: akzeptiert ausschließlich explizite Repository- und
-  Wiki-Refs, löst beide in Commit-SHAs auf und dient Wiederholung oder
-  Rückfalltests.
+  aufgelösten Wiki-Commit und legt das geprüfte Artefakt nur im Workflow ab.
+- `gollum` bleibt Teil eines späteren Ausbaus. `workflow_dispatch` ist nur auf
+  `master` mit explizitem Bestätigungsinput zulässig und bildet das separat
+  freizugebende Aktivierungsgate; frei wählbare Quell-Refs sind ausgeschlossen.
 
 Eine repoübergreifende Concurrency-Gruppe verwirft überholte Builds. Vor einem
 Deployment wird geprüft, dass die im Artefakt gespeicherten SHAs noch den für
@@ -188,16 +186,24 @@ die Site atomar; Teilpublikationen einzelner Referenzen sind ausgeschlossen.
 `quellen.json` und der sichtbare Bereich `/quellen/` nennen beide SHAs. Jede
 Wiki-Seite verlinkt zusätzlich ihre kanonische Wiki-Route.
 
-Der spätere Deployment-Job benötigt minimal `pages: write` und
-`id-token: write`, hängt vom erfolgreichen Build ab und verwendet ein
-geschütztes `github-pages`-Environment. Diese Berechtigungen und die
-Pages-Einstellung werden mit #206 ausdrücklich noch nicht angelegt.
+Der vorbereitete Deployment-Job erhält ausschließlich `pages: write` und
+`id-token: write`, hängt vom erfolgreichen Neuaufbau ab und verwendet das
+Environment `github-pages`. Er läuft nur über `workflow_dispatch` auf
+`master`, wenn `confirm_publication=true` ausdrücklich gesetzt wurde.
+`configure-pages` verwendet `enablement: false` und kann Pages daher nicht
+selbst aktivieren. Ein Maintainer muss die Pages-Quelle einmalig separat auf
+GitHub Actions konfigurieren und den ersten Dispatch ausdrücklich freigeben.
+Pull Requests und Pushes auf `master` bauen und prüfen nur; sie veröffentlichen
+nicht.
 
-## Lokaler Spike
+## Lokaler Build
 
 ```sh
 task docs:publication-spike
 task docs:publication-spike:check
+task docs:publication
+task docs:publication:check
+task docs:publication:browser
 ```
 
 Der erste Task erzeugt unter `build/publication-spike/` die vollständige
@@ -205,8 +211,11 @@ Zielstruktur. Der zweite baut zweimal in getrennten temporären Verzeichnissen
 und vergleicht alle Dateien bytegenau. Mit `WIKI_ROOT=/path/to/lzug.wiki` kann
 anstelle der synthetischen Fixture ein sauberer Wiki-Clone verwendet werden.
 
-Der Spike pinnt Hugo Extended 0.165.0 und Relearn-Commit
+Der Build pinnt Hugo Extended 0.165.0 und Relearn-Commit
 `8bb66fa674351f3a0b0917a7552caac686eca920`. Er nutzt echte Generatorgrenzen,
-aktiviert aber keine Pages-, Netlify- oder Read-the-Docs-Ressource. Der Hero
-belegt nur Theme und Navigationsschnitt und nimmt Text, Marke oder Gestaltung
-der Landingpage aus #127 nicht vorweg.
+aktiviert aber keine Pages-, Netlify- oder Read-the-Docs-Ressource. Der
+Produkt- und Demo-Einstieg bindet die Demo-URL beim Build, erklärt den
+Scale-to-zero-Kaltstart und verwendet einen begrenzten Health-Warm-up. Der
+Browsercheck prüft Desktop und Mobil in hellem und dunklem Farbschema,
+Landmarks, Überlauf, blockierende axe-Befunde sowie die erfolgreiche
+Health-Weiterleitung.
