@@ -45,6 +45,13 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn('redirect: "error"', script)
         self.assertIn("`${demoUrl}/api/health`", script)
         self.assertIn('button.textContent = "Erneut versuchen"', script)
+        self.assertIn(
+            "chromiumSandbox: true", (ROOT / "scripts/check_publication_spike.mjs").read_text()
+        )
+        self.assertIn(
+            'browserChannel !== "chrome"',
+            (ROOT / "scripts/check_publication_spike.mjs").read_text(),
+        )
 
     def test_pages_deployment_is_manual_fail_closed_and_cannot_enable_pages(self) -> None:
         workflow = (ROOT / ".github/workflows/publication.yml").read_text(encoding="utf-8")
@@ -63,6 +70,9 @@ class PublicationDeliveryContractTests(unittest.TestCase):
             workflow.count("mise x hugo-extended@0.165.0 -- task docs:publication"),
         )
         self.assertNotIn("run: task docs:publication", workflow)
+        self.assertIn("PLAYWRIGHT_BROWSER_CHANNEL: chrome", workflow)
+        self.assertNotIn("playwright install", workflow)
+        self.assertNotIn("--no-sandbox", workflow)
         self.assertNotIn("schedule:", workflow)
 
 

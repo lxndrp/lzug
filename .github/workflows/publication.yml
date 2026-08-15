@@ -74,12 +74,11 @@ jobs:
           install: false
           cache: true
 
-      - name: Install locked build and browser dependencies
+      - name: Install locked build dependencies
         run: |
           mise install hugo-extended@0.165.0
           uv sync --locked --extra dev
           npm ci --prefix frontend
-          cd frontend && npx playwright install --with-deps chromium
 
       - name: Verify reproducible public artifact
         run: mise x hugo-extended@0.165.0 -- task docs:publication:check WIKI_ROOT=published-wiki DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
@@ -88,6 +87,8 @@ jobs:
         run: mise x hugo-extended@0.165.0 -- task docs:publication WIKI_ROOT=published-wiki DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
       - name: Check responsive warm-up flow and accessibility
+        env:
+          PLAYWRIGHT_BROWSER_CHANNEL: chrome
         run: node scripts/check_publication_spike.mjs build/publication build/publication-evidence
 
       - name: Upload checked artifact

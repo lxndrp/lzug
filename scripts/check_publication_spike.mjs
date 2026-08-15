@@ -52,7 +52,14 @@ if (!address || typeof address === "string")
 const baseUrl = `http://127.0.0.1:${address.port}/lzug/`;
 await mkdir(evidence, { recursive: true });
 
-const browser = await chromium.launch({ chromiumSandbox: true });
+const browserChannel = process.env.PLAYWRIGHT_BROWSER_CHANNEL;
+if (browserChannel !== undefined && browserChannel !== "chrome") {
+  throw new Error(`Unsupported Playwright browser channel: ${browserChannel}`);
+}
+const browser = await chromium.launch({
+  chromiumSandbox: true,
+  ...(browserChannel === "chrome" ? { channel: browserChannel } : {}),
+});
 const results = [];
 try {
   for (const candidate of [
