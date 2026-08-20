@@ -19,6 +19,11 @@ Die folgenden Quellen ergänzen Taiga UI mit klar getrennten Rollen:
 - Die [Nielsen-Heuristiken](https://www.nngroup.com/articles/ten-usability-heuristics/)
   strukturieren das Usability-Review, insbesondere Rückmeldung,
   Fehlervermeidung und verständliche Begriffe.
+- Steve Krugs [*Don't Make Me Think, Revisited*](https://www.pearson.com/en-us/subject-catalog/p/dont-make-me-think-revisited-a-common-sense-approach-to-web-usability/P200000000385/9780137460434)
+  schärft die Prüfung auf selbstverständliche Orientierung, scanbare
+  Informationsgestaltung, eindeutige Aktionen und knappe Sprache. Fachlich
+  notwendige Denkarbeit bleibt sichtbar; unnötige Denkarbeit durch die
+  Oberfläche wird vermieden.
 - Das [GOV.UK Design System](https://design-system.service.gov.uk/) dient als
   Musterreferenz für Informationsstruktur, Formulare und Rückmeldungen. Es
   liefert keine CSS- oder Komponentenbasis für lzug.
@@ -35,3 +40,12 @@ CSS-Frameworks oder ein Screenshot-Regressionstest eingeführt.
 - Jeder betroffene Ablauf umfasst Laden, Leerzustand, Erfolg, Fehler, Bestätigung und Abbruch. Eine ausdrückliche UX-Prüfung betrachtet alle produktiven Hauptabläufe.
 - Desktop und Mobil sowie helles und dunkles Farbschema werden auf sichtbare Hierarchie, Kontrast, Fokus, Umbruch, Überlauf und erreichbare Aktionen geprüft.
 - Positives und Verbesserungsbedarf werden nach Verständlichkeit, Fehlervermeidung und Aufgabenerfolg konkret priorisiert.
+
+## Abgrenzung zum Web-Auftritt
+
+Diese Richtlinie betrifft die Verwaltungsanwendung. Für den späteren
+öffentlichen Web-Auftritt kann Nancy Duartes Arbeit als Referenz für
+Erzählführung, visuelle Dramaturgie und die Vermittlung des Produkts dienen.
+Sie ist weder eine Komponenten- oder CSS-Basis noch ein Maßstab für die
+aufgabenzentrierte Anwendungsoberfläche. Die konkrete Gestaltung des
+Web-Auftritts wird in einer eigenen Entscheidung dokumentiert.
