@@ -102,12 +102,16 @@ für den Deploymentjob bereit:
 `DEMO_URL` gehört nicht in das Environment. Es existiert genau einmal als
 nicht-sensitive Repository-Variable und hat verbindlich den Wert
 `https://demo.lzug.repertoire.papaspyrou.name`. Publication und beide Demo-
-Deploymentpfade lesen diese Repository-Variable über `vars.DEMO_URL`. Jeder
-gleichnamige Eintrag im Environment `demo`, ein fehlender Repository-Wert, der
-Placeholder `https://demo.example.invalid` oder ein anderer Origin lässt den
-jeweiligen echten Pfad vor Veröffentlichung beziehungsweise Azure-Anmeldung
-fail-closed scheitern. PR-/Push-Buildprüfungen der Publication dürfen den
-Placeholder weiterhin ausschließlich als sichere lokale Testeingabe verwenden.
+Deploymentpfade lassen GitHub Actions diese Repository-Variable über
+`vars.DEMO_URL` zum effektiven Workflowwert auflösen und validieren diesen ohne
+erneuten API-Zugriff. Ein fehlender Repository-Wert, der Placeholder
+`https://demo.example.invalid` oder ein anderer Origin lässt den jeweiligen
+echten Pfad vor Veröffentlichung beziehungsweise Azure-Anmeldung fail-closed
+scheitern. Das geschützte Environment `demo` darf weiterhin keinen
+gleichnamigen Override enthalten; dieser Konfigurationsvertrag wird außerhalb
+des Runners am jeweiligen Aktivierungsgate geprüft. PR-/Push-Buildprüfungen der
+Publication dürfen den Placeholder weiterhin ausschließlich als sichere lokale
+Testeingabe verwenden.
 
 Die statische Site bindet dieselbe öffentliche Demo-URL in ihr geprüftes
 Artefakt. Die Container App erlaubt für den Readiness-Warm-up über

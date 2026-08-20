@@ -396,8 +396,17 @@ class DemoDeploymentTests(unittest.TestCase):
         self.assertIn("attestations: read", workflow)
         self.assertIn("name: demo", workflow)
         self.assertIn("url: ${{ vars.DEMO_URL }}", workflow)
-        self.assertIn("Validate the repository DEMO_URL and reject Environment overrides", workflow)
-        self.assertIn("scripts/validate_demo_url_contract.py check", workflow)
+        self.assertIn("Validate the effective DEMO_URL before Azure mutation", workflow)
+        self.assertIn("scripts/validate_demo_url_contract.py validate", workflow)
+        self.assertIn('--value "$EFFECTIVE_DEMO_URL"', workflow)
+        validation_step = workflow[
+            workflow.index(
+                "Validate the effective DEMO_URL before Azure mutation"
+            ) : workflow.index("Validate protected branch and secret-free inputs")
+        ]
+        self.assertNotIn("GH_TOKEN", validation_step)
+        self.assertNotIn("github.token", validation_step)
+        self.assertNotIn("--repository", validation_step)
         self.assertIn("azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca", workflow)
         self.assertNotIn("secrets.AZURE", workflow)
         self.assertNotIn("AZURE_CREDENTIALS", workflow)
@@ -417,7 +426,7 @@ class DemoDeploymentTests(unittest.TestCase):
             workflow.index("Log in to Azure using GitHub OIDC"),
         )
         self.assertLess(
-            workflow.index("Validate the repository DEMO_URL and reject Environment overrides"),
+            workflow.index("Validate the effective DEMO_URL before Azure mutation"),
             workflow.index("Log in to Azure using GitHub OIDC"),
         )
         self.assertIn(

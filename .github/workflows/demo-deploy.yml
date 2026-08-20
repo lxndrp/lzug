@@ -76,15 +76,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Validate the repository DEMO_URL and reject Environment overrides
+      - name: Validate the effective DEMO_URL before Azure mutation
         env:
-          GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ github.token }}
           EFFECTIVE_DEMO_URL: ${{ env.DEMO_URL }}
         run: >-
-          python3 scripts/validate_demo_url_contract.py check
-          --repository "$GH_REPO"
-          --effective-url "$EFFECTIVE_DEMO_URL"
+          python3 scripts/validate_demo_url_contract.py validate
+          --value "$EFFECTIVE_DEMO_URL"
 
       - name: Validate protected branch and secret-free inputs
         run: |

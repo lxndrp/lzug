@@ -198,10 +198,10 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertEqual(4, workflow.count("uses: actions/attest@"))
         self.assertIn("name: demo", workflow[deploy:])
         self.assertIn(
-            "Validate the repository DEMO_URL and reject Environment overrides",
+            "Validate the effective DEMO_URL before Azure mutation",
             workflow[deploy:],
         )
-        self.assertIn("scripts/validate_demo_url_contract.py check", workflow[deploy:])
+        self.assertIn("scripts/validate_demo_url_contract.py validate", workflow[deploy:])
         self.assertIn("id-token: write", workflow[deploy:])
         self.assertIn("azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca", workflow)
         self.assertIn("needs.publish.outputs.app_image", workflow[deploy:])
@@ -223,9 +223,7 @@ class DemoDeliveryContractTests(unittest.TestCase):
         )
         self.assertLess(policy_verification, azure_login)
         self.assertLess(
-            workflow.index(
-                "Validate the repository DEMO_URL and reject Environment overrides", deploy
-            ),
+            workflow.index("Validate the effective DEMO_URL before Azure mutation", deploy),
             azure_login,
         )
         self.assertIn("--signer-workflow lxndrp/lzug/.github/workflows/demo-snapshot.yml", workflow)
