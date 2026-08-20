@@ -41,8 +41,8 @@ jobs:
           UPDATE_TYPE: ${{ steps.dependabot-metadata.outputs.update-type }}
         run: |
           case "${PACKAGE_ECOSYSTEM}:${UPDATE_TYPE}" in
-            npm:version-update:semver-patch | \
-              npm:version-update:semver-minor | \
+            npm_and_yarn:version-update:semver-patch | \
+              npm_and_yarn:version-update:semver-minor | \
               uv:version-update:semver-patch | \
               uv:version-update:semver-minor)
               echo "eligible=true" >> "$GITHUB_OUTPUT"
