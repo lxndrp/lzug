@@ -25,5 +25,5 @@ landingpage_url              = ""
 # Change this only when a second isolated deployment shares the subscription.
 name_prefix = "lzug-demo"
 
-# Exact GitHub Pages origin; the project path is deliberately not part of an origin.
-landingpage_origin = "https://lxndrp.github.io"
+# Exact repository-owned GitHub Pages origin; the project path is deliberately not part of an origin.
+landingpage_origin = "https://lzug.repertoire.papaspyrou.name"

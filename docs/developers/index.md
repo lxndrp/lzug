@@ -22,6 +22,8 @@ im Repository-Wurzelverzeichnis.
   Pfadklassifikation, Gesamtstatus und Browsercache-Vertrag.
 - **Azure-Demo-Deployment** beschreibt OIDC, minimale Rechte, das atomare
   Digest-Paar, Readiness-/Smoke-Nachweise und Rollback.
+- **Öffentliche Domains und TLS** beschreibt den getrennten DNS-, Pages-,
+  Zertifikats- und Demo-Domain-Freigabeablauf.
 - **Demo-Beobachtbarkeit** trennt Liveness und Readiness, definiert
   datensparsame strukturierte Logs, Uptime-/Budgetalarme und das externe
   Aktivierungsgate.

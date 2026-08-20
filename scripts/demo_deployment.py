@@ -99,16 +99,23 @@ class AzureTarget:
 
 def validate_demo_url(value: str) -> str:
     parsed = urlsplit(value)
+    hostname = parsed.hostname.lower() if parsed.hostname else ""
     if (
         parsed.scheme != "https"
-        or not parsed.hostname
+        or not hostname
         or parsed.username is not None
         or parsed.password is not None
         or parsed.query
         or parsed.fragment
         or parsed.path not in ("", "/")
+        or "*" in value
+        or hostname in {"lxndrp.github.io", "stage.papaspyrou.name"}
+        or hostname.endswith(".azurecontainerapps.io")
     ):
-        raise DeploymentError("demo_url must be an HTTPS origin without credentials or path")
+        raise DeploymentError(
+            "demo_url must be a dedicated HTTPS origin without credentials, path, wildcard, "
+            "inherited account domain, or Azure platform hostname"
+        )
     return value.rstrip("/") + "/"
 
 

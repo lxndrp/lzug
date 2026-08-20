@@ -375,6 +375,10 @@ class DemoDeploymentTests(unittest.TestCase):
             "https://demo.example.org/path",
             "https://user@example.org",
             "https://demo.example.org?token=no",
+            "https://stage.papaspyrou.name",
+            "https://lxndrp.github.io",
+            "https://demo.lzug.repertoire.papaspyrou.name.eastus.azurecontainerapps.io",
+            "https://*.repertoire.papaspyrou.name",
         ):
             with self.subTest(invalid=invalid), self.assertRaises(DeploymentError):
                 validate_demo_url(invalid)

@@ -21,8 +21,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  BASE_URL: https://lxndrp.github.io/lzug
-  DEMO_URL: https://lzug-demo-app.calmsea-4e736077.germanywestcentral.azurecontainerapps.io
+  BASE_URL: https://lzug.repertoire.papaspyrou.name
+  DEMO_URL: ${{ vars.DEMO_URL || 'https://demo.example.invalid' }}
 
 jobs:
   build:

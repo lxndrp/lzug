@@ -103,11 +103,14 @@ variable "container_environment" {
 variable "landingpage_origin" {
   description = "Exact HTTPS origin allowed to call the public readiness endpoint from the static landing page."
   type        = string
-  default     = "https://lxndrp.github.io"
+  default     = "https://lzug.repertoire.papaspyrou.name"
 
   validation {
-    condition     = can(regex("^https://[A-Za-z0-9.-]+(:[0-9]+)?$", var.landingpage_origin))
-    error_message = "landingpage_origin must be one exact HTTPS origin without credentials, path, query, fragment, or wildcard."
+    condition = (
+      var.landingpage_origin == "https://lzug.repertoire.papaspyrou.name" &&
+      !strcontains(var.landingpage_origin, "*")
+    )
+    error_message = "landingpage_origin must be exactly the dedicated lzug Pages HTTPS origin; inherited account domains and wildcards are rejected."
   }
 }
 
@@ -177,8 +180,8 @@ variable "landingpage_url" {
   default     = ""
 
   validation {
-    condition     = !var.external_monitoring_enabled || can(regex("^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[^?#]*)?$", var.landingpage_url))
-    error_message = "landingpage_url must be an HTTPS URL when external monitoring is enabled."
+    condition     = !var.external_monitoring_enabled || var.landingpage_url == "https://lzug.repertoire.papaspyrou.name/"
+    error_message = "landingpage_url must be the canonical lzug Pages HTTPS URL when external monitoring is enabled."
   }
 }
 

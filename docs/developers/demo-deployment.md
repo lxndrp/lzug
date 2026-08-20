@@ -98,12 +98,17 @@ bereit:
 | `AZURE_SUBSCRIPTION_ID` | Azure-Subscription-ID                                                                                      |
 | `AZURE_RESOURCE_GROUP`  | Resource Group der Demo                                                                                    |
 | `AZURE_CONTAINER_APP`   | Name der Demo-Container-App                                                                                |
-| `DEMO_URL`              | öffentlicher HTTPS-Origin ohne Pfad, beispielsweise `https://demo.example.org`                             |
+| `DEMO_URL`              | nicht imagegebundener öffentlicher HTTPS-Origin ohne Pfad; empfohlen ist `https://demo.lzug.repertoire.papaspyrou.name` nach Maintainer-Bestätigung |
 
 Die statische Site bindet dieselbe öffentliche Demo-URL in ihr geprüftes
 Artefakt. Die Container App erlaubt für den Readiness-Warm-up über
 `LZUG_CORS_ALLOWED_ORIGINS` ausschließlich die deklarierte
-`landingpage_origin`; standardmäßig ist dies `https://lxndrp.github.io`.
+`landingpage_origin`; verbindlich ist dies `https://lzug.repertoire.papaspyrou.name`.
+
+Der Azure-Standard-FQDN wird nie als dauerhaftes Produktziel übernommen. Die
+Domainhierarchie, DNS-, Zertifikats- und Betreiber-Gates stehen in der
+[Betriebsanleitung für öffentliche Domains](publication-domains.md). Die
+empfohlene Demo-Domain bleibt bis zur fachlichen Bestätigung offen.
 
 Es existiert kein Client-Secret. Die Federated Credential akzeptiert nur den
 GitHub-OIDC-Subject `repo:lxndrp/lzug:environment:demo` und den Audience-Wert

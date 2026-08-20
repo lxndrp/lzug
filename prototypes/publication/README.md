@@ -20,9 +20,11 @@ Buildschnitt geprüft werden:
 task docs:publication-spike WIKI_ROOT=/path/to/lzug.wiki
 ```
 
-`DEMO_URL` und `BASE_URL` binden ein konkretes Zielartefakt an seine produktiven
-HTTPS-URLs. Die Demo-URL darf keine Credentials, Query, Fragment oder Unterpfade
-enthalten. Der Build pinnt Hugo Extended und den exakt visuell geprüften
+`BASE_URL` ist dauerhaft `https://lzug.repertoire.papaspyrou.name` an der
+Domainwurzel. `DEMO_URL` bindet eine separat konfigurierbare Demo-Origin an das
+Artefakt und darf keine Credentials, Query, Fragment oder Unterpfade enthalten.
+Die Demo-Domain bleibt bis zur Maintainer-Bestätigung offen; der Azure-
+Standard-FQDN ist kein Produktvertrag. Der Build pinnt Hugo Extended und den exakt visuell geprüften
 Relearn-Commit.
 Relearn benötigt weder npm noch Go Modules und übernimmt keine zweite
 Lockdatei in dieses Repository. Die Ausgabe unter
