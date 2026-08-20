@@ -9,44 +9,82 @@ Rollen oder GitHub-Environments.
 Für einen manuell promoteten Entwicklungs-Snapshot gilt daneben der
 zusammenhängende Workflow `Promote demo snapshot`: Ein Maintainer setzt einen
 neuen annotierten `demo/...-SNAPSHOT.<kurze SHA>`-Tag auf der aktuellen grünen
-`master`-SHA. Der Tag-Push startet Preflight, Build, separate SBOM- und
-Provenance-Attestierung, OCI-Publish und anschließend unmittelbar denselben
-OIDC-, Digestpaar-, Readiness- und Smoke-Vertrag in `demo`. Es gibt für diesen
-Pfad weder `workflow_dispatch` noch ein weiteres Required-Reviewer-Gate nach
-dem Tag-Push. Branches, Pull Requests, andere Tags und reine Teständerungen
-lösen ihn nicht aus.
+`master`-SHA. Der Tag-Push startet den günstigen Source-Preflight,
+danach den vollständigen kanonischen `Quality`-Workflow für exakt den
+Tag-Zielcommit und erst bei dessen Erfolg Build, separate SBOM- und
+Provenance-Attestierung, OCI-Publish sowie unmittelbar denselben OIDC-,
+Digestpaar-, Readiness- und Smoke-Vertrag in `demo`. Es gibt für diesen Pfad
+weder `workflow_dispatch` noch ein weiteres Required-Reviewer-Gate nach dem
+Tag-Push. Branches, Pull Requests, andere Tags und reine Teständerungen lösen
+ihn nicht aus.
+
+Vor jeder Tag-Ableitung aktualisiert der Maintainer den Remote-Stand und leitet
+SHA, Suffix und Tag ausschließlich aus dem frisch gelesenen `origin/master`
+ab:
+
+```sh
+git fetch --no-tags origin master
+snapshot_sha=$(git rev-parse refs/remotes/origin/master)
+test "$(git rev-parse HEAD)" = "$snapshot_sha"
+snapshot_short=$(git rev-parse --short=7 "$snapshot_sha")
+snapshot_tag="demo/v0.2.0-SNAPSHOT.$snapshot_short"
+git tag -a "$snapshot_tag" "$snapshot_sha" -m "Promote $snapshot_tag"
+git push origin "refs/tags/$snapshot_tag"
+```
+
+Ein fehlgeschlagener Snapshot-Tag bleibt unveränderliche Historie. Er wird
+weder lokal noch remote gelöscht, verschoben oder unter demselben Namen erneut
+verwendet. Ein weiterer Promotionsversuch beginnt nach einem erneuten Fetch mit
+einem neuen aktuellen `master`-Commit und dessen neuem Tag.
+
+Für die einmalige #129-Adoption gilt enger: Der erste neue Snapshot nach Merge
+muss Quality, Build, Publish, SBOM, Provenance und die digestgebundenen
+App-/Seed-Manifeste erfolgreich abschließen. Sein erwartbarer Deploy-STOP an
+der noch nicht adoptierten Readiness-Infrastruktur ist kein Deploymentnachweis
+und der Tag wird nicht wiederverwendet. Das veröffentlichte Paar mit
+`lzug-demo-health-ready-v1` wird anschließend atomar im neuen, separat
+freizugebenden OpenTofu-Plan verwendet. Erst nach dessen Apply beweist ein
+weiterer neuer Snapshot mit vollständig grünem automatischem Deploy- und
+Smoke-Lauf den Endzustand. Dafür wird weder ein dauerhafter Repository-Marker
+noch eine schwächere Snapshot-Pipeline eingeführt.
 
 Der bestehende manuelle Workflow bleibt für releasegebundene Deployments und
 den ausdrücklichen Rollback auf ein früher vollständig geprüftes Paar erhalten.
 
-Vor der ersten Snapshot-Promotion muss die bestehende Deployment-Branch-/Tag-
-Policy des Environments einmalig auf „Selected branches and tags“ umgestellt
-sein. Sie enthält exakt die Branch-Regel `master` für den bestehenden
-manuellen Deploy-/Rollback-Pfad und die Tag-Regel `demo/*-SNAPSHOT.*` für die
-automatische Snapshot-Promotion. Ein Required Reviewer ist dort nicht
-konfiguriert; der annotierte Tag-Push ist bereits das Maintainer-GO. Der
-Snapshot-Preflight liest diese Konfiguration und bricht vor jedem OCI-Publish
-ab, solange sie fehlt oder widersprüchlich ist.
+Für ein Deployment verwendet das Environment „Selected branches and tags“ mit
+exakt der Branch-Regel `master` für den bestehenden manuellen Deploy-/Rollback-
+Pfad und der Tag-Regel `demo/v*-SNAPSHOT.*` für die automatische Snapshot-
+Promotion. Ein Required Reviewer ist dort nicht konfiguriert; der annotierte
+Tag-Push ist bereits das Maintainer-GO. Der Snapshot-Workflow prüft diese
+Aktivierungspolicy erst, nachdem Quality, Build, OCI-Publish, SBOM, Provenance
+und das digestgebundene App-/Seed-Manifestpaar erfolgreich belegt sind. Fehlt
+oder widerspricht die Policy, stoppt ausschließlich das Deployment vor der
+Azure-Anmeldung. Das unveränderliche Paar bleibt damit für die einmalige #129-
+Adoption als OpenTofu-Input erhalten, ohne die Deployment-Grenze zu schwächen.
 
 ## Freigabe- und Eingabevertrag
 
 Der Workflow wird ausschließlich von `master` und im geschützten GitHub
 Environment `demo` ausgeführt. Ein Maintainer wählt `deploy` oder `rollback`
 und übernimmt aus dem erfolgreichen `Demo image pair`-Nachweis des
-Publish-Laufs immer alle sechs Werte gemeinsam:
+Publish-Laufs immer alle sieben Werte gemeinsam:
 
 - App-Image `ghcr.io/lxndrp/lzug-demo-app@sha256:…`,
 - Seed-Image `ghcr.io/lxndrp/lzug-demo-seed@sha256:…`,
 - Produkt-Tag und vollständiger Produkt-Commit,
+- Runtimevertrag `lzug-demo-health-ready-v1` aus beiden Artefaktmanifesten,
 - Schemafingerprint und Seed-Revision.
 
 Beide OCI-Referenzen werden vor der Azure-Anmeldung gegen die vom Workflow
 `.github/workflows/demo-publish.yml` oder bei einem Snapshot gegen den Signer
 `.github/workflows/demo-snapshot.yml` signierten Provenance- und
-SBOM-Attestations geprüft. Damit kann auch der kontrollierte manuelle Rollback
-ein früheres vollständig geprüftes Release- oder Snapshot-Paar verwenden.
-Bewegliche Tags, abweichende Paketnamen, unvollständige Digests und
-unvollständige Bindungswerte brechen den Lauf ab.
+SBOM-Attestations geprüft. Anschließend werden beide Digest-Images gelesen und
+App- sowie Seed-Manifest vor jeder Azure-Anmeldung gegen Produkt, Runtimevertrag,
+Schemafingerprint und Seed-Revision geprüft. Damit kann auch der kontrollierte
+manuelle Rollback ein früheres vollständig geprüftes Release- oder
+Snapshot-Paar verwenden. Bewegliche Tags, abweichende Paketnamen,
+unvollständige Digests, ein alter Health-only-Stand und unvollständige
+Bindungswerte brechen den Lauf vor Azure-Mutation ab.
 
 ## Secret-freie GitHub- und Azure-Konfiguration
 
@@ -128,7 +166,7 @@ Ressourcendokumente oder Logs aus.
 
 Rollback ist niemals ein stiller oder automatischer Wechsel auf einen
 einzelnen alten Digest. Ein Maintainer wählt im selben manuellen Workflow
-`rollback` und trägt alle sechs Werte eines früheren, gemeinsam geprüften
+`rollback` und trägt alle sieben Werte eines früheren, gemeinsam geprüften
 Paars ein. Danach gelten dieselben Environment-Freigaben, Attestationsprüfungen,
 die atomare neue Revision und sämtliche Readiness-/Health-/Smoke-Gates.
 

@@ -50,6 +50,7 @@ class DemoRuntimePolicy:
                 "mode": "demo",
                 "product_version": self.app_manifest["product"]["version"],
                 "product_commit": self.app_manifest["product"]["commit"],
+                "runtime_contract": self.app_manifest["runtime_contract"],
                 "seed_revision": self.seed_manifest["seed_revision"],
                 "schema_fingerprint": self.seed_manifest["schema"]["fingerprint"],
                 "initialized": self.runtime_status["initialized"],

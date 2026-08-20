@@ -227,6 +227,7 @@ resource "azurerm_logic_app_action_custom" "validate_demo_status" {
       and = [
         { equals = ["@body('Check_demo_status')?['initialized']", true] },
         { equals = ["@body('Check_demo_status')?['initialization_status']", "ready"] },
+        { equals = ["@body('Check_demo_status')?['runtime_contract']", var.demo_artifact_pair.runtime_contract] },
         { equals = ["@body('Check_demo_status')?['seed_revision']", var.demo_artifact_pair.seed_revision] },
         { equals = ["@body('Check_demo_status')?['reset_timezone']", local.reset_timezone_iana] },
         { greater = ["@ticks(body('Check_demo_status')?['last_reset_at'])", "@ticks(addMinutes(utcNow(), -15))"] },

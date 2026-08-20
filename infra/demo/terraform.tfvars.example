@@ -2,11 +2,16 @@ azure_subscription_id = "00000000-0000-0000-0000-000000000000"
 demo_artifact_pair = {
   app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
   seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
-  product_tag        = "v0.1.1"
+  product_tag        = "demo/v0.2.0-SNAPSHOT.0123456"
   product_commit     = "0123456789abcdef0123456789abcdef01234567"
+  runtime_contract   = "lzug-demo-health-ready-v1"
   schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
   seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
 }
+
+# Existing selected Environment policies must be imported by their live numeric IDs.
+# Leave empty only when both policies do not exist yet and the plan will create them.
+github_environment_deployment_policy_ids = {}
 
 budget_amount_eur     = 25
 budget_contact_emails = ["demo-operations@example.invalid"]

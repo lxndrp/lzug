@@ -7,7 +7,6 @@ from scripts.demo_snapshot import (
     SnapshotContractError,
     snapshot_identity,
     validate_milestones,
-    validate_quality_runs,
     validate_releases,
 )
 
@@ -32,31 +31,6 @@ class DemoSnapshotTests(unittest.TestCase):
         ):
             with self.subTest(tag=tag), self.assertRaises(SnapshotContractError):
                 snapshot_identity(tag, revision)
-
-    def test_quality_evidence_requires_complete_successful_master_push_for_exact_sha(self) -> None:
-        valid = {
-            "id": 42,
-            "html_url": "https://example.invalid/runs/42",
-            "head_sha": self.revision,
-            "head_branch": "master",
-            "event": "push",
-            "status": "completed",
-            "conclusion": "success",
-            "path": ".github/workflows/quality.yml",
-            "created_at": "2026-08-15T08:00:00Z",
-        }
-        self.assertEqual(valid, validate_quality_runs({"workflow_runs": [valid]}, self.revision))
-
-        for changed in (
-            {"head_sha": "0" * 40},
-            {"head_branch": "feature"},
-            {"event": "workflow_dispatch"},
-            {"status": "in_progress"},
-            {"conclusion": "failure"},
-            {"path": ".github/workflows/pull-request.yml"},
-        ):
-            with self.subTest(changed=changed), self.assertRaises(SnapshotContractError):
-                validate_quality_runs({"workflow_runs": [{**valid, **changed}]}, self.revision)
 
     def test_target_is_exactly_one_open_future_stable_milestone(self) -> None:
         now = datetime(2026, 8, 15, tzinfo=UTC)

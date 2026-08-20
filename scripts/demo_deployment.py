@@ -20,6 +20,7 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from demo.artifacts import RUNTIME_CONTRACT  # noqa: E402
 from demo.identity import DemoIdentity  # noqa: E402
 
 API_VERSION = "2025-07-01"
@@ -41,6 +42,7 @@ class ArtifactPair:
     seed_image: str
     product_tag: str
     product_commit: str
+    runtime_contract: str
     schema_fingerprint: str
     seed_revision: str
 
@@ -55,6 +57,8 @@ class ArtifactPair:
         for pattern, value, label in checks:
             if pattern.fullmatch(value) is None:
                 raise DeploymentError(f"Invalid immutable demo pair field: {label}")
+        if self.runtime_contract != RUNTIME_CONTRACT:
+            raise DeploymentError("Invalid immutable demo pair field: runtime_contract")
         try:
             DemoIdentity.create(self.product_tag, self.product_commit)
         except ValueError as error:
@@ -214,6 +218,7 @@ def validate_demo_status(payload: Any, pair: ArtifactPair) -> None:
     expected = {
         "product_version": DemoIdentity.create(pair.product_tag, pair.product_commit).identity,
         "product_commit": pair.product_commit,
+        "runtime_contract": pair.runtime_contract,
         "schema_fingerprint": pair.schema_fingerprint,
         "seed_revision": pair.seed_revision,
         "initialized": True,
@@ -431,6 +436,7 @@ def _pair_from_args(args: argparse.Namespace) -> ArtifactPair:
         seed_image=args.seed_image,
         product_tag=args.product_tag,
         product_commit=args.product_commit,
+        runtime_contract=args.runtime_contract,
         schema_fingerprint=args.schema_fingerprint,
         seed_revision=args.seed_revision,
     )
@@ -449,6 +455,7 @@ def _add_pair(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--seed-image", required=True)
     parser.add_argument("--product-tag", required=True)
     parser.add_argument("--product-commit", required=True)
+    parser.add_argument("--runtime-contract", required=True)
     parser.add_argument("--schema-fingerprint", required=True)
     parser.add_argument("--seed-revision", required=True)
 
