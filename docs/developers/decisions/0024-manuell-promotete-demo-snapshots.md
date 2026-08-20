@@ -57,9 +57,12 @@ geprüftes Digestpaar über den bestehenden manuellen Rollback-Pfad.
 
 Das bestehende Environment verwendet dafür ausgewählte Branch-/Tag-Regeln:
 `master` bleibt für den manuellen Release-/Rollback-Pfad erlaubt,
-`demo/v*-SNAPSHOT.*` ausschließlich für die Snapshot-Tags. Der Preflight prüft
-diese Regeln und die Abwesenheit eines Required Reviewers, bevor er OCI-
-Referenzen belegt.
+`demo/v*-SNAPSHOT.*` ausschließlich für die Snapshot-Tags. Nach erfolgreicher
+Quality, OCI-Veröffentlichung, SBOM, Provenance und digestgebundener
+Manifestpaarprüfung prüft erst das Deployment-Gate diese Regeln und die
+Abwesenheit eines Required Reviewers. Eine fehlende Policy verhindert damit
+weiterhin jede Azure-Anmeldung, nicht aber die für ihre einmalige IaC-Adoption
+benötigte unveränderliche Artefaktassembly.
 
 Der reguläre releasegebundene Demo-Publish bleibt erhalten. Er akzeptiert nur
 veröffentlichte SemVer-Produkt-Releases und nutzt weiterhin sein eigenes

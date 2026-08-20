@@ -115,31 +115,6 @@ jobs:
             python3 scripts/demo_snapshot.py validate-releases \
               --target-version "$TARGET_VERSION"
 
-      - name: Verify automatic demo Environment tag policy
-        env:
-          GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          environment=$(gh api "repos/$GH_REPO/environments/demo")
-          jq -e '
-            .deployment_branch_policy.protected_branches == false and
-            .deployment_branch_policy.custom_branch_policies == true and
-            all(.protection_rules[]; .type != "required_reviewers")
-          ' <<<"$environment" >/dev/null || {
-            echo "The demo Environment must use selected branch/tag policies without required reviewers." >&2
-            exit 1
-          }
-          policies=$(gh api \
-            "repos/$GH_REPO/environments/demo/deployment-branch-policies?per_page=100")
-          jq -e '
-            any(.branch_policies[]; .type == "branch" and .name == "master") and
-            any(.branch_policies[]; .type == "tag" and .name == "demo/v*-SNAPSHOT.*")
-          ' <<<"$policies" >/dev/null || {
-            echo "The demo Environment must allow master and demo snapshot tags." >&2
-            exit 1
-          }
-
   quality:
     name: Run complete Quality for the exact snapshot target
     needs: preflight
@@ -467,6 +442,31 @@ jobs:
           scripts/verify-demo-image-pair.sh \
             "$APP_IMAGE" "$SEED_IMAGE" "$PRODUCT_TAG" "$PRODUCT_COMMIT" \
             "$RUNTIME_CONTRACT" "$SCHEMA_FINGERPRINT" "$SEED_REVISION"
+
+      - name: Verify demo Environment activation policy before Azure mutation
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          environment=$(gh api "repos/$GH_REPO/environments/demo")
+          jq -e '
+            .deployment_branch_policy.protected_branches == false and
+            .deployment_branch_policy.custom_branch_policies == true and
+            all(.protection_rules[]; .type != "required_reviewers")
+          ' <<<"$environment" >/dev/null || {
+            echo "The demo Environment must use selected branch/tag policies without required reviewers." >&2
+            exit 1
+          }
+          policies=$(gh api \
+            "repos/$GH_REPO/environments/demo/deployment-branch-policies?per_page=100")
+          jq -e '
+            any(.branch_policies[]; .type == "branch" and .name == "master") and
+            any(.branch_policies[]; .type == "tag" and .name == "demo/v*-SNAPSHOT.*")
+          ' <<<"$policies" >/dev/null || {
+            echo "The demo Environment must allow master and demo snapshot tags." >&2
+            exit 1
+          }
 
       - name: Log in to Azure using GitHub OIDC
         uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
