@@ -22,6 +22,8 @@ from backend.openapi import spec as openapi_spec
 
 RELEARN_REPOSITORY = "https://github.com/McShelby/hugo-theme-relearn.git"
 RELEARN_REVISION = "8bb66fa674351f3a0b0917a7552caac686eca920"
+PUBLICATION_BASE_URL = "https://lzug.repertoire.papaspyrou.name"
+INHERITED_PUBLIC_HOSTS = frozenset({"lxndrp.github.io", "stage.papaspyrou.name"})
 MARKDOWN_LINK = re.compile(r"(?P<prefix>\[[^\]]+\]\()(?P<target>[^)]+)(?P<suffix>\))")
 EXPECTED_OUTPUTS = (
     "index.html",
@@ -139,11 +141,14 @@ def public_url(value: str, *, allow_path: bool) -> str:
     if (
         parsed.scheme != "https"
         or not parsed.netloc
+        or not parsed.hostname
         or parsed.username is not None
         or parsed.password is not None
         or parsed.params
         or parsed.query
         or parsed.fragment
+        or "*" in value
+        or parsed.hostname.lower() in INHERITED_PUBLIC_HOSTS
         or (not allow_path and parsed.path not in {"", "/"})
     ):
         raise ValueError(
@@ -151,6 +156,15 @@ def public_url(value: str, *, allow_path: bool) -> str:
         )
     normalized_path = parsed.path.rstrip("/")
     return f"{parsed.scheme}://{parsed.netloc}{normalized_path}"
+
+
+def publication_base_url(value: str) -> str:
+    normalized = public_url(value, allow_path=True)
+    if normalized != PUBLICATION_BASE_URL:
+        raise ValueError(
+            f"publication base URL must be the canonical HTTPS origin {PUBLICATION_BASE_URL}"
+        )
+    return normalized
 
 
 def configure_relearn(root: Path, site: Path, base_url: str, demo_url: str) -> None:
@@ -397,7 +411,7 @@ def parse_args() -> argparse.Namespace:
         subparser.add_argument("--typedoc", type=Path, required=True)
         subparser.add_argument(
             "--base-url",
-            default=os.environ.get("PUBLICATION_BASE_URL", "https://lxndrp.github.io/lzug"),
+            default=os.environ.get("PUBLICATION_BASE_URL", PUBLICATION_BASE_URL),
         )
         subparser.add_argument(
             "--demo-url",
@@ -416,7 +430,7 @@ def main() -> int:
     )
     wiki_root = args.wiki_root.resolve()
     typedoc = args.typedoc.resolve()
-    base_url = public_url(args.base_url, allow_path=True)
+    base_url = publication_base_url(args.base_url)
     demo_url = public_url(args.demo_url, allow_path=False)
     with tempfile.TemporaryDirectory(prefix="lzug-publication-spike-") as temporary:
         site = Path(temporary) / "relearn-site"

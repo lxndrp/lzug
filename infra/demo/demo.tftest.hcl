@@ -148,7 +148,7 @@ run "demo_contract" {
       azurerm_container_app.demo.template[0].container[0].env[1].name == "LZUG_DEPLOYMENT_DIGEST" &&
       azurerm_container_app.demo.template[0].container[0].env[1].value == "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" &&
       azurerm_container_app.demo.template[0].container[0].env[2].name == "LZUG_CORS_ALLOWED_ORIGINS" &&
-      azurerm_container_app.demo.template[0].container[0].env[2].value == "https://lxndrp.github.io"
+      azurerm_container_app.demo.template[0].container[0].env[2].value == "https://lzug.repertoire.papaspyrou.name"
     )
     error_message = "The app must retain the shared /data path, immutable deployment digest, and exact landing-page CORS origin by default."
   }
@@ -264,7 +264,7 @@ run "external_observability_activation_contract" {
     budget_start_date           = "2026-09-01T00:00:00Z"
     budget_end_date             = "2028-07-31T00:00:00Z"
     external_monitoring_enabled = true
-    landingpage_url             = "https://www.example.invalid/demo/"
+    landingpage_url             = "https://lzug.repertoire.papaspyrou.name/"
   }
 
   assert {

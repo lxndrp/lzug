@@ -196,6 +196,13 @@ GitHub Actions konfigurieren und den ersten Dispatch ausdrücklich freigeben.
 Pull Requests und Pushes auf `master` bauen und prüfen nur; sie veröffentlichen
 nicht.
 
+Die endgültige Pages-Base-URL ist
+`https://lzug.repertoire.papaspyrou.name` an der Domainwurzel. Der DNS-, TLS-
+und Betreiberablauf sowie die noch offene Demo-Domain sind in der
+[Betriebsanleitung für öffentliche Domains](publication-domains.md)
+festgelegt. Die frühere geerbte URL `stage.papaspyrou.name/lzug/` ist kein
+Produktvertrag.
+
 ## Lokaler Build
 
 ```sh

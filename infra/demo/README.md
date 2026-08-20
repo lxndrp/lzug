@@ -23,6 +23,10 @@ freigegebenen `tofu apply` keine Cloudänderung aus.
 - Nicht geheime Laufzeiteinstellungen können über `container_environment`
   übergeben werden. Der Stack akzeptiert keine Secret-Werte; `/data` ist als
   reservierter Runtimepfad nicht überschreibbar.
+- Die CORS-Allowlist enthält ausschließlich die exakte Origin
+  `https://lzug.repertoire.papaspyrou.name`. `stage.papaspyrou.name`, die
+  persönliche `github.io`-Origin und Wildcards werden fail-closed abgewiesen.
+  Die noch zu bestätigende Demo-Domain ist davon getrennt.
 - Die Container App verwendet Consumption, `min_replicas = 0`, höchstens eine
   Replik, 0,5 vCPU und 1 GiB RAM. Nur der verwaltete HTTPS-Ingress auf den
   internen Anwendungsport ist öffentlich; unverschlüsseltes Ingress und

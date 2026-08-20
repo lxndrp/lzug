@@ -20,7 +20,7 @@ const mimeTypes = new Map([
 
 function resolveRequest(url) {
   const pathname = new URL(url, "http://127.0.0.1").pathname;
-  const relative = pathname.replace(/^\/lzug\/?/, "");
+  const relative = pathname.replace(/^\/+/, "");
   const candidate = resolve(root, normalize(relative || "index.html"));
   if (candidate !== root && !candidate.startsWith(`${root}/`)) {
     throw new Error(`Unsafe request path: ${pathname}`);
@@ -49,7 +49,7 @@ await new Promise((resolveListen) =>
 const address = server.address();
 if (!address || typeof address === "string")
   throw new Error("Static server did not bind");
-const baseUrl = `http://127.0.0.1:${address.port}/lzug/`;
+const baseUrl = `http://127.0.0.1:${address.port}/`;
 await mkdir(evidence, { recursive: true });
 
 const browserChannel = process.env.PLAYWRIGHT_BROWSER_CHANNEL;
@@ -124,7 +124,7 @@ try {
     const page = await context.newPage();
     await page.addInitScript((themeVariant) => {
       window.localStorage.setItem(
-        "https://lxndrp.github.io/lzug/variant",
+        "https://lzug.repertoire.papaspyrou.name/variant",
         themeVariant,
       );
     }, candidate.themeVariant);

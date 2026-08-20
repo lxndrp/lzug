@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from scripts.publication_spike import public_url
+from scripts.publication_spike import PUBLICATION_BASE_URL, public_url, publication_base_url
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[2]
 class PublicationDeliveryContractTests(unittest.TestCase):
     def test_public_urls_are_https_and_demo_url_is_an_origin(self) -> None:
         self.assertEqual(
-            "https://lxndrp.github.io/lzug",
-            public_url("https://lxndrp.github.io/lzug/", allow_path=True),
+            PUBLICATION_BASE_URL,
+            publication_base_url("https://lzug.repertoire.papaspyrou.name/"),
         )
         self.assertEqual(
             "https://demo.example.invalid",
@@ -26,9 +26,14 @@ class PublicationDeliveryContractTests(unittest.TestCase):
             "https://demo.example.invalid/path",
             "https://demo.example.invalid?token=value",
             "https://demo.example.invalid/#fragment",
+            "https://stage.papaspyrou.name/lzug/",
+            "https://*.repertoire.papaspyrou.name",
         ):
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 public_url(invalid, allow_path=False)
+
+        with self.assertRaises(ValueError):
+            publication_base_url("https://stage.papaspyrou.name/lzug/")
 
     def test_warm_up_is_bounded_and_sends_no_credentials_or_referrer(self) -> None:
         script = (ROOT / "prototypes/publication/relearn/static/js/demo-warmup.js").read_text(
@@ -59,6 +64,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("failedReadinessRequests !== 2", browser_check)
         self.assertNotIn("demo.example.invalid", browser_check)
         self.assertNotIn("DEMO_URL", browser_check)
+        self.assertNotIn("/lzug/", browser_check)
 
     def test_favicon_uses_the_publication_base_path_and_existing_product_asset(self) -> None:
         favicon_partial = (
@@ -73,6 +79,10 @@ class PublicationDeliveryContractTests(unittest.TestCase):
     def test_pages_deployment_is_manual_fail_closed_and_cannot_enable_pages(self) -> None:
         workflow = (ROOT / ".github/workflows/publication.yml").read_text(encoding="utf-8")
 
+        self.assertIn("BASE_URL: https://lzug.repertoire.papaspyrou.name", workflow)
+        self.assertIn("DEMO_URL: ${{ vars.DEMO_URL || 'https://demo.example.invalid' }}", workflow)
+        self.assertNotIn("azurecontainerapps.io", workflow)
+        self.assertNotIn("stage.papaspyrou.name", workflow)
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn('test "$GITHUB_REF" = "refs/heads/master"', workflow)
         self.assertIn('test "$CONFIRM_PUBLICATION" = "true"', workflow)

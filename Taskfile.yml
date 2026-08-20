@@ -127,7 +127,7 @@ tasks:
       OUTPUT: '{{default "build/publication" .OUTPUT}}'
       WIKI_ROOT: '{{default "prototypes/publication/wiki" .WIKI_ROOT}}'
       DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
-      BASE_URL: '{{default "https://lxndrp.github.io/lzug" .BASE_URL}}'
+      BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
       - >-
         {{.UV}} python -m scripts.publication_spike build
@@ -152,7 +152,7 @@ tasks:
     vars:
       WIKI_ROOT: '{{default "prototypes/publication/wiki" .WIKI_ROOT}}'
       DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
-      BASE_URL: '{{default "https://lxndrp.github.io/lzug" .BASE_URL}}'
+      BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
       - >-
         {{.UV}} python -m scripts.publication_spike check
