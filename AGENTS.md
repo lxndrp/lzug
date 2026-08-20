@@ -13,6 +13,9 @@ die technische Referenz im [Entwicklerhandbuch](docs/developers/index.md).
   Umsetzung erst im zugehörigen Issue-Worktree beginnen.
 - Nur Dateien stagen, die zum Auftrag gehören. Commit-Nachrichten sind Englisch;
   deutsche Prosa verwendet korrekte Umlaute.
+- GitHub-Issues, Pull-Request-Beschreibungen und Statuskommentare kurz und
+  zweckbezogen halten. Inhalte nicht zwischen Artefakten wiederholen; Kommentare
+  dokumentieren nur neue Entscheidungen, Befunde oder Statusänderungen.
 - Vor einer Umsetzung das Risiko der Änderung einschätzen und die lokalen
   Prüfungen darauf begrenzen: Eng begrenzte Änderungen erhalten mindestens
   `git diff --check` sowie die betroffenen Format-, Link- oder Fachprüfungen.
