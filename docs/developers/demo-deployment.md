@@ -88,8 +88,8 @@ Bindungswerte brechen den Lauf vor Azure-Mutation ab.
 
 ## Secret-freie GitHub- und Azure-Konfiguration
 
-Das Environment `demo` stellt ausschließlich diese nicht geheimen Variablen
-bereit:
+Das geschützte Environment `demo` stellt ausschließlich die Azure-Koordinaten
+für den Deploymentjob bereit:
 
 | Variable                | Inhalt                                                                                                     |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -98,7 +98,16 @@ bereit:
 | `AZURE_SUBSCRIPTION_ID` | Azure-Subscription-ID                                                                                      |
 | `AZURE_RESOURCE_GROUP`  | Resource Group der Demo                                                                                    |
 | `AZURE_CONTAINER_APP`   | Name der Demo-Container-App                                                                                |
-| `DEMO_URL`              | nicht imagegebundener öffentlicher HTTPS-Origin ohne Pfad; empfohlen ist `https://demo.lzug.repertoire.papaspyrou.name` nach Maintainer-Bestätigung |
+
+`DEMO_URL` gehört nicht in das Environment. Es existiert genau einmal als
+nicht-sensitive Repository-Variable und hat verbindlich den Wert
+`https://demo.lzug.repertoire.papaspyrou.name`. Publication und beide Demo-
+Deploymentpfade lesen diese Repository-Variable über `vars.DEMO_URL`. Jeder
+gleichnamige Eintrag im Environment `demo`, ein fehlender Repository-Wert, der
+Placeholder `https://demo.example.invalid` oder ein anderer Origin lässt den
+jeweiligen echten Pfad vor Veröffentlichung beziehungsweise Azure-Anmeldung
+fail-closed scheitern. PR-/Push-Buildprüfungen der Publication dürfen den
+Placeholder weiterhin ausschließlich als sichere lokale Testeingabe verwenden.
 
 Die statische Site bindet dieselbe öffentliche Demo-URL in ihr geprüftes
 Artefakt. Die Container App erlaubt für den Readiness-Warm-up über
@@ -106,9 +115,8 @@ Artefakt. Die Container App erlaubt für den Readiness-Warm-up über
 `landingpage_origin`; verbindlich ist dies `https://lzug.repertoire.papaspyrou.name`.
 
 Der Azure-Standard-FQDN wird nie als dauerhaftes Produktziel übernommen. Die
-Domainhierarchie, DNS-, Zertifikats- und Betreiber-Gates stehen in der
-[Betriebsanleitung für öffentliche Domains](publication-domains.md). Die
-empfohlene Demo-Domain bleibt bis zur fachlichen Bestätigung offen.
+bestätigte Domainhierarchie, DNS-, Zertifikats- und Betreiber-Gates stehen in
+der [Betriebsanleitung für öffentliche Domains](publication-domains.md).
 
 Es existiert kein Client-Secret. Die Federated Credential akzeptiert nur den
 GitHub-OIDC-Subject `repo:lxndrp/lzug:environment:demo` und den Audience-Wert
@@ -153,7 +161,8 @@ Der Lauf prüft und dokumentiert folgende getrennte Stufen:
 Der Demo-Status muss Produkt-Commit, Schemafingerprint und Seed-Revision des
 ausgewählten Paars sowie `initialized = true`, `ready` und `Europe/Berlin`
 melden. Erst danach ist der GitHub-Deploymentstatus erfolgreich; die
-Environment-Ansicht zeigt denselben Lauf und `DEMO_URL`.
+Environment-Ansicht zeigt denselben Lauf, während `DEMO_URL` weiterhin aus
+der Repository-Konfiguration stammt.
 
 Der geschützte OpenAPI-Smoke schlägt fail-closed fehl, wenn der anonyme Abruf
 `HTTP 200`, einen anderen Status, einen anderen Medientyp oder eine abweichende

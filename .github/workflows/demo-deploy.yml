@@ -54,6 +54,7 @@ jobs:
       name: demo
       url: ${{ vars.DEMO_URL }}
     permissions:
+      actions: read
       attestations: read
       contents: read
       id-token: write
@@ -75,6 +76,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      - name: Validate the repository DEMO_URL and reject Environment overrides
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          EFFECTIVE_DEMO_URL: ${{ env.DEMO_URL }}
+        run: >-
+          python3 scripts/validate_demo_url_contract.py check
+          --repository "$GH_REPO"
+          --effective-url "$EFFECTIVE_DEMO_URL"
+
       - name: Validate protected branch and secret-free inputs
         run: |
           set -euo pipefail
@@ -82,9 +93,9 @@ jobs:
             echo "Demo deployments must be dispatched from master." >&2
             exit 1
           }
-          for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_RESOURCE_GROUP AZURE_CONTAINER_APP DEMO_URL; do
+          for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_RESOURCE_GROUP AZURE_CONTAINER_APP; do
             test -n "${!name:-}" || {
-              echo "Required demo Environment variable is missing: $name" >&2
+              echo "Required demo deployment variable is missing: $name" >&2
               exit 1
             }
           done

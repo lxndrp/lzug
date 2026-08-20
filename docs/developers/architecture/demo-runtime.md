@@ -67,9 +67,9 @@ Demo-Runtime setzt dafür `LZUG_CORS_ALLOWED_ORIGINS` auf die exakte
 repositoryeigene GitHub-Pages-Origin
 `https://lzug.repertoire.papaspyrou.name`; der Projektpfad gehört nicht zu
 einer Origin. Wildcards, `stage.papaspyrou.name`, die persönliche
-`github.io`-Origin und weitere Origins bleiben ausgeschlossen. Die empfohlene
-Demo-Origin `https://demo.lzug.repertoire.papaspyrou.name` ist bis zur
-Maintainer-Bestätigung nur ein Vorschlag.
+`github.io`-Origin und weitere Origins bleiben ausgeschlossen. Die verbindliche
+Demo-Origin ist
+`https://demo.lzug.repertoire.papaspyrou.name`.
 Der Browseraufruf überträgt weder Cookies noch Referrer und leitet erst bei
 `status = ready` zur Demo weiter.
 

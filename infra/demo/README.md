@@ -26,7 +26,8 @@ freigegebenen `tofu apply` keine Cloudänderung aus.
 - Die CORS-Allowlist enthält ausschließlich die exakte Origin
   `https://lzug.repertoire.papaspyrou.name`. `stage.papaspyrou.name`, die
   persönliche `github.io`-Origin und Wildcards werden fail-closed abgewiesen.
-  Die noch zu bestätigende Demo-Domain ist davon getrennt.
+  Die verbindliche Demo-Domain ist davon getrennt und lautet
+  `https://demo.lzug.repertoire.papaspyrou.name`.
 - Die Container App verwendet Consumption, `min_replicas = 0`, höchstens eine
   Replik, 0,5 vCPU und 1 GiB RAM. Nur der verwaltete HTTPS-Ingress auf den
   internen Anwendungsport ist öffentlich; unverschlüsseltes Ingress und
@@ -82,8 +83,10 @@ mindestens diese Rechte benötigt:
 - Azure: Lesen der Subscription, Erstellen und Verwalten der deklarierten
   Ressourcen in der Demo-Resource-Group sowie Verwalten des zugehörigen
   Resource-Group-Budgets; auf dem State-Container nur Blob-Data-Zugriff.
-- GitHub: Verwaltung genau des Environments `demo` im Repository `lxndrp/lzug`.
-  #126 muss diese Rechte von den reinen Deployment-Rechten trennen.
+- GitHub: Verwaltung genau des Environments `demo` und der einen
+  Repository-Variable `DEMO_URL` im Repository `lxndrp/lzug`. #126 muss diese
+  Rechte von den reinen Deployment-Rechten trennen; das Environment darf keinen
+  gleichnamigen `DEMO_URL`-Override enthalten.
 
 Die minimale Runtime-Rolle und ihre Zuweisung sind Teil dieses States. Die
 separaten Provisionierungs- und späteren OIDC-Deploymentrechte bleiben davon

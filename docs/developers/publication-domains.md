@@ -12,10 +12,10 @@ Der gemeinsame Namensraum lautet `repertoire.papaspyrou.name`.
 | Zweck | Dauerhafter Name | Zustand |
 | --- | --- | --- |
 | GitHub Pages | `lzug.repertoire.papaspyrou.name` | verbindlich entschieden |
-| Azure-Demo | `demo.lzug.repertoire.papaspyrou.name` | Empfehlung, noch fachlich zu bestätigen |
+| Azure-Demo | `demo.lzug.repertoire.papaspyrou.name` | verbindlich entschieden |
 | Namensraum-Wurzel | `repertoire.papaspyrou.name` | kein Portal im Scope |
 
-Die Demo-Empfehlung hält Landingpage und Anwendung als getrennte Origins im
+Die bestätigte Demo-Domain hält Landingpage und Anwendung als getrennte Origins im
 gleichen Projektnamensraum. Der Azure-Standardname (`*.azurecontainerapps.io`)
 ist kein Produktvertrag und darf nicht als `DEMO_URL` übernommen werden.
 
@@ -32,11 +32,12 @@ ist kein Produktvertrag und darf nicht als `DEMO_URL` übernommen werden.
 4. **Pages-TLS:** erst nach nachgewiesener Zertifikatsbereitstellung
    `https_enforced=true` setzen. Danach HTTP, HTTPS, Zertifikatskette und
    kanonische Root-URL prüfen.
-5. **Demo-Domain:** erst nach Maintainer-Bestätigung der Empfehlung den
+5. **Demo-Domain:** für `demo.lzug.repertoire.papaspyrou.name` den
    Azure-Custom-Domain-/Zertifikatsplan erstellen. DNS, Zertifikat und
    HTTPS-Erreichbarkeit jeweils separat read-only nachprüfen.
-6. **Demo-Aktivierung:** `DEMO_URL` im geschützten GitHub-Environment und die
-   Landingpage-Konfiguration auf denselben HTTPS-Origin setzen. Erst danach
+6. **Demo-Aktivierung:** die einzige nicht-sensitive Repository-Variable
+   `DEMO_URL` auf denselben HTTPS-Origin setzen und im geschützten GitHub-
+   Environment `demo` keinen gleichnamigen Override führen. Erst danach
    OpenTofu-Plan, Deployment und Browsernachweis freigeben.
 
 Vor jedem Gate wird der aktuelle externe Zustand erneut gelesen. Eine
@@ -47,9 +48,14 @@ Konfigurationswert ersetzt.
 
 - Die Publication-Base-URL ist exakt
   `https://lzug.repertoire.papaspyrou.name` und liegt an der Domainwurzel.
-- `DEMO_URL` ist eine nicht imagegebundene, konfigurierbare HTTPS-Origin. Sie
-  wird als GitHub-Environment-Variable in den Deployment-Workflows und als
-  Build-Eingabe der statischen Site verwendet.
+- `DEMO_URL` ist genau eine nicht-sensitive, nicht imagegebundene
+  Repository-Variable mit dem Wert
+  `https://demo.lzug.repertoire.papaspyrou.name`. Publication und Demo-
+  Deployment lesen dieselbe Variable; das Environment `demo` darf keinen
+  gleichnamigen Override enthalten. Der sichere Placeholder
+  `https://demo.example.invalid` ist nur für PR-/Push-Buildprüfungen der
+  Publication zulässig und wird vor jeder echten Veröffentlichung oder Demo-
+  Mutation fail-closed abgewiesen.
 - OpenTofu setzt `LZUG_CORS_ALLOWED_ORIGINS` ausschließlich auf die exakte
   Pages-Origin `https://lzug.repertoire.papaspyrou.name`. Der Pfad `/` gehört
   nicht zur Origin.
@@ -68,8 +74,10 @@ Die für `papaspyrou.name` zuständige Person verwaltet einzelne CNAMEs und
 entfernt keine bestehenden persönlichen Pages-Einträge ohne vorherigen
 Nachweis der lzug-Zielauflösung. Der GitHub-Repository-Maintainer verwaltet
 Domainverifizierung, Pages-Custom-Domain, Zertifikatsstatus und
-`https_enforced`. Der Demo-Operator verwaltet die bestätigte `DEMO_URL`, die
-Azure-Custom-Domain, das Zertifikat und die Verlängerungsüberwachung.
+`https_enforced`. Der Repository-Maintainer verwaltet die Repository-Variable
+`DEMO_URL` und den Ausschluss eines gleichnamigen Environment-Overrides. Der
+Demo-Operator verwaltet die bestätigte Azure-Custom-Domain, das Zertifikat und
+die Verlängerungsüberwachung.
 
 Ein Live-Nachweis muss mindestens enthalten:
 
@@ -79,8 +87,8 @@ Ein Live-Nachweis muss mindestens enthalten:
 - erfolgreiche HTTPS-Anfrage an `/` ohne HTTP-Ausweichadresse,
 - Demo-HTTPS-Anfrage an `/api/health` und `/api/ready`,
 - Browser-Origin `https://lzug.repertoire.papaspyrou.name` im CORS-Vertrag,
-- denselben Demo-Origin in `DEMO_URL`, Deployment-Environment und
-  Landingpage-Artefakt.
+- denselben Demo-Origin in der Repository-Variable `DEMO_URL`, dem
+  Deployment-Environment ohne Override und dem Landingpage-Artefakt.
 
 Bis dieser Nachweis vollständig und freigegeben ist, bleibt #127 offen und
 werden weder Pages-Dispatch noch Azure-Deployment oder OpenTofu-Apply
