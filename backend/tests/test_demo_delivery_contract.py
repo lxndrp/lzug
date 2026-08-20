@@ -156,13 +156,13 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertNotIn("git push ", workflow)
         self.assertNotIn("environment: release", workflow)
         self.assertNotIn(":latest", workflow)
-        self.assertNotIn("actions: read", workflow)
         self.assertNotIn("actions/workflows/quality.yml/runs", workflow)
         self.assertNotIn("validate-quality", workflow)
 
         quality_job = workflow.index("  quality:\n")
         publish = workflow.index("  publish:\n")
         deploy = workflow.index("  deploy:\n")
+        self.assertIn("actions: read", workflow[deploy:])
         self.assertLess(quality_job, publish)
         self.assertLess(publish, deploy)
 
@@ -197,6 +197,11 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertLess(deploy, smoke)
         self.assertEqual(4, workflow.count("uses: actions/attest@"))
         self.assertIn("name: demo", workflow[deploy:])
+        self.assertIn(
+            "Validate the repository DEMO_URL and reject Environment overrides",
+            workflow[deploy:],
+        )
+        self.assertIn("scripts/validate_demo_url_contract.py check", workflow[deploy:])
         self.assertIn("id-token: write", workflow[deploy:])
         self.assertIn("azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca", workflow)
         self.assertIn("needs.publish.outputs.app_image", workflow[deploy:])
@@ -217,6 +222,12 @@ class DemoDeliveryContractTests(unittest.TestCase):
             policy_verification,
         )
         self.assertLess(policy_verification, azure_login)
+        self.assertLess(
+            workflow.index(
+                "Validate the repository DEMO_URL and reject Environment overrides", deploy
+            ),
+            azure_login,
+        )
         self.assertIn("--signer-workflow lxndrp/lzug/.github/workflows/demo-snapshot.yml", workflow)
 
         release_publish = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")

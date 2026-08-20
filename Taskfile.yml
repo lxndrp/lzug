@@ -217,6 +217,7 @@ tasks:
         backend.tests.test_demo_deployment
         backend.tests.test_demo_snapshot
         backend.tests.test_demo_delivery_contract
+        backend.tests.test_demo_url_contract
 
   quality:sbom:
     desc: Generate and validate the canonical dependency SBOM

@@ -389,12 +389,15 @@ class DemoDeploymentTests(unittest.TestCase):
         self.assertNotIn("schedule:", workflow)
         self.assertNotIn("push:\n", workflow)
         self.assertIn("permissions: {}", workflow)
+        self.assertIn("actions: read", workflow)
         self.assertIn("contents: read", workflow)
         self.assertIn("id-token: write", workflow)
         self.assertIn("packages: read", workflow)
         self.assertIn("attestations: read", workflow)
         self.assertIn("name: demo", workflow)
         self.assertIn("url: ${{ vars.DEMO_URL }}", workflow)
+        self.assertIn("Validate the repository DEMO_URL and reject Environment overrides", workflow)
+        self.assertIn("scripts/validate_demo_url_contract.py check", workflow)
         self.assertIn("azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca", workflow)
         self.assertNotIn("secrets.AZURE", workflow)
         self.assertNotIn("AZURE_CREDENTIALS", workflow)
@@ -411,6 +414,10 @@ class DemoDeploymentTests(unittest.TestCase):
         self.assertIn("scripts/verify-demo-image-pair.sh", workflow)
         self.assertLess(
             workflow.index("Verify digest-bound pair manifests before Azure mutation"),
+            workflow.index("Log in to Azure using GitHub OIDC"),
+        )
+        self.assertLess(
+            workflow.index("Validate the repository DEMO_URL and reject Environment overrides"),
             workflow.index("Log in to Azure using GitHub OIDC"),
         )
         self.assertIn(

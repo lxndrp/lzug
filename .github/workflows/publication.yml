@@ -14,6 +14,7 @@ on:
         default: false
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -47,6 +48,17 @@ jobs:
             echo "Public site deployment requires the explicit confirmation input." >&2
             exit 1
           }
+
+      - name: Validate the repository DEMO_URL before manual publication
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          EFFECTIVE_DEMO_URL: ${{ env.DEMO_URL }}
+        run: >-
+          python3 scripts/validate_demo_url_contract.py check
+          --repository "$GH_REPO"
+          --effective-url "$EFFECTIVE_DEMO_URL"
 
       - name: Checkout canonical Wiki
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

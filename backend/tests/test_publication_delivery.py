@@ -81,6 +81,9 @@ class PublicationDeliveryContractTests(unittest.TestCase):
 
         self.assertIn("BASE_URL: https://lzug.repertoire.papaspyrou.name", workflow)
         self.assertIn("DEMO_URL: ${{ vars.DEMO_URL || 'https://demo.example.invalid' }}", workflow)
+        self.assertIn("actions: read", workflow)
+        self.assertIn("scripts/validate_demo_url_contract.py check", workflow)
+        self.assertIn("EFFECTIVE_DEMO_URL", workflow)
         self.assertNotIn("azurecontainerapps.io", workflow)
         self.assertNotIn("stage.papaspyrou.name", workflow)
         self.assertIn("workflow_dispatch:", workflow)
