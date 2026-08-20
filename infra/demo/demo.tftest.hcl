@@ -177,9 +177,24 @@ run "demo_contract" {
       azurerm_log_analytics_workspace.demo.retention_in_days == 30 &&
       azurerm_log_analytics_workspace.demo.daily_quota_gb == 0.5 &&
       strcontains(azurerm_monitor_scheduled_query_rules_alert.application_errors.query, "frontend_error") &&
-      strcontains(azurerm_monitor_scheduled_query_rules_alert.application_errors.query, "backend_error")
+      strcontains(azurerm_monitor_scheduled_query_rules_alert.application_errors.query, "backend_error") &&
+      strcontains(azurerm_monitor_scheduled_query_rules_alert.application_errors.query, "| summarize AggregatedValue = count()") &&
+      strcontains(azurerm_monitor_scheduled_query_rules_alert.application_errors.query, "| where AggregatedValue > 0") &&
+      azurerm_monitor_scheduled_query_rules_alert.application_errors.query_type == "ResultCount" &&
+      azurerm_monitor_scheduled_query_rules_alert.application_errors.trigger[0].operator == "GreaterThan" &&
+      azurerm_monitor_scheduled_query_rules_alert.application_errors.trigger[0].threshold == 0 &&
+      azurerm_monitor_scheduled_query_rules_alert.application_errors.frequency == 5 &&
+      azurerm_monitor_scheduled_query_rules_alert.application_errors.time_window == 5 &&
+      azurerm_monitor_scheduled_query_rules_alert.application_errors.auto_mitigation_enabled &&
+      length(azurerm_monitor_scheduled_query_rules_alert.application_errors.action) == 1 &&
+      toset(azurerm_monitor_scheduled_query_rules_alert.application_errors.action[0].action_group) == toset([azurerm_monitor_action_group.demo.id]) &&
+      length(azurerm_monitor_action_group.demo.email_receiver) == 1 &&
+      alltrue([
+        for receiver in azurerm_monitor_action_group.demo.email_receiver :
+        receiver.use_common_alert_schema
+      ])
     )
-    error_message = "Log retention, ingestion volume, and application error detection must remain bounded."
+    error_message = "Application error detection must return no result for zero events, one result for errors, and resolve statefully."
   }
 
   assert {
