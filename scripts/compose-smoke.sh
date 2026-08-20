@@ -6,11 +6,25 @@ root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$root_dir/scripts/container-contract.sh"
 compose_file="$root_dir/compose.yaml"
 image=${LZUG_IMAGE:-}
+ready_timeout_seconds=${LZUG_COMPOSE_READY_TIMEOUT_SECONDS:-90}
+ready_interval_seconds=${LZUG_COMPOSE_READY_INTERVAL_SECONDS:-1}
 
 if [ -z "$image" ]; then
     echo "Set LZUG_IMAGE to an existing local or published immutable image." >&2
     exit 2
 fi
+case "$ready_timeout_seconds" in
+    ''|*[!0-9]*|0)
+        echo "LZUG_COMPOSE_READY_TIMEOUT_SECONDS must be a positive integer." >&2
+        exit 2
+        ;;
+esac
+case "$ready_interval_seconds" in
+    ''|*[!0-9]*)
+        echo "LZUG_COMPOSE_READY_INTERVAL_SECONDS must be a non-negative integer." >&2
+        exit 2
+        ;;
+esac
 lzug_require_container_engine
 
 project="lzug-compose-smoke-$$"
@@ -40,7 +54,11 @@ resolve_url() {
 resolve_url
 
 health_status() {
-    compose ps --format json | python3 -c '
+    raw_status=$(compose ps --all --format json 2>/dev/null) || {
+        echo "unavailable"
+        return
+    }
+    printf '%s' "$raw_status" | python3 -c '
 import json
 import sys
 
@@ -48,40 +66,76 @@ raw = sys.stdin.read().strip()
 try:
     parsed = json.loads(raw)
 except json.JSONDecodeError:
-    parsed = [json.loads(line) for line in raw.splitlines() if line.strip()]
+    try:
+        parsed = [json.loads(line) for line in raw.splitlines() if line.strip()]
+    except json.JSONDecodeError:
+        print("unknown")
+        raise SystemExit
 if isinstance(parsed, dict):
     parsed = [parsed]
-print(parsed[0].get("Health", "") if parsed else "")
+status = parsed[0].get("Health", "") if parsed else ""
+print(status or "none")
 '
 }
 
+http_status() {
+    status=$(curl --silent --show-error --output /dev/null \
+        --write-out '%{http_code}' --max-time 5 "$url/api/health" 2>/dev/null) \
+        || status="unreachable"
+    if [ -z "$status" ]; then
+        status="unreachable"
+    fi
+    printf '%s\n' "$status"
+}
+
 wait_ready() {
-    attempts=0
-    while [ "$attempts" -lt 45 ]; do
-        if lzug_http_health_is_ready "$url" \
-            && [ "$(health_status)" = "healthy" ]; then
+    lifecycle_step=$1
+    deadline=$(($(date +%s) + ready_timeout_seconds))
+    last_http_status="not-checked"
+    last_direct_healthcheck="not-checked"
+    last_docker_health="unknown"
+
+    echo "Waiting for Compose readiness after $lifecycle_step."
+    while :; do
+        last_http_status=$(http_status)
+        if compose exec -T lzug python -m backend.healthcheck >/dev/null 2>&1; then
+            last_direct_healthcheck="passed"
+        else
+            last_direct_healthcheck="failed"
+        fi
+        last_docker_health=$(health_status)
+
+        if [ "$last_http_status" = "200" ] \
+            && [ "$last_direct_healthcheck" = "passed" ]; then
             return 0
         fi
-        attempts=$((attempts + 1))
-        sleep 1
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            break
+        fi
+        sleep "$ready_interval_seconds"
     done
+
+    echo "Compose readiness timed out after $lifecycle_step: timeout=${ready_timeout_seconds}s http_status=$last_http_status direct_healthcheck=$last_direct_healthcheck docker_health=$last_docker_health" >&2
+    echo "Compose service state:" >&2
+    compose ps --all >&2 || true
+    echo "Compose logs:" >&2
     compose logs >&2 || true
     return 1
 }
 
-wait_ready
+wait_ready "start"
 container_id=$(compose ps -q lzug)
 test -n "$container_id"
 lzug_assert_runtime_user "$container_id"
 compose exec -T lzug python -c 'from pathlib import Path; Path("/data/compose-smoke-marker").write_text("persisted", encoding="utf-8")' >/dev/null
 compose restart lzug >/dev/null
 resolve_url
-wait_ready
+wait_ready "restart"
 test "$(compose exec -T lzug python -c 'from pathlib import Path; print(Path("/data/compose-smoke-marker").read_text(encoding="utf-8"))')" = "persisted"
 compose stop lzug >/dev/null
 compose start lzug >/dev/null
 resolve_url
-wait_ready
+wait_ready "stop/start"
 test "$(compose exec -T lzug python -c 'from pathlib import Path; print(Path("/data/compose-smoke-marker").read_text(encoding="utf-8"))')" = "persisted"
 
 echo "Compose runtime, health, restart, stop/start, and /data persistence checks passed with $engine: $image"
