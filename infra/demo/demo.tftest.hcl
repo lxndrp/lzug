@@ -23,6 +23,12 @@ mock_provider "azurerm" {
     }
   }
 
+  mock_resource "azurerm_application_insights_smart_detection_rule" {
+    defaults = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.Insights/components/lzug-demo-uptime/ProactiveDetectionConfigs/mock"
+    }
+  }
+
   mock_resource "azurerm_application_insights_standard_web_test" {
     defaults = {
       id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.Insights/webTests/lzug-demo-test"
@@ -175,6 +181,7 @@ run "demo_contract" {
   assert {
     condition = (
       length(azurerm_application_insights.demo) == 0 &&
+      length(azurerm_application_insights_smart_detection_rule.demo) == 0 &&
       length(azurerm_application_insights_standard_web_test.demo) == 0 &&
       length(azurerm_monitor_metric_alert.uptime) == 0
     )
@@ -301,6 +308,46 @@ run "external_observability_activation_contract" {
       length(azurerm_monitor_metric_alert.uptime) == 2
     )
     error_message = "Activation must create exactly the canonical #127 landing-page and demo-domain readiness tests with alerts."
+  }
+
+  assert {
+    condition = (
+      local.application_insights_generated_rule_disabled &&
+      toset(keys(azurerm_application_insights_smart_detection_rule.demo)) == toset([
+        "slowpageloadtime",
+        "slowserverresponsetime",
+        "longdependencyduration",
+        "degradationinserverresponsetime",
+        "degradationindependencyduration",
+        "extension_traceseveritydetector",
+        "extension_exceptionchangeextension",
+        "extension_memoryleakextension",
+        "extension_securityextensionspackage",
+        "extension_billingdatavolumedailyspikeextension",
+      ]) &&
+      toset(values(local.application_insights_smart_detection_rules)) == toset([
+        "Slow page load time",
+        "Slow server response time",
+        "Long dependency duration",
+        "Degradation in server response time",
+        "Degradation in dependency duration",
+        "Degradation in trace severity ratio",
+        "Abnormal rise in exception volume",
+        "Potential memory leak detected",
+        "Potential security issue detected",
+        "Abnormal rise in daily data volume",
+      ]) &&
+      length(azurerm_application_insights_smart_detection_rule.demo) == 10 &&
+      alltrue([
+        for api_name, rule in azurerm_application_insights_smart_detection_rule.demo :
+        rule.name == local.application_insights_smart_detection_rules[api_name] &&
+        rule.application_insights_id == azurerm_application_insights.demo[0].id &&
+        !rule.enabled &&
+        !rule.send_emails_to_subscription_owners &&
+        length(rule.additional_email_recipients) == 0
+      ])
+    )
+    error_message = "Activation must disable generated Failure Anomalies and adopt or create all ten fixed Smart Detection children without owner or additional recipients."
   }
 
   assert {

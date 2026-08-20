@@ -84,11 +84,62 @@ Statusseite sind nicht vorgesehen.
   und 100 Prozent prognostizierte Kosten. Es stoppt Ressourcen nicht
   automatisch.
 
+### Azure Smart Detection bewusst abgrenzen
+
+Application Insights bringt zusätzlich zu den von lzug definierten Webtests
+eigene Smart-Detection-Mechanismen mit. Für neue Komponenten setzt der
+AzureRM-Provider deshalb
+`features.application_insights.disable_generated_rule = true`; die automatisch
+erzeugte externe Failure-Anomalies-Regel wird damit bereits beim Erstellen
+deaktiviert. Diese Provider-Option ist nicht rückwirkend.
+
+Für neue und bestehende Komponenten verwaltet OpenTofu außerdem exakt die zehn
+provider-nativen `ProactiveDetectionConfigs`. Alle bleiben deaktiviert,
+`send_emails_to_subscription_owners` ist `false`, und die Liste zusätzlicher
+Empfänger ist leer. AzureRM verwendet für Anlegen und Aktualisieren denselben
+idempotenten Update-/Upsert-Pfad auf den festen Child-Ressourcen. Stabile
+API-Namen bilden daher sowohl die Adoption des Livebestands als auch eine neue
+Umgebung ohne separate Import-IDs ab.
+
+Beim ersten Plan gegen eine bestehende Komponente erscheinen dadurch genau
+zehn neue OpenTofu-Ressourcenadressen. Beim Apply aktualisiert AzureRM die
+bereits vorhandenen, fest benannten Children und übernimmt sie in den State;
+es entsteht keine zweite Regelsammlung. Für eine neue Komponente gilt derselbe
+Zehnervertrag. Eine abweichende Anzahl oder ein anderer Name ist **STOP**.
+
+Azure kann unabhängig davon die Plattform-Action-Group
+`Application Insights Smart Detection` anlegen. Der verifizierte Livebestand
+hat keine direkten E-Mail-Empfänger, aber ARM-Rollenempfänger; er ist daher
+nicht empfängerlos. Die Gruppe ist mit keinem expliziten lzug-Webtest-, Fehler-
+oder Budgetalarm verbunden, wird nicht importiert oder gelöscht und bildet
+nach Deaktivierung sämtlicher Detection-Regeln keinen lzug-Alarmvertrag. Ihre
+Existenz bleibt ein dokumentierter Plattform-Side-Effect ohne zusätzliche
+OpenTofu-Ressource.
+
+Eine externe
+`Microsoft.AlertsManagement/smartDetectorAlertRules`-Failure-Anomalies-Regel
+für dieselbe Komponente ist dagegen sicherheitsrelevanter Drift. Vor jedem
+späteren Plan mit externem Monitoring muss deshalb der read-only Check
+`scripts/check_demo_smart_detection.py` mit der bestätigten Subscription,
+Resource Group und dem Application-Insights-Namen erfolgreich sein. Ein
+Treffer, eine Subscription-Abweichung oder eine nicht beweisbare Abwesenheit
+führt fail-closed zu **STOP**; die Regel wird weder automatisch importiert noch
+gelöscht.
+
+Hintergrund sind die Microsoft-Dokumentation zu
+[Failure Anomalies](https://learn.microsoft.com/azure/azure-monitor/alerts/proactive-failure-diagnostics),
+[Action Groups](https://learn.microsoft.com/azure/azure-monitor/alerts/action-groups)
+und der fest gepinnte
+[AzureRM-Feature-Vertrag](https://github.com/hashicorp/terraform-provider-azurerm/blob/v4.81.0/website/docs/guides/features-block.html.markdown).
+
 `tofu test` plant die Uptime-Ressourcen mit gemockten Providern und prüft die
 beiden Ziele, Alarme, Action-Group-Bindung, Budgetschwellen, Logquery,
 `ResultCount`-Kriterium, Fünf-Minuten-Fenster und -Frequenz, Stateful-
-Auto-Mitigation, Aufbewahrung und Quota. Das ist der repositoryseitige
-Vertrag, aber kein Nachweis einer real zugestellten Meldung. Der kontrollierte
+Auto-Mitigation, Aufbewahrung und Quota. Es prüft außerdem das Create-Time-
+Opt-out, die vollständigen zehn deaktivierten Smart-Detection-Children, die
+abgeschalteten Owner-E-Mails, leere Zusatzempfänger sowie das gemeinsame
+Adoptions-/New-Environment-Verhalten. Das ist der repositoryseitige Vertrag,
+aber kein Nachweis einer real zugestellten Meldung. Der kontrollierte
 Live-Nachweis muss separat belegen: keine Auslösung ohne Fehlerzeile, genau
 eine offene Instanz ab einer echten Fehlerzeile und deren automatische
 Entwarnung nach drei aufeinanderfolgenden fehlerfreien Auswertungen.
@@ -134,10 +185,20 @@ aktuellen `master`-Stand und Livezustand neu bestätigt:
 | `uptime_frequency_seconds` | 300, 600 oder 900 Sekunden |
 | `uptime_geo_locations` | ein bis drei ausdrücklich bestätigte Azure-Teststandorte |
 
+Vor `tofu plan` wird zusätzlich read-only geprüft:
+
+```sh
+python3 scripts/check_demo_smart_detection.py \
+  --subscription-id "$AZURE_SUBSCRIPTION_ID" \
+  --resource-group "$DEMO_RESOURCE_GROUP" \
+  --component-name "$APPLICATION_INSIGHTS_NAME"
+```
+
 Fehlt ein Wert, ist #127 nicht gemergt/veröffentlicht, weicht der aktive
-Digest ab oder enthält der Plan unerwartete Löschungen, Rechte, Secrets,
-Persistenz oder weitere Datensenken, lautet das Ergebnis **STOP**. Bei
-vollständigen Inputs werden nur `tofu plan -out=demo-observability.tfplan` und
+Digest ab, erscheint eine externe Failure-Anomalies-Regel für die Komponente
+oder enthält der Plan unerwartete Löschungen, Rechte, Secrets, Persistenz oder
+weitere Datensenken, lautet das Ergebnis **STOP**. Bei vollständigen Inputs und
+grünem Driftcheck werden nur `tofu plan -out=demo-observability.tfplan` und
 `tofu show demo-observability.tfplan` ausgeführt und geprüft. Dieser
 Repositorytask stoppt ausdrücklich vor `tofu apply`.
 
