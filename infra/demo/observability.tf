@@ -1,7 +1,7 @@
 locals {
   uptime_targets = var.external_monitoring_enabled ? {
     landingpage = var.landingpage_url
-    warmup      = "https://${azurerm_container_app.demo.ingress[0].fqdn}/api/ready"
+    warmup      = "${var.demo_url}/api/ready"
   } : {}
 }
 

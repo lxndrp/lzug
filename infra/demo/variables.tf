@@ -185,6 +185,20 @@ variable "landingpage_url" {
   }
 }
 
+variable "demo_url" {
+  description = "Canonical public demo HTTPS origin used by the external readiness warm-up test."
+  type        = string
+  default     = ""
+
+  validation {
+    condition = (
+      (!var.external_monitoring_enabled && var.demo_url == "") ||
+      var.demo_url == "https://demo.lzug.repertoire.papaspyrou.name"
+    )
+    error_message = "demo_url must be empty while external monitoring is disabled or exactly the canonical public demo HTTPS origin."
+  }
+}
+
 variable "uptime_frequency_seconds" {
   description = "Low-volume interval for both external availability tests."
   type        = number

@@ -74,7 +74,10 @@ Statusseite sind nicht vorgesehen.
   ist [laut Azure Monitor](https://learn.microsoft.com/azure/azure-monitor/alerts/alerts-troubleshoot#the-metricvalue-field-contains-null-for-resolved-log-search-alert-notifications)
   erwartungsgemäß `null`.
 - Zwei Standard-Webtests prüfen nach Aktivierung die #127-Landingpage und den
-  Demo-Warm-up über `/api/ready` aus höchstens drei expliziten Standorten.
+  Demo-Warm-up über die kanonische Domain
+  `https://demo.lzug.repertoire.papaspyrou.name/api/ready` aus höchstens drei
+  expliziten Standorten. Die generierte Container-Apps-FQDN ist kein zulässiger
+  öffentlicher Monitoringvertrag.
 - Beide Uptime-Alarme und beide Budgetmeldungen verwenden dieselbe Azure
   Monitor Action Group. Dadurch lässt sich der Zustellweg unabhängig testen.
 - Das monatliche Resource-Group-Budget meldet 80 Prozent tatsächliche Kosten
@@ -127,6 +130,7 @@ aktuellen `master`-Stand und Livezustand neu bestätigt:
 | `application_insights_daily_cap_gb` | 0,1 bis 0,5 GB |
 | `external_monitoring_enabled` | exakt `true`, erst nach Merge und Veröffentlichung von #127 |
 | `landingpage_url` | endgültige öffentliche HTTPS-URL aus #127 ohne Credentials, Query oder Fragment |
+| `demo_url` | exakt die kanonische öffentliche Demo-Origin `https://demo.lzug.repertoire.papaspyrou.name`; keine generierte ACA-FQDN, Credentials, Pfade, Query oder Fragmente |
 | `uptime_frequency_seconds` | 300, 600 oder 900 Sekunden |
 | `uptime_geo_locations` | ein bis drei ausdrücklich bestätigte Azure-Teststandorte |
 
