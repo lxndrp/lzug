@@ -91,24 +91,27 @@ resource "azurerm_monitor_metric_alert" "uptime" {
 }
 
 resource "azurerm_monitor_scheduled_query_rules_alert" "application_errors" {
-  name                = "${var.name_prefix}-application-errors"
-  location            = azurerm_resource_group.demo.location
-  resource_group_name = azurerm_resource_group.demo.name
-  data_source_id      = azurerm_log_analytics_workspace.demo.id
-  description         = "Frontend or backend errors emitted by the public demo."
-  enabled             = true
-  severity            = 2
-  frequency           = 5
-  time_window         = 5
-  query_type          = "ResultCount"
-  query               = <<-QUERY
+  name                    = "${var.name_prefix}-application-errors"
+  location                = azurerm_resource_group.demo.location
+  resource_group_name     = azurerm_resource_group.demo.name
+  data_source_id          = azurerm_log_analytics_workspace.demo.id
+  description             = "Frontend or backend errors emitted by the public demo."
+  enabled                 = true
+  auto_mitigation_enabled = true
+  severity                = 2
+  frequency               = 5
+  time_window             = 5
+  query_type              = "ResultCount"
+  # ResultCount evaluates rows, so the zero aggregate must not remain a row.
+  query = <<-QUERY
     ContainerAppConsoleLogs_CL
     | where ContainerAppName_s == "${azurerm_container_app.demo.name}"
     | extend event_payload = parse_json(Log_s)
     | where tostring(event_payload.event) in ("backend_error", "frontend_error")
     | summarize AggregatedValue = count()
+    | where AggregatedValue > 0
   QUERY
-  tags                = local.common_tags
+  tags  = local.common_tags
 
   trigger {
     operator  = "GreaterThan"

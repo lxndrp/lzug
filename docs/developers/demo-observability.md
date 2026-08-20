@@ -62,7 +62,17 @@ Statusseite sind nicht vorgesehen.
 ## Alarme und Kostengrenzen
 
 - Eine Logabfrage alarmiert bei strukturierten `backend_error`- oder
-  `frontend_error`-Ereignissen.
+  `frontend_error`-Ereignissen. Sie aggregiert die echte Ereigniszahl und
+  verwirft das Aggregat bei `AggregatedValue = 0`; `ResultCount > 0` sieht
+  deshalb ohne Fehler keine Ergebniszeile und ab einem Fehler genau eine.
+  Der Alarm ist stateful und aktiviert Auto-Mitigation. Während die Bedingung
+  besteht, bleibt eine Alarminstanz offen, statt bei jeder Fünf-Minuten-
+  Auswertung eine neue Meldung zu erzeugen. Bei dieser Frequenz beendet Azure
+  die Instanz nach drei aufeinanderfolgenden Auswertungen ohne Treffer, also
+  nach etwa 15 Minuten, und meldet die Entwarnung über das Common Alert Schema
+  der Action Group. Der `MetricValue` einer solchen zeitbasierten Entwarnung
+  ist [laut Azure Monitor](https://learn.microsoft.com/azure/azure-monitor/alerts/alerts-troubleshoot#the-metricvalue-field-contains-null-for-resolved-log-search-alert-notifications)
+  erwartungsgemäß `null`.
 - Zwei Standard-Webtests prüfen nach Aktivierung die #127-Landingpage und den
   Demo-Warm-up über `/api/ready` aus höchstens drei expliziten Standorten.
 - Beide Uptime-Alarme und beide Budgetmeldungen verwenden dieselbe Azure
@@ -73,8 +83,12 @@ Statusseite sind nicht vorgesehen.
 
 `tofu test` plant die Uptime-Ressourcen mit gemockten Providern und prüft die
 beiden Ziele, Alarme, Action-Group-Bindung, Budgetschwellen, Logquery,
-Aufbewahrung und Quota. Das ist der repositoryseitige Vertrag, aber kein
-Nachweis einer real zugestellten Meldung.
+`ResultCount`-Kriterium, Fünf-Minuten-Fenster und -Frequenz, Stateful-
+Auto-Mitigation, Aufbewahrung und Quota. Das ist der repositoryseitige
+Vertrag, aber kein Nachweis einer real zugestellten Meldung. Der kontrollierte
+Live-Nachweis muss separat belegen: keine Auslösung ohne Fehlerzeile, genau
+eine offene Instanz ab einer echten Fehlerzeile und deren automatische
+Entwarnung nach drei aufeinanderfolgenden fehlerfreien Auswertungen.
 
 ## Störungs- und Diagnosepfad
 
