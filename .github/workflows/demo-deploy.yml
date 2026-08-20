@@ -26,6 +26,10 @@ on:
         description: Full 40-character product commit shared by the pair
         required: true
         type: string
+      runtime_contract:
+        description: Versioned runtime contract from both attested image manifests
+        required: true
+        type: string
       schema_fingerprint:
         description: Full schema fingerprint from the verified seed manifest
         required: true
@@ -59,6 +63,7 @@ jobs:
       SEED_IMAGE: ${{ inputs.seed_image }}
       PRODUCT_TAG: ${{ inputs.product_tag }}
       PRODUCT_COMMIT: ${{ inputs.product_commit }}
+      RUNTIME_CONTRACT: ${{ inputs.runtime_contract }}
       SCHEMA_FINGERPRINT: ${{ inputs.schema_fingerprint }}
       SEED_REVISION: ${{ inputs.seed_revision }}
       DEMO_URL: ${{ vars.DEMO_URL }}
@@ -88,6 +93,7 @@ jobs:
             --seed-image "$SEED_IMAGE" \
             --product-tag "$PRODUCT_TAG" \
             --product-commit "$PRODUCT_COMMIT" \
+            --runtime-contract "$RUNTIME_CONTRACT" \
             --schema-fingerprint "$SCHEMA_FINGERPRINT" \
             --seed-revision "$SEED_REVISION" \
             --demo-url "$DEMO_URL"
@@ -101,7 +107,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$PRODUCT_TAG" in
-            demo/*-SNAPSHOT.*)
+            demo/v*-SNAPSHOT.*)
               signer_workflow=lxndrp/lzug/.github/workflows/demo-snapshot.yml
               ;;
             v*)
@@ -127,6 +133,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      - name: Verify digest-bound pair manifests before Azure mutation
+        run: |
+          scripts/verify-demo-image-pair.sh \
+            "$APP_IMAGE" "$SEED_IMAGE" "$PRODUCT_TAG" "$PRODUCT_COMMIT" \
+            "$RUNTIME_CONTRACT" "$SCHEMA_FINGERPRINT" "$SEED_REVISION"
+
       - name: Log in to Azure using GitHub OIDC
         uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
@@ -146,6 +158,7 @@ jobs:
             --seed-image "$SEED_IMAGE" \
             --product-tag "$PRODUCT_TAG" \
             --product-commit "$PRODUCT_COMMIT" \
+            --runtime-contract "$RUNTIME_CONTRACT" \
             --schema-fingerprint "$SCHEMA_FINGERPRINT" \
             --seed-revision "$SEED_REVISION" \
             --revision-suffix "$revision_suffix" \
@@ -163,6 +176,7 @@ jobs:
             --seed-image "$SEED_IMAGE" \
             --product-tag "$PRODUCT_TAG" \
             --product-commit "$PRODUCT_COMMIT" \
+            --runtime-contract "$RUNTIME_CONTRACT" \
             --schema-fingerprint "$SCHEMA_FINGERPRINT" \
             --seed-revision "$SEED_REVISION" \
             --revision-suffix "${{ steps.deployment.outputs.revision_suffix }}"
@@ -175,6 +189,7 @@ jobs:
             --seed-image "$SEED_IMAGE" \
             --product-tag "$PRODUCT_TAG" \
             --product-commit "$PRODUCT_COMMIT" \
+            --runtime-contract "$RUNTIME_CONTRACT" \
             --schema-fingerprint "$SCHEMA_FINGERPRINT" \
             --seed-revision "$SEED_REVISION"
 
@@ -186,6 +201,7 @@ jobs:
             --seed-image "$SEED_IMAGE" \
             --product-tag "$PRODUCT_TAG" \
             --product-commit "$PRODUCT_COMMIT" \
+            --runtime-contract "$RUNTIME_CONTRACT" \
             --schema-fingerprint "$SCHEMA_FINGERPRINT" \
             --seed-revision "$SEED_REVISION"
 
@@ -197,6 +213,7 @@ jobs:
             --seed-image "$SEED_IMAGE" \
             --product-tag "$PRODUCT_TAG" \
             --product-commit "$PRODUCT_COMMIT" \
+            --runtime-contract "$RUNTIME_CONTRACT" \
             --schema-fingerprint "$SCHEMA_FINGERPRINT" \
             --seed-revision "$SEED_REVISION"
 
@@ -212,6 +229,7 @@ jobs:
             echo "- Seed: \`$SEED_IMAGE\`"
             echo "- Demo source tag: \`$PRODUCT_TAG\`"
             echo "- Product commit: \`$PRODUCT_COMMIT\`"
+            echo "- Runtime contract: \`$RUNTIME_CONTRACT\`"
             echo "- Schema fingerprint: \`$SCHEMA_FINGERPRINT\`"
             echo "- Seed revision: \`$SEED_REVISION\`"
             echo "- Azure revision suffix: \`${{ steps.deployment.outputs.revision_suffix }}\`"

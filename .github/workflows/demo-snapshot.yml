@@ -134,7 +134,7 @@ jobs:
             "repos/$GH_REPO/environments/demo/deployment-branch-policies?per_page=100")
           jq -e '
             any(.branch_policies[]; .type == "branch" and .name == "master") and
-            any(.branch_policies[]; .type == "tag" and .name == "demo/*-SNAPSHOT.*")
+            any(.branch_policies[]; .type == "tag" and .name == "demo/v*-SNAPSHOT.*")
           ' <<<"$policies" >/dev/null || {
             echo "The demo Environment must allow master and demo snapshot tags." >&2
             exit 1
@@ -164,6 +164,7 @@ jobs:
       seed_image: ${{ steps.pair.outputs.seed_image }}@${{ steps.seed.outputs.digest }}
       schema_fingerprint: ${{ steps.pair.outputs.schema_fingerprint }}
       seed_revision: ${{ steps.pair.outputs.seed_revision }}
+      runtime_contract: ${{ steps.pair.outputs.runtime_contract }}
     env:
       GH_REPO: ${{ github.repository }}
       SNAPSHOT_IDENTITY: ${{ needs.preflight.outputs.snapshot_identity }}
@@ -230,6 +231,7 @@ jobs:
             '.product == {channel: $channel, commit: $commit, identity: $identity, tag: $tag, target_version: $target, version: $identity}' \
             "$temporary_directory/manifest.json" >/dev/null
           seed_revision=$(jq -er '.seed_revision' "$temporary_directory/manifest.json")
+          runtime_contract=$(jq -er '.runtime_contract' "$temporary_directory/manifest.json")
           schema_fingerprint=$(jq -er '.schema.fingerprint' "$temporary_directory/manifest.json")
           app_image="ghcr.io/${GH_REPO,,}-demo-app"
           seed_image="ghcr.io/${GH_REPO,,}-demo-seed"
@@ -239,6 +241,7 @@ jobs:
             echo "seed_image=$seed_image"
             echo "seed_ref=$seed_image:${{ needs.preflight.outputs.oci_tag }}-seed-$seed_revision"
             echo "seed_revision=$seed_revision"
+            echo "runtime_contract=$runtime_contract"
             echo "schema_fingerprint=$schema_fingerprint"
           } >> "$GITHUB_OUTPUT"
 
@@ -378,6 +381,7 @@ jobs:
             echo "- Seed: \`${{ steps.pair.outputs.seed_image }}@${{ steps.seed.outputs.digest }}\`"
             echo "- Schema fingerprint: \`${{ steps.pair.outputs.schema_fingerprint }}\`"
             echo "- Seed revision: \`${{ steps.pair.outputs.seed_revision }}\`"
+            echo "- Runtime contract: \`${{ steps.pair.outputs.runtime_contract }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
@@ -402,6 +406,7 @@ jobs:
       PRODUCT_COMMIT: ${{ needs.preflight.outputs.target_sha }}
       SCHEMA_FINGERPRINT: ${{ needs.publish.outputs.schema_fingerprint }}
       SEED_REVISION: ${{ needs.publish.outputs.seed_revision }}
+      RUNTIME_CONTRACT: ${{ needs.publish.outputs.runtime_contract }}
       SNAPSHOT_IDENTITY: ${{ needs.preflight.outputs.snapshot_identity }}
       TARGET_VERSION: ${{ needs.preflight.outputs.target_version }}
       DEMO_URL: ${{ vars.DEMO_URL }}
@@ -429,6 +434,7 @@ jobs:
             --seed-image "$SEED_IMAGE" \
             --product-tag "$PRODUCT_TAG" \
             --product-commit "$PRODUCT_COMMIT" \
+            --runtime-contract "$RUNTIME_CONTRACT" \
             --schema-fingerprint "$SCHEMA_FINGERPRINT" \
             --seed-revision "$SEED_REVISION" \
             --demo-url "$DEMO_URL"
@@ -456,6 +462,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      - name: Verify digest-bound pair manifests before Azure mutation
+        run: |
+          scripts/verify-demo-image-pair.sh \
+            "$APP_IMAGE" "$SEED_IMAGE" "$PRODUCT_TAG" "$PRODUCT_COMMIT" \
+            "$RUNTIME_CONTRACT" "$SCHEMA_FINGERPRINT" "$SEED_REVISION"
+
       - name: Log in to Azure using GitHub OIDC
         uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
@@ -476,6 +488,7 @@ jobs:
             --seed-image "$SEED_IMAGE" \
             --product-tag "$PRODUCT_TAG" \
             --product-commit "$PRODUCT_COMMIT" \
+            --runtime-contract "$RUNTIME_CONTRACT" \
             --schema-fingerprint "$SCHEMA_FINGERPRINT" \
             --seed-revision "$SEED_REVISION" \
             --revision-suffix "$revision_suffix" \
@@ -490,6 +503,7 @@ jobs:
             --container-app "$AZURE_CONTAINER_APP" \
             --app-image "$APP_IMAGE" --seed-image "$SEED_IMAGE" \
             --product-tag "$PRODUCT_TAG" --product-commit "$PRODUCT_COMMIT" \
+            --runtime-contract "$RUNTIME_CONTRACT" \
             --schema-fingerprint "$SCHEMA_FINGERPRINT" --seed-revision "$SEED_REVISION" \
             --revision-suffix "${{ steps.deployment.outputs.revision_suffix }}"
 
@@ -499,6 +513,7 @@ jobs:
             --demo-url "$DEMO_URL" \
             --app-image "$APP_IMAGE" --seed-image "$SEED_IMAGE" \
             --product-tag "$PRODUCT_TAG" --product-commit "$PRODUCT_COMMIT" \
+            --runtime-contract "$RUNTIME_CONTRACT" \
             --schema-fingerprint "$SCHEMA_FINGERPRINT" --seed-revision "$SEED_REVISION"
 
       - name: Wait separately for application readiness
@@ -507,6 +522,7 @@ jobs:
             --demo-url "$DEMO_URL" \
             --app-image "$APP_IMAGE" --seed-image "$SEED_IMAGE" \
             --product-tag "$PRODUCT_TAG" --product-commit "$PRODUCT_COMMIT" \
+            --runtime-contract "$RUNTIME_CONTRACT" \
             --schema-fingerprint "$SCHEMA_FINGERPRINT" --seed-revision "$SEED_REVISION"
 
       - name: Smoke-test health, readiness, demo API, protected OpenAPI, and the central frontend route
@@ -515,6 +531,7 @@ jobs:
             --demo-url "$DEMO_URL" \
             --app-image "$APP_IMAGE" --seed-image "$SEED_IMAGE" \
             --product-tag "$PRODUCT_TAG" --product-commit "$PRODUCT_COMMIT" \
+            --runtime-contract "$RUNTIME_CONTRACT" \
             --schema-fingerprint "$SCHEMA_FINGERPRINT" --seed-revision "$SEED_REVISION"
 
       - name: Record snapshot deployment evidence
@@ -532,6 +549,7 @@ jobs:
             echo "- Seed: \`$SEED_IMAGE\`"
             echo "- Schema fingerprint: \`$SCHEMA_FINGERPRINT\`"
             echo "- Seed revision: \`$SEED_REVISION\`"
+            echo "- Runtime contract: \`$RUNTIME_CONTRACT\`"
             echo "- Azure revision suffix: \`${{ steps.deployment.outputs.revision_suffix }}\`"
             echo "- Previous app digest: \`$previous_app\`"
             echo "- Previous seed digest: \`$previous_seed\`"
@@ -544,7 +562,7 @@ jobs:
           {
             echo "### Demo snapshot deployment failed"
             echo "The run is not deployment evidence. Never move or replace the snapshot tag or either OCI reference."
-            echo "Use the existing manual rollback operation only with all six values of a previously verified complete pair."
+            echo "Use the existing manual rollback operation only with all seven values of a previously verified complete pair."
           } >> "$GITHUB_STEP_SUMMARY"
           if test -f "$RUNNER_TEMP/demo-deployment.json"; then
             previous_app=$(jq -er '.previous.app_image' "$RUNNER_TEMP/demo-deployment.json")

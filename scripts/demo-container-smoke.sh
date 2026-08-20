@@ -70,6 +70,7 @@ payload = json.load(open(sys.argv[1], encoding="utf-8"))
 assert payload["mode"] == "demo"
 assert payload["initialized"] is True
 assert payload["initialization_status"] == "ready"
+assert payload["runtime_contract"] == "lzug-demo-health-ready-v1"
 assert payload["reset_status"] == "scheduled"
 assert len(payload["seed_revision"]) == 64
 assert payload["reset_timezone"] == "Europe/Berlin"

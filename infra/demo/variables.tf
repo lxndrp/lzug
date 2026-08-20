@@ -31,12 +31,13 @@ variable "name_prefix" {
 }
 
 variable "demo_artifact_pair" {
-  description = "Previously verified immutable demo app/seed pair and its shared product, schema, and seed binding."
+  description = "Previously verified immutable demo app/seed pair and its shared product, runtime, schema, and seed binding."
   type = object({
     app_image          = string
     seed_image         = string
     product_tag        = string
     product_commit     = string
+    runtime_contract   = string
     schema_fingerprint = string
     seed_revision      = string
   })
@@ -45,12 +46,39 @@ variable "demo_artifact_pair" {
     condition = (
       can(regex("^ghcr\\.io/lxndrp/lzug-demo-app@sha256:[0-9a-f]{64}$", var.demo_artifact_pair.app_image)) &&
       can(regex("^ghcr\\.io/lxndrp/lzug-demo-seed@sha256:[0-9a-f]{64}$", var.demo_artifact_pair.seed_image)) &&
-      can(regex("^v[0-9]+\\.[0-9]+\\.[0-9]+([+-][0-9A-Za-z.-]+)?$", var.demo_artifact_pair.product_tag)) &&
       can(regex("^[0-9a-f]{40}$", var.demo_artifact_pair.product_commit)) &&
+      (
+        can(regex("^v[0-9]+\\.[0-9]+\\.[0-9]+([+-][0-9A-Za-z.-]+)?$", var.demo_artifact_pair.product_tag)) ||
+        (
+          can(regex("^demo/v[0-9]+\\.[0-9]+\\.[0-9]+-SNAPSHOT\\.[0-9a-f]{7}$", var.demo_artifact_pair.product_tag)) &&
+          endswith(var.demo_artifact_pair.product_tag, substr(var.demo_artifact_pair.product_commit, 0, 7))
+        )
+      ) &&
+      var.demo_artifact_pair.runtime_contract == "lzug-demo-health-ready-v1" &&
       can(regex("^[0-9a-f]{64}$", var.demo_artifact_pair.schema_fingerprint)) &&
       can(regex("^[0-9a-f]{64}$", var.demo_artifact_pair.seed_revision))
     )
-    error_message = "demo_artifact_pair must contain the two canonical digest-pinned demo packages and valid shared product, schema, and seed identifiers."
+    error_message = "demo_artifact_pair must contain two canonical digest-pinned demo packages and valid shared product, lzug-demo-health-ready-v1, schema, and seed identifiers."
+  }
+}
+
+variable "github_environment_deployment_policy_ids" {
+  description = "Existing numeric GitHub demo Environment policy IDs keyed by master and snapshot; keep empty only when both policies will be created."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition = (
+      length(var.github_environment_deployment_policy_ids) == 0 ||
+      (
+        toset(keys(var.github_environment_deployment_policy_ids)) == toset(["master", "snapshot"]) &&
+        alltrue([
+          for id in values(var.github_environment_deployment_policy_ids) :
+          can(regex("^[0-9]+$", id))
+        ])
+      )
+    )
+    error_message = "github_environment_deployment_policy_ids must be empty or contain numeric master and snapshot policy IDs together."
   }
 }
 

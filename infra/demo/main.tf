@@ -30,6 +30,13 @@ resource "azurerm_container_app_environment" "demo" {
   log_analytics_workspace_id = azurerm_log_analytics_workspace.demo.id
   public_network_access      = "Enabled"
   tags                       = local.common_tags
+
+  workload_profile {
+    name                  = "Consumption"
+    workload_profile_type = "Consumption"
+    minimum_count         = 0
+    maximum_count         = 0
+  }
 }
 
 resource "azurerm_container_app" "demo" {
@@ -171,7 +178,36 @@ resource "github_repository_environment" "demo" {
   prevent_self_review = true
 
   deployment_branch_policy {
-    protected_branches     = true
-    custom_branch_policies = false
+    protected_branches     = false
+    custom_branch_policies = true
   }
+}
+
+locals {
+  demo_environment_deployment_policies = {
+    master = {
+      type    = "branch"
+      pattern = "master"
+    }
+    snapshot = {
+      type    = "tag"
+      pattern = "demo/v*-SNAPSHOT.*"
+    }
+  }
+}
+
+resource "github_repository_environment_deployment_policy" "demo" {
+  for_each = local.demo_environment_deployment_policies
+
+  repository     = var.github_repository
+  environment    = github_repository_environment.demo.environment
+  branch_pattern = each.value.type == "branch" ? each.value.pattern : null
+  tag_pattern    = each.value.type == "tag" ? each.value.pattern : null
+}
+
+import {
+  for_each = var.github_environment_deployment_policy_ids
+
+  to = github_repository_environment_deployment_policy.demo[each.key]
+  id = "${var.github_repository}:demo:${each.value}"
 }
