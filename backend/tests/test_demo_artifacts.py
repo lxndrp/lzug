@@ -11,6 +11,7 @@ from backend.auth import AuthenticationRepository
 from backend.models import CANDIDATE
 from backend.repositories import ResourceRepository
 from demo.artifacts import (
+    RUNTIME_CONTRACT,
     DemoArtifactError,
     build_app_manifest,
     build_seed,
@@ -18,6 +19,7 @@ from demo.artifacts import (
     initialize_workdir,
     sha256_file,
     validate_runtime_binding,
+    verify_pair_manifests,
     verify_seed,
 )
 
@@ -60,6 +62,7 @@ class DemoArtifactTests(unittest.TestCase):
             self.assertEqual(sha256_file(first_db), sha256_file(second_db))
             self.assertEqual(first_manifest.read_bytes(), second_manifest.read_bytes())
             self.assertEqual(first["snapshot_sha256"], sha256_file(first_db))
+            self.assertEqual(RUNTIME_CONTRACT, first["runtime_contract"])
             self.assertRegex(first["seed_revision"], r"^[0-9a-f]{64}$")
             self.assertEqual(2, self._scalar(first_db, "SELECT COUNT(*) FROM user_account"))
 
@@ -75,6 +78,7 @@ class DemoArtifactTests(unittest.TestCase):
             loaded_app, loaded_seed = validate_runtime_binding(app_manifest, data_dir)
             self.assertEqual(self.product_commit, loaded_app["product"]["commit"])
             self.assertEqual(first["seed_revision"], loaded_seed["seed_revision"])
+            self.assertEqual(RUNTIME_CONTRACT, loaded_app["runtime_contract"])
 
             ResourceRepository(data_dir / "lzug.sqlite").update(
                 CANDIDATE, 1, {"last_name": "Laufende Änderung"}
@@ -189,6 +193,49 @@ class DemoArtifactTests(unittest.TestCase):
 
             with self.assertRaisesRegex(DemoArtifactError, "different product identities"):
                 validate_runtime_binding(app_manifest, data_dir)
+
+    def test_pair_manifest_evidence_binds_the_readiness_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            seed_manifest = root / "seed.json"
+            app_manifest = root / "app.json"
+            seed = build_seed(
+                Path("."),
+                root / "seed.sqlite",
+                seed_manifest,
+                product_tag=self.product_tag,
+                product_commit=self.product_commit,
+            )
+            build_app_manifest(
+                Path("."),
+                app_manifest,
+                product_tag=self.product_tag,
+                product_commit=self.product_commit,
+            )
+
+            verify_pair_manifests(
+                app_manifest,
+                seed_manifest,
+                expected_product_tag=self.product_tag,
+                expected_product_commit=self.product_commit,
+                expected_runtime_contract=RUNTIME_CONTRACT,
+                expected_schema_fingerprint=seed["schema"]["fingerprint"],
+                expected_seed_revision=seed["seed_revision"],
+            )
+
+            app = json.loads(app_manifest.read_text(encoding="utf-8"))
+            app["runtime_contract"] = "legacy-health-only"
+            app_manifest.write_text(json.dumps(app), encoding="utf-8")
+            with self.assertRaisesRegex(DemoArtifactError, "runtime contract"):
+                verify_pair_manifests(
+                    app_manifest,
+                    seed_manifest,
+                    expected_product_tag=self.product_tag,
+                    expected_product_commit=self.product_commit,
+                    expected_runtime_contract=RUNTIME_CONTRACT,
+                    expected_schema_fingerprint=seed["schema"]["fingerprint"],
+                    expected_seed_revision=seed["seed_revision"],
+                )
 
     def test_snapshot_manifests_bind_non_release_identity_and_target_version(self) -> None:
         revision = "abcdef0123456789abcdef0123456789abcdef01"

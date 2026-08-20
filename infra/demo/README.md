@@ -13,9 +13,13 @@ freigegebenen `tofu apply` keine Cloudänderung aus.
 - `demo_artifact_pair` bindet ausschließlich
   `ghcr.io/lxndrp/lzug-demo-app@sha256:…` und
   `ghcr.io/lxndrp/lzug-demo-seed@sha256:…` zusammen mit Produkt-Tag, Commit,
-  Schemafingerprint und Seed-Revision. Ein einzelner Digest wird niemals
-  unabhängig aktualisiert oder zurückgerollt. `latest`, `demo` und andere
-  bewegliche Tags werden bereits durch die Eingabevalidierung abgewiesen.
+  dem in beiden Manifesten enthaltenen Runtimevertrag
+  `lzug-demo-health-ready-v1`, Schemafingerprint und Seed-Revision. Der
+  Seed-Manifest-Digest bindet den Runtimevertrag in die Seed-Revision; die
+  beiden Image-Digests binden die jeweiligen Manifeste. Ein einzelner Digest
+  wird niemals unabhängig aktualisiert oder zurückgerollt. `latest`, `demo`,
+  abweichende Runtimeverträge und andere bewegliche oder nicht nachgewiesene
+  Eingaben werden bereits durch die Eingabevalidierung abgewiesen.
 - Nicht geheime Laufzeiteinstellungen können über `container_environment`
   übergeben werden. Der Stack akzeptiert keine Secret-Werte; `/data` ist als
   reservierter Runtimepfad nicht überschreibbar.
@@ -45,9 +49,10 @@ freigegebenen `tofu apply` keine Cloudänderung aus.
   [Demo-Beobachtbarkeit](../../docs/developers/demo-observability.md)
   dokumentiert. Das Budget meldet 80 Prozent der tatsächlichen und 100 Prozent
   der prognostizierten Kosten; es stoppt Ressourcen nicht automatisch.
-- Das GitHub Environment erlaubt Deployments nur von geschützten Branches,
-  verhindert Selbstfreigaben und Admin-Bypass. Erforderliche Reviewer werden
-  nicht geraten: Sie müssen nach Maintainer-Entscheidung ergänzt werden.
+- Das GitHub Environment verwendet ausgewählte Deploymentregeln: exakt den
+  Branch `master` und Tags nach `demo/v*-SNAPSHOT.*`. Es verhindert
+  Selbstfreigaben und Admin-Bypass. Erforderliche Reviewer werden nicht
+  geraten: Sie müssen nach Maintainer-Entscheidung ergänzt werden.
 - OIDC-Rollen für Deployment, Auswahl und unabhängige Lieferkettenprüfung des
   freigegebenen Digest-Paars, öffentlicher Smoke-Test und Deploymentnachweis
   sind im [Deploymentvertrag](../../docs/developers/demo-deployment.md)
@@ -94,12 +99,22 @@ task quality:infra
 ```
 
 Der Test prüft Region, Single Revision und Skalierung, beide Digests, Init-
-Container, das einzige `EmptyDir` unter `/data`, Berliner Zeit, Managed
+Container, das explizit erhaltene `Consumption`-Workload-Profil, das einzige
+`EmptyDir` unter `/data`, Berliner Zeit, Managed
 Identity, die drei RBAC-Aktionen, Stop-/Start-Reihenfolge, getrennte
 Liveness-/Readiness-/Statusprüfung, letzten Reset, Rollback-Output, Budget,
-Loggrenzen, Uptime-Alarme und GitHub Environment. Ein eigener
-Negativtest verwirft bewegliche Demo-Tags. Das ersetzt keinen authentifizierten
-Azure-Plan.
+Loggrenzen, Uptime-Alarme und die beiden ausgewählten GitHub-Environment-
+Regeln. Eigene Negativtests verwerfen bewegliche Demo-Tags, alte
+Runtimeverträge und eine nur teilweise Policy-Adoption. Das ersetzt keinen
+authentifizierten Azure-Plan.
+
+Existieren die beiden ausgewählten Environment-Policies bereits außerhalb des
+States, werden ihre nicht geheimen numerischen IDs gemeinsam über
+`github_environment_deployment_policy_ids = { master = "…", snapshot = "…" }`
+übergeben. Der gespeicherte Plan muss dann für beide Ressourcen einen Import
+statt zweier Creates zeigen. Eine leere Map ist ausschließlich für ein neues
+Environment ohne bestehende Policies zulässig; eine Teilmenge wird
+fail-closed abgewiesen.
 
 ## Kontrolliertes Erstellen und Aktualisieren
 
@@ -125,11 +140,11 @@ tofu output -json deployment
 
 Vor `apply` werden Digest, Region, Budget, Empfänger, Backend, erwartete
 Ersetzungen und Löschungen im gespeicherten Plan geprüft. Insbesondere müssen
-beide Container-Referenzen gemeinsam mit Tag, Commit, Schemafingerprint und
-Seed-Revision dem freigegebenen Nachweis entsprechen; eine unerwartete neue
-Revision, Persistenzressource, weiter gefasste Rolle oder zweite Identity ist
-ein Abbruchgrund. Pläne werden nach der Prüfung lokal gelöscht und nie
-hochgeladen oder committed.
+beide Container-Referenzen gemeinsam mit Tag, Commit, Runtimevertrag,
+Schemafingerprint und Seed-Revision dem freigegebenen Nachweis entsprechen;
+eine unerwartete neue Revision, Persistenzressource, weiter gefasste Rolle oder
+zweite Identity ist ein Abbruchgrund. Pläne werden nach der Prüfung lokal
+gelöscht und nie hochgeladen oder committed.
 
 ## Reset, Fehler und Rollback
 
@@ -153,9 +168,10 @@ nach behobener Plattformstörung erneut ausgelöst oder ein Rollback geplant.
 
 Ein Rollback verwendet ausschließlich den vollständigen `artifact_pair`-Output
 eines zuvor gemeinsam geprüften Stands. In `terraform.tfvars` werden App- und
-Seed-Digest sowie Produkt-Tag, Commit, Schemafingerprint und Seed-Revision
-atomar auf dieses Paar zurückgesetzt. Danach folgen ein neuer gespeicherter
-Plan, Maintainer-Prüfung und erst nach ausdrücklicher Freigabe `tofu apply`.
+Seed-Digest sowie Produkt-Tag, Commit, Runtimevertrag, Schemafingerprint und
+Seed-Revision atomar auf dieses Paar zurückgesetzt. Danach folgen ein neuer
+gespeicherter Plan, Maintainer-Prüfung und erst nach ausdrücklicher Freigabe
+`tofu apply`.
 Tags werden nicht verschoben. Der anschließende Stop-/Start-Lauf muss alle vier
 obigen Signale erneut liefern. Der bisherige Plan und aktive Stand bleiben bei
 einem fehlerhaften neuen Paar unverändert.

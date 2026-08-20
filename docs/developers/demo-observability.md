@@ -104,7 +104,8 @@ aktuellen `master`-Stand und Livezustand neu bestätigt:
 | --- | --- |
 | `azure_subscription_id` | UUID der isolierten Demo-Subscription |
 | `location`, `name_prefix` | freigegebene EU-Region und bestehender stabiler Präfix |
-| `demo_artifact_pair` | beide kanonischen `ghcr.io/...@sha256:…`-Referenzen plus Produkt-Tag, vollständiger Commit, Schemafingerprint und Seed-Revision aus demselben erfolgreichen Publish-/Deploymentnachweis |
+| `demo_artifact_pair` | beide kanonischen `ghcr.io/...@sha256:…`-Referenzen plus Produkt-Tag, vollständiger Commit, in beiden Manifesten digestgebundener Runtimevertrag `lzug-demo-health-ready-v1`, Schemafingerprint und Seed-Revision aus demselben erfolgreichen grünen Publish-/Snapshotnachweis |
+| `github_environment_deployment_policy_ids` | bei bestehenden Policies gemeinsam die live gelesenen numerischen IDs für `master` und `snapshot`; leer nur für ein neues Environment ohne beide Regeln |
 | `budget_amount_eur` | freigegebener Monatsbetrag, größer 0 und höchstens 100 |
 | `budget_contact_emails` | ausdrücklich bestätigte Empfänger der gemeinsamen Action Group |
 | `budget_start_date`, `budget_end_date` | gültiger Budgetzeitraum in RFC 3339 UTC |
@@ -121,6 +122,49 @@ Persistenz oder weitere Datensenken, lautet das Ergebnis **STOP**. Bei
 vollständigen Inputs werden nur `tofu plan -out=demo-observability.tfplan` und
 `tofu show demo-observability.tfplan` ausgeführt und geprüft. Dieser
 Repositorytask stoppt ausdrücklich vor `tofu apply`.
+
+### Aktivierungsreihenfolge nach GO P
+
+Der Plan auf `master@33cba0e1afe7eddfbec8cbf646df315464116fec`
+mit SHA-256
+`3be09805cf09888dc2188444c7765453e597f99a1d528b0b0cb19d4eccde47c4`
+enthielt 3 Creates, 6 Updates und 0 Deletes ohne Ersetzungen. Seine übrigen
+Action-Group-, Budget-, Fehleralarm-, Logic-App-, CORS-, Digest- und
+Aufbewahrungsänderungen entsprachen dem #129-Vertrag. Er bleibt dennoch
+dauerhaft **kein Apply-Kandidat**, weil er das `Consumption`-Profil und die
+ausgewählten Environment-Policies nicht deklarativ erhielt und das aktive
+v0.1.2-Paar `/api/ready` nicht unterstützt.
+
+Die fehlgeschlagenen Tags `demo/v0.2.0-SNAPSHOT.33cba0e` und
+`demo/v0.2.0-SNAPSHOT.adbf352` werden weder verschoben, gelöscht, erneut
+ausgeführt noch für einen Plan wiederverwendet. Beim zweiten Lauf stoppte die
+noch nicht adoptierte Ziel-Policy bereits im Vorjob; Quality, Build, Publish,
+SBOM, Provenance und Manifestprüfung wurden dadurch übersprungen. Die
+repositoryseitige Korrektur verlegt diese Prüfung hinter die vollständig
+belegte Artefaktassembly und vor jede Azure-Anmeldung. Danach ist die
+Reihenfolge:
+
+1. vollständige Quality für den neuen aktuellen `master`-Commit,
+2. neuer annotierter Snapshot-Tag mit neuer, unveränderlicher App-/Seed-
+   Assembly; Quality, Build, Publish, SBOM, Provenance und beide
+   Manifestprüfungen müssen grün sein,
+3. der vor der IaC-Adoption erwartbare Deploy-STOP ist kein
+   Deploymentnachweis und der Tag wird nie erneut ausgeführt oder verschoben;
+   das bereits digestgebundene Paar bleibt jedoch der einmalige
+   Infrastrukturkandidat,
+4. neue lokale Inputs mit allen sieben Paarwerten und beiden live gelesenen
+   Policy-IDs,
+5. neuer vollständiger OpenTofu-Plan auf exakt dieser SHA; Policy-Ressourcen
+   müssen importiert statt dupliziert, das `Consumption`-Profil erhalten und
+   die Container-App muss atomar auf das neue Paar wechseln,
+6. STOP vor Apply und neues Maintainer-GO, gebunden an SHA und neuen Planhash,
+7. nach Apply ein weiterer neuer Snapshot; erst dessen vollständig grüner
+   automatischer Publish-/Deploy-/Readiness-/Smoke-Lauf beweist den
+   dauerhaften Endzustand.
+
+Weder ein Rückfall auf `/api/health` noch HTTP 401 gelten als Readiness. Das
+alte v0.1.2-Paar, der obige Plan und der fehlgeschlagene Snapshot sind keine
+zulässigen Inputs für Schritt 5.
 
 Nach einem separaten, plan- und SHA-gebundenen Maintainer-GO folgen Apply,
 read-only Ressourcenabgleich, je ein erfolgreicher realer Lauf beider

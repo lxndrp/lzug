@@ -26,6 +26,7 @@ class DemoRuntimeTests(unittest.TestCase):
             json.dumps(
                 {
                     "manifest_version": 1,
+                    "runtime_contract": "lzug-demo-health-ready-v1",
                     "product": {
                         "tag": "v0.1.1",
                         "version": "0.1.1",
@@ -40,6 +41,7 @@ class DemoRuntimeTests(unittest.TestCase):
             json.dumps(
                 {
                     "manifest_version": 1,
+                    "runtime_contract": "lzug-demo-health-ready-v1",
                     "product": {"tag": "v0.1.1", "commit": "a" * 40},
                     "schema": {"fingerprint": "schema"},
                     "seed_revision": "seed-revision",
@@ -71,6 +73,7 @@ class DemoRuntimeTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertEqual("demo", payload["mode"])
             self.assertEqual("seed-revision", payload["seed_revision"])
+            self.assertEqual("lzug-demo-health-ready-v1", payload["runtime_contract"])
             self.assertEqual("Europe/Berlin", payload["reset_timezone"])
             self.assertEqual("ready", payload["initialization_status"])
             self.assertEqual("2026-08-14T01:00:00+00:00", payload["initialized_at"])

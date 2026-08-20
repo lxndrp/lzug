@@ -98,6 +98,16 @@ class DemoDeliveryContractTests(unittest.TestCase):
 
         self.assertEqual(manifest["schema"]["fingerprint"], selected_fingerprint)
 
+    def test_pre_azure_pair_verifier_reads_both_digest_bound_manifests(self) -> None:
+        verifier = Path("scripts/verify-demo-image-pair.sh").read_text(encoding="utf-8")
+
+        self.assertIn('docker pull "$app_image"', verifier)
+        self.assertIn('docker pull "$seed_image"', verifier)
+        self.assertIn("/app/demo-app-manifest.json", verifier)
+        self.assertIn("/opt/lzug-demo/seed/manifest.json", verifier)
+        self.assertIn("verify-pair-manifests", verifier)
+        self.assertIn('--expected-runtime-contract "$runtime_contract"', verifier)
+
     def test_complete_quality_includes_demo_pair(self) -> None:
         taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
         pull_request = Path(".github/workflows/pull-request.yml").read_text(encoding="utf-8")
@@ -108,6 +118,19 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("snapshot|demo/v0.2.0-SNAPSHOT.$short_revision", taskfile)
         self.assertIn("quality:demo", pull_request)
         self.assertIn("quality:demo", quality)
+
+    def test_environment_policy_adoption_is_atomic_and_optional(self) -> None:
+        main = Path("infra/demo/main.tf").read_text(encoding="utf-8")
+        variables = Path("infra/demo/variables.tf").read_text(encoding="utf-8")
+        example = Path("infra/demo/terraform.tfvars.example").read_text(encoding="utf-8")
+
+        self.assertIn('pattern = "demo/v*-SNAPSHOT.*"', main)
+        self.assertIn("for_each = var.github_environment_deployment_policy_ids", main)
+        self.assertIn("to = github_repository_environment_deployment_policy.demo[each.key]", main)
+        self.assertIn('id = "${var.github_repository}:demo:${each.value}"', main)
+        self.assertIn('toset(["master", "snapshot"])', variables)
+        self.assertIn("length(var.github_environment_deployment_policy_ids) == 0", variables)
+        self.assertIn("github_environment_deployment_policy_ids = {}", example)
 
     def test_snapshot_promotion_is_one_tag_driven_publish_and_deploy_run(self) -> None:
         workflow = Path(".github/workflows/demo-snapshot.yml").read_text(encoding="utf-8")
@@ -125,9 +148,9 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("refs/remotes/origin/master", workflow)
         self.assertIn("validate-milestone", workflow)
         self.assertIn("validate-releases", workflow)
-        self.assertIn("Verify automatic demo Environment tag policy", workflow)
+        self.assertIn("Verify demo Environment activation policy before Azure mutation", workflow)
         self.assertIn('.type == "branch" and .name == "master"', workflow)
-        self.assertIn('.type == "tag" and .name == "demo/*-SNAPSHOT.*"', workflow)
+        self.assertIn('.type == "tag" and .name == "demo/v*-SNAPSHOT.*"', workflow)
         self.assertIn('.type != "required_reviewers"', workflow)
         self.assertNotIn("git tag ", workflow)
         self.assertNotIn("git push ", workflow)
@@ -142,6 +165,10 @@ class DemoDeliveryContractTests(unittest.TestCase):
         deploy = workflow.index("  deploy:\n")
         self.assertLess(quality_job, publish)
         self.assertLess(publish, deploy)
+
+        preflight_contract = workflow[:quality_job]
+        self.assertNotIn("Environment activation policy", preflight_contract)
+        self.assertNotIn("deployment-branch-policies", preflight_contract)
 
         quality_contract = workflow[quality_job:publish]
         self.assertIn("needs: preflight", quality_contract)
@@ -174,6 +201,22 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca", workflow)
         self.assertIn("needs.publish.outputs.app_image", workflow[deploy:])
         self.assertIn("needs.publish.outputs.seed_image", workflow[deploy:])
+        self.assertIn("needs.publish.outputs.runtime_contract", workflow[deploy:])
+        self.assertIn("scripts/verify-demo-image-pair.sh", workflow[deploy:])
+        manifest_verification = workflow.index(
+            "Verify digest-bound pair manifests before Azure mutation",
+            deploy,
+        )
+        policy_verification = workflow.index(
+            "Verify demo Environment activation policy before Azure mutation",
+            deploy,
+        )
+        azure_login = workflow.index("Log in to Azure using GitHub OIDC", deploy)
+        self.assertLess(
+            manifest_verification,
+            policy_verification,
+        )
+        self.assertLess(policy_verification, azure_login)
         self.assertIn("--signer-workflow lxndrp/lzug/.github/workflows/demo-snapshot.yml", workflow)
 
         release_publish = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")
