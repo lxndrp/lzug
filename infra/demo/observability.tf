@@ -3,6 +3,23 @@ locals {
     landingpage = var.landingpage_url
     warmup      = "${var.demo_url}/api/ready"
   } : {}
+
+  # Azure creates these fixed child configurations with every Application
+  # Insights component. AzureRM manages them through its idempotent update
+  # operation, so the stable API-name keys adopt existing children and also
+  # cover newly created components without separate import IDs.
+  application_insights_smart_detection_rules = {
+    slowpageloadtime                               = "Slow page load time"
+    slowserverresponsetime                         = "Slow server response time"
+    longdependencyduration                         = "Long dependency duration"
+    degradationinserverresponsetime                = "Degradation in server response time"
+    degradationindependencyduration                = "Degradation in dependency duration"
+    extension_traceseveritydetector                = "Degradation in trace severity ratio"
+    extension_exceptionchangeextension             = "Abnormal rise in exception volume"
+    extension_memoryleakextension                  = "Potential memory leak detected"
+    extension_securityextensionspackage            = "Potential security issue detected"
+    extension_billingdatavolumedailyspikeextension = "Abnormal rise in daily data volume"
+  }
 }
 
 resource "azurerm_monitor_action_group" "demo" {
@@ -35,6 +52,17 @@ resource "azurerm_application_insights" "demo" {
   internet_query_enabled               = false
   local_authentication_enabled         = false
   tags                                 = local.common_tags
+}
+
+resource "azurerm_application_insights_smart_detection_rule" "demo" {
+  for_each = var.external_monitoring_enabled ? local.application_insights_smart_detection_rules : {}
+
+  name                    = each.value
+  application_insights_id = azurerm_application_insights.demo[0].id
+  enabled                 = false
+
+  send_emails_to_subscription_owners = false
+  additional_email_recipients        = []
 }
 
 resource "azurerm_application_insights_standard_web_test" "demo" {

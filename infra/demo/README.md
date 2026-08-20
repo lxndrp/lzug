@@ -56,6 +56,20 @@ freigegebenen `tofu apply` keine Cloudänderung aus.
   [Demo-Beobachtbarkeit](../../docs/developers/demo-observability.md)
   dokumentiert. Das Budget meldet 80 Prozent der tatsächlichen und 100 Prozent
   der prognostizierten Kosten; es stoppt Ressourcen nicht automatisch.
+- Für neue Application-Insights-Komponenten schaltet der AzureRM-Provider die
+  automatisch erzeugte Failure-Anomalies-Regel bereits beim Erstellen aus.
+  Zusätzlich verwaltet der Stack alle zehn festen
+  `ProactiveDetectionConfigs` provider-nativ als deaktivierte Child-Ressourcen,
+  ohne Owner-E-Mails oder zusätzliche Empfänger. Derselbe idempotente
+  Update-/Upsert-Vertrag adoptiert bestehende Children und benötigt weder für
+  Bestands- noch für neue Umgebungen Import-IDs.
+- Azure kann daneben die nicht von lzug verwaltete Action Group
+  `Application Insights Smart Detection` mit ARM-Rollenempfängern anlegen. Sie
+  wird weder importiert noch gelöscht und ist nicht mit den expliziten
+  lzug-Webtest-, Fehler- oder Budgetalarmen verbunden. Eine leere Liste
+  direkter E-Mail-Empfänger macht diese Plattformressource nicht
+  empfängerlos. Nach Deaktivierung aller Detection-Regeln gehört sie nicht zum
+  lzug-Alarmvertrag.
 - Das GitHub Environment verwendet ausgewählte Deploymentregeln: exakt den
   Branch `master` und Tags nach `demo/v*-SNAPSHOT.*`. Es verhindert
   Selbstfreigaben und Admin-Bypass. Erforderliche Reviewer werden nicht
@@ -113,7 +127,10 @@ Container, das explizit erhaltene `Consumption`-Workload-Profil, das einzige
 Identity, die drei RBAC-Aktionen, Stop-/Start-Reihenfolge, getrennte
 Liveness-/Readiness-/Statusprüfung, letzten Reset, Rollback-Output, Budget,
 Loggrenzen, Uptime-Alarme und die beiden ausgewählten GitHub-Environment-
-Regeln. Eigene Negativtests verwerfen bewegliche Demo-Tags, alte
+Regeln. Bei aktiviertem externem Monitoring müssen außerdem exakt alle zehn
+Smart-Detection-Children deaktiviert, Owner-E-Mails ausgeschaltet und
+zusätzliche Empfänger leer sein; bei deaktiviertem Gate entstehen keine dieser
+Ressourcen. Eigene Negativtests verwerfen bewegliche Demo-Tags, alte
 Runtimeverträge und eine nur teilweise Policy-Adoption. Das ersetzt keinen
 authentifizierten Azure-Plan.
 
@@ -124,6 +141,15 @@ States, werden ihre nicht geheimen numerischen IDs gemeinsam über
 statt zweier Creates zeigen. Eine leere Map ist ausschließlich für ein neues
 Environment ohne bestehende Policies zulässig; eine Teilmenge wird
 fail-closed abgewiesen.
+
+Die zehn Smart-Detection-Children folgen bewusst einem anderen
+Providervertrag: Es gibt keine Import-IDs. Bei einer bestehenden
+Application-Insights-Komponente zeigt der erste Plan genau zehn neue
+OpenTofu-Ressourcenadressen. AzureRM schreibt dabei über die festen API-Namen
+idempotent in die bereits vorhandenen Children und nimmt sie in den State auf;
+es erzeugt keine zweite Regelsammlung. Bei einer neuen Komponente verwalten
+dieselben zehn Adressen deren von Azure angelegte Children. Eine andere Zahl,
+abweichende Namen oder zusätzliche Empfänger sind ein Abbruchgrund.
 
 ## Kontrolliertes Erstellen und Aktualisieren
 
@@ -154,6 +180,23 @@ Schemafingerprint und Seed-Revision dem freigegebenen Nachweis entsprechen;
 eine unerwartete neue Revision, Persistenzressource, weiter gefasste Rolle oder
 zweite Identity ist ein Abbruchgrund. Pläne werden nach der Prüfung lokal
 gelöscht und nie hochgeladen oder committed.
+
+Unmittelbar vor jedem Plan mit aktiviertem externem Monitoring muss aus dem
+Repository-Root außerdem der read-only Driftcheck laufen:
+
+```sh
+python3 scripts/check_demo_smart_detection.py \
+  --subscription-id "$AZURE_SUBSCRIPTION_ID" \
+  --resource-group "$DEMO_RESOURCE_GROUP" \
+  --component-name "$APPLICATION_INSIGHTS_NAME"
+```
+
+Der Check bestätigt die aktive Subscription und liest ausschließlich die
+externen `Microsoft.AlertsManagement/smartDetectorAlertRules`. Sobald eine
+Failure-Anomalies-Regel für die Demo-Komponente vorhanden ist oder die
+Abwesenheit nicht sicher belegt werden kann, lautet das Ergebnis **STOP** vor
+`tofu plan`. Diese externe Regel darf nicht durch einen OpenTofu-Plan
+stillschweigend gelöscht oder adoptiert werden.
 
 ## Reset, Fehler und Rollback
 
