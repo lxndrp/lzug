@@ -135,9 +135,14 @@ dauerhaft **kein Apply-Kandidat**, weil er das `Consumption`-Profil und die
 ausgewählten Environment-Policies nicht deklarativ erhielt und das aktive
 v0.1.2-Paar `/api/ready` nicht unterstützt.
 
-Der fehlgeschlagene Tag `demo/v0.2.0-SNAPSHOT.33cba0e` und dessen
-OCI-Referenzen werden weder verschoben, gelöscht, erneut ausgeführt noch für
-einen Plan wiederverwendet. Nach Merge dieser Korrektur ist die Reihenfolge:
+Die fehlgeschlagenen Tags `demo/v0.2.0-SNAPSHOT.33cba0e` und
+`demo/v0.2.0-SNAPSHOT.adbf352` werden weder verschoben, gelöscht, erneut
+ausgeführt noch für einen Plan wiederverwendet. Beim zweiten Lauf stoppte die
+noch nicht adoptierte Ziel-Policy bereits im Vorjob; Quality, Build, Publish,
+SBOM, Provenance und Manifestprüfung wurden dadurch übersprungen. Die
+repositoryseitige Korrektur verlegt diese Prüfung hinter die vollständig
+belegte Artefaktassembly und vor jede Azure-Anmeldung. Danach ist die
+Reihenfolge:
 
 1. vollständige Quality für den neuen aktuellen `master`-Commit,
 2. neuer annotierter Snapshot-Tag mit neuer, unveränderlicher App-/Seed-

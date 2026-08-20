@@ -9,7 +9,7 @@ Rollen oder GitHub-Environments.
 Für einen manuell promoteten Entwicklungs-Snapshot gilt daneben der
 zusammenhängende Workflow `Promote demo snapshot`: Ein Maintainer setzt einen
 neuen annotierten `demo/...-SNAPSHOT.<kurze SHA>`-Tag auf der aktuellen grünen
-`master`-SHA. Der Tag-Push startet den günstigen Source-/Policy-Preflight,
+`master`-SHA. Der Tag-Push startet den günstigen Source-Preflight,
 danach den vollständigen kanonischen `Quality`-Workflow für exakt den
 Tag-Zielcommit und erst bei dessen Erfolg Build, separate SBOM- und
 Provenance-Attestierung, OCI-Publish sowie unmittelbar denselben OIDC-,
@@ -51,14 +51,16 @@ noch eine schwächere Snapshot-Pipeline eingeführt.
 Der bestehende manuelle Workflow bleibt für releasegebundene Deployments und
 den ausdrücklichen Rollback auf ein früher vollständig geprüftes Paar erhalten.
 
-Vor der ersten Snapshot-Promotion muss die bestehende Deployment-Branch-/Tag-
-Policy des Environments einmalig auf „Selected branches and tags“ umgestellt
-sein. Sie enthält exakt die Branch-Regel `master` für den bestehenden
-manuellen Deploy-/Rollback-Pfad und die Tag-Regel `demo/v*-SNAPSHOT.*` für die
-automatische Snapshot-Promotion. Ein Required Reviewer ist dort nicht
-konfiguriert; der annotierte Tag-Push ist bereits das Maintainer-GO. Der
-Snapshot-Preflight liest diese Konfiguration und bricht vor jedem OCI-Publish
-ab, solange sie fehlt oder widersprüchlich ist.
+Für ein Deployment verwendet das Environment „Selected branches and tags“ mit
+exakt der Branch-Regel `master` für den bestehenden manuellen Deploy-/Rollback-
+Pfad und der Tag-Regel `demo/v*-SNAPSHOT.*` für die automatische Snapshot-
+Promotion. Ein Required Reviewer ist dort nicht konfiguriert; der annotierte
+Tag-Push ist bereits das Maintainer-GO. Der Snapshot-Workflow prüft diese
+Aktivierungspolicy erst, nachdem Quality, Build, OCI-Publish, SBOM, Provenance
+und das digestgebundene App-/Seed-Manifestpaar erfolgreich belegt sind. Fehlt
+oder widerspricht die Policy, stoppt ausschließlich das Deployment vor der
+Azure-Anmeldung. Das unveränderliche Paar bleibt damit für die einmalige #129-
+Adoption als OpenTofu-Input erhalten, ohne die Deployment-Grenze zu schwächen.
 
 ## Freigabe- und Eingabevertrag
 

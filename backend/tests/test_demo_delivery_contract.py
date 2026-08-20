@@ -148,7 +148,7 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("refs/remotes/origin/master", workflow)
         self.assertIn("validate-milestone", workflow)
         self.assertIn("validate-releases", workflow)
-        self.assertIn("Verify automatic demo Environment tag policy", workflow)
+        self.assertIn("Verify demo Environment activation policy before Azure mutation", workflow)
         self.assertIn('.type == "branch" and .name == "master"', workflow)
         self.assertIn('.type == "tag" and .name == "demo/v*-SNAPSHOT.*"', workflow)
         self.assertIn('.type != "required_reviewers"', workflow)
@@ -165,6 +165,10 @@ class DemoDeliveryContractTests(unittest.TestCase):
         deploy = workflow.index("  deploy:\n")
         self.assertLess(quality_job, publish)
         self.assertLess(publish, deploy)
+
+        preflight_contract = workflow[:quality_job]
+        self.assertNotIn("Environment activation policy", preflight_contract)
+        self.assertNotIn("deployment-branch-policies", preflight_contract)
 
         quality_contract = workflow[quality_job:publish]
         self.assertIn("needs: preflight", quality_contract)
@@ -199,10 +203,20 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("needs.publish.outputs.seed_image", workflow[deploy:])
         self.assertIn("needs.publish.outputs.runtime_contract", workflow[deploy:])
         self.assertIn("scripts/verify-demo-image-pair.sh", workflow[deploy:])
-        self.assertLess(
-            workflow.index("Verify digest-bound pair manifests before Azure mutation", deploy),
-            workflow.index("Log in to Azure using GitHub OIDC", deploy),
+        manifest_verification = workflow.index(
+            "Verify digest-bound pair manifests before Azure mutation",
+            deploy,
         )
+        policy_verification = workflow.index(
+            "Verify demo Environment activation policy before Azure mutation",
+            deploy,
+        )
+        azure_login = workflow.index("Log in to Azure using GitHub OIDC", deploy)
+        self.assertLess(
+            manifest_verification,
+            policy_verification,
+        )
+        self.assertLess(policy_verification, azure_login)
         self.assertIn("--signer-workflow lxndrp/lzug/.github/workflows/demo-snapshot.yml", workflow)
 
         release_publish = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")
