@@ -34,6 +34,7 @@ class DemoDeploymentTests(unittest.TestCase):
         seed_image="ghcr.io/lxndrp/lzug-demo-seed@sha256:" + "b" * 64,
         product_tag="v0.1.1",
         product_commit="c" * 40,
+        runtime_contract="lzug-demo-health-ready-v1",
         schema_fingerprint="d" * 64,
         seed_revision="e" * 64,
     )
@@ -185,6 +186,7 @@ class DemoDeploymentTests(unittest.TestCase):
             seed_image=self.pair.seed_image,
             product_tag=self.pair.product_tag,
             product_commit=self.pair.product_commit,
+            runtime_contract=self.pair.runtime_contract,
             schema_fingerprint=self.pair.schema_fingerprint,
             seed_revision=self.pair.seed_revision,
         )
@@ -223,6 +225,7 @@ class DemoDeploymentTests(unittest.TestCase):
             {
                 "product_version": "0.1.1",
                 "product_commit": self.pair.product_commit,
+                "runtime_contract": self.pair.runtime_contract,
                 "schema_fingerprint": self.pair.schema_fingerprint,
                 "seed_revision": self.pair.seed_revision,
                 "initialized": True,
@@ -242,6 +245,7 @@ class DemoDeploymentTests(unittest.TestCase):
                 {
                     "product_version": "0.1.1",
                     "product_commit": self.pair.product_commit,
+                    "runtime_contract": self.pair.runtime_contract,
                     "schema_fingerprint": self.pair.schema_fingerprint,
                     "seed_revision": "f" * 64,
                     "initialized": True,
@@ -258,6 +262,7 @@ class DemoDeploymentTests(unittest.TestCase):
             seed_image=self.pair.seed_image,
             product_tag="demo/v0.2.0-SNAPSHOT.abcdef0",
             product_commit=revision,
+            runtime_contract=self.pair.runtime_contract,
             schema_fingerprint=self.pair.schema_fingerprint,
             seed_revision=self.pair.seed_revision,
         )
@@ -266,6 +271,7 @@ class DemoDeploymentTests(unittest.TestCase):
             {
                 "product_version": "v0.2.0-SNAPSHOT@abcdef0",
                 "product_commit": revision,
+                "runtime_contract": pair.runtime_contract,
                 "schema_fingerprint": pair.schema_fingerprint,
                 "seed_revision": pair.seed_revision,
                 "initialized": True,
@@ -332,6 +338,7 @@ class DemoDeploymentTests(unittest.TestCase):
                 {
                     "product_version": "0.1.1",
                     "product_commit": self.pair.product_commit,
+                    "runtime_contract": self.pair.runtime_contract,
                     "schema_fingerprint": self.pair.schema_fingerprint,
                     "seed_revision": self.pair.seed_revision,
                     "initialized": True,
@@ -389,13 +396,19 @@ class DemoDeploymentTests(unittest.TestCase):
         self.assertNotIn("AZURE_CREDENTIALS", workflow)
         self.assertEqual(2, workflow.count("gh attestation verify"))
         self.assertIn('for image in "$APP_IMAGE" "$SEED_IMAGE"', workflow)
-        self.assertIn("demo/*-SNAPSHOT.*)", workflow)
+        self.assertIn("demo/v*-SNAPSHOT.*)", workflow)
         self.assertIn("demo-snapshot.yml", workflow)
         self.assertIn("demo-publish.yml", workflow)
         self.assertIn("--predicate-type https://cyclonedx.org/bom", workflow)
         self.assertIn("Wait for the new Azure revision to become ready", workflow)
         self.assertIn("Wait separately for application health", workflow)
         self.assertIn("Wait separately for application readiness", workflow)
+        self.assertIn("Verify digest-bound pair manifests before Azure mutation", workflow)
+        self.assertIn("scripts/verify-demo-image-pair.sh", workflow)
+        self.assertLess(
+            workflow.index("Verify digest-bound pair manifests before Azure mutation"),
+            workflow.index("Log in to Azure using GitHub OIDC"),
+        )
         self.assertIn(
             "Smoke-test health, readiness, demo API, protected OpenAPI, "
             "and the central frontend route",

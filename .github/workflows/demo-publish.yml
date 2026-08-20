@@ -142,6 +142,7 @@ jobs:
             --expected-product-commit "$TARGET_SHA" \
             --expected-schema-fingerprint "$expected_schema_fingerprint"
           seed_revision=$(jq -er '.seed_revision' "$temporary_directory/manifest.json")
+          runtime_contract=$(jq -er '.runtime_contract' "$temporary_directory/manifest.json")
           schema_fingerprint=$(jq -er '.schema.fingerprint' "$temporary_directory/manifest.json")
           app_image="ghcr.io/${GH_REPO,,}-demo-app"
           seed_image="ghcr.io/${GH_REPO,,}-demo-seed"
@@ -151,6 +152,7 @@ jobs:
             echo "seed_image=$seed_image"
             echo "seed_ref=$seed_image:$PRODUCT_VERSION-seed-$seed_revision"
             echo "seed_revision=$seed_revision"
+            echo "runtime_contract=$runtime_contract"
             echo "schema_fingerprint=$schema_fingerprint"
           } >> "$GITHUB_OUTPUT"
 
@@ -270,6 +272,7 @@ jobs:
             echo "- App: \`${{ steps.images.outputs.app_image }}@${{ steps.app.outputs.digest }}\`"
             echo "- Seed: \`${{ steps.images.outputs.seed_image }}@${{ steps.seed.outputs.digest }}\`"
             echo "- Seed revision: \`${{ steps.images.outputs.seed_revision }}\`"
+            echo "- Runtime contract: \`${{ steps.images.outputs.runtime_contract }}\`"
             echo "- Schema fingerprint: \`${{ steps.images.outputs.schema_fingerprint }}\`"
             echo "- Product tag: \`$PRODUCT_TAG\`"
             echo "- Product commit: \`$TARGET_SHA\`"

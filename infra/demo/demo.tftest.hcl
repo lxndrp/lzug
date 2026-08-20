@@ -69,11 +69,13 @@ run "demo_contract" {
 
   variables {
     azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+    location              = "westeurope"
     demo_artifact_pair = {
       app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
       product_tag        = "v0.1.1"
       product_commit     = "0123456789abcdef0123456789abcdef01234567"
+      runtime_contract   = "lzug-demo-health-ready-v1"
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
@@ -132,6 +134,14 @@ run "demo_contract" {
   assert {
     condition = (
       azurerm_container_app_environment.demo.public_network_access == "Enabled" &&
+      length(azurerm_container_app_environment.demo.workload_profile) == 1 &&
+      alltrue([
+        for profile in azurerm_container_app_environment.demo.workload_profile :
+        profile.name == "Consumption" &&
+        profile.workload_profile_type == "Consumption" &&
+        profile.minimum_count == 0 &&
+        profile.maximum_count == 0
+      ]) &&
       length(azurerm_container_app.demo.template[0].container[0].env) == 3 &&
       azurerm_container_app.demo.template[0].container[0].env[0].name == "LZUG_DATA_DIR" &&
       azurerm_container_app.demo.template[0].container[0].env[0].value == "/data" &&
@@ -173,8 +183,15 @@ run "demo_contract" {
   }
 
   assert {
-    condition     = github_repository_environment.demo.environment == "demo" && !github_repository_environment.demo.can_admins_bypass
-    error_message = "The protected GitHub demo environment must be managed declaratively."
+    condition = (
+      github_repository_environment.demo.environment == "demo" &&
+      !github_repository_environment.demo.can_admins_bypass &&
+      !github_repository_environment.demo.deployment_branch_policy[0].protected_branches &&
+      github_repository_environment.demo.deployment_branch_policy[0].custom_branch_policies &&
+      github_repository_environment_deployment_policy.demo["master"].branch_pattern == "master" &&
+      github_repository_environment_deployment_policy.demo["snapshot"].tag_pattern == "demo/v*-SNAPSHOT.*"
+    )
+    error_message = "The GitHub demo environment must declaratively preserve its selected master and snapshot policies."
   }
 
   assert {
@@ -210,6 +227,7 @@ run "demo_contract" {
       jsondecode(azurerm_logic_app_action_custom.check_health.body).inputs.uri == output.health_endpoint &&
       jsondecode(azurerm_logic_app_action_custom.check_readiness.body).inputs.uri == output.readiness_endpoint &&
       jsondecode(azurerm_logic_app_action_custom.check_demo_status.body).inputs.uri == output.demo_status_endpoint &&
+      strcontains(azurerm_logic_app_action_custom.validate_demo_status.body, var.demo_artifact_pair.runtime_contract) &&
       strcontains(azurerm_logic_app_action_custom.validate_demo_status.body, var.demo_artifact_pair.seed_revision) &&
       strcontains(azurerm_logic_app_action_custom.validate_demo_status.body, "last_reset_at")
     )
@@ -231,11 +249,13 @@ run "external_observability_activation_contract" {
 
   variables {
     azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+    location              = "westeurope"
     demo_artifact_pair = {
       app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
       product_tag        = "v0.1.1"
       product_commit     = "0123456789abcdef0123456789abcdef01234567"
+      runtime_contract   = "lzug-demo-health-ready-v1"
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
@@ -279,11 +299,13 @@ run "reject_moving_demo_tags" {
 
   variables {
     azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+    location              = "westeurope"
     demo_artifact_pair = {
       app_image          = "ghcr.io/lxndrp/lzug-demo-app:latest"
       seed_image         = "ghcr.io/lxndrp/lzug-demo-seed:demo"
       product_tag        = "v0.1.1"
       product_commit     = "0123456789abcdef0123456789abcdef01234567"
+      runtime_contract   = "lzug-demo-health-ready-v1"
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
@@ -296,6 +318,96 @@ run "reject_moving_demo_tags" {
   expect_failures = [var.demo_artifact_pair]
 }
 
+run "accept_bound_snapshot_artifact_pair" {
+  command = plan
+
+  plan_options {
+    refresh = false
+  }
+
+  variables {
+    azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+    location              = "westeurope"
+    demo_artifact_pair = {
+      app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+      product_tag        = "demo/v0.2.0-SNAPSHOT.0123456"
+      product_commit     = "0123456789abcdef0123456789abcdef01234567"
+      runtime_contract   = "lzug-demo-health-ready-v1"
+      schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
+      seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
+    }
+    budget_amount_eur     = 25
+    budget_contact_emails = ["demo-operations@example.invalid"]
+    budget_start_date     = "2026-09-01T00:00:00Z"
+    budget_end_date       = "2028-07-31T00:00:00Z"
+  }
+
+  assert {
+    condition     = output.deployment.artifact_pair.runtime_contract == "lzug-demo-health-ready-v1"
+    error_message = "A green snapshot pair must retain the versioned health/readiness manifest contract."
+  }
+}
+
+run "reject_legacy_runtime_contract" {
+  command = plan
+
+  plan_options {
+    refresh = false
+  }
+
+  variables {
+    azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+    location              = "westeurope"
+    demo_artifact_pair = {
+      app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+      product_tag        = "v0.1.2"
+      product_commit     = "0123456789abcdef0123456789abcdef01234567"
+      runtime_contract   = "legacy-health-only"
+      schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
+      seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
+    }
+    budget_amount_eur     = 25
+    budget_contact_emails = ["demo-operations@example.invalid"]
+    budget_start_date     = "2026-09-01T00:00:00Z"
+    budget_end_date       = "2028-07-31T00:00:00Z"
+  }
+
+  expect_failures = [var.demo_artifact_pair]
+}
+
+run "reject_partial_environment_policy_adoption" {
+  command = plan
+
+  plan_options {
+    refresh = false
+  }
+
+  variables {
+    azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+    location              = "westeurope"
+    demo_artifact_pair = {
+      app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+      product_tag        = "v0.1.1"
+      product_commit     = "0123456789abcdef0123456789abcdef01234567"
+      runtime_contract   = "lzug-demo-health-ready-v1"
+      schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
+      seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
+    }
+    github_environment_deployment_policy_ids = {
+      master = "123456"
+    }
+    budget_amount_eur     = 25
+    budget_contact_emails = ["demo-operations@example.invalid"]
+    budget_start_date     = "2026-09-01T00:00:00Z"
+    budget_end_date       = "2028-07-31T00:00:00Z"
+  }
+
+  expect_failures = [var.github_environment_deployment_policy_ids]
+}
+
 run "reject_invalid_budget_end_calendar_date" {
   command = plan
 
@@ -305,11 +417,13 @@ run "reject_invalid_budget_end_calendar_date" {
 
   variables {
     azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+    location              = "westeurope"
     demo_artifact_pair = {
       app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
       product_tag        = "v0.1.1"
       product_commit     = "0123456789abcdef0123456789abcdef01234567"
+      runtime_contract   = "lzug-demo-health-ready-v1"
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
@@ -331,11 +445,13 @@ run "reject_invalid_budget_end_timestamp" {
 
   variables {
     azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+    location              = "westeurope"
     demo_artifact_pair = {
       app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
       product_tag        = "v0.1.1"
       product_commit     = "0123456789abcdef0123456789abcdef01234567"
+      runtime_contract   = "lzug-demo-health-ready-v1"
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
@@ -357,11 +473,13 @@ run "reject_budget_end_not_later" {
 
   variables {
     azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+    location              = "westeurope"
     demo_artifact_pair = {
       app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
       product_tag        = "v0.1.1"
       product_commit     = "0123456789abcdef0123456789abcdef01234567"
+      runtime_contract   = "lzug-demo-health-ready-v1"
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }

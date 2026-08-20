@@ -57,7 +57,7 @@ geprüftes Digestpaar über den bestehenden manuellen Rollback-Pfad.
 
 Das bestehende Environment verwendet dafür ausgewählte Branch-/Tag-Regeln:
 `master` bleibt für den manuellen Release-/Rollback-Pfad erlaubt,
-`demo/*-SNAPSHOT.*` ausschließlich für die Snapshot-Tags. Der Preflight prüft
+`demo/v*-SNAPSHOT.*` ausschließlich für die Snapshot-Tags. Der Preflight prüft
 diese Regeln und die Abwesenheit eines Required Reviewers, bevor er OCI-
 Referenzen belegt.
 
