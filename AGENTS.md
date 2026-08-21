@@ -30,9 +30,9 @@ die technische Referenz im [Entwicklerhandbuch](docs/developers/index.md).
 ## Threads und Worktrees
 
 - Die permanenten Planungsthreads `Fachlichkeit strukturieren`,
-  `Entwicklungsumgebung anpassen` und `Weiterentwicklung planen` bleiben
-  dauerhaft erhalten. Sie dürfen weder umbenannt noch archiviert oder für eine
-  Umsetzung verwendet werden.
+  `Entwicklungsumgebung anpassen`, `Weiterentwicklung koordinieren` und
+  `Projektablauf planen` bleiben dauerhaft erhalten. Sie dürfen weder
+  umbenannt noch archiviert oder für eine Umsetzung verwendet werden.
 - Der Thread `Fachlichkeit strukturieren` darf die Ergebnisse fachlicher
   Klärungen in GitHub Issues dokumentieren, bestehende Issues refinen und ihre
   fachliche Einordnung pflegen. Er erstellt oder ändert dabei weder Produktcode
