@@ -587,6 +587,22 @@
               </div>
             }
           }
+          <app-planning-proposal-editor
+            [proposal]="planningProposal"
+            [state]="proposalEditorState"
+            [errorMessage]="proposalEditorError"
+            [violations]="proposalEditorViolations"
+            [locations]="proposalLocations()"
+            [candidates]="masterData?.candidates || []"
+            [candidateDays]="board?.candidateDays || []"
+            [members]="masterData?.members || []"
+            [maxSlotsPerDay]="summary?.settings?.exams_per_day || 0"
+            [lunchBreakEnabled]="summary?.settings?.lunch_break_enabled || 0"
+            [disabled]="actionBusy"
+            (load)="loadPlanningProposal.emit()"
+            (reload)="reloadPlanningProposal.emit()"
+            (save)="savePlanningProposal.emit($event)"
+          />
           <div class="app-inline-actions app-section-offset">
             <button
               tuiButton

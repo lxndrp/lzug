@@ -28,6 +28,7 @@ import {
   PlanningResult,
   PlanningSettings,
   ExamHalfYear,
+  EditablePlanningProposal,
   Person,
   RoundCandidate,
   RoundSummary,
@@ -365,6 +366,19 @@ export class PlanningApiService {
 
   generateProposal() {
     return this.http.post<PlanningResult>('/api/planning-proposals', { round_id: this.roundId });
+  }
+
+  getPlanningProposal() {
+    return this.http.get<EditablePlanningProposal>(
+      `/api/exam-rounds/${this.roundId}/planning-proposal`,
+    );
+  }
+
+  savePlanningProposal(proposal: EditablePlanningProposal) {
+    return this.http.put<EditablePlanningProposal>(
+      `/api/exam-rounds/${this.roundId}/planning-proposal`,
+      proposal,
+    );
   }
 
   confirmPlan() {

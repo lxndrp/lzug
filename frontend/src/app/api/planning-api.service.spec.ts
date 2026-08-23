@@ -87,6 +87,23 @@ describe('PlanningApiService', () => {
       counts: { planned_slots: 16 },
     });
 
+    const editable = {
+      round_id: 1,
+      revision: 3,
+      exam_days: [],
+      _links: {},
+    };
+    service.getPlanningProposal().subscribe((result) => expect(result.revision).toBe(3));
+    const getEditable = http.expectOne('/api/exam-rounds/1/planning-proposal');
+    expect(getEditable.request.method).toBe('GET');
+    getEditable.flush(editable);
+
+    service.savePlanningProposal(editable).subscribe((result) => expect(result.revision).toBe(4));
+    const saveEditable = http.expectOne('/api/exam-rounds/1/planning-proposal');
+    expect(saveEditable.request.method).toBe('PUT');
+    expect(saveEditable.request.body).toEqual(editable);
+    saveEditable.flush({ ...editable, revision: 4 });
+
     service.confirmPlan().subscribe((result) => {
       expect(result.status).toBe('plan_confirmed');
       expect(result.counts['confirmed_slots']).toBe(16);
