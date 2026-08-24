@@ -13,6 +13,7 @@ const backendPort = portFor('backend', 20_000);
 const frontendPort = portFor('frontend', 40_000);
 const backendUrl = `http://127.0.0.1:${backendPort}`;
 const frontendUrl = `http://127.0.0.1:${frontendPort}`;
+const productionBuild = process.env.LZUG_E2E_PRODUCTION_BUILD === 'true';
 
 export default defineConfig({
   testDir: './e2e',
@@ -22,26 +23,36 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? [['html'], ['list']] : [['list']],
   use: {
-    baseURL: frontendUrl,
+    baseURL: productionBuild ? backendUrl : frontendUrl,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
     ...devices['Desktop Chrome'],
   },
-  webServer: [
-    {
-      command: `LZUG_CORS_ALLOWED_ORIGINS=${frontendUrl} .venv/bin/python -m backend.e2e_server --host 127.0.0.1 --port ${backendPort} --db var/e2e/lzug-e2e-${runId}.sqlite3`,
-      cwd: '..',
-      url: `${backendUrl}/api/health`,
-      reuseExistingServer: false,
-      timeout: 120_000,
-    },
-    {
-      command: `node e2e/start-frontend.mjs ${frontendPort} ${backendPort}`,
-      cwd: '.',
-      url: frontendUrl,
-      reuseExistingServer: false,
-      timeout: 120_000,
-    },
-  ],
+  webServer: productionBuild
+    ? [
+        {
+          command: `LZUG_CORS_ALLOWED_ORIGINS=${backendUrl} .venv/bin/python -m backend.e2e_server --host 127.0.0.1 --port ${backendPort} --db var/e2e/lzug-production-${runId}.sqlite3 --static-dir frontend/dist/frontend/browser`,
+          cwd: '..',
+          url: `${backendUrl}/api/health`,
+          reuseExistingServer: false,
+          timeout: 180_000,
+        },
+      ]
+    : [
+        {
+          command: `LZUG_CORS_ALLOWED_ORIGINS=${frontendUrl} .venv/bin/python -m backend.e2e_server --host 127.0.0.1 --port ${backendPort} --db var/e2e/lzug-e2e-${runId}.sqlite3`,
+          cwd: '..',
+          url: `${backendUrl}/api/health`,
+          reuseExistingServer: false,
+          timeout: 120_000,
+        },
+        {
+          command: `node e2e/start-frontend.mjs ${frontendPort} ${backendPort}`,
+          cwd: '.',
+          url: frontendUrl,
+          reuseExistingServer: false,
+          timeout: 120_000,
+        },
+      ],
 });
