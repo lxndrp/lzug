@@ -25,7 +25,7 @@ test.describe('optimized frontend artifact', () => {
         for (const colorScheme of colorSchemes) {
           await test.step(colorScheme, async () => {
             await page.emulateMedia({ colorScheme });
-            const response = await page.request.get('/login');
+            const response = await page.request.get('/api/health');
             expect(response.status()).toBe(200);
             await page.goto('/login', { waitUntil: 'domcontentloaded' });
             await expect(page.getByRole('main')).toBeVisible();
