@@ -12,7 +12,7 @@
     "test": "ng test",
     "test:ci": "ng test --watch=false",
     "test:coverage": "ng test --watch=false --coverage",
-    "test:e2e": "node e2e/run-playwright.mjs --grep-invert @a11y",
+    "test:e2e": "node e2e/run-playwright.mjs --grep-invert @a11y && npm run build:ci && LZUG_E2E_PRODUCTION_BUILD=true node e2e/run-playwright.mjs production-build.spec.ts",
     "test:a11y": "node e2e/run-playwright.mjs --grep @a11y",
     "docs": "typedoc --treatWarningsAsErrors --entryPointStrategy expand --entryPoints src/app --out ../site/developers/reference/frontend",
     "security:check": "npm audit --omit=dev --audit-level=critical",
