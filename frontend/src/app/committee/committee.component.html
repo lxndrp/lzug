@@ -394,6 +394,11 @@
                         type="button"
                         (click)="toggleMember.emit(member)"
                         [disabled]="actionBusy"
+                        [attr.aria-label]="
+                          fullMemberName(member) +
+                          ' ' +
+                          (member.is_active ? 'deaktivieren' : 'aktivieren')
+                        "
                       >
                         <svg
                           [cIcon]="member.is_active ? icons.deactivate : icons.activate"

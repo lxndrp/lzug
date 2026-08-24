@@ -322,6 +322,19 @@ describe('PlanningComponent', () => {
     );
   });
 
+  it('should give repeated candidate-day actions object-specific accessible names', () => {
+    showStep('conditions');
+
+    const labels = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
+        '.app-row-actions button',
+      ),
+    ).map((button) => button.getAttribute('aria-label'));
+
+    expect(labels).toEqual(['Mo., 16.11.2026 deaktivieren', 'Di., 17.11.2026 aktivieren']);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
   it('should emit new possible exam days', () => {
     showStep('conditions');
     const component = fixture.componentInstance;

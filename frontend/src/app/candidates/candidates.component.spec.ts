@@ -38,6 +38,22 @@ describe('CandidatesComponent', () => {
     expect(element.querySelectorAll('.app-candidate-metrics > div > dd')).toHaveLength(4);
   });
 
+  it('should give repeated row actions object-specific accessible names', () => {
+    const labels = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
+        '.app-row-actions button',
+      ),
+    ).map((button) => button.getAttribute('aria-label'));
+
+    expect(labels).toEqual([
+      'Prüfling Alpha bearbeiten',
+      'Prüfling Alpha löschen',
+      'Prüfling Beta bearbeiten',
+      'Prüfling Beta löschen',
+    ]);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
   it('should filter candidates by search input', () => {
     const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
       '#candidateSearch',

@@ -272,6 +272,7 @@
                         size="s"
                         type="button"
                         [disabled]="actionBusy"
+                        [attr.aria-label]="candidateLabel(item.candidate) + ' bearbeiten'"
                         (click)="startEditing(item)"
                       >
                         <svg [cIcon]="icons.edit" class="app-button-icon" aria-hidden="true"></svg>
@@ -283,6 +284,7 @@
                         size="s"
                         type="button"
                         [disabled]="actionBusy"
+                        [attr.aria-label]="candidateLabel(item.candidate) + ' löschen'"
                         (click)="deleteCandidate.emit(item.candidate)"
                       >
                         <svg

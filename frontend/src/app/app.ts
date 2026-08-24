@@ -325,18 +325,18 @@ export class App {
 
   protected requestCandidateDeletion(id: number, label: string): void {
     this.requestConfirmation(
-      'Prüfling löschen?',
+      `${label} löschen?`,
       `${label} wird dauerhaft aus der Prüfungsverwaltung entfernt.`,
-      'Prüfling löschen',
+      `${label} löschen`,
       () => this.deleteCandidate(id, label),
     );
   }
 
   protected requestLocationDeletion(id: number, label: string): void {
     this.requestConfirmation(
-      'Prüfungsort löschen?',
+      `${label} löschen?`,
       `${label} wird dauerhaft aus der Prüfungsverwaltung entfernt.`,
-      'Prüfungsort löschen',
+      `${label} löschen`,
       () => this.deleteLocation(id, label),
     );
   }

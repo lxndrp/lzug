@@ -48,6 +48,16 @@ describe('ExamDayComponent', () => {
     expect(element.textContent).toContain('Prüfung starten');
     expect(element.querySelector('a[href="/confirmed-plans/1"]')).not.toBeNull();
     expect(element.querySelectorAll('button')).toHaveLength(5);
+    expect(
+      element
+        .querySelector<HTMLButtonElement>('.app-exam-day-actions button')
+        ?.getAttribute('aria-label'),
+    ).toBe('Prüfling Plan-Day: Anwesenheit speichern');
+    expect(
+      element
+        .querySelectorAll<HTMLButtonElement>('.app-exam-day-actions button')[3]
+        .getAttribute('aria-label'),
+    ).toBe('Testperson Prüfung: Anwesenheit speichern');
   });
 
   it('does not present a day when the API returns not found or another round', () => {

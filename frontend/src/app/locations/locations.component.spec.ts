@@ -32,6 +32,39 @@ describe('LocationsComponent', () => {
     expect(text).toContain('00000');
   });
 
+  it('should give repeated location actions object-specific accessible names', () => {
+    fixture.componentRef.setInput('masterData', {
+      ...masterDataFixture,
+      locations: [
+        ...masterDataFixture.locations,
+        {
+          ...masterDataFixture.locations[0],
+          id: 2,
+          name: 'Prüfungszentrum Beta (Test)',
+          room: 'Testraum B-01',
+          is_active: 0,
+        },
+      ],
+    });
+    fixture.detectChanges();
+
+    const labels = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
+        '.app-row-actions button',
+      ),
+    ).map((button) => button.getAttribute('aria-label'));
+
+    expect(labels).toEqual([
+      'Prüfungszentrum Alpha (Test) bearbeiten',
+      'Prüfungszentrum Alpha (Test) deaktivieren',
+      'Prüfungszentrum Alpha (Test) · Testraum A-01 löschen',
+      'Prüfungszentrum Beta (Test) bearbeiten',
+      'Prüfungszentrum Beta (Test) aktivieren',
+      'Prüfungszentrum Beta (Test) · Testraum B-01 löschen',
+    ]);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
   it('should emit valid location form submissions', () => {
     const component = fixture.componentInstance;
     vi.spyOn(component.createLocation, 'emit').mockReturnValue(undefined);

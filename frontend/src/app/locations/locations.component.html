@@ -154,6 +154,7 @@
                         size="s"
                         type="button"
                         [disabled]="actionBusy"
+                        [attr.aria-label]="location.name + ' bearbeiten'"
                         (click)="startEditing(location)"
                       >
                         <svg [cIcon]="icons.edit" class="app-button-icon" aria-hidden="true"></svg>
@@ -165,6 +166,11 @@
                         size="s"
                         type="button"
                         [disabled]="actionBusy"
+                        [attr.aria-label]="
+                          location.name +
+                          ' ' +
+                          (location.is_active === 0 ? 'aktivieren' : 'deaktivieren')
+                        "
                         (click)="toggleLocation.emit(location)"
                       >
                         <svg
@@ -180,6 +186,7 @@
                         size="s"
                         type="button"
                         [disabled]="actionBusy"
+                        [attr.aria-label]="location.name + ' · ' + location.room + ' löschen'"
                         (click)="deleteLocation.emit(location)"
                       >
                         <svg

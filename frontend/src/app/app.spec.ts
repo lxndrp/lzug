@@ -181,8 +181,8 @@ describe('App', () => {
     expect(confirmSpy).toHaveBeenCalled();
     expect(vi.mocked(confirmSpy).mock.lastCall?.[0]).toEqual(
       expect.objectContaining({
-        label: 'Prüfling löschen?',
-        data: expect.objectContaining({ yes: 'Prüfling löschen' }),
+        label: 'Prüfling Alpha löschen?',
+        data: expect.objectContaining({ yes: 'Prüfling Alpha löschen' }),
       }),
     );
     expect(http.match((request) => request.method === 'DELETE').length).toBe(0);

@@ -198,6 +198,12 @@
                       appearance="secondary"
                       type="button"
                       [disabled]="hasSavingAction()"
+                      [attr.aria-label]="
+                        slot.candidate.first_name +
+                        ' ' +
+                        slot.candidate.last_name +
+                        ': Anwesenheit speichern'
+                      "
                       (click)="saveCandidateAttendance(slot.id, draft)"
                     >
                       {{
@@ -209,6 +215,12 @@
                       appearance="primary"
                       type="button"
                       [disabled]="!!slot.actual_started_at || hasSavingAction()"
+                      [attr.aria-label]="
+                        slot.candidate.first_name +
+                        ' ' +
+                        slot.candidate.last_name +
+                        ': Prüfung starten'
+                      "
                       (click)="startExamSlot(slot.id)"
                     >
                       {{ slot.actual_started_at ? 'Gestartet' : 'Prüfung starten' }}
@@ -219,6 +231,12 @@
                       type="button"
                       [disabled]="
                         executionDraft.status === slot.execution_status || hasSavingAction()
+                      "
+                      [attr.aria-label]="
+                        slot.candidate.first_name +
+                        ' ' +
+                        slot.candidate.last_name +
+                        ': Status speichern'
                       "
                       (click)="saveExecutionStatus(slot.id, executionDraft)"
                     >
@@ -302,6 +320,12 @@
                       appearance="secondary"
                       type="button"
                       [disabled]="hasSavingAction()"
+                      [attr.aria-label]="
+                        assignment.member.first_name +
+                        ' ' +
+                        assignment.member.last_name +
+                        ': Anwesenheit speichern'
+                      "
                       (click)="saveMemberAttendance(assignment.id, draft)"
                     >
                       {{
