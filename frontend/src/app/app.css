@@ -5,17 +5,28 @@
 }
 
 .app-shell {
+  position: relative;
+  display: grid;
   min-block-size: 100vh;
   overflow-x: clip;
   background: var(--app-color-canvas);
+  grid-template-columns: var(--app-shell-sidebar) minmax(0, 1fr);
+}
+
+.app-shell > app-runtime-notice {
+  grid-column: 1 / -1;
 }
 
 .app-sidebar {
-  position: fixed;
+  position: sticky;
   z-index: 1000;
-  inset: 0 auto 0 0;
+  inset-block-start: 0;
+  align-self: start;
   display: flex;
+  grid-column: 1;
+  grid-row: 2;
   inline-size: var(--app-shell-sidebar);
+  block-size: 100vh;
   flex-direction: column;
   overflow-y: auto;
   background: #202633;
@@ -28,8 +39,8 @@
   transform: translateX(-100%);
 }
 
-.app-shell.sidebar-collapsed .app-wrapper {
-  margin-inline-start: 0;
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 0 minmax(0, 1fr);
 }
 
 .app-sidebar-header {
@@ -130,8 +141,10 @@
 }
 
 .app-wrapper {
+  min-inline-size: 0;
   min-block-size: 100vh;
-  margin-inline-start: var(--app-shell-sidebar);
+  grid-column: 2;
+  grid-row: 2;
 }
 
 .app-header {
@@ -507,16 +520,26 @@
   }
 
   .app-sidebar-backdrop {
-    position: fixed;
+    position: sticky;
     z-index: 950;
-    inset: 0;
+    inset-block-start: 0;
+    align-self: start;
     display: block;
+    inline-size: 100%;
+    block-size: 100vh;
     border: 0;
     background: rgb(15 23 42 / 48%);
+    grid-column: 1;
+    grid-row: 2;
   }
 
   .app-wrapper {
-    margin-inline-start: 0;
+    grid-column: 1;
+  }
+
+  .app-shell,
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .app-header-status {

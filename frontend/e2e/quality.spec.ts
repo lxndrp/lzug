@@ -39,6 +39,40 @@ const viewports = [
   { name: 'mobile', width: 390, height: 844 },
 ] as const;
 
+const demoNoticeViewports = [
+  { name: 'desktop', width: 1440, height: 1000 },
+  { name: 'tablet', width: 768, height: 1024 },
+  { name: 'mobile', width: 390, height: 844 },
+] as const;
+
+async function showDemoRuntimeNotice(page: Page): Promise<void> {
+  await page.locator('app-runtime-notice').evaluate((host) => {
+    host.innerHTML = `
+      <aside class="demo-notice" aria-label="Hinweis zur flüchtigen Demo" tabindex="-1">
+        <strong>Flüchtige Demo</strong>
+        <span>Keine realen personenbezogenen Daten eingeben.</span>
+        <span>Nächster Reset: 25.08.26, 03:00 · Version 0.2.0-SNAPSHOT</span>
+      </aside>
+    `;
+    const notice = host.querySelector<HTMLElement>('.demo-notice');
+    if (!notice) {
+      throw new Error('Demo runtime notice fixture was not created');
+    }
+    Object.assign(notice.style, {
+      display: 'flex',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      gap: '0.35rem 1.25rem',
+      padding: '0.65rem 1rem',
+      borderBottom: '1px solid #d9a548',
+      background: '#fff3dc',
+      fontSize: '0.9rem',
+      lineHeight: '1.35',
+      textAlign: 'center',
+    });
+  });
+}
+
 async function useDraftRound(page: Page): Promise<void> {
   const response = await page.request.patch('/api/exam-rounds/1', {
     data: { status: 'draft' },
@@ -663,6 +697,74 @@ test.describe('lzug browser workflows', () => {
     await expect(sidebarToggle).toHaveAttribute('aria-label', 'Navigation öffnen');
     await expect(sidebarToggle).toHaveAttribute('aria-expanded', 'false');
     await expect(sidebarToggle).toBeFocused();
+  });
+
+  test('keeps the demo notice clear of the sidebar and sticky header', async ({ page }) => {
+    for (const viewport of demoNoticeViewports) {
+      await test.step(viewport.name, async () => {
+        await page.setViewportSize(viewport);
+        await page.goto('/dashboard');
+        await expect(page.getByRole('heading', { name: 'Übersicht' })).toBeVisible();
+        await showDemoRuntimeNotice(page);
+
+        const notice = page.getByRole('complementary', { name: 'Hinweis zur flüchtigen Demo' });
+        const sidebar = page.locator('#appSidebar');
+        const sidebarIsOpen = await sidebar.evaluate((element) => !element.hasAttribute('inert'));
+        if (!sidebarIsOpen) {
+          await page.getByRole('button', { name: 'Navigation öffnen' }).click();
+        }
+
+        await expect(notice).toBeVisible();
+        await expect(notice).toContainText('Flüchtige Demo');
+        await expect(notice).toContainText('Keine realen personenbezogenen Daten eingeben.');
+        await expect(notice).toContainText('Nächster Reset:');
+
+        const openLayout = await page.evaluate(() => {
+          const noticeRect = document.querySelector('.demo-notice')?.getBoundingClientRect();
+          const sidebarRect = document.querySelector('#appSidebar')?.getBoundingClientRect();
+          const headerRect = document.querySelector('.app-header')?.getBoundingClientRect();
+          if (!noticeRect || !sidebarRect || !headerRect) {
+            throw new Error('Expected demo shell elements are missing');
+          }
+          return {
+            documentWidth: document.documentElement.scrollWidth,
+            viewportWidth: document.documentElement.clientWidth,
+            notice: { left: noticeRect.left, right: noticeRect.right, bottom: noticeRect.bottom },
+            sidebarTop: sidebarRect.top,
+            headerTop: headerRect.top,
+          };
+        });
+        expect(openLayout.documentWidth).toBe(openLayout.viewportWidth);
+        expect(openLayout.notice.left).toBeGreaterThanOrEqual(0);
+        expect(openLayout.notice.right).toBeLessThanOrEqual(openLayout.viewportWidth);
+        expect(openLayout.sidebarTop).toBeGreaterThanOrEqual(openLayout.notice.bottom - 1);
+        expect(openLayout.headerTop).toBeGreaterThanOrEqual(openLayout.notice.bottom - 1);
+
+        await notice.focus();
+        await expect(notice).toBeFocused();
+        await expect(notice).toBeInViewport();
+
+        if (viewport.width < 768) {
+          await page.locator('.app-sidebar-close').click();
+        } else {
+          await page.getByRole('button', { name: 'Navigation schließen' }).click();
+        }
+        await expect(sidebar).toHaveAttribute('inert', '');
+        await expect(notice).toBeVisible();
+        const closedLayout = await notice.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          return {
+            left: rect.left,
+            right: rect.right,
+            viewportWidth: document.documentElement.clientWidth,
+            documentWidth: document.documentElement.scrollWidth,
+          };
+        });
+        expect(closedLayout.documentWidth).toBe(closedLayout.viewportWidth);
+        expect(closedLayout.left).toBeGreaterThanOrEqual(0);
+        expect(closedLayout.right).toBeLessThanOrEqual(closedLayout.viewportWidth);
+      });
+    }
   });
 
   test('updates exam round metadata and keeps it after reload', async ({ page }) => {
