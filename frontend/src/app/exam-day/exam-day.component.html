@@ -118,24 +118,28 @@
                     <span class="app-exam-day-arrival">{{
                       arrivalLabel(candidateAttendance.arrived_at)
                     }}</span>
-                    <label class="app-sr-only" [for]="'candidate-status-' + slot.id"
-                      >Status Prüfling</label
-                    >
-                    <select [id]="'candidate-status-' + slot.id" [(ngModel)]="draft.status">
-                      <option value="open">Offen</option>
-                      <option value="present">Anwesend</option>
-                      <option value="late">Verspätet</option>
-                      <option value="absent">Abwesend</option>
-                    </select>
-                    <label class="app-sr-only" [for]="'candidate-arrival-' + slot.id"
-                      >Ankunftszeit Prüfling</label
-                    >
-                    <input
-                      [id]="'candidate-arrival-' + slot.id"
-                      type="datetime-local"
-                      [(ngModel)]="draft.arrivedAt"
-                      [required]="draft.status === 'late'"
-                    />
+                    @if (!ownAttendanceOnly) {
+                      <label class="app-sr-only" [for]="'candidate-status-' + slot.id"
+                        >Status Prüfling</label
+                      >
+                      <select [id]="'candidate-status-' + slot.id" [(ngModel)]="draft.status">
+                        <option value="open">Offen</option>
+                        <option value="present">Anwesend</option>
+                        <option value="late">Verspätet</option>
+                        <option value="absent">Abwesend</option>
+                      </select>
+                      <label class="app-sr-only" [for]="'candidate-arrival-' + slot.id"
+                        >Ankunftszeit Prüfling</label
+                      >
+                      <input
+                        [id]="'candidate-arrival-' + slot.id"
+                        type="datetime-local"
+                        [(ngModel)]="draft.arrivedAt"
+                        [required]="draft.status === 'late'"
+                      />
+                    } @else {
+                      <span class="app-muted">Wird vom Vorsitz dokumentiert.</span>
+                    }
                   </td>
                   <td>
                     <span tuiBadge [appearance]="executionStatusAppearance(slot.execution_status)">
@@ -147,36 +151,40 @@
                     @if (slot.status_reason) {
                       <span class="app-exam-day-arrival">Begründung: {{ slot.status_reason }}</span>
                     }
-                    <label class="app-sr-only" [for]="'execution-status-' + slot.id"
-                      >Durchführungsstatus</label
-                    >
-                    <select
-                      [id]="'execution-status-' + slot.id"
-                      [(ngModel)]="executionDraft.status"
-                      [disabled]="
-                        hasSavingAction() || isTerminalExecutionStatus(slot.execution_status)
-                      "
-                    >
-                      @for (
-                        option of executionStatusOptions(slot.execution_status);
-                        track option.value
-                      ) {
-                        <option [value]="option.value">{{ option.label }}</option>
-                      }
-                    </select>
-                    <label class="app-sr-only" [for]="'execution-reason-' + slot.id"
-                      >Begründung für den Durchführungsstatus</label
-                    >
-                    <textarea
-                      [id]="'execution-reason-' + slot.id"
-                      [(ngModel)]="executionDraft.reason"
-                      [required]="requiresExecutionReason(executionDraft.status)"
-                      [disabled]="
-                        hasSavingAction() || isTerminalExecutionStatus(slot.execution_status)
-                      "
-                      rows="2"
-                      placeholder="Begründung bei Ausfall oder Nachbereitung"
-                    ></textarea>
+                    @if (!ownAttendanceOnly) {
+                      <label class="app-sr-only" [for]="'execution-status-' + slot.id"
+                        >Durchführungsstatus</label
+                      >
+                      <select
+                        [id]="'execution-status-' + slot.id"
+                        [(ngModel)]="executionDraft.status"
+                        [disabled]="
+                          hasSavingAction() || isTerminalExecutionStatus(slot.execution_status)
+                        "
+                      >
+                        @for (
+                          option of executionStatusOptions(slot.execution_status);
+                          track option.value
+                        ) {
+                          <option [value]="option.value">{{ option.label }}</option>
+                        }
+                      </select>
+                      <label class="app-sr-only" [for]="'execution-reason-' + slot.id"
+                        >Begründung für den Durchführungsstatus</label
+                      >
+                      <textarea
+                        [id]="'execution-reason-' + slot.id"
+                        [(ngModel)]="executionDraft.reason"
+                        [required]="requiresExecutionReason(executionDraft.status)"
+                        [disabled]="
+                          hasSavingAction() || isTerminalExecutionStatus(slot.execution_status)
+                        "
+                        rows="2"
+                        placeholder="Begründung bei Ausfall oder Nachbereitung"
+                      ></textarea>
+                    } @else {
+                      <span class="app-muted">Wird vom Vorsitz dokumentiert.</span>
+                    }
                   </td>
                   <td>
                     {{
@@ -193,56 +201,60 @@
                     }}
                   </td>
                   <td class="app-exam-day-actions">
-                    <button
-                      tuiButton
-                      appearance="secondary"
-                      type="button"
-                      [disabled]="hasSavingAction()"
-                      [attr.aria-label]="
-                        slot.candidate.first_name +
-                        ' ' +
-                        slot.candidate.last_name +
-                        ': Anwesenheit speichern'
-                      "
-                      (click)="saveCandidateAttendance(slot.id, draft)"
-                    >
-                      {{
-                        isSaving('candidate-' + slot.id) ? 'Speichert …' : 'Anwesenheit speichern'
-                      }}
-                    </button>
-                    <button
-                      tuiButton
-                      appearance="primary"
-                      type="button"
-                      [disabled]="!!slot.actual_started_at || hasSavingAction()"
-                      [attr.aria-label]="
-                        slot.candidate.first_name +
-                        ' ' +
-                        slot.candidate.last_name +
-                        ': ' +
-                        (slot.actual_started_at ? 'Gestartet' : 'Prüfung starten')
-                      "
-                      (click)="startExamSlot(slot.id)"
-                    >
-                      {{ slot.actual_started_at ? 'Gestartet' : 'Prüfung starten' }}
-                    </button>
-                    <button
-                      tuiButton
-                      appearance="secondary"
-                      type="button"
-                      [disabled]="
-                        executionDraft.status === slot.execution_status || hasSavingAction()
-                      "
-                      [attr.aria-label]="
-                        slot.candidate.first_name +
-                        ' ' +
-                        slot.candidate.last_name +
-                        ': Status speichern'
-                      "
-                      (click)="saveExecutionStatus(slot.id, executionDraft)"
-                    >
-                      {{ isSaving('execution-' + slot.id) ? 'Speichert …' : 'Status speichern' }}
-                    </button>
+                    @if (!ownAttendanceOnly) {
+                      <button
+                        tuiButton
+                        appearance="secondary"
+                        type="button"
+                        [disabled]="hasSavingAction()"
+                        [attr.aria-label]="
+                          slot.candidate.first_name +
+                          ' ' +
+                          slot.candidate.last_name +
+                          ': Anwesenheit speichern'
+                        "
+                        (click)="saveCandidateAttendance(slot.id, draft)"
+                      >
+                        {{
+                          isSaving('candidate-' + slot.id) ? 'Speichert …' : 'Anwesenheit speichern'
+                        }}
+                      </button>
+                      <button
+                        tuiButton
+                        appearance="primary"
+                        type="button"
+                        [disabled]="!!slot.actual_started_at || hasSavingAction()"
+                        [attr.aria-label]="
+                          slot.candidate.first_name +
+                          ' ' +
+                          slot.candidate.last_name +
+                          ': ' +
+                          (slot.actual_started_at ? 'Gestartet' : 'Prüfung starten')
+                        "
+                        (click)="startExamSlot(slot.id)"
+                      >
+                        {{ slot.actual_started_at ? 'Gestartet' : 'Prüfung starten' }}
+                      </button>
+                      <button
+                        tuiButton
+                        appearance="secondary"
+                        type="button"
+                        [disabled]="
+                          executionDraft.status === slot.execution_status || hasSavingAction()
+                        "
+                        [attr.aria-label]="
+                          slot.candidate.first_name +
+                          ' ' +
+                          slot.candidate.last_name +
+                          ': Status speichern'
+                        "
+                        (click)="saveExecutionStatus(slot.id, executionDraft)"
+                      >
+                        {{ isSaving('execution-' + slot.id) ? 'Speichert …' : 'Status speichern' }}
+                      </button>
+                    } @else {
+                      <span class="app-muted">Keine eigene Aktion</span>
+                    }
                   </td>
                 </tr>
               } @empty {
@@ -271,7 +283,7 @@
               </tr>
             </thead>
             <tbody>
-              @for (assignment of current.day.assignments; track assignment.id) {
+              @for (assignment of assignmentsForCurrentRole(); track assignment.id) {
                 @let memberAttendance = memberAttendanceFor(assignment);
                 @let draft = attendanceDraft('member-' + assignment.id, memberAttendance);
                 <tr>

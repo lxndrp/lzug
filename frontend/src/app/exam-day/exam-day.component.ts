@@ -29,6 +29,8 @@ export class ExamDayComponent implements OnInit, OnChanges {
 
   @Input() roundId: number | null = null;
   @Input() dayId: number | null = null;
+  @Input() ownAttendanceOnly = false;
+  @Input() ownMemberId: number | null = null;
 
   protected readonly state = signal<ExamDayViewState>('loading');
   protected readonly view = signal<ConfirmedPlanDayView | null>(null);
@@ -123,7 +125,15 @@ export class ExamDayComponent implements OnInit, OnChanges {
     return assignment.attendance ?? { status: 'open', arrived_at: null };
   }
 
+  protected assignmentsForCurrentRole(): ConfirmedPlanDay['assignments'] {
+    const assignments = this.view()?.day.assignments ?? [];
+    return this.ownAttendanceOnly
+      ? assignments.filter((assignment) => assignment.member.id === this.ownMemberId)
+      : assignments;
+  }
+
   protected saveCandidateAttendance(slotId: number, draft: AttendanceDraft): void {
+    if (this.ownAttendanceOnly) return;
     const dayId = this.view()?.day.id;
     if (dayId === undefined) return;
     this.saveAction(
@@ -138,6 +148,14 @@ export class ExamDayComponent implements OnInit, OnChanges {
   }
 
   protected saveMemberAttendance(assignmentId: number, draft: AttendanceDraft): void {
+    if (
+      this.ownAttendanceOnly &&
+      !this.view()?.day.assignments.some(
+        (assignment) => assignment.id === assignmentId && assignment.member.id === this.ownMemberId,
+      )
+    ) {
+      return;
+    }
     const dayId = this.view()?.day.id;
     if (dayId === undefined) return;
     this.saveAction(
@@ -152,6 +170,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
   }
 
   protected startExamSlot(slotId: number): void {
+    if (this.ownAttendanceOnly) return;
     const dayId = this.view()?.day.id;
     if (dayId === undefined) return;
     this.saveAction(
@@ -203,6 +222,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
   }
 
   protected saveExecutionStatus(slotId: number, draft: ExecutionStatusDraft): void {
+    if (this.ownAttendanceOnly) return;
     const dayId = this.view()?.day.id;
     if (dayId === undefined) return;
     if (this.requiresExecutionReason(draft.status) && !draft.reason.trim()) {

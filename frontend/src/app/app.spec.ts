@@ -52,8 +52,10 @@ describe('App', () => {
           provide: AuthService,
           useValue: {
             state: signal('authenticated'),
+            session: signal(null),
             initialize: () => of(true),
             markAnonymous: vi.fn(),
+            logout: () => of(undefined),
           },
         },
       ],
@@ -240,6 +242,154 @@ describe('App', () => {
     expect(element.querySelector('.app-header-title')?.textContent).toContain('Prüfungsverwaltung');
     expect(element.querySelector('h1')?.textContent).toContain('Übersicht');
     expect(element.textContent).toContain('Daten synchronisiert');
+  });
+
+  it('shows the active demo identity and protects role-incompatible routes', async () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    const router = TestBed.inject(Router);
+    flushDashboardRequests(http);
+
+    const auth = TestBed.inject(AuthService) as unknown as {
+      session: {
+        set(value: {
+          authenticated: boolean;
+          account_id: number;
+          person_id: number;
+          committee_member_id: number;
+          is_operator: boolean;
+          demo_role: 'chair' | 'examiner';
+          display_name: string;
+          capabilities: string[];
+        }): void;
+      };
+    };
+    auth.session.set({
+      authenticated: true,
+      account_id: 2,
+      person_id: 3,
+      committee_member_id: 3,
+      is_operator: false,
+      demo_role: 'examiner',
+      display_name: 'Testperson Gamma',
+      capabilities: ['attendance:write-own', 'availability:write-own'],
+    });
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).toContain('Testperson Gamma');
+    expect(element.textContent).toContain('Prüfperson');
+    expect(element.textContent).toContain('Rolle wechseln');
+    expect(element.querySelector('a[href="/scheduling-overview"]')).not.toBeNull();
+    expect(element.querySelector('a[href="/confirmed-plans"]')).not.toBeNull();
+    expect(element.querySelector('a[href="/candidates"]')).toBeNull();
+    expect(element.textContent).not.toContain('Prüfungsausschüsse');
+
+    await router.navigateByUrl('/candidates');
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain(
+      'Dieser Demo-Bereich ist für Ihre Rolle nicht freigegeben.',
+    );
+    expect(element.querySelector('app-candidates')).toBeNull();
+  });
+
+  it('guards demo mutations by the effective capability set', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+
+    const auth = TestBed.inject(AuthService) as unknown as {
+      session: {
+        set(value: {
+          authenticated: boolean;
+          account_id: number;
+          person_id: number;
+          committee_member_id: number;
+          is_operator: boolean;
+          demo_role: 'chair' | 'examiner';
+          display_name: string;
+          capabilities: string[];
+        }): void;
+      };
+    };
+    auth.session.set({
+      authenticated: true,
+      account_id: 2,
+      person_id: 3,
+      committee_member_id: 3,
+      is_operator: false,
+      demo_role: 'examiner',
+      display_name: 'Testperson Gamma',
+      capabilities: ['attendance:write-own', 'availability:write-own'],
+    });
+    fixture.detectChanges();
+
+    const app = fixture.componentInstance as unknown as {
+      savePlanningSettings(payload: never): void;
+      saveExamRound(payload: never): void;
+      requestAvailabilities(payload: never): void;
+      createCandidateDay(payload: never): void;
+      generateCandidateDays(payload: never): void;
+      toggleCandidateDay(payload: never): void;
+      saveAvailability(payload: never): void;
+      generateProposal(): void;
+      confirmPlan(): void;
+      demoRoleLabel(): string;
+      demoRoleTask(): string;
+      canAccessView(view: string): boolean;
+      switchDemoRole(): void;
+      roleSwitchBusy(): boolean;
+    };
+
+    expect(app.demoRoleLabel()).toBe('Prüfperson');
+    expect(app.demoRoleTask()).toBe('Eigene Verfügbarkeit und Anwesenheit');
+    expect(app.canAccessView('planning')).toBe(true);
+    expect(app.canAccessView('confirmed-plans')).toBe(true);
+    expect(app.canAccessView('candidates')).toBe(false);
+
+    app.savePlanningSettings(undefined as never);
+    app.saveExamRound(undefined as never);
+    app.requestAvailabilities(undefined as never);
+    app.createCandidateDay(undefined as never);
+    app.generateCandidateDays(undefined as never);
+    app.toggleCandidateDay(undefined as never);
+    app.saveAvailability({
+      committee_member_id: 99,
+      candidate_exam_day_id: 1,
+      availability: 'full_day',
+    } as never);
+    app.generateProposal();
+    app.confirmPlan();
+
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Aktion für diese Rolle nicht verfügbar',
+    );
+
+    auth.session.set({
+      authenticated: true,
+      account_id: 1,
+      person_id: 1,
+      committee_member_id: 1,
+      is_operator: false,
+      demo_role: 'chair',
+      display_name: 'Vorsitz Teststadt',
+      capabilities: [
+        'planning-settings:write',
+        'availability:coordinate',
+        'attendance:coordinate',
+        'exam-status:write',
+      ],
+    });
+    fixture.detectChanges();
+    expect(app.demoRoleLabel()).toBe('Vorsitz');
+    expect(app.demoRoleTask()).toBe('Planung und Koordination');
+    expect(app.canAccessView('planning')).toBe(true);
+    expect(app.canAccessView('exam-day')).toBe(true);
+
+    app.switchDemoRole();
+    expect(app.roleSwitchBusy()).toBe(false);
   });
 });
 

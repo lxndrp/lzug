@@ -80,6 +80,10 @@ export class AuthService {
     );
   }
 
+  logout() {
+    return this.http.post<void>('/api/session/logout', {}).pipe(tap(() => this.markAnonymous()));
+  }
+
   prepareInvitation(token: string) {
     return this.http.post<AuthPreparation>('/api/auth/invitation/prepare', { token });
   }

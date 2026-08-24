@@ -102,6 +102,8 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   @Input() proposalEditorState: ProposalEditorState = 'idle';
   @Input() proposalEditorError: string | null = null;
   @Input() proposalEditorViolations: PlanningValidationViolation[] = [];
+  @Input() availabilityOnly = false;
+  @Input() ownMemberId: number | null = null;
 
   @Output() saveSettings = new EventEmitter<PlanningSettingsPayload>();
   @Output() saveRound = new EventEmitter<RoundUpdatePayload>();
@@ -199,7 +201,14 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   protected selectStep(step: WizardStep): void {
+    if (this.availabilityOnly && step !== 'responses') return;
     this.currentStep.set(step);
+  }
+
+  protected wizardStepsForDisplay(): WizardStepDefinition[] {
+    return this.availabilityOnly
+      ? this.wizardSteps.filter((step) => step.id === 'responses')
+      : this.wizardSteps;
   }
 
   protected currentStepIndex(): number {
@@ -207,6 +216,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   protected nextStep(): void {
+    if (this.availabilityOnly) return;
     const step = this.currentStep();
     if (!['period', 'conditions'].includes(step)) {
       return;
@@ -228,6 +238,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   protected previousStep(): void {
+    if (this.availabilityOnly) return;
     const index = this.currentStepIndex();
     const previous = this.wizardSteps[index - 1];
     if (previous) {
@@ -261,7 +272,9 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   protected activeMembers(): CommitteeMember[] {
-    return (this.masterData?.members ?? []).filter((member) => member.is_active);
+    return (this.masterData?.members ?? []).filter(
+      (member) => member.is_active && (!this.availabilityOnly || member.id === this.ownMemberId),
+    );
   }
 
   protected proposalLocations(): Location[] {
@@ -359,6 +372,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     day: CandidateExamDay,
     availability: AvailabilityValue,
   ): void {
+    if (this.availabilityOnly && member.id !== this.ownMemberId) return;
     const key = this.availabilityCellKey(member.id, day.id);
     const previous = this.availabilityFor(member.id, day.id);
     if (availability === previous) {
@@ -652,6 +666,12 @@ export class PlanningComponent implements OnChanges, OnDestroy {
 
   private syncWorkflowState(): void {
     if (!this.round) {
+      return;
+    }
+    if (this.availabilityOnly) {
+      this.minReachableStepIndex.set(3);
+      this.maxReachableStepIndex.set(3);
+      this.currentStep.set('responses');
       return;
     }
     const key = `${this.round.id}:${this.round.status}`;

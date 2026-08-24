@@ -10,9 +10,20 @@
       </button>
     </section>
   </div>
+  @if (availabilityOnly) {
+    <div class="app-page-full">
+      <section class="app-panel app-role-task-banner" role="status">
+        <strong>Ihre Rückmeldung</strong>
+        <span>
+          Hier bearbeiten Sie ausschließlich die eigene Verfügbarkeit. Planung, Koordination und
+          Änderungen an anderen Personen bleiben beim Vorsitz.
+        </span>
+      </section>
+    </div>
+  }
   <div class="app-page-full">
     <nav class="app-wizard-steps" aria-label="Schritte der Terminorganisation">
-      @for (step of wizardSteps; track step.id; let i = $index) {
+      @for (step of wizardStepsForDisplay(); track step.id; let i = $index) {
         <button
           tuiButton
           appearance="flat"

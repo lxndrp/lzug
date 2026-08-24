@@ -137,6 +137,23 @@ export class App {
     title: string;
     message: string;
   } | null>(null);
+  protected readonly roleSwitchBusy = signal(false);
+  protected readonly demoSession = computed(() => {
+    const session = this.auth.session();
+    return session?.demo_role ? session : null;
+  });
+  protected readonly isDemoExaminer = computed(() => this.demoSession()?.demo_role === 'examiner');
+  protected readonly canCoordinatePlanning = computed(
+    () =>
+      this.hasCapability('planning-settings:write') ||
+      this.hasCapability('availability:coordinate'),
+  );
+  protected readonly canCoordinateAttendance = computed(
+    () => this.hasCapability('attendance:coordinate') || this.hasCapability('exam-status:write'),
+  );
+  protected readonly directAccessDenied = computed(
+    () => this.demoSession() !== null && !this.canAccessView(this.activeView()),
+  );
 
   protected readonly pageTitle = computed(() => {
     const labels: Record<AppView, string> = {
@@ -249,6 +266,10 @@ export class App {
   }
 
   protected showView(view: AppView): void {
+    if (!this.canAccessView(view)) {
+      this.activeView.set(view);
+      return;
+    }
     void this.router.navigateByUrl(`/${this.pathForView(view)}`);
   }
 
@@ -334,6 +355,58 @@ export class App {
 
   protected dismissFeedback(): void {
     this.feedback.set(null);
+  }
+
+  protected demoRoleLabel(): string {
+    return this.demoSession()?.demo_role === 'chair' ? 'Vorsitz' : 'Prüfperson';
+  }
+
+  protected demoRoleTask(): string {
+    return this.isDemoExaminer()
+      ? 'Eigene Verfügbarkeit und Anwesenheit'
+      : 'Planung und Koordination';
+  }
+
+  protected hasCapability(capability: string): boolean {
+    const capabilities = this.auth.session()?.capabilities;
+    return capabilities === undefined || capabilities.includes(capability);
+  }
+
+  protected canAccessView(view: AppView): boolean {
+    if (!this.demoSession()) return true;
+    if (view === 'dashboard') return true;
+    if (view === 'exam-half-years') return true;
+    if (['scheduling-overview', 'planning'].includes(view)) {
+      return (
+        this.hasCapability('availability:write-own') ||
+        this.hasCapability('availability:coordinate') ||
+        this.hasCapability('planning-settings:write')
+      );
+    }
+    if (['confirmed-plans', 'exam-day'].includes(view)) {
+      return (
+        this.hasCapability('attendance:write-own') ||
+        this.hasCapability('attendance:coordinate') ||
+        this.hasCapability('exam-status:write')
+      );
+    }
+    return false;
+  }
+
+  protected switchDemoRole(): void {
+    if (!this.demoSession() || this.roleSwitchBusy()) return;
+    this.roleSwitchBusy.set(true);
+    this.auth
+      .logout()
+      .pipe(finalize(() => this.roleSwitchBusy.set(false)))
+      .subscribe({
+        error: () =>
+          this.notify(
+            'error',
+            'Rollenwechsel nicht möglich',
+            'Die Demo-Sitzung konnte nicht beendet werden. Bitte erneut versuchen.',
+          ),
+      });
   }
 
   protected requestCandidateDeletion(id: number, label: string): void {
@@ -562,6 +635,10 @@ export class App {
   }
 
   protected savePlanningSettings(payload: PlanningSettingsPayload): void {
+    if (!this.hasCapability('planning-settings:write')) {
+      this.notifyRoleRestriction();
+      return;
+    }
     this.actionBusy.set(true);
     this.api
       .savePlanningSettings(payload)
@@ -577,6 +654,10 @@ export class App {
   }
 
   protected saveExamRound(payload: ExamRoundUpdate): void {
+    if (!this.hasCapability('round:write')) {
+      this.notifyRoleRestriction();
+      return;
+    }
     this.actionBusy.set(true);
     this.api
       .updateExamRound(payload)
@@ -592,6 +673,10 @@ export class App {
   }
 
   protected requestAvailabilities(payload: AvailabilityRequest): void {
+    if (!this.hasCapability('availability:coordinate')) {
+      this.notifyRoleRestriction();
+      return;
+    }
     this.actionBusy.set(true);
     this.api
       .requestAvailabilities(payload)
@@ -615,6 +700,10 @@ export class App {
   }
 
   protected createCandidateDay(payload: CandidateExamDayPayload): void {
+    if (!this.hasCapability('candidate-days:generate')) {
+      this.notifyRoleRestriction();
+      return;
+    }
     this.actionBusy.set(true);
     this.api
       .createCandidateExamDay(payload)
@@ -635,6 +724,10 @@ export class App {
   }
 
   protected generateCandidateDays(payload: PlanningSettingsPayload): void {
+    if (!this.hasCapability('candidate-days:generate')) {
+      this.notifyRoleRestriction();
+      return;
+    }
     this.actionBusy.set(true);
     this.api
       .savePlanningSettings(payload)
@@ -662,6 +755,10 @@ export class App {
   }
 
   protected toggleCandidateDay(day: CandidateExamDay): void {
+    if (!this.hasCapability('candidate-days:generate')) {
+      this.notifyRoleRestriction();
+      return;
+    }
     const nextActive = day.is_active ? 0 : 1;
     this.actionBusy.set(true);
     this.api
@@ -681,6 +778,18 @@ export class App {
   }
 
   protected saveAvailability(payload: AvailabilityPayload): void {
+    const session = this.demoSession();
+    const canSave =
+      this.hasCapability('availability:coordinate') || this.hasCapability('availability:write-own');
+    if (
+      !canSave ||
+      (session?.demo_role === 'examiner' &&
+        payload.committee_member_id !== session.committee_member_id)
+    ) {
+      this.notifyRoleRestriction();
+      this.planningComponent?.markAvailabilityError(payload);
+      return;
+    }
     this.api.saveMemberAvailability(payload).subscribe({
       next: (availability) => {
         this.board.update((board) =>
@@ -731,6 +840,10 @@ export class App {
   }
 
   protected generateProposal(): void {
+    if (!this.hasCapability('planning-proposal:generate')) {
+      this.notifyRoleRestriction();
+      return;
+    }
     this.actionBusy.set(true);
     this.api
       .generateProposal()
@@ -748,6 +861,10 @@ export class App {
   }
 
   protected confirmPlan(): void {
+    if (!this.hasCapability('planning-proposal:confirm')) {
+      this.notifyRoleRestriction();
+      return;
+    }
     this.actionBusy.set(true);
     this.api
       .confirmPlan()
@@ -843,6 +960,14 @@ export class App {
 
   private notify(type: 'success' | 'error', title: string, message: string): void {
     this.feedback.set({ type, title, message });
+  }
+
+  private notifyRoleRestriction(): void {
+    this.notify(
+      'error',
+      'Aktion für diese Rolle nicht verfügbar',
+      'Bitte öffnen Sie den für Ihre Demo-Rolle vorgesehenen Aufgabenpfad.',
+    );
   }
 
   private pathForView(view: AppView): string {
