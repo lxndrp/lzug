@@ -22,12 +22,14 @@ import {
   CandidateDayGenerationResult,
   CandidateExamDay,
   CommitteeMember,
+  EditablePlanningProposal,
   ExamRound,
   ExamRoundUpdate,
   Location,
   MasterData,
   PlanningBoard,
   PlanningResult,
+  PlanningValidationViolation,
   RoundSummary,
 } from './api/api.models';
 import { PlanningApiService } from './api/planning-api.service';
@@ -58,6 +60,7 @@ import {
   PlanningComponent,
   PlanningSettingsPayload,
 } from './planning/planning.component';
+import { ProposalEditorState } from './planning/planning-proposal-editor.component';
 import {
   SchedulingOverviewAction,
   SchedulingOverviewComponent,
@@ -111,6 +114,10 @@ export class App {
   protected readonly board = signal<PlanningBoard | null>(null);
   protected readonly masterData = signal<MasterData | null>(null);
   protected readonly lastPlanningResult = signal<PlanningResult | null>(null);
+  protected readonly planningProposal = signal<EditablePlanningProposal | null>(null);
+  protected readonly proposalEditorState = signal<ProposalEditorState>('idle');
+  protected readonly proposalEditorError = signal<string | null>(null);
+  protected readonly proposalEditorViolations = signal<PlanningValidationViolation[]>([]);
   protected readonly candidateDayGenerationResult = signal<CandidateDayGenerationResult | null>(
     null,
   );
@@ -216,6 +223,11 @@ export class App {
           this.summary.set(summary);
           this.board.set(board);
           this.masterData.set(masterData);
+          if (round.status === 'plan_proposed') {
+            this.loadPlanningProposal();
+          } else {
+            this.resetPlanningProposal();
+          }
           if (!this.selectedCommitteeId()) {
             this.selectedCommitteeId.set(masterData.committees[0]?.id ?? null);
           }
@@ -292,6 +304,7 @@ export class App {
     this.roundContext.select(id);
     this.lastPlanningResult.set(null);
     this.candidateDayGenerationResult.set(null);
+    this.resetPlanningProposal();
     this.refresh();
     this.showView('dashboard');
   }
@@ -749,6 +762,83 @@ export class App {
         },
         error: () => this.notify('error', 'Plan nicht bestätigt', 'Bitte erneut versuchen.'),
       });
+  }
+
+  protected loadPlanningProposal(): void {
+    if (this.round()?.status !== 'plan_proposed') return;
+    this.proposalEditorState.set('loading');
+    this.proposalEditorError.set(null);
+    this.proposalEditorViolations.set([]);
+    this.api.getPlanningProposal().subscribe({
+      next: (proposal) => {
+        this.planningProposal.set(proposal);
+        this.proposalEditorState.set('ready');
+      },
+      error: (error: { status?: number; error?: { error?: { message?: string } | string } }) => {
+        this.proposalEditorState.set('error');
+        this.proposalEditorError.set(this.proposalErrorMessage(error));
+      },
+    });
+  }
+
+  protected reloadPlanningProposal(): void {
+    this.loadPlanningProposal();
+  }
+
+  protected savePlanningProposal(proposal: EditablePlanningProposal): void {
+    this.proposalEditorState.set('saving');
+    this.proposalEditorError.set(null);
+    this.proposalEditorViolations.set([]);
+    this.api.savePlanningProposal(proposal).subscribe({
+      next: (saved) => {
+        this.planningProposal.set(saved);
+        this.proposalEditorState.set('ready');
+        this.notify('success', 'Änderungen gespeichert', 'Der Planungsvorschlag ist aktualisiert.');
+      },
+      error: (error: {
+        status?: number;
+        error?: {
+          error?:
+            | {
+                code?: string;
+                message?: string;
+                violations?: PlanningValidationViolation[];
+              }
+            | string;
+        };
+      }) => {
+        this.proposalEditorState.set('error');
+        const detail = typeof error.error?.error === 'object' ? error.error.error : undefined;
+        this.proposalEditorViolations.set(detail?.violations ?? []);
+        this.proposalEditorError.set(
+          error.status === 409
+            ? 'Der Vorschlag wurde zwischenzeitlich geändert. Laden Sie die aktuelle Fassung, bevor Sie erneut speichern.'
+            : this.proposalErrorMessage(error),
+        );
+      },
+    });
+  }
+
+  private resetPlanningProposal(): void {
+    this.planningProposal.set(null);
+    this.proposalEditorState.set('idle');
+    this.proposalEditorError.set(null);
+    this.proposalEditorViolations.set([]);
+  }
+
+  private proposalErrorMessage(error: {
+    status?: number;
+    error?: { error?: { message?: string } | string };
+  }): string {
+    if (error.status === 403) {
+      return 'Sie haben keine Berechtigung, diesen Planungsvorschlag zu bearbeiten.';
+    }
+    if (error.status === 404) return 'Der Planungsvorschlag ist nicht mehr verfügbar.';
+    if (typeof error.error?.error === 'object' && error.error.error.message) {
+      return error.error.error.message;
+    }
+    if (typeof error.error?.error === 'string') return error.error.error;
+    return 'Der Planungsvorschlag konnte nicht geladen werden. Bitte versuchen Sie es erneut.';
   }
 
   private notify(type: 'success' | 'error', title: string, message: string): void {

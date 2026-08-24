@@ -1,0 +1,308 @@
+@if (state === 'idle') {
+  <div tuiNotification appearance="info" role="status">
+    Der Planungsvorschlag wird geladen, sobald die Bestätigungsstufe geöffnet ist.
+    <button tuiButton appearance="secondary" type="button" (click)="load.emit()">Laden</button>
+  </div>
+} @else if (state === 'loading') {
+  <div class="app-editor-state" aria-busy="true" aria-live="polite">
+    <strong>Planungsvorschlag wird geladen …</strong>
+    <span>Die aktuelle Revision wird sicher gelesen.</span>
+  </div>
+} @else if (!draft()) {
+  <div tuiNotification appearance="negative" role="alert">
+    <strong>Planungsvorschlag nicht verfügbar</strong>
+    <span class="app-block">{{ errorMessage || 'Bitte laden Sie den Vorschlag erneut.' }}</span>
+    <button tuiButton appearance="secondary" type="button" (click)="reload.emit()">
+      Erneut laden
+    </button>
+  </div>
+} @else {
+  <section class="app-proposal-editor" aria-labelledby="proposalEditorHeading">
+    <header tuiHeader="body-m" class="app-panel-header">
+      <div>
+        <strong id="proposalEditorHeading">Planungsvorschlag bearbeiten</strong>
+        <span class="app-muted app-block"
+          >Änderungen bleiben lokal, bis Sie sie speichern. Revision {{ draft()!.revision }}.</span
+        >
+      </div>
+      <span tuiBadge [appearance]="dirty() ? 'warning' : 'positive'">
+        {{ dirty() ? 'Ungespeicherte Änderungen' : 'Aktuelle Fassung' }}
+      </span>
+    </header>
+
+    @if (errorMessage) {
+      <div tuiNotification appearance="negative" role="alert" class="app-section-offset">
+        <strong>Änderungen konnten nicht übernommen werden</strong>
+        <span class="app-block">{{ errorMessage }}</span>
+        @if (state === 'error') {
+          <button tuiButton appearance="secondary" type="button" (click)="reload.emit()">
+            Aktuelle Fassung neu laden
+          </button>
+        }
+      </div>
+    }
+
+    @if (violations.length) {
+      <div tuiNotification appearance="negative" role="alert" class="app-section-offset">
+        <strong>Bitte prüfen Sie die markierten Angaben.</strong>
+        @for (violation of violations; track $index) {
+          <span class="app-block">{{ violation.message }}</span>
+        }
+      </div>
+    }
+
+    @if (localErrors().length) {
+      <div tuiNotification appearance="negative" role="alert" class="app-section-offset">
+        <strong>Der Entwurf ist noch nicht speicherbar.</strong>
+        @for (error of localErrors(); track $index + ':' + error) {
+          <span class="app-block">{{ error }}</span>
+        }
+      </div>
+    }
+
+    <div class="app-proposal-days app-section-offset">
+      @for (day of draft()!.exam_days; track day.candidate_exam_day_id; let dayIndex = $index) {
+        <article
+          class="app-proposal-day"
+          [attr.aria-labelledby]="'proposal-day-' + day.candidate_exam_day_id"
+        >
+          <header class="app-proposal-day-header">
+            <div>
+              <h3 [id]="'proposal-day-' + day.candidate_exam_day_id">{{ dateLabel(day.date) }}</h3>
+              <span class="app-muted"
+                >{{ day.slots.length }} Termine · {{ day.assignments.length }} Besetzungen</span
+              >
+            </div>
+            @if (dayError(day); as error) {
+              <span class="app-field-error" role="alert">{{ error }}</span>
+            }
+          </header>
+
+          <div class="app-proposal-day-controls">
+            <label [for]="'proposal-location-' + day.candidate_exam_day_id">Prüfungsort</label>
+            <tui-textfield [stringify]="locationStringify" [tuiTextfieldCleaner]="false">
+              <select
+                tuiSelect
+                [id]="'proposal-location-' + day.candidate_exam_day_id"
+                [name]="'proposal-location-' + day.candidate_exam_day_id"
+                [items]="locationOptions()"
+                [disabled]="isBusy()"
+                [ngModel]="day.location_id"
+                (ngModelChange)="updateDay(day, { location_id: $event })"
+              ></select>
+            </tui-textfield>
+          </div>
+
+          <div class="app-table-scroll">
+            <table tuiTable class="app-compact-table app-proposal-table">
+              <caption class="app-visually-hidden">
+                Termine am
+                {{
+                  dateLabel(day.date)
+                }}
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Termin</th>
+                  <th scope="col">Prüfling</th>
+                  <th scope="col">Art</th>
+                  <th scope="col"><span class="app-visually-hidden">Aktionen</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (
+                  slot of day.slots;
+                  track slot.id ?? slot.round_candidate_id;
+                  let slotIndex = $index
+                ) {
+                  <tr [class.app-proposal-invalid]="slotError(slot)">
+                    <th scope="row">
+                      {{ slotLabel(slot) }}
+                      <span class="app-muted app-block">Termin {{ slot.sequence_number }}</span>
+                    </th>
+                    <td>
+                      <tui-textfield [stringify]="candidateStringify" [tuiTextfieldCleaner]="false">
+                        <select
+                          tuiSelect
+                          [attr.aria-label]="'Prüfling für Termin ' + slot.sequence_number"
+                          [items]="candidateOptions()"
+                          [disabled]="isBusy()"
+                          [ngModel]="slot.round_candidate_id"
+                          (ngModelChange)="updateSlot(slot, { round_candidate_id: $event })"
+                        ></select>
+                      </tui-textfield>
+                      @if (slotError(slot); as error) {
+                        <span class="app-field-error" role="alert">{{ error }}</span>
+                      }
+                    </td>
+                    <td>
+                      <select
+                        class="app-native-select"
+                        [attr.aria-label]="'Art für Termin ' + slot.sequence_number"
+                        [disabled]="isBusy()"
+                        [ngModel]="slot.slot_type"
+                        (ngModelChange)="updateSlot(slot, { slot_type: $event })"
+                      >
+                        <option value="regular">Regulär</option>
+                        <option value="mep">MEP</option>
+                      </select>
+                    </td>
+                    <td>
+                      <div class="app-row-actions">
+                        <button
+                          tuiButton
+                          appearance="secondary"
+                          type="button"
+                          [disabled]="isBusy() || slotIndex === 0"
+                          [attr.aria-label]="
+                            'Termin ' + slot.sequence_number + ' nach oben verschieben'
+                          "
+                          (click)="moveSlot(day, slotIndex, -1)"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          tuiButton
+                          appearance="secondary"
+                          type="button"
+                          [disabled]="isBusy() || slotIndex === day.slots.length - 1"
+                          [attr.aria-label]="
+                            'Termin ' + slot.sequence_number + ' nach unten verschieben'
+                          "
+                          (click)="moveSlot(day, slotIndex, 1)"
+                        >
+                          ↓
+                        </button>
+                        <select
+                          class="app-native-select app-proposal-move-select"
+                          [attr.aria-label]="
+                            'Termin ' + slot.sequence_number + ' auf einen anderen Tag verschieben'
+                          "
+                          [disabled]="isBusy()"
+                          [ngModel]="null"
+                          (ngModelChange)="moveSlotToDay(day, slotIndex, $event)"
+                        >
+                          <option [ngValue]="null">Tag wählen …</option>
+                          @for (candidateDay of activeCandidateDays(); track candidateDay.id) {
+                            @if (candidateDay.id !== day.candidate_exam_day_id) {
+                              <option [ngValue]="candidateDay.id">
+                                {{ dateLabel(candidateDay.date) }}
+                              </option>
+                            }
+                          }
+                        </select>
+                      </div>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="4">Keine Termine für diesen Tag.</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div class="app-proposal-assignments app-section-offset">
+            <div class="app-proposal-subheading">
+              <strong>Prüfer und Fallback</strong>
+              <button
+                tuiButton
+                appearance="secondary"
+                type="button"
+                [disabled]="isBusy()"
+                (click)="addAssignment(day)"
+              >
+                Besetzung hinzufügen
+              </button>
+            </div>
+            @for (assignment of day.assignments; track assignment.id ?? $index) {
+              <div
+                class="app-proposal-assignment"
+                [class.app-proposal-invalid]="memberError(day, assignment.committee_member_id)"
+              >
+                <span>{{ assignmentLabel(assignment) }}</span>
+                <tui-textfield [stringify]="memberStringify" [tuiTextfieldCleaner]="false">
+                  <select
+                    tuiSelect
+                    [attr.aria-label]="'Mitglied für ' + assignmentLabel(assignment)"
+                    [items]="memberOptions()"
+                    [disabled]="isBusy()"
+                    [ngModel]="assignment.committee_member_id"
+                    (ngModelChange)="updateAssignment(assignment, { committee_member_id: $event })"
+                  ></select>
+                </tui-textfield>
+                <select
+                  class="app-native-select"
+                  aria-label="Rolle der Besetzung"
+                  [disabled]="isBusy()"
+                  [ngModel]="assignment.assignment_role"
+                  (ngModelChange)="updateAssignment(assignment, { assignment_role: $event })"
+                >
+                  <option value="examiner">Prüfer</option>
+                  <option value="fallback">Fallback</option>
+                </select>
+                <select
+                  class="app-native-select"
+                  aria-label="Tageshälfte der Besetzung"
+                  [disabled]="isBusy()"
+                  [ngModel]="assignment.day_part"
+                  (ngModelChange)="updateAssignment(assignment, { day_part: $event })"
+                >
+                  <option value="morning">Vormittag</option>
+                  <option value="afternoon">Nachmittag</option>
+                  <option value="full_day">Ganztägig</option>
+                </select>
+                <button
+                  tuiButton
+                  appearance="secondary"
+                  type="button"
+                  [disabled]="isBusy()"
+                  (click)="removeAssignment(day, assignment)"
+                >
+                  Entfernen
+                </button>
+                @if (memberError(day, assignment.committee_member_id); as error) {
+                  <span class="app-field-error" role="alert">{{ error }}</span>
+                }
+              </div>
+            } @empty {
+              <p class="app-muted">Noch keine Besetzung hinterlegt.</p>
+            }
+          </div>
+        </article>
+      } @empty {
+        <div tuiNotification appearance="negative" role="alert">
+          Der Planungsvorschlag enthält keine Prüfungstage.
+        </div>
+      }
+    </div>
+
+    <div class="app-form-actions app-section-offset">
+      <span class="app-form-action-hint"
+        >Ungültige lokale Entwürfe werden nicht übertragen. Serverhinweise erscheinen am betroffenen
+        Tag, Termin oder Mitglied.</span
+      >
+      <div class="app-inline-actions">
+        <button
+          tuiButton
+          appearance="secondary"
+          type="button"
+          [disabled]="isBusy()"
+          (click)="reload.emit()"
+        >
+          Aktuelle Fassung laden
+        </button>
+        <button
+          tuiButton
+          appearance="primary"
+          type="button"
+          [disabled]="!canSave()"
+          (click)="saveDraft()"
+        >
+          {{ state === 'saving' ? 'Änderungen werden gespeichert …' : 'Änderungen speichern' }}
+        </button>
+      </div>
+    </div>
+  </section>
+}

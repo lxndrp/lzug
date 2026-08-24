@@ -20,18 +20,25 @@ import {
   CandidateDayGenerationResult,
   CandidateExamDay,
   CommitteeMember,
+  EditablePlanningProposal,
   ExamRound,
   ExamRoundUpdate,
+  Location,
   MasterData,
   MemberAvailability,
   PlanningBoard,
   PlanningResult,
   PlanningSettings,
+  PlanningValidationViolation,
   RoundSummary,
 } from '../api/api.models';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
 import { type SelectOption, selectStringify, selectValues } from '../select-options';
+import {
+  PlanningProposalEditorComponent,
+  ProposalEditorState,
+} from './planning-proposal-editor.component';
 
 export type PlanningSettingsPayload = Omit<
   PlanningSettings,
@@ -78,6 +85,7 @@ export type WizardStepDefinition = {
     TuiTable,
     TuiTextfield,
     TuiNotification,
+    PlanningProposalEditorComponent,
   ],
   templateUrl: './planning.component.html',
 })
@@ -90,6 +98,10 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   @Input() actionBusy = false;
   @Input() candidateDayGenerationResult: CandidateDayGenerationResult | null = null;
   @Input() planningResult: PlanningResult | null = null;
+  @Input() planningProposal: EditablePlanningProposal | null = null;
+  @Input() proposalEditorState: ProposalEditorState = 'idle';
+  @Input() proposalEditorError: string | null = null;
+  @Input() proposalEditorViolations: PlanningValidationViolation[] = [];
 
   @Output() saveSettings = new EventEmitter<PlanningSettingsPayload>();
   @Output() saveRound = new EventEmitter<RoundUpdatePayload>();
@@ -100,6 +112,9 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   @Output() saveAvailability = new EventEmitter<AvailabilityPayload>();
   @Output() generateProposal = new EventEmitter<void>();
   @Output() confirmPlan = new EventEmitter<void>();
+  @Output() loadPlanningProposal = new EventEmitter<void>();
+  @Output() reloadPlanningProposal = new EventEmitter<void>();
+  @Output() savePlanningProposal = new EventEmitter<EditablePlanningProposal>();
   @Output() cancel = new EventEmitter<void>();
 
   protected readonly currentStep = signal<WizardStep>('period');
@@ -247,6 +262,12 @@ export class PlanningComponent implements OnChanges, OnDestroy {
 
   protected activeMembers(): CommitteeMember[] {
     return (this.masterData?.members ?? []).filter((member) => member.is_active);
+  }
+
+  protected proposalLocations(): Location[] {
+    return (this.masterData?.locations ?? []).filter(
+      (location) => location.committee_id === this.round?.committee_id,
+    );
   }
 
   protected readonly availabilitySelectOptions: readonly SelectOption<AvailabilityValue>[] = [

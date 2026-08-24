@@ -202,6 +202,62 @@ export type PlanningConflict = {
   message: string;
 };
 
+/** One ordered slot inside the editable, revisioned planning aggregate. */
+export type PlanningProposalSlot = {
+  id: number | null;
+  round_candidate_id: number;
+  slot_type: 'regular' | 'mep';
+  starts_at: string;
+  ends_at: string;
+  sequence_number: number;
+  status: 'proposed';
+};
+
+/** One examiner or fallback assignment for a proposal day part. */
+export type PlanningProposalAssignment = {
+  id: number | null;
+  committee_member_id: number;
+  assignment_role: 'examiner' | 'fallback';
+  day_part: 'morning' | 'afternoon' | 'full_day';
+  fallback_status: string | null;
+};
+
+/** One candidate exam day and its complete editable proposal content. */
+export type PlanningProposalDay = {
+  id: number | null;
+  candidate_exam_day_id: number;
+  date: string;
+  location_id: number;
+  status: 'proposed';
+  slots: PlanningProposalSlot[];
+  assignments: PlanningProposalAssignment[];
+};
+
+/** Complete proposal exchanged through the optimistic-lock aggregate endpoint. */
+export type EditablePlanningProposal = {
+  round_id: number;
+  revision: number;
+  exam_days: PlanningProposalDay[];
+  _links?: Record<string, ApiLink>;
+};
+
+/** Stable backend validation finding addressable by the editor. */
+export type PlanningValidationViolation = {
+  code: string;
+  message: string;
+  day_id: number | null;
+  slot_id: number | null;
+  member_id: number | null;
+};
+
+export type PlanningProblem = {
+  error?: {
+    code?: string;
+    message?: string;
+    violations?: PlanningValidationViolation[];
+  };
+};
+
 export type ExamDay = {
   id: number;
   exam_round_id: number;
