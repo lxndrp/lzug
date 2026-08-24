@@ -58,6 +58,7 @@ def main() -> None:
     initialize(database_path, with_seed=True, reset=True)
 
     E2EHandler.db_path = database_path
+    E2EHandler.static_dir = args.static_dir
     E2EHandler.cors_allowed_origins = runtime_security.cors_allowed_origins
     E2EHandler.session_ttl = runtime_security.session_ttl
     E2EHandler.max_request_bytes = runtime_security.max_request_bytes
