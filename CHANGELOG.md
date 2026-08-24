@@ -12,6 +12,82 @@ Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Notes
 und veröffentlicht nur aus dem nach der Environment-Freigabe erzeugten,
 annotierten SemVer-Tag.
 
+## [0.2.0] - 2026-08-24
+
+### Added
+
+- Vorsitz und Stellvertretung können einen Planungsvorschlag in der
+  Bestätigungsstufe vollständig per Tastatur, Mobilgerät und Screenreader
+  bearbeiten. Tageszuordnung und Reihenfolge der Slots, Prüfungsorte sowie
+  Prüfer und Fallbacks bleiben bis zum ausdrücklichen Speichern lokal;
+  Validierungs-, Berechtigungs- und Revisionskonflikte werden verständlich
+  angezeigt, ohne fremde Änderungen zu überschreiben.
+- Die öffentliche Demo macht Person, Rolle und den daraus folgenden
+  Aufgabenpfad dauerhaft sichtbar. Navigation, Direktaufrufe und Aktionen
+  folgen den effektiven Fähigkeiten; Prüfpersonen bearbeiten ausschließlich
+  ihre eigene Verfügbarkeit und Anwesenheit.
+- Eine reproduzierbare statische Landingpage führt mit einem begrenzten
+  Scale-to-zero-Warm-up zur Demo. Manuell freigegebene, unveränderliche
+  Demo-Snapshots sind an die exakte `master`-Revision, den vollständigen
+  Quality-Nachweis und ein zusammengehöriges, attestiertes App-/Seed-Paar
+  gebunden.
+
+### Changed
+
+- Demo und Landingpage verwenden kanonische HTTPS-Origins sowie fail-closed
+  Verträge für Custom Domains, TLS, CORS, Publication und Deployment. Browser-
+  Tests leiten die konfigurierte Demo-Origin aus dem gebauten Artefakt ab,
+  statt eine zweite feste URL vorauszusetzen.
+- Prozess-Liveness und datenbankgebundene Readiness sind getrennt. Die
+  Betriebsgrundlage umfasst datensparsame strukturierte Logs, rate-limitierte
+  same-origin Frontend-Fehlerannahme, Aufbewahrungs- und Kostenbegrenzungen
+  sowie vorbereitete Uptime-, Fehler- und Budgetalarme; externes Monitoring
+  bleibt standardmäßig deaktiviert und an die kanonische Demo-Domain gebunden.
+- Build-, Analyse- und Laufzeitabhängigkeiten wurden kontrolliert aktualisiert,
+  darunter Angular, Taiga UI, SQLAlchemy, Ruff sowie die verwendeten GitHub-
+  Actions. Die Regeln für Dependabot-Auto-Merge und die dauerhaften Planungs-
+  und Umsetzungskontexte sind präzisiert.
+
+### Fixed
+
+- Wiederholte Tabellen- und Kartenaktionen besitzen objektspezifische
+  Accessible Names; Löschdialoge benennen dasselbe Ziel wie die auslösende
+  Aktion.
+- Optimierte Frontend-Builds laden globale Styles unter der Backend-CSP
+  vollständig. Demo-Hinweis, Desktop-Sidebar, mobile Navigation und
+  Sticky-Header überlagern sich auch bei umbrochenem Hinweistext nicht.
+- Demo-Snapshot- und Deploymentverträge prüfen die commitgenaue Quality-
+  Evidenz, Bootstrap-Reihenfolge, Environment-Aktivierungsgrenze und
+  digestgebundene Runtime-Kompatibilität fail-closed. Der Compose-Lifecycle-
+  Smoke diagnostiziert Stop/Start und Readiness zuverlässig.
+- Publication und Betrieb validieren die tatsächlich aufgelöste Demo-URL, den
+  geschützten OpenAPI-Pfad, Favicons unter dem Pages-Basepath und zustandsbehaftete
+  Fehleralarme korrekt. Automatisch erzeugte Smart-Detection-Regeln werden
+  datensparsam deaktiviert.
+
+### Security
+
+- Die gesperrte `pip`-Version enthält die verfügbare Sicherheitskorrektur;
+  Produktionsabhängigkeiten und Lieferkettenprüfungen wurden ohne bekannte
+  kritische Schwachstellen verifiziert.
+- Anonyme Deployment-Smokes erwarten am geschützten OpenAPI-Endpunkt
+  ausdrücklich `401 Unauthorized`; unsichere, abweichende oder generierte
+  Demo-Origins werden vor Publication, Monitoring oder Deployment abgewiesen.
+
+### Scope and compatibility
+
+- `v0.2.0` ist ein kompatibler Funktionsrelease seit `v0.1.2`. Der Planeditor
+  bearbeitet ausschließlich noch nicht bestätigte Planungsvorschläge; Änderungen
+  bestätigter Pläne, Kandidaten- oder Slot-Struktur sowie Benachrichtigungs- und
+  Kalenderfolgen sind nicht enthalten.
+- Die Demo-, Publication- und Betriebsverträge sind lokal und in CI prüfbar.
+  Dieser Vorbereitungseintrag beansprucht weder den Produkt-Tag noch einen
+  veröffentlichten GitHub Release, neue GHCR- oder CLI-Artefakte, Attestations
+  oder eine erneute externe Aktivierung; diese entstehen erst nach separatem
+  Maintainer-GO.
+- Allgemeines Upgrade, Backup, Restore und Produkt-Rollback sowie produktive
+  Self-Hosting-Reife bleiben außerhalb dieses Releaseumfangs.
+
 ## [0.1.2] - 2026-08-15
 
 ### Fixed
