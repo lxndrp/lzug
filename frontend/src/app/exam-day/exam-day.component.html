@@ -219,7 +219,8 @@
                         slot.candidate.first_name +
                         ' ' +
                         slot.candidate.last_name +
-                        ': Prüfung starten'
+                        ': ' +
+                        (slot.actual_started_at ? 'Gestartet' : 'Prüfung starten')
                       "
                       (click)="startExamSlot(slot.id)"
                     >
