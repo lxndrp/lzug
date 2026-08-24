@@ -46,6 +46,11 @@ describe('ConfirmedPlansComponent', () => {
     expect(
       element.querySelector<HTMLAnchorElement>('a[href="/confirmed-plans/1/days/1"]'),
     ).not.toBeNull();
+    expect(
+      element
+        .querySelector<HTMLAnchorElement>('a[href="/confirmed-plans/1/days/1"]')
+        ?.getAttribute('aria-label'),
+    ).toBe('Montag, 16. November 2026: Tagesansicht öffnen');
     expect(element.textContent).not.toContain('employer');
     expect(element.textContent).not.toContain('employee');
     expect(element.textContent).not.toContain('school');

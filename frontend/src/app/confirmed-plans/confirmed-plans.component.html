@@ -87,6 +87,7 @@
                     tuiButton
                     appearance="secondary"
                     [href]="dayHref(plan.id, day.id)"
+                    [attr.aria-label]="dateLabel(day.date) + ': Tagesansicht öffnen'"
                     (click)="openDay(plan.id, day.id, $event)"
                   >
                     Tagesansicht öffnen

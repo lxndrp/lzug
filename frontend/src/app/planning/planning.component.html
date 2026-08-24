@@ -399,6 +399,11 @@
                           type="button"
                           variant="outline"
                           [disabled]="actionBusy"
+                          [attr.aria-label]="
+                            dateLabel(day.date) +
+                            ' ' +
+                            (day.is_active ? 'deaktivieren' : 'aktivieren')
+                          "
                           (click)="toggleCandidateDay.emit(day)"
                         >
                           <svg

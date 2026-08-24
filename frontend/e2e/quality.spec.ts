@@ -805,9 +805,11 @@ test.describe('lzug browser workflows', () => {
       'secondary',
     );
     await deleteButton.click();
-    const confirmationDialog = page.getByRole('dialog', { name: 'Prüfling löschen?' });
+    const confirmationDialog = page.getByRole('dialog', {
+      name: 'E2E Testperson löschen?',
+    });
     await expect(confirmationDialog).toBeVisible();
-    await confirmationDialog.getByRole('button', { name: 'Prüfling löschen' }).click();
+    await confirmationDialog.getByRole('button', { name: 'E2E Testperson löschen' }).click();
     await expect(row).toHaveCount(0);
   });
 

@@ -95,6 +95,17 @@ describe('CommitteeComponent', () => {
     expect(component.toggleMember.emit).toHaveBeenCalledWith(membersFixture[0]);
   });
 
+  it('should give repeated member actions object-specific accessible names', () => {
+    const labels = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
+        '.app-row-actions button',
+      ),
+    ).map((button) => button.getAttribute('aria-label'));
+
+    expect(labels).toEqual(['Testperson Alpha deaktivieren', 'Testperson Beta aktivieren']);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
   it('should present required fields and actions consistently', () => {
     const element = fixture.nativeElement as HTMLElement;
 

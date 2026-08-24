@@ -162,7 +162,7 @@ describe('ExamHalfYearsComponent', () => {
     buttonByText(element, 'Bearbeiten')?.click();
     fixture.detectChanges();
     element
-      .querySelector<HTMLFormElement>('[aria-label="Winter 2026 bearbeiten"]')!
+      .querySelector<HTMLFormElement>('form[aria-label="Winter 2026 bearbeiten"]')!
       .dispatchEvent(new Event('submit', { bubbles: true }));
 
     const request = http.expectOne('/api/exam-half-years/1');

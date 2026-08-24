@@ -48,7 +48,13 @@
                   <span tuiBadge [appearance]="badgeAppearance(group.id)">{{
                     statusLabel(item.status)
                   }}</span>
-                  <button tuiButton appearance="primary" type="button" (click)="open(item)">
+                  <button
+                    tuiButton
+                    appearance="primary"
+                    type="button"
+                    [attr.aria-label]="item.name + ': ' + actionLabel(item)"
+                    (click)="open(item)"
+                  >
                     {{ actionLabel(item) }}
                   </button>
                 </div>

@@ -130,6 +130,7 @@
                     appearance="secondary"
                     size="s"
                     type="button"
+                    [attr.aria-label]="halfYearLabel(halfYear) + ' öffnen'"
                     (click)="selectHalfYear(halfYear)"
                   >
                     <svg [cIcon]="icons.overview" class="app-button-icon" aria-hidden="true"></svg>
@@ -141,6 +142,7 @@
                     size="s"
                     type="button"
                     [disabled]="!canEdit(halfYear)"
+                    [attr.aria-label]="halfYearLabel(halfYear) + ' bearbeiten'"
                     (click)="startEditing(halfYear)"
                   >
                     <svg [cIcon]="icons.edit" class="app-button-icon" aria-hidden="true"></svg>
@@ -173,6 +175,7 @@
                     type="button"
                     [disabled]="loading() || !canComplete()"
                     [title]="statusActionHint(halfYear)"
+                    [attr.aria-label]="halfYearLabel(halfYear) + ' abschließen'"
                   >
                     <svg [cIcon]="icons.confirm" class="app-button-icon" aria-hidden="true"></svg>
                     Abschließen
@@ -184,6 +187,7 @@
                     type="button"
                     [disabled]="loading() || !canArchive(halfYear)"
                     [title]="statusActionHint(halfYear)"
+                    [attr.aria-label]="halfYearLabel(halfYear) + ' archivieren'"
                   >
                     <svg [cIcon]="icons.archive" class="app-button-icon" aria-hidden="true"></svg>
                     Archivieren

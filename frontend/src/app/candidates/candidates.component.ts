@@ -152,6 +152,10 @@ export class CandidatesComponent {
     return selectLabel(this.specializationSelectOptions, value, value);
   }
 
+  protected candidateLabel(candidate: Candidate): string {
+    return `${candidate.first_name} ${candidate.last_name}`;
+  }
+
   protected submitCandidate(): void {
     if (
       !this.draft.first_name.trim() ||
