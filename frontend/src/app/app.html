@@ -68,54 +68,60 @@
             <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
             Übersicht
           </a>
-          <a
-            class="app-nav-link"
-            href="/scheduling-overview"
-            [class.is-active]="
-              activeView() === 'scheduling-overview' || activeView() === 'planning'
-            "
-            (click)="navigateFromShell('scheduling-overview', $event)"
-          >
-            <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
-            Terminorganisationen
-          </a>
-          <a
-            class="app-nav-link"
-            href="/confirmed-plans"
-            [class.is-active]="activeView() === 'confirmed-plans'"
-            (click)="navigateFromShell('confirmed-plans', $event)"
-          >
-            <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
-            Prüfungspläne
-          </a>
-          <a
-            class="app-nav-link"
-            href="/candidates"
-            [class.is-active]="activeView() === 'candidates'"
-            (click)="navigateFromShell('candidates', $event)"
-          >
-            <svg [cIcon]="icons.candidates" class="app-nav-icon" aria-hidden="true"></svg>
-            Prüflinge
-          </a>
-          <p class="app-nav-title">Globale Bereiche</p>
-          <a
-            class="app-nav-link"
-            href="/committee"
-            [class.is-active]="activeView() === 'committee'"
-            (click)="navigateFromShell('committee', $event)"
-          >
-            <svg [cIcon]="icons.committee" class="app-nav-icon" aria-hidden="true"></svg>
-            Prüfungsausschüsse
-          </a>
-          <a
-            class="app-nav-link"
-            href="/locations"
-            [class.is-active]="activeView() === 'locations'"
-            (click)="navigateFromShell('locations', $event)"
-          >
-            <svg [cIcon]="icons.locations" class="app-nav-icon" aria-hidden="true"></svg>
-            Prüfungsorte
-          </a>
+          @if (canAccessView('scheduling-overview')) {
+            <a
+              class="app-nav-link"
+              href="/scheduling-overview"
+              [class.is-active]="
+                activeView() === 'scheduling-overview' || activeView() === 'planning'
+              "
+              (click)="navigateFromShell('scheduling-overview', $event)"
+            >
+              <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
+              Terminorganisationen
+            </a>
+          }
+          @if (canAccessView('confirmed-plans')) {
+            <a
+              class="app-nav-link"
+              href="/confirmed-plans"
+              [class.is-active]="activeView() === 'confirmed-plans'"
+              (click)="navigateFromShell('confirmed-plans', $event)"
+            >
+              <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
+              Prüfungspläne
+            </a>
+          }
+          @if (!demoSession()) {
+            <a
+              class="app-nav-link"
+              href="/candidates"
+              [class.is-active]="activeView() === 'candidates'"
+              (click)="navigateFromShell('candidates', $event)"
+            >
+              <svg [cIcon]="icons.candidates" class="app-nav-icon" aria-hidden="true"></svg>
+              Prüflinge
+            </a>
+            <p class="app-nav-title">Globale Bereiche</p>
+            <a
+              class="app-nav-link"
+              href="/committee"
+              [class.is-active]="activeView() === 'committee'"
+              (click)="navigateFromShell('committee', $event)"
+            >
+              <svg [cIcon]="icons.committee" class="app-nav-icon" aria-hidden="true"></svg>
+              Prüfungsausschüsse
+            </a>
+            <a
+              class="app-nav-link"
+              href="/locations"
+              [class.is-active]="activeView() === 'locations'"
+              (click)="navigateFromShell('locations', $event)"
+            >
+              <svg [cIcon]="icons.locations" class="app-nav-icon" aria-hidden="true"></svg>
+              Prüfungsorte
+            </a>
+          }
         </nav>
         @if (applicationVersion(); as version) {
           <p class="app-version">Version {{ version }}</p>
@@ -154,6 +160,22 @@
               (click)="navigateFromShell('dashboard', $event)"
               >Prüfungsverwaltung</a
             >
+            @if (demoSession(); as session) {
+              <section class="app-demo-identity" aria-label="Aktive Demo-Identität">
+                <span class="app-demo-identity-label">Aktive Demo-Identität</span>
+                <strong>{{ session.display_name }}</strong>
+                <span>{{ demoRoleLabel() }} · {{ demoRoleTask() }}</span>
+                <button
+                  tuiButton
+                  appearance="secondary"
+                  type="button"
+                  [disabled]="roleSwitchBusy()"
+                  (click)="switchDemoRole()"
+                >
+                  {{ roleSwitchBusy() ? 'Sitzung wird beendet …' : 'Rolle wechseln' }}
+                </button>
+              </section>
+            }
             <span class="app-spacer"></span>
             <span class="app-header-status">
               {{ loading() ? 'Daten werden geladen' : message() }}
@@ -242,98 +264,127 @@
               }
             }
 
-            @switch (activeView()) {
-              @case ('dashboard') {
-                <app-dashboard
-                  [summary]="summary()"
-                  [round]="round()"
-                  [board]="board()"
-                  [planningResult]="lastPlanningResult()"
-                  [loading]="loading()"
-                  [actionBusy]="actionBusy()"
-                  (openView)="showView($event)"
-                />
-              }
-              @case ('scheduling-overview') {
-                <app-scheduling-overview (openRound)="openSchedulingRound($event)" />
-              }
-              @case ('confirmed-plans') {
-                <app-confirmed-plans [roundId]="contextualRoundId()" />
-              }
-              @case ('exam-day') {
-                <app-exam-day [roundId]="contextualRoundId()" [dayId]="contextualDayId()" />
-              }
-              @case ('candidates') {
-                <app-candidates
-                  [masterData]="masterData()"
-                  [activeRound]="round()"
-                  [actionBusy]="actionBusy()"
-                  (createCandidate)="createCandidate($event)"
-                  (updateCandidate)="updateCandidate($event)"
-                  (deleteCandidate)="
-                    requestCandidateDeletion($event.id, $event.first_name + ' ' + $event.last_name)
-                  "
-                />
-              }
-              @case ('committee') {
-                <app-committee
-                  [masterData]="masterData()"
-                  [selectedCommitteeIdInput]="selectedCommitteeId()"
-                  [actionBusy]="actionBusy()"
-                  (selectedCommitteeIdChange)="selectCommittee($event)"
-                  (createCommittee)="createCommittee($event)"
-                  (createMember)="createMember($event)"
-                  (toggleMember)="toggleMember($event)"
-                />
-              }
-              @case ('planning') {
-                <app-planning
-                  [round]="round()"
-                  [summary]="summary()"
-                  [board]="board()"
-                  [masterData]="masterData()"
-                  [actionBusy]="actionBusy()"
-                  [candidateDayGenerationResult]="candidateDayGenerationResult()"
-                  [planningResult]="lastPlanningResult()"
-                  [planningProposal]="planningProposal()"
-                  [proposalEditorState]="proposalEditorState()"
-                  [proposalEditorError]="proposalEditorError()"
-                  [proposalEditorViolations]="proposalEditorViolations()"
-                  (saveSettings)="savePlanningSettings($event)"
-                  (saveRound)="saveExamRound($event)"
-                  (requestAvailabilities)="requestAvailabilities($event)"
-                  (createCandidateDay)="createCandidateDay($event)"
-                  (generateCandidateDays)="generateCandidateDays($event)"
-                  (toggleCandidateDay)="toggleCandidateDay($event)"
-                  (saveAvailability)="saveAvailability($event)"
-                  (generateProposal)="generateProposal()"
-                  (loadPlanningProposal)="loadPlanningProposal()"
-                  (reloadPlanningProposal)="reloadPlanningProposal()"
-                  (savePlanningProposal)="savePlanningProposal($event)"
-                  (confirmPlan)="requestPlanConfirmation()"
-                  (cancel)="cancelScheduling()"
-                />
-              }
-              @case ('locations') {
-                <app-locations
-                  [masterData]="masterData()"
-                  [actionBusy]="actionBusy()"
-                  (createLocation)="createLocation($event)"
-                  (updateLocation)="updateLocation($event)"
-                  (toggleLocation)="toggleLocation($event)"
-                  (deleteLocation)="
-                    requestLocationDeletion($event.id, $event.name + ' · ' + $event.room)
-                  "
-                />
-              }
-              @case ('exam-half-years') {
-                <app-exam-half-years
-                  [committees]="masterData()?.committees || []"
-                  [candidates]="masterData()?.candidates || []"
-                  [candidateAssignments]="masterData()?.candidateAssignments || []"
-                  [activeRoundId]="round()?.id || null"
-                  (roundSelected)="selectExamRound($event)"
-                />
+            @if (directAccessDenied()) {
+              <section class="app-panel app-access-denied" role="alert">
+                <div class="app-panel-body">
+                  <strong>Dieser Demo-Bereich ist für Ihre Rolle nicht freigegeben.</strong>
+                  <span>
+                    Die Oberfläche zeigt nur Aufgaben, die mit den effektiven Fähigkeiten dieser
+                    Sitzung ausgeführt werden können.
+                  </span>
+                  <a
+                    tuiButton
+                    appearance="primary"
+                    href="/dashboard"
+                    (click)="navigateFromShell('dashboard', $event)"
+                    >Zur Übersicht</a
+                  >
+                </div>
+              </section>
+            } @else {
+              @switch (activeView()) {
+                @case ('dashboard') {
+                  <app-dashboard
+                    [summary]="summary()"
+                    [round]="round()"
+                    [board]="board()"
+                    [planningResult]="lastPlanningResult()"
+                    [loading]="loading()"
+                    [actionBusy]="actionBusy()"
+                    (openView)="showView($event)"
+                  />
+                }
+                @case ('scheduling-overview') {
+                  <app-scheduling-overview (openRound)="openSchedulingRound($event)" />
+                }
+                @case ('confirmed-plans') {
+                  <app-confirmed-plans [roundId]="contextualRoundId()" />
+                }
+                @case ('exam-day') {
+                  <app-exam-day
+                    [roundId]="contextualRoundId()"
+                    [dayId]="contextualDayId()"
+                    [ownAttendanceOnly]="isDemoExaminer()"
+                    [ownMemberId]="auth.session()?.committee_member_id ?? null"
+                  />
+                }
+                @case ('candidates') {
+                  <app-candidates
+                    [masterData]="masterData()"
+                    [activeRound]="round()"
+                    [actionBusy]="actionBusy()"
+                    (createCandidate)="createCandidate($event)"
+                    (updateCandidate)="updateCandidate($event)"
+                    (deleteCandidate)="
+                      requestCandidateDeletion(
+                        $event.id,
+                        $event.first_name + ' ' + $event.last_name
+                      )
+                    "
+                  />
+                }
+                @case ('committee') {
+                  <app-committee
+                    [masterData]="masterData()"
+                    [selectedCommitteeIdInput]="selectedCommitteeId()"
+                    [actionBusy]="actionBusy()"
+                    (selectedCommitteeIdChange)="selectCommittee($event)"
+                    (createCommittee)="createCommittee($event)"
+                    (createMember)="createMember($event)"
+                    (toggleMember)="toggleMember($event)"
+                  />
+                }
+                @case ('planning') {
+                  <app-planning
+                    [round]="round()"
+                    [summary]="summary()"
+                    [board]="board()"
+                    [masterData]="masterData()"
+                    [actionBusy]="actionBusy()"
+                    [candidateDayGenerationResult]="candidateDayGenerationResult()"
+                    [planningResult]="lastPlanningResult()"
+                    [availabilityOnly]="isDemoExaminer()"
+                    [ownMemberId]="auth.session()?.committee_member_id ?? null"
+                    [planningProposal]="planningProposal()"
+                    [proposalEditorState]="proposalEditorState()"
+                    [proposalEditorError]="proposalEditorError()"
+                    [proposalEditorViolations]="proposalEditorViolations()"
+                    (saveSettings)="savePlanningSettings($event)"
+                    (saveRound)="saveExamRound($event)"
+                    (requestAvailabilities)="requestAvailabilities($event)"
+                    (createCandidateDay)="createCandidateDay($event)"
+                    (generateCandidateDays)="generateCandidateDays($event)"
+                    (toggleCandidateDay)="toggleCandidateDay($event)"
+                    (saveAvailability)="saveAvailability($event)"
+                    (generateProposal)="generateProposal()"
+                    (loadPlanningProposal)="loadPlanningProposal()"
+                    (reloadPlanningProposal)="reloadPlanningProposal()"
+                    (savePlanningProposal)="savePlanningProposal($event)"
+                    (confirmPlan)="requestPlanConfirmation()"
+                    (cancel)="cancelScheduling()"
+                  />
+                }
+                @case ('locations') {
+                  <app-locations
+                    [masterData]="masterData()"
+                    [actionBusy]="actionBusy()"
+                    (createLocation)="createLocation($event)"
+                    (updateLocation)="updateLocation($event)"
+                    (toggleLocation)="toggleLocation($event)"
+                    (deleteLocation)="
+                      requestLocationDeletion($event.id, $event.name + ' · ' + $event.room)
+                    "
+                  />
+                }
+                @case ('exam-half-years') {
+                  <app-exam-half-years
+                    [committees]="masterData()?.committees || []"
+                    [candidates]="masterData()?.candidates || []"
+                    [candidateAssignments]="masterData()?.candidateAssignments || []"
+                    [activeRoundId]="round()?.id || null"
+                    (roundSelected)="selectExamRound($event)"
+                  />
+                }
               }
             }
           </div>

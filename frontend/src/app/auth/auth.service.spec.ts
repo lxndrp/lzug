@@ -111,4 +111,26 @@ describe('AuthService', () => {
       recovery_codes: ['GHJK6789MN'],
     });
   });
+
+  it('ends the current session before returning to authentication', () => {
+    service.state.set('authenticated');
+    service.session.set({
+      authenticated: true,
+      account_id: 2,
+      person_id: 3,
+      committee_member_id: 3,
+      is_operator: false,
+      demo_role: 'examiner',
+      display_name: 'Testperson Gamma',
+      capabilities: ['attendance:write-own', 'availability:write-own'],
+    });
+
+    service.logout().subscribe();
+    const request = http.expectOne('/api/session/logout');
+    expect(request.request.method).toBe('POST');
+    request.flush(null);
+
+    expect(service.state()).toBe('anonymous');
+    expect(service.session()).toBeNull();
+  });
 });

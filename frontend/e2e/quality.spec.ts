@@ -503,6 +503,91 @@ test.describe('lzug browser workflows', () => {
     ).toHaveCount(0);
   });
 
+  test('keeps demo roles visible and role-safe on desktop and mobile', async ({ page }) => {
+    let role: 'chair' | 'examiner' = 'chair';
+    await page.route('**/api/session', async (route) => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({ status: 204 });
+        return;
+      }
+      const isChair = role === 'chair';
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          authenticated: true,
+          account_id: isChair ? 1 : 2,
+          person_id: isChair ? 1 : 3,
+          committee_member_id: isChair ? 1 : 3,
+          is_operator: false,
+          demo_role: role,
+          display_name: isChair ? 'Testperson Alpha' : 'Testperson Gamma',
+          capabilities: isChair
+            ? [
+                'attendance:coordinate',
+                'attendance:write-own',
+                'availability:coordinate',
+                'availability:write-own',
+                'candidate-days:generate',
+                'exam-status:write',
+                'planning-proposal:confirm',
+                'planning-proposal:generate',
+                'planning-settings:write',
+                'round:write',
+              ]
+            : ['attendance:write-own', 'availability:write-own'],
+        }),
+      });
+    });
+
+    for (const currentRole of ['chair', 'examiner'] as const) {
+      role = currentRole;
+      for (const viewport of viewports) {
+        await test.step(`${currentRole} · ${viewport.name}`, async () => {
+          await page.setViewportSize(viewport);
+          await page.goto('/dashboard');
+          await expect(page.getByLabel('Aktive Demo-Identität')).toContainText(
+            currentRole === 'chair' ? 'Testperson Alpha' : 'Testperson Gamma',
+          );
+          await expect(
+            page.getByText(currentRole === 'chair' ? 'Vorsitz' : 'Prüfperson'),
+          ).toBeVisible();
+          await expect(page.getByRole('button', { name: 'Rolle wechseln' })).toBeVisible();
+          if (viewport.name === 'mobile') {
+            await page.getByRole('button', { name: 'Navigation öffnen' }).click();
+            await expect(
+              page.getByRole('complementary', { name: 'Prüfungsverwaltung' }),
+            ).toBeVisible();
+          }
+          await expect(page.getByRole('link', { name: 'Prüflinge', exact: true })).toHaveCount(0);
+          await expect(
+            page.getByRole('link', { name: 'Prüfungsausschüsse', exact: true }),
+          ).toHaveCount(0);
+          await expect(
+            page.getByRole('link', { name: 'Terminorganisationen', exact: true }),
+          ).toBeVisible();
+          await expect(
+            page.getByRole('link', { name: 'Prüfungspläne', exact: true }),
+          ).toBeVisible();
+
+          await page.goto('/candidates');
+          await expect(
+            page.getByText('Dieser Demo-Bereich ist für Ihre Rolle nicht freigegeben.'),
+          ).toBeVisible();
+          await expect(page.locator('app-candidates')).toHaveCount(0);
+        });
+      }
+    }
+
+    role = 'examiner';
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/dashboard');
+    const switchButton = page.getByRole('button', { name: 'Rolle wechseln' });
+    await switchButton.focus();
+    await expect(switchButton).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { name: 'Anmelden' })).toBeVisible();
+  });
+
   test('keeps the active exam context visible in contextual views', async ({ page }) => {
     for (const path of [
       '/candidates',

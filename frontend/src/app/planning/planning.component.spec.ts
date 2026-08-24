@@ -51,6 +51,37 @@ describe('PlanningComponent', () => {
     ).toBeTruthy();
   });
 
+  it('should restrict examiner mode to the own availability response step', () => {
+    const component = fixture.componentInstance as unknown as {
+      activeMembers(): typeof masterDataFixture.members;
+      currentStep(): string;
+      selectStep(step: never): void;
+      nextStep(): void;
+      previousStep(): void;
+      changeAvailability(member: never, day: never, availability: never): void;
+    };
+    const ownMember = masterDataFixture.members[0];
+    const otherMember = masterDataFixture.members[1];
+    const day = planningBoardFixture.candidateDays[0];
+    vi.spyOn(fixture.componentInstance.saveAvailability, 'emit').mockReturnValue(undefined);
+    fixture.componentRef.setInput('availabilityOnly', true);
+    fixture.componentRef.setInput('ownMemberId', ownMember.id);
+    fixture.componentRef.setInput('round', { ...examRoundFixture, status: 'draft' });
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Ihre Rückmeldung');
+    expect(component.activeMembers().map((member) => member.id)).toEqual([ownMember.id]);
+    expect(component.currentStep()).toBe('responses');
+
+    component.selectStep('period' as never);
+    component.nextStep();
+    component.previousStep();
+    expect(component.currentStep()).toBe('responses');
+
+    component.changeAvailability(otherMember as never, day as never, 'full_day' as never);
+    expect(fixture.componentInstance.saveAvailability.emit).not.toHaveBeenCalled();
+  });
+
   it('should emit planning settings form submissions', () => {
     const component = fixture.componentInstance;
     vi.spyOn(component.saveSettings, 'emit').mockReturnValue(undefined);
