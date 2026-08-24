@@ -25,12 +25,13 @@ test.describe('optimized frontend artifact', () => {
         for (const colorScheme of colorSchemes) {
           await test.step(colorScheme, async () => {
             await page.emulateMedia({ colorScheme });
-            const response = await page.goto('/login', { waitUntil: 'domcontentloaded' });
-            expect(response?.status()).toBe(200);
+            const response = await page.request.get('/login');
+            expect(response.status()).toBe(200);
+            await page.goto('/login', { waitUntil: 'domcontentloaded' });
             await expect(page.getByRole('main')).toBeVisible();
             await expect(page.getByRole('heading', { name: 'Übersicht' })).toBeVisible();
 
-            const csp = response?.headers()['content-security-policy'] ?? '';
+            const csp = response.headers()['content-security-policy'] ?? '';
             expect(csp).toContain("script-src 'self';");
             expect(csp).not.toMatch(/script-src[^;]*unsafe-inline/);
 
