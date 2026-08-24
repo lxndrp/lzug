@@ -1,6 +1,6 @@
 <tui-root>
-  <app-runtime-notice />
   @if (auth.state() === 'checking') {
+    <app-runtime-notice />
     <main class="auth-page" aria-labelledby="auth-loading-title">
       <section class="auth-card" aria-live="polite">
         <h1 id="auth-loading-title">Anmeldung wird geprüft</h1>
@@ -8,9 +8,11 @@
       </section>
     </main>
   } @else if (auth.state() === 'anonymous') {
+    <app-runtime-notice />
     <app-auth-flow />
   } @else {
     <div class="app-shell" [class.sidebar-collapsed]="!sidebarVisible()">
+      <app-runtime-notice />
       <aside
         id="appSidebar"
         class="app-sidebar"
