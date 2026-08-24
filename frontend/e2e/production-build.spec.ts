@@ -7,6 +7,11 @@ const viewports = [
 ] as const;
 
 test.describe('optimized frontend artifact', () => {
+  test.skip(
+    process.env.LZUG_E2E_PRODUCTION_BUILD !== 'true',
+    'The optimized artifact requires the production Playwright server.',
+  );
+
   test('renders global styles under the backend CSP', async ({ page }) => {
     const cspErrors: string[] = [];
     page.on('console', (message) => {
