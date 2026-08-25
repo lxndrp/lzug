@@ -30,7 +30,8 @@ Referenzauftritt steht unter
 [Öffentliche Publikationsarchitektur](publication-architecture.md). Der lokale
 Build unter `task docs:publication` erzeugt das vollständige statische
 Artefakt; `task docs:publication:check` prüft die Reproduzierbarkeit und
-`task docs:publication:browser` den sichtbaren Einstieg. Der Workflow
+`task docs:publication:browser` sowie `task docs:publication:a11y` prüfen den
+sichtbaren Einstieg getrennt mit Playwright und axe. Der Workflow
 `Public site` führt diese Prüfungen repositoryseitig aus. Pull Requests und
 Pushes laden nur ein Workflow-Artefakt hoch. Eine Veröffentlichung ist davon
 getrennt und ausschließlich nach dem dokumentierten manuellen Maintainer-Gate

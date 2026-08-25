@@ -2,16 +2,39 @@ name: Public site
 
 on:
   pull_request:
+    branches:
+      - master
+    paths: &publication-paths
+      - ".github/workflows/publication.yml"
+      - ".mise.toml"
+      - ".node-version"
+      - ".python-version"
+      - "Taskfile.yml"
+      - "backend/**"
+      - "db/schema.sql"
+      - "docs/**"
+      - "frontend/e2e/publication*.spec.ts"
+      - "frontend/e2e/run-playwright.mjs"
+      - "frontend/e2e/serve-publication.mjs"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "frontend/playwright.publication.config.ts"
+      - "frontend/public/**"
+      - "frontend/src/**"
+      - "frontend/tsconfig*.json"
+      - "mkdocs.yml"
+      - "prototypes/publication/**"
+      - "pyproject.toml"
+      - "scripts/publication_spike.py"
+      - "scripts/validate_demo_url_contract.py"
+      - "uv.lock"
   push:
     branches:
       - master
+    paths: *publication-paths
+  schedule:
+    - cron: "29 4 * * 1"
   workflow_dispatch:
-    inputs:
-      confirm_publication:
-        description: Publish the rebuilt master artifact after the separate Maintainer GO
-        required: true
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -26,7 +49,7 @@ env:
 
 jobs:
   build:
-    name: Build and check static artifact
+    name: Build or reproduce static artifact
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -36,15 +59,9 @@ jobs:
 
       - name: Validate the manual publication gate
         if: github.event_name == 'workflow_dispatch'
-        env:
-          CONFIRM_PUBLICATION: ${{ inputs.confirm_publication }}
         run: |
           test "$GITHUB_REF" = "refs/heads/master" || {
             echo "Public site deployment may only be dispatched from master." >&2
-            exit 1
-          }
-          test "$CONFIRM_PUBLICATION" = "true" || {
-            echo "Public site deployment requires the explicit confirmation input." >&2
             exit 1
           }
 
@@ -89,17 +106,27 @@ jobs:
           npm ci --prefix frontend
 
       - name: Verify reproducible public artifact
+        if: github.event_name == 'schedule'
         run: mise x hugo-extended@0.165.0 -- task docs:publication:check WIKI_ROOT=published-wiki DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
       - name: Build public artifact
+        if: github.event_name != 'schedule'
         run: mise x hugo-extended@0.165.0 -- task docs:publication WIKI_ROOT=published-wiki DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
-      - name: Check responsive warm-up flow and accessibility
+      - name: Check responsive themes and warm-up flow with Playwright
+        if: github.event_name != 'schedule'
         env:
           PLAYWRIGHT_BROWSER_CHANNEL: chrome
-        run: node scripts/check_publication_spike.mjs build/publication build/publication-evidence
+        run: npm --prefix frontend run test:publication
+
+      - name: Check public-site accessibility with Playwright and axe
+        if: github.event_name != 'schedule'
+        env:
+          PLAYWRIGHT_BROWSER_CHANNEL: chrome
+        run: npm --prefix frontend run test:publication:a11y
 
       - name: Upload checked artifact
+        if: github.event_name != 'schedule'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: lzug-public-site
@@ -108,7 +135,7 @@ jobs:
           retention-days: 7
 
       - name: Prepare Pages deployment artifact after the manual gate
-        if: github.event_name == 'workflow_dispatch' && inputs.confirm_publication == true
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: build/publication
@@ -116,17 +143,20 @@ jobs:
           retention-days: 1
 
       - name: Upload browser evidence on failure
-        if: failure()
+        if: failure() && github.event_name != 'schedule'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: public-site-browser-evidence
-          path: build/publication-evidence
+          path: |
+            frontend/playwright-publication-browser-report
+            frontend/playwright-publication-a11y-report
+            build/publication-evidence
           if-no-files-found: warn
           retention-days: 7
 
   deploy:
     name: Deploy manually approved artifact
-    if: github.event_name == 'workflow_dispatch' && inputs.confirm_publication == true
+    if: github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
     permissions:

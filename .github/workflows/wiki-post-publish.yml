@@ -1,7 +1,9 @@
 name: Wiki post-publish check
 
 on:
-  gollum:
+  schedule:
+    - cron: "43 5 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,7 +14,7 @@ concurrency:
 
 jobs:
   check:
-    name: Check published Wiki
+    name: Diagnose published Wiki
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository checks

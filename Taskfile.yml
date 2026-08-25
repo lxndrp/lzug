@@ -162,18 +162,32 @@ tasks:
         --demo-url "{{.DEMO_URL}}"
 
   docs:publication-spike:browser:
-    desc: Check the built publication spike on desktop and mobile with axe
+    desc: Check the built publication spike on desktop and mobile with Playwright
     deps:
       - docs:publication-spike
     cmds:
-      - node scripts/check_publication_spike.mjs
+      - LZUG_PUBLICATION_ROOT=../build/publication-spike npm --prefix frontend run test:publication
+
+  docs:publication-spike:a11y:
+    desc: Check the built publication spike with Playwright and axe
+    deps:
+      - docs:publication-spike
+    cmds:
+      - LZUG_PUBLICATION_ROOT=../build/publication-spike npm --prefix frontend run test:publication:a11y
 
   docs:publication:browser:
-    desc: Check the production landing flow on desktop and mobile with axe
+    desc: Check the production landing flow on desktop and mobile with Playwright
     deps:
       - docs:publication
     cmds:
-      - node scripts/check_publication_spike.mjs build/publication build/publication-evidence
+      - npm --prefix frontend run test:publication
+
+  docs:publication:a11y:
+    desc: Check the production landing page with Playwright and axe
+    deps:
+      - docs:publication
+    cmds:
+      - npm --prefix frontend run test:publication:a11y
 
   wiki:check:
     desc: Check a local Wiki checkout before manually publishing it

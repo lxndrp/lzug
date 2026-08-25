@@ -31,9 +31,10 @@ widersprüchliche Handbuchstände erzeugen.
 Die Wiki-Quelle wird separat geprüft und veröffentlicht. `_Sidebar.md` ist die
 kanonische und vollständige Liste der öffentlichen Inhaltsseiten. Der
 Hauptrepository-Validator prüft nur ihre bidirektionale Synchronität und die
-flache Routenform. Lychee prüft lokal generisches Markdown und Quelllinks sowie
-nach Veröffentlichung die aus der Sidebar abgeleiteten gerenderten Wiki-Routen;
-jede Weiterleitung ist dabei ein Fehler.
+flache Routenform. Lychee prüft lokal generisches Markdown und Quelllinks. Der
+rein diagnostische Workflow prüft wöchentlich oder nach manuellem Start die aus
+der Sidebar abgeleiteten gerenderten Wiki-Routen; jede Weiterleitung ist dabei
+ein Fehler.
 
 Technische Dokumente dürfen aus dem Wiki verlinkt werden, werden aber nicht
 als zweite redaktionelle Fassung dorthin kopiert.

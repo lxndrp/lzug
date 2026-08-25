@@ -169,15 +169,20 @@ Generatorgrenze ohne eine vorgezogene Abhängigkeit.
 ## Trigger, Konkurrenzschutz und Konsistenz
 
 Der Workflow `Public site` baut und prüft ein einziges Artefakt und trennt
-diesen repositoryseitigen Vertrag vom noch nicht aktivierten Deployment:
+diesen repositoryseitigen Vertrag vom noch nicht aktivierten Deployment. Seine
+Repository-Trigger sind auf Änderungen an Publikationsquellen, Dokumentation,
+generierten Referenzen, Theme, Buildkonfiguration und deren gelockten
+Abhängigkeiten begrenzt:
 
-- `pull_request`: baut und prüft mit dem beim Start aufgelösten Wiki-Commit;
-  keine öffentliche Mutation.
+- `pull_request`: baut genau ein prüfbares Artefakt mit dem beim Start
+  aufgelösten Wiki-Commit; keine öffentliche Mutation.
 - `push` auf `master`: baut aus dem exakten `GITHUB_SHA` und dem beim Start
   aufgelösten Wiki-Commit und legt das geprüfte Artefakt nur im Workflow ab.
-- `gollum` bleibt Teil eines späteren Ausbaus. `workflow_dispatch` ist nur auf
-  `master` mit explizitem Bestätigungsinput zulässig und bildet das separat
-  freizugebende Aktivierungsgate; frei wählbare Quell-Refs sind ausgeschlossen.
+- `schedule`: baut zweimal in getrennten temporären Verzeichnissen und belegt
+  wöchentlich die Byte-Reproduzierbarkeit, ohne ein Deployment vorzubereiten.
+- `workflow_dispatch`: ist nur auf `master` zulässig und bildet bereits durch
+  den bewussten Maintainer-Start das separat freizugebende Aktivierungsgate;
+  frei wählbare Quell-Refs und ein rein bestätigendes Boolean-Feld entfallen.
 
 Eine repoübergreifende Concurrency-Gruppe verwirft überholte Builds. Vor einem
 Deployment wird geprüft, dass die im Artefakt gespeicherten SHAs noch den für
@@ -188,8 +193,8 @@ Wiki-Seite verlinkt zusätzlich ihre kanonische Wiki-Route.
 
 Der vorbereitete Deployment-Job erhält ausschließlich `pages: write` und
 `id-token: write`, hängt vom erfolgreichen Neuaufbau ab und verwendet das
-Environment `github-pages`. Er läuft nur über `workflow_dispatch` auf
-`master`, wenn `confirm_publication=true` ausdrücklich gesetzt wurde.
+Environment `github-pages`. Er läuft nur über einen bewussten
+`workflow_dispatch` auf `master`.
 `configure-pages` verwendet `enablement: false` und kann Pages daher nicht
 selbst aktivieren. Ein Maintainer muss die Pages-Quelle einmalig separat auf
 GitHub Actions konfigurieren und den ersten Dispatch ausdrücklich freigeben.
@@ -211,6 +216,7 @@ task docs:publication-spike:check
 task docs:publication
 task docs:publication:check
 task docs:publication:browser
+task docs:publication:a11y
 ```
 
 Der erste Task erzeugt unter `build/publication-spike/` die vollständige
@@ -223,6 +229,8 @@ Der Build pinnt Hugo Extended 0.165.0 und Relearn-Commit
 aktiviert aber keine Pages-, Netlify- oder Read-the-Docs-Ressource. Der
 Produkt- und Demo-Einstieg bindet die Demo-URL beim Build, erklärt den
 Scale-to-zero-Kaltstart und verwendet einen begrenzten Readiness-Warm-up. Der
-Browsercheck prüft Desktop und Mobil in hellem und dunklem Farbschema,
-Landmarks, Überlauf, blockierende axe-Befunde sowie die erfolgreiche
-Readiness-Weiterleitung.
+Browser- und Accessibility-Suites verwenden den etablierten Playwright-Runner
+und bleiben getrennt. Sie prüfen Desktop und Mobil in hellem und dunklem
+Farbschema, Landmarks, Überlauf, blockierende axe-Befunde sowie die
+erfolgreiche Readiness-Weiterleitung. Playwright-Bericht, Screenshots, Trace und
+Video stehen bei Fehlern als Diagnoseartefakte bereit.

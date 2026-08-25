@@ -14,6 +14,8 @@
     "test:coverage": "ng test --watch=false --coverage",
     "test:e2e": "node e2e/run-playwright.mjs --grep-invert @a11y && npm run build:ci && LZUG_E2E_PRODUCTION_BUILD=true node e2e/run-playwright.mjs production-build.spec.ts",
     "test:a11y": "node e2e/run-playwright.mjs --grep @a11y",
+    "test:publication": "LZUG_PUBLICATION_SUITE=browser node e2e/run-playwright.mjs --config playwright.publication.config.ts",
+    "test:publication:a11y": "LZUG_PUBLICATION_SUITE=a11y node e2e/run-playwright.mjs --config playwright.publication.config.ts",
     "docs": "typedoc --treatWarningsAsErrors --entryPointStrategy expand --entryPoints src/app --out ../site/developers/reference/frontend",
     "security:check": "npm audit --omit=dev --audit-level=critical",
     "lint": "eslint . --max-warnings=0",
