@@ -30,3 +30,4 @@ Historie, machen aber Kontext, Konsequenzen und Verweise dauerhaft auffindbar.
 | [0022](0022-tag-gebundene-demo-assembly-und-seed.md) | Tag-gebundene Demo-Assembly und inhaltsadressierter Seed | Akzeptiert |
 | [0023](0023-oeffentliche-web-und-dokumentationspublikation.md) | Öffentliche Web- und Dokumentationspublikation | Akzeptiert |
 | [0024](0024-manuell-promotete-demo-snapshots.md) | Manuell promotete Demo-Snapshots | Akzeptiert |
+| [0025](0025-kein-inspec-infrastruktur-harness.md) | Kein InSpec-Infrastruktur-Harness | Abgelehnt |
