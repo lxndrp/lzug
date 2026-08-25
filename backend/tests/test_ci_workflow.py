@@ -45,6 +45,10 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 self.assertIn(f"      {domain}: ${{{{", self.pull_request)
         self.assertIn("predicate-quantifier: every", self.pull_request)
         self.assertIn("steps.unknown.outputs.unknown == 'true'", self.pull_request)
+        self.assertIn("codeql_languages: ${{ steps.codeql.outputs.changes }}", self.pull_request)
+        self.assertIn(
+            "codeql_selected: ${{ steps.codeql.outputs.changes != '[]' }}", self.pull_request
+        )
         self.assertIn("- '.github/**'", self.pull_request)
         self.assertIn("- 'uv.lock'", self.pull_request)
         self.assertIn("- 'frontend/package-lock.json'", self.pull_request)
@@ -117,9 +121,41 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 self.assertNotIn("gh release create", workflow)
 
     def test_codeql_analysis_identity_survives_the_workflow_split(self) -> None:
-        category = 'category: ".github/workflows/ci.yml:codeql/language:${{ matrix.language }}"'
-        self.assertEqual(1, self.pull_request.count(category))
-        self.assertEqual(1, self.quality.count(category))
+        self.assertIn(
+            'category: ".github/workflows/pull-request.yml:codeql/language:${{ matrix.language }}"',
+            self.pull_request,
+        )
+        self.assertIn(
+            'category: ".github/workflows/quality.yml:codeql/language:${{ matrix.language }}"',
+            self.quality,
+        )
+
+    def test_pull_request_codeql_matrix_uses_selected_languages(self) -> None:
+        self.assertIn("name: Select CodeQL languages", self.pull_request)
+        self.assertIn(
+            "if: needs.changes.outputs.codeql_selected == 'true'",
+            self.pull_request,
+        )
+        self.assertIn(
+            "language: ${{ fromJSON(needs.changes.outputs.codeql_languages) }}",
+            self.pull_request,
+        )
+        for path in (
+            "'**/*.py'",
+            "'pyproject.toml'",
+            "'uv.lock'",
+            "'**/*.ts'",
+            "'frontend/package.json'",
+            "'frontend/package-lock.json'",
+            "'**/*.go'",
+            "'go.mod'",
+        ):
+            with self.subTest(path=path):
+                self.assertIn(f"- {path}", self.pull_request)
+        self.assertIn(
+            "language: [python, javascript-typescript, go]",
+            self.quality,
+        )
 
 
 if __name__ == "__main__":

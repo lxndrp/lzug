@@ -304,7 +304,7 @@ jobs:
           queries: security-extended
       - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         with:
-          category: ".github/workflows/ci.yml:codeql/language:${{ matrix.language }}"
+          category: ".github/workflows/quality.yml:codeql/language:${{ matrix.language }}"
           upload: always
 
   source-scan:

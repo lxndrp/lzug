@@ -57,22 +57,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-        run: |
-          mergeable=UNKNOWN
-          for attempt in 1 2 3 4 5; do
-            if ! mergeable="$(gh pr view "$PR_URL" --json mergeable --jq '.mergeable')"; then
-              echo "Could not determine mergeability on attempt $attempt."
-              mergeable=UNKNOWN
-            fi
-            if [ "$mergeable" != "UNKNOWN" ]; then
-              break
-            fi
-            sleep 2
-          done
-
-          if [ "$mergeable" != "MERGEABLE" ]; then
-            echo "Auto-merge remains disabled because mergeability is $mergeable."
-            exit 0
-          fi
-
-          gh pr merge --auto --squash "$PR_URL"
+        run: gh pr merge --auto --squash "$PR_URL"

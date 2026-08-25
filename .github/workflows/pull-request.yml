@@ -29,6 +29,8 @@ jobs:
       container: ${{ steps.domains.outputs.container == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       browser: ${{ steps.domains.outputs.browser == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       infra: ${{ steps.domains.outputs.infra == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
+      codeql_languages: ${{ steps.codeql.outputs.changes }}
+      codeql_selected: ${{ steps.codeql.outputs.changes != '[]' }}
     steps:
       - name: Select known domains
         id: domains
@@ -92,6 +94,41 @@ jobs:
               - 'frontend/package-lock.json'
               - 'go.mod'
               - 'scripts/**'
+
+      - name: Select CodeQL languages
+        id: codeql
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            python:
+              - '**/*.py'
+              - '.python-version'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.github/workflows/pull-request.yml'
+              - '.github/workflows/quality.yml'
+            javascript-typescript:
+              - '**/*.cjs'
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.mjs'
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '.node-version'
+              - 'frontend/angular.json'
+              - 'frontend/package.json'
+              - 'frontend/package-lock.json'
+              - 'frontend/tsconfig*.json'
+              - '.github/workflows/pull-request.yml'
+              - '.github/workflows/quality.yml'
+            go:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'go.work'
+              - 'go.work.sum'
+              - '.github/workflows/pull-request.yml'
+              - '.github/workflows/quality.yml'
 
       - name: Detect unknown paths
         id: unknown
@@ -408,6 +445,8 @@ jobs:
 
   codeql:
     name: CodeQL (${{ matrix.language }})
+    needs: changes
+    if: needs.changes.outputs.codeql_selected == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -415,7 +454,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [python, javascript-typescript, go]
+        language: ${{ fromJSON(needs.changes.outputs.codeql_languages) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -429,7 +468,7 @@ jobs:
           queries: security-extended
       - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         with:
-          category: ".github/workflows/ci.yml:codeql/language:${{ matrix.language }}"
+          category: ".github/workflows/pull-request.yml:codeql/language:${{ matrix.language }}"
           upload: always
 
   source-scan:
@@ -458,9 +497,10 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           SELECTED: ${{ needs.changes.outputs.docs }}
           DETAIL: ${{ needs.docs.result }}
+          CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_selected }}
           CODEQL: ${{ needs.codeql.result }}
           SOURCE_SCAN: ${{ needs.source-scan.result }}
-        run: test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success && { test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped; }
+        run: test "$CHANGES:$SOURCE_SCAN" = success:success && { test "$CODEQL_SELECTED:$CODEQL" = true:success || test "$CODEQL_SELECTED:$CODEQL" = false:skipped; } && { test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped; }
 
   backend-gate:
     name: Pull Request / Backend
@@ -475,10 +515,12 @@ jobs:
           BROWSER: ${{ needs.changes.outputs.browser }}
           E2E: ${{ needs.e2e.result }}
           A11Y: ${{ needs.a11y.result }}
+          CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_selected }}
           CODEQL: ${{ needs.codeql.result }}
           SOURCE_SCAN: ${{ needs.source-scan.result }}
         run: |
-          test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success
+          test "$CHANGES:$SOURCE_SCAN" = success:success
+          test "$CODEQL_SELECTED:$CODEQL" = true:success || test "$CODEQL_SELECTED:$CODEQL" = false:skipped
           test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
           test "$BROWSER:$E2E:$A11Y" = true:success:success || test "$BROWSER:$E2E:$A11Y" = false:skipped:skipped
 
@@ -495,10 +537,12 @@ jobs:
           BROWSER: ${{ needs.changes.outputs.browser }}
           E2E: ${{ needs.e2e.result }}
           A11Y: ${{ needs.a11y.result }}
+          CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_selected }}
           CODEQL: ${{ needs.codeql.result }}
           SOURCE_SCAN: ${{ needs.source-scan.result }}
         run: |
-          test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success
+          test "$CHANGES:$SOURCE_SCAN" = success:success
+          test "$CODEQL_SELECTED:$CODEQL" = true:success || test "$CODEQL_SELECTED:$CODEQL" = false:skipped
           test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
           test "$BROWSER:$E2E:$A11Y" = true:success:success || test "$BROWSER:$E2E:$A11Y" = false:skipped:skipped
 
@@ -512,9 +556,10 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           SELECTED: ${{ needs.changes.outputs.cli }}
           DETAIL: ${{ needs.cli.result }}
+          CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_selected }}
           CODEQL: ${{ needs.codeql.result }}
           SOURCE_SCAN: ${{ needs.source-scan.result }}
-        run: test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success && { test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped; }
+        run: test "$CHANGES:$SOURCE_SCAN" = success:success && { test "$CODEQL_SELECTED:$CODEQL" = true:success || test "$CODEQL_SELECTED:$CODEQL" = false:skipped; } && { test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped; }
 
   container-gate:
     name: Pull Request / Container
@@ -528,9 +573,11 @@ jobs:
           DETAIL: ${{ needs.container.result }}
           INFRA_SELECTED: ${{ needs.changes.outputs.infra }}
           INFRA_DETAIL: ${{ needs.infra.result }}
+          CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_selected }}
           CODEQL: ${{ needs.codeql.result }}
           SOURCE_SCAN: ${{ needs.source-scan.result }}
         run: |
-          test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success
+          test "$CHANGES:$SOURCE_SCAN" = success:success
+          test "$CODEQL_SELECTED:$CODEQL" = true:success || test "$CODEQL_SELECTED:$CODEQL" = false:skipped
           test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
           test "$INFRA_SELECTED:$INFRA_DETAIL" = true:success || test "$INFRA_SELECTED:$INFRA_DETAIL" = false:skipped
