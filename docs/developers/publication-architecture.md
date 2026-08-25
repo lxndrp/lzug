@@ -233,4 +233,4 @@ Browser- und Accessibility-Suites verwenden den etablierten Playwright-Runner
 und bleiben getrennt. Sie prüfen Desktop und Mobil in hellem und dunklem
 Farbschema, Landmarks, Überlauf, blockierende axe-Befunde sowie die
 erfolgreiche Readiness-Weiterleitung. Playwright-Bericht, Screenshots, Trace und
-Video stehen bei Fehlern als Diagnoseartefakte bereit.
+strukturierte Axe-Ergebnisse stehen als Diagnoseartefakte bereit.

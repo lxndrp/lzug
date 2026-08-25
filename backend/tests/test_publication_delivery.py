@@ -58,6 +58,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn('button.textContent = "Erneut versuchen"', script)
         self.assertIn("chromiumSandbox: true", playwright_config)
         self.assertIn("browserChannel !== 'chrome'", playwright_config)
+        self.assertIn("video: 'off'", playwright_config)
         self.assertIn("getAttribute('data-demo-url')", browser_check)
         self.assertIn("expect(configuredValue).toBe(configuredUrl.origin)", browser_check)
         self.assertIn("`${warmupDemoOrigin}/api/ready`", browser_check)
