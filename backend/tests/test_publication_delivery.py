@@ -39,7 +39,9 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         script = (ROOT / "prototypes/publication/relearn/static/js/demo-warmup.js").read_text(
             encoding="utf-8"
         )
-        browser_check = (ROOT / "frontend/e2e/publication.spec.ts").read_text(encoding="utf-8")
+        browser_check = (ROOT / "frontend/publication-e2e/publication.spec.ts").read_text(
+            encoding="utf-8"
+        )
         playwright_config = (ROOT / "frontend/playwright.publication.config.ts").read_text(
             encoding="utf-8"
         )

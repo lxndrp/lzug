@@ -27,7 +27,7 @@ if (browserChannel !== undefined && browserChannel !== 'chrome') {
 }
 
 export default defineConfig({
-  testDir: './e2e',
+  testDir: './publication-e2e',
   testMatch: suite === 'a11y' ? 'publication.a11y.spec.ts' : 'publication.spec.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
