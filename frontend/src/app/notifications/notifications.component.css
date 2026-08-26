@@ -1,0 +1,52 @@
+:host {
+  display: grid;
+  gap: 1rem;
+}
+
+.notification-settings .app-panel-body,
+.notification-list article {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.notification-list {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notification-list article {
+  padding-block: 1rem;
+  border-block-start: 1px solid var(--tui-border-normal);
+}
+
+.notification-list article > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.notification-list h3,
+.notification-list p {
+  margin: 0;
+}
+
+.notification-problem-scroll {
+  overflow-x: auto;
+}
+
+.notification-problem-scroll table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.notification-problem-scroll th,
+.notification-problem-scroll td {
+  padding: 0.65rem;
+  text-align: start;
+  border-block-end: 1px solid var(--tui-border-normal);
+}

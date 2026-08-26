@@ -33,6 +33,9 @@ def api_root() -> dict[str, Any]:
             "docs": {"href": "/api/docs"},
             "round-summary": {"href": "/api/round-summary?round_id=1"},
             "confirmed-plans": {"href": "/api/confirmed-plans"},
+            "notifications": {"href": "/api/notifications"},
+            "notification-overview": {"href": "/api/notification-overview"},
+            "notification-channels": {"href": "/api/notification-channels"},
             "planning-proposals": {
                 "href": "/api/planning-proposals",
                 "method": "POST",

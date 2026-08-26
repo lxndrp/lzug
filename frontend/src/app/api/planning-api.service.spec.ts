@@ -181,6 +181,36 @@ describe('PlanningApiService', () => {
     request.flush({ items: [], _links: {} });
   });
 
+  it('should use the channel-neutral notification endpoints', () => {
+    service.getNotifications().subscribe((items) => expect(items[0].id).toBe(7));
+    const notifications = http.expectOne('/api/notifications');
+    expect(notifications.request.method).toBe('GET');
+    notifications.flush({
+      items: [
+        {
+          id: 7,
+          event_type: 'plan_confirmed',
+          title: 'Prüfungsplan bestätigt',
+          message: 'Ihre Termine sind verfügbar.',
+          action_path: '/confirmed-plans/1',
+          created_at: '2026-10-01T10:00:00+00:00',
+        },
+      ],
+      _links: {},
+    });
+
+    service.getNotificationOverview().subscribe((items) => expect(items).toEqual([]));
+    const overview = http.expectOne('/api/notification-overview');
+    expect(overview.request.method).toBe('GET');
+    overview.flush({ items: [], _links: {} });
+
+    service.registerPushSubscription('https://push.example.invalid/one').subscribe();
+    const registration = http.expectOne('/api/push-subscriptions');
+    expect(registration.request.method).toBe('POST');
+    expect(registration.request.body).toEqual({ endpoint: 'https://push.example.invalid/one' });
+    registration.flush({ id: 1, active: true });
+  });
+
   it('should expose committee and member write operations', () => {
     service.createCommittee({ name: 'PA Neu', occupation: 'Fachinformatiker/in' }).subscribe();
     const committee = http.expectOne('/api/committees');

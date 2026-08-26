@@ -10,6 +10,10 @@ Diese Referenz entsteht beim Dokumentationsbuild aus Google-Style-Docstrings. Si
 
 ::: backend.candidate_days
 
+## Benachrichtigungen
+
+::: backend.notifications
+
 ## Repository und Persistenz
 
 ::: backend.repositories

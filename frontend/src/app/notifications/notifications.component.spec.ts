@@ -1,0 +1,102 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { TestBed } from '@angular/core/testing';
+import { provideTaiga } from '@taiga-ui/core';
+import { vi } from 'vitest';
+
+import { NotificationsComponent } from './notifications.component';
+
+describe('NotificationsComponent', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [NotificationsComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideTaiga({ scrollbars: 'native' }),
+      ],
+    }).compileComponents();
+  });
+
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  it('renders own content and only technical metadata for committee problems', () => {
+    const fixture = TestBed.createComponent(NotificationsComponent);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+
+    http.expectOne('/api/notifications').flush({
+      items: [
+        {
+          id: 1,
+          event_type: 'availability_reminder',
+          title: 'Verfügbarkeitsrückmeldung offen',
+          message: 'Ihre Rückmeldung ist noch offen.',
+          action_path: '/scheduling-overview/1',
+          created_at: '2026-09-29T18:00:00+00:00',
+        },
+      ],
+      _links: {},
+    });
+    http.expectOne('/api/notification-overview').flush({
+      items: [
+        {
+          notification_id: 2,
+          event_type: 'availability_requested',
+          recipient_member_id: 7,
+          channel: 'web_push',
+          status: 'unavailable',
+          attempt_count: 0,
+          error_code: 'not_registered',
+          updated_at: '2026-09-29T18:00:00+00:00',
+        },
+      ],
+      _links: {},
+    });
+    http.expectOne('/api/notification-channels').flush({
+      web_push: { available: false, public_key: null },
+      email_fallback_configured: false,
+      sink_enabled: false,
+    });
+    fixture.detectChanges();
+
+    const content = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(content).toContain('Verfügbarkeitsrückmeldung offen');
+    expect(content).toContain('Ihre Rückmeldung ist noch offen.');
+    expect(content).toContain('Zustellstatus im Ausschuss');
+    expect(content).toContain('Nicht verfügbar');
+    expect(content).not.toContain('Inhalt eines anderen Mitglieds');
+  });
+
+  it('explains a denied browser permission without registering an endpoint', async () => {
+    const fixture = TestBed.createComponent(NotificationsComponent);
+    const component = fixture.componentInstance as unknown as {
+      channels: { set(value: unknown): void };
+      canEnablePush(): boolean;
+      enablePush(): Promise<void>;
+      pushMessage(): string | null;
+    };
+    component.channels.set({
+      web_push: { available: true, public_key: 'test-key' },
+      email_fallback_configured: false,
+      sink_enabled: false,
+    });
+    component.canEnablePush = () => true;
+    const originalNotification = globalThis.Notification;
+    Object.defineProperty(globalThis, 'Notification', {
+      configurable: true,
+      value: { requestPermission: vi.fn().mockResolvedValue('denied') },
+    });
+
+    try {
+      await component.enablePush();
+    } finally {
+      Object.defineProperty(globalThis, 'Notification', {
+        configurable: true,
+        value: originalNotification,
+      });
+    }
+
+    expect(component.pushMessage()).toBe('Browser-Benachrichtigungen wurden nicht erlaubt.');
+  });
+});

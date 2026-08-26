@@ -38,7 +38,13 @@ SAFE_API_SEGMENTS = frozenset(
         "members",
         "memberships",
         "member-availabilities",
+        "notification-channels",
+        "notification-overview",
+        "notification-problems",
+        "notifications",
         "persons",
+        "push-confirmation",
+        "push-subscriptions",
         "round-candidates",
     }
 )

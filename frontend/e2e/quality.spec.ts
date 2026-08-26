@@ -10,6 +10,7 @@ const productiveViews = [
   { name: 'Prüfungsausschüsse', path: '/committee' },
   { name: 'Terminorganisation', path: '/scheduling-overview/1' },
   { name: 'Prüfungsorte', path: '/locations' },
+  { name: 'Benachrichtigungen', path: '/notifications' },
 ] as const;
 
 function overviewItem(
@@ -1034,6 +1035,7 @@ test.describe('lzug browser workflows', () => {
       '/committee',
       '/scheduling-overview/1',
       '/locations',
+      '/notifications',
     ]) {
       await page.goto(path);
       const dimensions = await page.evaluate(() => ({
