@@ -23,10 +23,11 @@ den einzelnen Post-Publish-Workflow und diese Verfahrensbeschreibung.
 5. Der Maintainer veröffentlicht exakt den geprüften Commit in den
    Default-Branch des Wiki-Repositories. Es gibt keinen automatischen Push aus
    dem Hauptrepository und keinen Force-Push.
-6. Das `gollum`-Event startet danach den
-   [Post-Publish-Check](https://github.com/lxndrp/lzug/blob/master/.github/workflows/wiki-post-publish.yml).
-   Er leitet aus der Sidebar die erwarteten gerenderten Wiki-Routen ab und
-   prüft sie mit Lychee ohne Weiterleitungen.
+6. Der Maintainer kann danach den rein diagnostischen
+   [Post-Publish-Check](https://github.com/lxndrp/lzug/blob/master/.github/workflows/wiki-post-publish.yml)
+   manuell starten. Derselbe Check läuft wöchentlich, leitet aus der Sidebar
+   die erwarteten gerenderten Wiki-Routen ab und prüft sie mit Lychee ohne
+   Weiterleitungen. Er ist kein Produktrelease- oder Demo-Deployment-Gate.
 
 Das Wiki-Repository ist initialisiert. Der veröffentlichte Stand wird dort
 versioniert und ist die kanonische Quelle für das redaktionelle Handbuch. Die
@@ -55,9 +56,10 @@ Der kleine Python-Validator prüft nur die lzug-spezifische Invariante, dass die
 flachen Inhaltsseiten und die kanonische `_Sidebar.md` vollständig
 übereinstimmen. Lychee `v0.24.2` übernimmt die generische Markdown- und
 Quelllinkprüfung. Nach Veröffentlichung erzeugt der rein lesende
-`gollum`-Workflow aus der Sidebar eine temporäre Markdown-Liste und prüft nur
-die erwarteten GitHub-Routen mit höchstens null Weiterleitungen; so sind
-Weiterleitungen auf Rohdaten oder andere Ziele Fehler. Die Liste wird nicht als
-CI-Artefakt hochgeladen. Weder der lokale Task noch der Workflow pushen in das
-Wiki oder benötigen ein zusätzliches Schreib-Token. Die langfristige
-Publikationsarchitektur bleibt Gegenstand von #206.
+periodische beziehungsweise manuell gestartete Workflow aus der Sidebar eine
+temporäre Markdown-Liste und prüft nur die erwarteten GitHub-Routen mit
+höchstens null Weiterleitungen; so sind Weiterleitungen auf Rohdaten oder
+andere Ziele Fehler. Die Liste wird nicht als CI-Artefakt hochgeladen. Weder
+der lokale Task noch der Workflow pushen in das Wiki oder benötigen ein
+zusätzliches Schreib-Token. Die langfristige Publikationsarchitektur bleibt
+Gegenstand von #206.
