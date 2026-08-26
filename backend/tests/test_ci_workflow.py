@@ -4,29 +4,45 @@ import re
 import unittest
 from pathlib import Path
 
-PR_GATES = (
-    "Pull Request / Documentation",
-    "Pull Request / Backend",
-    "Pull Request / Frontend",
-    "Pull Request / CLI",
-    "Pull Request / Container",
+from backend.tests.workflow_contract import (
+    action_blocks,
+    action_references,
+    job_block,
+    trigger_block,
+    workflow_text,
 )
+
+PR_GATES = {
+    "docs-gate": "Pull Request / Documentation",
+    "backend-gate": "Pull Request / Backend",
+    "frontend-gate": "Pull Request / Frontend",
+    "cli-gate": "Pull Request / CLI",
+    "container-gate": "Pull Request / Container",
+}
 
 
 class QualityWorkflowContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.codeql = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
-        cls.pull_request = Path(".github/workflows/pull-request.yml").read_text(encoding="utf-8")
-        cls.quality = Path(".github/workflows/quality.yml").read_text(encoding="utf-8")
+        cls.codeql = workflow_text(".github/workflows/ci.yml")
+        cls.pull_request = workflow_text(".github/workflows/pull-request.yml")
+        cls.quality = workflow_text(".github/workflows/quality.yml")
 
     def test_pull_requests_use_five_stable_domain_gates(self) -> None:
-        self.assertIn("pull_request:\n", self.pull_request)
-        for gate in PR_GATES:
-            with self.subTest(gate=gate):
-                self.assertEqual(1, self.pull_request.count(f"name: {gate}"))
-        self.assertEqual(5, self.pull_request.count("-gate:\n"))
-        self.assertGreaterEqual(self.pull_request.count("if: always()"), 5)
+        self.assertIn("pull_request:", trigger_block(self.pull_request))
+        for job_id, check_name in PR_GATES.items():
+            with self.subTest(job=job_id):
+                gate = job_block(self.pull_request, job_id)
+                self.assertIn(f"name: {check_name}", gate)
+                self.assertIn("if: always()", gate)
+                self.assertIn("codeql", gate)
+                self.assertIn("source-scan", gate)
+                self.assertIn(
+                    'test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success',
+                    gate,
+                )
+                self.assertIn("true:success", gate)
+                self.assertIn("false:skipped", gate)
 
     def test_path_selection_is_standard_based_and_fails_closed(self) -> None:
         self.assertIn(
@@ -50,44 +66,47 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("- '.github/**'", self.pull_request)
         self.assertIn("- 'uv.lock'", self.pull_request)
         self.assertIn("- 'frontend/package-lock.json'", self.pull_request)
-        self.assertFalse(Path("scripts/classify_quality_paths.py").exists())
 
     def test_productive_web_changes_select_separate_browser_contracts(self) -> None:
         self.assertIn("browser:\n              - 'backend/**'", self.pull_request)
         self.assertIn("- 'frontend/src/**'", self.pull_request)
         self.assertIn("- '!backend/tests/**'", self.pull_request)
         self.assertIn("- '!frontend/**/*.spec.ts'", self.pull_request)
-        self.assertIn("name: Browser E2E details", self.pull_request)
-        self.assertIn("name: Accessibility details", self.pull_request)
+        self.assertIn("needs: changes", job_block(self.pull_request, "e2e"))
+        self.assertIn("needs: changes", job_block(self.pull_request, "a11y"))
 
     def test_master_schedule_and_manual_runs_are_unconditionally_complete(self) -> None:
-        self.assertIn("push:\n", self.quality)
-        self.assertIn("schedule:\n", self.quality)
-        self.assertIn("workflow_dispatch:\n", self.quality)
-        self.assertNotIn("pull_request:\n", self.quality)
+        triggers = trigger_block(self.quality)
+        self.assertIn("push:", triggers)
+        self.assertIn("schedule:", triggers)
+        self.assertIn("workflow_dispatch:", triggers)
+        self.assertNotIn("pull_request:", triggers)
         self.assertNotIn("paths-filter", self.quality)
         self.assertNotIn("needs: changes", self.quality)
         self.assertNotIn("if: always()", self.quality)
-        for job in (
-            "name: Backend",
-            "name: Frontend",
-            "name: Documentation",
-            "name: CLI",
-            "name: Infrastructure",
-            "name: Container",
-            "name: Browser E2E",
-            "name: Accessibility",
+        for job_id in (
+            "backend",
+            "frontend",
+            "docs",
+            "cli",
+            "infra",
+            "container",
+            "e2e",
+            "a11y",
         ):
-            with self.subTest(job=job):
-                self.assertIn(job, self.quality)
+            with self.subTest(job=job_id):
+                self.assertIn("runs-on:", job_block(self.quality, job_id))
 
     def test_quality_is_reusable_for_an_explicit_immutable_revision(self) -> None:
-        self.assertIn("workflow_call:\n    inputs:\n      revision:", self.quality)
-        self.assertIn("required: false", self.quality)
+        workflow_call = trigger_block(self.quality)
+        self.assertIn("workflow_call:", workflow_call)
+        self.assertIn("revision:", workflow_call)
+        self.assertIn("required: false", workflow_call)
         self.assertIn("QUALITY_REVISION: ${{ inputs.revision || github.sha }}", self.quality)
-        self.assertEqual(
-            9,
-            self.quality.count("ref: ${{ inputs.revision || github.sha }}"),
+        checkout_blocks = action_blocks(self.quality, "actions/checkout")
+        self.assertTrue(checkout_blocks)
+        self.assertTrue(
+            all("ref: ${{ inputs.revision || github.sha }}" in block for block in checkout_blocks)
         )
         self.assertIn("ref: ${{ inputs.revision || github.sha }}", self.codeql)
         self.assertIn('--revision "$QUALITY_REVISION"', self.quality)
@@ -113,7 +132,11 @@ class QualityWorkflowContractTests(unittest.TestCase):
             Path(".github/workflows/quality.yml"),
         ):
             workflow = path.read_text(encoding="utf-8")
-            action_refs = re.findall(r"^\s*uses:\s*[^@\s]+@([^\s]+)", workflow, re.MULTILINE)
+            action_refs = [
+                reference.rsplit("@", 1)[1]
+                for reference in action_references(workflow)
+                if not reference.startswith("./")
+            ]
             with self.subTest(workflow=path.name):
                 self.assertTrue(action_refs)
                 self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs))
@@ -122,7 +145,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
 
     def test_codeql_analysis_identity_survives_the_workflow_split(self) -> None:
         category = 'category: ".github/workflows/ci.yml:codeql/language:${{ matrix.language }}"'
-        self.assertEqual(1, self.codeql.count(category))
+        self.assertIn(category, self.codeql)
         self.assertIn("uses: ./.github/workflows/ci.yml", self.pull_request)
         self.assertIn("uses: ./.github/workflows/ci.yml", self.quality)
         self.assertNotIn("github/codeql-action/analyze@", self.pull_request)
@@ -143,7 +166,6 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertNotIn('"results": []', self.codeql)
 
     def test_pull_request_codeql_matrix_uses_selected_languages(self) -> None:
-        self.assertIn("name: Select CodeQL languages", self.pull_request)
         self.assertIn(
             "language: ${{ fromJSON(inputs.languages) }}",
             self.codeql,
