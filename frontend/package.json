@@ -74,7 +74,7 @@
     "eslint-config-prettier": "^10.1.8",
     "istanbul-lib-instrument": "^6.0.3",
     "jsdom": "^30.0.1",
-    "less": "^4.8.1",
+    "less": "^4.9.0",
     "prettier": "^3.9.6",
     "sass": "^1.103.1",
     "typedoc": "^0.28.20",
