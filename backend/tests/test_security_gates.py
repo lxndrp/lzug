@@ -1,21 +1,29 @@
 from __future__ import annotations
 
-import re
 import unittest
 from pathlib import Path
+
+from backend.tests.workflow_contract import (
+    action_references,
+    job_block,
+    trigger_block,
+    workflow_text,
+)
 
 
 class SecurityGateTests(unittest.TestCase):
     def test_all_workflow_actions_use_full_commit_shas(self) -> None:
         for path in sorted(Path(".github/workflows").glob("*.yml")):
             workflow = path.read_text(encoding="utf-8")
-            uses_values = re.findall(r"^\s*uses:\s*([^\s]+)", workflow, re.MULTILINE)
+            uses_values = action_references(workflow)
             with self.subTest(workflow=path.name):
                 self.assertTrue(uses_values)
                 for uses in uses_values:
                     if uses.startswith("./"):
                         continue
-                    self.assertRegex(uses, r"^[^@\s]+@[0-9a-f]{40}$")
+                    action, separator, revision = uses.rpartition("@")
+                    self.assertTrue(action and separator)
+                    self.assertRegex(revision, r"^[0-9a-f]{40}$")
 
     def test_pr_and_full_workflows_keep_source_and_code_scanning(self) -> None:
         for path in (
@@ -42,18 +50,30 @@ class SecurityGateTests(unittest.TestCase):
         )
 
     def test_pr_gates_require_the_common_security_results(self) -> None:
-        workflow = Path(".github/workflows/pull-request.yml").read_text(encoding="utf-8")
-        self.assertEqual(5, workflow.count("CODEQL: ${{ needs.codeql.result }}"))
-        self.assertEqual(5, workflow.count("SOURCE_SCAN: ${{ needs.source-scan.result }}"))
-        self.assertEqual(
-            5,
-            workflow.count('test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success'),
-        )
+        workflow = workflow_text(".github/workflows/pull-request.yml")
+        for job_id in (
+            "docs-gate",
+            "backend-gate",
+            "frontend-gate",
+            "cli-gate",
+            "container-gate",
+        ):
+            with self.subTest(job=job_id):
+                gate = job_block(workflow, job_id)
+                self.assertIn("CODEQL: ${{ needs.codeql.result }}", gate)
+                self.assertIn("SOURCE_SCAN: ${{ needs.source-scan.result }}", gate)
+                self.assertIn(
+                    'test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success',
+                    gate,
+                )
 
-    def test_dependabot_auto_merge_keeps_classification_without_polling(self) -> None:
-        workflow = Path(".github/workflows/dependabot-auto-merge.yml").read_text(encoding="utf-8")
-        self.assertIn("pull_request_target:", workflow)
-        self.assertNotIn("actions/checkout@", workflow)
+    def test_dependabot_auto_merge_uses_safe_base_branch_classification(self) -> None:
+        workflow = workflow_text(".github/workflows/dependabot-auto-merge.yml")
+        self.assertIn("pull_request_target:", trigger_block(workflow))
+        job = job_block(workflow, "enable-auto-merge")
+        self.assertIn("permissions:\n      contents: write\n      pull-requests: write", job)
+        self.assertNotIn("actions/checkout@", job)
+        self.assertNotIn("github.event.pull_request.head", job)
         for classification in (
             "npm_and_yarn:version-update:semver-patch",
             "npm_and_yarn:version-update:semver-minor",
@@ -61,11 +81,9 @@ class SecurityGateTests(unittest.TestCase):
             "uv:version-update:semver-minor",
         ):
             with self.subTest(classification=classification):
-                self.assertIn(classification, workflow)
-        self.assertNotIn("gh pr view", workflow)
-        self.assertNotIn("sleep 2", workflow)
-        self.assertNotIn("mergeable=", workflow)
-        self.assertIn('run: gh pr merge --auto --squash "$PR_URL"', workflow)
+                self.assertIn(classification, job)
+        self.assertIn("steps.eligibility.outputs.eligible == 'true'", job)
+        self.assertIn('gh pr merge --auto --squash "$PR_URL"', job)
 
 
 if __name__ == "__main__":

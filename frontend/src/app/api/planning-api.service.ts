@@ -34,6 +34,9 @@ import {
   RoundSummary,
   SchedulingOverviewItem,
   ExecutionStatus,
+  NotificationChannels,
+  NotificationItem,
+  NotificationProblem,
 } from './api.models';
 import { RoundContextService } from './round-context.service';
 
@@ -94,6 +97,28 @@ export class PlanningApiService {
 
   getConfirmedPlanDay(dayId: number) {
     return this.http.get<ConfirmedPlanDayView>(`/api/confirmed-plan-days/${dayId}`);
+  }
+
+  getNotifications() {
+    return this.list<NotificationItem>('/api/notifications');
+  }
+
+  getNotificationProblems() {
+    return this.list<NotificationProblem>('/api/notification-problems');
+  }
+
+  getNotificationOverview() {
+    return this.list<NotificationProblem>('/api/notification-overview');
+  }
+
+  getNotificationChannels() {
+    return this.http.get<NotificationChannels>('/api/notification-channels');
+  }
+
+  registerPushSubscription(endpoint: string) {
+    return this.http.post<{ id: number; active: boolean }>('/api/push-subscriptions', {
+      endpoint,
+    });
   }
 
   saveCandidateAttendance(

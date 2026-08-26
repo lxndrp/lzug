@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+from backend.tests.workflow_contract import job_block, trigger_block, workflow_text
 from scripts.publication_spike import PUBLICATION_BASE_URL, public_url, publication_base_url
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -83,15 +84,18 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn('"images/favicon.svg"', (ROOT / "scripts/publication_spike.py").read_text())
 
     def test_pages_deployment_is_manual_fail_closed_and_cannot_enable_pages(self) -> None:
-        workflow = (ROOT / ".github/workflows/publication.yml").read_text(encoding="utf-8")
+        workflow = workflow_text(".github/workflows/publication.yml")
+        triggers = trigger_block(workflow)
+        build = job_block(workflow, "build")
+        deploy = job_block(workflow, "deploy")
 
         self.assertIn("BASE_URL: https://lzug.repertoire.papaspyrou.name", workflow)
         self.assertIn("DEMO_URL: ${{ vars.DEMO_URL || 'https://demo.example.invalid' }}", workflow)
         self.assertIn("permissions:\n  contents: read", workflow)
         self.assertNotIn("actions: read", workflow)
-        self.assertIn("scripts/validate_demo_url_contract.py validate", workflow)
-        self.assertIn('--value "$EFFECTIVE_DEMO_URL"', workflow)
-        self.assertIn("EFFECTIVE_DEMO_URL", workflow)
+        self.assertIn("scripts/validate_demo_url_contract.py validate", build)
+        self.assertIn('--value "$EFFECTIVE_DEMO_URL"', build)
+        self.assertIn("EFFECTIVE_DEMO_URL", build)
         self.assertNotIn("GH_TOKEN", workflow)
         self.assertNotIn("github.token", workflow)
         self.assertNotIn("--repository", workflow)
@@ -103,46 +107,47 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertNotIn("GH_TOKEN", validator)
         self.assertNotIn("azurecontainerapps.io", workflow)
         self.assertNotIn("stage.papaspyrou.name", workflow)
-        self.assertIn("workflow_dispatch:", workflow)
-        self.assertIn('test "$GITHUB_REF" = "refs/heads/master"', workflow)
+        self.assertIn("pull_request:", triggers)
+        self.assertIn("push:", triggers)
+        self.assertIn("schedule:", triggers)
+        self.assertIn("workflow_dispatch:", triggers)
+        self.assertIn('test "$GITHUB_REF" = "refs/heads/master"', build)
         self.assertNotIn("confirm_publication", workflow)
         self.assertNotIn("CONFIRM_PUBLICATION", workflow)
-        self.assertIn("github.event_name == 'workflow_dispatch'", workflow)
-        self.assertIn("pages: write", workflow)
-        self.assertIn("id-token: write", workflow)
-        self.assertIn("environment:\n      name: github-pages", workflow)
-        self.assertIn("actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d", workflow)
-        self.assertIn("enablement: false", workflow)
-        self.assertEqual(
-            2,
-            workflow.count("mise x hugo-extended@0.165.0 -- task docs:publication"),
-        )
-        self.assertEqual(1, workflow.count("-- task docs:publication WIKI_ROOT="))
-        self.assertIn("if: github.event_name == 'schedule'", workflow)
-        self.assertIn("if: github.event_name != 'schedule'", workflow)
-        self.assertIn('cron: "29 4 * * 1"', workflow)
-        self.assertIn("paths: &publication-paths", workflow)
-        self.assertIn('"prototypes/publication/**"', workflow)
-        self.assertIn('"frontend/src/**"', workflow)
-        self.assertIn('"frontend/tsconfig*.json"', workflow)
-        self.assertNotIn("run: task docs:publication", workflow)
-        self.assertIn("PLAYWRIGHT_BROWSER_CHANNEL: chrome", workflow)
-        self.assertIn("npm --prefix frontend run test:publication", workflow)
-        self.assertIn("npm --prefix frontend run test:publication:a11y", workflow)
-        self.assertNotIn("scripts/check_publication_spike.mjs", workflow)
-        self.assertNotIn("playwright install", workflow)
-        self.assertNotIn("--no-sandbox", workflow)
+        self.assertIn("if: github.event_name == 'workflow_dispatch'", deploy)
+        self.assertIn("needs: build", deploy)
+        self.assertIn("pages: write", deploy)
+        self.assertIn("id-token: write", deploy)
+        self.assertIn("environment:\n      name: github-pages", deploy)
+        self.assertIn("actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d", deploy)
+        self.assertIn("enablement: false", deploy)
+        self.assertIn("-- task docs:publication:check WIKI_ROOT=", build)
+        self.assertIn("-- task docs:publication WIKI_ROOT=", build)
+        self.assertIn("if: github.event_name == 'schedule'", build)
+        self.assertIn("if: github.event_name != 'schedule'", build)
+        self.assertIn('cron: "29 4 * * 1"', triggers)
+        self.assertIn("paths: &publication-paths", triggers)
+        self.assertIn('"prototypes/publication/**"', triggers)
+        self.assertIn('"frontend/src/**"', triggers)
+        self.assertIn('"frontend/tsconfig*.json"', triggers)
+        self.assertIn("PLAYWRIGHT_BROWSER_CHANNEL: chrome", build)
+        self.assertIn("npm --prefix frontend run test:publication", build)
+        self.assertIn("npm --prefix frontend run test:publication:a11y", build)
+        self.assertNotIn("--no-sandbox", build)
 
     def test_wiki_post_publish_check_is_periodic_manual_diagnostics(self) -> None:
-        workflow = (ROOT / ".github/workflows/wiki-post-publish.yml").read_text(encoding="utf-8")
+        workflow = workflow_text(".github/workflows/wiki-post-publish.yml")
+        triggers = trigger_block(workflow)
+        check = job_block(workflow, "check")
 
-        self.assertIn("name: Diagnose published Wiki", workflow)
-        self.assertIn("schedule:", workflow)
-        self.assertIn("workflow_dispatch:", workflow)
-        self.assertIn('cron: "43 5 * * 1"', workflow)
-        self.assertNotIn("gollum:", workflow)
-        self.assertNotIn("pull_request:", workflow)
-        self.assertNotIn("push:", workflow)
+        self.assertIn("schedule:", triggers)
+        self.assertIn("workflow_dispatch:", triggers)
+        self.assertIn('cron: "43 5 * * 1"', triggers)
+        self.assertNotIn("gollum:", triggers)
+        self.assertNotIn("pull_request:", triggers)
+        self.assertNotIn("push:", triggers)
+        self.assertIn("scripts/check_wiki.py published-wiki", check)
+        self.assertIn("--max-redirects 0", check)
 
 
 if __name__ == "__main__":

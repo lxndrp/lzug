@@ -15,6 +15,37 @@ export type ApiCollection<T> = {
   _links: Record<string, ApiLink>;
 };
 
+export type NotificationItem = {
+  id: number;
+  event_type: string;
+  title: string;
+  message: string;
+  action_path: string;
+  created_at: string;
+};
+
+export type NotificationProblem = {
+  notification_id: number;
+  event_type: string;
+  recipient_member_id: number;
+  channel: 'web_push' | 'email' | 'sink';
+  status:
+    | 'pending'
+    | 'technically_confirmed'
+    | 'temporarily_failed'
+    | 'permanently_failed'
+    | 'unavailable';
+  attempt_count: number;
+  error_code: string | null;
+  updated_at: string;
+};
+
+export type NotificationChannels = {
+  web_push: { available: boolean; public_key: string | null };
+  email_fallback_configured: boolean;
+  sink_enabled: boolean;
+};
+
 export type SchedulingStatusGroup = 'draft' | 'coordination' | 'planning' | 'confirmed';
 
 export type SchedulingOverviewItem = {
@@ -124,6 +155,7 @@ export type ExamRound = {
   availability_reminder_at: string | null;
   created_at?: string;
   updated_at?: string;
+  notification_warning?: string;
   _links?: Record<string, ApiLink>;
 };
 
@@ -191,6 +223,7 @@ export type PlanningResult = {
   };
   conflicts?: PlanningConflict[];
   counts: Record<string, number>;
+  notification_warning?: string;
   _links?: Record<string, ApiLink>;
 };
 

@@ -132,6 +132,8 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 	commandSet.SetOutput(io.Discard)
 	email := commandSet.String("email", "", "account email")
 	accountID := commandSet.Int("account-id", 0, "account id")
+	memberID := commandSet.Int("member-id", 0, "committee member id")
+	channel := commandSet.String("channel", "", "notification channel")
 	if err := commandSet.Parse(commandArgs); err != nil {
 		return options{}, fmt.Errorf("invalid command option")
 	}
@@ -142,17 +144,17 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 	arguments := map[string]any{}
 	switch command {
 	case "bootstrap", "invite":
-		if strings.TrimSpace(*email) == "" || *accountID != 0 {
+		if strings.TrimSpace(*email) == "" || *accountID != 0 || *memberID != 0 || *channel != "" {
 			return options{}, fmt.Errorf("%s requires --email", command)
 		}
 		arguments["email"] = *email
 	case "disable":
-		if *accountID <= 0 || *email != "" {
+		if *accountID <= 0 || *email != "" || *memberID != 0 || *channel != "" {
 			return options{}, fmt.Errorf("disable requires a positive --account-id")
 		}
 		arguments["account_id"] = *accountID
 	case "recover":
-		if (*accountID <= 0) == (strings.TrimSpace(*email) == "") {
+		if (*accountID <= 0) == (strings.TrimSpace(*email) == "") || *memberID != 0 || *channel != "" {
 			return options{}, fmt.Errorf("recover requires exactly one of --account-id or --email")
 		}
 		if *accountID > 0 {
@@ -161,7 +163,7 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 			arguments["email"] = *email
 		}
 	case "consume-invitation", "consume-recovery":
-		if *email != "" || *accountID != 0 {
+		if *email != "" || *accountID != 0 || *memberID != 0 || *channel != "" {
 			return options{}, fmt.Errorf("%s reads its token from stdin", command)
 		}
 		token, err := io.ReadAll(io.LimitReader(input, maxTokenInput+1))
@@ -173,6 +175,16 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 			return options{}, fmt.Errorf("token input is required")
 		}
 		arguments["token"] = secret
+	case "process-notifications":
+		if *email != "" || *accountID != 0 || *memberID != 0 || *channel != "" {
+			return options{}, fmt.Errorf("process-notifications accepts no options")
+		}
+	case "test-notification":
+		if *email != "" || *accountID != 0 || *memberID <= 0 || (*channel != "web_push" && *channel != "email") {
+			return options{}, fmt.Errorf("test-notification requires --member-id and --channel web_push|email")
+		}
+		arguments["member_id"] = *memberID
+		arguments["channel"] = *channel
 	default:
 		return options{}, fmt.Errorf("unsupported admin command")
 	}

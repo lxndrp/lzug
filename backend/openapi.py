@@ -150,6 +150,66 @@ def spec() -> dict[str, Any]:
                 },
             }
         },
+        "/api/notifications": {
+            "get": {
+                "summary": "List the authenticated member's channel-neutral notifications",
+                "operationId": "listOwnNotifications",
+                "responses": {"200": json_response("NotificationCollection")},
+            }
+        },
+        "/api/notification-problems": {
+            "get": {
+                "summary": "List delivery problem metadata for managed committees",
+                "operationId": "listNotificationProblems",
+                "responses": {"200": json_response("NotificationProblemCollection")},
+            }
+        },
+        "/api/notification-overview": {
+            "get": {
+                "summary": "List content-free delivery metadata for managed committees",
+                "operationId": "listNotificationOverview",
+                "responses": {"200": json_response("NotificationProblemCollection")},
+            }
+        },
+        "/api/notification-channels": {
+            "get": {
+                "summary": "Inspect optional notification channel availability",
+                "operationId": "getNotificationChannels",
+                "responses": {"200": json_response("NotificationChannels")},
+            }
+        },
+        "/api/push-subscriptions": {
+            "post": {
+                "summary": "Register a browser Web Push endpoint for the authenticated person",
+                "operationId": "registerPushSubscription",
+                "requestBody": json_request("PushSubscriptionWrite"),
+                "responses": {"201": json_response("PushSubscription")},
+            }
+        },
+        "/api/push-subscriptions/{id}": {
+            "delete": {
+                "summary": "Invalidate an owned browser Web Push endpoint",
+                "operationId": "deletePushSubscription",
+                "parameters": [path_parameter("id")],
+                "responses": {
+                    "204": {"description": "Push subscription invalidated"},
+                    "404": json_response("Error"),
+                },
+            }
+        },
+        "/api/notifications/{id}/push-confirmation": {
+            "post": {
+                "summary": (
+                    "Confirm technical Service Worker processing without marking " "content read"
+                ),
+                "operationId": "confirmPushProcessing",
+                "parameters": [path_parameter("id")],
+                "responses": {
+                    "200": json_response("PushConfirmation"),
+                    "404": json_response("Error"),
+                },
+            }
+        },
         "/api/auth/login": {
             "post": {
                 "summary": "Authenticate with password and TOTP or one recovery code",
@@ -455,9 +515,13 @@ def spec() -> dict[str, Any]:
                 continue
             if path not in {"/api/session", "/api/session/rotate", "/api/session/logout"}:
                 operation["security"] = (
-                    [{"sessionCookie": [], "csrfHeader": []}]
-                    if method in {"post", "put", "patch", "delete"}
-                    else [{"sessionCookie": []}]
+                    [{"sessionCookie": []}]
+                    if path == "/api/notifications/{id}/push-confirmation"
+                    else (
+                        [{"sessionCookie": [], "csrfHeader": []}]
+                        if method in {"post", "put", "patch", "delete"}
+                        else [{"sessionCookie": []}]
+                    )
                 )
             responses = operation.setdefault("responses", {})
             responses.setdefault("401", json_response("Error"))
@@ -489,6 +553,84 @@ def spec() -> dict[str, Any]:
             required=("kind",),
         ),
         "Error": object_schema({"error": {"type": "string"}}, required=("error",)),
+        "Notification": object_schema(
+            {
+                "id": {"type": "integer"},
+                "event_type": {"type": "string"},
+                "title": {"type": "string"},
+                "message": {"type": "string"},
+                "action_path": {"type": "string"},
+                "created_at": {"type": "string"},
+            },
+            required=("id", "event_type", "title", "message", "action_path", "created_at"),
+        ),
+        "NotificationCollection": object_schema(
+            {
+                "items": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/Notification"},
+                },
+                "_links": link_map(),
+            },
+            required=("items", "_links"),
+        ),
+        "NotificationProblem": object_schema(
+            {
+                "notification_id": {"type": "integer"},
+                "event_type": {"type": "string"},
+                "recipient_member_id": {"type": "integer"},
+                "channel": {"type": "string", "enum": ["web_push", "email", "sink"]},
+                "status": {"type": "string"},
+                "attempt_count": {"type": "integer"},
+                "error_code": {"type": ["string", "null"]},
+                "updated_at": {"type": "string"},
+            },
+            required=(
+                "notification_id",
+                "event_type",
+                "recipient_member_id",
+                "channel",
+                "status",
+                "attempt_count",
+                "error_code",
+                "updated_at",
+            ),
+        ),
+        "NotificationProblemCollection": object_schema(
+            {
+                "items": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/NotificationProblem"},
+                },
+                "_links": link_map(),
+            },
+            required=("items", "_links"),
+        ),
+        "NotificationChannels": object_schema(
+            {
+                "web_push": object_schema(
+                    {
+                        "available": {"type": "boolean"},
+                        "public_key": {"type": ["string", "null"]},
+                    },
+                    required=("available", "public_key"),
+                ),
+                "email_fallback_configured": {"type": "boolean"},
+                "sink_enabled": {"type": "boolean"},
+            },
+            required=("web_push", "email_fallback_configured", "sink_enabled"),
+        ),
+        "PushSubscriptionWrite": object_schema(
+            {"endpoint": {"type": "string", "format": "uri"}}, required=("endpoint",)
+        ),
+        "PushSubscription": object_schema(
+            {"id": {"type": "integer"}, "active": {"type": "boolean"}},
+            required=("id", "active"),
+        ),
+        "PushConfirmation": object_schema(
+            {"status": {"type": "string", "const": "technically_confirmed"}},
+            required=("status",),
+        ),
         "AuthTokenWrite": object_schema(
             {"token": {"type": "string", "minLength": 1}}, required=("token",)
         ),
