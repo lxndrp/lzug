@@ -173,7 +173,7 @@ aktuellen `master`-Stand und Livezustand neu bestätigt:
 | `azure_subscription_id` | UUID der isolierten Demo-Subscription |
 | `location`, `name_prefix` | freigegebene EU-Region und bestehender stabiler Präfix |
 | `demo_artifact_pair` | beide kanonischen `ghcr.io/...@sha256:…`-Referenzen plus Produkt-Tag, vollständiger Commit, in beiden Manifesten digestgebundener Runtimevertrag `lzug-demo-health-ready-v1`, Schemafingerprint und Seed-Revision aus demselben erfolgreichen grünen Publish-/Snapshotnachweis |
-| `github_environment_deployment_policy_ids` | bei bestehenden Policies gemeinsam die live gelesenen numerischen IDs für `master` und `snapshot`; leer nur für ein neues Environment ohne beide Regeln |
+| `github_environment_deployment_policy_ids` | bei bestehenden Policies gemeinsam die live gelesenen numerischen IDs für `master` und `snapshot`, nach Aktivierung zusätzlich `release`; leer nur für ein neues Environment ohne diese Regeln |
 | `budget_amount_eur` | freigegebener Monatsbetrag, größer 0 und höchstens 100 |
 | `budget_contact_emails` | ausdrücklich bestätigte Empfänger der gemeinsamen Action Group |
 | `budget_start_date`, `budget_end_date` | gültiger Budgetzeitraum in RFC 3339 UTC |

@@ -63,7 +63,7 @@ variable "demo_artifact_pair" {
 }
 
 variable "github_environment_deployment_policy_ids" {
-  description = "Existing numeric GitHub demo Environment policy IDs keyed by master and snapshot; keep empty only when both policies will be created."
+  description = "Existing numeric GitHub demo Environment policy IDs keyed by master, snapshot, and optional release; keep empty only when all policies will be created."
   type        = map(string)
   default     = {}
 
@@ -71,14 +71,19 @@ variable "github_environment_deployment_policy_ids" {
     condition = (
       length(var.github_environment_deployment_policy_ids) == 0 ||
       (
-        toset(keys(var.github_environment_deployment_policy_ids)) == toset(["master", "snapshot"]) &&
+        alltrue([
+          for key in keys(var.github_environment_deployment_policy_ids) :
+          contains(["master", "snapshot", "release"], key)
+        ]) &&
+        contains(keys(var.github_environment_deployment_policy_ids), "master") &&
+        contains(keys(var.github_environment_deployment_policy_ids), "snapshot") &&
         alltrue([
           for id in values(var.github_environment_deployment_policy_ids) :
           can(regex("^[0-9]+$", id))
         ])
       )
     )
-    error_message = "github_environment_deployment_policy_ids must be empty or contain numeric master and snapshot policy IDs together."
+    error_message = "github_environment_deployment_policy_ids must be empty or contain numeric master and snapshot IDs plus the optional release policy ID."
   }
 }
 

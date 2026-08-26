@@ -9,10 +9,13 @@ class SecurityGateTests(unittest.TestCase):
     def test_all_workflow_actions_use_full_commit_shas(self) -> None:
         for path in sorted(Path(".github/workflows").glob("*.yml")):
             workflow = path.read_text(encoding="utf-8")
-            action_refs = re.findall(r"^\s*uses:\s*[^@\s]+@([^\s]+)", workflow, re.MULTILINE)
+            uses_values = re.findall(r"^\s*uses:\s*([^\s]+)", workflow, re.MULTILINE)
             with self.subTest(workflow=path.name):
-                self.assertTrue(action_refs)
-                self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs))
+                self.assertTrue(uses_values)
+                for uses in uses_values:
+                    if uses.startswith("./"):
+                        continue
+                    self.assertRegex(uses, r"^[^@\s]+@[0-9a-f]{40}$")
 
     def test_pr_and_full_workflows_keep_source_and_code_scanning(self) -> None:
         for path in (

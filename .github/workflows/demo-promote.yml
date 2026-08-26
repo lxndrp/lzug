@@ -1,0 +1,44 @@
+name: Promote stable release to public demo
+
+on:
+  workflow_call:
+    inputs:
+      product_tag:
+        description: Published stable SemVer product tag
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  publish:
+    name: Publish or reuse immutable demo packages
+    uses: ./.github/workflows/demo-publish.yml
+    permissions:
+      actions: read
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    with:
+      product_tag: ${{ inputs.product_tag }}
+
+  deploy:
+    name: Deploy verified release pair
+    needs: publish
+    uses: ./.github/workflows/demo-deploy.yml
+    permissions:
+      attestations: read
+      contents: read
+      id-token: write
+      packages: read
+    with:
+      operation: deploy
+      promotion_channel: stable
+      app_image: ${{ needs.publish.outputs.app_image }}
+      seed_image: ${{ needs.publish.outputs.seed_image }}
+      product_tag: ${{ needs.publish.outputs.product_tag }}
+      product_commit: ${{ needs.publish.outputs.product_commit }}
+      runtime_contract: ${{ needs.publish.outputs.runtime_contract }}
+      schema_fingerprint: ${{ needs.publish.outputs.schema_fingerprint }}
+      seed_revision: ${{ needs.publish.outputs.seed_revision }}

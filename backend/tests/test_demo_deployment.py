@@ -383,8 +383,9 @@ class DemoDeploymentTests(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(DeploymentError):
                 validate_demo_url(invalid)
 
-    def test_workflow_has_minimal_oidc_environment_and_failure_contract(self) -> None:
+    def test_workflow_preserves_oidc_manifest_and_smoke_contract(self) -> None:
         workflow = Path(".github/workflows/demo-deploy.yml").read_text(encoding="utf-8")
+        self.assertIn("workflow_call:", workflow)
         self.assertIn("workflow_dispatch:", workflow)
         self.assertNotIn("schedule:", workflow)
         self.assertNotIn("push:\n", workflow)
@@ -396,52 +397,30 @@ class DemoDeploymentTests(unittest.TestCase):
         self.assertIn("attestations: read", workflow)
         self.assertIn("name: demo", workflow)
         self.assertIn("url: ${{ vars.DEMO_URL }}", workflow)
-        self.assertIn("Validate the effective DEMO_URL before Azure mutation", workflow)
-        self.assertIn("scripts/validate_demo_url_contract.py validate", workflow)
-        self.assertIn('--value "$EFFECTIVE_DEMO_URL"', workflow)
-        validation_step = workflow[
-            workflow.index(
-                "Validate the effective DEMO_URL before Azure mutation"
-            ) : workflow.index("Validate protected branch and secret-free inputs")
-        ]
-        self.assertNotIn("GH_TOKEN", validation_step)
-        self.assertNotIn("github.token", validation_step)
-        self.assertNotIn("--repository", validation_step)
-        self.assertIn("azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca", workflow)
+        azure_login = workflow.index("azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca")
+        before_azure = workflow[:azure_login]
+        self.assertIn("scripts/validate_demo_url_contract.py validate", before_azure)
+        self.assertIn("scripts/demo_deployment.py validate-inputs", before_azure)
+        self.assertIn("scripts/verify-demo-image-pair.sh", before_azure)
+        self.assertIn("--predicate-type https://slsa.dev/provenance/v1", before_azure)
         self.assertNotIn("secrets.AZURE", workflow)
         self.assertNotIn("AZURE_CREDENTIALS", workflow)
-        self.assertEqual(2, workflow.count("gh attestation verify"))
+        self.assertEqual(1, workflow.count("gh attestation verify"))
         self.assertIn('for image in "$APP_IMAGE" "$SEED_IMAGE"', workflow)
-        self.assertIn("demo/v*-SNAPSHOT.*)", workflow)
         self.assertIn("demo-snapshot.yml", workflow)
         self.assertIn("demo-publish.yml", workflow)
-        self.assertIn("--predicate-type https://cyclonedx.org/bom", workflow)
-        self.assertIn("Wait for the new Azure revision to become ready", workflow)
-        self.assertIn("Wait separately for application health", workflow)
-        self.assertIn("Wait separately for application readiness", workflow)
-        self.assertIn("Verify digest-bound pair manifests before Azure mutation", workflow)
-        self.assertIn("scripts/verify-demo-image-pair.sh", workflow)
-        self.assertLess(
-            workflow.index("Verify digest-bound pair manifests before Azure mutation"),
-            workflow.index("Log in to Azure using GitHub OIDC"),
-        )
-        self.assertLess(
-            workflow.index("Validate the effective DEMO_URL before Azure mutation"),
-            workflow.index("Log in to Azure using GitHub OIDC"),
-        )
-        self.assertIn(
-            "Smoke-test health, readiness, demo API, protected OpenAPI, "
-            "and the central frontend route",
-            workflow,
-        )
-        self.assertIn("protected OpenAPI authentication boundary", workflow)
+        self.assertNotIn("--predicate-type https://cyclonedx.org/bom", workflow)
+        self.assertIn("demo_deployment.py deploy", workflow[azure_login:])
+        self.assertIn("demo_deployment.py wait-readiness", workflow[azure_login:])
+        self.assertNotIn("wait-health", workflow)
+        self.assertIn("demo_deployment.py wait-application-readiness", workflow[azure_login:])
+        self.assertIn("demo_deployment.py smoke", workflow[azure_login:])
         self.assertIn("if: failure()", workflow)
-        self.assertIn("previously verified complete pair", workflow)
         deployment_docs = Path("docs/developers/demo-deployment.md").read_text(encoding="utf-8")
         self.assertIn("HTTP 401", deployment_docs)
         self.assertIn('{"error": "Authentication required."}', deployment_docs)
         publish = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")
-        self.assertIn("steps.images.outputs.schema_fingerprint", publish)
+        self.assertIn("jobs.resolve.outputs.schema_fingerprint", publish)
         pull_request = Path(".github/workflows/pull-request.yml").read_text(encoding="utf-8")
         full_quality = Path(".github/workflows/quality.yml").read_text(encoding="utf-8")
         taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")

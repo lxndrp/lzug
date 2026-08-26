@@ -332,3 +332,17 @@ jobs:
           find release-assets -type f -print0 | sort -z | \
             xargs -0 gh release upload "$RELEASE_TAG" --repo "$GH_REPO" --clobber
           gh release edit "$RELEASE_TAG" --repo "$GH_REPO" --draft=false
+
+  promote-demo:
+    name: Promote stable release to public demo
+    if: ${{ !contains(needs.preflight.outputs.release_tag, '-rc.') }}
+    needs: [preflight, publish]
+    uses: ./.github/workflows/demo-promote.yml
+    permissions:
+      actions: read
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    with:
+      product_tag: ${{ needs.preflight.outputs.release_tag }}

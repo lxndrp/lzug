@@ -1,12 +1,34 @@
 name: Publish Demo Images
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       product_tag:
-        description: Existing annotated product tag (for example v0.1.1)
+        description: Published stable product tag (for example v0.2.0)
         required: true
         type: string
+    outputs:
+      app_image:
+        description: Resolved immutable demo application digest
+        value: ${{ jobs.resolve.outputs.app_image }}
+      seed_image:
+        description: Resolved immutable demo seed digest
+        value: ${{ jobs.resolve.outputs.seed_image }}
+      product_tag:
+        description: Stable product tag shared by the pair
+        value: ${{ jobs.resolve.outputs.product_tag }}
+      product_commit:
+        description: Product commit shared by the pair
+        value: ${{ jobs.resolve.outputs.product_commit }}
+      runtime_contract:
+        description: Runtime contract shared by the pair
+        value: ${{ jobs.resolve.outputs.runtime_contract }}
+      schema_fingerprint:
+        description: Schema fingerprint shared by the pair
+        value: ${{ jobs.resolve.outputs.schema_fingerprint }}
+      seed_revision:
+        description: Seed revision bound into the app package
+        value: ${{ jobs.resolve.outputs.seed_revision }}
 
 permissions:
   contents: read
@@ -34,7 +56,7 @@ jobs:
           ref: ${{ inputs.product_tag }}
           fetch-depth: 0
 
-      - name: Verify tag, product release, image, attestation, and quality evidence
+      - name: Verify stable tag, product release, image, attestation, and quality evidence
         id: contract
         env:
           GH_REPO: ${{ github.repository }}
@@ -42,6 +64,10 @@ jobs:
           PRODUCT_TAG: ${{ inputs.product_tag }}
         run: |
           set -euo pipefail
+          [[ "$PRODUCT_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+            echo "Demo promotion requires a stable SemVer product tag." >&2
+            exit 1
+          }
           git fetch --tags origin
           test "$(git cat-file -t "$PRODUCT_TAG")" = tag || {
             echo "The product tag must be annotated." >&2
@@ -61,9 +87,12 @@ jobs:
           gh attestation verify "oci://$product_image" --repo "$GH_REPO" >/dev/null
 
           quality_runs=$(gh api \
-            "repos/$GH_REPO/actions/workflows/quality.yml/runs?head_sha=$target_sha&status=success&per_page=100")
+            "repos/$GH_REPO/actions/workflows/quality.yml/runs?branch=master&head_sha=$target_sha&status=success&per_page=100")
           jq -e --arg sha "$target_sha" '
-            any(.workflow_runs[]; .head_sha == $sha and .conclusion == "success")
+            any(.workflow_runs[];
+              .head_sha == $sha and
+              .head_branch == "master" and
+              .conclusion == "success")
           ' <<<"$quality_runs" >/dev/null || {
             echo "No successful complete Quality workflow exists for $target_sha." >&2
             exit 1
@@ -79,7 +108,6 @@ jobs:
     name: Publish and attest demo image pair
     needs: preflight
     runs-on: ubuntu-latest
-    environment: release
     permissions:
       attestations: write
       contents: read
@@ -160,23 +188,50 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ github.token }}
 
-      - name: Reject moving or replacing an existing demo reference
+      - name: Classify immutable package availability
+        id: availability
         env:
           APP_REF: ${{ steps.images.outputs.app_ref }}
           SEED_REF: ${{ steps.images.outputs.seed_ref }}
         run: |
           set -euo pipefail
-          for reference in "$APP_REF" "$SEED_REF"; do
-            if docker buildx imagetools inspect "$reference" >/dev/null 2>&1; then
-              echo "Immutable demo reference already exists: $reference" >&2
+          inspect() {
+            local reference=$1
+            local output status
+            set +e
+            output=$(docker buildx imagetools inspect "$reference" 2>&1)
+            status=$?
+            set -e
+            if test "$status" -eq 0; then
+              printf 'present'
+            elif grep -Eqi 'manifest unknown|not found|no such manifest' <<<"$output"; then
+              printf 'absent'
+            else
+              echo "Could not verify immutable package availability: $reference" >&2
+              echo "$output" >&2
               exit 1
             fi
-          done
+          }
+          app_state=$(inspect "$APP_REF")
+          seed_state=$(inspect "$SEED_REF")
+          case "$app_state:$seed_state" in
+            absent:absent)
+              echo "reuse=false" >> "$GITHUB_OUTPUT"
+              ;;
+            present:present)
+              echo "reuse=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "The immutable demo package pair is only partially published and will not be overwritten." >&2
+              exit 1
+              ;;
+          esac
 
       - name: Build and publish demo application
         id: app
+        if: steps.availability.outputs.reuse != 'true'
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
@@ -187,6 +242,7 @@ jobs:
             BUILD_IDENTITY=${{ env.PRODUCT_VERSION }}
             PRODUCT_TAG=${{ env.PRODUCT_TAG }}
             VCS_REF=${{ env.TARGET_SHA }}
+            SEED_REVISION=${{ steps.images.outputs.seed_revision }}
           cache-from: type=gha,scope=lzug-demo-app
           cache-to: type=gha,mode=max,scope=lzug-demo-app
           provenance: false
@@ -194,6 +250,7 @@ jobs:
 
       - name: Tag and publish the inspected demo seed
         id: seed
+        if: steps.availability.outputs.reuse != 'true'
         env:
           SEED_CANDIDATE: lzug-demo-seed:publish-candidate
           SEED_REF: ${{ steps.images.outputs.seed_ref }}
@@ -211,11 +268,13 @@ jobs:
 
       - name: Download Syft
         id: syft
+        if: steps.availability.outputs.reuse != 'true'
         uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           syft-version: v1.51.0
 
       - name: Generate and validate separate image SBOMs
+        if: steps.availability.outputs.reuse != 'true'
         env:
           APP_REF: ${{ steps.images.outputs.app_ref }}
           SEED_REF: ${{ steps.images.outputs.seed_ref }}
@@ -232,6 +291,7 @@ jobs:
             --kind image --input "$RUNNER_TEMP/lzug-demo-seed.sbom.cdx.json"
 
       - name: Attest demo application provenance
+        if: steps.availability.outputs.reuse != 'true'
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-name: ${{ steps.images.outputs.app_image }}
@@ -240,6 +300,7 @@ jobs:
           create-storage-record: false
 
       - name: Attest demo application SBOM
+        if: steps.availability.outputs.reuse != 'true'
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-name: ${{ steps.images.outputs.app_image }}
@@ -249,6 +310,7 @@ jobs:
           create-storage-record: false
 
       - name: Attest demo seed provenance
+        if: steps.availability.outputs.reuse != 'true'
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-name: ${{ steps.images.outputs.seed_image }}
@@ -257,6 +319,7 @@ jobs:
           create-storage-record: false
 
       - name: Attest demo seed SBOM
+        if: steps.availability.outputs.reuse != 'true'
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-name: ${{ steps.images.outputs.seed_image }}
@@ -265,15 +328,108 @@ jobs:
           push-to-registry: true
           create-storage-record: false
 
-      - name: Record the immutable deployable pair
+      - name: Record package publication outcome
         run: |
           {
-            echo "### Demo image pair"
-            echo "- App: \`${{ steps.images.outputs.app_image }}@${{ steps.app.outputs.digest }}\`"
-            echo "- Seed: \`${{ steps.images.outputs.seed_image }}@${{ steps.seed.outputs.digest }}\`"
+            echo "### Demo package publication"
+            echo "- App package: \`${{ steps.images.outputs.app_ref }}\`"
+            echo "- Seed package: \`${{ steps.images.outputs.seed_ref }}\`"
+            echo "- Reused immutable references: \`${{ steps.availability.outputs.reuse }}\`"
             echo "- Seed revision: \`${{ steps.images.outputs.seed_revision }}\`"
-            echo "- Runtime contract: \`${{ steps.images.outputs.runtime_contract }}\`"
-            echo "- Schema fingerprint: \`${{ steps.images.outputs.schema_fingerprint }}\`"
             echo "- Product tag: \`$PRODUCT_TAG\`"
             echo "- Product commit: \`$TARGET_SHA\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  resolve:
+    name: Resolve and verify immutable package pair
+    needs: [preflight, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      attestations: read
+      contents: read
+      packages: read
+    outputs:
+      app_image: ${{ steps.pair.outputs.app_image }}
+      seed_image: ${{ steps.pair.outputs.seed_image }}
+      product_tag: ${{ needs.preflight.outputs.product_tag }}
+      product_commit: ${{ needs.preflight.outputs.target_sha }}
+      runtime_contract: ${{ steps.pair.outputs.runtime_contract }}
+      schema_fingerprint: ${{ steps.pair.outputs.schema_fingerprint }}
+      seed_revision: ${{ steps.pair.outputs.seed_revision }}
+    env:
+      GH_REPO: ${{ github.repository }}
+      PRODUCT_TAG: ${{ needs.preflight.outputs.product_tag }}
+      PRODUCT_VERSION: ${{ needs.preflight.outputs.product_version }}
+      TARGET_SHA: ${{ needs.preflight.outputs.target_sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.preflight.outputs.target_sha }}
+
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Authenticate to GHCR without a long-lived credential
+        run: echo "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Resolve app first, derive seed revision, and verify the pair
+        id: pair
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          app_name="ghcr.io/${GH_REPO,,}-demo-app"
+          seed_name="ghcr.io/${GH_REPO,,}-demo-seed"
+          app_ref="$app_name:$PRODUCT_VERSION"
+          app_digest=$(docker buildx imagetools inspect "$app_ref" | \
+            awk '$1 == "Digest:" { print $2; exit }')
+          printf '%s\n' "$app_digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
+          app_image="$app_name@$app_digest"
+
+          temporary_directory=$(mktemp -d)
+          container=""
+          cleanup() {
+            test -z "$container" || docker rm --force "$container" >/dev/null 2>&1 || true
+            rm -rf "$temporary_directory"
+          }
+          trap cleanup EXIT
+          docker pull "$app_image"
+          container=$(docker create "$app_image")
+          docker cp "$container:/app/demo-app-manifest.json" "$temporary_directory/app.json"
+          docker rm "$container" >/dev/null
+          container=""
+
+          jq -e --arg tag "$PRODUCT_TAG" --arg commit "$TARGET_SHA" '
+            .product.tag == $tag and
+            .product.commit == $commit and
+            (.seed_revision | test("^[0-9a-f]{64}$"))
+          ' "$temporary_directory/app.json" >/dev/null
+          seed_revision=$(jq -er '.seed_revision' "$temporary_directory/app.json")
+          runtime_contract=$(jq -er '.runtime_contract' "$temporary_directory/app.json")
+          schema_fingerprint=$(jq -er '.schema.fingerprint' "$temporary_directory/app.json")
+
+          seed_ref="$seed_name:$PRODUCT_VERSION-seed-$seed_revision"
+          seed_digest=$(docker buildx imagetools inspect "$seed_ref" | \
+            awk '$1 == "Digest:" { print $2; exit }')
+          printf '%s\n' "$seed_digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
+          seed_image="$seed_name@$seed_digest"
+
+          for image in "$app_image" "$seed_image"; do
+            gh attestation verify "oci://$image" \
+              --repo "$GH_REPO" \
+              --signer-workflow lxndrp/lzug/.github/workflows/demo-publish.yml \
+              --bundle-from-oci \
+              --predicate-type https://slsa.dev/provenance/v1
+          done
+          scripts/verify-demo-image-pair.sh \
+            "$app_image" "$seed_image" "$PRODUCT_TAG" "$TARGET_SHA" \
+            "$runtime_contract" "$schema_fingerprint" "$seed_revision"
+
+          {
+            echo "app_image=$app_image"
+            echo "seed_image=$seed_image"
+            echo "runtime_contract=$runtime_contract"
+            echo "schema_fingerprint=$schema_fingerprint"
+            echo "seed_revision=$seed_revision"
+          } >> "$GITHUB_OUTPUT"

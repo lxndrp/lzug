@@ -10,7 +10,7 @@ demo_artifact_pair = {
 }
 
 # Existing selected Environment policies must be imported by their live numeric IDs.
-# Leave empty only when both policies do not exist yet and the plan will create them.
+# Add release after the stable v* tag policy exists; leave empty only for a new Environment.
 github_environment_deployment_policy_ids = {}
 
 budget_amount_eur     = 25

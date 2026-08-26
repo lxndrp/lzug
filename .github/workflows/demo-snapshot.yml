@@ -8,7 +8,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: demo-deployment
+  group: demo-snapshot-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -16,6 +16,7 @@ jobs:
     name: Verify promoted current master snapshot
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
     outputs:
       snapshot_tag: ${{ steps.contract.outputs.snapshot_tag }}
@@ -99,35 +100,28 @@ jobs:
             echo "target_sha=$target_sha"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Verify existing open future release milestone
+      - name: Reuse complete Quality evidence for the current master SHA
         env:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
-          TARGET_VERSION: ${{ steps.contract.outputs.target_version }}
+          TARGET_SHA: ${{ steps.contract.outputs.target_sha }}
         run: |
           set -euo pipefail
-          gh api --paginate "repos/$GH_REPO/milestones?state=all&per_page=100" | \
-            jq -s 'add' | \
-            python3 scripts/demo_snapshot.py validate-milestone \
-              --target-version "$TARGET_VERSION"
-          gh api --paginate "repos/$GH_REPO/releases?per_page=100" | \
-            jq -s 'add' | \
-            python3 scripts/demo_snapshot.py validate-releases \
-              --target-version "$TARGET_VERSION"
-
-  quality:
-    name: Run complete Quality for the exact snapshot target
-    needs: preflight
-    uses: ./.github/workflows/quality.yml
-    permissions:
-      contents: read
-      security-events: write
-    with:
-      revision: ${{ needs.preflight.outputs.target_sha }}
+          quality_runs=$(gh api \
+            "repos/$GH_REPO/actions/workflows/quality.yml/runs?branch=master&head_sha=$TARGET_SHA&status=success&per_page=100")
+          jq -e --arg sha "$TARGET_SHA" '
+            any(.workflow_runs[];
+              .head_sha == $sha and
+              .head_branch == "master" and
+              .conclusion == "success")
+          ' <<<"$quality_runs" >/dev/null || {
+            echo "No successful complete Quality workflow exists for current master SHA $TARGET_SHA." >&2
+            exit 1
+          }
 
   publish:
     name: Build, publish, and attest snapshot pair
-    needs: [preflight, quality]
+    needs: preflight
     runs-on: ubuntu-latest
     permissions:
       attestations: write
@@ -260,6 +254,7 @@ jobs:
             BUILD_IDENTITY=${{ env.SNAPSHOT_IDENTITY }}
             PRODUCT_TAG=${{ env.SNAPSHOT_TAG }}
             VCS_REF=${{ env.TARGET_SHA }}
+            SEED_REVISION=${{ steps.pair.outputs.seed_revision }}
           cache-from: type=gha,scope=lzug-demo-app
           cache-to: type=gha,mode=max,scope=lzug-demo-app
           provenance: false
@@ -361,226 +356,20 @@ jobs:
 
   deploy:
     name: Deploy snapshot pair to public demo
-    needs:
-      - preflight
-      - publish
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    environment:
-      name: demo
-      url: ${{ vars.DEMO_URL }}
+    needs: [preflight, publish]
+    uses: ./.github/workflows/demo-deploy.yml
     permissions:
-      actions: read
       attestations: read
       contents: read
       id-token: write
       packages: read
-    env:
-      APP_IMAGE: ${{ needs.publish.outputs.app_image }}
-      SEED_IMAGE: ${{ needs.publish.outputs.seed_image }}
-      PRODUCT_TAG: ${{ needs.preflight.outputs.snapshot_tag }}
-      PRODUCT_COMMIT: ${{ needs.preflight.outputs.target_sha }}
-      SCHEMA_FINGERPRINT: ${{ needs.publish.outputs.schema_fingerprint }}
-      SEED_REVISION: ${{ needs.publish.outputs.seed_revision }}
-      RUNTIME_CONTRACT: ${{ needs.publish.outputs.runtime_contract }}
-      SNAPSHOT_IDENTITY: ${{ needs.preflight.outputs.snapshot_identity }}
-      TARGET_VERSION: ${{ needs.preflight.outputs.target_version }}
-      DEMO_URL: ${{ vars.DEMO_URL }}
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-      AZURE_CONTAINER_APP: ${{ vars.AZURE_CONTAINER_APP }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ needs.preflight.outputs.target_sha }}
-
-      - name: Validate the effective DEMO_URL before Azure mutation
-        env:
-          EFFECTIVE_DEMO_URL: ${{ env.DEMO_URL }}
-        run: >-
-          python3 scripts/validate_demo_url_contract.py validate
-          --value "$EFFECTIVE_DEMO_URL"
-
-      - name: Validate digest pair and secret-free demo Environment inputs
-        run: |
-          set -euo pipefail
-          for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_RESOURCE_GROUP AZURE_CONTAINER_APP; do
-            test -n "${!name:-}" || {
-              echo "Required demo deployment variable is missing: $name" >&2
-              exit 1
-            }
-          done
-          python3 scripts/demo_deployment.py validate-inputs \
-            --app-image "$APP_IMAGE" \
-            --seed-image "$SEED_IMAGE" \
-            --product-tag "$PRODUCT_TAG" \
-            --product-commit "$PRODUCT_COMMIT" \
-            --runtime-contract "$RUNTIME_CONTRACT" \
-            --schema-fingerprint "$SCHEMA_FINGERPRINT" \
-            --seed-revision "$SEED_REVISION" \
-            --demo-url "$DEMO_URL"
-
-      - name: Authenticate to GHCR without a long-lived credential
-        run: echo "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Verify snapshot provenance and SBOM attestations for both digests
-        run: |
-          set -euo pipefail
-          for image in "$APP_IMAGE" "$SEED_IMAGE"; do
-            gh attestation verify "oci://$image" \
-              --repo "$GITHUB_REPOSITORY" \
-              --signer-workflow lxndrp/lzug/.github/workflows/demo-snapshot.yml \
-              --bundle-from-oci \
-              --predicate-type https://slsa.dev/provenance/v1
-            gh attestation verify "oci://$image" \
-              --repo "$GITHUB_REPOSITORY" \
-              --signer-workflow lxndrp/lzug/.github/workflows/demo-snapshot.yml \
-              --bundle-from-oci \
-              --predicate-type https://cyclonedx.org/bom
-          done
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Verify digest-bound pair manifests before Azure mutation
-        run: |
-          scripts/verify-demo-image-pair.sh \
-            "$APP_IMAGE" "$SEED_IMAGE" "$PRODUCT_TAG" "$PRODUCT_COMMIT" \
-            "$RUNTIME_CONTRACT" "$SCHEMA_FINGERPRINT" "$SEED_REVISION"
-
-      - name: Verify demo Environment activation policy before Azure mutation
-        env:
-          GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          environment=$(gh api "repos/$GH_REPO/environments/demo")
-          jq -e '
-            .deployment_branch_policy.protected_branches == false and
-            .deployment_branch_policy.custom_branch_policies == true and
-            all(.protection_rules[]; .type != "required_reviewers")
-          ' <<<"$environment" >/dev/null || {
-            echo "The demo Environment must use selected branch/tag policies without required reviewers." >&2
-            exit 1
-          }
-          policies=$(gh api \
-            "repos/$GH_REPO/environments/demo/deployment-branch-policies?per_page=100")
-          jq -e '
-            any(.branch_policies[]; .type == "branch" and .name == "master") and
-            any(.branch_policies[]; .type == "tag" and .name == "demo/v*-SNAPSHOT.*")
-          ' <<<"$policies" >/dev/null || {
-            echo "The demo Environment must allow master and demo snapshot tags." >&2
-            exit 1
-          }
-
-      - name: Log in to Azure using GitHub OIDC
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
-        with:
-          client-id: ${{ env.AZURE_CLIENT_ID }}
-          tenant-id: ${{ env.AZURE_TENANT_ID }}
-          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Update the app and seed as one Container Apps revision
-        id: deployment
-        run: |
-          set -euo pipefail
-          revision_suffix="snap-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          python3 scripts/demo_deployment.py deploy \
-            --subscription-id "$AZURE_SUBSCRIPTION_ID" \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --container-app "$AZURE_CONTAINER_APP" \
-            --app-image "$APP_IMAGE" \
-            --seed-image "$SEED_IMAGE" \
-            --product-tag "$PRODUCT_TAG" \
-            --product-commit "$PRODUCT_COMMIT" \
-            --runtime-contract "$RUNTIME_CONTRACT" \
-            --schema-fingerprint "$SCHEMA_FINGERPRINT" \
-            --seed-revision "$SEED_REVISION" \
-            --revision-suffix "$revision_suffix" \
-            --record "$RUNNER_TEMP/demo-deployment.json"
-          echo "revision_suffix=$revision_suffix" >> "$GITHUB_OUTPUT"
-
-      - name: Wait for the new Azure revision to become ready
-        run: |
-          python3 scripts/demo_deployment.py wait-readiness \
-            --subscription-id "$AZURE_SUBSCRIPTION_ID" \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --container-app "$AZURE_CONTAINER_APP" \
-            --app-image "$APP_IMAGE" --seed-image "$SEED_IMAGE" \
-            --product-tag "$PRODUCT_TAG" --product-commit "$PRODUCT_COMMIT" \
-            --runtime-contract "$RUNTIME_CONTRACT" \
-            --schema-fingerprint "$SCHEMA_FINGERPRINT" --seed-revision "$SEED_REVISION" \
-            --revision-suffix "${{ steps.deployment.outputs.revision_suffix }}"
-
-      - name: Wait separately for application health
-        run: |
-          python3 scripts/demo_deployment.py wait-health \
-            --demo-url "$DEMO_URL" \
-            --app-image "$APP_IMAGE" --seed-image "$SEED_IMAGE" \
-            --product-tag "$PRODUCT_TAG" --product-commit "$PRODUCT_COMMIT" \
-            --runtime-contract "$RUNTIME_CONTRACT" \
-            --schema-fingerprint "$SCHEMA_FINGERPRINT" --seed-revision "$SEED_REVISION"
-
-      - name: Wait separately for application readiness
-        run: |
-          python3 scripts/demo_deployment.py wait-application-readiness \
-            --demo-url "$DEMO_URL" \
-            --app-image "$APP_IMAGE" --seed-image "$SEED_IMAGE" \
-            --product-tag "$PRODUCT_TAG" --product-commit "$PRODUCT_COMMIT" \
-            --runtime-contract "$RUNTIME_CONTRACT" \
-            --schema-fingerprint "$SCHEMA_FINGERPRINT" --seed-revision "$SEED_REVISION"
-
-      - name: Smoke-test health, readiness, demo API, protected OpenAPI, and the central frontend route
-        run: |
-          python3 scripts/demo_deployment.py smoke \
-            --demo-url "$DEMO_URL" \
-            --app-image "$APP_IMAGE" --seed-image "$SEED_IMAGE" \
-            --product-tag "$PRODUCT_TAG" --product-commit "$PRODUCT_COMMIT" \
-            --runtime-contract "$RUNTIME_CONTRACT" \
-            --schema-fingerprint "$SCHEMA_FINGERPRINT" --seed-revision "$SEED_REVISION"
-
-      - name: Record snapshot deployment evidence
-        if: success()
-        run: |
-          previous_app=$(jq -er '.previous.app_image' "$RUNNER_TEMP/demo-deployment.json")
-          previous_seed=$(jq -er '.previous.seed_image' "$RUNNER_TEMP/demo-deployment.json")
-          {
-            echo "### Demo snapshot deployment succeeded"
-            echo "- Identity: \`$SNAPSHOT_IDENTITY\` (development snapshot, not a product release)"
-            echo "- Target version: \`$TARGET_VERSION\`"
-            echo "- Snapshot tag: \`$PRODUCT_TAG\`"
-            echo "- Commit: \`$PRODUCT_COMMIT\`"
-            echo "- App: \`$APP_IMAGE\`"
-            echo "- Seed: \`$SEED_IMAGE\`"
-            echo "- Schema fingerprint: \`$SCHEMA_FINGERPRINT\`"
-            echo "- Seed revision: \`$SEED_REVISION\`"
-            echo "- Runtime contract: \`$RUNTIME_CONTRACT\`"
-            echo "- Azure revision suffix: \`${{ steps.deployment.outputs.revision_suffix }}\`"
-            echo "- Previous app digest: \`$previous_app\`"
-            echo "- Previous seed digest: \`$previous_seed\`"
-            echo "- Azure readiness, HTTP liveness, application readiness, demo API, protected OpenAPI authentication boundary, and frontend checks passed."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Explain failure and collect non-sensitive rollback evidence
-        if: failure()
-        run: |
-          {
-            echo "### Demo snapshot deployment failed"
-            echo "The run is not deployment evidence. Never move or replace the snapshot tag or either OCI reference."
-            echo "Use the existing manual rollback operation only with all seven values of a previously verified complete pair."
-          } >> "$GITHUB_STEP_SUMMARY"
-          if test -f "$RUNNER_TEMP/demo-deployment.json"; then
-            previous_app=$(jq -er '.previous.app_image' "$RUNNER_TEMP/demo-deployment.json")
-            previous_seed=$(jq -er '.previous.seed_image' "$RUNNER_TEMP/demo-deployment.json")
-            {
-              echo "- Previous app digest: \`$previous_app\`"
-              echo "- Previous seed digest: \`$previous_seed\`"
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-          python3 scripts/demo_deployment.py diagnostics \
-            --subscription-id "$AZURE_SUBSCRIPTION_ID" \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --container-app "$AZURE_CONTAINER_APP" || true
+    with:
+      operation: deploy
+      promotion_channel: snapshot
+      app_image: ${{ needs.publish.outputs.app_image }}
+      seed_image: ${{ needs.publish.outputs.seed_image }}
+      product_tag: ${{ needs.preflight.outputs.snapshot_tag }}
+      product_commit: ${{ needs.preflight.outputs.target_sha }}
+      runtime_contract: ${{ needs.publish.outputs.runtime_contract }}
+      schema_fingerprint: ${{ needs.publish.outputs.schema_fingerprint }}
+      seed_revision: ${{ needs.publish.outputs.seed_revision }}
