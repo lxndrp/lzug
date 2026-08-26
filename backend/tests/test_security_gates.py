@@ -22,36 +22,29 @@ class SecurityGateTests(unittest.TestCase):
             workflow = path.read_text(encoding="utf-8")
             with self.subTest(workflow=path.name):
                 self.assertIn("security-events: write", workflow)
-                self.assertIn("github/codeql-action/init@", workflow)
-                self.assertIn("github/codeql-action/analyze@", workflow)
+                self.assertIn("uses: ./.github/workflows/ci.yml", workflow)
                 self.assertIn("scanners: secret,misconfig", workflow)
                 self.assertIn('exit-code: "1"', workflow)
+        codeql = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("github/codeql-action/init@", codeql)
+        self.assertIn("github/codeql-action/analyze@", codeql)
+        self.assertIn("github/codeql-action/upload-sarif@", codeql)
         self.assertIn(
-            "language: ${{ fromJSON(needs.changes.outputs.codeql_languages) }}",
+            "languages: ${{ needs.changes.outputs.codeql_languages }}",
             Path(".github/workflows/pull-request.yml").read_text(encoding="utf-8"),
         )
         self.assertIn(
-            "language: [python, javascript-typescript, go]",
+            'languages: \'["python","javascript-typescript","go"]\'',
             Path(".github/workflows/quality.yml").read_text(encoding="utf-8"),
         )
 
     def test_pr_gates_require_the_common_security_results(self) -> None:
         workflow = Path(".github/workflows/pull-request.yml").read_text(encoding="utf-8")
-        self.assertEqual(
-            5, workflow.count("CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_selected }}")
-        )
         self.assertEqual(5, workflow.count("CODEQL: ${{ needs.codeql.result }}"))
         self.assertEqual(5, workflow.count("SOURCE_SCAN: ${{ needs.source-scan.result }}"))
         self.assertEqual(
             5,
-            workflow.count('test "$CHANGES:$SOURCE_SCAN" = success:success'),
-        )
-        self.assertEqual(
-            5,
-            workflow.count(
-                'test "$CODEQL_SELECTED:$CODEQL" = true:success || '
-                'test "$CODEQL_SELECTED:$CODEQL" = false:skipped'
-            ),
+            workflow.count('test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success'),
         )
 
     def test_dependabot_auto_merge_keeps_classification_without_polling(self) -> None:

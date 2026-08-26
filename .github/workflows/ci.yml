@@ -1,0 +1,143 @@
+name: CodeQL
+
+on:
+  workflow_call:
+    inputs:
+      languages:
+        description: JSON array of languages whose code changed in the caller.
+        required: true
+        type: string
+      revision:
+        description: Immutable revision to analyze.
+        required: false
+        default: ""
+        type: string
+      baseline-ref:
+        description: Base branch containing the required CodeQL analyses.
+        required: false
+        default: ""
+        type: string
+      baseline-sha:
+        description: Exact base commit whose unchanged analyses may be reused.
+        required: false
+        default: ""
+        type: string
+
+permissions: {}
+
+jobs:
+  analyze:
+    name: CodeQL (${{ matrix.language }})
+    if: inputs.languages != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ${{ fromJSON(inputs.languages) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: matrix.language == 'go'
+        with:
+          go-version: "1.26.5"
+      - uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.language == 'go' && 'autobuild' || 'none' }}
+          queries: security-extended
+      - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          category: ".github/workflows/ci.yml:codeql/language:${{ matrix.language }}"
+          upload: always
+
+  unchanged:
+    name: Reuse unchanged CodeQL baselines
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Collect unchanged language baselines
+        id: baselines
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SELECTED_LANGUAGES: ${{ inputs.languages }}
+          BASE_REF: ${{ inputs.baseline-ref }}
+          BASE_SHA: ${{ inputs.baseline-sha }}
+        run: |
+          set -euo pipefail
+          supported='["python","javascript-typescript","go"]'
+          selected=$(jq -cer --argjson supported "$supported" '
+            if type != "array"
+              or length != (unique | length)
+              or any(.[]; . as $language | ($supported | index($language)) == null)
+            then error("languages must be a unique subset of the supported CodeQL languages")
+            else .
+            end
+          ' <<<"$SELECTED_LANGUAGES")
+          unchanged=$(jq -cn --argjson supported "$supported" --argjson selected "$selected" \
+            '$supported - $selected')
+
+          if test "$(jq 'length' <<<"$unchanged")" -eq 0; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          test -n "$BASE_REF"
+          test -n "$BASE_SHA"
+          analyses="$RUNNER_TEMP/base-codeql-analyses.json"
+          baselines="$RUNNER_TEMP/unchanged-codeql-baselines"
+          mkdir -p "$baselines"
+          gh api \
+            "repos/$GITHUB_REPOSITORY/code-scanning/analyses?ref=refs/heads/$BASE_REF&tool_name=CodeQL&per_page=100" \
+            > "$analyses"
+
+          for language in $(jq -r '.[]' <<<"$unchanged"); do
+            analysis=$(jq -cer --arg sha "$BASE_SHA" --arg language "$language" '
+              [ .[]
+                | select(.commit_sha == $sha and .error == "" and .rules_count > 0)
+                | select((.environment | fromjson | .language) == $language)
+              ]
+              | sort_by(.created_at)
+              | reverse
+              | if length == 0
+                then error("missing successful CodeQL baseline for " + $language)
+                else .[0]
+                end
+            ' "$analyses")
+            analysis_id=$(jq -er '.id' <<<"$analysis")
+            category=$(jq -er '.category' <<<"$analysis")
+            rules_count=$(jq -er '.rules_count' <<<"$analysis")
+            results_count=$(jq -er '.results_count' <<<"$analysis")
+            expected_category=".github/workflows/ci.yml:codeql/language:$language"
+            test "$category" = "$expected_category"
+
+            sarif="$baselines/$language.sarif"
+            gh api -H 'Accept: application/sarif+json' \
+              "repos/$GITHUB_REPOSITORY/code-scanning/analyses/$analysis_id" > "$sarif"
+            jq -e \
+              --arg category "$expected_category/" \
+              --argjson rules "$rules_count" \
+              --argjson results "$results_count" '
+                .version == "2.1.0"
+                and (.runs | length == 1)
+                and .runs[0].tool.driver.name == "CodeQL"
+                and .runs[0].automationDetails.id == $category
+                and ([.runs[0].tool.driver.rules[]?, .runs[0].tool.extensions[]?.rules[]?] | length) == $rules
+                and (.runs[0].results | length) == $results
+              ' "$sarif" > /dev/null
+          done
+
+          echo "available=true" >> "$GITHUB_OUTPUT"
+
+      - name: Publish unchanged language baselines
+        if: steps.baselines.outputs.available == 'true'
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          sarif_file: ${{ runner.temp }}/unchanged-codeql-baselines
+          wait-for-processing: true

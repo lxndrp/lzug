@@ -90,7 +90,7 @@ bewegliche Tag-Referenzen auch in Release-, Dependabot- und Wiki-Abläufen.
 
 | Gate | Blockierender Befund | Nachweis |
 | --- | --- | --- |
-| CodeQL für Python, JavaScript/TypeScript und Go | Security-Befund ab `high_or_higher` | SARIF wird in Pull Requests für jede von Quellen, Build- oder Abhängigkeitsdateien betroffene Sprache und im vollständigen `Quality`-Lauf für alle Sprachen hochgeladen; die native Ruleset-Regel `Require code scanning results` wertet die Ergebnisse aus, normale Fehlerwarnungen blockieren nicht (`alerts_threshold=none`) |
+| CodeQL für Python, JavaScript/TypeScript und Go | Security-Befund ab `high_or_higher` | Der wiederverwendbare Workflow `ci.yml` analysiert in Pull Requests jede von Quellen, Build- oder Abhängigkeitsdateien betroffene Sprache und im vollständigen `Quality`-Lauf alle Sprachen; für unveränderte Sprachen wird ausschließlich der regelbelegte SARIF-Nachweis der exakten Base-SHA übernommen, damit die native Ruleset-Regel `Require code scanning results` dieselben Kategorien fail-closed auswertet (`alerts_threshold=none`) |
 | Trivy-Quellscan | Secrets oder High/Critical-Misconfiguration | aktueller Quellbaum ohne Git-, venv- oder `node_modules`-Inhalte |
 | Reproduzierbarer Image-Build und Runtime-Smoke | Buildfehler, abweichender Runtime-User oder verletzte HTTP-/Isolationsgrenze | einmaliger Build aus Lockfiles, Image-User `10001:10001` und `scripts/container-smoke.sh` gegen das per Prüfsumme übergebene Build-Artefakt |
 | Trivy-Imagescan | behebbare High/Critical OS-/Bibliothekslücke, Secret oder Misconfiguration | dasselbe per Prüfsumme übergebene Image wie im Runtime-Smoke |
@@ -110,10 +110,13 @@ Frontend, CLI und Container; leere oder unbekannte Pfadmengen führen immer zum
 Vollauf. Der Containerjob baut das lokale Image einmal und verwendet exakt
 dieses Image für SBOM, Scan sowie Container-, Compose- und
 CLI-zu-Container-Verträge. Die fünf immer vorhandenen `Pull Request / …`-Gates
-verlangen ausgewählte Details und bestätigen nicht ausgewählte Details sowie
-eine leere CodeQL-Sprachauswahl ausdrücklich als übersprungen. CodeQL bleibt
-für betroffene Sprachdomänen verpflichtend; der breite Source-Scan läuft
-unabhängig davon für jeden Pull Request.
+verlangen ausgewählte Details und bestätigen nicht ausgewählte Details
+ausdrücklich als übersprungen. Der CodeQL-Aufruf muss immer erfolgreich sein:
+betroffene Sprachdomänen werden neu analysiert, unveränderte Domänen verwenden
+nur nach Prüfung von Base-SHA, Kategorie, Tool, SARIF-Struktur, Ergebnis- und
+Regelanzahl die reale Analyse der Pull-Request-Basis. Leere Ersatzanalysen sind
+ausgeschlossen. Der breite Source-Scan läuft unabhängig davon für jeden Pull
+Request.
 
 GitHub Secret Scanning und Push Protection sind im öffentlichen Repository
 aktiv. Non-Provider-Patterns und Validity Checks werden vom aktuellen

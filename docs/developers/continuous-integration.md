@@ -35,12 +35,14 @@ und ein zuvor geprüftes App-/Seed-Digest-Paar. Der repositoryseitige Vertrag
 wird mit `task quality:demo-deployment` ohne Cloudzugriff geprüft; Details
 stehen unter [Azure-Demo deployen](demo-deployment.md).
 
-Jedes Gate läuft mit `if: always()`. Ist seine Domäne oder die gesamte
-CodeQL-Matrix nicht ausgewählt, prüft es ausdrücklich den Status `skipped` des
-Detailjobs und wird selbst erfolgreich. Ausgewählte Details und
-CodeQL-Analysen müssen dagegen `success` melden. Ein Fehler der Pfadauswahl,
-des breiten Source-Scans oder einer ausgewählten CodeQL-Analyse lässt alle
-Gates fail-closed fehlschlagen.
+Jedes Gate läuft mit `if: always()`. Ist seine Domäne nicht ausgewählt, prüft
+es ausdrücklich den Status `skipped` des Detailjobs und wird selbst
+erfolgreich. Der wiederverwendbare CodeQL-Aufruf muss unabhängig von der
+Sprachauswahl `success` melden: ausgewählte Sprachen werden neu analysiert,
+unveränderte Sprachen übernehmen den echten CodeQL-Nachweis der exakten
+Pull-Request-Basis. Ein Fehler der Pfadauswahl, des breiten Source-Scans, einer
+ausgewählten Analyse oder dieser Basisprüfung lässt alle Gates fail-closed
+fehlschlagen.
 
 CodeQL analysiert in Pull Requests nur die von geänderten Quellen, Build- und
 Abhängigkeitsdateien betroffenen Sprachen Python, JavaScript/TypeScript und Go.
@@ -49,10 +51,24 @@ GitHubs native Ruleset-Regel `Require code scanning results` bleibt mit
 und Fehlkonfigurationen bleibt unabhängig von der Sprachauswahl bewusst breit.
 Beide Nachweise sind keine zusätzliche projektspezifische Qualitätsdomäne.
 
-Die CodeQL-Kategorien benennen den tatsächlich ausführenden Workflow:
-`.github/workflows/pull-request.yml:codeql/language:<Sprache>` und
-`.github/workflows/quality.yml:codeql/language:<Sprache>`. Dadurch bleiben die
-PR-Auswahl und die vollständige Analyse auf `master` getrennt nachvollziehbar.
+Der eigentliche `github/codeql-action/analyze`-Job liegt im eng begrenzten,
+wiederverwendbaren Workflow `.github/workflows/ci.yml`. Die getrennten
+Orchestrierungen `pull-request.yml` und `quality.yml` rufen nur dieses
+CodeQL-Modul auf. Seine Kategorien
+`.github/workflows/ci.yml:codeql/language:<Sprache>` benennen damit wieder den
+tatsächlich ausführenden Workflow und bleiben zwischen Pull Request und
+`master` identisch.
+
+Für eine nicht ausgewählte Sprache lädt das CodeQL-Modul kein leeres oder
+künstliches Ergebnis hoch. Es liest über die Code-Scanning-API ausschließlich
+die neueste erfolgreiche Analyse derselben Sprache und exakten Base-SHA. Der
+Nachweis wird nur übernommen, wenn Kategorie, Toolname, einzelner SARIF-Lauf,
+Ergebnisanzahl und die positive Zahl ausgeführter Regeln mit den API-Metadaten
+übereinstimmen. Fehlende oder unvollständige Baselines sowie jeder Download-,
+Validierungs- oder Uploadfehler brechen den wiederverwendbaren Workflow ab.
+Reine Dokumentationsänderungen starten daher keine CodeQL-Matrix, liefern der
+unveränderten nativen Merge-Protection aber weiterhin die drei realen,
+base-gebundenen Analyseidentitäten.
 
 ## Konservative Pfadauswahl
 
@@ -76,8 +92,8 @@ Reine Backend-Tests und `*.spec.ts`-Frontend-Tests wählen keine Browserjobs.
 Mehrere Änderungen vereinigen ihre Domänen. Prozessdateien wie `AGENTS.md`,
 `CONTRIBUTING.md` oder Issue-Prozessvorlagen sind bekannte Grenzen ohne
 Anwendungsdomäne; die fünf Gates bleiben sichtbar erfolgreich. Der Source-Scan
-läuft weiterhin, während CodeQL ohne betroffene Sprachdomäne bewusst
-übersprungen wird.
+läuft weiterhin, während CodeQL ohne betroffene Sprachdomäne keine neue Matrix
+startet und stattdessen die validierten Base-Analysen übernimmt.
 
 Die Pfadfilter-Action liest bei Pull Requests die geänderten Dateien über die
 GitHub-API. Ein zweiter Filter verwendet die `every`-Semantik, um jeden nicht
