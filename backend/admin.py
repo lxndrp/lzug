@@ -15,6 +15,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from .admin_service import AdminOperationError, OperatorAuthService
 from .database import MigrationError, database_path, database_readiness
+from .notifications import NotificationService
 
 PROTOCOL_VERSION = 1
 MAX_REQUEST_BYTES = 64 * 1024
@@ -77,7 +78,11 @@ def _account_id(arguments: Mapping[str, Any]) -> int:
     return value
 
 
-def _execute(request: Mapping[str, Any], service: OperatorAuthService) -> dict[str, Any]:
+def _execute(
+    request: Mapping[str, Any],
+    service: OperatorAuthService,
+    notifications: NotificationService | None = None,
+) -> dict[str, Any]:
     if request.get("version") != PROTOCOL_VERSION:
         raise AdminOperationError("invalid_request", "Unsupported protocol version")
     command = request.get("command")
@@ -88,9 +93,26 @@ def _execute(request: Mapping[str, Any], service: OperatorAuthService) -> dict[s
         "recover",
         "consume-invitation",
         "consume-recovery",
+        "process-notifications",
+        "test-notification",
     }:
         raise AdminOperationError("invalid_request", "Unsupported admin command")
     arguments = _require_mapping(request.get("arguments", {}), "Arguments must be an object")
+
+    if command == "process-notifications":
+        return (notifications or NotificationService(service.db_path)).process_due_events()
+    if command == "test-notification":
+        channel = _require_string(arguments, "channel")
+        if channel not in {"web_push", "email"}:
+            raise AdminOperationError(
+                "invalid_request", "Argument channel must be web_push or email"
+            )
+        member_id = arguments.get("member_id")
+        if isinstance(member_id, bool) or not isinstance(member_id, int) or member_id <= 0:
+            raise AdminOperationError("invalid_request", "Argument member_id must be positive")
+        return (notifications or NotificationService(service.db_path)).synthetic_test(
+            member_id, channel
+        )
 
     if command == "bootstrap":
         issued = service.bootstrap(_require_string(arguments, "email"))
@@ -129,7 +151,12 @@ def _execute(request: Mapping[str, Any], service: OperatorAuthService) -> dict[s
     return {"account": service.consume(token, kind)}
 
 
-def run(payload: bytes, *, service: OperatorAuthService | None = None) -> int:
+def run(
+    payload: bytes,
+    *,
+    service: OperatorAuthService | None = None,
+    notifications: NotificationService | None = None,
+) -> int:
     """Process exactly one protocol request and return its stable exit code."""
     if len(payload) > MAX_REQUEST_BYTES:
         return _error("invalid_request", "Request is too large")
@@ -148,7 +175,7 @@ def run(payload: bytes, *, service: OperatorAuthService | None = None) -> int:
             if not readiness["ready"]:
                 return _error("database_not_ready", "Database is not ready")
             active_service = OperatorAuthService(database_path())
-        result = _execute(request, active_service)
+        result = _execute(request, active_service, notifications)
         _write(_response(ok=True, result=result))
         return EXIT_OK
     except AdminOperationError as error:

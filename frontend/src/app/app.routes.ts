@@ -16,5 +16,6 @@ export const routes: Routes = [
   { path: 'planning', pathMatch: 'full', redirectTo: 'scheduling-overview' },
   { path: 'locations', children: [] },
   { path: 'exam-half-years', children: [] },
+  { path: 'notifications', children: [] },
   { path: '**', redirectTo: 'dashboard' },
 ];

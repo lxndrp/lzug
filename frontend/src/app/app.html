@@ -60,6 +60,17 @@
             </div>
           }
 
+          <p class="app-nav-title">Persönlicher Bereich</p>
+          <a
+            class="app-nav-link"
+            href="/notifications"
+            [class.is-active]="activeView() === 'notifications'"
+            (click)="navigateFromShell('notifications', $event)"
+          >
+            <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
+            Benachrichtigungen
+          </a>
+
           <p class="app-nav-title">Aktueller Prüfungskontext</p>
           <a
             class="app-nav-link"
@@ -377,6 +388,9 @@
                       requestLocationDeletion($event.id, $event.name + ' · ' + $event.room)
                     "
                   />
+                }
+                @case ('notifications') {
+                  <app-notifications />
                 }
                 @case ('exam-half-years') {
                   <app-exam-half-years

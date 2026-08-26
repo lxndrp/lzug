@@ -1,5 +1,5 @@
 -- lzug relationales Basisschema
--- Stand: 2026-08-11
+-- Stand: 2026-08-26
 --
 -- Ziel:
 -- - möglichst PostgreSQL-kompatibel
@@ -20,7 +20,7 @@ VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.s
        ('007_add_documents.sql'), ('008_add_authentication_sessions.sql'),
        ('009_harden_migration_history.sql'), ('010_add_operator_auth_tokens.sql'),
        ('011_add_local_password_totp_auth.sql'),
-       ('012_add_plan_revision.sql');
+       ('012_add_plan_revision.sql'), ('013_add_notifications.sql');
 
 CREATE TABLE schema_migration_checksum (
   name TEXT PRIMARY KEY REFERENCES schema_migration(name) ON DELETE CASCADE,
@@ -39,7 +39,8 @@ INSERT INTO schema_migration_checksum (name, checksum) VALUES
   ('009_harden_migration_history.sql', 'a71425eb5cd8674532cd8c05672fb28c977b86c27dac610ade1e57964c9ba7a1'),
   ('010_add_operator_auth_tokens.sql', '6e0f3400d0871ddee4ec840360990f6b6fcd5ac8233f67c31cf03d2c4499e25a'),
   ('011_add_local_password_totp_auth.sql', '7f17cd3e4b2eb0f359c4e55902f0e5f25068703d804d9d6279597770beb6eef1'),
-  ('012_add_plan_revision.sql', 'e9462145b627eb238219d728d2b1263dd16e6d5eb30d33dbb1f7f0c61226e8fb');
+  ('012_add_plan_revision.sql', 'e9462145b627eb238219d728d2b1263dd16e6d5eb30d33dbb1f7f0c61226e8fb'),
+  ('013_add_notifications.sql', '6cacc994e8b4356ce9b1639a7df48efd046c66f083d14dc77f8ed2007851276e');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
@@ -451,32 +452,46 @@ CREATE TABLE replacement_response (
 
 CREATE TABLE notification (
   id INTEGER PRIMARY KEY,
+  committee_id INTEGER NOT NULL REFERENCES committee(id) ON DELETE CASCADE,
   exam_round_id INTEGER REFERENCES exam_round(id) ON DELETE CASCADE,
-  recipient_member_id INTEGER REFERENCES committee_member(id) ON DELETE SET NULL,
-  recipient_email TEXT NOT NULL,
-  notification_type TEXT NOT NULL CHECK (
-    notification_type IN (
-      'exam_round_created',
-      'availability_requested',
-      'availability_reminder',
-      'availability_deadline_missed',
-      'plan_confirmed',
-      'plan_changed',
-      'examiner_absence_reported',
-      'fallback_confirmation_requested',
-      'fallback_confirmation_expired',
-      'replacement_requested',
-      'urgent_replacement_requested',
-      'exam_day_cancelled_ihk_notice'
-    )
-  ),
-  subject TEXT NOT NULL,
-  body TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'scheduled', 'sent', 'failed', 'cancelled')),
-  scheduled_at TEXT,
-  sent_at TEXT,
+  recipient_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL CHECK (event_type IN (
+    'availability_requested', 'availability_reminder',
+    'availability_deadline_expired', 'plan_confirmed', 'synthetic_test'
+  )),
+  origin_key TEXT NOT NULL,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  action_path TEXT NOT NULL CHECK (action_path LIKE '/%'),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  UNIQUE (recipient_member_id, event_type, origin_key)
+);
+
+CREATE TABLE push_subscription (
+  id INTEGER PRIMARY KEY,
+  person_id INTEGER NOT NULL REFERENCES person(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE CHECK (endpoint LIKE 'https://%'),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  invalidated_at TEXT
+);
+
+CREATE TABLE notification_delivery (
+  id INTEGER PRIMARY KEY,
+  notification_id INTEGER NOT NULL REFERENCES notification(id) ON DELETE CASCADE,
+  channel TEXT NOT NULL CHECK (channel IN ('web_push', 'email', 'sink')),
+  target_key TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN (
+    'pending', 'technically_confirmed', 'temporarily_failed',
+    'permanently_failed', 'unavailable'
+  )),
+  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  next_attempt_at TEXT,
+  technical_confirmed_at TEXT,
+  error_code TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (notification_id, channel, target_key)
 );
 
 CREATE TABLE calendar_event (
@@ -519,8 +534,14 @@ CREATE INDEX exam_day_round_date
 CREATE INDEX exam_day_assignment_day_part
   ON exam_day_assignment(exam_day_id, day_part, assignment_role);
 
-CREATE INDEX notification_status_scheduled
-  ON notification(status, scheduled_at);
+CREATE INDEX notification_recipient_created
+  ON notification(recipient_member_id, created_at DESC, id DESC);
+CREATE INDEX notification_committee_created
+  ON notification(committee_id, created_at DESC, id DESC);
+CREATE INDEX push_subscription_person_active
+  ON push_subscription(person_id, invalidated_at);
+CREATE INDEX notification_delivery_due
+  ON notification_delivery(status, next_attempt_at);
 
 CREATE INDEX calendar_event_status
   ON calendar_event(status);

@@ -32,6 +32,10 @@ class OpenApiContractTests(unittest.TestCase):
                 "/api/health",
                 "/api/round-summary?round_id=1",
                 "/api/confirmed-plans",
+                "/api/notifications",
+                "/api/notification-overview",
+                "/api/notification-problems",
+                "/api/notification-channels",
             ):
                 status, _response = self.request(api, "GET", path)
                 self.assertEqual(HTTPStatus.OK, status)
@@ -47,6 +51,20 @@ class OpenApiContractTests(unittest.TestCase):
                     item_id = collection["items"][0]["id"]
                     status, _item = self.request(api, "GET", f"/api/{resource_name}/{item_id}")
                     self.assertEqual(HTTPStatus.OK, status)
+
+    def test_notification_channel_write_contracts(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, registration = self.request(
+                api,
+                "POST",
+                "/api/push-subscriptions",
+                {"endpoint": "https://push.example.invalid/openapi"},
+            )
+            self.assertEqual(HTTPStatus.CREATED, status)
+            status, _deleted = self.request(
+                api, "DELETE", f"/api/push-subscriptions/{registration['id']}"
+            )
+            self.assertEqual(HTTPStatus.NO_CONTENT, status)
 
     def test_confirmed_day_read_model_matches_success_and_not_found_contracts(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:

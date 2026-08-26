@@ -19,6 +19,10 @@ GoReleaser sind projektweit festgelegt. Die Pins liegen in `.mise.toml`,
 
 Die Architekturentscheidungen stehen als [ADRs](../decisions/index.md).
 
+Die [kanalneutrale Benachrichtigungsarchitektur](notifications.md) trennt
+dauerhafte fachliche Hinweise von optionaler technischer Zustellung und
+datensparsamer Diagnose.
+
 ## Veröffentlichungs- und Betriebsarchitektur
 
 Die erste Veröffentlichung ist auf dezentrales Self-Hosting je Ausschuss

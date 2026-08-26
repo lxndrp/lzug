@@ -1,0 +1,93 @@
+<section class="app-panel notification-settings" aria-labelledby="notification-settings-title">
+  <div class="app-panel-body">
+    <div>
+      <h2 id="notification-settings-title">Zustellung</h2>
+      <p>
+        Alle Hinweise bleiben hier verfügbar. Browser-Benachrichtigungen sind optional und enthalten
+        nur einen sicheren Hinweis auf lzug.
+      </p>
+    </div>
+    @if (canEnablePush()) {
+      <button
+        tuiButton
+        appearance="secondary"
+        type="button"
+        [disabled]="pushBusy()"
+        (click)="enablePush()"
+      >
+        {{ pushBusy() ? 'Wird aktiviert …' : 'Browser-Benachrichtigungen aktivieren' }}
+      </button>
+    } @else {
+      <p class="app-muted">Web Push ist in dieser Instanz oder diesem Browser nicht verfügbar.</p>
+    }
+    @if (pushMessage()) {
+      <p role="status">{{ pushMessage() }}</p>
+    }
+  </div>
+</section>
+
+<section class="app-panel" aria-labelledby="notifications-title">
+  <div class="app-panel-body">
+    <h2 id="notifications-title">Meine Benachrichtigungen</h2>
+    @if (loading()) {
+      <p role="status">Benachrichtigungen werden geladen.</p>
+    } @else if (notifications().length === 0) {
+      <p>Für Sie liegen noch keine Benachrichtigungen vor.</p>
+    } @else {
+      <ol class="notification-list">
+        @for (notification of notifications(); track notification.id) {
+          <li>
+            <article>
+              <div>
+                <h3>{{ notification.title }}</h3>
+                <time [attr.datetime]="notification.created_at">
+                  {{ notification.created_at | date: 'dd.MM.yyyy, HH:mm' }}
+                </time>
+              </div>
+              <p>{{ notification.message }}</p>
+              <a tuiButton appearance="secondary" [href]="notification.action_path"
+                >Details öffnen</a
+              >
+            </article>
+          </li>
+        }
+      </ol>
+    }
+  </div>
+</section>
+
+@if (problems().length > 0) {
+  <section class="app-panel" aria-labelledby="notification-problems-title">
+    <div class="app-panel-body">
+      <h2 id="notification-problems-title">Zustellstatus im Ausschuss</h2>
+      <p>
+        Die Übersicht zeigt erzeugte Zustellungen und Probleme ausschließlich als technische
+        Metadaten. Inhalte anderer Mitglieder bleiben geschützt.
+      </p>
+      <div class="notification-problem-scroll" tabindex="0">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Ereignis</th>
+              <th scope="col">Empfänger-ID</th>
+              <th scope="col">Kanal</th>
+              <th scope="col">Status</th>
+              <th scope="col">Versuche</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (problem of problems(); track problem.notification_id + '-' + problem.channel) {
+              <tr>
+                <td>{{ problem.event_type }}</td>
+                <td>{{ problem.recipient_member_id }}</td>
+                <td>{{ problem.channel }}</td>
+                <td>{{ statusLabel(problem.status) }}</td>
+                <td>{{ problem.attempt_count }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+}
