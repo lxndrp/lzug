@@ -5,6 +5,7 @@ FROM python:3.14.6-slim-bookworm AS build-metadata
 ARG BUILD_IDENTITY
 ARG PRODUCT_TAG
 ARG VCS_REF
+ARG SEED_REVISION
 WORKDIR /src
 COPY backend/__init__.py backend/build_metadata.py ./backend/
 COPY scripts/__init__.py scripts/build_metadata.py ./scripts/
@@ -14,12 +15,13 @@ RUN set -eu; \
     test -n "$BUILD_IDENTITY"; \
     test -n "$PRODUCT_TAG"; \
     test -n "$VCS_REF"; \
+    test -n "$SEED_REVISION"; \
     BUILD_REVISION="$VCS_REF" BUILD_RELEASE_TAG="$PRODUCT_TAG" python -c \
       'import os; from pathlib import Path; from backend.build_metadata import BuildMetadata; BuildMetadata.create(os.environ["BUILD_REVISION"], os.environ["BUILD_RELEASE_TAG"], allow_demo_snapshot=True).write(Path("/build-metadata.json"))'; \
     test "$(python -c 'from pathlib import Path; from backend.build_metadata import BuildMetadata; print(BuildMetadata.read(Path("/build-metadata.json")).identity)')" = "$BUILD_IDENTITY"; \
     python -m demo.artifacts build-app-manifest --source-root /src \
       --output /demo-app-manifest.json --product-tag "$PRODUCT_TAG" \
-      --product-commit "$VCS_REF"
+      --product-commit "$VCS_REF" --seed-revision "$SEED_REVISION"
 
 FROM node:26.5.0-bookworm-slim AS frontend-build
 

@@ -71,7 +71,7 @@ freigegebenen `tofu apply` keine Cloudänderung aus.
   empfängerlos. Nach Deaktivierung aller Detection-Regeln gehört sie nicht zum
   lzug-Alarmvertrag.
 - Das GitHub Environment verwendet ausgewählte Deploymentregeln: exakt den
-  Branch `master` und Tags nach `demo/v*-SNAPSHOT.*`. Es verhindert
+  Branch `master` sowie Tags nach `demo/v*-SNAPSHOT.*` und `v*`. Es verhindert
   Selbstfreigaben und Admin-Bypass. Erforderliche Reviewer werden nicht
   geraten: Sie müssen nach Maintainer-Entscheidung ergänzt werden.
 - OIDC-Rollen für Deployment, Auswahl und unabhängige Lieferkettenprüfung des
@@ -126,7 +126,7 @@ Container, das explizit erhaltene `Consumption`-Workload-Profil, das einzige
 `EmptyDir` unter `/data`, Berliner Zeit, Managed
 Identity, die drei RBAC-Aktionen, Stop-/Start-Reihenfolge, getrennte
 Liveness-/Readiness-/Statusprüfung, letzten Reset, Rollback-Output, Budget,
-Loggrenzen, Uptime-Alarme und die beiden ausgewählten GitHub-Environment-
+Loggrenzen, Uptime-Alarme und die drei ausgewählten GitHub-Environment-
 Regeln. Bei aktiviertem externem Monitoring müssen außerdem exakt alle zehn
 Smart-Detection-Children deaktiviert, Owner-E-Mails ausgeschaltet und
 zusätzliche Empfänger leer sein; bei deaktiviertem Gate entstehen keine dieser
@@ -134,13 +134,15 @@ Ressourcen. Eigene Negativtests verwerfen bewegliche Demo-Tags, alte
 Runtimeverträge und eine nur teilweise Policy-Adoption. Das ersetzt keinen
 authentifizierten Azure-Plan.
 
-Existieren die beiden ausgewählten Environment-Policies bereits außerhalb des
-States, werden ihre nicht geheimen numerischen IDs gemeinsam über
+Existieren ausgewählte Environment-Policies bereits außerhalb des States,
+werden ihre nicht geheimen numerischen IDs über
 `github_environment_deployment_policy_ids = { master = "…", snapshot = "…" }`
-übergeben. Der gespeicherte Plan muss dann für beide Ressourcen einen Import
-statt zweier Creates zeigen. Eine leere Map ist ausschließlich für ein neues
-Environment ohne bestehende Policies zulässig; eine Teilmenge wird
-fail-closed abgewiesen.
+übergeben. Nach externer Aktivierung der stabilen Tag-Regel ergänzt die Map
+`release = "…"`. `master` und `snapshot` müssen gemeinsam vorhanden sein;
+`release` ist bis zu seiner gesondert freigegebenen Anlage optional. Eine leere
+Map ist ausschließlich für ein neues Environment ohne bestehende Policies
+zulässig, unbekannte oder nur einzelne Bestandspolicies werden fail-closed
+abgewiesen.
 
 Die zehn Smart-Detection-Children folgen bewusst einem anderen
 Providervertrag: Es gibt keine Import-IDs. Bei einer bestehenden

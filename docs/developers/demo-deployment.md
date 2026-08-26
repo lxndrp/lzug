@@ -1,17 +1,24 @@
 # Azure-Demo deployen
 
-Der manuelle Workflow `Deploy public demo` rollt genau ein zuvor geprüftes,
-unveränderliches Demo-Artefaktpaar in die unter
-[Demo-Runtime](architecture/demo-runtime.md) beschriebene Azure Container App
-aus. Er provisioniert keine Infrastruktur und erzeugt keine Identitäten,
-Rollen oder GitHub-Environments.
+Jedes veröffentlichte stabile SemVer-Release ruft im selben Releaseworkflow
+den wiederverwendbaren Pfad `Promote stable release to public demo` auf.
+Dieser veröffentlicht oder verifiziert das unveränderliche Demo-App-/Seed-Paar
+und verwendet anschließend denselben Workflow `Deploy public demo`, der auch
+für Snapshots sowie den manuellen Deploy und Rollback zuständig ist. Ein
+Release Candidate überspringt die Demo-Promotion. Ein Fehler der nachgelagerten
+Promotion verändert den bereits veröffentlichten Produktrelease nicht.
+
+Die Verkettung verwendet `workflow_call`. Sie wartet nicht auf ein durch das
+repositoryeigene `GITHUB_TOKEN` erzeugtes `release: published`-Ereignis und
+benötigt weder PAT noch GitHub App. Der Deploymentworkflow provisioniert keine
+Infrastruktur und erzeugt keine Identitäten, Rollen oder GitHub-Environments.
 
 Für einen manuell promoteten Entwicklungs-Snapshot gilt daneben der
 zusammenhängende Workflow `Promote demo snapshot`: Ein Maintainer setzt einen
 neuen annotierten `demo/...-SNAPSHOT.<kurze SHA>`-Tag auf der aktuellen grünen
-`master`-SHA. Der Tag-Push startet den günstigen Source-Preflight,
-danach den vollständigen kanonischen `Quality`-Workflow für exakt den
-Tag-Zielcommit und erst bei dessen Erfolg Build, separate SBOM- und
+`master`-SHA. Der Tag-Push startet den günstigen Source-Preflight und akzeptiert
+nur einen bereits erfolgreichen vollständigen `Quality`-Workflow für exakt
+dieselbe aktuelle `master`-SHA. Erst danach folgen Build, separate SBOM- und
 Provenance-Attestierung, OCI-Publish sowie unmittelbar denselben OIDC-,
 Digestpaar-, Readiness- und Smoke-Vertrag in `demo`. Es gibt für diesen Pfad
 weder `workflow_dispatch` noch ein weiteres Required-Reviewer-Gate nach dem
@@ -52,22 +59,19 @@ Der bestehende manuelle Workflow bleibt für releasegebundene Deployments und
 den ausdrücklichen Rollback auf ein früher vollständig geprüftes Paar erhalten.
 
 Für ein Deployment verwendet das Environment „Selected branches and tags“ mit
-exakt der Branch-Regel `master` für den bestehenden manuellen Deploy-/Rollback-
-Pfad und der Tag-Regel `demo/v*-SNAPSHOT.*` für die automatische Snapshot-
-Promotion. Ein Required Reviewer ist dort nicht konfiguriert; der annotierte
-Tag-Push ist bereits das Maintainer-GO. Der Snapshot-Workflow prüft diese
-Aktivierungspolicy erst, nachdem Quality, Build, OCI-Publish, SBOM, Provenance
-und das digestgebundene App-/Seed-Manifestpaar erfolgreich belegt sind. Fehlt
-oder widerspricht die Policy, stoppt ausschließlich das Deployment vor der
-Azure-Anmeldung. Das unveränderliche Paar bleibt damit für die einmalige #129-
-Adoption als OpenTofu-Input erhalten, ohne die Deployment-Grenze zu schwächen.
+der Branch-Regel `master`, der Snapshot-Regel `demo/v*-SNAPSHOT.*` und der
+vorbereiteten stabilen Tag-Regel `v*`. Ein Required Reviewer ist dort nicht
+konfiguriert; die einzige menschliche Freigabe eines stabilen Produktpfads
+bleibt das Environment `release`. Die Regeln werden deklarativ durch OpenTofu
+verwaltet und vom Runner nicht über die GitHub-API nachgeprüft. Ihre reale
+Aktivierung bleibt eine gesondert freizugebende externe Änderung.
 
 ## Freigabe- und Eingabevertrag
 
-Der Workflow wird ausschließlich von `master` und im geschützten GitHub
-Environment `demo` ausgeführt. Ein Maintainer wählt `deploy` oder `rollback`
-und übernimmt aus dem erfolgreichen `Demo image pair`-Nachweis des
-Publish-Laufs immer alle sieben Werte gemeinsam:
+Der wiederverwendbare Workflow läuft im geschützten GitHub Environment `demo`.
+Der stabile Pfad wird von `master`, der Snapshotpfad vom unveränderlichen
+Snapshot-Tag aufgerufen. Beim manuellen Pfad wählt ein Maintainer auf `master`
+`deploy` oder `rollback` und übernimmt immer alle sieben Werte gemeinsam:
 
 - App-Image `ghcr.io/lxndrp/lzug-demo-app@sha256:…`,
 - Seed-Image `ghcr.io/lxndrp/lzug-demo-seed@sha256:…`,
@@ -77,8 +81,9 @@ Publish-Laufs immer alle sieben Werte gemeinsam:
 
 Beide OCI-Referenzen werden vor der Azure-Anmeldung gegen die vom Workflow
 `.github/workflows/demo-publish.yml` oder bei einem Snapshot gegen den Signer
-`.github/workflows/demo-snapshot.yml` signierten Provenance- und
-SBOM-Attestations geprüft. Anschließend werden beide Digest-Images gelesen und
+`.github/workflows/demo-snapshot.yml` signierten Provenance-Attestations
+geprüft. Die weiterhin erzeugten SBOM-Attestierungen sind Liefer- und
+Inventarnachweise, aber kein zweites Deployment-Gate. Anschließend werden beide Digest-Images gelesen und
 App- sowie Seed-Manifest vor jeder Azure-Anmeldung gegen Produkt, Runtimevertrag,
 Schemafingerprint und Seed-Revision geprüft. Damit kann auch der kontrollierte
 manuelle Rollback ein früheres vollständig geprüftes Release- oder
@@ -148,16 +153,15 @@ Repositoryänderungspakets eingerichtet.
 
 Der Lauf prüft und dokumentiert folgende getrennte Stufen:
 
-1. secret-freie Eingaben und geschützten `master`-Ref,
-2. Provenance und SBOM beider Digests,
+1. secret-freie Eingaben und den zum Kanal passenden unveränderlichen Ref,
+2. Provenance beider Digests und den gemeinsamen Manifestvertrag,
 3. GitHub-OIDC-Anmeldung an Azure,
 4. atomare Änderung beider Images im bestehenden ACA-Revisionstemplate,
 5. Azure-Readiness: `Succeeded`, neue erwartete Revision,
    `latestReadyRevisionName == latestRevisionName` und exakt beide Digests,
-6. davon getrennt HTTP-Liveness mit `status = ok` und erwartetem Produkt-Commit,
-7. davon getrennt Application-Readiness über `/api/ready` mit
+6. davon getrennt Application-Readiness über `/api/ready` mit
    `status = ready` und erwartetem Produkt-Commit,
-8. Smoke gegen die unverändert öffentlichen Routen `/api/health`, `/api/ready`,
+7. abschließender Smoke gegen die unverändert öffentlichen Routen `/api/health`, `/api/ready`,
    `/api/demo/status` und `/`, sowie gegen die geschützte Route
    `/api/openapi.json`. Der anonyme OpenAPI-Aufruf muss exakt `HTTP 401` mit
    der JSON-Antwort `{"error": "Authentication required."}` liefern.
@@ -196,7 +200,7 @@ Workflow ausgelöst.
 ## Lokale und statische Prüfung
 
 Die Deploymentlogik enthält keine Cloud-Mocks im produktiven Pfad. Ihre reinen
-Validierungs-, Patch-, Readiness-, Health- und Statusverträge sowie die
+Validierungs-, Patch-, Readiness- und Statusverträge sowie die
 Workflow-Sicherheitsgrenzen werden ohne Azure-Zugriff reproduzierbar geprüft:
 
 ```sh
@@ -211,6 +215,7 @@ Der Betriebs- und Alarmvertrag ist unter
 
 ## Referenzen
 
+- [ADR-0026: Automatische Demo-Promotion stabiler Releases](decisions/0026-automatische-demo-promotion-stabiler-releases.md)
 - [GitHub OIDC für Azure](https://docs.github.com/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-azure)
 - [Azure Container Apps: Revisionen und Readiness](https://learn.microsoft.com/azure/container-apps/revisions)
 - [Azure Container Apps Update API](https://learn.microsoft.com/rest/api/resource-manager/containerapps/container-apps/update)

@@ -369,6 +369,7 @@ tasks:
             --build-arg "BUILD_IDENTITY=$build_identity" \
             --build-arg "PRODUCT_TAG=$product_tag" \
             --build-arg "VCS_REF=$revision" \
+            --build-arg "SEED_REVISION=$seed_revision" \
             -t "$app_image" .
           scripts/demo-container-smoke.sh \
             "$app_image" \

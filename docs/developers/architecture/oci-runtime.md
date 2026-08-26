@@ -142,4 +142,7 @@ veröffentlicht SemVer-, Major-, Major.Minor- und Commit-SHA-Tags auf denselben
 Registry-Digest. Genau eine aggregierte CycloneDX-SBOM ist sichtbares
 Release-Asset; Provenance sowie die detaillierte Image-SBOM werden über GitHub
 Attestations an die ausgelieferten Digests gebunden. Ein
-`latest`-Tag wird nicht erzeugt.
+`latest`-Tag wird nicht erzeugt. Nach Veröffentlichung eines stabilen Releases
+ruft derselbe Workflow die in
+[ADR-0026](../decisions/0026-automatische-demo-promotion-stabiler-releases.md)
+beschriebene Demo-Promotion auf; Release Candidates bleiben ausgeschlossen.

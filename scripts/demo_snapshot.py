@@ -4,16 +4,13 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from demo.identity import STABLE_VERSION, DemoIdentity, version_key  # noqa: E402
+from demo.identity import DemoIdentity  # noqa: E402
 
 
 class SnapshotContractError(ValueError):
@@ -30,62 +27,6 @@ def snapshot_identity(tag: str, revision: str) -> DemoIdentity:
     return identity
 
 
-def validate_milestones(
-    payload: Any, target_version: str, *, now: datetime | None = None
-) -> dict[str, Any]:
-    version_key(target_version)
-    if not isinstance(payload, list):
-        raise SnapshotContractError("milestone response has an invalid shape")
-    matches = [
-        milestone
-        for milestone in payload
-        if isinstance(milestone, dict)
-        and milestone.get("title") == target_version
-        and milestone.get("state") == "open"
-    ]
-    if len(matches) != 1:
-        raise SnapshotContractError(
-            f"target version {target_version} must identify exactly one open milestone"
-        )
-    milestone = matches[0]
-    due_on = milestone.get("due_on")
-    if not isinstance(due_on, str):
-        raise SnapshotContractError("target milestone must have a future due date")
-    try:
-        due = datetime.fromisoformat(due_on.replace("Z", "+00:00"))
-    except ValueError as error:
-        raise SnapshotContractError("target milestone has an invalid due date") from error
-    current = now or datetime.now(UTC)
-    if due <= current:
-        raise SnapshotContractError("target milestone due date is not in the future")
-    return milestone
-
-
-def validate_releases(payload: Any, target_version: str) -> None:
-    target = version_key(target_version)
-    if not isinstance(payload, list):
-        raise SnapshotContractError("release response has an invalid shape")
-    released: list[tuple[int, int, int]] = []
-    for release in payload:
-        if not isinstance(release, dict) or release.get("draft") is True:
-            continue
-        tag = release.get("tag_name")
-        if not isinstance(tag, str) or STABLE_VERSION.fullmatch(tag) is None:
-            continue
-        if tag == target_version:
-            raise SnapshotContractError("target version already has a product release")
-        released.append(version_key(tag))
-    if released and target <= max(released):
-        raise SnapshotContractError("target version is not newer than the latest stable release")
-
-
-def _read_json() -> Any:
-    try:
-        return json.load(sys.stdin)
-    except json.JSONDecodeError as error:
-        raise SnapshotContractError("input is not valid JSON") from error
-
-
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     commands = root.add_subparsers(dest="command", required=True)
@@ -99,25 +40,13 @@ def parser() -> argparse.ArgumentParser:
         default="identity",
     )
 
-    milestone = commands.add_parser("validate-milestone")
-    milestone.add_argument("--target-version", required=True)
-
-    releases = commands.add_parser("validate-releases")
-    releases.add_argument("--target-version", required=True)
     return root
 
 
 def main() -> None:
     args = parser().parse_args()
     try:
-        if args.command == "identity":
-            print(getattr(snapshot_identity(args.tag, args.revision), args.field))
-        elif args.command == "validate-milestone":
-            milestone = validate_milestones(_read_json(), args.target_version)
-            print(milestone.get("html_url", milestone.get("number", "verified")))
-        else:
-            validate_releases(_read_json(), args.target_version)
-            print("verified")
+        print(getattr(snapshot_identity(args.tag, args.revision), args.field))
     except SnapshotContractError as error:
         raise SystemExit(f"Snapshot contract rejected: {error}") from error
 

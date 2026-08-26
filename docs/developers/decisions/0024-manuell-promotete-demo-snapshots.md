@@ -2,7 +2,11 @@
 
 ## Status
 
-Akzeptiert am 15.08.2026. Erweitert
+Akzeptiert am 15.08.2026, teilweise abgelöst durch
+[ADR-0026](0026-automatische-demo-promotion-stabiler-releases.md). Tag-Trigger,
+Snapshot-Identität und unveränderliche OCI-Referenzen bleiben verbindlich;
+Quality-Wiederverwendung, gemeinsamer Deploymentworkflow und deklarative
+Environment-Policy folgen ADR-0026. Erweitert
 [ADR-0022](0022-tag-gebundene-demo-assembly-und-seed.md), ohne den
 Produkt-Releasevertrag aus
 [ADR-0020](0020-minimaler-releaseablauf-mit-github-bordmitteln.md) zu ändern.

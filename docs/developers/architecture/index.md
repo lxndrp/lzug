@@ -39,6 +39,7 @@ Die verbindlichen Entscheidungen und ihre Umsetzungsschnittstellen sind:
 | [ADR-0016](../decisions/0016-spaetere-mandantenflotte.md) | Späteres Zielbild mit getrennten Mandanteninstanzen | #133, #134 |
 | [ADR-0017](../decisions/0017-erstveroeffentlichung-ohne-kubernetes.md) | Bewusster Verzicht auf Kubernetes und Helm für die erste Veröffentlichung | #115, #119 |
 | [ADR-0024](../decisions/0024-manuell-promotete-demo-snapshots.md) | Manuell promotete, taggetriebene Demo-Snapshots ohne Produkt-Release | #380, #127 |
+| [ADR-0026](../decisions/0026-automatische-demo-promotion-stabiler-releases.md) | Stabile Releases automatisch als unveränderliches Paketpaar promoten | #444 |
 
 Die vorhandene Backend-Sprache Python bleibt von diesen Entscheidungen
 unberührt. Ein Sprachwechsel ist ein separates Vorhaben und keine

@@ -1,6 +1,44 @@
 name: Deploy public demo
 
 on:
+  workflow_call:
+    inputs:
+      operation:
+        description: Deploy a verified pair or explicitly roll back to a known pair
+        required: true
+        type: string
+      promotion_channel:
+        description: Automatic caller identity (stable or snapshot)
+        required: true
+        type: string
+      app_image:
+        description: Immutable ghcr.io/lxndrp/lzug-demo-app@sha256 digest
+        required: true
+        type: string
+      seed_image:
+        description: Immutable ghcr.io/lxndrp/lzug-demo-seed@sha256 digest
+        required: true
+        type: string
+      product_tag:
+        description: Release or snapshot source tag shared by the verified pair
+        required: true
+        type: string
+      product_commit:
+        description: Full 40-character product commit shared by the pair
+        required: true
+        type: string
+      runtime_contract:
+        description: Versioned runtime contract from both attested image manifests
+        required: true
+        type: string
+      schema_fingerprint:
+        description: Full schema fingerprint from the verified seed manifest
+        required: true
+        type: string
+      seed_revision:
+        description: Full seed revision from the verified pair manifests
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       operation:
@@ -83,13 +121,33 @@ jobs:
           python3 scripts/validate_demo_url_contract.py validate
           --value "$EFFECTIVE_DEMO_URL"
 
-      - name: Validate protected branch and secret-free inputs
+      - name: Validate source identity and secret-free inputs
         run: |
           set -euo pipefail
-          test "$GITHUB_REF" = refs/heads/master || {
-            echo "Demo deployments must be dispatched from master." >&2
-            exit 1
-          }
+          case "${{ inputs.promotion_channel }}:${{ inputs.operation }}:$PRODUCT_TAG" in
+            :deploy:*|:rollback:*)
+              test "$GITHUB_REF" = refs/heads/master || {
+                echo "Manual demo deployment must be dispatched from master." >&2
+                exit 1
+              }
+              ;;
+            snapshot:deploy:demo/v*-SNAPSHOT.*)
+              test "$GITHUB_REF" = "refs/tags/$PRODUCT_TAG" || {
+                echo "Snapshot deployment must remain bound to its immutable tag." >&2
+                exit 1
+              }
+              ;;
+            stable:deploy:v*)
+              test "$GITHUB_REF" = refs/heads/master || {
+                echo "Stable demo promotion must be called from the release workflow on master." >&2
+                exit 1
+              }
+              ;;
+            *)
+              echo "Unsupported demo deployment operation or source tag." >&2
+              exit 1
+              ;;
+          esac
           for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_RESOURCE_GROUP AZURE_CONTAINER_APP; do
             test -n "${!name:-}" || {
               echo "Required demo deployment variable is missing: $name" >&2
@@ -111,7 +169,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Verify provenance and SBOM attestations for both selected digests
+      - name: Verify provenance attestations for both selected digests
         run: |
           set -euo pipefail
           case "$PRODUCT_TAG" in
@@ -132,11 +190,6 @@ jobs:
               --signer-workflow "$signer_workflow" \
               --bundle-from-oci \
               --predicate-type https://slsa.dev/provenance/v1
-            gh attestation verify "oci://$image" \
-              --repo "$GITHUB_REPOSITORY" \
-              --signer-workflow "$signer_workflow" \
-              --bundle-from-oci \
-              --predicate-type https://cyclonedx.org/bom
           done
         env:
           GH_TOKEN: ${{ github.token }}
@@ -189,18 +242,6 @@ jobs:
             --seed-revision "$SEED_REVISION" \
             --revision-suffix "${{ steps.deployment.outputs.revision_suffix }}"
 
-      - name: Wait separately for application health
-        run: |
-          python3 scripts/demo_deployment.py wait-health \
-            --demo-url "$DEMO_URL" \
-            --app-image "$APP_IMAGE" \
-            --seed-image "$SEED_IMAGE" \
-            --product-tag "$PRODUCT_TAG" \
-            --product-commit "$PRODUCT_COMMIT" \
-            --runtime-contract "$RUNTIME_CONTRACT" \
-            --schema-fingerprint "$SCHEMA_FINGERPRINT" \
-            --seed-revision "$SEED_REVISION"
-
       - name: Wait separately for application readiness
         run: |
           python3 scripts/demo_deployment.py wait-application-readiness \
@@ -243,7 +284,7 @@ jobs:
             echo "- Azure revision suffix: \`${{ steps.deployment.outputs.revision_suffix }}\`"
             echo "- Previous app digest: \`$previous_app\`"
             echo "- Previous seed digest: \`$previous_seed\`"
-            echo "- Azure readiness, HTTP liveness, application readiness, demo API, protected OpenAPI authentication boundary, and frontend checks passed."
+            echo "- Azure readiness, application readiness, final HTTP liveness, demo API, protected OpenAPI authentication boundary, and frontend checks passed."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Explain failure and collect non-sensitive diagnostics

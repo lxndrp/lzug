@@ -50,6 +50,10 @@ erhalten daraus dieselbe Version, vollständige Revision und denselben Tag.
    GitHub Attestations. Der Job erstellt beziehungsweise aktualisiert einen
    Draft-Release, lädt sieben sichtbare Assets hoch und veröffentlicht den
    Draft zuletzt.
+7. Nach der Veröffentlichung ruft derselbe Workflow für einen stabilen Tag den
+   wiederverwendbaren Demo-Promotionspfad auf. Release Candidates bleiben
+   ausgeschlossen. Die Promotion verwendet denselben bereits bestätigten
+   `Quality`-Nachweis und besitzt kein zweites `release`-Environment-Gate.
 
 Der Release-Workflow wird in der Weboberfläche oder äquivalent mit der GitHub
 CLI gestartet:
@@ -130,8 +134,11 @@ ersetzt.
 Ein vorhandener Draft zum Tag darf mit erneut aus diesem Tag gebauten Assets
 vervollständigt werden. Ein bereits veröffentlichter Release ist terminal und
 wird weder inventarisiert noch repariert oder als Erfolg eines neuen Laufs
-umgedeutet. Fehler nach einer sichtbaren Veröffentlichung werden als eigener
-Vorfall bewertet und grundsätzlich mit einer neuen Version korrigiert.
+umgedeutet. Scheitert nur die nachgelagerte Demo-Promotion, bleibt der
+Produktrelease abgeschlossen. Ein Re-Run des fehlgeschlagenen Promotionsjobs
+darf ein bereits vorhandenes, provenance-attestiertes und manifestseitig
+passendes Demo-Paar wiederverwenden; bewegliche Paketreferenzen werden nie
+überschrieben. Der Fehler wird getrennt vom Produktrelease berichtet.
 
 Der erste GHCR-Push kann ein neues Paket zunächst privat anlegen. Seine
 öffentliche Sichtbarkeit bleibt eine bewusste Maintainer-Entscheidung in den

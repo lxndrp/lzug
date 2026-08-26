@@ -29,11 +29,13 @@ Das Ruleset verlangt genau diese fünf immer vorhandenen Gate-Namen:
 | `Pull Request / CLI` | Go-Vertrag sowie mit GoReleaser reproduzierbar gebaute Archive für Linux, macOS und Windows auf amd64 und arm64 |
 | `Pull Request / Container` | einmal gebautes OCI-Image, SBOMs, Image-Scan sowie Container-, Compose- und CLI-zu-Container-Verträge; bei Infrastrukturänderungen zusätzlich OpenTofu-Format, -Validierung und gemockter Plan |
 
-Das manuelle Azure-Demo-Deployment ist vom CI- und Publish-Lebenszyklus
-getrennt. Es verwendet ausschließlich OIDC, ein geschütztes GitHub Environment
-und ein zuvor geprüftes App-/Seed-Digest-Paar. Der repositoryseitige Vertrag
-wird mit `task quality:demo-deployment` ohne Cloudzugriff geprüft; Details
-stehen unter [Azure-Demo deployen](demo-deployment.md).
+Das Azure-Demo-Deployment verwendet ausschließlich OIDC, ein geschütztes
+GitHub Environment und ein zuvor geprüftes App-/Seed-Digest-Paar. Stabile
+Produktreleases rufen den wiederverwendbaren Promotionspfad nach der
+Veröffentlichung direkt auf; Snapshot und manueller Rollback verwenden
+denselben Deploymentworkflow. Der repositoryseitige Vertrag wird mit
+`task quality:demo-deployment` ohne Cloudzugriff geprüft; Details stehen unter
+[Azure-Demo deployen](demo-deployment.md).
 
 Jedes Gate läuft mit `if: always()`. Ist seine Domäne nicht ausgewählt, prüft
 es ausdrücklich den Status `skipped` des Detailjobs und wird selbst
@@ -140,9 +142,10 @@ fehlenden Schutzes:
 4. Erst der unter dieser Zielkonfiguration erneut geprüfte Pull Request darf
    durch einen Maintainer gemergt werden.
 
-Der Release-Workflow liest ausschließlich den erfolgreichen vollständigen
-`Quality`-Workflow-Lauf derselben `master`-SHA. Er fragt keine internen
-Jobnamen ab und wiederholt keine der hier beschriebenen Qualitätsprüfungen.
+Release- und Snapshot-Promotion lesen ausschließlich den erfolgreichen
+vollständigen `Quality`-Workflow-Lauf derselben `master`-SHA. Sie fragen keine
+internen Jobnamen ab und wiederholen keine der hier beschriebenen
+Qualitätsprüfungen.
 
 ## Messung der Vereinfachung und Laufzeit
 

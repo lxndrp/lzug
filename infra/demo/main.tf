@@ -193,6 +193,10 @@ locals {
       type    = "tag"
       pattern = "demo/v*-SNAPSHOT.*"
     }
+    release = {
+      type    = "tag"
+      pattern = "v*"
+    }
   }
 }
 

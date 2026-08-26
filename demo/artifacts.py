@@ -168,13 +168,17 @@ def build_app_manifest(
     *,
     product_tag: str,
     product_commit: str,
+    seed_revision: str,
 ) -> dict[str, Any]:
+    if re.fullmatch(r"[0-9a-f]{64}", seed_revision) is None:
+        raise DemoArtifactError("App manifest requires a canonical seed revision")
     identity = DemoIdentity.create(product_tag, product_commit)
     manifest = {
         "manifest_version": MANIFEST_VERSION,
         "product": identity.product,
         "runtime_contract": RUNTIME_CONTRACT,
         "schema": schema_binding(source_root),
+        "seed_revision": seed_revision,
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
@@ -271,6 +275,8 @@ def verify_pair_manifests(
         raise DemoArtifactError("Seed manifest does not match the expected schema fingerprint")
     if seed_manifest.get("seed_revision") != expected_seed_revision:
         raise DemoArtifactError("Seed manifest does not match the expected seed revision")
+    if app_manifest.get("seed_revision") != expected_seed_revision:
+        raise DemoArtifactError("App manifest does not match the expected seed revision")
     return app_manifest, seed_manifest
 
 
@@ -343,6 +349,8 @@ def validate_runtime_binding(app_manifest_path: Path, data_dir: Path) -> tuple[d
         raise DemoArtifactError("Demo app and seed target different runtime contracts")
     if app_manifest["schema"]["fingerprint"] != seed_manifest.get("schema", {}).get("fingerprint"):
         raise DemoArtifactError("Demo app and seed target different schema fingerprints")
+    if app_manifest.get("seed_revision") != seed_manifest.get("seed_revision"):
+        raise DemoArtifactError("Demo app and seed target different seed revisions")
     load_runtime_status(data_dir, seed_manifest)
     database = data_dir / "lzug.sqlite"
     readiness = database_readiness(database)
@@ -376,6 +384,7 @@ def parse_args() -> argparse.Namespace:
     app.add_argument("--output", type=Path, required=True)
     app.add_argument("--product-tag", required=True)
     app.add_argument("--product-commit", required=True)
+    app.add_argument("--seed-revision", required=True)
 
     pair = subparsers.add_parser("verify-pair-manifests")
     pair.add_argument("--app-manifest", type=Path, required=True)
@@ -419,6 +428,7 @@ def main() -> None:
             args.output,
             product_tag=args.product_tag,
             product_commit=args.product_commit,
+            seed_revision=args.seed_revision,
         )
     elif args.command == "verify-pair-manifests":
         verify_pair_manifests(

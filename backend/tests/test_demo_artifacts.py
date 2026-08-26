@@ -56,6 +56,7 @@ class DemoArtifactTests(unittest.TestCase):
                 app_manifest,
                 product_tag=self.product_tag,
                 product_commit=self.product_commit,
+                seed_revision=first["seed_revision"],
             )
 
             self.assertEqual(first, second)
@@ -78,6 +79,7 @@ class DemoArtifactTests(unittest.TestCase):
             loaded_app, loaded_seed = validate_runtime_binding(app_manifest, data_dir)
             self.assertEqual(self.product_commit, loaded_app["product"]["commit"])
             self.assertEqual(first["seed_revision"], loaded_seed["seed_revision"])
+            self.assertEqual(first["seed_revision"], loaded_app["seed_revision"])
             self.assertEqual(RUNTIME_CONTRACT, loaded_app["runtime_contract"])
 
             ResourceRepository(data_dir / "lzug.sqlite").update(
@@ -172,7 +174,7 @@ class DemoArtifactTests(unittest.TestCase):
             seed_db = root / "seed.sqlite"
             seed_manifest = root / "seed.json"
             app_manifest = root / "app.json"
-            build_seed(
+            seed = build_seed(
                 Path("."),
                 seed_db,
                 seed_manifest,
@@ -184,6 +186,7 @@ class DemoArtifactTests(unittest.TestCase):
                 app_manifest,
                 product_tag=self.product_tag,
                 product_commit=self.product_commit,
+                seed_revision=seed["seed_revision"],
             )
             data_dir = root / "data"
             initialize_workdir(seed_db, seed_manifest, data_dir)
@@ -211,6 +214,7 @@ class DemoArtifactTests(unittest.TestCase):
                 app_manifest,
                 product_tag=self.product_tag,
                 product_commit=self.product_commit,
+                seed_revision=seed["seed_revision"],
             )
 
             verify_pair_manifests(
@@ -227,6 +231,20 @@ class DemoArtifactTests(unittest.TestCase):
             app["runtime_contract"] = "legacy-health-only"
             app_manifest.write_text(json.dumps(app), encoding="utf-8")
             with self.assertRaisesRegex(DemoArtifactError, "runtime contract"):
+                verify_pair_manifests(
+                    app_manifest,
+                    seed_manifest,
+                    expected_product_tag=self.product_tag,
+                    expected_product_commit=self.product_commit,
+                    expected_runtime_contract=RUNTIME_CONTRACT,
+                    expected_schema_fingerprint=seed["schema"]["fingerprint"],
+                    expected_seed_revision=seed["seed_revision"],
+                )
+
+            app["runtime_contract"] = RUNTIME_CONTRACT
+            app["seed_revision"] = "0" * 64
+            app_manifest.write_text(json.dumps(app), encoding="utf-8")
+            with self.assertRaisesRegex(DemoArtifactError, "expected seed revision"):
                 verify_pair_manifests(
                     app_manifest,
                     seed_manifest,
@@ -254,6 +272,7 @@ class DemoArtifactTests(unittest.TestCase):
                 root / "app.json",
                 product_tag=tag,
                 product_commit=revision,
+                seed_revision=seed["seed_revision"],
             )
 
         expected = {
@@ -285,6 +304,7 @@ class DemoArtifactTests(unittest.TestCase):
                 app_manifest,
                 product_tag=self.product_tag,
                 product_commit=self.product_commit,
+                seed_revision=manifest["seed_revision"],
             )
             data_dir = root / "data"
             initialize_workdir(seed_db, seed_manifest, data_dir)

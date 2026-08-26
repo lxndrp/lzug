@@ -1,14 +1,8 @@
 from __future__ import annotations
 
 import unittest
-from datetime import UTC, datetime
 
-from scripts.demo_snapshot import (
-    SnapshotContractError,
-    snapshot_identity,
-    validate_milestones,
-    validate_releases,
-)
+from scripts.demo_snapshot import SnapshotContractError, snapshot_identity
 
 
 class DemoSnapshotTests(unittest.TestCase):
@@ -31,44 +25,6 @@ class DemoSnapshotTests(unittest.TestCase):
         ):
             with self.subTest(tag=tag), self.assertRaises(SnapshotContractError):
                 snapshot_identity(tag, revision)
-
-    def test_target_is_exactly_one_open_future_stable_milestone(self) -> None:
-        now = datetime(2026, 8, 15, tzinfo=UTC)
-        valid = {
-            "number": 5,
-            "title": "v0.2.0",
-            "state": "open",
-            "due_on": "2026-10-23T00:00:00Z",
-        }
-        self.assertEqual(valid, validate_milestones([valid], "v0.2.0", now=now))
-
-        for payload in (
-            [],
-            [{**valid, "state": "closed"}],
-            [{**valid, "due_on": None}],
-            [{**valid, "due_on": "2026-08-14T00:00:00Z"}],
-            [valid, dict(valid)],
-        ):
-            with self.subTest(payload=payload), self.assertRaises(SnapshotContractError):
-                validate_milestones(payload, "v0.2.0", now=now)
-        with self.assertRaises(ValueError):
-            validate_milestones([valid], "v0.2.0-rc.1", now=now)
-
-    def test_target_version_must_be_newer_and_not_released(self) -> None:
-        releases = [
-            {"tag_name": "v0.1.2", "draft": False},
-            {"tag_name": "v0.2.0-rc.1", "draft": False},
-            {"tag_name": "not-semver", "draft": False},
-        ]
-        validate_releases(releases, "v0.2.0")
-
-        for target, payload in (
-            ("v0.1.2", releases),
-            ("v0.1.1", releases),
-            ("v0.2.0", [*releases, {"tag_name": "v0.2.0", "draft": False}]),
-        ):
-            with self.subTest(target=target), self.assertRaises(SnapshotContractError):
-                validate_releases(payload, target)
 
 
 if __name__ == "__main__":

@@ -220,9 +220,10 @@ run "demo_contract" {
       !github_repository_environment.demo.deployment_branch_policy[0].protected_branches &&
       github_repository_environment.demo.deployment_branch_policy[0].custom_branch_policies &&
       github_repository_environment_deployment_policy.demo["master"].branch_pattern == "master" &&
-      github_repository_environment_deployment_policy.demo["snapshot"].tag_pattern == "demo/v*-SNAPSHOT.*"
+      github_repository_environment_deployment_policy.demo["snapshot"].tag_pattern == "demo/v*-SNAPSHOT.*" &&
+      github_repository_environment_deployment_policy.demo["release"].tag_pattern == "v*"
     )
-    error_message = "The GitHub demo environment must declaratively preserve its selected master and snapshot policies."
+    error_message = "The GitHub demo environment must declaratively preserve its selected master, snapshot, and stable release policies."
   }
 
   assert {
