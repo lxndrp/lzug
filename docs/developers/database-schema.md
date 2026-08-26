@@ -3,7 +3,7 @@
 Die aktuelle, ausführbare Schema-Referenz ist `db/schema.sql` im Repository. Sie
 und die versionierten Migrationen unter `db/migrations/` sind maßgeblich für
 den tatsächlichen Datenbankstand. Der aktuelle Migrationsstand ist
-`011_add_local_password_totp_auth.sql`.
+`013_add_notifications.sql`.
 
 Das aktuelle Backend verwendet SQLite lokal und SQLAlchemy. Primärschlüssel,
 Enums, Zeitstempel und Booleans sind SQLite-kompatibel modelliert; mehrzeilige
@@ -73,3 +73,17 @@ serverseitig erzeugt und darf nicht aus einem Benutzerpfad stammen. Der
 Dateiinhalt liegt getrennt unter `/data/documents`; die Datenbank enthält keine
 unkontrollierten Dateisystempfade. Backup- und Restore-Funktionen bleiben
 außerhalb von #118.
+
+## Kanalneutrale Benachrichtigungen
+
+`notification` speichert den fachlichen Hinweis genau einmal je Empfänger,
+Ereignistyp und stabilem Ursprungsbezug. `notification_delivery` hält davon
+getrennt ausschließlich technische Kanalzustände und Diagnosecodes.
+`push_subscription` bindet einen Browser-Endpunkt an die authentifizierte
+Person; endgültig ungültige Endpunkte werden mit `invalidated_at` stillgelegt.
+
+Alle Benachrichtigungen des Erstumfangs verweisen über `exam_round_id` auf den
+zugrunde liegenden Planungsvorgang. Dessen Löschung löscht deshalb auch Inhalte
+und technische Zustelldaten. Migration `013_add_notifications.sql` überführt
+kompatible Einträge der älteren kanalgebundenen Vorab-Tabelle und ersetzt sie
+durch diesen Vertrag.

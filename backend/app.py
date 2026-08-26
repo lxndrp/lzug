@@ -47,6 +47,7 @@ from .models import (
     PLANNING_SETTINGS,
     Resource,
 )
+from .notifications import NotificationService
 from .observability import emit_event, safe_http_path
 from .planning import (
     PlanAssignment,
@@ -262,6 +263,10 @@ class LzugHandler(BaseHTTPRequestHandler):
     def local_auth_service(self) -> LocalAuthService:
         return LocalAuthService(self.db_path, session_ttl=self.session_ttl)
 
+    @property
+    def notification_service(self) -> NotificationService:
+        return NotificationService(self.db_path)
+
     def do_GET(self) -> None:
         """Dispatch read, health, OpenAPI, and Swagger UI requests."""
         try:
@@ -319,6 +324,53 @@ class LzugHandler(BaseHTTPRequestHandler):
                 return
 
             if self.require_authenticated() is None:
+                return
+
+            if path_parts == ["notifications"]:
+                self.respond(
+                    {
+                        "items": self.notification_service.list_own(self.authorization_scope),
+                        "_links": {
+                            "self": {"href": "/api/notifications"},
+                            "channels": {"href": "/api/notification-channels"},
+                            "problems": {"href": "/api/notification-problems"},
+                        },
+                    }
+                )
+                return
+
+            if path_parts == ["notification-problems"]:
+                self.respond(
+                    {
+                        "items": self.notification_service.problems(self.authorization_scope),
+                        "_links": {"self": {"href": "/api/notification-problems"}},
+                    }
+                )
+                return
+
+            if path_parts == ["notification-overview"]:
+                self.respond(
+                    {
+                        "items": self.notification_service.management_overview(
+                            self.authorization_scope
+                        ),
+                        "_links": {"self": {"href": "/api/notification-overview"}},
+                    }
+                )
+                return
+
+            if path_parts == ["notification-channels"]:
+                channels = self.notification_service.channels()
+                self.respond(
+                    {
+                        "web_push": {
+                            "available": channels.push_public_key is not None,
+                            "public_key": channels.push_public_key,
+                        },
+                        "email_fallback_configured": channels.email_configured,
+                        "sink_enabled": channels.sink_enabled,
+                    }
+                )
                 return
 
             if path_parts == ["round-summary"]:
@@ -595,10 +647,39 @@ class LzugHandler(BaseHTTPRequestHandler):
                 self.respond({}, HTTPStatus.NO_CONTENT)
                 return
 
+            if (
+                len(path_parts) == 3
+                and path_parts[0] == "notifications"
+                and path_parts[2] == "push-confirmation"
+            ):
+                context = self.require_authenticated(require_csrf=False)
+                if context is None:
+                    return
+                self.runtime_policy.authorize_mutation(self, "POST", path_parts, context)
+                confirmed = self.notification_service.confirm_push(
+                    self.authorization_scope, int(path_parts[1])
+                )
+                if not confirmed:
+                    self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                    return
+                self.respond({"status": "technically_confirmed"})
+                return
+
             context = self.require_authenticated(require_csrf=True)
             if context is None:
                 return
             self.runtime_policy.authorize_mutation(self, "POST", path_parts, context)
+            if path_parts == ["push-subscriptions"]:
+                payload = self.read_json()
+                endpoint = payload.get("endpoint")
+                if not isinstance(endpoint, str):
+                    raise ValueError("Push endpoint is required")
+                self.respond(
+                    self.notification_service.register_push(self.authorization_scope, endpoint),
+                    HTTPStatus.CREATED,
+                )
+                return
+
             if (
                 len(path_parts) == 5
                 and path_parts[0] == "confirmed-plan-days"
@@ -623,6 +704,11 @@ class LzugHandler(BaseHTTPRequestHandler):
             ):
                 self.require_round_access(int(path_parts[1]), manage=True)
                 exam_round = self.planning_service.request_availabilities(int(path_parts[1]))
+                warning = self.create_notifications_best_effort(
+                    "availability_requested", int(path_parts[1])
+                )
+                if warning:
+                    exam_round["notification_warning"] = warning
                 self.respond(
                     hateoas.resource_item(
                         "exam-rounds",
@@ -639,6 +725,11 @@ class LzugHandler(BaseHTTPRequestHandler):
             ):
                 self.require_round_access(int(path_parts[1]), manage=True)
                 confirmed_plan = self.planning_service.confirm_plan(int(path_parts[1]))
+                warning = self.create_notifications_best_effort(
+                    "plan_confirmed", int(path_parts[1])
+                )
+                if warning:
+                    confirmed_plan["notification_warning"] = warning
                 self.respond(hateoas.confirmed_plan(confirmed_plan))
                 return
 
@@ -862,6 +953,15 @@ class LzugHandler(BaseHTTPRequestHandler):
                 return
             path_parts = self.path_parts(urlparse(self.path).path)
             self.runtime_policy.authorize_mutation(self, "DELETE", path_parts, context)
+            if len(path_parts) == 2 and path_parts[0] == "push-subscriptions":
+                deleted = self.notification_service.unregister_push(
+                    self.authorization_scope, int(path_parts[1])
+                )
+                if not deleted:
+                    self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                    return
+                self.respond({}, HTTPStatus.NO_CONTENT)
+                return
             resource_name, entity_id = self.resource_target(path_parts)
             if resource_name is None or entity_id is None:
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
@@ -1082,6 +1182,32 @@ class LzugHandler(BaseHTTPRequestHandler):
         )
         if not allowed:
             raise ForbiddenRequestError("Forbidden.")
+
+    def create_notifications_best_effort(self, event_type: str, round_id: int) -> str | None:
+        """Keep a committed domain transition successful when notification work fails."""
+        try:
+            result = self.notification_service.create_for_event(event_type, round_id)
+            if result.get("problems", 0):
+                emit_event(
+                    "backend_error",
+                    severity="warning",
+                    category="delivery_incomplete",
+                )
+                return (
+                    "Die Benachrichtigungen wurden in lzug bereitgestellt, aber eine externe "
+                    "Zustellung war nicht für alle vorgesehenen Empfänger verfügbar."
+                )
+            return None
+        except Exception:
+            emit_event(
+                "backend_error",
+                severity="error",
+                category="notification_processing",
+            )
+            return (
+                "Der Fachvorgang wurde gespeichert, aber Benachrichtigungen konnten nicht für "
+                "alle vorgesehenen Empfänger verarbeitet werden."
+            )
 
     def require_day_access(
         self,

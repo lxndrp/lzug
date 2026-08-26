@@ -32,6 +32,13 @@ Auskunftspflichten, Lösch- und Aufbewahrungsfristen, Datensicherung,
 Wiederherstellung, Auftragsverarbeitung und technische Schutzmaßnahmen für
 ihren konkreten Einsatz prüfen und dokumentieren.
 
+Benachrichtigungsinhalte und Empfängerbezüge folgen der Aufbewahrung ihres
+zugrunde liegenden Planungs- oder Prüfungsvorgangs. Externe Push-Vorschauen
+enthalten keine Fachdaten; technische Zustellmetadaten werden getrennt vom
+Inhalt gespeichert. Ein optional konfiguriertes SMTP-Relay und ein Web-Push-
+Dienst sind zusätzliche Empfänger technischer Zustellungen und müssen von der
+verantwortlichen Stelle in ihre konkrete Datenschutzprüfung einbezogen werden.
+
 Diese betriebliche Datenschutzabnahme, produktive Backup-/Restore-Pfade und
 ein unterstütztes Upgrade gehören nicht zum Anspruch von `v0.1.0`. Die
 Self-Hosting-Betriebsfähigkeit ist für `v0.6.0`, der reale Pilot für

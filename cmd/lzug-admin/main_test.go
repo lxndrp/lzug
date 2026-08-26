@@ -68,6 +68,31 @@ func TestCanonicalBuildMetadataUsesLinkedIdentity(t *testing.T) {
 	}
 }
 
+func TestNotificationCommandsUseExplicitSafeArguments(t *testing.T) {
+	test, err := parseOptions(
+		[]string{"--container", "lzug", "test-notification", "--member-id", "7", "--channel", "web_push"},
+		strings.NewReader(""),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if test.command != "test-notification" || test.arguments["member_id"] != 7 || test.arguments["channel"] != "web_push" {
+		t.Fatalf("unexpected test notification request: %#v", test)
+	}
+	process, err := parseOptions(
+		[]string{"--container", "lzug", "process-notifications"}, strings.NewReader(""),
+	)
+	if err != nil || process.command != "process-notifications" || len(process.arguments) != 0 {
+		t.Fatalf("unexpected process notification request: %#v, %v", process, err)
+	}
+	if _, err := parseOptions(
+		[]string{"--container", "lzug", "test-notification", "--member-id", "7", "--channel", "sms"},
+		strings.NewReader(""),
+	); err == nil {
+		t.Fatal("unsupported delivery channel was accepted")
+	}
+}
+
 func TestTransportPreservesJSONStreamsAndRemoteExitCode(t *testing.T) {
 	argsFile := filepath.Join(t.TempDir(), "args")
 	t.Setenv("LZUG_CLI_HELPER", "1")

@@ -453,6 +453,68 @@ class Document(Base):
     updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
 
 
+class Notification(Base):
+    """A durable domain notification, independent from delivery channels."""
+
+    __tablename__ = "notification"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    committee_id: Mapped[int] = mapped_column(ForeignKey("committee.id", ondelete="CASCADE"))
+    exam_round_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_round.id", ondelete="CASCADE"), nullable=True
+    )
+    recipient_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="CASCADE")
+    )
+    event_type: Mapped[str] = mapped_column(String)
+    origin_key: Mapped[str] = mapped_column(String)
+    title: Mapped[str] = mapped_column(String)
+    message: Mapped[str] = mapped_column(String)
+    action_path: Mapped[str] = mapped_column(String)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index(
+            "notification_recipient_event_origin",
+            "recipient_member_id",
+            "event_type",
+            "origin_key",
+            unique=True,
+        ),
+    )
+
+
+class PushSubscription(Base):
+    """A browser push endpoint. No notification content is stored here."""
+
+    __tablename__ = "push_subscription"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    person_id: Mapped[int] = mapped_column(ForeignKey("person.id", ondelete="CASCADE"))
+    endpoint: Mapped[str] = mapped_column(String, unique=True)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    invalidated_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class NotificationDelivery(Base):
+    """Technical channel state kept separate from domain notification content."""
+
+    __tablename__ = "notification_delivery"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    notification_id: Mapped[int] = mapped_column(ForeignKey("notification.id", ondelete="CASCADE"))
+    channel: Mapped[str] = mapped_column(String)
+    target_key: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String)
+    attempt_count: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
+    next_attempt_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    technical_confirmed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
 @dataclass(frozen=True)
 class Resource:
     model: type[Base]

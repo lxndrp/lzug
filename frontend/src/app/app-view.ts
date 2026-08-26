@@ -7,4 +7,5 @@ export type AppView =
   | 'committee'
   | 'planning'
   | 'locations'
-  | 'exam-half-years';
+  | 'exam-half-years'
+  | 'notifications';

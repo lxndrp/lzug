@@ -190,3 +190,44 @@ class AdminAuthenticationTests(unittest.TestCase):
             response = json.loads(process.stdout)
             self.assertTrue(response["ok"])
             self.assertTrue(response["result"]["token"])
+
+    def test_notification_protocol_exposes_only_synthetic_diagnostics(self) -> None:
+        class Notifications:
+            def synthetic_test(self, member_id: int, channel: str):
+                self.called = (member_id, channel)
+                return {
+                    "notification_id": 17,
+                    "deliveries": [
+                        {
+                            "channel": channel,
+                            "status": "technically_confirmed",
+                            "attempt_count": 1,
+                            "error_code": None,
+                        }
+                    ],
+                }
+
+        with TempDatabase(with_seed=False) as db_path:
+            service = OperatorAuthService(db_path)
+            notifications = Notifications()
+            output = io.BytesIO()
+            stdout = io.TextIOWrapper(output, encoding="utf-8")
+            with redirect_stdout(stdout):
+                code = run(
+                    json.dumps(
+                        {
+                            "version": 1,
+                            "command": "test-notification",
+                            "arguments": {"member_id": 7, "channel": "web_push"},
+                        }
+                    ).encode(),
+                    service=service,
+                    notifications=notifications,
+                )
+            stdout.flush()
+            response = json.loads(output.getvalue())
+
+        self.assertEqual(EXIT_OK, code)
+        self.assertEqual((7, "web_push"), notifications.called)
+        self.assertNotIn("message", json.dumps(response))
+        self.assertEqual("technically_confirmed", response["result"]["deliveries"][0]["status"])

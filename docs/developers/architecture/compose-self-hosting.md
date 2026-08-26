@@ -79,6 +79,10 @@ beschrieben; Compose setzt deren `/data`-Defaults:
 | `LZUG_AUTH_RATE_LIMIT` / `LZUG_AUTH_RATE_WINDOW_SECONDS` | `20` / `60`                 | öffentliches Auth-Limit je IP und Route                               |
 | `LZUG_MAX_UPLOAD_BYTES`                                  | `10485760`                  | maximale Dokumentgröße                                                |
 | `LZUG_ALLOWED_UPLOAD_MEDIA_TYPES`                        | PDF, JPEG, PNG, Text        | exakte Upload-Allowlist                                               |
+| `LZUG_WEB_PUSH_VAPID_PRIVATE_KEY` / `LZUG_WEB_PUSH_SUBJECT` | leer                     | optionaler persistenter P-256-Schlüssel und VAPID-Kontakt             |
+| `LZUG_EXTERNAL_URL`                                      | leer                        | authentifizierte Basis-URL für externe Verweise                        |
+| `LZUG_SMTP_*`                                            | leer / Port `25`            | optionaler providerneutraler E-Mail-Fallback                           |
+| `LZUG_NOTIFICATION_SINK`                                 | `false`                     | explizite Test-/Demo-Umleitung ohne Empfängerkontakt                   |
 | `LZUG_DATA_DIR`                                          | `/data`                     | Wurzel des persistenten Datenvertrags                                 |
 | `LZUG_DATABASE_PATH`                                     | `/data/lzug.sqlite`         | SQLite-Datei                                                          |
 | `LZUG_DATABASE_URL`                                      | leer                        | alternative SQLite-Datei-URL; nicht zusammen mit `LZUG_DATABASE_PATH` |
@@ -88,6 +92,10 @@ beschrieben; Compose setzt deren `/data`-Defaults:
 `LZUG_DATABASE_URL` und `LZUG_DATABASE_PATH` dürfen nicht gleichzeitig einen
 Wert tragen. Es gibt keine Authentifizierungs-, Autorisierungs- oder
 Migrations-Abkürzung; der Start führt nur die vorgesehenen Migrationen aus.
+Die Anwendung startet ohne VAPID-Schlüssel und ohne SMTP-Relay; fachliche
+Benachrichtigungen bleiben dann in lzug verfügbar. Die Kanal- und
+Betreibergrenzen beschreibt die
+[Benachrichtigungsarchitektur](notifications.md).
 
 ## Persistenz, Update und Diagnose
 

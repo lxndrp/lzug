@@ -70,6 +70,7 @@ import { ExamDayComponent } from './exam-day/exam-day.component';
 import { AuthFlowComponent } from './auth/auth-flow.component';
 import { AuthService } from './auth/auth.service';
 import { RuntimeNoticeComponent } from './runtime/runtime-notice.component';
+import { NotificationsComponent } from './notifications/notifications.component';
 
 @Component({
   selector: 'app-root',
@@ -83,6 +84,7 @@ import { RuntimeNoticeComponent } from './runtime/runtime-notice.component';
     DashboardComponent,
     ExamHalfYearsComponent,
     LocationsComponent,
+    NotificationsComponent,
     PlanningComponent,
     RuntimeNoticeComponent,
     SchedulingOverviewComponent,
@@ -166,6 +168,7 @@ export class App {
       planning: 'Terminorganisation',
       locations: 'Prüfungsorte',
       'exam-half-years': 'Prüfungshalbjahre',
+      notifications: 'Benachrichtigungen',
     };
     return labels[this.activeView()];
   });
@@ -200,6 +203,7 @@ export class App {
 
   protected readonly breadcrumb = computed(() => {
     if (this.activeView() === 'exam-half-years') return 'Prüfungskontext';
+    if (this.activeView() === 'notifications') return 'Persönlicher Bereich';
     if (['committee', 'locations'].includes(this.activeView())) return 'Globale Bereiche';
     return 'Aktueller Prüfungskontext';
   });
@@ -374,7 +378,7 @@ export class App {
 
   protected canAccessView(view: AppView): boolean {
     if (!this.demoSession()) return true;
-    if (view === 'dashboard') return true;
+    if (view === 'dashboard' || view === 'notifications') return true;
     if (view === 'exam-half-years') return true;
     if (['scheduling-overview', 'planning'].includes(view)) {
       return (
@@ -682,11 +686,13 @@ export class App {
       .requestAvailabilities(payload)
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
-        next: () => {
+        next: (result) => {
           this.notify(
-            'success',
-            'Verfügbarkeiten angefragt',
-            'Die Terminorganisation ist jetzt in Abstimmung.',
+            result.notification_warning ? 'error' : 'success',
+            result.notification_warning
+              ? 'Terminorganisation gestartet, Benachrichtigungen unvollständig'
+              : 'Verfügbarkeiten angefragt',
+            result.notification_warning ?? 'Die Terminorganisation ist jetzt in Abstimmung.',
           );
           this.refresh();
         },
@@ -873,7 +879,13 @@ export class App {
         next: (result) => {
           this.lastPlanningResult.set(result);
           const confirmed = result.counts['confirmed_slots'] ?? 0;
-          this.notify('success', 'Plan bestätigt', `${confirmed} Termine sind verbindlich.`);
+          this.notify(
+            result.notification_warning ? 'error' : 'success',
+            result.notification_warning
+              ? 'Plan bestätigt, Benachrichtigungen unvollständig'
+              : 'Plan bestätigt',
+            result.notification_warning ?? `${confirmed} Termine sind verbindlich.`,
+          );
           this.refresh();
           void this.router.navigateByUrl(`/confirmed-plans/${this.roundContext.roundId()}`);
         },
@@ -981,6 +993,7 @@ export class App {
       planning: 'planning',
       locations: 'locations',
       'exam-half-years': 'exam-half-years',
+      notifications: 'notifications',
     };
     return view === 'planning' ? `scheduling-overview/${this.roundContext.roundId()}` : paths[view];
   }
@@ -1003,6 +1016,7 @@ export class App {
       planning: 'planning',
       locations: 'locations',
       'exam-half-years': 'exam-half-years',
+      notifications: 'notifications',
     };
     return views[segment ?? 'dashboard'] ?? 'dashboard';
   }
