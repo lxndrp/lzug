@@ -16,6 +16,7 @@ PR_GATES = (
 class QualityWorkflowContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
+        cls.codeql = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
         cls.pull_request = Path(".github/workflows/pull-request.yml").read_text(encoding="utf-8")
         cls.quality = Path(".github/workflows/quality.yml").read_text(encoding="utf-8")
 
@@ -45,6 +46,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 self.assertIn(f"      {domain}: ${{{{", self.pull_request)
         self.assertIn("predicate-quantifier: every", self.pull_request)
         self.assertIn("steps.unknown.outputs.unknown == 'true'", self.pull_request)
+        self.assertIn("codeql_languages: ${{ steps.codeql.outputs.changes }}", self.pull_request)
         self.assertIn("- '.github/**'", self.pull_request)
         self.assertIn("- 'uv.lock'", self.pull_request)
         self.assertIn("- 'frontend/package-lock.json'", self.pull_request)
@@ -84,9 +86,10 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("required: false", self.quality)
         self.assertIn("QUALITY_REVISION: ${{ inputs.revision || github.sha }}", self.quality)
         self.assertEqual(
-            10,
+            9,
             self.quality.count("ref: ${{ inputs.revision || github.sha }}"),
         )
+        self.assertIn("ref: ${{ inputs.revision || github.sha }}", self.codeql)
         self.assertIn('--revision "$QUALITY_REVISION"', self.quality)
 
     def test_local_quality_tasks_are_the_ci_domain_contract(self) -> None:
@@ -105,6 +108,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
 
     def test_quality_actions_are_pinned_and_quality_cannot_publish(self) -> None:
         for path in (
+            Path(".github/workflows/ci.yml"),
             Path(".github/workflows/pull-request.yml"),
             Path(".github/workflows/quality.yml"),
         ):
@@ -118,8 +122,53 @@ class QualityWorkflowContractTests(unittest.TestCase):
 
     def test_codeql_analysis_identity_survives_the_workflow_split(self) -> None:
         category = 'category: ".github/workflows/ci.yml:codeql/language:${{ matrix.language }}"'
-        self.assertEqual(1, self.pull_request.count(category))
-        self.assertEqual(1, self.quality.count(category))
+        self.assertEqual(1, self.codeql.count(category))
+        self.assertIn("uses: ./.github/workflows/ci.yml", self.pull_request)
+        self.assertIn("uses: ./.github/workflows/ci.yml", self.quality)
+        self.assertNotIn("github/codeql-action/analyze@", self.pull_request)
+        self.assertNotIn("github/codeql-action/analyze@", self.quality)
+
+    def test_codeql_reuses_only_validated_exact_base_analyses(self) -> None:
+        self.assertIn("BASE_SHA: ${{ inputs.baseline-sha }}", self.codeql)
+        self.assertIn('.commit_sha == $sha and .error == "" and .rules_count > 0', self.codeql)
+        self.assertIn("Accept: application/sarif+json", self.codeql)
+        self.assertIn('.runs[0].tool.driver.name == "CodeQL"', self.codeql)
+        self.assertIn(".runs | length == 1", self.codeql)
+        self.assertIn("tool.extensions[]?.rules[]?", self.codeql)
+        self.assertIn("results_count", self.codeql)
+        self.assertIn(
+            "github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3",
+            self.codeql,
+        )
+        self.assertNotIn('"results": []', self.codeql)
+
+    def test_pull_request_codeql_matrix_uses_selected_languages(self) -> None:
+        self.assertIn("name: Select CodeQL languages", self.pull_request)
+        self.assertIn(
+            "language: ${{ fromJSON(inputs.languages) }}",
+            self.codeql,
+        )
+        self.assertIn(
+            "languages: ${{ needs.changes.outputs.codeql_languages }}",
+            self.pull_request,
+        )
+        for path in (
+            "'**/*.py'",
+            "'pyproject.toml'",
+            "'uv.lock'",
+            "'**/*.ts'",
+            "'frontend/package.json'",
+            "'frontend/package-lock.json'",
+            "'**/*.go'",
+            "'go.mod'",
+            "'.github/workflows/ci.yml'",
+        ):
+            with self.subTest(path=path):
+                self.assertIn(f"- {path}", self.pull_request)
+        self.assertIn(
+            'languages: \'["python","javascript-typescript","go"]\'',
+            self.quality,
+        )
 
 
 if __name__ == "__main__":

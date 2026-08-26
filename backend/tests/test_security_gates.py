@@ -22,11 +22,21 @@ class SecurityGateTests(unittest.TestCase):
             workflow = path.read_text(encoding="utf-8")
             with self.subTest(workflow=path.name):
                 self.assertIn("security-events: write", workflow)
-                self.assertIn("language: [python, javascript-typescript, go]", workflow)
-                self.assertIn("github/codeql-action/init@", workflow)
-                self.assertIn("github/codeql-action/analyze@", workflow)
+                self.assertIn("uses: ./.github/workflows/ci.yml", workflow)
                 self.assertIn("scanners: secret,misconfig", workflow)
                 self.assertIn('exit-code: "1"', workflow)
+        codeql = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("github/codeql-action/init@", codeql)
+        self.assertIn("github/codeql-action/analyze@", codeql)
+        self.assertIn("github/codeql-action/upload-sarif@", codeql)
+        self.assertIn(
+            "languages: ${{ needs.changes.outputs.codeql_languages }}",
+            Path(".github/workflows/pull-request.yml").read_text(encoding="utf-8"),
+        )
+        self.assertIn(
+            'languages: \'["python","javascript-typescript","go"]\'',
+            Path(".github/workflows/quality.yml").read_text(encoding="utf-8"),
+        )
 
     def test_pr_gates_require_the_common_security_results(self) -> None:
         workflow = Path(".github/workflows/pull-request.yml").read_text(encoding="utf-8")
@@ -36,6 +46,23 @@ class SecurityGateTests(unittest.TestCase):
             5,
             workflow.count('test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success'),
         )
+
+    def test_dependabot_auto_merge_keeps_classification_without_polling(self) -> None:
+        workflow = Path(".github/workflows/dependabot-auto-merge.yml").read_text(encoding="utf-8")
+        self.assertIn("pull_request_target:", workflow)
+        self.assertNotIn("actions/checkout@", workflow)
+        for classification in (
+            "npm_and_yarn:version-update:semver-patch",
+            "npm_and_yarn:version-update:semver-minor",
+            "uv:version-update:semver-patch",
+            "uv:version-update:semver-minor",
+        ):
+            with self.subTest(classification=classification):
+                self.assertIn(classification, workflow)
+        self.assertNotIn("gh pr view", workflow)
+        self.assertNotIn("sleep 2", workflow)
+        self.assertNotIn("mergeable=", workflow)
+        self.assertIn('run: gh pr merge --auto --squash "$PR_URL"', workflow)
 
 
 if __name__ == "__main__":

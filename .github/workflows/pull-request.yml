@@ -29,6 +29,7 @@ jobs:
       container: ${{ steps.domains.outputs.container == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       browser: ${{ steps.domains.outputs.browser == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       infra: ${{ steps.domains.outputs.infra == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
+      codeql_languages: ${{ steps.codeql.outputs.changes }}
     steps:
       - name: Select known domains
         id: domains
@@ -92,6 +93,44 @@ jobs:
               - 'frontend/package-lock.json'
               - 'go.mod'
               - 'scripts/**'
+
+      - name: Select CodeQL languages
+        id: codeql
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            python:
+              - '**/*.py'
+              - '.python-version'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/pull-request.yml'
+              - '.github/workflows/quality.yml'
+            javascript-typescript:
+              - '**/*.cjs'
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.mjs'
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '.node-version'
+              - 'frontend/angular.json'
+              - 'frontend/package.json'
+              - 'frontend/package-lock.json'
+              - 'frontend/tsconfig*.json'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/pull-request.yml'
+              - '.github/workflows/quality.yml'
+            go:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'go.work'
+              - 'go.work.sum'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/pull-request.yml'
+              - '.github/workflows/quality.yml'
 
       - name: Detect unknown paths
         id: unknown
@@ -407,30 +446,15 @@ jobs:
           retention-days: 7
 
   codeql:
-    name: CodeQL (${{ matrix.language }})
-    runs-on: ubuntu-latest
+    needs: changes
+    uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
       security-events: write
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [python, javascript-typescript, go]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        if: matrix.language == 'go'
-        with:
-          go-version: "1.26.5"
-      - uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
-        with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.language == 'go' && 'autobuild' || 'none' }}
-          queries: security-extended
-      - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
-        with:
-          category: ".github/workflows/ci.yml:codeql/language:${{ matrix.language }}"
-          upload: always
+    with:
+      languages: ${{ needs.changes.outputs.codeql_languages }}
+      baseline-ref: ${{ github.event.pull_request.base.ref }}
+      baseline-sha: ${{ github.event.pull_request.base.sha }}
 
   source-scan:
     name: Source secrets and misconfiguration
