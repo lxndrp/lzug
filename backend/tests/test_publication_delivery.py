@@ -39,7 +39,12 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         script = (ROOT / "prototypes/publication/relearn/static/js/demo-warmup.js").read_text(
             encoding="utf-8"
         )
-        browser_check = (ROOT / "scripts/check_publication_spike.mjs").read_text(encoding="utf-8")
+        browser_check = (ROOT / "frontend/publication-e2e/publication.spec.ts").read_text(
+            encoding="utf-8"
+        )
+        playwright_config = (ROOT / "frontend/playwright.publication.config.ts").read_text(
+            encoding="utf-8"
+        )
         template = (ROOT / "prototypes/publication/relearn/layouts/home/article.html").read_text(
             encoding="utf-8"
         )
@@ -53,15 +58,16 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertNotIn("`${demoUrl}/api/health`", script)
         self.assertIn('payload.status === "ready"', script)
         self.assertIn('button.textContent = "Erneut versuchen"', script)
-        self.assertIn("chromiumSandbox: true", browser_check)
-        self.assertIn('browserChannel !== "chrome"', browser_check)
-        self.assertIn('.getAttribute("data-demo-url")', browser_check)
-        self.assertIn("configuredValue !== configuredUrl.origin", browser_check)
+        self.assertIn("chromiumSandbox: true", playwright_config)
+        self.assertIn("browserChannel !== 'chrome'", playwright_config)
+        self.assertIn("video: 'off'", playwright_config)
+        self.assertIn("getAttribute('data-demo-url')", browser_check)
+        self.assertIn("expect(configuredValue).toBe(configuredUrl.origin)", browser_check)
         self.assertIn("`${warmupDemoOrigin}/api/ready`", browser_check)
         self.assertIn("`${warmupDemoOrigin}/`", browser_check)
         self.assertIn("`${failureDemoOrigin}/api/ready`", browser_check)
-        self.assertEqual(2, browser_check.count('route.abort("blockedbyclient")'))
-        self.assertIn("failedReadinessRequests !== 2", browser_check)
+        self.assertEqual(2, browser_check.count("route.abort('blockedbyclient')"))
+        self.assertIn("expect(failedReadinessRequests).toBe(2)", browser_check)
         self.assertNotIn("demo.example.invalid", browser_check)
         self.assertNotIn("DEMO_URL", browser_check)
         self.assertNotIn("/lzug/", browser_check)
@@ -99,7 +105,8 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertNotIn("stage.papaspyrou.name", workflow)
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn('test "$GITHUB_REF" = "refs/heads/master"', workflow)
-        self.assertIn('test "$CONFIRM_PUBLICATION" = "true"', workflow)
+        self.assertNotIn("confirm_publication", workflow)
+        self.assertNotIn("CONFIRM_PUBLICATION", workflow)
         self.assertIn("github.event_name == 'workflow_dispatch'", workflow)
         self.assertIn("pages: write", workflow)
         self.assertIn("id-token: write", workflow)
@@ -110,11 +117,32 @@ class PublicationDeliveryContractTests(unittest.TestCase):
             2,
             workflow.count("mise x hugo-extended@0.165.0 -- task docs:publication"),
         )
+        self.assertEqual(1, workflow.count("-- task docs:publication WIKI_ROOT="))
+        self.assertIn("if: github.event_name == 'schedule'", workflow)
+        self.assertIn("if: github.event_name != 'schedule'", workflow)
+        self.assertIn('cron: "29 4 * * 1"', workflow)
+        self.assertIn("paths: &publication-paths", workflow)
+        self.assertIn('"prototypes/publication/**"', workflow)
+        self.assertIn('"frontend/src/**"', workflow)
+        self.assertIn('"frontend/tsconfig*.json"', workflow)
         self.assertNotIn("run: task docs:publication", workflow)
         self.assertIn("PLAYWRIGHT_BROWSER_CHANNEL: chrome", workflow)
+        self.assertIn("npm --prefix frontend run test:publication", workflow)
+        self.assertIn("npm --prefix frontend run test:publication:a11y", workflow)
+        self.assertNotIn("scripts/check_publication_spike.mjs", workflow)
         self.assertNotIn("playwright install", workflow)
         self.assertNotIn("--no-sandbox", workflow)
-        self.assertNotIn("schedule:", workflow)
+
+    def test_wiki_post_publish_check_is_periodic_manual_diagnostics(self) -> None:
+        workflow = (ROOT / ".github/workflows/wiki-post-publish.yml").read_text(encoding="utf-8")
+
+        self.assertIn("name: Diagnose published Wiki", workflow)
+        self.assertIn("schedule:", workflow)
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertIn('cron: "43 5 * * 1"', workflow)
+        self.assertNotIn("gollum:", workflow)
+        self.assertNotIn("pull_request:", workflow)
+        self.assertNotIn("push:", workflow)
 
 
 if __name__ == "__main__":
