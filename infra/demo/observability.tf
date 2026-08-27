@@ -1,7 +1,6 @@
 locals {
   uptime_targets = var.external_monitoring_enabled ? {
     landingpage = var.landingpage_url
-    warmup      = "${var.demo_url}/api/ready"
   } : {}
 
   # Azure creates these fixed child configurations with every Application
@@ -75,7 +74,7 @@ resource "azurerm_application_insights_standard_web_test" "demo" {
   geo_locations           = var.uptime_geo_locations
   frequency               = var.uptime_frequency_seconds
   timeout                 = 120
-  retry_enabled           = true
+  retry_enabled           = false
   enabled                 = true
   tags                    = local.common_tags
 
@@ -101,8 +100,8 @@ resource "azurerm_monitor_metric_alert" "uptime" {
   scopes              = [azurerm_application_insights.demo[0].id, each.value.id]
   description         = "The public demo ${each.key} availability test failed from one location."
   severity            = 1
-  frequency           = "PT5M"
-  window_size         = "PT5M"
+  frequency           = "PT15M"
+  window_size         = "PT15M"
   auto_mitigate       = true
   enabled             = true
   tags                = local.common_tags
@@ -127,8 +126,8 @@ resource "azurerm_monitor_scheduled_query_rules_alert" "application_errors" {
   enabled                 = true
   auto_mitigation_enabled = true
   severity                = 2
-  frequency               = 5
-  time_window             = 5
+  frequency               = 60
+  time_window             = 60
   query_type              = "ResultCount"
   # ResultCount evaluates rows, so the zero aggregate must not remain a row.
   query = <<-QUERY

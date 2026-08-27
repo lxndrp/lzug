@@ -15,13 +15,12 @@ nicht zu diesem Umfang.
   initialisierte und migrierte Datenbank ergibt HTTP 200 und `status = ready`;
   andernfalls folgen HTTP 503 und `status = unavailable`.
 - Azure Container Apps verwendet `/api/health` für Liveness und `/api/ready`
-  für Readiness. Deployment-Smoke, Reset und externer Warm-up prüfen beide
-  Signale getrennt.
+  für Readiness. Deployment-Smoke und Reset prüfen beide Signale getrennt.
 
 Die statische Landingpage aus #127 darf nach der Trennung nicht mehr anhand
-von `/api/health` weiterleiten. Ihr Warm-up und der zugehörige Browservertrag
-müssen `/api/ready` verwenden. #127 ist deshalb ein nativer Blocker für die
-Aktivierung dieses Pakets.
+von `/api/health` weiterleiten. Ihr interaktiver Warm-up nach einem bewussten
+Klick und der zugehörige Browservertrag müssen `/api/ready` verwenden. #127
+ist deshalb ein nativer Blocker für die Aktivierung dieses Pakets.
 
 ## Strukturierte, datensparsame Logs
 
@@ -66,20 +65,18 @@ Statusseite sind nicht vorgesehen.
   verwirft das Aggregat bei `AggregatedValue = 0`; `ResultCount > 0` sieht
   deshalb ohne Fehler keine Ergebniszeile und ab einem Fehler genau eine.
   Der Alarm ist stateful und aktiviert Auto-Mitigation. Während die Bedingung
-  besteht, bleibt eine Alarminstanz offen, statt bei jeder Fünf-Minuten-
-  Auswertung eine neue Meldung zu erzeugen. Bei dieser Frequenz beendet Azure
-  die Instanz nach drei aufeinanderfolgenden Auswertungen ohne Treffer, also
-  nach etwa 15 Minuten, und meldet die Entwarnung über das Common Alert Schema
+  besteht, bleibt eine Alarminstanz offen, statt bei jeder Auswertung eine neue
+  Meldung zu erzeugen. Bei dieser stündlichen Frequenz beendet Azure die
+  Instanz nach drei aufeinanderfolgenden Auswertungen ohne Treffer, also nach
+  etwa drei Stunden, und meldet die Entwarnung über das Common Alert Schema
   der Action Group. Der `MetricValue` einer solchen zeitbasierten Entwarnung
   ist [laut Azure Monitor](https://learn.microsoft.com/azure/azure-monitor/alerts/alerts-troubleshoot#the-metricvalue-field-contains-null-for-resolved-log-search-alert-notifications)
   erwartungsgemäß `null`.
-- Zwei Standard-Webtests prüfen nach Aktivierung die #127-Landingpage und den
-  Demo-Warm-up über die kanonische Domain
-  `https://demo.lzug.repertoire.papaspyrou.name/api/ready` aus höchstens drei
-  expliziten Standorten. Die generierte Container-Apps-FQDN ist kein zulässiger
-  öffentlicher Monitoringvertrag.
-- Beide Uptime-Alarme und beide Budgetmeldungen verwenden dieselbe Azure
-  Monitor Action Group. Dadurch lässt sich der Zustellweg unabhängig testen.
+- Ein Standard-Webtest prüft nach Aktivierung die #127-Landingpage alle
+  15 Minuten aus genau einem expliziten Standort. Die Demo selbst erhält keinen
+  periodischen Warm-up-Aufruf und kann deshalb ohne Nutzungsverkehr skalieren.
+- Der Uptime-Alarm und beide Budgetmeldungen verwenden dieselbe Azure Monitor
+  Action Group. Dadurch lässt sich der Zustellweg unabhängig testen.
 - Das monatliche Resource-Group-Budget meldet 80 Prozent tatsächliche Kosten
   und 100 Prozent prognostizierte Kosten. Es stoppt Ressourcen nicht
   automatisch.
@@ -132,10 +129,11 @@ Hintergrund sind die Microsoft-Dokumentation zu
 und der fest gepinnte
 [AzureRM-Feature-Vertrag](https://github.com/hashicorp/terraform-provider-azurerm/blob/v4.81.0/website/docs/guides/features-block.html.markdown).
 
-`tofu test` plant die Uptime-Ressourcen mit gemockten Providern und prüft die
-beiden Ziele, Alarme, Action-Group-Bindung, Budgetschwellen, Logquery,
-`ResultCount`-Kriterium, Fünf-Minuten-Fenster und -Frequenz, Stateful-
-Auto-Mitigation, Aufbewahrung und Quota. Es prüft außerdem das Create-Time-
+`tofu test` plant die Uptime-Ressourcen mit gemockten Providern und prüft das
+Landingpage-Ziel, den Alarm, die Action-Group-Bindung, Budgetschwellen,
+Logquery, `ResultCount`-Kriterium, die stündliche Auswertung und das
+15-Minuten-Uptime-Fenster, Stateful-Auto-Mitigation, Aufbewahrung und Quota.
+Es prüft außerdem das Create-Time-
 Opt-out, die vollständigen zehn deaktivierten Smart-Detection-Children, die
 abgeschalteten Owner-E-Mails, leere Zusatzempfänger sowie das gemeinsame
 Adoptions-/New-Environment-Verhalten. Das ist der repositoryseitige Vertrag,
@@ -181,9 +179,8 @@ aktuellen `master`-Stand und Livezustand neu bestätigt:
 | `application_insights_daily_cap_gb` | 0,1 bis 0,5 GB |
 | `external_monitoring_enabled` | exakt `true`, erst nach Merge und Veröffentlichung von #127 |
 | `landingpage_url` | endgültige öffentliche HTTPS-URL aus #127 ohne Credentials, Query oder Fragment |
-| `demo_url` | exakt die kanonische öffentliche Demo-Origin `https://demo.lzug.repertoire.papaspyrou.name`; keine generierte ACA-FQDN, Credentials, Pfade, Query oder Fragmente |
-| `uptime_frequency_seconds` | 300, 600 oder 900 Sekunden |
-| `uptime_geo_locations` | ein bis drei ausdrücklich bestätigte Azure-Teststandorte |
+| `uptime_frequency_seconds` | exakt 900 Sekunden |
+| `uptime_geo_locations` | genau ein ausdrücklich bestätigter Azure-Teststandort |
 
 Vor `tofu plan` wird zusätzlich read-only geprüft:
 

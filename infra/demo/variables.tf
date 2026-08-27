@@ -190,39 +190,25 @@ variable "landingpage_url" {
   }
 }
 
-variable "demo_url" {
-  description = "Canonical public demo HTTPS origin used by the external readiness warm-up test."
-  type        = string
-  default     = ""
-
-  validation {
-    condition = (
-      (!var.external_monitoring_enabled && var.demo_url == "") ||
-      var.demo_url == "https://demo.lzug.repertoire.papaspyrou.name"
-    )
-    error_message = "demo_url must be empty while external monitoring is disabled or exactly the canonical public demo HTTPS origin."
-  }
-}
-
 variable "uptime_frequency_seconds" {
-  description = "Low-volume interval for both external availability tests."
+  description = "Low-volume interval for the external landing-page availability test."
   type        = number
-  default     = 300
+  default     = 900
 
   validation {
-    condition     = contains([300, 600, 900], var.uptime_frequency_seconds)
-    error_message = "uptime_frequency_seconds must be 300, 600, or 900."
+    condition     = var.uptime_frequency_seconds == 900
+    error_message = "uptime_frequency_seconds must be 900."
   }
 }
 
 variable "uptime_geo_locations" {
-  description = "Small explicit set of Azure availability-test locations."
+  description = "Small explicit set of Azure landing-page availability-test locations."
   type        = list(string)
-  default     = ["emea-nl-ams-azr", "emea-gb-db3-azr"]
+  default     = ["emea-nl-ams-azr"]
 
   validation {
-    condition     = length(var.uptime_geo_locations) >= 1 && length(var.uptime_geo_locations) <= 3
-    error_message = "uptime_geo_locations must contain one to three locations."
+    condition     = length(var.uptime_geo_locations) == 1
+    error_message = "uptime_geo_locations must contain exactly one location."
   }
 }
 
