@@ -27,9 +27,9 @@ freigegebenen `tofu apply` keine Cloudänderung aus.
   `https://lzug.repertoire.papaspyrou.name`. `stage.papaspyrou.name`, die
   persönliche `github.io`-Origin und Wildcards werden fail-closed abgewiesen.
   Die verbindliche Demo-Domain ist davon getrennt und lautet
-  `https://demo.lzug.repertoire.papaspyrou.name`. Der optionale externe
-  Readiness-Webtest bindet genau diese Domain über `demo_url`; die generierte
-  Container-Apps-FQDN ist kein zulässiges Uptime-Ziel.
+  `https://demo.lzug.repertoire.papaspyrou.name`. Externe Verfügbarkeitstests
+  prüfen ausschließlich die Landingpage, damit die Demo bei Inaktivität auf
+  null skalieren kann.
 - Die Container App verwendet Consumption, `min_replicas = 0`, höchstens eine
   Replik, 0,5 vCPU und 1 GiB RAM. Nur der verwaltete HTTPS-Ingress auf den
   internen Anwendungsport ist öffentlich; unverschlüsseltes Ingress und

@@ -199,8 +199,8 @@ run "demo_contract" {
       azurerm_monitor_scheduled_query_rules_alert.application_errors.query_type == "ResultCount" &&
       azurerm_monitor_scheduled_query_rules_alert.application_errors.trigger[0].operator == "GreaterThan" &&
       azurerm_monitor_scheduled_query_rules_alert.application_errors.trigger[0].threshold == 0 &&
-      azurerm_monitor_scheduled_query_rules_alert.application_errors.frequency == 5 &&
-      azurerm_monitor_scheduled_query_rules_alert.application_errors.time_window == 5 &&
+      azurerm_monitor_scheduled_query_rules_alert.application_errors.frequency == 60 &&
+      azurerm_monitor_scheduled_query_rules_alert.application_errors.time_window == 60 &&
       azurerm_monitor_scheduled_query_rules_alert.application_errors.auto_mitigation_enabled &&
       length(azurerm_monitor_scheduled_query_rules_alert.application_errors.action) == 1 &&
       toset(azurerm_monitor_scheduled_query_rules_alert.application_errors.action[0].action_group) == toset([azurerm_monitor_action_group.demo.id]) &&
@@ -297,18 +297,21 @@ run "external_observability_activation_contract" {
     budget_end_date             = "2028-07-31T00:00:00Z"
     external_monitoring_enabled = true
     landingpage_url             = "https://lzug.repertoire.papaspyrou.name/"
-    demo_url                    = "https://demo.lzug.repertoire.papaspyrou.name"
   }
 
   assert {
     condition = (
       length(azurerm_application_insights.demo) == 1 &&
-      length(azurerm_application_insights_standard_web_test.demo) == 2 &&
+      length(azurerm_application_insights_standard_web_test.demo) == 1 &&
       azurerm_application_insights_standard_web_test.demo["landingpage"].request[0].url == var.landingpage_url &&
-      azurerm_application_insights_standard_web_test.demo["warmup"].request[0].url == "https://demo.lzug.repertoire.papaspyrou.name/api/ready" &&
-      length(azurerm_monitor_metric_alert.uptime) == 2
+      azurerm_application_insights_standard_web_test.demo["landingpage"].frequency == 900 &&
+      !azurerm_application_insights_standard_web_test.demo["landingpage"].retry_enabled &&
+      toset(azurerm_application_insights_standard_web_test.demo["landingpage"].geo_locations) == toset(["emea-nl-ams-azr"]) &&
+      length(azurerm_monitor_metric_alert.uptime) == 1 &&
+      azurerm_monitor_metric_alert.uptime["landingpage"].frequency == "PT15M" &&
+      azurerm_monitor_metric_alert.uptime["landingpage"].window_size == "PT15M"
     )
-    error_message = "Activation must create exactly the canonical #127 landing-page and demo-domain readiness tests with alerts."
+    error_message = "Activation must create one low-volume landing-page test and alert without keeping the demo warm."
   }
 
   assert {
@@ -362,68 +365,6 @@ run "external_observability_activation_contract" {
     ])
     error_message = "Every uptime signal must alert through the testable operations action group."
   }
-}
-
-run "reject_generated_aca_demo_url" {
-  command = plan
-
-  plan_options {
-    refresh = false
-  }
-
-  variables {
-    azure_subscription_id = "00000000-0000-0000-0000-000000000000"
-    location              = "westeurope"
-    demo_artifact_pair = {
-      app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-      seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
-      product_tag        = "v0.1.1"
-      product_commit     = "0123456789abcdef0123456789abcdef01234567"
-      runtime_contract   = "lzug-demo-health-ready-v1"
-      schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
-      seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
-    }
-    budget_amount_eur           = 25
-    budget_contact_emails       = ["demo-operations@example.invalid"]
-    budget_start_date           = "2026-09-01T00:00:00Z"
-    budget_end_date             = "2028-07-31T00:00:00Z"
-    external_monitoring_enabled = true
-    landingpage_url             = "https://lzug.repertoire.papaspyrou.name/"
-    demo_url                    = "https://lzug-demo-app.example.azurecontainerapps.io"
-  }
-
-  expect_failures = [var.demo_url]
-}
-
-run "reject_unsafe_demo_url" {
-  command = plan
-
-  plan_options {
-    refresh = false
-  }
-
-  variables {
-    azure_subscription_id = "00000000-0000-0000-0000-000000000000"
-    location              = "westeurope"
-    demo_artifact_pair = {
-      app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-      seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
-      product_tag        = "v0.1.1"
-      product_commit     = "0123456789abcdef0123456789abcdef01234567"
-      runtime_contract   = "lzug-demo-health-ready-v1"
-      schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
-      seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
-    }
-    budget_amount_eur           = 25
-    budget_contact_emails       = ["demo-operations@example.invalid"]
-    budget_start_date           = "2026-09-01T00:00:00Z"
-    budget_end_date             = "2028-07-31T00:00:00Z"
-    external_monitoring_enabled = true
-    landingpage_url             = "https://lzug.repertoire.papaspyrou.name/"
-    demo_url                    = "http://user:password@*.example.invalid/path?query=value#fragment"
-  }
-
-  expect_failures = [var.demo_url]
 }
 
 run "reject_moving_demo_tags" {
