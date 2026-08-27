@@ -48,6 +48,7 @@ nav:
           - API und Persistenz: developers/architecture/api-and-persistence.md
           - Authentifizierung und Sitzungen: developers/architecture/authentication.md
           - Kanalneutrale Benachrichtigungen: developers/architecture/notifications.md
+          - Ausfall- und Ersatzprozess: developers/architecture/absence-replacement.md
           - Veröffentlichungs- und Runtime-Sicherheit: developers/architecture/security-baseline.md
           - Betreiber-CLI für Authentifizierung: developers/architecture/operator-auth-cli.md
           - OCI-Runtime: developers/architecture/oci-runtime.md

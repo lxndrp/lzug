@@ -47,7 +47,7 @@ describe('ExamDayComponent', () => {
     expect(element.textContent).toContain('Anwesenheit speichern');
     expect(element.textContent).toContain('Prüfung starten');
     expect(element.querySelector('a[href="/confirmed-plans/1"]')).not.toBeNull();
-    expect(element.querySelectorAll('button')).toHaveLength(5);
+    expect(element.querySelectorAll('button')).toHaveLength(7);
     expect(
       element
         .querySelector<HTMLButtonElement>('.app-exam-day-actions button')
@@ -113,6 +113,26 @@ describe('ExamDayComponent', () => {
     );
     fixture.detectChanges();
     expect(element.textContent).toContain('Mindestens drei anwesende reguläre Prüfer');
+  });
+
+  it('creates an absence report from a visible assignment', () => {
+    fixture.detectChanges();
+    http.expectOne('/api/confirmed-plan-days/7').flush(dayView());
+    fixture.detectChanges();
+
+    const button = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+    ).find((item) => item.textContent?.includes('Ausfall melden'));
+    expect(button).toBeTruthy();
+    button?.click();
+
+    const request = http.expectOne('/api/absence-reports');
+    expect(request.request.body).toEqual({ exam_day_id: 7, exam_day_assignment_id: 7 });
+    request.flush({ id: 1 });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Ausfallmeldung gespeichert.',
+    );
   });
 
   it('allows present without arrival and resets feedback when changing days', () => {

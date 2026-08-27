@@ -347,6 +347,21 @@
                           : 'Anwesenheit speichern'
                       }}
                     </button>
+                    <button
+                      tuiButton
+                      appearance="secondary"
+                      type="button"
+                      [disabled]="hasSavingAction()"
+                      [attr.aria-label]="
+                        assignment.member.first_name +
+                        ' ' +
+                        assignment.member.last_name +
+                        ': Ausfall melden'
+                      "
+                      (click)="reportAbsence(assignment.id)"
+                    >
+                      {{ isSaving('absence-' + assignment.id) ? 'Meldet …' : 'Ausfall melden' }}
+                    </button>
                   </td>
                 </tr>
               } @empty {

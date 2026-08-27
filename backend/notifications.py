@@ -144,6 +144,59 @@ class NotificationService:
             )
         return {"created": created, "dispatched": dispatched, "problems": problems}
 
+    def create_direct(
+        self,
+        *,
+        committee_id: int,
+        round_id: int | None,
+        recipient_member_ids: set[int],
+        event_type: str,
+        title: str,
+        message: str,
+        action_path: str,
+        origin_key: str,
+        urgent: bool = False,
+    ) -> int:
+        """Persist one targeted domain notice and queue its technical channels.
+
+        This is the shared notification boundary for workflows whose recipients
+        are determined by a domain decision rather than by a whole round event.
+        Urgent absence searches queue push and configured email independently so
+        neither channel waits for the other.
+        """
+        created_ids: list[int] = []
+        with session_scope(self.db_path) as session:
+            for member_id in sorted(recipient_member_ids):
+                notice = Notification(
+                    committee_id=committee_id,
+                    exam_round_id=round_id,
+                    recipient_member_id=member_id,
+                    event_type=event_type,
+                    origin_key=f"{origin_key}:{member_id}",
+                    title=title,
+                    message=message,
+                    action_path=action_path,
+                )
+                try:
+                    with session.begin_nested():
+                        session.add(notice)
+                        session.flush()
+                except IntegrityError:
+                    existing = session.scalar(
+                        select(Notification.id).where(
+                            Notification.recipient_member_id == member_id,
+                            Notification.event_type == event_type,
+                            Notification.origin_key == f"{origin_key}:{member_id}",
+                        )
+                    )
+                    if existing is not None:
+                        created_ids.append(existing)
+                    continue
+                created_ids.append(notice.id)
+                self._queue_deliveries(session, notice, urgent_email=urgent)
+        self.process_deliveries()
+        return len(created_ids)
+
     def process_due_events(self, *, now: datetime | None = None) -> dict[str, int]:
         current = _now(now)
         created = 0
@@ -432,7 +485,12 @@ class NotificationService:
         return "Ihre Einsätze: " + "; ".join(appointments)
 
     def _queue_deliveries(
-        self, session, notice: Notification, *, only_channel: str | None = None
+        self,
+        session,
+        notice: Notification,
+        *,
+        only_channel: str | None = None,
+        urgent_email: bool = False,
     ) -> None:
         channels = self.channels()
         if channels.sink_enabled:
@@ -487,6 +545,19 @@ class NotificationService:
                     error_code="not_configured",
                 )
             )
+        elif urgent_email:
+            if channels.email_configured:
+                self._queue_email(session, notice)
+            else:
+                session.add(
+                    NotificationDelivery(
+                        notification_id=notice.id,
+                        channel="email",
+                        target_key="none",
+                        status="unavailable",
+                        error_code="not_configured",
+                    )
+                )
 
     def _dispatch(self, session, delivery, notice, current: datetime) -> None:
         try:

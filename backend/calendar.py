@@ -181,6 +181,27 @@ class CalendarService:
                 return 0
             return self._sync_round(session, exam_round)
 
+    def cancel_assignment(self, round_id: int, assignment_id: int) -> int:
+        """Cancel only the calendar event for one affected assignment."""
+        self.sync_round(round_id)
+        prefix = f"assignment:{assignment_id}"
+        with session_scope(self.db_path) as session:
+            events = session.scalars(
+                select(CalendarEvent).where(
+                    (CalendarEvent.source_key == prefix)
+                    | CalendarEvent.source_key.like(f"{prefix}:%")
+                )
+            ).all()
+            changed = 0
+            for event in events:
+                if event.status == "cancelled":
+                    continue
+                event.status = "cancelled"
+                event.version += 1
+                event.updated_at = _timestamp()
+                changed += 1
+            return changed
+
     def feed_ics(self, token: str) -> str | None:
         """Return the current-half-year feed for a valid, active opaque token."""
         with session_scope(self.db_path) as session:

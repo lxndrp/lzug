@@ -1,0 +1,43 @@
+.absence-report-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.absence-report-card {
+  border: 1px solid var(--app-border, #d9e0e7);
+  border-radius: 0.75rem;
+  padding: 1rem;
+}
+
+.absence-report-heading,
+.absence-response,
+.absence-report-card dl > div {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.absence-report-card dl {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.absence-report-card dt {
+  color: var(--app-muted, #5f6b76);
+}
+
+.absence-report-card dd {
+  margin: 0;
+}
+
+.absence-response {
+  flex-wrap: wrap;
+  border-top: 1px solid var(--app-border, #d9e0e7);
+  padding-top: 1rem;
+}
+
+.absence-report-card details {
+  margin-top: 1rem;
+}

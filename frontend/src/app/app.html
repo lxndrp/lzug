@@ -70,6 +70,15 @@
             <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
             Benachrichtigungen
           </a>
+          <a
+            class="app-nav-link"
+            href="/absence-reports"
+            [class.is-active]="activeView() === 'absence-reports'"
+            (click)="navigateFromShell('absence-reports', $event)"
+          >
+            <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
+            Ausfall und Ersatz
+          </a>
 
           <p class="app-nav-title">Aktueller Prüfungskontext</p>
           <a
@@ -391,6 +400,9 @@
                 }
                 @case ('notifications') {
                   <app-notifications />
+                }
+                @case ('absence-reports') {
+                  <app-absence-reports />
                 }
                 @case ('exam-half-years') {
                   <app-exam-half-years

@@ -179,6 +179,30 @@ export class ExamDayComponent implements OnInit, OnChanges {
     );
   }
 
+  protected reportAbsence(assignmentId: number): void {
+    const dayId = this.view()?.day.id;
+    if (dayId === undefined || this.hasSavingAction()) return;
+    const actionSequence = this.requestSequence;
+    this.savingKeys.set(new Set([`absence-${assignmentId}`]));
+    this.actionMessage.set(null);
+    this.actionError.set(null);
+    this.api.createAbsenceReport(dayId, assignmentId).subscribe({
+      next: () => {
+        if (actionSequence !== this.requestSequence) return;
+        this.savingKeys.set(new Set());
+        this.actionMessage.set('Ausfallmeldung gespeichert.');
+        void this.router.navigateByUrl('/absence-reports');
+      },
+      error: (error: HttpErrorResponse) => {
+        if (actionSequence !== this.requestSequence) return;
+        this.savingKeys.set(new Set());
+        this.actionError.set(
+          error.error?.error ?? 'Die Ausfallmeldung konnte nicht gespeichert werden.',
+        );
+      },
+    });
+  }
+
   protected executionStatusDraft(slot: ConfirmedPlanDay['slots'][number]): ExecutionStatusDraft {
     const existing = this.executionDrafts.get(slot.id);
     if (existing) return existing;

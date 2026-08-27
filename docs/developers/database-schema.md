@@ -3,7 +3,7 @@
 Die aktuelle, ausführbare Schema-Referenz ist `db/schema.sql` im Repository. Sie
 und die versionierten Migrationen unter `db/migrations/` sind maßgeblich für
 den tatsächlichen Datenbankstand. Der aktuelle Migrationsstand ist
-`014_add_personal_calendars.sql`.
+`015_add_absence_replacement_process.sql`.
 
 Das aktuelle Backend verwendet SQLite lokal und SQLAlchemy. Primärschlüssel,
 Enums, Zeitstempel und Booleans sind SQLite-kompatibel modelliert; mehrzeilige
@@ -87,6 +87,23 @@ zugrunde liegenden Planungsvorgang. Dessen Löschung löscht deshalb auch Inhalt
 und technische Zustelldaten. Migration `013_add_notifications.sql` überführt
 kompatible Einträge der älteren kanalgebundenen Vorab-Tabelle und ersetzt sie
 durch diesen Vertrag.
+
+## Ausfall und Ersatz
+
+`absence_report` bindet eine Meldung an eine konkrete bestätigte Besetzung und
+führt ihren Status, die meldende Person, die optionale Begründung sowie die
+gewählte Ersatzperson. `replacement_response` speichert die angefragten
+Mitglieder, ihre Antwort und die optionale 24-Stunden-Frist; `urgent` markiert
+Anfragen innerhalb der 48-Stunden-Grenze vor Prüfungsbeginn. Jede
+Statusänderung wird zusätzlich unveränderlich in `absence_audit_event`
+protokolliert. Migration `015_add_absence_replacement_process.sql` ergänzt
+diese Tabellen beziehungsweise Spalten für bestehende Datenbanken und
+erweitert den Benachrichtigungsvertrag um die Ausfallereignisse.
+
+Die Ersatzsuche verändert den bestätigten Plan erst bei einer kontrollierten
+Ersatzwahl. Eine Absage oder Ersatzwahl synchronisiert die betroffenen
+persönlichen Kalenderereignisse; eine automatische IHK-Aktion ist nicht Teil
+dieses Prozesses.
 
 ## Persönliche Kalender
 

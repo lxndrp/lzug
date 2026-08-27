@@ -24,6 +24,41 @@ export type NotificationItem = {
   created_at: string;
 };
 
+export type AbsenceResponse = {
+  id: number;
+  committee_member_id: number;
+  response: 'pending' | 'available' | 'unavailable' | string;
+  requested_at: string;
+  expires_at: string | null;
+  urgent: boolean;
+  responded_at: string | null;
+};
+
+export type AbsenceReport = {
+  id: number;
+  exam_day_id: number;
+  exam_day_assignment_id: number;
+  committee_member_id: number;
+  reported_by_member_id: number;
+  reported_at: string;
+  reason: string | null;
+  status: string;
+  selected_replacement_member_id: number | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+  responses: AbsenceResponse[];
+  audit: Array<{
+    id: number;
+    actor_member_id: number;
+    event_type: string;
+    from_status: string | null;
+    to_status: string | null;
+    details: string | null;
+    created_at: string;
+  }>;
+};
+
 export type NotificationProblem = {
   notification_id: number;
   event_type: string;

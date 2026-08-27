@@ -17,5 +17,6 @@ export const routes: Routes = [
   { path: 'locations', children: [] },
   { path: 'exam-half-years', children: [] },
   { path: 'notifications', children: [] },
+  { path: 'absence-reports', children: [] },
   { path: '**', redirectTo: 'dashboard' },
 ];

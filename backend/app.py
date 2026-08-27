@@ -19,6 +19,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from . import hateoas, openapi
+from .absence import AbsenceService
 from .auth import (
     AuthContext,
     AuthenticationRepository,
@@ -272,6 +273,10 @@ class LzugHandler(BaseHTTPRequestHandler):
     def calendar_service(self) -> CalendarService:
         return CalendarService(self.db_path)
 
+    @property
+    def absence_service(self) -> AbsenceService:
+        return AbsenceService(self.db_path, self.notification_service)
+
     def do_GET(self) -> None:
         """Dispatch read, health, OpenAPI, and Swagger UI requests."""
         try:
@@ -401,6 +406,23 @@ class LzugHandler(BaseHTTPRequestHandler):
                         },
                     }
                 )
+                return
+
+            if path_parts == ["absence-reports"]:
+                self.respond(
+                    {
+                        "items": self.absence_service.list(self.authorization_scope),
+                        "_links": {"self": {"href": "/api/absence-reports"}},
+                    }
+                )
+                return
+
+            if len(path_parts) == 2 and path_parts[0] == "absence-reports":
+                report = self.absence_service.get(self.authorization_scope, int(path_parts[1]))
+                if report is None:
+                    self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                    return
+                self.respond(report)
                 return
 
             if path_parts == ["notification-problems"]:
@@ -767,6 +789,45 @@ class LzugHandler(BaseHTTPRequestHandler):
                 self.respond(result, HTTPStatus.CREATED)
                 return
 
+            if path_parts == ["absence-reports"]:
+                report = self.absence_service.report(self.authorization_scope, self.read_json())
+                self.respond(report, HTTPStatus.CREATED)
+                return
+
+            if len(path_parts) == 3 and path_parts[0] == "absence-reports":
+                report_id = int(path_parts[1])
+                action = path_parts[2]
+                if action == "select-replacement":
+                    result = self.absence_service.select_replacement(
+                        self.authorization_scope, report_id, self.read_json()
+                    )
+                elif action == "withdraw":
+                    result = self.absence_service.withdraw(self.authorization_scope, report_id)
+                elif action == "reopen":
+                    result = self.absence_service.reopen(
+                        self.authorization_scope, report_id, self.read_json()
+                    )
+                elif action == "cancel":
+                    result = self.absence_service.cancel(
+                        self.authorization_scope, report_id, self.read_json()
+                    )
+                else:
+                    self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                    return
+                self.respond(result)
+                return
+
+            if (
+                len(path_parts) == 3
+                and path_parts[0] == "replacement-responses"
+                and path_parts[2] == "respond"
+            ):
+                result = self.absence_service.respond(
+                    self.authorization_scope, int(path_parts[1]), self.read_json()
+                )
+                self.respond(result)
+                return
+
             if (
                 len(path_parts) == 5
                 and path_parts[0] == "confirmed-plan-days"
@@ -877,7 +938,7 @@ class LzugHandler(BaseHTTPRequestHandler):
                 ),
                 status,
             )
-        except ForbiddenRequestError as error:
+        except (ForbiddenRequestError, PermissionError) as error:
             self.respond({"error": str(error)}, HTTPStatus.FORBIDDEN)
         except RequestTooLargeError as error:
             self.respond({"error": str(error)}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
@@ -952,6 +1013,12 @@ class LzugHandler(BaseHTTPRequestHandler):
                 return
             path_parts = self.path_parts(urlparse(self.path).path)
             self.runtime_policy.authorize_mutation(self, "PATCH", path_parts, context)
+            if len(path_parts) == 2 and path_parts[0] == "replacement-responses":
+                result = self.absence_service.respond(
+                    self.authorization_scope, int(path_parts[1]), self.read_json()
+                )
+                self.respond(result)
+                return
             if (
                 len(path_parts) == 5
                 and path_parts[0] == "confirmed-plan-days"
@@ -1043,7 +1110,7 @@ class LzugHandler(BaseHTTPRequestHandler):
                     row,
                 )
             )
-        except ForbiddenRequestError as error:
+        except (ForbiddenRequestError, PermissionError) as error:
             self.respond({"error": str(error)}, HTTPStatus.FORBIDDEN)
         except RequestTooLargeError as error:
             self.respond({"error": str(error)}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
@@ -1100,7 +1167,7 @@ class LzugHandler(BaseHTTPRequestHandler):
                 self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 return
             self.respond({}, HTTPStatus.NO_CONTENT)
-        except ForbiddenRequestError as error:
+        except (ForbiddenRequestError, PermissionError) as error:
             self.respond({"error": str(error)}, HTTPStatus.FORBIDDEN)
         except ValueError as error:
             self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)

@@ -68,7 +68,7 @@ COPY --from=python-dependencies --chown=10001:10001 /src/.venv /opt/venv
 COPY --from=build-metadata --chown=10001:10001 /build-metadata.json ./build-metadata.json
 COPY --chown=10001:10001 \
     backend/__init__.py backend/admin.py backend/admin_service.py backend/app.py backend/auth.py backend/authorization.py \
-    backend/build_metadata.py backend/calendar.py backend/candidate_days.py backend/contract.py backend/database.py \
+    backend/absence.py backend/build_metadata.py backend/calendar.py backend/candidate_days.py backend/contract.py backend/database.py \
     backend/document_storage.py backend/documents.py backend/hateoas.py \
     backend/healthcheck.py backend/holiday_provider.py backend/local_auth.py backend/models.py \
     backend/notifications.py backend/observability.py backend/openapi.py backend/planning.py backend/repositories.py backend/runtime_policy.py backend/security.py backend/store.py backend/version.py \
