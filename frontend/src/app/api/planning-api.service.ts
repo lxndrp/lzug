@@ -37,6 +37,9 @@ import {
   NotificationChannels,
   NotificationItem,
   NotificationProblem,
+  CalendarEvent,
+  CalendarFeedActivation,
+  CalendarStatus,
 } from './api.models';
 import { RoundContextService } from './round-context.service';
 
@@ -113,6 +116,22 @@ export class PlanningApiService {
 
   getNotificationChannels() {
     return this.http.get<NotificationChannels>('/api/notification-channels');
+  }
+
+  getCalendarStatus() {
+    return this.http.get<CalendarStatus>('/api/calendar');
+  }
+
+  getCalendarEvents() {
+    return this.list<CalendarEvent>('/api/calendar/events');
+  }
+
+  activateCalendarFeed(rotate = false) {
+    return this.http.post<CalendarFeedActivation>('/api/calendar/feed', { rotate });
+  }
+
+  revokeCalendarFeed() {
+    return this.http.delete<CalendarStatus & { notice: string }>('/api/calendar/feed');
   }
 
   registerPushSubscription(endpoint: string) {

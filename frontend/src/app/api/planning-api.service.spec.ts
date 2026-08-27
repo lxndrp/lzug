@@ -211,6 +211,50 @@ describe('PlanningApiService', () => {
     registration.flush({ id: 1, active: true });
   });
 
+  it('should expose the personal calendar feed endpoints', () => {
+    service.getCalendarStatus().subscribe((status) => expect(status.active).toBe(true));
+    const status = http.expectOne('/api/calendar');
+    expect(status.request.method).toBe('GET');
+    status.flush({
+      active: true,
+      activated_at: '2026-10-01T10:00:00+00:00',
+      revoked_at: null,
+      time_zone: 'Europe/Berlin',
+      _links: {},
+    });
+
+    service.getCalendarEvents().subscribe((events) => expect(events).toEqual([]));
+    const events = http.expectOne('/api/calendar/events');
+    expect(events.request.method).toBe('GET');
+    events.flush({ items: [], _links: {} });
+
+    service.activateCalendarFeed(true).subscribe((result) => expect(result.active).toBe(true));
+    const activate = http.expectOne('/api/calendar/feed');
+    expect(activate.request.method).toBe('POST');
+    expect(activate.request.body).toEqual({ rotate: true });
+    activate.flush({
+      active: true,
+      activated_at: '2026-10-01T10:00:00+00:00',
+      revoked_at: null,
+      time_zone: 'Europe/Berlin',
+      feed_url: '/api/calendar/feed/token.ics',
+      notice: 'only now',
+      _links: {},
+    });
+
+    service.revokeCalendarFeed().subscribe((result) => expect(result.active).toBe(false));
+    const revoke = http.expectOne('/api/calendar/feed');
+    expect(revoke.request.method).toBe('DELETE');
+    revoke.flush({
+      active: false,
+      activated_at: '2026-10-01T10:00:00+00:00',
+      revoked_at: '2026-10-01T11:00:00+00:00',
+      time_zone: 'Europe/Berlin',
+      notice: 'revoked',
+      _links: {},
+    });
+  });
+
   it('should expose committee and member write operations', () => {
     service.createCommittee({ name: 'PA Neu', occupation: 'Fachinformatiker/in' }).subscribe();
     const committee = http.expectOne('/api/committees');

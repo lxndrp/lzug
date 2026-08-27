@@ -3,7 +3,7 @@
 Die aktuelle, ausführbare Schema-Referenz ist `db/schema.sql` im Repository. Sie
 und die versionierten Migrationen unter `db/migrations/` sind maßgeblich für
 den tatsächlichen Datenbankstand. Der aktuelle Migrationsstand ist
-`013_add_notifications.sql`.
+`014_add_personal_calendars.sql`.
 
 Das aktuelle Backend verwendet SQLite lokal und SQLAlchemy. Primärschlüssel,
 Enums, Zeitstempel und Booleans sind SQLite-kompatibel modelliert; mehrzeilige
@@ -87,3 +87,18 @@ zugrunde liegenden Planungsvorgang. Dessen Löschung löscht deshalb auch Inhalt
 und technische Zustelldaten. Migration `013_add_notifications.sql` überführt
 kompatible Einträge der älteren kanalgebundenen Vorab-Tabelle und ersetzt sie
 durch diesen Vertrag.
+
+## Persönliche Kalender
+
+`calendar_feed` enthält pro Person höchstens einen aktiven Feed-Zugang. Das
+Feed-Geheimnis wird nur bei Aktivierung einmalig zurückgegeben; in der Datenbank
+liegt ausschließlich sein SHA-256-Prüfwert. Widerruf und Neuerzeugung ersetzen
+den bisherigen Prüfwert sofort.
+
+`calendar_event` ist ein datensparsamer, versionierter Snapshot je eigener
+Einplanung und verwendetem Tagesabschnitt. Er enthält keine Prüflingsdaten,
+Ausfallgründe oder Informationen über andere Mitglieder. `external_event_id`
+bleibt bei Zeit-, Orts- und Rollenänderungen stabil; `version` wird erhöht und
+Stornierungen bleiben bis zum Ende des aktiven Prüfungshalbjahrs mit
+`status = 'cancelled'` abrufbar. Der persönliche Feed und der Einzel-Download
+liefern provider-neutrales iCalendar (`text/calendar`).

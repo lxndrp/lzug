@@ -515,6 +515,61 @@ class NotificationDelivery(Base):
     updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
 
 
+class CalendarFeed(Base):
+    """Opaque personal feed credential; only its digest is persisted."""
+
+    __tablename__ = "calendar_feed"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    person_id: Mapped[int] = mapped_column(ForeignKey("person.id", ondelete="CASCADE"))
+    token_hash: Mapped[str] = mapped_column(String, unique=True)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    revoked_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (Index("calendar_feed_person", "person_id", unique=True),)
+
+
+class CalendarEvent(Base):
+    """Dataminimized, versioned snapshot exposed through ICS."""
+
+    __tablename__ = "calendar_event"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    external_event_id: Mapped[str] = mapped_column(String, unique=True)
+    exam_half_year_id: Mapped[int] = mapped_column(ForeignKey("exam_half_year.id"))
+    exam_round_id: Mapped[int] = mapped_column(ForeignKey("exam_round.id"))
+    exam_day_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_day.id", ondelete="SET NULL"), nullable=True
+    )
+    exam_day_assignment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_day_assignment.id", ondelete="SET NULL"), nullable=True
+    )
+    recipient_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="CASCADE")
+    )
+    date: Mapped[str] = mapped_column(String)
+    starts_at: Mapped[str] = mapped_column(String)
+    ends_at: Mapped[str] = mapped_column(String)
+    time_zone: Mapped[str] = mapped_column(String)
+    location: Mapped[str] = mapped_column(String)
+    role: Mapped[str] = mapped_column(String)
+    round_name: Mapped[str] = mapped_column(String)
+    secure_reference: Mapped[str] = mapped_column(String)
+    source_key: Mapped[str] = mapped_column(String)
+    version: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'sent'"))
+    content_hash: Mapped[str] = mapped_column(String)
+    sent_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index("calendar_event_source", "source_key"),
+        Index("calendar_event_recipient_period", "recipient_member_id", "exam_half_year_id"),
+        Index("calendar_event_status", "status"),
+    )
+
+
 @dataclass(frozen=True)
 class Resource:
     model: type[Base]

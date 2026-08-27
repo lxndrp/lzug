@@ -4,9 +4,49 @@
 }
 
 .notification-settings .app-panel-body,
+.calendar-settings .app-panel-body,
 .notification-list article {
   display: grid;
   gap: 0.75rem;
+}
+
+.calendar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.calendar-feed-url {
+  display: grid;
+  gap: 0.35rem;
+  overflow-wrap: anywhere;
+}
+
+.calendar-feed-url code {
+  font-size: 0.85em;
+}
+
+.calendar-event-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.calendar-event-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding-block: 0.75rem;
+  border-block-start: 1px solid var(--tui-border-normal);
+}
+
+.calendar-event-list span {
+  display: grid;
+  gap: 0.25rem;
 }
 
 .notification-list {

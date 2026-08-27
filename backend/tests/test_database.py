@@ -52,6 +52,27 @@ def rewind_notification_migration(connection: sqlite3.Connection) -> None:
     """)
 
 
+def rewind_calendar_migration(connection: sqlite3.Connection) -> None:
+    """Restore the pre-014 calendar table used by migration-order fixtures."""
+    connection.executescript("""
+        DROP TABLE calendar_feed;
+        DROP TABLE calendar_event;
+        CREATE TABLE calendar_event (
+          id INTEGER PRIMARY KEY,
+          exam_slot_id INTEGER REFERENCES exam_slot(id) ON DELETE CASCADE,
+          exam_day_id INTEGER REFERENCES exam_day(id) ON DELETE CASCADE,
+          recipient_member_id INTEGER REFERENCES committee_member(id) ON DELETE SET NULL,
+          external_event_id TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          sent_at TEXT,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CHECK (exam_slot_id IS NOT NULL OR exam_day_id IS NOT NULL)
+        );
+        CREATE INDEX calendar_event_status ON calendar_event(status);
+        """)
+
+
 class DatabaseTests(unittest.TestCase):
     def test_connection_scope_closes_the_connection_and_engine(self) -> None:
         with TempDatabase() as db_path, connection_scope(db_path) as connection:
@@ -273,15 +294,17 @@ class DatabaseTests(unittest.TestCase):
             with closing(sqlite3.connect(db_path)) as connection:
                 connection.execute("DROP TABLE schema_migration_checksum")
                 rewind_notification_migration(connection)
+                rewind_calendar_migration(connection)
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?)",
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
                         "011_add_local_password_totp_auth.sql",
                         "012_add_plan_revision.sql",
                         "013_add_notifications.sql",
+                        "014_add_personal_calendars.sql",
                     ),
                 )
                 connection.execute("DROP TABLE auth_token")
@@ -298,7 +321,7 @@ class DatabaseTests(unittest.TestCase):
             initialize(db_path)
             after = migration_status(db_path)
             self.assertEqual("ready", after["state"])
-            self.assertEqual("013_add_notifications.sql", after["current"])
+            self.assertEqual("014_add_personal_calendars.sql", after["current"])
             self.assertTrue(list(db_path.parent.joinpath("backups").glob("*.sqlite")))
 
             history_before = after["history"]
@@ -310,6 +333,7 @@ class DatabaseTests(unittest.TestCase):
             with closing(sqlite3.connect(db_path)) as connection:
                 connection.execute("DROP TABLE schema_migration_checksum")
                 rewind_notification_migration(connection)
+                rewind_calendar_migration(connection)
                 connection.execute("DROP TABLE auth_session")
                 connection.execute("DROP TABLE auth_token")
                 connection.execute("DROP TABLE auth_recovery_code")
@@ -339,7 +363,7 @@ class DatabaseTests(unittest.TestCase):
                     DROP TABLE user_account_legacy;
                 """)
                 connection.execute(
-                    "DELETE FROM schema_migration WHERE name IN (?, ?, ?, ?, ?, ?)",
+                    "DELETE FROM schema_migration WHERE name IN (?, ?, ?, ?, ?, ?, ?)",
                     (
                         "008_add_authentication_sessions.sql",
                         "009_harden_migration_history.sql",
@@ -347,6 +371,7 @@ class DatabaseTests(unittest.TestCase):
                         "011_add_local_password_totp_auth.sql",
                         "012_add_plan_revision.sql",
                         "013_add_notifications.sql",
+                        "014_add_personal_calendars.sql",
                     ),
                 )
                 connection.execute("ALTER TABLE exam_round DROP COLUMN plan_revision")
@@ -363,8 +388,9 @@ class DatabaseTests(unittest.TestCase):
                     "011_add_local_password_totp_auth.sql",
                     "012_add_plan_revision.sql",
                     "013_add_notifications.sql",
+                    "014_add_personal_calendars.sql",
                 ],
-                [entry["name"] for entry in status["history"][-6:]],
+                [entry["name"] for entry in status["history"][-7:]],
             )
 
     def test_initialize_rejects_unversioned_legacy_round_schema(self) -> None:
@@ -421,15 +447,17 @@ class DatabaseTests(unittest.TestCase):
             with closing(sqlite3.connect(db_path)) as connection:
                 connection.execute("DROP TABLE schema_migration_checksum")
                 rewind_notification_migration(connection)
+                rewind_calendar_migration(connection)
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?)",
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
                         "011_add_local_password_totp_auth.sql",
                         "012_add_plan_revision.sql",
                         "013_add_notifications.sql",
+                        "014_add_personal_calendars.sql",
                     ),
                 )
                 connection.execute("DROP TABLE auth_token")
@@ -475,15 +503,17 @@ class DatabaseTests(unittest.TestCase):
             with closing(sqlite3.connect(db_path)) as connection:
                 connection.execute("DROP TABLE schema_migration_checksum")
                 rewind_notification_migration(connection)
+                rewind_calendar_migration(connection)
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?)",
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
                         "011_add_local_password_totp_auth.sql",
                         "012_add_plan_revision.sql",
                         "013_add_notifications.sql",
+                        "014_add_personal_calendars.sql",
                     ),
                 )
                 connection.execute("DROP TABLE auth_token")
