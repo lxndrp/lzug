@@ -40,6 +40,7 @@ import {
   CalendarEvent,
   CalendarFeedActivation,
   CalendarStatus,
+  AbsenceReport,
 } from './api.models';
 import { RoundContextService } from './round-context.service';
 
@@ -132,6 +133,31 @@ export class PlanningApiService {
 
   revokeCalendarFeed() {
     return this.http.delete<CalendarStatus & { notice: string }>('/api/calendar/feed');
+  }
+
+  getAbsenceReports() {
+    return this.list<AbsenceReport>('/api/absence-reports');
+  }
+
+  createAbsenceReport(examDayId: number, assignmentId: number, reason?: string) {
+    return this.http.post<AbsenceReport>('/api/absence-reports', {
+      exam_day_id: examDayId,
+      exam_day_assignment_id: assignmentId,
+      ...(reason?.trim() ? { reason: reason.trim() } : {}),
+    });
+  }
+
+  answerReplacement(responseId: number, response: 'available' | 'unavailable') {
+    return this.http.patch<AbsenceReport>(`/api/replacement-responses/${responseId}`, {
+      response,
+    });
+  }
+
+  selectReplacement(reportId: number, memberId: number, version: number) {
+    return this.http.post<AbsenceReport>(`/api/absence-reports/${reportId}/select-replacement`, {
+      committee_member_id: memberId,
+      version,
+    });
   }
 
   registerPushSubscription(endpoint: string) {

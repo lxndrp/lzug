@@ -23,6 +23,9 @@ Die [kanalneutrale Benachrichtigungsarchitektur](notifications.md) trennt
 dauerhafte fachliche Hinweise von optionaler technischer Zustellung und
 datensparsamer Diagnose.
 
+Der bestätigte Plan bleibt bei Ausfällen nachvollziehbar; die Regeln und
+API-Grenze beschreibt der [Ausfall- und Ersatzprozess](absence-replacement.md).
+
 ## Veröffentlichungs- und Betriebsarchitektur
 
 Die erste Veröffentlichung ist auf dezentrales Self-Hosting je Ausschuss

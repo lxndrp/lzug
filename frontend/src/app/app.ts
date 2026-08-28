@@ -71,6 +71,7 @@ import { AuthFlowComponent } from './auth/auth-flow.component';
 import { AuthService } from './auth/auth.service';
 import { RuntimeNoticeComponent } from './runtime/runtime-notice.component';
 import { NotificationsComponent } from './notifications/notifications.component';
+import { AbsenceReportsComponent } from './absence-reports/absence-reports.component';
 
 @Component({
   selector: 'app-root',
@@ -85,6 +86,7 @@ import { NotificationsComponent } from './notifications/notifications.component'
     ExamHalfYearsComponent,
     LocationsComponent,
     NotificationsComponent,
+    AbsenceReportsComponent,
     PlanningComponent,
     RuntimeNoticeComponent,
     SchedulingOverviewComponent,
@@ -169,6 +171,7 @@ export class App {
       locations: 'Prüfungsorte',
       'exam-half-years': 'Prüfungshalbjahre',
       notifications: 'Benachrichtigungen',
+      'absence-reports': 'Ausfall und Ersatz',
     };
     return labels[this.activeView()];
   });
@@ -203,7 +206,8 @@ export class App {
 
   protected readonly breadcrumb = computed(() => {
     if (this.activeView() === 'exam-half-years') return 'Prüfungskontext';
-    if (this.activeView() === 'notifications') return 'Persönlicher Bereich';
+    if (['notifications', 'absence-reports'].includes(this.activeView()))
+      return 'Persönlicher Bereich';
     if (['committee', 'locations'].includes(this.activeView())) return 'Globale Bereiche';
     return 'Aktueller Prüfungskontext';
   });
@@ -378,7 +382,7 @@ export class App {
 
   protected canAccessView(view: AppView): boolean {
     if (!this.demoSession()) return true;
-    if (view === 'dashboard' || view === 'notifications') return true;
+    if (view === 'dashboard' || view === 'notifications' || view === 'absence-reports') return true;
     if (view === 'exam-half-years') return true;
     if (['scheduling-overview', 'planning'].includes(view)) {
       return (
@@ -993,6 +997,7 @@ export class App {
       locations: 'locations',
       'exam-half-years': 'exam-half-years',
       notifications: 'notifications',
+      'absence-reports': 'absence-reports',
     };
     return view === 'planning' ? `scheduling-overview/${this.roundContext.roundId()}` : paths[view];
   }
@@ -1016,6 +1021,7 @@ export class App {
       locations: 'locations',
       'exam-half-years': 'exam-half-years',
       notifications: 'notifications',
+      'absence-reports': 'absence-reports',
     };
     return views[segment ?? 'dashboard'] ?? 'dashboard';
   }

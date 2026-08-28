@@ -264,6 +264,80 @@ def spec() -> dict[str, Any]:
                 },
             }
         },
+        "/api/absence-reports": {
+            "get": {
+                "summary": "List accessible absence and replacement processes",
+                "operationId": "listAbsenceReports",
+                "responses": {"200": json_response("AbsenceReportCollection")},
+            },
+            "post": {
+                "summary": "Report an absence for an assigned confirmed-plan member",
+                "operationId": "createAbsenceReport",
+                "requestBody": json_request("AbsenceReportWrite"),
+                "responses": {"201": json_response("AbsenceReport"), "400": json_response("Error")},
+            },
+        },
+        "/api/absence-reports/{id}": {
+            "get": {
+                "summary": "Get one absence and replacement process",
+                "operationId": "getAbsenceReport",
+                "parameters": [path_parameter("id")],
+                "responses": {"200": json_response("AbsenceReport"), "404": json_response("Error")},
+            }
+        },
+        "/api/absence-reports/{report_id}/select-replacement": {
+            "post": {
+                "summary": "Select one available replacement member",
+                "operationId": "selectAbsenceReplacement",
+                "parameters": [path_parameter("report_id")],
+                "requestBody": json_request("ReplacementSelectionWrite"),
+                "responses": {"200": json_response("AbsenceReport"), "400": json_response("Error")},
+            }
+        },
+        "/api/absence-reports/{report_id}/withdraw": {
+            "post": {
+                "summary": "Withdraw an absence report before selection",
+                "operationId": "withdrawAbsenceReport",
+                "parameters": [path_parameter("report_id")],
+                "responses": {"200": json_response("AbsenceReport"), "400": json_response("Error")},
+            }
+        },
+        "/api/absence-reports/{report_id}/reopen": {
+            "post": {
+                "summary": "Reopen a selected or cancelled absence process",
+                "operationId": "reopenAbsenceReport",
+                "parameters": [path_parameter("report_id")],
+                "requestBody": json_request("ReasonWrite"),
+                "responses": {"200": json_response("AbsenceReport"), "400": json_response("Error")},
+            }
+        },
+        "/api/absence-reports/{report_id}/cancel": {
+            "post": {
+                "summary": "Cancel the affected confirmed-plan scope with a reason",
+                "operationId": "cancelAbsenceScope",
+                "parameters": [path_parameter("report_id")],
+                "requestBody": json_request("ReasonWrite"),
+                "responses": {"200": json_response("AbsenceReport"), "400": json_response("Error")},
+            }
+        },
+        "/api/replacement-responses/{response_id}": {
+            "patch": {
+                "summary": "Answer an own replacement request",
+                "operationId": "answerReplacementRequest",
+                "parameters": [path_parameter("response_id")],
+                "requestBody": json_request("ReplacementResponseWrite"),
+                "responses": {"200": json_response("AbsenceReport"), "400": json_response("Error")},
+            }
+        },
+        "/api/replacement-responses/{response_id}/respond": {
+            "post": {
+                "summary": "Answer an own replacement request",
+                "operationId": "answerReplacementRequestPost",
+                "parameters": [path_parameter("response_id")],
+                "requestBody": json_request("ReplacementResponseWrite"),
+                "responses": {"200": json_response("AbsenceReport"), "400": json_response("Error")},
+            }
+        },
         "/api/auth/login": {
             "post": {
                 "summary": "Authenticate with password and TOTP or one recovery code",
@@ -628,6 +702,67 @@ def spec() -> dict[str, Any]:
                 "_links": link_map(),
             },
             required=("items", "_links"),
+        ),
+        "AbsenceReport": object_schema(
+            {
+                "id": {"type": "integer"},
+                "exam_day_id": {"type": "integer"},
+                "exam_day_assignment_id": {"type": "integer"},
+                "committee_member_id": {"type": "integer"},
+                "reported_by_member_id": {"type": "integer"},
+                "reported_at": {"type": "string"},
+                "reason": {"type": ["string", "null"]},
+                "status": {"type": "string"},
+                "selected_replacement_member_id": {"type": ["integer", "null"]},
+                "version": {"type": "integer"},
+                "created_at": {"type": "string"},
+                "updated_at": {"type": "string"},
+                "responses": {"type": "array", "items": {"type": "object"}},
+                "audit": {"type": "array", "items": {"type": "object"}},
+            },
+            required=(
+                "id",
+                "exam_day_id",
+                "exam_day_assignment_id",
+                "committee_member_id",
+                "reported_by_member_id",
+                "reported_at",
+                "reason",
+                "status",
+                "selected_replacement_member_id",
+                "version",
+                "created_at",
+                "updated_at",
+                "responses",
+                "audit",
+            ),
+        ),
+        "AbsenceReportCollection": object_schema(
+            {
+                "items": {"type": "array", "items": {"$ref": "#/components/schemas/AbsenceReport"}},
+                "_links": link_map(),
+            },
+            required=("items", "_links"),
+        ),
+        "AbsenceReportWrite": object_schema(
+            {
+                "exam_day_id": {"type": "integer"},
+                "exam_day_assignment_id": {"type": "integer"},
+                "committee_member_id": {"type": "integer"},
+                "reason": {"type": ["string", "null"]},
+            },
+            required=("exam_day_id",),
+        ),
+        "ReplacementResponseWrite": object_schema(
+            {"response": {"type": "string", "enum": ["available", "unavailable"]}},
+            required=("response",),
+        ),
+        "ReplacementSelectionWrite": object_schema(
+            {"committee_member_id": {"type": "integer"}, "version": {"type": "integer"}},
+            required=("committee_member_id",),
+        ),
+        "ReasonWrite": object_schema(
+            {"reason": {"type": "string", "minLength": 1}}, required=("reason",)
         ),
         "NotificationProblem": object_schema(
             {

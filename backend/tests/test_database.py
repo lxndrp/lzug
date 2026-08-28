@@ -32,6 +32,16 @@ from backend.tests.helpers import TempDatabase
 def rewind_notification_migration(connection: sqlite3.Connection) -> None:
     """Restore the pre-013 schema used by migration-order test fixtures."""
     connection.executescript("""
+        DROP INDEX IF EXISTS absence_report_assignment_active;
+        DROP INDEX IF EXISTS absence_report_day_status;
+        DROP INDEX IF EXISTS absence_audit_report_created;
+        DROP TABLE IF EXISTS absence_audit_event;
+        ALTER TABLE absence_report DROP COLUMN exam_day_assignment_id;
+        ALTER TABLE absence_report DROP COLUMN reported_by_member_id;
+        ALTER TABLE absence_report DROP COLUMN version;
+        ALTER TABLE replacement_response DROP COLUMN requested_at;
+        ALTER TABLE replacement_response DROP COLUMN expires_at;
+        ALTER TABLE replacement_response DROP COLUMN urgent;
         DROP TABLE notification_delivery;
         DROP TABLE push_subscription;
         DROP TABLE notification;
@@ -297,7 +307,7 @@ class DatabaseTests(unittest.TestCase):
                 rewind_calendar_migration(connection)
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?)",
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
@@ -305,6 +315,7 @@ class DatabaseTests(unittest.TestCase):
                         "012_add_plan_revision.sql",
                         "013_add_notifications.sql",
                         "014_add_personal_calendars.sql",
+                        "015_add_absence_replacement_process.sql",
                     ),
                 )
                 connection.execute("DROP TABLE auth_token")
@@ -321,7 +332,7 @@ class DatabaseTests(unittest.TestCase):
             initialize(db_path)
             after = migration_status(db_path)
             self.assertEqual("ready", after["state"])
-            self.assertEqual("014_add_personal_calendars.sql", after["current"])
+            self.assertEqual("015_add_absence_replacement_process.sql", after["current"])
             self.assertTrue(list(db_path.parent.joinpath("backups").glob("*.sqlite")))
 
             history_before = after["history"]
@@ -363,7 +374,7 @@ class DatabaseTests(unittest.TestCase):
                     DROP TABLE user_account_legacy;
                 """)
                 connection.execute(
-                    "DELETE FROM schema_migration WHERE name IN (?, ?, ?, ?, ?, ?, ?)",
+                    "DELETE FROM schema_migration WHERE name IN (?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         "008_add_authentication_sessions.sql",
                         "009_harden_migration_history.sql",
@@ -372,6 +383,7 @@ class DatabaseTests(unittest.TestCase):
                         "012_add_plan_revision.sql",
                         "013_add_notifications.sql",
                         "014_add_personal_calendars.sql",
+                        "015_add_absence_replacement_process.sql",
                     ),
                 )
                 connection.execute("ALTER TABLE exam_round DROP COLUMN plan_revision")
@@ -389,8 +401,9 @@ class DatabaseTests(unittest.TestCase):
                     "012_add_plan_revision.sql",
                     "013_add_notifications.sql",
                     "014_add_personal_calendars.sql",
+                    "015_add_absence_replacement_process.sql",
                 ],
-                [entry["name"] for entry in status["history"][-7:]],
+                [entry["name"] for entry in status["history"][-8:]],
             )
 
     def test_initialize_rejects_unversioned_legacy_round_schema(self) -> None:
@@ -450,7 +463,7 @@ class DatabaseTests(unittest.TestCase):
                 rewind_calendar_migration(connection)
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?)",
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
@@ -458,6 +471,7 @@ class DatabaseTests(unittest.TestCase):
                         "012_add_plan_revision.sql",
                         "013_add_notifications.sql",
                         "014_add_personal_calendars.sql",
+                        "015_add_absence_replacement_process.sql",
                     ),
                 )
                 connection.execute("DROP TABLE auth_token")
@@ -506,7 +520,7 @@ class DatabaseTests(unittest.TestCase):
                 rewind_calendar_migration(connection)
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?)",
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
@@ -514,6 +528,7 @@ class DatabaseTests(unittest.TestCase):
                         "012_add_plan_revision.sql",
                         "013_add_notifications.sql",
                         "014_add_personal_calendars.sql",
+                        "015_add_absence_replacement_process.sql",
                     ),
                 )
                 connection.execute("DROP TABLE auth_token")

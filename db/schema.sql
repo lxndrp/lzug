@@ -21,7 +21,7 @@ VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.s
        ('009_harden_migration_history.sql'), ('010_add_operator_auth_tokens.sql'),
        ('011_add_local_password_totp_auth.sql'),
        ('012_add_plan_revision.sql'), ('013_add_notifications.sql'),
-       ('014_add_personal_calendars.sql');
+       ('014_add_personal_calendars.sql'), ('015_add_absence_replacement_process.sql');
 
 CREATE TABLE schema_migration_checksum (
   name TEXT PRIMARY KEY REFERENCES schema_migration(name) ON DELETE CASCADE,
@@ -42,7 +42,8 @@ INSERT INTO schema_migration_checksum (name, checksum) VALUES
   ('011_add_local_password_totp_auth.sql', '7f17cd3e4b2eb0f359c4e55902f0e5f25068703d804d9d6279597770beb6eef1'),
   ('012_add_plan_revision.sql', 'e9462145b627eb238219d728d2b1263dd16e6d5eb30d33dbb1f7f0c61226e8fb'),
   ('013_add_notifications.sql', '6cacc994e8b4356ce9b1639a7df48efd046c66f083d14dc77f8ed2007851276e'),
-  ('014_add_personal_calendars.sql', '68b46cd341c21ec12a8d08ba75b35b1215eaa04e992140841db501b8250ac635');
+  ('014_add_personal_calendars.sql', '68b46cd341c21ec12a8d08ba75b35b1215eaa04e992140841db501b8250ac635'),
+  ('015_add_absence_replacement_process.sql', 'd9b07a0fcca65202c1fc68b0874718551924624ac26517339a253e73394d9829');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
@@ -432,10 +433,14 @@ CREATE TABLE absence_report (
       'replacement_selected',
       'no_replacement_available',
       'exam_day_cancelled',
-      'resolved'
+      'resolved',
+      'withdrawn'
     )
   ),
+  exam_day_assignment_id INTEGER NOT NULL REFERENCES exam_day_assignment(id) ON DELETE RESTRICT,
+  reported_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
   selected_replacement_member_id INTEGER REFERENCES committee_member(id) ON DELETE SET NULL,
+  version INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -443,13 +448,27 @@ CREATE TABLE absence_report (
 CREATE TABLE replacement_response (
   id INTEGER PRIMARY KEY,
   absence_report_id INTEGER NOT NULL REFERENCES absence_report(id) ON DELETE CASCADE,
-  committee_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE CASCADE,
+  committee_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
   response TEXT NOT NULL DEFAULT 'pending' CHECK (response IN ('pending', 'available', 'unavailable')),
+  requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at TEXT,
+  urgent INTEGER NOT NULL DEFAULT 0 CHECK (urgent IN (0, 1)),
   responded_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (absence_report_id, committee_member_id),
   CHECK (response = 'pending' OR responded_at IS NOT NULL)
+);
+
+CREATE TABLE absence_audit_event (
+  id INTEGER PRIMARY KEY,
+  absence_report_id INTEGER NOT NULL REFERENCES absence_report(id) ON DELETE CASCADE,
+  actor_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  event_type TEXT NOT NULL,
+  from_status TEXT,
+  to_status TEXT,
+  details TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE notification (
@@ -459,7 +478,11 @@ CREATE TABLE notification (
   recipient_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE CASCADE,
   event_type TEXT NOT NULL CHECK (event_type IN (
     'availability_requested', 'availability_reminder',
-    'availability_deadline_expired', 'plan_confirmed', 'synthetic_test'
+    'availability_deadline_expired', 'plan_confirmed', 'synthetic_test',
+    'examiner_absence_reported', 'fallback_confirmation_requested',
+    'fallback_confirmation_expired', 'replacement_requested',
+    'urgent_replacement_requested', 'replacement_selected',
+    'exam_day_cancelled', 'absence_reopened'
   )),
   origin_key TEXT NOT NULL,
   title TEXT NOT NULL,
@@ -570,3 +593,5 @@ CREATE INDEX calendar_event_source ON calendar_event(source_key);
 CREATE INDEX calendar_event_recipient_period
   ON calendar_event(recipient_member_id, exam_half_year_id);
 CREATE INDEX calendar_event_status ON calendar_event(status);
+CREATE INDEX absence_audit_report_created
+  ON absence_audit_event(absence_report_id, created_at);

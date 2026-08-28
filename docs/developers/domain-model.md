@@ -433,7 +433,11 @@ Fachliche Regeln:
   für die jeweils zugeordneten Ausschussmitglieder.
 - Wird ein bestätigter Tag oder Tagesabschnitt geändert, werden die betroffenen
   Kalenderereignisse versioniert aktualisiert oder storniert.
-- Wenn kein Ersatzprüfer gefunden werden kann, wird die IHK über den Ausfall des Prüfungstags informiert.
+- Ein bestätigter Prüfungstag erzeugt Kalendereinladungen.
+- Wird ein bestätigter Tag geändert, werden aktualisierte Kalendereinladungen verschickt.
+- Wenn kein Ersatzprüfer gefunden werden kann, wird ein manueller IHK-Vorgang
+  mit Begründung erforderlich; der Ausfallprozess versendet keine automatische
+  IHK-Nachricht.
 
 ### Prüfungsslot
 
@@ -530,7 +534,9 @@ Fachliche Regeln:
 - Arbeitgeberseite, Arbeitnehmerseite und Schulseite müssen je Tagesabschnitt vertreten sein.
 - Der Fallback muss ausdrücklich bestätigen.
 - Erfolgt die Fallback-Bestätigung nicht innerhalb von 24 Stunden, werden Vorsitz und Stellvertretung benachrichtigt und weitere Mitglieder angefragt.
-- Ist die Ausfallmeldung jünger als 36 Stunden vor Prüfungsbeginn, werden alle Mitglieder sofort mit Dringlichkeit benachrichtigt.
+- Ist die Ausfallmeldung jünger als 48 Stunden vor Prüfungsbeginn, werden
+  Fallback und weitere geeignete Mitglieder parallel mit Dringlichkeit
+  angefragt.
 - Wenn mehrere Mitglieder einspringen können, wählen Vorsitz oder
   Stellvertretung den Ersatz aus.
 - Eine Person darf innerhalb desselben Prüfungshalbjahrs nicht in
@@ -550,11 +556,14 @@ Felder:
 | --- | --- | --- | --- |
 | `id` | UUID/Integer | ja | Eindeutige ID |
 | `exam_day_id` | Fremdschlüssel | ja | Betroffener Prüfungstag |
+| `exam_day_assignment_id` | Fremdschlüssel | ja | Konkrete betroffene Besetzung |
 | `committee_member_id` | Fremdschlüssel | ja | Ausfallendes Mitglied |
+| `reported_by_member_id` | Fremdschlüssel | ja | Meldende Person |
 | `reported_at` | Zeitstempel | ja | Zeitpunkt der Meldung |
 | `reason` | Text | nein | Optionaler Grund |
 | `status` | Enum | ja | Bearbeitungsstatus |
 | `selected_replacement_member_id` | Fremdschlüssel | nein | Gewählter Ersatz |
+| `version` | Integer | ja | Optimistische Bearbeitungsversion |
 | `created_at` | Zeitstempel | ja | Anlagezeitpunkt |
 | `updated_at` | Zeitstempel | ja | Letzte Änderung |
 
@@ -569,6 +578,7 @@ Mögliche Statuswerte:
 - `no_replacement_available`
 - `exam_day_cancelled`
 - `resolved`
+- `withdrawn`
 
 ### Ersatzbereitschaft
 
@@ -584,6 +594,9 @@ Felder:
 | `absence_report_id` | Fremdschlüssel | ja | Ausfallmeldung |
 | `committee_member_id` | Fremdschlüssel | ja | Angefragtes Mitglied |
 | `response` | Enum | ja | Antwort |
+| `requested_at` | Zeitstempel | ja | Zeitpunkt der Anfrage |
+| `expires_at` | Zeitstempel | nein | Ablauf der priorisierten Fallback-Anfrage |
+| `urgent` | Boolean | ja | Anfrage innerhalb der 48-Stunden-Grenze |
 | `responded_at` | Zeitstempel | nein | Zeitpunkt der Antwort |
 | `created_at` | Zeitstempel | ja | Anlagezeitpunkt |
 | `updated_at` | Zeitstempel | ja | Letzte Änderung |
@@ -719,11 +732,14 @@ Wenn ein Prüfer ausfällt:
 1. Fallback, Vorsitzender und stellvertretender Vorsitzender werden sofort benachrichtigt.
 2. Der Fallback muss ausdrücklich bestätigen.
 3. Erfolgt innerhalb von 24 Stunden keine Bestätigung, werden Vorsitz und Stellvertretung benachrichtigt und alle weiteren Mitglieder angefragt.
-4. Liegt die Ausfallmeldung weniger als 36 Stunden vor Prüfungsbeginn, werden alle Mitglieder sofort mit Dringlichkeit angefragt.
+4. Liegt die Ausfallmeldung weniger als 48 Stunden vor Prüfungsbeginn, werden
+   Fallback und weitere geeignete Mitglieder parallel mit Dringlichkeit angefragt.
 5. Wenn mehrere Mitglieder zusagen, wählen Vorsitz oder Stellvertretung den
    Ersatz aus.
-6. Wenn kein Ersatz gefunden wird, wird die IHK über den Ausfall des Prüfungstags informiert.
-7. Für abgesagte oder verschobene Prüfungen startet der Terminfindungsprozess neu.
+6. Wenn kein Ersatz gefunden wird, wird der Zustand sichtbar und ein manueller
+   IHK-Vorgang mit Begründung erforderlich.
+7. Für abgesagte oder verschobene Prüfungen startet der Terminfindungsprozess
+   neu.
 
 ## Kandidaten für technische Indizes und Constraints
 
@@ -771,8 +787,12 @@ Für die erste persistente Server-App reicht ein fokussierter Kern:
 11. `exam_day`
 12. `exam_slot`
 13. `exam_day_assignment`
-14. `calendar_feed`
-15. `calendar_event`
+14. `absence_report`
+15. `replacement_response`
+16. `absence_audit_event`
+17. `calendar_feed`
+18. `calendar_event`
 
-Benachrichtigungen und Ausfallprozesse können danach als weitere Ausbaustufe
-ergänzt werden, ohne das Kernmodell umzubauen.
+Benachrichtigungen und Kalenderereignisse ergänzen den Kern um die
+provider-neutrale persönliche Zustellung; der Ausfallprozess hält seine
+fachliche Historie unabhängig davon im relationalen Modell.

@@ -401,6 +401,89 @@ class ExamDayAssignment(Base):
     )
 
 
+class AbsenceReport(Base):
+    """One immutable-in-history report for an assigned committee member."""
+
+    __tablename__ = "absence_report"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_day_id: Mapped[int] = mapped_column(ForeignKey("exam_day.id", ondelete="CASCADE"))
+    exam_day_assignment_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_day_assignment.id", ondelete="RESTRICT")
+    )
+    committee_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    reported_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    reported_at: Mapped[str] = mapped_column(String)
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'reported'"))
+    selected_replacement_member_id: Mapped[int | None] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT"), nullable=True
+    )
+    version: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index("absence_report_day_status", "exam_day_id", "status"),
+        Index("absence_report_assignment_active", "exam_day_assignment_id", "status"),
+    )
+
+
+class ReplacementResponse(Base):
+    """A member's answer to one replacement request."""
+
+    __tablename__ = "replacement_response"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    absence_report_id: Mapped[int] = mapped_column(
+        ForeignKey("absence_report.id", ondelete="CASCADE")
+    )
+    committee_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    response: Mapped[str] = mapped_column(String, server_default=sql_text("'pending'"))
+    requested_at: Mapped[str] = mapped_column(String)
+    expires_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    urgent: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
+    responded_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index(
+            "replacement_response_report_member",
+            "absence_report_id",
+            "committee_member_id",
+            unique=True,
+        ),
+    )
+
+
+class AbsenceAuditEvent(Base):
+    """Append-only process history; current state never replaces past events."""
+
+    __tablename__ = "absence_audit_event"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    absence_report_id: Mapped[int] = mapped_column(
+        ForeignKey("absence_report.id", ondelete="CASCADE")
+    )
+    actor_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    event_type: Mapped[str] = mapped_column(String)
+    from_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    to_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    details: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (Index("absence_audit_report_created", "absence_report_id", "created_at"),)
+
+
 class CandidateExamAttendance(Base):
     __tablename__ = "candidate_exam_attendance"
 
@@ -911,6 +994,57 @@ MEMBER_EXAM_ATTENDANCE = Resource(
     ),
     order_by=("exam_day_id", "committee_member_id"),
     writable_fields=("exam_day_id", "committee_member_id", "status", "arrived_at"),
+)
+
+ABSENCE_REPORT = Resource(
+    model=AbsenceReport,
+    fields=(
+        "exam_day_id",
+        "exam_day_assignment_id",
+        "committee_member_id",
+        "reported_by_member_id",
+        "reported_at",
+        "reason",
+        "status",
+        "selected_replacement_member_id",
+        "version",
+        "created_at",
+        "updated_at",
+    ),
+    order_by=("-reported_at", "-id"),
+    writable_fields=(),
+)
+
+REPLACEMENT_RESPONSE = Resource(
+    model=ReplacementResponse,
+    fields=(
+        "absence_report_id",
+        "committee_member_id",
+        "response",
+        "requested_at",
+        "expires_at",
+        "urgent",
+        "responded_at",
+        "created_at",
+        "updated_at",
+    ),
+    order_by=("requested_at", "id"),
+    writable_fields=(),
+)
+
+ABSENCE_AUDIT_EVENT = Resource(
+    model=AbsenceAuditEvent,
+    fields=(
+        "absence_report_id",
+        "actor_member_id",
+        "event_type",
+        "from_status",
+        "to_status",
+        "details",
+        "created_at",
+    ),
+    order_by=("created_at", "id"),
+    writable_fields=(),
 )
 
 DOCUMENT = Resource(
