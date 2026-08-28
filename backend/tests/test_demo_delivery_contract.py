@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from backend.tests.workflow_contract import job_block, mapping_block, workflow_text
 from demo.artifacts import build_seed
 
 
@@ -42,6 +43,18 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("uses: ./.github/workflows/demo-publish.yml", promotion)
         self.assertIn("uses: ./.github/workflows/demo-deploy.yml", promotion)
         self.assertIn("needs: publish", promotion)
+
+    def test_stable_promotion_passes_actions_read_through_nested_deployment(self) -> None:
+        workflows_and_jobs = (
+            (workflow_text(".github/workflows/release.yml"), "promote-demo"),
+            (workflow_text(".github/workflows/demo-promote.yml"), "deploy"),
+            (workflow_text(".github/workflows/demo-deploy.yml"), "deploy"),
+        )
+
+        for workflow, job_id in workflows_and_jobs:
+            with self.subTest(job=job_id, workflow=workflow):
+                permissions = mapping_block(job_block(workflow, job_id), "permissions", indent=4)
+                self.assertIn("actions: read", permissions)
 
     def test_publish_resolves_one_attested_immutable_pair_from_the_product_tag(self) -> None:
         workflow = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")
