@@ -429,8 +429,10 @@ Mögliche Statuswerte:
 
 Fachliche Regeln:
 
-- Ein bestätigter Prüfungstag erzeugt Kalendereinladungen.
-- Wird ein bestätigter Tag geändert, werden aktualisierte Kalendereinladungen verschickt.
+- Ein bestätigter Prüfungstag erzeugt persönliche, provider-neutrale Kalenderereignisse
+  für die jeweils zugeordneten Ausschussmitglieder.
+- Wird ein bestätigter Tag oder Tagesabschnitt geändert, werden die betroffenen
+  Kalenderereignisse versioniert aktualisiert oder storniert.
 - Wenn kein Ersatzprüfer gefunden werden kann, wird die IHK über den Ausfall des Prüfungstags informiert.
 
 ### Prüfungsslot
@@ -632,29 +634,39 @@ Mögliche Benachrichtigungstypen:
 
 Hinweis: Unzustellbare E-Mails werden zunächst nicht fachlich behandelt, weil E-Mail-Adressen bei Anlage verifiziert werden.
 
-### Kalendereinladung
+### Persönliches Kalenderereignis
 
 Technischer Name: `calendar_event`
 
-Beschreibt eine Kalendereinladung zu einem bestätigten oder geänderten Termin.
+Beschreibt ein datensparsames persönliches Kalenderereignis zu einer bestätigten
+Einplanung. Es wird ausschließlich für das zugehörige Ausschussmitglied über
+einen geschützten Feed oder als authentifizierten Einzel-Download bereitgestellt.
 
 Felder:
 
 | Feld | Typ | Pflicht | Beschreibung |
 | --- | --- | --- | --- |
-| `id` | UUID/Integer | ja | Eindeutige ID |
-| `exam_slot_id` | Fremdschlüssel | nein | Konkreter Prüfungsslot |
-| `exam_day_id` | Fremdschlüssel | nein | Prüfungstag, falls ganztägige Einladung |
-| `recipient_member_id` | Fremdschlüssel | nein | Empfänger |
-| `external_event_id` | Text | nein | ID des technischen Kalenderdienstes |
-| `status` | Enum | ja | Status der Einladung |
-| `sent_at` | Zeitstempel | nein | Versandzeitpunkt |
+| `id` | Integer | ja | Interne ID |
+| `external_event_id` | Text | ja | Stabile provider-neutrale Ereignisidentität |
+| `exam_half_year_id` | Fremdschlüssel | ja | Prüfungshalbjahr des Ereignisses |
+| `exam_round_id` | Fremdschlüssel | ja | Prüfungsdurchgang |
+| `exam_day_id` | Fremdschlüssel | nein | Zugehöriger Prüfungstag |
+| `exam_day_assignment_id` | Fremdschlüssel | nein | Zugehörige persönliche Einplanung |
+| `recipient_member_id` | Fremdschlüssel | ja | Ausschussmitglied, das nur dieses Ereignis sehen darf |
+| `date`, `starts_at`, `ends_at` | Datum/Zeit | ja | Eigener zeitgebundener Tagesabschnitt |
+| `time_zone` | IANA-Zeitzone | ja | Lokale Zeitzone einschließlich Zeitumstellungen |
+| `location`, `role`, `round_name` | Text | ja | Datensparsame Terminangaben |
+| `secure_reference` | Pfad | ja | Sicherer Verweis auf den eigenen Planstand |
+| `source_key` | Text | ja | Fachlicher Ursprung und Generation nach Stornierung |
+| `version` | Integer | ja | Erhöht sich bei einer Ereignisänderung |
+| `status` | Enum | ja | `sent`, `updated` oder explizit `cancelled` |
+| `content_hash` | SHA-256 | ja | Idempotenzprüfung des Ereignissnapshots |
+| `sent_at` | Zeitstempel | nein | Erste Bereitstellung |
 | `created_at` | Zeitstempel | ja | Anlagezeitpunkt |
 | `updated_at` | Zeitstempel | ja | Letzte Änderung |
 
 Mögliche Statuswerte:
 
-- `pending`
 - `sent`
 - `updated`
 - `cancelled`
@@ -759,5 +771,8 @@ Für die erste persistente Server-App reicht ein fokussierter Kern:
 11. `exam_day`
 12. `exam_slot`
 13. `exam_day_assignment`
+14. `calendar_feed`
+15. `calendar_event`
 
-Benachrichtigungen, Kalendereinladungen und Ausfallprozesse können danach als zweite Ausbaustufe ergänzt werden, ohne das Kernmodell umzubauen.
+Benachrichtigungen und Ausfallprozesse können danach als weitere Ausbaustufe
+ergänzt werden, ohne das Kernmodell umzubauen.

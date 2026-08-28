@@ -879,12 +879,11 @@ export class App {
         next: (result) => {
           this.lastPlanningResult.set(result);
           const confirmed = result.counts['confirmed_slots'] ?? 0;
+          const warning = result.notification_warning ?? result.calendar_warning;
           this.notify(
-            result.notification_warning ? 'error' : 'success',
-            result.notification_warning
-              ? 'Plan bestätigt, Benachrichtigungen unvollständig'
-              : 'Plan bestätigt',
-            result.notification_warning ?? `${confirmed} Termine sind verbindlich.`,
+            warning ? 'error' : 'success',
+            warning ? 'Plan bestätigt, Zusatzinformationen unvollständig' : 'Plan bestätigt',
+            warning ?? `${confirmed} Termine sind verbindlich.`,
           );
           this.refresh();
           void this.router.navigateByUrl(`/confirmed-plans/${this.roundContext.roundId()}`);

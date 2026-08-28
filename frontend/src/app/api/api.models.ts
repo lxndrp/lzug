@@ -46,6 +46,34 @@ export type NotificationChannels = {
   sink_enabled: boolean;
 };
 
+export type CalendarStatus = {
+  active: boolean;
+  activated_at: string | null;
+  revoked_at: string | null;
+  time_zone: string;
+  _links: Record<string, ApiLink>;
+};
+
+export type CalendarEvent = {
+  id: number;
+  external_event_id: string;
+  date: string;
+  starts_at: string;
+  ends_at: string;
+  time_zone: string;
+  location: string;
+  role: string;
+  round_name: string;
+  status: 'sent' | 'updated' | 'cancelled' | string;
+  version: number;
+  download_url: string;
+};
+
+export type CalendarFeedActivation = CalendarStatus & {
+  feed_url: string;
+  notice: string;
+};
+
 export type SchedulingStatusGroup = 'draft' | 'coordination' | 'planning' | 'confirmed';
 
 export type SchedulingOverviewItem = {
@@ -224,6 +252,7 @@ export type PlanningResult = {
   conflicts?: PlanningConflict[];
   counts: Record<string, number>;
   notification_warning?: string;
+  calendar_warning?: string;
   _links?: Record<string, ApiLink>;
 };
 

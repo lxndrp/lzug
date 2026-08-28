@@ -20,7 +20,8 @@ VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.s
        ('007_add_documents.sql'), ('008_add_authentication_sessions.sql'),
        ('009_harden_migration_history.sql'), ('010_add_operator_auth_tokens.sql'),
        ('011_add_local_password_totp_auth.sql'),
-       ('012_add_plan_revision.sql'), ('013_add_notifications.sql');
+       ('012_add_plan_revision.sql'), ('013_add_notifications.sql'),
+       ('014_add_personal_calendars.sql');
 
 CREATE TABLE schema_migration_checksum (
   name TEXT PRIMARY KEY REFERENCES schema_migration(name) ON DELETE CASCADE,
@@ -40,7 +41,8 @@ INSERT INTO schema_migration_checksum (name, checksum) VALUES
   ('010_add_operator_auth_tokens.sql', '6e0f3400d0871ddee4ec840360990f6b6fcd5ac8233f67c31cf03d2c4499e25a'),
   ('011_add_local_password_totp_auth.sql', '7f17cd3e4b2eb0f359c4e55902f0e5f25068703d804d9d6279597770beb6eef1'),
   ('012_add_plan_revision.sql', 'e9462145b627eb238219d728d2b1263dd16e6d5eb30d33dbb1f7f0c61226e8fb'),
-  ('013_add_notifications.sql', '6cacc994e8b4356ce9b1639a7df48efd046c66f083d14dc77f8ed2007851276e');
+  ('013_add_notifications.sql', '6cacc994e8b4356ce9b1639a7df48efd046c66f083d14dc77f8ed2007851276e'),
+  ('014_add_personal_calendars.sql', '68b46cd341c21ec12a8d08ba75b35b1215eaa04e992140841db501b8250ac635');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
@@ -494,17 +496,38 @@ CREATE TABLE notification_delivery (
   UNIQUE (notification_id, channel, target_key)
 );
 
+CREATE TABLE calendar_feed (
+  id INTEGER PRIMARY KEY,
+  person_id INTEGER NOT NULL UNIQUE REFERENCES person(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE CHECK (length(token_hash) = 64),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  revoked_at TEXT,
+  CHECK (revoked_at IS NULL OR revoked_at >= created_at)
+);
+
 CREATE TABLE calendar_event (
   id INTEGER PRIMARY KEY,
-  exam_slot_id INTEGER REFERENCES exam_slot(id) ON DELETE CASCADE,
-  exam_day_id INTEGER REFERENCES exam_day(id) ON DELETE CASCADE,
-  recipient_member_id INTEGER REFERENCES committee_member(id) ON DELETE SET NULL,
-  external_event_id TEXT,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'updated', 'cancelled')),
+  external_event_id TEXT NOT NULL UNIQUE,
+  exam_half_year_id INTEGER NOT NULL REFERENCES exam_half_year(id) ON DELETE RESTRICT,
+  exam_round_id INTEGER NOT NULL REFERENCES exam_round(id) ON DELETE RESTRICT,
+  exam_day_id INTEGER REFERENCES exam_day(id) ON DELETE SET NULL,
+  exam_day_assignment_id INTEGER REFERENCES exam_day_assignment(id) ON DELETE SET NULL,
+  recipient_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  starts_at TEXT NOT NULL,
+  ends_at TEXT NOT NULL,
+  time_zone TEXT NOT NULL,
+  location TEXT NOT NULL,
+  role TEXT NOT NULL,
+  round_name TEXT NOT NULL,
+  secure_reference TEXT NOT NULL CHECK (secure_reference LIKE '/%'),
+  source_key TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  status TEXT NOT NULL DEFAULT 'sent' CHECK (status IN ('sent', 'updated', 'cancelled')),
+  content_hash TEXT NOT NULL CHECK (length(content_hash) = 64),
   sent_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CHECK (exam_slot_id IS NOT NULL OR exam_day_id IS NOT NULL)
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX committee_member_committee_active
@@ -543,5 +566,7 @@ CREATE INDEX push_subscription_person_active
 CREATE INDEX notification_delivery_due
   ON notification_delivery(status, next_attempt_at);
 
-CREATE INDEX calendar_event_status
-  ON calendar_event(status);
+CREATE INDEX calendar_event_source ON calendar_event(source_key);
+CREATE INDEX calendar_event_recipient_period
+  ON calendar_event(recipient_member_id, exam_half_year_id);
+CREATE INDEX calendar_event_status ON calendar_event(status);

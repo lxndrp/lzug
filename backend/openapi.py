@@ -178,6 +178,60 @@ def spec() -> dict[str, Any]:
                 "responses": {"200": json_response("NotificationChannels")},
             }
         },
+        "/api/calendar": {
+            "get": {
+                "summary": "Inspect the authenticated member's personal calendar feed",
+                "operationId": "getCalendarStatus",
+                "security": [{"sessionCookie": []}],
+                "responses": {"200": json_response("CalendarStatus")},
+            }
+        },
+        "/api/calendar/feed": {
+            "get": {
+                "summary": "Inspect the authenticated member's personal calendar feed",
+                "operationId": "getCalendarFeedStatus",
+                "security": [{"sessionCookie": []}],
+                "responses": {"200": json_response("CalendarStatus")},
+            },
+            "post": {
+                "summary": "Activate or rotate the authenticated member's personal calendar feed",
+                "operationId": "activateCalendarFeed",
+                "security": [{"sessionCookie": [], "csrfHeader": []}],
+                "requestBody": json_request("CalendarFeedWrite"),
+                "responses": {"201": json_response("CalendarFeedActivation")},
+            },
+            "delete": {
+                "summary": "Revoke the authenticated member's personal calendar feed",
+                "operationId": "revokeCalendarFeed",
+                "security": [{"sessionCookie": [], "csrfHeader": []}],
+                "responses": {"200": json_response("CalendarStatus")},
+            },
+        },
+        "/api/calendar/feed/{token}.ics": {
+            "get": {
+                "summary": "Read one token-protected personal iCalendar feed",
+                "operationId": "getPersonalCalendarFeed",
+                "parameters": [path_parameter("token")],
+                "responses": {"200": calendar_response(), "404": json_response("Error")},
+            }
+        },
+        "/api/calendar/events": {
+            "get": {
+                "summary": "List the authenticated member's personal calendar events",
+                "operationId": "listCalendarEvents",
+                "security": [{"sessionCookie": []}],
+                "responses": {"200": json_response("CalendarEventCollection")},
+            }
+        },
+        "/api/calendar/events/{id}.ics": {
+            "get": {
+                "summary": "Download one own calendar event as iCalendar",
+                "operationId": "downloadCalendarEvent",
+                "security": [{"sessionCookie": []}],
+                "parameters": [path_parameter("id")],
+                "responses": {"200": calendar_response(), "404": json_response("Error")},
+            }
+        },
         "/api/push-subscriptions": {
             "post": {
                 "summary": "Register a browser Web Push endpoint for the authenticated person",
@@ -506,6 +560,7 @@ def spec() -> dict[str, Any]:
         "/api/auth/invitation/activate",
         "/api/auth/recovery/prepare",
         "/api/auth/recovery/complete",
+        "/api/calendar/feed/{token}.ics",
     }
     for path, operations in paths.items():
         if path in public_paths:
@@ -619,6 +674,76 @@ def spec() -> dict[str, Any]:
                 "sink_enabled": {"type": "boolean"},
             },
             required=("web_push", "email_fallback_configured", "sink_enabled"),
+        ),
+        "CalendarFeedWrite": object_schema(
+            {"rotate": {"type": "boolean", "default": False}},
+        ),
+        "CalendarStatus": object_schema(
+            {
+                "active": {"type": "boolean"},
+                "activated_at": {"type": ["string", "null"]},
+                "revoked_at": {"type": ["string", "null"]},
+                "time_zone": {"type": "string"},
+                "_links": link_map(),
+            },
+            required=("active", "activated_at", "revoked_at", "time_zone", "_links"),
+        ),
+        "CalendarFeedActivation": object_schema(
+            {
+                "active": {"type": "boolean"},
+                "activated_at": {"type": ["string", "null"]},
+                "revoked_at": {"type": ["string", "null"]},
+                "time_zone": {"type": "string"},
+                "feed_url": {"type": "string", "format": "uri-reference"},
+                "notice": {"type": "string"},
+                "_links": link_map(),
+            },
+            required=(
+                "active",
+                "activated_at",
+                "revoked_at",
+                "time_zone",
+                "feed_url",
+                "notice",
+                "_links",
+            ),
+        ),
+        "CalendarEvent": object_schema(
+            {
+                "id": {"type": "integer"},
+                "external_event_id": {"type": "string"},
+                "date": {"type": "string", "format": "date"},
+                "starts_at": {"type": "string"},
+                "ends_at": {"type": "string"},
+                "time_zone": {"type": "string"},
+                "location": {"type": "string"},
+                "role": {"type": "string"},
+                "round_name": {"type": "string"},
+                "status": {"type": "string", "enum": ["sent", "updated", "cancelled"]},
+                "version": {"type": "integer", "minimum": 1},
+                "download_url": {"type": "string", "format": "uri-reference"},
+            },
+            required=(
+                "id",
+                "external_event_id",
+                "date",
+                "starts_at",
+                "ends_at",
+                "time_zone",
+                "location",
+                "role",
+                "round_name",
+                "status",
+                "version",
+                "download_url",
+            ),
+        ),
+        "CalendarEventCollection": object_schema(
+            {
+                "items": {"type": "array", "items": {"$ref": "#/components/schemas/CalendarEvent"}},
+                "_links": link_map(),
+            },
+            required=("items", "_links"),
         ),
         "PushSubscriptionWrite": object_schema(
             {"endpoint": {"type": "string", "format": "uri"}}, required=("endpoint",)
@@ -1163,6 +1288,7 @@ def spec() -> dict[str, Any]:
         "/api/auth/invitation/activate",
         "/api/auth/recovery/prepare",
         "/api/auth/recovery/complete",
+        "/api/calendar/feed/{token}.ics",
     }
     for path, operations in paths.items():
         if path in public_paths or path == "/api/docs":
@@ -1212,6 +1338,13 @@ def json_request(schema_name: str) -> dict[str, Any]:
         "content": {
             "application/json": {"schema": {"$ref": f"#/components/schemas/{schema_name}"}}
         },
+    }
+
+
+def calendar_response() -> dict[str, Any]:
+    return {
+        "description": "iCalendar response",
+        "content": {"text/calendar": {"schema": {"type": "string"}}},
     }
 
 

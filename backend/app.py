@@ -25,6 +25,7 @@ from .auth import (
     SessionCredentials,
 )
 from .authorization import AuthorizationScope, AuthorizationService
+from .calendar import CalendarService
 from .candidate_days import CandidateDayService
 from .database import (
     DEFAULT_DB_PATH,
@@ -267,6 +268,10 @@ class LzugHandler(BaseHTTPRequestHandler):
     def notification_service(self) -> NotificationService:
         return NotificationService(self.db_path)
 
+    @property
+    def calendar_service(self) -> CalendarService:
+        return CalendarService(self.db_path)
+
     def do_GET(self) -> None:
         """Dispatch read, health, OpenAPI, and Swagger UI requests."""
         try:
@@ -294,6 +299,27 @@ class LzugHandler(BaseHTTPRequestHandler):
                 return
 
             if self.runtime_policy.handle_public_get(self, path_parts):
+                return
+
+            if (
+                len(path_parts) == 3
+                and path_parts[0:2] == ["calendar", "feed"]
+                and path_parts[2].endswith(".ics")
+            ):
+                token = path_parts[2][:-4]
+                allowed_token_characters = (
+                    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
+                )
+                if not token or any(
+                    character not in allowed_token_characters for character in token
+                ):
+                    self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                    return
+                calendar = self.calendar_service.feed_ics(token)
+                if calendar is None:
+                    self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                    return
+                self.respond_text(calendar, "text/calendar; charset=utf-8")
                 return
 
             if path_parts in ([], ["openapi.json"], ["docs"]):
@@ -324,6 +350,44 @@ class LzugHandler(BaseHTTPRequestHandler):
                 return
 
             if self.require_authenticated() is None:
+                return
+
+            if path_parts in (["calendar"], ["calendar", "feed"]):
+                self.respond(
+                    {
+                        **self.calendar_service.status(self.authorization_scope),
+                        "_links": {
+                            "self": {"href": "/api/calendar"},
+                            "feed": {"href": "/api/calendar/feed", "method": "POST"},
+                        },
+                    }
+                )
+                return
+
+            if path_parts == ["calendar", "events"]:
+                self.respond(
+                    {
+                        "items": self.calendar_service.list_events(self.authorization_scope),
+                        "_links": {"self": {"href": "/api/calendar/events"}},
+                    }
+                )
+                return
+
+            if (
+                len(path_parts) == 3
+                and path_parts[:2] == ["calendar", "events"]
+                and path_parts[2].endswith(".ics")
+            ):
+                event_id_text = path_parts[2][:-4]
+                if not event_id_text.isdigit():
+                    self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                    return
+                event_id = int(event_id_text)
+                calendar = self.calendar_service.event_ics(event_id, self.authorization_scope)
+                if calendar is None:
+                    self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                    return
+                self.respond_text(calendar, "text/calendar; charset=utf-8")
                 return
 
             if path_parts == ["notifications"]:
@@ -680,6 +744,29 @@ class LzugHandler(BaseHTTPRequestHandler):
                 )
                 return
 
+            if path_parts == ["calendar", "feed"]:
+                payload = self.read_json()
+                rotate = (
+                    self.normalize_bool(payload.get("rotate", False))
+                    if "rotate" in payload
+                    else False
+                )
+                result = self.calendar_service.activate(
+                    self.authorization_scope,
+                    rotate=bool(rotate),
+                )
+                result["_links"] = {
+                    "self": {"href": "/api/calendar"},
+                    "feed": {"href": "/api/calendar/feed"},
+                    "events": {"href": "/api/calendar/events"},
+                }
+                result["notice"] = (
+                    "Der Feed-Zugang ist persönlich. Bereits extern gespeicherte Termine "
+                    "können nach Widerruf oder Neuerzeugung nicht zuverlässig entfernt werden."
+                )
+                self.respond(result, HTTPStatus.CREATED)
+                return
+
             if (
                 len(path_parts) == 5
                 and path_parts[0] == "confirmed-plan-days"
@@ -725,6 +812,18 @@ class LzugHandler(BaseHTTPRequestHandler):
             ):
                 self.require_round_access(int(path_parts[1]), manage=True)
                 confirmed_plan = self.planning_service.confirm_plan(int(path_parts[1]))
+                try:
+                    self.calendar_service.sync_round(int(path_parts[1]))
+                except Exception:
+                    emit_event(
+                        "backend_error",
+                        severity="error",
+                        category="calendar_processing",
+                    )
+                    confirmed_plan["calendar_warning"] = (
+                        "Der Plan wurde bestätigt, aber die persönlichen Kalender konnten "
+                        "nicht vollständig vorbereitet werden."
+                    )
                 warning = self.create_notifications_best_effort(
                     "plan_confirmed", int(path_parts[1])
                 )
@@ -892,6 +991,17 @@ class LzugHandler(BaseHTTPRequestHandler):
                 slot_id = int(path_parts[3])
                 self.require_day_access(day_id, manage=True)
                 self.repository.update_exam_slot_status(day_id, slot_id, self.read_json())
+                day_record = self.repository.get(EXAM_DAY, day_id)
+                if day_record:
+                    try:
+                        self.calendar_service.sync_round(int(day_record["exam_round_id"]))
+                    except Exception as error:  # Calendar delivery must not block planning changes.
+                        self.emit_event(
+                            "backend_error",
+                            severity="error",
+                            category="calendar_processing",
+                            error=error,
+                        )
                 day = self.repository.confirmed_plan_day(day_id, self.authorization_scope)
                 if day is None:
                     self.respond({"error": "Confirmed exam day not found"}, HTTPStatus.NOT_FOUND)
@@ -961,6 +1071,20 @@ class LzugHandler(BaseHTTPRequestHandler):
                     self.respond({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                     return
                 self.respond({}, HTTPStatus.NO_CONTENT)
+                return
+            if path_parts == ["calendar", "feed"]:
+                self.calendar_service.revoke(self.authorization_scope)
+                result = self.calendar_service.status(self.authorization_scope)
+                result["_links"] = {
+                    "self": {"href": "/api/calendar"},
+                    "feed": {"href": "/api/calendar/feed"},
+                    "events": {"href": "/api/calendar/events"},
+                }
+                result["notice"] = (
+                    "Der Feed wurde widerrufen. Bereits extern gespeicherte Termine können "
+                    "nicht zuverlässig entfernt werden."
+                )
+                self.respond(result)
                 return
             resource_name, entity_id = self.resource_target(path_parts)
             if resource_name is None or entity_id is None:
@@ -1596,6 +1720,28 @@ class LzugHandler(BaseHTTPRequestHandler):
         self._response_headers = []
         self.end_headers()
         self.wfile.write(body)
+
+    def respond_text(
+        self,
+        body_text: str,
+        content_type: str,
+        status: HTTPStatus = HTTPStatus.OK,
+    ) -> None:
+        body = body_text.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Cache-Control", "no-store")
+        self.send_security_headers()
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Disposition", "attachment; filename=pruefungstermine.ics")
+        self.send_header("Content-Length", str(len(body)))
+        for name, value in getattr(self, "_response_headers", []):
+            self.send_header(name, value)
+        self._response_headers = []
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except BrokenPipeError, ConnectionResetError:
+            pass
 
     def json_bytes(self, payload) -> bytes:
         return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
