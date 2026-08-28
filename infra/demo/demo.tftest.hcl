@@ -17,24 +17,6 @@ mock_provider "azurerm" {
     }
   }
 
-  mock_resource "azurerm_application_insights" {
-    defaults = {
-      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.Insights/components/lzug-demo-uptime"
-    }
-  }
-
-  mock_resource "azurerm_application_insights_smart_detection_rule" {
-    defaults = {
-      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.Insights/components/lzug-demo-uptime/ProactiveDetectionConfigs/mock"
-    }
-  }
-
-  mock_resource "azurerm_application_insights_standard_web_test" {
-    defaults = {
-      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.Insights/webTests/lzug-demo-test"
-    }
-  }
-
   mock_resource "azurerm_container_app_environment" {
     defaults = {
       id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.App/managedEnvironments/lzug-demo-env"
@@ -180,12 +162,12 @@ run "demo_contract" {
 
   assert {
     condition = (
-      length(azurerm_application_insights.demo) == 0 &&
-      length(azurerm_application_insights_smart_detection_rule.demo) == 0 &&
-      length(azurerm_application_insights_standard_web_test.demo) == 0 &&
-      length(azurerm_monitor_metric_alert.uptime) == 0
+      !strcontains(file("${path.module}/observability.tf"), "azurerm_application_insights") &&
+      !strcontains(file("${path.module}/observability.tf"), "azurerm_monitor_metric_alert") &&
+      !strcontains(file("${path.module}/variables.tf"), "external_monitoring") &&
+      !strcontains(file("${path.module}/providers.tf"), "application_insights")
     )
-    error_message = "External monitoring must remain absent until its fail-closed activation gate is enabled."
+    error_message = "The demo must not create Application Insights, web tests, Smart Detection, or static metric-alert resources."
   }
 
   assert {
@@ -269,101 +251,6 @@ run "demo_contract" {
   assert {
     condition     = output.deployment.artifact_pair == var.demo_artifact_pair && output.deployment.reset_timezone == "Europe/Berlin"
     error_message = "The handoff and rollback output must preserve the complete verified digest pair and Berlin reset contract."
-  }
-}
-
-run "external_observability_activation_contract" {
-  command = plan
-
-  plan_options {
-    refresh = false
-  }
-
-  variables {
-    azure_subscription_id = "00000000-0000-0000-0000-000000000000"
-    location              = "westeurope"
-    demo_artifact_pair = {
-      app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-      seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
-      product_tag        = "v0.1.1"
-      product_commit     = "0123456789abcdef0123456789abcdef01234567"
-      runtime_contract   = "lzug-demo-health-ready-v1"
-      schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
-      seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
-    }
-    budget_amount_eur           = 25
-    budget_contact_emails       = ["demo-operations@example.invalid"]
-    budget_start_date           = "2026-09-01T00:00:00Z"
-    budget_end_date             = "2028-07-31T00:00:00Z"
-    external_monitoring_enabled = true
-    landingpage_url             = "https://lzug.repertoire.papaspyrou.name/"
-  }
-
-  assert {
-    condition = (
-      length(azurerm_application_insights.demo) == 1 &&
-      length(azurerm_application_insights_standard_web_test.demo) == 1 &&
-      azurerm_application_insights_standard_web_test.demo["landingpage"].request[0].url == var.landingpage_url &&
-      azurerm_application_insights_standard_web_test.demo["landingpage"].frequency == 900 &&
-      !azurerm_application_insights_standard_web_test.demo["landingpage"].retry_enabled &&
-      toset(azurerm_application_insights_standard_web_test.demo["landingpage"].geo_locations) == toset(["emea-nl-ams-azr"]) &&
-      length(azurerm_monitor_metric_alert.uptime) == 1 &&
-      azurerm_monitor_metric_alert.uptime["landingpage"].frequency == "PT15M" &&
-      azurerm_monitor_metric_alert.uptime["landingpage"].window_size == "PT15M"
-    )
-    error_message = "Activation must create one low-volume landing-page test and alert without keeping the demo warm."
-  }
-
-  assert {
-    condition = (
-      local.application_insights_generated_rule_disabled &&
-      toset(keys(azurerm_application_insights_smart_detection_rule.demo)) == toset([
-        "slowpageloadtime",
-        "slowserverresponsetime",
-        "longdependencyduration",
-        "degradationinserverresponsetime",
-        "degradationindependencyduration",
-        "extension_traceseveritydetector",
-        "extension_exceptionchangeextension",
-        "extension_memoryleakextension",
-        "extension_securityextensionspackage",
-        "extension_billingdatavolumedailyspikeextension",
-      ]) &&
-      toset(values(local.application_insights_smart_detection_rules)) == toset([
-        "Slow page load time",
-        "Slow server response time",
-        "Long dependency duration",
-        "Degradation in server response time",
-        "Degradation in dependency duration",
-        "Degradation in trace severity ratio",
-        "Abnormal rise in exception volume",
-        "Potential memory leak detected",
-        "Potential security issue detected",
-        "Abnormal rise in daily data volume",
-      ]) &&
-      length(azurerm_application_insights_smart_detection_rule.demo) == 10 &&
-      alltrue([
-        for api_name, rule in azurerm_application_insights_smart_detection_rule.demo :
-        rule.name == local.application_insights_smart_detection_rules[api_name] &&
-        rule.application_insights_id == azurerm_application_insights.demo[0].id &&
-        !rule.enabled &&
-        !rule.send_emails_to_subscription_owners &&
-        length(rule.additional_email_recipients) == 0
-      ])
-    )
-    error_message = "Activation must disable generated Failure Anomalies and adopt or create all ten fixed Smart Detection children without owner or additional recipients."
-  }
-
-  assert {
-    condition = alltrue([
-      for alert in values(azurerm_monitor_metric_alert.uptime) :
-      alert.application_insights_web_test_location_availability_criteria[0].failed_location_count == 1 &&
-      alltrue([
-        for action in alert.action :
-        action.action_group_id == azurerm_monitor_action_group.demo.id
-      ])
-    ])
-    error_message = "Every uptime signal must alert through the testable operations action group."
   }
 }
 
