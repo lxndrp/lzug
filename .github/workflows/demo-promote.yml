@@ -28,6 +28,7 @@ jobs:
     needs: publish
     uses: ./.github/workflows/demo-deploy.yml
     permissions:
+      actions: read
       attestations: read
       contents: read
       id-token: write
