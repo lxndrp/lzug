@@ -18,10 +18,6 @@ budget_contact_emails = ["demo-operations@example.invalid"]
 budget_start_date     = "2026-09-01T00:00:00Z"
 budget_end_date       = "2028-07-31T00:00:00Z"
 
-# Fail-closed until #127 is merged and the exact public URL is Maintainer-approved.
-external_monitoring_enabled = false
-landingpage_url              = ""
-
 # Change this only when a second isolated deployment shares the subscription.
 name_prefix = "lzug-demo"
 
