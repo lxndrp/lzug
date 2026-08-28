@@ -12,6 +12,65 @@ Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Notes
 und veröffentlicht nur aus dem nach der Environment-Freigabe erzeugten,
 annotierten SemVer-Tag.
 
+## [0.3.0] - 2026-08-28
+
+### Added
+
+- Ein Ausfall- und Ersatzprozess für bestätigte Besetzungen erfasst
+  autorisierte Ausfallmeldungen, Fristen, Ersatzantworten, Audit-Ereignisse und
+  Korrekturpfade. Tagesansicht und Prozessübersicht führen durch die jeweils
+  zulässigen Aufgaben; Persistenz, OpenAPI, Migration und Benachrichtigungen
+  bleiben dabei konsistent.
+- Ein kanalneutraler Benachrichtigungsvertrag unterstützt idempotente Ereignisse,
+  rollenbezogene Einsicht, Web Push, optionalen SMTP-Fallback, Retry- und
+  Fehlerzustände sowie die Betreiber-CLI und einen Demo-Sink.
+- Prüfungstermine können als persönliche, provider-neutrale Kalenderfeeds und
+  einzelne ICS-Ereignisse bereitgestellt werden. Stabile Identitäten,
+  Versionen, Ersetzungen und Absagen vermeiden dabei unnötige personenbezogene
+  Daten; Feed-Lebenszyklus, API, Migration, Oberfläche und Dokumentation sind
+  eingeschlossen.
+
+### Changed
+
+- Stabile Produkt-Releases können nach ihrer Veröffentlichung automatisch als
+  unveränderliches, provenance-geprüftes App-/Seed-Paar in die öffentliche Demo
+  promotet werden. Release Candidates bleiben ausgeschlossen; Readiness,
+  OIDC, SBOM- und Public-Site-Grenzen bleiben erhalten.
+- Pull-Request-Sicherheitsprüfungen und Public-Site-/Wiki-Prüfungen werden nur
+  für relevante Änderungen ausgeführt. Workflowtests prüfen die fachlichen
+  Invarianten, ohne sich an Schrittbezeichnungen oder Reihenfolgen zu binden;
+  die vollständigen Quality- und Security-Nachweise bleiben bestehen.
+- Die öffentliche Demo verwendet eine reduzierte Überwachungsgrundlast ohne
+  periodischen Readiness-Warm-up. Landingpage-, Fehler- und Dokumentations-
+  nachweise bleiben getrennt, reproduzierbar und auf die tatsächlich benötigten
+  Prüfungen begrenzt.
+- Build-, Test- und GitHub-Actions-Abhängigkeiten wurden kontrolliert
+  aktualisiert. Die Betriebs- und Self-Hosting-Abgrenzung dokumentiert zudem
+  den evidenzbasierten Verzicht auf InSpec als gemeinsamen Infrastruktur-Harness.
+
+### Security
+
+- Benachrichtigungen und Kalenderfeeds verwenden rollenbezogene beziehungsweise
+  datensparsame Verträge; der Ausfall- und Ersatzprozess prüft Autorisierung,
+  Fristen und Auditierbarkeit.
+- Die selektive Pull-Request-Analyse bewahrt vollständige Quality-CodeQL- und
+  unabhängige Trivy-Prüfungen für relevante Änderungen, ohne leere Auswahlpfade
+  oder fehlerhafte Sicherheitsprüfungen als erfolgreich zu behandeln.
+
+### Scope and compatibility
+
+- `v0.3.0` ist ein kompatibler Funktionsrelease seit `v0.2.0` und umfasst den
+  zusammenhängenden Ausfall-, Benachrichtigungs- und Kalenderprozess aus #28,
+  #29 und #30 sowie die dafür gemergten releasebegleitenden Korrekturen.
+- Dieser Vorbereitungseintrag beansprucht weder den Produkt-Tag noch einen
+  veröffentlichten GitHub Release, neue GHCR- oder CLI-Artefakte,
+  Attestations, eine öffentliche Demo-Promotion oder eine erneute externe
+  Environment-Freigabe. Diese Schritte entstehen erst nach separatem
+  Maintainer-GO.
+- Allgemeines Upgrade, Backup, Restore und Produkt-Rollback sowie Änderungen an
+  bestätigten Plänen und produktive Self-Hosting-Reife bleiben außerhalb dieses
+  Releaseumfangs und sind für spätere Milestones vorgesehen.
+
 ## [0.2.0] - 2026-08-24
 
 ### Added
