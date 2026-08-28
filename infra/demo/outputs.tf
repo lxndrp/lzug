@@ -35,6 +35,5 @@ output "deployment" {
     log_retention_days    = azurerm_log_analytics_workspace.demo.retention_in_days
     log_daily_quota_gb    = azurerm_log_analytics_workspace.demo.daily_quota_gb
     action_group          = azurerm_monitor_action_group.demo.name
-    external_monitoring   = var.external_monitoring_enabled
   }
 }

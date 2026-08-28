@@ -1062,12 +1062,11 @@ class LzugHandler(BaseHTTPRequestHandler):
                 if day_record:
                     try:
                         self.calendar_service.sync_round(int(day_record["exam_round_id"]))
-                    except Exception as error:  # Calendar delivery must not block planning changes.
-                        self.emit_event(
+                    except Exception:  # Calendar delivery must not block planning changes.
+                        emit_event(
                             "backend_error",
                             severity="error",
                             category="calendar_processing",
-                            error=error,
                         )
                 day = self.repository.confirmed_plan_day(day_id, self.authorization_scope)
                 if day is None:

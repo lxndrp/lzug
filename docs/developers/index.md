@@ -25,8 +25,8 @@ im Repository-Wurzelverzeichnis.
 - **Öffentliche Domains und TLS** beschreibt den getrennten DNS-, Pages-,
   Zertifikats- und Demo-Domain-Freigabeablauf.
 - **Demo-Beobachtbarkeit** trennt Liveness und Readiness, definiert
-  datensparsame strukturierte Logs, Uptime-/Budgetalarme und das externe
-  Aktivierungsgate.
+  datensparsame strukturierte Logs, Plattformmetriken, Budgetalarme und den
+  ereignisbezogenen Diagnosepfad.
 - **Wiki-Publikation** beschreibt den getrennten Review- und Freigabeablauf für
   das Wiki-Repository.
 
