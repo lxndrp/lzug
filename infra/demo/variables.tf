@@ -162,56 +162,6 @@ variable "log_daily_quota_gb" {
   }
 }
 
-variable "application_insights_daily_cap_gb" {
-  description = "Daily cap for external availability telemetry when monitoring is activated."
-  type        = number
-  default     = 0.1
-
-  validation {
-    condition     = var.application_insights_daily_cap_gb >= 0.1 && var.application_insights_daily_cap_gb <= 0.5
-    error_message = "application_insights_daily_cap_gb must remain between 0.1 and 0.5 GB."
-  }
-}
-
-variable "external_monitoring_enabled" {
-  description = "Fail-closed gate for the #127-dependent external availability tests and alerts."
-  type        = bool
-  default     = false
-}
-
-variable "landingpage_url" {
-  description = "Public #127 landing page HTTPS URL without credentials, query, or fragment."
-  type        = string
-  default     = ""
-
-  validation {
-    condition     = !var.external_monitoring_enabled || var.landingpage_url == "https://lzug.repertoire.papaspyrou.name/"
-    error_message = "landingpage_url must be the canonical lzug Pages HTTPS URL when external monitoring is enabled."
-  }
-}
-
-variable "uptime_frequency_seconds" {
-  description = "Low-volume interval for the external landing-page availability test."
-  type        = number
-  default     = 900
-
-  validation {
-    condition     = var.uptime_frequency_seconds == 900
-    error_message = "uptime_frequency_seconds must be 900."
-  }
-}
-
-variable "uptime_geo_locations" {
-  description = "Small explicit set of Azure landing-page availability-test locations."
-  type        = list(string)
-  default     = ["emea-nl-ams-azr"]
-
-  validation {
-    condition     = length(var.uptime_geo_locations) == 1
-    error_message = "uptime_geo_locations must contain exactly one location."
-  }
-}
-
 variable "budget_contact_emails" {
   description = "Maintainer addresses that receive actual and forecast budget alerts."
   type        = list(string)
