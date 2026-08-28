@@ -462,6 +462,51 @@ class ApiTests(unittest.TestCase):
             )
             self.assertEqual("present", reloaded_morning["attendance"]["status"])
 
+    def test_slot_status_stays_persistent_when_calendar_sync_fails(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, _proposal = api.request("POST", "/api/planning-proposals", {"round_id": 1})
+            assert_status(status, HTTPStatus.CREATED)
+            status, _confirmed = api.request("POST", "/api/exam-rounds/1/confirm-plan", {})
+            assert_status(status, HTTPStatus.OK)
+            status, calendar = api.request("GET", "/api/confirmed-plans")
+            assert_status(status, HTTPStatus.OK)
+            day = calendar["items"][0]["days"][0]
+            slot = day["slots"][0]
+
+            with (
+                patch(
+                    "backend.app.CalendarService.sync_round",
+                    side_effect=RuntimeError("calendar unavailable"),
+                ) as sync_round,
+                patch("backend.app.emit_event") as emit_event,
+            ):
+                status, updated = api.request(
+                    "PATCH",
+                    f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/status",
+                    {"status": "cancelled", "reason": "Kalenderabgleich fehlgeschlagen"},
+                )
+
+            assert_status(status, HTTPStatus.OK)
+            updated_slot = next(
+                item for item in updated["day"]["slots"] if item["id"] == slot["id"]
+            )
+            self.assertEqual("cancelled", updated_slot["execution_status"])
+            self.assertEqual("Kalenderabgleich fehlgeschlagen", updated_slot["status_reason"])
+            sync_round.assert_called_once_with(1)
+            emit_event.assert_called_once_with(
+                "backend_error",
+                severity="error",
+                category="calendar_processing",
+            )
+
+            status, reloaded = api.request("GET", f"/api/confirmed-plan-days/{day['id']}")
+            assert_status(status, HTTPStatus.OK)
+            reloaded_slot = next(
+                item for item in reloaded["day"]["slots"] if item["id"] == slot["id"]
+            )
+            self.assertEqual("cancelled", reloaded_slot["execution_status"])
+            self.assertEqual("Kalenderabgleich fehlgeschlagen", reloaded_slot["status_reason"])
+
     def test_scheduling_overview_groups_active_rounds_and_excludes_finished_work(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             round_ids = {}
