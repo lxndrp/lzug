@@ -7,7 +7,7 @@ from datetime import timedelta
 from http import HTTPStatus
 from pathlib import Path
 
-from backend.app import ForbiddenRequestError
+from backend.application import ForbiddenRequestError
 from backend.auth import AuthContext, AuthenticationRepository
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler, assert_status
 from demo.contract import RUNTIME_CONTRACT, canonical_digest, demo_identity

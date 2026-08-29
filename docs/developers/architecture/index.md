@@ -2,14 +2,14 @@
 
 `lzug` besteht aus einem Angular-Frontend, einem Python-Anwendungskern und
 einer lokalen SQLite-Instanz. Das Frontend ist das Arbeitswerkzeug für
-Prüfungsausschüsse. Der gegenwärtige HTTP-Adapter vermittelt zwischen ihm und
+Prüfungsausschüsse. Der FastAPI-Adapter vermittelt zwischen ihm und
 den fachlichen Services; SQLAlchemy-Modelle, Repositories und Migrationen
 halten den lokalen Zustand. Der frühe Prototyp unter
 `prototypes/pruefungsrunde-prototyp/` ist keine Produktlaufzeit.
 
 ```text
 Angular-Frontend
-  -> produktiver HTTP-Handler / opt-in FastAPI-Migrationsadapter
+  -> produktiver FastAPI-HTTP-Adapter (Uvicorn)
   -> JSON-API mit OpenAPI-Vertrag
   -> frameworkfreie Anwendungsschicht, Repositories und Services
   -> SQLAlchemy-Modelle, Schema und Migrationen
@@ -18,7 +18,8 @@ Angular-Frontend
 
 Die aktuelle technische Quelle liegt jeweils beim ausführbaren Vertrag:
 
-- HTTP-Routen und Antwortmodelle: `backend/openapi.py` und die HTTP-Adapter.
+- HTTP-Routen und OpenAPI-Antwortmodell: `backend/fastapi_app.py`; Start und
+  Transportgrenzen: `backend/server.py` und `backend/transport.py`.
 - Datenstruktur und deren Weiterentwicklung: `backend/models.py`,
   `db/schema.sql` und `db/migrations/`.
 - Produktversion: die beim Build erzeugte `build-metadata.json`; sie leitet

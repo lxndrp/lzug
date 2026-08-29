@@ -7,7 +7,7 @@ from http import HTTPStatus
 from pathlib import Path
 
 from backend.contract import ContractValidationError, validate_response
-from backend.openapi import spec
+from backend.fastapi_app import FastAPIConfig, create_app
 from backend.repositories import REST_RESOURCES
 from backend.tests.helpers import ApiServer, TempDatabase
 
@@ -21,7 +21,9 @@ class OpenApiContractTests(unittest.TestCase):
         payload: dict | None = None,
     ) -> tuple[int, object]:
         status, response = api.request(method, path, payload)
-        validate_response(spec(), method, path, status, response)
+        if api.client is None:
+            raise AssertionError("API client is not active")
+        validate_response(api.client.app.openapi(), method, path, status, response)
         return status, response
 
     def test_seeded_read_operations_match_the_openapi_responses(self) -> None:
@@ -271,15 +273,37 @@ class OpenApiContractTests(unittest.TestCase):
             altered_health.pop("status")
 
         with self.assertRaisesRegex(ContractValidationError, "missing required field 'status'"):
-            validate_response(spec(), "GET", "/api/health", status, altered_health)
+            validate_response(
+                create_app(
+                    FastAPIConfig(
+                        db_path=db_path,
+                        session_cookie_name="lzug_session",
+                        cookie_secure=False,
+                        https_only=False,
+                    )
+                ).openapi(),
+                "GET",
+                "/api/health",
+                status,
+                altered_health,
+            )
 
     def test_angular_client_operations_are_documented_in_openapi(self) -> None:
         source = Path("frontend/src/app/api/planning-api.service.ts").read_text()
         operations = _angular_operations(source)
         self.assertGreater(len(operations), 0)
+        with TempDatabase() as db_path:
+            documented_spec = create_app(
+                FastAPIConfig(
+                    db_path=db_path,
+                    session_cookie_name="lzug_session",
+                    cookie_secure=False,
+                    https_only=False,
+                )
+            ).openapi()
         documented = {
             (method.upper(), path)
-            for path, item in spec()["paths"].items()
+            for path, item in documented_spec["paths"].items()
             for method in item
             if method in {"get", "post", "put", "patch", "delete"}
         }
@@ -305,14 +329,20 @@ def _angular_operations(source: str) -> list[tuple[str, str]]:
 def _client_path(path: str) -> str:
     normalized = re.sub(
         r"\$\{([^}]+)\}",
-        lambda match: "{"
-        + (
-            "id"
-            if match.group(1).startswith("this.")
-            or (match.group(1) == "dayId" and "/slots/" not in path and "/assignments/" not in path)
-            else re.sub(r"(?<!^)([A-Z])", r"_\1", match.group(1)).lower()
-        )
-        + "}",
+        lambda match: (
+            "{"
+            + (
+                "id"
+                if match.group(1).startswith("this.")
+                or (
+                    match.group(1) == "dayId"
+                    and "/slots/" not in path
+                    and "/assignments/" not in path
+                )
+                else re.sub(r"(?<!^)([A-Z])", r"_\1", match.group(1)).lower()
+            )
+            + "}"
+        ),
         path,
     )
     return normalized.partition("?")[0]

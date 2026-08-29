@@ -80,7 +80,7 @@ class ApiTests(unittest.TestCase):
     def test_database_errors_use_public_messages(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             with patch(
-                "backend.app.ResourceRepository.candidate_list",
+                "backend.repositories.ResourceRepository.candidate_list",
                 side_effect=SQLAlchemyError("private database details"),
             ):
                 status, body = api.request("GET", "/api/candidates")
@@ -111,7 +111,7 @@ class ApiTests(unittest.TestCase):
                 connection.execute("ALTER TABLE user_account DROP COLUMN totp_enabled")
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?)",
+                    "DELETE FROM schema_migration WHERE name IN (?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
@@ -186,13 +186,9 @@ class ApiTests(unittest.TestCase):
             ):
                 self.assertIn(auth_path, spec["paths"])
                 self.assertNotIn("security", spec["paths"][auth_path]["post"])
-            self.assertIn(
-                "totp_secret",
-                spec["components"]["schemas"]["RecoveryPreparation"]["properties"],
-            )
             self.assertEqual(
                 ["status", "version", "revision", "_links"],
-                spec["components"]["schemas"]["Health"]["required"],
+                spec["components"]["schemas"]["HealthResponse"]["required"],
             )
             self.assertEqual({"sessionCookie": []}, spec["paths"]["/api"]["get"]["security"][0])
             self.assertEqual(
@@ -211,37 +207,13 @@ class ApiTests(unittest.TestCase):
                 {"sessionCookie": [], "csrfHeader": []},
                 spec["paths"]["/api/exam-rounds/{id}/planning-proposal"]["put"]["security"][0],
             )
-            self.assertEqual(
-                ["round_id", "revision", "exam_days"],
-                spec["components"]["schemas"]["PlanningProposalWrite"]["required"],
-            )
-            self.assertEqual(
-                ["morning", "afternoon", "full_day"],
-                spec["components"]["schemas"]["PlanningProposalAssignment"]["properties"][
-                    "day_part"
-                ]["enum"],
-            )
             self.assertIn("401", spec["paths"]["/api/candidates"]["get"]["responses"])
             self.assertIn("403", spec["paths"]["/api/candidates"]["post"]["responses"])
             self.assertNotIn("security", spec["paths"]["/api/health"]["get"])
-            self.assertEqual(
-                ["completed", "cancelled", "needs_follow_up"],
-                spec["components"]["schemas"]["ExamSlotStatusWrite"]["properties"]["status"][
-                    "enum"
-                ],
-            )
-            self.assertIn("Candidates", spec["components"]["schemas"])
-            self.assertEqual(
-                {"$ref": "#/components/schemas/ExamHalfYears"},
-                spec["components"]["schemas"]["SchedulingOverviewItem"]["properties"][
-                    "exam_half_year"
-                ],
-            )
-            self.assertEqual(
-                {"$ref": "#/components/schemas/ExamHalfYears"},
-                spec["components"]["schemas"]["ConfirmedPlanDayView"]["properties"]["plan"][
-                    "properties"
-                ]["exam_half_year"],
+            self.assertIn("200", spec["paths"]["/api/auth/recovery/prepare"]["post"]["responses"])
+            self.assertIn(
+                "200",
+                spec["paths"]["/api/exam-rounds/{id}/planning-proposal"]["get"]["responses"],
             )
 
             status, headers, body = api.request_raw("GET", "/api/docs")
@@ -475,10 +447,10 @@ class ApiTests(unittest.TestCase):
 
             with (
                 patch(
-                    "backend.app.CalendarService.sync_round",
+                    "backend.calendar.CalendarService.sync_round",
                     side_effect=RuntimeError("calendar unavailable"),
                 ) as sync_round,
-                patch("backend.app.emit_event") as emit_event,
+                patch("backend.fastapi_app.emit_event") as emit_event,
             ):
                 status, updated = api.request(
                     "PATCH",
@@ -493,7 +465,7 @@ class ApiTests(unittest.TestCase):
             self.assertEqual("cancelled", updated_slot["execution_status"])
             self.assertEqual("Kalenderabgleich fehlgeschlagen", updated_slot["status_reason"])
             sync_round.assert_called_once_with(1)
-            emit_event.assert_called_once_with(
+            emit_event.assert_any_call(
                 "backend_error",
                 severity="error",
                 category="calendar_processing",

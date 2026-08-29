@@ -639,7 +639,7 @@ class HttpContractParityTests(unittest.TestCase):
 
         with self.adapter_pair(include_legacy_routes=False) as (legacy, fastapi):
             with patch(
-                "backend.app.ResourceRepository.confirmed_plans",
+                "backend.repositories.ResourceRepository.confirmed_plans",
                 side_effect=SQLAlchemyError("private database details"),
             ):
                 self.assert_parity(

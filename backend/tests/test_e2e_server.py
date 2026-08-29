@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 import unittest
+from datetime import timedelta
 from http import HTTPStatus
 
+from fastapi.testclient import TestClient
+
 from backend.auth import AuthenticationRepository
-from backend.e2e_server import E2EHandler
+from backend.e2e_server import create_e2e_app
+from backend.fastapi_app import FastAPIConfig
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
-
-
-class TestE2EHandler(E2EHandler):
-    def log_message(self, format: str, *args) -> None:
-        pass
 
 
 class E2EServerTests(unittest.TestCase):
@@ -23,8 +22,16 @@ class E2EServerTests(unittest.TestCase):
             )
             assert_status(status, HTTPStatus.OK)
 
-            with ApiServer(db_path, TestE2EHandler) as e2e_api:
-                status, response = e2e_api.request("POST", "/__e2e/reset")
+            config = FastAPIConfig(
+                db_path=db_path,
+                session_cookie_name="lzug_e2e_session",
+                cookie_secure=False,
+                https_only=False,
+                session_ttl=timedelta(hours=1),
+            )
+            with TestClient(create_e2e_app(config)) as e2e_api:
+                reset = e2e_api.post("/__e2e/reset")
+                status, response = reset.status_code, reset.json()
 
             assert_status(status, HTTPStatus.OK)
             self.assertEqual({"status": "reset"}, response)

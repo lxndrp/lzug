@@ -8,12 +8,12 @@ from datetime import timedelta
 from http import HTTPStatus
 from unittest.mock import patch
 
-from backend.app import LzugHandler, ObservabilityHTTPServer
+from backend.observability import emit_event
 from backend.security import RequestRateLimiter, RuntimeSecurityConfig
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler, assert_status
 
 
-class LoggingHandler(LzugHandler):
+class LoggingHandler(TestLzugHandler):
     pass
 
 
@@ -67,7 +67,7 @@ class HttpSecurityTests(unittest.TestCase):
     def test_unhandled_server_errors_emit_no_exception_or_client_details(self) -> None:
         output = io.StringIO()
         with redirect_stdout(output):
-            ObservabilityHTTPServer.handle_error(None, object(), ("192.0.2.1", 1234))
+            emit_event("backend_error", severity="error", category="unhandled_request", status=500)
 
         event = json.loads(output.getvalue())
         self.assertEqual("backend_error", event["event"])

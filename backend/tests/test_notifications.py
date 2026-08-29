@@ -19,7 +19,7 @@ from backend.authorization import AuthorizationService
 from backend.database import session_scope
 from backend.models import ExamDay, ExamDayAssignment, NotificationDelivery
 from backend.notifications import DELIVERY_CLAIM_TTL, NotificationService
-from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler, assert_status
+from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
 
 def vapid_private_key() -> str:
@@ -76,7 +76,7 @@ class NotificationServiceTests(unittest.TestCase):
         with sqlite3.connect(self.db_path, timeout=0.2) as connection:
             connection.execute("BEGIN IMMEDIATE")
             claim = connection.execute(
-                "SELECT claim_token FROM notification_delivery " "WHERE notification_id = ?",
+                "SELECT claim_token FROM notification_delivery WHERE notification_id = ?",
                 (notification_id,),
             ).fetchone()
             connection.rollback()
@@ -501,14 +501,13 @@ class NotificationApiTests(unittest.TestCase):
             def create_for_event(self, _event_type: str, _round_id: int):
                 raise OSError("synthetic delivery failure")
 
-        class BrokenNotificationHandler(TestLzugHandler):
-            @property
-            def notification_service(self):
-                return BrokenNotifications()
-
         with (
             TempDatabase() as db_path,
-            ApiServer(db_path, handler_type=BrokenNotificationHandler) as api,
+            patch(
+                "backend.notifications.NotificationService.create_for_event",
+                BrokenNotifications().create_for_event,
+            ),
+            ApiServer(db_path) as api,
         ):
             status, result = api.request("POST", "/api/exam-rounds/1/request-availabilities", {})
 
