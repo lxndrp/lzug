@@ -1,12 +1,16 @@
 # ADR-0021: GoReleaser für die Betreiber-CLI
 
+## Datum
+
+2026-08-13.
+
 ## Status
 
-Akzeptiert am 13.08.2026.
+Akzeptiert.
 Konkretisiert [ADR-0020](0020-minimaler-releaseablauf-mit-github-bordmitteln.md) für die Verpackung der Betreiber-CLI.
 Die allgemeine Release-Orchestrierung bleibt Aufgabe von #347.
 
-## Kontext und Evaluation
+## Kontext
 
 Der bisherige Python-Builder implementierte Go-Cross-Build, Archivierung und Byte-Stabilität selbst.
 Der veröffentlichte Vertrag von `v0.1.0` und die zugehörigen Tests belegen sechs Archive für Linux, macOS und Windows auf `amd64` und `arm64`.

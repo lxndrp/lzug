@@ -1,8 +1,12 @@
 # ADR-0010: Vitest statt Karma und Jasmine für Frontend-Unit-Tests
 
+## Datum
+
+2026-07-27.
+
 ## Status
 
-Akzeptiert am 27.07.2026.
+Akzeptiert.
 
 ## Kontext
 

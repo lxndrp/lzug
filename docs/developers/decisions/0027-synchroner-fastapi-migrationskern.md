@@ -1,8 +1,12 @@
 # ADR-0027: Synchroner FastAPI-Kern für die schrittweise HTTP-Migration
 
+## Datum
+
+2026-08-29.
+
 ## Status
 
-Akzeptiert am 29.08.2026.
+Akzeptiert.
 
 ## Kontext
 
