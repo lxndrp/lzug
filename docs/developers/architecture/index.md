@@ -1,69 +1,62 @@
 # Architekturübersicht
 
-`lzug` besteht aus einem Angular-Frontend in `frontend/`, einem Python-Backend in `backend/`, einer lokalen SQLite-Datenbank und einem statischen frühen Prototypen unter `prototypes/pruefungsrunde-prototyp/`. Die produktive Weiterentwicklung findet im Frontend und Backend statt; der Prototyp bleibt ausschließlich fachliche und UX-bezogene Referenz.
-
-Die zentralen Schichten sind:
+`lzug` besteht aus einem Angular-Frontend, einem Python-Anwendungskern und
+einer lokalen SQLite-Instanz. Das Frontend ist das Arbeitswerkzeug für
+Prüfungsausschüsse. Der gegenwärtige HTTP-Adapter vermittelt zwischen ihm und
+den fachlichen Services; SQLAlchemy-Modelle, Repositories und Migrationen
+halten den lokalen Zustand. Der frühe Prototyp unter
+`prototypes/pruefungsrunde-prototyp/` ist keine Produktlaufzeit.
 
 ```text
 Angular-Frontend
+  -> produktiver HTTP-Handler / opt-in FastAPI-Migrationsadapter
   -> JSON-API mit OpenAPI-Vertrag
-  -> produktiver HTTP-Handler / opt-in FastAPI-Migrationskern
   -> frameworkfreie Anwendungsschicht, Repositories und Services
-  -> SQLAlchemy-Modelle und Store
-  -> SQLite-Datenbank
+  -> SQLAlchemy-Modelle, Schema und Migrationen
+  -> SQLite je Instanz
 ```
 
-Python `3.14.6`, Node.js `26.5.0`, npm, `mise`, `uv`, Task, Syft und
-GoReleaser sind projektweit festgelegt. Die Pins liegen in `.mise.toml`,
-`.python-version`, `.node-version`, `uv.lock` und
-`frontend/package-lock.json`; die lokalen Workflows stehen in `Taskfile.yml`.
+Die aktuelle technische Quelle liegt jeweils beim ausführbaren Vertrag:
 
-Die Architekturentscheidungen stehen als [ADRs](../decisions/index.md).
+- HTTP-Routen und Antwortmodelle: `backend/openapi.py` und die HTTP-Adapter.
+- Datenstruktur und deren Weiterentwicklung: `backend/models.py`,
+  `db/schema.sql` und `db/migrations/`.
+- Produktversion: die beim Build erzeugte `build-metadata.json`; sie leitet
+  die Identität aus Commit und gegebenenfalls Release-Tag ab.
+- Betriebs-, Sicherheits- und Qualitätsgrenzen: Dockerfiles, Compose-Datei,
+  Taskfile und Workflows.
 
-Die [kanalneutrale Benachrichtigungsarchitektur](notifications.md) trennt
-dauerhafte fachliche Hinweise von optionaler technischer Zustellung und
-datensparsamer Diagnose.
+Die langfristigen Entscheidungen stehen als [ADRs](../decisions/index.md).
+Sie erklären die gewählte Richtung, nicht deren aktuelle Endpunkt-, Feld- oder
+Workflowdetails.
 
-Der bestätigte Plan bleibt bei Ausfällen nachvollziehbar; die Regeln und
-API-Grenze beschreibt der [Ausfall- und Ersatzprozess](absence-replacement.md).
+## Fachliche und technische Grenzen
 
-## Veröffentlichungs- und Betriebsarchitektur
+Die [Backend-Übersicht](backend.md) ordnet die produktiven Services ihren
+Schichten zu. [Authentifizierung](authentication.md),
+[Benachrichtigungen](notifications.md) und der
+[Ausfall- und Ersatzprozess](absence-replacement.md) beschreiben die
+fachlichen Verantwortungsgrenzen. Das [fachliche Datenmodell](../domain-model.md)
+erläutert Begriffe, Aggregate und Invarianten; es ersetzt kein Schema.
 
-Die erste Veröffentlichung ist auf dezentrales Self-Hosting je Ausschuss
-ausgerichtet. Eine Instanz bildet keine fachliche Mandantenflotte ab; sie
-läuft als einzelnes OCI-Image mit SQLite und dem persistenten Datenverzeichnis
-`/data`. Die öffentliche Azure-Demo ist davon als flüchtige, statische
-Landingpage mit Demo-Instanz getrennt. Eine spätere zentral betriebene
-Mandantenflotte wird aus getrennten Container Apps und getrennter
-Datenhaltung bestehen.
+Die [Frontend-Richtlinie](../frontend-guidelines.md) beschreibt die
+Angular-Grenze und die Qualitätsmaßstäbe. Die [OCI-Runtime](oci-runtime.md)
+erläutert die Instanz-, Persistenz- und Sicherheitsgrenze für die Auslieferung.
 
-Die verbindlichen Entscheidungen und ihre Umsetzungsschnittstellen sind:
+## Laufzeit- und Bereitschaftssignale
 
-| ADR | Geltungsbereich | Entsperrt insbesondere |
-| --- | --- | --- |
-| [ADR-0013](../decisions/0013-dezentrale-instanzen-je-ausschuss.md) | Instanzgrenze je Ausschuss ohne fachliche Mandantenfähigkeit | #116, #118 |
-| [ADR-0014](../decisions/0014-oci-einzelcontainer-und-persistentes-data.md) | OCI-Einzelcontainer, SQLite und `/data` | #115, #116, #118 |
-| [ADR-0015](../decisions/0015-fluechtige-azure-demo.md) | Flüchtige Azure-Container-Apps-Demo | #124–#129 |
-| [ADR-0016](../decisions/0016-spaetere-mandantenflotte.md) | Späteres Zielbild mit getrennten Mandanteninstanzen | #133, #134 |
-| [ADR-0017](../decisions/0017-erstveroeffentlichung-ohne-kubernetes.md) | Bewusster Verzicht auf Kubernetes und Helm für die erste Veröffentlichung | #115, #119 |
-| [ADR-0024](../decisions/0024-manuell-promotete-demo-snapshots.md) | Manuell promotete, taggetriebene Demo-Snapshots ohne Produkt-Release | #380, #127 |
-| [ADR-0026](../decisions/0026-automatische-demo-promotion-stabiler-releases.md) | Stabile Releases automatisch als unveränderliches Paketpaar promoten | #444 |
+`GET /api/health` ist ein reines Liveness-Signal des laufenden Prozesses und
+liefert HTTP 200. `GET /api/ready` prüft die Anwendungs- und
+Datenbankbereitschaft: ein bereiter Zustand liefert HTTP 200, ein nicht
+bereiter Zustand HTTP 503. Die vollständigen Maschinenverträge gehören zur
+OpenAPI-Quelle; diese Übersicht wiederholt sie nicht.
 
-Die vorhandene Backend-Sprache Python bleibt von diesen Entscheidungen
-unberührt. Ein Sprachwechsel ist ein separates Vorhaben und keine
-Betriebsmaßnahme.
+## Veröffentlichung und Betrieb
 
-Die konkrete Einzelcontainer-Umsetzung, ihre Build-Stufen, die statische
-Auslieferung und die Docker-/Podman-Smoke-Prüfung beschreibt die
-[OCI-Runtime](oci-runtime.md). Der getrennte flüchtige Vertrag steht unter
-[Demo-Runtime](demo-runtime.md). Die kanonische
-[Docker-Compose-Referenzinstallation](compose-self-hosting.md) ergänzt den
-reproduzierbaren Self-Hosting- und Persistenzpfad.
-Die [Veröffentlichungs- und Runtime-Sicherheitsbaseline](security-baseline.md)
-inventarisiert die öffentliche HTTP-Grenze, die blockierenden Security-Gates
-und die sichere Produktionskonfiguration.
-
-Die lokale Kontenpflege ohne Netzwerk-Admin-Endpunkt beschreibt die
-[Betreiber-CLI für Authentifizierung](operator-auth-cli.md). Sie bleibt eine
-separate Go-Betriebsgrenze und nutzt im Container ausschließlich den
-versionierten Python-Adminvertrag.
+Eine Self-Hosting-Instanz gehört zu genau einem Ausschuss und speichert ihren
+Zustand unter `/data`. Das OCI-Image fasst Frontend und Backend zusammen; die
+[flüchtige Azure-Demo](demo-runtime.md) bleibt eine getrennte Assembly mit
+eigenem [Kostenvertrag](../demo-cost-baseline.md). Der Release-Tag bindet
+unveränderliche Artefakte und deren Build-Metadaten. Abläufe und Nachweise
+liegen in den jeweiligen Runbooks und ADRs. Die lokale Kontenpflege bleibt eine
+separate [Betreiber-CLI-Grenze](operator-auth-cli.md).

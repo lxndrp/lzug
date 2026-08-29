@@ -101,4 +101,4 @@ unverändert.
 - [CycloneDX Tool Center](https://cyclonedx.org/tool-center/)
 - [ADR-0009: Toolchain und Entwicklungs-Tasks trennen](0009-toolchain-und-entwicklungs-tasks.md)
 - [ADR-0020: Minimaler Releaseablauf mit GitHub-Bordmitteln](0020-minimaler-releaseablauf-mit-github-bordmitteln.md)
-- [Veröffentlichungs- und Runtime-Sicherheit](../architecture/security-baseline.md)
+- [Sicherheitsrichtlinie](https://github.com/lxndrp/lzug/blob/master/SECURITY.md)

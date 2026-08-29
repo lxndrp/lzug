@@ -202,7 +202,7 @@ Der geschützte OpenAPI-Smoke schlägt fail-closed fehl, wenn der anonyme Abruf
 `HTTP 200`, einen anderen Status, einen anderen Medientyp oder eine abweichende
 JSON-Antwort liefert. Er lädt den OpenAPI-Vertrag bewusst nicht ohne
 App-Anmeldung und ändert damit die in der
-[Sicherheitsbaseline](architecture/security-baseline.md) festgelegte
+[Authentifizierungsarchitektur](architecture/authentication.md) festgelegte
 Authentifizierungsgrenze nicht.
 
 Bei einem Fehler bleibt der Lauf rot und ist kein Deploymentnachweis. Der

@@ -62,4 +62,4 @@ werden nicht eingesetzt.
 
 - [Angular: Migration von Karma zu Vitest](https://angular.dev/guide/testing/migrating-to-vitest)
 - [Entwickler-Setup im GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung-Einrichtung)
-- [API und Qualität](../architecture/api-and-persistence.md)
+- [HTTP-Vertrag](0006-openapi-http-vertrag.md)

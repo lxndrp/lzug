@@ -56,13 +56,16 @@ werden.
   Capability-Drop und `no-new-privileges`.
 - Die HTTP-Runtime erzwingt Session, CSRF, Actor- und Ausschusskontext
   serverseitig. Unberechtigte Schreibzugriffe liefern 403; lesende Zugriffe auf
-  fremde Ausschussressourcen verbergen deren Existenz mit 404. Health ist die
-  einzige öffentliche GET-API und enthält nur den Readiness-Status.
+  fremde Ausschussressourcen verbergen deren Existenz mit 404. Health ist
+  Liveness; Ready prüft die Anwendungs- und Datenbankbereitschaft.
 - Security-Header, same-origin CORS, sichere Cookies, Request-/Upload-Limits,
   Auth-Rate-Limits und secret-freie Access-Logs sind produktive Defaults.
 
-Die vollständige technische Begründung, Grenzwerte und Gate-Matrix stehen in der
-[Veröffentlichungs- und Runtime-Sicherheitsbaseline](docs/developers/architecture/security-baseline.md).
+Aktuelle Durchsetzung liegt in den Workflows, Dockerfiles, Compose-Datei und
+den Runtime-Konfigurationsmodellen. Ihre Grenzen erläutern die
+[Authentifizierungsarchitektur](docs/developers/architecture/authentication.md)
+und die [OCI-Runtime](docs/developers/architecture/oci-runtime.md); die
+langfristigen Entscheidungen stehen in den ADRs.
 
 ## Sicherheitsgrenzen
 

@@ -1,7 +1,9 @@
 [project]
 name = "lzug"
-version = "0.1.0"
-description = "Backend-Prototyp fuer die lzug Pruefungsrunden-App"
+# This is non-release packaging metadata. Runtime versions come solely from
+# build-metadata.json, derived from the immutable commit and release tag.
+version = "0.0.0"
+description = "Backend fuer die lzug Pruefungsrunden-App"
 license = "AGPL-3.0-or-later"
 license-files = ["LICENSE"]
 requires-python = ">=3.14,<3.15"
