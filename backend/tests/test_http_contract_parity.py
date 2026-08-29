@@ -47,7 +47,11 @@ class HttpContractParityTests(unittest.TestCase):
     def canonical_json(self, value):
         if isinstance(value, dict):
             return {
-                key: "<timestamp>" if key == "expires_at" else self.canonical_json(item)
+                key: (
+                    "<timestamp>"
+                    if key.endswith("_at") and isinstance(item, str)
+                    else self.canonical_json(item)
+                )
                 for key, item in value.items()
             }
         if isinstance(value, list):
