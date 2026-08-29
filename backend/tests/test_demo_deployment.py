@@ -397,7 +397,7 @@ class DemoDeploymentTests(unittest.TestCase):
         self.assertIn("attestations: read", workflow)
         self.assertIn("name: demo", workflow)
         self.assertIn("url: ${{ vars.DEMO_URL }}", workflow)
-        azure_login = workflow.index("azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca")
+        azure_login = workflow.index("azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c")
         before_azure = workflow[:azure_login]
         self.assertIn("python3 -m demo.contract validate-deployment", before_azure)
         self.assertIn("python3 -m demo.contract signer-workflow", before_azure)

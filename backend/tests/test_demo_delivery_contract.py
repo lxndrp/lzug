@@ -132,7 +132,7 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("python3 -m demo.contract validate-deployment", workflow)
         self.assertIn("python3 -m demo.contract signer-workflow", workflow)
         self.assertIn("scripts/verify-demo-image-pair.sh", workflow)
-        self.assertIn("azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca", workflow)
+        self.assertIn("azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c", workflow)
         self.assertIn("scripts/demo_deployment.py deploy", workflow)
         self.assertIn("wait-readiness", workflow)
         self.assertIn("wait-application-readiness", workflow)
