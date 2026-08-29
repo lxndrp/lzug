@@ -1,8 +1,12 @@
 # ADR-0012: Redaktionelle Single Source of Truth im GitHub Wiki
 
+## Datum
+
+2026-07-30.
+
 ## Status
 
-Akzeptiert am 30.07.2026.
+Akzeptiert.
 Supersedes: ADR-0011.
 
 ## Kontext

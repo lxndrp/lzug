@@ -6,6 +6,10 @@ Sie dient ausschließlich als Ausgangspunkt für neue ADRs unter diesem Verzeich
 ```markdown
 # ADR-NNNN: <knapper Entscheidungstitel>
 
+## Datum
+
+YYYY-MM-DD.
+
 ## Status
 
 Vorgeschlagen am YYYY-MM-DD.
@@ -25,15 +29,21 @@ Supersedes: [ADR-NNNN: Titel](NNNN-dateiname.md). -->
 
 <Welche dauerhaften Folgen, Verantwortungen und Grenzen ergeben sich?>
 
-## Alternativen
+## Alternativen (optional)
 
 <Welche relevanten Alternativen wurden verworfen und warum?>
 
-## Referenzen
+## Referenzen (optional)
 
 <Stabile Verträge, Dokumente oder externe Quellen; keine Issue- oder
 Migrationsinventare.>
 ```
 
-Nach der Annahme wird nur der Status auf `Akzeptiert am YYYY-MM-DD.` geändert.
-Eine vollständige spätere Ablösung ergänzt ausschließlich im Status des alten ADRs `Superseded by: ADR-NNNN.` und trägt im neuen ADR `Supersedes: ADR-NNNN.` Ein ADR mit abweichender Struktur oder ohne langfristige Entscheidung wird nicht angelegt.
+`Datum` ist das Datum der Entscheidung.
+Bei rückwirkend dokumentierten ADRs bleibt dort das historische Entscheidungsdatum stehen.
+Die Grundstruktur besteht aus Titel, Datum, Status, Kontext, Entscheidung und Konsequenzen in dieser Reihenfolge.
+`Alternativen` und `Referenzen` sind optionale Abschnitte für begründete Auswahl beziehungsweise stabile Quellen.
+
+Nach der Annahme wird nur der Status auf `Akzeptiert.` geändert.
+Eine vollständige spätere Ablösung ergänzt ausschließlich im Status des alten ADRs `Superseded by: ADR-NNNN.` und trägt im neuen ADR `Supersedes: ADR-NNNN.`
+Ein ADR mit abweichender Grundstruktur oder ohne langfristige Entscheidung wird nicht angelegt.

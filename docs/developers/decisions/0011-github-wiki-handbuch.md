@@ -1,8 +1,12 @@
 # ADR-0011: GitHub Wiki als redaktionelle Handbuchoberfläche
 
+## Datum
+
+2026-07-30.
+
 ## Status
 
-Akzeptiert am 30.07.2026.
+Akzeptiert.
 Superseded by: ADR-0012.
 
 ## Kontext
