@@ -8,8 +8,9 @@ from http import HTTPStatus
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from backend.app import ForbiddenRequestError, LzugHandler
+from backend.application import ForbiddenRequestError
 from backend.auth import AuthContext, AuthenticationError
+from backend.transport import RequestContext
 
 from .artifacts import load_runtime_manifests, load_runtime_status
 
@@ -483,7 +484,7 @@ class DemoRuntimePolicy:
         )
         self.runtime_status = load_runtime_status(seed_manifest_path.parent, self.seed_manifest)
 
-    def handle_public_get(self, handler: LzugHandler, path_parts: list[str]) -> bool:
+    def handle_public_get(self, handler: RequestContext, path_parts: list[str]) -> bool:
         if path_parts != ["demo", "status"]:
             return False
         next_reset = self._next_reset()
@@ -512,7 +513,7 @@ class DemoRuntimePolicy:
         )
         return True
 
-    def handle_public_post(self, handler: LzugHandler, path_parts: list[str]) -> bool:
+    def handle_public_post(self, handler: RequestContext, path_parts: list[str]) -> bool:
         if path_parts != ["demo", "session"]:
             return False
         if not handler.allow_public_auth_request(path_parts):
@@ -557,7 +558,7 @@ class DemoRuntimePolicy:
 
     def authorize_mutation(
         self,
-        handler: LzugHandler,
+        handler: RequestContext,
         method: str,
         path_parts: list[str],
         context: AuthContext,

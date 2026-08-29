@@ -550,7 +550,7 @@ tasks:
   dev:backend:
     desc: Start the backend development server
     cmds:
-      - '{{.UV}} python -m backend.app --init'
+      - '{{.UV}} python -m backend.server --init'
 
   dev:frontend:
     desc: Start the frontend development server

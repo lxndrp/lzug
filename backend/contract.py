@@ -1,10 +1,9 @@
 """Validate JSON HTTP responses against the generated OpenAPI document.
 
 The application deliberately generates its OpenAPI description from the same
-resource metadata as the HTTP adapter.  These small, dependency-free checks
-exercise the generated document against real handler responses in the backend
-test suite.  They cover the JSON Schema vocabulary used by ``backend.openapi``
-without introducing a second OpenAPI runtime into the product.
+resource metadata as the HTTP adapter. These small, dependency-free checks
+exercise an OpenAPI document against real application responses in the backend
+test suite without introducing a second OpenAPI runtime into the product.
 """
 
 from __future__ import annotations

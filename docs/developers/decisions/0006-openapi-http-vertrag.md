@@ -6,7 +6,10 @@ Akzeptiert, rückwirkend dokumentiert am 26.07.2026.
 
 ## Kontext und Entscheidung
 
-Die ausgelieferte OpenAPI-Spezifikation in `backend/openapi.py` ist der verbindliche HTTP-Vertrag. Die JSON-API bietet Einstiegspunkt, Healthcheck, OpenAPI JSON und Swagger UI; Ressourcen verwenden REST-nahe Methoden und HAL-nahe Links.
+Die von FastAPI aus `backend/fastapi_app.py` erzeugte und über `/api/openapi.json`
+ausgelieferte OpenAPI-Spezifikation ist der verbindliche HTTP-Vertrag. Die
+JSON-API bietet Einstiegspunkt, Healthcheck, OpenAPI JSON und Dokumentation;
+Ressourcen verwenden REST-nahe Methoden und HAL-nahe Links.
 
 Der Vertragstest ruft die echte HTTP-Schicht mit isolierter SQLite-Datenbank auf und validiert dokumentierte Responses gegen die ausgelieferte Spezifikation. Er prüft auch die vom Angular-`PlanningApiService` verwendeten Pfade.
 

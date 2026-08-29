@@ -1,24 +1,22 @@
 # Backend und Datenzugriff
 
-`backend/app.py` ist der gegenwärtige produktive, synchrone HTTP-Adapter auf
-Basis von `BaseHTTPRequestHandler` und `ThreadingHTTPServer`. Er parst
-Transportdaten, erzwingt Authentifizierung und Autorisierung, delegiert an
-fachliche Services und bildet erwartete Fehler auf HTTP ab. Die Routen und
-Request-/Response-Modelle sind derzeit in `backend/openapi.py` und dem Adapter
-gebunden.
+`backend/fastapi_app.py` stellt die kanonische Application Factory für den
+produktiven HTTP-Vertrag bereit. `backend/server.py` startet sie über Uvicorn;
+der Demo-Startpfad verwendet dieselbe Factory und ergänzt ausschließlich seine
+Runtime-Policy. Transportdaten, Authentifizierung, Autorisierung und
+Fehlerabbildung liegen damit in einem einzigen HTTP-Adapter.
 
-`backend/fastapi_app.py` stellt daneben den ausdrücklich zu startenden
-FastAPI-Migrationsadapter bereit. Er nutzt die synchronen, frameworkfreien
-Abläufe aus `backend/application.py` und den gemeinsamen Dual-Adapter-Harness.
-Der produktive Standard bleibt bis zur abgeschlossenen Migration
-`python -m backend.app`; die Entscheidung und Rückfallgrenze dokumentiert
-[ADR-0027](../decisions/0027-synchroner-fastapi-migrationskern.md).
+Die synchronen, frameworkfreien Abläufe aus `backend/application.py`, den
+fachlichen Services und den Repositories bleiben unabhängig vom Webframework.
+Die Application Factory erzeugt die OpenAPI-Beschreibung aus den FastAPI-
+Routen; eine parallele manuelle Spezifikation oder ein Rückfalladapter existiert
+nicht mehr.
 
 ## Schichten und Verantwortungen
 
 | Bereich | Produktive Verantwortung | Grenze |
 | --- | --- | --- |
-| HTTP und Sicherheit | `app`, `fastapi_app`, `openapi`, `auth`, `local_auth`, `authorization`, `security` | Transport, Session, CSRF, Actor- und Ausschuss-Scope; keine Fachentscheidung im Handler |
+| HTTP und Sicherheit | `fastapi_app`, `server`, `transport`, `auth`, `local_auth`, `authorization`, `security` | Transport, Session, CSRF, Actor- und Ausschuss-Scope; keine Fachentscheidung im Handler |
 | Anwendung | `application` sowie die fachlichen Services | synchrone, frameworkunabhängige Abläufe für beide HTTP-Adapter |
 | Planung und Durchführung | `planning`, `candidate_days`, `holiday_provider`, `absence` | Vorschläge, Verfügbarkeiten, bestätigte Planung und Ausfall-/Ersatzprozess |
 | Fachliche Integrationen | `notifications`, `calendar`, `documents`, `document_storage` | Best-Effort-Zustellung, persönliche Kalender und atomare Dokumentablage; externe Kanäle machen den Fachvorgang nicht rückgängig |

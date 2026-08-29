@@ -6,21 +6,18 @@ Akzeptiert am 29.08.2026.
 
 ## Kontext
 
-Der bestehende HTTP-Adapter auf Basis von `BaseHTTPRequestHandler` bildet den
-produktiven API-Vertrag vollständig ab, bündelt dabei aber Routing,
-Transportvalidierung und Fehlerabbildung in einer großen Klasse. Weitere
-fachliche Routen sollen schrittweise auf einen Frameworkkern migriert werden,
+Der frühere HTTP-Adapter auf Basis von `BaseHTTPRequestHandler` bündelte
+Routing, Transportvalidierung und Fehlerabbildung in einer großen Klasse. Die
+vollständige Vertragsmigration soll den Webframework-Wechsel abschließen,
 ohne die synchrone SQLAlchemy-, Repository- und Serviceschicht gleichzeitig
-neu zu entwickeln oder den produktiven Startpfad vorzeitig umzuschalten.
+neu zu entwickeln.
 
 ## Entscheidung
 
-FastAPI wird als zukünftiger HTTP-Frameworkkern gewählt. Ein minimaler,
-ausdrücklich gestarteter Anwendungskern stellt zunächst nur `/api/health`,
-`/api/ready` und `/api/round-summary` bereit. Seine Application Factory trennt
+FastAPI ist der kanonische HTTP-Frameworkkern. Seine Application Factory trennt
 Startkonfiguration, Datenbank-Readiness und vorhandene Service- beziehungsweise
-Repository-Factories. Gemeinsame Leseabläufe liegen in einer frameworkfreien
-Anwendungsschicht und werden auch vom bestehenden Adapter verwendet.
+Repository-Factories. Gemeinsame Abläufe liegen in einer frameworkfreien
+Anwendungsschicht.
 
 Die migrierten Operationen bleiben synchrone Python-Funktionen. FastAPI führt
 diese Funktionen über die von Starlette vorgesehene Threadpool-Grenze aus;
@@ -28,16 +25,11 @@ Repositories und Services bleiben synchron und enthalten keine FastAPI- oder
 Starlette-Importe. Eine Async-Neuentwicklung ist eine spätere, getrennt zu
 entscheidende Optimierung.
 
-`python -m backend.app` bleibt der produktive Standard. Der FastAPI-Kern wird
-nur durch gezielte Tests oder explizit mit der Factory
-`backend.fastapi_app:create_app` gestartet. Die vorhandene manuelle
-OpenAPI-Spezifikation bleibt während der Migration kanonisch; der partielle
-FastAPI-Kern veröffentlicht keine zweite Spezifikation.
-
-Die Migration erfolgt routenweise mit Vertragsparität. Solange der alte
-Adapter vorhanden ist, bleibt er zugleich die Rückfallmöglichkeit: Der neue
-Kern wird nicht gestartet beziehungsweise eine migrierte Route wird wieder nur
-über den bisherigen Adapter ausgeliefert.
+`python -m backend.server` ist der produktive Startpfad; der Demo-Startpfad
+verwendet dieselbe Factory. Die OpenAPI-Spezifikation wird ausschließlich aus
+den FastAPI-Routen erzeugt. `backend.transport` hält die synchronen
+Transport-Hilfen frameworkarm, während `backend.application`, Services und
+Repositories keine HTTP-Abhängigkeit erhalten.
 
 ## Konsequenzen
 
@@ -47,9 +39,10 @@ Kern wird nicht gestartet beziehungsweise eine migrierte Route wird wieder nur
   Anwendungs- und Datenbankvertrag ab.
 - Session-Authentifizierung, aktive Ausschussmitgliedschaft, Round-Zugriff,
   HATEOAS-Antwortmodell und öffentliche Datenbankfehler werden nicht dupliziert.
-- Weitere Routen dürfen erst nach eigenem Paritätsnachweis migriert werden.
-- Eine produktive Umschaltung, die Entfernung manueller OpenAPI-Teile und eine
-  asynchrone Serviceschicht benötigen getrennte Entscheidungen und Abnahme.
+- Die abgeschlossene Migration wird durch fokussierte Vertragsprüfungen und
+  die CI-Gates abgesichert.
+- Eine asynchrone Serviceschicht bleibt eine getrennte Entscheidung und
+  Abnahme.
 
 ## Alternativen
 

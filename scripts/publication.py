@@ -18,7 +18,7 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
-from backend.openapi import spec as openapi_spec
+from backend.fastapi_app import FastAPIConfig, create_app
 from scripts.wiki_routes import wiki_route, wiki_source_url
 
 RELEARN_REPOSITORY = "https://github.com/McShelby/hugo-theme-relearn.git"
@@ -269,7 +269,9 @@ def write_content(root: Path, wiki_root: Path, site: Path, repository_revision: 
         encoding="utf-8",
     )
 
-    api_document = openapi_spec()
+    api_document = create_app(
+        FastAPIConfig(db_path=Path(":memory:"), session_cookie_name="__Host-lzug_session")
+    ).openapi()
     (site / "static" / "referenz" / "api" / "openapi.json").write_text(
         json.dumps(api_document, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
