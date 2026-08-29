@@ -13,12 +13,14 @@
     {
       "id": 1,
       "name": "Prüfungsausschuss Teststadt 1",
+      "ihk": "IHK Teststadt",
       "occupation": "Fachinformatiker/in",
       "adapters": ["seed", "frontend", "prototype"]
     },
     {
       "id": 2,
       "name": "Prüfungsausschuss Teststadt 2",
+      "ihk": "IHK Teststadt",
       "occupation": "Fachinformatiker/in",
       "adapters": ["frontend"]
     }
