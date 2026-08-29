@@ -2,11 +2,7 @@
 
 ## Status
 
-Teilweise abgelöst durch
-[ADR-0020](0020-minimaler-releaseablauf-mit-github-bordmitteln.md) am
-13.08.2026. Der annotierte Tag als einzige technische Release-Identität und die
-Environment-Freigabe bleiben akzeptiert; Issue-Auslöser, Gate-Steuerung,
-CI-Abfrage und Wiederanlauf sind historisch.
+Akzeptiert am 13.08.2026.
 
 ## Kontext
 
@@ -15,6 +11,11 @@ Release-Issue, lokalen Qualifizierungstag und späteren Remote-Tag fest. Er
 wiederholte außerdem CI-Abfragen, Runtime-Tests und Security-Scans, die bereits
 in Pull-Request- und `master`-CI durchgeführt worden waren. Das erhöhte Dauer
 und Recovery-Komplexität ohne eine zusätzliche fachliche Aussage.
+
+[ADR-0020](0020-minimaler-releaseablauf-mit-github-bordmitteln.md) vereinfacht
+den Auslöser, die Gate-Steuerung, den CI-Nachweis und den Wiederanlauf. Der
+annotierte Tag als technische Release-Identität und die Freigabe über das
+Environment `release` bleiben gültig.
 
 ## Entscheidung
 

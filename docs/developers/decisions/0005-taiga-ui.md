@@ -10,4 +10,7 @@ Eine begrenzte Taiga-UI-Erprobung bestätigte die technische und gestalterische 
 
 ## Konsequenzen
 
-Taiga UI ist die gewählte Komponentenbibliothek. Bewusst verbleiben native oder anwendungseigene Elemente für ISO-Kalenderwochen, Select-Anbindung, vorhandene SVG-Icons sowie das responsive Grid und Tabellenverhalten. Die aktuelle Ausnahmeliste steht unter [Frontend-Ausnahmen](../frontend-exceptions.md); die Git-Historie bewahrt die frühere Prototypbeschreibung.
+Taiga UI ist die gewählte Komponentenbibliothek. Native oder anwendungseigene
+Elemente bleiben nur dort bestehen, wo keine semantisch gleichwertige
+Komponente verfügbar ist. Die Git-Historie bewahrt frühere
+Migrationsentscheidungen.

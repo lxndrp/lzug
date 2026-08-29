@@ -26,14 +26,8 @@ nav:
       - Reviews:
           - Review Policy: developers/reviews/index.md
           - Reviewkriterien: developers/reviews/kriterien.md
-          - Copilot-Pilotphase: developers/reviews/copilot-pilot.md
       - Frontend-Richtlinie: developers/frontend-guidelines.md
-      - Lizenz und Release-Freigabe: developers/licensing.md
-      - Datenschutzabgrenzung: developers/privacy.md
       - Releases und GHCR: developers/releases.md
-      - Release- und Betriebsnachweise v0.1.0: developers/release-evidence-v0.1.0.md
-      - Release-Milestones: developers/release-milestones.md
-      - Frontend-Ausnahmen: developers/frontend-exceptions.md
       - Dokumentation: developers/documentation.md
       - Continuous Integration: developers/continuous-integration.md
       - Azure-Demo-Deployment: developers/demo-deployment.md
@@ -90,4 +84,3 @@ nav:
           - ADR-0026 Automatische Demo-Promotion: developers/decisions/0026-automatische-demo-promotion-stabiler-releases.md
           - ADR-0027 Synchroner FastAPI-Migrationskern: developers/decisions/0027-synchroner-fastapi-migrationskern.md
           - ADR-0028 SBOM-Orchestrierung: developers/decisions/0028-sbom-orchestrierung-und-cyclonedx-standardwerkzeuge.md
-      - Öffentliche Publikationsarchitektur: developers/publication-architecture.md

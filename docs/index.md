@@ -21,5 +21,5 @@ Referenz- und Validierungsbuild; CI stellt den Build als geschütztes Artefakt
 separate Wiki steht unter
 [Wiki-Publikation](developers/wiki-publishing.md).
 
-Die entschiedene, aber noch nicht extern aktivierte Zielarchitektur steht unter
-[Öffentliche Publikationsarchitektur](developers/publication-architecture.md).
+Die entschiedene, aber noch nicht extern aktivierte Zielarchitektur steht in
+[ADR-0023](developers/decisions/0023-oeffentliche-web-und-dokumentationspublikation.md).

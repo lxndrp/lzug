@@ -255,7 +255,6 @@ annotierten SemVer-Tag.
   Release-Workflows ersetzen diese Produktpfade nicht.
 - Ein realer Pilot oder veröffentlichter Release Candidate wird nicht
   beansprucht. Die integrierte Wintererprobung ist für `v1.0.0-rc.1` geplant.
-- Lizenzinventur, Datenschutzabgrenzung und testgestützte Betriebsgrenzen sind
-  im [Entwicklerhandbuch](docs/developers/release-evidence-v0.1.0.md)
-  nachvollziehbar dokumentiert. Diese Nachweise sind keine Rechtsberatung und
-  keine Zusage für einen produktiven Betrieb.
+- Lizenztexte, Abhängigkeitsnachweise und Sicherheitsgrenzen bleiben in ihren
+  jeweiligen maßgeblichen Quellen nachvollziehbar. Sie sind keine Rechtsberatung
+  und keine Zusage für einen produktiven Betrieb.

@@ -145,6 +145,6 @@ Der erste GHCR-Push kann ein neues Paket zunächst privat anlegen. Seine
 Package-Einstellungen. Ein fehlgeschlagener Publish erzeugt keinen sichtbaren
 GitHub Release, weil dieser bis zum letzten Schritt Draft bleibt.
 
-Produkt-Backup, Restore und Rollback sind nicht Teil des Release-Retry. Die
-historische Betriebsgrenze von `v0.1.0` bleibt unverändert in den
-[Release-Nachweisen](release-evidence-v0.1.0.md) dokumentiert.
+Produkt-Backup, Restore und Rollback sind nicht Teil des Release-Retry. Sie
+werden für die konkrete Instanz unabhängig vom Veröffentlichungsablauf geplant
+und geprüft.

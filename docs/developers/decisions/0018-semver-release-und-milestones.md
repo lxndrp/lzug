@@ -2,9 +2,7 @@
 
 ## Status
 
-Teilweise abgelöst durch [ADR-0019](0019-tag-zentrierter-releaseprozess.md)
-am 13.08.2026. Die Milestone- und SemVer-Zuordnung bleibt akzeptiert; der
-Kandidaten- und Veröffentlichungsablauf ist historisch.
+Akzeptiert.
 
 ## Kontext
 
@@ -14,6 +12,10 @@ Versions- und Planungsquellen verstanden. Ein geplanter Milestone bezeichnet
 aber keinen gebauten Stand, und ein Commit auf `master` ist noch kein
 freigegebener Release. Für einen reproduzierbaren Veröffentlichungsprozess
 müssen technische Identität, Freigabe und fachliche Zielmenge getrennt sein.
+
+[ADR-0020](0020-minimaler-releaseablauf-mit-github-bordmitteln.md) präzisiert
+den Kandidaten- und Veröffentlichungsablauf. Die hier festgelegte Trennung von
+SemVer-Tag, Release-Milestone und GitHub Project bleibt davon unberührt.
 
 Der Bestand liefert mit `VERSION=0.1.0` einen technischen Ausgangspunkt und
 mit der Wintererprobung ein fachliches Ziel für Version 1. Die bisherige
@@ -137,8 +139,8 @@ nicht rückwirkend zu veröffentlichten Versionen erklärt.
   dokumentiert eine Repository-Freigabe, keinen nachträglich erfundenen
   Produktrelease.
 
-Die vollständige, prüfbare Zuordnung steht im
-[Migrationsregister](../release-milestones.md).
+Die operative Zuordnung von Issues und Milestones wird im GitHub Project und
+in den jeweiligen GitHub-Issues gepflegt.
 
 ## Konsequenzen
 
@@ -171,7 +173,6 @@ Die vollständige, prüfbare Zuordnung steht im
 
 ## Referenzen
 
-- [Release- und Milestone-Migrationsregister](../release-milestones.md)
 - [Releases und GHCR](../releases.md)
 - [Stabiler Qualitätsvertrag](../continuous-integration.md)
 - Issues [#301](https://github.com/lxndrp/lzug/issues/301),
