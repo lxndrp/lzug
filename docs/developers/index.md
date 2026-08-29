@@ -22,13 +22,8 @@ im Repository-Wurzelverzeichnis.
   und Merge-Lebenszyklus automatisierter Abhängigkeitsupdates.
 - **Continuous Integration** beschreibt Workflow-Verantwortungen, konservative
   Pfadklassifikation, Gesamtstatus und Browsercache-Vertrag.
-- **Azure-Demo-Deployment** beschreibt OIDC, minimale Rechte, das atomare
-  Digest-Paar, Readiness-/Smoke-Nachweise und Rollback.
-- **Öffentliche Domains und TLS** beschreibt den getrennten DNS-, Pages-,
-  Zertifikats- und Demo-Domain-Freigabeablauf.
-- **Demo-Beobachtbarkeit** trennt Liveness und Readiness, definiert
-  datensparsame strukturierte Logs, Plattformmetriken, Budgetalarme und den
-  ereignisbezogenen Diagnosepfad.
+- **Öffentliche Demo** beschreibt die getrennte Runtime, sichere Promotion,
+  Readiness-/Smoke-Nachweise, Diagnose und Rollbackgrenze.
 - **Demo-Kostenbaseline** definiert das verbindliche Monatsziel, die
   ressourcenbezogene Schätzung und den verzögerten read-only-Abgleich.
 - **Wiki-Publikation** beschreibt den getrennten Review- und Freigabeablauf für

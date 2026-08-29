@@ -23,18 +23,10 @@ behandelt.
 Die Automation verwendet ausschließlich Squash-Merges. Sie aktiviert die
 GitHub-Funktion Auto-Merge ohne eigene Mergebarkeitsabfrage oder Warteschleife;
 sie pusht nicht nach `master` und umgeht keine Schutzregel. Der Merge findet
-erst statt, wenn GitHub den Pull Request als konfliktfrei bewertet und das
-aktive Ruleset die Aktualität gegenüber `master`, aufgelöste
-Review-Konversationen und alle sechs CI-Checks akzeptiert:
-
-- Backend
-- Frontend
-- Documentation
-- Browser E2E
-- Accessibility
-- npm production security gate
-
-Ein neuer Commit oder ein fehlerhafter Check blockiert den Merge weiterhin.
+erst statt, wenn GitHub Konfliktfreiheit, das aktive Ruleset, aktuelle Basis,
+aufgelöste Review-Konversationen und die zu diesem Pull Request ausgewählten
+CI-Gates akzeptiert. Ein neuer Commit oder ein fehlerhafter Check blockiert den
+Merge weiterhin.
 
 ## Sicherheitsmodell
 

@@ -1,193 +1,42 @@
 # Continuous Integration
 
-## Zwei getrennte Qualitätsabläufe
+Die Workflows sind die ausführbare Quelle für Auswahl, Gates und konkrete
+Prüfkommandos. Diese Übersicht erklärt nur, wann welcher Nachweis gilt und wie
+ein Fehler eingeordnet wird.
 
-Pull Requests und der integrierte Stand besitzen bewusst unterschiedliche
-Workflows:
+## Pull Requests
 
-- `.github/workflows/pull-request.yml` wählt mit der auf einen Commit gepinnten
-  Action `dorny/paths-filter` nur die betroffenen Qualitätsdomänen aus.
-- `.github/workflows/quality.yml` prüft jeden Push auf `master`, den
-  Wochenzeitplan und jeden manuellen Start vollständig. Dieser Workflow enthält
-  weder Pfadklassifikation noch Kompatibilitäts-Gates für Required Checks.
+`.github/workflows/pull-request.yml` ordnet geänderte Dateien konservativ den
+Domänen Dokumentation, Backend, Frontend, CLI, Container und Infrastruktur zu.
+Workflow-, Toolchain-, Abhängigkeits- und Skriptänderungen wählen alle
+Domänen; unbekannte Pfade ebenso. Produktive Webänderungen wählen Browser-E2E
+und Accessibility getrennt. Jeder sichtbare Gate-Job behandelt eine nicht
+ausgewählte Domäne ausdrücklich als `skipped`, nicht als stillschweigenden
+Erfolg.
 
-Der erfolgreiche vollständige Workflow-Lauf `Quality` auf einer konkreten
-`master`-SHA ist damit der Qualitätsnachweis, den der in
-[ADR-0020](decisions/0020-minimaler-releaseablauf-mit-github-bordmitteln.md)
-beschlossene Releaseablauf verwendet. Interne Jobnamen sind kein
-Releasevertrag.
+Der Workflow prüft außerdem Source-Scan und CodeQL. Nicht geänderte Sprachen
+übernehmen nur einen validierten Nachweis für die exakte Pull-Request-Basis;
+eine fehlende oder unvollständige Basis schlägt fehl. Die aktuelle Required-
+Check-Konfiguration und die jeweiligen Jobnamen werden aus dem aktiven
+GitHub-Ruleset gelesen, nicht aus dieser Dokumentation abgeleitet.
 
-## Stabiler Pull-Request-Vertrag
+## `master` und Releases
 
-Das Ruleset verlangt genau diese fünf immer vorhandenen Gate-Namen:
+`.github/workflows/quality.yml` prüft jeden Push auf `master`, manuelle Starts
+und den Zeitplan vollständig, ohne Pfadauswahl. Sein erfolgreicher Lauf für
+eine konkrete SHA ist der Qualitätsnachweis für den
+[Releaseablauf](releases.md). Release- und Snapshot-Promotion wiederholen
+diesen Nachweis nicht und fragen keine internen Jobnamen ab.
 
-| Required Check | Ausgeführte Qualitätsaussage |
-| --- | --- |
-| `Pull Request / Documentation` | strikter MkDocs-Build und TypeDoc |
-| `Pull Request / Backend` | Ruff, Black, Python-Audit, Tests und Coverage; bei produktiven Webänderungen zusätzlich E2E und Accessibility |
-| `Pull Request / Frontend` | ESLint, Prettier, Angular-Build, Tests, Coverage und npm-Produktionsaudit; bei produktiven Webänderungen zusätzlich E2E und Accessibility |
-| `Pull Request / CLI` | Go-Vertrag sowie mit GoReleaser reproduzierbar gebaute Archive für Linux, macOS und Windows auf amd64 und arm64 |
-| `Pull Request / Container` | einmal gebautes OCI-Image, SBOMs, Image-Scan sowie Container-, Compose- und CLI-zu-Container-Verträge; bei Infrastrukturänderungen zusätzlich OpenTofu-Format, -Validierung und gemockter Plan |
+## Lokale Auswahl und Diagnose
 
-Das Azure-Demo-Deployment verwendet ausschließlich OIDC, ein geschütztes
-GitHub Environment und ein zuvor geprüftes App-/Seed-Digest-Paar. Stabile
-Produktreleases rufen den wiederverwendbaren Promotionspfad nach der
-Veröffentlichung direkt auf; Snapshot und manueller Rollback verwenden
-denselben Deploymentworkflow. Der repositoryseitige Vertrag wird mit
-`task quality:demo-deployment` ohne Cloudzugriff geprüft; Details stehen unter
-[Azure-Demo deployen](demo-deployment.md).
+Für eine begrenzte Änderung wird der direkt betroffene Task verwendet, etwa
+`task docs`, `task quality:backend` oder `task quality:infra`. Der breite
+`task quality` ist für Workflow-, Toolchain-, Abhängigkeits-, Sicherheits- und
+andere querschnittliche Änderungen bestimmt. E2E und Accessibility bleiben
+getrennt; vor einer lokalen Browserprüfung läuft `task doctor`.
 
-Jedes Gate läuft mit `if: always()`. Ist seine Domäne nicht ausgewählt, prüft
-es ausdrücklich den Status `skipped` des Detailjobs und wird selbst
-erfolgreich. Der wiederverwendbare CodeQL-Aufruf muss unabhängig von der
-Sprachauswahl `success` melden: ausgewählte Sprachen werden neu analysiert,
-unveränderte Sprachen übernehmen den echten CodeQL-Nachweis der exakten
-Pull-Request-Basis. Ein Fehler der Pfadauswahl, des breiten Source-Scans, einer
-ausgewählten Analyse oder dieser Basisprüfung lässt alle Gates fail-closed
-fehlschlagen.
-
-CodeQL analysiert in Pull Requests nur die von geänderten Quellen, Build- und
-Abhängigkeitsdateien betroffenen Sprachen Python, JavaScript/TypeScript und Go.
-GitHubs native Ruleset-Regel `Require code scanning results` bleibt mit
-`security_alerts_threshold=high_or_higher` aktiv. Der Trivy-Scan auf Secrets
-und Fehlkonfigurationen bleibt unabhängig von der Sprachauswahl bewusst breit.
-Beide Nachweise sind keine zusätzliche projektspezifische Qualitätsdomäne.
-
-Der eigentliche `github/codeql-action/analyze`-Job liegt im eng begrenzten,
-wiederverwendbaren Workflow `.github/workflows/ci.yml`. Die getrennten
-Orchestrierungen `pull-request.yml` und `quality.yml` rufen nur dieses
-CodeQL-Modul auf. Seine Kategorien
-`.github/workflows/ci.yml:codeql/language:<Sprache>` benennen damit wieder den
-tatsächlich ausführenden Workflow und bleiben zwischen Pull Request und
-`master` identisch.
-
-Für eine nicht ausgewählte Sprache lädt das CodeQL-Modul kein leeres oder
-künstliches Ergebnis hoch. Es liest über die Code-Scanning-API ausschließlich
-die neueste erfolgreiche Analyse derselben Sprache und exakten Base-SHA. Der
-Nachweis wird nur übernommen, wenn Kategorie, Toolname, einzelner SARIF-Lauf,
-Ergebnisanzahl und die positive Zahl ausgeführter Regeln mit den API-Metadaten
-übereinstimmen. Fehlende oder unvollständige Baselines sowie jeder Download-,
-Validierungs- oder Uploadfehler brechen den wiederverwendbaren Workflow ab.
-Reine Dokumentationsänderungen starten daher keine CodeQL-Matrix, liefern der
-unveränderten nativen Merge-Protection aber weiterhin die drei realen,
-base-gebundenen Analyseidentitäten.
-
-## Konservative Pfadauswahl
-
-Die Pfadauswahl bildet fachlich verständliche Repositorygrenzen auf fünf
-stabile Gates ab. Infrastruktur ist eine eigene Detaildomäne und läuft in das
-bestehende Container-Gate ein:
-
-| Änderung | Auswahl |
-| --- | --- |
-| `docs/**`, MkDocs, Changelog oder dokumentierende README-Dateien | Dokumentation |
-| `backend/**`, Datenbankschema, Migrationen, Fixtures oder Prototypen | Backend |
-| Frontend-Code und Frontend-Konfiguration außer reinen Markdown-Dateien | Frontend |
-| `cmd/lzug-admin/**` | CLI |
-| Dockerfile, Docker-Kontext, Compose-Referenz oder Umgebungsbeispiel | Container |
-| `infra/**` | Infrastruktur; der Nachweis läuft in das stabile Container-Gate ein |
-| produktives Backend, Datenmodell, Fixtures, Frontend-Produktcode oder Playwright | zusätzlich getrennte E2E- und Accessibility-Jobs |
-| Workflows, Toolchain, Taskfile, Lockfiles, Dependency-Manifeste oder `scripts/**` | alle Detaildomänen und beide Browserjobs |
-| leerer oder keiner bekannten Grenze zugeordneter Pfad | alle Detaildomänen und beide Browserjobs |
-
-Reine Backend-Tests und `*.spec.ts`-Frontend-Tests wählen keine Browserjobs.
-Mehrere Änderungen vereinigen ihre Domänen. Prozessdateien wie `AGENTS.md`,
-`CONTRIBUTING.md` oder Issue-Prozessvorlagen sind bekannte Grenzen ohne
-Anwendungsdomäne; die fünf Gates bleiben sichtbar erfolgreich. Der Source-Scan
-läuft weiterhin, während CodeQL ohne betroffene Sprachdomäne keine neue Matrix
-startet und stattdessen die validierten Base-Analysen übernimmt.
-
-Die Pfadfilter-Action liest bei Pull Requests die geänderten Dateien über die
-GitHub-API. Ein zweiter Filter verwendet die `every`-Semantik, um jeden nicht
-bekannten Pfad zu erkennen. Dadurch kann eine neue Repositorygrenze nicht
-unbemerkt sämtliche fachlichen Prüfungen überspringen.
-
-## Vollständiger `master`-Vertrag
-
-`quality.yml` führt unabhängig vom Änderungsumfang parallel aus:
-
-- Backend-, Frontend-, Dokumentations- und CLI-Qualität,
-- OpenTofu-Format, -Validierung und gemockter Infrastrukturplan ohne Cloudzugriff,
-- npm- und Python-Abhängigkeitsaudits,
-- OCI-Build, Dependency- und Image-SBOM, Trivy-Image-Scan,
-- Container-, Compose- und CLI-zu-Container-Verträge,
-- Browser-E2E und Accessibility als getrennte Jobs,
-- Source-Scan und CodeQL für alle drei vorhandenen Sprachen.
-
-Die Domänenjobs rufen dieselben `task`-Teilaufgaben auf wie die lokale
-Qualitätssicherung. Der vollständige Lauf besitzt keine Pfadausgaben, keine
-ausgewählten oder übersprungenen Details und keinen künstlichen
-Required-Check-Gesamtstatus. Sein Workflow-Ergebnis ist der vollständige
-Nachweis für die geprüfte SHA.
-
-`task quality:operator` validiert die gepinnte GoReleaser-Konfiguration und
-baut den vollständigen Sechs-Plattform-Snapshot zweimal. Die Prüfung vergleicht
-Binärdateien und Archive bytegenau und kontrolliert Namen, Inhalte,
-Build-Metadaten sowie die Abwesenheit einer GoReleaser-Checksummendatei. Der
-Releaseablauf übernimmt später nur diese sechs Archive; Attestations und die
-eine aggregierte CycloneDX-SBOM bleiben davon getrennt.
-
-## Kontrollierte Ruleset-Migration
-
-Die Migration von den früheren sieben `Quality / …`-Checks erfolgt ohne Phase
-fehlenden Schutzes:
-
-1. Ein Pull Request führt zunächst die fünf neuen Gates sowie CodeQL und den
-   Source-Scan erfolgreich aus, während die bisherigen Required Checks noch
-   aktiv sind.
-2. Das aktive Ruleset wird in einer einzelnen kontrollierten Änderung von den
-   sieben alten auf die fünf neuen Gate-Namen umgestellt.
-3. `strict_required_status_checks_policy=true`, die native CodeQL-Regel, das
-   aktive Enforcement und die leere Bypass-Liste bleiben unverändert.
-4. Erst der unter dieser Zielkonfiguration erneut geprüfte Pull Request darf
-   durch einen Maintainer gemergt werden.
-
-Release- und Snapshot-Promotion lesen ausschließlich den erfolgreichen
-vollständigen `Quality`-Workflow-Lauf derselben `master`-SHA. Sie fragen keine
-internen Jobnamen ab und wiederholen keine der hier beschriebenen
-Qualitätsprüfungen.
-
-## Messung der Vereinfachung und Laufzeit
-
-Vor #344 bestanden die eigene PR-/Master-Orchestrierung aus 904 Workflowzeilen,
-274 Zeilen Python-Klassifizierer und 453 Zeilen zugehörigen Workflow-, OCI- und
-Security-Vertragstests, zusammen 1.631 Zeilen. Die Umstellung entfernt den
-Klassifizierer vollständig. Bei Abschluss dieser Umstellung umfassten die
-beiden getrennten Workflows und die auf Verhalten reduzierten Vertragstests
-zusammen 952 Zeilen: 679 Zeilen beziehungsweise 41,6 % weniger eigener
-Orchestrierungs- und Testcode. Spätere Domänen wie die Infrastrukturprüfung
-sind nicht Teil dieser historischen Messung.
-
-Für die Laufzeit bleiben verstrichene Workflow-Zeit und summierte
-Runner-Jobsekunden getrennt. Die belegte Ausgangsbasis für reine Dokumentation
-ist Lauf
-[`31544471092`](https://github.com/lxndrp/lzug/actions/runs/31544471092)
-mit 85 Sekunden und zwölf Jobs. Für eine reine CLI-Änderung existiert im
-aktuellen Workflowbestand kein isolierter historischer PR-Lauf; deshalb wird
-kein synthetischer Ist-Wert als Messung ausgegeben. Stattdessen vergleicht der
-umsetzende Pull Request die realen Laufzeiten der neuen Dokumentations- und
-CLI-Details sowie der gemeinsamen CodeQL-/Source-Scan-Komponenten mit den
-entsprechenden Jobs des letzten vollständigen Ausgangslaufs. Da diese
-Komponenten parallel laufen, ist für die PR-Dauer jeweils der längste
-notwendige Pfad maßgeblich, nicht ihre Summe.
-
-## Lokale Qualitätssicherung
-
-Die lokale Auswahl bleibt in `Taskfile.yml` kanonisch:
-
-- `task quality:backend`, `task quality:frontend`, `task quality:operator`,
-  `task quality:infra`, `task quality:oci`, `task quality:compose-config`,
-  `task quality:overall` und `task docs` für begrenzte Änderungen,
-- `task quality:release` für den Release-, Metadaten-, GoReleaser- und
-  aggregierten SBOM-Vertrag ohne Veröffentlichung,
-- `task quality` für CI-, Toolchain-, Dependency-, Security- oder andere
-  querschnittliche Änderungen.
-
-E2E und Accessibility bleiben getrennte Tasks. Vor gezielten Browserprüfungen
-ist `task doctor` auszuführen. Lokale Docker- und Podman-Prüfungen nutzen
-denselben gebauten Image-Vertrag und dieselbe Container-Orchestrierung;
-`quality:compose-config` verwendet mit beiden Engines deren
-Standard-Compose-Validierung vor der getrennten lzug-Policy. CodeQL und der
-gehostete Source-Scan bleiben GitHub-gebundene Ergänzungen. Die allgemeine
-risikobasierte Auswahl ist in
-[ADR-0009](decisions/0009-toolchain-und-entwicklungs-tasks.md) beschrieben.
+Bei einem Fehler zuerst die ausführende Workflow-Zusammenfassung und die
+betroffene Task-Ausgabe vergleichen. Unveränderte Sandbox- oder Browserprobleme
+werden als Umgebungsgrenze dokumentiert und nicht durch Wiederholung
+verschleiert. Gehostete CodeQL- und Source-Scans bleiben eine CI-Ergänzung.

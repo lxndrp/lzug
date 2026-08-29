@@ -40,8 +40,8 @@ Das Wiki beschreibt nur den vorhandenen Produkt- und Betriebsstand. ADRs,
 OpenAPI-Vertrag, Datenbankschema, Migrationen, technische Modelle,
 Docstrings/TSDoc und CI-/Security-/Deployment-Konfiguration bleiben im
 Hauptrepository. Generierte Referenzen bleiben CI-Artefakte. Produktive
-Self-Hosting-, Backup- und Upgrade-Anleitungen gehören zu #130; Pages und eine
-Landingpage gehören zu #206.
+Self-Hosting-, Backup- und Upgrade-Anleitungen werden erst mit den jeweiligen
+ausführbaren Betriebsverfahren ergänzt.
 
 ## Lokale Prüfung eines Wiki-Clones
 

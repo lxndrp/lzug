@@ -65,5 +65,5 @@ Erst wenn die CI nach den letzten Änderungen erfolgreich ist und alle
 relevanten Hinweise geklärt sind, darf ein Maintainer mergen. Agents mergen
 nicht selbst. Nach bestätigt erfolgreichem Merge wird zuerst der Issue-Worktree
 auf Reständerungen geprüft. Nur ein sauberer Worktree wird entfernt; danach
-werden ausschließlich der zugehörige lokale und Remote-Feature-Branch gelöscht
-und der Umsetzungstask archiviert.
+werden ausschließlich der zugehörige lokale und Remote-Feature-Branch gelöscht.
+Die Archivierung des Umsetzungstasks erfolgt getrennt durch den Maintainer.

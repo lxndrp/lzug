@@ -94,6 +94,6 @@ bewussten annotierten Tag-Push erfolgen weder Publish noch Deployment.
 
 ## Referenzen
 
-- [Demo-Runtime-Vertrag](../architecture/demo-runtime.md)
+- [Öffentliche Demo](../demo-deployment.md)
 - [Azure-Demo-Deployment](../demo-deployment.md)
 - [Issue #380](https://github.com/lxndrp/lzug/issues/380)

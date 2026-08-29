@@ -30,9 +30,7 @@ nav:
       - Releases und GHCR: developers/releases.md
       - Dokumentation: developers/documentation.md
       - Continuous Integration: developers/continuous-integration.md
-      - Azure-Demo-Deployment: developers/demo-deployment.md
-      - Öffentliche Domains und TLS: developers/publication-domains.md
-      - Demo-Beobachtbarkeit: developers/demo-observability.md
+      - Öffentliche Demo: developers/demo-deployment.md
       - Demo-Kostenbaseline: developers/demo-cost-baseline.md
       - Dependabot-Aktualisierungen: developers/dependabot.md
       - Wiki-Publikation: developers/wiki-publishing.md
@@ -44,7 +42,6 @@ nav:
           - Ausfall- und Ersatzprozess: developers/architecture/absence-replacement.md
           - Betreiber-CLI für Authentifizierung: developers/architecture/operator-auth-cli.md
           - OCI-Runtime: developers/architecture/oci-runtime.md
-          - Flüchtige Demo-Runtime: developers/architecture/demo-runtime.md
       - Referenz:
           - Fachliches Datenmodell: developers/domain-model.md
           - Datenbankschema: developers/database-schema.md
