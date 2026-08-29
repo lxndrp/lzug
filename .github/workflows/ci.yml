@@ -28,7 +28,7 @@ permissions: {}
 jobs:
   analyze:
     name: CodeQL (${{ matrix.language }})
-    if: inputs.languages != '[]'
+    needs: unchanged
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -36,27 +36,32 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ${{ fromJSON(inputs.languages) }}
+        language: ${{ fromJSON('["python","javascript-typescript","go"]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: contains(fromJSON(inputs.languages), matrix.language) || contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)
         with:
           ref: ${{ inputs.revision || github.sha }}
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        if: matrix.language == 'go'
+        if: (contains(fromJSON(inputs.languages), matrix.language) || contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)) && matrix.language == 'go'
         with:
           go-version: "1.26.5"
       - uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        if: contains(fromJSON(inputs.languages), matrix.language) || contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.language == 'go' && 'autobuild' || 'none' }}
           queries: security-extended
       - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        if: contains(fromJSON(inputs.languages), matrix.language) || contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)
         with:
           category: ".github/workflows/ci.yml:codeql/language:${{ matrix.language }}"
           upload: always
 
   unchanged:
     name: Reuse unchanged CodeQL baselines
+    outputs:
+      fallback_languages: ${{ steps.baselines.outputs.fallback_languages }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -82,9 +87,12 @@ jobs:
           ' <<<"$SELECTED_LANGUAGES")
           unchanged=$(jq -cn --argjson supported "$supported" --argjson selected "$selected" \
             '$supported - $selected')
+          fallback='[]'
+          reusable='[]'
 
           if test "$(jq 'length' <<<"$unchanged")" -eq 0; then
             echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "fallback_languages=$fallback" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -93,34 +101,56 @@ jobs:
           analyses="$RUNNER_TEMP/base-codeql-analyses.json"
           baselines="$RUNNER_TEMP/unchanged-codeql-baselines"
           mkdir -p "$baselines"
-          gh api \
+          if ! gh api \
             "repos/$GITHUB_REPOSITORY/code-scanning/analyses?ref=refs/heads/$BASE_REF&tool_name=CodeQL&per_page=100" \
-            > "$analyses"
+            > "$analyses"; then
+            echo "CodeQL baseline lookup unavailable; scheduling full analyses for unchanged languages."
+            for language in $(jq -r '.[]' <<<"$unchanged"); do
+              fallback=$(jq -cn --argjson fallback "$fallback" --arg language "$language" '$fallback + [$language]')
+            done
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "fallback_languages=$fallback" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           for language in $(jq -r '.[]' <<<"$unchanged"); do
-            analysis=$(jq -cer --arg sha "$BASE_SHA" --arg language "$language" '
+            if ! analysis=$(jq -cer --arg sha "$BASE_SHA" --arg language "$language" '
               [ .[]
                 | select(.commit_sha == $sha and .error == "" and .rules_count > 0)
                 | select((.environment | fromjson | .language) == $language)
               ]
               | sort_by(.created_at)
               | reverse
-              | if length == 0
-                then error("missing successful CodeQL baseline for " + $language)
-                else .[0]
-                end
-            ' "$analyses")
-            analysis_id=$(jq -er '.id' <<<"$analysis")
-            category=$(jq -er '.category' <<<"$analysis")
-            rules_count=$(jq -er '.rules_count' <<<"$analysis")
-            results_count=$(jq -er '.results_count' <<<"$analysis")
+              | if length == 0 then empty else .[0] end
+            ' "$analyses" 2>/dev/null); then
+              echo "No usable CodeQL baseline for $language; scheduling a full analysis."
+              fallback=$(jq -cn --argjson fallback "$fallback" --arg language "$language" '$fallback + [$language]')
+              continue
+            fi
+            if ! metadata=$(jq -cer '
+              select((.id | type) == "number" or (.id | type) == "string")
+              | select((.category | type) == "string")
+              | select((.rules_count | type) == "number")
+              | select((.results_count | type) == "number")
+              | [.id, .category, .rules_count, .results_count]
+              | @tsv
+            ' <<<"$analysis"); then
+              echo "Malformed CodeQL baseline for $language; scheduling a full analysis."
+              fallback=$(jq -cn --argjson fallback "$fallback" --arg language "$language" '$fallback + [$language]')
+              continue
+            fi
+            IFS=$'\t' read -r analysis_id category rules_count results_count <<<"$metadata"
             expected_category=".github/workflows/ci.yml:codeql/language:$language"
-            test "$category" = "$expected_category"
+            if ! test "$category" = "$expected_category"; then
+              echo "Mismatched CodeQL baseline for $language; scheduling a full analysis."
+              fallback=$(jq -cn --argjson fallback "$fallback" --arg language "$language" '$fallback + [$language]')
+              continue
+            fi
 
             sarif="$baselines/$language.sarif"
-            gh api -H 'Accept: application/sarif+json' \
-              "repos/$GITHUB_REPOSITORY/code-scanning/analyses/$analysis_id" > "$sarif"
-            jq -e \
+            if ! gh api -H 'Accept: application/sarif+json' \
+              "repos/$GITHUB_REPOSITORY/code-scanning/analyses/$analysis_id" > "$sarif" \
+              || ! jq -e \
               --arg category "$expected_category/" \
               --argjson rules "$rules_count" \
               --argjson results "$results_count" '
@@ -130,10 +160,21 @@ jobs:
                 and .runs[0].automationDetails.id == $category
                 and ([.runs[0].tool.driver.rules[]?, .runs[0].tool.extensions[]?.rules[]?] | length) == $rules
                 and (.runs[0].results | length) == $results
-              ' "$sarif" > /dev/null
+              ' "$sarif" > /dev/null; then
+              echo "Unusable CodeQL SARIF baseline for $language; scheduling a full analysis."
+              rm -f "$sarif"
+              fallback=$(jq -cn --argjson fallback "$fallback" --arg language "$language" '$fallback + [$language]')
+              continue
+            fi
+            reusable=$(jq -cn --argjson reusable "$reusable" --arg language "$language" '$reusable + [$language]')
           done
 
-          echo "available=true" >> "$GITHUB_OUTPUT"
+          if test "$(jq 'length' <<<"$reusable")" -gt 0; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "fallback_languages=$fallback" >> "$GITHUB_OUTPUT"
 
       - name: Publish unchanged language baselines
         if: steps.baselines.outputs.available == 'true'
