@@ -1,8 +1,12 @@
 # ADR-0024: Manuell promotete Demo-Snapshots
 
+## Datum
+
+2026-08-15.
+
 ## Status
 
-Akzeptiert am 15.08.2026.
+Akzeptiert.
 
 ## Kontext
 
@@ -45,6 +49,13 @@ Der reguläre releasegebundene Demo-Publish bleibt erhalten.
 Er akzeptiert nur veröffentlichte SemVer-Produkt-Releases und nutzt weiterhin sein eigenes `release`-Gate.
 Snapshot-Tags erzeugen weder Produktimage noch Betreiber-CLI, GitHub Release oder Self-Hosting-Artefakt.
 Ein späterer Nightly-Kanal benötigt einen anderen Namen, einen zeitgesteuerten Auslöser und eine eigene Entscheidung.
+
+## Konsequenzen
+
+Der Snapshot-Kanal kann einen aktuellen, geprüften `master`-Stand zeigen, ohne einen Produkt-Patch-Release zu erzeugen.
+Snapshot-Tags und OCI-Tags bleiben unveränderlich; ein fehlgeschlagener Lauf erfordert für einen neuen Versuch einen neuen aktuellen Commit und Tag.
+Produkt-Release, Betreiber-CLI, GitHub Release und Self-Hosting-Artefakte bleiben vom Snapshot-Kanal getrennt.
+Ein früheres vollständig geprüftes Digestpaar bleibt ausschließlich als kontrollierte Rollback-Quelle erhalten.
 
 ## Fehler- und Wiederanlaufvertrag
 

@@ -1,8 +1,12 @@
 # ADR-0023: Öffentliche Web- und Dokumentationspublikation
 
+## Datum
+
+2026-08-14.
+
 ## Status
 
-Akzeptiert am 14.08.2026.
+Akzeptiert.
 
 ## Kontext
 
