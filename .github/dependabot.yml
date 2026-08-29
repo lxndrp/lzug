@@ -27,8 +27,19 @@ updates:
         applies-to: security-updates
         patterns:
           - "@taiga-ui/*"
+      typescript-eslint:
+        applies-to: version-updates
+        patterns:
+          - "typescript-eslint"
+          - "@typescript-eslint/eslint-plugin"
+          - "@typescript-eslint/parser"
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      codeql:
+        applies-to: version-updates
+        patterns:
+          - "github/codeql-action/*"
