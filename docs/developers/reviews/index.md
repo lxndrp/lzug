@@ -96,6 +96,4 @@ Duplikate, Priorisierung, Pflegeaufwand, AI-Credit-Verbrauch und verbleibendes
 Budget ausgewertet. Daraus können Reviewkriterien und Prüftiefe angepasst
 werden.
 
-Die konkreten Prüfpunkte stehen in den [Reviewkriterien](kriterien.md). Die
-[Copilot-Pilotphase](copilot-pilot.md) beschreibt die manuelle Einrichtung der
-nicht versionierten GitHub-Automation.
+Die konkreten Prüfpunkte stehen in den [Reviewkriterien](kriterien.md).

@@ -2,12 +2,7 @@
 
 ## Status
 
-Akzeptiert am 13.08.2026. Löst [ADR-0019](0019-tag-zentrierter-releaseprozess.md)
-hinsichtlich Auslöser, Milestone-/Issue-Steuerung, CI-Nachweis und Wiederanlauf
-ab. Der annotierte Tag als einzige technische Release-Identität und die
-Freigabe über das GitHub-Environment `release` bleiben bestehen. Die technische
-Migration erfolgt ausschließlich in #347; der veröffentlichte Release `v0.1.0`
-bleibt unverändert.
+Akzeptiert am 13.08.2026.
 
 ## Kontext
 
@@ -18,6 +13,12 @@ fragt sieben einzelne Check-Namen ab und bildet mehrere historische
 Wiederanlauffälle nach. `scripts/release_assets.py` inventarisiert dafür sogar
 bereits veröffentlichte Releases generationsabhängig. Verdrahtungsnahe Tests
 schreiben Schrittfolgen und Sonderfälle des Workflows fest.
+
+Diese Entscheidung präzisiert ADR-0019 hinsichtlich Auslöser,
+Milestone-/Issue-Steuerung, CI-Nachweis und Wiederanlauf. Der annotierte Tag als
+einzige technische Release-Identität und die Freigabe über das GitHub-Environment
+`release` bleiben bestehen. Die technische Migration erfolgt ausschließlich in
+#347; der veröffentlichte Release `v0.1.0` bleibt unverändert.
 
 Diese Mechanismen duplizieren Zustände, die GitHub bereits führt: den
 vollständigen Workflow-Lauf eines Commits, die manuelle Freigabe eines
@@ -100,7 +101,6 @@ Release bilden den Audit-Trail der Plattform.
 | `scripts/sbom.py` | Lokale/CI-SBOM-Verträge und eine nötige deterministische Zusammenführung zur einzigen sichtbaren CycloneDX-SBOM behalten, release-spezifische Subject- und Attestation-Orchestrierung zugunsten von Syft/Anchore und GitHub Attestations entfernen |
 | `scripts/build_metadata.py` | Behalten; der gemeinsame Tag-, Versions- und Revisionsvertrag ist Produktmetadatenlogik |
 | CLI-Verpackung | Nach der positiven Entscheidung in [ADR-0021](0021-goreleaser-fuer-die-betreiber-cli.md) mit GoReleaser bauen; Release, Attestations und aggregierte SBOM bleiben bei #347 |
-| `backend/tests/test_release_evidence_contract.py` und `docs/developers/release-evidence-v0.1.0.md` | Als historischen Nachweis für `v0.1.0` unverändert lassen |
 
 Release-Notes-Extraktion, OCI-Tag-Semantik, der Vertrag aus sechs nativen
 CLI-Archiven und genau einer sichtbaren aggregierten CycloneDX-SBOM bleiben

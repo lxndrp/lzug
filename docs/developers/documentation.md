@@ -74,8 +74,8 @@ Der [Entscheidungsindex](decisions/index.md) führt den jeweiligen Status; er
 ist keine Projekt- oder Migrationsplanung.
 
 Die Zielarchitektur für den späteren gemeinsamen Produkt-, Wiki- und
-Referenzauftritt steht unter
-[Öffentliche Publikationsarchitektur](publication-architecture.md). Der lokale
+Referenzauftritt steht in
+[ADR-0023](decisions/0023-oeffentliche-web-und-dokumentationspublikation.md). Der lokale
 Build unter `task docs:publication` erzeugt das vollständige statische
 Artefakt; `task docs:publication:check` prüft die Reproduzierbarkeit und
 `task docs:publication:browser` sowie `task docs:publication:a11y` prüfen den

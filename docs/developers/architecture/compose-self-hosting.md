@@ -102,9 +102,8 @@ Betreibergrenzen beschreibt die
 Vor dem Start verlangt die Anwendung auf jedem eindeutigen Dateisystem der
 Persistenzpfade mindestens 64 MiB freien Speicher. Diese testgestützte Schwelle
 ist nur ein fail-closed Startschutz, keine Kapazitätsempfehlung. Für CPU und RAM
-existieren in `v0.1.0` weder Ressourcenlimits noch Lasttests; quantitative
-Mindestwerte wären daher nicht belastbar. Die vollständige Abgrenzung steht in
-den [Release- und Betriebsnachweisen für `v0.1.0`](../release-evidence-v0.1.0.md).
+existieren keine Ressourcenlimits oder Lasttests; quantitative Mindestwerte
+müssen deshalb für die konkrete Instanz geplant und gemessen werden.
 
 `lzug_data` bleibt bei `docker compose stop`, `start`, `restart`, `up` und
 `down` erhalten. Ein neues Image ersetzt den Inhalt von `/data` nicht. Das

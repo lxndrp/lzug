@@ -80,5 +80,4 @@ license and is not relicensed by this documentation grant.
 The lzug project code is licensed under
 [`AGPL-3.0-or-later`](LICENSE). This notice does not relicence third-party
 material under AGPL; each dependency remains under its own license. The
-confirmed decision and future dual-licensing boundary are recorded in
-[`docs/developers/licensing.md`](docs/developers/licensing.md).
+project license is authoritative for the project's own code.

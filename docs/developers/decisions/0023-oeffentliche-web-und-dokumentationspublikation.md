@@ -2,9 +2,7 @@
 
 ## Status
 
-Akzeptiert am 14.08.2026. Diese Entscheidung löst ADR-0007 für die öffentliche
-Publikationsarchitektur ab. MkDocs und TypeDoc bleiben als interne
-beziehungsweise spezialisierte Referenzgeneratoren bestehen.
+Akzeptiert am 14.08.2026.
 
 ## Kontext
 
@@ -13,6 +11,10 @@ aus dem GitHub Wiki projiziertes Handbuch sowie generierte technische
 Referenzen. Hauptrepository und Wiki sind unabhängige Git-Repositories. Eine
 öffentliche Ausgabe darf deshalb keine neue redaktionelle Quelle werden und
 muss beide Revisionen nachweisen.
+
+Diese Entscheidung ergänzt ADR-0007 für die öffentliche
+Publikationsarchitektur. MkDocs und TypeDoc bleiben interne beziehungsweise
+spezialisierte Referenzgeneratoren.
 
 Plattform, Generator und Theme wurden getrennt anhand derselben Kriterien
 verglichen: Produktauftritt, Navigation, Suche, Barrierefreiheit, Responsive
@@ -102,7 +104,6 @@ beschlossenen öffentlichen Produktauftritt.
 
 ## Referenzen
 
-- [Publikationsarchitektur und Vergleichsevidenz](../publication-architecture.md)
 - [ADR-0007: MkDocs und Code-Referenzen](0007-dokumentation-und-code-referenz.md)
 - [ADR-0012: Wiki Single Source of Truth](0012-wiki-single-source-of-truth.md)
 - [GitHub Pages mit eigenen Workflows](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)

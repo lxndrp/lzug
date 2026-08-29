@@ -111,9 +111,11 @@ tasks:
 
   docs:publication:
     desc: Build the complete static GitHub Pages artifact without deploying it
+    requires:
+      vars:
+        - WIKI_ROOT
     vars:
       OUTPUT: '{{default "build/publication" .OUTPUT}}'
-      WIKI_ROOT: '{{default "prototypes/publication/wiki" .WIKI_ROOT}}'
       DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
       BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
@@ -127,8 +129,10 @@ tasks:
 
   docs:publication:check:
     desc: Verify that the configured public site builds byte-identically
+    requires:
+      vars:
+        - WIKI_ROOT
     vars:
-      WIKI_ROOT: '{{default "prototypes/publication/wiki" .WIKI_ROOT}}'
       DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
       BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
