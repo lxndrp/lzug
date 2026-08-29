@@ -140,28 +140,6 @@ variable "budget_amount_eur" {
   }
 }
 
-variable "log_retention_days" {
-  description = "Bounded Log Analytics retention for demo operational data."
-  type        = number
-  default     = 30
-
-  validation {
-    condition     = var.log_retention_days >= 30 && var.log_retention_days <= 90
-    error_message = "log_retention_days must remain between 30 and 90 days."
-  }
-}
-
-variable "log_daily_quota_gb" {
-  description = "Hard daily Log Analytics ingestion cap for the small public demo."
-  type        = number
-  default     = 0.5
-
-  validation {
-    condition     = var.log_daily_quota_gb >= 0.1 && var.log_daily_quota_gb <= 1
-    error_message = "log_daily_quota_gb must remain between 0.1 and 1 GB."
-  }
-}
-
 variable "budget_contact_emails" {
   description = "Maintainer addresses that receive actual and forecast budget alerts."
   type        = list(string)
