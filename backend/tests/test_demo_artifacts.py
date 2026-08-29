@@ -22,6 +22,7 @@ from demo.artifacts import (
     verify_pair_manifests,
     verify_seed,
 )
+from demo.contract import demo_identity
 
 
 class DemoArtifactTests(unittest.TestCase):
@@ -191,7 +192,7 @@ class DemoArtifactTests(unittest.TestCase):
             data_dir = root / "data"
             initialize_workdir(seed_db, seed_manifest, data_dir)
             value = json.loads(app_manifest.read_text(encoding="utf-8"))
-            value["product"]["tag"] = "v0.1.2"
+            value["product"] = demo_identity("v0.1.2", self.product_commit).product
             app_manifest.write_text(json.dumps(value), encoding="utf-8")
 
             with self.assertRaisesRegex(DemoArtifactError, "different product identities"):

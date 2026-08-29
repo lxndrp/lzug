@@ -198,6 +198,7 @@ tasks:
     cmds:
       - >-
         {{.UV}} python -m unittest
+        backend.tests.test_demo_contract
         backend.tests.test_demo_deployment
         backend.tests.test_demo_snapshot
         backend.tests.test_demo_delivery_contract
@@ -306,8 +307,8 @@ tasks:
           "snapshot|demo/v0.2.0-SNAPSHOT.$short_revision"; do
           channel=${channel_and_tag%%|*}
           product_tag=${channel_and_tag#*|}
-          build_identity="$(PRODUCT_TAG="$product_tag" PRODUCT_COMMIT="$revision" python3 -c \
-            'import os; from backend.build_metadata import BuildMetadata; print(BuildMetadata.create(os.environ["PRODUCT_COMMIT"], os.environ["PRODUCT_TAG"], allow_demo_snapshot=True).identity)')"
+          build_identity=$(python3 -m demo.contract identity \
+            --tag "$product_tag" --commit "$revision" --channel "$channel" --field identity)
           seed_image="lzug-demo-seed:$channel-local"
           app_image="lzug-demo-app:$channel-local"
           "$engine" build -f Dockerfile.demo-seed \
@@ -331,9 +332,10 @@ tasks:
             --expected-product-tag "$product_tag" \
             --expected-product-commit "$revision" \
             --expected-schema-fingerprint "$expected_schema_fingerprint"
-          seed_revision=$(python3 -c \
-            'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["seed_revision"])' \
-            "$temporary_directory/manifest.json")
+          seed_revision=$(python3 -m demo.contract manifest-field \
+            --manifest "$temporary_directory/manifest.json" --kind seed \
+            --expected-product-tag "$product_tag" --expected-product-commit "$revision" \
+            --field seed_revision)
           "$engine" build -f Dockerfile.demo \
             --build-arg "BUILD_IDENTITY=$build_identity" \
             --build-arg "PRODUCT_TAG=$product_tag" \

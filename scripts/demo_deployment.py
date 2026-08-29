@@ -14,20 +14,21 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Literal, overload
 from urllib.error import HTTPError, URLError
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from demo.artifacts import RUNTIME_CONTRACT  # noqa: E402
-from demo.identity import DemoIdentity  # noqa: E402
+from demo.contract import (  # noqa: E402
+    APP_IMAGE_PATTERN,
+    SEED_IMAGE_PATTERN,
+    DemoArtifactPair,
+    DemoContractError,
+    validate_public_demo_url,
+)
 
 API_VERSION = "2025-07-01"
-APP_IMAGE_PATTERN = re.compile(r"^ghcr\.io/lxndrp/lzug-demo-app@sha256:[0-9a-f]{64}$")
-SEED_IMAGE_PATTERN = re.compile(r"^ghcr\.io/lxndrp/lzug-demo-seed@sha256:[0-9a-f]{64}$")
-COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
-DIGEST_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 AZURE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.()-]{0,89}$")
 REVISION_SUFFIX_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,62}[a-z0-9]$")
 
@@ -36,33 +37,14 @@ class DeploymentError(RuntimeError):
     """Signal a failed or unsafe demo deployment operation."""
 
 
-@dataclass(frozen=True)
-class ArtifactPair:
-    app_image: str
-    seed_image: str
-    product_tag: str
-    product_commit: str
-    runtime_contract: str
-    schema_fingerprint: str
-    seed_revision: str
+class ArtifactPair(DemoArtifactPair):
+    """Backward-compatible deployment adapter for the pure demo pair contract."""
 
     def validate(self) -> None:
-        checks = (
-            (APP_IMAGE_PATTERN, self.app_image, "app_image"),
-            (SEED_IMAGE_PATTERN, self.seed_image, "seed_image"),
-            (COMMIT_PATTERN, self.product_commit, "product_commit"),
-            (DIGEST_PATTERN, self.schema_fingerprint, "schema_fingerprint"),
-            (DIGEST_PATTERN, self.seed_revision, "seed_revision"),
-        )
-        for pattern, value, label in checks:
-            if pattern.fullmatch(value) is None:
-                raise DeploymentError(f"Invalid immutable demo pair field: {label}")
-        if self.runtime_contract != RUNTIME_CONTRACT:
-            raise DeploymentError("Invalid immutable demo pair field: runtime_contract")
         try:
-            DemoIdentity.create(self.product_tag, self.product_commit)
-        except ValueError as error:
-            raise DeploymentError("Invalid immutable demo pair field: product_tag") from error
+            super().validate()
+        except DemoContractError as error:
+            raise DeploymentError(str(error)) from error
 
 
 @dataclass(frozen=True)
@@ -98,25 +80,12 @@ class AzureTarget:
 
 
 def validate_demo_url(value: str) -> str:
-    parsed = urlsplit(value)
-    hostname = parsed.hostname.lower() if parsed.hostname else ""
-    if (
-        parsed.scheme != "https"
-        or not hostname
-        or parsed.username is not None
-        or parsed.password is not None
-        or parsed.query
-        or parsed.fragment
-        or parsed.path not in ("", "/")
-        or "*" in value
-        or hostname in {"lxndrp.github.io", "stage.papaspyrou.name"}
-        or hostname.endswith(".azurecontainerapps.io")
-    ):
-        raise DeploymentError(
-            "demo_url must be a dedicated HTTPS origin without credentials, path, wildcard, "
-            "inherited account domain, or Azure platform hostname"
-        )
-    return value.rstrip("/") + "/"
+    """Preserve the deployment API while delegating URL rules to the contract core."""
+
+    try:
+        return validate_public_demo_url(value)
+    except DemoContractError as error:
+        raise DeploymentError(str(error)) from error
 
 
 def _named_entry(entries: Any, expected_name: str, label: str) -> dict[str, Any]:
@@ -223,7 +192,7 @@ def validate_application_readiness(payload: Any, pair: ArtifactPair) -> None:
 
 def validate_demo_status(payload: Any, pair: ArtifactPair) -> None:
     expected = {
-        "product_version": DemoIdentity.create(pair.product_tag, pair.product_commit).identity,
+        "product_version": pair.identity.identity,
         "product_commit": pair.product_commit,
         "runtime_contract": pair.runtime_contract,
         "schema_fingerprint": pair.schema_fingerprint,

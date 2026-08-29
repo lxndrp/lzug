@@ -9,6 +9,7 @@ from pathlib import Path
 
 from backend.auth import AuthenticationRepository
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler, assert_status
+from demo.contract import RUNTIME_CONTRACT, canonical_digest, demo_identity
 from demo.runtime_policy import DemoRuntimePolicy
 
 
@@ -22,17 +23,23 @@ class DemoRuntimeTests(unittest.TestCase):
         root = Path(self.directory.name)
         app_manifest = root / "app.json"
         seed_manifest = root / "seed.json"
+        product = demo_identity("v0.1.1", "a" * 40).product
+        schema = {"fingerprint": "b" * 64}
+        seed_binding = {
+            "manifest_version": 1,
+            "runtime_contract": RUNTIME_CONTRACT,
+            "product": product,
+            "schema": schema,
+        }
+        self.seed_revision = canonical_digest(seed_binding)
         app_manifest.write_text(
             json.dumps(
                 {
                     "manifest_version": 1,
-                    "runtime_contract": "lzug-demo-health-ready-v1",
-                    "product": {
-                        "tag": "v0.1.1",
-                        "version": "0.1.1",
-                        "commit": "a" * 40,
-                    },
-                    "schema": {"fingerprint": "schema"},
+                    "runtime_contract": RUNTIME_CONTRACT,
+                    "product": product,
+                    "schema": schema,
+                    "seed_revision": self.seed_revision,
                 }
             ),
             encoding="utf-8",
@@ -40,11 +47,8 @@ class DemoRuntimeTests(unittest.TestCase):
         seed_manifest.write_text(
             json.dumps(
                 {
-                    "manifest_version": 1,
-                    "runtime_contract": "lzug-demo-health-ready-v1",
-                    "product": {"tag": "v0.1.1", "commit": "a" * 40},
-                    "schema": {"fingerprint": "schema"},
-                    "seed_revision": "seed-revision",
+                    **seed_binding,
+                    "seed_revision": self.seed_revision,
                 }
             ),
             encoding="utf-8",
@@ -56,7 +60,7 @@ class DemoRuntimeTests(unittest.TestCase):
                     "initialization_status": "ready",
                     "initialized_at": "2026-08-14T01:00:00+00:00",
                     "last_reset_at": "2026-08-14T01:00:00+00:00",
-                    "seed_revision": "seed-revision",
+                    "seed_revision": self.seed_revision,
                 }
             ),
             encoding="utf-8",
@@ -72,7 +76,7 @@ class DemoRuntimeTests(unittest.TestCase):
             status, payload = api.request("GET", "/api/demo/status", authenticated=False)
             assert_status(status, HTTPStatus.OK)
             self.assertEqual("demo", payload["mode"])
-            self.assertEqual("seed-revision", payload["seed_revision"])
+            self.assertEqual(self.seed_revision, payload["seed_revision"])
             self.assertEqual("lzug-demo-health-ready-v1", payload["runtime_contract"])
             self.assertEqual("Europe/Berlin", payload["reset_timezone"])
             self.assertEqual("ready", payload["initialization_status"])

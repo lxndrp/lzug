@@ -91,6 +91,32 @@ Snapshot-Paar verwenden. Bewegliche Tags, abweichende Paketnamen,
 unvollständige Digests, ein alter Health-only-Stand und unvollständige
 Bindungswerte brechen den Lauf vor Azure-Mutation ab.
 
+## Kanonischer Vertragskern
+
+`demo/contract.py` ist die stabile, reine CLI- und Python-Grenze für alle
+fachlichen Demo-Lieferregeln. Snapshot-, Publish-, Promotions-, Deploy- und
+manueller Rollbackpfad rufen sie mit `python3 -m demo.contract` auf. Die
+Workflows transportieren die geprüften Werte und orchestrieren externe
+GitHub-, Registry- und Azure-Schritte, bilden die Regeln aber nicht erneut mit
+regulären Ausdrücken oder `jq`-Prädikaten nach.
+
+| Regel | Kanonische Implementierung |
+| --- | --- |
+| Release-, stabile Release- und Snapshotidentität einschließlich Tag-/Commit-Bindung | `demo.identity.DemoIdentity`, aufgerufen über `demo.contract.demo_identity` und den CLI-Befehl `identity` |
+| Manifestversion, Produktidentität, Runtimevertrag, Schemafingerprint und Seed-Revision | `demo.contract.validate_manifest` und `validate_manifest_pair`; `demo.artifacts` ergänzt nur Datei-, Datenbank- und Build-Prüfungen |
+| Unveränderliche App-/Seed-Digestreferenzen und vollständiges Sieben-Werte-Paar | `demo.contract.DemoArtifactPair` |
+| Automatischer Aufrufkanal sowie manueller Deploy/Rollback auf `master` | `demo.contract.validate_deployment_source` |
+| Allgemeine öffentliche HTTPS-Origin und verbindliche Repository-Demo-Origin | `demo.contract.validate_public_demo_url` |
+
+Bewusste technische Ausnahmen bleiben dort, wo externe Evidenz erforderlich
+ist: Annotiertheit und Unveränderlichkeit eines Git-Tags, aktuelle
+`master`-SHA, erfolgreiche Quality-Läufe, OCI-Provenance, GitHub-OIDC,
+Azure-Revision, Readiness und finaler Smoke-Test werden von den zuständigen
+Werkzeugen und Workflows geprüft. Die Skripte `scripts/demo_snapshot.py`,
+`scripts/validate_demo_url_contract.py` und der Befehl `validate-inputs` in
+`scripts/demo_deployment.py` bleiben als kompatible Adapter bestehen und
+delegieren ohne eigene fachliche Regeln an den Vertragskern.
+
 ## Secret-freie GitHub- und Azure-Konfiguration
 
 Das geschützte Environment `demo` stellt ausschließlich die Azure-Koordinaten
