@@ -16,10 +16,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError
 
 from . import hateoas, openapi
 from .absence import AbsenceService
+from .application import ForbiddenRequestError, ReadApplication, database_error_result
 from .auth import (
     AuthContext,
     AuthenticationRepository,
@@ -63,10 +64,6 @@ from .planning import (
 from .repositories import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES, ResourceRepository
 from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from .security import RequestRateLimiter, RuntimeSecurityConfig
-
-
-class ForbiddenRequestError(Exception):
-    """Signal a valid session without authorization for request context."""
 
 
 class RequestTooLargeError(ValueError):
@@ -277,6 +274,10 @@ class LzugHandler(BaseHTTPRequestHandler):
     def absence_service(self) -> AbsenceService:
         return AbsenceService(self.db_path, self.notification_service)
 
+    @property
+    def read_application(self) -> ReadApplication:
+        return ReadApplication(self.db_path)
+
     def do_GET(self) -> None:
         """Dispatch read, health, OpenAPI, and Swagger UI requests."""
         try:
@@ -290,17 +291,13 @@ class LzugHandler(BaseHTTPRequestHandler):
             query = parse_qs(parsed.query)
 
             if path_parts == ["health"]:
-                self.respond(hateoas.health("ok"))
+                result = self.read_application.health()
+                self.respond(result.payload, result.status)
                 return
 
             if path_parts == ["ready"]:
-                readiness = database_readiness(self.db_path)
-                self.respond(
-                    hateoas.health(
-                        "ready" if readiness["ready"] else "unavailable", signal="ready"
-                    ),
-                    HTTPStatus.OK if readiness["ready"] else HTTPStatus.SERVICE_UNAVAILABLE,
-                )
+                result = self.read_application.readiness()
+                self.respond(result.payload, result.status)
                 return
 
             if self.runtime_policy.handle_public_get(self, path_parts):
@@ -461,12 +458,8 @@ class LzugHandler(BaseHTTPRequestHandler):
 
             if path_parts == ["round-summary"]:
                 round_id = int(query.get("round_id", ["1"])[0])
-                self.require_round_access(round_id)
-                summary = self.repository.round_summary(round_id)
-                if summary is None:
-                    self.respond({"error": "Exam round not found"}, HTTPStatus.NOT_FOUND)
-                    return
-                self.respond(hateoas.round_summary(summary, round_id))
+                result = self.read_application.round_summary(self.authorization_scope, round_id)
+                self.respond(result.payload, result.status)
                 return
 
             if path_parts == ["scheduling-overview"]:
@@ -1191,11 +1184,10 @@ class LzugHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def health(self) -> dict:
-        return hateoas.health("ok")
+        return self.read_application.health().payload
 
     def readiness(self) -> dict:
-        readiness = database_readiness(self.db_path)
-        return hateoas.health("ready" if readiness["ready"] else "unavailable", signal="ready")
+        return self.read_application.readiness().payload
 
     def receive_frontend_error(self) -> None:
         """Accept only a coarse, rate-limited browser failure classification."""
@@ -1542,16 +1534,8 @@ class LzugHandler(BaseHTTPRequestHandler):
 
     def respond_database_error(self, error: SQLAlchemyError) -> None:
         """Map persistence failures to stable public HTTP messages and statuses."""
-        if isinstance(error, IntegrityError):
-            self.respond({"error": "Database constraint violated."}, HTTPStatus.CONFLICT)
-            return
-        if isinstance(error, OperationalError) and "locked" in str(error).lower():
-            self.respond(
-                {"error": "The database is busy; retry the request."},
-                HTTPStatus.SERVICE_UNAVAILABLE,
-            )
-            return
-        self.respond({"error": "Database operation failed."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+        result = database_error_result(error)
+        self.respond(result.payload, result.status)
 
     def respond_plan_conflict(self, error: PlanConflictError) -> None:
         """Expose optimistic-lock and state conflicts without persistence details."""

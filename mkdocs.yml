@@ -87,4 +87,5 @@ nav:
           - ADR-0024 Manuell promotete Demo-Snapshots: developers/decisions/0024-manuell-promotete-demo-snapshots.md
           - ADR-0025 Kein InSpec-Infrastruktur-Harness: developers/decisions/0025-kein-inspec-infrastruktur-harness.md
           - ADR-0026 Automatische Demo-Promotion: developers/decisions/0026-automatische-demo-promotion-stabiler-releases.md
+          - ADR-0027 Synchroner FastAPI-Migrationskern: developers/decisions/0027-synchroner-fastapi-migrationskern.md
       - Öffentliche Publikationsarchitektur: developers/publication-architecture.md
