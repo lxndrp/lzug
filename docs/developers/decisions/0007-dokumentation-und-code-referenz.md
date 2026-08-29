@@ -1,12 +1,19 @@
 # ADR-0007: MkDocs und Code-Referenzen
 
+## Datum
+
+2026-07-26.
+
 ## Status
 
 Akzeptiert.
 
-## Kontext und Entscheidung
+## Kontext
 
 Versionierte Markdown-Dokumentation wird mit MkDocs und `mkdocstrings` für Python gebaut.
+
+## Entscheidung
+
 Exportierte TypeScript-Schnittstellen erhalten TSDoc; TypeDoc erzeugt daraus die Frontend-Referenz.
 Compodoc wurde nicht gewählt, weil seine eingebettete TypeScript-Version vom gelockten Projektcompiler abwich.
 

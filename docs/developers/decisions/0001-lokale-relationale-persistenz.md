@@ -1,12 +1,20 @@
 # ADR-0001: Lokale relationale Persistenz
 
+## Datum
+
+2026-07-26.
+
 ## Status
 
-Akzeptiert, rückwirkend dokumentiert am 26.07.2026.
+Akzeptiert.
+Rückwirkend dokumentiert.
 
-## Kontext und Entscheidung
+## Kontext
 
 Die Anwendung benötigt ein ausführbares, lokal testbares Datenmodell.
+
+## Entscheidung
+
 SQLite ist die lokale Entwicklungsdatenbank.
 `db/schema.sql` und `db/seed_demo.sql` bleiben die ausführbaren Quellen; versionierte Änderungen liegen unter `db/migrations/` und werden in `schema_migration` festgehalten.
 

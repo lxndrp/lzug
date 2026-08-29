@@ -1,12 +1,20 @@
 # ADR-0004: Angular und REST-Integration
 
+## Datum
+
+2026-07-26.
+
 ## Status
 
-Akzeptiert, rückwirkend dokumentiert am 26.07.2026.
+Akzeptiert.
+Rückwirkend dokumentiert.
 
-## Kontext und Entscheidung
+## Kontext
 
 Das Arbeitswerkzeug wird als Angular-Anwendung mit TypeScript, Angular Router und einem klaren API-Service umgesetzt.
+
+## Entscheidung
+
 Fachliche Ansichten trennen Dashboard, Prüfungshalbjahre, Prüflinge, Ausschuss, Prüfungsorte und Planung.
 Der `RoundContextService` hält die aktuelle Prüfungsrunde.
 Die Anwendung konsumiert die JSON-API über `PlanningApiService`.

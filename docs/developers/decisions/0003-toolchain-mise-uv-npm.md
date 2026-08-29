@@ -1,12 +1,20 @@
 # ADR-0003: Toolchain mit mise, uv und npm
 
+## Datum
+
+2026-07-26.
+
 ## Status
 
-Akzeptiert, rückwirkend dokumentiert am 26.07.2026.
+Akzeptiert.
+Rückwirkend dokumentiert.
 
-## Kontext und Entscheidung
+## Kontext
 
 Das Projekt benötigt reproduzierbare Runtime-Versionen und Lockfile-basierte Abhängigkeiten.
+
+## Entscheidung
+
 `mise` verwaltet Python 3.14.6, Node.js 26.5.0, Go 1.26.5, uv, Task, das für CycloneDX-SBOMs gepinnte Syft und GoReleaser für die sechs nativen Betreiber-CLI-Archive.
 `uv` erzeugt die Python-Umgebung und löst Abhängigkeiten gegen `uv.lock` auf.
 Task orchestriert die projektweiten Entwicklungsabläufe.

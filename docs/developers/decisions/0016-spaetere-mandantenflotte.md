@@ -1,8 +1,12 @@
 # ADR-0016: Spätere getrennte Mandantenflotte
 
+## Datum
+
+2026-08-08.
+
 ## Status
 
-Akzeptiert als Zielbild am 08.08.2026; nicht Bestandteil der ersten Veröffentlichung.
+Akzeptiert als Zielbild; nicht Bestandteil der ersten Veröffentlichung.
 
 ## Kontext
 

@@ -1,12 +1,20 @@
 # ADR-0002: Python-Backend mit SQLAlchemy
 
+## Datum
+
+2026-07-26.
+
 ## Status
 
-Akzeptiert, rückwirkend dokumentiert am 26.07.2026.
+Akzeptiert.
+Rückwirkend dokumentiert.
 
-## Kontext und Entscheidung
+## Kontext
 
 Der erste Backend-Prototyp entschied sich für Python, SQLite und SQLAlchemy 2.x.
+
+## Entscheidung
+
 HTTP- und Fachcode arbeiten über SQLAlchemy-Modelle, Repositories und einen kleinen Store-Adapter statt über handgeschriebene fachliche SQL-Abfragen.
 
 `backend/database.py` kapselt Engine, Sessions und Initialisierung; `models.py`, `repositories.py`, `store.py` und `planning.py` trennen Persistenz, Ressourcen und Planungslogik.

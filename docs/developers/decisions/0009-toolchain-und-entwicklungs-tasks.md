@@ -1,8 +1,12 @@
 # ADR-0009: Toolchain und Entwicklungs-Tasks trennen
 
+## Datum
+
+2026-07-26.
+
 ## Status
 
-Akzeptiert am 26.07.2026.
+Akzeptiert.
 
 ## Kontext
 
