@@ -4,11 +4,13 @@ export const syntheticFixtures = {
     {
       "id": 1,
       "name": "Prüfungsausschuss Teststadt 1",
+      "ihk": "IHK Teststadt",
       "occupation": "Fachinformatiker/in"
     },
     {
       "id": 2,
       "name": "Prüfungsausschuss Teststadt 2",
+      "ihk": "IHK Teststadt",
       "occupation": "Fachinformatiker/in"
     }
   ],
