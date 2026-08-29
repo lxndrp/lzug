@@ -3,13 +3,16 @@ from __future__ import annotations
 import json
 import unittest
 from contextlib import contextmanager
+from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
 from shutil import copy2
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES
+from sqlalchemy.exc import SQLAlchemyError
+
+from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES, MIGRATED_PLANNING_RESOURCES
 from backend.tests.helpers import (
     AdapterResponse,
     FastAPIAdapter,
@@ -435,6 +438,117 @@ class HttpContractParityTests(unittest.TestCase):
                 legacy.request("DELETE", f"/api/exam-half-years/{half_year_id}"),
                 fastapi.request("DELETE", f"/api/exam-half-years/{half_year_id}"),
             )
+
+    def test_planning_routes_do_not_depend_on_the_legacy_fallback(self) -> None:
+        """Keep #476's aggregate, revision, execution, and demo paths dual-adapter safe."""
+        with self.adapter_pair(include_legacy_routes=False) as (legacy, fastapi):
+
+            def request(method, path, payload=None):
+                legacy_response = legacy.request(method, path, payload)
+                fastapi_response = fastapi.request(method, path, payload)
+                self.assert_parity(legacy_response, fastapi_response)
+                return legacy_response
+
+            for path in (
+                "/api/scheduling-overview",
+                "/api/confirmed-plans",
+                "/api/confirmed-plan-days/999999",
+                *(f"/api/{resource_name}" for resource_name in MIGRATED_PLANNING_RESOURCES),
+            ):
+                with self.subTest(method="GET", path=path):
+                    request("GET", path)
+
+            generated = request("POST", "/api/planning-proposals", {"round_id": 1})
+            self.assertEqual(201, generated.status)
+            proposal = request("GET", "/api/exam-rounds/1/planning-proposal").json
+            stale = deepcopy(proposal)
+            saved = request("PUT", "/api/exam-rounds/1/planning-proposal", proposal)
+            self.assertEqual(200, saved.status)
+            request("PUT", "/api/exam-rounds/1/planning-proposal", stale)
+
+            invalid = deepcopy(saved.json)
+            invalid["exam_days"][0]["slots"][0]["round_candidate_id"] = invalid["exam_days"][0][
+                "slots"
+            ][1]["round_candidate_id"]
+            request("PUT", "/api/exam-rounds/1/planning-proposal", invalid)
+
+            request("POST", "/api/exam-rounds/1/confirm-plan", {})
+            calendar = request("GET", "/api/confirmed-plans").json
+            day = calendar["items"][0]["days"][0]
+            slot = day["slots"][0]
+            request("GET", f"/api/confirmed-plan-days/{day['id']}")
+            request(
+                "PATCH",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/attendance",
+                {"status": "late"},
+            )
+            request(
+                "PATCH",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/attendance",
+                {"status": "present", "arrived_at": "2026-11-16T08:24:00+01:00"},
+            )
+            for assignment in (
+                item
+                for item in day["assignments"]
+                if item["assignment_role"] == "examiner" and item["day_part"] == "morning"
+            ):
+                request(
+                    "PATCH",
+                    f"/api/confirmed-plan-days/{day['id']}/assignments/{assignment['id']}/attendance",
+                    {"status": "present", "arrived_at": "2026-11-16T08:10:00+01:00"},
+                )
+            request(
+                "POST",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/start",
+                {"actual_started_at": "2026-11-16T08:31:00+01:00"},
+            )
+            request(
+                "PATCH",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/status",
+                {"status": "needs_follow_up", "reason": "Nachweis der Prüfungsleistung fehlt"},
+            )
+
+    def test_candidate_day_generation_and_planning_failures_keep_adapter_parity(self) -> None:
+        """Cover the candidate-day action plus large-body and database failure boundaries."""
+        with self.adapter_pair(include_legacy_routes=False) as (legacy, fastapi):
+            settings = {
+                "exam_round_id": 1,
+                "calendar_week_from": "2026-W23",
+                "calendar_week_to": "2026-W23",
+                "exams_per_day": 6,
+                "max_exam_days_per_week": 3,
+                "lunch_break_enabled": True,
+                "exclude_public_holidays": True,
+                "holiday_subdivision_code": "DE-NW",
+                "default_location_id": 1,
+                "updated_by_member_id": 1,
+            }
+            self.assert_parity(
+                legacy.request("POST", "/api/planning-settings", settings),
+                fastapi.request("POST", "/api/planning-settings", settings),
+            )
+            self.assert_parity(
+                legacy.request("POST", "/api/candidate-exam-days/generate", {"round_id": 1}),
+                fastapi.request("POST", "/api/candidate-exam-days/generate", {"round_id": 1}),
+            )
+
+        with patch.object(TestLzugHandler, "max_request_bytes", 32):
+            with self.adapter_pair(include_legacy_routes=False) as (legacy, fastapi):
+                payload = {"round_id": 1, "padding": "x" * 100}
+                self.assert_parity(
+                    legacy.request("POST", "/api/planning-proposals", payload),
+                    fastapi.request("POST", "/api/planning-proposals", payload),
+                )
+
+        with self.adapter_pair(include_legacy_routes=False) as (legacy, fastapi):
+            with patch(
+                "backend.app.ResourceRepository.confirmed_plans",
+                side_effect=SQLAlchemyError("private database details"),
+            ):
+                self.assert_parity(
+                    legacy.request("GET", "/api/confirmed-plans"),
+                    fastapi.request("GET", "/api/confirmed-plans"),
+                )
 
 
 if __name__ == "__main__":
