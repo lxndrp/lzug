@@ -22,7 +22,8 @@ VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.s
        ('011_add_local_password_totp_auth.sql'),
        ('012_add_plan_revision.sql'), ('013_add_notifications.sql'),
        ('014_add_personal_calendars.sql'), ('015_add_absence_replacement_process.sql'),
-       ('016_claim_notification_deliveries.sql');
+       ('016_claim_notification_deliveries.sql'), ('017_add_exam_protocols.sql'),
+       ('018_add_exam_results.sql'), ('019_add_exam_day_closures.sql');
 
 CREATE TABLE schema_migration_checksum (
   name TEXT PRIMARY KEY REFERENCES schema_migration(name) ON DELETE CASCADE,
@@ -45,12 +46,16 @@ INSERT INTO schema_migration_checksum (name, checksum) VALUES
   ('013_add_notifications.sql', '6cacc994e8b4356ce9b1639a7df48efd046c66f083d14dc77f8ed2007851276e'),
   ('014_add_personal_calendars.sql', '68b46cd341c21ec12a8d08ba75b35b1215eaa04e992140841db501b8250ac635'),
   ('015_add_absence_replacement_process.sql', 'd9b07a0fcca65202c1fc68b0874718551924624ac26517339a253e73394d9829'),
-  ('016_claim_notification_deliveries.sql', '3f6d7e71512af61da4669ff7b320b7093a32f0553b657aa89dc0b85ac8693bcb');
+  ('016_claim_notification_deliveries.sql', '3f6d7e71512af61da4669ff7b320b7093a32f0553b657aa89dc0b85ac8693bcb'),
+  ('017_add_exam_protocols.sql', '0d6489ea7ea1692f0a92d4f9b1aa952918372d5d3a99ebc76584f9f4274ee9df'),
+  ('018_add_exam_results.sql', '4a29241af47c476c66126fde13b2c7a6d47f8de576286636d3122e9925d93286'),
+  ('019_add_exam_day_closures.sql', 'aa07a85670b67a307e45aec063433f702a0ff9db79ddf52f3944f279ea9d437e');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
   name TEXT NOT NULL,
   occupation TEXT NOT NULL DEFAULT 'Fachinformatiker/in',
+  ihk TEXT NOT NULL DEFAULT 'Nicht konfiguriert' CHECK (length(trim(ihk)) > 0),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -320,6 +325,10 @@ CREATE TABLE exam_day (
   status TEXT NOT NULL DEFAULT 'proposed' CHECK (
     status IN ('proposed', 'confirmed', 'changed', 'cancelled', 'completed')
   ),
+  revision INTEGER NOT NULL DEFAULT 1 CHECK (revision >= 1),
+  closure_status TEXT NOT NULL DEFAULT 'open' CHECK (
+    closure_status IN ('open', 'closed', 'closed_exception', 'reopening', 'historical')
+  ),
   lunch_break_enabled INTEGER NOT NULL DEFAULT 1 CHECK (lunch_break_enabled IN (0, 1)),
   created_from_proposal INTEGER NOT NULL DEFAULT 1 CHECK (created_from_proposal IN (0, 1)),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -405,6 +414,424 @@ CREATE TABLE member_exam_attendance (
   )
 );
 
+CREATE TABLE exam_protocol (
+  id INTEGER PRIMARY KEY,
+  exam_slot_id INTEGER NOT NULL UNIQUE REFERENCES exam_slot(id) ON DELETE CASCADE,
+  current_version INTEGER NOT NULL DEFAULT 1 CHECK (current_version >= 1),
+  created_by_member_id INTEGER REFERENCES committee_member(id) ON DELETE RESTRICT,
+  source TEXT NOT NULL DEFAULT 'application' CHECK (source IN ('application', 'migration')),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE exam_protocol_participant (
+  id INTEGER PRIMARY KEY,
+  exam_protocol_id INTEGER NOT NULL REFERENCES exam_protocol(id) ON DELETE CASCADE,
+  committee_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (exam_protocol_id, committee_member_id)
+);
+
+CREATE TABLE exam_protocol_correction_request (
+  id INTEGER PRIMARY KEY,
+  exam_protocol_id INTEGER NOT NULL REFERENCES exam_protocol(id) ON DELETE CASCADE,
+  exam_protocol_revision_id INTEGER NOT NULL
+    REFERENCES exam_protocol_revision(id) ON DELETE RESTRICT,
+  requested_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'opened')),
+  requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  opened_by_member_id INTEGER REFERENCES committee_member(id) ON DELETE RESTRICT,
+  opened_at TEXT,
+  reopening_reference TEXT
+);
+
+CREATE TABLE exam_protocol_revision (
+  id INTEGER PRIMARY KEY,
+  exam_protocol_id INTEGER NOT NULL REFERENCES exam_protocol(id) ON DELETE CASCADE,
+  version INTEGER NOT NULL CHECK (version >= 1),
+  declaration TEXT CHECK (
+    declaration IS NULL
+    OR declaration IN ('without_special_occurrences', 'with_special_occurrences')
+  ),
+  workflow_state TEXT NOT NULL DEFAULT 'draft' CHECK (
+    workflow_state IN ('draft', 'submitted', 'correction_open')
+  ),
+  previous_revision_id INTEGER REFERENCES exam_protocol_revision(id) ON DELETE RESTRICT,
+  correction_request_id INTEGER REFERENCES exam_protocol_correction_request(id) ON DELETE RESTRICT,
+  changed_by_member_id INTEGER REFERENCES committee_member(id) ON DELETE RESTRICT,
+  change_reason TEXT,
+  submitted_by_member_id INTEGER REFERENCES committee_member(id) ON DELETE RESTRICT,
+  submitted_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (exam_protocol_id, version)
+);
+
+CREATE TABLE exam_protocol_entry (
+  id INTEGER PRIMARY KEY,
+  exam_protocol_revision_id INTEGER NOT NULL REFERENCES exam_protocol_revision(id) ON DELETE CASCADE,
+  category TEXT NOT NULL CHECK (category IN (
+    'late_start', 'interruption', 'termination', 'different_staffing',
+    'procedural_deviation', 'objection_or_reservation', 'other'
+  )),
+  statement TEXT NOT NULL CHECK (length(trim(statement)) > 0),
+  occurred_from TEXT NOT NULL CHECK (length(trim(occurred_from)) > 0),
+  occurred_to TEXT,
+  recorded_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (occurred_to IS NULL OR occurred_to >= occurred_from)
+);
+
+CREATE TABLE exam_protocol_response (
+  id INTEGER PRIMARY KEY,
+  exam_protocol_revision_id INTEGER NOT NULL REFERENCES exam_protocol_revision(id) ON DELETE CASCADE,
+  committee_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  response TEXT NOT NULL CHECK (response IN ('confirmed', 'reservation')),
+  exam_protocol_entry_id INTEGER REFERENCES exam_protocol_entry(id) ON DELETE RESTRICT,
+  statement TEXT,
+  responded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (exam_protocol_revision_id, committee_member_id),
+  CHECK (
+    (response = 'confirmed' AND exam_protocol_entry_id IS NULL AND statement IS NULL)
+    OR (
+      response = 'reservation'
+      AND length(trim(statement)) > 0
+    )
+  )
+);
+
+CREATE TABLE exam_protocol_retention (
+  id INTEGER PRIMARY KEY,
+  exam_protocol_id INTEGER NOT NULL UNIQUE REFERENCES exam_protocol(id) ON DELETE CASCADE,
+  rule_reference TEXT NOT NULL CHECK (length(trim(rule_reference)) > 0),
+  retain_until TEXT,
+  legal_hold INTEGER NOT NULL DEFAULT 0 CHECK (legal_hold IN (0, 1)),
+  hold_reason TEXT,
+  updated_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (legal_hold = 0 OR length(trim(hold_reason)) > 0)
+);
+
+CREATE TABLE assessment_model_version (
+  id INTEGER PRIMARY KEY,
+  model_key TEXT NOT NULL CHECK (length(trim(model_key)) > 0),
+  version INTEGER NOT NULL CHECK (version >= 1),
+  ihk TEXT NOT NULL CHECK (length(trim(ihk)) > 0),
+  occupation TEXT NOT NULL CHECK (length(trim(occupation)) > 0),
+  specialization TEXT,
+  training_regulation TEXT NOT NULL CHECK (length(trim(training_regulation)) > 0),
+  exam_regulation TEXT NOT NULL CHECK (length(trim(exam_regulation)) > 0),
+  ihk_guidelines TEXT NOT NULL CHECK (length(trim(ihk_guidelines)) > 0),
+  valid_from TEXT NOT NULL,
+  valid_until TEXT,
+  official_scale_min TEXT NOT NULL DEFAULT '0' CHECK (CAST(official_scale_min AS REAL) = 0),
+  official_scale_max TEXT NOT NULL DEFAULT '100' CHECK (CAST(official_scale_max AS REAL) = 100),
+  rules_json TEXT NOT NULL CHECK (length(trim(rules_json)) > 0),
+  retention_rule_reference TEXT NOT NULL CHECK (length(trim(retention_rule_reference)) > 0),
+  retention_years INTEGER NOT NULL DEFAULT 15 CHECK (retention_years >= 15),
+  created_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (model_key, version),
+  CHECK (valid_until IS NULL OR valid_until >= valid_from)
+);
+
+CREATE TABLE exam_round_assessment_binding (
+  id INTEGER PRIMARY KEY,
+  exam_round_id INTEGER NOT NULL UNIQUE REFERENCES exam_round(id) ON DELETE CASCADE,
+  assessment_model_version_id INTEGER NOT NULL
+    REFERENCES assessment_model_version(id) ON DELETE RESTRICT,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  bound_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  binding_reason TEXT NOT NULL CHECK (length(trim(binding_reason)) > 0),
+  bound_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE exam_result (
+  id INTEGER PRIMARY KEY,
+  round_candidate_id INTEGER NOT NULL UNIQUE REFERENCES round_candidate(id) ON DELETE CASCADE,
+  current_state TEXT NOT NULL DEFAULT 'incomplete' CHECK (
+    current_state IN ('incomplete', 'calculation_ready', 'determined', 'communicated')
+  ),
+  correction_open INTEGER NOT NULL DEFAULT 0 CHECK (correction_open IN (0, 1)),
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  source TEXT NOT NULL DEFAULT 'application' CHECK (source IN ('application', 'migration')),
+  legacy_status TEXT CHECK (legacy_status IS NULL OR legacy_status = 'no_result_data_in_lzug'),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE individual_assessment (
+  id INTEGER PRIMARY KEY,
+  exam_result_id INTEGER NOT NULL REFERENCES exam_result(id) ON DELETE CASCADE,
+  component_key TEXT NOT NULL CHECK (length(trim(component_key)) > 0),
+  criterion_key TEXT NOT NULL CHECK (length(trim(criterion_key)) > 0),
+  assessor_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  revision INTEGER NOT NULL CHECK (revision >= 1),
+  raw_points TEXT NOT NULL,
+  normalized_points TEXT NOT NULL CHECK (
+    CAST(normalized_points AS REAL) >= 0 AND CAST(normalized_points AS REAL) <= 100
+  ),
+  rationale TEXT,
+  status TEXT NOT NULL CHECK (status IN ('draft', 'submitted', 'withdrawn', 'superseded')),
+  previous_assessment_id INTEGER REFERENCES individual_assessment(id) ON DELETE RESTRICT,
+  change_reason TEXT,
+  submitted_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (exam_result_id, component_key, criterion_key, assessor_member_id, revision),
+  CHECK (status != 'submitted' OR submitted_at IS NOT NULL)
+);
+
+CREATE TABLE assessment_disclosure (
+  id INTEGER PRIMARY KEY,
+  exam_result_id INTEGER NOT NULL REFERENCES exam_result(id) ON DELETE CASCADE,
+  component_key TEXT NOT NULL CHECK (length(trim(component_key)) > 0),
+  disclosed_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  disclosed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (exam_result_id, component_key)
+);
+
+CREATE TABLE committee_assessment (
+  id INTEGER PRIMARY KEY,
+  exam_result_id INTEGER NOT NULL REFERENCES exam_result(id) ON DELETE CASCADE,
+  component_key TEXT NOT NULL CHECK (length(trim(component_key)) > 0),
+  revision INTEGER NOT NULL CHECK (revision >= 1),
+  points TEXT NOT NULL CHECK (CAST(points AS REAL) >= 0 AND CAST(points AS REAL) <= 100),
+  rationale TEXT,
+  participant_member_ids_json TEXT NOT NULL,
+  vote_json TEXT NOT NULL,
+  dissent_json TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'current' CHECK (status IN ('current', 'superseded')),
+  previous_assessment_id INTEGER REFERENCES committee_assessment(id) ON DELETE RESTRICT,
+  determined_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  determined_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (exam_result_id, component_key, revision)
+);
+
+CREATE TABLE external_exam_result (
+  id INTEGER PRIMARY KEY,
+  exam_result_id INTEGER NOT NULL REFERENCES exam_result(id) ON DELETE CASCADE,
+  area_key TEXT NOT NULL CHECK (length(trim(area_key)) > 0),
+  revision INTEGER NOT NULL CHECK (revision >= 1),
+  points TEXT NOT NULL CHECK (CAST(points AS REAL) >= 0 AND CAST(points AS REAL) <= 100),
+  grade TEXT,
+  professional_status TEXT NOT NULL CHECK (length(trim(professional_status)) > 0),
+  determining_authority TEXT NOT NULL CHECK (length(trim(determining_authority)) > 0),
+  source_reference TEXT NOT NULL CHECK (length(trim(source_reference)) > 0),
+  status TEXT NOT NULL DEFAULT 'unconfirmed' CHECK (
+    status IN ('unconfirmed', 'confirmed', 'replaced')
+  ),
+  recorded_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  confirmed_by_member_id INTEGER REFERENCES committee_member(id) ON DELETE RESTRICT,
+  confirmed_at TEXT,
+  previous_external_result_id INTEGER REFERENCES external_exam_result(id) ON DELETE RESTRICT,
+  correction_reason TEXT,
+  UNIQUE (exam_result_id, area_key, revision),
+  CHECK (
+    (status = 'confirmed' AND confirmed_by_member_id IS NOT NULL AND confirmed_at IS NOT NULL)
+    OR status != 'confirmed'
+  ),
+  CHECK (confirmed_by_member_id IS NULL OR confirmed_by_member_id != recorded_by_member_id)
+);
+
+CREATE TABLE result_calculation (
+  id INTEGER PRIMARY KEY,
+  exam_result_id INTEGER NOT NULL REFERENCES exam_result(id) ON DELETE CASCADE,
+  version INTEGER NOT NULL CHECK (version >= 1),
+  input_fingerprint TEXT NOT NULL CHECK (length(input_fingerprint) = 64),
+  total_points TEXT NOT NULL CHECK (
+    CAST(total_points AS REAL) >= 0 AND CAST(total_points AS REAL) <= 100
+  ),
+  grade TEXT NOT NULL CHECK (length(trim(grade)) > 0),
+  passed INTEGER NOT NULL CHECK (passed IN (0, 1)),
+  calculation_path_json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (exam_result_id, version),
+  UNIQUE (exam_result_id, input_fingerprint)
+);
+
+CREATE TABLE result_determination (
+  id INTEGER PRIMARY KEY,
+  exam_result_id INTEGER NOT NULL REFERENCES exam_result(id) ON DELETE CASCADE,
+  revision INTEGER NOT NULL CHECK (revision >= 1),
+  result_calculation_id INTEGER NOT NULL REFERENCES result_calculation(id) ON DELETE RESTRICT,
+  participant_member_ids_json TEXT NOT NULL,
+  vote_json TEXT NOT NULL,
+  dissent_json TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'current' CHECK (status IN ('current', 'superseded')),
+  previous_determination_id INTEGER REFERENCES result_determination(id) ON DELETE RESTRICT,
+  correction_id INTEGER REFERENCES result_correction(id) ON DELETE RESTRICT,
+  determined_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  determined_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (exam_result_id, revision)
+);
+
+CREATE TABLE result_record_confirmation (
+  id INTEGER PRIMARY KEY,
+  result_determination_id INTEGER NOT NULL
+    REFERENCES result_determination(id) ON DELETE CASCADE,
+  committee_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  confirmed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (result_determination_id, committee_member_id)
+);
+
+CREATE TABLE result_correction (
+  id INTEGER PRIMARY KEY,
+  exam_result_id INTEGER NOT NULL REFERENCES exam_result(id) ON DELETE CASCADE,
+  result_determination_id INTEGER NOT NULL
+    REFERENCES result_determination(id) ON DELETE RESTRICT,
+  reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+  requested_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'completed')),
+  reopening_reference TEXT,
+  requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at TEXT
+);
+
+CREATE TABLE result_communication (
+  id INTEGER PRIMARY KEY,
+  exam_result_id INTEGER NOT NULL REFERENCES exam_result(id) ON DELETE CASCADE,
+  result_determination_id INTEGER NOT NULL
+    REFERENCES result_determination(id) ON DELETE RESTRICT,
+  method TEXT NOT NULL CHECK (length(trim(method)) > 0),
+  responsible_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  communicated_at TEXT NOT NULL,
+  external_document_status TEXT,
+  external_document_reference TEXT,
+  status TEXT NOT NULL DEFAULT 'current' CHECK (status IN ('current', 'obsolete')),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE result_retention (
+  id INTEGER PRIMARY KEY,
+  exam_result_id INTEGER NOT NULL UNIQUE REFERENCES exam_result(id) ON DELETE CASCADE,
+  rule_reference TEXT NOT NULL CHECK (length(trim(rule_reference)) > 0),
+  period_start TEXT,
+  retain_until TEXT,
+  legal_hold INTEGER NOT NULL DEFAULT 0 CHECK (legal_hold IN (0, 1)),
+  hold_reason TEXT,
+  updated_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (retain_until IS NULL OR period_start IS NOT NULL),
+  CHECK (retain_until IS NULL OR retain_until >= period_start),
+  CHECK (legal_hold = 0 OR length(trim(hold_reason)) > 0)
+);
+
+CREATE TABLE result_export (
+  id INTEGER PRIMARY KEY,
+  exam_result_id INTEGER NOT NULL REFERENCES exam_result(id) ON DELETE CASCADE,
+  result_determination_id INTEGER REFERENCES result_determination(id) ON DELETE RESTRICT,
+  export_kind TEXT NOT NULL CHECK (export_kind IN ('machine', 'human')),
+  status TEXT NOT NULL CHECK (status IN ('draft', 'determined', 'superseded')),
+  generated_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  generated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE exam_day_closure (
+  id INTEGER PRIMARY KEY,
+  exam_day_id INTEGER NOT NULL REFERENCES exam_day(id) ON DELETE CASCADE,
+  requested_revision INTEGER NOT NULL CHECK (requested_revision >= 1),
+  resulting_revision INTEGER NOT NULL CHECK (resulting_revision > requested_revision),
+  closure_type TEXT NOT NULL CHECK (closure_type IN ('regular', 'exception')),
+  actor_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  reason TEXT,
+  clarification_attempts TEXT,
+  checklist_json TEXT NOT NULL,
+  warnings_json TEXT NOT NULL,
+  protocol_references_json TEXT NOT NULL,
+  result_references_json TEXT NOT NULL,
+  previous_closure_id INTEGER REFERENCES exam_day_closure(id) ON DELETE RESTRICT,
+  status TEXT NOT NULL DEFAULT 'current' CHECK (status IN ('current', 'superseded')),
+  command_fingerprint TEXT NOT NULL CHECK (length(command_fingerprint) = 64),
+  closed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (exam_day_id, resulting_revision),
+  UNIQUE (exam_day_id, command_fingerprint),
+  CHECK (
+    (closure_type = 'regular' AND reason IS NULL AND clarification_attempts IS NULL)
+    OR (
+      closure_type = 'exception'
+      AND length(trim(reason)) > 0
+      AND length(trim(clarification_attempts)) > 0
+    )
+  )
+);
+
+CREATE TABLE exam_day_reopening (
+  id INTEGER PRIMARY KEY,
+  exam_day_id INTEGER NOT NULL REFERENCES exam_day(id) ON DELETE CASCADE,
+  previous_closure_id INTEGER REFERENCES exam_day_closure(id) ON DELETE RESTRICT,
+  requested_revision INTEGER NOT NULL CHECK (requested_revision >= 1),
+  resulting_revision INTEGER NOT NULL CHECK (resulting_revision > requested_revision),
+  occasion TEXT NOT NULL CHECK (length(trim(occasion)) > 0),
+  source TEXT NOT NULL CHECK (length(trim(source)) > 0),
+  reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+  requested_scope_json TEXT NOT NULL,
+  scope_json TEXT NOT NULL,
+  completed_scope_json TEXT NOT NULL DEFAULT '[]',
+  impacts_json TEXT NOT NULL,
+  actor_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'completed')),
+  command_fingerprint TEXT NOT NULL CHECK (length(command_fingerprint) = 64),
+  opened_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at TEXT,
+  UNIQUE (exam_day_id, command_fingerprint),
+  CHECK (
+    (status = 'open' AND completed_at IS NULL)
+    OR (status = 'completed' AND completed_at IS NOT NULL)
+  )
+);
+
+CREATE TABLE exam_day_task (
+  id INTEGER PRIMARY KEY,
+  exam_day_id INTEGER NOT NULL REFERENCES exam_day(id) ON DELETE CASCADE,
+  reopening_id INTEGER REFERENCES exam_day_reopening(id) ON DELETE CASCADE,
+  recipient_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE CASCADE,
+  task_type TEXT NOT NULL CHECK (task_type IN (
+    'protocol_follow_up', 'protocol_reconfirmation', 'result_reconfirmation',
+    'result_recommunication', 'ihk_clarification'
+  )),
+  origin_key TEXT NOT NULL,
+  exam_protocol_revision_id INTEGER REFERENCES exam_protocol_revision(id) ON DELETE RESTRICT,
+  result_determination_id INTEGER REFERENCES result_determination(id) ON DELETE RESTRICT,
+  details_json TEXT NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'completed')),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at TEXT,
+  UNIQUE (recipient_member_id, task_type, origin_key),
+  CHECK (
+    (status = 'open' AND completed_at IS NULL)
+    OR (status = 'completed' AND completed_at IS NOT NULL)
+  )
+);
+
+CREATE TABLE exam_day_audit_event (
+  id INTEGER PRIMARY KEY,
+  exam_day_id INTEGER NOT NULL REFERENCES exam_day(id) ON DELETE CASCADE,
+  day_revision INTEGER NOT NULL CHECK (day_revision >= 1),
+  event_type TEXT NOT NULL CHECK (event_type IN (
+    'closed', 'closed_exception', 'reopened', 'correction',
+    'late_protocol_response', 'reclosed'
+  )),
+  actor_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  closure_id INTEGER REFERENCES exam_day_closure(id) ON DELETE RESTRICT,
+  reopening_id INTEGER REFERENCES exam_day_reopening(id) ON DELETE RESTRICT,
+  reason TEXT,
+  scope_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE exam_day_export (
+  id INTEGER PRIMARY KEY,
+  exam_day_id INTEGER NOT NULL REFERENCES exam_day(id) ON DELETE CASCADE,
+  closure_id INTEGER REFERENCES exam_day_closure(id) ON DELETE RESTRICT,
+  export_kind TEXT NOT NULL CHECK (export_kind IN ('machine', 'human')),
+  status TEXT NOT NULL CHECK (
+    status IN ('open', 'closed', 'closed_exception', 'reopening', 'historical')
+  ),
+  generated_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  generated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE document (
   id INTEGER PRIMARY KEY,
   storage_id TEXT NOT NULL UNIQUE,
@@ -418,6 +845,43 @@ CREATE TABLE document (
 
 CREATE INDEX member_exam_attendance_day_status
   ON member_exam_attendance(exam_day_id, status);
+
+CREATE INDEX exam_protocol_slot ON exam_protocol(exam_slot_id);
+CREATE INDEX exam_protocol_participant_member
+  ON exam_protocol_participant(committee_member_id, exam_protocol_id);
+CREATE INDEX exam_protocol_revision_protocol
+  ON exam_protocol_revision(exam_protocol_id, version);
+CREATE INDEX exam_protocol_entry_revision
+  ON exam_protocol_entry(exam_protocol_revision_id, id);
+CREATE INDEX exam_protocol_response_revision
+  ON exam_protocol_response(exam_protocol_revision_id, committee_member_id);
+CREATE INDEX exam_protocol_correction_protocol_status
+  ON exam_protocol_correction_request(exam_protocol_id, status);
+CREATE INDEX assessment_model_applicability
+  ON assessment_model_version(ihk, occupation, specialization, valid_from, valid_until);
+CREATE INDEX individual_assessment_current
+  ON individual_assessment(exam_result_id, component_key, assessor_member_id, status);
+CREATE INDEX committee_assessment_current
+  ON committee_assessment(exam_result_id, component_key, status);
+CREATE INDEX external_exam_result_current
+  ON external_exam_result(exam_result_id, area_key, status);
+CREATE INDEX result_calculation_result ON result_calculation(exam_result_id, version);
+CREATE INDEX result_determination_current
+  ON result_determination(exam_result_id, status);
+CREATE INDEX result_correction_status ON result_correction(exam_result_id, status);
+CREATE INDEX result_communication_status
+  ON result_communication(exam_result_id, status);
+CREATE INDEX result_export_result ON result_export(exam_result_id, generated_at);
+CREATE INDEX exam_day_closure_revision
+  ON exam_day_closure(exam_day_id, resulting_revision);
+CREATE INDEX exam_day_reopening_open
+  ON exam_day_reopening(exam_day_id, status);
+CREATE INDEX exam_day_task_day_status
+  ON exam_day_task(exam_day_id, status);
+CREATE INDEX exam_day_audit_history
+  ON exam_day_audit_event(exam_day_id, id);
+CREATE INDEX exam_day_export_history
+  ON exam_day_export(exam_day_id, generated_at);
 
 CREATE TABLE absence_report (
   id INTEGER PRIMARY KEY,
@@ -484,7 +948,9 @@ CREATE TABLE notification (
     'examiner_absence_reported', 'fallback_confirmation_requested',
     'fallback_confirmation_expired', 'replacement_requested',
     'urgent_replacement_requested', 'replacement_selected',
-    'exam_day_cancelled', 'absence_reopened'
+    'exam_day_cancelled', 'absence_reopened',
+    'exam_day_protocol_follow_up', 'exam_day_reopened', 'exam_day_reclosed',
+    'exam_day_result_recommunication', 'exam_day_ihk_clarification'
   )),
   origin_key TEXT NOT NULL,
   title TEXT NOT NULL,

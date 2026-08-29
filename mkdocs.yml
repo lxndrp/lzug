@@ -42,6 +42,9 @@ nav:
           - Authentifizierung und Sitzungen: developers/architecture/authentication.md
           - Kanalneutrale Benachrichtigungen: developers/architecture/notifications.md
           - Ausfall- und Ersatzprozess: developers/architecture/absence-replacement.md
+          - Versionierte Prüfungsprotokolle: developers/architecture/exam-protocols.md
+          - Regelgebundene Bewertungen und Ergebnisse: developers/architecture/exam-results.md
+          - Formeller Abschluss von Prüfungstagen: developers/architecture/exam-day-closure.md
           - Betreiber-CLI für Authentifizierung: developers/architecture/operator-auth-cli.md
           - OCI-Runtime: developers/architecture/oci-runtime.md
       - Referenz:

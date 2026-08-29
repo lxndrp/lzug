@@ -3,7 +3,7 @@ import { Component, inject, signal } from '@angular/core';
 
 import { AuthService } from './auth.service';
 
-type DemoRole = 'chair' | 'examiner';
+type DemoRole = 'chair' | 'deputy' | 'examiner';
 
 @Component({
   selector: 'app-auth-flow',
@@ -31,6 +31,10 @@ type DemoRole = 'chair' | 'examiner';
           <button type="button" [disabled]="busy()" (click)="start('examiner')">
             <strong>Testperson Gamma</strong>
             <span>Prüfperson · eigene Verfügbarkeit und Anwesenheit bearbeiten</span>
+          </button>
+          <button type="button" [disabled]="busy()" (click)="start('deputy')">
+            <strong>Testperson Beta</strong>
+            <span>Stellvertretung · Vier-Augen-Bestätigung und Ergebnisprozess</span>
           </button>
         </div>
         @if (busy()) {
