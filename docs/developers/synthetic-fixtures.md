@@ -20,5 +20,16 @@ python3 scripts/generate_synthetic_fixtures.py
 ```
 
 neu erzeugt. Die Aktualität der erzeugten Adapter wird bei einer Änderung der
-Quelle gemeinsam mit den betroffenen Tests geprüft. Browserberichte und
-Playwright-Traces werden nicht nach Testdatenmustern ausgewertet.
+Quelle oder eines Adapters mit dem folgenden Befehl geprüft:
+
+```sh
+task fixtures:check
+```
+
+Schlägt die Prüfung fehl, ist mindestens einer der drei Adapter veraltet oder
+fehlt. Dann den Regenerierungsbefehl ausführen, ausschließlich dessen erwartete
+Änderungen prüfen und anschließend den Check erneut ausführen. Der Check ist
+Teil von `task quality` und wird im Pull-Request- sowie im vollständigen
+Qualitätspfad für Änderungen an Quelle, Generator und jedem Adapter ausgeführt.
+Browserberichte und Playwright-Traces werden nicht nach Testdatenmustern
+ausgewertet.

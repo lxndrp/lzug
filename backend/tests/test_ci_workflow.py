@@ -20,6 +20,14 @@ PR_GATES = {
     "container-gate": "Pull Request / Container",
 }
 
+SYNTHETIC_FIXTURE_PATHS = {
+    "fixtures/synthetic-fixtures.json",
+    "scripts/generate_synthetic_fixtures.py",
+    "db/seed_demo.sql",
+    "frontend/src/app/testing/synthetic-fixtures.generated.ts",
+    "prototypes/pruefungsrunde-prototyp/synthetic-fixtures.generated.js",
+}
+
 
 class QualityWorkflowContractTests(unittest.TestCase):
     @classmethod
@@ -50,6 +58,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             self.pull_request,
         )
         for domain in (
+            "fixtures",
             "docs",
             "backend",
             "frontend",
@@ -113,6 +122,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
 
     def test_local_quality_tasks_are_the_ci_domain_contract(self) -> None:
         for task in (
+            "task fixtures:check",
             "task quality:backend",
             "task quality:frontend quality:security",
             "task quality:operator",
@@ -124,6 +134,30 @@ class QualityWorkflowContractTests(unittest.TestCase):
             with self.subTest(task=task):
                 self.assertIn(task, self.pull_request)
                 self.assertIn(task, self.quality)
+
+    def test_synthetic_fixture_check_has_a_complete_trigger_and_ci_contract(self) -> None:
+        taskfile = workflow_text("Taskfile.yml")
+        changes = job_block(self.pull_request, "changes")
+        pull_request_check = job_block(self.pull_request, "fixtures")
+        full_quality_check = job_block(self.quality, "fixtures")
+        backend_gate = job_block(self.pull_request, "backend-gate")
+        fixture_filter = re.search(
+            r"^            fixtures:\n(?P<paths>(?:              - .+\n)+)",
+            changes,
+            re.MULTILINE,
+        )
+
+        self.assertIn("fixtures:check:", taskfile)
+        self.assertIn("python3 scripts/generate_synthetic_fixtures.py --check", taskfile)
+        self.assertIn("- fixtures:check", taskfile)
+        self.assertIn("fixtures: ${{", changes)
+        self.assertIsNotNone(fixture_filter)
+        for path in SYNTHETIC_FIXTURE_PATHS:
+            with self.subTest(path=path):
+                self.assertIn(f"- '{path}'", fixture_filter.group("paths"))
+        self.assertIn("task fixtures:check", pull_request_check)
+        self.assertIn("task fixtures:check", full_quality_check)
+        self.assertIn("fixtures", backend_gate)
 
     def test_quality_actions_are_pinned_and_quality_cannot_publish(self) -> None:
         for path in (
