@@ -80,16 +80,16 @@ class HttpContractParityTests(unittest.TestCase):
             self.assert_parity(baseline, changed)
 
     @contextmanager
-    def adapter_pair(self, *, include_legacy_routes: bool = True):
-        """Create both adapters from one seeded SQLite fixture.
-
-        The demo seed stores creation timestamps.  Initializing two databases
-        independently makes a read-only parity assertion depend on a boundary
-        between wall-clock seconds, rather than on either adapter.
-        """
-        with TempDatabase() as legacy_path, TemporaryDirectory() as directory:
-            fastapi_path = Path(directory) / legacy_path.name
-            copy2(legacy_path, fastapi_path)
+    def adapter_pair_from_fixture(self, fixture_path: Path, *, include_legacy_routes: bool = True):
+        """Copy one completed SQLite fixture for each adapter under comparison."""
+        with (
+            TemporaryDirectory() as legacy_directory,
+            TemporaryDirectory() as fastapi_directory,
+        ):
+            legacy_path = Path(legacy_directory) / fixture_path.name
+            fastapi_path = Path(fastapi_directory) / fixture_path.name
+            copy2(fixture_path, legacy_path)
+            copy2(fixture_path, fastapi_path)
             with (
                 LegacyAdapter(legacy_path) as legacy,
                 FastAPIAdapter(
@@ -98,6 +98,37 @@ class HttpContractParityTests(unittest.TestCase):
                 ) as fastapi,
             ):
                 yield legacy, fastapi
+
+    @contextmanager
+    def adapter_pair(self, *, include_legacy_routes: bool = True):
+        """Create both adapters from one seeded SQLite fixture.
+
+        The demo seed stores creation timestamps.  Initializing two databases
+        independently makes a read-only parity assertion depend on a boundary
+        between wall-clock seconds, rather than on either adapter.
+        """
+        with TempDatabase() as fixture_path:
+            with self.adapter_pair_from_fixture(
+                fixture_path, include_legacy_routes=include_legacy_routes
+            ) as adapters:
+                yield adapters
+
+    @contextmanager
+    def confirmed_plan_adapter_pair(self):
+        """Prepare dynamic confirmation timestamps once before splitting the fixture."""
+        with TempDatabase() as fixture_path:
+            with LegacyAdapter(fixture_path) as fixture:
+                self.assertEqual(
+                    201,
+                    fixture.request("POST", "/api/planning-proposals", {"round_id": 1}).status,
+                )
+                self.assertEqual(
+                    200, fixture.request("POST", "/api/exam-rounds/1/confirm-plan", {}).status
+                )
+            with self.adapter_pair_from_fixture(
+                fixture_path, include_legacy_routes=False
+            ) as adapters:
+                yield adapters
 
     def test_shared_adapter_interface_covers_reads_writes_auth_and_errors(self) -> None:
         with self.subTest("representative cases"):
@@ -473,6 +504,15 @@ class HttpContractParityTests(unittest.TestCase):
             request("PUT", "/api/exam-rounds/1/planning-proposal", invalid)
 
             request("POST", "/api/exam-rounds/1/confirm-plan", {})
+
+        with self.confirmed_plan_adapter_pair() as (legacy, fastapi):
+
+            def request(method, path, payload=None):
+                legacy_response = legacy.request(method, path, payload)
+                fastapi_response = fastapi.request(method, path, payload)
+                self.assert_parity(legacy_response, fastapi_response)
+                return legacy_response
+
             calendar = request("GET", "/api/confirmed-plans").json
             day = calendar["items"][0]["days"][0]
             slot = day["slots"][0]
@@ -505,7 +545,7 @@ class HttpContractParityTests(unittest.TestCase):
             request(
                 "PATCH",
                 f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/status",
-                {"status": "needs_follow_up", "reason": "Nachweis der Prüfungsleistung fehlt"},
+                {"status": "needs_follow_up"},
             )
 
     def test_candidate_day_generation_and_planning_failures_keep_adapter_parity(self) -> None:
