@@ -9,6 +9,7 @@ from shutil import copy2
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES
 from backend.tests.helpers import (
     AdapterResponse,
     FastAPIAdapter,
@@ -49,7 +50,11 @@ class HttpContractParityTests(unittest.TestCase):
     def canonical_json(self, value):
         if isinstance(value, dict):
             return {
-                key: "<timestamp>" if key == "expires_at" else self.canonical_json(item)
+                key: (
+                    "<timestamp>"
+                    if key in {"created_at", "expires_at", "updated_at"}
+                    else self.canonical_json(item)
+                )
                 for key, item in value.items()
             }
         if isinstance(value, list):
@@ -377,6 +382,59 @@ class HttpContractParityTests(unittest.TestCase):
                             request_headers=headers,
                         ),
                     )
+
+    def test_domain_routes_do_not_depend_on_the_legacy_fallback(self) -> None:
+        """Exercise the #475 domain inventory with the catch-all deliberately absent."""
+        with self.adapter_pair(include_legacy_routes=False) as (legacy, fastapi):
+            for resource_name in MIGRATED_DOMAIN_RESOURCES:
+                path = f"/api/{resource_name}"
+                if resource_name == "round-candidates":
+                    path += "?round_id=1"
+                with self.subTest(method="GET", path=path):
+                    self.assert_parity(
+                        legacy.request("GET", path),
+                        fastapi.request("GET", path),
+                    )
+
+            for path in (
+                "/api/candidate-committee-assignments?candidate_id=1",
+                "/api/candidate-committee-assignments/1",
+            ):
+                with self.subTest(method="GET", path=path):
+                    self.assert_parity(
+                        legacy.request("GET", path),
+                        fastapi.request("GET", path),
+                    )
+
+            created = legacy.request(
+                "POST",
+                "/api/exam-half-years",
+                {"season": "summer", "year": 2030, "status": "draft"},
+            )
+            fastapi_created = fastapi.request(
+                "POST",
+                "/api/exam-half-years",
+                {"season": "summer", "year": 2030, "status": "draft"},
+            )
+            self.assert_parity(created, fastapi_created)
+            half_year_id = created.json["id"]
+
+            updated = legacy.request(
+                "PATCH",
+                f"/api/exam-half-years/{half_year_id}",
+                {"status": "active"},
+            )
+            fastapi_updated = fastapi.request(
+                "PATCH",
+                f"/api/exam-half-years/{half_year_id}",
+                {"status": "active"},
+            )
+            self.assert_parity(updated, fastapi_updated)
+
+            self.assert_parity(
+                legacy.request("DELETE", f"/api/exam-half-years/{half_year_id}"),
+                fastapi.request("DELETE", f"/api/exam-half-years/{half_year_id}"),
+            )
 
 
 if __name__ == "__main__":

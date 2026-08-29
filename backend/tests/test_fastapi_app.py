@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from backend.application import ApplicationServices
 from backend.auth import AuthenticationRepository, SessionCredentials
-from backend.fastapi_app import FastAPIConfig, create_app
+from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES, FastAPIConfig, create_app
 from backend.openapi import spec as reference_openapi
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
 
@@ -171,26 +171,32 @@ class FastAPIApplicationTests(unittest.TestCase):
         endpoints = {
             route.path: route.endpoint for route in app.routes if isinstance(route, APIRoute)
         }
-        self.assertEqual(
+        expected = {
+            "/api",
+            "/api/auth/invitation/activate",
+            "/api/auth/invitation/prepare",
+            "/api/auth/login",
+            "/api/auth/recovery/complete",
+            "/api/auth/recovery/prepare",
+            "/api/docs",
+            "/api/health",
+            "/api/observability/frontend-errors",
+            "/api/openapi.json",
+            "/api/ready",
+            "/api/round-summary",
+            "/api/session",
+            "/api/session/logout",
+            "/api/session/rotate",
+        }
+        for resource_name in MIGRATED_DOMAIN_RESOURCES:
+            expected.update({f"/api/{resource_name}", f"/api/{resource_name}/{{id}}"})
+        expected.update(
             {
-                "/api",
-                "/api/auth/invitation/activate",
-                "/api/auth/invitation/prepare",
-                "/api/auth/login",
-                "/api/auth/recovery/complete",
-                "/api/auth/recovery/prepare",
-                "/api/docs",
-                "/api/health",
-                "/api/observability/frontend-errors",
-                "/api/openapi.json",
-                "/api/ready",
-                "/api/round-summary",
-                "/api/session",
-                "/api/session/logout",
-                "/api/session/rotate",
-            },
-            set(endpoints),
+                "/api/candidate-committee-assignments",
+                "/api/candidate-committee-assignments/{id}",
+            }
         )
+        self.assertEqual(expected, set(endpoints))
         self.assertTrue(
             all(not inspect.iscoroutinefunction(endpoint) for endpoint in endpoints.values())
         )
@@ -217,12 +223,20 @@ class FastAPIApplicationTests(unittest.TestCase):
             "/api/session/logout",
             "/api/session/rotate",
         }
+        for resource_name in MIGRATED_DOMAIN_RESOURCES:
+            migrated.update({f"/api/{resource_name}", f"/api/{resource_name}/{{id}}"})
+        migrated.update(
+            {
+                "/api/candidate-committee-assignments",
+                "/api/candidate-committee-assignments/{id}",
+            }
+        )
         self.assertTrue(migrated <= set(generated["paths"]))
         for path in migrated - {"/api/docs"}:
             with self.subTest(path=path):
                 self.assertIn(path, reference["paths"])
                 for method in reference["paths"][path]:
-                    if method in {"get", "post"}:
+                    if method in {"get", "post", "patch", "delete"}:
                         actual = generated["paths"][path][method]
                         expected = reference["paths"][path][method]
                         self.assertIn(method, generated["paths"][path])

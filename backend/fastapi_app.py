@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, Query, Request
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import SQLAlchemyError
 
 from .app import LzugHandler
@@ -96,6 +96,57 @@ class SessionRotationResponse(BaseModel):
 
     status: str
     expires_at: str
+
+
+class DomainResourceWrite(BaseModel):
+    """Shared transport shape; repositories remain the validation authority."""
+
+    model_config = ConfigDict(extra="allow")
+
+
+class DomainResourceResponse(BaseModel):
+    """Common HAL-compatible response envelope for migrated domain resources."""
+
+    model_config = ConfigDict(extra="allow")
+
+
+class DomainCollectionResponse(BaseModel):
+    """Common HAL-compatible collection response for migrated domain resources."""
+
+    items: list[DomainResourceResponse]
+    links: dict[str, object] = Field(alias="_links")
+
+
+# #475 owns only the generic master, organisation, and round setup routes.  The
+# planning aggregates are deliberately retained for #476, where their aggregate
+# invariants can be migrated together.
+MIGRATED_DOMAIN_RESOURCES = (
+    "committees",
+    "persons",
+    "members",
+    "memberships",
+    "locations",
+    "exam-half-years",
+    "exam-rounds",
+    "round-candidates",
+    "candidates",
+    "planning-settings",
+    "member-availabilities",
+)
+
+
+_DOMAIN_READ_ERRORS = {
+    401: {"model": ErrorResponse},
+    403: {"model": ErrorResponse},
+    404: {"model": ErrorResponse},
+}
+_DOMAIN_WRITE_ERRORS = {
+    **_DOMAIN_READ_ERRORS,
+    400: {"model": ErrorResponse},
+    409: {"model": ErrorResponse},
+    422: {"model": ErrorResponse},
+    503: {"model": ErrorResponse},
+}
 
 
 @dataclass(frozen=True)
@@ -615,6 +666,86 @@ def create_app(
     )
     def frontend_error(request: Request, body: bytes = Depends(_request_body)) -> Response:
         return _legacy_route_response(LegacyReferenceHandler, request, body)
+
+    # Generic domain validation, authorization, transaction handling, and HAL
+    # assembly stay in the repository-backed reference handler while this slice
+    # owns the FastAPI route matching and generated OpenAPI fragments.
+    def domain_read(request: Request) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request)
+
+    def domain_write(request: Request, body: bytes = Depends(_request_body)) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request, body)
+
+    domain_read_extra = {"security": [{"sessionCookie": []}]}
+    domain_write_extra = {
+        "security": [{"sessionCookie": [], "csrfHeader": []}],
+        "requestBody": {
+            "required": True,
+            "content": {"application/json": {"schema": DomainResourceWrite.model_json_schema()}},
+        },
+    }
+
+    for resource_name in MIGRATED_DOMAIN_RESOURCES:
+        collection_path = f"/api/{resource_name}"
+        item_path = f"{collection_path}/{{id}}"
+        app.add_api_route(
+            collection_path,
+            domain_read,
+            methods=["GET"],
+            response_model=DomainCollectionResponse,
+            responses=_DOMAIN_READ_ERRORS,
+            openapi_extra=domain_read_extra,
+        )
+        app.add_api_route(
+            collection_path,
+            domain_write,
+            methods=["POST"],
+            response_model=DomainResourceResponse,
+            responses={
+                **_DOMAIN_WRITE_ERRORS,
+                200: {"model": DomainResourceResponse},
+                201: {"model": DomainResourceResponse},
+            },
+            openapi_extra=domain_write_extra,
+        )
+        app.add_api_route(
+            item_path,
+            domain_read,
+            methods=["GET"],
+            response_model=DomainResourceResponse,
+            responses=_DOMAIN_READ_ERRORS,
+            openapi_extra=domain_read_extra,
+        )
+        app.add_api_route(
+            item_path,
+            domain_write,
+            methods=["PATCH"],
+            response_model=DomainResourceResponse,
+            responses={**_DOMAIN_WRITE_ERRORS, 200: {"model": DomainResourceResponse}},
+            openapi_extra=domain_write_extra,
+        )
+        app.add_api_route(
+            item_path,
+            domain_write,
+            methods=["DELETE"],
+            status_code=HTTPStatus.NO_CONTENT,
+            response_model=None,
+            responses=_DOMAIN_WRITE_ERRORS,
+            openapi_extra={"security": [{"sessionCookie": [], "csrfHeader": []}]},
+        )
+
+    for path, response_model in (
+        ("/api/candidate-committee-assignments", DomainCollectionResponse),
+        ("/api/candidate-committee-assignments/{id}", DomainResourceResponse),
+    ):
+        app.add_api_route(
+            path,
+            domain_read,
+            methods=["GET"],
+            response_model=response_model,
+            responses=_DOMAIN_READ_ERRORS,
+            openapi_extra=domain_read_extra,
+        )
 
     if include_legacy_routes:
 
