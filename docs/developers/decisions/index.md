@@ -4,6 +4,13 @@ Diese rückwirkenden ADRs fassen Entscheidungen zusammen, die bereits im
 Repository umgesetzt oder dokumentiert waren. Sie ändern keine frühere
 Historie, machen aber Kontext, Konsequenzen und Verweise dauerhaft auffindbar.
 
+Der Index führt den aktuellen Status jeder Entscheidung. Bei einer vollständigen
+Ablösung verweisen alter und neuer ADR im jeweiligen Abschnitt `Status`
+aufeinander (`Superseded by` beziehungsweise `Supersedes`). Eine Ergänzung oder
+Präzisierung ohne vollständige Ablösung bleibt ein Verweis im Kontext oder bei
+den Referenzen. Die verbindliche Struktur für neue ADRs steht in der
+[ADR-Vorlage](TEMPLATE.md).
+
 | ADR | Entscheidung | Status |
 | --- | --- | --- |
 | [0001](0001-lokale-relationale-persistenz.md) | Lokale relationale Persistenz | Akzeptiert |
