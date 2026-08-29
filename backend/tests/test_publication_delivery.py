@@ -6,7 +6,13 @@ import unittest
 from pathlib import Path
 
 from backend.tests.workflow_contract import job_block, trigger_block, workflow_text
-from scripts.publication_spike import PUBLICATION_BASE_URL, public_url, publication_base_url
+from scripts.publication import (
+    PUBLICATION_BASE_URL,
+    convert_wiki_links,
+    public_url,
+    publication_base_url,
+)
+from scripts.wiki_routes import wiki_route, wiki_source_url
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -81,7 +87,28 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertTrue((ROOT / "frontend/public/favicon.svg").is_file())
         self.assertIn('rel="icon"', favicon_partial)
         self.assertIn('{{ "images/favicon.svg" | relURL }}', favicon_partial)
-        self.assertIn('"images/favicon.svg"', (ROOT / "scripts/publication_spike.py").read_text())
+        self.assertIn('"images/favicon.svg"', (ROOT / "scripts/publication.py").read_text())
+
+    def test_wiki_route_contract_is_shared_by_build_and_published_wiki_check(self) -> None:
+        home = wiki_route("Home")
+        page = wiki_route("Fachlichkeit")
+
+        self.assertEqual(
+            ("Handbuch", "_index.md", "/handbuch/"),
+            (home.title, home.publication_file, home.publication_route),
+        )
+        self.assertEqual(
+            ("Fachlichkeit", "fachlichkeit.md", "/handbuch/fachlichkeit/"),
+            (page.title, page.publication_file, page.publication_route),
+        )
+        self.assertEqual(
+            "https://github.com/lxndrp/lzug/wiki/Fachlichkeit",
+            wiki_source_url("Fachlichkeit", "https://github.com/lxndrp/lzug/wiki"),
+        )
+        self.assertEqual(
+            "[Fachlichkeit](/handbuch/fachlichkeit/#details)",
+            convert_wiki_links("[Fachlichkeit](Fachlichkeit#details)", {"Home", "Fachlichkeit"}),
+        )
 
     def test_pages_deployment_is_manual_fail_closed_and_cannot_enable_pages(self) -> None:
         workflow = workflow_text(".github/workflows/publication.yml")
@@ -146,7 +173,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertNotIn("gollum:", triggers)
         self.assertNotIn("pull_request:", triggers)
         self.assertNotIn("push:", triggers)
-        self.assertIn("scripts/check_wiki.py published-wiki", check)
+        self.assertIn("-m scripts.check_wiki published-wiki", check)
         self.assertIn("--max-redirects 0", check)
 
 

@@ -5,19 +5,17 @@ veröffentlicht selbst nichts und verwendet lokal standardmäßig nur die minima
 synthetische Wiki-Fixture in diesem Verzeichnis.
 
 ```sh
-task docs:publication-spike
-task docs:publication-spike:check
-task docs:publication-spike:browser
 task docs:publication
 task docs:publication:check
 task docs:publication:browser
+task docs:publication:a11y
 ```
 
 Mit einem sauberen lokalen Clone des echten Wiki-Repositories kann derselbe
 Buildschnitt geprüft werden:
 
 ```sh
-task docs:publication-spike WIKI_ROOT=/path/to/lzug.wiki
+task docs:publication WIKI_ROOT=/path/to/lzug.wiki
 ```
 
 `BASE_URL` ist dauerhaft `https://lzug.repertoire.papaspyrou.name` an der
@@ -28,14 +26,17 @@ Standard-FQDN ist kein Produktvertrag. Der Build pinnt Hugo Extended und den exa
 Relearn-Commit.
 Relearn benötigt weder npm noch Go Modules und übernimmt keine zweite
 Lockdatei in dieses Repository. Die Ausgabe unter
-`build/publication-spike/` enthält die beschlossene URL-Struktur, einen lokalen
+`build/publication/` enthält die beschlossene URL-Struktur, einen lokalen
 Suchindex und `quellen.json` mit Hauptrepository-, Wiki- und Theme-Revision.
-`docs:publication-spike:check` baut zweimal und vergleicht alle Ausgabedateien
+`docs:publication:check` baut zweimal und vergleicht alle Ausgabedateien
 bytegenau. Das kleine repository-eigene Root-Layout enthält den Produkt- und
 Demo-Einstieg. Der Warm-up ruft ausschließlich `/api/ready` ohne Cookies oder
 Referrer auf, wartet höchstens 90 Sekunden in zwölf begrenzten Versuchen und
 leitet erst bei `status=ready` weiter. Danach bietet dieselbe primäre Aktion einen
 neuen Versuch an.
+
+Die früheren Spike-Tasknamen wurden ohne Kompatibilitätsalias entfernt. Alle
+Aufrufer verwenden die oben gezeigten produktiven Befehle.
 
 Der Workflow `Public site` baut bei Pull Requests und Pushes auf `master` nur
 ein geprüftes Artefakt. Der vorbereitete Pages-Job ist ausschließlich manuell

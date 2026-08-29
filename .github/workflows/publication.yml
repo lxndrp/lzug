@@ -25,7 +25,8 @@ on:
       - "mkdocs.yml"
       - "prototypes/publication/**"
       - "pyproject.toml"
-      - "scripts/publication_spike.py"
+      - "scripts/publication.py"
+      - "scripts/wiki_routes.py"
       - "scripts/validate_demo_url_contract.py"
       - "uv.lock"
   push:
