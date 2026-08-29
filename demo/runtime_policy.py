@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
@@ -17,20 +18,460 @@ DEMO_ROLES = {
     "examiner": {"account_id": 2, "person_id": 3, "display_name": "Testperson Gamma"},
 }
 
-COMMON_CAPABILITIES = frozenset({"availability:write-own", "attendance:write-own"})
-CHAIR_CAPABILITIES = COMMON_CAPABILITIES | frozenset(
-    {
-        "round:write",
-        "planning-settings:write",
-        "candidate-days:generate",
-        "availability:coordinate",
-        "planning-proposal:generate",
-        "planning-proposal:replace",
-        "planning-proposal:confirm",
-        "attendance:coordinate",
-        "exam-status:write",
-    }
+DEMO_MATRIX_VERSION = "demo-paths-v1"
+
+
+@dataclass(frozen=True)
+class DemoPathContract:
+    """One testable link between UI, capability, HTTP boundary, and domain guard."""
+
+    name: str
+    roles: frozenset[str]
+    scenario: str
+    seed_state: str
+    ui_action: str
+    capability: str
+    method: str
+    path_pattern: str
+    domain_authorization: str
+    visible: bool
+    allowed: bool
+
+    def matches(self, method: str, path_parts: list[str]) -> bool:
+        if method != self.method:
+            return False
+        expected_parts = self.path_pattern.strip("/").split("/")
+        if len(expected_parts) != len(path_parts):
+            return False
+        return all(
+            (
+                actual.isdigit()
+                if expected.startswith("{") and expected.endswith("}")
+                else actual == expected
+            )
+            for expected, actual in zip(expected_parts, path_parts, strict=True)
+        )
+
+
+DEMO_READ_MATRIX = (
+    DemoPathContract(
+        "exam-half-years-read",
+        frozenset(DEMO_ROLES),
+        "Prüfungskontext",
+        "synthetic-exam-half-year",
+        "Prüfungshalbjahre und Prüfungsrunden lesen",
+        "exam-half-years:read",
+        "GET",
+        "/exam-half-years",
+        "AuthorizationScope.can_read_committee",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "notifications-read-own",
+        frozenset(DEMO_ROLES),
+        "Persönliche Hinweise",
+        "synthetic-own-notifications",
+        "Eigene Benachrichtigungen lesen",
+        "notifications:read-own",
+        "GET",
+        "/notifications",
+        "NotificationService.list_own",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "calendar-read-own",
+        frozenset(DEMO_ROLES),
+        "Persönlicher Kalender",
+        "synthetic-own-calendar-events",
+        "Eigene Kalenderereignisse lesen und einzeln laden",
+        "calendar:read-own",
+        "GET",
+        "/calendar/events",
+        "CalendarService.list_events",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "absence-read-own",
+        frozenset(DEMO_ROLES),
+        "Ausfall und Ersatz",
+        "synthetic-visible-absence-state",
+        "Zugängliche Ausfallprozesse read-only lesen",
+        "absence:read-own",
+        "GET",
+        "/absence-reports",
+        "AbsenceService.list",
+        True,
+        True,
+    ),
 )
+
+
+DEMO_MUTATION_MATRIX = (
+    DemoPathContract(
+        "planning-settings-create",
+        frozenset({"chair"}),
+        "Terminorganisation",
+        "draft-round",
+        "Planungsrahmen speichern",
+        "planning-settings:write",
+        "POST",
+        "/planning-settings",
+        "LzugHandler.authorize_resource_action",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "planning-settings-update",
+        frozenset({"chair"}),
+        "Terminorganisation",
+        "draft-round-with-settings",
+        "Planungsrahmen aktualisieren",
+        "planning-settings:write",
+        "PATCH",
+        "/planning-settings/{id}",
+        "LzugHandler.authorize_resource_action",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "round-update",
+        frozenset({"chair"}),
+        "Terminorganisation",
+        "draft-round",
+        "Prüfungsrunde speichern",
+        "round:write",
+        "PATCH",
+        "/exam-rounds/{id}",
+        "LzugHandler.authorize_resource_action",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "availability-request",
+        frozenset({"chair"}),
+        "Terminorganisation",
+        "configured-draft-round",
+        "Verfügbarkeiten anfragen",
+        "availability:coordinate",
+        "POST",
+        "/exam-rounds/{id}/request-availabilities",
+        "LzugHandler.require_round_access(manage=True)",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "candidate-days-generate",
+        frozenset({"chair"}),
+        "Terminorganisation",
+        "configured-draft-round",
+        "Mögliche Prüfungstage berechnen",
+        "candidate-days:generate",
+        "POST",
+        "/candidate-exam-days/generate",
+        "LzugHandler.require_round_access(manage=True)",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "availability-create-chair",
+        frozenset({"chair"}),
+        "Terminorganisation",
+        "availability-requested-round",
+        "Verfügbarkeit koordinieren",
+        "availability:coordinate",
+        "POST",
+        "/member-availabilities",
+        "LzugHandler.authorize_resource_action",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "availability-create-own",
+        frozenset({"examiner"}),
+        "Eigene Verfügbarkeit",
+        "availability-requested-round",
+        "Eigene Verfügbarkeit speichern",
+        "availability:write-own",
+        "POST",
+        "/member-availabilities",
+        "AuthorizationScope.can_edit_member",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "availability-update-chair",
+        frozenset({"chair"}),
+        "Terminorganisation",
+        "existing-availability",
+        "Verfügbarkeit koordinieren",
+        "availability:coordinate",
+        "PATCH",
+        "/member-availabilities/{id}",
+        "LzugHandler.authorize_resource_action",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "availability-update-own",
+        frozenset({"examiner"}),
+        "Eigene Verfügbarkeit",
+        "existing-own-availability",
+        "Eigene Verfügbarkeit aktualisieren",
+        "availability:write-own",
+        "PATCH",
+        "/member-availabilities/{id}",
+        "AuthorizationScope.can_edit_member",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "planning-proposal-generate",
+        frozenset({"chair"}),
+        "Terminorganisation",
+        "complete-availability-state",
+        "Planungsvorschlag erzeugen",
+        "planning-proposal:generate",
+        "POST",
+        "/planning-proposals",
+        "LzugHandler.require_round_access(manage=True)",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "planning-proposal-replace",
+        frozenset({"chair"}),
+        "Terminorganisation",
+        "generated-planning-proposal",
+        "Planungsvorschlag bearbeiten",
+        "planning-proposal:replace",
+        "PUT",
+        "/exam-rounds/{id}/planning-proposal",
+        "LzugHandler.require_round_access(manage=True)",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "planning-proposal-confirm",
+        frozenset({"chair"}),
+        "Terminorganisation",
+        "valid-planning-proposal",
+        "Plan bestätigen",
+        "planning-proposal:confirm",
+        "POST",
+        "/exam-rounds/{id}/confirm-plan",
+        "LzugHandler.require_round_access(manage=True)",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "candidate-attendance-coordinate",
+        frozenset({"chair"}),
+        "Prüfungstag",
+        "confirmed-exam-day",
+        "Anwesenheit des Prüflings speichern",
+        "attendance:coordinate",
+        "PATCH",
+        "/confirmed-plan-days/{day_id}/slots/{slot_id}/attendance",
+        "LzugHandler.require_day_access(manage=True)",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "member-attendance-coordinate",
+        frozenset({"chair"}),
+        "Prüfungstag",
+        "confirmed-exam-day",
+        "Anwesenheit der Besetzung speichern",
+        "attendance:coordinate",
+        "PATCH",
+        "/confirmed-plan-days/{day_id}/assignments/{assignment_id}/attendance",
+        "LzugHandler.require_day_access",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "member-attendance-own",
+        frozenset({"examiner"}),
+        "Eigene Anwesenheit",
+        "own-confirmed-assignment",
+        "Eigene Anwesenheit speichern",
+        "attendance:write-own",
+        "PATCH",
+        "/confirmed-plan-days/{day_id}/assignments/{assignment_id}/attendance",
+        "AuthorizationScope.can_edit_member",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "exam-slot-start",
+        frozenset({"chair"}),
+        "Prüfungstag",
+        "ready-confirmed-slot",
+        "Prüfung starten",
+        "exam-status:write",
+        "POST",
+        "/confirmed-plan-days/{day_id}/slots/{slot_id}/start",
+        "LzugHandler.require_day_access(manage=True)",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "exam-slot-status",
+        frozenset({"chair"}),
+        "Prüfungstag",
+        "started-confirmed-slot",
+        "Durchführungsstatus speichern",
+        "exam-status:write",
+        "PATCH",
+        "/confirmed-plan-days/{day_id}/slots/{slot_id}/status",
+        "LzugHandler.require_day_access(manage=True)",
+        True,
+        True,
+    ),
+    DemoPathContract(
+        "candidate-day-create-read-only",
+        frozenset(DEMO_ROLES),
+        "Terminorganisation",
+        "candidate-day-list",
+        "Prüfungstag manuell anlegen",
+        "candidate-days:create",
+        "POST",
+        "/candidate-exam-days",
+        "LzugHandler.authorize_resource_action",
+        False,
+        False,
+    ),
+    DemoPathContract(
+        "candidate-day-toggle-read-only",
+        frozenset(DEMO_ROLES),
+        "Terminorganisation",
+        "candidate-day-list",
+        "Prüfungstag aktivieren oder deaktivieren",
+        "candidate-days:toggle",
+        "PATCH",
+        "/candidate-exam-days/{id}",
+        "LzugHandler.authorize_resource_action",
+        False,
+        False,
+    ),
+    DemoPathContract(
+        "exam-half-year-create-read-only",
+        frozenset(DEMO_ROLES),
+        "Prüfungskontext",
+        "synthetic-exam-half-year",
+        "Prüfungshalbjahr anlegen",
+        "exam-half-years:write",
+        "POST",
+        "/exam-half-years",
+        "LzugHandler.authorize_resource_action",
+        False,
+        False,
+    ),
+    DemoPathContract(
+        "exam-half-year-update-read-only",
+        frozenset(DEMO_ROLES),
+        "Prüfungskontext",
+        "synthetic-exam-half-year",
+        "Prüfungshalbjahr bearbeiten oder abschließen",
+        "exam-half-years:write",
+        "PATCH",
+        "/exam-half-years/{id}",
+        "LzugHandler.authorize_resource_action",
+        False,
+        False,
+    ),
+    DemoPathContract(
+        "exam-round-create-read-only",
+        frozenset(DEMO_ROLES),
+        "Prüfungskontext",
+        "synthetic-exam-half-year",
+        "Ausschuss zum Prüfungshalbjahr hinzufügen",
+        "exam-half-years:write",
+        "POST",
+        "/exam-rounds",
+        "LzugHandler.authorize_resource_action",
+        False,
+        False,
+    ),
+    DemoPathContract(
+        "push-subscribe-disabled",
+        frozenset(DEMO_ROLES),
+        "Persönliche Hinweise",
+        "external-delivery-disabled",
+        "Browser-Benachrichtigungen aktivieren",
+        "push:manage-own",
+        "POST",
+        "/push-subscriptions",
+        "NotificationService.register_push",
+        False,
+        False,
+    ),
+    DemoPathContract(
+        "calendar-feed-activate-disabled",
+        frozenset(DEMO_ROLES),
+        "Persönlicher Kalender",
+        "feed-management-disabled",
+        "Persönlichen Feed aktivieren oder neu erzeugen",
+        "calendar:feed-manage-own",
+        "POST",
+        "/calendar/feed",
+        "CalendarService.activate",
+        False,
+        False,
+    ),
+    DemoPathContract(
+        "calendar-feed-revoke-disabled",
+        frozenset(DEMO_ROLES),
+        "Persönlicher Kalender",
+        "feed-management-disabled",
+        "Persönlichen Feed widerrufen",
+        "calendar:feed-manage-own",
+        "DELETE",
+        "/calendar/feed",
+        "CalendarService.revoke",
+        False,
+        False,
+    ),
+    DemoPathContract(
+        "absence-report-disabled",
+        frozenset(DEMO_ROLES),
+        "Ausfall und Ersatz",
+        "absence-scenario-not-released",
+        "Eigenen Ausfall melden",
+        "absence:write-own",
+        "POST",
+        "/absence-reports",
+        "AbsenceService.report",
+        False,
+        False,
+    ),
+    DemoPathContract(
+        "absence-response-disabled",
+        frozenset(DEMO_ROLES),
+        "Ausfall und Ersatz",
+        "absence-scenario-not-released",
+        "Eigene Ersatzanfrage beantworten",
+        "absence:respond-own",
+        "PATCH",
+        "/replacement-responses/{id}",
+        "AbsenceService.respond",
+        False,
+        False,
+    ),
+)
+
+
+ROLE_CAPABILITIES = {
+    role: frozenset(
+        contract.capability
+        for contract in (*DEMO_READ_MATRIX, *DEMO_MUTATION_MATRIX)
+        if contract.allowed and role in contract.roles
+    )
+    for role in DEMO_ROLES
+}
 
 
 class DemoRuntimePolicy:
@@ -52,6 +493,7 @@ class DemoRuntimePolicy:
                 "product_version": self.app_manifest["product"]["version"],
                 "product_commit": self.app_manifest["product"]["commit"],
                 "runtime_contract": self.app_manifest["runtime_contract"],
+                "demo_matrix_version": DEMO_MATRIX_VERSION,
                 "seed_revision": self.seed_manifest["seed_revision"],
                 "schema_fingerprint": self.seed_manifest["schema"]["fingerprint"],
                 "initialized": self.runtime_status["initialized"],
@@ -106,11 +548,11 @@ class DemoRuntimePolicy:
     def session_view(self, context: AuthContext) -> dict:
         role_name = self._role_name(context)
         role = DEMO_ROLES[role_name]
-        capabilities = CHAIR_CAPABILITIES if role_name == "chair" else COMMON_CAPABILITIES
         return {
             "demo_role": role_name,
             "display_name": role["display_name"],
-            "capabilities": sorted(capabilities),
+            "capabilities": sorted(ROLE_CAPABILITIES[role_name]),
+            "demo_matrix_version": DEMO_MATRIX_VERSION,
         }
 
     def authorize_mutation(
@@ -124,72 +566,17 @@ class DemoRuntimePolicy:
         path = "/".join(path_parts)
         if method == "POST" and path in {"session/rotate", "session/logout"}:
             return
-        if method == "DELETE":
-            raise ForbiddenRequestError("This write operation is disabled in the demo.")
-
-        if role == "examiner":
-            examiner_allowed = method == "POST" and path == "member-availabilities"
-            examiner_allowed = examiner_allowed or (
-                method == "PATCH"
-                and len(path_parts) == 2
-                and path_parts[0] == "member-availabilities"
-            )
-            examiner_allowed = examiner_allowed or (
-                method == "PATCH"
-                and len(path_parts) == 5
-                and path_parts[0] == "confirmed-plan-days"
-                and path_parts[2] == "assignments"
-                and path_parts[4] == "attendance"
-            )
-            if examiner_allowed:
-                return
-            raise ForbiddenRequestError("This write operation is disabled for this demo role.")
-
-        if self._chair_mutation_allowed(method, path_parts):
+        if any(
+            contract.allowed and role in contract.roles and contract.matches(method, path_parts)
+            for contract in DEMO_MUTATION_MATRIX
+        ):
             return
-        raise ForbiddenRequestError("This write operation is disabled in the demo.")
-
-    @staticmethod
-    def _chair_mutation_allowed(method: str, path_parts: list[str]) -> bool:
-        path = "/".join(path_parts)
-        if method == "POST":
-            if path in {
-                "planning-proposals",
-                "candidate-exam-days/generate",
-                "planning-settings",
-                "member-availabilities",
-            }:
-                return True
-            return (
-                len(path_parts) == 3
-                and path_parts[0] == "exam-rounds"
-                and path_parts[2] in {"request-availabilities", "confirm-plan"}
-            ) or (
-                len(path_parts) == 5
-                and path_parts[0] == "confirmed-plan-days"
-                and path_parts[2] == "slots"
-                and path_parts[4] == "start"
-            )
-        if method == "PUT":
-            return (
-                len(path_parts) == 3
-                and path_parts[0] == "exam-rounds"
-                and path_parts[2] == "planning-proposal"
-            )
-        if method == "PATCH":
-            if len(path_parts) == 2 and path_parts[0] in {
-                "exam-rounds",
-                "planning-settings",
-                "member-availabilities",
-            }:
-                return True
-            return (
-                len(path_parts) == 5
-                and path_parts[0] == "confirmed-plan-days"
-                and path_parts[2] in {"slots", "assignments"}
-                and path_parts[4] in {"attendance", "status"}
-            )
-        return False
+        message = (
+            "This write operation is disabled for this demo role."
+            if role == "examiner"
+            else "This write operation is disabled in the demo."
+        )
+        raise ForbiddenRequestError(message)
 
     @staticmethod
     def _role_name(context: AuthContext) -> str:

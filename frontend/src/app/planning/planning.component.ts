@@ -104,6 +104,9 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   @Input() proposalEditorViolations: PlanningValidationViolation[] = [];
   @Input() availabilityOnly = false;
   @Input() ownMemberId: number | null = null;
+  @Input() allowCandidateDayGeneration = true;
+  @Input() canCreateCandidateDay = true;
+  @Input() canToggleCandidateDay = true;
 
   @Output() saveSettings = new EventEmitter<PlanningSettingsPayload>();
   @Output() saveRound = new EventEmitter<RoundUpdatePayload>();
@@ -445,7 +448,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   protected submitCandidateDay(): void {
-    if (!this.candidateDayDraft.date) {
+    if (!this.canCreateCandidateDay || !this.candidateDayDraft.date) {
       return;
     }
     this.createCandidateDay.emit({
@@ -521,6 +524,9 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   protected requestCandidateDayGeneration(): void {
+    if (!this.allowCandidateDayGeneration) {
+      return;
+    }
     const payload = this.settingsPayload();
     if (payload) {
       this.generateCandidateDays.emit(payload);
@@ -538,7 +544,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   protected canGenerateCandidateDays(): boolean {
-    return this.settingsPayload() !== null;
+    return this.allowCandidateDayGeneration && this.settingsPayload() !== null;
   }
 
   protected canConfirmProposal(): boolean {

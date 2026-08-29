@@ -118,7 +118,7 @@
                     <span class="app-exam-day-arrival">{{
                       arrivalLabel(candidateAttendance.arrived_at)
                     }}</span>
-                    @if (!ownAttendanceOnly) {
+                    @if (canCoordinateAttendance) {
                       <label class="app-sr-only" [for]="'candidate-status-' + slot.id"
                         >Status Prüfling</label
                       >
@@ -151,7 +151,7 @@
                     @if (slot.status_reason) {
                       <span class="app-exam-day-arrival">Begründung: {{ slot.status_reason }}</span>
                     }
-                    @if (!ownAttendanceOnly) {
+                    @if (canCoordinateAttendance) {
                       <label class="app-sr-only" [for]="'execution-status-' + slot.id"
                         >Durchführungsstatus</label
                       >
@@ -201,7 +201,7 @@
                     }}
                   </td>
                   <td class="app-exam-day-actions">
-                    @if (!ownAttendanceOnly) {
+                    @if (canCoordinateAttendance) {
                       <button
                         tuiButton
                         appearance="secondary"
@@ -308,60 +308,69 @@
                     <span class="app-exam-day-arrival">{{
                       arrivalLabel(memberAttendance.arrived_at)
                     }}</span>
-                    <label class="app-sr-only" [for]="'member-status-' + assignment.id"
-                      >Status Besetzung</label
-                    >
-                    <select [id]="'member-status-' + assignment.id" [(ngModel)]="draft.status">
-                      <option value="open">Offen</option>
-                      <option value="present">Anwesend</option>
-                      <option value="late">Verspätet</option>
-                      <option value="absent">Abwesend</option>
-                    </select>
-                    <label class="app-sr-only" [for]="'member-arrival-' + assignment.id"
-                      >Ankunftszeit Besetzung</label
-                    >
-                    <input
-                      [id]="'member-arrival-' + assignment.id"
-                      type="datetime-local"
-                      [(ngModel)]="draft.arrivedAt"
-                      [required]="draft.status === 'late'"
-                    />
+                    @if (canEditMemberAttendance(assignment)) {
+                      <label class="app-sr-only" [for]="'member-status-' + assignment.id"
+                        >Status Besetzung</label
+                      >
+                      <select [id]="'member-status-' + assignment.id" [(ngModel)]="draft.status">
+                        <option value="open">Offen</option>
+                        <option value="present">Anwesend</option>
+                        <option value="late">Verspätet</option>
+                        <option value="absent">Abwesend</option>
+                      </select>
+                      <label class="app-sr-only" [for]="'member-arrival-' + assignment.id"
+                        >Ankunftszeit Besetzung</label
+                      >
+                      <input
+                        [id]="'member-arrival-' + assignment.id"
+                        type="datetime-local"
+                        [(ngModel)]="draft.arrivedAt"
+                        [required]="draft.status === 'late'"
+                      />
+                    }
                   </td>
                   <td class="app-exam-day-actions">
-                    <button
-                      tuiButton
-                      appearance="secondary"
-                      type="button"
-                      [disabled]="hasSavingAction()"
-                      [attr.aria-label]="
-                        assignment.member.first_name +
-                        ' ' +
-                        assignment.member.last_name +
-                        ': Anwesenheit speichern'
-                      "
-                      (click)="saveMemberAttendance(assignment.id, draft)"
-                    >
-                      {{
-                        isSaving('member-' + assignment.id)
-                          ? 'Speichert …'
-                          : 'Anwesenheit speichern'
-                      }}
-                    </button>
-                    <button
-                      tuiButton
-                      appearance="secondary"
-                      type="button"
-                      [disabled]="hasSavingAction()"
-                      [attr.aria-label]="
-                        assignment.member.first_name +
-                        ' ' +
-                        assignment.member.last_name +
-                        ': Ausfall melden'
-                      "
-                      (click)="reportAbsence(assignment.id)"
-                    >
-                      {{ isSaving('absence-' + assignment.id) ? 'Meldet …' : 'Ausfall melden' }}
-                    </button>
+                    @if (canEditMemberAttendance(assignment)) {
+                      <button
+                        tuiButton
+                        appearance="secondary"
+                        type="button"
+                        [disabled]="hasSavingAction()"
+                        [attr.aria-label]="
+                          assignment.member.first_name +
+                          ' ' +
+                          assignment.member.last_name +
+                          ': Anwesenheit speichern'
+                        "
+                        (click)="saveMemberAttendance(assignment.id, draft)"
+                      >
+                        {{
+                          isSaving('member-' + assignment.id)
+                            ? 'Speichert …'
+                            : 'Anwesenheit speichern'
+                        }}
+                      </button>
+                    }
+                    @if (canReportAbsenceFor(assignment)) {
+                      <button
+                        tuiButton
+                        appearance="secondary"
+                        type="button"
+                        [disabled]="hasSavingAction()"
+                        [attr.aria-label]="
+                          assignment.member.first_name +
+                          ' ' +
+                          assignment.member.last_name +
+                          ': Ausfall melden'
+                        "
+                        (click)="reportAbsence(assignment.id)"
+                      >
+                        {{ isSaving('absence-' + assignment.id) ? 'Meldet …' : 'Ausfall melden' }}
+                      </button>
+                    }
+                    @if (!canEditMemberAttendance(assignment) && !canReportAbsenceFor(assignment)) {
+                      <span class="app-muted">Keine eigene Aktion</span>
+                    }
                   </td>
                 </tr>
               } @empty {

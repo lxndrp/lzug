@@ -5,6 +5,9 @@
       Ausfälle bestätigter Besetzungen, Ersatzanfragen und Entscheidungen bleiben hier
       nachvollziehbar dokumentiert.
     </p>
+    @if (!canRespondToOwnAbsence()) {
+      <p class="app-muted">Ausfall- und Ersatzaktionen sind für diese Demo-Rolle read-only.</p>
+    }
     @if (message()) {
       <p role="status">{{ message() }}</p>
     }
@@ -41,7 +44,7 @@
               <div class="absence-response">
                 <strong>Ihre Ersatzanfrage</strong>
                 <span>Status: {{ response.response }}</span>
-                @if (response.response === 'pending') {
+                @if (response.response === 'pending' && canRespondToOwnAbsence()) {
                   <div class="app-form-action-buttons">
                     <button
                       tuiButton

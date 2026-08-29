@@ -2,8 +2,10 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideTaiga } from '@taiga-ui/core';
+import { provideRouter } from '@angular/router';
 import { vi } from 'vitest';
 
+import { AuthService } from '../auth/auth.service';
 import { NotificationsComponent } from './notifications.component';
 
 describe('NotificationsComponent', () => {
@@ -13,6 +15,7 @@ describe('NotificationsComponent', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
+        provideRouter([]),
         provideTaiga({ scrollbars: 'native' }),
       ],
     }).compileComponents();
@@ -74,6 +77,65 @@ describe('NotificationsComponent', () => {
     expect(content).toContain('Zustellstatus im Ausschuss');
     expect(content).toContain('Nicht verfügbar');
     expect(content).not.toContain('Inhalt eines anderen Mitglieds');
+  });
+
+  it('keeps push and feed management read-only without demo mutation capabilities', () => {
+    TestBed.inject(AuthService).session.set({
+      authenticated: true,
+      account_id: 2,
+      person_id: 3,
+      committee_member_id: 3,
+      is_operator: false,
+      demo_role: 'examiner',
+      capabilities: ['notifications:read-own', 'calendar:read-own'],
+    });
+    const fixture = TestBed.createComponent(NotificationsComponent);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+
+    http.expectOne('/api/notifications').flush({ items: [], _links: {} });
+    http.expectOne('/api/notification-overview').flush({ items: [], _links: {} });
+    http.expectOne('/api/notification-channels').flush({
+      web_push: { available: true, public_key: 'test-key' },
+      email_fallback_configured: false,
+      sink_enabled: false,
+    });
+    http.expectOne('/api/calendar').flush({
+      active: false,
+      activated_at: null,
+      revoked_at: null,
+      time_zone: 'Europe/Berlin',
+      _links: {},
+    });
+    http.expectOne('/api/calendar/events').flush({
+      items: [
+        {
+          id: 1,
+          external_event_id: 'calendar-event-1',
+          date: '2026-11-16',
+          starts_at: '08:30',
+          ends_at: '09:30',
+          time_zone: 'Europe/Berlin',
+          location: 'Raum 1',
+          role: 'Prüfperson',
+          round_name: 'Winterprüfung 2026',
+          status: 'sent',
+          version: 1,
+          download_url: '/api/calendar/events/1.ics',
+        },
+      ],
+      _links: {},
+    });
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).toContain(
+      'Externe Zustellung ist in der öffentlichen Demo deaktiviert.',
+    );
+    expect(element.textContent).toContain('Feed-Aktivierung, Neuerzeugung und Widerruf');
+    expect(element.textContent).not.toContain('Browser-Benachrichtigungen aktivieren');
+    expect(element.textContent).not.toContain('Persönlichen Feed aktivieren');
+    expect(element.querySelector('a[href="/api/calendar/events/1.ics"]')).not.toBeNull();
   });
 
   it('explains a denied browser permission without registering an endpoint', async () => {

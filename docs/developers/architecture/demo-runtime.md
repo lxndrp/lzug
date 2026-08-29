@@ -62,8 +62,8 @@ scripts/demo-container-smoke.sh lzug-demo-app:local lzug-demo-seed:local
 ## Öffentliche Schnittstellen
 
 - `GET /api/demo/status` nennt Produktversion und Commit, Seed-Revision,
-  Schemafingerprint, Initialisierungszeit, letzten und nächsten Reset, aber
-  keine Geheimnisse.
+  Schemafingerprint, Version der Demo-Pfadmatrix, Initialisierungszeit, letzten
+  und nächsten Reset, aber keine Geheimnisse.
 - `POST /api/demo/session` akzeptiert ausschließlich `chair` oder `examiner`
   und erzeugt eine zufällige Sitzung mit 60 Minuten Laufzeit.
 - `GET /api/session` ergänzt in der Demo Anzeigename, Rolle und Capabilities.
@@ -85,6 +85,34 @@ Die Rollenwahl ersetzt nur in dieser Assembly die lokale Anmeldung. Einladung,
 Recovery und Betreiberzugänge sind nicht öffentlich erreichbar. Sämtliche
 Mutationen durchlaufen zusätzlich zur normalen Ausschussautorisierung die
 Default-Deny-Allowlist der Demo.
+
+## Demo-Pfadmatrix
+
+`demo/runtime_policy.py` enthält die unmittelbar ausführbare Demo-Pfadmatrix.
+Jede Zeile verbindet Rolle und synthetischen Seedzustand mit sichtbarer Aktion,
+effektiver Capability, HTTP-Methode und Route sowie der weiterhin maßgeblichen
+fachlichen Autorisierung. Die erlaubten Mutationszeilen sind zugleich die
+Default-Deny-Allowlist; Rollen-Capabilities werden aus den erlaubten Lese- und
+Mutationszeilen abgeleitet. Dadurch entsteht kein zweites Autorisierungsmodell.
+
+Bewusst nicht freigegebene Zeilen halten das Read-only-Verhalten testbar fest.
+Dazu gehören das manuelle Anlegen und Umschalten möglicher Prüfungstage,
+sämtliche Mutationen an Prüfungshalbjahren und deren Ausschusszuordnung sowie
+Push-Registrierung, Kalenderfeed-Verwaltung und Ausfall-/Ersatzmutationen. Ihre
+Oberflächenaktionen bleiben unsichtbar, direkte API-Aufrufe enden weiterhin mit
+`403 Forbidden`.
+
+Die technischen Matrixverträge werden mit folgendem Eingangsgate geprüft:
+
+```bash
+task quality:demo-matrix
+```
+
+`task quality:demo` schließt dieses Gate ein. Die Frontend-Prüfungen ergänzen
+positive und negative Sichtbarkeitsnachweise; Demo-E2E und Accessibility prüfen
+die betroffenen Read-only-Pfade auf Desktop, Mobile, Tastatur und
+Screenreader-Semantik. Eine Freigabe nach #356 darf nur Qualitätsevidenz eines
+Stands verwenden, in dem dieses Matrixgate grün ist.
 
 ## Reset und Betrieb
 

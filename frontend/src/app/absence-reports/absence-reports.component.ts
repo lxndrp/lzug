@@ -31,6 +31,7 @@ export class AbsenceReportsComponent implements OnInit {
   }
 
   protected answer(responseId: number, answer: 'available' | 'unavailable'): void {
+    if (!this.canRespondToOwnAbsence()) return;
     this.busyResponse.set(responseId);
     this.message.set(null);
     this.api.answerReplacement(responseId, answer).subscribe({
@@ -46,6 +47,10 @@ export class AbsenceReportsComponent implements OnInit {
         this.message.set('Ersatzantwort konnte nicht gespeichert werden.');
       },
     });
+  }
+
+  protected canRespondToOwnAbsence(): boolean {
+    return this.auth.hasCapability('absence:respond-own');
   }
 
   private load(): void {

@@ -50,6 +50,23 @@ describe('AuthService', () => {
     expect(service.session()).toBeNull();
   });
 
+  it('uses explicit demo capabilities while preserving product sessions', () => {
+    expect(service.hasCapability('candidate-days:create')).toBe(true);
+
+    service.session.set({
+      authenticated: true,
+      account_id: 1,
+      person_id: 1,
+      committee_member_id: 1,
+      is_operator: false,
+      demo_role: 'chair',
+      capabilities: ['candidate-days:generate'],
+    });
+
+    expect(service.hasCapability('candidate-days:generate')).toBe(true);
+    expect(service.hasCapability('candidate-days:create')).toBe(false);
+  });
+
   it('posts login and activation/recovery requests only as request bodies', () => {
     service.login('member@example.invalid', 'a password', '123456').subscribe();
     const login = http.expectOne('/api/auth/login');

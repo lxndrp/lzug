@@ -135,6 +135,30 @@ describe('ExamDayComponent', () => {
     );
   });
 
+  it('shows only capability-backed own actions in the demo', () => {
+    fixture.componentRef.setInput('canCoordinateAttendance', false);
+    fixture.componentRef.setInput('canWriteOwnAttendance', true);
+    fixture.componentRef.setInput('canReportOwnAbsence', false);
+    fixture.componentRef.setInput('ownMemberId', 1);
+    fixture.detectChanges();
+    http.expectOne('/api/confirmed-plan-days/7').flush(dayView());
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).toContain('Testperson Prüfung');
+    expect(element.textContent).not.toContain('Testperson Fallback');
+    expect(element.textContent).toContain('Anwesenheit speichern');
+    expect(element.textContent).not.toContain('Prüfung starten');
+    expect(element.textContent).not.toContain('Status speichern');
+    expect(element.textContent).not.toContain('Ausfall melden');
+
+    const component = fixture.componentInstance as unknown as {
+      reportAbsence(assignmentId: number): void;
+    };
+    component.reportAbsence(7);
+    http.expectNone('/api/absence-reports');
+  });
+
   it('allows present without arrival and resets feedback when changing days', () => {
     fixture.detectChanges();
     http.expectOne('/api/confirmed-plan-days/7').flush(dayView());

@@ -558,18 +558,28 @@ test.describe('lzug browser workflows', () => {
           display_name: isChair ? 'Testperson Alpha' : 'Testperson Gamma',
           capabilities: isChair
             ? [
+                'absence:read-own',
                 'attendance:coordinate',
-                'attendance:write-own',
                 'availability:coordinate',
-                'availability:write-own',
+                'calendar:read-own',
                 'candidate-days:generate',
+                'exam-half-years:read',
                 'exam-status:write',
+                'notifications:read-own',
                 'planning-proposal:confirm',
                 'planning-proposal:generate',
+                'planning-proposal:replace',
                 'planning-settings:write',
                 'round:write',
               ]
-            : ['attendance:write-own', 'availability:write-own'],
+            : [
+                'absence:read-own',
+                'attendance:write-own',
+                'availability:write-own',
+                'calendar:read-own',
+                'exam-half-years:read',
+                'notifications:read-own',
+              ],
         }),
       });
     });
@@ -603,12 +613,49 @@ test.describe('lzug browser workflows', () => {
           await expect(
             page.getByRole('link', { name: 'Prüfungspläne', exact: true }),
           ).toBeVisible();
+          const mainNavigation = page.getByLabel('Hauptnavigation');
+          await expect(
+            mainNavigation.getByRole('link', { name: 'Prüfungskontext auswählen', exact: true }),
+          ).toBeVisible();
+          await expect(
+            mainNavigation.getByRole('link', { name: 'Benachrichtigungen', exact: true }),
+          ).toBeVisible();
+          await expect(
+            mainNavigation.getByRole('link', { name: 'Ausfall und Ersatz', exact: true }),
+          ).toBeVisible();
 
           await page.goto('/candidates');
           await expect(
             page.getByText('Dieser Demo-Bereich ist für Ihre Rolle nicht freigegeben.'),
           ).toBeVisible();
           await expect(page.locator('app-candidates')).toHaveCount(0);
+
+          await page.goto('/exam-half-years');
+          await expect(
+            page.getByText('Prüfungshalbjahre sind in der öffentlichen Demo schreibgeschützt.'),
+          ).toBeVisible();
+          await expect(page.getByRole('button', { name: 'Prüfungshalbjahr anlegen' })).toHaveCount(
+            0,
+          );
+          await expect(page.getByRole('button', { name: /bearbeiten$/i })).toHaveCount(0);
+          await expect(page.getByRole('button', { name: /abschließen$/i })).toHaveCount(0);
+
+          await page.goto('/notifications');
+          await expect(
+            page.getByText('Externe Zustellung ist in der öffentlichen Demo deaktiviert.'),
+          ).toBeVisible();
+          await expect(
+            page.getByRole('button', { name: 'Browser-Benachrichtigungen aktivieren' }),
+          ).toHaveCount(0);
+          await expect(
+            page.getByRole('button', { name: 'Persönlichen Feed aktivieren' }),
+          ).toHaveCount(0);
+
+          await page.goto('/absence-reports');
+          await expect(
+            page.getByText('Ausfall- und Ersatzaktionen sind für diese Demo-Rolle read-only.'),
+          ).toBeVisible();
+          await expect(page.getByRole('button', { name: /übernehmen/i })).toHaveCount(0);
         });
       }
     }
@@ -621,6 +668,38 @@ test.describe('lzug browser workflows', () => {
     await expect(switchButton).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: 'Anmelden' })).toBeVisible();
+  });
+
+  test('keeps demo read-only paths screen-reader accessible @a11y', async ({ page }) => {
+    await page.route('**/api/session', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          authenticated: true,
+          account_id: 2,
+          person_id: 3,
+          committee_member_id: 3,
+          is_operator: false,
+          demo_role: 'examiner',
+          display_name: 'Testperson Gamma',
+          capabilities: [
+            'absence:read-own',
+            'attendance:write-own',
+            'availability:write-own',
+            'calendar:read-own',
+            'exam-half-years:read',
+            'notifications:read-own',
+          ],
+        }),
+      }),
+    );
+
+    for (const path of ['/exam-half-years', '/notifications', '/absence-reports']) {
+      await page.goto(path);
+      await expect(page.locator('main')).toBeVisible();
+      const accessibility = await new AxeBuilder({ page }).include('main').analyze();
+      expect(accessibility.violations).toEqual([]);
+    }
   });
 
   test('keeps the active exam context visible in contextual views', async ({ page }) => {

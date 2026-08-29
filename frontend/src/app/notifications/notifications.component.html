@@ -7,18 +7,22 @@
         nur einen sicheren Hinweis auf lzug.
       </p>
     </div>
-    @if (canEnablePush()) {
-      <button
-        tuiButton
-        appearance="secondary"
-        type="button"
-        [disabled]="pushBusy()"
-        (click)="enablePush()"
-      >
-        {{ pushBusy() ? 'Wird aktiviert …' : 'Browser-Benachrichtigungen aktivieren' }}
-      </button>
+    @if (canManagePush()) {
+      @if (canEnablePush()) {
+        <button
+          tuiButton
+          appearance="secondary"
+          type="button"
+          [disabled]="pushBusy()"
+          (click)="enablePush()"
+        >
+          {{ pushBusy() ? 'Wird aktiviert …' : 'Browser-Benachrichtigungen aktivieren' }}
+        </button>
+      } @else {
+        <p class="app-muted">Web Push ist in dieser Instanz oder diesem Browser nicht verfügbar.</p>
+      }
     } @else {
-      <p class="app-muted">Web Push ist in dieser Instanz oder diesem Browser nicht verfügbar.</p>
+      <p class="app-muted">Externe Zustellung ist in der öffentlichen Demo deaktiviert.</p>
     }
     @if (pushMessage()) {
       <p role="status">{{ pushMessage() }}</p>
@@ -38,37 +42,47 @@
     } @else {
       @if (calendar()?.active) {
         <p role="status">Der persönliche Feed ist aktiv (Zeitzone {{ calendar()?.time_zone }}).</p>
-        <div class="calendar-actions">
-          <button
-            tuiButton
-            appearance="secondary"
-            type="button"
-            [disabled]="calendarBusy()"
-            (click)="activateCalendar(true)"
-          >
-            Zugang neu erzeugen
-          </button>
-          <button
-            tuiButton
-            appearance="secondary"
-            type="button"
-            [disabled]="calendarBusy()"
-            (click)="revokeCalendar()"
-          >
-            Feed widerrufen
-          </button>
-        </div>
+        @if (canManageCalendarFeed()) {
+          <div class="calendar-actions">
+            <button
+              tuiButton
+              appearance="secondary"
+              type="button"
+              [disabled]="calendarBusy()"
+              (click)="activateCalendar(true)"
+            >
+              Zugang neu erzeugen
+            </button>
+            <button
+              tuiButton
+              appearance="secondary"
+              type="button"
+              [disabled]="calendarBusy()"
+              (click)="revokeCalendar()"
+            >
+              Feed widerrufen
+            </button>
+          </div>
+        }
       } @else {
         <p>Der persönliche Feed ist noch nicht aktiviert.</p>
-        <button
-          tuiButton
-          appearance="primary"
-          type="button"
-          [disabled]="calendarBusy()"
-          (click)="activateCalendar()"
-        >
-          Persönlichen Feed aktivieren
-        </button>
+        @if (canManageCalendarFeed()) {
+          <button
+            tuiButton
+            appearance="primary"
+            type="button"
+            [disabled]="calendarBusy()"
+            (click)="activateCalendar()"
+          >
+            Persönlichen Feed aktivieren
+          </button>
+        }
+      }
+      @if (!canManageCalendarFeed()) {
+        <p class="app-muted">
+          Feed-Aktivierung, Neuerzeugung und Widerruf sind in der öffentlichen Demo nicht
+          freigegeben. Eigene Termine können weiterhin einzeln geladen werden.
+        </p>
       }
       @if (feedUrl(); as url) {
         <p class="calendar-feed-url" role="status">

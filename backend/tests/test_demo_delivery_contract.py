@@ -194,6 +194,8 @@ class DemoDeliveryContractTests(unittest.TestCase):
         quality = Path(".github/workflows/quality.yml").read_text(encoding="utf-8")
 
         self.assertIn("quality:demo:", taskfile)
+        self.assertIn("quality:demo-matrix:", taskfile)
+        self.assertIn("- quality:demo-matrix", taskfile)
         self.assertIn("scripts/demo-container-smoke.sh", taskfile)
         self.assertIn("SEED_REVISION=$seed_revision", taskfile)
         self.assertIn("quality:demo", pull_request)

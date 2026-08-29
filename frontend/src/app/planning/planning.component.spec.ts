@@ -51,6 +51,29 @@ describe('PlanningComponent', () => {
     ).toBeTruthy();
   });
 
+  it('separates generation, manual creation, and activation capabilities', () => {
+    fixture.componentRef.setInput('allowCandidateDayGeneration', true);
+    fixture.componentRef.setInput('canCreateCandidateDay', false);
+    fixture.componentRef.setInput('canToggleCandidateDay', false);
+    fixture.detectChanges();
+
+    let element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).toContain('Mögliche Tage berechnen');
+
+    showStep('conditions');
+    element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('#candidateDayDate')).toBeNull();
+    expect(element.textContent).not.toContain('Prüfungstag hinzufügen');
+    expect(element.textContent).not.toContain('Deaktivieren');
+
+    fixture.componentRef.setInput('allowCandidateDayGeneration', false);
+    fixture.detectChanges();
+    showStep('period');
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain(
+      'Mögliche Tage berechnen',
+    );
+  });
+
   it('should restrict examiner mode to the own availability response step', () => {
     const component = fixture.componentInstance as unknown as {
       activeMembers(): typeof masterDataFixture.members;

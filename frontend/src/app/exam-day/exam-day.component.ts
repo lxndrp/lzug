@@ -29,7 +29,9 @@ export class ExamDayComponent implements OnInit, OnChanges {
 
   @Input() roundId: number | null = null;
   @Input() dayId: number | null = null;
-  @Input() ownAttendanceOnly = false;
+  @Input() canCoordinateAttendance = true;
+  @Input() canWriteOwnAttendance = true;
+  @Input() canReportOwnAbsence = true;
   @Input() ownMemberId: number | null = null;
 
   protected readonly state = signal<ExamDayViewState>('loading');
@@ -127,13 +129,13 @@ export class ExamDayComponent implements OnInit, OnChanges {
 
   protected assignmentsForCurrentRole(): ConfirmedPlanDay['assignments'] {
     const assignments = this.view()?.day.assignments ?? [];
-    return this.ownAttendanceOnly
+    return !this.canCoordinateAttendance
       ? assignments.filter((assignment) => assignment.member.id === this.ownMemberId)
       : assignments;
   }
 
   protected saveCandidateAttendance(slotId: number, draft: AttendanceDraft): void {
-    if (this.ownAttendanceOnly) return;
+    if (!this.canCoordinateAttendance) return;
     const dayId = this.view()?.day.id;
     if (dayId === undefined) return;
     this.saveAction(
@@ -148,14 +150,8 @@ export class ExamDayComponent implements OnInit, OnChanges {
   }
 
   protected saveMemberAttendance(assignmentId: number, draft: AttendanceDraft): void {
-    if (
-      this.ownAttendanceOnly &&
-      !this.view()?.day.assignments.some(
-        (assignment) => assignment.id === assignmentId && assignment.member.id === this.ownMemberId,
-      )
-    ) {
-      return;
-    }
+    const assignment = this.view()?.day.assignments.find((item) => item.id === assignmentId);
+    if (!assignment || !this.canEditMemberAttendance(assignment)) return;
     const dayId = this.view()?.day.id;
     if (dayId === undefined) return;
     this.saveAction(
@@ -170,7 +166,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
   }
 
   protected startExamSlot(slotId: number): void {
-    if (this.ownAttendanceOnly) return;
+    if (!this.canCoordinateAttendance) return;
     const dayId = this.view()?.day.id;
     if (dayId === undefined) return;
     this.saveAction(
@@ -180,6 +176,8 @@ export class ExamDayComponent implements OnInit, OnChanges {
   }
 
   protected reportAbsence(assignmentId: number): void {
+    const assignment = this.view()?.day.assignments.find((item) => item.id === assignmentId);
+    if (!assignment || !this.canReportAbsenceFor(assignment)) return;
     const dayId = this.view()?.day.id;
     if (dayId === undefined || this.hasSavingAction()) return;
     const actionSequence = this.requestSequence;
@@ -246,7 +244,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
   }
 
   protected saveExecutionStatus(slotId: number, draft: ExecutionStatusDraft): void {
-    if (this.ownAttendanceOnly) return;
+    if (!this.canCoordinateAttendance) return;
     const dayId = this.view()?.day.id;
     if (dayId === undefined) return;
     if (this.requiresExecutionReason(draft.status) && !draft.reason.trim()) {
@@ -317,6 +315,20 @@ export class ExamDayComponent implements OnInit, OnChanges {
 
   protected hasSavingAction(): boolean {
     return this.savingKeys().size > 0;
+  }
+
+  protected canEditMemberAttendance(assignment: ConfirmedPlanDay['assignments'][number]): boolean {
+    return (
+      this.canCoordinateAttendance ||
+      (this.canWriteOwnAttendance && assignment.member.id === this.ownMemberId)
+    );
+  }
+
+  protected canReportAbsenceFor(assignment: ConfirmedPlanDay['assignments'][number]): boolean {
+    return (
+      this.canReportOwnAbsence &&
+      (this.canCoordinateAttendance || assignment.member.id === this.ownMemberId)
+    );
   }
 
   private saveAction(

@@ -286,6 +286,7 @@ tasks:
     desc: Build and verify the separate demo app and seed OCI pair
     deps:
       - quality:image
+      - quality:demo-matrix
     cmds:
       - |
         set -eu
@@ -348,6 +349,11 @@ tasks:
             lzug:0.0.0-dev.local \
             "$seed_revision"
         done
+
+  quality:demo-matrix:
+    desc: Verify demo roles, capabilities, mutation allowlist, and default-deny paths
+    cmds:
+      - '{{.UV}} python -m unittest backend.tests.test_demo_runtime'
 
   quality:overall:
     desc: Run all local cross-domain integration contracts in parallel

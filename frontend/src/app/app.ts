@@ -155,6 +155,21 @@ export class App {
   protected readonly canCoordinateAttendance = computed(
     () => this.hasCapability('attendance:coordinate') || this.hasCapability('exam-status:write'),
   );
+  protected readonly canWriteOwnAttendance = computed(() =>
+    this.hasCapability('attendance:write-own'),
+  );
+  protected readonly canReportOwnAbsence = computed(() => this.hasCapability('absence:write-own'));
+  protected readonly canGenerateCandidateDays = computed(
+    () =>
+      this.hasCapability('planning-settings:write') &&
+      this.hasCapability('candidate-days:generate'),
+  );
+  protected readonly canCreateCandidateDay = computed(() =>
+    this.hasCapability('candidate-days:create'),
+  );
+  protected readonly canToggleCandidateDay = computed(() =>
+    this.hasCapability('candidate-days:toggle'),
+  );
   protected readonly directAccessDenied = computed(
     () => this.demoSession() !== null && !this.canAccessView(this.activeView()),
   );
@@ -376,14 +391,15 @@ export class App {
   }
 
   protected hasCapability(capability: string): boolean {
-    const capabilities = this.auth.session()?.capabilities;
-    return capabilities === undefined || capabilities.includes(capability);
+    return this.auth.hasCapability(capability);
   }
 
   protected canAccessView(view: AppView): boolean {
     if (!this.demoSession()) return true;
-    if (view === 'dashboard' || view === 'notifications' || view === 'absence-reports') return true;
-    if (view === 'exam-half-years') return true;
+    if (view === 'dashboard') return true;
+    if (view === 'notifications') return this.hasCapability('notifications:read-own');
+    if (view === 'absence-reports') return this.hasCapability('absence:read-own');
+    if (view === 'exam-half-years') return this.hasCapability('exam-half-years:read');
     if (['scheduling-overview', 'planning'].includes(view)) {
       return (
         this.hasCapability('availability:write-own') ||
@@ -710,7 +726,7 @@ export class App {
   }
 
   protected createCandidateDay(payload: CandidateExamDayPayload): void {
-    if (!this.hasCapability('candidate-days:generate')) {
+    if (!this.hasCapability('candidate-days:create')) {
       this.notifyRoleRestriction();
       return;
     }
@@ -734,7 +750,7 @@ export class App {
   }
 
   protected generateCandidateDays(payload: PlanningSettingsPayload): void {
-    if (!this.hasCapability('candidate-days:generate')) {
+    if (!this.canGenerateCandidateDays()) {
       this.notifyRoleRestriction();
       return;
     }
@@ -765,7 +781,7 @@ export class App {
   }
 
   protected toggleCandidateDay(day: CandidateExamDay): void {
-    if (!this.hasCapability('candidate-days:generate')) {
+    if (!this.hasCapability('candidate-days:toggle')) {
       this.notifyRoleRestriction();
       return;
     }
@@ -918,6 +934,10 @@ export class App {
   }
 
   protected savePlanningProposal(proposal: EditablePlanningProposal): void {
+    if (!this.hasCapability('planning-proposal:replace')) {
+      this.notifyRoleRestriction();
+      return;
+    }
     this.proposalEditorState.set('saving');
     this.proposalEditorError.set(null);
     this.proposalEditorViolations.set([]);

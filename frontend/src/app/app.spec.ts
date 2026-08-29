@@ -40,6 +40,7 @@ describe('App', () => {
   });
 
   beforeEach(async () => {
+    const session = signal<ReturnType<AuthService['session']>>(null);
     await TestBed.configureTestingModule({
       imports: [App],
       providers: [
@@ -52,7 +53,11 @@ describe('App', () => {
           provide: AuthService,
           useValue: {
             state: signal('authenticated'),
-            session: signal(null),
+            session,
+            hasCapability: (capability: string) => {
+              const capabilities = session()?.capabilities;
+              return capabilities === undefined || capabilities.includes(capability);
+            },
             initialize: () => of(true),
             markAnonymous: vi.fn(),
             logout: () => of(undefined),
@@ -334,6 +339,7 @@ describe('App', () => {
       toggleCandidateDay(payload: never): void;
       saveAvailability(payload: never): void;
       generateProposal(): void;
+      savePlanningProposal(payload: never): void;
       confirmPlan(): void;
       demoRoleLabel(): string;
       demoRoleTask(): string;
@@ -360,6 +366,7 @@ describe('App', () => {
       availability: 'full_day',
     } as never);
     app.generateProposal();
+    app.savePlanningProposal(undefined as never);
     app.confirmPlan();
 
     fixture.detectChanges();
