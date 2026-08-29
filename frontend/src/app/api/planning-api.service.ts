@@ -12,6 +12,9 @@ import {
   CandidateDayGenerationResult,
   ConfirmedPlan,
   ConfirmedPlanDayView,
+  ExamDayClosure,
+  ExamDayReopeningImpact,
+  ExamDayReopeningScope,
   CandidateExamDay,
   CandidateView,
   Committee,
@@ -41,6 +44,10 @@ import {
   CalendarFeedActivation,
   CalendarStatus,
   AbsenceReport,
+  ExamProtocol,
+  ExamProtocolDeclaration,
+  ExamProtocolEntryCategory,
+  ExamResult,
 } from './api.models';
 import { RoundContextService } from './round-context.service';
 
@@ -103,6 +110,47 @@ export class PlanningApiService {
     return this.http.get<ConfirmedPlanDayView>(`/api/confirmed-plan-days/${dayId}`);
   }
 
+  closeExamDay(
+    dayId: number,
+    revision: number,
+    closureType: 'regular' | 'exception',
+    reason: string,
+    clarificationAttempts: string,
+  ) {
+    return this.http.post<ExamDayClosure>(`/api/confirmed-plan-days/${dayId}/closure`, {
+      revision,
+      closure_type: closureType,
+      confirmed: true,
+      ...(closureType === 'exception'
+        ? { reason: reason.trim(), clarification_attempts: clarificationAttempts.trim() }
+        : {}),
+    });
+  }
+
+  previewExamDayReopening(dayId: number, scope: ExamDayReopeningScope[]) {
+    return this.http.post<ExamDayReopeningImpact>(
+      `/api/confirmed-plan-days/${dayId}/reopening-impact`,
+      { scope },
+    );
+  }
+
+  reopenExamDay(
+    dayId: number,
+    revision: number,
+    occasion: string,
+    source: string,
+    reason: string,
+    scope: ExamDayReopeningScope[],
+  ) {
+    return this.http.post<ExamDayClosure>(`/api/confirmed-plan-days/${dayId}/reopenings`, {
+      revision,
+      occasion: occasion.trim(),
+      source: source.trim(),
+      reason: reason.trim(),
+      scope,
+    });
+  }
+
   getNotifications() {
     return this.list<NotificationItem>('/api/notifications');
   }
@@ -139,11 +187,17 @@ export class PlanningApiService {
     return this.list<AbsenceReport>('/api/absence-reports');
   }
 
-  createAbsenceReport(examDayId: number, assignmentId: number, reason?: string) {
+  createAbsenceReport(
+    examDayId: number,
+    assignmentId: number,
+    reason?: string,
+    dayRevision?: number,
+  ) {
     return this.http.post<AbsenceReport>('/api/absence-reports', {
       exam_day_id: examDayId,
       exam_day_assignment_id: assignmentId,
       ...(reason?.trim() ? { reason: reason.trim() } : {}),
+      ...(dayRevision ? { day_revision: dayRevision } : {}),
     });
   }
 
@@ -171,10 +225,11 @@ export class PlanningApiService {
     slotId: number,
     status: AttendanceStatus,
     arrivedAt: string | null,
+    dayRevision?: number,
   ) {
     return this.http.patch<ConfirmedPlanDayView>(
       `/api/confirmed-plan-days/${dayId}/slots/${slotId}/attendance`,
-      { status, arrived_at: arrivedAt },
+      { status, arrived_at: arrivedAt, ...(dayRevision ? { day_revision: dayRevision } : {}) },
     );
   }
 
@@ -183,25 +238,317 @@ export class PlanningApiService {
     assignmentId: number,
     status: AttendanceStatus,
     arrivedAt: string | null,
+    dayRevision?: number,
   ) {
     return this.http.patch<ConfirmedPlanDayView>(
       `/api/confirmed-plan-days/${dayId}/assignments/${assignmentId}/attendance`,
-      { status, arrived_at: arrivedAt },
+      { status, arrived_at: arrivedAt, ...(dayRevision ? { day_revision: dayRevision } : {}) },
     );
   }
 
-  startExamSlot(dayId: number, slotId: number, actualStartedAt: string | null = null) {
+  startExamSlot(
+    dayId: number,
+    slotId: number,
+    actualStartedAt: string | null = null,
+    dayRevision?: number,
+  ) {
     return this.http.post<ConfirmedPlanDayView>(
       `/api/confirmed-plan-days/${dayId}/slots/${slotId}/start`,
-      actualStartedAt ? { actual_started_at: actualStartedAt } : {},
+      {
+        ...(actualStartedAt ? { actual_started_at: actualStartedAt } : {}),
+        ...(dayRevision ? { day_revision: dayRevision } : {}),
+      },
     );
   }
 
-  updateExamSlotStatus(dayId: number, slotId: number, status: ExecutionStatus, reason?: string) {
+  updateExamSlotStatus(
+    dayId: number,
+    slotId: number,
+    status: ExecutionStatus,
+    reason?: string,
+    dayRevision?: number,
+    actualStartedAt?: string | null,
+    actualCompletedAt?: string | null,
+  ) {
     return this.http.patch<ConfirmedPlanDayView>(
       `/api/confirmed-plan-days/${dayId}/slots/${slotId}/status`,
-      { status, ...(reason ? { reason } : {}) },
+      {
+        status,
+        ...(reason ? { reason } : {}),
+        ...(dayRevision ? { day_revision: dayRevision } : {}),
+        ...(actualStartedAt !== undefined ? { actual_started_at: actualStartedAt } : {}),
+        ...(actualCompletedAt !== undefined ? { actual_completed_at: actualCompletedAt } : {}),
+      },
     );
+  }
+
+  getExamProtocol(dayId: number, slotId: number) {
+    return this.http.get<ExamProtocol>(
+      `/api/confirmed-plan-days/${dayId}/slots/${slotId}/protocol`,
+    );
+  }
+
+  updateExamProtocol(
+    protocolId: number,
+    version: number,
+    declaration: ExamProtocolDeclaration,
+    entries: Array<{
+      category: ExamProtocolEntryCategory;
+      statement: string;
+      occurred_from: string;
+      occurred_to: string | null;
+    }>,
+    changeReason?: string,
+    dayRevision?: number,
+  ) {
+    return this.http.patch<ExamProtocol>(`/api/exam-protocols/${protocolId}`, {
+      version,
+      declaration,
+      entries,
+      ...(changeReason?.trim() ? { change_reason: changeReason.trim() } : {}),
+      ...(dayRevision ? { day_revision: dayRevision } : {}),
+    });
+  }
+
+  submitExamProtocol(protocolId: number, version: number, dayRevision?: number) {
+    return this.http.post<ExamProtocol>(`/api/exam-protocols/${protocolId}/submit`, {
+      version,
+      ...(dayRevision ? { day_revision: dayRevision } : {}),
+    });
+  }
+
+  respondToExamProtocol(
+    protocolId: number,
+    version: number,
+    response: 'confirmed' | 'reservation',
+    entryId?: number,
+    statement?: string,
+    dayRevision?: number,
+  ) {
+    return this.http.post<ExamProtocol>(`/api/exam-protocols/${protocolId}/responses`, {
+      version,
+      response,
+      ...(entryId === undefined ? {} : { entry_id: entryId }),
+      ...(statement?.trim() ? { statement: statement.trim() } : {}),
+      ...(dayRevision ? { day_revision: dayRevision } : {}),
+    });
+  }
+
+  requestExamProtocolCorrection(
+    protocolId: number,
+    version: number,
+    reason: string,
+    dayRevision?: number,
+  ) {
+    return this.http.post<ExamProtocol>(`/api/exam-protocols/${protocolId}/correction-requests`, {
+      version,
+      reason: reason.trim(),
+      ...(dayRevision ? { day_revision: dayRevision } : {}),
+    });
+  }
+
+  openExamProtocolCorrection(
+    protocolId: number,
+    version: number,
+    correctionRequestId: number,
+    reason: string,
+    reopeningReference?: string,
+    dayRevision?: number,
+  ) {
+    return this.http.post<ExamProtocol>(`/api/exam-protocols/${protocolId}/open-correction`, {
+      version,
+      correction_request_id: correctionRequestId,
+      reason: reason.trim(),
+      ...(reopeningReference?.trim() ? { reopening_reference: reopeningReference.trim() } : {}),
+      ...(dayRevision ? { day_revision: dayRevision } : {}),
+    });
+  }
+
+  getExamResult(dayId: number, slotId: number) {
+    return this.http.get<ExamResult>(`/api/confirmed-plan-days/${dayId}/slots/${slotId}/result`);
+  }
+
+  saveIndividualAssessment(
+    resultId: number,
+    version: number,
+    componentKey: string,
+    criterionKey: string,
+    rawPoints: string,
+    rationale: string,
+    submitted: boolean,
+    changeReason?: string,
+    dayRevisions?: Record<string, number>,
+  ) {
+    return this.http.post<ExamResult>(`/api/exam-results/${resultId}/individual-assessments`, {
+      version,
+      component_key: componentKey,
+      criterion_key: criterionKey,
+      raw_points: rawPoints,
+      rationale: rationale.trim() || null,
+      submitted,
+      ...(changeReason?.trim() ? { change_reason: changeReason.trim() } : {}),
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
+    });
+  }
+
+  withdrawIndividualAssessment(
+    resultId: number,
+    version: number,
+    assessmentId: number,
+    reason: string,
+    dayRevisions?: Record<string, number>,
+  ) {
+    return this.http.post<ExamResult>(
+      `/api/exam-results/${resultId}/individual-assessments/${assessmentId}/withdraw`,
+      { version, reason: reason.trim(), ...(dayRevisions ? { day_revisions: dayRevisions } : {}) },
+    );
+  }
+
+  discloseAssessments(
+    resultId: number,
+    version: number,
+    componentKey: string,
+    dayRevisions?: Record<string, number>,
+  ) {
+    return this.http.post<ExamResult>(`/api/exam-results/${resultId}/disclosures`, {
+      version,
+      component_key: componentKey,
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
+    });
+  }
+
+  determineComponent(
+    resultId: number,
+    version: number,
+    componentKey: string,
+    points: string,
+    rationale: string,
+    participants: number[],
+    dissent: Array<{ member_id: number; statement: string }>,
+    dayRevisions?: Record<string, number>,
+  ) {
+    return this.http.post<ExamResult>(`/api/exam-results/${resultId}/committee-assessments`, {
+      version,
+      component_key: componentKey,
+      points,
+      rationale: rationale.trim() || null,
+      participant_member_ids: participants,
+      vote: { yes: participants, no: [], abstain: [] },
+      dissent,
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
+    });
+  }
+
+  recordExternalResult(
+    resultId: number,
+    version: number,
+    payload: {
+      area_key: string;
+      points: string;
+      grade?: string;
+      professional_status: string;
+      determining_authority: string;
+      source_reference: string;
+      correction_reason?: string;
+    },
+    dayRevisions?: Record<string, number>,
+  ) {
+    return this.http.post<ExamResult>(`/api/exam-results/${resultId}/external-results`, {
+      version,
+      ...payload,
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
+    });
+  }
+
+  confirmExternalResult(
+    resultId: number,
+    version: number,
+    externalResultId: number,
+    dayRevisions?: Record<string, number>,
+  ) {
+    return this.http.post<ExamResult>(
+      `/api/exam-results/${resultId}/external-results/${externalResultId}/confirm`,
+      { version, ...(dayRevisions ? { day_revisions: dayRevisions } : {}) },
+    );
+  }
+
+  determineExamResult(
+    resultId: number,
+    version: number,
+    participants: number[],
+    dissent: Array<{ member_id: number; statement: string }>,
+    dayRevisions?: Record<string, number>,
+  ) {
+    return this.http.post<ExamResult>(`/api/exam-results/${resultId}/determine`, {
+      version,
+      participant_member_ids: participants,
+      vote: { yes: participants, no: [], abstain: [] },
+      dissent,
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
+    });
+  }
+
+  confirmResultRecord(resultId: number, version: number, dayRevisions?: Record<string, number>) {
+    return this.http.post<ExamResult>(`/api/exam-results/${resultId}/record-confirmations`, {
+      version,
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
+    });
+  }
+
+  openResultCorrection(
+    resultId: number,
+    version: number,
+    reason: string,
+    reopeningReference?: string,
+    dayRevisions?: Record<string, number>,
+  ) {
+    return this.http.post<ExamResult>(`/api/exam-results/${resultId}/corrections`, {
+      version,
+      reason: reason.trim(),
+      ...(reopeningReference?.trim() ? { reopening_reference: reopeningReference.trim() } : {}),
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
+    });
+  }
+
+  communicateExamResult(
+    resultId: number,
+    version: number,
+    method: string,
+    communicatedAt: string,
+    externalDocumentReference?: string,
+    dayRevisions?: Record<string, number>,
+  ) {
+    return this.http.post<ExamResult>(`/api/exam-results/${resultId}/communications`, {
+      version,
+      method: method.trim(),
+      communicated_at: new Date(communicatedAt).toISOString(),
+      ...(externalDocumentReference?.trim()
+        ? {
+            external_document_status: 'extern dokumentiert',
+            external_document_reference: externalDocumentReference.trim(),
+          }
+        : {}),
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
+    });
+  }
+
+  setExamResultRetention(
+    resultId: number,
+    version: number,
+    payload: {
+      period_start?: string;
+      retain_until?: string;
+      legal_hold: boolean;
+      hold_reason?: string;
+      release_reason?: string;
+    },
+    dayRevisions?: Record<string, number>,
+  ) {
+    return this.http.put<ExamResult>(`/api/exam-results/${resultId}/retention`, {
+      version,
+      ...payload,
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
+    });
   }
 
   createExamHalfYear(payload: Pick<ExamHalfYear, 'season' | 'year' | 'status'>) {
@@ -335,11 +682,11 @@ export class PlanningApiService {
     );
   }
 
-  createCommittee(payload: Pick<Committee, 'name' | 'occupation'>) {
+  createCommittee(payload: Pick<Committee, 'name' | 'occupation' | 'ihk'>) {
     return this.http.post<Committee>('/api/committees', payload);
   }
 
-  updateCommittee(id: number, payload: Partial<Pick<Committee, 'name' | 'occupation'>>) {
+  updateCommittee(id: number, payload: Partial<Pick<Committee, 'name' | 'occupation' | 'ihk'>>) {
     return this.http.patch<Committee>(`/api/committees/${id}`, payload);
   }
 

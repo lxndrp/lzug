@@ -4,9 +4,8 @@
 [![Status: prototype](https://img.shields.io/badge/status-prototype-yellow)](https://github.com/users/lxndrp/projects/2)
 [![CI](https://github.com/lxndrp/lzug/actions/workflows/quality.yml/badge.svg?branch=master&event=push)](https://github.com/lxndrp/lzug/actions/workflows/quality.yml?query=branch%3Amaster+event%3Apush)
 
-`lzug` unterstützt IHK-Prüfungsausschüsse bei der Organisation halbjährlicher
-Fachinformatiker-Prüfungen. Die Anwendung ist ein Arbeitswerkzeug für die
-Ausschussarbeit, nicht für die interne IHK-Sachbearbeitung.
+`lzug` unterstützt IHK-Prüfungsausschüsse bei der Organisation halbjährlicher Fachinformatiker-Prüfungen.
+Die Anwendung ist ein Arbeitswerkzeug für die Ausschussarbeit, nicht für die interne IHK-Sachbearbeitung.
 
 > **Öffentlicher Quellcode-Prototyp:** `lzug` ist ausdrücklich nicht
 > produktionsreif. Der Quellcode enthält ausschließlich synthetische Demo- und
@@ -26,23 +25,18 @@ operative Reihenfolge im GitHub Project `lzug Roadmap`.
 Wähle den Einstieg nach Aufgabe:
 
 - Das [GitHub Wiki](https://github.com/lxndrp/lzug/wiki) richtet sich an
-  Fachlichkeit, Nutzung und Administration.
+Fachlichkeit, Nutzung und Administration.
 - [CONTRIBUTING.md](CONTRIBUTING.md) ist der Einstieg für Beiträge und lokale
-  Entwicklung.
+Entwicklung.
 - Das [Entwicklerhandbuch](docs/developers/index.md) enthält aktuelle
-  technische Verträge, Runbooks, Referenzen und Entscheidungen.
+technische Verträge, Runbooks, Referenzen und Entscheidungen.
 
-Die verbindliche Zuordnung der Quellen und Dokumentarten steht unter
-[Dokumentation](docs/developers/documentation.md). `task docs` baut die
-versionierte technische Referenz lokal; CI stellt sie als geschütztes Artefakt
-bereit.
+Die verbindliche Zuordnung der Quellen und Dokumentarten steht unter [Dokumentation](docs/developers/documentation.md).
+`task docs` baut die versionierte technische Referenz lokal; CI stellt sie als geschütztes Artefakt bereit.
 
 ## Lizenz
 
-Der Projektcode und ausführbare Beispiele stehen unter der
-[GNU Affero General Public License 3.0-or-later](LICENSE). Änderungen an einer
-netzwerkbasiert betriebenen Version müssen den interagierenden Nutzenden den
-entsprechenden Quellcode zugänglich machen. Originale Dokumentationsprosa und
--diagramme stehen innerhalb der in [`docs/LICENSE.md`](docs/LICENSE.md)
-festgelegten Grenze unter `CC-BY-4.0`. Drittmaterial behält die in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) dokumentierte Lizenz.
+Der Projektcode und ausführbare Beispiele stehen unter der [GNU Affero General Public License 3.0-or-later](LICENSE).
+Änderungen an einer netzwerkbasiert betriebenen Version müssen den interagierenden Nutzenden den entsprechenden Quellcode zugänglich machen.
+Originale Dokumentationsprosa und -diagramme stehen innerhalb der in [`docs/LICENSE.md`](docs/LICENSE.md) festgelegten Grenze unter `CC-BY-4.0`.
+Drittmaterial behält die in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) dokumentierte Lizenz.
