@@ -71,7 +71,7 @@ assert payload["mode"] == "demo"
 assert payload["initialized"] is True
 assert payload["initialization_status"] == "ready"
 assert payload["runtime_contract"] == "lzug-demo-health-ready-v1"
-assert payload["demo_matrix_version"] == "demo-paths-v2"
+assert payload["demo_matrix_version"] == "demo-paths-v3"
 assert payload["reset_status"] == "scheduled"
 assert len(payload["seed_revision"]) == 64
 assert payload["reset_timezone"] == "Europe/Berlin"
@@ -100,7 +100,7 @@ import json, sys
 payload = json.load(sys.stdin)
 assert payload["demo_role"] == "chair"
 assert "planning-proposal:generate" in payload["capabilities"]
-assert payload["demo_matrix_version"] == "demo-paths-v2"
+assert payload["demo_matrix_version"] == "demo-paths-v3"
 '
 
 denied_status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
