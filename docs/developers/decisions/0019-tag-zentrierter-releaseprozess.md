@@ -1,8 +1,12 @@
 # ADR-0019: Tag-zentrierter minimaler Releaseprozess
 
+## Datum
+
+2026-08-13.
+
 ## Status
 
-Akzeptiert am 13.08.2026.
+Akzeptiert.
 
 ## Kontext
 

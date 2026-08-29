@@ -1,12 +1,20 @@
 # ADR-0005: Taiga UI für die Oberfläche
 
+## Datum
+
+2026-07-26.
+
 ## Status
 
-Akzeptiert, rückwirkend dokumentiert am 26.07.2026.
+Akzeptiert.
+Rückwirkend dokumentiert.
 
-## Kontext und Entscheidung
+## Kontext
 
 Eine begrenzte Taiga-UI-Erprobung bestätigte die technische und gestalterische Richtung für eine inkrementelle Migration.
+
+## Entscheidung
+
 Backend, API-Verträge, Routen und fachliche Abläufe blieben dabei unverändert.
 Taiga UI deckt die produktiven Oberflächenkomponenten ab.
 

@@ -1,8 +1,12 @@
 # ADR-0028: SBOM-Orchestrierung und CycloneDX-Standardwerkzeuge abgrenzen
 
+## Datum
+
+2026-08-29.
+
 ## Status
 
-Akzeptiert am 29.08.2026.
+Akzeptiert.
 
 ## Kontext
 

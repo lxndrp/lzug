@@ -1,8 +1,12 @@
 # ADR-0026: Automatische Demo-Promotion stabiler Releases
 
+## Datum
+
+2026-08-25.
+
 ## Status
 
-Akzeptiert am 25.08.2026.
+Akzeptiert.
 
 ## Kontext
 

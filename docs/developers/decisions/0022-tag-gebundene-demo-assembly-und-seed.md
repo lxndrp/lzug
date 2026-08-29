@@ -1,8 +1,12 @@
 # ADR-0022: Tag-gebundene Demo-Assembly und inhaltsadressierter Seed
 
+## Datum
+
+2026-08-14.
+
 ## Status
 
-Akzeptiert am 14.08.2026.
+Akzeptiert.
 Konkretisiert [ADR-0015](0015-fluechtige-azure-demo.md) und grenzt die Demo vom persistenten Produktimage aus [ADR-0014](0014-oci-einzelcontainer-und-persistentes-data.md) ab.
 
 ## Kontext
