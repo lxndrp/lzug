@@ -11,7 +11,7 @@ export type AuthSession = {
   person_id: number | null;
   committee_member_id: number | null;
   is_operator: boolean;
-  demo_role?: 'chair' | 'examiner';
+  demo_role?: 'chair' | 'deputy' | 'examiner';
   display_name?: string;
   capabilities?: string[];
   demo_matrix_version?: string;

@@ -9,11 +9,8 @@ SQL-Demo-Seed, die zentralen Angular-Fixtures und den historischen statischen
 Prototyp. Generierte Dateien tragen einen entsprechenden Kopf und werden nicht
 direkt bearbeitet. Verhaltensspezifische Tests dürfen zusätzliche Werte
 verwenden, wenn sie derselben erkennbar synthetischen Konvention folgen.
-Der Demo-Artefaktbau ergänzt anschließend genau einen separaten, bestätigten
-und gestarteten synthetischen Slot mit offenem Protokoll. Damit bleiben die
-allgemeinen Planungsfixtures unverändert wiederverwendbar, während beide
-Demo-Rollen als tatsächliche Beteiligte den vollständigen Protokollworkflow bis
-zum nächsten Reset ausführen können.
+Der Demo-Artefaktbau ergänzt anschließend genau einen separaten, bestätigten und gestarteten synthetischen Slot mit offenem Protokoll sowie gebundenem, synthetischem Bewertungsmodell.
+Damit bleiben die allgemeinen Planungsfixtures unverändert wiederverwendbar, während Vorsitz, prüfendes Mitglied und Stellvertretung als tatsächliche Beteiligte den Protokoll- und Ergebnisworkflow einschließlich Offenlegung und Vier-Augen-Bestätigung bis zum nächsten Reset ausführen können.
 
 Nach einer Änderung an der kanonischen Quelle werden die Adapter mit
 

@@ -256,12 +256,15 @@ describe('PlanningApiService', () => {
   });
 
   it('should expose committee and member write operations', () => {
-    service.createCommittee({ name: 'PA Neu', occupation: 'Fachinformatiker/in' }).subscribe();
+    service
+      .createCommittee({ name: 'PA Neu', occupation: 'Fachinformatiker/in', ihk: 'IHK Teststadt' })
+      .subscribe();
     const committee = http.expectOne('/api/committees');
     expect(committee.request.method).toBe('POST');
     expect(committee.request.body).toEqual({
       name: 'PA Neu',
       occupation: 'Fachinformatiker/in',
+      ihk: 'IHK Teststadt',
     });
     committee.flush(committeesFixture[0]);
 

@@ -23,6 +23,7 @@ from .models import (
     ExamProtocolResponse,
     ExamProtocolRetention,
     ExamProtocolRevision,
+    ExamResult,
     ExamRound,
     ExamSlot,
     Location,
@@ -749,6 +750,9 @@ class ExamProtocolService:
                     },
                 }
             )
+        result = session.scalar(
+            select(ExamResult).where(ExamResult.round_candidate_id == round_candidate.id)
+        )
         return {
             "candidate": {
                 "id": candidate.id,
@@ -778,7 +782,12 @@ class ExamProtocolService:
                 "city": location.city,
             },
             "participants": participant_references,
-            "assessment": {"available": False, "contract_issue": 35},
+            "assessment": {
+                "available": result is not None and result.legacy_status is None,
+                "exam_result_id": result.id if result else None,
+                "state": result.current_state if result else "not_bound",
+                "legacy_status": result.legacy_status if result else None,
+            },
         }
 
     def _state(

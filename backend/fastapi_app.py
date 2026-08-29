@@ -27,6 +27,7 @@ from .application import (
 )
 from .database import database_path
 from .exam_protocols import ExamProtocolConflictError
+from .exam_results import ExamResultConflictError
 from .local_auth import LocalAuthError
 from .models import CANDIDATE_COMMITTEE_ASSIGNMENT, EXAM_DAY, EXAM_DAY_ASSIGNMENT, EXAM_SLOT
 from .observability import emit_event, safe_http_path
@@ -537,6 +538,15 @@ def create_app(
         return _json_response(
             ApplicationResult(
                 {"error": {"code": "exam_protocol_conflict", "message": str(error)}},
+                HTTPStatus.CONFLICT,
+            )
+        )
+
+    @app.exception_handler(ExamResultConflictError)
+    def exam_result_conflict(_request: Request, error: ExamResultConflictError):
+        return _json_response(
+            ApplicationResult(
+                {"error": {"code": "exam_result_conflict", "message": str(error)}},
                 HTTPStatus.CONFLICT,
             )
         )
@@ -1478,6 +1488,222 @@ def create_app(
         context = _context(request, resolved)
         context.require_authenticated()
         result = context.exam_protocol_service.completion_for_day(
+            context.authorization_scope, int(day_id)
+        )
+        return _not_found() if result is None else _finish(context, context.respond(result))
+
+    @app.get("/api/assessment-model-versions", openapi_extra=read_security)
+    def assessment_model_versions(request: Request):
+        context = _context(request, resolved)
+        context.require_authenticated()
+        return _finish(
+            context,
+            context.respond(context.exam_result_service.list_models(context.authorization_scope)),
+        )
+
+    @app.post("/api/assessment-model-versions", openapi_extra=write_security)
+    def create_assessment_model_version(request: Request):
+        context = _context(request, resolved, _body(request))
+        auth = context.require_authenticated(require_csrf=True)
+        context.authorize_mutation("POST", ["assessment-model-versions"], auth)
+        result = context.exam_result_service.create_model(
+            context.authorization_scope, context.read_json()
+        )
+        return _finish(context, context.respond(result, HTTPStatus.CREATED))
+
+    @app.get(
+        "/api/exam-rounds/{round_id}/assessment-model-binding",
+        openapi_extra=read_security,
+    )
+    def assessment_model_binding(request: Request, round_id: str):
+        context = _context(request, resolved)
+        context.require_authenticated()
+        binding = context.exam_result_service.get_round_binding(
+            context.authorization_scope, int(round_id)
+        )
+        return _not_found() if binding is None else _finish(context, context.respond(binding))
+
+    @app.post(
+        "/api/exam-rounds/{round_id}/assessment-model-binding",
+        openapi_extra=write_security,
+    )
+    def bind_assessment_model(request: Request, round_id: str):
+        context = _context(request, resolved, _body(request))
+        auth = context.require_authenticated(require_csrf=True)
+        context.authorize_mutation(
+            "POST", ["exam-rounds", round_id, "assessment-model-binding"], auth
+        )
+        result = context.exam_result_service.bind_round(
+            context.authorization_scope, int(round_id), context.read_json()
+        )
+        return _finish(context, context.respond(result))
+
+    @app.get(
+        "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/result",
+        openapi_extra=read_security,
+    )
+    def slot_result(request: Request, day_id: str, slot_id: str):
+        context = _context(request, resolved)
+        context.require_authenticated()
+        slot = context.repository.get(EXAM_SLOT, int(slot_id))
+        if slot is None or slot["exam_day_id"] != int(day_id):
+            return _not_found()
+        result = context.exam_result_service.get_by_slot(context.authorization_scope, int(slot_id))
+        return _not_found() if result is None else _finish(context, context.respond(result))
+
+    @app.get("/api/exam-results/{result_id}", openapi_extra=read_security)
+    def exam_result(request: Request, result_id: str):
+        context = _context(request, resolved)
+        context.require_authenticated()
+        result = context.exam_result_service.get(context.authorization_scope, int(result_id))
+        return _not_found() if result is None else _finish(context, context.respond(result))
+
+    def result_write(
+        request: Request,
+        result_id: str,
+        action: str,
+        *,
+        nested_id: str | None = None,
+        method: str = "POST",
+    ) -> Response:
+        context = _context(request, resolved, _body(request))
+        auth = context.require_authenticated(require_csrf=True)
+        path_parts = ["exam-results", result_id, action]
+        if nested_id is not None:
+            path_parts.append(nested_id)
+        if action == "external-results" and nested_id is not None:
+            path_parts.append("confirm")
+        elif action == "individual-assessments" and nested_id is not None:
+            path_parts.append("withdraw")
+        context.authorize_mutation(method, path_parts, auth)
+        payload = context.read_json()
+        service = context.exam_result_service
+        result_int = int(result_id)
+        if action == "individual-assessments" and nested_id is None:
+            result = service.save_individual(context.authorization_scope, result_int, payload)
+        elif action == "individual-assessments":
+            result = service.withdraw_individual(
+                context.authorization_scope, result_int, int(nested_id), payload
+            )
+        elif action == "disclosures":
+            result = service.disclose(context.authorization_scope, result_int, payload)
+        elif action == "committee-assessments":
+            result = service.determine_component(context.authorization_scope, result_int, payload)
+        elif action == "external-results" and nested_id is None:
+            result = service.record_external(context.authorization_scope, result_int, payload)
+        elif action == "external-results":
+            result = service.confirm_external(
+                context.authorization_scope, result_int, int(nested_id), payload
+            )
+        elif action == "determine":
+            result = service.determine_result(context.authorization_scope, result_int, payload)
+        elif action == "record-confirmations":
+            result = service.confirm_record(context.authorization_scope, result_int, payload)
+        elif action == "corrections":
+            result = service.open_correction(context.authorization_scope, result_int, payload)
+        elif action == "communications":
+            result = service.communicate(context.authorization_scope, result_int, payload)
+        elif action == "retention":
+            result = service.set_retention(context.authorization_scope, result_int, payload)
+        else:  # pragma: no cover - only called by explicit routes
+            raise ValueError("Unbekannte Ergebnisaktion")
+        return _finish(context, context.respond(result))
+
+    @app.post(
+        "/api/exam-results/{result_id}/individual-assessments",
+        openapi_extra=write_security,
+    )
+    def save_individual_assessment(request: Request, result_id: str):
+        return result_write(request, result_id, "individual-assessments")
+
+    @app.post(
+        "/api/exam-results/{result_id}/individual-assessments/{assessment_id}/withdraw",
+        openapi_extra=write_security,
+    )
+    def withdraw_individual_assessment(request: Request, result_id: str, assessment_id: str):
+        return result_write(request, result_id, "individual-assessments", nested_id=assessment_id)
+
+    @app.post("/api/exam-results/{result_id}/disclosures", openapi_extra=write_security)
+    def disclose_individual_assessments(request: Request, result_id: str):
+        return result_write(request, result_id, "disclosures")
+
+    @app.post(
+        "/api/exam-results/{result_id}/committee-assessments",
+        openapi_extra=write_security,
+    )
+    def determine_committee_assessment(request: Request, result_id: str):
+        return result_write(request, result_id, "committee-assessments")
+
+    @app.post(
+        "/api/exam-results/{result_id}/external-results",
+        openapi_extra=write_security,
+    )
+    def record_external_result(request: Request, result_id: str):
+        return result_write(request, result_id, "external-results")
+
+    @app.post(
+        "/api/exam-results/{result_id}/external-results/{external_result_id}/confirm",
+        openapi_extra=write_security,
+    )
+    def confirm_external_result(request: Request, result_id: str, external_result_id: str):
+        return result_write(request, result_id, "external-results", nested_id=external_result_id)
+
+    @app.post("/api/exam-results/{result_id}/determine", openapi_extra=write_security)
+    def determine_exam_result(request: Request, result_id: str):
+        return result_write(request, result_id, "determine")
+
+    @app.post(
+        "/api/exam-results/{result_id}/record-confirmations",
+        openapi_extra=write_security,
+    )
+    def confirm_result_record(request: Request, result_id: str):
+        return result_write(request, result_id, "record-confirmations")
+
+    @app.post("/api/exam-results/{result_id}/corrections", openapi_extra=write_security)
+    def open_result_correction(request: Request, result_id: str):
+        return result_write(request, result_id, "corrections")
+
+    @app.post(
+        "/api/exam-results/{result_id}/communications",
+        openapi_extra=write_security,
+    )
+    def communicate_exam_result(request: Request, result_id: str):
+        return result_write(request, result_id, "communications")
+
+    @app.put("/api/exam-results/{result_id}/retention", openapi_extra=write_security)
+    def set_result_retention(request: Request, result_id: str):
+        return result_write(request, result_id, "retention", method="PUT")
+
+    @app.get("/api/exam-results/{result_id}/export.json", openapi_extra=read_security)
+    def export_exam_result_json(request: Request, result_id: str):
+        context = _context(request, resolved)
+        context.require_authenticated()
+        result = context.exam_result_service.machine_export(
+            context.authorization_scope, int(result_id)
+        )
+        return _finish(context, context.respond(result))
+
+    @app.get(
+        "/api/exam-results/{result_id}/export.txt",
+        response_class=Response,
+        openapi_extra=read_security,
+    )
+    def export_exam_result_text(request: Request, result_id: str):
+        context = _context(request, resolved)
+        context.require_authenticated()
+        result = context.exam_result_service.human_export(
+            context.authorization_scope, int(result_id)
+        )
+        return _plain_text(context, result, f"ergebnisniederschrift-{int(result_id)}.txt")
+
+    @app.get(
+        "/api/confirmed-plan-days/{day_id}/result-completion",
+        openapi_extra=read_security,
+    )
+    def result_completion(request: Request, day_id: str):
+        context = _context(request, resolved)
+        context.require_authenticated()
+        result = context.exam_result_service.completion_for_day(
             context.authorization_scope, int(day_id)
         )
         return _not_found() if result is None else _finish(context, context.respond(result))
