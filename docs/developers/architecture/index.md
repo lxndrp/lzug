@@ -26,6 +26,7 @@ die Identität aus Commit und gegebenenfalls Release-Tag ab.
 Taskfile und Workflows.
 
 Die langfristigen Entscheidungen stehen als [ADRs](../decisions/index.md).
+Jeder ADR folgt dem durch [ADR-0029](../decisions/0029-einheitliches-nygard-format.md) verbindlich festgelegten Nygard-Format.
 Sie erklären die gewählte Richtung, nicht deren aktuelle Endpunkt-, Feld- oder Workflowdetails.
 
 ## Fachliche und technische Grenzen

@@ -1,8 +1,12 @@
 # ADR-0015: Flüchtige Azure-Container-Apps-Demo
 
+## Datum
+
+2026-08-08.
+
 ## Status
 
-Akzeptiert am 08.08.2026.
+Akzeptiert.
 
 ## Kontext
 

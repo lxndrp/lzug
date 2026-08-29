@@ -1,5 +1,9 @@
 # ADR-0018: SemVer, Releases und Release-Milestones trennen
 
+## Datum
+
+2026-08-11.
+
 ## Status
 
 Akzeptiert.
