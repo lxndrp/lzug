@@ -55,8 +55,8 @@ OpenAPI-Quelle; diese Übersicht wiederholt sie nicht.
 
 Eine Self-Hosting-Instanz gehört zu genau einem Ausschuss und speichert ihren
 Zustand unter `/data`. Das OCI-Image fasst Frontend und Backend zusammen; die
-[flüchtige Azure-Demo](demo-runtime.md) bleibt eine getrennte Assembly mit
-eigenem [Kostenvertrag](../demo-cost-baseline.md). Der Release-Tag bindet
-unveränderliche Artefakte und deren Build-Metadaten. Abläufe und Nachweise
-liegen in den jeweiligen Runbooks und ADRs. Die lokale Kontenpflege bleibt eine
-separate [Betreiber-CLI-Grenze](operator-auth-cli.md).
+[öffentliche Demo](../demo-deployment.md) bleibt eine getrennte flüchtige
+Assembly mit eigenem [Kostenvertrag](../demo-cost-baseline.md). Der Release-Tag
+bindet unveränderliche Artefakte und deren Build-Metadaten. Abläufe und
+Nachweise liegen in den jeweiligen Runbooks und ADRs. Die lokale Kontenpflege
+bleibt eine separate [Betreiber-CLI-Grenze](operator-auth-cli.md).

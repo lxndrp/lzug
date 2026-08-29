@@ -99,7 +99,7 @@ Deploymentvertrag.
 
 ## Referenzen
 
-- [Demo-Runtime-Vertrag](../architecture/demo-runtime.md)
+- [Öffentliche Demo](../demo-deployment.md)
 - [Azure Container Apps: Storage Mounts](https://learn.microsoft.com/azure/container-apps/storage-mounts)
 - [Issue #124](https://github.com/lxndrp/lzug/issues/124)
 - [Issues #125](https://github.com/lxndrp/lzug/issues/125) und
