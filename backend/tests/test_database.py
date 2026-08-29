@@ -83,6 +83,46 @@ def rewind_calendar_migration(connection: sqlite3.Connection) -> None:
         """)
 
 
+def rewind_delivery_claim_migration(connection: sqlite3.Connection) -> None:
+    """Restore the pre-016 delivery table while preserving its queued rows."""
+    connection.executescript("""
+        DROP INDEX notification_delivery_due;
+        ALTER TABLE notification_delivery RENAME TO notification_delivery_claimed;
+        CREATE TABLE notification_delivery (
+          id INTEGER PRIMARY KEY,
+          notification_id INTEGER NOT NULL REFERENCES notification(id) ON DELETE CASCADE,
+          channel TEXT NOT NULL CHECK (channel IN ('web_push', 'email', 'sink')),
+          target_key TEXT NOT NULL,
+          status TEXT NOT NULL CHECK (status IN (
+            'pending', 'technically_confirmed', 'temporarily_failed',
+            'permanently_failed', 'unavailable'
+          )),
+          attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+          next_attempt_at TEXT,
+          technical_confirmed_at TEXT,
+          error_code TEXT,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE (notification_id, channel, target_key)
+        );
+        INSERT INTO notification_delivery (
+          id, notification_id, channel, target_key, status, attempt_count,
+          next_attempt_at, technical_confirmed_at, error_code, created_at, updated_at
+        )
+        SELECT
+          id, notification_id, channel, target_key, status, attempt_count,
+          next_attempt_at, technical_confirmed_at, error_code, created_at, updated_at
+        FROM notification_delivery_claimed;
+        DROP TABLE notification_delivery_claimed;
+        CREATE INDEX notification_delivery_due
+          ON notification_delivery(status, next_attempt_at);
+        DELETE FROM schema_migration_checksum
+          WHERE name = '016_claim_notification_deliveries.sql';
+        DELETE FROM schema_migration
+          WHERE name = '016_claim_notification_deliveries.sql';
+    """)
+
+
 class DatabaseTests(unittest.TestCase):
     def test_connection_scope_closes_the_connection_and_engine(self) -> None:
         with TempDatabase() as db_path, connection_scope(db_path) as connection:
@@ -307,7 +347,7 @@ class DatabaseTests(unittest.TestCase):
                 rewind_calendar_migration(connection)
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?, ?)",
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
@@ -316,6 +356,7 @@ class DatabaseTests(unittest.TestCase):
                         "013_add_notifications.sql",
                         "014_add_personal_calendars.sql",
                         "015_add_absence_replacement_process.sql",
+                        "016_claim_notification_deliveries.sql",
                     ),
                 )
                 connection.execute("DROP TABLE auth_token")
@@ -332,7 +373,7 @@ class DatabaseTests(unittest.TestCase):
             initialize(db_path)
             after = migration_status(db_path)
             self.assertEqual("ready", after["state"])
-            self.assertEqual("015_add_absence_replacement_process.sql", after["current"])
+            self.assertEqual("016_claim_notification_deliveries.sql", after["current"])
             self.assertTrue(list(db_path.parent.joinpath("backups").glob("*.sqlite")))
 
             history_before = after["history"]
@@ -374,7 +415,7 @@ class DatabaseTests(unittest.TestCase):
                     DROP TABLE user_account_legacy;
                 """)
                 connection.execute(
-                    "DELETE FROM schema_migration WHERE name IN (?, ?, ?, ?, ?, ?, ?, ?)",
+                    "DELETE FROM schema_migration WHERE name IN (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         "008_add_authentication_sessions.sql",
                         "009_harden_migration_history.sql",
@@ -384,6 +425,7 @@ class DatabaseTests(unittest.TestCase):
                         "013_add_notifications.sql",
                         "014_add_personal_calendars.sql",
                         "015_add_absence_replacement_process.sql",
+                        "016_claim_notification_deliveries.sql",
                     ),
                 )
                 connection.execute("ALTER TABLE exam_round DROP COLUMN plan_revision")
@@ -402,8 +444,55 @@ class DatabaseTests(unittest.TestCase):
                     "013_add_notifications.sql",
                     "014_add_personal_calendars.sql",
                     "015_add_absence_replacement_process.sql",
+                    "016_claim_notification_deliveries.sql",
                 ],
-                [entry["name"] for entry in status["history"][-8:]],
+                [entry["name"] for entry in status["history"][-9:]],
+            )
+
+    def test_delivery_claim_migration_preserves_queued_deliveries(self) -> None:
+        with TempDatabase() as db_path:
+            with closing(sqlite3.connect(db_path)) as connection:
+                connection.execute("PRAGMA foreign_keys = ON")
+                connection.execute("""
+                    INSERT INTO notification (
+                      committee_id, exam_round_id, recipient_member_id, event_type,
+                      origin_key, title, message, action_path
+                    )
+                    VALUES (
+                      1, 1, 1, 'synthetic_test', 'migration:claim-preservation',
+                      'Migration test', 'No external content', '/notifications'
+                    )
+                """)
+                notification_id = connection.execute(
+                    "SELECT id FROM notification "
+                    "WHERE origin_key = 'migration:claim-preservation'"
+                ).fetchone()[0]
+                connection.execute(
+                    "INSERT INTO notification_delivery "
+                    "(notification_id, channel, target_key, status, attempt_count) "
+                    "VALUES (?, 'sink', 'migration-sink', 'temporarily_failed', 2)",
+                    (notification_id,),
+                )
+                rewind_delivery_claim_migration(connection)
+                connection.commit()
+
+            initialize(db_path)
+
+            with closing(sqlite3.connect(db_path)) as connection:
+                columns = {
+                    row[1] for row in connection.execute("PRAGMA table_info(notification_delivery)")
+                }
+                delivery = connection.execute(
+                    "SELECT status, attempt_count, claim_token, claimed_at, claim_expires_at "
+                    "FROM notification_delivery WHERE notification_id = ?",
+                    (notification_id,),
+                ).fetchone()
+
+            self.assertTrue({"claim_token", "claimed_at", "claim_expires_at"}.issubset(columns))
+            self.assertEqual(("temporarily_failed", 2, None, None, None), delivery)
+            self.assertEqual(
+                "016_claim_notification_deliveries.sql",
+                migration_status(db_path)["current"],
             )
 
     def test_initialize_rejects_unversioned_legacy_round_schema(self) -> None:
@@ -463,7 +552,7 @@ class DatabaseTests(unittest.TestCase):
                 rewind_calendar_migration(connection)
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?, ?)",
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
@@ -472,6 +561,7 @@ class DatabaseTests(unittest.TestCase):
                         "013_add_notifications.sql",
                         "014_add_personal_calendars.sql",
                         "015_add_absence_replacement_process.sql",
+                        "016_claim_notification_deliveries.sql",
                     ),
                 )
                 connection.execute("DROP TABLE auth_token")
@@ -520,7 +610,7 @@ class DatabaseTests(unittest.TestCase):
                 rewind_calendar_migration(connection)
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?, ?)",
+                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
@@ -529,6 +619,7 @@ class DatabaseTests(unittest.TestCase):
                         "013_add_notifications.sql",
                         "014_add_personal_calendars.sql",
                         "015_add_absence_replacement_process.sql",
+                        "016_claim_notification_deliveries.sql",
                     ),
                 )
                 connection.execute("DROP TABLE auth_token")

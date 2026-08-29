@@ -17,11 +17,44 @@ Planbestätigungen verwenden ausschließlich die tatsächlich bestätigten
 Prüfer- und Fallback-Zuordnungen.
 
 `lzug-admin process-notifications` verarbeitet fällige Erinnerungs- und
-Fristereignisse sowie technische Wiederholungen. Vorübergehende Fehler werden
-mit begrenztem exponentiellem Abstand höchstens viermal versucht. Endgültig
-ungültige Push-Endpunkte werden deaktiviert. Eine ausbleibende technische
+Fristereignisse sowie technische Wiederholungen. Pro Lauf werden höchstens 20
+fällige Zustellungen verarbeitet. Jeder einzelne Auftrag wird atomar mit einem
+zufälligen Claim-Token für zwei Minuten beansprucht, bevor der nächste Auftrag
+des begrenzten Laufs ausgewählt wird. Auswahl und Claim erfolgen
+gemeinsam in einer kurzen SQLite-Schreibtransaktion; die dafür benötigten,
+datensparsamen Kanalparameter werden noch in dieser Transaktion gelesen. Web
+Push, SMTP und Sink werden erst nach deren Commit aufgerufen. Das Ergebnis wird
+anschließend in einer neuen kurzen Transaktion nur gespeichert, wenn Token und
+Ablauf des Claims weiterhin gültig sind.
+
+Ein paralleler Worker überspringt aktive Claims. Nach Ablauf darf er den
+Auftrag reproduzierbar übernehmen. Ein verspäteter erster Worker kann den
+neuen Zustand nicht überschreiben. Vorübergehende Fehler werden mit
+begrenztem exponentiellem Abstand höchstens viermal versucht. Endgültig
+ungültige Push-Endpunkte werden nur zusammen mit dem weiterhin gültigen
+Abschluss-Claim deaktiviert. Eine ausbleibende technische
 Service-Worker-Bestätigung ist kein Lesestatus; sie kann bei konfiguriertem
 SMTP den E-Mail-Fallback auslösen.
+
+## Zustellgarantie und Absturzgrenze
+
+Der Claim verhindert ausschließlich die gleichzeitige Verarbeitung desselben
+internen Auftrags. Er kann keine Exactly-once-Zustellung bei einem externen
+System garantieren: Akzeptiert ein externes System die Nachricht und der Worker
+fällt vor dem Ergebnis-Commit aus, wird der abgelaufene Auftrag erneut
+beansprucht. lzug behält dabei genau einen internen Auftrag und verwirft
+Ergebnisse älterer Claims, extern kann die Wiederholung jedoch sichtbar sein.
+
+- **Web Push:** Eine mehrdeutige HTTP-Antwort oder ein Absturz nach Annahme
+  kann einen weiteren Push erzeugen. Der stabile Topic-Wert erleichtert dem
+  Push-Dienst die Zusammenfassung, ist aber keine Exactly-once-Garantie.
+- **E-Mail:** Nach Annahme durch das SMTP-Relay und vor dem Ergebnis-Commit kann
+  eine Wiederholung zu zwei E-Mails führen. Das Relay stellt keine
+  transaktionale Bestätigung gegenüber SQLite bereit.
+- **Sink:** Der Sink kontaktiert keinen realen Empfänger und speichert keine
+  zweite Nachricht. Ein wiederholter Sink-Aufruf bleibt deshalb ohne externe
+  Nebenwirkung; der interne Zustellzustand unterliegt dennoch demselben
+  Claim-Vertrag.
 
 ## Kanäle und Datenminimierung
 
@@ -51,4 +84,7 @@ Zustellungen und über `GET /api/notification-problems` deren problematische
 Teilmenge, jeweils nur als technische Metadaten ihres Ausschusses; die Inhalte
 anderer Empfänger fehlen bewusst.
 Betreiber-Kommandos geben ebenfalls nur Status, Versuchszahl und Diagnosecode
-aus. Betreiberrechte erzeugen keine fachlichen Ausschussrechte.
+aus. Die technische Übersicht ergänzt ohne Nachrichteninhalt den Claim-Zustand
+`idle`, `active` oder `expired` sowie Claim- und Ablaufzeitpunkt; der
+schreibberechtigende Claim-Token wird nicht ausgegeben. Betreiberrechte
+erzeugen keine fachlichen Ausschussrechte.

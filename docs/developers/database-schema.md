@@ -3,7 +3,7 @@
 Die aktuelle, ausführbare Schema-Referenz ist `db/schema.sql` im Repository. Sie
 und die versionierten Migrationen unter `db/migrations/` sind maßgeblich für
 den tatsächlichen Datenbankstand. Der aktuelle Migrationsstand ist
-`015_add_absence_replacement_process.sql`.
+`016_claim_notification_deliveries.sql`.
 
 Das aktuelle Backend verwendet SQLite lokal und SQLAlchemy. Primärschlüssel,
 Enums, Zeitstempel und Booleans sind SQLite-kompatibel modelliert; mehrzeilige
@@ -78,7 +78,12 @@ außerhalb von #118.
 
 `notification` speichert den fachlichen Hinweis genau einmal je Empfänger,
 Ereignistyp und stabilem Ursprungsbezug. `notification_delivery` hält davon
-getrennt ausschließlich technische Kanalzustände und Diagnosecodes.
+getrennt ausschließlich technische Kanalzustände und Diagnosecodes. Die
+optionalen Felder `claim_token`, `claimed_at` und `claim_expires_at` bilden
+einen zeitlich begrenzten Worker-Claim. Migration
+`016_claim_notification_deliveries.sql` ergänzt sie ohne Änderung vorhandener
+Zustellaufträge. Aktive Claims werden nicht parallel übernommen; abgelaufene
+Claims bleiben erneut beanspruchbar.
 `push_subscription` bindet einen Browser-Endpunkt an die authentifizierte
 Person; endgültig ungültige Endpunkte werden mit `invalidated_at` stillgelegt.
 
