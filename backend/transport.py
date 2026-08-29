@@ -24,6 +24,7 @@ from .auth import AuthContext, AuthenticationRepository, SessionCredentials
 from .authorization import AuthorizationScope, AuthorizationService
 from .calendar import CalendarService
 from .candidate_days import CandidateDayService
+from .exam_protocols import ExamProtocolService
 from .local_auth import LocalAuthService
 from .models import (
     CANDIDATE,
@@ -185,6 +186,10 @@ class RequestContext:
     @property
     def absence_service(self) -> AbsenceService:
         return AbsenceService(self.db_path, self.notification_service)
+
+    @property
+    def exam_protocol_service(self) -> ExamProtocolService:
+        return ExamProtocolService(self.db_path)
 
     @property
     def read_application(self) -> ReadApplication:

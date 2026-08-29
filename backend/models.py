@@ -521,6 +521,188 @@ class MemberExamAttendance(Base):
     )
 
 
+class ExamProtocol(Base):
+    """One shared protocol for one exam that actually started."""
+
+    __tablename__ = "exam_protocol"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_slot_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_slot.id", ondelete="CASCADE"), unique=True
+    )
+    current_version: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    created_by_member_id: Mapped[int | None] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT"), nullable=True
+    )
+    source: Mapped[str] = mapped_column(String, server_default=sql_text("'application'"))
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class ExamProtocolParticipant(Base):
+    """Immutable snapshot of an examiner who actually participated at start."""
+
+    __tablename__ = "exam_protocol_participant"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_protocol_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_protocol.id", ondelete="CASCADE")
+    )
+    committee_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index(
+            "exam_protocol_participant_unique",
+            "exam_protocol_id",
+            "committee_member_id",
+            unique=True,
+        ),
+    )
+
+
+class ExamProtocolRevision(Base):
+    """Immutable content version; reactions always target exactly one revision."""
+
+    __tablename__ = "exam_protocol_revision"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_protocol_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_protocol.id", ondelete="CASCADE")
+    )
+    version: Mapped[int] = mapped_column(Integer)
+    declaration: Mapped[str | None] = mapped_column(String, nullable=True)
+    workflow_state: Mapped[str] = mapped_column(String, server_default=sql_text("'draft'"))
+    previous_revision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_protocol_revision.id", ondelete="RESTRICT"), nullable=True
+    )
+    correction_request_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_protocol_correction_request.id", ondelete="RESTRICT"), nullable=True
+    )
+    changed_by_member_id: Mapped[int | None] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT"), nullable=True
+    )
+    change_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    submitted_by_member_id: Mapped[int | None] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT"), nullable=True
+    )
+    submitted_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index(
+            "exam_protocol_revision_unique",
+            "exam_protocol_id",
+            "version",
+            unique=True,
+        ),
+    )
+
+
+class ExamProtocolEntry(Base):
+    """One structured fact or procedural deviation in a protocol revision."""
+
+    __tablename__ = "exam_protocol_entry"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_protocol_revision_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_protocol_revision.id", ondelete="CASCADE")
+    )
+    category: Mapped[str] = mapped_column(String)
+    statement: Mapped[str] = mapped_column(String)
+    occurred_from: Mapped[str] = mapped_column(String)
+    occurred_to: Mapped[str | None] = mapped_column(String, nullable=True)
+    recorded_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (Index("exam_protocol_entry_revision", "exam_protocol_revision_id", "id"),)
+
+
+class ExamProtocolResponse(Base):
+    """One participant confirmation or reservation for one immutable revision."""
+
+    __tablename__ = "exam_protocol_response"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_protocol_revision_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_protocol_revision.id", ondelete="CASCADE")
+    )
+    committee_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    response: Mapped[str] = mapped_column(String)
+    exam_protocol_entry_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_protocol_entry.id", ondelete="RESTRICT"), nullable=True
+    )
+    statement: Mapped[str | None] = mapped_column(String, nullable=True)
+    responded_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index(
+            "exam_protocol_response_unique",
+            "exam_protocol_revision_id",
+            "committee_member_id",
+            unique=True,
+        ),
+    )
+
+
+class ExamProtocolCorrectionRequest(Base):
+    """A participant-reported need that management may open as a correction."""
+
+    __tablename__ = "exam_protocol_correction_request"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_protocol_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_protocol.id", ondelete="CASCADE")
+    )
+    exam_protocol_revision_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_protocol_revision.id", ondelete="RESTRICT")
+    )
+    requested_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    reason: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'pending'"))
+    requested_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    opened_by_member_id: Mapped[int | None] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT"), nullable=True
+    )
+    opened_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    reopening_reference: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (
+        Index(
+            "exam_protocol_correction_protocol_status",
+            "exam_protocol_id",
+            "status",
+        ),
+    )
+
+
+class ExamProtocolRetention(Base):
+    """Locally configured retention rule and effective preservation hold."""
+
+    __tablename__ = "exam_protocol_retention"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_protocol_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_protocol.id", ondelete="CASCADE"), unique=True
+    )
+    rule_reference: Mapped[str] = mapped_column(String)
+    retain_until: Mapped[str | None] = mapped_column(String, nullable=True)
+    legal_hold: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
+    hold_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    updated_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
 class Document(Base):
     """Database metadata for one document owned by a storage adapter."""
 

@@ -67,6 +67,28 @@ class DemoArtifactTests(unittest.TestCase):
             self.assertEqual(RUNTIME_CONTRACT, first["runtime_contract"])
             self.assertRegex(first["seed_revision"], r"^[0-9a-f]{64}$")
             self.assertEqual(2, self._scalar(first_db, "SELECT COUNT(*) FROM user_account"))
+            self.assertEqual(
+                ("running", "in_progress", 2),
+                self._row(
+                    first_db,
+                    """
+                    SELECT slot.execution_status,
+                           CASE WHEN revision.submitted_at IS NULL
+                             THEN 'in_progress'
+                             ELSE 'submitted'
+                           END,
+                           COUNT(participant.id)
+                    FROM exam_protocol AS protocol
+                    JOIN exam_slot AS slot ON slot.id = protocol.exam_slot_id
+                    JOIN exam_protocol_revision AS revision
+                      ON revision.exam_protocol_id = protocol.id
+                     AND revision.version = protocol.current_version
+                    JOIN exam_protocol_participant AS participant
+                      ON participant.exam_protocol_id = protocol.id
+                    GROUP BY slot.execution_status, revision.submitted_at
+                    """,
+                ),
+            )
 
             data_dir = root / "data"
             initialize_workdir(first_db, first_manifest, data_dir)
@@ -329,6 +351,11 @@ class DemoArtifactTests(unittest.TestCase):
 
         with sqlite3.connect(database) as connection:
             return connection.execute(query).fetchone()[0]
+
+    @staticmethod
+    def _row(database: Path, query: str):
+        with sqlite3.connect(database) as connection:
+            return connection.execute(query).fetchone()
 
 
 if __name__ == "__main__":

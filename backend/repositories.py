@@ -8,6 +8,7 @@ from typing import Any
 
 from .authorization import AuthorizationScope
 from .database import DEFAULT_DB_PATH, session_scope
+from .exam_protocols import create_protocol_for_started_slot
 from .holiday_provider import GERMAN_SUBDIVISION_CODES
 from .models import (
     CANDIDATE,
@@ -1075,7 +1076,14 @@ class ResourceRepository:
                 "status_reason": reason,
             }
 
-    def start_exam_slot(self, day_id: int, slot_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    def start_exam_slot(
+        self,
+        day_id: int,
+        slot_id: int,
+        payload: dict[str, Any],
+        *,
+        actor_member_id: int,
+    ) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
             store = Store(session)
             slot = self._confirmed_slot(store, day_id, slot_id)
@@ -1128,6 +1136,13 @@ class ResourceRepository:
                     raise ValueError(
                         f"Prüfungsstart wurde bereits um {slot['actual_started_at']} erfasst"
                     )
+                create_protocol_for_started_slot(
+                    session,
+                    slot_id=slot_id,
+                    participant_member_ids=present_regular_members,
+                    created_by_member_id=actor_member_id,
+                    created_at=slot["actual_started_at"],
+                )
                 return slot
 
             actual_started_at = (
@@ -1142,6 +1157,13 @@ class ResourceRepository:
             exam_slot.actual_started_at = actual_started_at
             exam_slot.execution_status = "running"
             exam_slot.status_changed_at = actual_started_at
+            create_protocol_for_started_slot(
+                session,
+                slot_id=slot_id,
+                participant_member_ids=present_regular_members,
+                created_by_member_id=actor_member_id,
+                created_at=actual_started_at,
+            )
             session.flush()
             return {
                 **slot,

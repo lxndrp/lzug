@@ -41,6 +41,9 @@ import {
   CalendarFeedActivation,
   CalendarStatus,
   AbsenceReport,
+  ExamProtocol,
+  ExamProtocolDeclaration,
+  ExamProtocolEntryCategory,
 } from './api.models';
 import { RoundContextService } from './round-context.service';
 
@@ -202,6 +205,73 @@ export class PlanningApiService {
       `/api/confirmed-plan-days/${dayId}/slots/${slotId}/status`,
       { status, ...(reason ? { reason } : {}) },
     );
+  }
+
+  getExamProtocol(dayId: number, slotId: number) {
+    return this.http.get<ExamProtocol>(
+      `/api/confirmed-plan-days/${dayId}/slots/${slotId}/protocol`,
+    );
+  }
+
+  updateExamProtocol(
+    protocolId: number,
+    version: number,
+    declaration: ExamProtocolDeclaration,
+    entries: Array<{
+      category: ExamProtocolEntryCategory;
+      statement: string;
+      occurred_from: string;
+      occurred_to: string | null;
+    }>,
+    changeReason?: string,
+  ) {
+    return this.http.patch<ExamProtocol>(`/api/exam-protocols/${protocolId}`, {
+      version,
+      declaration,
+      entries,
+      ...(changeReason?.trim() ? { change_reason: changeReason.trim() } : {}),
+    });
+  }
+
+  submitExamProtocol(protocolId: number, version: number) {
+    return this.http.post<ExamProtocol>(`/api/exam-protocols/${protocolId}/submit`, { version });
+  }
+
+  respondToExamProtocol(
+    protocolId: number,
+    version: number,
+    response: 'confirmed' | 'reservation',
+    entryId?: number,
+    statement?: string,
+  ) {
+    return this.http.post<ExamProtocol>(`/api/exam-protocols/${protocolId}/responses`, {
+      version,
+      response,
+      ...(entryId === undefined ? {} : { entry_id: entryId }),
+      ...(statement?.trim() ? { statement: statement.trim() } : {}),
+    });
+  }
+
+  requestExamProtocolCorrection(protocolId: number, version: number, reason: string) {
+    return this.http.post<ExamProtocol>(`/api/exam-protocols/${protocolId}/correction-requests`, {
+      version,
+      reason: reason.trim(),
+    });
+  }
+
+  openExamProtocolCorrection(
+    protocolId: number,
+    version: number,
+    correctionRequestId: number,
+    reason: string,
+    reopeningReference?: string,
+  ) {
+    return this.http.post<ExamProtocol>(`/api/exam-protocols/${protocolId}/open-correction`, {
+      version,
+      correction_request_id: correctionRequestId,
+      reason: reason.trim(),
+      ...(reopeningReference?.trim() ? { reopening_reference: reopeningReference.trim() } : {}),
+    });
   }
 
   createExamHalfYear(payload: Pick<ExamHalfYear, 'season' | 'year' | 'status'>) {
