@@ -81,7 +81,7 @@ und die Python-Referenz. TypeDoc, Redoc und die Schemaansicht bleiben ebenfalls
 unabhängige Generatoren; Hugo montiert ihre statischen Ausgaben in ein einziges
 Pages-Artefakt.
 
-## Themevergleich und Spike-Evidenz
+## Themevergleich und Evidenz
 
 Doks und Relearn wurden mit identischem deutschen Hero, denselben drei
 Inhaltsbereichen und denselben Einstiegslinks lokal gebaut. Geprüft wurden
@@ -95,11 +95,11 @@ reproduzierbaren Fallback. Beide Server wurden danach beendet.
 | --- | --- | --- | --- |
 | Produktauftritt | Sehr klares Handbuch mit Sidebar, aber ohne umfangreiches eigenes Layout kein überzeugender Produkt-Hero. | Im direkten Vergleich der deutlich stärkste gemeinsame Produkt-, Demo- und Dokumentationseinstieg. | Portalartig und leistungsfähig, für Umfang und Zielgruppe von lzug schwerer als nötig. |
 | Navigation und Suche | Ausgereifte Sidebar und lokale Lunr-Suche, offline und ohne Drittanbieter. | Moderne Topnavigation, Dokumentationsnavigation und lokale FlexSearch-Suche. | Umfangreiche Navigation sowie lokale oder externe Suchvarianten. |
-| Barrierefreiheit | Semantische `header`-, `nav`-, `main`-, `aside`- und `footer`-Landmarks waren vorhanden. | Der Starter hatte auf der Homepage kein explizites `main`; der Spike behebt dies im eigenen Layout. Vollständige Tastatur-, Kontrast- und axe-Prüfung bleibt Aktivierungsgate. | Viele Bootstrap-Komponenten vergrößern den projektspezifischen Prüfumfang. |
-| Responsive Design | Bei 390 px lesbar, kein horizontaler Überlauf; die große Überschrift brach weniger günstig um. | Bei 390 px klare Einspaltenstruktur, gestapelte CTAs und kein horizontaler Überlauf. | Konzeptionell responsiv, in #206 bewusst kein dritter Implementierungsspike. |
+| Barrierefreiheit | Semantische `header`-, `nav`-, `main`-, `aside`- und `footer`-Landmarks waren vorhanden. | Der Starter hatte auf der Homepage kein explizites `main`; das eigene Layout behebt dies. Vollständige Tastatur-, Kontrast- und axe-Prüfung bleibt Aktivierungsgate. | Viele Bootstrap-Komponenten vergrößern den projektspezifischen Prüfumfang. |
+| Responsive Design | Bei 390 px lesbar, kein horizontaler Überlauf; die große Überschrift brach weniger günstig um. | Bei 390 px klare Einspaltenstruktur, gestapelte CTAs und kein horizontaler Überlauf. | Konzeptionell responsiv, in #206 bewusst keine dritte Implementierungsvariante. |
 | Wartungsaufwand | Hugo plus ein Theme; einfachster Updatepfad. | Hugo Extended plus Thulite-/npm-Updatepfad und eigene Layout-Overrides. | Hugo Extended, Go Modules, Bootstrap sowie optional npm/PostCSS. |
 | Toolchain-Last | Reiner Hugo-Build; der isolierte Vergleich baute in rund 0,15 s. | Der Vergleich installierte 394 Pakete und baute in rund 1,4 bis 5,8 s. Der aktuelle Audit des offiziellen Lockfiles meldete 95 transitive Befunde, davon 9 hoch. | Größte Kette der Kandidaten; für den aktuellen Umfang nicht gerechtfertigt. |
-| Quellen/Versionen | Eigene Provenienz-Templates nötig. | Eigene Provenienz-Templates nötig und im Spike belegt. | Eigene Provenienz-Templates nötig. |
+| Quellen/Versionen | Eigene Provenienz-Templates nötig. | Eigene Provenienz-Templates nötig und durch den Build belegt. | Eigene Provenienz-Templates nötig. |
 | Single Source of Truth | Theme-neutral durch temporäre Wiki-Projektion lösbar. | Theme-neutral durch temporäre Wiki-Projektion gelöst. | Theme-neutral, aber ohne Vorteil für den Quellschnitt. |
 | Build/Betrieb | Gewähltes schlankes Ziel mit guter Dokumentations-UX und kleinem eigenen Root-Layout. | Visuell stärkste Fertiglösung, deren Toolchain-Aufwand die Übernahme ausschließt. | Keine erkennbare Gegenleistung für die zusätzliche Komplexität. |
 
@@ -111,7 +111,7 @@ Vergleich besser vormachte. Doks bleibt deshalb Gestaltungsreferenz, wird wegen
 des unverhältnismäßigen npm- und Security-Aufwands aber nicht Teil der
 Produktionsarchitektur. Docsy bleibt konzeptionelle Referenz.
 
-Der endgültige Relearn-Spike wurde zusätzlich automatisiert mit Chromium und
+Der endgültige Relearn-Build wurde zusätzlich automatisiert mit Chromium und
 axe geprüft. Auf 1440 × 1000 px und 390 × 844 px enthielt er jeweils genau ein
 `h1`- und `main`-Landmark, Navigation und Suche, keinen horizontalen Überlauf,
 keine Browser-Konsolenfehler und keine axe-Befunde. Der kurzlebige lokale
@@ -143,9 +143,9 @@ Pages-Branch noch in `docs/` eingecheckt.
 
 ## Task-basierter Buildschnitt
 
-Der Spike implementiert bereits den Orchestrierungsschnitt
-`task docs:publication-spike`. Die produktive Ausbaustufe verwendet folgende
-unabhängige, cachebare Tasks:
+Der produktive Orchestrierungsschnitt verwendet ausschließlich
+`task docs:publication` und seine Prüfvarianten. Die folgenden Teilschritte
+bleiben darin logisch getrennt:
 
 ```text
 docs:publication
@@ -163,7 +163,7 @@ docs:publication
 Die Tasks erhalten Ein- und Ausgabepfade explizit. Kein Generator schreibt in
 die Quelle eines anderen Generators. Der Redoc-Bundler wird erst beim
 produktiven Ausbau als gelockte npm-Entwicklungsabhängigkeit aufgenommen; der
-Spike exportiert bereits deterministisch `openapi.json` und belegt damit die
+Aufbau exportiert bereits deterministisch `openapi.json` und belegt damit die
 Generatorgrenze ohne eine vorgezogene Abhängigkeit.
 
 ## Trigger, Konkurrenzschutz und Konsistenz
@@ -211,18 +211,20 @@ Produktvertrag.
 ## Lokaler Build
 
 ```sh
-task docs:publication-spike
-task docs:publication-spike:check
 task docs:publication
 task docs:publication:check
 task docs:publication:browser
 task docs:publication:a11y
 ```
 
-Der erste Task erzeugt unter `build/publication-spike/` die vollständige
-Zielstruktur. Der zweite baut zweimal in getrennten temporären Verzeichnissen
+Der erste Task erzeugt unter `build/publication/` die vollständige Zielstruktur.
+Der zweite baut zweimal in getrennten temporären Verzeichnissen
 und vergleicht alle Dateien bytegenau. Mit `WIKI_ROOT=/path/to/lzug.wiki` kann
 anstelle der synthetischen Fixture ein sauberer Wiki-Clone verwendet werden.
+
+Mit Issue #464 wurden die früheren, irreführenden Task- und Modulnamen ohne
+Kompatibilitätsalias entfernt. Lokale oder externe Aufrufer verwenden die vier
+oben genannten kanonischen Befehle.
 
 Der Build pinnt Hugo Extended 0.165.0 und Relearn-Commit
 `8bb66fa674351f3a0b0917a7552caac686eca920`. Er nutzt echte Generatorgrenzen,

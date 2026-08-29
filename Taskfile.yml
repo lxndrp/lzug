@@ -109,18 +109,6 @@ tasks:
       - task: docs:handbook
       - task: docs:frontend
 
-  docs:publication-spike:
-    desc: Build the local public site without publishing it
-    vars:
-      OUTPUT: '{{default "build/publication-spike" .OUTPUT}}'
-      WIKI_ROOT: '{{default "prototypes/publication/wiki" .WIKI_ROOT}}'
-    cmds:
-      - >-
-        {{.UV}} python -m scripts.publication_spike build
-        --wiki-root "{{.WIKI_ROOT}}"
-        --typedoc frontend/node_modules/.bin/typedoc
-        --output "{{.OUTPUT}}"
-
   docs:publication:
     desc: Build the complete static GitHub Pages artifact without deploying it
     vars:
@@ -130,22 +118,12 @@ tasks:
       BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
       - >-
-        {{.UV}} python -m scripts.publication_spike build
+        {{.UV}} python -m scripts.publication build
         --wiki-root "{{.WIKI_ROOT}}"
         --typedoc frontend/node_modules/.bin/typedoc
         --base-url "{{.BASE_URL}}"
         --demo-url "{{.DEMO_URL}}"
         --output "{{.OUTPUT}}"
-
-  docs:publication-spike:check:
-    desc: Build the publication spike twice and verify byte-identical output
-    vars:
-      WIKI_ROOT: '{{default "prototypes/publication/wiki" .WIKI_ROOT}}'
-    cmds:
-      - >-
-        {{.UV}} python -m scripts.publication_spike check
-        --wiki-root "{{.WIKI_ROOT}}"
-        --typedoc frontend/node_modules/.bin/typedoc
 
   docs:publication:check:
     desc: Verify that the configured public site builds byte-identically
@@ -155,25 +133,11 @@ tasks:
       BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
       - >-
-        {{.UV}} python -m scripts.publication_spike check
+        {{.UV}} python -m scripts.publication check
         --wiki-root "{{.WIKI_ROOT}}"
         --typedoc frontend/node_modules/.bin/typedoc
         --base-url "{{.BASE_URL}}"
         --demo-url "{{.DEMO_URL}}"
-
-  docs:publication-spike:browser:
-    desc: Check the built publication spike on desktop and mobile with Playwright
-    deps:
-      - docs:publication-spike
-    cmds:
-      - LZUG_PUBLICATION_ROOT=../build/publication-spike npm --prefix frontend run test:publication
-
-  docs:publication-spike:a11y:
-    desc: Check the built publication spike with Playwright and axe
-    deps:
-      - docs:publication-spike
-    cmds:
-      - LZUG_PUBLICATION_ROOT=../build/publication-spike npm --prefix frontend run test:publication:a11y
 
   docs:publication:browser:
     desc: Check the production landing flow on desktop and mobile with Playwright
@@ -193,7 +157,7 @@ tasks:
     desc: Check a local Wiki checkout before manually publishing it
     cmds:
       - test -n "${WIKI_ROOT:-}" || { echo "set WIKI_ROOT to a local Wiki checkout"; exit 1; }
-      - python3 scripts/check_wiki.py "$WIKI_ROOT"
+      - python3 -m scripts.check_wiki "$WIKI_ROOT"
       - >-
         docker run --rm --user "$(id -u):$(id -g)"
         -v "$WIKI_ROOT:/wiki:ro" -w /wiki lycheeverse/lychee:0.24.2

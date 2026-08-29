@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Build and verify the local Relearn publication architecture spike.
+"""Build and verify the public Relearn documentation artifact.
 
-The spike checks out one reviewed Relearn revision, builds a static artifact and
+The build checks out one reviewed Relearn revision, builds a static artifact and
 never calls a hosting API or mutates the GitHub Wiki.
 """
 
@@ -19,6 +19,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from backend.openapi import spec as openapi_spec
+from scripts.wiki_routes import wiki_route, wiki_source_url
 
 RELEARN_REPOSITORY = "https://github.com/McShelby/hugo-theme-relearn.git"
 RELEARN_REVISION = "8bb66fa674351f3a0b0917a7552caac686eca920"
@@ -85,10 +86,6 @@ def source_revision(source: Path) -> str:
     return f"fixture-sha256:{digest.hexdigest()}"
 
 
-def wiki_slug(target: str) -> str:
-    return "index" if target == "Home" else target.lower()
-
-
 def convert_wiki_links(markdown: str, known_pages: set[str]) -> str:
     def replace(match: re.Match[str]) -> str:
         raw_target = match.group("target")
@@ -102,7 +99,7 @@ def convert_wiki_links(markdown: str, known_pages: set[str]) -> str:
             return match.group(0)
         if target not in known_pages:
             raise ValueError(f"Unknown extensionless Wiki target: {target}")
-        converted = "/handbuch/" if target == "Home" else f"/handbuch/{wiki_slug(target)}/"
+        converted = wiki_route(target).publication_route
         if separator:
             converted += f"#{fragment}"
         return f"{match.group('prefix')}{converted}{match.group('suffix')}"
@@ -245,15 +242,18 @@ def write_content(root: Path, wiki_root: Path, site: Path, repository_revision: 
     )
     for wiki_file in wiki_files:
         body = convert_wiki_links(wiki_file.read_text(encoding="utf-8"), known_pages)
-        canonical = f"https://github.com/lxndrp/lzug/wiki/{wiki_file.stem}"
+        route = wiki_route(wiki_file.stem)
+        canonical = wiki_source_url(wiki_file.stem, "https://github.com/lxndrp/lzug/wiki")
         provenance = (
             f"> Generierte Projektion der [kanonischen Wiki-Seite]({canonical}) "
             f"aus Wiki-Commit `{wiki_revision}`.\n\n"
         )
-        title = "Handbuch" if wiki_file.stem == "Home" else wiki_file.stem
-        name = "_index.md" if wiki_file.stem == "Home" else f"{wiki_slug(wiki_file.stem)}.md"
-        (content / "handbuch" / name).write_text(
-            hugo_page(title, f"Öffentliche Wiki-Projektion: {title}", provenance + body),
+        (content / "handbuch" / route.publication_file).write_text(
+            hugo_page(
+                route.title,
+                f"Öffentliche Wiki-Projektion: {route.title}",
+                provenance + body,
+            ),
             encoding="utf-8",
         )
 
@@ -279,7 +279,8 @@ def write_content(root: Path, wiki_root: Path, site: Path, repository_revision: 
             "API-Referenz",
             "Aus dem OpenAPI-Vertrag erzeugte API-Referenz",
             f"> Generiert aus Hauptrepository-Commit `{repository_revision}`.\n\n"
-            "Der Spike exportiert den Vertrag als [OpenAPI-JSON](/referenz/api/openapi.json). "
+            "Der Publikationsaufbau exportiert den Vertrag als "
+            "[OpenAPI-JSON](/referenz/api/openapi.json). "
             "Die produktive Pipeline bündelt daraus eine gelockte Redoc-Ausgabe.",
         ),
         encoding="utf-8",
@@ -351,7 +352,7 @@ def prepare_site(
 def verify_output(output: Path, stage: Path) -> None:
     missing = [relative for relative in EXPECTED_OUTPUTS if not (output / relative).is_file()]
     if missing:
-        raise ValueError(f"Publication spike is missing: {', '.join(missing)}")
+        raise ValueError(f"Publication artifact is missing: {', '.join(missing)}")
     stage_text = str(stage).encode()
     for path in output.rglob("*"):
         if path.is_file() and stage_text in path.read_bytes():
@@ -432,13 +433,13 @@ def main() -> int:
     typedoc = args.typedoc.resolve()
     base_url = publication_base_url(args.base_url)
     demo_url = public_url(args.demo_url, allow_path=False)
-    with tempfile.TemporaryDirectory(prefix="lzug-publication-spike-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="lzug-publication-") as temporary:
         site = Path(temporary) / "relearn-site"
         prepare_site(root, wiki_root, site, base_url, demo_url)
         if args.command == "build":
             output = ensure_safe_output(root, args.output)
             render(root, site, output, typedoc)
-            print(f"Publication spike built at {output}")
+            print(f"Publication artifact built at {output}")
             return 0
 
         first = Path(temporary) / "first"
@@ -452,7 +453,7 @@ def main() -> int:
             raise ValueError(
                 f"Publication builds differ: {first_digest} != {second_digest}; {differences}"
             )
-        print(f"Publication spike is reproducible: sha256:{first_digest}")
+        print(f"Publication artifact is reproducible: sha256:{first_digest}")
     return 0
 
 

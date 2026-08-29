@@ -30,7 +30,7 @@ jobs:
           persist-credentials: false
 
       - name: Derive published routes from the Wiki sidebar
-        run: python3 scripts/check_wiki.py published-wiki --routes "$RUNNER_TEMP/wiki-routes.md"
+        run: python3 -m scripts.check_wiki published-wiki --routes "$RUNNER_TEMP/wiki-routes.md"
 
       - name: Check published Wiki routes without redirects
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
