@@ -229,11 +229,11 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "fallback_languages: ${{ steps.baselines.outputs.fallback_languages }}",
             unchanged,
         )
-        self.assertIn(
+        condition = (
             "if: contains(fromJSON(inputs.languages), matrix.language) || "
-            "contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)",
-            analyze,
+            "contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)"
         )
+        self.assertEqual(3, analyze.count(condition))
         self.assertIn(
             'language: ${{ fromJSON(\'["python","javascript-typescript","go"]\') }}',
             analyze,

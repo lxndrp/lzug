@@ -29,7 +29,6 @@ jobs:
   analyze:
     name: CodeQL (${{ matrix.language }})
     needs: unchanged
-    if: contains(fromJSON(inputs.languages), matrix.language) || contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -40,18 +39,21 @@ jobs:
         language: ${{ fromJSON('["python","javascript-typescript","go"]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: contains(fromJSON(inputs.languages), matrix.language) || contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)
         with:
           ref: ${{ inputs.revision || github.sha }}
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        if: matrix.language == 'go'
+        if: (contains(fromJSON(inputs.languages), matrix.language) || contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)) && matrix.language == 'go'
         with:
           go-version: "1.26.5"
       - uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        if: contains(fromJSON(inputs.languages), matrix.language) || contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.language == 'go' && 'autobuild' || 'none' }}
           queries: security-extended
       - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        if: contains(fromJSON(inputs.languages), matrix.language) || contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)
         with:
           category: ".github/workflows/ci.yml:codeql/language:${{ matrix.language }}"
           upload: always
