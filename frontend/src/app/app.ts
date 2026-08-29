@@ -381,7 +381,10 @@ export class App {
   }
 
   protected demoRoleLabel(): string {
-    return this.demoSession()?.demo_role === 'chair' ? 'Vorsitz' : 'Prüfperson';
+    const role = this.demoSession()?.demo_role;
+    if (role === 'chair') return 'Vorsitz';
+    if (role === 'deputy') return 'Stellvertretung';
+    return 'Prüfperson';
   }
 
   protected demoRoleTask(): string {
@@ -411,7 +414,8 @@ export class App {
       return (
         this.hasCapability('attendance:write-own') ||
         this.hasCapability('attendance:coordinate') ||
-        this.hasCapability('exam-status:write')
+        this.hasCapability('exam-status:write') ||
+        this.hasCapability('exam-result:read')
       );
     }
     return false;

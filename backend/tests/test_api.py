@@ -344,6 +344,16 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(
                 "2026-11-16T08:31:00+01:00", repeated["day"]["slots"][0]["actual_started_at"]
             )
+            status, protocol = api.request(
+                "GET",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/protocol",
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(
+                {assignment["member"]["id"] for assignment in morning_assignments},
+                set(protocol["participants"]),
+            )
+            self.assertEqual(1, len(protocol["history"]))
 
             status, started_cancel_error = api.request(
                 "PATCH",

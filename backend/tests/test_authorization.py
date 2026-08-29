@@ -153,11 +153,8 @@ class AuthorizationTests(unittest.TestCase):
         self,
     ) -> None:
         PlanningService(self.db_path).generate_proposal(1)
-        deputy_account = self.authentication.create_account(
-            "testperson.beta@example.invalid", person_id=2
-        )
         chair_credentials = self.authentication.create_session(1)
-        deputy_credentials = self.authentication.create_session(deputy_account["id"])
+        deputy_credentials = self.authentication.create_session(3)
         member_credentials = self.authentication.create_session(2)
         foreign_chair_credentials = self.credentials(9)
         path = "/api/exam-rounds/1/planning-proposal"

@@ -21,6 +21,10 @@ class Committee(Base):
         String,
         server_default=sql_text("'Fachinformatiker/in'"),
     )
+    ihk: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("'Nicht konfiguriert'"),
+    )
     created_at: Mapped[str] = mapped_column(
         String,
         server_default=sql_text("CURRENT_TIMESTAMP"),
@@ -340,6 +344,11 @@ class ExamDay(Base):
         Integer,
         server_default=sql_text("1"),
     )
+    revision: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    closure_status: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("'open'"),
+    )
     created_at: Mapped[str] = mapped_column(
         String,
         server_default=sql_text("CURRENT_TIMESTAMP"),
@@ -348,6 +357,168 @@ class ExamDay(Base):
         String,
         server_default=sql_text("CURRENT_TIMESTAMP"),
     )
+
+
+class ExamDayClosure(Base):
+    """Immutable evidence for one formal close or re-close decision."""
+
+    __tablename__ = "exam_day_closure"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_day_id: Mapped[int] = mapped_column(ForeignKey("exam_day.id", ondelete="CASCADE"))
+    requested_revision: Mapped[int] = mapped_column(Integer)
+    resulting_revision: Mapped[int] = mapped_column(Integer)
+    closure_type: Mapped[str] = mapped_column(String)
+    actor_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    clarification_attempts: Mapped[str | None] = mapped_column(String, nullable=True)
+    checklist_json: Mapped[str] = mapped_column(String)
+    warnings_json: Mapped[str] = mapped_column(String)
+    protocol_references_json: Mapped[str] = mapped_column(String)
+    result_references_json: Mapped[str] = mapped_column(String)
+    previous_closure_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_day_closure.id", ondelete="RESTRICT"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'current'"))
+    command_fingerprint: Mapped[str] = mapped_column(String)
+    closed_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+    __table_args__ = (
+        Index("exam_day_closure_revision", "exam_day_id", "resulting_revision", unique=True),
+        Index("exam_day_closure_command", "exam_day_id", "command_fingerprint", unique=True),
+    )
+
+
+class ExamDayReopening(Base):
+    """One bounded correction window for a closed or historical exam day."""
+
+    __tablename__ = "exam_day_reopening"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_day_id: Mapped[int] = mapped_column(ForeignKey("exam_day.id", ondelete="CASCADE"))
+    previous_closure_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_day_closure.id", ondelete="RESTRICT"), nullable=True
+    )
+    requested_revision: Mapped[int] = mapped_column(Integer)
+    resulting_revision: Mapped[int] = mapped_column(Integer)
+    occasion: Mapped[str] = mapped_column(String)
+    source: Mapped[str] = mapped_column(String)
+    reason: Mapped[str] = mapped_column(String)
+    requested_scope_json: Mapped[str] = mapped_column(String)
+    scope_json: Mapped[str] = mapped_column(String)
+    completed_scope_json: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("'[]'"),
+    )
+    impacts_json: Mapped[str] = mapped_column(String)
+    actor_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'open'"))
+    command_fingerprint: Mapped[str] = mapped_column(String)
+    opened_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (
+        Index("exam_day_reopening_open", "exam_day_id", "status"),
+        Index("exam_day_reopening_command", "exam_day_id", "command_fingerprint", unique=True),
+    )
+
+
+class ExamDayTask(Base):
+    """A durable, recipient-specific follow-up caused by a day decision."""
+
+    __tablename__ = "exam_day_task"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_day_id: Mapped[int] = mapped_column(ForeignKey("exam_day.id", ondelete="CASCADE"))
+    reopening_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_day_reopening.id", ondelete="CASCADE"), nullable=True
+    )
+    recipient_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="CASCADE")
+    )
+    task_type: Mapped[str] = mapped_column(String)
+    origin_key: Mapped[str] = mapped_column(String)
+    exam_protocol_revision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_protocol_revision.id", ondelete="RESTRICT"), nullable=True
+    )
+    result_determination_id: Mapped[int | None] = mapped_column(
+        ForeignKey("result_determination.id", ondelete="RESTRICT"), nullable=True
+    )
+    details_json: Mapped[str] = mapped_column(String, server_default=sql_text("'{}'"))
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'open'"))
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (
+        Index(
+            "exam_day_task_origin", "recipient_member_id", "task_type", "origin_key", unique=True
+        ),
+        Index("exam_day_task_day_status", "exam_day_id", "status"),
+    )
+
+
+class ExamDayAuditEvent(Base):
+    """Append-only history for closure, reopening, correction, and late reactions."""
+
+    __tablename__ = "exam_day_audit_event"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_day_id: Mapped[int] = mapped_column(ForeignKey("exam_day.id", ondelete="CASCADE"))
+    day_revision: Mapped[int] = mapped_column(Integer)
+    event_type: Mapped[str] = mapped_column(String)
+    actor_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    closure_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_day_closure.id", ondelete="RESTRICT"), nullable=True
+    )
+    reopening_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_day_reopening.id", ondelete="RESTRICT"), nullable=True
+    )
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    scope_json: Mapped[str] = mapped_column(String, server_default=sql_text("'[]'"))
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+    __table_args__ = (Index("exam_day_audit_history", "exam_day_id", "id"),)
+
+
+class ExamDayExport(Base):
+    """Metadata proving that a closure state was exported without changing it."""
+
+    __tablename__ = "exam_day_export"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_day_id: Mapped[int] = mapped_column(ForeignKey("exam_day.id", ondelete="CASCADE"))
+    closure_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_day_closure.id", ondelete="RESTRICT"), nullable=True
+    )
+    export_kind: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String)
+    generated_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    generated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+    __table_args__ = (Index("exam_day_export_history", "exam_day_id", "generated_at"),)
 
 
 class ExamSlot(Base):
@@ -521,6 +692,557 @@ class MemberExamAttendance(Base):
     )
 
 
+class ExamProtocol(Base):
+    """One shared protocol for one exam that actually started."""
+
+    __tablename__ = "exam_protocol"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_slot_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_slot.id", ondelete="CASCADE"), unique=True
+    )
+    current_version: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    created_by_member_id: Mapped[int | None] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT"), nullable=True
+    )
+    source: Mapped[str] = mapped_column(String, server_default=sql_text("'application'"))
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class ExamProtocolParticipant(Base):
+    """Immutable snapshot of an examiner who actually participated at start."""
+
+    __tablename__ = "exam_protocol_participant"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_protocol_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_protocol.id", ondelete="CASCADE")
+    )
+    committee_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index(
+            "exam_protocol_participant_unique",
+            "exam_protocol_id",
+            "committee_member_id",
+            unique=True,
+        ),
+    )
+
+
+class ExamProtocolRevision(Base):
+    """Immutable content version; reactions always target exactly one revision."""
+
+    __tablename__ = "exam_protocol_revision"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_protocol_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_protocol.id", ondelete="CASCADE")
+    )
+    version: Mapped[int] = mapped_column(Integer)
+    declaration: Mapped[str | None] = mapped_column(String, nullable=True)
+    workflow_state: Mapped[str] = mapped_column(String, server_default=sql_text("'draft'"))
+    previous_revision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_protocol_revision.id", ondelete="RESTRICT"), nullable=True
+    )
+    correction_request_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_protocol_correction_request.id", ondelete="RESTRICT"), nullable=True
+    )
+    changed_by_member_id: Mapped[int | None] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT"), nullable=True
+    )
+    change_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    submitted_by_member_id: Mapped[int | None] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT"), nullable=True
+    )
+    submitted_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index(
+            "exam_protocol_revision_unique",
+            "exam_protocol_id",
+            "version",
+            unique=True,
+        ),
+    )
+
+
+class ExamProtocolEntry(Base):
+    """One structured fact or procedural deviation in a protocol revision."""
+
+    __tablename__ = "exam_protocol_entry"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_protocol_revision_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_protocol_revision.id", ondelete="CASCADE")
+    )
+    category: Mapped[str] = mapped_column(String)
+    statement: Mapped[str] = mapped_column(String)
+    occurred_from: Mapped[str] = mapped_column(String)
+    occurred_to: Mapped[str | None] = mapped_column(String, nullable=True)
+    recorded_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (Index("exam_protocol_entry_revision", "exam_protocol_revision_id", "id"),)
+
+
+class ExamProtocolResponse(Base):
+    """One participant confirmation or reservation for one immutable revision."""
+
+    __tablename__ = "exam_protocol_response"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_protocol_revision_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_protocol_revision.id", ondelete="CASCADE")
+    )
+    committee_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    response: Mapped[str] = mapped_column(String)
+    exam_protocol_entry_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_protocol_entry.id", ondelete="RESTRICT"), nullable=True
+    )
+    statement: Mapped[str | None] = mapped_column(String, nullable=True)
+    responded_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index(
+            "exam_protocol_response_unique",
+            "exam_protocol_revision_id",
+            "committee_member_id",
+            unique=True,
+        ),
+    )
+
+
+class ExamProtocolCorrectionRequest(Base):
+    """A participant-reported need that management may open as a correction."""
+
+    __tablename__ = "exam_protocol_correction_request"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_protocol_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_protocol.id", ondelete="CASCADE")
+    )
+    exam_protocol_revision_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_protocol_revision.id", ondelete="RESTRICT")
+    )
+    requested_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    reason: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'pending'"))
+    requested_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    opened_by_member_id: Mapped[int | None] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT"), nullable=True
+    )
+    opened_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    reopening_reference: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (
+        Index(
+            "exam_protocol_correction_protocol_status",
+            "exam_protocol_id",
+            "status",
+        ),
+    )
+
+
+class ExamProtocolRetention(Base):
+    """Locally configured retention rule and effective preservation hold."""
+
+    __tablename__ = "exam_protocol_retention"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_protocol_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_protocol.id", ondelete="CASCADE"), unique=True
+    )
+    rule_reference: Mapped[str] = mapped_column(String)
+    retain_until: Mapped[str | None] = mapped_column(String, nullable=True)
+    legal_hold: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
+    hold_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    updated_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class AssessmentModelVersion(Base):
+    """Immutable, rule-bound assessment model used by one or more exam rounds."""
+
+    __tablename__ = "assessment_model_version"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    model_key: Mapped[str] = mapped_column(String)
+    version: Mapped[int] = mapped_column(Integer)
+    ihk: Mapped[str] = mapped_column(String)
+    occupation: Mapped[str] = mapped_column(String)
+    specialization: Mapped[str | None] = mapped_column(String, nullable=True)
+    training_regulation: Mapped[str] = mapped_column(String)
+    exam_regulation: Mapped[str] = mapped_column(String)
+    ihk_guidelines: Mapped[str] = mapped_column(String)
+    valid_from: Mapped[str] = mapped_column(String)
+    valid_until: Mapped[str | None] = mapped_column(String, nullable=True)
+    official_scale_min: Mapped[str] = mapped_column(String, server_default=sql_text("'0'"))
+    official_scale_max: Mapped[str] = mapped_column(String, server_default=sql_text("'100'"))
+    rules_json: Mapped[str] = mapped_column(String)
+    retention_rule_reference: Mapped[str] = mapped_column(String)
+    retention_years: Mapped[int] = mapped_column(Integer, server_default=sql_text("15"))
+    created_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index("assessment_model_identity", "model_key", "version", unique=True),
+        Index(
+            "assessment_model_applicability",
+            "ihk",
+            "occupation",
+            "specialization",
+            "valid_from",
+            "valid_until",
+        ),
+    )
+
+
+class ExamRoundAssessmentBinding(Base):
+    """Explicit version binding that becomes immutable after the first assessment."""
+
+    __tablename__ = "exam_round_assessment_binding"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_round_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_round.id", ondelete="CASCADE"), unique=True
+    )
+    assessment_model_version_id: Mapped[int] = mapped_column(
+        ForeignKey("assessment_model_version.id", ondelete="RESTRICT")
+    )
+    version: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    bound_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    binding_reason: Mapped[str] = mapped_column(String)
+    bound_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class ExamResult(Base):
+    """Candidate result process; current state points only at immutable history."""
+
+    __tablename__ = "exam_result"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    round_candidate_id: Mapped[int] = mapped_column(
+        ForeignKey("round_candidate.id", ondelete="CASCADE"), unique=True
+    )
+    current_state: Mapped[str] = mapped_column(String, server_default=sql_text("'incomplete'"))
+    correction_open: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
+    version: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    source: Mapped[str] = mapped_column(String, server_default=sql_text("'application'"))
+    legacy_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class IndividualAssessment(Base):
+    """One immutable revision of one examiner's criterion-specific assessment."""
+
+    __tablename__ = "individual_assessment"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_result_id: Mapped[int] = mapped_column(ForeignKey("exam_result.id", ondelete="CASCADE"))
+    component_key: Mapped[str] = mapped_column(String)
+    criterion_key: Mapped[str] = mapped_column(String)
+    assessor_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    revision: Mapped[int] = mapped_column(Integer)
+    raw_points: Mapped[str] = mapped_column(String)
+    normalized_points: Mapped[str] = mapped_column(String)
+    rationale: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String)
+    previous_assessment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("individual_assessment.id", ondelete="RESTRICT"), nullable=True
+    )
+    change_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    submitted_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index(
+            "individual_assessment_revision",
+            "exam_result_id",
+            "component_key",
+            "criterion_key",
+            "assessor_member_id",
+            "revision",
+            unique=True,
+        ),
+        Index(
+            "individual_assessment_current",
+            "exam_result_id",
+            "component_key",
+            "assessor_member_id",
+            "status",
+        ),
+    )
+
+
+class AssessmentDisclosure(Base):
+    """Controlled opening of previously hidden individual contributions."""
+
+    __tablename__ = "assessment_disclosure"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_result_id: Mapped[int] = mapped_column(ForeignKey("exam_result.id", ondelete="CASCADE"))
+    component_key: Mapped[str] = mapped_column(String)
+    disclosed_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    disclosed_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index("assessment_disclosure_component", "exam_result_id", "component_key", unique=True),
+    )
+
+
+class CommitteeAssessment(Base):
+    """Immutable revision of a properly determined joint component assessment."""
+
+    __tablename__ = "committee_assessment"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_result_id: Mapped[int] = mapped_column(ForeignKey("exam_result.id", ondelete="CASCADE"))
+    component_key: Mapped[str] = mapped_column(String)
+    revision: Mapped[int] = mapped_column(Integer)
+    points: Mapped[str] = mapped_column(String)
+    rationale: Mapped[str | None] = mapped_column(String, nullable=True)
+    participant_member_ids_json: Mapped[str] = mapped_column(String)
+    vote_json: Mapped[str] = mapped_column(String)
+    dissent_json: Mapped[str] = mapped_column(String, server_default=sql_text("'[]'"))
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'current'"))
+    previous_assessment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("committee_assessment.id", ondelete="RESTRICT"), nullable=True
+    )
+    determined_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    determined_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index(
+            "committee_assessment_revision",
+            "exam_result_id",
+            "component_key",
+            "revision",
+            unique=True,
+        ),
+    )
+
+
+class ExternalExamResult(Base):
+    """Versioned externally determined input with independent confirmation."""
+
+    __tablename__ = "external_exam_result"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_result_id: Mapped[int] = mapped_column(ForeignKey("exam_result.id", ondelete="CASCADE"))
+    area_key: Mapped[str] = mapped_column(String)
+    revision: Mapped[int] = mapped_column(Integer)
+    points: Mapped[str] = mapped_column(String)
+    grade: Mapped[str | None] = mapped_column(String, nullable=True)
+    professional_status: Mapped[str] = mapped_column(String)
+    determining_authority: Mapped[str] = mapped_column(String)
+    source_reference: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'unconfirmed'"))
+    recorded_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    recorded_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    confirmed_by_member_id: Mapped[int | None] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT"), nullable=True
+    )
+    confirmed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    previous_external_result_id: Mapped[int | None] = mapped_column(
+        ForeignKey("external_exam_result.id", ondelete="RESTRICT"), nullable=True
+    )
+    correction_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (
+        Index(
+            "external_exam_result_revision",
+            "exam_result_id",
+            "area_key",
+            "revision",
+            unique=True,
+        ),
+    )
+
+
+class ResultCalculation(Base):
+    """Immutable, reproducible proposal; calculation never means determination."""
+
+    __tablename__ = "result_calculation"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_result_id: Mapped[int] = mapped_column(ForeignKey("exam_result.id", ondelete="CASCADE"))
+    version: Mapped[int] = mapped_column(Integer)
+    input_fingerprint: Mapped[str] = mapped_column(String)
+    total_points: Mapped[str] = mapped_column(String)
+    grade: Mapped[str] = mapped_column(String)
+    passed: Mapped[int] = mapped_column(Integer)
+    calculation_path_json: Mapped[str] = mapped_column(String)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index("result_calculation_version", "exam_result_id", "version", unique=True),
+        Index("result_calculation_input", "exam_result_id", "input_fingerprint", unique=True),
+    )
+
+
+class ResultDetermination(Base):
+    """Immutable committee decision that can only be superseded by a new decision."""
+
+    __tablename__ = "result_determination"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_result_id: Mapped[int] = mapped_column(ForeignKey("exam_result.id", ondelete="CASCADE"))
+    revision: Mapped[int] = mapped_column(Integer)
+    result_calculation_id: Mapped[int] = mapped_column(
+        ForeignKey("result_calculation.id", ondelete="RESTRICT")
+    )
+    participant_member_ids_json: Mapped[str] = mapped_column(String)
+    vote_json: Mapped[str] = mapped_column(String)
+    dissent_json: Mapped[str] = mapped_column(String, server_default=sql_text("'[]'"))
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'current'"))
+    previous_determination_id: Mapped[int | None] = mapped_column(
+        ForeignKey("result_determination.id", ondelete="RESTRICT"), nullable=True
+    )
+    correction_id: Mapped[int | None] = mapped_column(
+        ForeignKey("result_correction.id", ondelete="RESTRICT"), nullable=True
+    )
+    determined_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    determined_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index("result_determination_revision", "exam_result_id", "revision", unique=True),
+    )
+
+
+class ResultRecordConfirmation(Base):
+    """One participant's confirmation of one immutable result record."""
+
+    __tablename__ = "result_record_confirmation"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    result_determination_id: Mapped[int] = mapped_column(
+        ForeignKey("result_determination.id", ondelete="CASCADE")
+    )
+    committee_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    confirmed_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        Index(
+            "result_record_confirmation_member",
+            "result_determination_id",
+            "committee_member_id",
+            unique=True,
+        ),
+    )
+
+
+class ResultCorrection(Base):
+    """Reasoned correction process; the effective determination remains immutable."""
+
+    __tablename__ = "result_correction"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_result_id: Mapped[int] = mapped_column(ForeignKey("exam_result.id", ondelete="CASCADE"))
+    result_determination_id: Mapped[int] = mapped_column(
+        ForeignKey("result_determination.id", ondelete="RESTRICT")
+    )
+    reason: Mapped[str] = mapped_column(String)
+    requested_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'open'"))
+    reopening_reference: Mapped[str | None] = mapped_column(String, nullable=True)
+    requested_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (Index("result_correction_status", "exam_result_id", "status"),)
+
+
+class ResultCommunication(Base):
+    """Documented communication, separate from official IHK notification."""
+
+    __tablename__ = "result_communication"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_result_id: Mapped[int] = mapped_column(ForeignKey("exam_result.id", ondelete="CASCADE"))
+    result_determination_id: Mapped[int] = mapped_column(
+        ForeignKey("result_determination.id", ondelete="RESTRICT")
+    )
+    method: Mapped[str] = mapped_column(String)
+    responsible_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    communicated_at: Mapped[str] = mapped_column(String)
+    external_document_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    external_document_reference: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'current'"))
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class ResultRetention(Base):
+    """Effective retention start, minimum end, and preservation hold."""
+
+    __tablename__ = "result_retention"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_result_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_result.id", ondelete="CASCADE"), unique=True
+    )
+    rule_reference: Mapped[str] = mapped_column(String)
+    period_start: Mapped[str | None] = mapped_column(String, nullable=True)
+    retain_until: Mapped[str | None] = mapped_column(String, nullable=True)
+    legal_hold: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
+    hold_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    updated_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class ResultExport(Base):
+    """Trace of generated draft or determined exports and their later obsolescence."""
+
+    __tablename__ = "result_export"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_result_id: Mapped[int] = mapped_column(ForeignKey("exam_result.id", ondelete="CASCADE"))
+    result_determination_id: Mapped[int | None] = mapped_column(
+        ForeignKey("result_determination.id", ondelete="RESTRICT"), nullable=True
+    )
+    export_kind: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String)
+    generated_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    generated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
 class Document(Base):
     """Database metadata for one document owned by a storage adapter."""
 
@@ -678,9 +1400,9 @@ def model_to_dict(model: Any, resource: Resource) -> dict[str, Any]:
 
 COMMITTEE = Resource(
     model=Committee,
-    fields=("name", "occupation", "created_at", "updated_at"),
+    fields=("name", "occupation", "ihk", "created_at", "updated_at"),
     order_by=("name",),
-    writable_fields=("name", "occupation"),
+    writable_fields=("name", "occupation", "ihk"),
 )
 
 COMMITTEE_MEMBER = Resource(
@@ -911,6 +1633,8 @@ EXAM_DAY = Resource(
         "location_id",
         "date",
         "status",
+        "revision",
+        "closure_status",
         "lunch_break_enabled",
         "created_from_proposal",
         "created_at",
