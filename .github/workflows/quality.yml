@@ -10,7 +10,7 @@ on:
   # exact resulting master SHA in workflow_run.head_sha.
   workflow_run:
     workflows:
-      - Dependabot Updates
+      - Dependabot auto-merge
     types:
       - completed
     branches:
