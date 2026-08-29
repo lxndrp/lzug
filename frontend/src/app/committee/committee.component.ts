@@ -19,7 +19,7 @@ import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
 import { type SelectOption, selectLabel, selectStringify, selectValues } from '../select-options';
 
-export type CommitteePayload = Pick<Committee, 'name' | 'occupation'>;
+export type CommitteePayload = Pick<Committee, 'name' | 'occupation' | 'ihk'>;
 export type CommitteeMemberPayload = Pick<
   CommitteeMember,
   'committee_id' | 'member_status' | 'committee_role' | 'representing_side' | 'is_active'
@@ -85,6 +85,7 @@ export class CommitteeComponent {
   protected readonly committeeDraft = {
     name: '',
     occupation: '',
+    ihk: '',
   };
   protected readonly memberDraft = {
     first_name: '',
@@ -187,11 +188,12 @@ export class CommitteeComponent {
     const data = new FormData(form);
     const name = String(data.get('name') ?? '').trim();
     const occupation = String(data.get('occupation') ?? '').trim();
-    if (!name || !occupation) {
+    const ihk = String(data.get('ihk') ?? '').trim();
+    if (!name || !occupation || !ihk) {
       return;
     }
     this.pendingCommitteeForm = form;
-    this.createCommittee.emit({ name, occupation });
+    this.createCommittee.emit({ name, occupation, ihk });
   }
 
   protected saveMember(event: SubmitEvent): void {
@@ -229,6 +231,7 @@ export class CommitteeComponent {
     this.clearForm(form ?? this.pendingCommitteeForm ?? this.committeeCreateForm?.nativeElement);
     this.committeeDraft.name = '';
     this.committeeDraft.occupation = '';
+    this.committeeDraft.ihk = '';
     this.pendingCommitteeForm = null;
     this.creatingCommittee.set(false);
     this.focusButton(this.committeeCreateButton);

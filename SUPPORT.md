@@ -1,17 +1,16 @@
 # Support
 
-`lzug` wird als nicht produktreifer Quellcode-Prototyp veröffentlicht. Es gibt
-keine Zusage für produktiven Betrieb, garantierte Verfügbarkeit, individuelle
-Einrichtung oder fachliche Beratung durch die IHK.
+`lzug` wird als nicht produktreifer Quellcode-Prototyp veröffentlicht.
+Es gibt keine Zusage für produktiven Betrieb, garantierte Verfügbarkeit, individuelle Einrichtung oder fachliche Beratung durch die IHK.
 
 ## Fragen und Fehler
 
 - Für reproduzierbare Fehler und Verbesserungsvorschläge bitte ein
   [GitHub Issue](https://github.com/lxndrp/lzug/issues/new/choose) anlegen.
 - Vor dem Anlegen eines Issues bitte prüfen, ob bereits ein passendes Issue
-  existiert, und eine möglichst kleine Reproduktion angeben.
+existiert, und eine möglichst kleine Reproduktion angeben.
 - Für lokale Einrichtung und Entwicklung ist
-  [CONTRIBUTING.md](CONTRIBUTING.md) maßgeblich.
+[CONTRIBUTING.md](CONTRIBUTING.md) maßgeblich.
 
 ## Sicherheitsmeldungen
 
