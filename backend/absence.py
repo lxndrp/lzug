@@ -12,6 +12,7 @@ from sqlalchemy import select
 from .authorization import AuthorizationScope
 from .calendar import CalendarService
 from .database import DEFAULT_DB_PATH, session_scope
+from .exam_day_closures import complete_day_mutation, guard_day_mutation
 from .models import (
     AbsenceAuditEvent,
     AbsenceReport,
@@ -113,6 +114,15 @@ class AbsenceService:
             ).first():
                 raise ValueError("Für diese Besetzung existiert bereits eine Ausfallmeldung")
 
+            day_guard = guard_day_mutation(
+                session,
+                day=day,
+                kind="staffing",
+                entity_id=assignment.id,
+                payload=payload,
+                actor_member_id=actor_id,
+            )
+
             urgent = current + timedelta(hours=48) > self._assignment_start(
                 session, day, assignment
             )
@@ -157,6 +167,12 @@ class AbsenceService:
                 )
             self._audit(session, report, actor_id, "reported", None, report.status, current)
             session.flush()
+            complete_day_mutation(
+                session,
+                day_guard,
+                actor_member_id=actor_id,
+                reason=report.reason,
+            )
             notify_ids = {actor_id, target.id} | {
                 member.id
                 for member in session.scalars(
@@ -206,6 +222,15 @@ class AbsenceService:
                 raise ValueError("Antwort muss available oder unavailable sein")
             if response.response != "pending":
                 raise ValueError("Diese Ersatzanfrage wurde bereits beantwortet")
+            day = session.get(ExamDay, report.exam_day_id)
+            day_guard = guard_day_mutation(
+                session,
+                day=day,
+                kind="absence",
+                entity_id=report.id,
+                payload=payload,
+                actor_member_id=response.committee_member_id,
+            )
             expired = bool(response.expires_at and _parse(response.expires_at) <= current)
             if expired:
                 answer = "unavailable"
@@ -238,7 +263,6 @@ class AbsenceService:
                 report.status,
                 current,
             )
-            day = session.get(ExamDay, report.exam_day_id)
             round_row = session.get(ExamRound, day.exam_round_id) if day else None
             if round_row:
                 recipient_ids = {
@@ -274,6 +298,11 @@ class AbsenceService:
                     ),
                     False,
                 )
+            complete_day_mutation(
+                session,
+                day_guard,
+                actor_member_id=response.committee_member_id,
+            )
             result = self._view(session, report)
         self._notify(
             notification_data,
@@ -294,6 +323,7 @@ class AbsenceService:
         current = _now(now)
         notification_data = None
         calendar_round_id: int | None = None
+        sync_calendar = True
         report_round_id = self._report_round_id(report_id)
         if report_round_id is not None:
             self.calendar_service.sync_round(report_round_id)
@@ -319,6 +349,17 @@ class AbsenceService:
             }:
                 raise ValueError("Die Ausfallmeldung ist nicht auswählbar")
             self._check_version(report, payload)
+            actor_id = scope.member_for_committee(round_row.committee_id)
+            if actor_id is None:
+                raise PermissionError("Forbidden.")
+            day_guard = guard_day_mutation(
+                session,
+                day=day,
+                kind="absence",
+                entity_id=report.id,
+                payload=payload,
+                actor_member_id=actor_id,
+            )
             member_id = self._required_int(payload, "committee_member_id")
             response = session.scalars(
                 select(ReplacementResponse).where(
@@ -353,7 +394,7 @@ class AbsenceService:
             self._audit(
                 session,
                 report,
-                scope.member_for_committee(round_row.committee_id) or replacement.id,
+                actor_id,
                 "replacement_selected",
                 old_status,
                 report.status,
@@ -361,6 +402,11 @@ class AbsenceService:
                 {"member_id": replacement.id},
             )
             session.flush()
+            complete_day_mutation(
+                session,
+                day_guard,
+                actor_member_id=actor_id,
+            )
             notify_ids = {old_member_id, replacement.id} | {
                 member.id
                 for member in session.scalars(
@@ -379,8 +425,9 @@ class AbsenceService:
                 False,
             )
             calendar_round_id = round_row.id
+            sync_calendar = day.closure_status == "open"
             result = self._view(session, report)
-        if calendar_round_id is not None:
+        if calendar_round_id is not None and sync_calendar:
             self.calendar_service.sync_round(calendar_round_id)
         self._notify(
             notification_data,
@@ -394,6 +441,7 @@ class AbsenceService:
         self,
         scope: AuthorizationScope,
         report_id: int,
+        payload: dict[str, Any] | None = None,
         *,
         now: datetime | None = None,
     ) -> dict[str, Any]:
@@ -410,6 +458,16 @@ class AbsenceService:
             self._assert_before_start(
                 session, day, session.get(ExamDayAssignment, report.exam_day_assignment_id), current
             )
+            mutation_payload = payload or {}
+            effective_actor_id = actor_id or report.committee_member_id
+            day_guard = guard_day_mutation(
+                session,
+                day=day,
+                kind="absence",
+                entity_id=report.id,
+                payload=mutation_payload,
+                actor_member_id=effective_actor_id,
+            )
             old_status = report.status
             report.status = "withdrawn"
             report.version += 1
@@ -417,11 +475,16 @@ class AbsenceService:
             self._audit(
                 session,
                 report,
-                actor_id or report.committee_member_id,
+                effective_actor_id,
                 "withdrawn",
                 old_status,
                 report.status,
                 current,
+            )
+            complete_day_mutation(
+                session,
+                day_guard,
+                actor_member_id=effective_actor_id,
             )
             return self._view(session, report)
 
@@ -436,9 +499,7 @@ class AbsenceService:
         current = _now(now)
         reason = self._required_reason(payload)
         calendar_round_id: int | None = None
-        report_round_id = self._report_round_id(report_id)
-        if report_round_id is not None:
-            self.calendar_service.sync_round(report_round_id)
+        sync_calendar = True
         with session_scope(self.db_path) as session:
             report, day, round_row = self._authorized_report(session, scope, report_id)
             actor_id = scope.member_for_committee(round_row.committee_id)
@@ -449,6 +510,15 @@ class AbsenceService:
             )
             if report.status not in {"replacement_selected", "resolved", "exam_day_cancelled"}:
                 raise ValueError("Die Ausfallmeldung ist nicht wieder zu öffnen")
+            effective_actor_id = actor_id or report.committee_member_id
+            day_guard = guard_day_mutation(
+                session,
+                day=day,
+                kind="absence",
+                entity_id=report.id,
+                payload=payload,
+                actor_member_id=effective_actor_id,
+            )
             assignment = session.get(ExamDayAssignment, report.exam_day_assignment_id)
             if assignment is None:
                 raise ValueError("Besetzung nicht gefunden")
@@ -463,16 +533,23 @@ class AbsenceService:
             self._audit(
                 session,
                 report,
-                actor_id or report.committee_member_id,
+                effective_actor_id,
                 "reopened",
                 old_status,
                 report.status,
                 current,
                 {"reason": reason},
             )
+            complete_day_mutation(
+                session,
+                day_guard,
+                actor_member_id=effective_actor_id,
+                reason=reason,
+            )
             calendar_round_id = round_row.id
+            sync_calendar = day.closure_status == "open"
             result = self._view(session, report)
-        if calendar_round_id is not None:
+        if calendar_round_id is not None and sync_calendar:
             self.calendar_service.sync_round(calendar_round_id)
         return result
 
@@ -494,6 +571,15 @@ class AbsenceService:
                 raise PermissionError("Nur Vorsitz oder Stellvertretung dürfen Slots absagen")
             if report.status in {"withdrawn", "exam_day_cancelled"}:
                 raise ValueError("Die Ausfallmeldung ist bereits abgeschlossen")
+            effective_actor_id = actor_id or report.committee_member_id
+            day_guard = guard_day_mutation(
+                session,
+                day=day,
+                kind="absence",
+                entity_id=report.id,
+                payload=payload,
+                actor_member_id=effective_actor_id,
+            )
             self._assert_before_start(
                 session, day, session.get(ExamDayAssignment, report.exam_day_assignment_id), current
             )
@@ -507,16 +593,23 @@ class AbsenceService:
             self._audit(
                 session,
                 report,
-                actor_id or report.committee_member_id,
+                effective_actor_id,
                 "cancelled",
                 old_status,
                 report.status,
                 current,
                 {"reason": reason},
             )
+            complete_day_mutation(
+                session,
+                day_guard,
+                actor_member_id=effective_actor_id,
+                reason=reason,
+            )
             calendar_target = (round_row.id, assignment.id)
+            sync_calendar = day.closure_status == "open"
             result = self._view(session, report)
-        if calendar_target is not None:
+        if calendar_target is not None and sync_calendar:
             self.calendar_service.cancel_assignment(*calendar_target)
         return result
 
@@ -711,7 +804,7 @@ class AbsenceService:
             if report is None:
                 return None
             day = session.get(ExamDay, report.exam_day_id)
-            return day.exam_round_id if day is not None else None
+            return day.exam_round_id if day is not None and day.closure_status == "open" else None
 
     def _visible(self, session, report, scope) -> bool:
         day = session.get(ExamDay, report.exam_day_id)
@@ -719,6 +812,8 @@ class AbsenceService:
         return bool(round_row and round_row.committee_id in scope.committee_ids)
 
     def _assert_before_start(self, session, day, assignment, current):
+        if day.closure_status == "reopening":
+            return
         if assignment is None or current >= self._assignment_start(session, day, assignment):
             raise ValueError(
                 "Ausfallmeldungen und Korrekturen sind nach Beginn des "

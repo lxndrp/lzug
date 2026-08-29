@@ -101,6 +101,13 @@ class DemoRuntimeTests(unittest.TestCase):
             self.assertEqual("examiner", created["role"])
             self.assertEqual("Testperson Gamma", created["display_name"])
 
+            status, created = api.request(
+                "POST", "/api/demo/session", {"role": "deputy"}, authenticated=False
+            )
+            assert_status(status, HTTPStatus.CREATED)
+            self.assertEqual("deputy", created["role"])
+            self.assertEqual("Testperson Beta", created["display_name"])
+
             status, error = api.request(
                 "POST", "/api/demo/session", {"role": "operator"}, authenticated=False
             )
@@ -119,12 +126,45 @@ class DemoRuntimeTests(unittest.TestCase):
                     "attendance:write-own",
                     "availability:write-own",
                     "calendar:read-own",
+                    "exam-day-closure:export",
+                    "exam-day-closure:read",
                     "exam-half-years:read",
+                    "exam-protocol:export",
+                    "exam-protocol:read",
+                    "exam-protocol:request-correction",
+                    "exam-protocol:respond",
+                    "exam-protocol:submit",
+                    "exam-protocol:write",
+                    "exam-result:assess-own",
+                    "exam-result:confirm-record",
+                    "exam-result:export",
+                    "exam-result:read",
                     "notifications:read-own",
                 ],
                 session["capabilities"],
             )
             self.assertEqual(DEMO_MATRIX_VERSION, session["demo_matrix_version"])
+
+            deputy = AuthenticationRepository(db_path).create_session(3, ttl=timedelta(hours=1))
+            status, deputy_session = api.request("GET", "/api/session", credentials=deputy)
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual("deputy", deputy_session["demo_role"])
+            self.assertTrue(
+                {
+                    "exam-result:assess-own",
+                    "exam-result:disclose",
+                    "exam-result:external-record",
+                    "exam-result:external-confirm",
+                    "exam-result:determine-component",
+                    "exam-result:determine",
+                    "exam-result:confirm-record",
+                    "exam-result:coordinate-correction",
+                    "exam-result:communicate",
+                    "exam-day-closure:close",
+                    "exam-day-closure:preview-reopening",
+                    "exam-day-closure:reopen",
+                }.issubset(deputy_session["capabilities"])
+            )
 
             status, error = api.request(
                 "POST",

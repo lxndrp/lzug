@@ -2,26 +2,23 @@
 
 ## Zweck
 
-Dieses Projekt soll ein sachlicher, respektvoller Ort für Beiträge zur
-Weiterentwicklung von `lzug` sein. Das gilt für Issues, Pull Requests, Reviews,
-Discussions und alle weiteren öffentlichen Projektbereiche.
+Dieses Projekt soll ein sachlicher, respektvoller Ort für Beiträge zur Weiterentwicklung von `lzug` sein.
+Das gilt für Issues, Pull Requests, Reviews, Discussions und alle weiteren öffentlichen Projektbereiche.
 
 ## Erwartetes Verhalten
 
 - Beiträge beziehen sich auf das Projekt und behandeln andere Personen
-  respektvoll.
+respektvoll.
 - Technische Kritik beschreibt Beobachtung, Auswirkung und eine mögliche
-  Verbesserung.
+Verbesserung.
 - Unklarheiten werden nachgefragt, bevor Motive oder Absichten unterstellt
-  werden.
+werden.
 - Personenbezogene, vertrauliche oder sicherheitsrelevante Informationen
-  werden nicht öffentlich veröffentlicht.
+werden nicht öffentlich veröffentlicht.
 
 ## Nicht akzeptiertes Verhalten
 
-Nicht akzeptiert sind Belästigung, Diskriminierung, persönliche Angriffe,
-gezielte Veröffentlichung vertraulicher Daten, Trolling, Drohungen und jede
-andere Kommunikation, die eine sachliche Mitarbeit verhindert.
+Nicht akzeptiert sind Belästigung, Diskriminierung, persönliche Angriffe, gezielte Veröffentlichung vertraulicher Daten, Trolling, Drohungen und jede andere Kommunikation, die eine sachliche Mitarbeit verhindert.
 
 ## Meldung und Durchsetzung
 
@@ -32,5 +29,5 @@ Meldeweg wird im Rahmen von [#192](https://github.com/lxndrp/lzug/issues/192)
 eingerichtet. Die Maintainer können Inhalte moderieren,
 Bearbeitungen verlangen oder Beiträge und Beteiligungen einschränken.
 
-Dieser Kodex gilt für das öffentliche Quellcode-Repository. Er begründet keine
-Support-, Verfügbarkeits- oder Betriebszusage.
+Dieser Kodex gilt für das öffentliche Quellcode-Repository.
+Er begründet keine Support-, Verfügbarkeits- oder Betriebszusage.
