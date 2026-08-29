@@ -9,6 +9,76 @@ Versionen folgen [Semantic Versioning](https://semver.org/lang/de/).
 Bei einer Release-Vorbereitung verschiebt ein Maintainer die freizugebenden Einträge in genau einen Abschnitt `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`.
 Der Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Notes und veröffentlicht nur aus dem nach der Environment-Freigabe erzeugten, annotierten SemVer-Tag.
 
+## [0.4.0] - 2026-08-29
+
+### Added
+
+- Ein versioniertes Prüfungsprotokoll bildet für jeden tatsächlich gestarteten
+  Prüfungsslot den gemeinsamen Tatsachenstand mit Beteiligten-Snapshot,
+  besonderen Vorkommnissen, Reaktionen, Korrekturen und vollständiger Historie
+  ab.
+- Der getrennte Ergebnisvorgang bindet eine unveränderliche Bewertungsmodell-
+  version, unterstützt verdeckte Einzelbewertungen, kontrollierte Offenlegung,
+  Vier-Augen-Bestätigung externer Ergebnisse, reproduzierbare Berechnung,
+  Feststellung, Mitteilung und nachvollziehbare Korrekturen.
+- Ein revisionsgebundener Tagesabschluss prüft Durchführung, Besetzung,
+  Anwesenheit, Ausfälle, Protokolle und Bewertungen gemeinsam.
+  Regulärer und eng begrenzter Ausnahmeabschluss, zielgerichtete Wiederöffnung,
+  Sperrwirkung, Nachfassaufgaben und maschinen- beziehungsweise menschenlesbare
+  Nachweise bleiben historisch nachvollziehbar.
+
+### Changed
+
+- Die FastAPI-Migration ist abgeschlossen.
+  Laufzeit-, Authentifizierungs-, Planungs-, Domänen- und Integrationsrouten
+  verwenden den gemeinsamen synchronen Anwendungskern; HTTP-, OpenAPI- und
+  Sicherheitsverträge werden über Paritätstests abgesichert.
+- Architektur-, Entwickler-, Betriebs- und Publikationsdokumentation wurden auf
+  die aktuellen kanonischen Quellen und Runbooks konsolidiert.
+  Dokumentationsgovernance, strukturelle Prüfungen, Wiki-Abgrenzung und
+  Semantic Line Breaks begrenzen künftig die Entstehung widersprüchlicher
+  Doppelquellen.
+- Der vollständige Quality-Lauf bleibt an die geprüfte Revision gebunden.
+  Fixture-Frische, Dependabot-Folgeprüfungen und die relevanten CI-Verträge
+  bilden auch nach automatisierten Abhängigkeitsaktualisierungen belastbare
+  Master-Nachweise.
+- Demo-Auslieferung, Deployment, URL-Auflösung und App-/Seed-Paar folgen einem
+  gemeinsamen unveränderlichen Vertrag.
+  Oberfläche und API halten die effektiven Default-Deny-Fähigkeiten ein;
+  persistente Demo-Logs und kostenpflichtige Überwachungswege entfallen, während
+  Kostenbaseline und verbleibende Plattformdiagnostik dokumentiert sind.
+- Benachrichtigungszustellungen beanspruchen Arbeit mit Lease und begrenzten
+  Batches konkurrenzsicher.
+  Ein Fehler bei der Kalendersynchronisierung verliert den bereits gespeicherten
+  Slot-Status nicht.
+- Build-, Test- und Frontend-Abhängigkeiten sowie die SBOM-Orchestrierung wurden
+  kontrolliert auf den bestehenden, reproduzierbaren Werkzeugen gehalten.
+
+### Security
+
+- Protokolle, Bewertungen, Ergebnisse und Tagesabschlüsse bleiben an die
+  tatsächliche Beteiligung und die zuständigen Ausschussrollen gebunden;
+  Betreiberkonten erhalten keinen fachlichen Zugriff.
+- Migrationen erfinden keine historischen Prüfungs-, Bewertungs- oder
+  Abschlussdaten.
+  Demo-Schreibpfade bleiben über die ausführbare Default-Deny-Policy begrenzt.
+
+### Scope and compatibility
+
+- `v0.4.0` ist ein kompatibler Funktionsrelease seit `v0.3.0` und umfasst den
+  zusammenhängenden Ablauf mündlicher Prüfungstage aus #522, #528 und #529
+  einschließlich Protokollierung, Bewertung, Ergebnis und Abschluss sowie die
+  dafür gemergten technischen Stabilisierungen.
+- Dieser Vorbereitungseintrag beansprucht weder den Produkt-Tag noch einen
+  veröffentlichten GitHub Release, neue GHCR- oder CLI-Artefakte,
+  Attestations, eine öffentliche Demo-Promotion oder eine erneute externe
+  Environment-Freigabe.
+  Diese Schritte entstehen erst nach separatem Maintainer-GO.
+- Änderungen an bestätigten Plänen, der Abschluss von Prüfungshalbjahren sowie
+  allgemeines Upgrade, Backup, Restore, Produkt-Rollback und produktive
+  Self-Hosting-Reife bleiben außerhalb dieses Releaseumfangs und sind für
+  spätere Milestones vorgesehen.
+
 ## [0.3.0] - 2026-08-28
 
 ### Added
