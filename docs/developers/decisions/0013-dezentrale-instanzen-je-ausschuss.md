@@ -1,8 +1,12 @@
 # ADR-0013: Dezentrale Instanzen je Ausschuss
 
+## Datum
+
+2026-08-08.
+
 ## Status
 
-Akzeptiert am 08.08.2026.
+Akzeptiert.
 
 ## Kontext
 

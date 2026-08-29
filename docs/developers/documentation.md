@@ -59,7 +59,10 @@ Ein ADR ist erforderlich, wenn eine langfristige technische Entscheidung mit rel
 Lokale Implementierungsdetails, erledigte Umsetzungsschritte, reine Konfiguration ohne Wahlmöglichkeit und Projektplanung erhalten keinen ADR.
 
 Dauerhafte technische Entscheidungen stehen unter `docs/developers/decisions/`; der Dateiname hat das Muster `NNNN-kebab-case.md`.
-Neue ADRs verwenden die [Vorlage](decisions/TEMPLATE.md) mit Status, ursprünglichem Entscheidungsdatum, Kontext, Entscheidung, Konsequenzen, Alternativen und Referenzen.
+Alle ADRs folgen der durch [ADR-0029](decisions/0029-einheitliches-nygard-format.md) verbindlich festgelegten Nygard-Grundstruktur:
+Titel, Datum, Status, Kontext, Entscheidung und Konsequenzen.
+Die [Vorlage](decisions/TEMPLATE.md) beschreibt die Pflichtabschnitte sowie die optionalen Abschnitte für Alternativen und Referenzen.
+Das Datum bezeichnet bei rückwirkend dokumentierten ADRs das historische Entscheidungsdatum.
 
 Ein akzeptierter ADR wird nicht inhaltlich umgeschrieben.
 Löst ein neuer ADR seine fortgeltende Entscheidung vollständig ab, nennt der neue ADR im Abschnitt `Status` `Supersedes: ADR-NNNN`; der abgelöste ADR erhält im selben Abschnitt die einzige zulässige Ergänzung `Superseded by: ADR-NNNN`.

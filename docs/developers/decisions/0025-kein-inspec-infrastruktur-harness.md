@@ -1,8 +1,12 @@
 # ADR-0025: Kein InSpec-Infrastruktur-Harness
 
+## Datum
+
+2026-08-25.
+
 ## Status
 
-Abgelehnt am 25.08.2026.
+Abgelehnt.
 
 ## Kontext
 

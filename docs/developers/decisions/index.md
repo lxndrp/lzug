@@ -6,7 +6,9 @@ Sie ändern keine frühere Historie, machen aber Kontext, Konsequenzen und Verwe
 Der Index führt den aktuellen Status jeder Entscheidung.
 Bei einer vollständigen Ablösung verweisen alter und neuer ADR im jeweiligen Abschnitt `Status` aufeinander (`Superseded by` beziehungsweise `Supersedes`).
 Eine Ergänzung oder Präzisierung ohne vollständige Ablösung bleibt ein Verweis im Kontext oder bei den Referenzen.
-Die verbindliche Struktur für neue ADRs steht in der [ADR-Vorlage](TEMPLATE.md).
+Alle ADRs folgen der verbindlichen Nygard-Grundstruktur.
+Die [ADR-Vorlage](TEMPLATE.md) beschreibt die Pflicht- und optionalen Abschnitte;
+die Formatentscheidung steht im Registereintrag für ADR-0029.
 
 | ADR | Entscheidung | Status |
 | --- | --- | --- |
@@ -38,3 +40,4 @@ Die verbindliche Struktur für neue ADRs steht in der [ADR-Vorlage](TEMPLATE.md)
 | [0026](0026-automatische-demo-promotion-stabiler-releases.md) | Automatische Demo-Promotion stabiler Releases | Akzeptiert |
 | [0027](0027-synchroner-fastapi-migrationskern.md) | Synchroner FastAPI-Kern für die schrittweise HTTP-Migration | Akzeptiert |
 | [0028](0028-sbom-orchestrierung-und-cyclonedx-standardwerkzeuge.md) | SBOM-Orchestrierung und CycloneDX-Standardwerkzeuge abgrenzen | Akzeptiert |
+| [0029](0029-einheitliches-nygard-format.md) | Einheitliches Nygard-Format für Architekturentscheidungen | Akzeptiert |

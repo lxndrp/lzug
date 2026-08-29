@@ -1,10 +1,19 @@
 # ADR-0006: HTTP-API als OpenAPI-Vertrag
 
+## Datum
+
+2026-07-26.
+
 ## Status
 
-Akzeptiert, rückwirkend dokumentiert am 26.07.2026.
+Akzeptiert.
+Rückwirkend dokumentiert.
 
-## Kontext und Entscheidung
+## Kontext
+
+Die Anwendung benötigt einen verbindlichen und testbaren HTTP-Vertrag zwischen Frontend und Backend.
+
+## Entscheidung
 
 Die von FastAPI aus `backend/fastapi_app.py` erzeugte und über `/api/openapi.json` ausgelieferte OpenAPI-Spezifikation ist der verbindliche HTTP-Vertrag.
 Die JSON-API bietet Einstiegspunkt, Healthcheck, OpenAPI JSON und Dokumentation; Ressourcen verwenden REST-nahe Methoden und HAL-nahe Links.
