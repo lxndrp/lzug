@@ -13,23 +13,15 @@ resource "azurerm_resource_group" "demo" {
   tags     = local.common_tags
 }
 
-resource "azurerm_log_analytics_workspace" "demo" {
-  name                = "${var.name_prefix}-logs"
+resource "azurerm_container_app_environment" "demo" {
+  name                = "${var.name_prefix}-env"
   location            = azurerm_resource_group.demo.location
   resource_group_name = azurerm_resource_group.demo.name
-  sku                 = "PerGB2018"
-  retention_in_days   = var.log_retention_days
-  daily_quota_gb      = var.log_daily_quota_gb
-  tags                = local.common_tags
-}
-
-resource "azurerm_container_app_environment" "demo" {
-  name                       = "${var.name_prefix}-env"
-  location                   = azurerm_resource_group.demo.location
-  resource_group_name        = azurerm_resource_group.demo.name
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.demo.id
-  public_network_access      = "Enabled"
-  tags                       = local.common_tags
+  # An omitted destination is the AzureRM streaming-only contract: no logs are
+  # persisted, while the bounded real-time stream remains available on demand.
+  logs_destination      = null
+  public_network_access = "Enabled"
+  tags                  = local.common_tags
 
   workload_profile {
     name                  = "Consumption"

@@ -5,12 +5,6 @@ mock_provider "azurerm" {
     }
   }
 
-  mock_resource "azurerm_log_analytics_workspace" {
-    defaults = {
-      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.OperationalInsights/workspaces/lzug-demo-logs"
-    }
-  }
-
   mock_resource "azurerm_monitor_action_group" {
     defaults = {
       id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.Insights/actionGroups/lzug-demo-operations"
@@ -172,27 +166,15 @@ run "demo_contract" {
 
   assert {
     condition = (
-      azurerm_log_analytics_workspace.demo.retention_in_days == 30 &&
-      azurerm_log_analytics_workspace.demo.daily_quota_gb == 0.5 &&
-      strcontains(azurerm_monitor_scheduled_query_rules_alert.application_errors.query, "frontend_error") &&
-      strcontains(azurerm_monitor_scheduled_query_rules_alert.application_errors.query, "backend_error") &&
-      strcontains(azurerm_monitor_scheduled_query_rules_alert.application_errors.query, "| summarize AggregatedValue = count()") &&
-      strcontains(azurerm_monitor_scheduled_query_rules_alert.application_errors.query, "| where AggregatedValue > 0") &&
-      azurerm_monitor_scheduled_query_rules_alert.application_errors.query_type == "ResultCount" &&
-      azurerm_monitor_scheduled_query_rules_alert.application_errors.trigger[0].operator == "GreaterThan" &&
-      azurerm_monitor_scheduled_query_rules_alert.application_errors.trigger[0].threshold == 0 &&
-      azurerm_monitor_scheduled_query_rules_alert.application_errors.frequency == 60 &&
-      azurerm_monitor_scheduled_query_rules_alert.application_errors.time_window == 60 &&
-      azurerm_monitor_scheduled_query_rules_alert.application_errors.auto_mitigation_enabled &&
-      length(azurerm_monitor_scheduled_query_rules_alert.application_errors.action) == 1 &&
-      toset(azurerm_monitor_scheduled_query_rules_alert.application_errors.action[0].action_group) == toset([azurerm_monitor_action_group.demo.id]) &&
+      strcontains(file("${path.module}/main.tf"), "logs_destination      = null") &&
+      !strcontains(file("${path.module}/main.tf"), "azurerm_log_analytics_workspace") &&
+      !strcontains(file("${path.module}/main.tf"), "log_analytics_workspace_id") &&
+      !strcontains(file("${path.module}/observability.tf"), "azurerm_monitor_scheduled_query_rules_alert") &&
+      !strcontains(file("${path.module}/observability.tf"), "azurerm_monitor_diagnostic_setting") &&
       length(azurerm_monitor_action_group.demo.email_receiver) == 1 &&
-      alltrue([
-        for receiver in azurerm_monitor_action_group.demo.email_receiver :
-        receiver.use_common_alert_schema
-      ])
+      alltrue([for receiver in azurerm_monitor_action_group.demo.email_receiver : receiver.use_common_alert_schema])
     )
-    error_message = "Application error detection must return no result for zero events, one result for errors, and resolve statefully."
+    error_message = "The demo must stream logs without persisting them or creating a log query or diagnostic route."
   }
 
   assert {

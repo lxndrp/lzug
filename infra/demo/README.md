@@ -49,9 +49,12 @@ freigegebenen `tofu apply` keine Cloudänderung aus.
   `containerApps/stop/action` und `containerApps/start/action`; die Zuweisung
   gilt nur für diese eine Container App. Es existieren weder Controller-Image
   noch Azure-Client-Secret.
-- Log Analytics bewahrt Logs standardmäßig 30 Tage auf und begrenzt die
-  tägliche Aufnahme auf 0,5 GB. Strukturierte Frontend-/Backendfehler, dieselbe
-  testbare Action Group und der detaillierte Beobachtbarkeitsvertrag sind unter
+- Das Container-Apps-Environment speichert keine Logs dauerhaft und besitzt
+  weder einen Log-Analytics-Workspace noch eine Diagnostic-Setting-Route. Bei
+  einer konkreten Störung stehen nur begrenzte Echtzeitstreams der App und des
+  Environments zur Verfügung; deren kontrollierte Verwendung und der Abgleich
+  mit Revision, Digestpaar, Plattformmetriken sowie Deployment-, Reset- und
+  Smoke-Nachweisen sind unter
   [Demo-Beobachtbarkeit](../../docs/developers/demo-observability.md)
   dokumentiert. Das Budget meldet 80 Prozent der tatsächlichen und 100 Prozent
   der prognostizierten Kosten; es stoppt Ressourcen nicht automatisch.
@@ -111,8 +114,8 @@ Container, das explizit erhaltene `Consumption`-Workload-Profil, das einzige
 `EmptyDir` unter `/data`, Berliner Zeit, Managed
 Identity, die drei RBAC-Aktionen, Stop-/Start-Reihenfolge, getrennte
 Liveness-/Readiness-/Statusprüfung, letzten Reset, Rollback-Output, Budget,
-Loggrenzen, den Ausschluss von Application Insights, Webtests, Smart Detection
-und statischen Metrikalarmen sowie die drei ausgewählten GitHub-Environment-
+den Streaming-only-Loggingvertrag ohne Log-Analytics-, Log-Suchalarm- oder
+Diagnostic-Setting-Route sowie die drei ausgewählten GitHub-Environment-
 Regeln. Eigene Negativtests verwerfen bewegliche Demo-Tags, alte
 Runtimeverträge und eine nur teilweise Policy-Adoption. Das ersetzt keinen
 authentifizierten Azure-Plan.
