@@ -85,8 +85,18 @@ class DemoArtifactTests(unittest.TestCase):
                      AND revision.version = protocol.current_version
                     JOIN exam_protocol_participant AS participant
                       ON participant.exam_protocol_id = protocol.id
+                    WHERE protocol.id = 1
                     GROUP BY slot.execution_status, revision.submitted_at
                     """,
+                ),
+            )
+            self.assertEqual(3, self._scalar(first_db, "SELECT COUNT(*) FROM exam_day"))
+            self.assertEqual(
+                1,
+                self._scalar(
+                    first_db,
+                    "SELECT COUNT(*) FROM exam_protocol_response "
+                    "WHERE exam_protocol_revision_id = 2 AND committee_member_id = 2",
                 ),
             )
 

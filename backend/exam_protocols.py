@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -11,11 +12,18 @@ from sqlalchemy.orm import Session
 
 from .authorization import AuthorizationScope
 from .database import DEFAULT_DB_PATH, session_scope
+from .exam_day_closures import (
+    complete_day_mutation,
+    day_for_protocol,
+    guard_day_mutation,
+)
 from .models import (
     Candidate,
     CandidateExamAttendance,
     CommitteeMember,
     ExamDay,
+    ExamDayReopening,
+    ExamDayTask,
     ExamProtocol,
     ExamProtocolCorrectionRequest,
     ExamProtocolEntry,
@@ -158,6 +166,18 @@ class ExamProtocolService:
             ):
                 raise PermissionError("Forbidden.")
 
+            day = day_for_protocol(session, protocol.id)
+            if day is None:
+                raise ValueError("Der Prüfungstag zum Protokoll fehlt")
+            day_guard = guard_day_mutation(
+                session,
+                day=day,
+                kind="exam_protocol",
+                entity_id=protocol.id,
+                payload=payload,
+                actor_member_id=actor_id,
+            )
+
             created_at = _now()
             revision = ExamProtocolRevision(
                 exam_protocol_id=protocol.id,
@@ -189,6 +209,12 @@ class ExamProtocolService:
             protocol.current_version = revision.version
             protocol.updated_at = created_at
             session.flush()
+            complete_day_mutation(
+                session,
+                day_guard,
+                actor_member_id=actor_id,
+                reason=revision.change_reason,
+            )
             return self._view(session, protocol, scope)
 
     def submit(
@@ -206,12 +232,24 @@ class ExamProtocolService:
                 return self._view(session, protocol, scope)
             if actor_id not in participants:
                 raise PermissionError("Forbidden.")
+            day = day_for_protocol(session, protocol.id)
+            if day is None:
+                raise ValueError("Der Prüfungstag zum Protokoll fehlt")
+            day_guard = guard_day_mutation(
+                session,
+                day=day,
+                kind="exam_protocol",
+                entity_id=protocol.id,
+                payload=payload,
+                actor_member_id=actor_id,
+            )
             self._validate_persisted_content(session, revision)
             revision.workflow_state = "submitted"
             revision.submitted_by_member_id = actor_id
             revision.submitted_at = _now()
             protocol.updated_at = revision.submitted_at
             session.flush()
+            complete_day_mutation(session, day_guard, actor_member_id=actor_id)
             return self._view(session, protocol, scope)
 
     def respond(
@@ -266,6 +304,18 @@ class ExamProtocolService:
                 raise ExamProtocolConflictError(
                     "Für diesen Protokollstand wurde bereits anders reagiert"
                 )
+            day = day_for_protocol(session, protocol.id)
+            if day is None:
+                raise ValueError("Der Prüfungstag zum Protokoll fehlt")
+            day_guard = guard_day_mutation(
+                session,
+                day=day,
+                kind="protocol_response",
+                entity_id=protocol.id,
+                payload=payload,
+                actor_member_id=actor_id,
+                protocol_revision_id=revision.id,
+            )
             session.add(
                 ExamProtocolResponse(
                     exam_protocol_revision_id=revision.id,
@@ -277,6 +327,13 @@ class ExamProtocolService:
                 )
             )
             session.flush()
+            complete_day_mutation(
+                session,
+                day_guard,
+                actor_member_id=actor_id,
+                reason=statement,
+                protocol_revision_id=revision.id,
+            )
             return self._view(session, protocol, scope)
 
     def request_correction(
@@ -306,6 +363,17 @@ class ExamProtocolService:
                 )
             )
             if existing is None:
+                day = day_for_protocol(session, protocol.id)
+                if day is None:
+                    raise ValueError("Der Prüfungstag zum Protokoll fehlt")
+                day_guard = guard_day_mutation(
+                    session,
+                    day=day,
+                    kind="protocol_correction_request",
+                    entity_id=protocol.id,
+                    payload=payload,
+                    actor_member_id=actor_id,
+                )
                 session.add(
                     ExamProtocolCorrectionRequest(
                         exam_protocol_id=protocol.id,
@@ -317,6 +385,12 @@ class ExamProtocolService:
                     )
                 )
                 session.flush()
+                complete_day_mutation(
+                    session,
+                    day_guard,
+                    actor_member_id=actor_id,
+                    reason=reason,
+                )
             return self._view(session, protocol, scope)
 
     def open_correction(
@@ -344,6 +418,17 @@ class ExamProtocolService:
             self._assert_version(current, expected_version)
             if self._state(session, protocol, current) not in COMPLETE_STATES:
                 raise ValueError("Nur ein vollständig behandelter Stand kann korrigiert werden")
+            day = day_for_protocol(session, protocol.id)
+            if day is None:
+                raise ValueError("Der Prüfungstag zum Protokoll fehlt")
+            day_guard = guard_day_mutation(
+                session,
+                day=day,
+                kind="exam_protocol",
+                entity_id=protocol.id,
+                payload=payload,
+                actor_member_id=actor_id,
+            )
             request = session.get(ExamProtocolCorrectionRequest, raw_request_id)
             if (
                 request is None
@@ -393,6 +478,12 @@ class ExamProtocolService:
             protocol.current_version = revision.version
             protocol.updated_at = created_at
             session.flush()
+            complete_day_mutation(
+                session,
+                day_guard,
+                actor_member_id=actor_id,
+                reason=reason,
+            )
             return self._view(session, protocol, scope)
 
     def set_retention(
@@ -578,6 +669,33 @@ class ExamProtocolService:
         )
         current = next(item for item in revisions if item.version == protocol.current_version)
         state = self._state(session, protocol, current)
+        day = day_for_protocol(session, protocol.id)
+        content_mutable = day is not None and day.closure_status == "open"
+        if day is not None and day.closure_status == "reopening":
+            reopening = session.scalar(
+                select(ExamDayReopening).where(
+                    ExamDayReopening.exam_day_id == day.id,
+                    ExamDayReopening.status == "open",
+                )
+            )
+            content_mutable = reopening is not None and f"exam_protocol:{protocol.id}" in set(
+                json.loads(reopening.scope_json)
+            )
+        late_response = (
+            day is not None
+            and day.closure_status == "closed_exception"
+            and actor_id is not None
+            and session.scalar(
+                select(ExamDayTask.id).where(
+                    ExamDayTask.exam_day_id == day.id,
+                    ExamDayTask.task_type == "protocol_follow_up",
+                    ExamDayTask.recipient_member_id == actor_id,
+                    ExamDayTask.exam_protocol_revision_id == current.id,
+                    ExamDayTask.status == "open",
+                )
+            )
+            is not None
+        )
         correction_requests = list(
             session.scalars(
                 select(ExamProtocolCorrectionRequest)
@@ -593,6 +711,7 @@ class ExamProtocolService:
         return {
             "id": protocol.id,
             "exam_slot_id": protocol.exam_slot_id,
+            "day_revision": day.revision if day is not None else None,
             "current_version": protocol.current_version,
             "source": protocol.source,
             "state": state,
@@ -638,12 +757,15 @@ class ExamProtocolService:
                 else None
             ),
             "permissions": {
-                "edit": actor_id in participants
-                or (can_manage and current.workflow_state == "correction_open"),
-                "submit": actor_id in participants,
-                "respond": actor_id in participants,
+                "edit": content_mutable
+                and (
+                    actor_id in participants
+                    or (can_manage and current.workflow_state == "correction_open")
+                ),
+                "submit": content_mutable and actor_id in participants,
+                "respond": (content_mutable or late_response) and actor_id in participants,
                 "request_correction": actor_id in participants,
-                "coordinate_correction": can_manage,
+                "coordinate_correction": content_mutable and can_manage,
                 "manage_retention": can_manage,
             },
             "created_at": protocol.created_at,

@@ -32,10 +32,10 @@ aktuellen Abschluss aber überholt. Der reguläre Tagesabschluss akzeptiert nur
 
 Nach vollständiger Reaktion ist eine direkte Inhaltsänderung gesperrt. Ein
 Beteiligter meldet zunächst begründeten Ergänzungsbedarf; Vorsitz oder
-Stellvertretung öffnen daraus den Korrekturvorgang. Nach einem bereits
-abgeschlossenen Prüfungstag ist zusätzlich der zulässige
-Wiederöffnungsnachweis des Tagesabschlusses erforderlich. Der neue Stand wird
-erneut vorgelegt und von allen Beteiligten behandelt.
+Stellvertretung öffnen daraus den Korrekturvorgang.
+Nach einem bereits abgeschlossenen Prüfungstag ist zusätzlich der zulässige
+[Wiederöffnungsnachweis des Tagesabschlusses](exam-day-closure.md) erforderlich.
+Der neue Stand wird erneut vorgelegt und von allen Beteiligten behandelt.
 
 ## Zugriff, Aufbewahrung und Export
 

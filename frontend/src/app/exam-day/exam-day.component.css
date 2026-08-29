@@ -67,6 +67,82 @@
   margin-top: 1.5rem;
 }
 
+.app-exam-day-closure {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: 0.5rem;
+}
+
+.app-exam-day-closure-heading,
+.app-exam-day-closure-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.app-exam-day-closure-heading h3,
+.app-exam-day-closure-heading p {
+  margin: 0;
+}
+
+.app-exam-day-checklist {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.app-exam-day-checklist li {
+  padding: 0.6rem;
+  color: var(--app-color-success-text);
+  background: var(--app-color-success-soft);
+  border-radius: 0.35rem;
+}
+
+.app-exam-day-checklist .app-exam-day-check-failed,
+.app-exam-day-closure-warning {
+  color: var(--app-color-danger-text);
+  background: var(--app-color-danger-soft);
+}
+
+.app-exam-day-closure-warning {
+  padding: 0.75rem;
+  border-radius: 0.35rem;
+}
+
+.app-exam-day-closure-form {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--app-color-border);
+}
+
+.app-exam-day-closure-form label,
+.app-exam-day-closure-form input,
+.app-exam-day-closure-form select,
+.app-exam-day-closure-form textarea {
+  display: block;
+  width: 100%;
+}
+
+.app-exam-day-closure-form input,
+.app-exam-day-closure-form select,
+.app-exam-day-closure-form textarea {
+  box-sizing: border-box;
+  margin-top: 0.3rem;
+  padding: 0.5rem;
+  color: var(--app-color-text);
+  background: var(--app-color-surface);
+  border: 1px solid var(--app-color-border);
+  border-radius: 0.3rem;
+  font: inherit;
+}
+
 .app-exam-day-summary h3 {
   margin: 0 0 0.75rem;
 }
@@ -184,6 +260,10 @@
 
   .app-exam-day-status-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-exam-day-checklist {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
