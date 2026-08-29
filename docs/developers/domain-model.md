@@ -15,6 +15,8 @@ erDiagram
   EXAM_ROUND ||--o{ ROUND_CANDIDATE : includes
   EXAM_ROUND ||--o{ EXAM_DAY : contains
   EXAM_DAY ||--o{ EXAM_SLOT : schedules
+  EXAM_DAY ||--o{ EXAM_DAY_CLOSURE : closes
+  EXAM_DAY ||--o{ EXAM_DAY_REOPENING : corrects
   EXAM_SLOT ||--o| EXAM_PROTOCOL : documents
   EXAM_PROTOCOL ||--|{ EXAM_PROTOCOL_REVISION : versions
   EXAM_PROTOCOL_REVISION ||--o{ EXAM_PROTOCOL_ENTRY : records
@@ -55,6 +57,8 @@ Dokumente besitzen fachliche Metadaten; ihr Inhalt bleibt in einer separaten, ko
   vorbehalten.
 - **Bewertungsmodell und Ergebnis**: Eine Runde wird vor der ersten Bewertung an eine unveränderliche, gültige Modellversion gebunden.
   Der Ergebnisvorgang sammelt verdeckte und später kontrolliert offengelegte Einzelbewertungen, gemeinsame Komponentenbeschlüsse, vieräugig bestätigte Eingangsergebnisse, reproduzierbare Berechnungen sowie versionierte Feststellungen, Bestätigungen, Mitteilungen, Korrekturen und Exporte.
+- **Tagesabschluss**: Ein formeller Abschluss bindet den vollständigen Prüfungs-, Protokoll- und Bewertungsstand eines ganzen Tages an dessen Revision.
+  Nachträgliche Änderungen benötigen eine begründete zielgerichtete Wiederöffnung und erhalten frühere Abschluss- und Korrekturstände.
 
 ## Fachliche Invarianten
 
@@ -82,6 +86,8 @@ Ein Ersatz wird erst nach kontrollierter Auswahl wirksam.
 - Individuelle Bewertungen sind bis zur vollständigen Eigenbewertung und einem kontrollierten Offenlegungsschritt für andere Beteiligte unsichtbar.
   Ein externes Eingangsergebnis wirkt erst nach unabhängiger Bestätigung; ein berechneter Vorschlag wird erst durch einen ordnungsgemäß besetzten Beschluss zum festgestellten Ergebnis.
   Korrekturen überschreiben keinen früheren Stand.
+- Ein geschlossener Prüfungstag sperrt Durchführung, Anwesenheit, Besetzung, Ausfallentscheidungen, Protokollinhalt und Tagesbewertungen gemeinsam.
+  Nur der ausdrücklich wieder geöffnete Umfang ist revisionsgebunden korrigierbar; zulässige nachgelagerte externe Ergebnisvorgänge verändern den Tagesstand nicht.
 - Personenbezogene Inhalte sind auf erforderliche Beteiligte begrenzt:
 Kalenderfeeds offenbaren keine Prüflings- oder Fremdbesetzungsdaten; Dokumentpfade und Zustellungsdetails sind keine frei wählbaren Fachdaten.
 

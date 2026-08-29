@@ -134,6 +134,9 @@ export type ConfirmedPlanContext = {
 export type ConfirmedPlanDay = {
   id: number;
   date: string;
+  revision: number;
+  closure_status: ExamDayClosureStatus;
+  closure: ExamDayClosure;
   location: { id: number; name: string; room: string; city: string } | null;
   slots: Array<{
     id: number;
@@ -158,6 +161,59 @@ export type ConfirmedPlanDay = {
     member: { id: number; first_name: string; last_name: string; representing_side: string };
   }>;
   status_summary: ExecutionStatusSummary;
+};
+
+export type ExamDayClosureStatus =
+  'open' | 'closed' | 'closed_exception' | 'reopening' | 'historical';
+
+export type ExamDayClosureFinding = {
+  code: string;
+  label: string;
+  ok: boolean;
+  details: unknown;
+};
+
+export type ExamDayReopeningScopeKind =
+  | 'slot_status'
+  | 'candidate_attendance'
+  | 'member_attendance'
+  | 'staffing'
+  | 'absence'
+  | 'exam_protocol'
+  | 'exam_result';
+
+export type ExamDayReopeningScope = {
+  kind: ExamDayReopeningScopeKind;
+  entity_id: number;
+};
+
+export type ExamDayClosure = {
+  exam_day_id: number;
+  revision: number;
+  status: ExamDayClosureStatus;
+  legacy_status: string | null;
+  evaluation: {
+    items: ExamDayClosureFinding[];
+    warnings: Array<Record<string, unknown>>;
+    regular_close_ready: boolean;
+    exception_close_ready: boolean;
+    exception_candidate: Record<string, unknown> | null;
+    protocol_references: Array<Record<string, unknown>>;
+    result_references: Array<Record<string, unknown>>;
+  };
+  active_reopening: Record<string, unknown> | null;
+  history: Array<Record<string, unknown>>;
+  tasks: Array<Record<string, unknown>>;
+  permissions: { close: boolean; reopen: boolean; export: boolean };
+  _links: Record<string, ApiLink>;
+};
+
+export type ExamDayReopeningImpact = {
+  exam_day_id: number;
+  revision: number;
+  requested_scope: string[];
+  expanded_scope: string[];
+  impacts: Record<string, number[]>;
 };
 
 export type ExecutionStatus =
@@ -235,6 +291,7 @@ export type ExamProtocolRevision = {
 export type ExamProtocol = {
   id: number;
   exam_slot_id: number;
+  day_revision?: number;
   current_version: number;
   state:
     | 'in_progress'
@@ -311,6 +368,7 @@ export type AssessmentModelRules = {
 export type ExamResult = {
   id: number;
   round_candidate_id: number;
+  day_revisions?: Record<string, number>;
   version: number;
   state: 'incomplete' | 'calculation_ready' | 'determined' | 'communicated' | string;
   correction_open: boolean;

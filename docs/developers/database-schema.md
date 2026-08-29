@@ -26,3 +26,9 @@ Migration `018_add_exam_results.sql` führt die versionierten Bewertungsmodelle,
 Für abgeschlossene historische Slots entsteht nur ein expliziter Marker, dass in lzug keine Ergebnisdaten vorliegen.
 Die Migration erfindet weder Modellbindung noch Bewertung, Punkte, Berechnung, Beschluss oder Mitteilung.
 Details zu Sichtbarkeit, Vier-Augen-Prinzip, Korrektur und Aufbewahrung beschreibt der [Ergebnisvertrag](architecture/exam-results.md).
+
+Migration `019_add_exam_day_closures.sql` ergänzt Tagesrevision und formellen Abschlussstatus sowie unveränderliche Abschluss-, Wiederöffnungs-, Aufgaben-, Audit- und Exporthistorien.
+Bereits abgeschlossene oder abgesagte Tage werden ausschließlich als historisch gesperrt gekennzeichnet.
+Die Migration erzeugt dafür weder Akteur und Zeitpunkt noch eine vermeintlich erfüllte Prüfliste oder Begründung.
+Offene, laufende und inkonsistente Bestände bleiben offen.
+Den Sperr-, Korrektur- und Nachweisvertrag beschreibt der [formelle Tagesabschluss](architecture/exam-day-closure.md).

@@ -33,6 +33,7 @@ export class ExamProtocolComponent implements OnChanges {
   private readonly auth = inject(AuthService);
 
   @Input({ required: true }) dayId!: number;
+  @Input() dayRevision: number | null = null;
   @Input({ required: true }) slotId!: number;
   @Input() ownMemberId: number | null = null;
 
@@ -114,6 +115,8 @@ export class ExamProtocolComponent implements OnChanges {
           occurred_from: this.apiDateTimeValue(entry.occurredFrom),
           occurred_to: entry.occurredTo ? this.apiDateTimeValue(entry.occurredTo) : null,
         })),
+        undefined,
+        protocol.day_revision ?? this.dayRevision ?? undefined,
       ),
       'Neuer Protokollstand gespeichert.',
     );
@@ -123,7 +126,11 @@ export class ExamProtocolComponent implements OnChanges {
     const protocol = this.protocol();
     if (!protocol) return;
     this.run(
-      this.api.submitExamProtocol(protocol.id, protocol.current_version),
+      this.api.submitExamProtocol(
+        protocol.id,
+        protocol.current_version,
+        protocol.day_revision ?? this.dayRevision ?? undefined,
+      ),
       'Protokollstand zur Bestätigung vorgelegt.',
     );
   }
@@ -139,6 +146,7 @@ export class ExamProtocolComponent implements OnChanges {
         response,
         response === 'reservation' ? firstEntry?.id : undefined,
         response === 'reservation' ? this.reservationText : undefined,
+        protocol.day_revision ?? this.dayRevision ?? undefined,
       ),
       response === 'confirmed' ? 'Protokollstand bestätigt.' : 'Vorbehalt gespeichert.',
     );
@@ -152,6 +160,7 @@ export class ExamProtocolComponent implements OnChanges {
         protocol.id,
         protocol.current_version,
         this.correctionReason,
+        protocol.day_revision ?? this.dayRevision ?? undefined,
       ),
       'Ergänzungsbedarf gemeldet.',
     );
@@ -168,6 +177,7 @@ export class ExamProtocolComponent implements OnChanges {
         request.id,
         this.correctionReason,
         this.reopeningReference,
+        protocol.day_revision ?? this.dayRevision ?? undefined,
       ),
       'Korrekturvorgang eröffnet.',
     );

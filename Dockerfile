@@ -69,7 +69,7 @@ COPY --from=build-metadata --chown=10001:10001 /build-metadata.json ./build-meta
 COPY --chown=10001:10001 \
     backend/__init__.py backend/admin.py backend/admin_service.py backend/application.py backend/auth.py backend/authorization.py \
     backend/absence.py backend/build_metadata.py backend/calendar.py backend/candidate_days.py backend/contract.py backend/database.py \
-    backend/document_storage.py backend/documents.py backend/exam_protocols.py backend/exam_results.py backend/hateoas.py \
+    backend/document_storage.py backend/documents.py backend/exam_day_closures.py backend/exam_protocols.py backend/exam_results.py backend/hateoas.py \
     backend/healthcheck.py backend/holiday_provider.py backend/local_auth.py backend/models.py \
     backend/fastapi_app.py backend/notifications.py backend/observability.py backend/planning.py backend/repositories.py backend/runtime_policy.py backend/security.py backend/server.py backend/store.py backend/transport.py backend/version.py \
     ./backend/

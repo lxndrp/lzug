@@ -126,6 +126,8 @@ class DemoRuntimeTests(unittest.TestCase):
                     "attendance:write-own",
                     "availability:write-own",
                     "calendar:read-own",
+                    "exam-day-closure:export",
+                    "exam-day-closure:read",
                     "exam-half-years:read",
                     "exam-protocol:export",
                     "exam-protocol:read",
@@ -158,6 +160,9 @@ class DemoRuntimeTests(unittest.TestCase):
                     "exam-result:confirm-record",
                     "exam-result:coordinate-correction",
                     "exam-result:communicate",
+                    "exam-day-closure:close",
+                    "exam-day-closure:preview-reopening",
+                    "exam-day-closure:reopen",
                 }.issubset(deputy_session["capabilities"])
             )
 

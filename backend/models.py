@@ -344,6 +344,11 @@ class ExamDay(Base):
         Integer,
         server_default=sql_text("1"),
     )
+    revision: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    closure_status: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("'open'"),
+    )
     created_at: Mapped[str] = mapped_column(
         String,
         server_default=sql_text("CURRENT_TIMESTAMP"),
@@ -352,6 +357,168 @@ class ExamDay(Base):
         String,
         server_default=sql_text("CURRENT_TIMESTAMP"),
     )
+
+
+class ExamDayClosure(Base):
+    """Immutable evidence for one formal close or re-close decision."""
+
+    __tablename__ = "exam_day_closure"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_day_id: Mapped[int] = mapped_column(ForeignKey("exam_day.id", ondelete="CASCADE"))
+    requested_revision: Mapped[int] = mapped_column(Integer)
+    resulting_revision: Mapped[int] = mapped_column(Integer)
+    closure_type: Mapped[str] = mapped_column(String)
+    actor_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    clarification_attempts: Mapped[str | None] = mapped_column(String, nullable=True)
+    checklist_json: Mapped[str] = mapped_column(String)
+    warnings_json: Mapped[str] = mapped_column(String)
+    protocol_references_json: Mapped[str] = mapped_column(String)
+    result_references_json: Mapped[str] = mapped_column(String)
+    previous_closure_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_day_closure.id", ondelete="RESTRICT"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'current'"))
+    command_fingerprint: Mapped[str] = mapped_column(String)
+    closed_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+    __table_args__ = (
+        Index("exam_day_closure_revision", "exam_day_id", "resulting_revision", unique=True),
+        Index("exam_day_closure_command", "exam_day_id", "command_fingerprint", unique=True),
+    )
+
+
+class ExamDayReopening(Base):
+    """One bounded correction window for a closed or historical exam day."""
+
+    __tablename__ = "exam_day_reopening"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_day_id: Mapped[int] = mapped_column(ForeignKey("exam_day.id", ondelete="CASCADE"))
+    previous_closure_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_day_closure.id", ondelete="RESTRICT"), nullable=True
+    )
+    requested_revision: Mapped[int] = mapped_column(Integer)
+    resulting_revision: Mapped[int] = mapped_column(Integer)
+    occasion: Mapped[str] = mapped_column(String)
+    source: Mapped[str] = mapped_column(String)
+    reason: Mapped[str] = mapped_column(String)
+    requested_scope_json: Mapped[str] = mapped_column(String)
+    scope_json: Mapped[str] = mapped_column(String)
+    completed_scope_json: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("'[]'"),
+    )
+    impacts_json: Mapped[str] = mapped_column(String)
+    actor_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'open'"))
+    command_fingerprint: Mapped[str] = mapped_column(String)
+    opened_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (
+        Index("exam_day_reopening_open", "exam_day_id", "status"),
+        Index("exam_day_reopening_command", "exam_day_id", "command_fingerprint", unique=True),
+    )
+
+
+class ExamDayTask(Base):
+    """A durable, recipient-specific follow-up caused by a day decision."""
+
+    __tablename__ = "exam_day_task"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_day_id: Mapped[int] = mapped_column(ForeignKey("exam_day.id", ondelete="CASCADE"))
+    reopening_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_day_reopening.id", ondelete="CASCADE"), nullable=True
+    )
+    recipient_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="CASCADE")
+    )
+    task_type: Mapped[str] = mapped_column(String)
+    origin_key: Mapped[str] = mapped_column(String)
+    exam_protocol_revision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_protocol_revision.id", ondelete="RESTRICT"), nullable=True
+    )
+    result_determination_id: Mapped[int | None] = mapped_column(
+        ForeignKey("result_determination.id", ondelete="RESTRICT"), nullable=True
+    )
+    details_json: Mapped[str] = mapped_column(String, server_default=sql_text("'{}'"))
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'open'"))
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (
+        Index(
+            "exam_day_task_origin", "recipient_member_id", "task_type", "origin_key", unique=True
+        ),
+        Index("exam_day_task_day_status", "exam_day_id", "status"),
+    )
+
+
+class ExamDayAuditEvent(Base):
+    """Append-only history for closure, reopening, correction, and late reactions."""
+
+    __tablename__ = "exam_day_audit_event"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_day_id: Mapped[int] = mapped_column(ForeignKey("exam_day.id", ondelete="CASCADE"))
+    day_revision: Mapped[int] = mapped_column(Integer)
+    event_type: Mapped[str] = mapped_column(String)
+    actor_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    closure_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_day_closure.id", ondelete="RESTRICT"), nullable=True
+    )
+    reopening_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_day_reopening.id", ondelete="RESTRICT"), nullable=True
+    )
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    scope_json: Mapped[str] = mapped_column(String, server_default=sql_text("'[]'"))
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+    __table_args__ = (Index("exam_day_audit_history", "exam_day_id", "id"),)
+
+
+class ExamDayExport(Base):
+    """Metadata proving that a closure state was exported without changing it."""
+
+    __tablename__ = "exam_day_export"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_day_id: Mapped[int] = mapped_column(ForeignKey("exam_day.id", ondelete="CASCADE"))
+    closure_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_day_closure.id", ondelete="RESTRICT"), nullable=True
+    )
+    export_kind: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String)
+    generated_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    generated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+    __table_args__ = (Index("exam_day_export_history", "exam_day_id", "generated_at"),)
 
 
 class ExamSlot(Base):
@@ -1466,6 +1633,8 @@ EXAM_DAY = Resource(
         "location_id",
         "date",
         "status",
+        "revision",
+        "closure_status",
         "lunch_break_enabled",
         "created_from_proposal",
         "created_at",

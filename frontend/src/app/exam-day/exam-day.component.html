@@ -66,7 +66,167 @@
           <dt>Raum</dt>
           <dd>{{ current.day.location?.room ?? 'Raum nicht hinterlegt' }}</dd>
         </div>
+        <div>
+          <dt>Formaler Abschluss</dt>
+          <dd>{{ closureStatusLabel(current.day.closure.status) }}</dd>
+        </div>
+        <div>
+          <dt>Tagesrevision</dt>
+          <dd>{{ current.day.closure.revision }}</dd>
+        </div>
       </dl>
+
+      <section class="app-exam-day-closure" aria-labelledby="examDayClosureHeading">
+        <div class="app-exam-day-closure-heading">
+          <div>
+            <h3 id="examDayClosureHeading">Formaler Tagesabschluss</h3>
+            <p class="app-muted">
+              Der Abschluss gilt für den gesamten Tag. Die Voraussetzungen werden beim Speichern
+              erneut geprüft.
+            </p>
+          </div>
+          <button tuiButton appearance="secondary" type="button" (click)="load()">
+            Stand aktualisieren
+          </button>
+        </div>
+
+        <ul class="app-exam-day-checklist">
+          @for (item of current.day.closure.evaluation.items; track item.code) {
+            <li [class.app-exam-day-check-failed]="!item.ok">
+              <span aria-hidden="true">{{ item.ok ? '✓' : '!' }}</span>
+              {{ item.label }}
+            </li>
+          }
+        </ul>
+
+        @if (current.day.closure.evaluation.warnings.length) {
+          <p class="app-exam-day-closure-warning" role="status">
+            Vorbehalte oder protokollierte Besonderheiten sind vorhanden und im Nachweis enthalten.
+          </p>
+        }
+
+        @if (current.day.closure.permissions.close && can('exam-day-closure:close')) {
+          <fieldset class="app-exam-day-closure-form" [disabled]="hasSavingAction()">
+            <legend>Abschlussentscheidung</legend>
+            <label>
+              Abschlussart
+              <select [(ngModel)]="closureType">
+                <option value="regular">Regulärer Abschluss</option>
+                <option value="exception">Ausnahme: genau eine Protokollreaktion fehlt</option>
+              </select>
+            </label>
+            @if (closureType === 'exception') {
+              <label>
+                Ausnahmegrund
+                <textarea [(ngModel)]="closureReason" rows="3" required></textarea>
+              </label>
+              <label>
+                Bisherige Klärungsversuche
+                <textarea [(ngModel)]="clarificationAttempts" rows="3" required></textarea>
+              </label>
+            }
+            <button
+              tuiButton
+              appearance="primary"
+              type="button"
+              [disabled]="
+                (closureType === 'regular' &&
+                  !current.day.closure.evaluation.regular_close_ready) ||
+                (closureType === 'exception' &&
+                  !current.day.closure.evaluation.exception_close_ready) ||
+                hasSavingAction()
+              "
+              (click)="closeDay()"
+            >
+              {{
+                isSaving('day-close')
+                  ? 'Schließt ab …'
+                  : 'Voraussetzungen bestätigen und abschließen'
+              }}
+            </button>
+          </fieldset>
+        }
+
+        @if (current.day.closure.permissions.reopen && can('exam-day-closure:preview-reopening')) {
+          <fieldset class="app-exam-day-closure-form" [disabled]="hasSavingAction()">
+            <legend>Zielgerichtete Wiederöffnung</legend>
+            <label>
+              Betroffener Umfang
+              <select [(ngModel)]="reopeningToken" (ngModelChange)="reopeningImpact.set(null)">
+                <option value="">Bitte auswählen</option>
+                @for (option of reopeningOptions(); track option.value) {
+                  <option [value]="option.value">{{ option.label }}</option>
+                }
+              </select>
+            </label>
+            <label>
+              Anlass
+              <input [(ngModel)]="reopeningOccasion" required />
+            </label>
+            <label>
+              Nachvollziehbare Quelle
+              <input [(ngModel)]="reopeningSource" required />
+            </label>
+            <label>
+              Fachliche Begründung
+              <textarea [(ngModel)]="reopeningReason" rows="3" required></textarea>
+            </label>
+            <div class="app-exam-day-closure-actions">
+              <button
+                tuiButton
+                appearance="secondary"
+                type="button"
+                [disabled]="!reopeningToken || hasSavingAction()"
+                (click)="previewReopening()"
+              >
+                Auswirkungen prüfen
+              </button>
+              @if (reopeningImpact(); as impact) {
+                <p class="app-muted" role="status">
+                  Betroffen: {{ impact.expanded_scope.join(', ') }}
+                </p>
+                @if (can('exam-day-closure:reopen')) {
+                  <button
+                    tuiButton
+                    appearance="primary"
+                    type="button"
+                    [disabled]="hasSavingAction()"
+                    (click)="reopenDay()"
+                  >
+                    Zielgerichtet wieder öffnen
+                  </button>
+                }
+              }
+            </div>
+          </fieldset>
+        }
+
+        @if (current.day.closure.permissions.export && can('exam-day-closure:export')) {
+          <div class="app-exam-day-closure-actions">
+            <a
+              tuiButton
+              appearance="secondary"
+              [href]="current.day.closure._links['machine_export'].href"
+            >
+              Maschinenlesbaren Nachweis exportieren
+            </a>
+            <a
+              tuiButton
+              appearance="secondary"
+              [href]="current.day.closure._links['human_export'].href"
+            >
+              Lesbaren Nachweis exportieren
+            </a>
+          </div>
+        }
+
+        @if (current.day.closure.history.length) {
+          <details>
+            <summary>Abschluss- und Korrekturhistorie</summary>
+            <p>{{ current.day.closure.history.length }} unveränderliche Historieneinträge</p>
+          </details>
+        }
+      </section>
 
       <section class="app-exam-day-summary" aria-labelledby="examDaySummaryHeading">
         <h3 id="examDaySummaryHeading">Zusammenfassung der Durchführung</h3>
@@ -118,7 +278,9 @@
                     <span class="app-exam-day-arrival">{{
                       arrivalLabel(candidateAttendance.arrived_at)
                     }}</span>
-                    @if (canCoordinateAttendance) {
+                    @if (
+                      canCoordinateAttendance && canMutateDayData('candidate_attendance', slot.id)
+                    ) {
                       <label class="app-sr-only" [for]="'candidate-status-' + slot.id"
                         >Status Prüfling</label
                       >
@@ -151,7 +313,7 @@
                     @if (slot.status_reason) {
                       <span class="app-exam-day-arrival">Begründung: {{ slot.status_reason }}</span>
                     }
-                    @if (canCoordinateAttendance) {
+                    @if (canCoordinateAttendance && canMutateDayData('slot_status', slot.id)) {
                       <label class="app-sr-only" [for]="'execution-status-' + slot.id"
                         >Durchführungsstatus</label
                       >
@@ -159,11 +321,13 @@
                         [id]="'execution-status-' + slot.id"
                         [(ngModel)]="executionDraft.status"
                         [disabled]="
-                          hasSavingAction() || isTerminalExecutionStatus(slot.execution_status)
+                          hasSavingAction() ||
+                          (isTerminalExecutionStatus(slot.execution_status) &&
+                            !isReopenedScope('slot_status', slot.id))
                         "
                       >
                         @for (
-                          option of executionStatusOptions(slot.execution_status);
+                          option of executionStatusOptions(slot.execution_status, slot.id);
                           track option.value
                         ) {
                           <option [value]="option.value">{{ option.label }}</option>
@@ -177,11 +341,29 @@
                         [(ngModel)]="executionDraft.reason"
                         [required]="requiresExecutionReason(executionDraft.status)"
                         [disabled]="
-                          hasSavingAction() || isTerminalExecutionStatus(slot.execution_status)
+                          hasSavingAction() ||
+                          (isTerminalExecutionStatus(slot.execution_status) &&
+                            !isReopenedScope('slot_status', slot.id))
                         "
                         rows="2"
                         placeholder="Begründung bei Ausfall oder Nachbereitung"
                       ></textarea>
+                      @if (isReopenedScope('slot_status', slot.id)) {
+                        <label [for]="'actual-start-' + slot.id">Tatsächlicher Beginn</label>
+                        <input
+                          [id]="'actual-start-' + slot.id"
+                          type="datetime-local"
+                          [(ngModel)]="executionDraft.actualStartedAt"
+                          [disabled]="hasSavingAction()"
+                        />
+                        <label [for]="'actual-end-' + slot.id">Tatsächliches Ende</label>
+                        <input
+                          [id]="'actual-end-' + slot.id"
+                          type="datetime-local"
+                          [(ngModel)]="executionDraft.actualCompletedAt"
+                          [disabled]="hasSavingAction()"
+                        />
+                      }
                     } @else {
                       <span class="app-muted">Wird vom Vorsitz dokumentiert.</span>
                     }
@@ -201,57 +383,71 @@
                     }}
                   </td>
                   <td class="app-exam-day-actions">
-                    @if (canCoordinateAttendance) {
-                      <button
-                        tuiButton
-                        appearance="secondary"
-                        type="button"
-                        [disabled]="hasSavingAction()"
-                        [attr.aria-label]="
-                          slot.candidate.first_name +
-                          ' ' +
-                          slot.candidate.last_name +
-                          ': Anwesenheit speichern'
-                        "
-                        (click)="saveCandidateAttendance(slot.id, draft)"
-                      >
-                        {{
-                          isSaving('candidate-' + slot.id) ? 'Speichert …' : 'Anwesenheit speichern'
-                        }}
-                      </button>
-                      <button
-                        tuiButton
-                        appearance="primary"
-                        type="button"
-                        [disabled]="!!slot.actual_started_at || hasSavingAction()"
-                        [attr.aria-label]="
-                          slot.candidate.first_name +
-                          ' ' +
-                          slot.candidate.last_name +
-                          ': ' +
-                          (slot.actual_started_at ? 'Gestartet' : 'Prüfung starten')
-                        "
-                        (click)="startExamSlot(slot.id)"
-                      >
-                        {{ slot.actual_started_at ? 'Gestartet' : 'Prüfung starten' }}
-                      </button>
-                      <button
-                        tuiButton
-                        appearance="secondary"
-                        type="button"
-                        [disabled]="
-                          executionDraft.status === slot.execution_status || hasSavingAction()
-                        "
-                        [attr.aria-label]="
-                          slot.candidate.first_name +
-                          ' ' +
-                          slot.candidate.last_name +
-                          ': Status speichern'
-                        "
-                        (click)="saveExecutionStatus(slot.id, executionDraft)"
-                      >
-                        {{ isSaving('execution-' + slot.id) ? 'Speichert …' : 'Status speichern' }}
-                      </button>
+                    @if (
+                      canCoordinateAttendance &&
+                      (canMutateDayData('candidate_attendance', slot.id) ||
+                        canMutateDayData('slot_status', slot.id))
+                    ) {
+                      @if (canMutateDayData('candidate_attendance', slot.id)) {
+                        <button
+                          tuiButton
+                          appearance="secondary"
+                          type="button"
+                          [disabled]="hasSavingAction()"
+                          [attr.aria-label]="
+                            slot.candidate.first_name +
+                            ' ' +
+                            slot.candidate.last_name +
+                            ': Anwesenheit speichern'
+                          "
+                          (click)="saveCandidateAttendance(slot.id, draft)"
+                        >
+                          {{
+                            isSaving('candidate-' + slot.id)
+                              ? 'Speichert …'
+                              : 'Anwesenheit speichern'
+                          }}
+                        </button>
+                      }
+                      @if (canMutateDayData('slot_status', slot.id)) {
+                        @if (!isReopenedScope('slot_status', slot.id)) {
+                          <button
+                            tuiButton
+                            appearance="primary"
+                            type="button"
+                            [disabled]="!!slot.actual_started_at || hasSavingAction()"
+                            [attr.aria-label]="
+                              slot.candidate.first_name +
+                              ' ' +
+                              slot.candidate.last_name +
+                              ': ' +
+                              (slot.actual_started_at ? 'Gestartet' : 'Prüfung starten')
+                            "
+                            (click)="startExamSlot(slot.id)"
+                          >
+                            {{ slot.actual_started_at ? 'Gestartet' : 'Prüfung starten' }}
+                          </button>
+                        }
+                        <button
+                          tuiButton
+                          appearance="secondary"
+                          type="button"
+                          [disabled]="
+                            executionDraft.status === slot.execution_status || hasSavingAction()
+                          "
+                          [attr.aria-label]="
+                            slot.candidate.first_name +
+                            ' ' +
+                            slot.candidate.last_name +
+                            ': Status speichern'
+                          "
+                          (click)="saveExecutionStatus(slot.id, executionDraft)"
+                        >
+                          {{
+                            isSaving('execution-' + slot.id) ? 'Speichert …' : 'Status speichern'
+                          }}
+                        </button>
+                      }
                     } @else {
                       <span class="app-muted">Keine eigene Aktion</span>
                     }
@@ -271,11 +467,13 @@
         @if (slot.actual_started_at) {
           <app-exam-protocol
             [dayId]="current.day.id"
+            [dayRevision]="current.day.revision"
             [slotId]="slot.id"
             [ownMemberId]="ownMemberId"
           />
           <app-exam-result
             [dayId]="current.day.id"
+            [dayRevision]="current.day.revision"
             [slotId]="slot.id"
             [ownMemberId]="ownMemberId"
           />

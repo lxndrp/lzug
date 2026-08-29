@@ -12,6 +12,9 @@ import {
   CandidateDayGenerationResult,
   ConfirmedPlan,
   ConfirmedPlanDayView,
+  ExamDayClosure,
+  ExamDayReopeningImpact,
+  ExamDayReopeningScope,
   CandidateExamDay,
   CandidateView,
   Committee,
@@ -107,6 +110,47 @@ export class PlanningApiService {
     return this.http.get<ConfirmedPlanDayView>(`/api/confirmed-plan-days/${dayId}`);
   }
 
+  closeExamDay(
+    dayId: number,
+    revision: number,
+    closureType: 'regular' | 'exception',
+    reason: string,
+    clarificationAttempts: string,
+  ) {
+    return this.http.post<ExamDayClosure>(`/api/confirmed-plan-days/${dayId}/closure`, {
+      revision,
+      closure_type: closureType,
+      confirmed: true,
+      ...(closureType === 'exception'
+        ? { reason: reason.trim(), clarification_attempts: clarificationAttempts.trim() }
+        : {}),
+    });
+  }
+
+  previewExamDayReopening(dayId: number, scope: ExamDayReopeningScope[]) {
+    return this.http.post<ExamDayReopeningImpact>(
+      `/api/confirmed-plan-days/${dayId}/reopening-impact`,
+      { scope },
+    );
+  }
+
+  reopenExamDay(
+    dayId: number,
+    revision: number,
+    occasion: string,
+    source: string,
+    reason: string,
+    scope: ExamDayReopeningScope[],
+  ) {
+    return this.http.post<ExamDayClosure>(`/api/confirmed-plan-days/${dayId}/reopenings`, {
+      revision,
+      occasion: occasion.trim(),
+      source: source.trim(),
+      reason: reason.trim(),
+      scope,
+    });
+  }
+
   getNotifications() {
     return this.list<NotificationItem>('/api/notifications');
   }
@@ -143,11 +187,17 @@ export class PlanningApiService {
     return this.list<AbsenceReport>('/api/absence-reports');
   }
 
-  createAbsenceReport(examDayId: number, assignmentId: number, reason?: string) {
+  createAbsenceReport(
+    examDayId: number,
+    assignmentId: number,
+    reason?: string,
+    dayRevision?: number,
+  ) {
     return this.http.post<AbsenceReport>('/api/absence-reports', {
       exam_day_id: examDayId,
       exam_day_assignment_id: assignmentId,
       ...(reason?.trim() ? { reason: reason.trim() } : {}),
+      ...(dayRevision ? { day_revision: dayRevision } : {}),
     });
   }
 
@@ -175,10 +225,11 @@ export class PlanningApiService {
     slotId: number,
     status: AttendanceStatus,
     arrivedAt: string | null,
+    dayRevision?: number,
   ) {
     return this.http.patch<ConfirmedPlanDayView>(
       `/api/confirmed-plan-days/${dayId}/slots/${slotId}/attendance`,
-      { status, arrived_at: arrivedAt },
+      { status, arrived_at: arrivedAt, ...(dayRevision ? { day_revision: dayRevision } : {}) },
     );
   }
 
@@ -187,24 +238,47 @@ export class PlanningApiService {
     assignmentId: number,
     status: AttendanceStatus,
     arrivedAt: string | null,
+    dayRevision?: number,
   ) {
     return this.http.patch<ConfirmedPlanDayView>(
       `/api/confirmed-plan-days/${dayId}/assignments/${assignmentId}/attendance`,
-      { status, arrived_at: arrivedAt },
+      { status, arrived_at: arrivedAt, ...(dayRevision ? { day_revision: dayRevision } : {}) },
     );
   }
 
-  startExamSlot(dayId: number, slotId: number, actualStartedAt: string | null = null) {
+  startExamSlot(
+    dayId: number,
+    slotId: number,
+    actualStartedAt: string | null = null,
+    dayRevision?: number,
+  ) {
     return this.http.post<ConfirmedPlanDayView>(
       `/api/confirmed-plan-days/${dayId}/slots/${slotId}/start`,
-      actualStartedAt ? { actual_started_at: actualStartedAt } : {},
+      {
+        ...(actualStartedAt ? { actual_started_at: actualStartedAt } : {}),
+        ...(dayRevision ? { day_revision: dayRevision } : {}),
+      },
     );
   }
 
-  updateExamSlotStatus(dayId: number, slotId: number, status: ExecutionStatus, reason?: string) {
+  updateExamSlotStatus(
+    dayId: number,
+    slotId: number,
+    status: ExecutionStatus,
+    reason?: string,
+    dayRevision?: number,
+    actualStartedAt?: string | null,
+    actualCompletedAt?: string | null,
+  ) {
     return this.http.patch<ConfirmedPlanDayView>(
       `/api/confirmed-plan-days/${dayId}/slots/${slotId}/status`,
-      { status, ...(reason ? { reason } : {}) },
+      {
+        status,
+        ...(reason ? { reason } : {}),
+        ...(dayRevision ? { day_revision: dayRevision } : {}),
+        ...(actualStartedAt !== undefined ? { actual_started_at: actualStartedAt } : {}),
+        ...(actualCompletedAt !== undefined ? { actual_completed_at: actualCompletedAt } : {}),
+      },
     );
   }
 
@@ -225,17 +299,22 @@ export class PlanningApiService {
       occurred_to: string | null;
     }>,
     changeReason?: string,
+    dayRevision?: number,
   ) {
     return this.http.patch<ExamProtocol>(`/api/exam-protocols/${protocolId}`, {
       version,
       declaration,
       entries,
       ...(changeReason?.trim() ? { change_reason: changeReason.trim() } : {}),
+      ...(dayRevision ? { day_revision: dayRevision } : {}),
     });
   }
 
-  submitExamProtocol(protocolId: number, version: number) {
-    return this.http.post<ExamProtocol>(`/api/exam-protocols/${protocolId}/submit`, { version });
+  submitExamProtocol(protocolId: number, version: number, dayRevision?: number) {
+    return this.http.post<ExamProtocol>(`/api/exam-protocols/${protocolId}/submit`, {
+      version,
+      ...(dayRevision ? { day_revision: dayRevision } : {}),
+    });
   }
 
   respondToExamProtocol(
@@ -244,19 +323,27 @@ export class PlanningApiService {
     response: 'confirmed' | 'reservation',
     entryId?: number,
     statement?: string,
+    dayRevision?: number,
   ) {
     return this.http.post<ExamProtocol>(`/api/exam-protocols/${protocolId}/responses`, {
       version,
       response,
       ...(entryId === undefined ? {} : { entry_id: entryId }),
       ...(statement?.trim() ? { statement: statement.trim() } : {}),
+      ...(dayRevision ? { day_revision: dayRevision } : {}),
     });
   }
 
-  requestExamProtocolCorrection(protocolId: number, version: number, reason: string) {
+  requestExamProtocolCorrection(
+    protocolId: number,
+    version: number,
+    reason: string,
+    dayRevision?: number,
+  ) {
     return this.http.post<ExamProtocol>(`/api/exam-protocols/${protocolId}/correction-requests`, {
       version,
       reason: reason.trim(),
+      ...(dayRevision ? { day_revision: dayRevision } : {}),
     });
   }
 
@@ -266,12 +353,14 @@ export class PlanningApiService {
     correctionRequestId: number,
     reason: string,
     reopeningReference?: string,
+    dayRevision?: number,
   ) {
     return this.http.post<ExamProtocol>(`/api/exam-protocols/${protocolId}/open-correction`, {
       version,
       correction_request_id: correctionRequestId,
       reason: reason.trim(),
       ...(reopeningReference?.trim() ? { reopening_reference: reopeningReference.trim() } : {}),
+      ...(dayRevision ? { day_revision: dayRevision } : {}),
     });
   }
 
@@ -288,6 +377,7 @@ export class PlanningApiService {
     rationale: string,
     submitted: boolean,
     changeReason?: string,
+    dayRevisions?: Record<string, number>,
   ) {
     return this.http.post<ExamResult>(`/api/exam-results/${resultId}/individual-assessments`, {
       version,
@@ -297,6 +387,7 @@ export class PlanningApiService {
       rationale: rationale.trim() || null,
       submitted,
       ...(changeReason?.trim() ? { change_reason: changeReason.trim() } : {}),
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
     });
   }
 
@@ -305,17 +396,24 @@ export class PlanningApiService {
     version: number,
     assessmentId: number,
     reason: string,
+    dayRevisions?: Record<string, number>,
   ) {
     return this.http.post<ExamResult>(
       `/api/exam-results/${resultId}/individual-assessments/${assessmentId}/withdraw`,
-      { version, reason: reason.trim() },
+      { version, reason: reason.trim(), ...(dayRevisions ? { day_revisions: dayRevisions } : {}) },
     );
   }
 
-  discloseAssessments(resultId: number, version: number, componentKey: string) {
+  discloseAssessments(
+    resultId: number,
+    version: number,
+    componentKey: string,
+    dayRevisions?: Record<string, number>,
+  ) {
     return this.http.post<ExamResult>(`/api/exam-results/${resultId}/disclosures`, {
       version,
       component_key: componentKey,
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
     });
   }
 
@@ -327,6 +425,7 @@ export class PlanningApiService {
     rationale: string,
     participants: number[],
     dissent: Array<{ member_id: number; statement: string }>,
+    dayRevisions?: Record<string, number>,
   ) {
     return this.http.post<ExamResult>(`/api/exam-results/${resultId}/committee-assessments`, {
       version,
@@ -336,6 +435,7 @@ export class PlanningApiService {
       participant_member_ids: participants,
       vote: { yes: participants, no: [], abstain: [] },
       dissent,
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
     });
   }
 
@@ -351,17 +451,24 @@ export class PlanningApiService {
       source_reference: string;
       correction_reason?: string;
     },
+    dayRevisions?: Record<string, number>,
   ) {
     return this.http.post<ExamResult>(`/api/exam-results/${resultId}/external-results`, {
       version,
       ...payload,
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
     });
   }
 
-  confirmExternalResult(resultId: number, version: number, externalResultId: number) {
+  confirmExternalResult(
+    resultId: number,
+    version: number,
+    externalResultId: number,
+    dayRevisions?: Record<string, number>,
+  ) {
     return this.http.post<ExamResult>(
       `/api/exam-results/${resultId}/external-results/${externalResultId}/confirm`,
-      { version },
+      { version, ...(dayRevisions ? { day_revisions: dayRevisions } : {}) },
     );
   }
 
@@ -370,18 +477,21 @@ export class PlanningApiService {
     version: number,
     participants: number[],
     dissent: Array<{ member_id: number; statement: string }>,
+    dayRevisions?: Record<string, number>,
   ) {
     return this.http.post<ExamResult>(`/api/exam-results/${resultId}/determine`, {
       version,
       participant_member_ids: participants,
       vote: { yes: participants, no: [], abstain: [] },
       dissent,
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
     });
   }
 
-  confirmResultRecord(resultId: number, version: number) {
+  confirmResultRecord(resultId: number, version: number, dayRevisions?: Record<string, number>) {
     return this.http.post<ExamResult>(`/api/exam-results/${resultId}/record-confirmations`, {
       version,
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
     });
   }
 
@@ -390,11 +500,13 @@ export class PlanningApiService {
     version: number,
     reason: string,
     reopeningReference?: string,
+    dayRevisions?: Record<string, number>,
   ) {
     return this.http.post<ExamResult>(`/api/exam-results/${resultId}/corrections`, {
       version,
       reason: reason.trim(),
       ...(reopeningReference?.trim() ? { reopening_reference: reopeningReference.trim() } : {}),
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
     });
   }
 
@@ -404,6 +516,7 @@ export class PlanningApiService {
     method: string,
     communicatedAt: string,
     externalDocumentReference?: string,
+    dayRevisions?: Record<string, number>,
   ) {
     return this.http.post<ExamResult>(`/api/exam-results/${resultId}/communications`, {
       version,
@@ -415,6 +528,7 @@ export class PlanningApiService {
             external_document_reference: externalDocumentReference.trim(),
           }
         : {}),
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
     });
   }
 
@@ -428,10 +542,12 @@ export class PlanningApiService {
       hold_reason?: string;
       release_reason?: string;
     },
+    dayRevisions?: Record<string, number>,
   ) {
     return this.http.put<ExamResult>(`/api/exam-results/${resultId}/retention`, {
       version,
       ...payload,
+      ...(dayRevisions ? { day_revisions: dayRevisions } : {}),
     });
   }
 

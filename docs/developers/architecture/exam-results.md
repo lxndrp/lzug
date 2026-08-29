@@ -36,11 +36,11 @@ Berechnungsbereitschaft, Feststellung und Mitteilung bleiben damit drei getrennt
 ## Korrektur, Tagesabschluss und Aufbewahrung
 
 Ein festgestellter Stand ist unveränderlich.
-Vorsitz oder Stellvertretung öffnet einen begründeten Korrekturvorgang; nach abgeschlossenem Prüfungstag ist zusätzlich eine zulässige Wiederöffnungsreferenz des Tagesabschlusses nötig.
+Vorsitz oder Stellvertretung öffnet einen begründeten Korrekturvorgang; nach abgeschlossenem Prüfungstag ist zusätzlich eine zulässige [Wiederöffnungsreferenz des Tagesabschlusses](exam-day-closure.md) nötig.
 Korrigierte Inputs erzeugen neue Revisionen und eine Neufeststellung.
 Die vorherige Feststellung, Mitteilung und darauf beruhende Exporte bleiben in der Historie sichtbar und werden als überholt beziehungsweise ersetzt markiert.
 
-`GET /api/confirmed-plan-days/{day_id}/result-completion` liefert Issue #36 den Tagesabschlussvertrag.
+`GET /api/confirmed-plan-days/{day_id}/result-completion` liefert dem Tagesabschlussvertrag die bewertungsbezogene Vollständigkeit.
 Tagesbezogene Bewertungen müssen vollständig sein; ein berechnungsbereites, aber noch nicht festgestelltes Ergebnis sowie ein offener Korrekturvorgang verhindern den regulären Abschluss.
 
 Die gebundene Modellversion liefert Rechtsgrundlage und Mindestdauer der Aufbewahrung.

@@ -26,6 +26,7 @@ from .application import (
     database_error_result,
 )
 from .database import database_path
+from .exam_day_closures import ExamDayConflictError, ExamDayValidationError
 from .exam_protocols import ExamProtocolConflictError
 from .exam_results import ExamResultConflictError
 from .local_auth import LocalAuthError
@@ -548,6 +549,30 @@ def create_app(
             ApplicationResult(
                 {"error": {"code": "exam_result_conflict", "message": str(error)}},
                 HTTPStatus.CONFLICT,
+            )
+        )
+
+    @app.exception_handler(ExamDayConflictError)
+    def exam_day_conflict(_request: Request, error: ExamDayConflictError):
+        return _json_response(
+            ApplicationResult(
+                {"error": {"code": "exam_day_conflict", "message": str(error)}},
+                HTTPStatus.CONFLICT,
+            )
+        )
+
+    @app.exception_handler(ExamDayValidationError)
+    def exam_day_validation(_request: Request, error: ExamDayValidationError):
+        return _json_response(
+            ApplicationResult(
+                {
+                    "error": {
+                        "code": "exam_day_closure_invalid",
+                        "message": str(error),
+                        "findings": error.findings,
+                    }
+                },
+                HTTPStatus.UNPROCESSABLE_ENTITY,
             )
         )
 
@@ -1149,11 +1174,87 @@ def create_app(
         context = _context(request, resolved)
         require_read(context)
         day = context.repository.confirmed_plan_day(int(id), context.authorization_scope)
+        if day is not None:
+            day["day"]["closure"] = context.exam_day_closure_service.get(
+                context.authorization_scope, int(id)
+            )
         return (
             _not_found()
             if day is None
             else _finish(context, context.respond(hateoas.confirmed_plan_day(day)))
         )
+
+    @app.get(
+        "/api/confirmed-plan-days/{id}/closure",
+        openapi_extra=read_security,
+    )
+    def exam_day_closure(request: Request, id: str):
+        context = _context(request, resolved)
+        context.require_authenticated()
+        result = context.exam_day_closure_service.get(context.authorization_scope, int(id))
+        return _not_found() if result is None else _finish(context, context.respond(result))
+
+    @app.post(
+        "/api/confirmed-plan-days/{id}/closure",
+        openapi_extra=write_security,
+    )
+    def close_exam_day(request: Request, id: str):
+        context = _context(request, resolved, _body(request))
+        auth = context.require_authenticated(require_csrf=True)
+        context.authorize_mutation("POST", ["confirmed-plan-days", id, "closure"], auth)
+        result = context.exam_day_closure_service.close(
+            context.authorization_scope, int(id), context.read_json()
+        )
+        return _finish(context, context.respond(result))
+
+    @app.post(
+        "/api/confirmed-plan-days/{id}/reopening-impact",
+        openapi_extra=write_security,
+    )
+    def exam_day_reopening_impact(request: Request, id: str):
+        context = _context(request, resolved, _body(request))
+        auth = context.require_authenticated(require_csrf=True)
+        context.authorize_mutation("POST", ["confirmed-plan-days", id, "reopening-impact"], auth)
+        result = context.exam_day_closure_service.reopening_impact(
+            context.authorization_scope, int(id), context.read_json()
+        )
+        return _finish(context, context.respond(result))
+
+    @app.post(
+        "/api/confirmed-plan-days/{id}/reopenings",
+        openapi_extra=write_security,
+    )
+    def reopen_exam_day(request: Request, id: str):
+        context = _context(request, resolved, _body(request))
+        auth = context.require_authenticated(require_csrf=True)
+        context.authorize_mutation("POST", ["confirmed-plan-days", id, "reopenings"], auth)
+        result = context.exam_day_closure_service.reopen(
+            context.authorization_scope, int(id), context.read_json()
+        )
+        return _finish(context, context.respond(result))
+
+    @app.get(
+        "/api/confirmed-plan-days/{id}/closure/export.json",
+        openapi_extra=read_security,
+    )
+    def export_exam_day_json(request: Request, id: str):
+        context = _context(request, resolved)
+        context.require_authenticated()
+        result = context.exam_day_closure_service.machine_export(
+            context.authorization_scope, int(id)
+        )
+        return _finish(context, context.respond(result))
+
+    @app.get(
+        "/api/confirmed-plan-days/{id}/closure/export.txt",
+        response_class=Response,
+        openapi_extra=read_security,
+    )
+    def export_exam_day_text(request: Request, id: str):
+        context = _context(request, resolved)
+        context.require_authenticated()
+        result = context.exam_day_closure_service.human_export(context.authorization_scope, int(id))
+        return _plain_text(context, result, f"pruefungstag-{int(id)}-abschluss.txt")
 
     @app.post("/api/planning-proposals", status_code=201)
     def generate_proposal(request: Request):
@@ -1362,6 +1463,10 @@ def create_app(
             actor_member_id=actor_member_id,
         )
         day = context.repository.confirmed_plan_day(day_int, context.authorization_scope)
+        if day is not None:
+            day["day"]["closure"] = context.exam_day_closure_service.get(
+                context.authorization_scope, day_int
+            )
         return (
             _not_found()
             if day is None
@@ -1722,11 +1827,23 @@ def create_app(
             member_id = assignment.get("committee_member_id") if assignment else None
         context.require_day_access(day_int, manage=kind == "slots", member_id=member_id)
         payload = context.read_json()
+        committee_id = context.repository.committee_id_for_resource(EXAM_DAY, day_int)
+        actor_member_id = context.authorization_scope.member_for_committee(committee_id)
+        if actor_member_id is None:
+            raise ForbiddenRequestError("Forbidden.")
         if kind == "slots":
-            context.repository.save_candidate_attendance(day_int, entity_int, payload)
+            context.repository.save_candidate_attendance(
+                day_int, entity_int, payload, actor_member_id=actor_member_id
+            )
         else:
-            context.repository.save_member_attendance(day_int, entity_int, payload)
+            context.repository.save_member_attendance(
+                day_int, entity_int, payload, actor_member_id=actor_member_id
+            )
         day = context.repository.confirmed_plan_day(day_int, context.authorization_scope)
+        if day is not None:
+            day["day"]["closure"] = context.exam_day_closure_service.get(
+                context.authorization_scope, day_int
+            )
         return (
             _not_found()
             if day is None
@@ -1750,14 +1867,28 @@ def create_app(
         )
         day_int = int(day_id)
         context.require_day_access(day_int, manage=True)
-        context.repository.update_exam_slot_status(day_int, int(slot_id), context.read_json())
+        payload = context.read_json()
+        committee_id = context.repository.committee_id_for_resource(EXAM_DAY, day_int)
+        actor_member_id = context.authorization_scope.member_for_committee(committee_id)
+        if actor_member_id is None:
+            raise ForbiddenRequestError("Forbidden.")
+        context.repository.update_exam_slot_status(
+            day_int,
+            int(slot_id),
+            payload,
+            actor_member_id=actor_member_id,
+        )
         day_record = context.repository.get(EXAM_DAY, day_int)
-        if day_record:
+        if day_record and day_record.get("closure_status") == "open":
             try:
                 context.calendar_service.sync_round(int(day_record["exam_round_id"]))
             except Exception:
                 emit_event("backend_error", severity="error", category="calendar_processing")
         day = context.repository.confirmed_plan_day(day_int, context.authorization_scope)
+        if day is not None:
+            day["day"]["closure"] = context.exam_day_closure_service.get(
+                context.authorization_scope, day_int
+            )
         return (
             _not_found()
             if day is None

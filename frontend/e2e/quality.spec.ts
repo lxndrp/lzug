@@ -1785,6 +1785,28 @@ function confirmedPlan(
       {
         id,
         date: '2026-11-16',
+        revision: 1,
+        closure_status: 'open',
+        closure: {
+          exam_day_id: id,
+          revision: 1,
+          status: 'open',
+          legacy_status: null,
+          evaluation: {
+            items: [],
+            warnings: [],
+            regular_close_ready: false,
+            exception_close_ready: false,
+            exception_candidate: null,
+            protocol_references: [],
+            result_references: [],
+          },
+          active_reopening: null,
+          history: [],
+          tasks: [],
+          permissions: { close: false, reopen: false, export: false },
+          _links: {},
+        },
         location: {
           id: 1,
           name: 'Prüfungszentrum Langname (Test)',

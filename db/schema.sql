@@ -23,7 +23,7 @@ VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.s
        ('012_add_plan_revision.sql'), ('013_add_notifications.sql'),
        ('014_add_personal_calendars.sql'), ('015_add_absence_replacement_process.sql'),
        ('016_claim_notification_deliveries.sql'), ('017_add_exam_protocols.sql'),
-       ('018_add_exam_results.sql');
+       ('018_add_exam_results.sql'), ('019_add_exam_day_closures.sql');
 
 CREATE TABLE schema_migration_checksum (
   name TEXT PRIMARY KEY REFERENCES schema_migration(name) ON DELETE CASCADE,
@@ -48,7 +48,8 @@ INSERT INTO schema_migration_checksum (name, checksum) VALUES
   ('015_add_absence_replacement_process.sql', 'd9b07a0fcca65202c1fc68b0874718551924624ac26517339a253e73394d9829'),
   ('016_claim_notification_deliveries.sql', '3f6d7e71512af61da4669ff7b320b7093a32f0553b657aa89dc0b85ac8693bcb'),
   ('017_add_exam_protocols.sql', '0d6489ea7ea1692f0a92d4f9b1aa952918372d5d3a99ebc76584f9f4274ee9df'),
-  ('018_add_exam_results.sql', '4a29241af47c476c66126fde13b2c7a6d47f8de576286636d3122e9925d93286');
+  ('018_add_exam_results.sql', '4a29241af47c476c66126fde13b2c7a6d47f8de576286636d3122e9925d93286'),
+  ('019_add_exam_day_closures.sql', 'aa07a85670b67a307e45aec063433f702a0ff9db79ddf52f3944f279ea9d437e');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
@@ -323,6 +324,10 @@ CREATE TABLE exam_day (
   date TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'proposed' CHECK (
     status IN ('proposed', 'confirmed', 'changed', 'cancelled', 'completed')
+  ),
+  revision INTEGER NOT NULL DEFAULT 1 CHECK (revision >= 1),
+  closure_status TEXT NOT NULL DEFAULT 'open' CHECK (
+    closure_status IN ('open', 'closed', 'closed_exception', 'reopening', 'historical')
   ),
   lunch_break_enabled INTEGER NOT NULL DEFAULT 1 CHECK (lunch_break_enabled IN (0, 1)),
   created_from_proposal INTEGER NOT NULL DEFAULT 1 CHECK (created_from_proposal IN (0, 1)),
@@ -722,6 +727,111 @@ CREATE TABLE result_export (
   generated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE exam_day_closure (
+  id INTEGER PRIMARY KEY,
+  exam_day_id INTEGER NOT NULL REFERENCES exam_day(id) ON DELETE CASCADE,
+  requested_revision INTEGER NOT NULL CHECK (requested_revision >= 1),
+  resulting_revision INTEGER NOT NULL CHECK (resulting_revision > requested_revision),
+  closure_type TEXT NOT NULL CHECK (closure_type IN ('regular', 'exception')),
+  actor_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  reason TEXT,
+  clarification_attempts TEXT,
+  checklist_json TEXT NOT NULL,
+  warnings_json TEXT NOT NULL,
+  protocol_references_json TEXT NOT NULL,
+  result_references_json TEXT NOT NULL,
+  previous_closure_id INTEGER REFERENCES exam_day_closure(id) ON DELETE RESTRICT,
+  status TEXT NOT NULL DEFAULT 'current' CHECK (status IN ('current', 'superseded')),
+  command_fingerprint TEXT NOT NULL CHECK (length(command_fingerprint) = 64),
+  closed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (exam_day_id, resulting_revision),
+  UNIQUE (exam_day_id, command_fingerprint),
+  CHECK (
+    (closure_type = 'regular' AND reason IS NULL AND clarification_attempts IS NULL)
+    OR (
+      closure_type = 'exception'
+      AND length(trim(reason)) > 0
+      AND length(trim(clarification_attempts)) > 0
+    )
+  )
+);
+
+CREATE TABLE exam_day_reopening (
+  id INTEGER PRIMARY KEY,
+  exam_day_id INTEGER NOT NULL REFERENCES exam_day(id) ON DELETE CASCADE,
+  previous_closure_id INTEGER REFERENCES exam_day_closure(id) ON DELETE RESTRICT,
+  requested_revision INTEGER NOT NULL CHECK (requested_revision >= 1),
+  resulting_revision INTEGER NOT NULL CHECK (resulting_revision > requested_revision),
+  occasion TEXT NOT NULL CHECK (length(trim(occasion)) > 0),
+  source TEXT NOT NULL CHECK (length(trim(source)) > 0),
+  reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+  requested_scope_json TEXT NOT NULL,
+  scope_json TEXT NOT NULL,
+  completed_scope_json TEXT NOT NULL DEFAULT '[]',
+  impacts_json TEXT NOT NULL,
+  actor_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'completed')),
+  command_fingerprint TEXT NOT NULL CHECK (length(command_fingerprint) = 64),
+  opened_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at TEXT,
+  UNIQUE (exam_day_id, command_fingerprint),
+  CHECK (
+    (status = 'open' AND completed_at IS NULL)
+    OR (status = 'completed' AND completed_at IS NOT NULL)
+  )
+);
+
+CREATE TABLE exam_day_task (
+  id INTEGER PRIMARY KEY,
+  exam_day_id INTEGER NOT NULL REFERENCES exam_day(id) ON DELETE CASCADE,
+  reopening_id INTEGER REFERENCES exam_day_reopening(id) ON DELETE CASCADE,
+  recipient_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE CASCADE,
+  task_type TEXT NOT NULL CHECK (task_type IN (
+    'protocol_follow_up', 'protocol_reconfirmation', 'result_reconfirmation',
+    'result_recommunication', 'ihk_clarification'
+  )),
+  origin_key TEXT NOT NULL,
+  exam_protocol_revision_id INTEGER REFERENCES exam_protocol_revision(id) ON DELETE RESTRICT,
+  result_determination_id INTEGER REFERENCES result_determination(id) ON DELETE RESTRICT,
+  details_json TEXT NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'completed')),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at TEXT,
+  UNIQUE (recipient_member_id, task_type, origin_key),
+  CHECK (
+    (status = 'open' AND completed_at IS NULL)
+    OR (status = 'completed' AND completed_at IS NOT NULL)
+  )
+);
+
+CREATE TABLE exam_day_audit_event (
+  id INTEGER PRIMARY KEY,
+  exam_day_id INTEGER NOT NULL REFERENCES exam_day(id) ON DELETE CASCADE,
+  day_revision INTEGER NOT NULL CHECK (day_revision >= 1),
+  event_type TEXT NOT NULL CHECK (event_type IN (
+    'closed', 'closed_exception', 'reopened', 'correction',
+    'late_protocol_response', 'reclosed'
+  )),
+  actor_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  closure_id INTEGER REFERENCES exam_day_closure(id) ON DELETE RESTRICT,
+  reopening_id INTEGER REFERENCES exam_day_reopening(id) ON DELETE RESTRICT,
+  reason TEXT,
+  scope_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE exam_day_export (
+  id INTEGER PRIMARY KEY,
+  exam_day_id INTEGER NOT NULL REFERENCES exam_day(id) ON DELETE CASCADE,
+  closure_id INTEGER REFERENCES exam_day_closure(id) ON DELETE RESTRICT,
+  export_kind TEXT NOT NULL CHECK (export_kind IN ('machine', 'human')),
+  status TEXT NOT NULL CHECK (
+    status IN ('open', 'closed', 'closed_exception', 'reopening', 'historical')
+  ),
+  generated_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  generated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE document (
   id INTEGER PRIMARY KEY,
   storage_id TEXT NOT NULL UNIQUE,
@@ -762,6 +872,16 @@ CREATE INDEX result_correction_status ON result_correction(exam_result_id, statu
 CREATE INDEX result_communication_status
   ON result_communication(exam_result_id, status);
 CREATE INDEX result_export_result ON result_export(exam_result_id, generated_at);
+CREATE INDEX exam_day_closure_revision
+  ON exam_day_closure(exam_day_id, resulting_revision);
+CREATE INDEX exam_day_reopening_open
+  ON exam_day_reopening(exam_day_id, status);
+CREATE INDEX exam_day_task_day_status
+  ON exam_day_task(exam_day_id, status);
+CREATE INDEX exam_day_audit_history
+  ON exam_day_audit_event(exam_day_id, id);
+CREATE INDEX exam_day_export_history
+  ON exam_day_export(exam_day_id, generated_at);
 
 CREATE TABLE absence_report (
   id INTEGER PRIMARY KEY,
@@ -828,7 +948,9 @@ CREATE TABLE notification (
     'examiner_absence_reported', 'fallback_confirmation_requested',
     'fallback_confirmation_expired', 'replacement_requested',
     'urgent_replacement_requested', 'replacement_selected',
-    'exam_day_cancelled', 'absence_reopened'
+    'exam_day_cancelled', 'absence_reopened',
+    'exam_day_protocol_follow_up', 'exam_day_reopened', 'exam_day_reclosed',
+    'exam_day_result_recommunication', 'exam_day_ihk_clarification'
   )),
   origin_key TEXT NOT NULL,
   title TEXT NOT NULL,

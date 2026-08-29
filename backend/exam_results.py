@@ -14,6 +14,12 @@ from sqlalchemy.orm import Session
 
 from .authorization import AuthorizationScope
 from .database import DEFAULT_DB_PATH, session_scope
+from .exam_day_closures import (
+    DayMutationGuard,
+    complete_day_mutation,
+    days_for_result,
+    guard_day_mutation,
+)
 from .models import (
     AssessmentDisclosure,
     AssessmentModelVersion,
@@ -21,6 +27,7 @@ from .models import (
     Committee,
     CommitteeAssessment,
     ExamDay,
+    ExamDayReopening,
     ExamProtocol,
     ExamProtocolParticipant,
     ExamResult,
@@ -290,6 +297,13 @@ class ExamResultService:
             disclosed = self._is_disclosed(session, result.id, component_key)
             if (disclosed or result.correction_open) and change_reason is None:
                 raise ValueError("Eine Änderung nach Offenlegung benötigt eine Begründung")
+            day_guards = self._guard_day_mutations(
+                session,
+                result,
+                kind="result_assessment",
+                payload=payload,
+                actor_member_id=actor_id,
+            )
             revision = 1 if current is None else current.revision + 1
             if current is not None:
                 current.status = "superseded"
@@ -314,6 +328,12 @@ class ExamResultService:
             self._touch(result)
             session.flush()
             self._refresh_calculation(session, result, rules)
+            self._complete_day_mutations(
+                session,
+                day_guards,
+                actor_member_id=actor_id,
+                reason=change_reason,
+            )
             return self._view(session, result, scope)
 
     def withdraw_individual(
@@ -340,6 +360,14 @@ class ExamResultService:
                 return self._view(session, result, scope)
             self._assert_version(result, expected_version)
             self._assert_inputs_mutable(result)
+            reason = self._required_text(payload.get("reason"), "reason", 2000)
+            day_guards = self._guard_day_mutations(
+                session,
+                result,
+                kind="result_assessment",
+                payload=payload,
+                actor_member_id=actor_id,
+            )
             current.status = "superseded"
             session.add(
                 IndividualAssessment(
@@ -353,7 +381,7 @@ class ExamResultService:
                     rationale=current.rationale,
                     status="withdrawn",
                     previous_assessment_id=current.id,
-                    change_reason=self._required_text(payload.get("reason"), "reason", 2000),
+                    change_reason=reason,
                     created_at=_now(),
                 )
             )
@@ -361,6 +389,12 @@ class ExamResultService:
             session.flush()
             _binding, _model, rules = self._model_context(session, result)
             self._refresh_calculation(session, result, rules)
+            self._complete_day_mutations(
+                session,
+                day_guards,
+                actor_member_id=actor_id,
+                reason=reason,
+            )
             return self._view(session, result, scope)
 
     def disclose(
@@ -395,6 +429,13 @@ class ExamResultService:
             )
             if not complete:
                 raise ValueError("Die vorgeschriebenen individuellen Beiträge fehlen")
+            day_guards = self._guard_day_mutations(
+                session,
+                result,
+                kind="result_disclosure",
+                payload=payload,
+                actor_member_id=actor_id,
+            )
             session.add(
                 AssessmentDisclosure(
                     exam_result_id=result.id,
@@ -405,6 +446,7 @@ class ExamResultService:
             )
             self._touch(result)
             session.flush()
+            self._complete_day_mutations(session, day_guards, actor_member_id=actor_id)
             return self._view(session, result, scope)
 
     def determine_component(
@@ -463,6 +505,13 @@ class ExamResultService:
                 raise ValueError(
                     "Eine gemeinsame Bewertung außerhalb der Einzelspanne benötigt eine Begründung"
                 )
+            day_guards = self._guard_day_mutations(
+                session,
+                result,
+                kind="result_assessment",
+                payload=payload,
+                actor_member_id=actor_id,
+            )
             if current is not None:
                 current.status = "superseded"
             session.add(
@@ -484,6 +533,12 @@ class ExamResultService:
             self._touch(result)
             session.flush()
             self._refresh_calculation(session, result, rules)
+            self._complete_day_mutations(
+                session,
+                day_guards,
+                actor_member_id=actor_id,
+                reason=rationale,
+            )
             return self._view(session, result, scope)
 
     def record_external(
@@ -505,6 +560,13 @@ class ExamResultService:
             correction_reason = self._optional_text(payload.get("correction_reason"), 2000)
             if current is not None and correction_reason is None:
                 raise ValueError("Die Korrektur eines Eingangsergebnisses benötigt eine Begründung")
+            day_guards = self._guard_day_mutations(
+                session,
+                result,
+                kind="result_external",
+                payload=payload,
+                actor_member_id=actor_id,
+            )
             if current is not None:
                 current.status = "replaced"
             session.add(
@@ -533,6 +595,12 @@ class ExamResultService:
             self._touch(result)
             session.flush()
             self._refresh_calculation(session, result, rules)
+            self._complete_day_mutations(
+                session,
+                day_guards,
+                actor_member_id=actor_id,
+                reason=correction_reason,
+            )
             return self._view(session, result, scope)
 
     def confirm_external(
@@ -561,6 +629,13 @@ class ExamResultService:
                 raise PermissionError("Erfassung und Bestätigung müssen getrennt erfolgen")
             if self._latest_external(session, result.id, external.area_key).id != external.id:
                 raise ExamResultConflictError("Das Eingangsergebnis wurde bereits ersetzt")
+            day_guards = self._guard_day_mutations(
+                session,
+                result,
+                kind="result_external",
+                payload=payload,
+                actor_member_id=actor_id,
+            )
             external.status = "confirmed"
             external.confirmed_by_member_id = actor_id
             external.confirmed_at = _now()
@@ -568,6 +643,7 @@ class ExamResultService:
             session.flush()
             _binding, _model, rules = self._model_context(session, result)
             self._refresh_calculation(session, result, rules)
+            self._complete_day_mutations(session, day_guards, actor_member_id=actor_id)
             return self._view(session, result, scope)
 
     def determine_result(
@@ -597,6 +673,13 @@ class ExamResultService:
             calculation = self._refresh_calculation(session, result, rules)
             if calculation is None:
                 raise ValueError("Das Ergebnis ist noch nicht berechnungsbereit")
+            day_guards = self._guard_day_mutations(
+                session,
+                result,
+                kind="result_determine",
+                payload=payload,
+                actor_member_id=actor_id,
+            )
             correction = session.scalar(
                 select(ResultCorrection).where(
                     ResultCorrection.exam_result_id == result.id,
@@ -641,6 +724,7 @@ class ExamResultService:
             result.correction_open = 0
             self._touch(result)
             session.flush()
+            self._complete_day_mutations(session, day_guards, actor_member_id=actor_id)
             return self._view(session, result, scope)
 
     def confirm_record(
@@ -669,6 +753,13 @@ class ExamResultService:
                 raise ExamResultConflictError(
                     "Während einer Korrektur kann die Niederschrift nicht bestätigt werden"
                 )
+            day_guards = self._guard_day_mutations(
+                session,
+                result,
+                kind="result_confirm_record",
+                payload=payload,
+                actor_member_id=actor_id,
+            )
             session.add(
                 ResultRecordConfirmation(
                     result_determination_id=determination.id,
@@ -678,6 +769,7 @@ class ExamResultService:
             )
             self._touch(result)
             session.flush()
+            self._complete_day_mutations(session, day_guards, actor_member_id=actor_id)
             return self._view(session, result, scope)
 
     def open_correction(
@@ -704,6 +796,13 @@ class ExamResultService:
             self._assert_version(result, expected_version)
             if existing is not None:
                 raise ExamResultConflictError("Für das Ergebnis ist bereits eine Korrektur offen")
+            day_guards = self._guard_day_mutations(
+                session,
+                result,
+                kind="result_correction",
+                payload=payload,
+                actor_member_id=actor_id,
+            )
             reopening_reference = self._optional_text(payload.get("reopening_reference"), 1000)
             if self._has_completed_day(session, result) and reopening_reference is None:
                 raise ValueError(
@@ -723,6 +822,12 @@ class ExamResultService:
             result.correction_open = 1
             self._touch(result)
             session.flush()
+            self._complete_day_mutations(
+                session,
+                day_guards,
+                actor_member_id=actor_id,
+                reason=reason,
+            )
             return self._view(session, result, scope)
 
     def communicate(
@@ -757,6 +862,13 @@ class ExamResultService:
             ):
                 return self._view(session, result, scope)
             self._assert_version(result, expected_version)
+            day_guards = self._guard_day_mutations(
+                session,
+                result,
+                kind="result_communicate",
+                payload=payload,
+                actor_member_id=actor_id,
+            )
             if existing is not None:
                 existing.status = "obsolete"
             session.add(
@@ -779,6 +891,7 @@ class ExamResultService:
             result.current_state = "communicated"
             self._touch(result)
             session.flush()
+            self._complete_day_mutations(session, day_guards, actor_member_id=actor_id)
             return self._view(session, result, scope)
 
     def set_retention(
@@ -843,6 +956,13 @@ class ExamResultService:
             ):
                 return self._view(session, result, scope)
             self._assert_version(result, expected_version)
+            day_guards = self._guard_day_mutations(
+                session,
+                result,
+                kind="result_retention",
+                payload=payload,
+                actor_member_id=actor_id,
+            )
             if existing is None:
                 existing = ResultRetention(
                     exam_result_id=result.id,
@@ -859,6 +979,7 @@ class ExamResultService:
             existing.updated_at = _now()
             self._touch(result)
             session.flush()
+            self._complete_day_mutations(session, day_guards, actor_member_id=actor_id)
             return self._view(session, result, scope)
 
     # Completion and exports --------------------------------------------------------
@@ -1342,9 +1463,28 @@ class ExamResultService:
         current_determination = next(
             (item for item in determinations if item.status == "current"), None
         )
+        result_days = days_for_result(session, result.id)
+        content_mutable = True
+        for day in result_days:
+            if day.closure_status == "open":
+                continue
+            if day.closure_status == "reopening":
+                reopening = session.scalar(
+                    select(ExamDayReopening).where(
+                        ExamDayReopening.exam_day_id == day.id,
+                        ExamDayReopening.status == "open",
+                    )
+                )
+                if reopening is not None and f"exam_result:{result.id}" in set(
+                    json.loads(reopening.scope_json)
+                ):
+                    continue
+            content_mutable = False
+            break
         return {
             "id": result.id,
             "round_candidate_id": result.round_candidate_id,
+            "day_revisions": {str(day.id): day.revision for day in result_days},
             "version": result.version,
             "state": result.current_state,
             "correction_open": bool(result.correction_open),
@@ -1386,13 +1526,13 @@ class ExamResultService:
             "retention": self._retention_view(retention) if retention else None,
             "exports": [self._export_view(item) for item in exports],
             "permissions": {
-                "assess_own": actor_id in participants,
-                "disclose": actor_id in participants and can_manage,
-                "determine_component": actor_id in participants and can_manage,
+                "assess_own": content_mutable and actor_id in participants,
+                "disclose": content_mutable and actor_id in participants and can_manage,
+                "determine_component": content_mutable and actor_id in participants and can_manage,
                 "manage_external": can_manage,
                 "determine_result": actor_id in participants and can_manage,
                 "confirm_record": actor_id in participants,
-                "coordinate_correction": can_manage,
+                "coordinate_correction": content_mutable and can_manage,
                 "communicate": can_manage,
                 "manage_retention": can_manage,
             },
@@ -1406,6 +1546,43 @@ class ExamResultService:
         }
 
     # Context, validation, and serialization helpers --------------------------------
+
+    @staticmethod
+    def _guard_day_mutations(
+        session: Session,
+        result: ExamResult,
+        *,
+        kind: str,
+        payload: dict[str, Any],
+        actor_member_id: int | None,
+    ) -> list[DayMutationGuard]:
+        return [
+            guard_day_mutation(
+                session,
+                day=day,
+                kind=kind,
+                entity_id=result.id,
+                payload=payload,
+                actor_member_id=actor_member_id,
+            )
+            for day in days_for_result(session, result.id)
+        ]
+
+    @staticmethod
+    def _complete_day_mutations(
+        session: Session,
+        guards: list[DayMutationGuard],
+        *,
+        actor_member_id: int,
+        reason: str | None = None,
+    ) -> None:
+        for guard in guards:
+            complete_day_mutation(
+                session,
+                guard,
+                actor_member_id=actor_member_id,
+                reason=reason,
+            )
 
     def _model_context(
         self, session: Session, result: ExamResult
