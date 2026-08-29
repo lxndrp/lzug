@@ -55,7 +55,9 @@
           <header class="app-context-editor-header">
             <div>
               <strong id="committee-create-title">Ausschuss anlegen</strong>
-              <span class="app-muted app-block">Bezeichnung und Ausbildungsberuf festlegen</span>
+              <span class="app-muted app-block"
+                >Bezeichnung, zuständige IHK und Ausbildungsberuf festlegen</span
+              >
             </div>
             <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
           </header>
@@ -65,6 +67,21 @@
             class="app-form-grid"
             (submit)="saveCommittee($event)"
           >
+            <div class="app-field-full">
+              <tui-textfield>
+                <label tuiLabel for="committeeIhk"
+                  >Zuständige IHK <span aria-hidden="true">*</span></label
+                >
+                <input
+                  tuiInput
+                  id="committeeIhk"
+                  name="ihk"
+                  [(ngModel)]="committeeDraft.ihk"
+                  required
+                  placeholder="IHK Teststadt"
+                />
+              </tui-textfield>
+            </div>
             <div class="app-field-full">
               <tui-textfield>
                 <label tuiLabel for="committeeName"
@@ -128,7 +145,7 @@
               (click)="selectCommittee(committee.id)"
             >
               <strong>{{ committee.name }}</strong>
-              <span>{{ committee.occupation }}</span>
+              <span>{{ committee.ihk }} · {{ committee.occupation }}</span>
             </button>
           } @empty {
             <div class="app-compact-empty">

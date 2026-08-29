@@ -1,0 +1,540 @@
+<section class="app-exam-result" [attr.aria-labelledby]="'result-heading-' + slotId">
+  <header>
+    <div>
+      <p class="app-eyebrow">Bewertung und Ergebnis</p>
+      <h4 [id]="'result-heading-' + slotId">Regelgebundener Ergebnisprozess</h4>
+    </div>
+    @if (result(); as current) {
+      <span tuiBadge [appearance]="stateAppearance(current.state)">
+        {{ stateLabel(current.state) }} · Stand {{ current.version }}
+      </span>
+      @if (current.correction_open) {
+        <span tuiBadge appearance="warning">Korrektur offen</span>
+      }
+    }
+  </header>
+
+  @if (state() === 'loading') {
+    <p aria-live="polite">Ergebnisprozess wird geladen …</p>
+  } @else if (state() === 'not-found') {
+    <p role="status">Für diesen Prüfungsvorgang wurde noch kein Bewertungsmodell gebunden.</p>
+  } @else if (state() === 'error') {
+    <p role="alert">Der Ergebnisprozess konnte nicht geladen werden.</p>
+    <button tuiButton appearance="secondary" type="button" (click)="load()">
+      Erneut versuchen
+    </button>
+  } @else if (result(); as current) {
+    @if (message(); as currentMessage) {
+      <p class="app-result-success" role="status">{{ currentMessage }}</p>
+    }
+    @if (error(); as currentError) {
+      <p class="app-result-error" role="alert">{{ currentError }}</p>
+    }
+
+    <dl class="app-result-model">
+      <div>
+        <dt>Modellversion</dt>
+        <dd>{{ current.model_version.model_key }} v{{ current.model_version.version }}</dd>
+      </div>
+      <div>
+        <dt>IHK und Beruf</dt>
+        <dd>{{ current.model_version.ihk }} · {{ current.model_version.occupation }}</dd>
+      </div>
+      <div>
+        <dt>Gültigkeit</dt>
+        <dd>
+          {{ current.model_version.valid_from }} bis
+          {{ current.model_version.valid_until ?? 'offen' }}
+        </dd>
+      </div>
+      <div>
+        <dt>Tatsächlich Mitwirkende</dt>
+        <dd>{{ current.participants.join(', ') }}</dd>
+      </div>
+    </dl>
+
+    <p class="app-result-warning">
+      Eigene Bewertungsbegründungen sind ausschließlich für die eigene individuelle Bewertung
+      bestimmt. Andere Einzelbewertungen bleiben bis zur kontrollierten Offenlegung verdeckt.
+    </p>
+
+    <div class="app-result-components">
+      @for (component of current.model_version.rules.components; track component.key) {
+        <article>
+          <header>
+            <div>
+              <h5>{{ component.label }}</h5>
+              <p>
+                {{
+                  component.mode === 'committee'
+                    ? 'Gemeinsame Ausschussbewertung'
+                    : 'Unabhängige Mehrfachbewertung'
+                }}
+                · Gewicht {{ component.weight }} %
+              </p>
+            </div>
+            @if (disclosed(current, component.key)) {
+              <span tuiBadge appearance="warning">Offengelegt</span>
+            }
+            @if (currentCommittee(current, component.key); as assessment) {
+              <span tuiBadge appearance="positive">{{ assessment.points }} Punkte</span>
+            }
+          </header>
+
+          @if (
+            current.permissions.assess_own &&
+            can('exam-result:assess-own') &&
+            (!current.current_determination || current.correction_open)
+          ) {
+            @for (criterion of component.criteria; track criterion.key) {
+              <fieldset [disabled]="busy()">
+                <legend>{{ criterion.label }} · {{ criterion.weight }} %</legend>
+                <label>
+                  Rohpunkte ({{ criterion.raw_min }} bis {{ criterion.raw_max }})
+                  <input
+                    type="number"
+                    [min]="criterion.raw_min"
+                    [max]="criterion.raw_max"
+                    step="0.01"
+                    [(ngModel)]="draftFor(component, criterion).rawPoints"
+                  />
+                </label>
+                <label>
+                  Bewertungsrelevante Beobachtung / Begründung
+                  <textarea
+                    rows="2"
+                    maxlength="4000"
+                    [(ngModel)]="draftFor(component, criterion).rationale"
+                  ></textarea>
+                </label>
+                @if (disclosed(current, component.key) || current.correction_open) {
+                  <label>
+                    Änderungsbegründung
+                    <textarea
+                      rows="2"
+                      maxlength="2000"
+                      [(ngModel)]="draftFor(component, criterion).changeReason"
+                    ></textarea>
+                  </label>
+                }
+                <div class="app-result-actions">
+                  <button
+                    tuiButton
+                    appearance="secondary"
+                    type="button"
+                    [disabled]="busy() || !draftFor(component, criterion).rawPoints"
+                    (click)="saveAssessment(component, criterion, false)"
+                  >
+                    Entwurf speichern
+                  </button>
+                  <button
+                    tuiButton
+                    appearance="primary"
+                    type="button"
+                    [disabled]="busy() || !draftFor(component, criterion).rawPoints"
+                    (click)="saveAssessment(component, criterion, true)"
+                  >
+                    Eigene Bewertung abgeben
+                  </button>
+                  @if (latestOwn(current, component.key, criterion.key); as ownAssessment) {
+                    @if (
+                      ownAssessment.status === 'submitted' && !disclosed(current, component.key)
+                    ) {
+                      <button
+                        tuiButton
+                        appearance="secondary"
+                        type="button"
+                        [disabled]="busy() || !draftFor(component, criterion).changeReason.trim()"
+                        (click)="withdraw(component, criterion)"
+                      >
+                        Bewertung zurückziehen
+                      </button>
+                    }
+                  }
+                </div>
+              </fieldset>
+            }
+          }
+
+          @if (
+            current.permissions.disclose &&
+            can('exam-result:disclose') &&
+            !disclosed(current, component.key)
+          ) {
+            <button
+              tuiButton
+              appearance="secondary"
+              type="button"
+              [disabled]="busy()"
+              (click)="disclose(component.key)"
+            >
+              Vollständige Einzelbewertungen offenlegen
+            </button>
+          }
+
+          @if (
+            component.mode === 'committee' &&
+            disclosed(current, component.key) &&
+            current.permissions.determine_component &&
+            can('exam-result:determine-component') &&
+            (!currentCommittee(current, component.key) || current.correction_open)
+          ) {
+            <fieldset [disabled]="busy()">
+              <legend>Gemeinsamen Beschluss dokumentieren</legend>
+              <label>
+                Festgestellte Punkte (0 bis 100)
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  [ngModel]="componentPoints.get(component.key) ?? ''"
+                  (ngModelChange)="componentPoints.set(component.key, $event)"
+                />
+              </label>
+              <label>
+                Begründung, insbesondere außerhalb der Einzelspanne
+                <textarea
+                  rows="2"
+                  maxlength="4000"
+                  [ngModel]="componentReasons.get(component.key) ?? ''"
+                  (ngModelChange)="componentReasons.set(component.key, $event)"
+                ></textarea>
+              </label>
+              <button
+                tuiButton
+                appearance="primary"
+                type="button"
+                [disabled]="busy() || !(componentPoints.get(component.key) ?? '').trim()"
+                (click)="determineComponent(component.key)"
+              >
+                Ausschussbewertung feststellen
+              </button>
+            </fieldset>
+          }
+
+          <details>
+            <summary>Sichtbare Einzelbeiträge und Historie</summary>
+            <ul>
+              @for (assessment of current.individual_assessments; track assessment.id) {
+                @if (assessment.component_key === component.key) {
+                  <li>
+                    Mitglied {{ assessment.assessor_member_id }}, {{ assessment.criterion_key }}:
+                    {{ assessment.raw_points }} Rohpunkte /
+                    {{ assessment.normalized_points }} Punkte · {{ assessment.status }} · Revision
+                    {{ assessment.revision }}
+                  </li>
+                }
+              }
+            </ul>
+          </details>
+        </article>
+      }
+    </div>
+
+    <section class="app-result-section" aria-labelledby="external-heading-{{ slotId }}">
+      <h5 id="external-heading-{{ slotId }}">Externe Eingangsergebnisse</h5>
+      <ul>
+        @for (external of current.external_results; track external.id) {
+          <li>
+            {{ external.area_key }} · {{ external.points }} Punkte · {{ external.status }} ·
+            {{ external.source_reference }}
+            @if (
+              external.status === 'unconfirmed' &&
+              external.recorded_by_member_id !== ownMemberId &&
+              current.permissions.manage_external &&
+              can('exam-result:external-confirm')
+            ) {
+              <button
+                tuiButton
+                appearance="primary"
+                type="button"
+                [disabled]="busy()"
+                (click)="confirmExternal(external.id)"
+              >
+                Unabhängig bestätigen
+              </button>
+            }
+          </li>
+        }
+      </ul>
+
+      @if (current.permissions.manage_external && can('exam-result:external-record')) {
+        <fieldset [disabled]="busy()">
+          <legend>Verbindliches externes Ergebnis erfassen</legend>
+          <label>
+            Prüfungsbereich
+            <select [(ngModel)]="externalAreaKey">
+              @for (area of current.model_version.rules.external_areas; track area.key) {
+                <option [value]="area.key">{{ area.label }}</option>
+              }
+            </select>
+          </label>
+          <label>
+            Punkte
+            <input type="number" min="0" max="100" step="0.01" [(ngModel)]="externalPoints" />
+          </label>
+          <label>
+            Note (optional)
+            <input type="text" maxlength="100" [(ngModel)]="externalGrade" />
+          </label>
+          <label>
+            Fachlicher Status
+            <input type="text" maxlength="300" [(ngModel)]="externalStatus" />
+          </label>
+          <label>
+            Feststellende Stelle
+            <input type="text" maxlength="500" [(ngModel)]="externalAuthority" />
+          </label>
+          <label>
+            Maßgebliche Bezugsquelle
+            <input type="text" maxlength="1000" [(ngModel)]="externalSource" />
+          </label>
+          @if (current.external_results.length) {
+            <label>
+              Korrekturbegründung
+              <textarea rows="2" maxlength="2000" [(ngModel)]="externalCorrectionReason"></textarea>
+            </label>
+          }
+          <button
+            tuiButton
+            appearance="secondary"
+            type="button"
+            [disabled]="
+              busy() ||
+              !externalAreaKey ||
+              !externalPoints ||
+              !externalAuthority.trim() ||
+              !externalSource.trim()
+            "
+            (click)="recordExternal()"
+          >
+            Unbestätigt erfassen
+          </button>
+        </fieldset>
+      }
+    </section>
+
+    @if (current.current_calculation; as calculation) {
+      <section class="app-result-section app-result-calculation">
+        <h5>Nachvollziehbarer Ergebnisvorschlag</h5>
+        <p>
+          <strong>{{ calculation.total_points }} Punkte · {{ calculation.grade }}</strong>
+          · {{ calculation.passed ? 'bestanden' : 'nicht bestanden' }}
+        </p>
+        <ol>
+          @for (input of calculation.path.inputs; track input.kind + input.key) {
+            <li>{{ input.key }}: {{ input.points }} Punkte × {{ input.weight }} %</li>
+          }
+        </ol>
+        <p>
+          Unrunder Zwischenstand {{ calculation.path.unrounded_total }}; gerundeter Ausweis
+          {{ calculation.path.rounded_total }}. Dieser Vorschlag ist noch keine Feststellung.
+        </p>
+        @if (
+          current.state === 'calculation_ready' &&
+          current.permissions.determine_result &&
+          can('exam-result:determine')
+        ) {
+          <button
+            tuiButton
+            appearance="primary"
+            type="button"
+            [disabled]="busy()"
+            (click)="determineResult()"
+          >
+            Gesamtergebnis feststellen
+          </button>
+        }
+      </section>
+    }
+
+    @if (current.current_determination; as determination) {
+      <section class="app-result-section">
+        <h5>Ergebnisniederschrift · Feststellung {{ determination.revision }}</h5>
+        <p>
+          Beschluss am {{ determination.determined_at }}; Bestätigungen
+          {{ determination.confirmation_member_ids.length }} /
+          {{ determination.participant_member_ids.length }}
+        </p>
+        @if (
+          current.permissions.confirm_record &&
+          can('exam-result:confirm-record') &&
+          !hasConfirmedRecord(current) &&
+          !current.correction_open
+        ) {
+          <button
+            tuiButton
+            appearance="primary"
+            type="button"
+            [disabled]="busy()"
+            (click)="confirmRecord()"
+          >
+            Sachliche Richtigkeit bestätigen
+          </button>
+        }
+
+        @if (
+          current.permissions.coordinate_correction &&
+          can('exam-result:coordinate-correction') &&
+          !current.correction_open
+        ) {
+          <fieldset [disabled]="busy()">
+            <legend>Begründeten Korrekturbedarf erfassen</legend>
+            <label>
+              Begründung
+              <textarea rows="2" maxlength="3000" [(ngModel)]="correctionReason"></textarea>
+            </label>
+            <label>
+              Wiederöffnungsnachweis nach Tagesabschluss (falls erforderlich)
+              <input type="text" maxlength="1000" [(ngModel)]="reopeningReference" />
+            </label>
+            <button
+              tuiButton
+              appearance="secondary"
+              type="button"
+              [disabled]="busy() || !correctionReason.trim()"
+              (click)="openCorrection()"
+            >
+              Korrektur öffnen
+            </button>
+          </fieldset>
+        }
+
+        @if (
+          current.permissions.communicate &&
+          can('exam-result:communicate') &&
+          determination.confirmation_member_ids.length ===
+            determination.participant_member_ids.length &&
+          !current.correction_open
+        ) {
+          <fieldset [disabled]="busy()">
+            <legend>Ergebnismitteilung dokumentieren</legend>
+            <label>
+              Art der Mitteilung
+              <input type="text" maxlength="300" [(ngModel)]="communicationMethod" />
+            </label>
+            <label>
+              Zeitpunkt
+              <input type="datetime-local" [(ngModel)]="communicationAt" />
+            </label>
+            <label>
+              Referenz auf externes IHK-Dokument (optional)
+              <input type="text" maxlength="1000" [(ngModel)]="externalDocumentReference" />
+            </label>
+            <button
+              tuiButton
+              appearance="primary"
+              type="button"
+              [disabled]="busy() || !communicationMethod.trim() || !communicationAt"
+              (click)="communicate()"
+            >
+              Mitteilung dokumentieren
+            </button>
+          </fieldset>
+        }
+      </section>
+    }
+
+    <fieldset class="app-result-dissent" [disabled]="busy()">
+      <legend>Optionales abweichendes Votum für den nächsten Beschluss</legend>
+      <label>
+        Mitglieds-ID
+        <select [(ngModel)]="dissentMemberId">
+          <option [ngValue]="null">Kein abweichendes Votum</option>
+          @for (memberId of current.participants; track memberId) {
+            <option [ngValue]="memberId">{{ memberId }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Wortlaut
+        <textarea rows="2" maxlength="3000" [(ngModel)]="dissentStatement"></textarea>
+      </label>
+    </fieldset>
+
+    <section class="app-result-section">
+      <h5>Aufbewahrung</h5>
+      <p>
+        {{ current.model_version.retention_rule_reference }} · mindestens
+        {{ current.model_version.retention_years }} Jahre ab Fristbeginn
+      </p>
+      @if (current.permissions.manage_retention && can('exam-result:retention')) {
+        <fieldset [disabled]="busy()">
+          <legend>Regelgebundene Aufbewahrung dokumentieren</legend>
+          <label>
+            Fristbeginn
+            <input type="date" [(ngModel)]="retentionPeriodStart" />
+          </label>
+          <label>
+            Aufbewahren bis
+            <input type="date" [(ngModel)]="retentionUntil" />
+          </label>
+          <label>
+            <input type="checkbox" [(ngModel)]="retentionLegalHold" />
+            Rechtliche Aufbewahrungssperre aktiv
+          </label>
+          @if (retentionLegalHold) {
+            <label>
+              Begründung der Sperre
+              <textarea rows="2" maxlength="3000" [(ngModel)]="retentionHoldReason"></textarea>
+            </label>
+          }
+          @if (current.retention?.legal_hold && !retentionLegalHold) {
+            <label>
+              Begründung der Freigabe
+              <textarea rows="2" maxlength="3000" [(ngModel)]="retentionReleaseReason"></textarea>
+            </label>
+          }
+          <button
+            tuiButton
+            appearance="secondary"
+            type="button"
+            [disabled]="
+              busy() ||
+              (!!retentionUntil && !retentionPeriodStart) ||
+              (retentionLegalHold && !retentionHoldReason.trim()) ||
+              (current.retention?.legal_hold &&
+                !retentionLegalHold &&
+                !retentionReleaseReason.trim())
+            "
+            (click)="saveRetention()"
+          >
+            Aufbewahrungsregel speichern
+          </button>
+        </fieldset>
+      }
+    </section>
+
+    @if (can('exam-result:export')) {
+      <nav aria-label="Ergebnisexporte">
+        <a [href]="current._links['machine_export'].href">Maschinenlesbarer Ergebnisexport</a>
+        <a [href]="current._links['human_export'].href">Menschenlesbare Ergebnisniederschrift</a>
+      </nav>
+    }
+
+    <details>
+      <summary>Feststellungs-, Korrektur-, Mitteilungs- und Exporthistorie</summary>
+      <ul>
+        @for (determination of current.determinations; track determination.id) {
+          <li>
+            Feststellung {{ determination.revision }} · {{ determination.status }} ·
+            {{ determination.determined_at }}
+          </li>
+        }
+        @for (correction of current.corrections; track correction.id) {
+          <li>Korrektur {{ correction.id }} · {{ correction.status }} · {{ correction.reason }}</li>
+        }
+        @for (communication of current.communications; track communication.id) {
+          <li>
+            Mitteilung {{ communication.communicated_at }} · {{ communication.status }} ·
+            {{ communication.method }}
+          </li>
+        }
+        @for (export of current.exports; track export.id) {
+          <li>Export {{ export.export_kind }} · {{ export.status }} · {{ export.generated_at }}</li>
+        }
+      </ul>
+    </details>
+  }
+</section>

@@ -2,22 +2,17 @@
 
 ## Verbindliches Ziel
 
-Für die öffentliche Demo gilt bei typischer Nutzung ein verbindliches Ziel von
-höchstens **1,00 EUR pro Kalendermonat**. Dieser Wert ist zugleich der
-OpenTofu-Vertrag für das Resource-Group-Budget `budget_amount_eur`; die
-Eingabevalidierung akzeptiert keinen anderen Betrag. Das Budget ist eine
-verzögerte Warnung und keine Kosten- oder Verbrauchsgrenze: Azure sperrt oder
-beendet Ressourcen dadurch nicht.
+Für die öffentliche Demo gilt bei typischer Nutzung ein verbindliches Ziel von höchstens **1,00 EUR pro Kalendermonat**.
+Dieser Wert ist zugleich der OpenTofu-Vertrag für das Resource-Group-Budget `budget_amount_eur`; die Eingabevalidierung akzeptiert keinen anderen Betrag.
+Das Budget ist eine verzögerte Warnung und keine Kosten- oder Verbrauchsgrenze: Azure sperrt oder beendet Ressourcen dadurch nicht.
 
-Die Beträge unten sind eine versionierte, reproduzierbare Erwartung für die
-angegebene Nutzung und kein Preisangebot. Azure-Preise hängen von Region,
-Vertrag, Währung und Freimengen ab. Die Baseline wird bei jeder relevanten
-Preis- oder Infrastrukturänderung neu datiert.
+Die Beträge unten sind eine versionierte, reproduzierbare Erwartung für die angegebene Nutzung und kein Preisangebot.
+Azure-Preise hängen von Region, Vertrag, Währung und Freimengen ab.
+Die Baseline wird bei jeder relevanten Preis- oder Infrastrukturänderung neu datiert.
 
 ## Typische Nutzung und Annahmen
 
-Die Kalkulation verwendet den Kalendermonat mit höchstens 31 Tagen und den
-Stand **2026-08-29**:
+Die Kalkulation verwendet den Kalendermonat mit höchstens 31 Tagen und den Stand **2026-08-29**:
 
 | Annahme | Wert | Herleitung |
 | --- | ---: | --- |
@@ -39,11 +34,9 @@ nennt 180.000 vCPU-Sekunden, 360.000 GiB-Sekunden und 2 Millionen Requests je
 Subscription und Monat als freie Menge. Die Init-Container-Ausführung ist in
 der Laufzeitreserve enthalten.
 
-Die Logic App nutzt nur eingebaute HTTP-, Steuerungs- und Zeitoperationen. Die
-465 Ausführungen bleiben unter den 4.000 kostenlosen eingebauten Aktionen je
-Subscription und Monat. Ein unerwarteter Retry-Sturm oder zusätzliche
-Workflows gehört nicht zur Baseline und muss im Kostenabgleich als Abweichung
-erscheinen.
+Die Logic App nutzt nur eingebaute HTTP-, Steuerungs- und Zeitoperationen.
+Die 465 Ausführungen bleiben unter den 4.000 kostenlosen eingebauten Aktionen je Subscription und Monat.
+Ein unerwarteter Retry-Sturm oder zusätzliche Workflows gehört nicht zur Baseline und muss im Kostenabgleich als Abweichung erscheinen.
 
 ## Ressourcenbezogene Erwartung
 
@@ -60,38 +53,29 @@ erscheinen.
 | Managed Identity, RBAC-Rolle und RBAC-Zuweisung | keine eigene Nutzungsgebühr | 0,00 EUR | Control-Plane-Ressource | genau eine systemzugewiesene Identity und eine auf die Container App begrenzte Rolle | 2026-08-29 |
 | GitHub Environment und Deployment-Policies | außerhalb der Azure-Abrechnung | 0,00 EUR Azure | GitHub-Konfiguration | nicht Teil der Azure-Resource Group und kein Azure-Dienst | 2026-08-29 |
 
-Die erwartete Summe beträgt damit **höchstens 0,10 EUR pro Monat** und liegt
-unter dem verbindlichen Ziel von 1,00 EUR. Der Betrag von 0,10 EUR für die
-interne Logic-App-History ist eine konservative Planungsreserve; eine reale
-Überschreitung des Ziels wird nicht durch diese Schätzung legitimiert.
+Die erwartete Summe beträgt damit **höchstens 0,10 EUR pro Monat** und liegt unter dem verbindlichen Ziel von 1,00 EUR.
+Der Betrag von 0,10 EUR für die interne Logic-App-History ist eine konservative Planungsreserve; eine reale Überschreitung des Ziels wird nicht durch diese Schätzung legitimiert.
 
-Nicht in der Resource Group enthaltene Kosten, etwa die GitHub-Pages-Site,
-GHCR-Aufbewahrung, Subscription-Grundlagen oder ein abweichender
-Azure-Vertrag, werden nicht stillschweigend als kostenlos angenommen. Sie
-müssen bei einer Änderung des Veröffentlichungs- oder Subscriptionmodells
-separat bewertet werden.
+Nicht in der Resource Group enthaltene Kosten, etwa die GitHub-Pages-Site, GHCR-Aufbewahrung, Subscription-Grundlagen oder ein abweichender Azure-Vertrag, werden nicht stillschweigend als kostenlos angenommen.
+Sie müssen bei einer Änderung des Veröffentlichungs- oder Subscriptionmodells separat bewertet werden.
 
 ## Budgetvertrag
 
-OpenTofu setzt das Resource-Group-Budget auf `1` EUR pro Monat. Die bestehende
-Action Group erhält zwei Meldungen:
+OpenTofu setzt das Resource-Group-Budget auf `1` EUR pro Monat.
+Die bestehende Action Group erhält zwei Meldungen:
 
 - **80 Prozent tatsächliche Kosten** als frühe Warnung,
 - **100 Prozent prognostizierte Kosten** als Warnung am Zielwert.
 
-Die Empfänger werden ausschließlich lokal beziehungsweise im geschützten
-Deploymentkontext gehalten; Beispielwerte werden nicht als echte
-Kontaktadresse veröffentlicht. Budgetdaten und Warnungen sind wegen der
-Azure-Auswertung verzögert. Das Budget sperrt, stoppt oder skaliert keine
-Ressource und ist deshalb niemals eine Echtzeitgrenze.
+Die Empfänger werden ausschließlich lokal beziehungsweise im geschützten Deploymentkontext gehalten; Beispielwerte werden nicht als echte Kontaktadresse veröffentlicht.
+Budgetdaten und Warnungen sind wegen der Azure-Auswertung verzögert.
+Das Budget sperrt, stoppt oder skaliert keine Ressource und ist deshalb niemals eine Echtzeitgrenze.
 
 ## Read-only-Kostenprüfung
 
-Die Prüfung erfolgt manuell für die Demo-Resource-Group und benötigt nur
-Leserechte auf Cost Management und den Resource Manager. Sie verändert weder
-Azure-Ressourcen noch OpenTofu-State. Nach Ende des Beobachtungszeitraums
-werden `AZURE_SUBSCRIPTION_ID`, `DEMO_RESOURCE_GROUP`, `COST_FROM` und
-`COST_TO` lokal gesetzt:
+Die Prüfung erfolgt manuell für die Demo-Resource-Group und benötigt nur Leserechte auf Cost Management und den Resource Manager.
+Sie verändert weder Azure-Ressourcen noch OpenTofu-State.
+Nach Ende des Beobachtungszeitraums werden `AZURE_SUBSCRIPTION_ID`, `DEMO_RESOURCE_GROUP`, `COST_FROM` und `COST_TO` lokal gesetzt:
 
 ```sh
 export AZURE_SUBSCRIPTION_ID="..."
@@ -105,12 +89,9 @@ az rest --method post \
   | jq '{columns: .properties.columns, rows: .properties.rows}'
 ```
 
-Der Abruf ist trotz HTTP `POST` eine reine Cost-Management-Abfrage. Es werden
-keine `create`, `update`, `delete`, `start`, `stop`, `tofu apply` oder
-Infrastruktur-Workflows ausgeführt. Der Prüfdatensatz wird lokal mit
-folgenden Feldern abgelegt, ohne Subscription-ID, vollständige Resource IDs,
-E-Mail-Adressen, Tokens oder andere sensible Abrechnungsdetails in GitHub zu
-veröffentlichen:
+Der Abruf ist trotz HTTP `POST` eine reine Cost-Management-Abfrage.
+Es werden keine `create`, `update`, `delete`, `start`, `stop`, `tofu apply` oder Infrastruktur-Workflows ausgeführt.
+Der Prüfdatensatz wird lokal mit folgenden Feldern abgelegt, ohne Subscription-ID, vollständige Resource IDs, E-Mail-Adressen, Tokens oder andere sensible Abrechnungsdetails in GitHub zu veröffentlichen:
 
 - Zeitraum `COST_FROM` bis `COST_TO` und Abrufzeitpunkt in UTC,
 - Resource Group beziehungsweise anonymisierte Ressource/Meter,
@@ -118,26 +99,19 @@ veröffentlichen:
 - angewendete Umrechnung in EUR, falls die Subscription nicht in EUR abrechnet,
 - verwendeter Commit beziehungsweise Baseline-Stand.
 
-Die Resource- und Meterzeilen werden mit der Tabelle oben verglichen. Eine
-Ressource, ein Meter oder eine Währung, die dort nicht enthalten ist, wird
-zuerst aufgeklärt und nicht als Rundungsfehler verworfen.
+Die Resource- und Meterzeilen werden mit der Tabelle oben verglichen.
+Eine Ressource, ein Meter oder eine Währung, die dort nicht enthalten ist, wird zuerst aufgeklärt und nicht als Rundungsfehler verworfen.
 
 ## Verzögerter Abschluss und Abweichungen
 
-Der abschließende Abgleich erfolgt erst, wenn die entfernten Kostenpfade
-vollständig aus der Abrechnung abgeklungen sind und der Beobachtungsmonat
-abgeschlossen ist. Cost Management kann für Pay-as-you-go-Abonnements bis zu
-72 Stunden verzögert sein; nach Monatsende können Abschluss und Nachberechnung
-bis zum fünften Kalendertag dauern. Deshalb wird frühestens am sechsten
-Kalendertag nach `COST_TO` geprüft und bei noch offenen Daten erneut gelesen.
-Der Bericht nennt immer den tatsächlich beobachteten Zeitraum und den
-UTC-Abrufzeitpunkt.
+Der abschließende Abgleich erfolgt erst, wenn die entfernten Kostenpfade vollständig aus der Abrechnung abgeklungen sind und der Beobachtungsmonat abgeschlossen ist.
+Cost Management kann für Pay-as-you-go-Abonnements bis zu 72 Stunden verzögert sein; nach Monatsende können Abschluss und Nachberechnung bis zum fünften Kalendertag dauern.
+Deshalb wird frühestens am sechsten Kalendertag nach `COST_TO` geprüft und bei noch offenen Daten erneut gelesen.
+Der Bericht nennt immer den tatsächlich beobachteten Zeitraum und den UTC-Abrufzeitpunkt.
 
-Der normalisierte Monatswert wird gegen 1,00 EUR bewertet. Liegt er darüber,
-wird #467 nicht als erfüllt geschlossen: Die Abweichung wird je Ressource und
-Meter mit Ursache, Zeitraum und weiterem Zielzustand als Issue dokumentiert
-und erst nach einer separaten Planungsentscheidung neu bewertet. Ein
-günstigerer oder älterer Tarif darf die Pflicht zur Aufklärung nicht ersetzen.
+Der normalisierte Monatswert wird gegen 1,00 EUR bewertet.
+Liegt er darüber, wird #467 nicht als erfüllt geschlossen: Die Abweichung wird je Ressource und Meter mit Ursache, Zeitraum und weiterem Zielzustand als Issue dokumentiert und erst nach einer separaten Planungsentscheidung neu bewertet.
+Ein günstigerer oder älterer Tarif darf die Pflicht zur Aufklärung nicht ersetzen.
 
 ## Quellen
 

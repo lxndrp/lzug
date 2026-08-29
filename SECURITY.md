@@ -1,14 +1,12 @@
 # Sicherheitsrichtlinie
 
 lzug ist ein öffentlich entwickeltes Projekt mit versionierten Vorab-Releases.
-Die automatisierten Security-Prüfungen und die unterstützten Stände begründen
-keine Zusicherung für ungeprüfte Installationen oder produktiven Betrieb.
+Die automatisierten Security-Prüfungen und die unterstützten Stände begründen keine Zusicherung für ungeprüfte Installationen oder produktiven Betrieb.
 
 ## Unterstützte Stände
 
-Unterstützt werden der aktuelle Entwicklungsstand und das jüngste
-veröffentlichte Release `v0.3.0`. Für ältere Releases und Commits gibt es keine
-Sicherheitsupdates.
+Unterstützt werden der aktuelle Entwicklungsstand und das jüngste veröffentlichte Release `v0.3.0`.
+Für ältere Releases und Commits gibt es keine Sicherheitsupdates.
 
 | Stand | Unterstützt |
 | --- | --- |
@@ -29,49 +27,41 @@ Eine Meldung sollte, soweit ohne zusätzliche Gefährdung möglich, enthalten:
 - reproduzierbare Schritte oder einen minimalen Nachweis;
 - bekannte Abhilfen oder Randbedingungen.
 
-Sende keine realen Zugangsdaten, Tokens, TOTP-Secrets oder personenbezogenen
-Daten. Verwende ausschließlich synthetische Beispiele.
+Sende keine realen Zugangsdaten, Tokens, TOTP-Secrets oder personenbezogenen Daten.
+Verwende ausschließlich synthetische Beispiele.
 
-Der Maintainer bestätigt Meldungen und stimmt Prüfung, Behebung, Advisory und
-Veröffentlichung nach bestem Vermögen vertraulich ab. Eine feste Reaktions-
-oder Behebungsfrist kann vor dem ersten stabilen Release noch nicht zugesichert
-werden.
+Der Maintainer bestätigt Meldungen und stimmt Prüfung, Behebung, Advisory und Veröffentlichung nach bestem Vermögen vertraulich ab.
+Eine feste Reaktions- oder Behebungsfrist kann vor dem ersten stabilen Release noch nicht zugesichert werden.
 
 ## Technische Baseline
 
 - GitHub Secret Scanning und Push Protection sind aktiviert; Private
-  Vulnerability Reporting ist der verbindliche Meldeweg.
+Vulnerability Reporting ist der verbindliche Meldeweg.
 - CodeQL analysiert Python, JavaScript/TypeScript und Go auf jedem Pull Request.
-  GitHubs native Ruleset-Regel `Require code scanning results` blockiert
-  Security-Befunde ab `high_or_higher`; normale Fehlerwarnungen sind mit
-  `alerts_threshold=none` nicht Teil der Merge-Sperre.
+GitHubs native Ruleset-Regel `Require code scanning results` blockiert Security-Befunde ab `high_or_higher`; normale Fehlerwarnungen sind mit `alerts_threshold=none` nicht Teil der Merge-Sperre.
 - Trivy prüft den Quellbaum auf Secrets/Misconfiguration sowie das tatsächlich
-  gebaute Image auf behebbare High/Critical-Abhängigkeiten, Secrets und
-  Misconfiguration. Ein CycloneDX-SBOM wird als CI-Artefakt erzeugt.
+gebaute Image auf behebbare High/Critical-Abhängigkeiten, Secrets und Misconfiguration.
+Ein CycloneDX-SBOM wird als CI-Artefakt erzeugt.
 - Der Security-Workflow besitzt minimal erforderliche Tokenrechte; sämtliche
-  dort verwendeten Actions sind auf vollständige Commit-SHAs fixiert.
+dort verwendeten Actions sind auf vollständige Commit-SHAs fixiert.
 - Das OCI-Image läuft als UID/GID `10001:10001`, enthält weder Demo-Daten noch
-  Build-Toolchain oder eingebettete Secrets und unterstützt read-only Root-FS,
-  Capability-Drop und `no-new-privileges`.
+Build-Toolchain oder eingebettete Secrets und unterstützt read-only Root-FS, Capability-Drop und `no-new-privileges`.
 - Die HTTP-Runtime erzwingt Session, CSRF, Actor- und Ausschusskontext
-  serverseitig. Unberechtigte Schreibzugriffe liefern 403; lesende Zugriffe auf
-  fremde Ausschussressourcen verbergen deren Existenz mit 404. Health ist
-  Liveness; Ready prüft die Anwendungs- und Datenbankbereitschaft.
+serverseitig.
+Unberechtigte Schreibzugriffe liefern 403; lesende Zugriffe auf fremde Ausschussressourcen verbergen deren Existenz mit 404.
+Health ist Liveness; Ready prüft die Anwendungs- und Datenbankbereitschaft.
 - Security-Header, same-origin CORS, sichere Cookies, Request-/Upload-Limits,
-  Auth-Rate-Limits und secret-freie Access-Logs sind produktive Defaults.
+Auth-Rate-Limits und secret-freie Access-Logs sind produktive Defaults.
 
-Aktuelle Durchsetzung liegt in den Workflows, Dockerfiles, Compose-Datei und
-den Runtime-Konfigurationsmodellen. Ihre Grenzen erläutern die
-[Authentifizierungsarchitektur](docs/developers/architecture/authentication.md)
-und die [OCI-Runtime](docs/developers/architecture/oci-runtime.md); die
-langfristigen Entscheidungen stehen in den ADRs.
+Aktuelle Durchsetzung liegt in den Workflows, Dockerfiles, Compose-Datei und den Runtime-Konfigurationsmodellen.
+Ihre Grenzen erläutern die [Authentifizierungsarchitektur](docs/developers/architecture/authentication.md) und die [OCI-Runtime](docs/developers/architecture/oci-runtime.md); die langfristigen Entscheidungen stehen in den ADRs.
 
 ## Sicherheitsgrenzen
 
 - Kontenpflege erfolgt ausschließlich über die lokale Betreiber-CLI; es gibt
-  keinen Netzwerk-Admin-Endpunkt und keinen direkten SQLite-Zugriff der Go-CLI.
+keinen Netzwerk-Admin-Endpunkt und keinen direkten SQLite-Zugriff der Go-CLI.
 - Betreiberidentität verleiht keine fachliche Ausschussrolle.
 - Passkeys und OIDC sind nicht Bestandteil dieser Baseline und bleiben die
-  getrennten Ausbaustufen #267 und #268.
+getrennten Ausbaustufen #267 und #268.
 - Demo- und Testdaten müssen synthetisch bleiben. lzug ist keine offizielle
-  Anwendung oder Veröffentlichung einer IHK.
+Anwendung oder Veröffentlichung einer IHK.
