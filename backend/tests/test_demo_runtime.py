@@ -7,10 +7,18 @@ from datetime import timedelta
 from http import HTTPStatus
 from pathlib import Path
 
-from backend.auth import AuthenticationRepository
+from backend.app import ForbiddenRequestError
+from backend.auth import AuthContext, AuthenticationRepository
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler, assert_status
 from demo.contract import RUNTIME_CONTRACT, canonical_digest, demo_identity
-from demo.runtime_policy import DemoRuntimePolicy
+from demo.runtime_policy import (
+    DEMO_MATRIX_VERSION,
+    DEMO_MUTATION_MATRIX,
+    DEMO_READ_MATRIX,
+    DEMO_ROLES,
+    ROLE_CAPABILITIES,
+    DemoRuntimePolicy,
+)
 
 
 class DemoTestHandler(TestLzugHandler):
@@ -83,6 +91,7 @@ class DemoRuntimeTests(unittest.TestCase):
             self.assertEqual("2026-08-14T01:00:00+00:00", payload["initialized_at"])
             self.assertEqual("2026-08-14T01:00:00+00:00", payload["last_reset_at"])
             self.assertEqual("scheduled", payload["reset_status"])
+            self.assertEqual(DEMO_MATRIX_VERSION, payload["demo_matrix_version"])
             self.assertNotIn("snapshot_sha256", payload)
 
             status, created = api.request(
@@ -105,8 +114,17 @@ class DemoRuntimeTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertEqual("examiner", session["demo_role"])
             self.assertEqual(
-                ["attendance:write-own", "availability:write-own"], session["capabilities"]
+                [
+                    "absence:read-own",
+                    "attendance:write-own",
+                    "availability:write-own",
+                    "calendar:read-own",
+                    "exam-half-years:read",
+                    "notifications:read-own",
+                ],
+                session["capabilities"],
             )
+            self.assertEqual(DEMO_MATRIX_VERSION, session["demo_matrix_version"])
 
             status, error = api.request(
                 "POST",
@@ -126,19 +144,23 @@ class DemoRuntimeTests(unittest.TestCase):
             chair = AuthenticationRepository(db_path).create_session(1)
             examiner = AuthenticationRepository(db_path).create_session(2)
 
-            status, _body = api.request(
-                "POST",
-                "/api/candidates",
-                {
-                    "first_name": "Prüfling",
-                    "last_name": "Neu",
-                    "ihk_exam_number": "TEST-NEW",
-                    "specialization": "application_development",
-                    "training_company": "Testbetrieb",
-                },
-                credentials=chair,
+            denied_requests = (
+                ("POST", "/api/candidate-exam-days", {"date": "2026-12-01"}),
+                ("PATCH", "/api/candidate-exam-days/1", {"is_active": 0}),
+                ("POST", "/api/exam-half-years", {"season": "summer", "year": 2027}),
+                ("PATCH", "/api/exam-half-years/1", {"status": "completed"}),
+                ("POST", "/api/exam-rounds", {"exam_half_year_id": 1, "committee_id": 1}),
+                ("POST", "/api/push-subscriptions", {"endpoint": "https://example.invalid"}),
+                ("POST", "/api/calendar/feed", {"rotate": False}),
+                ("DELETE", "/api/calendar/feed", None),
+                ("POST", "/api/absence-reports", {"exam_day_assignment_id": 1}),
+                ("PATCH", "/api/replacement-responses/1", {"response": "available"}),
             )
-            assert_status(status, HTTPStatus.FORBIDDEN)
+            for credentials in (chair, examiner):
+                for method, path, payload in denied_requests:
+                    with self.subTest(account_id=credentials.account_id, method=method, path=path):
+                        status, _body = api.request(method, path, payload, credentials=credentials)
+                        assert_status(status, HTTPStatus.FORBIDDEN)
 
             status, _body = api.request(
                 "PATCH",
@@ -148,8 +170,56 @@ class DemoRuntimeTests(unittest.TestCase):
             )
             assert_status(status, HTTPStatus.FORBIDDEN)
 
-            status, _body = api.request("DELETE", "/api/candidates/1", credentials=chair)
-            assert_status(status, HTTPStatus.FORBIDDEN)
+    def test_matrix_contracts_align_visibility_capabilities_and_allowlist(self) -> None:
+        names = [contract.name for contract in (*DEMO_READ_MATRIX, *DEMO_MUTATION_MATRIX)]
+        self.assertEqual(len(names), len(set(names)))
+
+        contexts = {
+            role: AuthContext(
+                session_id=index,
+                account_id=identity["account_id"],
+                person_id=identity["person_id"],
+                is_operator=False,
+                committee_member_id=identity["person_id"],
+            )
+            for index, (role, identity) in enumerate(DEMO_ROLES.items(), start=1)
+        }
+        policy = DemoTestHandler.runtime_policy
+
+        for contract in DEMO_READ_MATRIX:
+            with self.subTest(contract=contract.name):
+                self.assertTrue(contract.allowed)
+                self.assertTrue(contract.visible)
+                self.assertTrue(contract.domain_authorization)
+                for role in contract.roles:
+                    self.assertIn(contract.capability, ROLE_CAPABILITIES[role])
+
+        for contract in DEMO_MUTATION_MATRIX:
+            sample_parts = [
+                "1" if part.startswith("{") else part
+                for part in contract.path_pattern.strip("/").split("/")
+            ]
+            with self.subTest(contract=contract.name):
+                self.assertTrue(contract.ui_action)
+                self.assertTrue(contract.domain_authorization)
+                self.assertEqual(contract.allowed, contract.visible)
+                for role in contract.roles:
+                    context = contexts[role]
+                    if contract.allowed:
+                        self.assertIn(contract.capability, ROLE_CAPABILITIES[role])
+                        policy.authorize_mutation(
+                            object(), contract.method, sample_parts, context  # type: ignore[arg-type]
+                        )
+                        with self.assertRaises(ForbiddenRequestError):
+                            policy.authorize_mutation(
+                                object(), "DELETE", sample_parts, context  # type: ignore[arg-type]
+                            )
+                    else:
+                        self.assertNotIn(contract.capability, ROLE_CAPABILITIES[role])
+                        with self.assertRaises(ForbiddenRequestError):
+                            policy.authorize_mutation(
+                                object(), contract.method, sample_parts, context  # type: ignore[arg-type]
+                            )
 
     def test_approved_own_and_chair_writes_still_use_domain_authorization(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path, DemoTestHandler) as api:

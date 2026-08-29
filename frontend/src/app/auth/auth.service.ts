@@ -14,6 +14,7 @@ export type AuthSession = {
   demo_role?: 'chair' | 'examiner';
   display_name?: string;
   capabilities?: string[];
+  demo_matrix_version?: string;
 };
 
 export type AuthPreparation = {
@@ -36,6 +37,11 @@ export class AuthService {
 
   readonly state = signal<AuthState>('checking');
   readonly session = signal<AuthSession | null>(null);
+
+  hasCapability(capability: string): boolean {
+    const capabilities = this.session()?.capabilities;
+    return capabilities === undefined || capabilities.includes(capability);
+  }
 
   initialize() {
     if (this.state() !== 'checking') return of(this.state() === 'authenticated');

@@ -12,6 +12,7 @@ import {
   NotificationProblem,
 } from '../api/api.models';
 import { PlanningApiService } from '../api/planning-api.service';
+import { AuthService } from '../auth/auth.service';
 
 @Component({
   selector: 'app-notifications',
@@ -21,6 +22,7 @@ import { PlanningApiService } from '../api/planning-api.service';
 })
 export class NotificationsComponent implements OnInit {
   private readonly api = inject(PlanningApiService);
+  private readonly auth = inject(AuthService);
 
   protected readonly notifications = signal<NotificationItem[]>([]);
   protected readonly problems = signal<NotificationProblem[]>([]);
@@ -58,7 +60,7 @@ export class NotificationsComponent implements OnInit {
   }
 
   protected activateCalendar(rotate = false): void {
-    if (this.calendarBusy()) return;
+    if (!this.canManageCalendarFeed() || this.calendarBusy()) return;
     if (
       rotate &&
       !window.confirm('Der bisherige Kalenderzugang wird sofort ungültig. Fortfahren?')
@@ -82,7 +84,7 @@ export class NotificationsComponent implements OnInit {
   }
 
   protected revokeCalendar(): void {
-    if (this.calendarBusy()) return;
+    if (!this.canManageCalendarFeed() || this.calendarBusy()) return;
     if (!window.confirm('Der Kalenderzugang wird sofort ungültig. Fortfahren?')) return;
     this.calendarBusy.set(true);
     this.calendarMessage.set(null);
@@ -110,6 +112,7 @@ export class NotificationsComponent implements OnInit {
 
   protected canEnablePush(): boolean {
     return (
+      this.canManagePush() &&
       this.channels()?.web_push.available === true &&
       typeof navigator !== 'undefined' &&
       'serviceWorker' in navigator &&
@@ -145,6 +148,14 @@ export class NotificationsComponent implements OnInit {
     } finally {
       this.pushBusy.set(false);
     }
+  }
+
+  protected canManagePush(): boolean {
+    return this.auth.hasCapability('push:manage-own');
+  }
+
+  protected canManageCalendarFeed(): boolean {
+    return this.auth.hasCapability('calendar:feed-manage-own');
   }
 
   protected statusLabel(status: NotificationProblem['status']): string {

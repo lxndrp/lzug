@@ -45,6 +45,22 @@ describe('AbsenceReportsComponent', () => {
     expect(element.querySelectorAll('button')).toHaveLength(2);
   });
 
+  it('keeps pending replacement responses read-only without the demo capability', () => {
+    TestBed.inject(AuthService).session.update((session) => ({
+      ...session!,
+      demo_role: 'examiner',
+      capabilities: ['absence:read-own'],
+    }));
+    const fixture = TestBed.createComponent(AbsenceReportsComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/absence-reports').flush({ items: [report()], _links: {} });
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).toContain('für diese Demo-Rolle read-only');
+    expect(element.querySelectorAll('button')).toHaveLength(0);
+  });
+
   it('persists an available answer and updates the report', () => {
     const fixture = TestBed.createComponent(AbsenceReportsComponent);
     fixture.detectChanges();
