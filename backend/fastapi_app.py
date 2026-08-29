@@ -134,6 +134,16 @@ MIGRATED_DOMAIN_RESOURCES = (
     "member-availabilities",
 )
 
+# #476 moves the complete planning aggregate as one transport slice.  The
+# aggregate's persistence and revision rules deliberately remain in the
+# synchronous planning and repository services behind the reference handler.
+MIGRATED_PLANNING_RESOURCES = (
+    "candidate-exam-days",
+    "exam-days",
+    "exam-slots",
+    "exam-day-assignments",
+)
+
 
 _DOMAIN_READ_ERRORS = {
     401: {"model": ErrorResponse},
@@ -667,6 +677,103 @@ def create_app(
     def frontend_error(request: Request, body: bytes = Depends(_request_body)) -> Response:
         return _legacy_route_response(LegacyReferenceHandler, request, body)
 
+    # Planning and execution operations keep their aggregate transaction,
+    # optimistic revision, authorization, and best-effort integration behavior
+    # in the existing services while FastAPI owns route matching and OpenAPI.
+    def planning_read(request: Request) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request)
+
+    def planning_write(request: Request, body: bytes = Depends(_request_body)) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request, body)
+
+    planning_read_extra = {"security": [{"sessionCookie": []}]}
+    planning_proposal_read_errors = {**_DOMAIN_READ_ERRORS, 409: {"model": ErrorResponse}}
+    planning_write_extra = {
+        "security": [{"sessionCookie": [], "csrfHeader": []}],
+        "requestBody": {
+            "required": True,
+            "content": {"application/json": {"schema": DomainResourceWrite.model_json_schema()}},
+        },
+    }
+
+    for path, response_model in (
+        ("/api/scheduling-overview", DomainCollectionResponse),
+        ("/api/confirmed-plans", DomainCollectionResponse),
+        ("/api/confirmed-plan-days/{id}", DomainResourceResponse),
+    ):
+        app.add_api_route(
+            path,
+            planning_read,
+            methods=["GET"],
+            response_model=response_model,
+            responses=_DOMAIN_READ_ERRORS,
+            openapi_extra=planning_read_extra,
+        )
+
+    app.add_api_route(
+        "/api/planning-proposals",
+        planning_write,
+        methods=["POST"],
+        status_code=HTTPStatus.CREATED,
+        response_model=DomainResourceResponse,
+        responses=_DOMAIN_WRITE_ERRORS,
+        openapi_extra=planning_write_extra,
+    )
+    app.add_api_route(
+        "/api/candidate-exam-days/generate",
+        planning_write,
+        methods=["POST"],
+        response_model=DomainResourceResponse,
+        responses=_DOMAIN_WRITE_ERRORS,
+        openapi_extra=planning_write_extra,
+    )
+    app.add_api_route(
+        "/api/exam-rounds/{id}/planning-proposal",
+        planning_read,
+        methods=["GET"],
+        response_model=DomainResourceResponse,
+        responses=planning_proposal_read_errors,
+        openapi_extra=planning_read_extra,
+    )
+    app.add_api_route(
+        "/api/exam-rounds/{id}/planning-proposal",
+        planning_write,
+        methods=["PUT"],
+        response_model=DomainResourceResponse,
+        responses=_DOMAIN_WRITE_ERRORS,
+        openapi_extra=planning_write_extra,
+    )
+    app.add_api_route(
+        "/api/exam-rounds/{id}/confirm-plan",
+        planning_write,
+        methods=["POST"],
+        response_model=DomainResourceResponse,
+        responses=_DOMAIN_WRITE_ERRORS,
+        openapi_extra=planning_write_extra,
+    )
+
+    for path in (
+        "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/attendance",
+        "/api/confirmed-plan-days/{day_id}/assignments/{assignment_id}/attendance",
+        "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/status",
+    ):
+        app.add_api_route(
+            path,
+            planning_write,
+            methods=["PATCH"],
+            response_model=DomainResourceResponse,
+            responses=_DOMAIN_WRITE_ERRORS,
+            openapi_extra=planning_write_extra,
+        )
+    app.add_api_route(
+        "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/start",
+        planning_write,
+        methods=["POST"],
+        response_model=DomainResourceResponse,
+        responses=_DOMAIN_WRITE_ERRORS,
+        openapi_extra=planning_write_extra,
+    )
+
     # Generic domain validation, authorization, transaction handling, and HAL
     # assembly stay in the repository-backed reference handler while this slice
     # owns the FastAPI route matching and generated OpenAPI fragments.
@@ -733,6 +840,56 @@ def create_app(
             responses=_DOMAIN_WRITE_ERRORS,
             openapi_extra={"security": [{"sessionCookie": [], "csrfHeader": []}]},
         )
+
+    for resource_name in MIGRATED_PLANNING_RESOURCES:
+        collection_path = f"/api/{resource_name}"
+        item_path = f"{collection_path}/{{id}}"
+        app.add_api_route(
+            collection_path,
+            planning_read,
+            methods=["GET"],
+            response_model=DomainCollectionResponse,
+            responses=_DOMAIN_READ_ERRORS,
+            openapi_extra=planning_read_extra,
+        )
+        app.add_api_route(
+            item_path,
+            planning_read,
+            methods=["GET"],
+            response_model=DomainResourceResponse,
+            responses=_DOMAIN_READ_ERRORS,
+            openapi_extra=planning_read_extra,
+        )
+        if resource_name == "candidate-exam-days":
+            app.add_api_route(
+                collection_path,
+                planning_write,
+                methods=["POST"],
+                response_model=DomainResourceResponse,
+                responses={
+                    **_DOMAIN_WRITE_ERRORS,
+                    200: {"model": DomainResourceResponse},
+                    201: {"model": DomainResourceResponse},
+                },
+                openapi_extra=planning_write_extra,
+            )
+            app.add_api_route(
+                item_path,
+                planning_write,
+                methods=["PATCH"],
+                response_model=DomainResourceResponse,
+                responses={**_DOMAIN_WRITE_ERRORS, 200: {"model": DomainResourceResponse}},
+                openapi_extra=planning_write_extra,
+            )
+            app.add_api_route(
+                item_path,
+                planning_write,
+                methods=["DELETE"],
+                status_code=HTTPStatus.NO_CONTENT,
+                response_model=None,
+                responses=_DOMAIN_WRITE_ERRORS,
+                openapi_extra={"security": [{"sessionCookie": [], "csrfHeader": []}]},
+            )
 
     for path, response_model in (
         ("/api/candidate-committee-assignments", DomainCollectionResponse),

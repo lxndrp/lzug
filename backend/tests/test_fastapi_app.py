@@ -14,7 +14,12 @@ from fastapi.testclient import TestClient
 
 from backend.application import ApplicationServices
 from backend.auth import AuthenticationRepository, SessionCredentials
-from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES, FastAPIConfig, create_app
+from backend.fastapi_app import (
+    MIGRATED_DOMAIN_RESOURCES,
+    MIGRATED_PLANNING_RESOURCES,
+    FastAPIConfig,
+    create_app,
+)
 from backend.openapi import spec as reference_openapi
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
 
@@ -190,10 +195,23 @@ class FastAPIApplicationTests(unittest.TestCase):
         }
         for resource_name in MIGRATED_DOMAIN_RESOURCES:
             expected.update({f"/api/{resource_name}", f"/api/{resource_name}/{{id}}"})
+        for resource_name in MIGRATED_PLANNING_RESOURCES:
+            expected.update({f"/api/{resource_name}", f"/api/{resource_name}/{{id}}"})
         expected.update(
             {
                 "/api/candidate-committee-assignments",
                 "/api/candidate-committee-assignments/{id}",
+                "/api/scheduling-overview",
+                "/api/confirmed-plans",
+                "/api/confirmed-plan-days/{id}",
+                "/api/planning-proposals",
+                "/api/candidate-exam-days/generate",
+                "/api/exam-rounds/{id}/planning-proposal",
+                "/api/exam-rounds/{id}/confirm-plan",
+                "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/attendance",
+                "/api/confirmed-plan-days/{day_id}/assignments/{assignment_id}/attendance",
+                "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/status",
+                "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/start",
             }
         )
         self.assertEqual(expected, set(endpoints))
@@ -225,10 +243,23 @@ class FastAPIApplicationTests(unittest.TestCase):
         }
         for resource_name in MIGRATED_DOMAIN_RESOURCES:
             migrated.update({f"/api/{resource_name}", f"/api/{resource_name}/{{id}}"})
+        for resource_name in MIGRATED_PLANNING_RESOURCES:
+            migrated.update({f"/api/{resource_name}", f"/api/{resource_name}/{{id}}"})
         migrated.update(
             {
                 "/api/candidate-committee-assignments",
                 "/api/candidate-committee-assignments/{id}",
+                "/api/scheduling-overview",
+                "/api/confirmed-plans",
+                "/api/confirmed-plan-days/{id}",
+                "/api/planning-proposals",
+                "/api/candidate-exam-days/generate",
+                "/api/exam-rounds/{id}/planning-proposal",
+                "/api/exam-rounds/{id}/confirm-plan",
+                "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/attendance",
+                "/api/confirmed-plan-days/{day_id}/assignments/{assignment_id}/attendance",
+                "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/status",
+                "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/start",
             }
         )
         self.assertTrue(migrated <= set(generated["paths"]))
@@ -236,7 +267,7 @@ class FastAPIApplicationTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertIn(path, reference["paths"])
                 for method in reference["paths"][path]:
-                    if method in {"get", "post", "patch", "delete"}:
+                    if method in {"get", "post", "put", "patch", "delete"}:
                         actual = generated["paths"][path][method]
                         expected = reference["paths"][path][method]
                         self.assertIn(method, generated["paths"][path])
