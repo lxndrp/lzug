@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
+from datetime import timedelta
 from http import HTTPStatus
+from io import BytesIO
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.concurrency import run_in_threadpool
 
+from .app import LzugHandler
 from .application import (
     ApplicationResult,
     ApplicationServices,
@@ -19,7 +25,8 @@ from .application import (
     database_error_result,
 )
 from .database import database_path
-from .security import RuntimeSecurityConfig
+from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
+from .security import RequestRateLimiter, RuntimeSecurityConfig
 
 
 @dataclass(frozen=True)
@@ -28,6 +35,14 @@ class FastAPIConfig:
 
     db_path: Path
     session_cookie_name: str
+    csrf_cookie_name: str = "lzug_csrf"
+    cookie_secure: bool = True
+    https_only: bool = True
+    cors_allowed_origins: frozenset[str] = frozenset()
+    max_request_bytes: int = 1024 * 1024
+    session_ttl: timedelta = timedelta(hours=8)
+    static_dir: Path | None = None
+    runtime_policy: RuntimePolicy = ProductRuntimePolicy()
 
     @classmethod
     def from_environment(cls) -> FastAPIConfig:
@@ -36,6 +51,14 @@ class FastAPIConfig:
         return cls(
             db_path=database_path(),
             session_cookie_name=("__Host-lzug_session" if security.https_only else "lzug_session"),
+            cookie_secure=security.https_only,
+            https_only=security.https_only,
+            cors_allowed_origins=security.cors_allowed_origins,
+            max_request_bytes=security.max_request_bytes,
+            session_ttl=security.session_ttl,
+            static_dir=(
+                Path(os.environ["LZUG_STATIC_DIR"]) if os.environ.get("LZUG_STATIC_DIR") else None
+            ),
         )
 
 
@@ -43,15 +66,230 @@ def _json_response(result: ApplicationResult) -> JSONResponse:
     return JSONResponse(
         content=result.payload,
         status_code=int(result.status),
-        headers={"Cache-Control": "no-store"},
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Type": "application/json; charset=utf-8",
+        },
     )
+
+
+def _security_headers(config: FastAPIConfig, request: Request) -> dict[str, str]:
+    headers = {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "no-referrer",
+        "Permissions-Policy": "camera=(), geolocation=(), microphone=()",
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Resource-Policy": "same-origin",
+        "X-Permitted-Cross-Domain-Policies": "none",
+        "Content-Security-Policy": (
+            "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; "
+            "form-action 'self'; object-src 'none'; script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; font-src 'self' data:; "
+            "img-src 'self' data:; connect-src 'self'"
+        ),
+    }
+    if config.https_only:
+        headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    origin = request.headers.get("Origin")
+    if origin in config.cors_allowed_origins:
+        headers.update(
+            {
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+                "Vary": "Origin",
+            }
+        )
+    return headers
+
+
+def _normalized_authority(value: str, *, scheme: str | None = None) -> tuple[str, str, int] | None:
+    try:
+        parsed = urlparse(value if scheme is None else f"{scheme}://{value}")
+        port = parsed.port
+    except ValueError:
+        return None
+    expected_scheme = parsed.scheme if scheme is None else scheme
+    allowed_paths = {"", "/"} if scheme is not None else {""}
+    if (
+        expected_scheme not in {"http", "https"}
+        or parsed.hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in allowed_paths
+        or parsed.params
+        or parsed.query
+        or parsed.fragment
+    ):
+        return None
+    return (
+        expected_scheme,
+        parsed.hostname.lower(),
+        port or (443 if expected_scheme == "https" else 80),
+    )
+
+
+def _same_origin(request: Request, origin: str) -> bool:
+    origin_authority = _normalized_authority(origin)
+    if origin_authority is None:
+        return False
+    scheme, hostname, port = origin_authority
+    host_authority = _normalized_authority(request.headers.get("Host", ""), scheme=scheme)
+    return host_authority == (scheme, hostname, port)
+
+
+def _is_api_path(path: str) -> bool:
+    return path == "/api" or path.startswith("/api/")
+
+
+async def _transport_guard(request: Request, call_next, config: FastAPIConfig) -> Response:
+    origin = request.headers.get("Origin")
+    cross_origin = (
+        origin is not None
+        and not _same_origin(request, origin)
+        and origin not in config.cors_allowed_origins
+    )
+    if cross_origin:
+        response = _json_response(
+            ApplicationResult(
+                {"error": "Cross-origin request is not allowed."},
+                HTTPStatus.FORBIDDEN,
+            )
+        )
+    elif request.method == "OPTIONS":
+        if not _is_api_path(request.url.path) or not origin:
+            response = _json_response(
+                ApplicationResult({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+            )
+        elif origin not in config.cors_allowed_origins and not _same_origin(request, origin):
+            response = _json_response(
+                ApplicationResult(
+                    {"error": "Cross-origin request is not allowed."},
+                    HTTPStatus.FORBIDDEN,
+                )
+            )
+        else:
+            response = Response(status_code=HTTPStatus.NO_CONTENT)
+            response.headers.update(
+                {
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, X-CSRF-Token",
+                    "Access-Control-Max-Age": "600",
+                }
+            )
+    else:
+        if request.headers.get("Transfer-Encoding"):
+            response = _json_response(
+                ApplicationResult(
+                    {"error": "Transfer-Encoding is not supported"}, HTTPStatus.BAD_REQUEST
+                )
+            )
+        else:
+            content_length = request.headers.get("Content-Length")
+            if content_length is not None:
+                try:
+                    length = int(content_length)
+                except ValueError:
+                    response = _json_response(
+                        ApplicationResult(
+                            {"error": "Invalid Content-Length"}, HTTPStatus.BAD_REQUEST
+                        )
+                    )
+                else:
+                    if length < 0:
+                        response = _json_response(
+                            ApplicationResult(
+                                {"error": "Invalid Content-Length"}, HTTPStatus.BAD_REQUEST
+                            )
+                        )
+                    elif length > config.max_request_bytes:
+                        response = _json_response(
+                            ApplicationResult(
+                                {
+                                    "error": (
+                                        f"Request body exceeds {config.max_request_bytes} bytes."
+                                    )
+                                },
+                                HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                            )
+                        )
+                    else:
+                        response = await call_next(request)
+            else:
+                response = await call_next(request)
+
+    for name, value in _security_headers(config, request).items():
+        if name.lower() not in response.headers:
+            response.headers[name] = value
+    if "cache-control" not in response.headers:
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+class _BridgeSocket:
+    def __init__(self, request: bytes):
+        self.input = BytesIO(request)
+        self.output = BytesIO()
+
+    def makefile(self, mode: str, *_args, **_kwargs):
+        return self.input if "r" in mode else self.output
+
+    def sendall(self, data: bytes) -> None:
+        self.output.write(data)
+
+
+class _BridgeServer:
+    server_name = "127.0.0.1"
+    server_port = 80
+
+
+def _legacy_response(handler_type: type[LzugHandler], request: Request, body: bytes) -> Response:
+    raw_path = request.scope.get("raw_path", request.url.path.encode("ascii"))
+    query = request.scope.get("query_string", b"")
+    target = raw_path + (b"?" + query if query else b"")
+    header_lines = []
+    for name, value in request.headers.raw:
+        header_lines.append(name + b": " + value + b"\r\n")
+    if body and not request.headers.get("Content-Length"):
+        header_lines.append(f"Content-Length: {len(body)}\r\n".encode("ascii"))
+    raw_request = (
+        request.method.encode("ascii")
+        + b" "
+        + target
+        + b" HTTP/1.1\r\n"
+        + b"".join(header_lines)
+        + b"\r\n"
+        + body
+    )
+    socket = _BridgeSocket(raw_request)
+    handler_type(socket, ("127.0.0.1", 12345), _BridgeServer())
+    raw_response = socket.output.getvalue()
+    header_bytes, _, response_body = raw_response.partition(b"\r\n\r\n")
+    status_line, _, header_block = header_bytes.partition(b"\r\n")
+    status = int(status_line.split()[1])
+    response = Response(content=response_body, status_code=status)
+    response_headers = []
+    for header_line in header_block.split(b"\r\n"):
+        if b":" not in header_line:
+            continue
+        name, value = header_line.split(b":", 1)
+        if name.lower() != b"content-length":
+            response_headers.append((name.lower(), value.lstrip()))
+    response.raw_headers = response_headers
+    return response
+
+
+async def _read_body(request: Request) -> bytes:
+    return await request.body()
 
 
 def create_app(
     config: FastAPIConfig | None = None,
     services: ApplicationServices | None = None,
+    *,
+    include_legacy_routes: bool = False,
 ) -> FastAPI:
-    """Create the explicitly started synchronous FastAPI migration core."""
+    """Create the synchronous migration core with an optional legacy route bridge."""
     resolved_config = config or FastAPIConfig.from_environment()
     application = ReadApplication(resolved_config.db_path, services)
     app = FastAPI(
@@ -61,6 +299,10 @@ def create_app(
         openapi_url=None,
     )
     app.state.lzug_config = resolved_config
+
+    @app.middleware("http")
+    async def transport_guard(request: Request, call_next):
+        return await _transport_guard(request, call_next, resolved_config)
 
     @app.exception_handler(AuthenticationRequiredError)
     def authentication_required(
@@ -110,5 +352,31 @@ def create_app(
             request.cookies.get(resolved_config.session_cookie_name)
         )
         return _json_response(application.round_summary(scope, round_id))
+
+    if include_legacy_routes:
+
+        class LegacyFallbackHandler(LzugHandler):
+            db_path = resolved_config.db_path
+            static_dir = resolved_config.static_dir
+            cookie_secure = resolved_config.cookie_secure
+            https_only = resolved_config.https_only
+            session_cookie_name = resolved_config.session_cookie_name
+            csrf_cookie_name = resolved_config.csrf_cookie_name
+            cors_allowed_origins = resolved_config.cors_allowed_origins
+            session_ttl = resolved_config.session_ttl
+            max_request_bytes = resolved_config.max_request_bytes
+            auth_rate_limiter = RequestRateLimiter(20, timedelta(minutes=1))
+            observability_rate_limiter = RequestRateLimiter(30, timedelta(minutes=1))
+            observability_global_rate_limiter = RequestRateLimiter(120, timedelta(minutes=1))
+            runtime_policy = resolved_config.runtime_policy
+
+        @app.api_route(
+            "/{path:path}",
+            methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"],
+            include_in_schema=False,
+        )
+        async def legacy_route(request: Request) -> Response:
+            body = await _read_body(request)
+            return await run_in_threadpool(_legacy_response, LegacyFallbackHandler, request, body)
 
     return app
