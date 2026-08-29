@@ -30,13 +30,9 @@ Sie erklären die gewählte Richtung, nicht deren aktuelle Endpunkt-, Feld- oder
 
 ## Fachliche und technische Grenzen
 
-Die [Backend-Übersicht](backend.md) ordnet die produktiven Services ihren
-Schichten zu. [Authentifizierung](authentication.md),
-[Benachrichtigungen](notifications.md), der
-[Ausfall- und Ersatzprozess](absence-replacement.md) und die
-[Prüfungsprotokolle](exam-protocols.md) beschreiben die
-fachlichen Verantwortungsgrenzen. Das [fachliche Datenmodell](../domain-model.md)
-erläutert Begriffe, Aggregate und Invarianten; es ersetzt kein Schema.
+Die [Backend-Übersicht](backend.md) ordnet die produktiven Services ihren Schichten zu.
+[Authentifizierung](authentication.md), [Benachrichtigungen](notifications.md), der [Ausfall- und Ersatzprozess](absence-replacement.md), die [Prüfungsprotokolle](exam-protocols.md) sowie [Bewertungen und Ergebnisse](exam-results.md) beschreiben die fachlichen Verantwortungsgrenzen.
+Das [fachliche Datenmodell](../domain-model.md) erläutert Begriffe, Aggregate und Invarianten; es ersetzt kein Schema.
 
 Die [Frontend-Richtlinie](../frontend-guidelines.md) beschreibt die Angular-Grenze und die Qualitätsmaßstäbe.
 Die [OCI-Runtime](oci-runtime.md) erläutert die Instanz-, Persistenz- und Sicherheitsgrenze für die Auslieferung.

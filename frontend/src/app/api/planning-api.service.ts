@@ -44,6 +44,7 @@ import {
   ExamProtocol,
   ExamProtocolDeclaration,
   ExamProtocolEntryCategory,
+  ExamResult,
 } from './api.models';
 import { RoundContextService } from './round-context.service';
 
@@ -274,6 +275,166 @@ export class PlanningApiService {
     });
   }
 
+  getExamResult(dayId: number, slotId: number) {
+    return this.http.get<ExamResult>(`/api/confirmed-plan-days/${dayId}/slots/${slotId}/result`);
+  }
+
+  saveIndividualAssessment(
+    resultId: number,
+    version: number,
+    componentKey: string,
+    criterionKey: string,
+    rawPoints: string,
+    rationale: string,
+    submitted: boolean,
+    changeReason?: string,
+  ) {
+    return this.http.post<ExamResult>(`/api/exam-results/${resultId}/individual-assessments`, {
+      version,
+      component_key: componentKey,
+      criterion_key: criterionKey,
+      raw_points: rawPoints,
+      rationale: rationale.trim() || null,
+      submitted,
+      ...(changeReason?.trim() ? { change_reason: changeReason.trim() } : {}),
+    });
+  }
+
+  withdrawIndividualAssessment(
+    resultId: number,
+    version: number,
+    assessmentId: number,
+    reason: string,
+  ) {
+    return this.http.post<ExamResult>(
+      `/api/exam-results/${resultId}/individual-assessments/${assessmentId}/withdraw`,
+      { version, reason: reason.trim() },
+    );
+  }
+
+  discloseAssessments(resultId: number, version: number, componentKey: string) {
+    return this.http.post<ExamResult>(`/api/exam-results/${resultId}/disclosures`, {
+      version,
+      component_key: componentKey,
+    });
+  }
+
+  determineComponent(
+    resultId: number,
+    version: number,
+    componentKey: string,
+    points: string,
+    rationale: string,
+    participants: number[],
+    dissent: Array<{ member_id: number; statement: string }>,
+  ) {
+    return this.http.post<ExamResult>(`/api/exam-results/${resultId}/committee-assessments`, {
+      version,
+      component_key: componentKey,
+      points,
+      rationale: rationale.trim() || null,
+      participant_member_ids: participants,
+      vote: { yes: participants, no: [], abstain: [] },
+      dissent,
+    });
+  }
+
+  recordExternalResult(
+    resultId: number,
+    version: number,
+    payload: {
+      area_key: string;
+      points: string;
+      grade?: string;
+      professional_status: string;
+      determining_authority: string;
+      source_reference: string;
+      correction_reason?: string;
+    },
+  ) {
+    return this.http.post<ExamResult>(`/api/exam-results/${resultId}/external-results`, {
+      version,
+      ...payload,
+    });
+  }
+
+  confirmExternalResult(resultId: number, version: number, externalResultId: number) {
+    return this.http.post<ExamResult>(
+      `/api/exam-results/${resultId}/external-results/${externalResultId}/confirm`,
+      { version },
+    );
+  }
+
+  determineExamResult(
+    resultId: number,
+    version: number,
+    participants: number[],
+    dissent: Array<{ member_id: number; statement: string }>,
+  ) {
+    return this.http.post<ExamResult>(`/api/exam-results/${resultId}/determine`, {
+      version,
+      participant_member_ids: participants,
+      vote: { yes: participants, no: [], abstain: [] },
+      dissent,
+    });
+  }
+
+  confirmResultRecord(resultId: number, version: number) {
+    return this.http.post<ExamResult>(`/api/exam-results/${resultId}/record-confirmations`, {
+      version,
+    });
+  }
+
+  openResultCorrection(
+    resultId: number,
+    version: number,
+    reason: string,
+    reopeningReference?: string,
+  ) {
+    return this.http.post<ExamResult>(`/api/exam-results/${resultId}/corrections`, {
+      version,
+      reason: reason.trim(),
+      ...(reopeningReference?.trim() ? { reopening_reference: reopeningReference.trim() } : {}),
+    });
+  }
+
+  communicateExamResult(
+    resultId: number,
+    version: number,
+    method: string,
+    communicatedAt: string,
+    externalDocumentReference?: string,
+  ) {
+    return this.http.post<ExamResult>(`/api/exam-results/${resultId}/communications`, {
+      version,
+      method: method.trim(),
+      communicated_at: new Date(communicatedAt).toISOString(),
+      ...(externalDocumentReference?.trim()
+        ? {
+            external_document_status: 'extern dokumentiert',
+            external_document_reference: externalDocumentReference.trim(),
+          }
+        : {}),
+    });
+  }
+
+  setExamResultRetention(
+    resultId: number,
+    version: number,
+    payload: {
+      period_start?: string;
+      retain_until?: string;
+      legal_hold: boolean;
+      hold_reason?: string;
+      release_reason?: string;
+    },
+  ) {
+    return this.http.put<ExamResult>(`/api/exam-results/${resultId}/retention`, {
+      version,
+      ...payload,
+    });
+  }
+
   createExamHalfYear(payload: Pick<ExamHalfYear, 'season' | 'year' | 'status'>) {
     return this.http.post<ExamHalfYear>('/api/exam-half-years', payload);
   }
@@ -405,11 +566,11 @@ export class PlanningApiService {
     );
   }
 
-  createCommittee(payload: Pick<Committee, 'name' | 'occupation'>) {
+  createCommittee(payload: Pick<Committee, 'name' | 'occupation' | 'ihk'>) {
     return this.http.post<Committee>('/api/committees', payload);
   }
 
-  updateCommittee(id: number, payload: Partial<Pick<Committee, 'name' | 'occupation'>>) {
+  updateCommittee(id: number, payload: Partial<Pick<Committee, 'name' | 'occupation' | 'ihk'>>) {
     return this.http.patch<Committee>(`/api/committees/${id}`, payload);
   }
 

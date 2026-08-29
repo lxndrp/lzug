@@ -16,11 +16,10 @@ erfassender Person. Zulässige Kategorien decken verspäteten Beginn,
 Unterbrechung, Abbruch, abweichende Besetzung, Verfahrensabweichung,
 Einwand/Vorbehalt und Sonstiges ab.
 
-Freie Bewertungsbegründungen, Diagnosen und medizinische Angaben gehören nicht
-in dieses Aggregat. Die UI weist vor der Erfassung auf diese Grenze hin. Das
-Protokoll referenziert Prüfling, Termin, Ort, Anwesenheit und Beteiligte aus den
-zuständigen Aggregaten; Bewertungs- und Ergebnisdaten werden erst über den
-gesonderten Bewertungsvertrag angebunden.
+Freie Bewertungsbegründungen, Diagnosen und medizinische Angaben gehören nicht in dieses Aggregat.
+Die UI weist vor der Erfassung auf diese Grenze hin.
+Das Protokoll referenziert Prüfling, Termin, Ort, Anwesenheit und Beteiligte aus den zuständigen Aggregaten.
+Es verweist auf den gesonderten [Ergebnisvorgang](exam-results.md), kopiert aber keine Bewertungen oder Begründungen in den Protokollinhalt.
 
 ## Versionen, Reaktionen und Korrektur
 

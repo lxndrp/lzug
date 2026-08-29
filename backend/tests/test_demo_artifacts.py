@@ -66,9 +66,9 @@ class DemoArtifactTests(unittest.TestCase):
             self.assertEqual(first["snapshot_sha256"], sha256_file(first_db))
             self.assertEqual(RUNTIME_CONTRACT, first["runtime_contract"])
             self.assertRegex(first["seed_revision"], r"^[0-9a-f]{64}$")
-            self.assertEqual(2, self._scalar(first_db, "SELECT COUNT(*) FROM user_account"))
+            self.assertEqual(3, self._scalar(first_db, "SELECT COUNT(*) FROM user_account"))
             self.assertEqual(
-                ("running", "in_progress", 2),
+                ("running", "in_progress", 3),
                 self._row(
                     first_db,
                     """

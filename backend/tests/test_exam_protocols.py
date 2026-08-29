@@ -31,16 +31,13 @@ class ExamProtocolTests(unittest.TestCase):
         self.authentication = AuthenticationRepository(self.db_path)
         self.chair = self.authentication.create_session(1)
         self.examiner = self.authentication.create_session(2)
-        deputy = self.authentication.create_account(
-            "testperson.beta.account@example.invalid", person_id=2
-        )
         outsider = self.authentication.create_account(
             "testperson.delta.account@example.invalid", person_id=4
         )
         operator = self.authentication.create_account(
             "protocol.operator@example.invalid", is_operator=True
         )
-        self.deputy = self.authentication.create_session(deputy["id"])
+        self.deputy = self.authentication.create_session(3)
         self.outsider = self.authentication.create_session(outsider["id"])
         self.operator = self.authentication.create_session(operator["id"])
 

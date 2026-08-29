@@ -117,8 +117,8 @@ def _validate_synthetic_content(database: Path) -> None:
             0,
         ),
         "demo roles": (
-            "SELECT COUNT(*) FROM user_account WHERE person_id IN (1, 3) AND is_active = 1",
-            2,
+            "SELECT COUNT(*) FROM user_account WHERE person_id IN (1, 2, 3) AND is_active = 1",
+            3,
         ),
     }
     with closing(sqlite3.connect(database)) as connection:
@@ -132,6 +132,94 @@ def _validate_synthetic_content(database: Path) -> None:
 
 def _add_exam_protocol_scenario(database: Path) -> None:
     """Add one started synthetic exam without changing the general development seed."""
+    assessment_rules = {
+        "components": [
+            {
+                "key": "documentation",
+                "label": "Dokumentation",
+                "mode": "independent",
+                "weight": "20",
+                "day_scoped": True,
+                "required_assessors": 2,
+                "max_deviation": "15",
+                "additional_assessor_on_deviation": True,
+                "criteria": [
+                    {
+                        "key": "professional_quality",
+                        "label": "Fachliche Qualität",
+                        "raw_min": "0",
+                        "raw_max": "10",
+                        "weight": "100",
+                    }
+                ],
+            },
+            {
+                "key": "presentation",
+                "label": "Präsentation",
+                "mode": "committee",
+                "weight": "15",
+                "day_scoped": True,
+                "required_assessors": 3,
+                "max_deviation": "15",
+                "additional_assessor_on_deviation": False,
+                "criteria": [
+                    {
+                        "key": "delivery",
+                        "label": "Darstellung",
+                        "raw_min": "0",
+                        "raw_max": "10",
+                        "weight": "100",
+                    }
+                ],
+            },
+            {
+                "key": "technical_discussion",
+                "label": "Fachgespräch",
+                "mode": "committee",
+                "weight": "15",
+                "day_scoped": True,
+                "required_assessors": 3,
+                "max_deviation": "15",
+                "additional_assessor_on_deviation": False,
+                "criteria": [
+                    {
+                        "key": "professional_depth",
+                        "label": "Fachliche Tiefe",
+                        "raw_min": "0",
+                        "raw_max": "10",
+                        "weight": "100",
+                    }
+                ],
+            },
+        ],
+        "external_areas": [
+            {
+                "key": "written_exam",
+                "label": "Schriftliches Eingangsergebnis",
+                "weight": "50",
+                "required": True,
+            }
+        ],
+        "rounding": {
+            "intermediate": {"mode": "none", "digits": None},
+            "overall": {"mode": "half_up", "digits": 0},
+            "threshold_basis": "unrounded",
+        },
+        "grades": [
+            {"label": "sehr gut", "min_points": "92"},
+            {"label": "gut", "min_points": "81"},
+            {"label": "befriedigend", "min_points": "67"},
+            {"label": "ausreichend", "min_points": "50"},
+            {"label": "mangelhaft", "min_points": "30"},
+            {"label": "ungenügend", "min_points": "0"},
+        ],
+        "passing": {
+            "overall_min": "50",
+            "component_minima": {},
+            "external_minima": {},
+        },
+        "quorum": {"minimum_members": 3, "majority": "simple"},
+    }
     with closing(sqlite3.connect(database)) as connection:
         connection.executescript("""
             INSERT INTO exam_half_year (id, season, year, status)
@@ -179,7 +267,7 @@ def _add_exam_protocol_scenario(database: Path) -> None:
               (exam_day_id, committee_member_id, status, arrived_at)
             VALUES
               (1, 1, 'present', '2027-05-18 08:45:00'),
-              (1, 2, 'absent', NULL),
+              (1, 2, 'present', '2027-05-18 08:47:00'),
               (1, 3, 'present', '2027-05-18 08:50:00');
 
             INSERT INTO exam_protocol
@@ -193,6 +281,7 @@ def _add_exam_protocol_scenario(database: Path) -> None:
               (exam_protocol_id, committee_member_id, created_at)
             VALUES
               (1, 1, '2027-05-18 09:03:00'),
+              (1, 2, '2027-05-18 09:03:00'),
               (1, 3, '2027-05-18 09:03:00');
 
             INSERT INTO exam_protocol_revision
@@ -200,6 +289,37 @@ def _add_exam_protocol_scenario(database: Path) -> None:
                change_reason, created_at)
             VALUES
               (1, 1, 1, 'draft', 1, 'exam_started', '2027-05-18 09:03:00');
+        """)
+        connection.execute(
+            """
+            INSERT INTO assessment_model_version
+              (id, model_key, version, ihk, occupation, specialization,
+               training_regulation, exam_regulation, ihk_guidelines, valid_from,
+               valid_until, official_scale_min, official_scale_max, rules_json,
+               retention_rule_reference, retention_years, created_by_member_id, created_at)
+            VALUES
+              (1, 'demo-fisi-2027', 1, 'IHK Teststadt', 'Fachinformatiker/in', NULL,
+               'Test-Ausbildungsordnung 2020', 'Test-Prüfungsordnung 2027',
+               'Verbindliche Demo-Richtlinie 2027', '2027-01-01', '2027-12-31',
+               '0', '100', ?, 'PrüfO Teststadt § 31', 15, 1,
+               '2027-01-01 00:00:00')
+            """,
+            (json.dumps(assessment_rules, ensure_ascii=False, sort_keys=True),),
+        )
+        connection.executescript("""
+            INSERT INTO exam_round_assessment_binding
+              (id, exam_round_id, assessment_model_version_id, version,
+               bound_by_member_id, binding_reason, bound_at)
+            VALUES
+              (1, 2, 1, 1, 1, 'Synthetischer Demo-Ergebnisprozess',
+               '2027-05-18 08:00:00');
+
+            INSERT INTO exam_result
+              (id, round_candidate_id, current_state, correction_open, version,
+               source, created_at, updated_at)
+            VALUES
+              (1, 13, 'incomplete', 0, 1, 'application',
+               '2027-05-18 09:03:00', '2027-05-18 09:03:00');
         """)
         connection.commit()
 

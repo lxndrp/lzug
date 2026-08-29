@@ -21,3 +21,8 @@ Prüfungen Protokolle noch eine Erklärung „ohne besondere Vorkommnisse“.
 Historische abgeschlossene Slots ohne Protokoll blockieren daher den regulären
 Tagesabschluss nicht; spätere Ergänzungen benötigen einen eigenen auditierbaren
 Importpfad.
+
+Migration `018_add_exam_results.sql` führt die versionierten Bewertungsmodelle, die Bindung an eine Prüfungsrunde und das getrennte Ergebnisaggregat ein.
+Für abgeschlossene historische Slots entsteht nur ein expliziter Marker, dass in lzug keine Ergebnisdaten vorliegen.
+Die Migration erfindet weder Modellbindung noch Bewertung, Punkte, Berechnung, Beschluss oder Mitteilung.
+Details zu Sichtbarkeit, Vier-Augen-Prinzip, Korrektur und Aufbewahrung beschreibt der [Ergebnisvertrag](architecture/exam-results.md).

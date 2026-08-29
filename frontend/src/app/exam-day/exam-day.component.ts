@@ -15,12 +15,13 @@ import {
 } from '../api/api.models';
 import { PlanningApiService } from '../api/planning-api.service';
 import { ExamProtocolComponent } from '../exam-protocol/exam-protocol.component';
+import { ExamResultComponent } from '../exam-result/exam-result.component';
 
 export type ExamDayViewState = 'loading' | 'ready' | 'error' | 'not-found';
 
 @Component({
   selector: 'app-exam-day',
-  imports: [ExamProtocolComponent, FormsModule, TuiBadge, TuiButton],
+  imports: [ExamProtocolComponent, ExamResultComponent, FormsModule, TuiBadge, TuiButton],
   templateUrl: './exam-day.component.html',
   styleUrl: './exam-day.component.css',
 })

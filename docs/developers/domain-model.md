@@ -19,6 +19,11 @@ erDiagram
   EXAM_PROTOCOL ||--|{ EXAM_PROTOCOL_REVISION : versions
   EXAM_PROTOCOL_REVISION ||--o{ EXAM_PROTOCOL_ENTRY : records
   EXAM_PROTOCOL_REVISION ||--o{ EXAM_PROTOCOL_RESPONSE : confirms
+  EXAM_ROUND ||--o| ASSESSMENT_MODEL_BINDING : binds
+  ASSESSMENT_MODEL_VERSION ||--o{ ASSESSMENT_MODEL_BINDING : selected_by
+  ROUND_CANDIDATE ||--o| EXAM_RESULT : receives
+  EXAM_RESULT ||--o{ INDIVIDUAL_ASSESSMENT : collects
+  EXAM_RESULT ||--o{ RESULT_DETERMINATION : versions
   EXAM_DAY ||--o{ EXAM_DAY_ASSIGNMENT : staffs
   MEMBERSHIP ||--o{ EXAM_DAY_ASSIGNMENT : fulfils
   EXAM_ROUND ||--o{ NOTIFICATION : causes
@@ -48,6 +53,8 @@ Dokumente besitzen fachliche Metadaten; ihr Inhalt bleibt in einer separaten, ko
   erfasst Besonderheiten strukturiert. Inhalt, Reaktionen und Korrekturen sind
   versioniert; Bewertungsdaten bleiben dem getrennten Bewertungsaggregat
   vorbehalten.
+- **Bewertungsmodell und Ergebnis**: Eine Runde wird vor der ersten Bewertung an eine unveränderliche, gültige Modellversion gebunden.
+  Der Ergebnisvorgang sammelt verdeckte und später kontrolliert offengelegte Einzelbewertungen, gemeinsame Komponentenbeschlüsse, vieräugig bestätigte Eingangsergebnisse, reproduzierbare Berechnungen sowie versionierte Feststellungen, Bestätigungen, Mitteilungen, Korrekturen und Exporte.
 
 ## Fachliche Invarianten
 
@@ -72,6 +79,9 @@ Ein Ersatz wird erst nach kontrollierter Auswahl wirksam.
   Stellvertretung dürfen ausschussbezogen lesen sowie begründete
   Korrekturvorgänge koordinieren; Betreiberrechte gewähren keinen
   Protokollzugriff.
+- Individuelle Bewertungen sind bis zur vollständigen Eigenbewertung und einem kontrollierten Offenlegungsschritt für andere Beteiligte unsichtbar.
+  Ein externes Eingangsergebnis wirkt erst nach unabhängiger Bestätigung; ein berechneter Vorschlag wird erst durch einen ordnungsgemäß besetzten Beschluss zum festgestellten Ergebnis.
+  Korrekturen überschreiben keinen früheren Stand.
 - Personenbezogene Inhalte sind auf erforderliche Beteiligte begrenzt:
 Kalenderfeeds offenbaren keine Prüflings- oder Fremdbesetzungsdaten; Dokumentpfade und Zustellungsdetails sind keine frei wählbaren Fachdaten.
 
