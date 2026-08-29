@@ -9,6 +9,7 @@ from backend.tests.workflow_contract import (
     action_references,
     job_block,
     trigger_block,
+    workflow_name,
     workflow_text,
 )
 
@@ -35,6 +36,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
         cls.codeql = workflow_text(".github/workflows/ci.yml")
         cls.pull_request = workflow_text(".github/workflows/pull-request.yml")
         cls.quality = workflow_text(".github/workflows/quality.yml")
+        cls.dependabot = workflow_text(".github/workflows/dependabot-auto-merge.yml")
 
     def test_pull_requests_use_five_stable_domain_gates(self) -> None:
         self.assertIn("pull_request:", trigger_block(self.pull_request))
@@ -122,7 +124,8 @@ class QualityWorkflowContractTests(unittest.TestCase):
     def test_dependabot_merge_starts_exact_revision_quality_baseline(self) -> None:
         triggers = trigger_block(self.quality)
         self.assertIn("workflow_run:", triggers)
-        self.assertIn("- Dependabot Updates", triggers)
+        dependabot_name = workflow_name(self.dependabot)
+        self.assertIn(f"- {dependabot_name}", triggers)
         self.assertIn("- completed", triggers)
         self.assertIn("- master", triggers)
 

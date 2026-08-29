@@ -8,6 +8,13 @@ def workflow_text(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
 
 
+def workflow_name(document: str) -> str:
+    match = re.search(r"^name:\s*(?P<name>.+?)\s*$", document, re.MULTILINE)
+    if match is None:
+        raise AssertionError("missing top-level workflow name")
+    return match.group("name")
+
+
 def mapping_block(document: str, key: str, *, indent: int = 0) -> str:
     """Return one YAML mapping entry without depending on sibling order."""
 
