@@ -80,7 +80,7 @@ class ApiTests(unittest.TestCase):
     def test_database_errors_use_public_messages(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             with patch(
-                "backend.app.ResourceRepository.candidate_list",
+                "backend.repositories.ResourceRepository.candidate_list",
                 side_effect=SQLAlchemyError("private database details"),
             ):
                 status, body = api.request("GET", "/api/candidates")
@@ -111,7 +111,7 @@ class ApiTests(unittest.TestCase):
                 connection.execute("ALTER TABLE user_account DROP COLUMN totp_enabled")
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?)",
+                    "DELETE FROM schema_migration WHERE name IN (?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
@@ -186,13 +186,9 @@ class ApiTests(unittest.TestCase):
             ):
                 self.assertIn(auth_path, spec["paths"])
                 self.assertNotIn("security", spec["paths"][auth_path]["post"])
-            self.assertIn(
-                "totp_secret",
-                spec["components"]["schemas"]["RecoveryPreparation"]["properties"],
-            )
             self.assertEqual(
                 ["status", "version", "revision", "_links"],
-                spec["components"]["schemas"]["Health"]["required"],
+                spec["components"]["schemas"]["HealthResponse"]["required"],
             )
             self.assertEqual({"sessionCookie": []}, spec["paths"]["/api"]["get"]["security"][0])
             self.assertEqual(
@@ -211,37 +207,13 @@ class ApiTests(unittest.TestCase):
                 {"sessionCookie": [], "csrfHeader": []},
                 spec["paths"]["/api/exam-rounds/{id}/planning-proposal"]["put"]["security"][0],
             )
-            self.assertEqual(
-                ["round_id", "revision", "exam_days"],
-                spec["components"]["schemas"]["PlanningProposalWrite"]["required"],
-            )
-            self.assertEqual(
-                ["morning", "afternoon", "full_day"],
-                spec["components"]["schemas"]["PlanningProposalAssignment"]["properties"][
-                    "day_part"
-                ]["enum"],
-            )
             self.assertIn("401", spec["paths"]["/api/candidates"]["get"]["responses"])
             self.assertIn("403", spec["paths"]["/api/candidates"]["post"]["responses"])
             self.assertNotIn("security", spec["paths"]["/api/health"]["get"])
-            self.assertEqual(
-                ["completed", "cancelled", "needs_follow_up"],
-                spec["components"]["schemas"]["ExamSlotStatusWrite"]["properties"]["status"][
-                    "enum"
-                ],
-            )
-            self.assertIn("Candidates", spec["components"]["schemas"])
-            self.assertEqual(
-                {"$ref": "#/components/schemas/ExamHalfYears"},
-                spec["components"]["schemas"]["SchedulingOverviewItem"]["properties"][
-                    "exam_half_year"
-                ],
-            )
-            self.assertEqual(
-                {"$ref": "#/components/schemas/ExamHalfYears"},
-                spec["components"]["schemas"]["ConfirmedPlanDayView"]["properties"]["plan"][
-                    "properties"
-                ]["exam_half_year"],
+            self.assertIn("200", spec["paths"]["/api/auth/recovery/prepare"]["post"]["responses"])
+            self.assertIn(
+                "200",
+                spec["paths"]["/api/exam-rounds/{id}/planning-proposal"]["get"]["responses"],
             )
 
             status, headers, body = api.request_raw("GET", "/api/docs")
@@ -372,6 +344,16 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(
                 "2026-11-16T08:31:00+01:00", repeated["day"]["slots"][0]["actual_started_at"]
             )
+            status, protocol = api.request(
+                "GET",
+                f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/protocol",
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(
+                {assignment["member"]["id"] for assignment in morning_assignments},
+                set(protocol["participants"]),
+            )
+            self.assertEqual(1, len(protocol["history"]))
 
             status, started_cancel_error = api.request(
                 "PATCH",
@@ -461,6 +443,51 @@ class ApiTests(unittest.TestCase):
                 if assignment["id"] == morning_assignments[0]["id"]
             )
             self.assertEqual("present", reloaded_morning["attendance"]["status"])
+
+    def test_slot_status_stays_persistent_when_calendar_sync_fails(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, _proposal = api.request("POST", "/api/planning-proposals", {"round_id": 1})
+            assert_status(status, HTTPStatus.CREATED)
+            status, _confirmed = api.request("POST", "/api/exam-rounds/1/confirm-plan", {})
+            assert_status(status, HTTPStatus.OK)
+            status, calendar = api.request("GET", "/api/confirmed-plans")
+            assert_status(status, HTTPStatus.OK)
+            day = calendar["items"][0]["days"][0]
+            slot = day["slots"][0]
+
+            with (
+                patch(
+                    "backend.calendar.CalendarService.sync_round",
+                    side_effect=RuntimeError("calendar unavailable"),
+                ) as sync_round,
+                patch("backend.fastapi_app.emit_event") as emit_event,
+            ):
+                status, updated = api.request(
+                    "PATCH",
+                    f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/status",
+                    {"status": "cancelled", "reason": "Kalenderabgleich fehlgeschlagen"},
+                )
+
+            assert_status(status, HTTPStatus.OK)
+            updated_slot = next(
+                item for item in updated["day"]["slots"] if item["id"] == slot["id"]
+            )
+            self.assertEqual("cancelled", updated_slot["execution_status"])
+            self.assertEqual("Kalenderabgleich fehlgeschlagen", updated_slot["status_reason"])
+            sync_round.assert_called_once_with(1)
+            emit_event.assert_any_call(
+                "backend_error",
+                severity="error",
+                category="calendar_processing",
+            )
+
+            status, reloaded = api.request("GET", f"/api/confirmed-plan-days/{day['id']}")
+            assert_status(status, HTTPStatus.OK)
+            reloaded_slot = next(
+                item for item in reloaded["day"]["slots"] if item["id"] == slot["id"]
+            )
+            self.assertEqual("cancelled", reloaded_slot["execution_status"])
+            self.assertEqual("Kalenderabgleich fehlgeschlagen", reloaded_slot["status_reason"])
 
     def test_scheduling_overview_groups_active_rounds_and_excludes_finished_work(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:

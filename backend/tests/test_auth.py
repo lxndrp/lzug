@@ -18,7 +18,7 @@ class AuthenticationTests(unittest.TestCase):
         with TempDatabase() as db_path:
             repository = AuthenticationRepository(db_path)
             account = repository.create_account(
-                "New.User@Example.Invalid", person_id=2, is_operator=False
+                "New.User@Example.Invalid", person_id=4, is_operator=False
             )
             credentials = repository.create_session(account["id"])
             context = repository.authenticate(credentials.token)
@@ -30,8 +30,8 @@ class AuthenticationTests(unittest.TestCase):
                 ).fetchone()
 
         self.assertIsNotNone(context)
-        self.assertEqual(2, context.person_id)
-        self.assertEqual(2, context.committee_member_id)
+        self.assertEqual(4, context.person_id)
+        self.assertEqual(4, context.committee_member_id)
         self.assertNotEqual(credentials.token, row[0])
         self.assertNotEqual(credentials.csrf_token, row[1])
         self.assertEqual(hashlib.sha256(credentials.token.encode()).hexdigest(), row[0])

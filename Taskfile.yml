@@ -106,74 +106,52 @@ tasks:
   docs:
     desc: Build the local handbook and generated code references
     cmds:
+      - task: docs:check
       - task: docs:handbook
       - task: docs:frontend
 
-  docs:publication-spike:
-    desc: Build the local public site without publishing it
-    vars:
-      OUTPUT: '{{default "build/publication-spike" .OUTPUT}}'
-      WIKI_ROOT: '{{default "prototypes/publication/wiki" .WIKI_ROOT}}'
+  docs:check:
+    desc: Check project-specific documentation structure contracts
     cmds:
-      - >-
-        {{.UV}} python -m scripts.publication_spike build
-        --wiki-root "{{.WIKI_ROOT}}"
-        --typedoc frontend/node_modules/.bin/typedoc
-        --output "{{.OUTPUT}}"
+      - python3 -m scripts.check_documentation
 
   docs:publication:
     desc: Build the complete static GitHub Pages artifact without deploying it
+    deps:
+      - docs:check
+    requires:
+      vars:
+        - WIKI_ROOT
     vars:
       OUTPUT: '{{default "build/publication" .OUTPUT}}'
-      WIKI_ROOT: '{{default "prototypes/publication/wiki" .WIKI_ROOT}}'
       DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
       BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
       - >-
-        {{.UV}} python -m scripts.publication_spike build
+        {{.UV}} python -m scripts.publication build
         --wiki-root "{{.WIKI_ROOT}}"
         --typedoc frontend/node_modules/.bin/typedoc
         --base-url "{{.BASE_URL}}"
         --demo-url "{{.DEMO_URL}}"
         --output "{{.OUTPUT}}"
 
-  docs:publication-spike:check:
-    desc: Build the publication spike twice and verify byte-identical output
-    vars:
-      WIKI_ROOT: '{{default "prototypes/publication/wiki" .WIKI_ROOT}}'
-    cmds:
-      - >-
-        {{.UV}} python -m scripts.publication_spike check
-        --wiki-root "{{.WIKI_ROOT}}"
-        --typedoc frontend/node_modules/.bin/typedoc
-
   docs:publication:check:
     desc: Verify that the configured public site builds byte-identically
+    deps:
+      - docs:check
+    requires:
+      vars:
+        - WIKI_ROOT
     vars:
-      WIKI_ROOT: '{{default "prototypes/publication/wiki" .WIKI_ROOT}}'
       DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
       BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
       - >-
-        {{.UV}} python -m scripts.publication_spike check
+        {{.UV}} python -m scripts.publication check
         --wiki-root "{{.WIKI_ROOT}}"
         --typedoc frontend/node_modules/.bin/typedoc
         --base-url "{{.BASE_URL}}"
         --demo-url "{{.DEMO_URL}}"
-
-  docs:publication-spike:browser:
-    desc: Check the built publication spike on desktop and mobile with Playwright
-    deps:
-      - docs:publication-spike
-    cmds:
-      - LZUG_PUBLICATION_ROOT=../build/publication-spike npm --prefix frontend run test:publication
-
-  docs:publication-spike:a11y:
-    desc: Check the built publication spike with Playwright and axe
-    deps:
-      - docs:publication-spike
-    cmds:
-      - LZUG_PUBLICATION_ROOT=../build/publication-spike npm --prefix frontend run test:publication:a11y
 
   docs:publication:browser:
     desc: Check the production landing flow on desktop and mobile with Playwright
@@ -193,7 +171,7 @@ tasks:
     desc: Check a local Wiki checkout before manually publishing it
     cmds:
       - test -n "${WIKI_ROOT:-}" || { echo "set WIKI_ROOT to a local Wiki checkout"; exit 1; }
-      - python3 scripts/check_wiki.py "$WIKI_ROOT"
+      - python3 -m scripts.check_wiki "$WIKI_ROOT"
       - >-
         docker run --rm --user "$(id -u):$(id -g)"
         -v "$WIKI_ROOT:/wiki:ro" -w /wiki lycheeverse/lychee:0.24.2
@@ -202,6 +180,7 @@ tasks:
   quality:
     desc: Run the complete local quality assurance suite in parallel
     deps:
+      - fixtures:check
       - quality:backend
       - quality:frontend
       - quality:security
@@ -213,6 +192,11 @@ tasks:
       - quality:demo-deployment
       - quality:demo
       - docs
+
+  fixtures:check:
+    desc: Verify synthetic fixture adapters match their canonical source
+    cmds:
+      - python3 scripts/generate_synthetic_fixtures.py --check
 
   quality:infra:
     desc: Format, validate, and mock-plan the public demo infrastructure without cloud access
@@ -228,11 +212,11 @@ tasks:
     cmds:
       - >-
         {{.UV}} python -m unittest
+        backend.tests.test_demo_contract
         backend.tests.test_demo_deployment
         backend.tests.test_demo_snapshot
         backend.tests.test_demo_delivery_contract
         backend.tests.test_demo_url_contract
-        backend.tests.test_demo_smart_detection
 
   quality:sbom:
     desc: Generate and validate the canonical dependency SBOM
@@ -316,6 +300,7 @@ tasks:
     desc: Build and verify the separate demo app and seed OCI pair
     deps:
       - quality:image
+      - quality:demo-matrix
     cmds:
       - |
         set -eu
@@ -337,8 +322,8 @@ tasks:
           "snapshot|demo/v0.2.0-SNAPSHOT.$short_revision"; do
           channel=${channel_and_tag%%|*}
           product_tag=${channel_and_tag#*|}
-          build_identity="$(PRODUCT_TAG="$product_tag" PRODUCT_COMMIT="$revision" python3 -c \
-            'import os; from backend.build_metadata import BuildMetadata; print(BuildMetadata.create(os.environ["PRODUCT_COMMIT"], os.environ["PRODUCT_TAG"], allow_demo_snapshot=True).identity)')"
+          build_identity=$(python3 -m demo.contract identity \
+            --tag "$product_tag" --commit "$revision" --channel "$channel" --field identity)
           seed_image="lzug-demo-seed:$channel-local"
           app_image="lzug-demo-app:$channel-local"
           "$engine" build -f Dockerfile.demo-seed \
@@ -362,9 +347,10 @@ tasks:
             --expected-product-tag "$product_tag" \
             --expected-product-commit "$revision" \
             --expected-schema-fingerprint "$expected_schema_fingerprint"
-          seed_revision=$(python3 -c \
-            'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["seed_revision"])' \
-            "$temporary_directory/manifest.json")
+          seed_revision=$(python3 -m demo.contract manifest-field \
+            --manifest "$temporary_directory/manifest.json" --kind seed \
+            --expected-product-tag "$product_tag" --expected-product-commit "$revision" \
+            --field seed_revision)
           "$engine" build -f Dockerfile.demo \
             --build-arg "BUILD_IDENTITY=$build_identity" \
             --build-arg "PRODUCT_TAG=$product_tag" \
@@ -377,6 +363,11 @@ tasks:
             lzug:0.0.0-dev.local \
             "$seed_revision"
         done
+
+  quality:demo-matrix:
+    desc: Verify demo roles, capabilities, mutation allowlist, and default-deny paths
+    cmds:
+      - '{{.UV}} python -m unittest backend.tests.test_demo_runtime'
 
   quality:overall:
     desc: Run all local cross-domain integration contracts in parallel
@@ -559,7 +550,7 @@ tasks:
   dev:backend:
     desc: Start the backend development server
     cmds:
-      - '{{.UV}} python -m backend.app --init'
+      - '{{.UV}} python -m backend.server --init'
 
   dev:frontend:
     desc: Start the frontend development server

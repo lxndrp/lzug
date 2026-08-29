@@ -7,21 +7,113 @@
         nur einen sicheren Hinweis auf lzug.
       </p>
     </div>
-    @if (canEnablePush()) {
-      <button
-        tuiButton
-        appearance="secondary"
-        type="button"
-        [disabled]="pushBusy()"
-        (click)="enablePush()"
-      >
-        {{ pushBusy() ? 'Wird aktiviert …' : 'Browser-Benachrichtigungen aktivieren' }}
-      </button>
+    @if (canManagePush()) {
+      @if (canEnablePush()) {
+        <button
+          tuiButton
+          appearance="secondary"
+          type="button"
+          [disabled]="pushBusy()"
+          (click)="enablePush()"
+        >
+          {{ pushBusy() ? 'Wird aktiviert …' : 'Browser-Benachrichtigungen aktivieren' }}
+        </button>
+      } @else {
+        <p class="app-muted">Web Push ist in dieser Instanz oder diesem Browser nicht verfügbar.</p>
+      }
     } @else {
-      <p class="app-muted">Web Push ist in dieser Instanz oder diesem Browser nicht verfügbar.</p>
+      <p class="app-muted">Externe Zustellung ist in der öffentlichen Demo deaktiviert.</p>
     }
     @if (pushMessage()) {
       <p role="status">{{ pushMessage() }}</p>
+    }
+  </div>
+</section>
+
+<section class="app-panel calendar-settings" aria-labelledby="calendar-settings-title">
+  <div class="app-panel-body">
+    <h2 id="calendar-settings-title">Persönlicher Prüfungskalender</h2>
+    <p>
+      Nutzen Sie Ihre bestätigten eigenen Einsätze in einem externen Kalender. Der Kalender ist eine
+      persönliche Arbeitshilfe; Benachrichtigungen und lzug bleiben maßgeblich.
+    </p>
+    @if (loading()) {
+      <p role="status">Kalendereinstellungen werden geladen.</p>
+    } @else {
+      @if (calendar()?.active) {
+        <p role="status">Der persönliche Feed ist aktiv (Zeitzone {{ calendar()?.time_zone }}).</p>
+        @if (canManageCalendarFeed()) {
+          <div class="calendar-actions">
+            <button
+              tuiButton
+              appearance="secondary"
+              type="button"
+              [disabled]="calendarBusy()"
+              (click)="activateCalendar(true)"
+            >
+              Zugang neu erzeugen
+            </button>
+            <button
+              tuiButton
+              appearance="secondary"
+              type="button"
+              [disabled]="calendarBusy()"
+              (click)="revokeCalendar()"
+            >
+              Feed widerrufen
+            </button>
+          </div>
+        }
+      } @else {
+        <p>Der persönliche Feed ist noch nicht aktiviert.</p>
+        @if (canManageCalendarFeed()) {
+          <button
+            tuiButton
+            appearance="primary"
+            type="button"
+            [disabled]="calendarBusy()"
+            (click)="activateCalendar()"
+          >
+            Persönlichen Feed aktivieren
+          </button>
+        }
+      }
+      @if (!canManageCalendarFeed()) {
+        <p class="app-muted">
+          Feed-Aktivierung, Neuerzeugung und Widerruf sind in der öffentlichen Demo nicht
+          freigegeben. Eigene Termine können weiterhin einzeln geladen werden.
+        </p>
+      }
+      @if (feedUrl(); as url) {
+        <p class="calendar-feed-url" role="status">
+          Neuer Kalenderzugang (nur jetzt sichtbar):
+          <a [href]="url">Kalender-Feed öffnen</a>
+          <code>{{ url }}</code>
+        </p>
+      }
+      @if (calendarMessage()) {
+        <p role="status">{{ calendarMessage() }}</p>
+      }
+      <p class="app-muted">
+        Nach Widerruf oder Neuerzeugung werden weitere Abrufe verhindert. Bereits extern
+        gespeicherte Termine können dadurch nicht zuverlässig entfernt werden.
+      </p>
+      @if (calendarEvents().length === 0) {
+        <p>Noch keine eigenen bestätigten Termine im aktuellen Prüfungshalbjahr.</p>
+      } @else {
+        <ul class="calendar-event-list">
+          @for (event of calendarEvents(); track event.id) {
+            <li>
+              <span>
+                <strong>{{ event.date }} · {{ event.round_name }}</strong>
+                <small>{{ event.starts_at }}–{{ event.ends_at }} · {{ event.role }}</small>
+                <small>{{ calendarStatusLabel(event) }}</small>
+              </span>
+              <a tuiButton appearance="secondary" [href]="event.download_url">Datei laden</a>
+            </li>
+          }
+        </ul>
+      }
     }
   </div>
 </section>

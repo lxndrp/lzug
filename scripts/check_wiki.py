@@ -7,7 +7,9 @@ import argparse
 import re
 from collections import Counter
 from pathlib import Path
-from urllib.parse import quote, unquote, urlsplit
+from urllib.parse import unquote, urlsplit
+
+from scripts.wiki_routes import wiki_source_url
 
 DEFAULT_WIKI_BASE_URL = "https://github.com/lxndrp/lzug/wiki"
 LINK_PATTERN = re.compile(r"(?<!!)(?:\[[^\]]*\])\(([^)]+)\)")
@@ -108,10 +110,7 @@ def check_sidebar_routes(wiki_root: Path, files: list[Path]) -> tuple[set[str], 
 def write_routes(routes: Path, pages: set[str], wiki_base_url: str) -> None:
     """Write a temporary Markdown input that Lychee can check directly."""
     base_url = wiki_base_url.rstrip("/")
-    urls = []
-    for page in sorted(pages):
-        location = base_url if page == "Home" else f"{base_url}/{quote(page)}"
-        urls.append(f"- <{location}>")
+    urls = [f"- <{wiki_source_url(page, base_url)}>" for page in sorted(pages)]
     routes.parent.mkdir(parents=True, exist_ok=True)
     routes.write_text("\n".join(urls) + "\n", encoding="utf-8")
 

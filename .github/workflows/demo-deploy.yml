@@ -114,47 +114,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Validate the effective DEMO_URL before Azure mutation
-        env:
-          EFFECTIVE_DEMO_URL: ${{ env.DEMO_URL }}
-        run: >-
-          python3 scripts/validate_demo_url_contract.py validate
-          --value "$EFFECTIVE_DEMO_URL"
-
-      - name: Validate source identity and secret-free inputs
+      - name: Validate the shared demo contract and secret-free inputs
         run: |
           set -euo pipefail
-          case "${{ inputs.promotion_channel }}:${{ inputs.operation }}:$PRODUCT_TAG" in
-            :deploy:*|:rollback:*)
-              test "$GITHUB_REF" = refs/heads/master || {
-                echo "Manual demo deployment must be dispatched from master." >&2
-                exit 1
-              }
-              ;;
-            snapshot:deploy:demo/v*-SNAPSHOT.*)
-              test "$GITHUB_REF" = "refs/tags/$PRODUCT_TAG" || {
-                echo "Snapshot deployment must remain bound to its immutable tag." >&2
-                exit 1
-              }
-              ;;
-            stable:deploy:v*)
-              test "$GITHUB_REF" = refs/heads/master || {
-                echo "Stable demo promotion must be called from the release workflow on master." >&2
-                exit 1
-              }
-              ;;
-            *)
-              echo "Unsupported demo deployment operation or source tag." >&2
-              exit 1
-              ;;
-          esac
           for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_RESOURCE_GROUP AZURE_CONTAINER_APP; do
             test -n "${!name:-}" || {
               echo "Required demo deployment variable is missing: $name" >&2
               exit 1
             }
           done
-          python3 scripts/demo_deployment.py validate-inputs \
+          python3 -m demo.contract validate-deployment \
             --app-image "$APP_IMAGE" \
             --seed-image "$SEED_IMAGE" \
             --product-tag "$PRODUCT_TAG" \
@@ -162,7 +131,10 @@ jobs:
             --runtime-contract "$RUNTIME_CONTRACT" \
             --schema-fingerprint "$SCHEMA_FINGERPRINT" \
             --seed-revision "$SEED_REVISION" \
-            --demo-url "$DEMO_URL"
+            --demo-url "$DEMO_URL" \
+            --promotion-channel "${{ inputs.promotion_channel }}" \
+            --operation "${{ inputs.operation }}" \
+            --github-ref "$GITHUB_REF"
 
       - name: Authenticate to GHCR without a long-lived credential
         run: echo "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
@@ -172,18 +144,14 @@ jobs:
       - name: Verify provenance attestations for both selected digests
         run: |
           set -euo pipefail
-          case "$PRODUCT_TAG" in
-            demo/v*-SNAPSHOT.*)
-              signer_workflow=lxndrp/lzug/.github/workflows/demo-snapshot.yml
-              ;;
-            v*)
-              signer_workflow=lxndrp/lzug/.github/workflows/demo-publish.yml
-              ;;
-            *)
-              echo "Unsupported demo artifact source tag." >&2
-              exit 1
-              ;;
-          esac
+          signer_workflow=$(python3 -m demo.contract signer-workflow \
+            --app-image "$APP_IMAGE" \
+            --seed-image "$SEED_IMAGE" \
+            --product-tag "$PRODUCT_TAG" \
+            --product-commit "$PRODUCT_COMMIT" \
+            --runtime-contract "$RUNTIME_CONTRACT" \
+            --schema-fingerprint "$SCHEMA_FINGERPRINT" \
+            --seed-revision "$SEED_REVISION")
           for image in "$APP_IMAGE" "$SEED_IMAGE"; do
             gh attestation verify "oci://$image" \
               --repo "$GITHUB_REPOSITORY" \

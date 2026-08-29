@@ -43,15 +43,17 @@
 
         <nav class="app-navigation" aria-label="Hauptnavigation">
           <p class="app-nav-title">Prüfungskontext</p>
-          <a
-            class="app-nav-link"
-            href="/exam-half-years"
-            [class.is-active]="activeView() === 'exam-half-years'"
-            (click)="navigateFromShell('exam-half-years', $event)"
-          >
-            <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
-            Prüfungskontext auswählen
-          </a>
+          @if (canAccessView('exam-half-years')) {
+            <a
+              class="app-nav-link"
+              href="/exam-half-years"
+              [class.is-active]="activeView() === 'exam-half-years'"
+              (click)="navigateFromShell('exam-half-years', $event)"
+            >
+              <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
+              Prüfungskontext auswählen
+            </a>
+          }
           @if (activeContext(); as context) {
             <div class="app-nav-context" aria-label="Aktiver Kontext in der Navigation">
               <strong>Aktiver Kontext</strong>
@@ -61,15 +63,28 @@
           }
 
           <p class="app-nav-title">Persönlicher Bereich</p>
-          <a
-            class="app-nav-link"
-            href="/notifications"
-            [class.is-active]="activeView() === 'notifications'"
-            (click)="navigateFromShell('notifications', $event)"
-          >
-            <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
-            Benachrichtigungen
-          </a>
+          @if (canAccessView('notifications')) {
+            <a
+              class="app-nav-link"
+              href="/notifications"
+              [class.is-active]="activeView() === 'notifications'"
+              (click)="navigateFromShell('notifications', $event)"
+            >
+              <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
+              Benachrichtigungen
+            </a>
+          }
+          @if (canAccessView('absence-reports')) {
+            <a
+              class="app-nav-link"
+              href="/absence-reports"
+              [class.is-active]="activeView() === 'absence-reports'"
+              (click)="navigateFromShell('absence-reports', $event)"
+            >
+              <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
+              Ausfall und Ersatz
+            </a>
+          }
 
           <p class="app-nav-title">Aktueller Prüfungskontext</p>
           <a
@@ -317,7 +332,9 @@
                   <app-exam-day
                     [roundId]="contextualRoundId()"
                     [dayId]="contextualDayId()"
-                    [ownAttendanceOnly]="isDemoExaminer()"
+                    [canCoordinateAttendance]="canCoordinateAttendance()"
+                    [canWriteOwnAttendance]="canWriteOwnAttendance()"
+                    [canReportOwnAbsence]="canReportOwnAbsence()"
                     [ownMemberId]="auth.session()?.committee_member_id ?? null"
                   />
                 }
@@ -358,6 +375,9 @@
                     [planningResult]="lastPlanningResult()"
                     [availabilityOnly]="isDemoExaminer()"
                     [ownMemberId]="auth.session()?.committee_member_id ?? null"
+                    [allowCandidateDayGeneration]="canGenerateCandidateDays()"
+                    [canCreateCandidateDay]="canCreateCandidateDay()"
+                    [canToggleCandidateDay]="canToggleCandidateDay()"
                     [planningProposal]="planningProposal()"
                     [proposalEditorState]="proposalEditorState()"
                     [proposalEditorError]="proposalEditorError()"
@@ -392,12 +412,16 @@
                 @case ('notifications') {
                   <app-notifications />
                 }
+                @case ('absence-reports') {
+                  <app-absence-reports />
+                }
                 @case ('exam-half-years') {
                   <app-exam-half-years
                     [committees]="masterData()?.committees || []"
                     [candidates]="masterData()?.candidates || []"
                     [candidateAssignments]="masterData()?.candidateAssignments || []"
                     [activeRoundId]="round()?.id || null"
+                    [readOnly]="demoSession() !== null"
                     (roundSelected)="selectExamRound($event)"
                   />
                 }

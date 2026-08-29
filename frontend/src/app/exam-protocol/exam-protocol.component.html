@@ -1,0 +1,247 @@
+<section class="app-exam-protocol" [attr.aria-labelledby]="'protocol-heading-' + slotId">
+  <header>
+    <div>
+      <p class="app-eyebrow">Gemeinsames Prüfungsprotokoll</p>
+      <h4 [id]="'protocol-heading-' + slotId">Gestarteter Slot {{ slotId }}</h4>
+    </div>
+    @if (protocol(); as current) {
+      <span tuiBadge [appearance]="stateAppearance(current.state)">
+        {{ stateLabel(current.state) }} · Version {{ current.current_version }}
+      </span>
+    }
+  </header>
+
+  @if (state() === 'loading') {
+    <p aria-live="polite">Prüfungsprotokoll wird geladen …</p>
+  } @else if (state() === 'not-found') {
+    <p role="alert">Für die gestartete Prüfung fehlt das verpflichtende Protokoll.</p>
+  } @else if (state() === 'error') {
+    <p role="alert">Das Prüfungsprotokoll konnte nicht geladen werden.</p>
+    <button tuiButton appearance="secondary" type="button" (click)="load()">
+      Erneut versuchen
+    </button>
+  } @else if (protocol(); as current) {
+    @if (message(); as currentMessage) {
+      <p class="app-protocol-success" role="status">{{ currentMessage }}</p>
+    }
+    @if (error(); as currentError) {
+      <p class="app-protocol-error" role="alert">{{ currentError }}</p>
+    }
+
+    <p class="app-protocol-warning">
+      Nur überprüfbare Tatsachen und Verfahrensabläufe dokumentieren. Keine Bewertungsbegründungen,
+      Diagnosen oder sonstigen medizinischen Angaben eintragen.
+    </p>
+
+    @if (current.permissions.edit && can('exam-protocol:write')) {
+      <fieldset [disabled]="busy() || current.closing_ready">
+        <legend>Prüfungsverlauf feststellen</legend>
+        <label>
+          <input
+            type="radio"
+            name="declaration-{{ slotId }}"
+            value="without_special_occurrences"
+            [(ngModel)]="declaration"
+          />
+          Ohne besondere Vorkommnisse
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="declaration-{{ slotId }}"
+            value="with_special_occurrences"
+            [(ngModel)]="declaration"
+          />
+          Mit besonderen Vorkommnissen
+        </label>
+
+        @if (declaration === 'with_special_occurrences') {
+          <div class="app-protocol-entries">
+            @for (entry of entries; track $index) {
+              <article>
+                <label>
+                  Kategorie
+                  <select [(ngModel)]="entry.category" name="category-{{ slotId }}-{{ $index }}">
+                    @for (category of categories; track category.value) {
+                      <option [value]="category.value">{{ category.label }}</option>
+                    }
+                  </select>
+                </label>
+                <label>
+                  Zeitpunkt von
+                  <input
+                    type="datetime-local"
+                    required
+                    [(ngModel)]="entry.occurredFrom"
+                    name="from-{{ slotId }}-{{ $index }}"
+                  />
+                </label>
+                <label>
+                  Zeitpunkt bis (optional)
+                  <input
+                    type="datetime-local"
+                    [(ngModel)]="entry.occurredTo"
+                    name="to-{{ slotId }}-{{ $index }}"
+                  />
+                </label>
+                <label class="app-protocol-statement">
+                  Sachverhalt
+                  <textarea
+                    rows="3"
+                    required
+                    maxlength="2000"
+                    [(ngModel)]="entry.statement"
+                    name="statement-{{ slotId }}-{{ $index }}"
+                  ></textarea>
+                </label>
+                <button
+                  tuiButton
+                  appearance="secondary"
+                  type="button"
+                  (click)="removeEntry($index)"
+                >
+                  Eintrag entfernen
+                </button>
+              </article>
+            }
+            <button tuiButton appearance="secondary" type="button" (click)="addEntry()">
+              Besonderheit hinzufügen
+            </button>
+          </div>
+        }
+        <button
+          tuiButton
+          appearance="secondary"
+          type="button"
+          [disabled]="
+            !declaration ||
+            (declaration === 'with_special_occurrences' && entries.length === 0) ||
+            busy()
+          "
+          (click)="save()"
+        >
+          Neuen Protokollstand speichern
+        </button>
+      </fieldset>
+    }
+
+    <div class="app-protocol-actions">
+      @if (
+        current.permissions.submit &&
+        can('exam-protocol:submit') &&
+        current.current_revision.declaration &&
+        !current.current_revision.submitted_at
+      ) {
+        <button tuiButton appearance="primary" type="button" [disabled]="busy()" (click)="submit()">
+          Zur Bestätigung vorlegen
+        </button>
+      }
+      @if (
+        current.permissions.respond &&
+        can('exam-protocol:respond') &&
+        current.current_revision.submitted_at &&
+        !hasResponded(current)
+      ) {
+        <button
+          tuiButton
+          appearance="primary"
+          type="button"
+          [disabled]="busy()"
+          (click)="respond('confirmed')"
+        >
+          Bestätigen
+        </button>
+        <label>
+          Protokollbezogener Vorbehalt
+          <textarea rows="2" maxlength="2000" [(ngModel)]="reservationText"></textarea>
+        </label>
+        <button
+          tuiButton
+          appearance="secondary"
+          type="button"
+          [disabled]="busy() || !reservationText.trim()"
+          (click)="respond('reservation')"
+        >
+          Mit Vorbehalt bestätigen
+        </button>
+      }
+    </div>
+
+    @if (
+      current.closing_ready &&
+      current.permissions.request_correction &&
+      can('exam-protocol:request-correction')
+    ) {
+      <div class="app-protocol-correction">
+        <label>
+          Ergänzungsbedarf
+          <textarea rows="2" maxlength="2000" [(ngModel)]="correctionReason"></textarea>
+        </label>
+        <button
+          tuiButton
+          appearance="secondary"
+          type="button"
+          [disabled]="busy() || !correctionReason.trim()"
+          (click)="requestCorrection()"
+        >
+          Ergänzungsbedarf melden
+        </button>
+      </div>
+    }
+
+    @if (
+      current.permissions.coordinate_correction &&
+      can('exam-protocol:coordinate-correction') &&
+      hasPendingCorrection(current)
+    ) {
+      <div class="app-protocol-correction">
+        <label>
+          Begründung der koordinierten Korrektur
+          <textarea rows="2" maxlength="2000" [(ngModel)]="correctionReason"></textarea>
+        </label>
+        <label>
+          Wiederöffnungsnachweis nach Tagesabschluss (falls erforderlich)
+          <input type="text" maxlength="500" [(ngModel)]="reopeningReference" />
+        </label>
+        <button
+          tuiButton
+          appearance="secondary"
+          type="button"
+          [disabled]="busy() || !correctionReason.trim()"
+          (click)="openCorrection()"
+        >
+          Korrekturvorgang eröffnen
+        </button>
+      </div>
+    }
+
+    @if (can('exam-protocol:export')) {
+      <nav aria-label="Protokollexporte">
+        <a [href]="current._links['machine_export'].href">Maschinenlesbarer Export</a>
+        <a [href]="current._links['human_export'].href">Lesefassung</a>
+      </nav>
+    }
+
+    <details>
+      <summary>Vollständige Versionshistorie ({{ current.history.length }})</summary>
+      <ol>
+        @for (revision of current.history; track revision.id) {
+          <li>
+            <strong>Version {{ revision.version }}</strong>
+            @if (revision.obsolete) {
+              <span tuiBadge appearance="warning">Überholt – Reaktionen ungültig</span>
+            }
+            <span>{{ revision.declaration ?? 'noch nicht festgestellt' }}</span>
+            @for (entry of revision.entries; track entry.id) {
+              <span>{{ categoryLabel(entry.category) }}: {{ entry.statement }}</span>
+            }
+            <span>
+              Reaktionen: {{ revision.responses.length }}; fehlend:
+              {{ revision.missing_response_member_ids.join(', ') || 'keine' }}
+            </span>
+          </li>
+        }
+      </ol>
+    </details>
+  }
+</section>

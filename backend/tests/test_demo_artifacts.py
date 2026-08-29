@@ -22,6 +22,7 @@ from demo.artifacts import (
     verify_pair_manifests,
     verify_seed,
 )
+from demo.contract import demo_identity
 
 
 class DemoArtifactTests(unittest.TestCase):
@@ -65,7 +66,39 @@ class DemoArtifactTests(unittest.TestCase):
             self.assertEqual(first["snapshot_sha256"], sha256_file(first_db))
             self.assertEqual(RUNTIME_CONTRACT, first["runtime_contract"])
             self.assertRegex(first["seed_revision"], r"^[0-9a-f]{64}$")
-            self.assertEqual(2, self._scalar(first_db, "SELECT COUNT(*) FROM user_account"))
+            self.assertEqual(3, self._scalar(first_db, "SELECT COUNT(*) FROM user_account"))
+            self.assertEqual(
+                ("running", "in_progress", 3),
+                self._row(
+                    first_db,
+                    """
+                    SELECT slot.execution_status,
+                           CASE WHEN revision.submitted_at IS NULL
+                             THEN 'in_progress'
+                             ELSE 'submitted'
+                           END,
+                           COUNT(participant.id)
+                    FROM exam_protocol AS protocol
+                    JOIN exam_slot AS slot ON slot.id = protocol.exam_slot_id
+                    JOIN exam_protocol_revision AS revision
+                      ON revision.exam_protocol_id = protocol.id
+                     AND revision.version = protocol.current_version
+                    JOIN exam_protocol_participant AS participant
+                      ON participant.exam_protocol_id = protocol.id
+                    WHERE protocol.id = 1
+                    GROUP BY slot.execution_status, revision.submitted_at
+                    """,
+                ),
+            )
+            self.assertEqual(3, self._scalar(first_db, "SELECT COUNT(*) FROM exam_day"))
+            self.assertEqual(
+                1,
+                self._scalar(
+                    first_db,
+                    "SELECT COUNT(*) FROM exam_protocol_response "
+                    "WHERE exam_protocol_revision_id = 2 AND committee_member_id = 2",
+                ),
+            )
 
             data_dir = root / "data"
             initialize_workdir(first_db, first_manifest, data_dir)
@@ -191,7 +224,7 @@ class DemoArtifactTests(unittest.TestCase):
             data_dir = root / "data"
             initialize_workdir(seed_db, seed_manifest, data_dir)
             value = json.loads(app_manifest.read_text(encoding="utf-8"))
-            value["product"]["tag"] = "v0.1.2"
+            value["product"] = demo_identity("v0.1.2", self.product_commit).product
             app_manifest.write_text(json.dumps(value), encoding="utf-8")
 
             with self.assertRaisesRegex(DemoArtifactError, "different product identities"):
@@ -328,6 +361,11 @@ class DemoArtifactTests(unittest.TestCase):
 
         with sqlite3.connect(database) as connection:
             return connection.execute(query).fetchone()[0]
+
+    @staticmethod
+    def _row(database: Path, query: str):
+        with sqlite3.connect(database) as connection:
+            return connection.execute(query).fetchone()
 
 
 if __name__ == "__main__":

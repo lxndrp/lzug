@@ -25,7 +25,8 @@ on:
       - "mkdocs.yml"
       - "prototypes/publication/**"
       - "pyproject.toml"
-      - "scripts/publication_spike.py"
+      - "scripts/publication.py"
+      - "scripts/wiki_routes.py"
       - "scripts/validate_demo_url_contract.py"
       - "uv.lock"
   push:
@@ -70,8 +71,8 @@ jobs:
         env:
           EFFECTIVE_DEMO_URL: ${{ env.DEMO_URL }}
         run: >-
-          python3 scripts/validate_demo_url_contract.py validate
-          --value "$EFFECTIVE_DEMO_URL"
+          python3 -m demo.contract validate-url
+          --canonical --value "$EFFECTIVE_DEMO_URL"
 
       - name: Checkout canonical Wiki
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

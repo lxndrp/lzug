@@ -10,17 +10,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
-    from .app import LzugHandler
     from .auth import AuthContext
+    from .transport import RequestContext
 
 
 class RuntimePolicy(Protocol):
     """Assembly-owned routes, session metadata, and mutation restrictions."""
 
-    def handle_public_get(self, handler: LzugHandler, path_parts: list[str]) -> bool:
+    def handle_public_get(self, handler: RequestContext, path_parts: list[str]) -> bool:
         """Handle one unauthenticated GET request when owned by the assembly."""
 
-    def handle_public_post(self, handler: LzugHandler, path_parts: list[str]) -> bool:
+    def handle_public_post(self, handler: RequestContext, path_parts: list[str]) -> bool:
         """Handle one unauthenticated POST request when owned by the assembly."""
 
     def allow_product_auth(self) -> bool:
@@ -31,7 +31,7 @@ class RuntimePolicy(Protocol):
 
     def authorize_mutation(
         self,
-        handler: LzugHandler,
+        handler: RequestContext,
         method: str,
         path_parts: list[str],
         context: AuthContext,
@@ -42,10 +42,10 @@ class RuntimePolicy(Protocol):
 class ProductRuntimePolicy:
     """Unchanged self-hosting behavior for the canonical product assembly."""
 
-    def handle_public_get(self, handler: LzugHandler, path_parts: list[str]) -> bool:
+    def handle_public_get(self, handler: RequestContext, path_parts: list[str]) -> bool:
         return False
 
-    def handle_public_post(self, handler: LzugHandler, path_parts: list[str]) -> bool:
+    def handle_public_post(self, handler: RequestContext, path_parts: list[str]) -> bool:
         return False
 
     def allow_product_auth(self) -> bool:
@@ -56,7 +56,7 @@ class ProductRuntimePolicy:
 
     def authorize_mutation(
         self,
-        handler: LzugHandler,
+        handler: RequestContext,
         method: str,
         path_parts: list[str],
         context: AuthContext,

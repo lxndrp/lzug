@@ -5,33 +5,9 @@ mock_provider "azurerm" {
     }
   }
 
-  mock_resource "azurerm_log_analytics_workspace" {
-    defaults = {
-      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.OperationalInsights/workspaces/lzug-demo-logs"
-    }
-  }
-
   mock_resource "azurerm_monitor_action_group" {
     defaults = {
       id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.Insights/actionGroups/lzug-demo-operations"
-    }
-  }
-
-  mock_resource "azurerm_application_insights" {
-    defaults = {
-      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.Insights/components/lzug-demo-uptime"
-    }
-  }
-
-  mock_resource "azurerm_application_insights_smart_detection_rule" {
-    defaults = {
-      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.Insights/components/lzug-demo-uptime/ProactiveDetectionConfigs/mock"
-    }
-  }
-
-  mock_resource "azurerm_application_insights_standard_web_test" {
-    defaults = {
-      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/lzug-demo-rg/providers/Microsoft.Insights/webTests/lzug-demo-test"
     }
   }
 
@@ -85,7 +61,7 @@ run "demo_contract" {
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
-    budget_amount_eur     = 25
+    budget_amount_eur     = 1
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
     budget_end_date       = "2028-07-31T00:00:00Z"
@@ -169,48 +145,41 @@ run "demo_contract" {
 
   assert {
     condition = (
-      azurerm_consumption_budget_resource_group.demo.amount == 25 &&
+      azurerm_consumption_budget_resource_group.demo.amount == 1 &&
       alltrue([
         for notification in azurerm_consumption_budget_resource_group.demo.notification :
         toset(notification.contact_groups) == toset([azurerm_monitor_action_group.demo.id])
-      ])
+      ]) &&
+      length(azurerm_consumption_budget_resource_group.demo.notification) == 2 &&
+      toset([
+        for notification in azurerm_consumption_budget_resource_group.demo.notification :
+        "${notification.threshold_type}:${notification.threshold}"
+      ]) == toset(["Actual:80", "Forecasted:100"])
     )
-    error_message = "The configured monthly budget and testable action group must be part of every plan."
+    error_message = "The demo must use the 1 EUR monthly budget with documented actual and forecast warning thresholds."
   }
 
   assert {
     condition = (
-      length(azurerm_application_insights.demo) == 0 &&
-      length(azurerm_application_insights_smart_detection_rule.demo) == 0 &&
-      length(azurerm_application_insights_standard_web_test.demo) == 0 &&
-      length(azurerm_monitor_metric_alert.uptime) == 0
+      !strcontains(file("${path.module}/observability.tf"), "azurerm_application_insights") &&
+      !strcontains(file("${path.module}/observability.tf"), "azurerm_monitor_metric_alert") &&
+      !strcontains(file("${path.module}/variables.tf"), "external_monitoring") &&
+      !strcontains(file("${path.module}/providers.tf"), "application_insights")
     )
-    error_message = "External monitoring must remain absent until its fail-closed activation gate is enabled."
+    error_message = "The demo must not create Application Insights, web tests, Smart Detection, or static metric-alert resources."
   }
 
   assert {
     condition = (
-      azurerm_log_analytics_workspace.demo.retention_in_days == 30 &&
-      azurerm_log_analytics_workspace.demo.daily_quota_gb == 0.5 &&
-      strcontains(azurerm_monitor_scheduled_query_rules_alert.application_errors.query, "frontend_error") &&
-      strcontains(azurerm_monitor_scheduled_query_rules_alert.application_errors.query, "backend_error") &&
-      strcontains(azurerm_monitor_scheduled_query_rules_alert.application_errors.query, "| summarize AggregatedValue = count()") &&
-      strcontains(azurerm_monitor_scheduled_query_rules_alert.application_errors.query, "| where AggregatedValue > 0") &&
-      azurerm_monitor_scheduled_query_rules_alert.application_errors.query_type == "ResultCount" &&
-      azurerm_monitor_scheduled_query_rules_alert.application_errors.trigger[0].operator == "GreaterThan" &&
-      azurerm_monitor_scheduled_query_rules_alert.application_errors.trigger[0].threshold == 0 &&
-      azurerm_monitor_scheduled_query_rules_alert.application_errors.frequency == 5 &&
-      azurerm_monitor_scheduled_query_rules_alert.application_errors.time_window == 5 &&
-      azurerm_monitor_scheduled_query_rules_alert.application_errors.auto_mitigation_enabled &&
-      length(azurerm_monitor_scheduled_query_rules_alert.application_errors.action) == 1 &&
-      toset(azurerm_monitor_scheduled_query_rules_alert.application_errors.action[0].action_group) == toset([azurerm_monitor_action_group.demo.id]) &&
+      strcontains(file("${path.module}/main.tf"), "logs_destination      = null") &&
+      !strcontains(file("${path.module}/main.tf"), "azurerm_log_analytics_workspace") &&
+      !strcontains(file("${path.module}/main.tf"), "log_analytics_workspace_id") &&
+      !strcontains(file("${path.module}/observability.tf"), "azurerm_monitor_scheduled_query_rules_alert") &&
+      !strcontains(file("${path.module}/observability.tf"), "azurerm_monitor_diagnostic_setting") &&
       length(azurerm_monitor_action_group.demo.email_receiver) == 1 &&
-      alltrue([
-        for receiver in azurerm_monitor_action_group.demo.email_receiver :
-        receiver.use_common_alert_schema
-      ])
+      alltrue([for receiver in azurerm_monitor_action_group.demo.email_receiver : receiver.use_common_alert_schema])
     )
-    error_message = "Application error detection must return no result for zero events, one result for errors, and resolve statefully."
+    error_message = "The demo must stream logs without persisting them or creating a log query or diagnostic route."
   }
 
   assert {
@@ -272,160 +241,6 @@ run "demo_contract" {
   }
 }
 
-run "external_observability_activation_contract" {
-  command = plan
-
-  plan_options {
-    refresh = false
-  }
-
-  variables {
-    azure_subscription_id = "00000000-0000-0000-0000-000000000000"
-    location              = "westeurope"
-    demo_artifact_pair = {
-      app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-      seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
-      product_tag        = "v0.1.1"
-      product_commit     = "0123456789abcdef0123456789abcdef01234567"
-      runtime_contract   = "lzug-demo-health-ready-v1"
-      schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
-      seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
-    }
-    budget_amount_eur           = 25
-    budget_contact_emails       = ["demo-operations@example.invalid"]
-    budget_start_date           = "2026-09-01T00:00:00Z"
-    budget_end_date             = "2028-07-31T00:00:00Z"
-    external_monitoring_enabled = true
-    landingpage_url             = "https://lzug.repertoire.papaspyrou.name/"
-    demo_url                    = "https://demo.lzug.repertoire.papaspyrou.name"
-  }
-
-  assert {
-    condition = (
-      length(azurerm_application_insights.demo) == 1 &&
-      length(azurerm_application_insights_standard_web_test.demo) == 2 &&
-      azurerm_application_insights_standard_web_test.demo["landingpage"].request[0].url == var.landingpage_url &&
-      azurerm_application_insights_standard_web_test.demo["warmup"].request[0].url == "https://demo.lzug.repertoire.papaspyrou.name/api/ready" &&
-      length(azurerm_monitor_metric_alert.uptime) == 2
-    )
-    error_message = "Activation must create exactly the canonical #127 landing-page and demo-domain readiness tests with alerts."
-  }
-
-  assert {
-    condition = (
-      local.application_insights_generated_rule_disabled &&
-      toset(keys(azurerm_application_insights_smart_detection_rule.demo)) == toset([
-        "slowpageloadtime",
-        "slowserverresponsetime",
-        "longdependencyduration",
-        "degradationinserverresponsetime",
-        "degradationindependencyduration",
-        "extension_traceseveritydetector",
-        "extension_exceptionchangeextension",
-        "extension_memoryleakextension",
-        "extension_securityextensionspackage",
-        "extension_billingdatavolumedailyspikeextension",
-      ]) &&
-      toset(values(local.application_insights_smart_detection_rules)) == toset([
-        "Slow page load time",
-        "Slow server response time",
-        "Long dependency duration",
-        "Degradation in server response time",
-        "Degradation in dependency duration",
-        "Degradation in trace severity ratio",
-        "Abnormal rise in exception volume",
-        "Potential memory leak detected",
-        "Potential security issue detected",
-        "Abnormal rise in daily data volume",
-      ]) &&
-      length(azurerm_application_insights_smart_detection_rule.demo) == 10 &&
-      alltrue([
-        for api_name, rule in azurerm_application_insights_smart_detection_rule.demo :
-        rule.name == local.application_insights_smart_detection_rules[api_name] &&
-        rule.application_insights_id == azurerm_application_insights.demo[0].id &&
-        !rule.enabled &&
-        !rule.send_emails_to_subscription_owners &&
-        length(rule.additional_email_recipients) == 0
-      ])
-    )
-    error_message = "Activation must disable generated Failure Anomalies and adopt or create all ten fixed Smart Detection children without owner or additional recipients."
-  }
-
-  assert {
-    condition = alltrue([
-      for alert in values(azurerm_monitor_metric_alert.uptime) :
-      alert.application_insights_web_test_location_availability_criteria[0].failed_location_count == 1 &&
-      alltrue([
-        for action in alert.action :
-        action.action_group_id == azurerm_monitor_action_group.demo.id
-      ])
-    ])
-    error_message = "Every uptime signal must alert through the testable operations action group."
-  }
-}
-
-run "reject_generated_aca_demo_url" {
-  command = plan
-
-  plan_options {
-    refresh = false
-  }
-
-  variables {
-    azure_subscription_id = "00000000-0000-0000-0000-000000000000"
-    location              = "westeurope"
-    demo_artifact_pair = {
-      app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-      seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
-      product_tag        = "v0.1.1"
-      product_commit     = "0123456789abcdef0123456789abcdef01234567"
-      runtime_contract   = "lzug-demo-health-ready-v1"
-      schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
-      seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
-    }
-    budget_amount_eur           = 25
-    budget_contact_emails       = ["demo-operations@example.invalid"]
-    budget_start_date           = "2026-09-01T00:00:00Z"
-    budget_end_date             = "2028-07-31T00:00:00Z"
-    external_monitoring_enabled = true
-    landingpage_url             = "https://lzug.repertoire.papaspyrou.name/"
-    demo_url                    = "https://lzug-demo-app.example.azurecontainerapps.io"
-  }
-
-  expect_failures = [var.demo_url]
-}
-
-run "reject_unsafe_demo_url" {
-  command = plan
-
-  plan_options {
-    refresh = false
-  }
-
-  variables {
-    azure_subscription_id = "00000000-0000-0000-0000-000000000000"
-    location              = "westeurope"
-    demo_artifact_pair = {
-      app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-      seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
-      product_tag        = "v0.1.1"
-      product_commit     = "0123456789abcdef0123456789abcdef01234567"
-      runtime_contract   = "lzug-demo-health-ready-v1"
-      schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
-      seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
-    }
-    budget_amount_eur           = 25
-    budget_contact_emails       = ["demo-operations@example.invalid"]
-    budget_start_date           = "2026-09-01T00:00:00Z"
-    budget_end_date             = "2028-07-31T00:00:00Z"
-    external_monitoring_enabled = true
-    landingpage_url             = "https://lzug.repertoire.papaspyrou.name/"
-    demo_url                    = "http://user:password@*.example.invalid/path?query=value#fragment"
-  }
-
-  expect_failures = [var.demo_url]
-}
-
 run "reject_moving_demo_tags" {
   command = plan
 
@@ -445,7 +260,7 @@ run "reject_moving_demo_tags" {
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
-    budget_amount_eur     = 25
+    budget_amount_eur     = 1
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
     budget_end_date       = "2028-07-31T00:00:00Z"
@@ -473,7 +288,7 @@ run "accept_bound_snapshot_artifact_pair" {
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
-    budget_amount_eur     = 25
+    budget_amount_eur     = 1
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
     budget_end_date       = "2028-07-31T00:00:00Z"
@@ -504,7 +319,7 @@ run "reject_legacy_runtime_contract" {
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
-    budget_amount_eur     = 25
+    budget_amount_eur     = 1
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
     budget_end_date       = "2028-07-31T00:00:00Z"
@@ -535,7 +350,7 @@ run "reject_partial_environment_policy_adoption" {
     github_environment_deployment_policy_ids = {
       master = "123456"
     }
-    budget_amount_eur     = 25
+    budget_amount_eur     = 1
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
     budget_end_date       = "2028-07-31T00:00:00Z"
@@ -563,7 +378,7 @@ run "reject_invalid_budget_end_calendar_date" {
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
-    budget_amount_eur     = 25
+    budget_amount_eur     = 1
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
     budget_end_date       = "2028-02-31T00:00:00Z"
@@ -591,7 +406,7 @@ run "reject_invalid_budget_end_timestamp" {
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
-    budget_amount_eur     = 25
+    budget_amount_eur     = 1
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
     budget_end_date       = "2028-07-31T00:00:00"
@@ -619,11 +434,39 @@ run "reject_budget_end_not_later" {
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
-    budget_amount_eur     = 25
+    budget_amount_eur     = 1
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
     budget_end_date       = "2026-08-31T00:00:00Z"
   }
 
   expect_failures = [var.budget_end_date]
+}
+
+run "reject_budget_above_cost_target" {
+  command = plan
+
+  plan_options {
+    refresh = false
+  }
+
+  variables {
+    azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+    location              = "westeurope"
+    demo_artifact_pair = {
+      app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+      product_tag        = "v0.1.1"
+      product_commit     = "0123456789abcdef0123456789abcdef01234567"
+      runtime_contract   = "lzug-demo-health-ready-v1"
+      schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
+      seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
+    }
+    budget_amount_eur     = 1.01
+    budget_contact_emails = ["demo-operations@example.invalid"]
+    budget_start_date     = "2026-09-01T00:00:00Z"
+    budget_end_date       = "2028-07-31T00:00:00Z"
+  }
+
+  expect_failures = [var.budget_amount_eur]
 }

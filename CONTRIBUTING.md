@@ -8,10 +8,9 @@ Fachliche Prioritäten und Akzeptanzkriterien bleiben in den
 [GitHub Issues](https://github.com/lxndrp/lzug/issues); die Maintainer pflegen
 die operative Reihenfolge zusätzlich im GitHub Project `lzug Roadmap`.
 
-`lzug` ist ein ausdrücklich nicht produktionsreifer Quellcode-Prototyp mit
-synthetischen Demo- und Testdaten. Das Projekt ist nicht offiziell mit der IHK
-verbunden. Beiträge dürfen daher keine Produktionsreife, IHK-Zugehörigkeit oder
-produktive Betriebszusage voraussetzen.
+`lzug` ist ein ausdrücklich nicht produktionsreifer Quellcode-Prototyp mit synthetischen Demo- und Testdaten.
+Das Projekt ist nicht offiziell mit der IHK verbunden.
+Beiträge dürfen daher keine Produktionsreife, IHK-Zugehörigkeit oder produktive Betriebszusage voraussetzen.
 
 ## Einstieg
 
@@ -24,30 +23,30 @@ legt die risikobasierte Auswahl lokaler Prüfungen fest. Architektur, API-Vertra
 und technische Dokumentationsstandards stehen im
 [Entwicklerhandbuch](docs/developers/index.md).
 
-Das öffentliche redaktionelle Handbuch liegt ausschließlich im separaten
-[GitHub Wiki](https://github.com/lxndrp/lzug/wiki) und wird nicht in diesem
-Repository gespiegelt. Wiki-Änderungen werden in einem separaten Clone mit dem
-lokalen `task wiki:check` geprüft und erst nach Maintainer-Freigabe manuell in
-den Default-Branch veröffentlicht.
-Der genaue Ablauf steht in der [Wiki-Publikation](docs/developers/wiki-publishing.md).
+Das [GitHub Wiki](https://github.com/lxndrp/lzug/wiki) enthält die
+redaktionellen Entwicklungsanleitungen. Die Zuordnung aller Dokumentarten und
+kanonischen Quellen steht unter
+[Dokumentation](docs/developers/documentation.md); der konkrete Wiki-Review-
+und Veröffentlichungsablauf unter
+[Wiki-Publikation](docs/developers/wiki-publishing.md).
+
+Eigene gepflegte Markdown-Prosa wird mit Semantic Line Breaks geschrieben: Sätze und sinnvolle Gedankeneinheiten beginnen in neuen Quellzeilen.
+Tabellen, Listenstruktur, Codeblöcke, Front Matter, URLs und technische Zeichenketten bleiben unverändert; Drittmaterial, Lizenztexte und generierte Inhalte werden nicht rein redaktionell umgebrochen.
 
 ## Änderungen einreichen
 
 - Änderungen gehören zu einem GitHub Issue und bleiben klein sowie thematisch
-  zusammenhängend.
+zusammenhängend.
 - Commits werden auf Englisch geschrieben.
 - Prüfe Project, Milestone und Assignees des Issues mit `gh issue view` und
-  öffne den Pull Request mit `task pr:create`. Übergib gesetzte Assignees und
-  den Milestone explizit; die Task ordnet den PR dem Project `lzug Roadmap` zu.
+öffne den Pull Request mit `task pr:create`.
+Übergib gesetzte Assignees und den Milestone explizit; die Task ordnet den PR dem Project `lzug Roadmap` zu.
 - Ein vollständiger Pull Request enthält `Closes #<nummer>`, eine
-  Teilumsetzung eine nicht schließende Verknüpfung.
+Teilumsetzung eine nicht schließende Verknüpfung.
 - Prüfe die Zuordnungen nach dem Erstellen mit `gh pr view`.
 - CI und Review sind Voraussetzung für den Merge.
 
-Die vollständigen Befehle und der Ablauf bis zum Closeout stehen im
-[Pull-Request-Lifecycle](docs/developers/pull-requests.md).
+Die vollständigen Befehle und der Ablauf bis zum Closeout stehen im [Pull-Request-Lifecycle](docs/developers/pull-requests.md).
 
-Release-Tags und öffentliche Artefakte bleiben Maintainer-Aufgaben. Der
-verbindliche SemVer-, Changelog-, GitHub-Release- und GHCR-Ablauf steht im
-[Release-Prozess](docs/developers/releases.md); ein Pull Request oder Merge
-allein löst keine Veröffentlichung aus.
+Release-Tags und öffentliche Artefakte bleiben Maintainer-Aufgaben.
+Der verbindliche SemVer-, Changelog-, GitHub-Release- und GHCR-Ablauf steht im [Release-Prozess](docs/developers/releases.md); ein Pull Request oder Merge allein löst keine Veröffentlichung aus.

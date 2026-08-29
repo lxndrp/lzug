@@ -9,22 +9,24 @@
           >
         </div>
         <div class="app-panel-header-actions">
-          <button
-            tuiButton
-            size="s"
-            [appearance]="creatingHalfYear() ? 'secondary' : 'primary'"
-            type="button"
-            [attr.aria-expanded]="creatingHalfYear()"
-            aria-controls="exam-half-year-create-editor"
-            (click)="toggleHalfYearCreation()"
-          >
-            <svg
-              [cIcon]="creatingHalfYear() ? icons.cancel : icons.add"
-              class="app-button-icon"
-              aria-hidden="true"
-            ></svg>
-            {{ creatingHalfYear() ? 'Anlegen abbrechen' : 'Prüfungshalbjahr anlegen' }}
-          </button>
+          @if (!readOnly) {
+            <button
+              tuiButton
+              size="s"
+              [appearance]="creatingHalfYear() ? 'secondary' : 'primary'"
+              type="button"
+              [attr.aria-expanded]="creatingHalfYear()"
+              aria-controls="exam-half-year-create-editor"
+              (click)="toggleHalfYearCreation()"
+            >
+              <svg
+                [cIcon]="creatingHalfYear() ? icons.cancel : icons.add"
+                class="app-button-icon"
+                aria-hidden="true"
+              ></svg>
+              {{ creatingHalfYear() ? 'Anlegen abbrechen' : 'Prüfungshalbjahr anlegen' }}
+            </button>
+          }
           <button
             tuiButton
             appearance="secondary"
@@ -45,71 +47,78 @@
         @if (success(); as message) {
           <div tuiNotification appearance="positive" role="status">{{ message }}</div>
         }
+        @if (readOnly) {
+          <div tuiNotification appearance="info" role="status">
+            Prüfungshalbjahre sind in der öffentlichen Demo schreibgeschützt.
+          </div>
+        }
 
-        <section
-          id="exam-half-year-create-editor"
-          class="app-context-editor"
-          aria-labelledby="exam-half-year-create-title"
-          [hidden]="!creatingHalfYear()"
-        >
-          <header class="app-context-editor-header">
-            <div>
-              <strong id="exam-half-year-create-title">Prüfungshalbjahr anlegen</strong>
-              <span class="app-muted app-block"
-                >Saison und Jahr des Prüfungsdurchgangs erfassen</span
-              >
-            </div>
-            <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
-          </header>
-          <form tuiForm="m" class="app-form-grid" (submit)="createHalfYear($event)">
-            <div class="app-field-half">
-              <label for="examHalfYearSeason">Saison <span aria-hidden="true">*</span></label>
-              <tui-textfield [tuiTextfieldCleaner]="false">
-                <select id="examHalfYearSeason" name="season" required>
-                  <option value="summer">Sommer</option>
-                  <option value="winter">Winter</option>
-                </select>
-              </tui-textfield>
-            </div>
-            <div class="app-field-half">
-              <tui-textfield>
-                <label tuiLabel for="examHalfYearYear"
-                  >Jahr <span aria-hidden="true">*</span></label
+        @if (!readOnly) {
+          <section
+            id="exam-half-year-create-editor"
+            class="app-context-editor"
+            aria-labelledby="exam-half-year-create-title"
+            [hidden]="!creatingHalfYear()"
+          >
+            <header class="app-context-editor-header">
+              <div>
+                <strong id="exam-half-year-create-title">Prüfungshalbjahr anlegen</strong>
+                <span class="app-muted app-block"
+                  >Saison und Jahr des Prüfungsdurchgangs erfassen</span
                 >
-                <input
-                  tuiInput
-                  id="examHalfYearYear"
-                  name="year"
-                  type="number"
-                  min="2000"
-                  max="2100"
-                  [value]="halfYearDraft.year"
-                  required
-                />
-              </tui-textfield>
-            </div>
-            <div class="app-field-full app-form-actions">
-              <span class="app-form-action-hint"
-                >Das Halbjahr wird zunächst als Entwurf angelegt.</span
-              >
-              <div class="app-form-action-buttons">
-                <button
-                  tuiButton
-                  appearance="secondary"
-                  type="button"
-                  (click)="cancelHalfYearCreation()"
-                >
-                  <svg [cIcon]="icons.cancel" class="app-button-icon" aria-hidden="true"></svg>
-                  Abbrechen
-                </button>
-                <button tuiButton appearance="primary" type="submit" [disabled]="loading()">
-                  <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
-                  Prüfungshalbjahr anlegen
-                </button>
               </div>
-            </div>
-          </form>
-        </section>
+              <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
+            </header>
+            <form tuiForm="m" class="app-form-grid" (submit)="createHalfYear($event)">
+              <div class="app-field-half">
+                <label for="examHalfYearSeason">Saison <span aria-hidden="true">*</span></label>
+                <tui-textfield [tuiTextfieldCleaner]="false">
+                  <select id="examHalfYearSeason" name="season" required>
+                    <option value="summer">Sommer</option>
+                    <option value="winter">Winter</option>
+                  </select>
+                </tui-textfield>
+              </div>
+              <div class="app-field-half">
+                <tui-textfield>
+                  <label tuiLabel for="examHalfYearYear"
+                    >Jahr <span aria-hidden="true">*</span></label
+                  >
+                  <input
+                    tuiInput
+                    id="examHalfYearYear"
+                    name="year"
+                    type="number"
+                    min="2000"
+                    max="2100"
+                    [value]="halfYearDraft.year"
+                    required
+                  />
+                </tui-textfield>
+              </div>
+              <div class="app-field-full app-form-actions">
+                <span class="app-form-action-hint"
+                  >Das Halbjahr wird zunächst als Entwurf angelegt.</span
+                >
+                <div class="app-form-action-buttons">
+                  <button
+                    tuiButton
+                    appearance="secondary"
+                    type="button"
+                    (click)="cancelHalfYearCreation()"
+                  >
+                    <svg [cIcon]="icons.cancel" class="app-button-icon" aria-hidden="true"></svg>
+                    Abbrechen
+                  </button>
+                  <button tuiButton appearance="primary" type="submit" [disabled]="loading()">
+                    <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
+                    Prüfungshalbjahr anlegen
+                  </button>
+                </div>
+              </div>
+            </form>
+          </section>
+        }
 
         <div class="app-half-year-list">
           @for (halfYear of halfYears(); track halfYear.id) {
@@ -136,18 +145,20 @@
                     <svg [cIcon]="icons.overview" class="app-button-icon" aria-hidden="true"></svg>
                     Öffnen
                   </button>
-                  <button
-                    tuiButton
-                    appearance="secondary"
-                    size="s"
-                    type="button"
-                    [disabled]="!canEdit(halfYear)"
-                    [attr.aria-label]="halfYearLabel(halfYear) + ' bearbeiten'"
-                    (click)="startEditing(halfYear)"
-                  >
-                    <svg [cIcon]="icons.edit" class="app-button-icon" aria-hidden="true"></svg>
-                    Bearbeiten
-                  </button>
+                  @if (!readOnly) {
+                    <button
+                      tuiButton
+                      appearance="secondary"
+                      size="s"
+                      type="button"
+                      [disabled]="!canEdit(halfYear)"
+                      [attr.aria-label]="halfYearLabel(halfYear) + ' bearbeiten'"
+                      (click)="startEditing(halfYear)"
+                    >
+                      <svg [cIcon]="icons.edit" class="app-button-icon" aria-hidden="true"></svg>
+                      Bearbeiten
+                    </button>
+                  }
                 </div>
               </header>
 
@@ -166,35 +177,37 @@
                 </div>
               </dl>
 
-              <div class="app-half-year-card-actions">
-                <div class="app-form-action-buttons">
-                  <button
-                    tuiButton
-                    appearance="secondary"
-                    size="s"
-                    type="button"
-                    [disabled]="loading() || !canComplete()"
-                    [title]="statusActionHint(halfYear)"
-                    [attr.aria-label]="halfYearLabel(halfYear) + ' abschließen'"
-                  >
-                    <svg [cIcon]="icons.confirm" class="app-button-icon" aria-hidden="true"></svg>
-                    Abschließen
-                  </button>
-                  <button
-                    tuiButton
-                    appearance="secondary"
-                    size="s"
-                    type="button"
-                    [disabled]="loading() || !canArchive(halfYear)"
-                    [title]="statusActionHint(halfYear)"
-                    [attr.aria-label]="halfYearLabel(halfYear) + ' archivieren'"
-                  >
-                    <svg [cIcon]="icons.archive" class="app-button-icon" aria-hidden="true"></svg>
-                    Archivieren
-                  </button>
+              @if (!readOnly) {
+                <div class="app-half-year-card-actions">
+                  <div class="app-form-action-buttons">
+                    <button
+                      tuiButton
+                      appearance="secondary"
+                      size="s"
+                      type="button"
+                      [disabled]="loading() || !canComplete()"
+                      [title]="statusActionHint(halfYear)"
+                      [attr.aria-label]="halfYearLabel(halfYear) + ' abschließen'"
+                    >
+                      <svg [cIcon]="icons.confirm" class="app-button-icon" aria-hidden="true"></svg>
+                      Abschließen
+                    </button>
+                    <button
+                      tuiButton
+                      appearance="secondary"
+                      size="s"
+                      type="button"
+                      [disabled]="loading() || !canArchive(halfYear)"
+                      [title]="statusActionHint(halfYear)"
+                      [attr.aria-label]="halfYearLabel(halfYear) + ' archivieren'"
+                    >
+                      <svg [cIcon]="icons.archive" class="app-button-icon" aria-hidden="true"></svg>
+                      Archivieren
+                    </button>
+                  </div>
+                  <span class="app-form-action-hint">{{ statusActionHint(halfYear) }}</span>
                 </div>
-                <span class="app-form-action-hint">{{ statusActionHint(halfYear) }}</span>
-              </div>
+              }
 
               @if (editingHalfYearId() === halfYear.id) {
                 @if (editDraft(); as draft) {

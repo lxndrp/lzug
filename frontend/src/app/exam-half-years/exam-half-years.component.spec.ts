@@ -85,6 +85,34 @@ describe('ExamHalfYearsComponent', () => {
     flushInitialLoad(http, [{ id: 2, season: 'summer', year: 2027, status: 'draft' }]);
   });
 
+  it('keeps every half-year entry and detail read-only in the demo', () => {
+    fixture.componentRef.setInput('readOnly', true);
+    fixture.detectChanges();
+    flushInitialLoad(
+      http,
+      [{ id: 1, season: 'winter', year: 2026, status: 'active' }],
+      [
+        {
+          id: 1,
+          exam_half_year_id: 1,
+          committee_id: 1,
+          name: 'Winter 2026 · Prüfungsausschuss Teststadt 1',
+          status: 'draft',
+        },
+      ],
+    );
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).toContain('öffentlichen Demo schreibgeschützt');
+    expect(element.textContent).not.toContain('Prüfungshalbjahr anlegen');
+    expect(element.textContent).not.toContain('Bearbeiten');
+    expect(element.textContent).not.toContain('Abschließen');
+    expect(element.textContent).not.toContain('Archivieren');
+    expect(element.textContent).not.toContain('Ausschuss hinzufügen');
+    expect(buttonByText(element, 'Öffnen')).toBeDefined();
+  });
+
   it('keeps readable native required selections free of clear actions', () => {
     fixture.detectChanges();
     flushInitialLoad(http, [{ id: 1, season: 'winter', year: 2026, status: 'active' }]);

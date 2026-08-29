@@ -26,4 +26,10 @@ Diese Referenz entsteht beim Dokumentationsbuild aus Google-Style-Docstrings. Si
 
 ::: backend.holiday_provider
 
-::: backend.app
+::: backend.application
+
+::: backend.fastapi_app
+
+::: backend.server
+
+::: backend.transport

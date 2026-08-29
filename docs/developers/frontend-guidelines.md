@@ -1,6 +1,18 @@
 # Frontend-Richtlinie
 
-Bei Planung, Umsetzung und Review wird die Anwendung aus Sicht der Nutzenden beurteilt. Ziel ist eine ruhige, klare und ästhetische Verwaltungsoberfläche, deren Form der Funktion folgt und die ohne Implementierungswissen verständlich ist.
+Bei Planung, Umsetzung und Review wird die Anwendung aus Sicht der Nutzenden beurteilt.
+Ziel ist eine ruhige, klare und ästhetische Verwaltungsoberfläche, deren Form der Funktion folgt und die ohne Implementierungswissen verständlich ist.
+
+## Anwendungsgrenze
+
+Das Frontend liegt unter `frontend/` und verwendet Angular, TypeScript, Angular Router und Taiga UI.
+Es ist ein Arbeitswerkzeug für wiederkehrende Ausschussprozesse, keine Landingpage.
+API-Modelle und der API-Service bilden die Grenze zum Backend; der `RoundContextService` hält den aktuellen Prüfungsrunden-Kontext.
+Dashboard, Stammdaten und Planung sind getrennte fachliche Bereiche.
+Der Entwicklungsproxy leitet `/api` an das lokale Backend weiter; Build-, Test- und Lint-Grenzen liegen in den zugehörigen deklarativen Projektdateien.
+
+Die Entscheidung für Angular und die REST-Integration hält [ADR-0004](decisions/0004-angular-rest-integration.md) fest, die für Taiga UI [ADR-0005](decisions/0005-taiga-ui.md).
+Aktuelle API-Routen und Antwortmodelle bleiben ausschließlich in der OpenAPI-Quelle.
 
 ## Technische und gestalterische Quellen
 
@@ -14,23 +26,18 @@ Voraussetzungen für Umsetzung oder Review.
 Die folgenden Quellen ergänzen Taiga UI mit klar getrennten Rollen:
 
 - [WCAG 2.2](https://www.w3.org/TR/WCAG22/) ist der Maßstab für
-  Zugänglichkeit; automatisierbare Kriterien werden in den vorhandenen
-  Accessibility-Prüfungen erfasst, übrige Kriterien sichtbar geprüft.
+Zugänglichkeit; automatisierbare Kriterien werden in den vorhandenen Accessibility-Prüfungen erfasst, übrige Kriterien sichtbar geprüft.
 - Die [Nielsen-Heuristiken](https://www.nngroup.com/articles/ten-usability-heuristics/)
-  strukturieren das Usability-Review, insbesondere Rückmeldung,
-  Fehlervermeidung und verständliche Begriffe.
+strukturieren das Usability-Review, insbesondere Rückmeldung, Fehlervermeidung und verständliche Begriffe.
 - Steve Krugs [*Don't Make Me Think, Revisited*](https://www.pearson.com/en-us/subject-catalog/p/dont-make-me-think-revisited-a-common-sense-approach-to-web-usability/P200000000385/9780137460434)
-  schärft die Prüfung auf selbstverständliche Orientierung, scanbare
-  Informationsgestaltung, eindeutige Aktionen und knappe Sprache. Fachlich
-  notwendige Denkarbeit bleibt sichtbar; unnötige Denkarbeit durch die
-  Oberfläche wird vermieden.
+schärft die Prüfung auf selbstverständliche Orientierung, scanbare Informationsgestaltung, eindeutige Aktionen und knappe Sprache.
+Fachlich notwendige Denkarbeit bleibt sichtbar; unnötige Denkarbeit durch die Oberfläche wird vermieden.
 - Das [GOV.UK Design System](https://design-system.service.gov.uk/) dient als
-  Musterreferenz für Informationsstruktur, Formulare und Rückmeldungen. Es
-  liefert keine CSS- oder Komponentenbasis für lzug.
+Musterreferenz für Informationsstruktur, Formulare und Rückmeldungen.
+Es liefert keine CSS- oder Komponentenbasis für lzug.
 
-Diese Referenzen begründen keine zusätzlichen Frameworks oder lokalen
-Gestaltungsregeln. Insbesondere werden weder GOV.UK-CSS noch weitere
-CSS-Frameworks oder ein Screenshot-Regressionstest eingeführt.
+Diese Referenzen begründen keine zusätzlichen Frameworks oder lokalen Gestaltungsregeln.
+Insbesondere werden weder GOV.UK-CSS noch weitere CSS-Frameworks oder ein Screenshot-Regressionstest eingeführt.
 
 - Fachliche Aufgaben, Begriffe und Folgen müssen erkennbar sein; interne API-, Status- oder Implementierungsbegriffe werden nicht ungefiltert angezeigt.
 - Interaktive Elemente benötigen eindeutige Signale, erwartbare Zuordnung und unmittelbares Feedback. Beschriftung, Sichtbarkeit und Zustand vermitteln die Funktion.
@@ -43,9 +50,7 @@ CSS-Frameworks oder ein Screenshot-Regressionstest eingeführt.
 
 ## Abgrenzung zum Web-Auftritt
 
-Diese Richtlinie betrifft die Verwaltungsanwendung. Für den späteren
-öffentlichen Web-Auftritt kann Nancy Duartes Arbeit als Referenz für
-Erzählführung, visuelle Dramaturgie und die Vermittlung des Produkts dienen.
-Sie ist weder eine Komponenten- oder CSS-Basis noch ein Maßstab für die
-aufgabenzentrierte Anwendungsoberfläche. Die konkrete Gestaltung des
-Web-Auftritts wird in einer eigenen Entscheidung dokumentiert.
+Diese Richtlinie betrifft die Verwaltungsanwendung.
+Für den späteren öffentlichen Web-Auftritt kann Nancy Duartes Arbeit als Referenz für Erzählführung, visuelle Dramaturgie und die Vermittlung des Produkts dienen.
+Sie ist weder eine Komponenten- oder CSS-Basis noch ein Maßstab für die aufgabenzentrierte Anwendungsoberfläche.
+Die konkrete Gestaltung des Web-Auftritts wird in einer eigenen Entscheidung dokumentiert.

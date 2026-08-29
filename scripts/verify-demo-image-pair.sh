@@ -36,7 +36,7 @@ seed_container=$(docker create "$seed_image")
 docker cp "$app_container:/app/demo-app-manifest.json" "$temporary_directory/app.json"
 docker cp "$seed_container:/opt/lzug-demo/seed/manifest.json" "$temporary_directory/seed.json"
 
-python3 -m demo.artifacts verify-pair-manifests \
+python3 -m demo.contract verify-pair-manifests \
     --app-manifest "$temporary_directory/app.json" \
     --seed-manifest "$temporary_directory/seed.json" \
     --expected-product-tag "$product_tag" \

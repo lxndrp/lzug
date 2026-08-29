@@ -288,17 +288,19 @@
                 >Die Kapazitätsvorschau wird nach dem Speichern aktualisiert.</span
               >
               <div class="app-inline-actions">
-                <button
-                  tuiButton
-                  color="secondary"
-                  type="button"
-                  variant="outline"
-                  [disabled]="actionBusy || !canGenerateCandidateDays()"
-                  (click)="requestCandidateDayGeneration()"
-                >
-                  <svg [cIcon]="icons.calendar" class="app-button-icon" aria-hidden="true"></svg>
-                  Mögliche Tage berechnen
-                </button>
+                @if (allowCandidateDayGeneration) {
+                  <button
+                    tuiButton
+                    color="secondary"
+                    type="button"
+                    variant="outline"
+                    [disabled]="actionBusy || !canGenerateCandidateDays()"
+                    (click)="requestCandidateDayGeneration()"
+                  >
+                    <svg [cIcon]="icons.calendar" class="app-button-icon" aria-hidden="true"></svg>
+                    Mögliche Tage berechnen
+                  </button>
+                }
                 <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
                   <svg [cIcon]="icons.save" class="app-button-icon" aria-hidden="true"></svg>
                   Planungsrahmen speichern
@@ -339,55 +341,59 @@
               }
             </div>
           }
-          <form
-            tuiForm="m"
-            class="app-form-grid app-compact-form"
-            (ngSubmit)="submitCandidateDay()"
-          >
-            <div class="app-field-third">
-              <tui-textfield>
-                <label tuiLabel for="candidateDayDate"
-                  >Datum <span aria-hidden="true">*</span></label
-                >
-                <input
-                  tuiInput
-                  tuiInputDate
-                  id="candidateDayDate"
-                  name="candidateDayDate"
-                  type="date"
-                  [ngModel]="candidateDayDateValue"
-                  (ngModelChange)="setCandidateDayValue($event)"
-                  required
-                />
-              </tui-textfield>
-            </div>
-            <div class="app-field-third app-field-align-end app-compact-form-action">
-              <div class="app-form-check">
-                <input
-                  id="candidateDayActive"
-                  name="candidateDayActive"
-                  tuiCheckbox
-                  type="checkbox"
-                  [ngModel]="candidateDayDraft.is_active === 1"
-                  (ngModelChange)="candidateDayDraft.is_active = $event ? 1 : 0"
-                />
-                <label for="candidateDayActive">Aktiv</label>
+          @if (canCreateCandidateDay) {
+            <form
+              tuiForm="m"
+              class="app-form-grid app-compact-form"
+              (ngSubmit)="submitCandidateDay()"
+            >
+              <div class="app-field-third">
+                <tui-textfield>
+                  <label tuiLabel for="candidateDayDate"
+                    >Datum <span aria-hidden="true">*</span></label
+                  >
+                  <input
+                    tuiInput
+                    tuiInputDate
+                    id="candidateDayDate"
+                    name="candidateDayDate"
+                    type="date"
+                    [ngModel]="candidateDayDateValue"
+                    (ngModelChange)="setCandidateDayValue($event)"
+                    required
+                  />
+                </tui-textfield>
               </div>
-            </div>
-            <div class="app-field-third app-field-align-end">
-              <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
-                <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
-                Prüfungstag hinzufügen
-              </button>
-            </div>
-          </form>
+              <div class="app-field-third app-field-align-end app-compact-form-action">
+                <div class="app-form-check">
+                  <input
+                    id="candidateDayActive"
+                    name="candidateDayActive"
+                    tuiCheckbox
+                    type="checkbox"
+                    [ngModel]="candidateDayDraft.is_active === 1"
+                    (ngModelChange)="candidateDayDraft.is_active = $event ? 1 : 0"
+                  />
+                  <label for="candidateDayActive">Aktiv</label>
+                </div>
+              </div>
+              <div class="app-field-third app-field-align-end">
+                <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
+                  <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
+                  Prüfungstag hinzufügen
+                </button>
+              </div>
+            </form>
+          }
           <div class="app-table-scroll" tabindex="0" aria-label="Prüfungstage-Tabelle">
             <table tuiTable class="app-compact-table">
               <thead>
                 <tr>
                   <th scope="col">Datum</th>
                   <th scope="col">Status</th>
-                  <th scope="col">Aktion</th>
+                  @if (canToggleCandidateDay) {
+                    <th scope="col">Aktion</th>
+                  }
                 </tr>
               </thead>
               <tbody>
@@ -401,38 +407,46 @@
                         {{ day.is_active ? 'Aktiv' : 'Inaktiv' }}
                       </span>
                     </td>
-                    <td class="app-actions">
-                      <div class="app-row-actions">
-                        <button
-                          tuiButton
-                          color="secondary"
-                          size="s"
-                          type="button"
-                          variant="outline"
-                          [disabled]="actionBusy"
-                          [attr.aria-label]="
-                            dateLabel(day.date) +
-                            ' ' +
-                            (day.is_active ? 'deaktivieren' : 'aktivieren')
-                          "
-                          (click)="toggleCandidateDay.emit(day)"
-                        >
-                          <svg
-                            [cIcon]="day.is_active ? icons.deactivate : icons.activate"
-                            class="app-button-icon"
-                            aria-hidden="true"
-                          ></svg>
-                          {{ day.is_active ? 'Deaktivieren' : 'Aktivieren' }}
-                        </button>
-                      </div>
-                    </td>
+                    @if (canToggleCandidateDay) {
+                      <td class="app-actions">
+                        <div class="app-row-actions">
+                          <button
+                            tuiButton
+                            color="secondary"
+                            size="s"
+                            type="button"
+                            variant="outline"
+                            [disabled]="actionBusy"
+                            [attr.aria-label]="
+                              dateLabel(day.date) +
+                              ' ' +
+                              (day.is_active ? 'deaktivieren' : 'aktivieren')
+                            "
+                            (click)="toggleCandidateDay.emit(day)"
+                          >
+                            <svg
+                              [cIcon]="day.is_active ? icons.deactivate : icons.activate"
+                              class="app-button-icon"
+                              aria-hidden="true"
+                            ></svg>
+                            {{ day.is_active ? 'Deaktivieren' : 'Aktivieren' }}
+                          </button>
+                        </div>
+                      </td>
+                    }
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="3" class="app-table-empty-cell">
+                    <td [attr.colspan]="canToggleCandidateDay ? 3 : 2" class="app-table-empty-cell">
                       <div class="app-table-empty">
                         <strong>Keine möglichen Prüfungstage vorhanden.</strong>
-                        <span>Fügen Sie oben den ersten Kalendertag hinzu.</span>
+                        <span>
+                          {{
+                            canCreateCandidateDay
+                              ? 'Fügen Sie oben den ersten Kalendertag hinzu.'
+                              : 'Für diese Demo-Rolle ist keine Änderung freigegeben.'
+                          }}
+                        </span>
                       </div>
                     </td>
                   </tr>

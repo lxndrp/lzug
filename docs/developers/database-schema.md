@@ -1,89 +1,34 @@
 # Datenbankschema
 
-Die aktuelle, ausführbare Schema-Referenz ist `db/schema.sql` im Repository. Sie
-und die versionierten Migrationen unter `db/migrations/` sind maßgeblich für
-den tatsächlichen Datenbankstand. Der aktuelle Migrationsstand ist
-`013_add_notifications.sql`.
+`db/schema.sql` ist die ausführbare Referenz für eine neue Datenbank.
+`db/migrations/` ist die chronologische Referenz für Änderungen bestehender Bestände; die Laufzeit prüft ihre Historie und Integrität.
+SQLAlchemy-Modelle unter `backend/models.py` bilden dieselbe Produktstruktur in der Anwendung ab.
 
-Das aktuelle Backend verwendet SQLite lokal und SQLAlchemy. Primärschlüssel,
-Enums, Zeitstempel und Booleans sind SQLite-kompatibel modelliert; mehrzeilige
-fachliche Regeln werden in Repositories und Services validiert. Die Entscheidung einschließlich des später möglichen PostgreSQL-Pfads hält [ADR-0001](decisions/0001-lokale-relationale-persistenz.md) fest.
+Diese Quellen sind gemeinsam maßgeblich.
+Generierte Code-Referenzen entstehen beim Dokumentationsbuild.
+Die Entscheidung für lokale relationale Persistenz hält [ADR-0001](decisions/0001-lokale-relationale-persistenz.md) fest.
 
-Diese Referenz ersetzt weder `db/schema.sql` noch die Migrationen.
+Diese Seite enthält bewusst keine Tabellen-, Feld- oder Typliste. Änderungen
+am Datenmodell erfolgen über Modell, Schema und erforderliche Migration
+zusammen; ihre fachliche Bedeutung erläutert das
+[fachliche Datenmodell](domain-model.md).
 
-## Authentifizierungsdaten
+Die Migration `017_add_exam_protocols.sql` legt bei der Bestandsübernahme nur
+für bereits gestartete, noch laufende oder nachzubereitende Slots einen leeren,
+offenen Protokollstand und den aus Anwesenheit sowie Tagesabschnitt ermittelten
+Beteiligten-Snapshot an. Sie erfindet weder für abgeschlossene historische
+Prüfungen Protokolle noch eine Erklärung „ohne besondere Vorkommnisse“.
+Historische abgeschlossene Slots ohne Protokoll blockieren daher den regulären
+Tagesabschluss nicht; spätere Ergänzungen benötigen einen eigenen auditierbaren
+Importpfad.
 
-`user_account` beschreibt die technische Identität und trennt sie mit
-`is_operator` ausdrücklich von `committee_member` und dessen fachlichen Rollen.
-`auth_session` speichert ausschließlich Hashes des Session- und CSRF-Materials,
-den Ablauf, Widerruf und die optionale Rotationsherkunft. Die Migration
-`008_add_authentication_sessions.sql` ergänzt diese Tabellen für bestehende
-Datenbanken; die Rohwerte werden nur beim internen Erzeugen einer Session an
-den aufrufenden Service zurückgegeben. `011_add_local_password_totp_auth.sql`
-ergänzt die verschlüsselte TOTP-Secret-Spalte, den zuletzt akzeptierten
-TOTP-Zeitschritt und `auth_recovery_code`. Die Tabelle enthält ausschließlich
-Argon2id-Hashes der einmalig ausgegebenen Recovery-Codes sowie deren
-Verbrauchszeitpunkt; Einladungstoken und Betreiber-Recovery-Token bleiben als
-SHA-256-Prüfwerte in `auth_token` getrennt.
+Migration `018_add_exam_results.sql` führt die versionierten Bewertungsmodelle, die Bindung an eine Prüfungsrunde und das getrennte Ergebnisaggregat ein.
+Für abgeschlossene historische Slots entsteht nur ein expliziter Marker, dass in lzug keine Ergebnisdaten vorliegen.
+Die Migration erfindet weder Modellbindung noch Bewertung, Punkte, Berechnung, Beschluss oder Mitteilung.
+Details zu Sichtbarkeit, Vier-Augen-Prinzip, Korrektur und Aufbewahrung beschreibt der [Ergebnisvertrag](architecture/exam-results.md).
 
-## Betriebskonfiguration
-
-Die Anwendung verwendet standardmäßig `/data/lzug.sqlite`. Ein anderer
-Dateipfad kann mit `--db` oder `LZUG_DATABASE_PATH` gesetzt werden; alternativ
-akzeptieren `--database-url` und `LZUG_DATABASE_URL` eine Datei-URL wie
-`sqlite:////data/lzug.sqlite`. URL und Pfad dürfen nicht gleichzeitig gesetzt
-werden. `:memory:` und SQLite-URLs mit Query-Parametern sind für den
-Self-Hosting-Prozess nicht vorgesehen.
-
-Beim Öffnen jeder Verbindung werden `PRAGMA foreign_keys = ON`,
-`PRAGMA journal_mode = WAL`, `PRAGMA synchronous = NORMAL` und
-`PRAGMA busy_timeout = 5000` gesetzt. Dadurch bleiben Fremdschlüssel auch bei
-neuen Verbindungen aktiv, Leser können während eines Schreibers weiterarbeiten
-und kurzfristige konkurrierende Schreibzugriffe warten. WAL erzeugt neben der
-Datenbank temporäre `-wal`- und `-shm`-Dateien; das persistente Datenverzeichnis
-muss deshalb neben `lzug.sqlite` auch diese Laufzeitdateien zulassen.
-
-`--init` erstellt neue Datenbanken aus `db/schema.sql` oder führt bei einem
-versionierten älteren Stand die noch fehlenden Migrationen in Reihenfolge aus.
-Ein nicht-leerer Bestand ohne `schema_migration`, mit unbekannter Version, einer
-Historienlücke oder einer falschen Prüfsumme wird nicht automatisch repariert.
-Der Healthcheck prüft dieselben Voraussetzungen und liefert bei fehlender
-Readiness HTTP 503 inklusive des sicheren Fehlergrunds.
-
-Vor ausstehenden Migrationen legt die Anwendung eine SQLite-Schutzkopie unter
-`/data/backups` an. Diese Kopie schützt vor irreversiblen Änderungen, ist aber
-keine allgemeine Backup-/Restore-/Exportfunktion. Jede einzelne SQL-Migration
-läuft in ihrer eigenen Transaktion; der Historieneintrag wird erst nach dem
-Commit geschrieben. Scheitert eine Migration, bleibt sie nicht als erfolgreich
-markiert und der Server startet nicht. Bereits erfolgreich committete
-Migrationen werden nicht durch einen späteren Fehler automatisch zurückgesetzt;
-die Wiederherstellung aus der Schutzkopie gehört zum späteren Betriebsumfang.
-
-`schema_migration_checksum` enthält nur Migrationsnamen und SHA-256-Prüfsummen,
-keine Fachdaten. Die Readiness-Diagnose kann damit den aktuellen, Ziel- und
-ausstehenden Stand sowie die angewandte Historie ausgeben, ohne sensible Daten
-zu veröffentlichen. Ein zweiter gleichzeitiger Start wartet auf die
-datenbankbezogene Migrationssperre und prüft danach die Historie erneut.
-
-## Dokumentmetadaten
-
-Die Tabelle `document` enthält die interne `storage_id`, den geprüften
-Anzeigenamen, Medientyp, Größe und SHA-256-Prüfsumme. Die `storage_id` wird
-serverseitig erzeugt und darf nicht aus einem Benutzerpfad stammen. Der
-Dateiinhalt liegt getrennt unter `/data/documents`; die Datenbank enthält keine
-unkontrollierten Dateisystempfade. Backup- und Restore-Funktionen bleiben
-außerhalb von #118.
-
-## Kanalneutrale Benachrichtigungen
-
-`notification` speichert den fachlichen Hinweis genau einmal je Empfänger,
-Ereignistyp und stabilem Ursprungsbezug. `notification_delivery` hält davon
-getrennt ausschließlich technische Kanalzustände und Diagnosecodes.
-`push_subscription` bindet einen Browser-Endpunkt an die authentifizierte
-Person; endgültig ungültige Endpunkte werden mit `invalidated_at` stillgelegt.
-
-Alle Benachrichtigungen des Erstumfangs verweisen über `exam_round_id` auf den
-zugrunde liegenden Planungsvorgang. Dessen Löschung löscht deshalb auch Inhalte
-und technische Zustelldaten. Migration `013_add_notifications.sql` überführt
-kompatible Einträge der älteren kanalgebundenen Vorab-Tabelle und ersetzt sie
-durch diesen Vertrag.
+Migration `019_add_exam_day_closures.sql` ergänzt Tagesrevision und formellen Abschlussstatus sowie unveränderliche Abschluss-, Wiederöffnungs-, Aufgaben-, Audit- und Exporthistorien.
+Bereits abgeschlossene oder abgesagte Tage werden ausschließlich als historisch gesperrt gekennzeichnet.
+Die Migration erzeugt dafür weder Akteur und Zeitpunkt noch eine vermeintlich erfüllte Prüfliste oder Begründung.
+Offene, laufende und inkonsistente Bestände bleiben offen.
+Den Sperr-, Korrektur- und Nachweisvertrag beschreibt der [formelle Tagesabschluss](architecture/exam-day-closure.md).

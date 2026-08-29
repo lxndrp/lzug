@@ -3,8 +3,16 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { forkJoin } from 'rxjs';
 import { TuiButton } from '@taiga-ui/core';
 
-import { NotificationChannels, NotificationItem, NotificationProblem } from '../api/api.models';
+import {
+  CalendarEvent,
+  CalendarFeedActivation,
+  CalendarStatus,
+  NotificationChannels,
+  NotificationItem,
+  NotificationProblem,
+} from '../api/api.models';
 import { PlanningApiService } from '../api/planning-api.service';
+import { AuthService } from '../auth/auth.service';
 
 @Component({
   selector: 'app-notifications',
@@ -14,6 +22,7 @@ import { PlanningApiService } from '../api/planning-api.service';
 })
 export class NotificationsComponent implements OnInit {
   private readonly api = inject(PlanningApiService);
+  private readonly auth = inject(AuthService);
 
   protected readonly notifications = signal<NotificationItem[]>([]);
   protected readonly problems = signal<NotificationProblem[]>([]);
@@ -21,17 +30,26 @@ export class NotificationsComponent implements OnInit {
   protected readonly loading = signal(true);
   protected readonly pushBusy = signal(false);
   protected readonly pushMessage = signal<string | null>(null);
+  protected readonly calendar = signal<CalendarStatus | null>(null);
+  protected readonly calendarEvents = signal<CalendarEvent[]>([]);
+  protected readonly calendarBusy = signal(false);
+  protected readonly calendarMessage = signal<string | null>(null);
+  protected readonly feedUrl = signal<string | null>(null);
 
   ngOnInit(): void {
     forkJoin({
       notifications: this.api.getNotifications(),
       problems: this.api.getNotificationOverview(),
       channels: this.api.getNotificationChannels(),
+      calendar: this.api.getCalendarStatus(),
+      calendarEvents: this.api.getCalendarEvents(),
     }).subscribe({
-      next: ({ notifications, problems, channels }) => {
+      next: ({ notifications, problems, channels, calendar, calendarEvents }) => {
         this.notifications.set(notifications);
         this.problems.set(problems);
         this.channels.set(channels);
+        this.calendar.set(calendar);
+        this.calendarEvents.set(calendarEvents);
         this.loading.set(false);
       },
       error: () => {
@@ -41,8 +59,60 @@ export class NotificationsComponent implements OnInit {
     });
   }
 
+  protected activateCalendar(rotate = false): void {
+    if (!this.canManageCalendarFeed() || this.calendarBusy()) return;
+    if (
+      rotate &&
+      !window.confirm('Der bisherige Kalenderzugang wird sofort ungültig. Fortfahren?')
+    ) {
+      return;
+    }
+    this.calendarBusy.set(true);
+    this.calendarMessage.set(null);
+    this.api.activateCalendarFeed(rotate).subscribe({
+      next: (result: CalendarFeedActivation) => {
+        this.calendar.set(result);
+        this.feedUrl.set(result.feed_url);
+        this.calendarMessage.set(result.notice);
+        this.calendarBusy.set(false);
+      },
+      error: () => {
+        this.calendarMessage.set('Der persönliche Kalenderzugang konnte nicht aktiviert werden.');
+        this.calendarBusy.set(false);
+      },
+    });
+  }
+
+  protected revokeCalendar(): void {
+    if (!this.canManageCalendarFeed() || this.calendarBusy()) return;
+    if (!window.confirm('Der Kalenderzugang wird sofort ungültig. Fortfahren?')) return;
+    this.calendarBusy.set(true);
+    this.calendarMessage.set(null);
+    this.api.revokeCalendarFeed().subscribe({
+      next: (result) => {
+        this.calendar.set(result);
+        this.feedUrl.set(null);
+        this.calendarMessage.set(result.notice);
+        this.calendarBusy.set(false);
+      },
+      error: () => {
+        this.calendarMessage.set('Der persönliche Kalenderzugang konnte nicht widerrufen werden.');
+        this.calendarBusy.set(false);
+      },
+    });
+  }
+
+  protected calendarStatusLabel(event: CalendarEvent): string {
+    return event.status === 'cancelled'
+      ? 'Storniert'
+      : event.status === 'updated'
+        ? 'Geändert'
+        : 'Bestätigt';
+  }
+
   protected canEnablePush(): boolean {
     return (
+      this.canManagePush() &&
       this.channels()?.web_push.available === true &&
       typeof navigator !== 'undefined' &&
       'serviceWorker' in navigator &&
@@ -78,6 +148,14 @@ export class NotificationsComponent implements OnInit {
     } finally {
       this.pushBusy.set(false);
     }
+  }
+
+  protected canManagePush(): boolean {
+    return this.auth.hasCapability('push:manage-own');
+  }
+
+  protected canManageCalendarFeed(): boolean {
+    return this.auth.hasCapability('calendar:feed-manage-own');
   }
 
   protected statusLabel(status: NotificationProblem['status']): string {

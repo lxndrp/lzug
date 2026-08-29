@@ -4,9 +4,12 @@ import os
 import sqlite3
 import unittest
 import urllib.error
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
+from threading import Event, Thread
 from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -15,8 +18,8 @@ from backend.auth import AuthenticationRepository
 from backend.authorization import AuthorizationService
 from backend.database import session_scope
 from backend.models import ExamDay, ExamDayAssignment, NotificationDelivery
-from backend.notifications import NotificationService
-from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler, assert_status
+from backend.notifications import DELIVERY_CLAIM_TTL, NotificationService
+from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
 
 def vapid_private_key() -> str:
@@ -46,6 +49,39 @@ class NotificationServiceTests(unittest.TestCase):
         context = self.authentication.authenticate(credentials.token)
         assert context is not None
         return AuthorizationService(self.db_path).scope(context)
+
+    def create_pending_sink(self) -> int:
+        with sqlite3.connect(self.db_path) as connection:
+            cursor = connection.execute(
+                "INSERT INTO notification "
+                "(committee_id, recipient_member_id, event_type, origin_key, "
+                " title, message, action_path) "
+                "VALUES (1, 1, 'synthetic_test', ?, 'Claim test', "
+                "        'No external content', '/notifications')",
+                (f"claim-test:{uuid4().hex}",),
+            )
+            notification_id = int(cursor.lastrowid)
+            connection.execute(
+                "INSERT INTO notification_delivery "
+                "(notification_id, channel, target_key, status) "
+                "VALUES (?, 'sink', 'operator-sink', 'pending')",
+                (notification_id,),
+            )
+            connection.commit()
+        return notification_id
+
+    def assert_claim_is_committed_without_open_write_transaction(
+        self, notification_id: int
+    ) -> None:
+        with sqlite3.connect(self.db_path, timeout=0.2) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            claim = connection.execute(
+                "SELECT claim_token FROM notification_delivery WHERE notification_id = ?",
+                (notification_id,),
+            ).fetchone()
+            connection.rollback()
+        self.assertIsNotNone(claim)
+        self.assertIsNotNone(claim[0])
 
     def test_event_recipients_are_idempotent_and_channel_neutral(self) -> None:
         first = self.service.create_for_event("availability_requested", 1)
@@ -245,6 +281,165 @@ class NotificationServiceTests(unittest.TestCase):
         self.assertEqual(1, count)
         self.assertEqual(("permanently_failed", 4, None), delivery)
 
+    def test_channel_access_runs_after_the_claim_transaction_commits(self) -> None:
+        private_key = vapid_private_key()
+        with patch.dict(
+            os.environ,
+            {
+                "LZUG_WEB_PUSH_VAPID_PRIVATE_KEY": private_key,
+                "LZUG_WEB_PUSH_SUBJECT": "mailto:operator@example.invalid",
+            },
+            clear=False,
+        ):
+            self.service.register_push(
+                self.scope(1), "https://push.example.invalid/transaction-boundary"
+            )
+            with patch.object(self.service, "process_deliveries", return_value=0):
+                web_push = self.service.synthetic_test(1, "web_push")
+            with patch.object(
+                self.service,
+                "_send_web_push",
+                side_effect=lambda _endpoint, notification_id: (
+                    self.assert_claim_is_committed_without_open_write_transaction(notification_id)
+                ),
+            ):
+                self.assertEqual(1, self.service.process_deliveries())
+
+        with patch.dict(os.environ, {"LZUG_SMTP_HOST": "smtp.example.invalid"}, clear=False):
+            with patch.object(self.service, "process_deliveries", return_value=0):
+                email = self.service.synthetic_test(1, "email")
+            with patch.object(
+                self.service,
+                "_send_email",
+                side_effect=lambda delivery: (
+                    self.assert_claim_is_committed_without_open_write_transaction(
+                        delivery.notification_id
+                    )
+                ),
+            ):
+                self.assertEqual(1, self.service.process_deliveries())
+
+        sink_id = self.create_pending_sink()
+        with patch.object(
+            self.service,
+            "_send_sink",
+            side_effect=lambda notification_id: (
+                self.assert_claim_is_committed_without_open_write_transaction(notification_id)
+            ),
+        ):
+            self.assertEqual(1, self.service.process_deliveries())
+
+        self.assertIsInstance(web_push["notification_id"], int)
+        self.assertIsInstance(email["notification_id"], int)
+        self.assertIsInstance(sink_id, int)
+
+    def test_parallel_workers_do_not_dispatch_the_same_active_claim(self) -> None:
+        notification_id = self.create_pending_sink()
+        started = Event()
+        release = Event()
+        calls: list[int] = []
+        results: list[int] = []
+        errors: list[BaseException] = []
+
+        def send_sink(active_notification_id: int) -> None:
+            calls.append(active_notification_id)
+            self.assert_claim_is_committed_without_open_write_transaction(active_notification_id)
+            if len(calls) == 1:
+                started.set()
+                release.wait(timeout=2)
+
+        def process_first_worker() -> None:
+            try:
+                results.append(NotificationService(self.db_path).process_deliveries())
+            except BaseException as error:  # pragma: no cover - asserted below
+                errors.append(error)
+
+        with patch.object(NotificationService, "_send_sink", side_effect=send_sink):
+            worker = Thread(target=process_first_worker)
+            worker.start()
+            self.assertTrue(started.wait(timeout=2))
+            second_result = NotificationService(self.db_path).process_deliveries()
+            release.set()
+            worker.join(timeout=2)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual([], errors)
+        self.assertEqual([1], results)
+        self.assertEqual(0, second_result)
+        self.assertEqual([notification_id], calls)
+
+    def test_expired_claim_is_reclaimed_and_stale_or_foreign_results_are_rejected(
+        self,
+    ) -> None:
+        notification_id = self.create_pending_sink()
+        first_started = datetime.now(UTC)
+        first = self.service._claim_due_deliveries(first_started, "first-worker", batch_size=1)
+        self.assertEqual(1, len(first))
+        overview = self.service.management_overview(self.scope(1))
+        active = next(row for row in overview if row["notification_id"] == notification_id)
+        self.assertEqual("active", active["claim_state"])
+
+        with patch.object(self.service, "_send_sink", side_effect=OSError("worker abort")):
+            first_result = self.service._dispatch_claimed(first[0], first_started)
+        self.assertEqual("temporarily_failed", first_result.status)
+        foreign = replace(first[0], claim_token="foreign-worker")
+        self.assertFalse(
+            self.service._complete_claim(
+                foreign, first_result, first_started + timedelta(seconds=1)
+            )
+        )
+        self.assertEqual(
+            [],
+            self.service._claim_due_deliveries(
+                first_started + DELIVERY_CLAIM_TTL - timedelta(seconds=1),
+                "early-worker",
+                batch_size=1,
+            ),
+        )
+
+        second_started = first_started + DELIVERY_CLAIM_TTL + timedelta(seconds=1)
+        restarted_service = NotificationService(self.db_path)
+        second = restarted_service._claim_due_deliveries(
+            second_started, "second-worker", batch_size=1
+        )
+        self.assertEqual(1, len(second))
+        second_result = restarted_service._dispatch_claimed(second[0], second_started)
+        self.assertTrue(
+            restarted_service._complete_claim(
+                second[0], second_result, second_started + timedelta(seconds=1)
+            )
+        )
+        self.assertFalse(
+            self.service._complete_claim(
+                first[0], first_result, second_started + timedelta(seconds=2)
+            )
+        )
+
+        with sqlite3.connect(self.db_path) as connection:
+            delivery = connection.execute(
+                "SELECT status, attempt_count, claim_token, claimed_at, claim_expires_at "
+                "FROM notification_delivery WHERE notification_id = ?",
+                (notification_id,),
+            ).fetchone()
+        self.assertEqual(("technically_confirmed", 1, None, None, None), delivery)
+
+    def test_processing_batch_is_bounded(self) -> None:
+        notification_id = self.create_pending_sink()
+        with sqlite3.connect(self.db_path) as connection:
+            connection.executemany(
+                "INSERT INTO notification_delivery "
+                "(notification_id, channel, target_key, status) "
+                "VALUES (?, 'sink', ?, 'pending')",
+                [(notification_id, f"operator-sink-{index}") for index in range(20)],
+            )
+            connection.commit()
+
+        with patch.object(self.service, "_send_sink") as send:
+            self.assertEqual(20, self.service.process_deliveries())
+            self.assertEqual(20, send.call_count)
+            self.assertEqual(1, self.service.process_deliveries())
+            self.assertEqual(21, send.call_count)
+
     def test_due_events_retry_safely_and_retention_follows_round(self) -> None:
         processed = self.service.process_due_events(now=datetime(2026, 10, 3, tzinfo=UTC))
         repeated = self.service.process_due_events(
@@ -306,14 +501,13 @@ class NotificationApiTests(unittest.TestCase):
             def create_for_event(self, _event_type: str, _round_id: int):
                 raise OSError("synthetic delivery failure")
 
-        class BrokenNotificationHandler(TestLzugHandler):
-            @property
-            def notification_service(self):
-                return BrokenNotifications()
-
         with (
             TempDatabase() as db_path,
-            ApiServer(db_path, handler_type=BrokenNotificationHandler) as api,
+            patch(
+                "backend.notifications.NotificationService.create_for_event",
+                BrokenNotifications().create_for_event,
+            ),
+            ApiServer(db_path) as api,
         ):
             status, result = api.request("POST", "/api/exam-rounds/1/request-availabilities", {})
 

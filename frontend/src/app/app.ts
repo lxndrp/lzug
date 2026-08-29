@@ -71,6 +71,7 @@ import { AuthFlowComponent } from './auth/auth-flow.component';
 import { AuthService } from './auth/auth.service';
 import { RuntimeNoticeComponent } from './runtime/runtime-notice.component';
 import { NotificationsComponent } from './notifications/notifications.component';
+import { AbsenceReportsComponent } from './absence-reports/absence-reports.component';
 
 @Component({
   selector: 'app-root',
@@ -85,6 +86,7 @@ import { NotificationsComponent } from './notifications/notifications.component'
     ExamHalfYearsComponent,
     LocationsComponent,
     NotificationsComponent,
+    AbsenceReportsComponent,
     PlanningComponent,
     RuntimeNoticeComponent,
     SchedulingOverviewComponent,
@@ -153,6 +155,21 @@ export class App {
   protected readonly canCoordinateAttendance = computed(
     () => this.hasCapability('attendance:coordinate') || this.hasCapability('exam-status:write'),
   );
+  protected readonly canWriteOwnAttendance = computed(() =>
+    this.hasCapability('attendance:write-own'),
+  );
+  protected readonly canReportOwnAbsence = computed(() => this.hasCapability('absence:write-own'));
+  protected readonly canGenerateCandidateDays = computed(
+    () =>
+      this.hasCapability('planning-settings:write') &&
+      this.hasCapability('candidate-days:generate'),
+  );
+  protected readonly canCreateCandidateDay = computed(() =>
+    this.hasCapability('candidate-days:create'),
+  );
+  protected readonly canToggleCandidateDay = computed(() =>
+    this.hasCapability('candidate-days:toggle'),
+  );
   protected readonly directAccessDenied = computed(
     () => this.demoSession() !== null && !this.canAccessView(this.activeView()),
   );
@@ -169,6 +186,7 @@ export class App {
       locations: 'Prüfungsorte',
       'exam-half-years': 'Prüfungshalbjahre',
       notifications: 'Benachrichtigungen',
+      'absence-reports': 'Ausfall und Ersatz',
     };
     return labels[this.activeView()];
   });
@@ -203,7 +221,8 @@ export class App {
 
   protected readonly breadcrumb = computed(() => {
     if (this.activeView() === 'exam-half-years') return 'Prüfungskontext';
-    if (this.activeView() === 'notifications') return 'Persönlicher Bereich';
+    if (['notifications', 'absence-reports'].includes(this.activeView()))
+      return 'Persönlicher Bereich';
     if (['committee', 'locations'].includes(this.activeView())) return 'Globale Bereiche';
     return 'Aktueller Prüfungskontext';
   });
@@ -362,7 +381,10 @@ export class App {
   }
 
   protected demoRoleLabel(): string {
-    return this.demoSession()?.demo_role === 'chair' ? 'Vorsitz' : 'Prüfperson';
+    const role = this.demoSession()?.demo_role;
+    if (role === 'chair') return 'Vorsitz';
+    if (role === 'deputy') return 'Stellvertretung';
+    return 'Prüfperson';
   }
 
   protected demoRoleTask(): string {
@@ -372,14 +394,15 @@ export class App {
   }
 
   protected hasCapability(capability: string): boolean {
-    const capabilities = this.auth.session()?.capabilities;
-    return capabilities === undefined || capabilities.includes(capability);
+    return this.auth.hasCapability(capability);
   }
 
   protected canAccessView(view: AppView): boolean {
     if (!this.demoSession()) return true;
-    if (view === 'dashboard' || view === 'notifications') return true;
-    if (view === 'exam-half-years') return true;
+    if (view === 'dashboard') return true;
+    if (view === 'notifications') return this.hasCapability('notifications:read-own');
+    if (view === 'absence-reports') return this.hasCapability('absence:read-own');
+    if (view === 'exam-half-years') return this.hasCapability('exam-half-years:read');
     if (['scheduling-overview', 'planning'].includes(view)) {
       return (
         this.hasCapability('availability:write-own') ||
@@ -391,7 +414,8 @@ export class App {
       return (
         this.hasCapability('attendance:write-own') ||
         this.hasCapability('attendance:coordinate') ||
-        this.hasCapability('exam-status:write')
+        this.hasCapability('exam-status:write') ||
+        this.hasCapability('exam-result:read')
       );
     }
     return false;
@@ -706,7 +730,7 @@ export class App {
   }
 
   protected createCandidateDay(payload: CandidateExamDayPayload): void {
-    if (!this.hasCapability('candidate-days:generate')) {
+    if (!this.hasCapability('candidate-days:create')) {
       this.notifyRoleRestriction();
       return;
     }
@@ -730,7 +754,7 @@ export class App {
   }
 
   protected generateCandidateDays(payload: PlanningSettingsPayload): void {
-    if (!this.hasCapability('candidate-days:generate')) {
+    if (!this.canGenerateCandidateDays()) {
       this.notifyRoleRestriction();
       return;
     }
@@ -761,7 +785,7 @@ export class App {
   }
 
   protected toggleCandidateDay(day: CandidateExamDay): void {
-    if (!this.hasCapability('candidate-days:generate')) {
+    if (!this.hasCapability('candidate-days:toggle')) {
       this.notifyRoleRestriction();
       return;
     }
@@ -879,12 +903,11 @@ export class App {
         next: (result) => {
           this.lastPlanningResult.set(result);
           const confirmed = result.counts['confirmed_slots'] ?? 0;
+          const warning = result.notification_warning ?? result.calendar_warning;
           this.notify(
-            result.notification_warning ? 'error' : 'success',
-            result.notification_warning
-              ? 'Plan bestätigt, Benachrichtigungen unvollständig'
-              : 'Plan bestätigt',
-            result.notification_warning ?? `${confirmed} Termine sind verbindlich.`,
+            warning ? 'error' : 'success',
+            warning ? 'Plan bestätigt, Zusatzinformationen unvollständig' : 'Plan bestätigt',
+            warning ?? `${confirmed} Termine sind verbindlich.`,
           );
           this.refresh();
           void this.router.navigateByUrl(`/confirmed-plans/${this.roundContext.roundId()}`);
@@ -915,6 +938,10 @@ export class App {
   }
 
   protected savePlanningProposal(proposal: EditablePlanningProposal): void {
+    if (!this.hasCapability('planning-proposal:replace')) {
+      this.notifyRoleRestriction();
+      return;
+    }
     this.proposalEditorState.set('saving');
     this.proposalEditorError.set(null);
     this.proposalEditorViolations.set([]);
@@ -994,6 +1021,7 @@ export class App {
       locations: 'locations',
       'exam-half-years': 'exam-half-years',
       notifications: 'notifications',
+      'absence-reports': 'absence-reports',
     };
     return view === 'planning' ? `scheduling-overview/${this.roundContext.roundId()}` : paths[view];
   }
@@ -1017,6 +1045,7 @@ export class App {
       locations: 'locations',
       'exam-half-years': 'exam-half-years',
       notifications: 'notifications',
+      'absence-reports': 'absence-reports',
     };
     return views[segment ?? 'dashboard'] ?? 'dashboard';
   }

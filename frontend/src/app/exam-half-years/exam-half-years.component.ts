@@ -56,6 +56,7 @@ export class ExamHalfYearsComponent implements OnInit {
   @Input() candidates: CandidateView[] = [];
   @Input() candidateAssignments: CandidateCommitteeAssignment[] = [];
   @Input() activeRoundId: number | null = null;
+  @Input() readOnly = false;
   @Output() roundSelected = new EventEmitter<number>();
 
   ngOnInit(): void {
@@ -82,6 +83,7 @@ export class ExamHalfYearsComponent implements OnInit {
   }
 
   protected toggleHalfYearCreation(): void {
+    if (this.readOnly) return;
     this.creatingHalfYear.set(!this.creatingHalfYear());
     this.error.set(null);
   }
@@ -94,6 +96,7 @@ export class ExamHalfYearsComponent implements OnInit {
 
   protected createHalfYear(event: SubmitEvent): void {
     event.preventDefault();
+    if (this.readOnly) return;
     const form = event.currentTarget as HTMLFormElement;
     const data = new FormData(form);
     const year = Number(data.get('year'));
@@ -122,6 +125,7 @@ export class ExamHalfYearsComponent implements OnInit {
   }
 
   protected submitHalfYearUpdate(): void {
+    if (this.readOnly) return;
     const id = this.editingHalfYearId();
     const draft = this.editDraft();
     if (!id || !draft || !Number.isInteger(Number(draft.year))) {
@@ -158,6 +162,7 @@ export class ExamHalfYearsComponent implements OnInit {
 
   protected createRound(event: SubmitEvent): void {
     event.preventDefault();
+    if (this.readOnly) return;
     const data = new FormData(event.currentTarget as HTMLFormElement);
     const halfYear = this.selectedHalfYear();
     const committeeId = Number(data.get('committee_id'));
@@ -248,11 +253,11 @@ export class ExamHalfYearsComponent implements OnInit {
   }
 
   protected canEdit(halfYear: ExamHalfYear): boolean {
-    return !['completed', 'archived'].includes(halfYear.status);
+    return !this.readOnly && !['completed', 'archived'].includes(halfYear.status);
   }
 
   protected canManageRounds(halfYear: ExamHalfYear): boolean {
-    return !['completed', 'archived'].includes(halfYear.status);
+    return !this.readOnly && !['completed', 'archived'].includes(halfYear.status);
   }
 
   protected canComplete(): boolean {

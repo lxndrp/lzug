@@ -20,6 +20,14 @@ PR_GATES = {
     "container-gate": "Pull Request / Container",
 }
 
+SYNTHETIC_FIXTURE_PATHS = {
+    "fixtures/synthetic-fixtures.json",
+    "scripts/generate_synthetic_fixtures.py",
+    "db/seed_demo.sql",
+    "frontend/src/app/testing/synthetic-fixtures.generated.ts",
+    "prototypes/pruefungsrunde-prototyp/synthetic-fixtures.generated.js",
+}
+
 
 class QualityWorkflowContractTests(unittest.TestCase):
     @classmethod
@@ -50,6 +58,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             self.pull_request,
         )
         for domain in (
+            "fixtures",
             "docs",
             "backend",
             "frontend",
@@ -102,17 +111,33 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("workflow_call:", workflow_call)
         self.assertIn("revision:", workflow_call)
         self.assertIn("required: false", workflow_call)
-        self.assertIn("QUALITY_REVISION: ${{ inputs.revision || github.sha }}", self.quality)
+        revision = "${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}"
+        self.assertIn(f"QUALITY_REVISION: {revision}", self.quality)
         checkout_blocks = action_blocks(self.quality, "actions/checkout")
         self.assertTrue(checkout_blocks)
-        self.assertTrue(
-            all("ref: ${{ inputs.revision || github.sha }}" in block for block in checkout_blocks)
-        )
+        self.assertTrue(all(f"ref: {revision}" in block for block in checkout_blocks))
         self.assertIn("ref: ${{ inputs.revision || github.sha }}", self.codeql)
         self.assertIn('--revision "$QUALITY_REVISION"', self.quality)
 
+    def test_dependabot_merge_starts_exact_revision_quality_baseline(self) -> None:
+        triggers = trigger_block(self.quality)
+        self.assertIn("workflow_run:", triggers)
+        self.assertIn("- Dependabot Updates", triggers)
+        self.assertIn("- completed", triggers)
+        self.assertIn("- master", triggers)
+
+        revision = "${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}"
+        self.assertIn(f"QUALITY_REVISION: {revision}", self.quality)
+        self.assertIn("group: quality-${{ github.ref }}-" + revision, self.quality)
+        checkout_blocks = action_blocks(self.quality, "actions/checkout")
+        self.assertTrue(checkout_blocks)
+        self.assertTrue(all(f"ref: {revision}" in block for block in checkout_blocks))
+        self.assertIn(f"revision: {revision}", self.quality)
+
     def test_local_quality_tasks_are_the_ci_domain_contract(self) -> None:
+        taskfile = workflow_text("Taskfile.yml")
         for task in (
+            "task fixtures:check",
             "task quality:backend",
             "task quality:frontend quality:security",
             "task quality:operator",
@@ -124,6 +149,33 @@ class QualityWorkflowContractTests(unittest.TestCase):
             with self.subTest(task=task):
                 self.assertIn(task, self.pull_request)
                 self.assertIn(task, self.quality)
+
+        self.assertIn("docs:check:", taskfile)
+        self.assertIn("python3 -m scripts.check_documentation", taskfile)
+
+    def test_synthetic_fixture_check_has_a_complete_trigger_and_ci_contract(self) -> None:
+        taskfile = workflow_text("Taskfile.yml")
+        changes = job_block(self.pull_request, "changes")
+        pull_request_check = job_block(self.pull_request, "fixtures")
+        full_quality_check = job_block(self.quality, "fixtures")
+        backend_gate = job_block(self.pull_request, "backend-gate")
+        fixture_filter = re.search(
+            r"^            fixtures:\n(?P<paths>(?:              - .+\n)+)",
+            changes,
+            re.MULTILINE,
+        )
+
+        self.assertIn("fixtures:check:", taskfile)
+        self.assertIn("python3 scripts/generate_synthetic_fixtures.py --check", taskfile)
+        self.assertIn("- fixtures:check", taskfile)
+        self.assertIn("fixtures: ${{", changes)
+        self.assertIsNotNone(fixture_filter)
+        for path in SYNTHETIC_FIXTURE_PATHS:
+            with self.subTest(path=path):
+                self.assertIn(f"- '{path}'", fixture_filter.group("paths"))
+        self.assertIn("task fixtures:check", pull_request_check)
+        self.assertIn("task fixtures:check", full_quality_check)
+        self.assertIn("fixtures", backend_gate)
 
     def test_quality_actions_are_pinned_and_quality_cannot_publish(self) -> None:
         for path in (

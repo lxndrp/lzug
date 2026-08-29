@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
+import type { ExamResult } from '../src/app/api/api.models';
 import { expect, test } from './fixtures';
 
 const productiveViews = [
@@ -512,6 +513,403 @@ test.describe('lzug browser workflows', () => {
     ).toBeVisible();
   });
 
+  test('versions, confirms, corrects, and re-confirms an exam protocol', async ({ page }) => {
+    const plan = confirmedPlan(
+      1,
+      'Prüfungsausschuss Protokoll',
+      'Prüfling',
+      'Protokoll',
+      'regular',
+    );
+    const day = plan.days[0];
+    day.slots[0].actual_started_at = '2026-11-16T08:31:00+01:00';
+    day.slots[0].execution_status = 'running';
+    day.status_summary = {
+      open: 0,
+      running: 1,
+      completed: 0,
+      cancelled: 0,
+      needs_follow_up: 0,
+    };
+    const protocol = examProtocolView();
+
+    await page.route('**/api/confirmed-plan-days/1', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          plan: {
+            id: plan.id,
+            name: plan.name,
+            committee: plan.committee,
+            exam_half_year: plan.exam_half_year,
+          },
+          day,
+          _links: {},
+        }),
+      }),
+    );
+    await page.route('**/api/confirmed-plan-days/1/slots/1/protocol', (route) =>
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify(protocol) }),
+    );
+    await page.route(/\/api\/exam-protocols\/41(?:\/.*)?$/, async (route) => {
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+      const body = request.postDataJSON() as Record<string, unknown> | null;
+      if (body && Number(body['version']) !== protocol.current_version) {
+        await route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: { code: 'exam_protocol_conflict', message: 'Stand wurde geändert' },
+          }),
+        });
+        return;
+      }
+      if (request.method() === 'PATCH') {
+        const previous = structuredClone(protocol.current_revision);
+        previous.obsolete = true;
+        const entries = (body?.['entries'] as Array<Record<string, unknown>>) ?? [];
+        protocol.current_version += 1;
+        protocol.state = 'in_progress';
+        protocol.closing_ready = false;
+        protocol.current_revision = {
+          ...protocol.current_revision,
+          id: protocol.current_revision.id + 1,
+          version: protocol.current_version,
+          declaration: body?.['declaration'],
+          workflow_state:
+            protocol.current_revision.workflow_state === 'correction_open'
+              ? 'correction_open'
+              : 'draft',
+          submitted_at: null,
+          obsolete: false,
+          missing_response_member_ids: [1, 3],
+          responses: [],
+          entries: entries.map((entry, index) => ({
+            id: 100 + protocol.current_version * 10 + index,
+            ...entry,
+            recorded_by_member_id: 1,
+            created_at: '2026-11-16T10:00:00+01:00',
+          })),
+        };
+        protocol.history = [
+          ...protocol.history.map((revision) => ({ ...revision, obsolete: true })),
+          protocol.current_revision,
+        ];
+      } else if (path.endsWith('/submit')) {
+        protocol.state = 'awaiting_confirmation';
+        protocol.current_revision.workflow_state = 'submitted';
+        protocol.current_revision.submitted_at = '2026-11-16T10:01:00+01:00';
+      } else if (path.endsWith('/responses')) {
+        const response = body?.['response'];
+        protocol.state = response === 'reservation' ? 'fully_with_reservation' : 'fully_confirmed';
+        protocol.closing_ready = true;
+        protocol.current_revision.responses = [
+          {
+            id: 1,
+            committee_member_id: 1,
+            response,
+            entry_id: body?.['entry_id'] ?? null,
+            statement: body?.['statement'] ?? null,
+            responded_at: '2026-11-16T10:02:00+01:00',
+          },
+          {
+            id: 2,
+            committee_member_id: 3,
+            response: 'confirmed',
+            entry_id: null,
+            statement: null,
+            responded_at: '2026-11-16T10:03:00+01:00',
+          },
+        ];
+        protocol.current_revision.missing_response_member_ids = [];
+      } else if (path.endsWith('/correction-requests')) {
+        protocol.correction_requests = [
+          {
+            id: 81,
+            version: protocol.current_version,
+            requested_by_member_id: 1,
+            reason: body?.['reason'],
+            status: 'pending',
+            reopening_reference: null,
+          },
+        ];
+      } else if (path.endsWith('/open-correction')) {
+        protocol.history = protocol.history.map((revision) => ({ ...revision, obsolete: true }));
+        protocol.current_version += 1;
+        protocol.state = 'correction_open';
+        protocol.closing_ready = false;
+        protocol.current_revision = {
+          ...protocol.current_revision,
+          id: protocol.current_revision.id + 1,
+          version: protocol.current_version,
+          workflow_state: 'correction_open',
+          submitted_at: null,
+          obsolete: false,
+          responses: [],
+          missing_response_member_ids: [1, 3],
+        };
+        protocol.history = [...protocol.history, protocol.current_revision];
+        protocol.correction_requests[0].status = 'opened';
+      }
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify(protocol) });
+    });
+
+    await page.goto('/confirmed-plans/1/days/1');
+    const editor = page.locator('app-exam-protocol');
+    await expect(editor.getByText('Nur überprüfbare Tatsachen')).toBeVisible();
+    await expect(editor.getByText('Diagnosen', { exact: false })).toBeVisible();
+
+    await editor.getByLabel('Ohne besondere Vorkommnisse').check();
+    await editor.getByRole('button', { name: 'Neuen Protokollstand speichern' }).click();
+    await expect(editor.locator('[tuibadge]').filter({ hasText: 'Version 2' })).toBeVisible();
+    await editor.getByRole('button', { name: 'Zur Bestätigung vorlegen' }).click();
+    await editor.getByRole('button', { name: 'Bestätigen', exact: true }).click();
+    await expect(editor.getByText('Vollständig bestätigt')).toBeVisible();
+    await expect(
+      editor.getByRole('button', { name: 'Neuen Protokollstand speichern' }),
+    ).toBeDisabled();
+
+    await editor.getByLabel('Ergänzungsbedarf').fill('Verspäteten Beginn ergänzen');
+    await editor.getByRole('button', { name: 'Ergänzungsbedarf melden' }).click();
+    await editor.getByRole('button', { name: 'Korrekturvorgang eröffnen' }).click();
+    await expect(editor.getByText('Korrektur offen')).toBeVisible();
+    await editor.getByText(/Vollständige Versionshistorie/).click();
+    await expect(editor.getByText('Überholt – Reaktionen ungültig').first()).toBeVisible();
+
+    await editor.getByLabel('Mit besonderen Vorkommnissen').check();
+    await editor.getByRole('button', { name: 'Besonderheit hinzufügen' }).click();
+    await editor.getByLabel('Kategorie').last().selectOption('late_start');
+    await editor.getByLabel('Sachverhalt').last().fill('Beginn um drei Minuten verspätet.');
+    await editor.getByRole('button', { name: 'Neuen Protokollstand speichern' }).click();
+    await editor.getByRole('button', { name: 'Zur Bestätigung vorlegen' }).click();
+    await editor
+      .getByLabel('Protokollbezogener Vorbehalt')
+      .fill('Zeitpunkt anhand der Anwesenheitsliste prüfen.');
+    await editor.getByRole('button', { name: 'Mit Vorbehalt bestätigen' }).click();
+    await expect(editor.getByText('Vollständig mit Vorbehalt')).toBeVisible();
+
+    const staleStatus = await page.evaluate(async () => {
+      const response = await fetch('/api/exam-protocols/41', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          version: 1,
+          declaration: 'without_special_occurrences',
+          entries: [],
+        }),
+      });
+      return response.status;
+    });
+    expect(staleStatus).toBe(409);
+  });
+
+  test('does not expose a protocol when the authenticated actor is forbidden', async ({ page }) => {
+    const plan = confirmedPlan(
+      1,
+      'Prüfungsausschuss Fremdzugriff',
+      'Prüfling',
+      'Gesperrt',
+      'regular',
+    );
+    plan.days[0].slots[0].actual_started_at = '2026-11-16T08:31:00+01:00';
+    await page.route('**/api/confirmed-plan-days/1', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          plan: {
+            id: plan.id,
+            name: plan.name,
+            committee: plan.committee,
+            exam_half_year: plan.exam_half_year,
+          },
+          day: plan.days[0],
+          _links: {},
+        }),
+      }),
+    );
+    await page.route('**/api/confirmed-plan-days/1/slots/1/protocol', (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Forbidden.' }),
+      }),
+    );
+
+    await page.goto('/confirmed-plans/1/days/1');
+    const protocol = page.locator('app-exam-protocol');
+    await expect(protocol.getByRole('alert')).toContainText(
+      'Das Prüfungsprotokoll konnte nicht geladen werden',
+    );
+    await expect(
+      protocol.getByRole('button', { name: 'Neuen Protokollstand speichern' }),
+    ).toHaveCount(0);
+  });
+
+  test('assesses, discloses, confirms, determines, communicates, and corrects a result', async ({
+    page,
+  }) => {
+    const plan = confirmedPlan(1, 'Prüfungsausschuss Ergebnis', 'Prüfling', 'Ergebnis', 'regular');
+    const day = plan.days[0];
+    day.slots[0].actual_started_at = '2026-11-16T08:31:00+01:00';
+    day.slots[0].execution_status = 'running';
+    const result = examResultView();
+
+    await page.route('**/api/confirmed-plan-days/1', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          plan: {
+            id: plan.id,
+            name: plan.name,
+            committee: plan.committee,
+            exam_half_year: plan.exam_half_year,
+          },
+          day,
+          _links: {},
+        }),
+      }),
+    );
+    await page.route('**/api/confirmed-plan-days/1/slots/1/protocol', (route) =>
+      route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }),
+    );
+    await page.route('**/api/confirmed-plan-days/1/slots/1/result', (route) =>
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify(result) }),
+    );
+    await page.route(/\/api\/exam-results\/41(?:\/.*)?$/, async (route) => {
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+      const body = request.postDataJSON() as Record<string, unknown> | null;
+      if (request.method() !== 'GET' && Number(body?.['version']) !== result.version) {
+        await route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: { code: 'exam_result_conflict', message: 'Stand wurde geändert' },
+          }),
+        });
+        return;
+      }
+      if (path.endsWith('/individual-assessments')) {
+        result.version += 1;
+        result.individual_assessments = [
+          {
+            id: 91,
+            component_key: body?.['component_key'] as string,
+            criterion_key: body?.['criterion_key'] as string,
+            assessor_member_id: 1,
+            revision: 1,
+            raw_points: body?.['raw_points'] as string,
+            normalized_points: '85',
+            rationale: body?.['rationale'] as string,
+            status: 'submitted',
+            change_reason: null,
+            submitted_at: '2026-11-16T09:31:00+01:00',
+          },
+        ];
+      } else if (path.endsWith('/disclosures')) {
+        result.version += 1;
+        result.disclosures = [
+          {
+            component_key: 'documentation',
+            disclosed_by_member_id: 1,
+            disclosed_at: '2026-11-16T09:32:00+01:00',
+          },
+        ];
+      } else if (path.endsWith('/confirm')) {
+        result.version += 1;
+        result.external_results[0].status = 'confirmed';
+        result.external_results[0].confirmed_by_member_id = 1;
+        result.state = 'calculation_ready';
+        result.current_calculation = {
+          id: 21,
+          version: 1,
+          total_points: '82',
+          grade: 'gut',
+          passed: true,
+          path: {
+            inputs: [
+              { kind: 'component', key: 'documentation', points: '82', weight: '50' },
+              { kind: 'external', key: 'written', points: '82', weight: '50' },
+            ],
+            unrounded_total: '82',
+            rounded_total: '82',
+            threshold_basis: 'unrounded',
+          },
+        };
+      } else if (path.endsWith('/determine')) {
+        result.version += 1;
+        result.state = 'determined';
+        const determination = {
+          id: 31,
+          revision: 1,
+          participant_member_ids: [1, 2, 3],
+          vote: { yes: [1, 2, 3], no: [], abstain: [] },
+          dissent: [],
+          status: 'current' as const,
+          determined_at: '2026-11-16T10:00:00+01:00',
+          confirmation_member_ids: [],
+        };
+        result.determinations = [determination];
+        result.current_determination = determination;
+      } else if (path.endsWith('/record-confirmations')) {
+        result.version += 1;
+        result.current_determination!.confirmation_member_ids = [1, 2, 3];
+      } else if (path.endsWith('/communications')) {
+        result.version += 1;
+        result.state = 'communicated';
+        result.communications = [
+          {
+            id: 51,
+            method: body?.['method'] as string,
+            communicated_at: body?.['communicated_at'] as string,
+            external_document_status: null,
+            external_document_reference: null,
+            status: 'current',
+          },
+        ];
+      } else if (path.endsWith('/corrections')) {
+        result.version += 1;
+        result.correction_open = true;
+        result.corrections = [
+          {
+            id: 61,
+            reason: body?.['reason'] as string,
+            status: 'open',
+            reopening_reference: null,
+          },
+        ];
+      }
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify(result) });
+    });
+
+    await page.goto('/confirmed-plans/1/days/1');
+    const editor = page.locator('app-exam-result');
+    await expect(editor.getByText('Andere Einzelbewertungen bleiben')).toBeVisible();
+    await editor.getByLabel('Rohpunkte (0 bis 10)').fill('8.5');
+    await editor
+      .getByLabel('Bewertungsrelevante Beobachtung / Begründung')
+      .fill('Fachliche Kriterien nachvollziehbar erfüllt.');
+    await editor.getByRole('button', { name: 'Eigene Bewertung abgeben' }).click();
+    await expect(editor.getByText('Eigene Bewertung abgegeben.')).toBeVisible();
+    await editor.getByRole('button', { name: 'Vollständige Einzelbewertungen offenlegen' }).click();
+    await expect(editor.getByText('Offengelegt', { exact: true })).toBeVisible();
+
+    await editor.getByRole('button', { name: 'Unabhängig bestätigen' }).click();
+    await expect(editor.getByText('Nachvollziehbarer Ergebnisvorschlag')).toBeVisible();
+    await editor.getByRole('button', { name: 'Gesamtergebnis feststellen' }).click();
+    await expect(editor.getByText('Ergebnisniederschrift · Feststellung 1')).toBeVisible();
+    await editor.getByRole('button', { name: 'Sachliche Richtigkeit bestätigen' }).click();
+    await editor.getByRole('button', { name: 'Mitteilung dokumentieren' }).click();
+    await expect(editor.locator('[tuibadge]').filter({ hasText: 'Mitgeteilt' })).toBeVisible();
+
+    await editor.getByLabel('Begründung', { exact: true }).fill('Übertragungsfehler korrigieren');
+    await editor.getByRole('button', { name: 'Korrektur öffnen' }).click();
+    await expect(editor.getByText('Korrektur offen', { exact: true })).toBeVisible();
+    await editor.getByText('Feststellungs-, Korrektur-, Mitteilungs- und Exporthistorie').click();
+    await expect(editor.getByText(/Korrektur 61 · open/)).toBeVisible();
+  });
+
   test('navigates through the application views', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Übersicht' })).toBeVisible({
@@ -539,52 +937,78 @@ test.describe('lzug browser workflows', () => {
   });
 
   test('keeps demo roles visible and role-safe on desktop and mobile', async ({ page }) => {
-    let role: 'chair' | 'examiner' = 'chair';
+    let role: 'chair' | 'examiner' | 'deputy' = 'chair';
     await page.route('**/api/session', async (route) => {
       if (route.request().method() === 'POST') {
         await route.fulfill({ status: 204 });
         return;
       }
       const isChair = role === 'chair';
+      const isDeputy = role === 'deputy';
+      const isManager = isChair || isDeputy;
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
           authenticated: true,
-          account_id: isChair ? 1 : 2,
-          person_id: isChair ? 1 : 3,
-          committee_member_id: isChair ? 1 : 3,
+          account_id: isChair ? 1 : isDeputy ? 3 : 2,
+          person_id: isChair ? 1 : isDeputy ? 2 : 3,
+          committee_member_id: isChair ? 1 : isDeputy ? 2 : 3,
           is_operator: false,
           demo_role: role,
-          display_name: isChair ? 'Testperson Alpha' : 'Testperson Gamma',
-          capabilities: isChair
+          display_name: isChair
+            ? 'Testperson Alpha'
+            : isDeputy
+              ? 'Testperson Beta'
+              : 'Testperson Gamma',
+          capabilities: isManager
             ? [
+                'absence:read-own',
                 'attendance:coordinate',
-                'attendance:write-own',
                 'availability:coordinate',
-                'availability:write-own',
+                'calendar:read-own',
                 'candidate-days:generate',
+                'exam-half-years:read',
                 'exam-status:write',
+                'notifications:read-own',
                 'planning-proposal:confirm',
                 'planning-proposal:generate',
+                'planning-proposal:replace',
                 'planning-settings:write',
                 'round:write',
               ]
-            : ['attendance:write-own', 'availability:write-own'],
+            : [
+                'absence:read-own',
+                'attendance:write-own',
+                'availability:write-own',
+                'calendar:read-own',
+                'exam-half-years:read',
+                'notifications:read-own',
+              ],
         }),
       });
     });
 
-    for (const currentRole of ['chair', 'examiner'] as const) {
+    for (const currentRole of ['chair', 'deputy', 'examiner'] as const) {
       role = currentRole;
       for (const viewport of viewports) {
         await test.step(`${currentRole} · ${viewport.name}`, async () => {
           await page.setViewportSize(viewport);
           await page.goto('/dashboard');
           await expect(page.getByLabel('Aktive Demo-Identität')).toContainText(
-            currentRole === 'chair' ? 'Testperson Alpha' : 'Testperson Gamma',
+            currentRole === 'chair'
+              ? 'Testperson Alpha'
+              : currentRole === 'deputy'
+                ? 'Testperson Beta'
+                : 'Testperson Gamma',
           );
           await expect(
-            page.getByText(currentRole === 'chair' ? 'Vorsitz' : 'Prüfperson'),
+            page.getByText(
+              currentRole === 'chair'
+                ? 'Vorsitz'
+                : currentRole === 'deputy'
+                  ? 'Stellvertretung'
+                  : 'Prüfperson',
+            ),
           ).toBeVisible();
           await expect(page.getByRole('button', { name: 'Rolle wechseln' })).toBeVisible();
           if (viewport.name === 'mobile') {
@@ -603,12 +1027,49 @@ test.describe('lzug browser workflows', () => {
           await expect(
             page.getByRole('link', { name: 'Prüfungspläne', exact: true }),
           ).toBeVisible();
+          const mainNavigation = page.getByLabel('Hauptnavigation');
+          await expect(
+            mainNavigation.getByRole('link', { name: 'Prüfungskontext auswählen', exact: true }),
+          ).toBeVisible();
+          await expect(
+            mainNavigation.getByRole('link', { name: 'Benachrichtigungen', exact: true }),
+          ).toBeVisible();
+          await expect(
+            mainNavigation.getByRole('link', { name: 'Ausfall und Ersatz', exact: true }),
+          ).toBeVisible();
 
           await page.goto('/candidates');
           await expect(
             page.getByText('Dieser Demo-Bereich ist für Ihre Rolle nicht freigegeben.'),
           ).toBeVisible();
           await expect(page.locator('app-candidates')).toHaveCount(0);
+
+          await page.goto('/exam-half-years');
+          await expect(
+            page.getByText('Prüfungshalbjahre sind in der öffentlichen Demo schreibgeschützt.'),
+          ).toBeVisible();
+          await expect(page.getByRole('button', { name: 'Prüfungshalbjahr anlegen' })).toHaveCount(
+            0,
+          );
+          await expect(page.getByRole('button', { name: /bearbeiten$/i })).toHaveCount(0);
+          await expect(page.getByRole('button', { name: /abschließen$/i })).toHaveCount(0);
+
+          await page.goto('/notifications');
+          await expect(
+            page.getByText('Externe Zustellung ist in der öffentlichen Demo deaktiviert.'),
+          ).toBeVisible();
+          await expect(
+            page.getByRole('button', { name: 'Browser-Benachrichtigungen aktivieren' }),
+          ).toHaveCount(0);
+          await expect(
+            page.getByRole('button', { name: 'Persönlichen Feed aktivieren' }),
+          ).toHaveCount(0);
+
+          await page.goto('/absence-reports');
+          await expect(
+            page.getByText('Ausfall- und Ersatzaktionen sind für diese Demo-Rolle read-only.'),
+          ).toBeVisible();
+          await expect(page.getByRole('button', { name: /übernehmen/i })).toHaveCount(0);
         });
       }
     }
@@ -621,6 +1082,38 @@ test.describe('lzug browser workflows', () => {
     await expect(switchButton).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: 'Anmelden' })).toBeVisible();
+  });
+
+  test('keeps demo read-only paths screen-reader accessible @a11y', async ({ page }) => {
+    await page.route('**/api/session', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          authenticated: true,
+          account_id: 2,
+          person_id: 3,
+          committee_member_id: 3,
+          is_operator: false,
+          demo_role: 'examiner',
+          display_name: 'Testperson Gamma',
+          capabilities: [
+            'absence:read-own',
+            'attendance:write-own',
+            'availability:write-own',
+            'calendar:read-own',
+            'exam-half-years:read',
+            'notifications:read-own',
+          ],
+        }),
+      }),
+    );
+
+    for (const path of ['/exam-half-years', '/notifications', '/absence-reports']) {
+      await page.goto(path);
+      await expect(page.locator('main')).toBeVisible();
+      const accessibility = await new AxeBuilder({ page }).include('main').analyze();
+      expect(accessibility.violations).toEqual([]);
+    }
   });
 
   test('keeps the active exam context visible in contextual views', async ({ page }) => {
@@ -1292,6 +1785,28 @@ function confirmedPlan(
       {
         id,
         date: '2026-11-16',
+        revision: 1,
+        closure_status: 'open',
+        closure: {
+          exam_day_id: id,
+          revision: 1,
+          status: 'open',
+          legacy_status: null,
+          evaluation: {
+            items: [],
+            warnings: [],
+            regular_close_ready: false,
+            exception_close_ready: false,
+            exception_candidate: null,
+            protocol_references: [],
+            result_references: [],
+          },
+          active_reopening: null,
+          history: [],
+          tasks: [],
+          permissions: { close: false, reopen: false, export: false },
+          _links: {},
+        },
         location: {
           id: 1,
           name: 'Prüfungszentrum Langname (Test)',
@@ -1382,6 +1897,160 @@ function confirmedPlan(
         },
       },
     ],
+  };
+}
+
+function examProtocolView() {
+  const revision = {
+    id: 71,
+    version: 1,
+    declaration: null,
+    workflow_state: 'draft',
+    change_reason: null,
+    submitted_at: null,
+    obsolete: false,
+    missing_response_member_ids: [1, 3],
+    entries: [],
+    responses: [],
+  };
+  return {
+    id: 41,
+    exam_slot_id: 1,
+    current_version: 1,
+    state: 'in_progress',
+    closing_ready: false,
+    current_revision: revision,
+    history: [revision],
+    correction_requests: [],
+    permissions: {
+      edit: true,
+      submit: true,
+      respond: true,
+      request_correction: true,
+      coordinate_correction: true,
+      manage_retention: true,
+    },
+    _links: {
+      self: { href: '/api/exam-protocols/41' },
+      machine_export: { href: '/api/exam-protocols/41/export.json' },
+      human_export: { href: '/api/exam-protocols/41/export.txt' },
+    },
+  };
+}
+
+function examResultView(): ExamResult {
+  return {
+    id: 41,
+    round_candidate_id: 1,
+    version: 1,
+    state: 'incomplete',
+    correction_open: false,
+    legacy_status: null,
+    candidate: {
+      id: 1,
+      first_name: 'Prüfling',
+      last_name: 'Ergebnis',
+      ihk_exam_number: 'TEST-RESULT-1',
+      specialization: 'application_development',
+    },
+    model_version: {
+      id: 1,
+      model_key: 'fiae-final-2026',
+      version: 1,
+      ihk: 'IHK Teststadt',
+      occupation: 'Fachinformatiker/in',
+      specialization: null,
+      valid_from: '2026-01-01',
+      valid_until: '2026-12-31',
+      rules: {
+        components: [
+          {
+            key: 'documentation',
+            label: 'Dokumentation',
+            mode: 'independent',
+            weight: '50',
+            day_scoped: true,
+            required_assessors: 2,
+            max_deviation: '15',
+            additional_assessor_on_deviation: true,
+            criteria: [
+              {
+                key: 'quality',
+                label: 'Fachliche Qualität',
+                raw_min: '0',
+                raw_max: '10',
+                weight: '100',
+              },
+            ],
+          },
+        ],
+        external_areas: [
+          {
+            key: 'written',
+            label: 'Schriftliches Eingangsergebnis',
+            weight: '50',
+            required: true,
+          },
+        ],
+        rounding: {
+          intermediate: { mode: 'none', digits: null },
+          overall: { mode: 'half_up', digits: 0 },
+          threshold_basis: 'unrounded',
+        },
+        grades: [
+          { label: 'gut', min_points: '81' },
+          { label: 'ausreichend', min_points: '50' },
+          { label: 'nicht bestanden', min_points: '0' },
+        ],
+        passing: { overall_min: '50', component_minima: {}, external_minima: {} },
+        quorum: { minimum_members: 3, majority: 'simple' },
+      },
+      retention_rule_reference: 'PrüfO Teststadt § 31',
+      retention_years: 15,
+    },
+    participants: [1, 2, 3],
+    disclosures: [],
+    individual_assessments: [],
+    individual_assessment_counts: [],
+    committee_assessments: [],
+    external_results: [
+      {
+        id: 12,
+        area_key: 'written',
+        revision: 1,
+        points: '82',
+        grade: 'gut',
+        professional_status: 'bestanden',
+        determining_authority: 'IHK Teststadt',
+        source_reference: 'Bescheid TEST-RESULT-1',
+        status: 'unconfirmed',
+        recorded_by_member_id: 2,
+        confirmed_by_member_id: null,
+        correction_reason: null,
+      },
+    ],
+    current_calculation: null,
+    determinations: [],
+    current_determination: null,
+    corrections: [],
+    communications: [],
+    retention: null,
+    exports: [],
+    permissions: {
+      assess_own: true,
+      disclose: true,
+      determine_component: true,
+      manage_external: true,
+      determine_result: true,
+      confirm_record: true,
+      coordinate_correction: true,
+      communicate: true,
+      manage_retention: true,
+    },
+    _links: {
+      machine_export: { href: '/api/exam-results/41/export.json' },
+      human_export: { href: '/api/exam-results/41/export.txt' },
+    },
   };
 }
 

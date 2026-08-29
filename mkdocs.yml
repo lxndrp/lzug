@@ -1,8 +1,10 @@
-site_name: lzug Dokumentation
-site_description: Versioniertes Handbuch für die Nutzung, lokale Administration und Entwicklung von lzug.
+site_name: lzug technische Referenz
+site_description: Versionierte technische Referenzen, Runbooks und Entscheidungen für lzug.
 site_dir: site
 docs_dir: docs
 strict: true
+not_in_nav: |
+  developers/decisions/*.md
 theme:
   name: mkdocs
 plugins:
@@ -26,33 +28,25 @@ nav:
       - Reviews:
           - Review Policy: developers/reviews/index.md
           - Reviewkriterien: developers/reviews/kriterien.md
-          - Copilot-Pilotphase: developers/reviews/copilot-pilot.md
       - Frontend-Richtlinie: developers/frontend-guidelines.md
-      - Lizenz und Release-Freigabe: developers/licensing.md
-      - Datenschutzabgrenzung: developers/privacy.md
       - Releases und GHCR: developers/releases.md
-      - Release- und Betriebsnachweise v0.1.0: developers/release-evidence-v0.1.0.md
-      - Release-Milestones: developers/release-milestones.md
-      - Frontend-Ausnahmen: developers/frontend-exceptions.md
       - Dokumentation: developers/documentation.md
       - Continuous Integration: developers/continuous-integration.md
-      - Azure-Demo-Deployment: developers/demo-deployment.md
-      - Öffentliche Domains und TLS: developers/publication-domains.md
-      - Demo-Beobachtbarkeit: developers/demo-observability.md
+      - Öffentliche Demo: developers/demo-deployment.md
+      - Demo-Kostenbaseline: developers/demo-cost-baseline.md
       - Dependabot-Aktualisierungen: developers/dependabot.md
       - Wiki-Publikation: developers/wiki-publishing.md
       - Architektur:
           - Übersicht: developers/architecture/index.md
           - Backend und Datenzugriff: developers/architecture/backend.md
-          - Frontend: developers/architecture/frontend.md
-          - API und Persistenz: developers/architecture/api-and-persistence.md
           - Authentifizierung und Sitzungen: developers/architecture/authentication.md
           - Kanalneutrale Benachrichtigungen: developers/architecture/notifications.md
-          - Veröffentlichungs- und Runtime-Sicherheit: developers/architecture/security-baseline.md
+          - Ausfall- und Ersatzprozess: developers/architecture/absence-replacement.md
+          - Versionierte Prüfungsprotokolle: developers/architecture/exam-protocols.md
+          - Regelgebundene Bewertungen und Ergebnisse: developers/architecture/exam-results.md
+          - Formeller Abschluss von Prüfungstagen: developers/architecture/exam-day-closure.md
           - Betreiber-CLI für Authentifizierung: developers/architecture/operator-auth-cli.md
           - OCI-Runtime: developers/architecture/oci-runtime.md
-          - Docker-Compose-Referenzinstallation: developers/architecture/compose-self-hosting.md
-          - Flüchtige Demo-Runtime: developers/architecture/demo-runtime.md
       - Referenz:
           - Fachliches Datenmodell: developers/domain-model.md
           - Datenbankschema: developers/database-schema.md
@@ -60,30 +54,3 @@ nav:
           - TypeScript-Frontend: developers/reference/frontend.md
       - Entscheidungen:
           - Übersicht: developers/decisions/index.md
-          - ADR-0001 Lokale relationale Persistenz: developers/decisions/0001-lokale-relationale-persistenz.md
-          - ADR-0002 Python-Backend mit SQLAlchemy: developers/decisions/0002-python-backend-sqlalchemy.md
-          - ADR-0003 Toolchain: developers/decisions/0003-toolchain-mise-uv-npm.md
-          - ADR-0004 Angular und REST-Integration: developers/decisions/0004-angular-rest-integration.md
-          - ADR-0005 Taiga UI: developers/decisions/0005-taiga-ui.md
-          - ADR-0006 OpenAPI-Vertrag: developers/decisions/0006-openapi-http-vertrag.md
-          - ADR-0007 Dokumentation und Code-Referenz: developers/decisions/0007-dokumentation-und-code-referenz.md
-          - ADR-0008 Feiertagsprovider: developers/decisions/0008-feiertagsprovider.md
-          - ADR-0009 Toolchain und Tasks: developers/decisions/0009-toolchain-und-entwicklungs-tasks.md
-          - ADR-0010 Vitest statt Karma/Jasmine: developers/decisions/0010-vitest-statt-karma-jasmine.md
-          - ADR-0011 GitHub Wiki als Handbuchoberfläche: developers/decisions/0011-github-wiki-handbuch.md
-          - ADR-0012 Single Source of Truth: developers/decisions/0012-wiki-single-source-of-truth.md
-          - ADR-0013 Instanzen je Ausschuss: developers/decisions/0013-dezentrale-instanzen-je-ausschuss.md
-          - ADR-0014 OCI und `/data`: developers/decisions/0014-oci-einzelcontainer-und-persistentes-data.md
-          - ADR-0015 Flüchtige Azure-Demo: developers/decisions/0015-fluechtige-azure-demo.md
-          - ADR-0016 Spätere Mandantenflotte: developers/decisions/0016-spaetere-mandantenflotte.md
-          - ADR-0017 Ohne Kubernetes und Helm: developers/decisions/0017-erstveroeffentlichung-ohne-kubernetes.md
-          - ADR-0018 SemVer und Release-Milestones: developers/decisions/0018-semver-release-und-milestones.md
-          - ADR-0019 Tag-zentrierter Releaseprozess: developers/decisions/0019-tag-zentrierter-releaseprozess.md
-          - ADR-0020 Minimaler Releaseablauf: developers/decisions/0020-minimaler-releaseablauf-mit-github-bordmitteln.md
-          - ADR-0021 GoReleaser für Betreiber-CLI: developers/decisions/0021-goreleaser-fuer-die-betreiber-cli.md
-          - ADR-0022 Tag-gebundene Demo-Assembly: developers/decisions/0022-tag-gebundene-demo-assembly-und-seed.md
-          - ADR-0023 Öffentliche Publikationsarchitektur: developers/decisions/0023-oeffentliche-web-und-dokumentationspublikation.md
-          - ADR-0024 Manuell promotete Demo-Snapshots: developers/decisions/0024-manuell-promotete-demo-snapshots.md
-          - ADR-0025 Kein InSpec-Infrastruktur-Harness: developers/decisions/0025-kein-inspec-infrastruktur-harness.md
-          - ADR-0026 Automatische Demo-Promotion: developers/decisions/0026-automatische-demo-promotion-stabiler-releases.md
-      - Öffentliche Publikationsarchitektur: developers/publication-architecture.md

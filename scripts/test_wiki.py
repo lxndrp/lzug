@@ -7,6 +7,8 @@ from scripts.check_wiki import (
     markdown_files,
     write_routes,
 )
+from scripts.publication import convert_wiki_links
+from scripts.wiki_routes import wiki_route, wiki_source_url
 
 
 class WikiValidatorTests(unittest.TestCase):
@@ -33,6 +35,32 @@ class WikiValidatorTests(unittest.TestCase):
                 "- <https://example.test/wiki/Nutzung>\n",
                 routes.read_text(encoding="utf-8"),
             )
+
+    def test_shared_route_contract_derives_publication_names(self):
+        self.assertEqual(
+            ("Handbuch", "_index.md", "/handbuch/"),
+            (
+                wiki_route("Home").title,
+                wiki_route("Home").publication_file,
+                wiki_route("Home").publication_route,
+            ),
+        )
+        self.assertEqual(
+            "https://example.test/wiki/Fachlichkeit",
+            wiki_source_url("Fachlichkeit", "https://example.test/wiki/"),
+        )
+        self.assertEqual(
+            "[Fachlichkeit](/handbuch/fachlichkeit/#details)",
+            convert_wiki_links("[Fachlichkeit](Fachlichkeit#details)", {"Home", "Fachlichkeit"}),
+        )
+        self.assertEqual(
+            ("Fachlichkeit", "fachlichkeit.md", "/handbuch/fachlichkeit/"),
+            (
+                wiki_route("Fachlichkeit").title,
+                wiki_route("Fachlichkeit").publication_file,
+                wiki_route("Fachlichkeit").publication_route,
+            ),
+        )
 
     def test_orphan_content_page_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

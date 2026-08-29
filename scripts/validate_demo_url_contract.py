@@ -10,9 +10,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from scripts.demo_deployment import DeploymentError, validate_demo_url  # noqa: E402
-
-CANONICAL_DEMO_URL = "https://demo.lzug.repertoire.papaspyrou.name"
+from demo.contract import CANONICAL_DEMO_URL as CANONICAL_DEMO_URL  # noqa: E402
+from demo.contract import DemoContractError, validate_public_demo_url  # noqa: E402
 
 
 class DemoUrlContractError(RuntimeError):
@@ -21,12 +20,10 @@ class DemoUrlContractError(RuntimeError):
 
 def validate_effective_demo_url(value: str) -> str:
     """Require the confirmed public demo origin without normalizing it."""
-    if value != CANONICAL_DEMO_URL:
-        raise DemoUrlContractError("DEMO_URL must be the confirmed repository demo origin")
     try:
-        validate_demo_url(value)
-    except DeploymentError as error:
-        raise DemoUrlContractError("DEMO_URL is not a valid public HTTPS origin") from error
+        validate_public_demo_url(value, require_canonical=True)
+    except DemoContractError as error:
+        raise DemoUrlContractError(str(error)) from error
     return value
 
 

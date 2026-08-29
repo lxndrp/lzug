@@ -1,0 +1,86 @@
+<section class="app-panel" aria-labelledby="absence-reports-title">
+  <div class="app-panel-body">
+    <h2 id="absence-reports-title">Ausfall und Ersatz</h2>
+    <p>
+      Ausfälle bestätigter Besetzungen, Ersatzanfragen und Entscheidungen bleiben hier
+      nachvollziehbar dokumentiert.
+    </p>
+    @if (!canRespondToOwnAbsence()) {
+      <p class="app-muted">Ausfall- und Ersatzaktionen sind für diese Demo-Rolle read-only.</p>
+    }
+    @if (message()) {
+      <p role="status">{{ message() }}</p>
+    }
+    @if (loading()) {
+      <p role="status">Ausfallprozesse werden geladen.</p>
+    } @else if (reports().length === 0) {
+      <p>Für den zugänglichen Prüfungskontext liegen keine Ausfallmeldungen vor.</p>
+    } @else {
+      <div class="absence-report-list">
+        @for (report of reports(); track report.id) {
+          <article
+            class="absence-report-card"
+            [attr.aria-labelledby]="'absence-report-' + report.id"
+          >
+            <div class="absence-report-heading">
+              <h3 [id]="'absence-report-' + report.id">Ausfallmeldung #{{ report.id }}</h3>
+              <span>{{ report.status }}</span>
+            </div>
+            <dl>
+              <div>
+                <dt>Prüfungstag</dt>
+                <dd>{{ report.exam_day_id }}</dd>
+              </div>
+              <div>
+                <dt>Gemeldet</dt>
+                <dd>{{ report.reported_at | date: 'dd.MM.yyyy, HH:mm' }}</dd>
+              </div>
+              <div>
+                <dt>Ausgefallenes Mitglied</dt>
+                <dd>{{ report.committee_member_id }}</dd>
+              </div>
+            </dl>
+            @if (ownResponse(report); as response) {
+              <div class="absence-response">
+                <strong>Ihre Ersatzanfrage</strong>
+                <span>Status: {{ response.response }}</span>
+                @if (response.response === 'pending' && canRespondToOwnAbsence()) {
+                  <div class="app-form-action-buttons">
+                    <button
+                      tuiButton
+                      appearance="primary"
+                      type="button"
+                      [disabled]="busyResponse() !== null"
+                      (click)="answer(response.id, 'available')"
+                    >
+                      Ich kann übernehmen
+                    </button>
+                    <button
+                      tuiButton
+                      appearance="secondary"
+                      type="button"
+                      [disabled]="busyResponse() !== null"
+                      (click)="answer(response.id, 'unavailable')"
+                    >
+                      Ich kann nicht übernehmen
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+            <details>
+              <summary>Historie anzeigen ({{ report.audit.length }})</summary>
+              <ol>
+                @for (event of report.audit; track event.id) {
+                  <li>
+                    {{ event.event_type }} · {{ event.created_at | date: 'dd.MM.yyyy, HH:mm' }}
+                  </li>
+                }
+              </ol>
+            </details>
+          </article>
+        }
+      </div>
+    }
+  </div>
+</section>
