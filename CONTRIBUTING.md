@@ -24,12 +24,12 @@ legt die risikobasierte Auswahl lokaler Prüfungen fest. Architektur, API-Vertra
 und technische Dokumentationsstandards stehen im
 [Entwicklerhandbuch](docs/developers/index.md).
 
-Das öffentliche redaktionelle Handbuch liegt ausschließlich im separaten
-[GitHub Wiki](https://github.com/lxndrp/lzug/wiki) und wird nicht in diesem
-Repository gespiegelt. Wiki-Änderungen werden in einem separaten Clone mit dem
-lokalen `task wiki:check` geprüft und erst nach Maintainer-Freigabe manuell in
-den Default-Branch veröffentlicht.
-Der genaue Ablauf steht in der [Wiki-Publikation](docs/developers/wiki-publishing.md).
+Das [GitHub Wiki](https://github.com/lxndrp/lzug/wiki) enthält die
+redaktionellen Entwicklungsanleitungen. Die Zuordnung aller Dokumentarten und
+kanonischen Quellen steht unter
+[Dokumentation](docs/developers/documentation.md); der konkrete Wiki-Review-
+und Veröffentlichungsablauf unter
+[Wiki-Publikation](docs/developers/wiki-publishing.md).
 
 ## Änderungen einreichen
 

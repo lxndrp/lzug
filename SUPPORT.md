@@ -16,5 +16,5 @@ Einrichtung oder fachliche Beratung durch die IHK.
 ## Sicherheitsmeldungen
 
 Sicherheitsrelevante Beobachtungen bitte nicht öffentlich in einem Issue
-veröffentlichen. Der vertrauliche Meldeweg wird im Rahmen von
-[#192](https://github.com/lxndrp/lzug/issues/192) eingerichtet.
+veröffentlichen. Verwende stattdessen das aktivierte
+[Private Vulnerability Reporting](https://github.com/lxndrp/lzug/security/advisories/new).

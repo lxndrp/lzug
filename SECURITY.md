@@ -1,21 +1,20 @@
 # Sicherheitsrichtlinie
 
-lzug ist ein öffentlich entwickeltes Projekt vor der ersten stabilen
-Produktionsfreigabe. Self-Hosting und Release-Kandidaten erhalten automatisierte
-Security-Prüfungen; daraus entsteht noch keine Zusicherung für ungeprüfte
-Installationen oder ältere Stände.
+lzug ist ein öffentlich entwickeltes Projekt mit versionierten Vorab-Releases.
+Die automatisierten Security-Prüfungen und die unterstützten Stände begründen
+keine Zusicherung für ungeprüfte Installationen oder produktiven Betrieb.
 
 ## Unterstützte Stände
 
-Aktuell wird ausschließlich der freigegebene Stand von `master` unterstützt.
-Es gibt noch keine stabilen Releases und keine Sicherheitsupdates für ältere
-Commits. Nach der ersten versionierten Veröffentlichung wird diese Tabelle um
-die konkret unterstützten Release-Linien ergänzt.
+Unterstützt werden der aktuelle Entwicklungsstand und das jüngste
+veröffentlichte Release `v0.3.0`. Für ältere Releases und Commits gibt es keine
+Sicherheitsupdates.
 
 | Stand | Unterstützt |
 | --- | --- |
 | aktueller `master` | ja |
-| ältere Commits und Vorabstände | nein |
+| `v0.3.0` | ja |
+| ältere Releases und Commits | nein |
 
 ## Sicherheitslücken vertraulich melden
 
