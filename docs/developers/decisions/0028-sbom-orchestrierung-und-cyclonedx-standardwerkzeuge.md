@@ -6,25 +6,18 @@ Akzeptiert am 29.08.2026.
 
 ## Kontext
 
-Syft erzeugt die kanonischen CycloneDX-1.6-Inventare für Abhängigkeiten, das
-OCI-Image und die sechs nativen CLI-Artefakte. `scripts/sbom.py` bindet diese
-Standardfunktion in den lokalen, CI- und Releaseablauf ein. Das Skript führt
-außerdem die acht detaillierten Inventare zu genau einer sichtbaren
-Release-SBOM zusammen und prüft die projektspezifischen Lieferkettenverträge.
+Syft erzeugt die kanonischen CycloneDX-1.6-Inventare für Abhängigkeiten, das OCI-Image und die sechs nativen CLI-Artefakte.
+`scripts/sbom.py` bindet diese Standardfunktion in den lokalen, CI- und Releaseablauf ein.
+Das Skript führt außerdem die acht detaillierten Inventare zu genau einer sichtbaren Release-SBOM zusammen und prüft die projektspezifischen Lieferkettenverträge.
 
-Die eigene Logik soll nicht generische CycloneDX-Funktionen nachbilden, wenn ein
-gepflegtes Standardwerkzeug dieselbe Aufgabe mit weniger Code und
-Wartungsaufwand reproduzierbar erfüllt. Umgekehrt darf eine Standardfunktion
-weder Releaseidentität und Umfang noch Lizenz-, OCI- oder Go-Grenzen
-abschwächen.
+Die eigene Logik soll nicht generische CycloneDX-Funktionen nachbilden, wenn ein gepflegtes Standardwerkzeug dieselbe Aufgabe mit weniger Code und Wartungsaufwand reproduzierbar erfüllt.
+Umgekehrt darf eine Standardfunktion weder Releaseidentität und Umfang noch Lizenz-, OCI- oder Go-Grenzen abschwächen.
 
 ## Entscheidung
 
-Die bestehende Orchestrierung bleibt unverändert. Syft bleibt das gepinnte
-Standardwerkzeug für die Erzeugung. Für Zusammenführung, Normalisierung und
-Vertragsvalidierung wird kein zusätzliches CycloneDX-Werkzeug eingeführt, weil
-keiner der bewerteten Kandidaten die lzug-Verträge vollständig ersetzt und
-zugleich den Gesamtaufwand senkt.
+Die bestehende Orchestrierung bleibt unverändert.
+Syft bleibt das gepinnte Standardwerkzeug für die Erzeugung.
+Für Zusammenführung, Normalisierung und Vertragsvalidierung wird kein zusätzliches CycloneDX-Werkzeug eingeführt, weil keiner der bewerteten Kandidaten die lzug-Verträge vollständig ersetzt und zugleich den Gesamtaufwand senkt.
 
 ### Zuordnung der Operationen
 
@@ -49,48 +42,35 @@ Bewertet wurden die am 29.08.2026 aktuellen offiziellen Schnittstellen:
 | CycloneDX Python Library `11.12.0` | Datenmodell, Lesen/Schreiben und optionale JSON-Schemavalidierung | Die Bibliothek bietet keine passende Release-Zusammenführung. Schemavalidierung deckt die lzug-Regeln nicht ab und ändert nichts an der nötigen deterministischen Aggregation. | Eine ältere Version liegt nur transitiv über `pip-audit` vor. Eine stabile Nutzung verlangte eine direkte Abhängigkeit sowie für JSON-Validierung zusätzlich `jsonschema` und `referencing`. | Keine Ablösung |
 | CycloneDX `sbom-utility` `0.19.2` | Offline-Schemavalidierung und zusätzliche deklarative Prüfungen | Die Standardprüfung ersetzt keine Umfangs- oder Releaseverträge; die projektspezifische Validierungsschnittstelle ist experimentell. Das Werkzeug führt die acht Inventare nicht mit der benötigten Semantik zusammen. | Eine weitere separat gepinnte Go-Binärdatei käme zu Syft hinzu. Apache-2.0 ist geeignet, die zusätzliche Installation spart aber weder Projektcode noch Tests. | Keine Ablösung |
 
-Zum Entscheidungszeitpunkt umfasst `scripts/sbom.py` 576 Zeilen und der direkte
-Vertragstest 11 Positiv- und Negativfälle. Die eigentliche generische
-Komponentenschleife ist nur ein kleiner Teil der Aggregation. CycloneDX CLI
-würde sie ersetzen, erforderte aber weiterhin Vorprüfung, deterministische
-Metadaten, Quellzuordnung, Nachbearbeitung und dieselben Vertragstests. Ein
-Standard-Schemavalidator könnte nur die allgemeinen Formatprüfungen ergänzen;
-die projektspezifischen Tests und Prüfpfade blieben vollständig bestehen. Damit
-ist weder bei Codeumfang und Tests noch bei Abhängigkeiten und Wartung eine
-messbare Vereinfachung nachgewiesen.
+Zum Entscheidungszeitpunkt umfasst `scripts/sbom.py` 576 Zeilen und der direkte Vertragstest 11 Positiv- und Negativfälle.
+Die eigentliche generische Komponentenschleife ist nur ein kleiner Teil der Aggregation.
+CycloneDX CLI würde sie ersetzen, erforderte aber weiterhin Vorprüfung, deterministische Metadaten, Quellzuordnung, Nachbearbeitung und dieselben Vertragstests.
+Ein Standard-Schemavalidator könnte nur die allgemeinen Formatprüfungen ergänzen; die projektspezifischen Tests und Prüfpfade blieben vollständig bestehen.
+Damit ist weder bei Codeumfang und Tests noch bei Abhängigkeiten und Wartung eine messbare Vereinfachung nachgewiesen.
 
-Die vorhandenen Tests belegen die deterministische Wiederholung der
-Aggregation sowie fail-closed Negativfälle für eine unvollständige
-Detailmenge, fehlende Lizenzmetadaten, Go-Modulabdeckung und falsche
-Ökosystemgrenzen. Lokale Tasks, CI und Release verwenden bereits denselben
-`scripts/sbom.py`-Pfad und dieselbe gepinnte Syft-Version; sie bleiben deshalb
-unverändert.
+Die vorhandenen Tests belegen die deterministische Wiederholung der Aggregation sowie fail-closed Negativfälle für eine unvollständige Detailmenge, fehlende Lizenzmetadaten, Go-Modulabdeckung und falsche Ökosystemgrenzen.
+Lokale Tasks, CI und Release verwenden bereits denselben `scripts/sbom.py`-Pfad und dieselbe gepinnte Syft-Version; sie bleiben deshalb unverändert.
 
 ## Konsequenzen
 
 - Die Dependency-, Image-, sechs CLI- und aggregierte Release-SBOM behalten
-  CycloneDX 1.6 sowie ihre bisherigen Umfangs- und Herkunftsverträge.
+CycloneDX 1.6 sowie ihre bisherigen Umfangs- und Herkunftsverträge.
 - `scripts/sbom.py`, `Taskfile.yml`, `.mise.toml`, Lockfiles und die CI- und
-  Releaseworkflows erhalten keine künstliche Werkzeug- oder Codeänderung.
+Releaseworkflows erhalten keine künstliche Werkzeug- oder Codeänderung.
 - Schema-/Formatvalidatoren bleiben mögliche ergänzende Gates, sind aber keine
-  Ablösung der lzug-Vertragsprüfung. Ein zusätzliches Gate benötigt einen
-  eigenen Nutzen- und Abhängigkeitsnachweis.
+Ablösung der lzug-Vertragsprüfung.
+Ein zusätzliches Gate benötigt einen eigenen Nutzen- und Abhängigkeitsnachweis.
 - Eine spätere Neubewertung ist sinnvoll, wenn ein Standardwerkzeug
-  deterministische Seriennummern und Zeitwerte, konfigurierbare
-  Release-Metadaten, quellenbewusste Deduplizierung und inhaltsadressierte
-  Komponentenreferenzen direkt unterstützt.
+deterministische Seriennummern und Zeitwerte, konfigurierbare Release-Metadaten, quellenbewusste Deduplizierung und inhaltsadressierte Komponentenreferenzen direkt unterstützt.
 
 ## Alternativen
 
 - CycloneDX CLI nur für `merge` einführen und das Ergebnis nachbearbeiten:
-  behält fast die gesamte eigene Aggregationslogik und ergänzt einen weiteren
-  Toolchain- und Workflow-Pin.
+behält fast die gesamte eigene Aggregationslogik und ergänzt einen weiteren Toolchain- und Workflow-Pin.
 - Einen Standardvalidator zusätzlich vor jeder Projektprüfung ausführen:
-  stärkt möglicherweise ein separates Schema-Gate, reduziert aber keine
-  bestehende Prüfung und erfüllt daher das Vereinfachungsziel nicht.
+stärkt möglicherweise ein separates Schema-Gate, reduziert aber keine bestehende Prüfung und erfüllt daher das Vereinfachungsziel nicht.
 - Die projektspezifischen Regeln in experimentelle deklarative Checks eines
-  Fremdwerkzeugs übertragen: verschiebt statt reduziert die Verantwortung und
-  deckt Releaseaggregation sowie Go- und Artefaktgrenzen nicht vollständig ab.
+Fremdwerkzeugs übertragen: verschiebt statt reduziert die Verantwortung und deckt Releaseaggregation sowie Go- und Artefaktgrenzen nicht vollständig ab.
 
 ## Referenzen
 

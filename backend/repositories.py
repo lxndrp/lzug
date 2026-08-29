@@ -8,6 +8,8 @@ from typing import Any
 
 from .authorization import AuthorizationScope
 from .database import DEFAULT_DB_PATH, session_scope
+from .exam_day_closures import complete_day_mutation, guard_day_mutation
+from .exam_protocols import create_protocol_for_started_slot
 from .holiday_provider import GERMAN_SUBDIVISION_CODES
 from .models import (
     CANDIDATE,
@@ -845,7 +847,7 @@ class ResourceRepository:
                     store.where(EXAM_DAY, exam_round_id=exam_round["id"]),
                     key=lambda row: (row["date"], row["id"]),
                 ):
-                    if exam_day["status"] != "confirmed":
+                    if exam_day["status"] not in {"confirmed", "completed", "cancelled"}:
                         continue
                     slots = []
                     day_slots = store.where(EXAM_SLOT, exam_day_id=exam_day["id"])
@@ -859,7 +861,7 @@ class ResourceRepository:
                         day_slots,
                         key=lambda row: (row["starts_at"], row["sequence_number"], row["id"]),
                     ):
-                        if slot["status"] != "confirmed":
+                        if slot["status"] not in {"confirmed", "completed", "cancelled"}:
                             continue
                         round_candidate = round_candidates.get(slot["round_candidate_id"])
                         candidate = (
@@ -925,6 +927,8 @@ class ResourceRepository:
                         {
                             "id": exam_day["id"],
                             "date": exam_day["date"],
+                            "revision": exam_day["revision"],
+                            "closure_status": exam_day["closure_status"],
                             "location": (
                                 {
                                     "id": location["id"],
@@ -987,7 +991,12 @@ class ResourceRepository:
         }
 
     def save_candidate_attendance(
-        self, day_id: int, slot_id: int, payload: dict[str, Any]
+        self,
+        day_id: int,
+        slot_id: int,
+        payload: dict[str, Any],
+        *,
+        actor_member_id: int,
     ) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
             store = Store(session)
@@ -995,12 +1004,33 @@ class ResourceRepository:
             existing = store.first(CANDIDATE_EXAM_ATTENDANCE, exam_slot_id=slot_id)
             values = self._attendance_payload(payload, existing)
             values["exam_slot_id"] = slot_id
+            if existing is not None and all(
+                existing[key] == value for key, value in values.items()
+            ):
+                return existing
+            day = session.get(EXAM_DAY.model, day_id)
+            guard = guard_day_mutation(
+                session,
+                day=day,
+                kind="candidate_attendance",
+                entity_id=slot_id,
+                payload=payload,
+                actor_member_id=actor_member_id,
+            )
             if existing is None:
-                return store.create(CANDIDATE_EXAM_ATTENDANCE, values)
-            return store.update(CANDIDATE_EXAM_ATTENDANCE, existing["id"], values) or existing
+                result = store.create(CANDIDATE_EXAM_ATTENDANCE, values)
+            else:
+                result = store.update(CANDIDATE_EXAM_ATTENDANCE, existing["id"], values) or existing
+            complete_day_mutation(session, guard, actor_member_id=actor_member_id)
+            return result
 
     def save_member_attendance(
-        self, day_id: int, assignment_id: int, payload: dict[str, Any]
+        self,
+        day_id: int,
+        assignment_id: int,
+        payload: dict[str, Any],
+        *,
+        actor_member_id: int,
     ) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
             store = Store(session)
@@ -1013,38 +1043,44 @@ class ResourceRepository:
             )
             values = self._attendance_payload(payload, existing)
             values.update({"exam_day_id": day_id, "committee_member_id": member_id})
+            if existing is not None and all(
+                existing[key] == value for key, value in values.items()
+            ):
+                return existing
+            day = session.get(EXAM_DAY.model, day_id)
+            guard = guard_day_mutation(
+                session,
+                day=day,
+                kind="member_attendance",
+                entity_id=assignment_id,
+                payload=payload,
+                actor_member_id=actor_member_id,
+            )
             if existing is None:
-                return store.create(MEMBER_EXAM_ATTENDANCE, values)
-            return store.update(MEMBER_EXAM_ATTENDANCE, existing["id"], values) or existing
+                result = store.create(MEMBER_EXAM_ATTENDANCE, values)
+            else:
+                result = store.update(MEMBER_EXAM_ATTENDANCE, existing["id"], values) or existing
+            complete_day_mutation(session, guard, actor_member_id=actor_member_id)
+            return result
 
     def update_exam_slot_status(
         self,
         day_id: int,
         slot_id: int,
         payload: dict[str, Any],
+        *,
+        actor_member_id: int,
     ) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
             store = Store(session)
             slot = self._confirmed_slot(store, day_id, slot_id)
+            day = session.get(EXAM_DAY.model, day_id)
+            if day is None:
+                raise ValueError("Prüfungstag nicht gefunden")
+            correction_mode = day.closure_status == "reopening"
             target_status = payload.get("status")
             if target_status not in EXECUTION_STATUS_VALUES:
                 raise ValueError("Unbekannter Durchführungsstatus")
-            if target_status == "running":
-                raise ValueError(
-                    "Der Status Läuft wird ausschließlich durch die Startaktion gesetzt"
-                )
-            if target_status == "cancelled" and slot["actual_started_at"] is not None:
-                raise ValueError(
-                    "Ein gestarteter Prüfungsslot kann nicht als ausgefallen markiert werden"
-                )
-            allowed = EXECUTION_STATUS_TRANSITIONS.get(slot["execution_status"], set())
-            if target_status not in allowed:
-                transition = (
-                    f"Der Statuswechsel von {slot['execution_status']} "
-                    f"zu {target_status} ist nicht erlaubt"
-                )
-                raise ValueError(transition)
-
             reason = payload.get("reason")
             if target_status in {"cancelled", "needs_follow_up"}:
                 if not isinstance(reason, str) or not reason.strip():
@@ -1056,26 +1092,87 @@ class ResourceRepository:
                 reason = slot["status_reason"]
 
             changed_at = datetime.now(UTC).replace(microsecond=0).isoformat()
+            actual_started_at = slot["actual_started_at"]
+            actual_completed_at = slot["actual_completed_at"]
+            if correction_mode:
+                actual_started_at = payload.get("actual_started_at", actual_started_at)
+                actual_completed_at = payload.get("actual_completed_at", actual_completed_at)
+                self._validate_corrected_slot_facts(
+                    target_status,
+                    actual_started_at,
+                    actual_completed_at,
+                )
+            elif target_status == "completed":
+                actual_completed_at = changed_at
+
+            if (
+                target_status == slot["execution_status"]
+                and reason == slot["status_reason"]
+                and actual_started_at == slot["actual_started_at"]
+                and actual_completed_at == slot["actual_completed_at"]
+            ):
+                return slot
+
+            guard = guard_day_mutation(
+                session,
+                day=day,
+                kind="slot_status",
+                entity_id=slot_id,
+                payload=payload,
+                actor_member_id=actor_member_id,
+            )
+            if target_status == "running" and not correction_mode:
+                raise ValueError(
+                    "Der Status Läuft wird ausschließlich durch die Startaktion gesetzt"
+                )
+            if (
+                not correction_mode
+                and target_status == "cancelled"
+                and slot["actual_started_at"] is not None
+            ):
+                raise ValueError(
+                    "Ein gestarteter Prüfungsslot kann nicht als ausgefallen markiert werden"
+                )
+            allowed = EXECUTION_STATUS_TRANSITIONS.get(slot["execution_status"], set())
+            if not correction_mode and target_status not in allowed:
+                transition = (
+                    f"Der Statuswechsel von {slot['execution_status']} "
+                    f"zu {target_status} ist nicht erlaubt"
+                )
+                raise ValueError(transition)
+
             exam_slot = session.get(EXAM_SLOT.model, slot_id)
             if exam_slot is None:
                 raise ValueError("Prüfungsslot nicht gefunden")
             exam_slot.execution_status = target_status
             exam_slot.status_changed_at = changed_at
             exam_slot.status_reason = reason
-            if target_status == "completed":
-                exam_slot.actual_completed_at = changed_at
+            exam_slot.actual_started_at = actual_started_at
+            exam_slot.actual_completed_at = actual_completed_at
             session.flush()
+            complete_day_mutation(
+                session,
+                guard,
+                actor_member_id=actor_member_id,
+                reason=reason,
+            )
             return {
                 **slot,
                 "execution_status": target_status,
                 "status_changed_at": changed_at,
-                "actual_completed_at": (
-                    changed_at if target_status == "completed" else slot["actual_completed_at"]
-                ),
+                "actual_started_at": actual_started_at,
+                "actual_completed_at": actual_completed_at,
                 "status_reason": reason,
             }
 
-    def start_exam_slot(self, day_id: int, slot_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    def start_exam_slot(
+        self,
+        day_id: int,
+        slot_id: int,
+        payload: dict[str, Any],
+        *,
+        actor_member_id: int,
+    ) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
             store = Store(session)
             slot = self._confirmed_slot(store, day_id, slot_id)
@@ -1128,6 +1225,13 @@ class ResourceRepository:
                     raise ValueError(
                         f"Prüfungsstart wurde bereits um {slot['actual_started_at']} erfasst"
                     )
+                create_protocol_for_started_slot(
+                    session,
+                    slot_id=slot_id,
+                    participant_member_ids=present_regular_members,
+                    created_by_member_id=actor_member_id,
+                    created_at=slot["actual_started_at"],
+                )
                 return slot
 
             actual_started_at = (
@@ -1139,10 +1243,27 @@ class ResourceRepository:
             exam_slot = session.get(EXAM_SLOT.model, slot_id)
             if exam_slot is None:
                 raise ValueError("Prüfungsslot nicht gefunden")
+            day = session.get(EXAM_DAY.model, day_id)
+            guard = guard_day_mutation(
+                session,
+                day=day,
+                kind="slot_status",
+                entity_id=slot_id,
+                payload=payload,
+                actor_member_id=actor_member_id,
+            )
             exam_slot.actual_started_at = actual_started_at
             exam_slot.execution_status = "running"
             exam_slot.status_changed_at = actual_started_at
+            create_protocol_for_started_slot(
+                session,
+                slot_id=slot_id,
+                participant_member_ids=present_regular_members,
+                created_by_member_id=actor_member_id,
+                created_at=actual_started_at,
+            )
             session.flush()
+            complete_day_mutation(session, guard, actor_member_id=actor_member_id)
             return {
                 **slot,
                 "actual_started_at": actual_started_at,
@@ -1165,7 +1286,7 @@ class ResourceRepository:
             or day is None
             or slot["exam_day_id"] != day_id
             or slot["status"] != "confirmed"
-            or day["status"] != "confirmed"
+            or day["status"] not in {"confirmed", "completed", "cancelled"}
         ):
             raise ValueError(
                 "Nur ein bestätigter Prüfungsslot des ausgewählten Tages darf geändert werden"
@@ -1186,7 +1307,7 @@ class ResourceRepository:
             raise ValueError(
                 "Nur eine Besetzung des ausgewählten Prüfungstags darf geändert werden"
             )
-        if day["status"] != "confirmed":
+        if day["status"] not in {"confirmed", "completed", "cancelled"}:
             raise ValueError(
                 "Nur Besetzungen eines bestätigten Prüfungstags dürfen geändert werden"
             )
@@ -1196,6 +1317,42 @@ class ResourceRepository:
                 "Der Prüfungstag ist nicht Bestandteil eines bestätigten Prüfungsplans"
             )
         return assignment
+
+    @staticmethod
+    def _validate_corrected_slot_facts(
+        target_status: str,
+        actual_started_at: Any,
+        actual_completed_at: Any,
+    ) -> None:
+        def parsed(value: Any, label: str) -> datetime | None:
+            if value is None:
+                return None
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{label} ist ungültig")
+            try:
+                result = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError as error:
+                raise ValueError(f"{label} ist ungültig") from error
+            if result.tzinfo is None:
+                raise ValueError(f"{label} benötigt eine Zeitzone")
+            return result
+
+        started = parsed(actual_started_at, "Tatsächlicher Beginn")
+        completed = parsed(actual_completed_at, "Tatsächliches Ende")
+        if target_status == "completed" and (started is None or completed is None):
+            raise ValueError(
+                "Ein korrigierter abgeschlossener Slot benötigt tatsächlichen Beginn und Ende"
+            )
+        if target_status in {"open", "cancelled"} and (
+            started is not None or completed is not None
+        ):
+            raise ValueError(
+                "Ein offener oder ausgefallener Slot darf keine tatsächlichen Zeiten enthalten"
+            )
+        if target_status in {"running", "needs_follow_up"} and started is None:
+            raise ValueError("Ein begonnener Slot benötigt einen tatsächlichen Beginn")
+        if started is not None and completed is not None and completed <= started:
+            raise ValueError("Das tatsächliche Ende muss nach dem tatsächlichen Beginn liegen")
 
     def _attendance_payload(
         self, payload: dict[str, Any], existing: dict[str, Any] | None

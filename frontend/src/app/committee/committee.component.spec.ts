@@ -50,12 +50,14 @@ describe('CommitteeComponent', () => {
   it('should emit valid committee form submissions', () => {
     vi.spyOn(component.createCommittee, 'emit').mockReturnValue(undefined);
     setInput('#committeeName', 'PA Neu');
+    setInput('#committeeIhk', 'IHK Teststadt');
     setInput('#committeeOccupation', 'Fachinformatiker/in');
 
     submitForm(0);
 
     expect(component.createCommittee.emit).toHaveBeenCalledWith({
       name: 'PA Neu',
+      ihk: 'IHK Teststadt',
       occupation: 'Fachinformatiker/in',
     });
     expect(inputValue('#committeeName')).toBe('PA Neu');
