@@ -55,7 +55,15 @@ class HttpContractParityTests(unittest.TestCase):
             return {
                 key: (
                     "<timestamp>"
-                    if key in {"created_at", "expires_at", "updated_at"}
+                    if key
+                    in {
+                        "activated_at",
+                        "created_at",
+                        "expires_at",
+                        "feed_url",
+                        "revoked_at",
+                        "updated_at",
+                    }
                     else self.canonical_json(item)
                 )
                 for key, item in value.items()
@@ -546,6 +554,55 @@ class HttpContractParityTests(unittest.TestCase):
                 "PATCH",
                 f"/api/confirmed-plan-days/{day['id']}/slots/{slot['id']}/status",
                 {"status": "needs_follow_up"},
+            )
+
+    def test_integration_routes_do_not_depend_on_the_legacy_fallback(self) -> None:
+        """Keep #477's notification, calendar, and absence routes dual-adapter safe."""
+        with self.adapter_pair(include_legacy_routes=False) as (legacy, fastapi):
+            for method, path, payload in (
+                ("GET", "/api/notifications", None),
+                ("GET", "/api/notification-problems", None),
+                ("GET", "/api/notification-overview", None),
+                ("GET", "/api/notification-channels", None),
+                ("GET", "/api/calendar", None),
+                ("GET", "/api/calendar/feed", None),
+                ("GET", "/api/calendar/events", None),
+                ("GET", "/api/calendar/events/999999.ics", None),
+                ("POST", "/api/calendar/feed", {}),
+                ("DELETE", "/api/calendar/feed", None),
+                ("POST", "/api/push-subscriptions", {"endpoint": "https://push.example.invalid"}),
+                ("DELETE", "/api/push-subscriptions/999999", None),
+                ("POST", "/api/notifications/999999/push-confirmation", None),
+                ("GET", "/api/absence-reports", None),
+                ("GET", "/api/absence-reports/999999", None),
+                ("POST", "/api/absence-reports", {}),
+                ("POST", "/api/absence-reports/999999/select-replacement", {}),
+                ("POST", "/api/absence-reports/999999/withdraw", None),
+                ("POST", "/api/absence-reports/999999/reopen", {}),
+                ("POST", "/api/absence-reports/999999/cancel", {}),
+                ("PATCH", "/api/replacement-responses/999999", {}),
+                ("POST", "/api/replacement-responses/999999/respond", {}),
+            ):
+                with self.subTest(method=method, path=path):
+                    self.assert_parity(
+                        legacy.request(method, path, payload),
+                        fastapi.request(method, path, payload),
+                    )
+
+        with self.confirmed_plan_adapter_pair() as (legacy, fastapi):
+            legacy_activation = legacy.request("POST", "/api/calendar/feed", {})
+            fastapi_activation = fastapi.request("POST", "/api/calendar/feed", {})
+            self.assertEqual(201, legacy_activation.status)
+            self.assert_parity(legacy_activation, fastapi_activation)
+            legacy_feed_path = legacy_activation.json["feed_url"].replace(
+                "https://app.example.invalid", ""
+            )
+            fastapi_feed_path = fastapi_activation.json["feed_url"].replace(
+                "https://app.example.invalid", ""
+            )
+            self.assert_parity(
+                legacy.request("GET", legacy_feed_path, authenticated=False),
+                fastapi.request("GET", fastapi_feed_path, authenticated=False),
             )
 
     def test_candidate_day_generation_and_planning_failures_keep_adapter_parity(self) -> None:
