@@ -26,6 +26,10 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("SEED_REVISION", demo_app)
         self.assertNotIn("VOLUME", demo_app)
         self.assertNotIn("VOLUME", demo_seed)
+        for name, runtime_dockerfile in (("product", product), ("demo", demo_app)):
+            with self.subTest(runtime=name):
+                self.assertIn("backend/application.py", runtime_dockerfile)
+                self.assertIn("backend/fastapi_app.py", runtime_dockerfile)
 
     def test_stable_release_calls_reusable_promotion_after_publication(self) -> None:
         release = Path(".github/workflows/release.yml").read_text(encoding="utf-8")

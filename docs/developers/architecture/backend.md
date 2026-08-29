@@ -1,6 +1,19 @@
 # Backend und Datenzugriff
 
-Das Backend ist ein Python-Paket. `backend/app.py` stellt die HTTP-Schnittstelle auf Basis von `BaseHTTPRequestHandler` und `ThreadingHTTPServer` bereit. Es parst Requests, routet Ressourcen und Planungsaktionen, übersetzt Fehler in HTTP-Statuscodes und erzeugt JSON mit HAL-nahen `_links`.
+Das Backend ist ein Python-Paket. `backend/app.py` stellt die produktive
+HTTP-Schnittstelle auf Basis von `BaseHTTPRequestHandler` und
+`ThreadingHTTPServer` bereit. Es parst Requests, routet Ressourcen und
+Planungsaktionen, übersetzt Fehler in HTTP-Statuscodes und erzeugt JSON mit
+HAL-nahen `_links`.
+
+Daneben stellt `backend/fastapi_app.py` eine ausdrücklich zu startende
+Application Factory für die schrittweise FastAPI-Migration bereit. Sie enthält
+zunächst ausschließlich `/api/health`, `/api/ready` und die geschützte
+Lesefunktion `/api/round-summary`. Beide Adapter verwenden dafür die synchronen,
+frameworkfreien Abläufe aus `backend/application.py`; FastAPI- und
+Starlette-Typen gelangen nicht in Services oder Repositories. Die Entscheidung
+und Rückfallgrenze dokumentiert
+[ADR-0027](../decisions/0027-synchroner-fastapi-migrationskern.md).
 
 Die fachliche Verarbeitung liegt hinter der HTTP-Schicht:
 
@@ -42,18 +55,49 @@ antwortet die API mit HTTP 503 und der Request kann wiederholt werden. Die
 Transaktionsgrenze bleibt `session_scope`: erfolgreiche fachlich zusammenhängende
 Änderungen werden gemeinsam committed, Fehler gemeinsam zurückgerollt.
 
-Der Start prüft nach optionaler Initialisierung die Erreichbarkeit, das Schema,
-die Migrationshistorie und die effektiven SQLite-Einstellungen. `GET
-/api/health` liefert bei bereiter Datenbank HTTP 200, sonst HTTP 503. Die
-Antwort enthält den sicheren Grund sowie aktuellen, Ziel- und ausstehenden
-Migrationsstand und die Historie; Fachdaten oder Verbindungsgeheimnisse werden
-nicht ausgegeben. Die API startet bei einem ungeeigneten Schema nicht. Vor dem
-Start prüft das Backend außerdem die Existenz beziehungsweise Anlegbarkeit von
-`/data`, `/data/documents` und `/data/backups`, Schreibzugriff und den
-prüfbaren freien Speicher. Für lokale Tests können `LZUG_DATA_DIR`,
+Der produktive Start prüft nach optionaler Initialisierung die Erreichbarkeit,
+das Schema, die Migrationshistorie und die effektiven SQLite-Einstellungen. Die
+API startet bei einem ungeeigneten Schema nicht. Vor dem Start prüft das Backend
+außerdem die Existenz beziehungsweise Anlegbarkeit von `/data`,
+`/data/documents` und `/data/backups`, Schreibzugriff und den prüfbaren freien
+Speicher. `GET /api/health` bleibt davon unabhängig reine Prozess-Liveness mit
+HTTP 200. `GET /api/ready` liefert nur bei vollständig bereiter Datenbank HTTP
+200 und sonst HTTP 503; beide Antworten enthalten keine Persistenzdiagnosen.
+Für lokale Tests können `LZUG_DATA_DIR`,
 `LZUG_DOCUMENTS_PATH` und `LZUG_BACKUPS_PATH` oder die entsprechenden
 CLI-Optionen `--data-dir`, `--documents` und `--backups` diese Pfade
 überschreiben; der Self-Hosting-Standard bleibt unter `/data`.
+
+## FastAPI-Lebenszyklus und expliziter Entwicklungsstart
+
+Die FastAPI-Factory liest `LZUG_DATABASE_URL` beziehungsweise
+`LZUG_DATABASE_PATH` und leitet den Session-Cookie-Namen wie der produktive
+Adapter aus `LZUG_HTTPS_ONLY` ab. Sie initialisiert und migriert keine Datenbank.
+Dadurch kann der Prozess für einen gezielten Test starten, während `/api/ready`
+bis zur separat vorbereiteten Datenbank geschlossen mit HTTP 503 antwortet.
+Repositories öffnen ihre SQLAlchemy-Sessions weiterhin nur innerhalb der
+jeweiligen synchronen Operation und schließen sie dort wieder; beim Beenden des
+FastAPI-Test- oder Entwicklungsprozesses gibt es deshalb keine zusätzliche
+Anwendungsressource freizugeben.
+
+Mit einer bereits initialisierten lokalen Datenbank wird der Kern explizit und
+getrennt vom produktiven Port gestartet:
+
+```bash
+LZUG_DATABASE_PATH=var/lzug.sqlite3 LZUG_HTTPS_ONLY=false \
+  uv run --locked uvicorn backend.fastapi_app:create_app --factory \
+  --host 127.0.0.1 --port 8001
+```
+
+Der produktive und in den Container-Artefakten konfigurierte Standard bleibt
+`python -m backend.app`. Ein Start der FastAPI-Factory ist keine produktive
+Umschaltung.
+
+Die öffentliche Fehlerabbildung des minimalen Kerns entspricht dem bisherigen
+Adapter: fehlende oder ungültige Sessions ergeben HTTP 401, ein fehlender
+Anwendungsakteur oder Ausschusszugriff HTTP 403, ungültige `round_id`-Werte HTTP
+400, eine gesperrte Datenbank HTTP 503 und sonstige SQLAlchemy-Fehler HTTP 500.
+Nicht vorhandene fremde Prüfungsrunden werden weiterhin nicht offengelegt.
 
 Fachliche Änderungen werden weiterhin ausschließlich über SQLAlchemy-Sessions
 und Repositories committed. Jede Migration besitzt ihre eigene SQL-Transaktion;

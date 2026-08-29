@@ -7,7 +7,8 @@ Die zentralen Schichten sind:
 ```text
 Angular-Frontend
   -> JSON-API mit OpenAPI-Vertrag
-  -> HTTP-Handler, Repositories und Planungsservice
+  -> produktiver HTTP-Handler / opt-in FastAPI-Migrationskern
+  -> frameworkfreie Anwendungsschicht, Repositories und Services
   -> SQLAlchemy-Modelle und Store
   -> SQLite-Datenbank
 ```
