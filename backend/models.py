@@ -594,6 +594,9 @@ class NotificationDelivery(Base):
     next_attempt_at: Mapped[str | None] = mapped_column(String, nullable=True)
     technical_confirmed_at: Mapped[str | None] = mapped_column(String, nullable=True)
     error_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    claim_token: Mapped[str | None] = mapped_column(String, nullable=True)
+    claimed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    claim_expires_at: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
     updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
 

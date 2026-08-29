@@ -13,11 +13,12 @@ from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 from pathlib import Path
 from urllib.parse import urlsplit
+from uuid import uuid4
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from .authorization import AuthorizationScope
@@ -46,6 +47,8 @@ DELIVERY_STATUSES = frozenset(
 )
 MAX_DELIVERY_ATTEMPTS = 4
 PUSH_CONFIRMATION_TIMEOUT = timedelta(minutes=15)
+DELIVERY_BATCH_SIZE = 20
+DELIVERY_CLAIM_TTL = timedelta(minutes=2)
 
 
 class NotificationError(RuntimeError):
@@ -57,6 +60,36 @@ class NotificationChannels:
     push_public_key: str | None
     email_configured: bool
     sink_enabled: bool
+
+
+@dataclass(frozen=True)
+class ClaimedDelivery:
+    """Immutable channel input captured while the short claim transaction is open."""
+
+    id: int
+    claim_token: str
+    notification_id: int
+    channel: str
+    status: str
+    attempt_count: int
+    push_subscription_id: int | None
+    push_endpoint: str | None
+    recipient_email: str | None
+    title: str
+    message: str
+    action_path: str
+
+
+@dataclass(frozen=True)
+class DeliveryResult:
+    """Result written only if the corresponding claim is still current."""
+
+    status: str
+    attempt_count: int
+    next_attempt_at: str | None
+    technical_confirmed_at: str | None
+    error_code: str | None
+    invalidate_subscription_id: int | None = None
 
 
 def _now(value: datetime | None = None) -> datetime:
@@ -257,6 +290,7 @@ class NotificationService:
                     )
                 )
             rows = session.execute(statement.order_by(NotificationDelivery.updated_at.desc())).all()
+            current = _now()
             return [
                 {
                     "notification_id": notice.id,
@@ -266,6 +300,9 @@ class NotificationService:
                     "status": delivery.status,
                     "attempt_count": delivery.attempt_count,
                     "error_code": delivery.error_code,
+                    "claim_state": self._claim_state(delivery, current),
+                    "claimed_at": delivery.claimed_at,
+                    "claim_expires_at": delivery.claim_expires_at,
                     "updated_at": delivery.updated_at,
                 }
                 for delivery, notice in rows
@@ -317,6 +354,9 @@ class NotificationService:
             for row in rows:
                 row.status = "technically_confirmed"
                 row.technical_confirmed_at = confirmed_at
+                row.claim_token = None
+                row.claimed_at = None
+                row.claim_expires_at = None
                 row.updated_at = confirmed_at
             return bool(rows)
 
@@ -357,37 +397,112 @@ class NotificationService:
     def process_deliveries(self, *, now: datetime | None = None) -> int:
         current = _now(now)
         processed = 0
+        for _index in range(DELIVERY_BATCH_SIZE):
+            claim_started = current if now is not None else _now()
+            claimed = self._claim_due_deliveries(claim_started, uuid4().hex, batch_size=1)
+            if not claimed:
+                break
+            delivery = claimed[0]
+            result = self._dispatch_claimed(delivery, claim_started)
+            completed_at = claim_started if now is not None else _now()
+            if self._complete_claim(delivery, result, completed_at):
+                processed += 1
+        fallback_time = current if now is not None else _now()
         with session_scope(self.db_path) as session:
-            rows = session.scalars(
-                select(NotificationDelivery)
+            self._queue_email_fallbacks(session, fallback_time)
+        return processed
+
+    def _claim_due_deliveries(
+        self,
+        current: datetime,
+        claim_token: str,
+        *,
+        batch_size: int = DELIVERY_BATCH_SIZE,
+    ) -> list[ClaimedDelivery]:
+        """Atomically claim one bounded batch and capture its channel inputs."""
+        current_timestamp = _timestamp(current)
+        expires_at = _timestamp(current + DELIVERY_CLAIM_TTL)
+        claim_available = or_(
+            NotificationDelivery.claim_token.is_(None),
+            NotificationDelivery.claim_expires_at.is_(None),
+            NotificationDelivery.claim_expires_at <= current_timestamp,
+        )
+        candidates = (
+            select(NotificationDelivery.id)
+            .where(
+                NotificationDelivery.status.in_({"pending", "temporarily_failed"}),
+                or_(
+                    NotificationDelivery.next_attempt_at.is_(None),
+                    NotificationDelivery.next_attempt_at <= current_timestamp,
+                ),
+                claim_available,
+            )
+            .order_by(NotificationDelivery.id)
+            .limit(batch_size)
+        )
+        with session_scope(self.db_path) as session:
+            claimed_ids = list(
+                session.scalars(
+                    update(NotificationDelivery)
+                    .where(NotificationDelivery.id.in_(candidates), claim_available)
+                    .values(
+                        claim_token=claim_token,
+                        claimed_at=current_timestamp,
+                        claim_expires_at=expires_at,
+                    )
+                    .returning(NotificationDelivery.id)
+                    .execution_options(synchronize_session=False)
+                ).all()
+            )
+            if not claimed_ids:
+                return []
+            rows = session.execute(
+                select(NotificationDelivery, Notification)
+                .join(Notification, Notification.id == NotificationDelivery.notification_id)
                 .where(
-                    NotificationDelivery.status.in_({"pending", "temporarily_failed"}),
+                    NotificationDelivery.id.in_(claimed_ids),
+                    NotificationDelivery.claim_token == claim_token,
                 )
                 .order_by(NotificationDelivery.id)
             ).all()
-            for delivery in rows:
-                if (
-                    delivery.next_attempt_at
-                    and self._parse_timestamp(delivery.next_attempt_at) > current
-                ):
-                    continue
-                if (
-                    delivery.channel == "web_push"
-                    and delivery.status == "pending"
-                    and delivery.attempt_count
-                ):
-                    self._permanent_failure(
-                        delivery, "confirmation_timeout", current, increment=False
+            snapshots: list[ClaimedDelivery] = []
+            for delivery, notice in rows:
+                subscription_id: int | None = None
+                push_endpoint: str | None = None
+                recipient_email: str | None = None
+                if delivery.channel == "web_push":
+                    try:
+                        subscription_id = int(delivery.target_key)
+                    except ValueError:
+                        subscription_id = None
+                    subscription = (
+                        session.get(PushSubscription, subscription_id)
+                        if subscription_id is not None
+                        else None
                     )
-                    processed += 1
-                    continue
-                notice = session.get(Notification, delivery.notification_id)
-                if notice is None:
-                    continue
-                self._dispatch(session, delivery, notice, current)
-                processed += 1
-            self._queue_email_fallbacks(session, current)
-        return processed
+                    if subscription is not None and subscription.invalidated_at is None:
+                        push_endpoint = subscription.endpoint
+                elif delivery.channel == "email":
+                    member = session.get(CommitteeMember, notice.recipient_member_id)
+                    person = session.get(Person, member.person_id) if member is not None else None
+                    recipient_email = person.email if person is not None else None
+                snapshots.append(
+                    ClaimedDelivery(
+                        id=delivery.id,
+                        claim_token=claim_token,
+                        notification_id=notice.id,
+                        channel=delivery.channel,
+                        status=delivery.status,
+                        attempt_count=delivery.attempt_count,
+                        push_subscription_id=subscription_id,
+                        push_endpoint=push_endpoint,
+                        recipient_email=recipient_email,
+                        title=notice.title,
+                        message=notice.message,
+                        action_path=notice.action_path,
+                    )
+                )
+            return snapshots
 
     def _recipients(self, session, event_type: str, exam_round: ExamRound) -> set[int]:
         active = session.scalars(
@@ -559,73 +674,134 @@ class NotificationService:
                     )
                 )
 
-    def _dispatch(self, session, delivery, notice, current: datetime) -> None:
+    def _dispatch_claimed(self, delivery: ClaimedDelivery, current: datetime) -> DeliveryResult:
+        if (
+            delivery.channel == "web_push"
+            and delivery.status == "pending"
+            and delivery.attempt_count
+        ):
+            return self._permanent_result(
+                delivery,
+                "confirmation_timeout",
+                increment=False,
+            )
         try:
             if delivery.channel == "sink":
-                pass
+                self._send_sink(delivery.notification_id)
             elif delivery.channel == "web_push":
-                subscription = session.get(PushSubscription, int(delivery.target_key))
-                if subscription is None or subscription.invalidated_at:
-                    self._permanent_failure(delivery, "invalid_subscription", current)
-                    return
-                self._send_web_push(subscription.endpoint, notice.id)
+                if delivery.push_endpoint is None:
+                    return self._permanent_result(delivery, "invalid_subscription")
+                self._send_web_push(delivery.push_endpoint, delivery.notification_id)
             elif delivery.channel == "email":
-                self._send_email(session, notice)
-            delivery.attempt_count += 1
-            delivery.status = (
+                if delivery.recipient_email is None:
+                    raise OSError("Recipient is unavailable")
+                self._send_email(delivery)
+            confirmed_status = (
                 "technically_confirmed" if delivery.channel in {"email", "sink"} else "pending"
             )
-            delivery.technical_confirmed_at = (
-                _timestamp(current) if delivery.status == "technically_confirmed" else None
+            return DeliveryResult(
+                status=confirmed_status,
+                attempt_count=delivery.attempt_count + 1,
+                next_attempt_at=(
+                    _timestamp(current + PUSH_CONFIRMATION_TIMEOUT)
+                    if delivery.channel == "web_push"
+                    else None
+                ),
+                technical_confirmed_at=(
+                    _timestamp(current) if confirmed_status == "technically_confirmed" else None
+                ),
+                error_code=None,
             )
-            delivery.next_attempt_at = (
-                _timestamp(current + PUSH_CONFIRMATION_TIMEOUT)
-                if delivery.channel == "web_push"
-                else None
-            )
-            delivery.error_code = None
-            delivery.updated_at = _timestamp(current)
         except urllib.error.HTTPError as error:
             if error.code in {404, 410}:
-                subscription = session.get(PushSubscription, int(delivery.target_key))
-                if subscription is not None:
-                    subscription.invalidated_at = _timestamp(current)
-                self._permanent_failure(delivery, "invalid_subscription", current)
-            elif 400 <= error.code < 500:
-                self._permanent_failure(delivery, "push_rejected", current)
-            else:
-                self._temporary_failure(delivery, "push_unavailable", current)
+                return self._permanent_result(
+                    delivery,
+                    "invalid_subscription",
+                    invalidate_subscription_id=delivery.push_subscription_id,
+                )
+            if 400 <= error.code < 500:
+                return self._permanent_result(delivery, "push_rejected")
+            return self._temporary_result(delivery, "push_unavailable", current)
         except OSError, smtplib.SMTPException:
-            self._temporary_failure(delivery, f"{delivery.channel}_unavailable", current)
+            return self._temporary_result(delivery, f"{delivery.channel}_unavailable", current)
 
-    def _temporary_failure(self, delivery, code: str, current: datetime) -> None:
-        delivery.attempt_count += 1
-        if delivery.attempt_count >= MAX_DELIVERY_ATTEMPTS:
-            self._permanent_failure(delivery, code, current, increment=False)
-            return
-        delivery.status = "temporarily_failed"
-        delivery.error_code = code
-        delivery.next_attempt_at = _timestamp(
-            current + timedelta(minutes=2 ** (delivery.attempt_count - 1))
+    def _temporary_result(
+        self, delivery: ClaimedDelivery, code: str, current: datetime
+    ) -> DeliveryResult:
+        attempt_count = delivery.attempt_count + 1
+        if attempt_count >= MAX_DELIVERY_ATTEMPTS:
+            return self._permanent_result(delivery, code, attempt_count=attempt_count)
+        return DeliveryResult(
+            status="temporarily_failed",
+            attempt_count=attempt_count,
+            next_attempt_at=_timestamp(current + timedelta(minutes=2 ** (attempt_count - 1))),
+            technical_confirmed_at=None,
+            error_code=code,
         )
-        delivery.updated_at = _timestamp(current)
 
     @staticmethod
-    def _permanent_failure(
-        delivery, code: str, current: datetime, *, increment: bool = True
-    ) -> None:
-        if increment:
-            delivery.attempt_count += 1
-        delivery.status = "permanently_failed"
-        delivery.error_code = code
-        delivery.next_attempt_at = None
-        delivery.updated_at = _timestamp(current)
+    def _permanent_result(
+        delivery: ClaimedDelivery,
+        code: str,
+        *,
+        increment: bool = True,
+        attempt_count: int | None = None,
+        invalidate_subscription_id: int | None = None,
+    ) -> DeliveryResult:
+        return DeliveryResult(
+            status="permanently_failed",
+            attempt_count=(
+                attempt_count
+                if attempt_count is not None
+                else delivery.attempt_count + (1 if increment else 0)
+            ),
+            next_attempt_at=None,
+            technical_confirmed_at=None,
+            error_code=code,
+            invalidate_subscription_id=invalidate_subscription_id,
+        )
+
+    def _complete_claim(
+        self,
+        claimed: ClaimedDelivery,
+        result: DeliveryResult,
+        completed_at: datetime,
+    ) -> bool:
+        """Persist a result only while the exact claim token is still valid."""
+        completed_timestamp = _timestamp(completed_at)
+        with session_scope(self.db_path) as session:
+            delivery = session.scalar(
+                select(NotificationDelivery).where(
+                    NotificationDelivery.id == claimed.id,
+                    NotificationDelivery.claim_token == claimed.claim_token,
+                    NotificationDelivery.claim_expires_at > completed_timestamp,
+                )
+            )
+            if delivery is None:
+                return False
+            delivery.status = result.status
+            delivery.attempt_count = result.attempt_count
+            delivery.next_attempt_at = result.next_attempt_at
+            delivery.technical_confirmed_at = result.technical_confirmed_at
+            delivery.error_code = result.error_code
+            delivery.claim_token = None
+            delivery.claimed_at = None
+            delivery.claim_expires_at = None
+            delivery.updated_at = completed_timestamp
+            if result.invalidate_subscription_id is not None:
+                subscription = session.get(PushSubscription, result.invalidate_subscription_id)
+                if subscription is not None:
+                    subscription.invalidated_at = completed_timestamp
+            return True
 
     def _queue_email_fallbacks(self, session, current: datetime) -> None:
         if not self.channels().email_configured:
             return
         candidates = session.scalars(
-            select(NotificationDelivery).where(NotificationDelivery.channel == "web_push")
+            select(NotificationDelivery).where(
+                NotificationDelivery.channel == "web_push",
+                NotificationDelivery.claim_token.is_(None),
+            )
         ).all()
         for push in candidates:
             timed_out = (
@@ -647,14 +823,23 @@ class NotificationService:
             )
         ).first()
         if existing is None:
-            session.add(
-                NotificationDelivery(
-                    notification_id=notice.id,
-                    channel="email",
-                    target_key=f"member:{notice.recipient_member_id}",
-                    status="pending",
-                )
-            )
+            try:
+                with session.begin_nested():
+                    session.add(
+                        NotificationDelivery(
+                            notification_id=notice.id,
+                            channel="email",
+                            target_key=f"member:{notice.recipient_member_id}",
+                            status="pending",
+                        )
+                    )
+                    session.flush()
+            except IntegrityError:
+                pass
+
+    @staticmethod
+    def _send_sink(_notification_id: int) -> None:
+        """Record-only sink boundary, kept outside the claim transaction."""
 
     def _send_web_push(self, endpoint: str, notification_id: int) -> None:
         private_key = self._vapid_private_key()
@@ -689,17 +874,15 @@ class NotificationService:
             if response.status not in {201, 202}:
                 raise OSError("Web Push endpoint rejected request")
 
-    def _send_email(self, session, notice: Notification) -> None:
-        member = session.get(CommitteeMember, notice.recipient_member_id)
-        person = session.get(Person, member.person_id) if member is not None else None
-        if person is None:
+    def _send_email(self, delivery: ClaimedDelivery) -> None:
+        if delivery.recipient_email is None:
             raise OSError("Recipient is unavailable")
         message = EmailMessage()
-        message["Subject"] = notice.title
+        message["Subject"] = delivery.title
         message["From"] = os.environ.get("LZUG_SMTP_FROM", "lzug@localhost")
-        message["To"] = person.email
+        message["To"] = delivery.recipient_email
         base_url = os.environ.get("LZUG_EXTERNAL_URL", "").rstrip("/")
-        message.set_content(f"{notice.message}\n\n{base_url}{notice.action_path}")
+        message.set_content(f"{delivery.message}\n\n{base_url}{delivery.action_path}")
         host = os.environ["LZUG_SMTP_HOST"]
         port = int(os.environ.get("LZUG_SMTP_PORT", "25"))
         with smtplib.SMTP(host, port, timeout=10) as client:
@@ -764,11 +947,22 @@ class NotificationService:
             "created_at": row.created_at,
         }
 
-    @staticmethod
-    def _delivery_diagnostic(row: NotificationDelivery) -> dict[str, object]:
+    @classmethod
+    def _delivery_diagnostic(cls, row: NotificationDelivery) -> dict[str, object]:
         return {
             "channel": row.channel,
             "status": row.status,
             "attempt_count": row.attempt_count,
             "error_code": row.error_code,
+            "claim_state": cls._claim_state(row, _now()),
+            "claimed_at": row.claimed_at,
+            "claim_expires_at": row.claim_expires_at,
         }
+
+    @classmethod
+    def _claim_state(cls, row: NotificationDelivery, current: datetime) -> str:
+        if row.claim_token is None:
+            return "idle"
+        if row.claim_expires_at is None:
+            return "expired"
+        return "active" if cls._parse_timestamp(row.claim_expires_at) > current else "expired"

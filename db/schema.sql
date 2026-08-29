@@ -1,5 +1,5 @@
 -- lzug relationales Basisschema
--- Stand: 2026-08-26
+-- Stand: 2026-08-29
 --
 -- Ziel:
 -- - möglichst PostgreSQL-kompatibel
@@ -21,7 +21,8 @@ VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.s
        ('009_harden_migration_history.sql'), ('010_add_operator_auth_tokens.sql'),
        ('011_add_local_password_totp_auth.sql'),
        ('012_add_plan_revision.sql'), ('013_add_notifications.sql'),
-       ('014_add_personal_calendars.sql'), ('015_add_absence_replacement_process.sql');
+       ('014_add_personal_calendars.sql'), ('015_add_absence_replacement_process.sql'),
+       ('016_claim_notification_deliveries.sql');
 
 CREATE TABLE schema_migration_checksum (
   name TEXT PRIMARY KEY REFERENCES schema_migration(name) ON DELETE CASCADE,
@@ -43,7 +44,8 @@ INSERT INTO schema_migration_checksum (name, checksum) VALUES
   ('012_add_plan_revision.sql', 'e9462145b627eb238219d728d2b1263dd16e6d5eb30d33dbb1f7f0c61226e8fb'),
   ('013_add_notifications.sql', '6cacc994e8b4356ce9b1639a7df48efd046c66f083d14dc77f8ed2007851276e'),
   ('014_add_personal_calendars.sql', '68b46cd341c21ec12a8d08ba75b35b1215eaa04e992140841db501b8250ac635'),
-  ('015_add_absence_replacement_process.sql', 'd9b07a0fcca65202c1fc68b0874718551924624ac26517339a253e73394d9829');
+  ('015_add_absence_replacement_process.sql', 'd9b07a0fcca65202c1fc68b0874718551924624ac26517339a253e73394d9829'),
+  ('016_claim_notification_deliveries.sql', '3f6d7e71512af61da4669ff7b320b7093a32f0553b657aa89dc0b85ac8693bcb');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
@@ -514,9 +516,21 @@ CREATE TABLE notification_delivery (
   next_attempt_at TEXT,
   technical_confirmed_at TEXT,
   error_code TEXT,
+  claim_token TEXT,
+  claimed_at TEXT,
+  claim_expires_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (notification_id, channel, target_key)
+  UNIQUE (notification_id, channel, target_key),
+  CHECK (
+    (claim_token IS NULL AND claimed_at IS NULL AND claim_expires_at IS NULL)
+    OR (
+      claim_token IS NOT NULL
+      AND claimed_at IS NOT NULL
+      AND claim_expires_at IS NOT NULL
+      AND claim_expires_at > claimed_at
+    )
+  )
 );
 
 CREATE TABLE calendar_feed (
@@ -587,7 +601,7 @@ CREATE INDEX notification_committee_created
 CREATE INDEX push_subscription_person_active
   ON push_subscription(person_id, invalidated_at);
 CREATE INDEX notification_delivery_due
-  ON notification_delivery(status, next_attempt_at);
+  ON notification_delivery(status, next_attempt_at, claim_expires_at, id);
 
 CREATE INDEX calendar_event_source ON calendar_event(source_key);
 CREATE INDEX calendar_event_recipient_period
