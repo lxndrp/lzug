@@ -202,6 +202,7 @@ tasks:
   quality:
     desc: Run the complete local quality assurance suite in parallel
     deps:
+      - fixtures:check
       - quality:backend
       - quality:frontend
       - quality:security
@@ -213,6 +214,11 @@ tasks:
       - quality:demo-deployment
       - quality:demo
       - docs
+
+  fixtures:check:
+    desc: Verify synthetic fixture adapters match their canonical source
+    cmds:
+      - python3 scripts/generate_synthetic_fixtures.py --check
 
   quality:infra:
     desc: Format, validate, and mock-plan the public demo infrastructure without cloud access

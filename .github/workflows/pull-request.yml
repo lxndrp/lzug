@@ -22,6 +22,7 @@ jobs:
     name: Select quality domains
     runs-on: ubuntu-latest
     outputs:
+      fixtures: ${{ steps.domains.outputs.fixtures == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       docs: ${{ steps.domains.outputs.docs == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       backend: ${{ steps.domains.outputs.backend == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       frontend: ${{ steps.domains.outputs.frontend == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
@@ -37,6 +38,12 @@ jobs:
         with:
           predicate-quantifier: some-with-excludes
           filters: |
+            fixtures:
+              - 'fixtures/synthetic-fixtures.json'
+              - 'scripts/generate_synthetic_fixtures.py'
+              - 'db/seed_demo.sql'
+              - 'frontend/src/app/testing/synthetic-fixtures.generated.ts'
+              - 'prototypes/pruefungsrunde-prototyp/synthetic-fixtures.generated.js'
             docs:
               - 'docs/**'
               - 'mkdocs.yml'
@@ -174,6 +181,21 @@ jobs:
               - '!mkdocs.yml'
               - '!pyproject.toml'
               - '!uv.lock'
+
+  fixtures:
+    name: Synthetic fixture adapters
+    needs: changes
+    if: needs.changes.outputs.fixtures == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14.6"
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+      - run: task fixtures:check
 
   docs:
     name: Documentation details
@@ -488,12 +510,14 @@ jobs:
 
   backend-gate:
     name: Pull Request / Backend
-    needs: [changes, backend, e2e, a11y, codeql, source-scan]
+    needs: [changes, fixtures, backend, e2e, a11y, codeql, source-scan]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - env:
           CHANGES: ${{ needs.changes.result }}
+          FIXTURES_SELECTED: ${{ needs.changes.outputs.fixtures }}
+          FIXTURES: ${{ needs.fixtures.result }}
           SELECTED: ${{ needs.changes.outputs.backend }}
           DETAIL: ${{ needs.backend.result }}
           BROWSER: ${{ needs.changes.outputs.browser }}
@@ -503,6 +527,7 @@ jobs:
           SOURCE_SCAN: ${{ needs.source-scan.result }}
         run: |
           test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success
+          test "$FIXTURES_SELECTED:$FIXTURES" = true:success || test "$FIXTURES_SELECTED:$FIXTURES" = false:skipped
           test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
           test "$BROWSER:$E2E:$A11Y" = true:success:success || test "$BROWSER:$E2E:$A11Y" = false:skipped:skipped
 
