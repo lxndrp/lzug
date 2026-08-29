@@ -10,10 +10,10 @@ from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Query, Request
 from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError
-from starlette.concurrency import run_in_threadpool
 
 from .app import LzugHandler
 from .application import (
@@ -27,6 +27,75 @@ from .application import (
 from .database import database_path
 from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from .security import RequestRateLimiter, RuntimeSecurityConfig
+
+
+class ErrorResponse(BaseModel):
+    """Stable error envelope exposed by the migrated transport routes."""
+
+    error: str
+
+
+class HealthResponse(BaseModel):
+    """Minimal liveness or readiness response without domain diagnostics."""
+
+    status: str
+    version: str
+    revision: str
+    links: dict[str, object] = Field(alias="_links")
+
+
+class ApiRootResponse(BaseModel):
+    """Typed source fragment for the authenticated API entry point."""
+
+    version: str
+    links: dict[str, object] = Field(alias="_links")
+
+
+class LoginRequest(BaseModel):
+    """Credentials accepted by the local product login flow."""
+
+    email: str = ""
+    password: str = ""
+    second_factor: str = ""
+
+
+class TokenRequest(BaseModel):
+    """One invitation or recovery token supplied by an unauthenticated client."""
+
+    token: str = ""
+
+
+class FactorActivationRequest(BaseModel):
+    """Initial factor material for invitation activation or recovery completion."""
+
+    token: str = ""
+    password: str = ""
+    totp_secret: str = ""
+    totp_code: str = ""
+
+
+class FrontendErrorRequest(BaseModel):
+    """Coarse, non-sensitive frontend failure classification."""
+
+    kind: str
+    status: int | None = None
+
+
+class SessionResponse(BaseModel):
+    """Authenticated session view whose concrete capability fields remain assembly-owned."""
+
+    authenticated: bool
+    account_id: int
+    person_id: int | None
+    committee_member_id: int | None
+    is_operator: bool
+
+
+class SessionRotationResponse(BaseModel):
+    """Response returned after server-side session rotation."""
+
+    status: str
+    expires_at: str
 
 
 @dataclass(frozen=True)
@@ -279,8 +348,23 @@ def _legacy_response(handler_type: type[LzugHandler], request: Request, body: by
     return response
 
 
-async def _read_body(request: Request) -> bytes:
+async def _request_body(request: Request) -> bytes:
+    """Read an ASGI body while keeping migrated endpoint functions synchronous."""
     return await request.body()
+
+
+def _legacy_route_response(
+    handler_type: type[LzugHandler], request: Request, body: bytes = b""
+) -> Response:
+    """Run the retained reference handler behind one explicitly migrated route.
+
+    The FastAPI route owns matching, generated OpenAPI metadata and the ASGI
+    transport boundary.  The legacy handler remains the deliberately temporary
+    implementation reference for this migration slice; later issues replace
+    these small bridges with application-flow calls before the final adapter
+    removal.
+    """
+    return _legacy_response(handler_type, request, body)
 
 
 def create_app(
@@ -328,16 +412,45 @@ def create_app(
     def database_error(_request: Request, error: SQLAlchemyError) -> JSONResponse:
         return _json_response(database_error_result(error))
 
-    @app.get("/api/health", include_in_schema=False)
+    class LegacyReferenceHandler(LzugHandler):
+        """Keep the old adapter available as the contractual comparison reference."""
+
+        db_path = resolved_config.db_path
+        static_dir = resolved_config.static_dir
+        cookie_secure = resolved_config.cookie_secure
+        https_only = resolved_config.https_only
+        session_cookie_name = resolved_config.session_cookie_name
+        csrf_cookie_name = resolved_config.csrf_cookie_name
+        cors_allowed_origins = resolved_config.cors_allowed_origins
+        session_ttl = resolved_config.session_ttl
+        max_request_bytes = resolved_config.max_request_bytes
+        auth_rate_limiter = RequestRateLimiter(20, timedelta(minutes=1))
+        observability_rate_limiter = RequestRateLimiter(30, timedelta(minutes=1))
+        observability_global_rate_limiter = RequestRateLimiter(120, timedelta(minutes=1))
+        runtime_policy = resolved_config.runtime_policy
+
+    @app.get("/api/health", response_model=HealthResponse)
     def health() -> JSONResponse:
         return _json_response(application.health())
 
-    @app.get("/api/ready", include_in_schema=False)
+    @app.get(
+        "/api/ready",
+        response_model=HealthResponse,
+        responses={503: {"model": HealthResponse}},
+    )
     def readiness() -> JSONResponse:
         return _json_response(application.readiness())
 
-    @app.get("/api/round-summary", include_in_schema=False)
-    def round_summary(request: Request) -> JSONResponse:
+    @app.get(
+        "/api/round-summary",
+        response_model=dict[str, object],
+        responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+        openapi_extra={"security": [{"sessionCookie": []}]},
+    )
+    def round_summary(
+        request: Request,
+        _round_id: str | None = Query(default=None, json_schema_extra={"type": "integer"}),
+    ) -> JSONResponse:
         values = [value for value in request.query_params.getlist("round_id") if value]
         try:
             round_id = int(values[0] if values else "1")
@@ -353,30 +466,164 @@ def create_app(
         )
         return _json_response(application.round_summary(scope, round_id))
 
-    if include_legacy_routes:
+    @app.get(
+        "/api",
+        response_model=ApiRootResponse,
+        responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+        openapi_extra={"security": [{"sessionCookie": []}]},
+    )
+    def api_root(request: Request) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request)
 
-        class LegacyFallbackHandler(LzugHandler):
-            db_path = resolved_config.db_path
-            static_dir = resolved_config.static_dir
-            cookie_secure = resolved_config.cookie_secure
-            https_only = resolved_config.https_only
-            session_cookie_name = resolved_config.session_cookie_name
-            csrf_cookie_name = resolved_config.csrf_cookie_name
-            cors_allowed_origins = resolved_config.cors_allowed_origins
-            session_ttl = resolved_config.session_ttl
-            max_request_bytes = resolved_config.max_request_bytes
-            auth_rate_limiter = RequestRateLimiter(20, timedelta(minutes=1))
-            observability_rate_limiter = RequestRateLimiter(30, timedelta(minutes=1))
-            observability_global_rate_limiter = RequestRateLimiter(120, timedelta(minutes=1))
-            runtime_policy = resolved_config.runtime_policy
+    @app.get(
+        "/api/openapi.json",
+        response_model=dict[str, object],
+        responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+        openapi_extra={"security": [{"sessionCookie": []}]},
+    )
+    def openapi_document(request: Request) -> Response:
+        """Serve the full legacy reference until all route fragments are migrated."""
+        return _legacy_route_response(LegacyReferenceHandler, request)
+
+    @app.get(
+        "/api/docs",
+        response_class=Response,
+        openapi_extra={"security": [{"sessionCookie": []}]},
+    )
+    def api_docs(request: Request) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request)
+
+    @app.post(
+        "/api/auth/login",
+        response_model=dict[str, object],
+        responses={401: {"model": ErrorResponse}, 429: {"model": ErrorResponse}},
+        openapi_extra={
+            "requestBody": {
+                "required": True,
+                "content": {"application/json": {"schema": LoginRequest.model_json_schema()}},
+            }
+        },
+    )
+    def login(request: Request, body: bytes = Depends(_request_body)) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request, body)
+
+    @app.post(
+        "/api/auth/invitation/prepare",
+        response_model=dict[str, object],
+        responses={400: {"model": ErrorResponse}},
+        openapi_extra={
+            "requestBody": {
+                "required": True,
+                "content": {"application/json": {"schema": TokenRequest.model_json_schema()}},
+            }
+        },
+    )
+    def prepare_invitation(request: Request, body: bytes = Depends(_request_body)) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request, body)
+
+    @app.post(
+        "/api/auth/invitation/activate",
+        response_model=dict[str, object],
+        responses={400: {"model": ErrorResponse}},
+        openapi_extra={
+            "requestBody": {
+                "required": True,
+                "content": {
+                    "application/json": {"schema": FactorActivationRequest.model_json_schema()}
+                },
+            }
+        },
+    )
+    def activate_invitation(request: Request, body: bytes = Depends(_request_body)) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request, body)
+
+    @app.post(
+        "/api/auth/recovery/prepare",
+        response_model=dict[str, object],
+        responses={400: {"model": ErrorResponse}},
+        openapi_extra={
+            "requestBody": {
+                "required": True,
+                "content": {"application/json": {"schema": TokenRequest.model_json_schema()}},
+            }
+        },
+    )
+    def prepare_recovery(request: Request, body: bytes = Depends(_request_body)) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request, body)
+
+    @app.post(
+        "/api/auth/recovery/complete",
+        response_model=dict[str, object],
+        responses={400: {"model": ErrorResponse}},
+        openapi_extra={
+            "requestBody": {
+                "required": True,
+                "content": {
+                    "application/json": {"schema": FactorActivationRequest.model_json_schema()}
+                },
+            }
+        },
+    )
+    def complete_recovery(request: Request, body: bytes = Depends(_request_body)) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request, body)
+
+    @app.get(
+        "/api/session",
+        response_model=SessionResponse,
+        responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+        openapi_extra={"security": [{"sessionCookie": []}]},
+    )
+    def session(request: Request) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request)
+
+    @app.post(
+        "/api/session/rotate",
+        response_model=SessionRotationResponse,
+        responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+        openapi_extra={"security": [{"sessionCookie": [], "csrfHeader": []}]},
+    )
+    def rotate_session(request: Request, body: bytes = Depends(_request_body)) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request, body)
+
+    @app.post(
+        "/api/session/logout",
+        status_code=HTTPStatus.NO_CONTENT,
+        responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+        openapi_extra={"security": [{"sessionCookie": [], "csrfHeader": []}]},
+    )
+    def logout_session(request: Request, body: bytes = Depends(_request_body)) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request, body)
+
+    @app.post(
+        "/api/observability/frontend-errors",
+        status_code=HTTPStatus.ACCEPTED,
+        responses={
+            400: {"model": ErrorResponse},
+            403: {"model": ErrorResponse},
+            413: {"model": ErrorResponse},
+            415: {"model": ErrorResponse},
+            429: {"model": ErrorResponse},
+        },
+        openapi_extra={
+            "requestBody": {
+                "required": True,
+                "content": {
+                    "application/json": {"schema": FrontendErrorRequest.model_json_schema()}
+                },
+            }
+        },
+    )
+    def frontend_error(request: Request, body: bytes = Depends(_request_body)) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request, body)
+
+    if include_legacy_routes:
 
         @app.api_route(
             "/{path:path}",
             methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"],
             include_in_schema=False,
         )
-        async def legacy_route(request: Request) -> Response:
-            body = await _read_body(request)
-            return await run_in_threadpool(_legacy_response, LegacyFallbackHandler, request, body)
+        def legacy_route(request: Request, body: bytes = Depends(_request_body)) -> Response:
+            return _legacy_route_response(LegacyReferenceHandler, request, body)
 
     return app

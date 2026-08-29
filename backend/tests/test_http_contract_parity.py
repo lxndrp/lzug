@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import unittest
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
+from shutil import copy2
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
@@ -69,32 +71,29 @@ class HttpContractParityTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self.assert_parity(baseline, changed)
 
-    def adapter_pair(self):
-        legacy_db = TempDatabase()
-        fastapi_db = TempDatabase()
-        legacy_path = legacy_db.__enter__()
-        try:
-            fastapi_path = fastapi_db.__enter__()
-            try:
-                legacy = LegacyAdapter(legacy_path)
-                fastapi = FastAPIAdapter(fastapi_path)
-                legacy.__enter__()
-                try:
-                    fastapi.__enter__()
-                    try:
-                        yield legacy, fastapi
-                    finally:
-                        fastapi.__exit__(None, None, None)
-                finally:
-                    legacy.__exit__(None, None, None)
-            finally:
-                fastapi_db.__exit__(None, None, None)
-        finally:
-            legacy_db.__exit__(None, None, None)
+    @contextmanager
+    def adapter_pair(self, *, include_legacy_routes: bool = True):
+        """Create both adapters from one seeded SQLite fixture.
+
+        The demo seed stores creation timestamps.  Initializing two databases
+        independently makes a read-only parity assertion depend on a boundary
+        between wall-clock seconds, rather than on either adapter.
+        """
+        with TempDatabase() as legacy_path, TemporaryDirectory() as directory:
+            fastapi_path = Path(directory) / legacy_path.name
+            copy2(legacy_path, fastapi_path)
+            with (
+                LegacyAdapter(legacy_path) as legacy,
+                FastAPIAdapter(
+                    fastapi_path,
+                    include_legacy_routes=include_legacy_routes,
+                ) as fastapi,
+            ):
+                yield legacy, fastapi
 
     def test_shared_adapter_interface_covers_reads_writes_auth_and_errors(self) -> None:
         with self.subTest("representative cases"):
-            for legacy, fastapi in self.adapter_pair():
+            with self.adapter_pair() as (legacy, fastapi):
                 cases = (
                     ("health", "GET", "/api/health", None, False, None, {}),
                     ("readiness", "GET", "/api/ready", None, False, None, {}),
@@ -143,7 +142,7 @@ class HttpContractParityTests(unittest.TestCase):
     def test_security_session_and_csrf_contracts_are_shared(self) -> None:
         allowed_origin = "https://app.example.invalid"
         with patch.object(TestLzugHandler, "cors_allowed_origins", frozenset({allowed_origin})):
-            for legacy, fastapi in self.adapter_pair():
+            with self.adapter_pair() as (legacy, fastapi):
                 for headers in (
                     {"Origin": allowed_origin},
                     {"Origin": "https://blocked.example.invalid"},
@@ -236,7 +235,7 @@ class HttpContractParityTests(unittest.TestCase):
             "second_factor": "123456",
         }
         with patch.object(TestLzugHandler, "max_request_bytes", 32):
-            for legacy, fastapi in self.adapter_pair():
+            with self.adapter_pair() as (legacy, fastapi):
                 with self.subTest("body size"):
                     self.assert_parity(
                         legacy.request("POST", "/api/auth/login", payload, authenticated=False),
@@ -244,7 +243,7 @@ class HttpContractParityTests(unittest.TestCase):
                     )
 
         with patch.object(TestLzugHandler, "max_request_bytes", 1024):
-            for legacy, fastapi in self.adapter_pair():
+            with self.adapter_pair() as (legacy, fastapi):
                 with self.subTest("content type"):
                     self.assert_parity(
                         legacy.request(
@@ -310,7 +309,7 @@ class HttpContractParityTests(unittest.TestCase):
             (static_dir / "index.html").write_text("<app-root>shell</app-root>", encoding="utf-8")
             (static_dir / "main.123.js").write_text("console.log('ok')", encoding="utf-8")
             with patch.object(TestLzugHandler, "static_dir", static_dir):
-                for legacy, fastapi in self.adapter_pair():
+                with self.adapter_pair() as (legacy, fastapi):
                     for path in ("/dashboard", "/main.123.js"):
                         with self.subTest(path=path):
                             self.assert_parity(
@@ -324,6 +323,59 @@ class HttpContractParityTests(unittest.TestCase):
                     self.assertEqual(
                         json.loads(legacy_openapi.body),
                         json.loads(fastapi_openapi.body),
+                    )
+
+    def test_migrated_routes_do_not_depend_on_the_legacy_fallback(self) -> None:
+        """Exercise #474 routes with the FastAPI catch-all deliberately absent."""
+        with self.adapter_pair(include_legacy_routes=False) as (legacy, fastapi):
+            cases = (
+                ("GET", "/api", None, True, None, {}),
+                ("GET", "/api/openapi.json", None, True, None, {}),
+                ("GET", "/api/docs", None, True, None, {}),
+                ("GET", "/api/session", None, True, None, {}),
+                (
+                    "POST",
+                    "/api/auth/login",
+                    {"email": "unknown@example.invalid", "password": "wrong"},
+                    False,
+                    None,
+                    {},
+                ),
+                ("POST", "/api/auth/invitation/prepare", {"token": "invalid"}, False, None, {}),
+                ("POST", "/api/auth/recovery/prepare", {"token": "invalid"}, False, None, {}),
+                ("POST", "/api/session/rotate", None, True, None, {}),
+                (
+                    "POST",
+                    "/api/observability/frontend-errors",
+                    {"kind": "http", "status": 503},
+                    False,
+                    None,
+                    {
+                        "Host": "127.0.0.1",
+                        "Origin": "http://127.0.0.1",
+                        "Sec-Fetch-Site": "same-origin",
+                    },
+                ),
+            )
+            for method, path, payload, authenticated, credentials, headers in cases:
+                with self.subTest(method=method, path=path):
+                    self.assert_parity(
+                        legacy.request(
+                            method,
+                            path,
+                            payload,
+                            authenticated=authenticated,
+                            credentials=credentials,
+                            request_headers=headers,
+                        ),
+                        fastapi.request(
+                            method,
+                            path,
+                            payload,
+                            authenticated=authenticated,
+                            credentials=credentials,
+                            request_headers=headers,
+                        ),
                     )
 
 

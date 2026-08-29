@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from backend.application import ApplicationServices
 from backend.auth import AuthenticationRepository, SessionCredentials
 from backend.fastapi_app import FastAPIConfig, create_app
+from backend.openapi import spec as reference_openapi
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
 
 
@@ -171,12 +172,62 @@ class FastAPIApplicationTests(unittest.TestCase):
             route.path: route.endpoint for route in app.routes if isinstance(route, APIRoute)
         }
         self.assertEqual(
-            {"/api/health", "/api/ready", "/api/round-summary"},
+            {
+                "/api",
+                "/api/auth/invitation/activate",
+                "/api/auth/invitation/prepare",
+                "/api/auth/login",
+                "/api/auth/recovery/complete",
+                "/api/auth/recovery/prepare",
+                "/api/docs",
+                "/api/health",
+                "/api/observability/frontend-errors",
+                "/api/openapi.json",
+                "/api/ready",
+                "/api/round-summary",
+                "/api/session",
+                "/api/session/logout",
+                "/api/session/rotate",
+            },
             set(endpoints),
         )
         self.assertTrue(
             all(not inspect.iscoroutinefunction(endpoint) for endpoint in endpoints.values())
         )
+
+    def test_migrated_openapi_fragments_are_generated_from_fastapi_routes(self) -> None:
+        """Keep the generated #474 fragments aligned with the manual migration reference."""
+        with TempDatabase() as db_path:
+            generated = create_app(self.config(db_path)).openapi()
+        reference = reference_openapi()
+        migrated = {
+            "/api",
+            "/api/auth/invitation/activate",
+            "/api/auth/invitation/prepare",
+            "/api/auth/login",
+            "/api/auth/recovery/complete",
+            "/api/auth/recovery/prepare",
+            "/api/docs",
+            "/api/health",
+            "/api/observability/frontend-errors",
+            "/api/openapi.json",
+            "/api/ready",
+            "/api/round-summary",
+            "/api/session",
+            "/api/session/logout",
+            "/api/session/rotate",
+        }
+        self.assertTrue(migrated <= set(generated["paths"]))
+        for path in migrated - {"/api/docs"}:
+            with self.subTest(path=path):
+                self.assertIn(path, reference["paths"])
+                for method in reference["paths"][path]:
+                    if method in {"get", "post"}:
+                        actual = generated["paths"][path][method]
+                        expected = reference["paths"][path][method]
+                        self.assertIn(method, generated["paths"][path])
+                        self.assertEqual(expected.get("security"), actual.get("security"))
+                        self.assertTrue(set(expected["responses"]) <= set(actual["responses"]))
 
 
 if __name__ == "__main__":
