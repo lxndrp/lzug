@@ -96,6 +96,12 @@ bewegliche Tag-Referenzen auch in Release-, Dependabot- und Wiki-Abläufen.
 | Trivy-Imagescan | behebbare High/Critical OS-/Bibliothekslücke, Secret oder Misconfiguration | dasselbe per Prüfsumme übergebene Image wie im Runtime-Smoke |
 | Syft-SBOM-Vertrag | fehlende, leere oder strukturell widersprüchliche CycloneDX-1.6-Image-/Dependency-SBOM; fehlende npm-Lizenzmetadaten oder nicht erfasste deklarierte Go-Drittmodule | Image und Dependency gemeinsam 30 Tage als CI-Artefakt `lzug-sboms`; der Release erzeugt die detaillierten CLI-Inventare nur temporär für die aggregierte SBOM |
 
+Die [Abgrenzung der SBOM-Orchestrierung](../decisions/0028-sbom-orchestrierung-und-cyclonedx-standardwerkzeuge.md)
+ordnet Standardfunktionen und projektspezifische Lieferkettenverträge zu. Eine
+zusätzliche CycloneDX-Zusammenführung oder Schemavalidierung wird erst
+eingeführt, wenn sie den bestehenden Pfad bei gleicher Reproduzierbarkeit und
+vollständiger Vertragsdeckung messbar vereinfacht.
+
 Trivy ist als vollständiger SHA der laut
 [offiziellem Advisory](https://github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23)
 abgesicherten Action 0.35.0 fixiert und verwendet die unveränderliche Version

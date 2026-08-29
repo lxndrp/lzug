@@ -88,4 +88,5 @@ nav:
           - ADR-0025 Kein InSpec-Infrastruktur-Harness: developers/decisions/0025-kein-inspec-infrastruktur-harness.md
           - ADR-0026 Automatische Demo-Promotion: developers/decisions/0026-automatische-demo-promotion-stabiler-releases.md
           - ADR-0027 Synchroner FastAPI-Migrationskern: developers/decisions/0027-synchroner-fastapi-migrationskern.md
+          - ADR-0028 SBOM-Orchestrierung: developers/decisions/0028-sbom-orchestrierung-und-cyclonedx-standardwerkzeuge.md
       - Öffentliche Publikationsarchitektur: developers/publication-architecture.md
