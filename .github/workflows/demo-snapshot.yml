@@ -67,12 +67,15 @@ jobs:
           }
           test "$(git rev-parse HEAD)" = "$target_sha"
 
-          snapshot_identity=$(python3 scripts/demo_snapshot.py identity \
-            --tag "$SNAPSHOT_TAG" --revision "$target_sha" --field identity)
-          oci_tag=$(python3 scripts/demo_snapshot.py identity \
-            --tag "$SNAPSHOT_TAG" --revision "$target_sha" --field oci_tag)
-          target_version=$(python3 scripts/demo_snapshot.py identity \
-            --tag "$SNAPSHOT_TAG" --revision "$target_sha" --field target_version)
+          snapshot_identity=$(python3 -m demo.contract identity \
+            --tag "$SNAPSHOT_TAG" --commit "$target_sha" \
+            --channel snapshot --field identity)
+          oci_tag=$(python3 -m demo.contract identity \
+            --tag "$SNAPSHOT_TAG" --commit "$target_sha" \
+            --channel snapshot --field oci_tag)
+          target_version=$(python3 -m demo.contract identity \
+            --tag "$SNAPSHOT_TAG" --commit "$target_sha" \
+            --channel snapshot --field target_version)
 
           set +e
           product_tag_query=$(git ls-remote --exit-code --tags origin \
@@ -191,17 +194,18 @@ jobs:
             --expected-product-tag "$SNAPSHOT_TAG" \
             --expected-product-commit "$TARGET_SHA" \
             --expected-schema-fingerprint "$expected_schema_fingerprint"
-          jq -e \
-            --arg channel snapshot \
-            --arg commit "$TARGET_SHA" \
-            --arg identity "$SNAPSHOT_IDENTITY" \
-            --arg tag "$SNAPSHOT_TAG" \
-            --arg target "$TARGET_VERSION" \
-            '.product == {channel: $channel, commit: $commit, identity: $identity, tag: $tag, target_version: $target, version: $identity}' \
-            "$temporary_directory/manifest.json" >/dev/null
-          seed_revision=$(jq -er '.seed_revision' "$temporary_directory/manifest.json")
-          runtime_contract=$(jq -er '.runtime_contract' "$temporary_directory/manifest.json")
-          schema_fingerprint=$(jq -er '.schema.fingerprint' "$temporary_directory/manifest.json")
+          seed_revision=$(python3 -m demo.contract manifest-field \
+            --manifest "$temporary_directory/manifest.json" --kind seed \
+            --expected-product-tag "$SNAPSHOT_TAG" --expected-product-commit "$TARGET_SHA" \
+            --field seed_revision)
+          runtime_contract=$(python3 -m demo.contract manifest-field \
+            --manifest "$temporary_directory/manifest.json" --kind seed \
+            --expected-product-tag "$SNAPSHOT_TAG" --expected-product-commit "$TARGET_SHA" \
+            --field runtime_contract)
+          schema_fingerprint=$(python3 -m demo.contract manifest-field \
+            --manifest "$temporary_directory/manifest.json" --kind seed \
+            --expected-product-tag "$SNAPSHOT_TAG" --expected-product-commit "$TARGET_SHA" \
+            --field schema_fingerprint)
           app_image="ghcr.io/${GH_REPO,,}-demo-app"
           seed_image="ghcr.io/${GH_REPO,,}-demo-seed"
           {
@@ -270,18 +274,18 @@ jobs:
           docker push "$SEED_REF"
           seed_digest=$(docker buildx imagetools inspect "$SEED_REF" | \
             awk '$1 == "Digest:" { print $2; exit }')
-          printf '%s\n' "$seed_digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
           echo "digest=$seed_digest" >> "$GITHUB_OUTPUT"
 
-      - name: Validate canonical published digests
-        env:
-          APP_DIGEST: ${{ steps.app.outputs.digest }}
-          SEED_DIGEST: ${{ steps.seed.outputs.digest }}
-        run: |
-          set -euo pipefail
-          for digest in "$APP_DIGEST" "$SEED_DIGEST"; do
-            printf '%s\n' "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
-          done
+      - name: Validate the published immutable pair
+        run: >-
+          python3 -m demo.contract validate-pair
+          --app-image "${{ steps.pair.outputs.app_image }}@${{ steps.app.outputs.digest }}"
+          --seed-image "${{ steps.pair.outputs.seed_image }}@${{ steps.seed.outputs.digest }}"
+          --product-tag "$SNAPSHOT_TAG"
+          --product-commit "$TARGET_SHA"
+          --runtime-contract "${{ steps.pair.outputs.runtime_contract }}"
+          --schema-fingerprint "${{ steps.pair.outputs.schema_fingerprint }}"
+          --seed-revision "${{ steps.pair.outputs.seed_revision }}"
 
       - name: Download Syft
         id: syft

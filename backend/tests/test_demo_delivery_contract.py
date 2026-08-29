@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-import re
-import subprocess
-import tempfile
 import unittest
 from pathlib import Path
 
 from backend.tests.workflow_contract import job_block, mapping_block, workflow_text
-from demo.artifacts import build_seed
 
 
 class DemoDeliveryContractTests(unittest.TestCase):
@@ -22,6 +18,8 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertNotIn("demo/app.py", product)
         self.assertNotIn("frontend/demo-overlays", product)
         self.assertIn("demo/app.py", demo_app)
+        self.assertEqual(2, demo_app.count("demo/contract.py"))
+        self.assertIn("demo/contract.py", demo_seed)
         self.assertIn("frontend/demo-overlays", demo_app)
         self.assertIn("LZUG_FRONTEND_CONFIGURATION=demo", demo_app)
         self.assertIn("demo.artifacts build-seed", demo_seed)
@@ -75,22 +73,18 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertNotIn(":latest", workflow)
         self.assertNotIn(":demo", workflow)
 
-        resolution = workflow.split("\n  resolve:\n", 1)[1]
-        app_reference = resolution.index('app_ref="$app_name:$PRODUCT_VERSION"')
-        app_digest = resolution.index('app_digest=$(docker buildx imagetools inspect "$app_ref"')
-        app_manifest = resolution.index("/app/demo-app-manifest.json")
-        seed_revision = resolution.index("seed_revision=$(jq -er '.seed_revision'")
-        seed_reference = resolution.index(
-            'seed_ref="$seed_name:$PRODUCT_VERSION-seed-$seed_revision"'
-        )
-        seed_digest = resolution.index('seed_digest=$(docker buildx imagetools inspect "$seed_ref"')
-        pair_verification = resolution.index("scripts/verify-demo-image-pair.sh")
-        self.assertLess(app_reference, app_digest)
-        self.assertLess(app_digest, app_manifest)
-        self.assertLess(app_manifest, seed_revision)
-        self.assertLess(seed_revision, seed_reference)
-        self.assertLess(seed_reference, seed_digest)
-        self.assertLess(seed_digest, pair_verification)
+        preflight = job_block(workflow, "preflight")
+        publish = job_block(workflow, "publish")
+        resolution = job_block(workflow, "resolve")
+        self.assertIn("python3 -m demo.contract identity", preflight)
+        self.assertIn("--channel stable", preflight)
+        self.assertIn("python3 -m demo.contract manifest-field", publish)
+        self.assertIn("python3 -m demo.contract validate-pair", publish)
+        self.assertIn("python3 -m demo.contract manifest-field", resolution)
+        self.assertIn("python3 -m demo.contract validate-pair", resolution)
+        self.assertIn("scripts/verify-demo-image-pair.sh", resolution)
+        self.assertNotIn(".product.tag ==", workflow)
+        self.assertNotIn('test("^[0-9a-f]{64}$")', workflow)
         self.assertEqual(1, resolution.count("--predicate-type https://slsa.dev/provenance/v1"))
         self.assertNotIn("https://cyclonedx.org/bom", resolution)
 
@@ -110,32 +104,15 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertNotIn("demo.artifacts build-seed", workflow)
         self.assertEqual(1, dockerfile.count("demo.artifacts build-seed"))
 
-    def test_publish_reads_schema_fingerprint_from_canonical_seed_manifest(self) -> None:
+    def test_publish_reads_manifest_fields_through_the_shared_contract(self) -> None:
         workflow = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")
-        selector_match = re.search(
-            r"schema_fingerprint=\$\(jq -er '([^']+)' " r'"\$temporary_directory/manifest\.json"\)',
-            workflow,
-        )
-        self.assertIsNotNone(selector_match)
 
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            manifest_path = root / "manifest.json"
-            manifest = build_seed(
-                Path("."),
-                root / "lzug.sqlite",
-                manifest_path,
-                product_tag=self.product_tag,
-                product_commit=self.product_commit,
-            )
-            selected_fingerprint = subprocess.run(
-                ["jq", "-er", selector_match.group(1), manifest_path],
-                check=True,
-                capture_output=True,
-                text=True,
-            ).stdout.strip()
-
-        self.assertEqual(manifest["schema"]["fingerprint"], selected_fingerprint)
+        self.assertIn("--kind seed", workflow)
+        self.assertIn("--kind app", workflow)
+        self.assertIn("--field schema_fingerprint", workflow)
+        self.assertIn('--expected-product-tag "$PRODUCT_TAG"', workflow)
+        self.assertIn('--expected-product-commit "$TARGET_SHA"', workflow)
+        self.assertNotIn("schema_fingerprint=$(jq", workflow)
 
     def test_deployment_is_reusable_and_preserves_security_boundaries(self) -> None:
         workflow = Path(".github/workflows/demo-deploy.yml").read_text(encoding="utf-8")
@@ -148,7 +125,8 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("name: demo", workflow)
         self.assertIn("id-token: write", workflow)
         self.assertIn("attestations: read", workflow)
-        self.assertIn("scripts/validate_demo_url_contract.py validate", workflow)
+        self.assertIn("python3 -m demo.contract validate-deployment", workflow)
+        self.assertIn("python3 -m demo.contract signer-workflow", workflow)
         self.assertIn("scripts/verify-demo-image-pair.sh", workflow)
         self.assertIn("azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca", workflow)
         self.assertIn("scripts/demo_deployment.py deploy", workflow)
@@ -159,10 +137,10 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertEqual(1, workflow.count("gh attestation verify"))
         self.assertIn("--predicate-type https://slsa.dev/provenance/v1", workflow)
         self.assertNotIn("--predicate-type https://cyclonedx.org/bom", workflow)
-        self.assertIn("rollback:*", workflow)
         self.assertIn("promotion_channel:", workflow)
-        self.assertIn(":deploy:*|:rollback:*", workflow)
-        self.assertIn('test "$GITHUB_REF" = refs/heads/master', workflow)
+        self.assertIn('--promotion-channel "${{ inputs.promotion_channel }}"', workflow)
+        self.assertIn('--operation "${{ inputs.operation }}"', workflow)
+        self.assertIn('--github-ref "$GITHUB_REF"', workflow)
         self.assertLess(
             workflow.index("scripts/verify-demo-image-pair.sh"),
             workflow.index("azure/login@"),
@@ -189,6 +167,9 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("uses: ./.github/workflows/demo-deploy.yml", workflow)
         self.assertIn("app_image: ${{ needs.publish.outputs.app_image }}", workflow)
         self.assertIn("SEED_REVISION=${{ steps.pair.outputs.seed_revision }}", workflow)
+        self.assertIn("python3 -m demo.contract identity", workflow)
+        self.assertIn("python3 -m demo.contract manifest-field", workflow)
+        self.assertIn("python3 -m demo.contract validate-pair", workflow)
         self.assertEqual(4, workflow.count("uses: actions/attest@"))
         self.assertNotIn("azure/login@", workflow)
 
@@ -199,6 +180,7 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn('docker pull "$seed_image"', verifier)
         self.assertIn("/app/demo-app-manifest.json", verifier)
         self.assertIn("/opt/lzug-demo/seed/manifest.json", verifier)
+        self.assertIn("python3 -m demo.contract verify-pair-manifests", verifier)
         self.assertIn("verify-pair-manifests", verifier)
         self.assertIn('--expected-seed-revision "$seed_revision"', verifier)
 

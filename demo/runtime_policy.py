@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from backend.app import ForbiddenRequestError, LzugHandler
 from backend.auth import AuthContext, AuthenticationError
 
-from .artifacts import load_manifest, load_runtime_status
+from .artifacts import load_runtime_manifests, load_runtime_status
 
 DEMO_ROLES = {
     "chair": {"account_id": 1, "person_id": 1, "display_name": "Testperson Alpha"},
@@ -37,8 +37,9 @@ class DemoRuntimePolicy:
     """Expose only the explicitly approved public-demo behavior."""
 
     def __init__(self, app_manifest_path: Path, seed_manifest_path: Path):
-        self.app_manifest = load_manifest(app_manifest_path)
-        self.seed_manifest = load_manifest(seed_manifest_path)
+        self.app_manifest, self.seed_manifest = load_runtime_manifests(
+            app_manifest_path, seed_manifest_path
+        )
         self.runtime_status = load_runtime_status(seed_manifest_path.parent, self.seed_manifest)
 
     def handle_public_get(self, handler: LzugHandler, path_parts: list[str]) -> bool:

@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from demo.contract import DemoContractError, demo_identity  # noqa: E402
 from demo.identity import DemoIdentity  # noqa: E402
 
 
@@ -19,11 +20,9 @@ class SnapshotContractError(ValueError):
 
 def snapshot_identity(tag: str, revision: str) -> DemoIdentity:
     try:
-        identity = DemoIdentity.create(tag, revision)
-    except ValueError as error:
+        identity = demo_identity(tag, revision, "snapshot")
+    except DemoContractError as error:
         raise SnapshotContractError(str(error)) from error
-    if not identity.is_snapshot:
-        raise SnapshotContractError("snapshot promotion requires a demo snapshot tag")
     return identity
 
 

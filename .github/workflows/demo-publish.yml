@@ -64,10 +64,6 @@ jobs:
           PRODUCT_TAG: ${{ inputs.product_tag }}
         run: |
           set -euo pipefail
-          [[ "$PRODUCT_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
-            echo "Demo promotion requires a stable SemVer product tag." >&2
-            exit 1
-          }
           git fetch --tags origin
           test "$(git cat-file -t "$PRODUCT_TAG")" = tag || {
             echo "The product tag must be annotated." >&2
@@ -75,8 +71,9 @@ jobs:
           }
           target_sha=$(git rev-parse "$PRODUCT_TAG^{}")
           test "$(git rev-parse HEAD)" = "$target_sha"
-          product_version=$(python3 scripts/build_metadata.py \
-            --tag "$PRODUCT_TAG" --revision "$target_sha" --field identity)
+          product_version=$(python3 -m demo.contract identity \
+            --tag "$PRODUCT_TAG" --commit "$target_sha" \
+            --channel stable --field identity)
           gh release view "$PRODUCT_TAG" --repo "$GH_REPO" \
             --json isDraft --jq 'select(.isDraft == false)' >/dev/null || {
             echo "The product release must be published, not a draft." >&2
@@ -169,9 +166,18 @@ jobs:
             --expected-product-tag "$PRODUCT_TAG" \
             --expected-product-commit "$TARGET_SHA" \
             --expected-schema-fingerprint "$expected_schema_fingerprint"
-          seed_revision=$(jq -er '.seed_revision' "$temporary_directory/manifest.json")
-          runtime_contract=$(jq -er '.runtime_contract' "$temporary_directory/manifest.json")
-          schema_fingerprint=$(jq -er '.schema.fingerprint' "$temporary_directory/manifest.json")
+          seed_revision=$(python3 -m demo.contract manifest-field \
+            --manifest "$temporary_directory/manifest.json" --kind seed \
+            --expected-product-tag "$PRODUCT_TAG" --expected-product-commit "$TARGET_SHA" \
+            --field seed_revision)
+          runtime_contract=$(python3 -m demo.contract manifest-field \
+            --manifest "$temporary_directory/manifest.json" --kind seed \
+            --expected-product-tag "$PRODUCT_TAG" --expected-product-commit "$TARGET_SHA" \
+            --field runtime_contract)
+          schema_fingerprint=$(python3 -m demo.contract manifest-field \
+            --manifest "$temporary_directory/manifest.json" --kind seed \
+            --expected-product-tag "$PRODUCT_TAG" --expected-product-commit "$TARGET_SHA" \
+            --field schema_fingerprint)
           app_image="ghcr.io/${GH_REPO,,}-demo-app"
           seed_image="ghcr.io/${GH_REPO,,}-demo-seed"
           {
@@ -260,11 +266,19 @@ jobs:
           docker push "$SEED_REF"
           seed_digest=$(docker buildx imagetools inspect "$SEED_REF" | \
             awk '$1 == "Digest:" { print $2; exit }')
-          printf '%s\n' "$seed_digest" | grep -Eq '^sha256:[0-9a-f]{64}$' || {
-            echo "Published seed reference has no valid registry digest." >&2
-            exit 1
-          }
           echo "digest=$seed_digest" >> "$GITHUB_OUTPUT"
+
+      - name: Validate the newly published immutable pair
+        if: steps.availability.outputs.reuse != 'true'
+        run: >-
+          python3 -m demo.contract validate-pair
+          --app-image "${{ steps.images.outputs.app_image }}@${{ steps.app.outputs.digest }}"
+          --seed-image "${{ steps.images.outputs.seed_image }}@${{ steps.seed.outputs.digest }}"
+          --product-tag "$PRODUCT_TAG"
+          --product-commit "$TARGET_SHA"
+          --runtime-contract "${{ steps.images.outputs.runtime_contract }}"
+          --schema-fingerprint "${{ steps.images.outputs.schema_fingerprint }}"
+          --seed-revision "${{ steps.images.outputs.seed_revision }}"
 
       - name: Download Syft
         id: syft
@@ -384,7 +398,6 @@ jobs:
           app_ref="$app_name:$PRODUCT_VERSION"
           app_digest=$(docker buildx imagetools inspect "$app_ref" | \
             awk '$1 == "Digest:" { print $2; exit }')
-          printf '%s\n' "$app_digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
           app_image="$app_name@$app_digest"
 
           temporary_directory=$(mktemp -d)
@@ -400,20 +413,32 @@ jobs:
           docker rm "$container" >/dev/null
           container=""
 
-          jq -e --arg tag "$PRODUCT_TAG" --arg commit "$TARGET_SHA" '
-            .product.tag == $tag and
-            .product.commit == $commit and
-            (.seed_revision | test("^[0-9a-f]{64}$"))
-          ' "$temporary_directory/app.json" >/dev/null
-          seed_revision=$(jq -er '.seed_revision' "$temporary_directory/app.json")
-          runtime_contract=$(jq -er '.runtime_contract' "$temporary_directory/app.json")
-          schema_fingerprint=$(jq -er '.schema.fingerprint' "$temporary_directory/app.json")
+          seed_revision=$(python3 -m demo.contract manifest-field \
+            --manifest "$temporary_directory/app.json" --kind app \
+            --expected-product-tag "$PRODUCT_TAG" --expected-product-commit "$TARGET_SHA" \
+            --field seed_revision)
+          runtime_contract=$(python3 -m demo.contract manifest-field \
+            --manifest "$temporary_directory/app.json" --kind app \
+            --expected-product-tag "$PRODUCT_TAG" --expected-product-commit "$TARGET_SHA" \
+            --field runtime_contract)
+          schema_fingerprint=$(python3 -m demo.contract manifest-field \
+            --manifest "$temporary_directory/app.json" --kind app \
+            --expected-product-tag "$PRODUCT_TAG" --expected-product-commit "$TARGET_SHA" \
+            --field schema_fingerprint)
 
           seed_ref="$seed_name:$PRODUCT_VERSION-seed-$seed_revision"
           seed_digest=$(docker buildx imagetools inspect "$seed_ref" | \
             awk '$1 == "Digest:" { print $2; exit }')
-          printf '%s\n' "$seed_digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
           seed_image="$seed_name@$seed_digest"
+
+          python3 -m demo.contract validate-pair \
+            --app-image "$app_image" \
+            --seed-image "$seed_image" \
+            --product-tag "$PRODUCT_TAG" \
+            --product-commit "$TARGET_SHA" \
+            --runtime-contract "$runtime_contract" \
+            --schema-fingerprint "$schema_fingerprint" \
+            --seed-revision "$seed_revision"
 
           for image in "$app_image" "$seed_image"; do
             gh attestation verify "oci://$image" \

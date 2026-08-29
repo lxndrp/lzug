@@ -36,12 +36,20 @@ Der Seed ergänzt seine inhaltsadressierte Revision. Die Promotion- und
 Deploymentgrenzen des Snapshot-Kanals beschreibt
 [ADR-0024](../decisions/0024-manuell-promotete-demo-snapshots.md).
 
+Der reine Vertragskern in `demo/contract.py` validiert diese Identität, beide
+Manifestformen, das unveränderliche App-/Seed-Digestpaar und die öffentliche
+Demo-Origin für alle Lieferpfade. `demo/artifacts.py` bleibt für Erzeugung,
+Dateizugriff, Datenbankdigest und Runtime-Initialisierung zuständig;
+`scripts/demo_deployment.py` für Azure- und HTTP-Orchestrierung. Die stabile
+CLI-Grenze `python3 -m demo.contract` verhindert, dass Workflows dieselben
+fachlichen Regeln in Shell oder `jq` nachbilden.
+
 Lokale Entwicklung darf einen expliziten Test-Tag verwenden:
 
 ```bash
 revision=$(git rev-parse HEAD)
-version=$(PRODUCT_TAG=v0.1.1 PRODUCT_COMMIT="$revision" python3 -c \
-  'import os; from backend.build_metadata import BuildMetadata; print(BuildMetadata.create(os.environ["PRODUCT_COMMIT"], os.environ["PRODUCT_TAG"]).identity)')
+version=$(python3 -m demo.contract identity \
+  --tag v0.1.1 --commit "$revision" --channel release --field identity)
 docker build -f Dockerfile.demo-seed \
   --build-arg PRODUCT_TAG=v0.1.1 --build-arg VCS_REF="$revision" \
   -t lzug-demo-seed:local .
