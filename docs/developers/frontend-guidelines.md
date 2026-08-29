@@ -2,6 +2,22 @@
 
 Bei Planung, Umsetzung und Review wird die Anwendung aus Sicht der Nutzenden beurteilt. Ziel ist eine ruhige, klare und ästhetische Verwaltungsoberfläche, deren Form der Funktion folgt und die ohne Implementierungswissen verständlich ist.
 
+## Anwendungsgrenze
+
+Das Frontend liegt unter `frontend/` und verwendet Angular, TypeScript, Angular
+Router und Taiga UI. Es ist ein Arbeitswerkzeug für wiederkehrende
+Ausschussprozesse, keine Landingpage. API-Modelle und der API-Service bilden
+die Grenze zum Backend; der `RoundContextService` hält den aktuellen
+Prüfungsrunden-Kontext. Dashboard, Stammdaten und Planung sind getrennte
+fachliche Bereiche. Der Entwicklungsproxy leitet `/api` an das lokale Backend
+weiter; Build-, Test- und Lint-Grenzen liegen in den zugehörigen deklarativen
+Projektdateien.
+
+Die Entscheidung für Angular und die REST-Integration hält
+[ADR-0004](decisions/0004-angular-rest-integration.md) fest, die für Taiga UI
+[ADR-0005](decisions/0005-taiga-ui.md). Aktuelle API-Routen und
+Antwortmodelle bleiben ausschließlich in der OpenAPI-Quelle.
+
 ## Technische und gestalterische Quellen
 
 [Taiga UI](https://taiga-ui.dev/) ist die extern gepflegte technische Grundlage

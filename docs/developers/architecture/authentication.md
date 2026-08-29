@@ -42,9 +42,10 @@ liefern HTTP 403. GET-Fachoperationen benötigen kein CSRF-Token.
 
 ## HTTP-Grenze
 
-`/api/health` ist als einzige öffentliche GET-API bewusst freigegeben und
-enthält ausschließlich Readiness-Status und Self-Link, niemals Fach-,
-Persistenz- oder Migrationsdaten. `/api`, OpenAPI und API-Dokumentation
+`/api/health` ist als öffentliches Liveness-Signal bewusst freigegeben und
+enthält ausschließlich Status und Self-Link, niemals Fach-, Persistenz- oder
+Migrationsdaten. `/api/ready` prüft dagegen die Anwendungs- und
+Datenbankbereitschaft und antwortet mit HTTP 200 oder HTTP 503. `/api`, OpenAPI und API-Dokumentation
 benötigen eine Session. Die zwingend öffentlichen lokalen Auth-POST-Routen
 sind unten einzeln begründet. Alle Fachoperationen benötigen eine gültige Session. HTTP 401 bedeutet
 fehlende, ungültige, abgelaufene oder widerrufene Authentifizierung. HTTP 403

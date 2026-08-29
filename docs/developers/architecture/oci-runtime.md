@@ -113,10 +113,11 @@ Auth-Schlüssel. Ohne `LZUG_AUTH_ENCRYPTION_KEY` erzeugt die Anwendung den
 Fernet-Schlüssel mit Modus 0600 im persistenten `/data`-Vertrag; er muss mit
 dem Datenbestand gesichert werden und gehört nicht in Image oder Compose-Datei.
 
-`/api`, `/api/health`, `/api/openapi.json` und `/api/docs` bleiben API-Routen;
-nur Health ist ohne Session als GET-API öffentlich. Die erforderlichen
-Login-/Aktivierungs-/Recovery-POST-Routen und sämtliche Schutzparameter sind
-in der [Security-Baseline](security-baseline.md) inventarisiert.
+`/api`, `/api/health`, `/api/ready`, `/api/openapi.json` und `/api/docs`
+bleiben API-Routen. Health ist die öffentliche Liveness; Ready trennt die
+Application-Readiness mit HTTP 200 beziehungsweise HTTP 503. Die erforderlichen
+Login-/Aktivierungs-/Recovery-POST-Routen und ihre Session- und
+Autorisierungsgrenze beschreibt die [Authentifizierungsarchitektur](authentication.md).
 Vorhandene Assets werden direkt ausgeliefert, fehlende Assets liefern 404 und
 nur Routen ohne Dateisuffix erhalten den Angular-SPA-Fallback. Damit kann ein
 Reverse Proxy später vor dem Container ergänzt werden, ohne dass dieser

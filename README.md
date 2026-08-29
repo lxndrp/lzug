@@ -57,8 +57,9 @@ Versionierte OCI-Images werden erst nach einem ausdrücklich freigegebenen,
 vollständig grünen SemVer-Release in GHCR bereitgestellt. Der
 [Release-Prozess](docs/developers/releases.md) dokumentiert Digest, SBOM und
 Herkunftsnachweise; die
-[Compose-Referenzinstallation](docs/developers/architecture/compose-self-hosting.md)
-verwendet eine konkrete Version oder einen Digest und niemals `latest`.
+[OCI-Runtime](docs/developers/architecture/oci-runtime.md) beschreibt die
+Compose-Grenze: Sie verwendet eine konkrete Version oder einen Digest und
+niemals `latest`.
 
 ## Lizenz
 

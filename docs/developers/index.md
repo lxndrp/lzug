@@ -9,8 +9,10 @@ im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki). Für Beiträge gilt direk
 [`CONTRIBUTING.md`](https://github.com/lxndrp/lzug/blob/master/CONTRIBUTING.md)
 im Repository-Wurzelverzeichnis.
 
-- **Architektur** erklärt die Rollen von Backend, Frontend, API und Qualitätssicherung.
-- **Referenz** enthält das fachliche Datenmodell, die aktuelle Datenbankschema-Referenz sowie die generierten Code-Referenzen.
+- **Architektur** erklärt Systemgrenzen, Verantwortungen und die Verweise auf
+  ausführbare Verträge.
+- **Referenz** enthält das fachliche Datenmodell, die Verweise auf Schema und
+  Migrationen sowie die generierten Code-Referenzen.
 - **Entscheidungen** hält wichtige, bereits getroffene technische Entscheidungen als rückwirkende ADRs fest.
 - **Reviews** beschreibt das gemeinsame Qualitätsreview und die zugehörigen
   Nachweise für Menschen und Agents.
