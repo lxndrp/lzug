@@ -2,7 +2,7 @@
 
 ## Status
 
-Akzeptiert, ersetzt ADR-0011 am 30.07.2026.
+Akzeptiert am 30.07.2026. Supersedes: ADR-0011.
 
 ## Kontext
 

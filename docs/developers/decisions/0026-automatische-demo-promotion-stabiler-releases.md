@@ -2,13 +2,16 @@
 
 ## Status
 
-Akzeptiert am 25.08.2026. Konkretisiert
-[ADR-0020](0020-minimaler-releaseablauf-mit-github-bordmitteln.md) und
-[ADR-0022](0022-tag-gebundene-demo-assembly-und-seed.md). Ersetzt in
-[ADR-0024](0024-manuell-promotete-demo-snapshots.md) die erneute vollständige
-Quality-Ausführung und die Laufzeitprüfung der GitHub-Environment-Policy.
+Akzeptiert am 25.08.2026.
 
 ## Kontext
+
+Diese Entscheidung konkretisiert
+[ADR-0020](0020-minimaler-releaseablauf-mit-github-bordmitteln.md) und
+[ADR-0022](0022-tag-gebundene-demo-assembly-und-seed.md). Für
+[ADR-0024](0024-manuell-promotete-demo-snapshots.md) übernimmt sie nur die
+Quality-Wiederverwendung und die Laufzeitprüfung der GitHub-Environment-Policy;
+die dort verbleibenden Snapshot-Verträge bleiben gültig.
 
 Ein veröffentlichter stabiler Produktrelease soll ohne zweiten manuellen
 Dispatch als aktuelle öffentliche Demo sichtbar werden. Ein durch das

@@ -2,16 +2,17 @@
 
 ## Status
 
-Akzeptiert am 15.08.2026, teilweise abgelöst durch
-[ADR-0026](0026-automatische-demo-promotion-stabiler-releases.md). Tag-Trigger,
-Snapshot-Identität und unveränderliche OCI-Referenzen bleiben verbindlich;
-Quality-Wiederverwendung, gemeinsamer Deploymentworkflow und deklarative
-Environment-Policy folgen ADR-0026. Erweitert
-[ADR-0022](0022-tag-gebundene-demo-assembly-und-seed.md), ohne den
-Produkt-Releasevertrag aus
-[ADR-0020](0020-minimaler-releaseablauf-mit-github-bordmitteln.md) zu ändern.
+Akzeptiert am 15.08.2026.
 
 ## Kontext
+
+[ADR-0026](0026-automatische-demo-promotion-stabiler-releases.md) übernimmt
+die Quality-Wiederverwendung, den gemeinsamen Deploymentworkflow und die
+deklarative Environment-Policy. Tag-Trigger, Snapshot-Identität und
+unveränderliche OCI-Referenzen bleiben in diesem ADR verbindlich. Dieser ADR
+erweitert [ADR-0022](0022-tag-gebundene-demo-assembly-und-seed.md), ohne den
+Produkt-Releasevertrag aus
+[ADR-0020](0020-minimaler-releaseablauf-mit-github-bordmitteln.md) zu ändern.
 
 Die öffentliche Demo soll einen aktuellen, vollständig geprüften Stand von
 `master` zeigen können, ohne dafür einen künstlichen Produkt-Patch-Release zu

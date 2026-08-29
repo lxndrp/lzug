@@ -106,11 +106,19 @@ tasks:
   docs:
     desc: Build the local handbook and generated code references
     cmds:
+      - task: docs:check
       - task: docs:handbook
       - task: docs:frontend
 
+  docs:check:
+    desc: Check project-specific documentation structure contracts
+    cmds:
+      - python3 -m scripts.check_documentation
+
   docs:publication:
     desc: Build the complete static GitHub Pages artifact without deploying it
+    deps:
+      - docs:check
     requires:
       vars:
         - WIKI_ROOT
@@ -129,6 +137,8 @@ tasks:
 
   docs:publication:check:
     desc: Verify that the configured public site builds byte-identically
+    deps:
+      - docs:check
     requires:
       vars:
         - WIKI_ROOT

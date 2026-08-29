@@ -2,7 +2,7 @@
 
 ## Status
 
-Akzeptiert, ergänzt ADR-0007 am 30.07.2026.
+Akzeptiert am 30.07.2026. Superseded by: ADR-0012.
 
 ## Kontext
 

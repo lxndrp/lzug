@@ -91,4 +91,22 @@ Exportierte TypeScript-Services, Modelle und fachliche Komponenten oder Methoden
 
 MkDocs und `mkdocstrings` erzeugen die technische Dokumentation und Python-Referenz. TypeDoc erzeugt mit dem gelockten TypeScript-Compiler die Frontend-Referenz. `task docs` baut beide; CI veröffentlicht `site/` als geschütztes Artefakt `lzug-documentation`. TypeDoc wurde Compodoc vorgezogen, weil Compodoc einen abweichenden eingebetteten TypeScript-Compiler verwendet hätte. Das öffentliche redaktionelle Handbuch liegt ausschließlich im separaten GitHub Wiki und wird nicht in `site/` oder im Hauptrepository gespiegelt.
 
+## Strukturelle Prüfung
+
+`task docs:check` prüft die projektspezifischen Strukturverträge vor dem
+Dokumentationsbuild. Dazu gehören die kleine Root-Zuständigkeit, die aktive
+Navigation ohne historische Seiten oder einzelne ADRs, das Verbot eines
+Ersatzarchivs, die ADR-Status- und Ablösungsstruktur sowie offensichtliche
+Issue-/PR-/Milestone-Inventare und vollständige API-/Schema-Zweitlisten.
+Fehlermeldungen nennen den verletzten Vertrag und verweisen auf den
+Korrekturweg. Die Prüfung bewertet keine semantische Aktualität und ersetzt
+kein menschliches Review.
+
+`task docs` führt diesen Vertrag gemeinsam mit MkDocs und TypeDoc aus. Für
+öffentliche Wiki- und Pages-Artefakte bleiben `task wiki:check` sowie
+`task docs:publication:check` die getrennten Prüfungen. Der normale
+Korrekturweg ist daher: betroffene kanonische Quelle ändern, `task docs:check`
+und danach `task docs` ausführen; historische Inhalte werden nicht in ein
+neues Archiv verschoben.
+
 Bei Änderungen öffentlicher Schnittstellen aktualisieren Sie die passende Dokumentation, wenn ihre Bedeutung nicht offensichtlich ist. Die vollständige Dokumentation ist kein pauschales Nachdokumentieren von Legacy-Code.
