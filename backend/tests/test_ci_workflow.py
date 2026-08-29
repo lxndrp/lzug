@@ -111,14 +111,28 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("workflow_call:", workflow_call)
         self.assertIn("revision:", workflow_call)
         self.assertIn("required: false", workflow_call)
-        self.assertIn("QUALITY_REVISION: ${{ inputs.revision || github.sha }}", self.quality)
+        revision = "${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}"
+        self.assertIn(f"QUALITY_REVISION: {revision}", self.quality)
         checkout_blocks = action_blocks(self.quality, "actions/checkout")
         self.assertTrue(checkout_blocks)
-        self.assertTrue(
-            all("ref: ${{ inputs.revision || github.sha }}" in block for block in checkout_blocks)
-        )
+        self.assertTrue(all(f"ref: {revision}" in block for block in checkout_blocks))
         self.assertIn("ref: ${{ inputs.revision || github.sha }}", self.codeql)
         self.assertIn('--revision "$QUALITY_REVISION"', self.quality)
+
+    def test_dependabot_merge_starts_exact_revision_quality_baseline(self) -> None:
+        triggers = trigger_block(self.quality)
+        self.assertIn("workflow_run:", triggers)
+        self.assertIn("- Dependabot Updates", triggers)
+        self.assertIn("- completed", triggers)
+        self.assertIn("- master", triggers)
+
+        revision = "${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}"
+        self.assertIn(f"QUALITY_REVISION: {revision}", self.quality)
+        self.assertIn("group: quality-${{ github.ref }}-" + revision, self.quality)
+        checkout_blocks = action_blocks(self.quality, "actions/checkout")
+        self.assertTrue(checkout_blocks)
+        self.assertTrue(all(f"ref: {revision}" in block for block in checkout_blocks))
+        self.assertIn(f"revision: {revision}", self.quality)
 
     def test_local_quality_tasks_are_the_ci_domain_contract(self) -> None:
         taskfile = workflow_text("Taskfile.yml")
