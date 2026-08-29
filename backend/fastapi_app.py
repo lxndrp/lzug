@@ -774,6 +774,160 @@ def create_app(
         openapi_extra=planning_write_extra,
     )
 
+    # Notifications, personal calendars, and absence handling retain their
+    # deliberately synchronous service boundaries. This migration slice owns
+    # their FastAPI route matching and generated OpenAPI fragments while the
+    # reference handler continues to protect established service contracts.
+    def integration_read(request: Request) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request)
+
+    def integration_write(request: Request, body: bytes = Depends(_request_body)) -> Response:
+        return _legacy_route_response(LegacyReferenceHandler, request, body)
+
+    integration_read_errors = {401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}}
+    integration_item_errors = {**integration_read_errors, 404: {"model": ErrorResponse}}
+    integration_write_errors = {
+        **integration_item_errors,
+        400: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+    }
+    integration_read_extra = {"security": [{"sessionCookie": []}]}
+    integration_write_extra = {"security": [{"sessionCookie": [], "csrfHeader": []}]}
+
+    for path, response_model in (
+        ("/api/notifications", DomainCollectionResponse),
+        ("/api/notification-problems", DomainCollectionResponse),
+        ("/api/notification-overview", DomainCollectionResponse),
+        ("/api/notification-channels", DomainResourceResponse),
+    ):
+        app.add_api_route(
+            path,
+            integration_read,
+            methods=["GET"],
+            response_model=response_model,
+            responses=integration_read_errors,
+            openapi_extra=integration_read_extra,
+        )
+
+    for path in ("/api/calendar", "/api/calendar/feed", "/api/calendar/events"):
+        app.add_api_route(
+            path,
+            integration_read,
+            methods=["GET"],
+            response_model=DomainResourceResponse,
+            responses=integration_read_errors,
+            openapi_extra=integration_read_extra,
+        )
+
+    app.add_api_route(
+        "/api/calendar/feed/{token}.ics",
+        integration_read,
+        methods=["GET"],
+        response_class=Response,
+        responses={404: {"model": ErrorResponse}},
+    )
+    app.add_api_route(
+        "/api/calendar/events/{id}.ics",
+        integration_read,
+        methods=["GET"],
+        response_class=Response,
+        responses=integration_item_errors,
+        openapi_extra=integration_read_extra,
+    )
+    app.add_api_route(
+        "/api/calendar/feed",
+        integration_write,
+        methods=["POST"],
+        status_code=HTTPStatus.CREATED,
+        response_model=DomainResourceResponse,
+        responses=integration_write_errors,
+        openapi_extra=integration_write_extra,
+    )
+    app.add_api_route(
+        "/api/calendar/feed",
+        integration_write,
+        methods=["DELETE"],
+        response_model=DomainResourceResponse,
+        responses=integration_write_errors,
+        openapi_extra=integration_write_extra,
+    )
+
+    app.add_api_route(
+        "/api/push-subscriptions",
+        integration_write,
+        methods=["POST"],
+        status_code=HTTPStatus.CREATED,
+        response_model=DomainResourceResponse,
+        responses=integration_write_errors,
+        openapi_extra=integration_write_extra,
+    )
+    app.add_api_route(
+        "/api/push-subscriptions/{id}",
+        integration_write,
+        methods=["DELETE"],
+        status_code=HTTPStatus.NO_CONTENT,
+        response_model=None,
+        responses=integration_item_errors,
+        openapi_extra=integration_write_extra,
+    )
+    app.add_api_route(
+        "/api/notifications/{id}/push-confirmation",
+        integration_write,
+        methods=["POST"],
+        response_model=DomainResourceResponse,
+        responses=integration_item_errors,
+        openapi_extra=integration_write_extra,
+    )
+
+    app.add_api_route(
+        "/api/absence-reports",
+        integration_read,
+        methods=["GET"],
+        response_model=DomainCollectionResponse,
+        responses=integration_read_errors,
+        openapi_extra=integration_read_extra,
+    )
+    app.add_api_route(
+        "/api/absence-reports",
+        integration_write,
+        methods=["POST"],
+        status_code=HTTPStatus.CREATED,
+        response_model=DomainResourceResponse,
+        responses=integration_write_errors,
+        openapi_extra=integration_write_extra,
+    )
+    app.add_api_route(
+        "/api/absence-reports/{id}",
+        integration_read,
+        methods=["GET"],
+        response_model=DomainResourceResponse,
+        responses=integration_item_errors,
+        openapi_extra=integration_read_extra,
+    )
+    for path in (
+        "/api/absence-reports/{report_id}/select-replacement",
+        "/api/absence-reports/{report_id}/withdraw",
+        "/api/absence-reports/{report_id}/reopen",
+        "/api/absence-reports/{report_id}/cancel",
+        "/api/replacement-responses/{response_id}/respond",
+    ):
+        app.add_api_route(
+            path,
+            integration_write,
+            methods=["POST"],
+            response_model=DomainResourceResponse,
+            responses=integration_write_errors,
+            openapi_extra=integration_write_extra,
+        )
+    app.add_api_route(
+        "/api/replacement-responses/{response_id}",
+        integration_write,
+        methods=["PATCH"],
+        response_model=DomainResourceResponse,
+        responses=integration_write_errors,
+        openapi_extra=integration_write_extra,
+    )
+
     # Generic domain validation, authorization, transaction handling, and HAL
     # assembly stay in the repository-backed reference handler while this slice
     # owns the FastAPI route matching and generated OpenAPI fragments.
