@@ -13,3 +13,12 @@ Diese Seite enthält bewusst keine Tabellen-, Feld- oder Typliste. Änderungen
 am Datenmodell erfolgen über Modell, Schema und erforderliche Migration
 zusammen; ihre fachliche Bedeutung erläutert das
 [fachliche Datenmodell](domain-model.md).
+
+Die Migration `017_add_exam_protocols.sql` legt bei der Bestandsübernahme nur
+für bereits gestartete, noch laufende oder nachzubereitende Slots einen leeren,
+offenen Protokollstand und den aus Anwesenheit sowie Tagesabschnitt ermittelten
+Beteiligten-Snapshot an. Sie erfindet weder für abgeschlossene historische
+Prüfungen Protokolle noch eine Erklärung „ohne besondere Vorkommnisse“.
+Historische abgeschlossene Slots ohne Protokoll blockieren daher den regulären
+Tagesabschluss nicht; spätere Ergänzungen benötigen einen eigenen auditierbaren
+Importpfad.

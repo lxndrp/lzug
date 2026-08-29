@@ -565,4 +565,80 @@ describe('PlanningApiService', () => {
       availability: 'morning',
     });
   });
+
+  it('should expose the versioned exam protocol workflow', () => {
+    service.getExamProtocol(7, 11).subscribe();
+    const protocol = http.expectOne('/api/confirmed-plan-days/7/slots/11/protocol');
+    expect(protocol.request.method).toBe('GET');
+    protocol.flush({});
+
+    service
+      .updateExamProtocol(
+        41,
+        2,
+        'with_special_occurrences',
+        [
+          {
+            category: 'interruption',
+            statement: 'Zwei Minuten unterbrochen.',
+            occurred_from: '2026-11-16T09:20:00.000Z',
+            occurred_to: '2026-11-16T09:22:00.000Z',
+          },
+        ],
+        '  Sachverhalt ergänzt  ',
+      )
+      .subscribe();
+    const update = http.expectOne('/api/exam-protocols/41');
+    expect(update.request.method).toBe('PATCH');
+    expect(update.request.body).toEqual({
+      version: 2,
+      declaration: 'with_special_occurrences',
+      entries: [
+        {
+          category: 'interruption',
+          statement: 'Zwei Minuten unterbrochen.',
+          occurred_from: '2026-11-16T09:20:00.000Z',
+          occurred_to: '2026-11-16T09:22:00.000Z',
+        },
+      ],
+      change_reason: 'Sachverhalt ergänzt',
+    });
+    update.flush({});
+
+    service.submitExamProtocol(41, 3).subscribe();
+    const submit = http.expectOne('/api/exam-protocols/41/submit');
+    expect(submit.request.method).toBe('POST');
+    expect(submit.request.body).toEqual({ version: 3 });
+    submit.flush({});
+
+    service.respondToExamProtocol(41, 3, 'reservation', 72, '  Zeitangabe prüfen  ').subscribe();
+    const response = http.expectOne('/api/exam-protocols/41/responses');
+    expect(response.request.method).toBe('POST');
+    expect(response.request.body).toEqual({
+      version: 3,
+      response: 'reservation',
+      entry_id: 72,
+      statement: 'Zeitangabe prüfen',
+    });
+    response.flush({});
+
+    service.requestExamProtocolCorrection(41, 3, '  Eintrag ergänzen  ').subscribe();
+    const correctionRequest = http.expectOne('/api/exam-protocols/41/correction-requests');
+    expect(correctionRequest.request.method).toBe('POST');
+    expect(correctionRequest.request.body).toEqual({ version: 3, reason: 'Eintrag ergänzen' });
+    correctionRequest.flush({});
+
+    service
+      .openExamProtocolCorrection(41, 3, 9, '  Korrektur koordinieren  ', '  REOPEN-36  ')
+      .subscribe();
+    const openCorrection = http.expectOne('/api/exam-protocols/41/open-correction');
+    expect(openCorrection.request.method).toBe('POST');
+    expect(openCorrection.request.body).toEqual({
+      version: 3,
+      correction_request_id: 9,
+      reason: 'Korrektur koordinieren',
+      reopening_reference: 'REOPEN-36',
+    });
+    openCorrection.flush({});
+  });
 });

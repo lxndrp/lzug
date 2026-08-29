@@ -191,6 +191,81 @@ export type ConfirmedPlanDayView = {
   _links: Record<string, ApiLink>;
 };
 
+export type ExamProtocolDeclaration = 'without_special_occurrences' | 'with_special_occurrences';
+
+export type ExamProtocolEntryCategory =
+  | 'late_start'
+  | 'interruption'
+  | 'termination'
+  | 'different_staffing'
+  | 'procedural_deviation'
+  | 'objection_or_reservation'
+  | 'other';
+
+export type ExamProtocolEntry = {
+  id: number;
+  category: ExamProtocolEntryCategory;
+  statement: string;
+  occurred_from: string;
+  occurred_to: string | null;
+  recorded_by_member_id: number;
+  created_at: string;
+};
+
+export type ExamProtocolRevision = {
+  id: number;
+  version: number;
+  declaration: ExamProtocolDeclaration | null;
+  workflow_state: 'draft' | 'submitted' | 'correction_open' | string;
+  change_reason: string | null;
+  submitted_at: string | null;
+  obsolete: boolean;
+  missing_response_member_ids: number[];
+  entries: ExamProtocolEntry[];
+  responses: Array<{
+    id: number;
+    committee_member_id: number;
+    response: 'confirmed' | 'reservation';
+    entry_id: number | null;
+    statement: string | null;
+    responded_at: string;
+  }>;
+};
+
+export type ExamProtocol = {
+  id: number;
+  exam_slot_id: number;
+  current_version: number;
+  state:
+    | 'in_progress'
+    | 'awaiting_confirmation'
+    | 'fully_confirmed'
+    | 'fully_with_reservation'
+    | 'reaction_missing'
+    | 'correction_open'
+    | string;
+  closing_ready: boolean;
+  current_revision: ExamProtocolRevision;
+  history: ExamProtocolRevision[];
+  correction_requests: Array<{
+    id: number;
+    version: number;
+    requested_by_member_id: number;
+    reason: string;
+    status: 'pending' | 'opened' | string;
+    reopening_reference: string | null;
+  }>;
+  permissions: {
+    edit: boolean;
+    submit: boolean;
+    respond: boolean;
+    request_correction: boolean;
+    coordinate_correction: boolean;
+    manage_retention: boolean;
+  };
+  _links: Record<string, ApiLink>;
+};
+
 export type RoundSummary = {
   round: {
     id: number;

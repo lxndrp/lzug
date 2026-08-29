@@ -22,7 +22,7 @@ VALUES ('001_add_holiday_planning_settings.sql'), ('002_add_person_memberships.s
        ('011_add_local_password_totp_auth.sql'),
        ('012_add_plan_revision.sql'), ('013_add_notifications.sql'),
        ('014_add_personal_calendars.sql'), ('015_add_absence_replacement_process.sql'),
-       ('016_claim_notification_deliveries.sql');
+       ('016_claim_notification_deliveries.sql'), ('017_add_exam_protocols.sql');
 
 CREATE TABLE schema_migration_checksum (
   name TEXT PRIMARY KEY REFERENCES schema_migration(name) ON DELETE CASCADE,
@@ -45,7 +45,8 @@ INSERT INTO schema_migration_checksum (name, checksum) VALUES
   ('013_add_notifications.sql', '6cacc994e8b4356ce9b1639a7df48efd046c66f083d14dc77f8ed2007851276e'),
   ('014_add_personal_calendars.sql', '68b46cd341c21ec12a8d08ba75b35b1215eaa04e992140841db501b8250ac635'),
   ('015_add_absence_replacement_process.sql', 'd9b07a0fcca65202c1fc68b0874718551924624ac26517339a253e73394d9829'),
-  ('016_claim_notification_deliveries.sql', '3f6d7e71512af61da4669ff7b320b7093a32f0553b657aa89dc0b85ac8693bcb');
+  ('016_claim_notification_deliveries.sql', '3f6d7e71512af61da4669ff7b320b7093a32f0553b657aa89dc0b85ac8693bcb'),
+  ('017_add_exam_protocols.sql', '0d6489ea7ea1692f0a92d4f9b1aa952918372d5d3a99ebc76584f9f4274ee9df');
 
 CREATE TABLE committee (
   id INTEGER PRIMARY KEY,
@@ -405,6 +406,104 @@ CREATE TABLE member_exam_attendance (
   )
 );
 
+CREATE TABLE exam_protocol (
+  id INTEGER PRIMARY KEY,
+  exam_slot_id INTEGER NOT NULL UNIQUE REFERENCES exam_slot(id) ON DELETE CASCADE,
+  current_version INTEGER NOT NULL DEFAULT 1 CHECK (current_version >= 1),
+  created_by_member_id INTEGER REFERENCES committee_member(id) ON DELETE RESTRICT,
+  source TEXT NOT NULL DEFAULT 'application' CHECK (source IN ('application', 'migration')),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE exam_protocol_participant (
+  id INTEGER PRIMARY KEY,
+  exam_protocol_id INTEGER NOT NULL REFERENCES exam_protocol(id) ON DELETE CASCADE,
+  committee_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (exam_protocol_id, committee_member_id)
+);
+
+CREATE TABLE exam_protocol_correction_request (
+  id INTEGER PRIMARY KEY,
+  exam_protocol_id INTEGER NOT NULL REFERENCES exam_protocol(id) ON DELETE CASCADE,
+  exam_protocol_revision_id INTEGER NOT NULL
+    REFERENCES exam_protocol_revision(id) ON DELETE RESTRICT,
+  requested_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'opened')),
+  requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  opened_by_member_id INTEGER REFERENCES committee_member(id) ON DELETE RESTRICT,
+  opened_at TEXT,
+  reopening_reference TEXT
+);
+
+CREATE TABLE exam_protocol_revision (
+  id INTEGER PRIMARY KEY,
+  exam_protocol_id INTEGER NOT NULL REFERENCES exam_protocol(id) ON DELETE CASCADE,
+  version INTEGER NOT NULL CHECK (version >= 1),
+  declaration TEXT CHECK (
+    declaration IS NULL
+    OR declaration IN ('without_special_occurrences', 'with_special_occurrences')
+  ),
+  workflow_state TEXT NOT NULL DEFAULT 'draft' CHECK (
+    workflow_state IN ('draft', 'submitted', 'correction_open')
+  ),
+  previous_revision_id INTEGER REFERENCES exam_protocol_revision(id) ON DELETE RESTRICT,
+  correction_request_id INTEGER REFERENCES exam_protocol_correction_request(id) ON DELETE RESTRICT,
+  changed_by_member_id INTEGER REFERENCES committee_member(id) ON DELETE RESTRICT,
+  change_reason TEXT,
+  submitted_by_member_id INTEGER REFERENCES committee_member(id) ON DELETE RESTRICT,
+  submitted_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (exam_protocol_id, version)
+);
+
+CREATE TABLE exam_protocol_entry (
+  id INTEGER PRIMARY KEY,
+  exam_protocol_revision_id INTEGER NOT NULL REFERENCES exam_protocol_revision(id) ON DELETE CASCADE,
+  category TEXT NOT NULL CHECK (category IN (
+    'late_start', 'interruption', 'termination', 'different_staffing',
+    'procedural_deviation', 'objection_or_reservation', 'other'
+  )),
+  statement TEXT NOT NULL CHECK (length(trim(statement)) > 0),
+  occurred_from TEXT NOT NULL CHECK (length(trim(occurred_from)) > 0),
+  occurred_to TEXT,
+  recorded_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (occurred_to IS NULL OR occurred_to >= occurred_from)
+);
+
+CREATE TABLE exam_protocol_response (
+  id INTEGER PRIMARY KEY,
+  exam_protocol_revision_id INTEGER NOT NULL REFERENCES exam_protocol_revision(id) ON DELETE CASCADE,
+  committee_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  response TEXT NOT NULL CHECK (response IN ('confirmed', 'reservation')),
+  exam_protocol_entry_id INTEGER REFERENCES exam_protocol_entry(id) ON DELETE RESTRICT,
+  statement TEXT,
+  responded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (exam_protocol_revision_id, committee_member_id),
+  CHECK (
+    (response = 'confirmed' AND exam_protocol_entry_id IS NULL AND statement IS NULL)
+    OR (
+      response = 'reservation'
+      AND length(trim(statement)) > 0
+    )
+  )
+);
+
+CREATE TABLE exam_protocol_retention (
+  id INTEGER PRIMARY KEY,
+  exam_protocol_id INTEGER NOT NULL UNIQUE REFERENCES exam_protocol(id) ON DELETE CASCADE,
+  rule_reference TEXT NOT NULL CHECK (length(trim(rule_reference)) > 0),
+  retain_until TEXT,
+  legal_hold INTEGER NOT NULL DEFAULT 0 CHECK (legal_hold IN (0, 1)),
+  hold_reason TEXT,
+  updated_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (legal_hold = 0 OR length(trim(hold_reason)) > 0)
+);
+
 CREATE TABLE document (
   id INTEGER PRIMARY KEY,
   storage_id TEXT NOT NULL UNIQUE,
@@ -418,6 +517,18 @@ CREATE TABLE document (
 
 CREATE INDEX member_exam_attendance_day_status
   ON member_exam_attendance(exam_day_id, status);
+
+CREATE INDEX exam_protocol_slot ON exam_protocol(exam_slot_id);
+CREATE INDEX exam_protocol_participant_member
+  ON exam_protocol_participant(committee_member_id, exam_protocol_id);
+CREATE INDEX exam_protocol_revision_protocol
+  ON exam_protocol_revision(exam_protocol_id, version);
+CREATE INDEX exam_protocol_entry_revision
+  ON exam_protocol_entry(exam_protocol_revision_id, id);
+CREATE INDEX exam_protocol_response_revision
+  ON exam_protocol_response(exam_protocol_revision_id, committee_member_id);
+CREATE INDEX exam_protocol_correction_protocol_status
+  ON exam_protocol_correction_request(exam_protocol_id, status);
 
 CREATE TABLE absence_report (
   id INTEGER PRIMARY KEY,

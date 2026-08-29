@@ -35,8 +35,9 @@ Workflowdetails.
 
 Die [Backend-Übersicht](backend.md) ordnet die produktiven Services ihren
 Schichten zu. [Authentifizierung](authentication.md),
-[Benachrichtigungen](notifications.md) und der
-[Ausfall- und Ersatzprozess](absence-replacement.md) beschreiben die
+[Benachrichtigungen](notifications.md), der
+[Ausfall- und Ersatzprozess](absence-replacement.md) und die
+[Prüfungsprotokolle](exam-protocols.md) beschreiben die
 fachlichen Verantwortungsgrenzen. Das [fachliche Datenmodell](../domain-model.md)
 erläutert Begriffe, Aggregate und Invarianten; es ersetzt kein Schema.
 

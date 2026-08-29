@@ -17,6 +17,10 @@ erDiagram
   EXAM_ROUND ||--o{ ROUND_CANDIDATE : includes
   EXAM_ROUND ||--o{ EXAM_DAY : contains
   EXAM_DAY ||--o{ EXAM_SLOT : schedules
+  EXAM_SLOT ||--o| EXAM_PROTOCOL : documents
+  EXAM_PROTOCOL ||--|{ EXAM_PROTOCOL_REVISION : versions
+  EXAM_PROTOCOL_REVISION ||--o{ EXAM_PROTOCOL_ENTRY : records
+  EXAM_PROTOCOL_REVISION ||--o{ EXAM_PROTOCOL_RESPONSE : confirms
   EXAM_DAY ||--o{ EXAM_DAY_ASSIGNMENT : staffs
   MEMBERSHIP ||--o{ EXAM_DAY_ASSIGNMENT : fulfils
   EXAM_ROUND ||--o{ NOTIFICATION : causes
@@ -42,6 +46,11 @@ erDiagram
 - **Ausfall und Ersatz**: Eine Ausfallmeldung bezieht sich auf eine bestätigte
   Besetzung. Rückmeldungen, Ersatzwahl und Korrekturen bilden einen
   nachvollziehbaren Prozess, der den bestätigten Plan nicht voreilig ändert.
+- **Prüfungsprotokoll**: Jeder tatsächlich gestartete Slot besitzt genau ein
+  gemeinsames Protokoll. Es stellt den regulären Verlauf ausdrücklich fest oder
+  erfasst Besonderheiten strukturiert. Inhalt, Reaktionen und Korrekturen sind
+  versioniert; Bewertungsdaten bleiben dem getrennten Bewertungsaggregat
+  vorbehalten.
 
 ## Fachliche Invarianten
 
@@ -57,6 +66,15 @@ erDiagram
   kontrollierter Auswahl wirksam.
 - Fachliche Hinweise bleiben erhalten, wenn eine externe Zustellung scheitert.
   Wiederholungen dürfen keinen zweiten gleichartigen Hinweis erzeugen.
+- Vor dem tatsächlichen Start entsteht kein Protokoll. Nach dem Start bleiben
+  auch unterbrochene oder abgebrochene Prüfungen protokollpflichtig. Eine neue
+  Inhaltsversion macht Reaktionen auf den vorigen Stand sichtbar überholt;
+  regulär abschließbar ist nur ein von allen tatsächlich Beteiligten
+  behandelter aktueller Stand.
+- Nur tatsächlich beteiligte Prüfer dürfen inhaltlich reagieren. Vorsitz und
+  Stellvertretung dürfen ausschussbezogen lesen sowie begründete
+  Korrekturvorgänge koordinieren; Betreiberrechte gewähren keinen
+  Protokollzugriff.
 - Personenbezogene Inhalte sind auf erforderliche Beteiligte begrenzt:
   Kalenderfeeds offenbaren keine Prüflings- oder Fremdbesetzungsdaten;
   Dokumentpfade und Zustellungsdetails sind keine frei wählbaren Fachdaten.

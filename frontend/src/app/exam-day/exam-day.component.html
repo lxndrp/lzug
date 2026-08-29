@@ -267,6 +267,16 @@
         </div>
       </section>
 
+      @for (slot of current.day.slots; track slot.id) {
+        @if (slot.actual_started_at) {
+          <app-exam-protocol
+            [dayId]="current.day.id"
+            [slotId]="slot.id"
+            [ownMemberId]="ownMemberId"
+          />
+        }
+      }
+
       <section class="app-exam-day-section" aria-labelledby="examDayCrewHeading">
         <h3 id="examDayCrewHeading">Prüfer- und Fallback-Besetzung</h3>
         <div class="app-table-scroll" role="region" tabindex="0" aria-label="Prüferbesetzung">
