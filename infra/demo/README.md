@@ -56,8 +56,11 @@ freigegebenen `tofu apply` keine Cloudänderung aus.
   mit Revision, Digestpaar, Plattformmetriken sowie Deployment-, Reset- und
   Smoke-Nachweisen sind unter
   [Demo-Beobachtbarkeit](../../docs/developers/demo-observability.md)
-  dokumentiert. Das Budget meldet 80 Prozent der tatsächlichen und 100 Prozent
-  der prognostizierten Kosten; es stoppt Ressourcen nicht automatisch.
+  dokumentiert. Das verbindliche Monatsziel und Resource-Group-Budget beträgt
+  1 EUR; es meldet 80 Prozent der tatsächlichen und 100 Prozent der
+  prognostizierten Kosten, stoppt Ressourcen aber nicht automatisch. Die
+  vollständige Baseline und der read-only-Kostenabgleich stehen unter
+  [Demo-Kostenbaseline](../../docs/developers/demo-cost-baseline.md).
 - Das GitHub Environment verwendet ausgewählte Deploymentregeln: exakt den
   Branch `master` sowie Tags nach `demo/v*-SNAPSHOT.*` und `v*`. Es verhindert
   Selbstfreigaben und Admin-Bypass. Erforderliche Reviewer werden nicht

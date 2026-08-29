@@ -43,7 +43,7 @@ abgewiesene Payloads werden nicht als Fehlerereignis geschrieben. Damit ist der
 Endpunkt kein ungebundener öffentlicher Log-Sink. Backendfehler erzeugen nur die
 Kategorie, den sicheren Routenbezug, den Status und den Digest.
 
-## Streaming-only, Metriken und Kosten
+## Streaming-only und Metriken
 
 Das Container-Apps-Environment verwendet den AzureRM-Streaming-only-Vertrag:
 `logs_destination = null`. Es besitzt weder eine Log-Analytics-Verknüpfung
@@ -73,9 +73,11 @@ nicht künstlich gestartet. Deployment-, Reset- und Landingpage-Smoke-Tests
 bleiben die ereignisbezogenen Funktions- und Sicherheitsnachweise.
 
 Die gemeinsame Azure-Monitor-Action-Group bleibt ausschließlich für die
-Budgetmeldungen erhalten. Das monatliche Resource-Group-Budget meldet 80
-Prozent tatsächliche Kosten und 100 Prozent prognostizierte Kosten; es stoppt
-Ressourcen nicht automatisch.
+Budgetmeldungen erhalten. Das monatliche Resource-Group-Budget beträgt
+verbindlich 1 EUR und meldet 80 Prozent tatsächliche Kosten sowie 100 Prozent
+prognostizierte Kosten; es stoppt Ressourcen nicht automatisch. Die vollständige
+Ressourcenbaseline, die Annahmen für typische Nutzung und der abschließende
+Kostenabgleich stehen unter [Demo-Kostenbaseline](demo-cost-baseline.md).
 
 Hintergrund sind die Microsoft-Dokumentation zu
 [Container-App-Metriken](https://learn.microsoft.com/azure/container-apps/metrics),

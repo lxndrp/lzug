@@ -23,8 +23,12 @@ Demo-Instanz beziehungsweise unterstützt deren Warm-up.
 Die Demo ist ein separates Veröffentlichungsziel. Sie ist weder die
 Referenzinstallation für Self-Hosting noch eine Mandanteninstanz für reale
 Ausschussdaten. Konkrete Azure-Ressourcen, Domains, TLS-, Reset- und
-Beobachtbarkeitsdetails werden in den dafür vorgesehenen Folge-Issues
-entschieden.
+Beobachtbarkeits- und Kostenregeln werden in den dafür vorgesehenen
+Folge-Issues entschieden. Für die typische öffentliche Nutzung gilt dabei ein
+verbindliches Kostenziel von höchstens 1 EUR pro Kalendermonat. Die
+reproduzierbare Annahme, die vollständige Ressourcenbaseline und der
+read-only-Abgleich stehen unter
+[Demo-Kostenbaseline](../demo-cost-baseline.md).
 
 ## Konsequenzen
 
@@ -36,6 +40,9 @@ entschieden.
   darstellen.
 - Eine persistente Sicherung oder Migration von Demo-Daten ist nicht Teil
   dieses Betriebsmodells.
+- Das Kostenziel von höchstens 1 EUR pro Monat begrenzt die typische Nutzung,
+  ersetzt aber keine Abrechnung. Ein Azure-Resource-Group-Budget von 1 EUR
+  meldet nur verzögert und schaltet keine Ressourcen ab.
 
 ## Alternativen
 
