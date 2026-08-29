@@ -121,6 +121,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn('--revision "$QUALITY_REVISION"', self.quality)
 
     def test_local_quality_tasks_are_the_ci_domain_contract(self) -> None:
+        taskfile = workflow_text("Taskfile.yml")
         for task in (
             "task fixtures:check",
             "task quality:backend",
@@ -134,6 +135,9 @@ class QualityWorkflowContractTests(unittest.TestCase):
             with self.subTest(task=task):
                 self.assertIn(task, self.pull_request)
                 self.assertIn(task, self.quality)
+
+        self.assertIn("docs:check:", taskfile)
+        self.assertIn("python3 -m scripts.check_documentation", taskfile)
 
     def test_synthetic_fixture_check_has_a_complete_trigger_and_ci_contract(self) -> None:
         taskfile = workflow_text("Taskfile.yml")
