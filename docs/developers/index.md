@@ -7,25 +7,24 @@ die redaktionellen Anleitungen für Einrichtung und Qualität stehen im
 [GitHub Wiki](https://github.com/lxndrp/lzug/wiki).
 
 - **Architektur** erklärt Systemgrenzen, Verantwortungen und die Verweise auf
-  ausführbare Verträge.
+ausführbare Verträge.
 - **Referenz** enthält das fachliche Datenmodell, die Verweise auf Schema und
-  Migrationen sowie die generierten Code-Referenzen.
+Migrationen sowie die generierten Code-Referenzen.
 - **Entscheidungen** führt über den Index zu wichtigen, bereits getroffenen
-  technischen Entscheidungen und ihrem aktuellen Status.
+technischen Entscheidungen und ihrem aktuellen Status.
 - **Reviews** beschreibt das gemeinsame Qualitätsreview und die zugehörigen
-  Nachweise für Menschen und Agents.
+Nachweise für Menschen und Agents.
 - **Pull-Request-Lifecycle** beschreibt die reproduzierbare Erstellung,
-  Zuordnungsprüfung, Abnahme und Bereinigung eines Issue-Pull-Requests.
+Zuordnungsprüfung, Abnahme und Bereinigung eines Issue-Pull-Requests.
 - **Dependabot-Aktualisierungen** beschreibt Klassifikation, Sicherheitsgrenzen
-  und Merge-Lebenszyklus automatisierter Abhängigkeitsupdates.
+und Merge-Lebenszyklus automatisierter Abhängigkeitsupdates.
 - **Continuous Integration** beschreibt Workflow-Verantwortungen, konservative
-  Pfadklassifikation, Gesamtstatus und Browsercache-Vertrag.
+Pfadklassifikation, Gesamtstatus und Browsercache-Vertrag.
 - **Öffentliche Demo** beschreibt die getrennte Runtime, sichere Promotion,
-  Readiness-/Smoke-Nachweise, Diagnose und Rollbackgrenze.
+Readiness-/Smoke-Nachweise, Diagnose und Rollbackgrenze.
 - **Demo-Kostenbaseline** definiert das verbindliche Monatsziel, die
-  ressourcenbezogene Schätzung und den verzögerten read-only-Abgleich.
+ressourcenbezogene Schätzung und den verzögerten read-only-Abgleich.
 - **Wiki-Publikation** beschreibt den getrennten Review- und Freigabeablauf für
-  das Wiki-Repository.
+das Wiki-Repository.
 
-Die verbindliche Zuordnung von Wiki, Repository, generierten Referenzen und
-GitHub-Artefakten steht unter [Dokumentation](documentation.md).
+Die verbindliche Zuordnung von Wiki, Repository, generierten Referenzen und GitHub-Artefakten steht unter [Dokumentation](documentation.md).
