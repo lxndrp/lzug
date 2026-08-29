@@ -27,6 +27,8 @@ im Repository-Wurzelverzeichnis.
 - **Demo-Beobachtbarkeit** trennt Liveness und Readiness, definiert
   datensparsame strukturierte Logs, Plattformmetriken, Budgetalarme und den
   ereignisbezogenen Diagnosepfad.
+- **Demo-Kostenbaseline** definiert das verbindliche Monatsziel, die
+  ressourcenbezogene Schätzung und den verzögerten read-only-Abgleich.
 - **Wiki-Publikation** beschreibt den getrennten Review- und Freigabeablauf für
   das Wiki-Repository.
 

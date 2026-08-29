@@ -39,6 +39,7 @@ nav:
       - Azure-Demo-Deployment: developers/demo-deployment.md
       - Öffentliche Domains und TLS: developers/publication-domains.md
       - Demo-Beobachtbarkeit: developers/demo-observability.md
+      - Demo-Kostenbaseline: developers/demo-cost-baseline.md
       - Dependabot-Aktualisierungen: developers/dependabot.md
       - Wiki-Publikation: developers/wiki-publishing.md
       - Architektur:

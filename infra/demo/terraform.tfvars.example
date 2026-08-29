@@ -13,7 +13,7 @@ demo_artifact_pair = {
 # Add release after the stable v* tag policy exists; leave empty only for a new Environment.
 github_environment_deployment_policy_ids = {}
 
-budget_amount_eur     = 25
+budget_amount_eur     = 1
 budget_contact_emails = ["demo-operations@example.invalid"]
 budget_start_date     = "2026-09-01T00:00:00Z"
 budget_end_date       = "2028-07-31T00:00:00Z"

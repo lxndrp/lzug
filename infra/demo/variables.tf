@@ -131,12 +131,13 @@ variable "container_port" {
 }
 
 variable "budget_amount_eur" {
-  description = "Hard-to-miss monthly cost threshold in EUR; the budget alerts but does not stop resources automatically."
+  description = "Binding monthly demo cost target and Resource Group budget in EUR; the budget alerts but does not stop resources automatically."
   type        = number
+  default     = 1
 
   validation {
-    condition     = var.budget_amount_eur > 0 && var.budget_amount_eur <= 100
-    error_message = "budget_amount_eur must be greater than 0 and no more than 100."
+    condition     = var.budget_amount_eur == 1
+    error_message = "budget_amount_eur must be exactly 1 EUR, the binding monthly demo cost target."
   }
 }
 

@@ -61,7 +61,7 @@ run "demo_contract" {
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
-    budget_amount_eur     = 25
+    budget_amount_eur     = 1
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
     budget_end_date       = "2028-07-31T00:00:00Z"
@@ -145,13 +145,18 @@ run "demo_contract" {
 
   assert {
     condition = (
-      azurerm_consumption_budget_resource_group.demo.amount == 25 &&
+      azurerm_consumption_budget_resource_group.demo.amount == 1 &&
       alltrue([
         for notification in azurerm_consumption_budget_resource_group.demo.notification :
         toset(notification.contact_groups) == toset([azurerm_monitor_action_group.demo.id])
-      ])
+      ]) &&
+      length(azurerm_consumption_budget_resource_group.demo.notification) == 2 &&
+      toset([
+        for notification in azurerm_consumption_budget_resource_group.demo.notification :
+        "${notification.threshold_type}:${notification.threshold}"
+      ]) == toset(["Actual:80", "Forecasted:100"])
     )
-    error_message = "The configured monthly budget and testable action group must be part of every plan."
+    error_message = "The demo must use the 1 EUR monthly budget with documented actual and forecast warning thresholds."
   }
 
   assert {
@@ -255,7 +260,7 @@ run "reject_moving_demo_tags" {
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
-    budget_amount_eur     = 25
+    budget_amount_eur     = 1
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
     budget_end_date       = "2028-07-31T00:00:00Z"
@@ -283,7 +288,7 @@ run "accept_bound_snapshot_artifact_pair" {
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
-    budget_amount_eur     = 25
+    budget_amount_eur     = 1
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
     budget_end_date       = "2028-07-31T00:00:00Z"
@@ -314,7 +319,7 @@ run "reject_legacy_runtime_contract" {
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
-    budget_amount_eur     = 25
+    budget_amount_eur     = 1
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
     budget_end_date       = "2028-07-31T00:00:00Z"
@@ -345,7 +350,7 @@ run "reject_partial_environment_policy_adoption" {
     github_environment_deployment_policy_ids = {
       master = "123456"
     }
-    budget_amount_eur     = 25
+    budget_amount_eur     = 1
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
     budget_end_date       = "2028-07-31T00:00:00Z"
@@ -373,7 +378,7 @@ run "reject_invalid_budget_end_calendar_date" {
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
-    budget_amount_eur     = 25
+    budget_amount_eur     = 1
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
     budget_end_date       = "2028-02-31T00:00:00Z"
@@ -401,7 +406,7 @@ run "reject_invalid_budget_end_timestamp" {
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
-    budget_amount_eur     = 25
+    budget_amount_eur     = 1
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
     budget_end_date       = "2028-07-31T00:00:00"
@@ -429,11 +434,39 @@ run "reject_budget_end_not_later" {
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
       seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
     }
-    budget_amount_eur     = 25
+    budget_amount_eur     = 1
     budget_contact_emails = ["demo-operations@example.invalid"]
     budget_start_date     = "2026-09-01T00:00:00Z"
     budget_end_date       = "2026-08-31T00:00:00Z"
   }
 
   expect_failures = [var.budget_end_date]
+}
+
+run "reject_budget_above_cost_target" {
+  command = plan
+
+  plan_options {
+    refresh = false
+  }
+
+  variables {
+    azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+    location              = "westeurope"
+    demo_artifact_pair = {
+      app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+      product_tag        = "v0.1.1"
+      product_commit     = "0123456789abcdef0123456789abcdef01234567"
+      runtime_contract   = "lzug-demo-health-ready-v1"
+      schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
+      seed_revision      = "23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
+    }
+    budget_amount_eur     = 1.01
+    budget_contact_emails = ["demo-operations@example.invalid"]
+    budget_start_date     = "2026-09-01T00:00:00Z"
+    budget_end_date       = "2028-07-31T00:00:00Z"
+  }
+
+  expect_failures = [var.budget_amount_eur]
 }

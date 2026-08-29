@@ -122,6 +122,11 @@ gemountete `EmptyDir`. Die öffentliche Azure-Demo wird täglich um 03:00 Uhr
 frischem Volume und erneutem Seed-Init gilt als Reset; Scale-to-zero oder ein
 Containerneustart allein reichen nicht als Löschbeweis.
 
+Die typische öffentliche Nutzung ist auf höchstens 1 EUR Azure-Kosten pro
+Kalendermonat ausgelegt. Ressourcen, Freimengen, Nutzungsannahmen und der
+verzögerte Abgleich der tatsächlichen Kosten sind in der
+[Demo-Kostenbaseline](../demo-cost-baseline.md) versioniert.
+
 Während des Resets ist die Demo kurzzeitig nicht erreichbar. Alte Sessions
 und sämtliche während der Nutzung erzeugten Daten verlieren danach ihre
 Gültigkeit. Die Oberfläche weist dauerhaft auf diese Grenze und das Verbot

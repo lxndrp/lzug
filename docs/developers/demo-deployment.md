@@ -237,7 +237,9 @@ Ein erfolgreicher lokaler Test ersetzt weder die geschützte Environment-
 Freigabe noch einen echten Deploymentlauf.
 
 Der Betriebs- und Alarmvertrag ist unter
-[Demo-Beobachtbarkeit](demo-observability.md) dokumentiert.
+[Demo-Beobachtbarkeit](demo-observability.md) dokumentiert; das verbindliche
+Kostenziel und der manuelle read-only-Abgleich stehen in der
+[Demo-Kostenbaseline](demo-cost-baseline.md).
 
 ## Referenzen
 
