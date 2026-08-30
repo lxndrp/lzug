@@ -32,9 +32,30 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-lzug_start_contract_container "$container" "$volume" "$image" \
+recipient_keys=$("$engine" run --rm --entrypoint python "$image" -c '
+import json
+from backend.backup_restore import generate_recipient_keypair
+
+public_key, private_key = generate_recipient_keypair()
+_, wrong_private_key = generate_recipient_keypair()
+print(json.dumps({
+    "public": public_key,
+    "private": private_key,
+    "wrong_private": wrong_private_key,
+}))
+')
+recipient_public_key=$(printf '%s' "$recipient_keys" | python3 -c 'import json,sys; print(json.load(sys.stdin)["public"])')
+recipient_private_key=$(printf '%s' "$recipient_keys" | python3 -c 'import json,sys; print(json.load(sys.stdin)["private"])')
+wrong_private_key=$(printf '%s' "$recipient_keys" | python3 -c 'import json,sys; print(json.load(sys.stdin)["wrong_private"])')
+
+"$engine" volume create "$volume" >/dev/null
+"$engine" run --detach --name "$container" \
+    --read-only --tmpfs /tmp \
+    --env "LZUG_BACKUP_RECIPIENT_PUBLIC_KEY=$recipient_public_key" \
     --env "LZUG_SMTP_USERNAME=diagnostic-operator" \
-    --env "LZUG_SMTP_PASSWORD=diagnostic-secret-marker"
+    --env "LZUG_SMTP_PASSWORD=diagnostic-secret-marker" \
+    --mount "type=volume,source=$volume,target=/data" \
+    "$image" --host 0.0.0.0 --port 8000 --init >/dev/null
 if ! lzug_wait_for_container_health "$container" 30; then
     echo "Container did not become ready for the operator contract." >&2
     "$engine" logs "$container" >&2 || true
@@ -126,4 +147,138 @@ for forbidden in (
 ' "$diagnostic" "$token" >/dev/null
 done
 
-echo "Operator CLI-to-container administration and diagnostic contracts passed with $engine: $image"
+backup=$(
+    "$admin_binary" --engine "$engine" --container "$container" backup-create
+)
+backup_artifact=$(printf '%s' "$backup" | python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+assert payload["version"] == 1 and payload["ok"] is True
+result = payload["result"]
+assert result["artifact_type"] == "backup"
+assert result["artifact_id"] and result["snapshot_at"]
+print(result["artifact"])
+')
+
+verified_backup=$(
+    printf '%s' "$recipient_private_key" | \
+        "$admin_binary" --engine "$engine" --container "$container" \
+            artifact-verify --artifact "$backup_artifact"
+)
+printf '%s' "$verified_backup" | python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+assert payload["version"] == 1 and payload["ok"] is True
+assert payload["result"]["artifact_type"] == "backup"
+assert payload["result"]["documents"] >= 0
+' >/dev/null
+
+wrong_key_status=0
+printf '%s' "$wrong_private_key" | \
+    "$admin_binary" --engine "$engine" --container "$container" \
+        artifact-verify --artifact "$backup_artifact" \
+        >"$temporary_directory/wrong-key.json" \
+        2>"$temporary_directory/wrong-key.stderr" || wrong_key_status=$?
+test "$wrong_key_status" -eq 27
+python3 -c '
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    payload = json.load(stream)
+assert payload["version"] == 1 and payload["ok"] is False
+assert payload["error"]["class"] == "recipient_key_mismatch"
+assert payload["error"]["phase"] == "precheck"
+' "$temporary_directory/wrong-key.json"
+
+full_export=$(
+    "$admin_binary" --engine "$engine" --container "$container" \
+        full-export --recipient-public-key "$recipient_public_key"
+)
+export_artifact=$(printf '%s' "$full_export" | python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+assert payload["version"] == 1 and payload["ok"] is True
+result = payload["result"]
+assert result["artifact_type"] == "full_export"
+assert result["artifact_id"] and result["snapshot_at"]
+print(result["artifact"])
+')
+verified_export=$(
+    printf '%s' "$recipient_private_key" | \
+        "$admin_binary" --engine "$engine" --container "$container" \
+            artifact-verify --artifact "$export_artifact"
+)
+printf '%s' "$verified_export" | python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+assert payload["version"] == 1 and payload["ok"] is True
+assert payload["result"]["artifact_type"] == "full_export"
+' >/dev/null
+
+replace_required_status=0
+printf '%s' "$recipient_private_key" | \
+    "$admin_binary" --engine "$engine" --container "$container" \
+        backup-restore --artifact "$backup_artifact" \
+        >"$temporary_directory/replace-required.json" \
+        2>"$temporary_directory/replace-required.stderr" || replace_required_status=$?
+test "$replace_required_status" -eq 29
+python3 -c '
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    payload = json.load(stream)
+assert payload["version"] == 1 and payload["ok"] is False
+assert payload["error"]["class"] == "replace_confirmation_required"
+assert payload["error"]["phase"] == "precheck"
+' "$temporary_directory/replace-required.json"
+
+restored=$(
+    printf '%s' "$recipient_private_key" | \
+        "$admin_binary" --engine "$engine" --container "$container" \
+            backup-restore --artifact "$backup_artifact" --replace
+)
+printf '%s' "$restored" | python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+assert payload["version"] == 1 and payload["ok"] is True
+result = payload["result"]
+assert result["artifact_type"] == "backup"
+assert result["safety_artifact"].startswith("pre-restore-")
+assert result["phases"] == [
+    "precheck", "prepared_restore", "migration", "postcheck", "activation"
+]
+assert result["readiness"] in {"ready", "restricted", "not_ready"}
+' >/dev/null
+
+if printf '%s\n%s\n%s\n%s\n' \
+    "$backup" "$verified_backup" "$full_export" "$restored" | \
+    grep -F "$recipient_private_key" >/dev/null; then
+    echo "Artifact command output exposed the private recipient key." >&2
+    exit 1
+fi
+if grep -F "$recipient_private_key" \
+    "$temporary_directory/wrong-key.json" \
+    "$temporary_directory/wrong-key.stderr" \
+    "$temporary_directory/replace-required.json" \
+    "$temporary_directory/replace-required.stderr" >/dev/null; then
+    echo "Artifact command error output exposed the private recipient key." >&2
+    exit 1
+fi
+if "$engine" logs "$container" 2>&1 | grep -F "$recipient_private_key" >/dev/null; then
+    echo "Container logs exposed the private recipient key." >&2
+    exit 1
+fi
+
+echo "Operator CLI-to-container administration, diagnostic, and artifact contracts passed with $engine: $image"

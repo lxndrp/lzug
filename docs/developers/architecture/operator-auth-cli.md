@@ -135,7 +135,24 @@ Passkeys und OIDC bleiben die getrennten Folgearbeiten #267 und #268.
 
 Backup, nicht mutierende Artefaktprüfung, Restore und geschützter Vollexport verwenden denselben Python-stdin/stdout-Vertrag.
 Der vollständige Backendvertrag einschließlich Schlüsselzuführung, Restore-Phasen und Berichten steht unter [Backup, Restore und Vollexport](backup-restore-export.md).
-Die Go-CLI-Erweiterung bleibt Aufgabe von #271; sie darf weder SQLite direkt öffnen noch Schutz-, Prüf- oder Restore-Logik duplizieren.
+Die Go-CLI orchestriert ihn mit vier Befehlen:
+
+```sh
+lzug-admin --container lzug backup-create
+private-key-provider | lzug-admin --container lzug artifact-verify --artifact backup-….lzug
+private-key-provider | lzug-admin --container lzug backup-restore --artifact backup-….lzug
+lzug-admin --container lzug full-export --recipient-public-key 'x25519:…'
+```
+
+`backup-create` verwendet ausschließlich `LZUG_BACKUP_RECIPIENT_PUBLIC_KEY` aus der Containerkonfiguration.
+`full-export` verlangt für jeden Aufruf ausdrücklich einen öffentlichen Empfängerschlüssel und bietet keinen ungeschützten Modus.
+Prüfung und Restore lesen den privaten Empfängerschlüssel ausschließlich aus stdin; ein entsprechender argv-Schalter existiert nicht.
+Ein Restore auf einer nicht leeren Installation wird nur mit dem ausschließlich dafür vorgesehenen Schalter `--replace` angefordert.
+Eine allgemeine Automatisierungs- oder Bestätigungsoption aktiviert diesen Modus nicht.
+
+Docker und Podman erhalten dieselben einzelnen `exec --interactive`-Argumente, dasselbe JSON auf stdin und reichen die stabilen Backend-Exit-Codes unverändert weiter.
+Erfolgsberichte enthalten die abgeschlossenen Phasen, Betriebsbereitschaft, Warnungen und geheimnisfreie Artefaktangaben; Fehler nennen Klasse und Fehlerphase.
+Die CLI öffnet weder SQLite noch den Dokumentenspeicher und enthält keine Schlüssel-, Manifest-, Prüf-, Backup-, Restore- oder Exportlogik.
 
 ## Ausschuss-Bootstrap und technischer Lebenszyklus
 

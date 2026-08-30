@@ -6,7 +6,7 @@ Ein Vollexport überträgt fachliche Daten und Dokumente in einem offenen Format
 
 Beide Vorgänge laufen ausschließlich über `python -m backend.admin --protocol 1` im Anwendungscontainer.
 Es gibt dafür keine HTTP-Route, keine OpenAPI-Operation und keine fachliche UI-Berechtigung.
-Die spätere Betreiber-CLI orchestriert diesen Vertrag über interaktives Container-`exec`, ohne SQLite oder die Paketlogik selbst zu kennen.
+Die portable Betreiber-CLI orchestriert diesen Vertrag über interaktives Container-`exec`, ohne SQLite oder die Paketlogik selbst zu kennen.
 
 ## Schutzformat
 
@@ -98,7 +98,8 @@ Die Python-Grenze unterstützt:
 Erfolgsberichte enthalten Artefaktart und -ID, Quell- und Zielversionen, Snapshot-Zeitpunkt, Anzahlen, Migrationen, Rücksetzungen, Konfigurationsabweichungen und Readiness soweit für den Vorgang relevant.
 Fehler enthalten `class`, `message` und bei Artefaktvorgängen die genaue `phase`.
 Die stabilen Python-Exit-Codes `26` bis `29`, `32` und `33` unterscheiden ungültiges Artefakt, Empfängerschlüssel, Inkompatibilität, fehlende Ersetzungsbestätigung, Speicherplatz und sonstigen Artefaktvorgang.
-Die menschenlesbare Darstellung und abweichende CLI-Exit-Codes bleiben Verantwortung der Betreiber-CLI.
+Die Betreiber-CLI reicht den maschinenlesbaren Bericht und die stabilen Backend-Exit-Codes unverändert weiter.
+Damit verhalten sich Docker und Podman sowie die portablen Windows-, macOS- und Linux-Builds am gemeinsamen Vertrag identisch.
 
 ## Offener Vollexport
 
