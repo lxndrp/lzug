@@ -4,12 +4,14 @@ import unittest
 from http import HTTPStatus
 
 from backend.auth import AuthenticationRepository
+from backend.database import session_scope
 from backend.models import (
     CANDIDATE_EXAM_DAY,
     COMMITTEE,
     COMMITTEE_MEMBER,
     EXAM_ROUND,
     PERSON,
+    Committee,
 )
 from backend.planning import PlanningService
 from backend.repositories import ResourceRepository
@@ -58,6 +60,11 @@ class AuthorizationTests(unittest.TestCase):
                 f"testperson.{person_number}@example.invalid", person_id=person["id"]
             )
             self.members[f"account-{person_number}"] = account["id"]
+
+        with session_scope(self.db_path) as session:
+            created_committee = session.get(Committee, self.committee_id)
+            assert created_committee is not None
+            created_committee.bootstrap_state = "ready"
 
         exam_round = self.repository.create(
             EXAM_ROUND,
@@ -117,6 +124,7 @@ class AuthorizationTests(unittest.TestCase):
             status, committees = api.request("GET", "/api/committees")
             assert_status(status, HTTPStatus.OK)
             self.assertEqual([1], [item["id"] for item in committees["items"]])
+            self.assertNotIn("create", committees["_links"])
 
             status, own = api.request(
                 "GET", f"/api/exam-rounds/{self.round_id}", credentials=self.credentials(9)
@@ -251,6 +259,29 @@ class AuthorizationTests(unittest.TestCase):
                 },
                 credentials=self.credentials(9),
             )
+            assert_status(status, HTTPStatus.FORBIDDEN)
+            self.assertEqual("Forbidden.", error["error"])
+
+    def test_product_sessions_cannot_create_committees_or_gain_operator_domain_access(self) -> None:
+        operator = self.authentication.create_account("operator@example.invalid", is_operator=True)
+        operator_credentials = self.authentication.create_session(operator["id"])
+        credentials = (
+            self.credentials(9),
+            self.credentials(10),
+            self.credentials(11),
+            operator_credentials,
+        )
+        with ApiServer(self.db_path) as api:
+            for session_credentials in credentials:
+                status, _error = api.request(
+                    "POST",
+                    "/api/committees",
+                    {"name": "Nicht erlaubt", "ihk": "IHK Test", "occupation": "Test"},
+                    credentials=session_credentials,
+                )
+                assert_status(status, HTTPStatus.METHOD_NOT_ALLOWED)
+
+            status, error = api.request("GET", "/api/committees", credentials=operator_credentials)
             assert_status(status, HTTPStatus.FORBIDDEN)
             self.assertEqual("Forbidden.", error["error"])
 

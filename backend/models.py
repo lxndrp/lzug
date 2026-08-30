@@ -25,6 +25,11 @@ class Committee(Base):
         String,
         server_default=sql_text("'Nicht konfiguriert'"),
     )
+    is_active: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    bootstrap_state: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("'needs_clarification'"),
+    )
     created_at: Mapped[str] = mapped_column(
         String,
         server_default=sql_text("CURRENT_TIMESTAMP"),
@@ -131,6 +136,31 @@ class AuthToken(Base):
     consumed_at: Mapped[str | None] = mapped_column(String, nullable=True)
 
     __table_args__ = (Index("auth_token_account_kind", "account_id", "kind", "expires_at"),)
+
+
+class CommitteeAdminOperation(Base):
+    """Immutable, secret-free evidence for local committee administration."""
+
+    __tablename__ = "committee_admin_operation"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    operation_type: Mapped[str] = mapped_column(String)
+    committee_id: Mapped[int] = mapped_column(ForeignKey("committee.id", ondelete="RESTRICT"))
+    person_ids_json: Mapped[str] = mapped_column(String)
+    membership_ids_json: Mapped[str] = mapped_column(String)
+    account_ids_json: Mapped[str] = mapped_column(String)
+    result: Mapped[str] = mapped_column(String)
+    occurred_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    technical_source: Mapped[str] = mapped_column(String)
+    idempotency_key: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
+    request_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    response_json: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (Index("committee_admin_operation_committee", "committee_id", "occurred_at"),)
 
 
 class AuthRecoveryCode(Base):
@@ -1426,7 +1456,15 @@ def model_to_dict(model: Any, resource: Resource) -> dict[str, Any]:
 
 COMMITTEE = Resource(
     model=Committee,
-    fields=("name", "occupation", "ihk", "created_at", "updated_at"),
+    fields=(
+        "name",
+        "occupation",
+        "ihk",
+        "is_active",
+        "bootstrap_state",
+        "created_at",
+        "updated_at",
+    ),
     order_by=("name",),
     writable_fields=("name", "occupation", "ihk"),
 )

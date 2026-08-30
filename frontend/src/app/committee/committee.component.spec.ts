@@ -47,32 +47,13 @@ describe('CommitteeComponent', () => {
     expect(component.selectedCommitteeIdChange.emit).toHaveBeenCalledWith(2);
   });
 
-  it('should emit valid committee form submissions', () => {
-    vi.spyOn(component.createCommittee, 'emit').mockReturnValue(undefined);
-    setInput('#committeeName', 'PA Neu');
-    setInput('#committeeIhk', 'IHK Teststadt');
-    setInput('#committeeOccupation', 'Fachinformatiker/in');
-
-    submitForm(0);
-
-    expect(component.createCommittee.emit).toHaveBeenCalledWith({
-      name: 'PA Neu',
-      ihk: 'IHK Teststadt',
-      occupation: 'Fachinformatiker/in',
-    });
-    expect(inputValue('#committeeName')).toBe('PA Neu');
-
-    component.resetCommitteeForm();
-    expect(inputValue('#committeeName')).toBe('');
-  });
-
   it('should emit valid member form submissions', () => {
     vi.spyOn(component.createMember, 'emit').mockReturnValue(undefined);
     setInput('#memberFirstName', 'Testperson');
     setInput('#memberLastName', 'Kappa');
     setInput('#memberEmail', 'testperson.kappa@example.invalid');
 
-    submitForm(1);
+    submitForm(0);
 
     expect(component.createMember.emit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -111,8 +92,8 @@ describe('CommitteeComponent', () => {
   it('should present required fields and actions consistently', () => {
     const element = fixture.nativeElement as HTMLElement;
 
-    expect(element.querySelectorAll('.app-required-hint').length).toBe(2);
-    expect(element.querySelectorAll('.app-form-actions').length).toBe(2);
+    expect(element.querySelectorAll('.app-required-hint').length).toBe(1);
+    expect(element.querySelectorAll('.app-form-actions').length).toBe(1);
     expect(element.querySelector('.app-row-actions')?.textContent).toContain('Deaktivieren');
   });
 
@@ -137,24 +118,11 @@ describe('CommitteeComponent', () => {
     expect(status.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();
   });
 
-  it('should keep create actions with their responsible sections and cancel safely', () => {
-    const committeeTrigger = buttonWithLabel('Neuen Ausschuss anlegen');
+  it('should keep the member create action with its responsible section and cancel safely', () => {
     const memberTrigger = buttonWithLabel('Prüfer hinzufügen');
-    vi.spyOn(component.createCommittee, 'emit').mockReturnValue(undefined);
     vi.spyOn(component.createMember, 'emit').mockReturnValue(undefined);
 
-    expect(committeeTrigger.closest('.app-panel-header')).toBeTruthy();
     expect(memberTrigger.closest('.app-panel-header')).toBeTruthy();
-
-    committeeTrigger.click();
-    fixture.detectChanges();
-    setInput('#committeeName', 'Nicht speichern');
-    buttonWithin('#committee-create-editor', 'Abbrechen').click();
-    fixture.detectChanges();
-
-    expect(component.createCommittee.emit).not.toHaveBeenCalled();
-    expect(inputValue('#committeeName')).toBe('');
-    expect(committeeTrigger.getAttribute('aria-expanded')).toBe('false');
 
     memberTrigger.click();
     fixture.detectChanges();
@@ -167,7 +135,7 @@ describe('CommitteeComponent', () => {
     expect(memberTrigger.getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('should offer committee creation inside an empty overview', () => {
+  it('should direct an empty instance to the local operator bootstrap', () => {
     fixture.componentRef.setInput('masterData', {
       ...masterDataFixture,
       committees: [],
@@ -175,22 +143,19 @@ describe('CommitteeComponent', () => {
     });
     fixture.detectChanges();
 
-    const emptyAction = buttonWithLabel('Jetzt Ausschuss anlegen');
-    expect(emptyAction.closest('.app-compact-empty')).toBeTruthy();
-    emptyAction.click();
-    fixture.detectChanges();
-
-    expect(
-      (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('#committee-create-editor')
-        ?.hidden,
-    ).toBe(false);
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('.app-compact-empty')?.textContent).toContain(
+      'technische Betreiber',
+    );
+    expect(element.querySelector('#committee-create-editor')).toBeNull();
+    expect(element.textContent).not.toContain('Jetzt Ausschuss anlegen');
   });
 
   it('should use Taiga form and header layout with app grid classes', () => {
     const element = fixture.nativeElement as HTMLElement;
 
     expect(element.querySelector('.app-page-grid')).toBeTruthy();
-    expect(element.querySelectorAll('form[tuiForm]').length).toBe(2);
+    expect(element.querySelectorAll('form[tuiForm]').length).toBe(1);
     expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(3);
     expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
     expect(element.querySelectorAll('input[tuiCheckbox]').length).toBe(1);

@@ -1568,6 +1568,13 @@ test.describe('lzug browser workflows', () => {
     await expect(trigger).toBeFocused();
   });
 
+  test('does not offer productive committee creation', async ({ page }) => {
+    await page.goto('/committee');
+
+    await expect(page.getByRole('button', { name: 'Neuen Ausschuss anlegen' })).toHaveCount(0);
+    await expect(page.locator('#committee-create-editor')).toHaveCount(0);
+  });
+
   test('keeps contextual create editors associated, cancellable and accessible', async ({
     page,
   }) => {
@@ -1578,12 +1585,6 @@ test.describe('lzug browser workflows', () => {
         action: 'Neuen Prüfling anlegen',
         editor: '#candidate-create-editor',
         input: '#candidateFirstName',
-      },
-      {
-        path: '/committee',
-        action: 'Neuen Ausschuss anlegen',
-        editor: '#committee-create-editor',
-        input: '#committeeName',
       },
       {
         path: '/committee',

@@ -682,10 +682,6 @@ export class PlanningApiService {
     );
   }
 
-  createCommittee(payload: Pick<Committee, 'name' | 'occupation' | 'ihk'>) {
-    return this.http.post<Committee>('/api/committees', payload);
-  }
-
   updateCommittee(id: number, payload: Partial<Pick<Committee, 'name' | 'occupation' | 'ihk'>>) {
     return this.http.patch<Committee>(`/api/committees/${id}`, payload);
   }

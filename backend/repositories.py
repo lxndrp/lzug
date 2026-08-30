@@ -327,6 +327,8 @@ class ResourceRepository:
         committee = store.get(COMMITTEE, payload["committee_id"])
         if committee is None:
             raise ValueError("Committee not found")
+        if not committee["is_active"] or committee["bootstrap_state"] != "ready":
+            raise ValueError("Committee is not ready for an exam round")
         creator = store.get(COMMITTEE_MEMBER, payload["created_by_member_id"])
         if creator is None or creator["committee_id"] != payload["committee_id"]:
             raise ValueError("Creating member does not belong to the exam round committee")

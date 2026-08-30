@@ -5,13 +5,17 @@ export const syntheticFixtures = {
       "id": 1,
       "name": "Prüfungsausschuss Teststadt 1",
       "ihk": "IHK Teststadt",
-      "occupation": "Fachinformatiker/in"
+      "occupation": "Fachinformatiker/in",
+      "is_active": 1,
+      "bootstrap_state": "ready"
     },
     {
       "id": 2,
       "name": "Prüfungsausschuss Teststadt 2",
       "ihk": "IHK Teststadt",
-      "occupation": "Fachinformatiker/in"
+      "occupation": "Fachinformatiker/in",
+      "is_active": 1,
+      "bootstrap_state": "ready"
     }
   ],
   "members": [

@@ -183,6 +183,16 @@ class DemoRuntimeTests(unittest.TestCase):
         with TempDatabase() as db_path, ApiServer(db_path, DemoTestHandler) as api:
             chair = AuthenticationRepository(db_path).create_session(1)
             examiner = AuthenticationRepository(db_path).create_session(2)
+            deputy = AuthenticationRepository(db_path).create_session(3)
+
+            for credentials in (chair, examiner, deputy):
+                status, _body = api.request(
+                    "POST",
+                    "/api/committees",
+                    {"name": "Nicht erlaubt", "ihk": "IHK Test", "occupation": "Test"},
+                    credentials=credentials,
+                )
+                assert_status(status, HTTPStatus.METHOD_NOT_ALLOWED)
 
             denied_requests = (
                 ("POST", "/api/candidate-exam-days", {"date": "2026-12-01"}),

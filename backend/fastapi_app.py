@@ -32,6 +32,7 @@ from .exam_results import ExamResultConflictError
 from .local_auth import LocalAuthError
 from .models import (
     CANDIDATE_COMMITTEE_ASSIGNMENT,
+    COMMITTEE,
     EXAM_DAY,
     EXAM_DAY_ASSIGNMENT,
     EXAM_ROUND,
@@ -1995,7 +1996,9 @@ def create_app(
                         resource,
                         rows,
                         request.url.query,
-                        allow_create=resource not in PLAN_AGGREGATE_RESOURCES,
+                        allow_create=(
+                            resource not in PLAN_AGGREGATE_RESOURCES and resource != COMMITTEE
+                        ),
                         allow_item_mutation=resource not in PLAN_AGGREGATE_RESOURCES,
                     )
                 ),
@@ -2113,13 +2116,14 @@ def create_app(
             name=f"get_{name}_item",
             openapi_extra=read_security,
         )
-        app.add_api_route(
-            f"/api/{name}",
-            create,
-            methods=["POST"],
-            name=f"create_{name}",
-            openapi_extra=write_security,
-        )
+        if name != "committees":
+            app.add_api_route(
+                f"/api/{name}",
+                create,
+                methods=["POST"],
+                name=f"create_{name}",
+                openapi_extra=write_security,
+            )
         app.add_api_route(
             f"/api/{name}/{{id}}",
             update,

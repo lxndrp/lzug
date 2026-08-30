@@ -361,6 +361,31 @@ class OpenApiContractTests(unittest.TestCase):
             self.assertIsInstance(response, dict)
             self.assertIn("error", response)
 
+    def test_committee_administration_is_not_exposed_over_http(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            if api.client is None:
+                raise AssertionError("API client is not active")
+            documented = api.client.app.openapi()["paths"]
+
+            self.assertNotIn("post", documented["/api/committees"])
+            self.assertFalse(
+                any(
+                    path.startswith("/api/admin")
+                    or "committee-bootstrap" in path
+                    or "committee-deactivate" in path
+                    or "committee-reactivate" in path
+                    for path in documented
+                )
+            )
+
+            status, response = api.request(
+                "POST",
+                "/api/committees",
+                {"name": "Nicht per HTTP", "ihk": "IHK", "occupation": "Test"},
+            )
+            self.assertEqual(HTTPStatus.METHOD_NOT_ALLOWED, status)
+            self.assertIsInstance(response, dict)
+
     def test_contract_check_rejects_an_intentionally_changed_response(self) -> None:
         """A missing mandatory field is a failing local and CI contract check."""
         with TempDatabase() as db_path, ApiServer(db_path) as api:

@@ -20,7 +20,7 @@ DEMO_ROLES = {
     "deputy": {"account_id": 3, "person_id": 2, "display_name": "Testperson Beta"},
 }
 
-DEMO_MATRIX_VERSION = "demo-paths-v4"
+DEMO_MATRIX_VERSION = "demo-paths-v5"
 
 
 @dataclass(frozen=True)
@@ -190,6 +190,45 @@ DEMO_READ_MATRIX = (
 
 
 DEMO_MUTATION_MATRIX = (
+    DemoPathContract(
+        "committee-bootstrap-disabled",
+        frozenset(DEMO_ROLES),
+        "Ausschuss-Bootstrap",
+        "operator-only-local-contract",
+        "Ausschuss administrativ bootstrapen",
+        "committee:bootstrap",
+        "POST",
+        "/committees",
+        "CommitteeAdminService.bootstrap",
+        False,
+        False,
+    ),
+    DemoPathContract(
+        "committee-deactivate-disabled",
+        frozenset(DEMO_ROLES),
+        "Ausschuss-Lebenszyklus",
+        "operator-only-local-contract",
+        "Ausschuss technisch deaktivieren",
+        "committee:deactivate",
+        "POST",
+        "/committees/{id}/deactivate",
+        "CommitteeAdminService.deactivate",
+        False,
+        False,
+    ),
+    DemoPathContract(
+        "committee-reactivate-disabled",
+        frozenset(DEMO_ROLES),
+        "Ausschuss-Lebenszyklus",
+        "operator-only-local-contract",
+        "Ausschuss technisch reaktivieren",
+        "committee:reactivate",
+        "POST",
+        "/committees/{id}/reactivate",
+        "CommitteeAdminService.reactivate",
+        False,
+        False,
+    ),
     DemoPathContract(
         "planning-settings-create",
         frozenset({"chair"}),

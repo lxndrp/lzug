@@ -19,7 +19,6 @@ import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
 import { type SelectOption, selectLabel, selectStringify, selectValues } from '../select-options';
 
-export type CommitteePayload = Pick<Committee, 'name' | 'occupation' | 'ihk'>;
 export type CommitteeMemberPayload = Pick<
   CommitteeMember,
   'committee_id' | 'member_status' | 'committee_role' | 'representing_side' | 'is_active'
@@ -69,10 +68,6 @@ export class CommitteeComponent {
   protected readonly personStringify = selectStringify(() => this.personSelectOptions());
 
   protected readonly icons = appIcons;
-  @ViewChild('committeeCreateButton')
-  private committeeCreateButton?: ElementRef<HTMLButtonElement>;
-  @ViewChild('committeeCreateForm', { read: ElementRef })
-  private committeeCreateForm?: ElementRef<HTMLFormElement>;
   @ViewChild('memberCreateButton')
   private memberCreateButton?: ElementRef<HTMLButtonElement>;
   @ViewChild('memberCreateForm', { read: ElementRef })
@@ -80,13 +75,7 @@ export class CommitteeComponent {
 
   protected readonly selectedCommitteeId = signal<number | null>(null);
   protected readonly selectedPersonId = signal<number | null>(null);
-  protected readonly creatingCommittee = signal(false);
   protected readonly creatingMember = signal(false);
-  protected readonly committeeDraft = {
-    name: '',
-    occupation: '',
-    ihk: '',
-  };
   protected readonly memberDraft = {
     first_name: '',
     last_name: '',
@@ -97,12 +86,10 @@ export class CommitteeComponent {
     representing_side: 'employer',
     is_active: true,
   };
-  private pendingCommitteeForm: HTMLFormElement | null = null;
   private pendingMemberForm: HTMLFormElement | null = null;
 
   @Input() actionBusy = false;
   @Output() selectedCommitteeIdChange = new EventEmitter<number | null>();
-  @Output() createCommittee = new EventEmitter<CommitteePayload>();
   @Output() createMember = new EventEmitter<CommitteeMemberPayload>();
   @Output() toggleMember = new EventEmitter<CommitteeMember>();
 
@@ -182,20 +169,6 @@ export class CommitteeComponent {
     this.selectedPersonId.set(personId);
   }
 
-  protected saveCommittee(event: SubmitEvent): void {
-    event.preventDefault();
-    const form = event.currentTarget as HTMLFormElement;
-    const data = new FormData(form);
-    const name = String(data.get('name') ?? '').trim();
-    const occupation = String(data.get('occupation') ?? '').trim();
-    const ihk = String(data.get('ihk') ?? '').trim();
-    if (!name || !occupation || !ihk) {
-      return;
-    }
-    this.pendingCommitteeForm = form;
-    this.createCommittee.emit({ name, occupation, ihk });
-  }
-
   protected saveMember(event: SubmitEvent): void {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
@@ -227,16 +200,6 @@ export class CommitteeComponent {
     this.createMember.emit(payload);
   }
 
-  resetCommitteeForm(form?: HTMLFormElement): void {
-    this.clearForm(form ?? this.pendingCommitteeForm ?? this.committeeCreateForm?.nativeElement);
-    this.committeeDraft.name = '';
-    this.committeeDraft.occupation = '';
-    this.committeeDraft.ihk = '';
-    this.pendingCommitteeForm = null;
-    this.creatingCommittee.set(false);
-    this.focusButton(this.committeeCreateButton);
-  }
-
   resetMemberForm(form?: HTMLFormElement): void {
     this.clearForm(form ?? this.pendingMemberForm ?? this.memberCreateForm?.nativeElement);
     this.memberDraft.first_name = '';
@@ -251,15 +214,6 @@ export class CommitteeComponent {
     this.selectedPersonId.set(null);
     this.creatingMember.set(false);
     this.focusButton(this.memberCreateButton);
-  }
-
-  protected toggleCommitteeCreation(form?: HTMLFormElement): void {
-    if (this.creatingCommittee()) {
-      this.resetCommitteeForm(form);
-      return;
-    }
-
-    this.creatingCommittee.set(true);
   }
 
   protected toggleMemberCreation(form?: HTMLFormElement): void {

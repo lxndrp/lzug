@@ -487,8 +487,6 @@ def initialize(
             raw_connection = engine.raw_connection()
             try:
                 raw_connection.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
-                if with_seed:
-                    raw_connection.executescript(SEED_PATH.read_text(encoding="utf-8"))
                 raw_connection.commit()
             except (OSError, sqlite3.Error) as error:
                 try:
@@ -501,6 +499,22 @@ def initialize(
                 engine.dispose()
 
         _apply_migrations_unlocked(db_path, backup_dir)
+
+        if is_new_database and with_seed:
+            engine = engine_for(db_path)
+            raw_connection = engine.raw_connection()
+            try:
+                raw_connection.executescript(SEED_PATH.read_text(encoding="utf-8"))
+                raw_connection.commit()
+            except (OSError, sqlite3.Error) as error:
+                try:
+                    raw_connection.rollback()
+                except sqlite3.Error:
+                    pass
+                raise MigrationError(f"Initial seed creation failed: {error}") from error
+            finally:
+                raw_connection.close()
+                engine.dispose()
 
 
 def apply_migrations(

@@ -255,19 +255,7 @@ describe('PlanningApiService', () => {
     });
   });
 
-  it('should expose committee and member write operations', () => {
-    service
-      .createCommittee({ name: 'PA Neu', occupation: 'Fachinformatiker/in', ihk: 'IHK Teststadt' })
-      .subscribe();
-    const committee = http.expectOne('/api/committees');
-    expect(committee.request.method).toBe('POST');
-    expect(committee.request.body).toEqual({
-      name: 'PA Neu',
-      occupation: 'Fachinformatiker/in',
-      ihk: 'IHK Teststadt',
-    });
-    committee.flush(committeesFixture[0]);
-
+  it('should expose committee member write operations', () => {
     service.updateMember(1, { is_active: 0 }).subscribe();
     const member = http.expectOne('/api/members/1');
     expect(member.request.method).toBe('PATCH');

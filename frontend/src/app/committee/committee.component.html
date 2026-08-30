@@ -25,117 +25,8 @@
     <section class="app-panel">
       <header tuiHeader="body-m" class="app-panel-header">
         <strong>Ausschussübersicht</strong>
-        <div class="app-panel-header-actions">
-          <button
-            #committeeCreateButton
-            tuiButton
-            size="s"
-            type="button"
-            [appearance]="creatingCommittee() ? 'secondary' : 'primary'"
-            [attr.aria-expanded]="creatingCommittee()"
-            aria-controls="committee-create-editor"
-            (click)="toggleCommitteeCreation(committeeCreateForm)"
-          >
-            <svg
-              [cIcon]="creatingCommittee() ? icons.cancel : icons.add"
-              class="app-button-icon"
-              aria-hidden="true"
-            ></svg>
-            {{ creatingCommittee() ? 'Anlegen abbrechen' : 'Neuen Ausschuss anlegen' }}
-          </button>
-        </div>
       </header>
       <div class="app-panel-body">
-        <section
-          id="committee-create-editor"
-          class="app-context-editor"
-          aria-labelledby="committee-create-title"
-          [hidden]="!creatingCommittee()"
-        >
-          <header class="app-context-editor-header">
-            <div>
-              <strong id="committee-create-title">Ausschuss anlegen</strong>
-              <span class="app-muted app-block"
-                >Bezeichnung, zuständige IHK und Ausbildungsberuf festlegen</span
-              >
-            </div>
-            <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
-          </header>
-          <form
-            #committeeCreateForm
-            tuiForm="m"
-            class="app-form-grid"
-            (submit)="saveCommittee($event)"
-          >
-            <div class="app-field-full">
-              <tui-textfield>
-                <label tuiLabel for="committeeIhk"
-                  >Zuständige IHK <span aria-hidden="true">*</span></label
-                >
-                <input
-                  tuiInput
-                  id="committeeIhk"
-                  name="ihk"
-                  [(ngModel)]="committeeDraft.ihk"
-                  required
-                  placeholder="IHK Teststadt"
-                />
-              </tui-textfield>
-            </div>
-            <div class="app-field-full">
-              <tui-textfield>
-                <label tuiLabel for="committeeName"
-                  >Bezeichnung <span aria-hidden="true">*</span></label
-                >
-                <input
-                  tuiInput
-                  id="committeeName"
-                  name="name"
-                  [(ngModel)]="committeeDraft.name"
-                  required
-                  placeholder="Prüfungsausschuss Teststadt 1"
-                />
-              </tui-textfield>
-            </div>
-            <div class="app-field-full">
-              <tui-textfield>
-                <label tuiLabel for="committeeOccupation"
-                  >Ausbildungsberuf <span aria-hidden="true">*</span></label
-                >
-                <input
-                  tuiInput
-                  id="committeeOccupation"
-                  name="occupation"
-                  [(ngModel)]="committeeDraft.occupation"
-                  required
-                  placeholder="Fachinformatiker/in"
-                />
-              </tui-textfield>
-            </div>
-            <div class="app-field-full app-form-actions">
-              <span class="app-form-action-hint"
-                >Mitglieder können anschließend zugeordnet werden.</span
-              >
-              <div class="app-form-action-buttons">
-                <button
-                  tuiButton
-                  appearance="secondary"
-                  type="button"
-                  [disabled]="actionBusy"
-                  (click)="resetCommitteeForm(committeeCreateForm)"
-                >
-                  <svg [cIcon]="icons.cancel" class="app-button-icon" aria-hidden="true"></svg>
-                  Abbrechen
-                </button>
-                <button tuiButton appearance="primary" type="submit" [disabled]="actionBusy">
-                  <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
-                  Ausschuss anlegen
-                </button>
-              </div>
-            </div>
-          </form>
-        </section>
-
         <div class="app-list-group">
           @for (committee of masterDataView()?.committees || []; track committee.id) {
             <button
@@ -150,17 +41,7 @@
           } @empty {
             <div class="app-compact-empty">
               <strong>Keine Ausschüsse vorhanden.</strong>
-              <span>Legen Sie zuerst einen Ausschuss an, um Mitglieder zu verwalten.</span>
-              <button
-                tuiButton
-                appearance="primary"
-                size="s"
-                type="button"
-                (click)="toggleCommitteeCreation()"
-              >
-                <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
-                Jetzt Ausschuss anlegen
-              </button>
+              <span>Der technische Betreiber muss zuerst einen Ausschuss bootstrapen.</span>
             </div>
           }
         </div>
