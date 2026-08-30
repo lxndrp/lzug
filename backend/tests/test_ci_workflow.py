@@ -214,10 +214,21 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn(".runs | length == 1", self.codeql)
         self.assertIn("tool.extensions[]?.rules[]?", self.codeql)
         self.assertIn("results_count", self.codeql)
-        self.assertIn(
-            "github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3",
-            self.codeql,
-        )
+        revisions: set[str] = set()
+        for action in ("init", "analyze", "upload-sarif"):
+            with self.subTest(action=action):
+                blocks = action_blocks(self.codeql, f"github/codeql-action/{action}")
+                self.assertEqual(1, len(blocks))
+                match = re.search(
+                    rf"uses:\s*github/codeql-action/{re.escape(action)}@([^\s#]+)",
+                    blocks[0],
+                )
+                self.assertIsNotNone(match)
+                assert match is not None
+                revision = match.group(1)
+                self.assertRegex(revision, r"[0-9a-f]{40}")
+                revisions.add(revision)
+        self.assertEqual(1, len(revisions))
         self.assertNotIn('"results": []', self.codeql)
 
     def test_codeql_falls_back_to_full_analysis_for_unusable_baselines(self) -> None:
