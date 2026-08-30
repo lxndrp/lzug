@@ -99,6 +99,19 @@ describe('ConfirmedPlansComponent', () => {
     expect((fixture.nativeElement as HTMLElement).querySelectorAll('[role="tab"]')).toHaveLength(1);
   });
 
+  it('keeps the edit route read-only without the confirmed-plan capability', () => {
+    fixture.componentRef.setInput('roundId', 1);
+    fixture.componentRef.setInput('editRoundId', 1);
+    fixture.componentRef.setInput('canEdit', false);
+    fixture.detectChanges();
+    http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('app-confirmed-plan-editor')).toBeNull();
+    expect(element.textContent).toContain('Prüfling Plan-Alpha');
+  });
+
   it('renders empty and retryable error states', () => {
     fixture.detectChanges();
     http.expectOne('/api/confirmed-plans').flush({ items: [], _links: {} });

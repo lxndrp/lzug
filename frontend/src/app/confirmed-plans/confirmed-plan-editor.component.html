@@ -1,0 +1,258 @@
+@if (state() === 'loading' && !draft()) {
+  <section class="app-panel" aria-busy="true" aria-live="polite">
+    <div class="app-panel-body app-confirmed-editor-state">Bearbeitbarer Plan wird geladen …</div>
+  </section>
+} @else if (state() === 'error' && !draft()) {
+  <section class="app-panel" role="alert">
+    <div class="app-panel-body app-confirmed-editor-state">
+      <strong>Planänderungen nicht verfügbar</strong>
+      <span>{{ errorMessage() }}</span>
+      <button tuiButton appearance="secondary" type="button" (click)="load()">Erneut laden</button>
+    </div>
+  </section>
+} @else if (draft(); as current) {
+  <section class="app-panel app-confirmed-editor" aria-labelledby="confirmedPlanEditorHeading">
+    <header class="app-panel-header">
+      <div>
+        <h2 id="confirmedPlanEditorHeading">Bestätigten Plan ändern</h2>
+        <span class="app-muted app-block"
+          >Nur noch nicht begonnene Prüfungstage können angepasst werden. Stand: Revision
+          {{ current.revision }}.</span
+        >
+      </div>
+      <span tuiBadge [appearance]="dirty() ? 'warning' : 'positive'">{{
+        dirty() ? 'Ungespeicherte Änderung' : 'Aktuelle Fassung'
+      }}</span>
+    </header>
+    <div class="app-panel-body">
+      @if (errorMessage(); as message) {
+        <div
+          tuiNotification
+          [appearance]="message.startsWith('Die Änderung wurde') ? 'positive' : 'negative'"
+          [attr.role]="message.startsWith('Die Änderung wurde') ? 'status' : 'alert'"
+        >
+          {{ message }}
+        </div>
+      }
+
+      <div class="app-confirmed-editor-days">
+        @for (day of current.exam_days; track day.id) {
+          <article class="app-confirmed-editor-day" [class.is-locked]="isLocked(day)">
+            <header>
+              <div>
+                <h2>{{ dateLabel(day.date) }}</h2>
+                @if (isLocked(day)) {
+                  <p class="app-confirmed-editor-lock" role="status">
+                    Dieser Prüfungstag ist gesperrt, weil er begonnen, abgeschlossen oder
+                    anderweitig verbindlich abgeschlossen ist.
+                  </p>
+                } @else {
+                  <p class="app-muted">
+                    Änderungen werden beim Speichern nochmals fachlich geprüft.
+                  </p>
+                }
+              </div>
+              <label>
+                Prüfungsort
+                <select
+                  [disabled]="isLocked(day) || state() === 'saving'"
+                  [ngModel]="day.location_id"
+                  (ngModelChange)="updateLocation(day, $event)"
+                >
+                  @for (location of board?.locations ?? []; track location.id) {
+                    <option [ngValue]="location.id">{{ locationLabel(location.id) }}</option>
+                  }
+                </select>
+              </label>
+            </header>
+
+            <div
+              class="app-table-scroll"
+              role="region"
+              tabindex="0"
+              [attr.aria-label]="dateLabel(day.date) + ': bearbeitbare Prüfungsslots'"
+            >
+              <table class="app-confirmed-editor-slots">
+                <thead>
+                  <tr>
+                    <th>Reihenfolge</th>
+                    <th>Prüfling</th>
+                    <th>Art</th>
+                    <th><span class="app-visually-hidden">Reihenfolge ändern</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (slot of day.slots; track slot.id; let index = $index) {
+                    <tr>
+                      <td>{{ slot.sequence_number }}</td>
+                      <td>
+                        <select
+                          [attr.aria-label]="'Prüfling für Termin ' + slot.sequence_number"
+                          [disabled]="isLocked(day) || state() === 'saving'"
+                          [ngModel]="slot.round_candidate_id"
+                          (ngModelChange)="updateSlot(day, slot, { round_candidate_id: $event })"
+                        >
+                          @for (
+                            candidate of board?.candidates ?? [];
+                            track candidate.roundCandidate?.id
+                          ) {
+                            @if (candidate.roundCandidate; as roundCandidate) {
+                              <option [ngValue]="roundCandidate.id">
+                                {{ candidateLabel(roundCandidate.id) }}
+                              </option>
+                            }
+                          }
+                        </select>
+                      </td>
+                      <td>
+                        <select
+                          aria-label="Prüfungsart"
+                          [disabled]="isLocked(day) || state() === 'saving'"
+                          [ngModel]="slot.slot_type"
+                          (ngModelChange)="updateSlot(day, slot, { slot_type: $event })"
+                        >
+                          <option value="regular">Regulär</option>
+                          <option value="mep">MEP</option>
+                        </select>
+                      </td>
+                      <td class="app-confirmed-editor-row-actions">
+                        <button
+                          tuiButton
+                          appearance="secondary"
+                          type="button"
+                          [disabled]="isLocked(day) || state() === 'saving' || index === 0"
+                          [attr.aria-label]="
+                            'Termin ' + slot.sequence_number + ' nach oben verschieben'
+                          "
+                          (click)="moveSlot(day, index, -1)"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          tuiButton
+                          appearance="secondary"
+                          type="button"
+                          [disabled]="
+                            isLocked(day) || state() === 'saving' || index === day.slots.length - 1
+                          "
+                          [attr.aria-label]="
+                            'Termin ' + slot.sequence_number + ' nach unten verschieben'
+                          "
+                          (click)="moveSlot(day, index, 1)"
+                        >
+                          ↓
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            <fieldset [disabled]="isLocked(day) || state() === 'saving'">
+              <legend>Prüfer- und Fallback-Besetzung</legend>
+              <div class="app-confirmed-editor-assignments">
+                @for (assignment of day.assignments; track assignment.id) {
+                  <div>
+                    <select
+                      aria-label="Mitglied der Besetzung"
+                      [ngModel]="assignment.committee_member_id"
+                      (ngModelChange)="
+                        updateAssignment(day, assignment, { committee_member_id: $event })
+                      "
+                    >
+                      @for (member of board?.members ?? []; track member.id) {
+                        <option [ngValue]="member.id">{{ memberLabel(member.id) }}</option>
+                      }
+                    </select>
+                    <select
+                      aria-label="Rolle der Besetzung"
+                      [ngModel]="assignment.assignment_role"
+                      (ngModelChange)="
+                        updateAssignment(day, assignment, { assignment_role: $event })
+                      "
+                    >
+                      <option value="examiner">Prüfer/in</option>
+                      <option value="fallback">Fallback</option>
+                    </select>
+                    <select
+                      aria-label="Tageshälfte der Besetzung"
+                      [ngModel]="assignment.day_part"
+                      (ngModelChange)="updateAssignment(day, assignment, { day_part: $event })"
+                    >
+                      <option value="morning">Vormittag</option>
+                      <option value="afternoon">Nachmittag</option>
+                      <option value="full_day">Ganztägig</option>
+                    </select>
+                  </div>
+                }
+              </div>
+            </fieldset>
+          </article>
+        }
+      </div>
+
+      <div class="app-confirmed-editor-reason">
+        <label for="confirmedPlanChangeReason"
+          >Änderungsgrund <span aria-hidden="true">*</span></label
+        >
+        <textarea
+          id="confirmedPlanChangeReason"
+          rows="3"
+          required
+          [disabled]="state() === 'saving'"
+          [ngModel]="reason()"
+          (ngModelChange)="reason.set($event)"
+          aria-describedby="confirmedPlanChangeReasonHint"
+        ></textarea>
+        <small id="confirmedPlanChangeReasonHint"
+          >Der Grund wird unveränderlich mit der entstandenen Revision dokumentiert.</small
+        >
+      </div>
+      <div class="app-form-actions">
+        <span class="app-form-action-hint"
+          >Bei einem Konflikt wird die aktuelle Fassung neu geladen. Fremde Änderungen werden nicht
+          überschrieben.</span
+        >
+        <div class="app-inline-actions">
+          <button
+            tuiButton
+            appearance="secondary"
+            type="button"
+            [disabled]="state() === 'saving'"
+            (click)="load()"
+          >
+            Aktuelle Fassung laden
+          </button>
+          <button
+            tuiButton
+            appearance="primary"
+            type="button"
+            [disabled]="!canSave()"
+            (click)="save()"
+          >
+            {{
+              state() === 'saving' ? 'Änderung wird gespeichert …' : 'Änderung mit Grund speichern'
+            }}
+          </button>
+        </div>
+      </div>
+
+      <details class="app-confirmed-editor-history">
+        <summary>Entstandene Revisionen ({{ revisions().length }})</summary>
+        @if (revisions().length) {
+          <ol>
+            @for (revision of revisions(); track revision.id) {
+              <li>
+                <strong>{{ revisionLabel(revision) }}</strong
+                ><span>{{ revision.reason }}</span>
+              </li>
+            }
+          </ol>
+        } @else {
+          <p>Noch keine Planänderung dokumentiert.</p>
+        }
+      </details>
+    </div>
+  </section>
+}

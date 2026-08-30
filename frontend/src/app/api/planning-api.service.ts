@@ -11,6 +11,7 @@ import {
   CandidateCommitteeAssignment,
   CandidateDayGenerationResult,
   ConfirmedPlan,
+  ConfirmedPlanRevision,
   ConfirmedPlanDayView,
   ExamDayClosure,
   ExamDayReopeningImpact,
@@ -104,6 +105,21 @@ export class PlanningApiService {
 
   getConfirmedPlans() {
     return this.list<ConfirmedPlan>('/api/confirmed-plans');
+  }
+
+  getEditableConfirmedPlan(roundId = this.roundId) {
+    return this.http.get<EditablePlanningProposal>(`/api/exam-rounds/${roundId}/confirmed-plan`);
+  }
+
+  saveEditableConfirmedPlan(roundId: number, proposal: EditablePlanningProposal, reason: string) {
+    return this.http.put<EditablePlanningProposal>(`/api/exam-rounds/${roundId}/confirmed-plan`, {
+      ...proposal,
+      reason: reason.trim(),
+    });
+  }
+
+  getConfirmedPlanRevisions(roundId = this.roundId) {
+    return this.list<ConfirmedPlanRevision>(`/api/exam-rounds/${roundId}/confirmed-plan/revisions`);
   }
 
   getConfirmedPlanDay(dayId: number) {

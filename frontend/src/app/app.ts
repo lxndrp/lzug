@@ -131,6 +131,7 @@ export class App {
   protected readonly actionBusy = signal(false);
   protected readonly contextualRoundId = signal<number | null>(null);
   protected readonly contextualDayId = signal<number | null>(null);
+  protected readonly confirmedPlanEditRoundId = signal<number | null>(null);
   protected readonly applicationVersion = signal<string | null>(null);
   protected readonly feedback = signal<{
     type: 'success' | 'error';
@@ -155,6 +156,9 @@ export class App {
     this.hasCapability('attendance:write-own'),
   );
   protected readonly canReportOwnAbsence = computed(() => this.hasCapability('absence:write-own'));
+  protected readonly canEditConfirmedPlan = computed(() =>
+    this.hasCapability('confirmed-plan:revise'),
+  );
   protected readonly canGenerateCandidateDays = computed(
     () =>
       this.hasCapability('planning-settings:write') &&
@@ -1030,6 +1034,7 @@ export class App {
     const roundId = this.roundIdFromUrl(url);
     this.contextualRoundId.set(roundId);
     this.contextualDayId.set(this.dayIdFromUrl(url));
+    this.confirmedPlanEditRoundId.set(this.confirmedPlanEditIdFromUrl(url));
     if (roundId === null || roundId === this.roundContext.roundId()) {
       return;
     }
@@ -1055,6 +1060,13 @@ export class App {
     const segments = this.urlSegments(url);
     if (segments[0] !== 'confirmed-plans' || segments[2] !== 'days') return null;
     const id = Number(segments[3]);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  }
+
+  private confirmedPlanEditIdFromUrl(url: string): number | null {
+    const segments = this.urlSegments(url);
+    if (segments[0] !== 'confirmed-plans' || segments[2] !== 'edit') return null;
+    const id = Number(segments[1]);
     return Number.isInteger(id) && id > 0 ? id : null;
   }
 
