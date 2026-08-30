@@ -16,9 +16,15 @@ func TestMain(m *testing.M) {
 			_ = os.WriteFile(argsPath, []byte(strings.Join(os.Args[1:], "\x00")), 0o600)
 		}
 		input, _ := io.ReadAll(os.Stdin)
-		_, _ = os.Stdout.Write(input)
+		exitCode := 23
+		if os.Getenv("LZUG_CLI_SAFE_RESPONSE") == "1" {
+			_, _ = os.Stdout.WriteString(`{"version":1,"ok":false,"error":{"class":"recipient_key_mismatch","message":"Recipient key does not match"}}` + "\n")
+			exitCode = 27
+		} else {
+			_, _ = os.Stdout.Write(input)
+		}
 		_, _ = os.Stderr.WriteString("engine diagnostic")
-		os.Exit(23)
+		os.Exit(exitCode)
 	}
 	os.Exit(m.Run())
 }
@@ -129,6 +135,90 @@ func TestDiagnosticCommandsRejectAllUserOptions(t *testing.T) {
 			strings.NewReader(""),
 		); err == nil {
 			t.Fatalf("%s accepted an unrelated option", command)
+		}
+	}
+}
+
+func TestArtifactCommandsUseOnlyTheVersionedBackendContract(t *testing.T) {
+	privateKey := "private-key-marker"
+	var verifyPayload string
+	for _, engine := range []string{"docker", "podman"} {
+		opts, err := parseOptions(
+			[]string{
+				"--engine", engine, "--container", "lzug", "artifact-verify",
+				"--artifact", "backup-contract.lzug",
+			},
+			strings.NewReader(privateKey),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload, err := protocolPayload(opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if verifyPayload == "" {
+			verifyPayload = string(payload)
+		} else if string(payload) != verifyPayload {
+			t.Fatalf("container engines produced different requests: %q != %q", payload, verifyPayload)
+		}
+	}
+	expectedVerify := `{"version":1,"command":"artifact-verify","arguments":{"artifact":"backup-contract.lzug","recipient_private_key":"private-key-marker"}}` + "\n"
+	if verifyPayload != expectedVerify {
+		t.Fatalf("unexpected verification request %q", verifyPayload)
+	}
+
+	restore, err := parseOptions(
+		[]string{
+			"--container", "lzug", "backup-restore", "--artifact", "backup-contract.lzug",
+			"--replace",
+		},
+		strings.NewReader(privateKey+"\n"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restore.arguments["replace"] != true || restore.arguments["recipient_private_key"] != privateKey {
+		t.Fatalf("unexpected restore request: %#v", restore)
+	}
+
+	export, err := parseOptions(
+		[]string{
+			"--container", "lzug", "full-export", "--recipient-public-key", "public-key-marker",
+		},
+		strings.NewReader(""),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if export.arguments["recipient_public_key"] != "public-key-marker" || len(export.arguments) != 1 {
+		t.Fatalf("unexpected full export request: %#v", export)
+	}
+
+	backup, err := parseOptions(
+		[]string{"--container", "lzug", "backup-create"}, strings.NewReader(""),
+	)
+	if err != nil || len(backup.arguments) != 0 {
+		t.Fatalf("unexpected backup request: %#v, %v", backup, err)
+	}
+}
+
+func TestArtifactCommandsFailClosedBeforeContainerInvocation(t *testing.T) {
+	invalid := []struct {
+		args  []string
+		input string
+	}{
+		{[]string{"--container", "lzug", "artifact-verify", "--artifact", "backup.lzug"}, ""},
+		{[]string{"--container", "lzug", "artifact-verify", "--artifact", "backup.lzug", "--replace"}, "private"},
+		{[]string{"--container", "lzug", "backup-restore"}, "private"},
+		{[]string{"--container", "lzug", "backup-restore", "--artifact", "backup.lzug"}, "private\nkey"},
+		{[]string{"--container", "lzug", "full-export"}, ""},
+		{[]string{"--container", "lzug", "backup-create", "--replace"}, ""},
+		{[]string{"--container", "lzug", "status", "--artifact", "backup.lzug"}, ""},
+	}
+	for _, test := range invalid {
+		if _, err := parseOptions(test.args, strings.NewReader(test.input)); err == nil {
+			t.Fatalf("invalid artifact command was accepted: %q", test.args)
 		}
 	}
 }
@@ -311,5 +401,56 @@ func TestTransportPreservesJSONStreamsAndRemoteExitCode(t *testing.T) {
 				t.Fatalf("unexpected engine argv: %q", got)
 			}
 		}
+	}
+}
+
+func TestPrivateRecipientKeyUsesStdinAndNeverEngineArgv(t *testing.T) {
+	privateKey := "private-key-marker"
+	opts, err := parseOptions(
+		[]string{
+			"--container", "lzug", "artifact-verify", "--artifact", "backup-contract.lzug",
+		},
+		strings.NewReader(privateKey),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := protocolPayload(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	argsFile := filepath.Join(t.TempDir(), "args")
+	t.Setenv("LZUG_CLI_HELPER", "1")
+	t.Setenv("LZUG_CLI_ARGS_FILE", argsFile)
+	t.Setenv("LZUG_CLI_SAFE_RESPONSE", "1")
+	var stdout, stderr strings.Builder
+	code, err := (runner{engine: os.Args[0], container: "lzug"}).execute(
+		context.Background(), payload, &stdout, &stderr,
+	)
+	if err != nil {
+		t.Fatalf("execute returned an infrastructure error: %v", err)
+	}
+	if code != 27 {
+		t.Fatalf("expected remote exit code 27, got %d", code)
+	}
+	engineArgs, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(engineArgs), privateKey) || strings.Contains(stdout.String(), privateKey) || strings.Contains(stderr.String(), privateKey) {
+		t.Fatal("private recipient key escaped the stdin protocol channel")
+	}
+	if !strings.Contains(string(payload), privateKey) {
+		t.Fatal("private recipient key was not passed to the backend stdin protocol")
+	}
+	if _, err := parseOptions(
+		[]string{
+			"--container", "lzug", "artifact-verify", "--artifact", "backup-contract.lzug",
+			"--recipient-private-key", privateKey,
+		},
+		strings.NewReader(""),
+	); err == nil {
+		t.Fatal("private recipient key was accepted on argv")
 	}
 }

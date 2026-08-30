@@ -150,6 +150,13 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 	memberID := commandSet.Int("member-id", 0, "committee member id")
 	revisionID := commandSet.Int("revision-id", 0, "confirmed plan revision id")
 	channel := commandSet.String("channel", "", "notification channel")
+	artifact := commandSet.String("artifact", "", "protected artifact name")
+	recipientPublicKey := commandSet.String(
+		"recipient-public-key", "", "public recipient key for a protected full export",
+	)
+	replace := commandSet.Bool(
+		"replace", false, "explicitly replace a non-empty installation during restore",
+	)
 	idempotencyKey := commandSet.String("idempotency-key", "", "unique retry key")
 	committeeID := commandSet.Int("committee-id", 0, "committee id")
 	committeeName := commandSet.String("name", "", "committee name")
@@ -203,7 +210,36 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 		strings.TrimSpace(*deputyRepresentingSide) != ""
 	commonAdminFlagsUsed := strings.TrimSpace(*email) != "" || *accountID != 0 ||
 		*memberID != 0 || *revisionID != 0 || strings.TrimSpace(*channel) != ""
+	artifactFlagsUsed := strings.TrimSpace(*artifact) != "" ||
+		strings.TrimSpace(*recipientPublicKey) != "" || *replace
+	if !isArtifactCommand(command) && artifactFlagsUsed {
+		return options{}, fmt.Errorf("%s accepts no artifact options", command)
+	}
 	switch command {
+	case "backup-create":
+		if commonAdminFlagsUsed || committeeAdminFlagsUsed || artifactFlagsUsed {
+			return options{}, fmt.Errorf("backup-create accepts no options")
+		}
+	case "full-export":
+		if commonAdminFlagsUsed || committeeAdminFlagsUsed || strings.TrimSpace(*recipientPublicKey) == "" ||
+			strings.TrimSpace(*artifact) != "" || *replace {
+			return options{}, fmt.Errorf("full-export requires --recipient-public-key")
+		}
+		arguments["recipient_public_key"] = *recipientPublicKey
+	case "artifact-verify", "backup-restore":
+		if commonAdminFlagsUsed || committeeAdminFlagsUsed || strings.TrimSpace(*artifact) == "" ||
+			strings.TrimSpace(*recipientPublicKey) != "" || (command == "artifact-verify" && *replace) {
+			return options{}, fmt.Errorf("%s requires --artifact and a private recipient key on stdin", command)
+		}
+		privateKey, err := readSecretInput(input, "private recipient key")
+		if err != nil {
+			return options{}, err
+		}
+		arguments["artifact"] = *artifact
+		arguments["recipient_private_key"] = privateKey
+		if command == "backup-restore" {
+			arguments["replace"] = *replace
+		}
 	case "config", "doctor", "status":
 		if commonAdminFlagsUsed || committeeAdminFlagsUsed {
 			return options{}, fmt.Errorf("%s accepts no options", command)
@@ -234,13 +270,9 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 		if *email != "" || *accountID != 0 || *memberID != 0 || *revisionID != 0 || *channel != "" || committeeAdminFlagsUsed {
 			return options{}, fmt.Errorf("%s reads its token from stdin", command)
 		}
-		token, err := io.ReadAll(io.LimitReader(input, maxTokenInput+1))
-		if err != nil || len(token) > maxTokenInput {
-			return options{}, fmt.Errorf("token input is too large")
-		}
-		secret := strings.TrimSpace(string(token))
-		if secret == "" || strings.ContainsAny(secret, "\r\n") {
-			return options{}, fmt.Errorf("token input is required")
+		secret, err := readSecretInput(input, "token")
+		if err != nil {
+			return options{}, err
 		}
 		arguments["token"] = secret
 	case "process-notifications":
@@ -326,6 +358,27 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 	}
 
 	return options{engine: *engine, container: *container, command: command, arguments: arguments}, nil
+}
+
+func isArtifactCommand(command string) bool {
+	switch command {
+	case "backup-create", "artifact-verify", "backup-restore", "full-export":
+		return true
+	default:
+		return false
+	}
+}
+
+func readSecretInput(input io.Reader, description string) (string, error) {
+	value, err := io.ReadAll(io.LimitReader(input, maxTokenInput+1))
+	if err != nil || len(value) > maxTokenInput {
+		return "", fmt.Errorf("%s input is too large", description)
+	}
+	secret := strings.TrimSpace(string(value))
+	if secret == "" || strings.ContainsAny(secret, "\r\n") {
+		return "", fmt.Errorf("%s input is required", description)
+	}
+	return secret, nil
 }
 
 func committeePersonFlagsUsed(values ...string) bool {
