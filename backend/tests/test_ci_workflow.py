@@ -220,9 +220,47 @@ class QualityWorkflowContractTests(unittest.TestCase):
         )
         self.assertNotIn('"results": []', self.codeql)
 
+    def test_codeql_falls_back_to_full_analysis_for_unusable_baselines(self) -> None:
+        analyze = job_block(self.codeql, "analyze")
+        unchanged = job_block(self.codeql, "unchanged")
+
+        self.assertIn("needs: unchanged", analyze)
+        self.assertIn(
+            "fallback_languages: ${{ steps.baselines.outputs.fallback_languages }}",
+            unchanged,
+        )
+        condition = (
+            "if: contains(fromJSON(inputs.languages), matrix.language) || "
+            "contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)"
+        )
+        self.assertEqual(3, analyze.count(condition))
+        self.assertIn(
+            'language: ${{ fromJSON(\'["python","javascript-typescript","go"]\') }}',
+            analyze,
+        )
+        self.assertIn("fallback='[]'", unchanged)
+        self.assertIn("fallback_languages=$fallback", unchanged)
+        self.assertIn(
+            "No usable CodeQL baseline for $language; scheduling a full analysis.",
+            unchanged,
+        )
+        self.assertIn(
+            "CodeQL baseline lookup unavailable; scheduling full analyses for unchanged languages.",
+            unchanged,
+        )
+        self.assertIn(
+            "Unusable CodeQL SARIF baseline for $language; scheduling a full analysis.",
+            unchanged,
+        )
+        self.assertIn("continue", unchanged)
+        self.assertNotIn(
+            'error("missing successful CodeQL baseline for " + $language)',
+            unchanged,
+        )
+
     def test_pull_request_codeql_matrix_uses_selected_languages(self) -> None:
         self.assertIn(
-            "language: ${{ fromJSON(inputs.languages) }}",
+            'language: ${{ fromJSON(\'["python","javascript-typescript","go"]\') }}',
             self.codeql,
         )
         self.assertIn(
