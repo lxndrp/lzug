@@ -9,10 +9,82 @@ Versionen folgen [Semantic Versioning](https://semver.org/lang/de/).
 Bei einer Release-Vorbereitung verschiebt ein Maintainer die freizugebenden Einträge in genau einen Abschnitt `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`.
 Der Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Notes und veröffentlicht nur aus dem nach der Environment-Freigabe erzeugten, annotierten SemVer-Tag.
 
+## [0.5.0] - 2026-08-30
+
 ### Added
 
-- Bestätigte Planänderungen leiten zusammengefasste interne Benachrichtigungen und persönliche Kalenderfolgen revisionsbezogen, idempotent und nachgelagert ab.
-  Stabile Ereignisidentitäten, Revisionsvorrang, getrennte Fehlerzustände sowie kontrollierte fachliche und technische Wiederanläufe verhindern Dubletten und den Rückfall auf ältere Planstände.
+- Bestätigte Pläne können durch Vorsitz und Stellvertretung kontrolliert als
+  vollständiges Aggregat geändert werden.
+  Unveränderliche Vorher- und Nachher-Snapshots, Revisionsprüfung, Auditspur,
+  fachliche Validierung und Konflikterkennung schützen bereits gestartete oder
+  abgeschlossene Planungsteile und machen Änderungen nachvollziehbar.
+- Änderungen bestätigter Pläne leiten nach dem erfolgreichen Commit
+  zusammengefasste interne Benachrichtigungen und persönliche Kalenderfolgen
+  revisionsbezogen, idempotent und wiederholbar ab.
+  Stabile Ereignisidentitäten, getrennte Fehlerzustände und der Vorrang neuerer
+  Revisionen verhindern Dubletten und den Rückfall auf ältere Planstände.
+- Ein ausschließlich administrativer, atomarer Ausschuss-Bootstrap richtet den
+  Ausschuss mit initialem Vorsitz und auditierbarem Nachweis ein.
+  Der Workflow ist fehlgeschützt, über die Betreiber-CLI erreichbar und ersetzt
+  die allgemeine Erstellung im Produkt durch den vorgesehenen Verwaltungsweg.
+- Ausschussbezogene Prüfungsrunden unterstützen Eröffnung, Abschluss, Absage und
+  gezielte Wiederöffnung mit revisionsgebundener Historie, Sperrwirkung,
+  Nachfassaufgaben und menschen- sowie maschinenlesbaren Exporten.
+  Terminale Prüflingsstatus und nachträgliche förmliche IHK-Statusangaben werden
+  dabei getrennt und nachvollziehbar geführt.
+
+### Changed
+
+- Die Oberfläche und die REST-/OpenAPI-Verträge bilden den kontrollierten
+  Planänderungs- und Prüfungsrundenprozess einschließlich Rollen-, Revisions-,
+  Validierungs- und Konfliktverhalten ab.
+  Route-Paritätstests berücksichtigen auch `PUT`-Operationen und vergleichen
+  Pfade unabhängig von lokalen Platzhalternamen.
+- Architekturentscheidungen und öffentliche Einstiegspunkte wurden auf die
+  kanonische Dokumentationsstruktur sowie das aktuelle Release- und
+  Entwicklungsmodell konsolidiert.
+- Die CodeQL-Verträge fallen bei fehlenden Baselines für unveränderte Sprachen
+  auf eine vollständige Analyse zurück.
+  Workflowtests prüfen die fachlichen Invarianten der Analyse und der weiterhin
+  vollständig gepinnten Action-Revisionen.
+- Abhängigkeiten und CI-Werkzeuge wurden kontrolliert aktualisiert und für
+  gekoppelte Änderungen gruppiert, darunter Angular `22.1.4`, Taiga UI `5.21.0`,
+  TypeScript ESLint `8.68.0`, `@axe-core/playwright` `4.13.0`,
+  `jdx/mise-action` `4.3.0` sowie die CodeQL- und Azure-Login-Actions.
+
+### Security
+
+- Planänderungen, Ausschuss-Bootstrap, Prüfungsrundenentscheidungen und Exporte
+  bleiben an die zuständigen Ausschussrollen und aktuelle Revisionen gebunden.
+  Betreiberkonten erhalten keinen fachlichen Zugriff; generische Schreibpfade
+  für geschützte Planbestandteile bleiben gesperrt.
+- Auditierbare Snapshots, Sperrwirkung, terminale Statusführung und getrennte
+  Folgenzustände bewahren die Nachvollziehbarkeit auch bei Konflikten,
+  Wiederanläufen, Absagen und nachträglichen Statusangaben.
+- Die selektive CodeQL-Auswertung behandelt fehlende Baselines nicht als leeren
+  Erfolgspfad, und die Workflow-Referenzen bleiben vollständig an unveränderliche
+  40-stellige Revisionen gebunden.
+
+### Scope and compatibility
+
+- Der für `v0.5.0` vorbereitete Umfang ist seit `v0.4.0` kompatibel und umfasst
+  den zusammenhängenden Prozess für kontrollierte Änderungen bestätigter Pläne,
+  deren Benachrichtigungs- und Kalenderfolgen, den administrativen
+  Ausschuss-Bootstrap sowie den Lebenszyklus ausschussbezogener Prüfungsrunden
+  einschließlich der dafür gemergten API-, Dokumentations-, CI- und
+  Abhängigkeitsstabilisierungen.
+- Dieser Vorbereitungseintrag beansprucht weder den Produkt-Tag noch einen
+  veröffentlichten GitHub Release, neue GHCR- oder CLI-Artefakte,
+  Attestations, eine öffentliche Demo-Promotion oder eine externe
+  Environment-Freigabe.
+  Diese Schritte entstehen erst nach separatem Maintainer-GO und erfolgreichem
+  Release-Preflight auf dem aktuellen `master`.
+- Ein globaler fachlicher Prüfungshalbjahresabschluss ist nicht Teil des
+  Modells; fachlich abgeschlossen wird ausschließlich die
+  ausschussbezogene Prüfungsrunde.
+  Spätere betriebliche Themen wie allgemeines Upgrade, Backup, Restore,
+  Produkt-Rollback und produktive Self-Hosting-Reife bleiben außerhalb dieses
+  Releaseumfangs und sind für spätere Milestones vorgesehen.
 
 ## [0.4.0] - 2026-08-29
 
@@ -79,10 +151,10 @@ Der Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Not
   Attestations, eine öffentliche Demo-Promotion oder eine erneute externe
   Environment-Freigabe.
   Diese Schritte entstehen erst nach separatem Maintainer-GO.
-- Änderungen an bestätigten Plänen, der Abschluss von Prüfungshalbjahren sowie
-  allgemeines Upgrade, Backup, Restore, Produkt-Rollback und produktive
-  Self-Hosting-Reife bleiben außerhalb dieses Releaseumfangs und sind für
-  spätere Milestones vorgesehen.
+- Änderungen an bestätigten Plänen, der ausschussbezogene Abschluss von
+  Prüfungsrunden sowie allgemeines Upgrade, Backup, Restore, Produkt-Rollback
+  und produktive Self-Hosting-Reife bleiben außerhalb dieses Releaseumfangs
+  und sind für spätere Milestones vorgesehen.
 
 ## [0.3.0] - 2026-08-28
 
