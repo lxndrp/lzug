@@ -469,17 +469,18 @@ class OpenApiContractTests(unittest.TestCase):
                 )
             ).openapi()
         documented = {
-            (method.upper(), path)
+            (method.upper(), _route_shape(path))
             for path, item in documented_spec["paths"].items()
             for method in item
             if method in {"get", "post", "put", "patch", "delete"}
         }
-        self.assertSetEqual(set(operations) - documented, set())
+        requested = {(method, _route_shape(path)) for method, path in operations}
+        self.assertSetEqual(requested - documented, set())
 
 
 def _angular_operations(source: str) -> list[tuple[str, str]]:
     direct_calls = re.findall(
-        r"this\.http\.(get|post|patch|delete)<[^>]+>\(\s*([`'])(/api/.*?)\2",
+        r"this\.http\.(get|post|put|patch|delete)<[^>]+>\(\s*([`'])(/api/.*?)\2",
         source,
         flags=re.DOTALL,
     )
@@ -513,3 +514,8 @@ def _client_path(path: str) -> str:
         path,
     )
     return normalized.partition("?")[0]
+
+
+def _route_shape(path: str) -> str:
+    """Compare URL templates without coupling client variables to OpenAPI names."""
+    return re.sub(r"\{[^}]+\}", "{}", path)
