@@ -11,7 +11,7 @@ Der eindeutige Schlüssel aus Empfänger, Ereignistyp und `origin_key` verhinder
 Erinnerungen gehen nur an Mitglieder mit mindestens einer offenen Rückmeldung; bei Fristüberschreitung kommen Vorsitz und Stellvertretung hinzu.
 Planbestätigungen verwenden ausschließlich die tatsächlich bestätigten Prüfer- und Fallback-Zuordnungen.
 
-`lzug-admin process-notifications` verarbeitet fällige Erinnerungs- und Fristereignisse sowie technische Wiederholungen.
+`lzug-admin process-notifications` verarbeitet fällige Erinnerungs- und Fristereignisse, technische Zustellwiederholungen sowie fällige Folgen bestätigter Planänderungen.
 Pro Lauf werden höchstens 20 fällige Zustellungen verarbeitet.
 Jeder einzelne Auftrag wird atomar mit einem zufälligen Claim-Token für zwei Minuten beansprucht, bevor der nächste Auftrag des begrenzten Laufs ausgewählt wird.
 Auswahl und Claim erfolgen gemeinsam in einer kurzen SQLite-Schreibtransaktion; die dafür benötigten, datensparsamen Kanalparameter werden noch in dieser Transaktion gelesen.
@@ -62,3 +62,5 @@ Vorsitz und Stellvertretung erhalten über `GET /api/notification-overview` die 
 Betreiber-Kommandos geben ebenfalls nur Status, Versuchszahl und Diagnosecode aus.
 Die technische Übersicht ergänzt ohne Nachrichteninhalt den Claim-Zustand `idle`, `active` oder `expired` sowie Claim- und Ablaufzeitpunkt; der schreibberechtigende Claim-Token wird nicht ausgegeben.
 Betreiberrechte erzeugen keine fachlichen Ausschussrechte.
+
+Die fachliche Ableitung zusammengefasster Hinweise aus bestätigten Planrevisionen und das Überholen noch unversuchter Zwischenstände beschreibt der [Planänderungs-Folgenvertrag](plan-change-consequences.md).

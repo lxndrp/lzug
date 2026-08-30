@@ -17,6 +17,7 @@ from .admin_service import AdminOperationError, OperatorAuthService
 from .committee_admin import CommitteeAdminService
 from .database import MigrationError, database_path, database_readiness
 from .notifications import NotificationService
+from .plan_consequences import PlanConsequenceService
 
 PROTOCOL_VERSION = 1
 MAX_REQUEST_BYTES = 64 * 1024
@@ -87,11 +88,19 @@ def _account_id(arguments: Mapping[str, Any]) -> int:
     return value
 
 
+def _positive_id(arguments: Mapping[str, Any], name: str) -> int:
+    value = arguments.get(name)
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise AdminOperationError("invalid_request", f"Argument {name} must be positive")
+    return value
+
+
 def _execute(
     request: Mapping[str, Any],
     service: OperatorAuthService,
     notifications: NotificationService | None = None,
     committee_service: CommitteeAdminService | None = None,
+    consequences: PlanConsequenceService | None = None,
 ) -> dict[str, Any]:
     if request.get("version") != PROTOCOL_VERSION:
         raise AdminOperationError("invalid_request", "Unsupported protocol version")
@@ -110,6 +119,8 @@ def _execute(
         "committee-reinvite",
         "committee-deactivate",
         "committee-reactivate",
+        "plan-consequences-status",
+        "retry-plan-consequences",
     }:
         raise AdminOperationError("invalid_request", "Unsupported admin command")
     arguments = _require_mapping(request.get("arguments", {}), "Arguments must be an object")
@@ -127,7 +138,20 @@ def _execute(
         return active_committee_service.reactivate(arguments)
 
     if command == "process-notifications":
-        return (notifications or NotificationService(service.db_path)).process_due_events()
+        active_notifications = notifications or NotificationService(service.db_path)
+        result = active_notifications.process_due_events()
+        consequence_result = (
+            consequences or PlanConsequenceService(service.db_path, active_notifications)
+        ).process_due()
+        return {**result, "plan_consequences": consequence_result}
+    if command == "retry-plan-consequences":
+        revision_id = _positive_id(arguments, "revision_id")
+        return (consequences or PlanConsequenceService(service.db_path)).retry_revision(revision_id)
+    if command == "plan-consequences-status":
+        revision_id = _positive_id(arguments, "revision_id")
+        return (consequences or PlanConsequenceService(service.db_path)).operator_status(
+            revision_id
+        )
     if command == "test-notification":
         channel = _require_string(arguments, "channel")
         if channel not in {"web_push", "email"}:
@@ -184,6 +208,7 @@ def run(
     service: OperatorAuthService | None = None,
     notifications: NotificationService | None = None,
     committee_service: CommitteeAdminService | None = None,
+    consequences: PlanConsequenceService | None = None,
 ) -> int:
     """Process exactly one protocol request and return its stable exit code."""
     if len(payload) > MAX_REQUEST_BYTES:
@@ -203,7 +228,13 @@ def run(
             if not readiness["ready"]:
                 return _error("database_not_ready", "Database is not ready")
             active_service = OperatorAuthService(database_path())
-        result = _execute(request, active_service, notifications, committee_service)
+        result = _execute(
+            request,
+            active_service,
+            notifications,
+            committee_service,
+            consequences,
+        )
         _write(_response(ok=True, result=result))
         return EXIT_OK
     except AdminOperationError as error:

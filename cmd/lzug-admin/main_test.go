@@ -85,6 +85,18 @@ func TestNotificationCommandsUseExplicitSafeArguments(t *testing.T) {
 	if err != nil || process.command != "process-notifications" || len(process.arguments) != 0 {
 		t.Fatalf("unexpected process notification request: %#v, %v", process, err)
 	}
+	retry, err := parseOptions(
+		[]string{"--container", "lzug", "retry-plan-consequences", "--revision-id", "17"}, strings.NewReader(""),
+	)
+	if err != nil || retry.command != "retry-plan-consequences" || retry.arguments["revision_id"] != 17 {
+		t.Fatalf("unexpected consequence retry request: %#v, %v", retry, err)
+	}
+	status, err := parseOptions(
+		[]string{"--container", "lzug", "plan-consequences-status", "--revision-id", "17"}, strings.NewReader(""),
+	)
+	if err != nil || status.command != "plan-consequences-status" || status.arguments["revision_id"] != 17 {
+		t.Fatalf("unexpected consequence status request: %#v, %v", status, err)
+	}
 	if _, err := parseOptions(
 		[]string{"--container", "lzug", "test-notification", "--member-id", "7", "--channel", "sms"},
 		strings.NewReader(""),

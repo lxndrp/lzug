@@ -14,6 +14,10 @@ Diese Referenz entsteht beim Dokumentationsbuild aus Google-Style-Docstrings. Si
 
 ::: backend.notifications
 
+## Folgen bestätigter Planänderungen
+
+::: backend.plan_consequences
+
 ## Repository und Persistenz
 
 ::: backend.repositories

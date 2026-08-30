@@ -1372,14 +1372,31 @@ def create_app(
             confirmed_plan_change_from_payload(round_id, context.read_json()),
             actor_member_id=actor_member_id,
         )
+        try:
+            consequence_status = context.plan_consequence_service.process_revision(revision["id"])
+        except Exception:
+            emit_event("backend_error", severity="error", category="plan_consequence_processing")
+            consequence_status = {
+                "revision_id": revision["id"],
+                "derivation_status": "missing",
+                "processed": 0,
+                "problems": 1,
+                "pending": 0,
+                "superseded": 0,
+            }
+        response = hateoas.editable_confirmed_plan(
+            context.planning_service.confirmed_plan_payload(saved),
+            latest_revision=revision,
+        )
+        response["consequence_status"] = consequence_status
+        if consequence_status["problems"] or consequence_status["derivation_status"] != "succeeded":
+            response["consequence_warning"] = (
+                "Die Planänderung wurde bestätigt, aber mindestens eine Benachrichtigungs- "
+                "oder Kalenderfolge konnte nicht vollständig verarbeitet werden."
+            )
         return _finish(
             context,
-            context.respond(
-                hateoas.editable_confirmed_plan(
-                    context.planning_service.confirmed_plan_payload(saved),
-                    latest_revision=revision,
-                )
-            ),
+            context.respond(response),
         )
 
     @app.get("/api/exam-rounds/{id}/confirmed-plan/revisions", openapi_extra=read_security)
@@ -1396,6 +1413,58 @@ def create_app(
                     context.planning_service.confirmed_plan_revisions(round_id),
                 )
             ),
+        )
+
+    @app.get(
+        "/api/exam-rounds/{id}/confirmed-plan/consequences",
+        openapi_extra=read_security,
+    )
+    def confirmed_plan_consequences(request: Request, id: str):
+        context = _context(request, resolved)
+        context.require_authenticated()
+        round_id = int(id)
+        context.require_round_access(round_id, manage=True)
+        return _finish(
+            context,
+            context.respond(
+                hateoas.plan_consequences(
+                    round_id,
+                    context.plan_consequence_service.list_for_round(round_id),
+                )
+            ),
+        )
+
+    @app.post(
+        "/api/exam-rounds/{id}/confirmed-plan/revisions/{revision_id}/consequences/retry",
+        openapi_extra=write_security,
+    )
+    def retry_confirmed_plan_consequences(request: Request, id: str, revision_id: str):
+        context = _context(request, resolved)
+        auth = context.require_authenticated(require_csrf=True)
+        context.authorize_mutation(
+            "POST",
+            [
+                "exam-rounds",
+                id,
+                "confirmed-plan",
+                "revisions",
+                revision_id,
+                "consequences",
+                "retry",
+            ],
+            auth,
+        )
+        round_id = int(id)
+        parsed_revision_id = int(revision_id)
+        context.require_round_access(round_id, manage=True)
+        known_revision_ids = {
+            item["id"] for item in context.planning_service.confirmed_plan_revisions(round_id)
+        }
+        if parsed_revision_id not in known_revision_ids:
+            return _not_found()
+        return _finish(
+            context,
+            context.respond(context.plan_consequence_service.retry_revision(parsed_revision_id)),
         )
 
     @app.post("/api/candidate-exam-days/generate")
