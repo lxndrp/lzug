@@ -67,6 +67,39 @@ lzug_copy_build_metadata "$container" "$temporary_directory/container-metadata.j
 "$admin_binary" --build-metadata > "$temporary_directory/cli-metadata.json"
 cmp "$temporary_directory/container-metadata.json" "$temporary_directory/cli-metadata.json"
 
+lifecycle_status=0
+printf '%s' "$recipient_private_key" | \
+    "$admin_binary" --engine "$engine" --container "$container" \
+        upgrade --confirm-irreversible \
+        >"$temporary_directory/unverified-release.json" \
+        2>"$temporary_directory/unverified-release.stderr" || lifecycle_status=$?
+test "$lifecycle_status" -eq 33
+python3 -c '
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    payload = json.load(stream)
+assert payload["version"] == 1 and payload["ok"] is False
+assert payload["error"]["class"] == "release_artifact_unverified"
+' "$temporary_directory/unverified-release.json"
+
+maintenance_status=0
+printf '%s\n' '{"version":1,"command":"rollback","arguments":{"target":{"identity":"0.6.0","image":"ghcr.io/lxndrp/lzug@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","release":true,"revision":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","tag":"v0.6.0"}}}' | \
+    "$engine" exec --interactive "$container" python -m backend.admin --protocol 1 \
+        >"$temporary_directory/live-server-lifecycle.json" \
+        2>"$temporary_directory/live-server-lifecycle.stderr" || maintenance_status=$?
+test "$maintenance_status" -eq 33
+python3 -c '
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    payload = json.load(stream)
+assert payload["version"] == 1 and payload["ok"] is False
+assert payload["error"]["class"] == "maintenance_required"
+' "$temporary_directory/live-server-lifecycle.json"
+
 invitation=$(
     "$admin_binary" --engine "$engine" --container "$container" \
         invite --email cli-contract@example.invalid
@@ -269,6 +302,8 @@ if printf '%s\n%s\n%s\n%s\n' \
     exit 1
 fi
 if grep -F "$recipient_private_key" \
+    "$temporary_directory/unverified-release.json" \
+    "$temporary_directory/unverified-release.stderr" \
     "$temporary_directory/wrong-key.json" \
     "$temporary_directory/wrong-key.stderr" \
     "$temporary_directory/replace-required.json" \

@@ -17,11 +17,15 @@ const (
 	protocolVersion       = 1
 	exitEngineUnavailable = 10
 	exitEngineFailed      = 11
+	exitReleaseUnverified = 33
 	maxTokenInput         = 512
 )
 
 var containerNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`)
 var idempotencyKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$`)
+var canonicalReleaseImagePattern = regexp.MustCompile(
+	`^ghcr\.io/lxndrp/lzug@sha256:[0-9a-f]{64}$`,
+)
 var applicationVersion = "development"
 var applicationRevision = "unknown"
 var applicationTag = ""
@@ -72,13 +76,28 @@ func main() {
 		writeLocalError(os.Stdout, "invalid_request", err.Error())
 		os.Exit(2)
 	}
+	operation := runner{engine: opts.engine, container: opts.container}
+	if isLifecycleCommand(opts.command) {
+		target, prepareErr := operation.releaseTarget(context.Background())
+		if prepareErr != nil {
+			class := "release_artifact_unverified"
+			code := exitReleaseUnverified
+			if errors.Is(prepareErr, exec.ErrNotFound) {
+				class = "engine_unavailable"
+				code = exitEngineUnavailable
+			}
+			writeLocalError(os.Stdout, class, "Target release artifact could not be verified")
+			os.Exit(code)
+		}
+		opts.arguments["target"] = target
+	}
 	payload, err := protocolPayload(opts)
 	if err != nil {
 		writeLocalError(os.Stdout, "invalid_request", "Request could not be encoded")
 		os.Exit(2)
 	}
 
-	code, err := (runner{engine: opts.engine, container: opts.container}).execute(
+	code, err := operation.execute(
 		context.Background(), payload, os.Stdout, os.Stderr,
 	)
 	if err != nil {
@@ -157,6 +176,9 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 	replace := commandSet.Bool(
 		"replace", false, "explicitly replace a non-empty installation during restore",
 	)
+	confirmIrreversible := commandSet.Bool(
+		"confirm-irreversible", false, "confirm pending irreversible migrations",
+	)
 	idempotencyKey := commandSet.String("idempotency-key", "", "unique retry key")
 	committeeID := commandSet.Int("committee-id", 0, "committee id")
 	committeeName := commandSet.String("name", "", "committee name")
@@ -212,10 +234,28 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 		*memberID != 0 || *revisionID != 0 || strings.TrimSpace(*channel) != ""
 	artifactFlagsUsed := strings.TrimSpace(*artifact) != "" ||
 		strings.TrimSpace(*recipientPublicKey) != "" || *replace
+	lifecycleFlagsUsed := *confirmIrreversible
 	if !isArtifactCommand(command) && artifactFlagsUsed {
 		return options{}, fmt.Errorf("%s accepts no artifact options", command)
 	}
+	if command != "upgrade" && lifecycleFlagsUsed {
+		return options{}, fmt.Errorf("%s accepts no lifecycle confirmation", command)
+	}
 	switch command {
+	case "upgrade":
+		if commonAdminFlagsUsed || committeeAdminFlagsUsed || artifactFlagsUsed {
+			return options{}, fmt.Errorf("upgrade reads a private recipient key from stdin")
+		}
+		privateKey, err := readSecretInput(input, "private recipient key")
+		if err != nil {
+			return options{}, err
+		}
+		arguments["recipient_private_key"] = privateKey
+		arguments["confirm_irreversible"] = *confirmIrreversible
+	case "rollback":
+		if commonAdminFlagsUsed || committeeAdminFlagsUsed || artifactFlagsUsed {
+			return options{}, fmt.Errorf("rollback accepts no options")
+		}
 	case "backup-create":
 		if commonAdminFlagsUsed || committeeAdminFlagsUsed || artifactFlagsUsed {
 			return options{}, fmt.Errorf("backup-create accepts no options")
@@ -369,6 +409,10 @@ func isArtifactCommand(command string) bool {
 	}
 }
 
+func isLifecycleCommand(command string) bool {
+	return command == "upgrade" || command == "rollback"
+}
+
 func readSecretInput(input io.Reader, description string) (string, error) {
 	value, err := io.ReadAll(io.LimitReader(input, maxTokenInput+1))
 	if err != nil || len(value) > maxTokenInput {
@@ -475,6 +519,71 @@ func (r runner) execute(ctx context.Context, input []byte, stdout, stderr io.Wri
 		return exitEngineFailed, err
 	}
 	return 0, nil
+}
+
+func (r runner) releaseTarget(ctx context.Context) (map[string]any, error) {
+	if applicationTag == "" || applicationVersion != strings.TrimPrefix(applicationTag, "v") {
+		return nil, fmt.Errorf("CLI is not a canonical release build")
+	}
+	engine, err := resolveEngine(r.engine)
+	if err != nil {
+		return nil, err
+	}
+	if !containerNamePattern.MatchString(r.container) {
+		return nil, fmt.Errorf("invalid container")
+	}
+	imageID, err := commandOutput(ctx, engine, "container", "inspect", "--format", "{{.Image}}", r.container)
+	if err != nil || strings.TrimSpace(imageID) == "" {
+		return nil, fmt.Errorf("container image identity is unavailable")
+	}
+	repoDigestsJSON, err := commandOutput(
+		ctx, engine, "image", "inspect", "--format", "{{json .RepoDigests}}", strings.TrimSpace(imageID),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("container image digest is unavailable")
+	}
+	var repoDigests []string
+	if json.Unmarshal([]byte(strings.TrimSpace(repoDigestsJSON)), &repoDigests) != nil {
+		return nil, fmt.Errorf("container image digests are invalid")
+	}
+	canonicalImage := ""
+	for _, digest := range repoDigests {
+		if canonicalReleaseImagePattern.MatchString(digest) {
+			canonicalImage = digest
+			break
+		}
+	}
+	if canonicalImage == "" {
+		return nil, fmt.Errorf("container image is not from the canonical digest repository")
+	}
+	labelsJSON, err := commandOutput(
+		ctx, engine, "image", "inspect", "--format", "{{json .Config.Labels}}", strings.TrimSpace(imageID),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("container image labels are unavailable")
+	}
+	var labels map[string]string
+	if json.Unmarshal([]byte(strings.TrimSpace(labelsJSON)), &labels) != nil ||
+		labels["org.opencontainers.image.source"] != "https://github.com/lxndrp/lzug" ||
+		labels["org.opencontainers.image.version"] != applicationVersion ||
+		labels["org.opencontainers.image.revision"] != applicationRevision {
+		return nil, fmt.Errorf("container image labels do not match the CLI release")
+	}
+	return map[string]any{
+		"identity": applicationVersion,
+		"image":    canonicalImage,
+		"release":  true,
+		"revision": applicationRevision,
+		"tag":      applicationTag,
+	}, nil
+}
+
+func commandOutput(ctx context.Context, command string, args ...string) (string, error) {
+	output, err := exec.CommandContext(ctx, command, args...).Output()
+	if err != nil {
+		return "", err
+	}
+	return string(output), nil
 }
 
 func resolveEngine(preferred string) (string, error) {

@@ -217,6 +217,29 @@ class BackupRestoreTests(unittest.TestCase):
         self.assertEqual(1, report["documents"])
         self.assertEqual(1, report["totp_secrets_verified"])
 
+    def test_backup_of_previous_release_schema_is_verified_before_upgrade(self) -> None:
+        paths, service = self.runtime("previous-release", seed=False)
+        authentication_key(paths.database)
+        with closing(sqlite3.connect(paths.database)) as connection:
+            connection.execute("DROP TABLE artifact_operation")
+            connection.execute("DROP TABLE instance_metadata")
+            connection.execute(
+                "DELETE FROM schema_migration_checksum WHERE name = ?",
+                ("024_add_artifact_operations.sql",),
+            )
+            connection.execute(
+                "DELETE FROM schema_migration WHERE name = ?",
+                ("024_add_artifact_operations.sql",),
+            )
+            connection.commit()
+
+        backup = service.create_backup()
+        report = service.verify(backup["artifact"], self.private_key)
+
+        self.assertEqual("023_add_exam_round_lifecycle.sql", report["source_schema_version"])
+        self.assertEqual(["024_add_artifact_operations.sql"], report["pending_migrations"])
+        self.assertEqual("backup", report["artifact_type"])
+
     def test_wrong_key_and_ciphertext_tampering_are_rejected(self) -> None:
         paths, service, _token = self.prepare_source()
         backup = service.create_backup()
