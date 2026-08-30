@@ -12,14 +12,15 @@ import { Router } from '@angular/router';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 
-import { ConfirmedPlan } from '../api/api.models';
+import { ConfirmedPlan, PlanningBoard } from '../api/api.models';
 import { PlanningApiService } from '../api/planning-api.service';
+import { ConfirmedPlanEditorComponent } from './confirmed-plan-editor.component';
 
 export type ViewState = 'loading' | 'ready' | 'error';
 
 @Component({
   selector: 'app-confirmed-plans',
-  imports: [TuiBadge, TuiButton],
+  imports: [ConfirmedPlanEditorComponent, TuiBadge, TuiButton],
   templateUrl: './confirmed-plans.component.html',
   styleUrl: './confirmed-plans.component.css',
 })
@@ -28,9 +29,14 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges {
   private readonly router = inject(Router);
 
   @Input() roundId: number | null = null;
+  @Input() editRoundId: number | null = null;
+  @Input() board: PlanningBoard | null = null;
+  @Input() canEdit = false;
   protected readonly state = signal<ViewState>('loading');
   protected readonly plans = signal<ConfirmedPlan[]>([]);
   private readonly requestedRoundId = signal<number | null>(null);
+  private readonly editRequested = signal<number | null>(null);
+  private readonly canEditRequested = signal(false);
   protected readonly selectedCommitteeId = signal<number | null>(null);
   protected readonly visiblePlans = computed(() => {
     const roundId = this.requestedRoundId();
@@ -44,8 +50,15 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges {
   protected readonly selectedPlans = computed(() =>
     this.visiblePlans().filter((plan) => plan.committee.id === this.selectedCommitteeId()),
   );
+  protected readonly editablePlan = computed(() =>
+    !this.canEditRequested() || this.editRequested() === null
+      ? null
+      : (this.plans().find((plan) => plan.id === this.editRequested()) ?? null),
+  );
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['editRoundId']) this.editRequested.set(this.editRoundId);
+    if (changes['canEdit']) this.canEditRequested.set(this.canEdit);
     if (!changes['roundId']) return;
 
     this.requestedRoundId.set(this.roundId);
@@ -86,6 +99,10 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges {
     }
     event.preventDefault();
     void this.router.navigateByUrl(this.dayHref(planId, dayId));
+  }
+
+  protected editPlanHref(planId: number): string {
+    return `/confirmed-plans/${planId}/edit`;
   }
 
   protected selectCommitteeWithKeyboard(event: KeyboardEvent, currentIndex: number): void {

@@ -326,7 +326,12 @@
                   <app-scheduling-overview (openRound)="openSchedulingRound($event)" />
                 }
                 @case ('confirmed-plans') {
-                  <app-confirmed-plans [roundId]="contextualRoundId()" />
+                  <app-confirmed-plans
+                    [roundId]="contextualRoundId()"
+                    [editRoundId]="confirmedPlanEditRoundId()"
+                    [board]="board()"
+                    [canEdit]="canEditConfirmedPlan()"
+                  />
                 }
                 @case ('exam-day') {
                   <app-exam-day

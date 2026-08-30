@@ -10,6 +10,7 @@ export const routes: Routes = [
   { path: 'scheduling-overview/:roundId', children: [] },
   { path: 'confirmed-plans', children: [] },
   { path: 'confirmed-plans/:roundId', children: [] },
+  { path: 'confirmed-plans/:roundId/edit', children: [] },
   { path: 'confirmed-plans/:roundId/days/:dayId', children: [] },
   { path: 'candidates', children: [] },
   { path: 'committee', children: [] },

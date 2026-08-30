@@ -181,6 +181,36 @@ describe('PlanningApiService', () => {
     request.flush({ items: [], _links: {} });
   });
 
+  it('should use the revisioned confirmed-plan endpoints', () => {
+    service.getEditableConfirmedPlan(2).subscribe((plan) => expect(plan.revision).toBe(4));
+    const read = http.expectOne('/api/exam-rounds/2/confirmed-plan');
+    expect(read.request.method).toBe('GET');
+    read.flush({ round_id: 2, revision: 4, exam_days: [], _links: {} });
+
+    service
+      .saveEditableConfirmedPlan(
+        2,
+        { round_id: 2, revision: 4, exam_days: [], _links: {} },
+        'Korrektur',
+      )
+      .subscribe();
+    const save = http.expectOne('/api/exam-rounds/2/confirmed-plan');
+    expect(save.request.method).toBe('PUT');
+    expect(save.request.body).toEqual({
+      round_id: 2,
+      revision: 4,
+      exam_days: [],
+      _links: {},
+      reason: 'Korrektur',
+    });
+    save.flush({ round_id: 2, revision: 5, exam_days: [], _links: {} });
+
+    service.getConfirmedPlanRevisions(2).subscribe((revisions) => expect(revisions).toEqual([]));
+    const history = http.expectOne('/api/exam-rounds/2/confirmed-plan/revisions');
+    expect(history.request.method).toBe('GET');
+    history.flush({ items: [], _links: {} });
+  });
+
   it('should use the channel-neutral notification endpoints', () => {
     service.getNotifications().subscribe((items) => expect(items[0].id).toBe(7));
     const notifications = http.expectOne('/api/notifications');

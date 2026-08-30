@@ -232,13 +232,7 @@ export type Attendance = {
 };
 
 export type ConfirmedPlan = ConfirmedPlanContext & {
-  days: Array<{
-    id: ConfirmedPlanDay['id'];
-    date: ConfirmedPlanDay['date'];
-    location: ConfirmedPlanDay['location'];
-    slots: ConfirmedPlanDay['slots'];
-    assignments: ConfirmedPlanDay['assignments'];
-  }>;
+  days: Array<Omit<ConfirmedPlanDay, 'closure'>>;
 };
 
 export type ConfirmedPlanDayView = {
@@ -625,7 +619,7 @@ export type PlanningProposalSlot = {
   starts_at: string;
   ends_at: string;
   sequence_number: number;
-  status: 'proposed';
+  status: 'proposed' | 'confirmed' | string;
 };
 
 /** One examiner or fallback assignment for a proposal day part. */
@@ -643,7 +637,7 @@ export type PlanningProposalDay = {
   candidate_exam_day_id: number;
   date: string;
   location_id: number;
-  status: 'proposed';
+  status: 'proposed' | 'confirmed' | 'completed' | 'cancelled' | string;
   slots: PlanningProposalSlot[];
   assignments: PlanningProposalAssignment[];
 };
@@ -654,6 +648,18 @@ export type EditablePlanningProposal = {
   revision: number;
   exam_days: PlanningProposalDay[];
   _links?: Record<string, ApiLink>;
+};
+
+/** One immutable audit entry created by a confirmed-plan change. */
+export type ConfirmedPlanRevision = {
+  id: number;
+  previous_revision: number;
+  resulting_revision: number;
+  reason: string;
+  actor_member_id: number;
+  created_at: string;
+  before: EditablePlanningProposal;
+  after: EditablePlanningProposal;
 };
 
 /** Stable backend validation finding addressable by the editor. */

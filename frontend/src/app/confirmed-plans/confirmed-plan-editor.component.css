@@ -1,0 +1,100 @@
+:host {
+  display: block;
+}
+.app-confirmed-editor-state,
+.app-confirmed-editor-days,
+.app-confirmed-editor-day,
+.app-confirmed-editor-day header,
+.app-confirmed-editor-assignments,
+.app-confirmed-editor-reason,
+.app-confirmed-editor-history li {
+  display: grid;
+  gap: 0.75rem;
+}
+.app-confirmed-editor-days {
+  margin-top: 1rem;
+}
+.app-confirmed-editor-day {
+  padding: 1rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-md);
+}
+.app-confirmed-editor-day.is-locked {
+  background: var(--app-color-surface);
+}
+.app-confirmed-editor-day h2,
+.app-confirmed-editor-day p {
+  margin: 0;
+}
+.app-confirmed-editor-day header {
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 24rem);
+  align-items: end;
+}
+.app-confirmed-editor-day label,
+.app-confirmed-editor-reason label {
+  display: grid;
+  gap: 0.25rem;
+  font-weight: 600;
+}
+.app-confirmed-editor-day select,
+.app-confirmed-editor-reason textarea {
+  min-block-size: 2.5rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-color-surface);
+  color: var(--app-color-text);
+  font: inherit;
+}
+.app-confirmed-editor-reason {
+  margin-top: 1rem;
+}
+.app-confirmed-editor-reason textarea {
+  resize: vertical;
+}
+.app-confirmed-editor-lock {
+  color: var(--app-color-danger-text);
+}
+.app-confirmed-editor-slots {
+  width: 100%;
+  min-width: 46rem;
+  border-collapse: collapse;
+}
+.app-confirmed-editor-slots th,
+.app-confirmed-editor-slots td {
+  padding: 0.65rem;
+  border-bottom: 1px solid var(--app-color-border);
+  text-align: left;
+}
+.app-confirmed-editor-row-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+.app-confirmed-editor-day fieldset {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.app-confirmed-editor-assignments > div {
+  display: grid;
+  grid-template-columns: minmax(12rem, 2fr) repeat(2, minmax(8rem, 1fr));
+  gap: 0.5rem;
+}
+.app-confirmed-editor-history {
+  margin-top: 1rem;
+}
+.app-confirmed-editor-history ol {
+  display: grid;
+  gap: 0.75rem;
+}
+.app-confirmed-editor-history li span {
+  color: var(--app-color-text-muted);
+}
+@media (max-width: 767.98px) {
+  .app-confirmed-editor-day header,
+  .app-confirmed-editor-assignments > div {
+    grid-template-columns: 1fr;
+  }
+}

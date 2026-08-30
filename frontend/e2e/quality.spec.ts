@@ -122,6 +122,18 @@ test.describe('lzug browser workflows', () => {
     await expect(page.getByRole('heading', { name: 'Prüfungspläne' })).toBeVisible();
     await expect(page.locator('.app-confirmed-plan').getByText('Winter 2026/27')).toBeVisible();
 
+    await page.getByRole('link', { name: 'Winter 2026/27: Planänderungen bearbeiten' }).click();
+    await expect(page).toHaveURL('/confirmed-plans/1/edit');
+    await expect(page.getByRole('heading', { name: 'Bestätigten Plan ändern' })).toBeVisible();
+    await page.getByRole('button', { name: 'Termin 2 nach oben verschieben' }).click();
+    await page.getByLabel('Änderungsgrund').fill('Reihenfolge nach Rücksprache korrigiert');
+    await page.getByRole('button', { name: 'Änderung mit Grund speichern' }).click();
+    await expect(
+      page.getByText('Die Änderung wurde als neue Planrevision gespeichert.'),
+    ).toBeVisible();
+    await page.getByText('Entstandene Revisionen (1)').click();
+    await expect(page.getByText('Revision 1 → 2')).toBeVisible();
+
     await page.goto('/scheduling-overview/1');
     await expect(page).toHaveURL('/confirmed-plans/1');
     await expect(page.getByRole('heading', { name: 'Prüfungspläne' })).toBeVisible();
