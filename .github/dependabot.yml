@@ -27,12 +27,34 @@ updates:
         applies-to: security-updates
         patterns:
           - "@taiga-ui/*"
-      typescript-eslint:
+      frontend-linting:
         applies-to: version-updates
         patterns:
+          - "eslint"
+          - "@eslint/js"
+          - "eslint-config-prettier"
           - "typescript-eslint"
           - "@typescript-eslint/eslint-plugin"
           - "@typescript-eslint/parser"
+      frontend-linting-security:
+        applies-to: security-updates
+        patterns:
+          - "eslint"
+          - "@eslint/js"
+          - "eslint-config-prettier"
+          - "typescript-eslint"
+          - "@typescript-eslint/eslint-plugin"
+          - "@typescript-eslint/parser"
+      vitest:
+        applies-to: version-updates
+        patterns:
+          - "vitest"
+          - "@vitest/coverage-v8"
+      vitest-security:
+        applies-to: security-updates
+        patterns:
+          - "vitest"
+          - "@vitest/coverage-v8"
 
   - package-ecosystem: github-actions
     directory: /
@@ -41,5 +63,9 @@ updates:
     groups:
       codeql:
         applies-to: version-updates
+        patterns:
+          - "github/codeql-action/*"
+      codeql-security:
+        applies-to: security-updates
         patterns:
           - "github/codeql-action/*"
