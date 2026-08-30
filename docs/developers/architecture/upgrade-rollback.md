@@ -3,6 +3,8 @@
 Upgrade und Rollback sind lokale Wartungsvorgänge über die Betreiber-CLI.
 Sie laufen ausschließlich in einem dedizierten Container des gewählten Release-Images, während der reguläre Anwendungscontainer gestoppt ist.
 Der Wartungscontainer erhält dasselbe persistente `/data`, veröffentlicht aber keinen Port und startet keinen Server.
+Die aufgabenorientierte Bedienfolge steht ausschließlich in der kanonischen
+[Betreiberanleitung](https://github.com/lxndrp/lzug/wiki/Administration-Update-und-Rollback).
 
 ## Release- und Wartungsgrenze
 

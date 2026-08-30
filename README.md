@@ -29,7 +29,8 @@ operative Reihenfolge im GitHub Project `lzug Roadmap`.
 Wähle den Einstieg nach Aufgabe:
 
 - Das [GitHub Wiki](https://github.com/lxndrp/lzug/wiki) richtet sich an
-Fachlichkeit, Nutzung und Administration.
+Fachlichkeit und Nutzung; die [Betreiberanleitung](https://github.com/lxndrp/lzug/wiki/Administration)
+führt durch Installation und sicheren Betrieb.
 - [CONTRIBUTING.md](CONTRIBUTING.md) ist der Einstieg für Beiträge und lokale
 Entwicklung.
 - Das [Entwicklerhandbuch](docs/developers/index.md) enthält aktuelle

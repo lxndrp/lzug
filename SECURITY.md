@@ -1,17 +1,18 @@
 # Sicherheitsrichtlinie
 
-lzug ist ein öffentlich entwickeltes Projekt mit versionierten Vorab-Releases.
+lzug ist ein öffentlich entwickeltes Projekt mit versionierten Releases vor `1.0`.
 Die automatisierten Security-Prüfungen und die unterstützten Stände begründen keine Zusicherung für ungeprüfte Installationen oder produktiven Betrieb.
 
 ## Unterstützte Stände
 
-Unterstützt werden der aktuelle Entwicklungsstand und das jüngste veröffentlichte Release `v0.3.0`.
+Unterstützt werden der aktuelle Entwicklungsstand und das
+[jüngste veröffentlichte Release](https://github.com/lxndrp/lzug/releases/latest).
 Für ältere Releases und Commits gibt es keine Sicherheitsupdates.
 
 | Stand | Unterstützt |
 | --- | --- |
 | aktueller `master` | ja |
-| `v0.3.0` | ja |
+| jüngstes veröffentlichtes Release | ja |
 | ältere Releases und Commits | nein |
 
 ## Sicherheitslücken vertraulich melden
@@ -31,7 +32,7 @@ Sende keine realen Zugangsdaten, Tokens, TOTP-Secrets oder personenbezogenen Dat
 Verwende ausschließlich synthetische Beispiele.
 
 Der Maintainer bestätigt Meldungen und stimmt Prüfung, Behebung, Advisory und Veröffentlichung nach bestem Vermögen vertraulich ab.
-Eine feste Reaktions- oder Behebungsfrist kann vor dem ersten stabilen Release noch nicht zugesichert werden.
+Eine feste Reaktions- oder Behebungsfrist wird nicht zugesichert.
 
 ## Technische Baseline
 
