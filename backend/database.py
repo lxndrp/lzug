@@ -8,7 +8,7 @@ import shutil
 import sqlite3
 import tempfile
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from fcntl import LOCK_EX, LOCK_UN, flock
@@ -390,8 +390,8 @@ def _migration_backup(db_path: Path, backup_dir: Path) -> Path:
             dir=backup_dir, prefix=".lzug-migration-", suffix=".sqlite", delete=False
         ) as temporary:
             temporary_path = Path(temporary.name)
-        with sqlite3.connect(str(db_path), timeout=BUSY_TIMEOUT_MS / 1000) as source:
-            with sqlite3.connect(str(temporary_path)) as destination:
+        with closing(sqlite3.connect(str(db_path), timeout=BUSY_TIMEOUT_MS / 1000)) as source:
+            with closing(sqlite3.connect(str(temporary_path))) as destination:
                 source.backup(destination)
                 destination.commit()
         os.replace(temporary_path, backup_path)
