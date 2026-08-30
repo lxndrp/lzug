@@ -3,14 +3,16 @@
 Dependabot erstellt wöchentlich Pull Requests für uv, npm und GitHub Actions.
 Angular und Taiga UI bleiben in den in `.github/dependabot.yml` definierten Gruppen gebündelt.
 
-Technisch gekoppelte Versionsupdates werden ebenfalls gemeinsam vorgeschlagen:
+Technisch gekoppelte Versions- und Sicherheitsupdates werden ebenfalls gemeinsam vorgeschlagen:
 
-- Die Gruppe `codeql` bündelt alle verwendeten `github/codeql-action/*`-Komponenten.
-- Die Gruppe `typescript-eslint` bündelt `typescript-eslint`,
+- Die Gruppen `codeql` und `codeql-security` bündeln alle verwendeten `github/codeql-action/*`-Komponenten.
+- Die Gruppen `frontend-linting` und `frontend-linting-security` bündeln `eslint`,
+  `@eslint/js`, `eslint-config-prettier`, `typescript-eslint`,
   `@typescript-eslint/eslint-plugin` und `@typescript-eslint/parser`.
+- Die Gruppen `vitest` und `vitest-security` bündeln `vitest` und `@vitest/coverage-v8`.
 
-Beide Gruppen gelten ausschließlich für Versionsupdates.
-Sicherheitsupdates bleiben der bestehenden Dependabot-Klassifikation überlassen.
+Versions- und Sicherheitsupdates der jeweiligen Familie bleiben damit konsistent,
+ohne Angular, Taiga UI oder unabhängige Werkzeuge zusammenzufassen.
 Die Gruppierung ändert nicht die Auto-Merge-Regel:
 GitHub-Actions-Updates bleiben manuell,
 während qualifizierte npm-Patch- und -Minor-Updates den bestehenden Auto-Merge-Weg nutzen dürfen.
@@ -18,15 +20,17 @@ während qualifizierte npm-Patch- und -Minor-Updates den bestehenden Auto-Merge-
 ## Ablösung veralteter Einzel-PRs
 
 Eine Änderung an `.github/dependabot.yml` aktualisiert bestehende Einzel-PRs nicht rückwirkend.
-Für die aktuelle Umstellung sind deshalb #428, #515, #518 und #519 zunächst nur als veraltete
-Kandidaten zu behandeln.
+Für die aktuelle Umstellung sind deshalb #428, #515 und #518 als von der CodeQL-Gruppe #544
+abzulösende Einzel-PRs zu behandeln.
+Die Einzel-PRs #519 und #520 werden erst durch einen künftig erscheinenden
+`frontend-linting`-Gruppen-PR abgelöst.
 
-Nach dem nächsten Dependabot-Lauf wird der neue Gruppen-PR kontrolliert geprüft:
+Der jeweilige Gruppen-PR wird kontrolliert geprüft:
 
-1. Der PR enthält alle erwarteten CodeQL- beziehungsweise TypeScript-ESLint-Komponenten.
+1. Der PR enthält alle erwarteten Komponenten der jeweiligen Familie.
 2. Die Zielversionen und der Diff decken die jeweils veralteten Einzel-PRs vollständig ab.
 3. CI ist erfolgreich,
-   und der Auto-Merge-Workflow bleibt bei der CodeQL-Gruppe übersprungen.
+   und bei der CodeQL-Gruppe bleibt der Auto-Merge-Workflow übersprungen.
 
 Erst danach werden die ersetzten Einzel-PRs mit einem Verweis auf den Gruppen-PR geschlossen.
 Die Einzel-PRs werden nicht manuell editiert oder vorzeitig geschlossen,
