@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from sqlalchemy import text
 
-from backend.database import connect
+from backend.database import connect, session_scope
 from backend.models import (
     CANDIDATE,
     CANDIDATE_EXAM_DAY,
@@ -20,6 +20,7 @@ from backend.models import (
     MEMBER_AVAILABILITY,
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
+    Committee,
 )
 from backend.planning import (
     ConfirmedPlanChange,
@@ -642,12 +643,16 @@ class PlanningTests(unittest.TestCase):
                         "person_id": person_id,
                         "committee_id": committee["id"],
                         "member_status": "ordinary",
-                        "committee_role": "member",
+                        "committee_role": "chair" if person_id == 1 else "member",
                         "representing_side": side,
                         "is_active": 1,
                     }
                 )
             )
+        with session_scope(repository.db_path) as session:
+            committee_model = session.get(Committee, committee["id"])
+            assert committee_model is not None
+            committee_model.bootstrap_state = "ready"
         location = repository.create(
             LOCATION,
             {

@@ -707,6 +707,8 @@ export type Committee = {
   name: string;
   occupation: string;
   ihk: string;
+  is_active: number;
+  bootstrap_state: 'ready' | 'needs_clarification' | 'conflict';
   created_at?: string;
   updated_at?: string;
 };

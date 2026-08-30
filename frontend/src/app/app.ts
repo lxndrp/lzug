@@ -43,11 +43,7 @@ import {
   CandidatesComponent,
   CandidateUpdate,
 } from './candidates/candidates.component';
-import {
-  CommitteeComponent,
-  CommitteeMemberPayload,
-  CommitteePayload,
-} from './committee/committee.component';
+import { CommitteeComponent, CommitteeMemberPayload } from './committee/committee.component';
 import { DashboardComponent } from './dashboard/dashboard.component';
 import {
   LocationPayload,
@@ -482,27 +478,6 @@ export class App {
         if (confirmed) {
           action();
         }
-      });
-  }
-
-  protected createCommittee(payload: CommitteePayload): void {
-    this.actionBusy.set(true);
-    this.api
-      .createCommittee(payload)
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: (committee) => {
-          this.committeeComponent?.resetCommitteeForm();
-          this.selectedCommitteeId.set(committee.id);
-          this.notify('success', 'Ausschuss angelegt', committee.name);
-          this.refresh();
-        },
-        error: () =>
-          this.notify(
-            'error',
-            'Ausschuss nicht gespeichert',
-            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
-          ),
       });
   }
 

@@ -15,7 +15,7 @@ from sqlalchemy import select
 
 from .auth import AuthContext
 from .database import DEFAULT_DB_PATH, session_scope
-from .models import CommitteeMember
+from .models import Committee, CommitteeMember
 
 
 @dataclass(frozen=True)
@@ -68,9 +68,12 @@ class AuthorizationService:
                 }
                 for membership in session.scalars(
                     select(CommitteeMember)
+                    .join(Committee, Committee.id == CommitteeMember.committee_id)
                     .where(
                         CommitteeMember.person_id == context.person_id,
                         CommitteeMember.is_active == 1,
+                        Committee.is_active == 1,
+                        Committee.bootstrap_state == "ready",
                     )
                     .order_by(CommitteeMember.id)
                 ).all()

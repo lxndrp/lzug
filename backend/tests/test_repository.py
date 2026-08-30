@@ -4,6 +4,7 @@ import unittest
 
 from sqlalchemy.exc import IntegrityError
 
+from backend.database import session_scope
 from backend.models import (
     CANDIDATE,
     CANDIDATE_EXAM_DAY,
@@ -14,6 +15,7 @@ from backend.models import (
     MEMBER_AVAILABILITY,
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
+    Committee,
 )
 from backend.repositories import ResourceRepository
 from backend.tests.helpers import TempDatabase
@@ -119,6 +121,10 @@ class RepositoryTests(unittest.TestCase):
                     "is_active": 1,
                 },
             )
+            with session_scope(db_path) as session:
+                committee_model = session.get(Committee, committee["id"])
+                assert committee_model is not None
+                committee_model.bootstrap_state = "ready"
             target_round = repository.create(
                 EXAM_ROUND,
                 {
@@ -204,6 +210,38 @@ class RepositoryTests(unittest.TestCase):
             )
 
         self.assertEqual(2, created["created_by_member_id"])
+
+    def test_exam_round_creation_rejects_unresolved_and_inactive_committees(self) -> None:
+        for committee_state in ("unresolved", "inactive"):
+            with self.subTest(committee_state=committee_state), TempDatabase() as db_path:
+                repository = ResourceRepository(db_path)
+                half_year = repository.create(
+                    EXAM_HALF_YEAR,
+                    {"season": "summer", "year": 2027, "status": "active"},
+                )
+                with session_scope(db_path) as session:
+                    committee = session.get(Committee, 1)
+                    assert committee is not None
+                    if committee_state == "unresolved":
+                        committee.bootstrap_state = "needs_clarification"
+                    else:
+                        committee.is_active = 0
+
+                with self.assertRaisesRegex(ValueError, "not ready"):
+                    repository.create(
+                        EXAM_ROUND,
+                        {
+                            "exam_half_year_id": half_year["id"],
+                            "committee_id": 1,
+                            "name": f"Nicht zulässig: {committee_state}",
+                            "created_by_member_id": 1,
+                        },
+                    )
+
+                self.assertEqual(
+                    [],
+                    repository.list_filtered(EXAM_ROUND, {"exam_half_year_id": half_year["id"]}),
+                )
 
     def test_update_exam_round_rejects_invalid_metadata(self) -> None:
         with TempDatabase() as db_path:
@@ -372,11 +410,15 @@ class RepositoryTests(unittest.TestCase):
                     "person_id": 1,
                     "committee_id": committee["id"],
                     "member_status": "ordinary",
-                    "committee_role": "member",
+                    "committee_role": "chair",
                     "representing_side": "employer",
                     "is_active": 1,
                 }
             )
+            with session_scope(db_path) as session:
+                committee_model = session.get(Committee, committee["id"])
+                assert committee_model is not None
+                committee_model.bootstrap_state = "ready"
             shared_round = repository.create(
                 EXAM_ROUND,
                 {

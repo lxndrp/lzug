@@ -38,6 +38,7 @@ erDiagram
 autorisierende Arbeitskontext.
 Personen können Mitgliedschaften mit Rolle, Vertreterseite und Aktivitätsstatus halten.
 Ein Betreiberkonto ist keine fachliche Mitgliedschaft.
+Ein neuer Ausschuss wird ausschließlich über den lokalen Betreiberweg atomar mit genau einem aktiven Erstvorsitz gebootstrappt.
 - **Prüfungszeitraum und Prüfungsrunde**: Ein Prüfungshalbjahr fasst die
 zeitliche Einordnung; eine Prüfungsrunde ist der planbare Vorgang eines Ausschusses.
 Zugeordnete Prüflinge gehören zur Runde, nicht unmittelbar zum Ausschuss.
@@ -67,6 +68,8 @@ Dokumente besitzen fachliche Metadaten; ihr Inhalt bleibt in einer separaten, ko
 
 - Planung und Fachzugriffe bleiben im Ausschusskontext; Betreiberrechte
 ersetzen keine Ausschussrolle.
+- Ein fachlich aktiver Ausschuss ist nur mit widerspruchsfreiem Bootstrap-Zustand und genau einem aktiven Vorsitz nutzbar.
+  Deaktivierung entfernt ausschließlich diesen Ausschuss aus den aktiven Scopes; Konten und andere Ausschussmitgliedschaften bleiben wirksam.
 - Vorsitz und Stellvertretung sind in der fachlichen Bearbeitung gleichgestellt;
 die Stellvertretung bezeichnet nur die Vertretungsfunktion.
 - Eine bestätigte Tagesbesetzung deckt Arbeitgeber-, Arbeitnehmer- und

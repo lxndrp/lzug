@@ -182,6 +182,7 @@ def rewind_exam_result_migration(connection: sqlite3.Connection) -> None:
 
 def rewind_exam_day_closure_migration(connection: sqlite3.Connection) -> None:
     """Restore the pre-019 day schema without leaving a history gap."""
+    rewind_committee_bootstrap_migration(connection)
     connection.executescript("""
         DROP TABLE IF EXISTS confirmed_plan_revision;
         DROP TABLE IF EXISTS exam_day_export;
@@ -204,6 +205,27 @@ def rewind_exam_day_closure_migration(connection: sqlite3.Connection) -> None:
         connection.execute(
             "DELETE FROM schema_migration_checksum WHERE name IN (?, ?)",
             ("019_add_exam_day_closures.sql", "020_add_confirmed_plan_revisions.sql"),
+        )
+
+
+def rewind_committee_bootstrap_migration(connection: sqlite3.Connection) -> None:
+    """Restore the pre-021 committee schema without leaving a history gap."""
+    connection.executescript("""
+        DROP TRIGGER IF EXISTS committee_admin_operation_immutable_update;
+        DROP TRIGGER IF EXISTS committee_admin_operation_immutable_delete;
+        DROP TABLE IF EXISTS committee_admin_operation;
+        ALTER TABLE committee DROP COLUMN bootstrap_state;
+        ALTER TABLE committee DROP COLUMN is_active;
+        DELETE FROM schema_migration
+          WHERE name = '021_add_committee_bootstrap.sql';
+    """)
+    if connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        ("schema_migration_checksum",),
+    ).fetchone():
+        connection.execute(
+            "DELETE FROM schema_migration_checksum WHERE name = ?",
+            ("021_add_committee_bootstrap.sql",),
         )
 
 
@@ -459,12 +481,42 @@ class DatabaseTests(unittest.TestCase):
             initialize(db_path)
             after = migration_status(db_path)
             self.assertEqual("ready", after["state"])
-            self.assertEqual("020_add_confirmed_plan_revisions.sql", after["current"])
+            self.assertEqual("021_add_committee_bootstrap.sql", after["current"])
             self.assertTrue(list(db_path.parent.joinpath("backups").glob("*.sqlite")))
 
             history_before = after["history"]
             initialize(db_path)
             self.assertEqual(history_before, migration_status(db_path)["history"])
+
+    def test_initialize_applies_pending_migrations_before_the_seed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            db_path = Path(directory) / "seeded.sqlite3"
+
+            initialize(db_path, with_seed=True)
+
+            with closing(sqlite3.connect(db_path)) as connection:
+                committee = connection.execute(
+                    "SELECT is_active, bootstrap_state FROM committee WHERE id = 1"
+                ).fetchone()
+                evidence = connection.execute(
+                    "SELECT result, occurred_at, technical_source "
+                    "FROM committee_admin_operation WHERE committee_id = 1"
+                ).fetchone()
+                revision_table = connection.execute(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type = 'table' AND name = 'confirmed_plan_revision'"
+                ).fetchone()
+
+            self.assertEqual((1, "ready"), committee)
+            self.assertEqual(
+                ("ready", "2026-01-01T00:00:00+00:00", "migration"),
+                evidence,
+            )
+            self.assertEqual(("confirmed_plan_revision",), revision_table)
+            self.assertEqual(
+                "021_add_committee_bootstrap.sql",
+                migration_status(db_path)["current"],
+            )
 
     def test_initialize_runs_multiple_pending_migrations_in_order(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
@@ -537,9 +589,119 @@ class DatabaseTests(unittest.TestCase):
                     "018_add_exam_results.sql",
                     "019_add_exam_day_closures.sql",
                     "020_add_confirmed_plan_revisions.sql",
+                    "021_add_committee_bootstrap.sql",
                 ],
-                [entry["name"] for entry in status["history"][-13:]],
+                [entry["name"] for entry in status["history"][-14:]],
             )
+
+    def test_committee_bootstrap_migration_classifies_legacy_committees_without_changing_ids(
+        self,
+    ) -> None:
+        with TempDatabase() as db_path:
+            with closing(sqlite3.connect(db_path)) as connection:
+                original_ids = {
+                    "committee": connection.execute(
+                        "SELECT group_concat(id, ',') FROM committee"
+                    ).fetchone()[0],
+                    "person": connection.execute(
+                        "SELECT group_concat(id, ',') FROM person"
+                    ).fetchone()[0],
+                    "membership": connection.execute(
+                        "SELECT group_concat(id, ',') FROM committee_member"
+                    ).fetchone()[0],
+                }
+                rewind_committee_bootstrap_migration(connection)
+                connection.commit()
+
+            initialize(db_path)
+
+            with closing(sqlite3.connect(db_path)) as connection:
+                migrated_ids = {
+                    "committee": connection.execute(
+                        "SELECT group_concat(id, ',') FROM committee"
+                    ).fetchone()[0],
+                    "person": connection.execute(
+                        "SELECT group_concat(id, ',') FROM person"
+                    ).fetchone()[0],
+                    "membership": connection.execute(
+                        "SELECT group_concat(id, ',') FROM committee_member"
+                    ).fetchone()[0],
+                }
+                committee = connection.execute(
+                    "SELECT is_active, bootstrap_state FROM committee WHERE id = 1"
+                ).fetchone()
+                evidence = connection.execute(
+                    "SELECT operation_type, result, technical_source, idempotency_key "
+                    "FROM committee_admin_operation WHERE committee_id = 1"
+                ).fetchone()
+
+            self.assertEqual(original_ids, migrated_ids)
+            self.assertEqual((1, "ready"), committee)
+            self.assertEqual(
+                ("legacy_assessment", "ready", "migration", None),
+                evidence,
+            )
+
+    def test_committee_bootstrap_migration_marks_missing_and_conflicting_chairs(self) -> None:
+        for expected_state, prepare in (
+            (
+                "needs_clarification",
+                lambda connection: connection.execute(
+                    "UPDATE committee_member SET committee_role = 'member' "
+                    "WHERE committee_role = 'chair'"
+                ),
+            ),
+            (
+                "conflict",
+                lambda connection: connection.executescript("""
+                    DROP INDEX committee_member_one_chair_per_committee;
+                    UPDATE committee_member
+                    SET committee_role = 'chair'
+                    WHERE id = 2;
+                """),
+            ),
+        ):
+            with self.subTest(state=expected_state), TempDatabase() as db_path:
+                with closing(sqlite3.connect(db_path)) as connection:
+                    rewind_committee_bootstrap_migration(connection)
+                    prepare(connection)
+                    connection.commit()
+
+                initialize(db_path)
+
+                with closing(sqlite3.connect(db_path)) as connection:
+                    state = connection.execute(
+                        "SELECT bootstrap_state FROM committee WHERE id = 1"
+                    ).fetchone()[0]
+                    chair_ids = [
+                        row[0]
+                        for row in connection.execute(
+                            "SELECT id FROM committee_member "
+                            "WHERE committee_role = 'chair' AND is_active = 1 ORDER BY id"
+                        )
+                    ]
+                self.assertEqual(expected_state, state)
+                self.assertEqual(
+                    [] if expected_state == "needs_clarification" else [1, 2],
+                    chair_ids,
+                )
+
+    def test_committee_bootstrap_migration_accepts_an_empty_instance(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            with closing(sqlite3.connect(db_path)) as connection:
+                rewind_committee_bootstrap_migration(connection)
+                connection.commit()
+
+            initialize(db_path)
+
+            with closing(sqlite3.connect(db_path)) as connection:
+                self.assertEqual(
+                    0,
+                    connection.execute("SELECT count(*) FROM committee_admin_operation").fetchone()[
+                        0
+                    ],
+                )
+            self.assertEqual("ready", migration_status(db_path)["state"])
 
     def test_delivery_claim_migration_preserves_queued_deliveries(self) -> None:
         with TempDatabase() as db_path:
@@ -584,7 +746,7 @@ class DatabaseTests(unittest.TestCase):
             self.assertTrue({"claim_token", "claimed_at", "claim_expires_at"}.issubset(columns))
             self.assertEqual(("temporarily_failed", 2, None, None, None), delivery)
             self.assertEqual(
-                "020_add_confirmed_plan_revisions.sql",
+                "021_add_committee_bootstrap.sql",
                 migration_status(db_path)["current"],
             )
 

@@ -167,6 +167,51 @@ class AdminAuthenticationTests(unittest.TestCase):
             self.assertEqual(EXIT_TOKEN_INVALID, code)
             self.assertNotIn("other", output.getvalue().decode())
 
+    def test_committee_protocol_issues_invitation_once_and_replay_is_secret_free(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            service = OperatorAuthService(db_path)
+            request = {
+                "version": 1,
+                "command": "committee-bootstrap",
+                "arguments": {
+                    "idempotency_key": "bootstrap-001",
+                    "committee": {
+                        "name": "Prüfungsausschuss Nord",
+                        "ihk": "IHK Teststadt",
+                        "occupation": "Fachinformatiker/in",
+                    },
+                    "chair": {
+                        "mode": "new",
+                        "first_name": "Erste",
+                        "last_name": "Vorsitzende",
+                        "email": "chair@example.invalid",
+                        "member_status": "ordinary",
+                        "representing_side": "employer",
+                    },
+                },
+            }
+
+            first_output = io.BytesIO()
+            first_stdout = io.TextIOWrapper(first_output, encoding="utf-8")
+            with redirect_stdout(first_stdout):
+                first_code = run(json.dumps(request).encode(), service=service)
+            first_stdout.flush()
+            first = json.loads(first_output.getvalue())
+            token = first["result"]["invitations"][0]["token"]
+
+            replay_output = io.BytesIO()
+            replay_stdout = io.TextIOWrapper(replay_output, encoding="utf-8")
+            with redirect_stdout(replay_stdout):
+                replay_code = run(json.dumps(request).encode(), service=service)
+            replay_stdout.flush()
+            replay = json.loads(replay_output.getvalue())
+
+            self.assertEqual(EXIT_OK, first_code)
+            self.assertEqual(EXIT_OK, replay_code)
+            self.assertTrue(replay["result"]["replayed"])
+            self.assertEqual([], replay["result"]["invitations"])
+            self.assertNotIn(token, replay_output.getvalue().decode())
+
     def test_module_process_uses_the_versioned_protocol_and_no_stderr_secret(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
             environment = os.environ.copy()

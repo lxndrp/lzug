@@ -71,4 +71,32 @@ assert payload["version"] == 1 and payload["ok"] is True
 assert payload["result"]["account"]["email"] == "cli-contract@example.invalid"
 ' >/dev/null
 
-echo "Operator CLI-to-container invitation contract passed with $engine: $image"
+committee=$(
+    "$admin_binary" --engine "$engine" --container "$container" \
+        committee-bootstrap \
+        --idempotency-key cli-contract-committee \
+        --name "CLI-Vertragsausschuss" \
+        --ihk "IHK Vertrag" \
+        --occupation "Vertragsberuf" \
+        --chair-first-name "CLI" \
+        --chair-last-name "Vorsitz" \
+        --chair-email cli-chair@example.invalid \
+        --chair-member-status ordinary \
+        --chair-representing-side employee
+)
+printf '%s' "$committee" | python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+assert payload["version"] == 1 and payload["ok"] is True
+assert payload["result"]["committee_id"] > 0
+assert payload["result"]["bootstrap_state"] == "ready"
+assert len(payload["result"]["person_ids"]) == 1
+assert len(payload["result"]["membership_ids"]) == 1
+assert len(payload["result"]["account_ids"]) == 1
+assert len(payload["result"]["invitations"]) == 1
+assert payload["result"]["invitations"][0]["token"]
+' >/dev/null
+
+echo "Operator CLI-to-container invitation and committee contracts passed with $engine: $image"

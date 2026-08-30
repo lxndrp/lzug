@@ -129,26 +129,34 @@ echo "Actor session created."
 
 isolated_round=$("$engine" exec "$container" python -c '
 import json
-from backend.models import COMMITTEE, EXAM_ROUND
+from backend.committee_admin import CommitteeAdminService
+from backend.models import EXAM_ROUND
 from backend.repositories import ResourceRepository
 
 repository = ResourceRepository()
-committee = repository.create(COMMITTEE, {"name": "Isolated committee", "occupation": "Test"})
-membership = repository.create_membership({
-    "person_id": 2,
-    "committee_id": committee["id"],
-    "member_status": "ordinary",
-    "committee_role": "chair",
-    "representing_side": "employer",
-    "is_active": 1,
+committee = CommitteeAdminService().bootstrap({
+    "idempotency_key": "container-smoke-isolated",
+    "committee": {
+        "name": "Isolated committee",
+        "ihk": "IHK Container Smoke",
+        "occupation": "Test occupation",
+    },
+    "chair": {
+        "mode": "new",
+        "first_name": "Isolated",
+        "last_name": "Chair",
+        "email": "isolated.chair@example.invalid",
+        "member_status": "ordinary",
+        "representing_side": "employer",
+    },
 })
 exam_round = repository.create(EXAM_ROUND, {
     "exam_half_year_id": 1,
-    "committee_id": committee["id"],
+    "committee_id": committee["committee_id"],
     "name": "Isolated round",
-    "created_by_member_id": membership["id"],
+    "created_by_member_id": committee["membership_ids"][0],
 })
-print(json.dumps({"committee_id": committee["id"], "round_id": exam_round["id"]}))
+print(json.dumps({"committee_id": committee["committee_id"], "round_id": exam_round["id"]}))
 ')
 isolated_committee_id=$(printf '%s' "$isolated_round" | python3 -c 'import json,sys; print(json.load(sys.stdin)["committee_id"])')
 isolated_round_id=$(printf '%s' "$isolated_round" | python3 -c 'import json,sys; print(json.load(sys.stdin)["round_id"])')

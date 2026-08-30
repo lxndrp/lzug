@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy.exc import SQLAlchemyError
 
 from .admin_service import AdminOperationError, OperatorAuthService
+from .committee_admin import CommitteeAdminService
 from .database import MigrationError, database_path, database_readiness
 from .notifications import NotificationService
 
@@ -33,7 +34,15 @@ _EXIT_CODES = {
     "database_not_ready": EXIT_NOT_READY,
     "bootstrap_not_empty": EXIT_CONFLICT,
     "account_exists": EXIT_CONFLICT,
+    "committee_conflict": EXIT_CONFLICT,
+    "person_conflict": EXIT_CONFLICT,
+    "account_conflict": EXIT_CONFLICT,
+    "membership_conflict": EXIT_CONFLICT,
+    "idempotency_conflict": EXIT_CONFLICT,
+    "invitation_not_eligible": EXIT_CONFLICT,
     "account_not_found": EXIT_NOT_FOUND,
+    "committee_not_found": EXIT_NOT_FOUND,
+    "person_not_found": EXIT_NOT_FOUND,
     "token_invalid": EXIT_TOKEN_INVALID,
     "persistence_error": EXIT_PERSISTENCE,
 }
@@ -82,6 +91,7 @@ def _execute(
     request: Mapping[str, Any],
     service: OperatorAuthService,
     notifications: NotificationService | None = None,
+    committee_service: CommitteeAdminService | None = None,
 ) -> dict[str, Any]:
     if request.get("version") != PROTOCOL_VERSION:
         raise AdminOperationError("invalid_request", "Unsupported protocol version")
@@ -95,9 +105,26 @@ def _execute(
         "consume-recovery",
         "process-notifications",
         "test-notification",
+        "committee-bootstrap",
+        "committee-complete",
+        "committee-reinvite",
+        "committee-deactivate",
+        "committee-reactivate",
     }:
         raise AdminOperationError("invalid_request", "Unsupported admin command")
     arguments = _require_mapping(request.get("arguments", {}), "Arguments must be an object")
+
+    if command.startswith("committee-"):
+        active_committee_service = committee_service or CommitteeAdminService(service.db_path)
+        if command == "committee-bootstrap":
+            return active_committee_service.bootstrap(arguments)
+        if command == "committee-complete":
+            return active_committee_service.complete(arguments)
+        if command == "committee-reinvite":
+            return active_committee_service.reinvite(arguments)
+        if command == "committee-deactivate":
+            return active_committee_service.deactivate(arguments)
+        return active_committee_service.reactivate(arguments)
 
     if command == "process-notifications":
         return (notifications or NotificationService(service.db_path)).process_due_events()
@@ -156,6 +183,7 @@ def run(
     *,
     service: OperatorAuthService | None = None,
     notifications: NotificationService | None = None,
+    committee_service: CommitteeAdminService | None = None,
 ) -> int:
     """Process exactly one protocol request and return its stable exit code."""
     if len(payload) > MAX_REQUEST_BYTES:
@@ -175,7 +203,7 @@ def run(
             if not readiness["ready"]:
                 return _error("database_not_ready", "Database is not ready")
             active_service = OperatorAuthService(database_path())
-        result = _execute(request, active_service, notifications)
+        result = _execute(request, active_service, notifications, committee_service)
         _write(_response(ok=True, result=result))
         return EXIT_OK
     except AdminOperationError as error:

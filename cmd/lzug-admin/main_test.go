@@ -93,6 +93,113 @@ func TestNotificationCommandsUseExplicitSafeArguments(t *testing.T) {
 	}
 }
 
+func TestCommitteeBootstrapBuildsStrictNestedProtocolArguments(t *testing.T) {
+	opts, err := parseOptions(
+		[]string{
+			"--container", "lzug", "committee-bootstrap",
+			"--idempotency-key", "bootstrap-001",
+			"--name", "Prüfungsausschuss Nord",
+			"--ihk", "IHK Teststadt",
+			"--occupation", "Fachinformatiker/in",
+			"--chair-first-name", "Erste",
+			"--chair-last-name", "Vorsitzende",
+			"--chair-email", "chair@example.invalid",
+			"--chair-member-status", "ordinary",
+			"--chair-representing-side", "employer",
+			"--deputy-existing-email", "deputy@example.invalid",
+			"--deputy-member-status", "ordinary",
+			"--deputy-representing-side", "school",
+		},
+		strings.NewReader(""),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.command != "committee-bootstrap" || opts.arguments["idempotency_key"] != "bootstrap-001" {
+		t.Fatalf("unexpected bootstrap request: %#v", opts)
+	}
+	committee := opts.arguments["committee"].(map[string]any)
+	if committee["name"] != "Prüfungsausschuss Nord" || committee["ihk"] != "IHK Teststadt" {
+		t.Fatalf("unexpected committee arguments: %#v", committee)
+	}
+	chair := opts.arguments["chair"].(map[string]any)
+	deputy := opts.arguments["deputy"].(map[string]any)
+	if chair["mode"] != "new" || chair["email"] != "chair@example.invalid" {
+		t.Fatalf("unexpected chair arguments: %#v", chair)
+	}
+	if deputy["mode"] != "existing" || deputy["email"] != "deputy@example.invalid" {
+		t.Fatalf("unexpected deputy arguments: %#v", deputy)
+	}
+	encoded, err := json.Marshal(opts.arguments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "token") {
+		t.Fatalf("bootstrap request must not contain token material: %s", encoded)
+	}
+}
+
+func TestCommitteeCommandsRejectAmbiguousOrIncompleteSelections(t *testing.T) {
+	base := []string{
+		"--container", "lzug", "committee-bootstrap",
+		"--idempotency-key", "bootstrap-001",
+		"--name", "PA Nord", "--ihk", "IHK Test", "--occupation", "Testberuf",
+		"--chair-existing-email", "existing@example.invalid",
+		"--chair-first-name", "Doppelt",
+		"--chair-last-name", "Gewählt",
+		"--chair-email", "new@example.invalid",
+		"--chair-member-status", "ordinary",
+		"--chair-representing-side", "employer",
+	}
+	if _, err := parseOptions(base, strings.NewReader("")); err == nil {
+		t.Fatal("ambiguous person selection was accepted")
+	}
+
+	missingMembership := []string{
+		"--container", "lzug", "committee-complete",
+		"--idempotency-key", "complete-001",
+		"--committee-id", "7",
+		"--chair-existing-email", "existing@example.invalid",
+	}
+	if _, err := parseOptions(missingMembership, strings.NewReader("")); err == nil {
+		t.Fatal("membership fields were optional")
+	}
+}
+
+func TestCommitteeLifecycleAndReinviteUseOnlyExplicitArguments(t *testing.T) {
+	deactivate, err := parseOptions(
+		[]string{
+			"--container", "lzug", "committee-deactivate",
+			"--idempotency-key", "deactivate-001",
+			"--committee-id", "7",
+			"--reason", "Technische Sperre",
+		},
+		strings.NewReader(""),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deactivate.arguments["committee_id"] != 7 || deactivate.arguments["reason"] != "Technische Sperre" {
+		t.Fatalf("unexpected lifecycle request: %#v", deactivate)
+	}
+
+	reinvite, err := parseOptions(
+		[]string{
+			"--container", "lzug", "committee-reinvite",
+			"--idempotency-key", "reinvite-001",
+			"--committee-id", "7",
+			"--email", "member@example.invalid",
+		},
+		strings.NewReader(""),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reinvite.arguments["email"] != "member@example.invalid" || len(reinvite.arguments) != 3 {
+		t.Fatalf("unexpected reinvite request: %#v", reinvite)
+	}
+}
+
 func TestTransportPreservesJSONStreamsAndRemoteExitCode(t *testing.T) {
 	argsFile := filepath.Join(t.TempDir(), "args")
 	t.Setenv("LZUG_CLI_HELPER", "1")
