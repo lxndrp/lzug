@@ -25,6 +25,7 @@ from .authorization import AuthorizationScope
 from .database import DEFAULT_DB_PATH, session_scope
 from .models import (
     CommitteeMember,
+    ConfirmedPlanRevision,
     ExamDay,
     ExamDayAssignment,
     ExamRound,
@@ -260,7 +261,10 @@ class NotificationService:
         with session_scope(self.db_path) as session:
             rows = session.scalars(
                 select(Notification)
-                .where(Notification.recipient_member_id.in_(scope.member_ids))
+                .where(
+                    Notification.recipient_member_id.in_(scope.member_ids),
+                    Notification.superseded_at.is_(None),
+                )
                 .order_by(Notification.created_at.desc(), Notification.id.desc())
             ).all()
             return [self._notification_view(row) for row in rows]
@@ -287,7 +291,8 @@ class NotificationService:
                 statement = statement.where(
                     NotificationDelivery.status.in_(
                         {"temporarily_failed", "permanently_failed", "unavailable"}
-                    )
+                    ),
+                    NotificationDelivery.error_code != "superseded_by_newer_revision",
                 )
             rows = session.execute(statement.order_by(NotificationDelivery.updated_at.desc())).all()
             current = _now()
@@ -307,6 +312,67 @@ class NotificationService:
                 }
                 for delivery, notice in rows
             ]
+
+    def supersede_unsent_plan_changes(
+        self,
+        *,
+        round_id: int,
+        recipient_member_id: int,
+        newer_revision_id: int,
+    ) -> set[int]:
+        """Hide only plan-change notices that no channel has attempted yet."""
+        superseded: set[int] = set()
+        current = _timestamp(_now())
+        with session_scope(self.db_path) as session:
+            notices = session.scalars(
+                select(Notification).where(
+                    Notification.exam_round_id == round_id,
+                    Notification.recipient_member_id == recipient_member_id,
+                    Notification.event_type == "plan_changed",
+                    Notification.origin_key
+                    != f"confirmed-plan-revision:{newer_revision_id}:{recipient_member_id}",
+                    Notification.superseded_at.is_(None),
+                )
+            ).all()
+            for notice in notices:
+                parts = notice.origin_key.split(":")
+                if len(parts) < 3 or parts[0] != "confirmed-plan-revision":
+                    continue
+                try:
+                    notice_revision_id = int(parts[1])
+                except ValueError:
+                    continue
+                notice_revision = session.get(ConfirmedPlanRevision, notice_revision_id)
+                newer_revision = session.get(ConfirmedPlanRevision, newer_revision_id)
+                if (
+                    notice_revision is None
+                    or newer_revision is None
+                    or notice_revision.exam_round_id != newer_revision.exam_round_id
+                    or notice_revision.resulting_revision >= newer_revision.resulting_revision
+                ):
+                    continue
+                deliveries = session.scalars(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.notification_id == notice.id
+                    )
+                ).all()
+                attempted = any(
+                    delivery.attempt_count > 0
+                    or delivery.technical_confirmed_at is not None
+                    or delivery.claim_token is not None
+                    for delivery in deliveries
+                )
+                if attempted:
+                    continue
+                notice.superseded_at = current
+                notice.superseded_by_revision_id = newer_revision_id
+                for delivery in deliveries:
+                    delivery.status = "permanently_failed"
+                    delivery.next_attempt_at = None
+                    delivery.error_code = "superseded_by_newer_revision"
+                    delivery.updated_at = current
+                superseded.add(notice.id)
+        return superseded
 
     def register_push(self, scope: AuthorizationScope, endpoint: str) -> dict[str, object]:
         if scope.person_id is None:

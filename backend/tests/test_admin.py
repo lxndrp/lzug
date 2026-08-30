@@ -276,3 +276,81 @@ class AdminAuthenticationTests(unittest.TestCase):
         self.assertEqual((7, "web_push"), notifications.called)
         self.assertNotIn("message", json.dumps(response))
         self.assertEqual("technically_confirmed", response["result"]["deliveries"][0]["status"])
+
+    def test_operator_can_retry_plan_consequences_without_receiving_content(self) -> None:
+        class Consequences:
+            def retry_revision(self, revision_id: int):
+                self.called = revision_id
+                return {
+                    "revision_id": revision_id,
+                    "derivation_status": "succeeded",
+                    "processed": 2,
+                    "problems": 0,
+                    "pending": 0,
+                    "superseded": 1,
+                }
+
+            def operator_status(self, revision_id: int):
+                self.status_called = revision_id
+                return {
+                    "revision_id": revision_id,
+                    "technical_items": [
+                        {
+                            "id": 23,
+                            "status": "permanently_failed",
+                            "attempt_count": 4,
+                            "error_code": "calendar_processing_failed",
+                            "updated_at": "2026-08-30T12:00:00+00:00",
+                        }
+                    ],
+                }
+
+        with TempDatabase(with_seed=False) as db_path:
+            service = OperatorAuthService(db_path)
+            consequences = Consequences()
+            output = io.BytesIO()
+            stdout = io.TextIOWrapper(output, encoding="utf-8")
+            with redirect_stdout(stdout):
+                code = run(
+                    json.dumps(
+                        {
+                            "version": 1,
+                            "command": "retry-plan-consequences",
+                            "arguments": {"revision_id": 17},
+                        }
+                    ).encode(),
+                    service=service,
+                    consequences=consequences,
+                )
+            stdout.flush()
+            response = json.loads(output.getvalue())
+
+        self.assertEqual(EXIT_OK, code)
+        self.assertEqual(17, consequences.called)
+        self.assertNotIn("details", json.dumps(response))
+        self.assertEqual(2, response["result"]["processed"])
+
+        output = io.BytesIO()
+        stdout = io.TextIOWrapper(output, encoding="utf-8")
+        with redirect_stdout(stdout):
+            code = run(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "command": "plan-consequences-status",
+                        "arguments": {"revision_id": 17},
+                    }
+                ).encode(),
+                service=service,
+                consequences=consequences,
+            )
+        stdout.flush()
+        response = json.loads(output.getvalue())
+
+        self.assertEqual(EXIT_OK, code)
+        self.assertEqual(17, consequences.status_called)
+        self.assertNotIn("details", json.dumps(response))
+        self.assertEqual(
+            "calendar_processing_failed",
+            response["result"]["technical_items"][0]["error_code"],
+        )

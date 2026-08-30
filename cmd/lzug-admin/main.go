@@ -134,6 +134,7 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 	email := commandSet.String("email", "", "account email")
 	accountID := commandSet.Int("account-id", 0, "account id")
 	memberID := commandSet.Int("member-id", 0, "committee member id")
+	revisionID := commandSet.Int("revision-id", 0, "confirmed plan revision id")
 	channel := commandSet.String("channel", "", "notification channel")
 	idempotencyKey := commandSet.String("idempotency-key", "", "unique retry key")
 	committeeID := commandSet.Int("committee-id", 0, "committee id")
@@ -188,17 +189,17 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 		strings.TrimSpace(*deputyRepresentingSide) != ""
 	switch command {
 	case "bootstrap", "invite":
-		if strings.TrimSpace(*email) == "" || *accountID != 0 || *memberID != 0 || *channel != "" || committeeAdminFlagsUsed {
+		if strings.TrimSpace(*email) == "" || *accountID != 0 || *memberID != 0 || *revisionID != 0 || *channel != "" || committeeAdminFlagsUsed {
 			return options{}, fmt.Errorf("%s requires --email", command)
 		}
 		arguments["email"] = *email
 	case "disable":
-		if *accountID <= 0 || *email != "" || *memberID != 0 || *channel != "" || committeeAdminFlagsUsed {
+		if *accountID <= 0 || *email != "" || *memberID != 0 || *revisionID != 0 || *channel != "" || committeeAdminFlagsUsed {
 			return options{}, fmt.Errorf("disable requires a positive --account-id")
 		}
 		arguments["account_id"] = *accountID
 	case "recover":
-		if (*accountID <= 0) == (strings.TrimSpace(*email) == "") || *memberID != 0 || *channel != "" || committeeAdminFlagsUsed {
+		if (*accountID <= 0) == (strings.TrimSpace(*email) == "") || *memberID != 0 || *revisionID != 0 || *channel != "" || committeeAdminFlagsUsed {
 			return options{}, fmt.Errorf("recover requires exactly one of --account-id or --email")
 		}
 		if *accountID > 0 {
@@ -207,7 +208,7 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 			arguments["email"] = *email
 		}
 	case "consume-invitation", "consume-recovery":
-		if *email != "" || *accountID != 0 || *memberID != 0 || *channel != "" || committeeAdminFlagsUsed {
+		if *email != "" || *accountID != 0 || *memberID != 0 || *revisionID != 0 || *channel != "" || committeeAdminFlagsUsed {
 			return options{}, fmt.Errorf("%s reads its token from stdin", command)
 		}
 		token, err := io.ReadAll(io.LimitReader(input, maxTokenInput+1))
@@ -220,18 +221,18 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 		}
 		arguments["token"] = secret
 	case "process-notifications":
-		if *email != "" || *accountID != 0 || *memberID != 0 || *channel != "" || committeeAdminFlagsUsed {
+		if *email != "" || *accountID != 0 || *memberID != 0 || *revisionID != 0 || *channel != "" || committeeAdminFlagsUsed {
 			return options{}, fmt.Errorf("process-notifications accepts no options")
 		}
 	case "test-notification":
-		if *email != "" || *accountID != 0 || *memberID <= 0 || (*channel != "web_push" && *channel != "email") || committeeAdminFlagsUsed {
+		if *email != "" || *accountID != 0 || *memberID <= 0 || *revisionID != 0 || (*channel != "web_push" && *channel != "email") || committeeAdminFlagsUsed {
 			return options{}, fmt.Errorf("test-notification requires --member-id and --channel web_push|email")
 		}
 		arguments["member_id"] = *memberID
 		arguments["channel"] = *channel
 	case "committee-bootstrap", "committee-complete":
 		if !idempotencyKeyPattern.MatchString(*idempotencyKey) || *email != "" ||
-			*accountID != 0 || *memberID != 0 || *channel != "" {
+			*accountID != 0 || *memberID != 0 || *revisionID != 0 || *channel != "" {
 			return options{}, fmt.Errorf("%s requires a valid --idempotency-key", command)
 		}
 		chair, err := committeePersonSelection(
@@ -270,7 +271,7 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 		}
 	case "committee-reinvite":
 		if !idempotencyKeyPattern.MatchString(*idempotencyKey) || *committeeID <= 0 ||
-			strings.TrimSpace(*email) == "" || *accountID != 0 || *memberID != 0 || *channel != "" ||
+			strings.TrimSpace(*email) == "" || *accountID != 0 || *memberID != 0 || *revisionID != 0 || *channel != "" ||
 			committeePersonFlagsUsed(*chairExistingEmail, *chairFirstName, *chairLastName, *chairEmail, *chairMobile, *chairMemberStatus, *chairRepresentingSide) ||
 			committeePersonFlagsUsed(*deputyExistingEmail, *deputyFirstName, *deputyLastName, *deputyEmail, *deputyMobile, *deputyMemberStatus, *deputyRepresentingSide) ||
 			strings.TrimSpace(*committeeName) != "" || strings.TrimSpace(*committeeIHK) != "" ||
@@ -283,7 +284,7 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 	case "committee-deactivate", "committee-reactivate":
 		if !idempotencyKeyPattern.MatchString(*idempotencyKey) || *committeeID <= 0 ||
 			strings.TrimSpace(*reason) == "" || *email != "" || *accountID != 0 ||
-			*memberID != 0 || *channel != "" || strings.TrimSpace(*committeeName) != "" ||
+			*memberID != 0 || *revisionID != 0 || *channel != "" || strings.TrimSpace(*committeeName) != "" ||
 			strings.TrimSpace(*committeeIHK) != "" || strings.TrimSpace(*committeeOccupation) != "" ||
 			committeePersonFlagsUsed(*chairExistingEmail, *chairFirstName, *chairLastName, *chairEmail, *chairMobile, *chairMemberStatus, *chairRepresentingSide) ||
 			committeePersonFlagsUsed(*deputyExistingEmail, *deputyFirstName, *deputyLastName, *deputyEmail, *deputyMobile, *deputyMemberStatus, *deputyRepresentingSide) {
@@ -292,6 +293,11 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 		arguments["idempotency_key"] = *idempotencyKey
 		arguments["committee_id"] = *committeeID
 		arguments["reason"] = *reason
+	case "plan-consequences-status", "retry-plan-consequences":
+		if *email != "" || *accountID != 0 || *memberID != 0 || *revisionID <= 0 || *channel != "" || committeeAdminFlagsUsed {
+			return options{}, fmt.Errorf("%s requires a positive --revision-id", command)
+		}
+		arguments["revision_id"] = *revisionID
 	default:
 		return options{}, fmt.Errorf("unsupported admin command")
 	}

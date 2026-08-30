@@ -21,5 +21,5 @@ sperrt die Änderung mit HTTP 409.
 Ein veralteter Gesamtplanstand führt ebenfalls zu HTTP 409.
 
 Die Änderung behält vorhandene Tages-, Slot- und Besetzungsidentitäten bei.
-Sie aktualisiert weder Benachrichtigungen noch externe Kalender; diese
-nachgelagerten Folgen verwenden den Revisionsvertrag in eigenen Vorgängen.
+Benachrichtigungen und persönliche Kalender werden erst nach dem erfolgreichen Commit über [eigene, wiederholbare Folgenvorgänge](plan-change-consequences.md) aktualisiert.
+Ein Folgenfehler kann die bestätigte und auditierte Planrevision nicht zurückrollen.

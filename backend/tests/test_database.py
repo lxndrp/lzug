@@ -12,6 +12,7 @@ from unittest.mock import patch
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
+from backend.calendar import CalendarService
 from backend.database import (
     BUSY_TIMEOUT_MS,
     SQLITE_JOURNAL_MODE,
@@ -26,6 +27,7 @@ from backend.database import (
     migration_status,
     sqlite_settings,
 )
+from backend.planning import ConfirmedPlanChange, PlanningService
 from backend.tests.helpers import TempDatabase
 
 
@@ -180,6 +182,97 @@ def rewind_exam_result_migration(connection: sqlite3.Connection) -> None:
         )
 
 
+def rewind_plan_consequence_migration(connection: sqlite3.Connection) -> None:
+    """Restore notification tables and history to their pre-021 contract."""
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(notification)")}
+    connection.executescript("""
+        DROP TABLE IF EXISTS plan_consequence;
+        DROP TABLE IF EXISTS plan_consequence_batch;
+    """)
+    if "superseded_at" in columns:
+        connection.executescript("""
+            DROP INDEX notification_delivery_due;
+            DROP INDEX notification_recipient_created;
+            DROP INDEX notification_committee_created;
+            ALTER TABLE notification_delivery RENAME TO notification_delivery_latest;
+            ALTER TABLE notification RENAME TO notification_latest;
+            CREATE TABLE notification (
+              id INTEGER PRIMARY KEY,
+              committee_id INTEGER NOT NULL REFERENCES committee(id) ON DELETE CASCADE,
+              exam_round_id INTEGER REFERENCES exam_round(id) ON DELETE CASCADE,
+              recipient_member_id INTEGER NOT NULL
+                REFERENCES committee_member(id) ON DELETE CASCADE,
+              event_type TEXT NOT NULL,
+              origin_key TEXT NOT NULL,
+              title TEXT NOT NULL,
+              message TEXT NOT NULL,
+              action_path TEXT NOT NULL,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              UNIQUE (recipient_member_id, event_type, origin_key)
+            );
+            INSERT INTO notification (
+              id, committee_id, exam_round_id, recipient_member_id, event_type,
+              origin_key, title, message, action_path, created_at
+            )
+            SELECT
+              id, committee_id, exam_round_id, recipient_member_id, event_type,
+              origin_key, title, message, action_path, created_at
+            FROM notification_latest
+            WHERE event_type != 'plan_changed';
+            CREATE TABLE notification_delivery (
+              id INTEGER PRIMARY KEY,
+              notification_id INTEGER NOT NULL
+                REFERENCES notification(id) ON DELETE CASCADE,
+              channel TEXT NOT NULL,
+              target_key TEXT NOT NULL,
+              status TEXT NOT NULL,
+              attempt_count INTEGER NOT NULL DEFAULT 0,
+              next_attempt_at TEXT,
+              technical_confirmed_at TEXT,
+              error_code TEXT,
+              claim_token TEXT,
+              claimed_at TEXT,
+              claim_expires_at TEXT,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              UNIQUE (notification_id, channel, target_key)
+            );
+            INSERT INTO notification_delivery (
+              id, notification_id, channel, target_key, status, attempt_count,
+              next_attempt_at, technical_confirmed_at, error_code,
+              claim_token, claimed_at, claim_expires_at, created_at, updated_at
+            )
+            SELECT
+              delivery.id, delivery.notification_id, delivery.channel,
+              delivery.target_key, delivery.status, delivery.attempt_count,
+              delivery.next_attempt_at, delivery.technical_confirmed_at,
+              delivery.error_code, delivery.claim_token, delivery.claimed_at,
+              delivery.claim_expires_at, delivery.created_at, delivery.updated_at
+            FROM notification_delivery_latest AS delivery
+            JOIN notification ON notification.id = delivery.notification_id;
+            DROP TABLE notification_delivery_latest;
+            DROP TABLE notification_latest;
+            CREATE INDEX notification_recipient_created
+              ON notification(recipient_member_id, created_at DESC, id DESC);
+            CREATE INDEX notification_committee_created
+              ON notification(committee_id, created_at DESC, id DESC);
+            CREATE INDEX notification_delivery_due
+              ON notification_delivery(status, next_attempt_at, claim_expires_at, id);
+        """)
+    if connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        ("schema_migration_checksum",),
+    ).fetchone():
+        connection.execute(
+            "DELETE FROM schema_migration_checksum WHERE name = ?",
+            ("022_add_plan_consequences.sql",),
+        )
+    connection.execute(
+        "DELETE FROM schema_migration WHERE name = ?",
+        ("022_add_plan_consequences.sql",),
+    )
+
+
 def rewind_exam_day_closure_migration(connection: sqlite3.Connection) -> None:
     """Restore the pre-019 day schema without leaving a history gap."""
     rewind_committee_bootstrap_migration(connection)
@@ -195,7 +288,8 @@ def rewind_exam_day_closure_migration(connection: sqlite3.Connection) -> None:
         DELETE FROM schema_migration
           WHERE name IN (
             '019_add_exam_day_closures.sql',
-            '020_add_confirmed_plan_revisions.sql'
+            '020_add_confirmed_plan_revisions.sql',
+            '022_add_plan_consequences.sql'
           );
     """)
     if connection.execute(
@@ -203,13 +297,18 @@ def rewind_exam_day_closure_migration(connection: sqlite3.Connection) -> None:
         ("schema_migration_checksum",),
     ).fetchone():
         connection.execute(
-            "DELETE FROM schema_migration_checksum WHERE name IN (?, ?)",
-            ("019_add_exam_day_closures.sql", "020_add_confirmed_plan_revisions.sql"),
+            "DELETE FROM schema_migration_checksum WHERE name IN (?, ?, ?)",
+            (
+                "019_add_exam_day_closures.sql",
+                "020_add_confirmed_plan_revisions.sql",
+                "022_add_plan_consequences.sql",
+            ),
         )
 
 
 def rewind_committee_bootstrap_migration(connection: sqlite3.Connection) -> None:
     """Restore the pre-021 committee schema without leaving a history gap."""
+    rewind_plan_consequence_migration(connection)
     connection.executescript("""
         DROP TRIGGER IF EXISTS committee_admin_operation_immutable_update;
         DROP TRIGGER IF EXISTS committee_admin_operation_immutable_delete;
@@ -481,7 +580,7 @@ class DatabaseTests(unittest.TestCase):
             initialize(db_path)
             after = migration_status(db_path)
             self.assertEqual("ready", after["state"])
-            self.assertEqual("021_add_committee_bootstrap.sql", after["current"])
+            self.assertEqual("022_add_plan_consequences.sql", after["current"])
             self.assertTrue(list(db_path.parent.joinpath("backups").glob("*.sqlite")))
 
             history_before = after["history"]
@@ -514,7 +613,7 @@ class DatabaseTests(unittest.TestCase):
             )
             self.assertEqual(("confirmed_plan_revision",), revision_table)
             self.assertEqual(
-                "021_add_committee_bootstrap.sql",
+                "022_add_plan_consequences.sql",
                 migration_status(db_path)["current"],
             )
 
@@ -590,8 +689,9 @@ class DatabaseTests(unittest.TestCase):
                     "019_add_exam_day_closures.sql",
                     "020_add_confirmed_plan_revisions.sql",
                     "021_add_committee_bootstrap.sql",
+                    "022_add_plan_consequences.sql",
                 ],
-                [entry["name"] for entry in status["history"][-14:]],
+                [entry["name"] for entry in status["history"][-15:]],
             )
 
     def test_committee_bootstrap_migration_classifies_legacy_committees_without_changing_ids(
@@ -746,9 +846,71 @@ class DatabaseTests(unittest.TestCase):
             self.assertTrue({"claim_token", "claimed_at", "claim_expires_at"}.issubset(columns))
             self.assertEqual(("temporarily_failed", 2, None, None, None), delivery)
             self.assertEqual(
-                "021_add_committee_bootstrap.sql",
+                "022_add_plan_consequences.sql",
                 migration_status(db_path)["current"],
             )
+
+    def test_plan_consequence_migration_preserves_notifications_and_calendar_identity(
+        self,
+    ) -> None:
+        with TempDatabase() as db_path:
+            planning = PlanningService(db_path)
+            planning.generate_proposal(1)
+            planning.confirm_plan(1)
+            plan = planning.get_confirmed_plan(1)
+            planning.save_confirmed_plan(
+                ConfirmedPlanChange(plan, "Bestehende Revision nicht nachträglich versenden"),
+                actor_member_id=1,
+            )
+            CalendarService(db_path).sync_round(1)
+            with closing(sqlite3.connect(db_path)) as connection:
+                connection.execute("PRAGMA foreign_keys = ON")
+                notification_id = connection.execute(
+                    "INSERT INTO notification "
+                    "(committee_id, exam_round_id, recipient_member_id, event_type, "
+                    " origin_key, title, message, action_path) "
+                    "VALUES (1, 1, 1, 'synthetic_test', 'migration:021', "
+                    "        'Migration', 'Synthetic', '/notifications')"
+                ).lastrowid
+                connection.execute(
+                    "INSERT INTO notification_delivery "
+                    "(notification_id, channel, target_key, status, attempt_count, error_code) "
+                    "VALUES (?, 'sink', 'migration-sink', 'temporarily_failed', 2, 'offline')",
+                    (notification_id,),
+                )
+                calendar_before = connection.execute(
+                    "SELECT id, external_event_id, version FROM calendar_event ORDER BY id LIMIT 1"
+                ).fetchone()
+                rewind_plan_consequence_migration(connection)
+                connection.commit()
+
+            initialize(db_path)
+
+            with closing(sqlite3.connect(db_path)) as connection:
+                notification_after = connection.execute(
+                    "SELECT id, event_type, superseded_at FROM notification WHERE id = ?",
+                    (notification_id,),
+                ).fetchone()
+                delivery_after = connection.execute(
+                    "SELECT status, attempt_count, error_code FROM notification_delivery "
+                    "WHERE notification_id = ?",
+                    (notification_id,),
+                ).fetchone()
+                calendar_after = connection.execute(
+                    "SELECT id, external_event_id, version FROM calendar_event ORDER BY id LIMIT 1"
+                ).fetchone()
+                consequence_count = connection.execute(
+                    "SELECT COUNT(*) FROM plan_consequence"
+                ).fetchone()[0]
+                batch = connection.execute(
+                    "SELECT status, attempt_count, error_code " "FROM plan_consequence_batch"
+                ).fetchone()
+
+        self.assertEqual((notification_id, "synthetic_test", None), notification_after)
+        self.assertEqual(("temporarily_failed", 2, "offline"), delivery_after)
+        self.assertEqual(calendar_before, calendar_after)
+        self.assertEqual(0, consequence_count)
+        self.assertEqual(("succeeded", 0, "migration_not_replayed"), batch)
 
     def test_exam_result_migration_marks_only_completed_history_without_invented_values(
         self,

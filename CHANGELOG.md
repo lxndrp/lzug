@@ -9,6 +9,11 @@ Versionen folgen [Semantic Versioning](https://semver.org/lang/de/).
 Bei einer Release-Vorbereitung verschiebt ein Maintainer die freizugebenden Einträge in genau einen Abschnitt `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`.
 Der Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Notes und veröffentlicht nur aus dem nach der Environment-Freigabe erzeugten, annotierten SemVer-Tag.
 
+### Added
+
+- Bestätigte Planänderungen leiten zusammengefasste interne Benachrichtigungen und persönliche Kalenderfolgen revisionsbezogen, idempotent und nachgelagert ab.
+  Stabile Ereignisidentitäten, Revisionsvorrang, getrennte Fehlerzustände sowie kontrollierte fachliche und technische Wiederanläufe verhindern Dubletten und den Rückfall auf ältere Planstände.
+
 ## [0.4.0] - 2026-08-29
 
 ### Added
