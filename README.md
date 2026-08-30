@@ -2,10 +2,14 @@
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![Status: prototype](https://img.shields.io/badge/status-prototype-yellow)](https://github.com/users/lxndrp/projects/2)
-[![CI](https://github.com/lxndrp/lzug/actions/workflows/quality.yml/badge.svg?branch=master&event=push)](https://github.com/lxndrp/lzug/actions/workflows/quality.yml?query=branch%3Amaster+event%3Apush)
+[![Quality](https://github.com/lxndrp/lzug/actions/workflows/quality.yml/badge.svg?branch=master&event=push)](https://github.com/lxndrp/lzug/actions/workflows/quality.yml?query=branch%3Amaster+event%3Apush)
+[![Latest release](https://img.shields.io/github/v/release/lxndrp/lzug?display_name=tag)](https://github.com/lxndrp/lzug/releases)
+[![Public site](https://github.com/lxndrp/lzug/actions/workflows/publication.yml/badge.svg?branch=master)](https://github.com/lxndrp/lzug/actions/workflows/publication.yml?query=branch%3Amaster)
 
 `lzug` unterstützt IHK-Prüfungsausschüsse bei der Organisation halbjährlicher Fachinformatiker-Prüfungen.
 Die Anwendung ist ein Arbeitswerkzeug für die Ausschussarbeit, nicht für die interne IHK-Sachbearbeitung.
+
+Die [öffentliche Demo](https://demo.lzug.repertoire.papaspyrou.name) zeigt den aktuellen Prototyp.
 
 > **Öffentlicher Quellcode-Prototyp:** `lzug` ist ausdrücklich nicht
 > produktionsreif. Der Quellcode enthält ausschließlich synthetische Demo- und
