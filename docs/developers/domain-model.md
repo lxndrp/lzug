@@ -12,6 +12,7 @@ erDiagram
   PERSON ||--o{ MEMBERSHIP : holds
   COMMITTEE ||--o{ EXAM_ROUND : plans
   EXAM_HALF_YEAR ||--o{ EXAM_ROUND : groups
+  EXAM_ROUND ||--o{ CONFIRMED_PLAN_REVISION : revises
   EXAM_ROUND ||--o{ ROUND_CANDIDATE : includes
   EXAM_ROUND ||--o{ EXAM_DAY : contains
   EXAM_DAY ||--o{ EXAM_SLOT : schedules
@@ -43,6 +44,8 @@ Zugeordnete Prüflinge gehören zur Runde, nicht unmittelbar zum Ausschuss.
 - **Planung und Durchführung**: Orte, Verfügbarkeiten, mögliche Tage und ein
 Vorschlag führen zu Prüfungstagen, Slots und Besetzungen.
 Die bestätigte Planung ist die Grundlage für Benachrichtigungen, Kalender und Ausfälle.
+Eine begründete Änderung vor dem tatsächlichen Start behält die Objektidentitäten bei
+und schreibt Vorher- und Nachher-Zustand als unveränderliche Planrevision.
 - **Kommunikation und Dokumente**: Ein fachlicher Hinweis ist von seinen
 technischen Zustellungen getrennt.
 Persönliche Kalender enthalten nur die eigene Einplanung.
@@ -69,6 +72,10 @@ die Stellvertretung bezeichnet nur die Vertretungsfunktion.
 - Eine bestätigte Tagesbesetzung deckt Arbeitgeber-, Arbeitnehmer- und
 Schulseite ab und verfügt zusätzlich über einen Fallback.
 Ein Tag besteht nicht ausschließlich aus mündlichen Ergänzungsprüfungen.
+- Bestätigte Pläne dürfen nur vor dem tatsächlichen Start und ausschließlich
+als vollständiges, revisionsgebundenes Aggregat geändert werden.
+Jede Revision verlangt einen Grund und einen berechtigten Akteur; veraltete
+Revisionsstände oder gesperrte Tage verändern weder Plan noch Historie.
 - Verfügbarkeiten, Ersatz und Kalenderereignisse beziehen sich auf die
 konkrete Runde und den betroffenen Tagesabschnitt.
 Ein Ersatz wird erst nach kontrollierter Auswahl wirksam.

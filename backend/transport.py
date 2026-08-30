@@ -40,6 +40,7 @@ from .models import (
 from .notifications import NotificationService
 from .observability import emit_event
 from .planning import (
+    ConfirmedPlanChange,
     PlanAssignment,
     PlanDay,
     PlanningProposal,
@@ -125,6 +126,20 @@ def planning_proposal_from_payload(round_id: int, payload: dict[str, Any]) -> Pl
         round_id=round_id,
         revision=integer(payload, "revision"),
         days=tuple(days),
+    )
+
+
+def confirmed_plan_change_from_payload(
+    round_id: int,
+    payload: dict[str, Any],
+) -> ConfirmedPlanChange:
+    """Parse a complete confirmed-plan revision command at its aggregate boundary."""
+    reason = payload.get("reason")
+    if not isinstance(reason, str):
+        raise ValueError("reason must be a string")
+    return ConfirmedPlanChange(
+        plan=planning_proposal_from_payload(round_id, payload),
+        reason=reason,
     )
 
 

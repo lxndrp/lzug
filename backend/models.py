@@ -220,6 +220,32 @@ class ExamRound(Base):
     )
 
 
+class ConfirmedPlanRevision(Base):
+    """Immutable audit record for one revision of a confirmed exam plan."""
+
+    __tablename__ = "confirmed_plan_revision"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_round_id: Mapped[int] = mapped_column(ForeignKey("exam_round.id", ondelete="CASCADE"))
+    previous_revision: Mapped[int] = mapped_column(Integer)
+    resulting_revision: Mapped[int] = mapped_column(Integer)
+    reason: Mapped[str] = mapped_column(String)
+    actor_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    before_state_json: Mapped[str] = mapped_column(String)
+    after_state_json: Mapped[str] = mapped_column(String)
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+    __table_args__ = (
+        Index("confirmed_plan_revision_history", "exam_round_id", "resulting_revision"),
+        Index("confirmed_plan_revision_unique", "exam_round_id", "resulting_revision", unique=True),
+    )
+
+
 class RoundCandidate(Base):
     __tablename__ = "round_candidate"
 

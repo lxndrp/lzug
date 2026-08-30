@@ -91,6 +91,10 @@ def _normalize_timestamps(database: Path) -> None:
                     (FIXED_TIMESTAMP,),
                 )
         connection.commit()
+
+    # Changing a SQLite journal mode needs an exclusive lock.  Keep it in a
+    # separate connection after all timestamp updates have committed and closed.
+    with closing(sqlite3.connect(database)) as connection:
         connection.execute("PRAGMA journal_mode=DELETE")
         connection.execute("VACUUM")
         integrity = connection.execute("PRAGMA integrity_check").fetchone()

@@ -30,9 +30,15 @@ from .exam_day_closures import ExamDayConflictError, ExamDayValidationError
 from .exam_protocols import ExamProtocolConflictError
 from .exam_results import ExamResultConflictError
 from .local_auth import LocalAuthError
-from .models import CANDIDATE_COMMITTEE_ASSIGNMENT, EXAM_DAY, EXAM_DAY_ASSIGNMENT, EXAM_SLOT
+from .models import (
+    CANDIDATE_COMMITTEE_ASSIGNMENT,
+    EXAM_DAY,
+    EXAM_DAY_ASSIGNMENT,
+    EXAM_ROUND,
+    EXAM_SLOT,
+)
 from .observability import emit_event, safe_http_path
-from .planning import PlanConflictError, PlanValidationError
+from .planning import ConfirmedPlanConflictError, PlanConflictError, PlanValidationError
 from .repositories import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES
 from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from .security import RequestRateLimiter, RuntimeSecurityConfig
@@ -40,6 +46,7 @@ from .transport import (
     RequestContext,
     RequestTooLargeError,
     UnsupportedMediaTypeError,
+    confirmed_plan_change_from_payload,
     planning_proposal_from_payload,
 )
 
@@ -530,6 +537,15 @@ def create_app(
         return _json_response(
             ApplicationResult(
                 {"error": {"code": "planning_proposal_conflict", "message": str(error)}},
+                HTTPStatus.CONFLICT,
+            )
+        )
+
+    @app.exception_handler(ConfirmedPlanConflictError)
+    def confirmed_plan_conflict(_request: Request, error: ConfirmedPlanConflictError):
+        return _json_response(
+            ApplicationResult(
+                {"error": {"code": "confirmed_plan_conflict", "message": str(error)}},
                 HTTPStatus.CONFLICT,
             )
         )
@@ -1323,6 +1339,63 @@ def create_app(
         if warning:
             confirmed["notification_warning"] = warning
         return _finish(context, context.respond(hateoas.confirmed_plan(confirmed)))
+
+    @app.get("/api/exam-rounds/{id}/confirmed-plan", openapi_extra=read_security)
+    def get_confirmed_plan(request: Request, id: str):
+        context = _context(request, resolved)
+        context.require_authenticated()
+        round_id = int(id)
+        context.require_round_access(round_id, manage=True)
+        plan = context.planning_service.get_confirmed_plan(round_id)
+        return _finish(
+            context,
+            context.respond(
+                hateoas.editable_confirmed_plan(
+                    context.planning_service.confirmed_plan_payload(plan)
+                )
+            ),
+        )
+
+    @app.put("/api/exam-rounds/{id}/confirmed-plan", openapi_extra=write_security)
+    def save_confirmed_plan(request: Request, id: str):
+        context = _context(request, resolved, _body(request))
+        auth = context.require_authenticated(require_csrf=True)
+        context.authorize_mutation("PUT", ["exam-rounds", id, "confirmed-plan"], auth)
+        round_id = int(id)
+        context.require_round_access(round_id, manage=True)
+        committee_id = context.repository.committee_id_for_resource(EXAM_ROUND, round_id)
+        actor_member_id = context.authorization_scope.member_for_committee(committee_id)
+        if actor_member_id is None:
+            raise ForbiddenRequestError("Forbidden.")
+        saved, revision = context.planning_service.save_confirmed_plan(
+            confirmed_plan_change_from_payload(round_id, context.read_json()),
+            actor_member_id=actor_member_id,
+        )
+        return _finish(
+            context,
+            context.respond(
+                hateoas.editable_confirmed_plan(
+                    context.planning_service.confirmed_plan_payload(saved),
+                    latest_revision=revision,
+                )
+            ),
+        )
+
+    @app.get("/api/exam-rounds/{id}/confirmed-plan/revisions", openapi_extra=read_security)
+    def confirmed_plan_revisions(request: Request, id: str):
+        context = _context(request, resolved)
+        context.require_authenticated()
+        round_id = int(id)
+        context.require_round_access(round_id, manage=True)
+        return _finish(
+            context,
+            context.respond(
+                hateoas.confirmed_plan_revisions(
+                    round_id,
+                    context.planning_service.confirmed_plan_revisions(round_id),
+                )
+            ),
+        )
 
     @app.post("/api/candidate-exam-days/generate")
     def generate_days(request: Request):

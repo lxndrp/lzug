@@ -183,6 +183,7 @@ def rewind_exam_result_migration(connection: sqlite3.Connection) -> None:
 def rewind_exam_day_closure_migration(connection: sqlite3.Connection) -> None:
     """Restore the pre-019 day schema without leaving a history gap."""
     connection.executescript("""
+        DROP TABLE IF EXISTS confirmed_plan_revision;
         DROP TABLE IF EXISTS exam_day_export;
         DROP TABLE IF EXISTS exam_day_audit_event;
         DROP TABLE IF EXISTS exam_day_task;
@@ -191,15 +192,18 @@ def rewind_exam_day_closure_migration(connection: sqlite3.Connection) -> None:
         ALTER TABLE exam_day DROP COLUMN closure_status;
         ALTER TABLE exam_day DROP COLUMN revision;
         DELETE FROM schema_migration
-          WHERE name = '019_add_exam_day_closures.sql';
+          WHERE name IN (
+            '019_add_exam_day_closures.sql',
+            '020_add_confirmed_plan_revisions.sql'
+          );
     """)
     if connection.execute(
         "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
         ("schema_migration_checksum",),
     ).fetchone():
         connection.execute(
-            "DELETE FROM schema_migration_checksum WHERE name = ?",
-            ("019_add_exam_day_closures.sql",),
+            "DELETE FROM schema_migration_checksum WHERE name IN (?, ?)",
+            ("019_add_exam_day_closures.sql", "020_add_confirmed_plan_revisions.sql"),
         )
 
 
@@ -455,7 +459,7 @@ class DatabaseTests(unittest.TestCase):
             initialize(db_path)
             after = migration_status(db_path)
             self.assertEqual("ready", after["state"])
-            self.assertEqual("019_add_exam_day_closures.sql", after["current"])
+            self.assertEqual("020_add_confirmed_plan_revisions.sql", after["current"])
             self.assertTrue(list(db_path.parent.joinpath("backups").glob("*.sqlite")))
 
             history_before = after["history"]
@@ -532,8 +536,9 @@ class DatabaseTests(unittest.TestCase):
                     "017_add_exam_protocols.sql",
                     "018_add_exam_results.sql",
                     "019_add_exam_day_closures.sql",
+                    "020_add_confirmed_plan_revisions.sql",
                 ],
-                [entry["name"] for entry in status["history"][-12:]],
+                [entry["name"] for entry in status["history"][-13:]],
             )
 
     def test_delivery_claim_migration_preserves_queued_deliveries(self) -> None:
@@ -579,7 +584,7 @@ class DatabaseTests(unittest.TestCase):
             self.assertTrue({"claim_token", "claimed_at", "claim_expires_at"}.issubset(columns))
             self.assertEqual(("temporarily_failed", 2, None, None, None), delivery)
             self.assertEqual(
-                "019_add_exam_day_closures.sql",
+                "020_add_confirmed_plan_revisions.sql",
                 migration_status(db_path)["current"],
             )
 

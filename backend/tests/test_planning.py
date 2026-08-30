@@ -21,7 +21,13 @@ from backend.models import (
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
 )
-from backend.planning import PlanConflictError, PlanningService, PlanValidationError
+from backend.planning import (
+    ConfirmedPlanChange,
+    ConfirmedPlanConflictError,
+    PlanConflictError,
+    PlanningService,
+    PlanValidationError,
+)
 from backend.repositories import ResourceRepository
 from backend.tests.helpers import TempDatabase
 
@@ -176,6 +182,215 @@ class PlanningTests(unittest.TestCase):
             & {issue.code for issue in error.exception.issues}
         )
         self.assertEqual(saved, unchanged)
+
+    def test_confirmed_plan_change_records_actor_reason_and_immutable_snapshots(self) -> None:
+        with TempDatabase() as db_path:
+            service = PlanningService(db_path)
+            service.generate_proposal(1)
+            service.confirm_plan(1)
+            original = service.get_confirmed_plan(1)
+            first_day = original.days[0]
+            regular = [slot for slot in first_day.slots if slot.slot_type == "regular"]
+            mep = [slot for slot in first_day.slots if slot.slot_type == "mep"]
+            changed = replace(
+                original,
+                days=(
+                    replace(first_day, slots=tuple([*reversed(regular), *mep])),
+                    *original.days[1:],
+                ),
+            )
+
+            saved, revision = service.save_confirmed_plan(
+                ConfirmedPlanChange(changed, "Prüflingsreihenfolge korrigiert"),
+                actor_member_id=1,
+            )
+            persisted = service.get_confirmed_plan(1)
+            history = service.confirmed_plan_revisions(1)
+
+        self.assertEqual(original.revision + 1, saved.revision)
+        self.assertEqual(saved, persisted)
+        self.assertEqual(1, len(history))
+        self.assertEqual(revision, history[0])
+        self.assertEqual(1, history[0]["actor_member_id"])
+        self.assertEqual("Prüflingsreihenfolge korrigiert", history[0]["reason"])
+        self.assertEqual(original.revision, history[0]["previous_revision"])
+        self.assertEqual(saved.revision, history[0]["resulting_revision"])
+        self.assertEqual(
+            [slot.id for slot in original.days[0].slots],
+            [slot["id"] for slot in history[0]["before"]["exam_days"][0]["slots"]],
+        )
+        self.assertEqual(
+            [slot.id for slot in saved.days[0].slots],
+            [slot["id"] for slot in history[0]["after"]["exam_days"][0]["slots"]],
+        )
+
+    def test_confirmed_plan_change_keeps_started_day_immutable_but_allows_later_day(self) -> None:
+        with TempDatabase() as db_path:
+            service = PlanningService(db_path)
+            service.generate_proposal(1)
+            service.confirm_plan(1)
+            original = service.get_confirmed_plan(1)
+
+            first_day = original.days[0]
+            later_day = original.days[1]
+            later_regular = [slot for slot in later_day.slots if slot.slot_type == "regular"]
+            later_mep = [slot for slot in later_day.slots if slot.slot_type == "mep"]
+            self.assertGreaterEqual(len(later_regular), 2)
+
+            with connect(db_path) as connection:
+                connection.execute(
+                    text(
+                        "UPDATE exam_slot SET execution_status = 'running', "
+                        "actual_started_at = '2026-11-16T08:30:00+00:00' WHERE id = :id"
+                    ),
+                    {"id": first_day.slots[0].id},
+                )
+                connection.commit()
+
+            later_change = replace(
+                original,
+                days=(
+                    first_day,
+                    replace(later_day, slots=tuple([*reversed(later_regular), *later_mep])),
+                    *original.days[2:],
+                ),
+            )
+            saved, _revision = service.save_confirmed_plan(
+                ConfirmedPlanChange(later_change, "Späteren Prüfungstag umsortiert"),
+                actor_member_id=1,
+            )
+
+            started_regular = [slot for slot in first_day.slots if slot.slot_type == "regular"]
+            started_mep = [slot for slot in first_day.slots if slot.slot_type == "mep"]
+            started_change = replace(
+                saved,
+                days=(
+                    replace(
+                        saved.days[0],
+                        slots=tuple([*reversed(started_regular), *started_mep]),
+                    ),
+                    *saved.days[1:],
+                ),
+            )
+            with self.assertRaises(ConfirmedPlanConflictError):
+                service.save_confirmed_plan(
+                    ConfirmedPlanChange(started_change, "Begonnenen Prüfungstag ändern"),
+                    actor_member_id=1,
+                )
+            persisted = service.get_confirmed_plan(1)
+            history = service.confirmed_plan_revisions(1)
+
+        self.assertEqual(original.days[0], saved.days[0])
+        self.assertNotEqual(original.days[1].slots, saved.days[1].slots)
+        self.assertEqual(saved, persisted)
+        self.assertEqual(1, len(history))
+
+    def test_confirmed_plan_change_allows_later_day_after_terminal_day(self) -> None:
+        with TempDatabase() as db_path:
+            service = PlanningService(db_path)
+            service.generate_proposal(1)
+            service.confirm_plan(1)
+            original = service.get_confirmed_plan(1)
+            later_day = original.days[1]
+            later_regular = [slot for slot in later_day.slots if slot.slot_type == "regular"]
+            later_mep = [slot for slot in later_day.slots if slot.slot_type == "mep"]
+            self.assertGreaterEqual(len(later_regular), 2)
+            with connect(db_path) as connection:
+                connection.execute(
+                    text("UPDATE exam_day SET status = 'completed' WHERE id = :id"),
+                    {"id": original.days[0].id},
+                )
+                connection.commit()
+            terminal_before = service.get_confirmed_plan(1)
+            later_change = replace(
+                terminal_before,
+                days=(
+                    terminal_before.days[0],
+                    replace(
+                        later_day,
+                        slots=tuple([*reversed(later_regular), *later_mep]),
+                    ),
+                    *terminal_before.days[2:],
+                ),
+            )
+
+            saved, _revision = service.save_confirmed_plan(
+                ConfirmedPlanChange(later_change, "Offenen Folgetag nach Abschluss umsortiert"),
+                actor_member_id=1,
+            )
+
+        self.assertEqual("completed", saved.days[0].status)
+        self.assertNotEqual(terminal_before.days[1].slots, saved.days[1].slots)
+
+    def test_confirmed_plan_change_rejects_empty_reason_or_stale_revision_without_writes(
+        self,
+    ) -> None:
+        with TempDatabase() as db_path:
+            service = PlanningService(db_path)
+            service.generate_proposal(1)
+            service.confirm_plan(1)
+            original = service.get_confirmed_plan(1)
+
+            with self.assertRaises(PlanValidationError) as reason_error:
+                service.save_confirmed_plan(ConfirmedPlanChange(original, "  "), actor_member_id=1)
+            self.assertIn(
+                "change_reason_required",
+                {issue.code for issue in reason_error.exception.issues},
+            )
+            self.assertEqual(original, service.get_confirmed_plan(1))
+
+            saved, _revision = service.save_confirmed_plan(
+                ConfirmedPlanChange(original, "Redaktionelle Klarstellung"), actor_member_id=1
+            )
+            with self.assertRaises(ConfirmedPlanConflictError):
+                service.save_confirmed_plan(
+                    ConfirmedPlanChange(original, "Veralteter Stand"), actor_member_id=1
+                )
+            history = service.confirmed_plan_revisions(1)
+
+        self.assertEqual(saved.revision, history[0]["resulting_revision"])
+        self.assertEqual(1, len(history))
+
+    def test_confirmed_plan_persistence_failure_rolls_back_plan_and_audit(self) -> None:
+        with TempDatabase() as db_path:
+            service = PlanningService(db_path)
+            service.generate_proposal(1)
+            service.confirm_plan(1)
+            original = service.get_confirmed_plan(1)
+            first_day = original.days[0]
+            regular = [slot for slot in first_day.slots if slot.slot_type == "regular"]
+            mep = [slot for slot in first_day.slots if slot.slot_type == "mep"]
+            changed = replace(
+                original,
+                days=(
+                    replace(first_day, slots=tuple([*reversed(regular), *mep])),
+                    *original.days[1:],
+                ),
+            )
+            persist = service._persist_confirmed_aggregate
+
+            def persist_then_fail(store, proposal, protected_day_ids):
+                persist(store, proposal, protected_day_ids)
+                raise RuntimeError("simulated confirmed-plan persistence failure")
+
+            with patch.object(
+                service,
+                "_persist_confirmed_aggregate",
+                side_effect=persist_then_fail,
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "simulated confirmed-plan persistence failure",
+                ):
+                    service.save_confirmed_plan(
+                        ConfirmedPlanChange(changed, "Rollback der Revision prüfen"),
+                        actor_member_id=1,
+                    )
+            persisted = service.get_confirmed_plan(1)
+            history = service.confirmed_plan_revisions(1)
+
+        self.assertEqual(original, persisted)
+        self.assertEqual([], history)
 
     def test_status_conflict_and_persistence_error_roll_back_revision_and_rows(self) -> None:
         with TempDatabase() as db_path:
