@@ -6,7 +6,10 @@ import unittest
 from http import HTTPStatus
 from pathlib import Path
 
+from sqlalchemy import text
+
 from backend.contract import ContractValidationError, validate_response
+from backend.database import connect
 from backend.fastapi_app import FastAPIConfig, create_app
 from backend.repositories import REST_RESOURCES
 from backend.tests.helpers import ApiServer, TempDatabase
@@ -110,6 +113,99 @@ class OpenApiContractTests(unittest.TestCase):
             ][1]["round_candidate_id"]
             status, _validation = self.request(api, "PUT", path, invalid)
             self.assertEqual(HTTPStatus.UNPROCESSABLE_ENTITY, status)
+
+    def test_confirmed_plan_revision_success_conflict_and_history_contracts(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, _generated = self.request(
+                api, "POST", "/api/planning-proposals", {"round_id": 1}
+            )
+            self.assertEqual(HTTPStatus.CREATED, status)
+            status, _confirmed = self.request(api, "POST", "/api/exam-rounds/1/confirm-plan", {})
+            self.assertEqual(HTTPStatus.OK, status)
+
+            path = "/api/exam-rounds/1/confirmed-plan"
+            status, original = self.request(api, "GET", path)
+            self.assertEqual(HTTPStatus.OK, status)
+            change = copy.deepcopy(original)
+            change["reason"] = "Reihenfolge nach Rücksprache korrigiert"
+            status, saved = self.request(api, "PUT", path, change)
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertEqual(original["revision"] + 1, saved["revision"])
+            self.assertEqual(
+                "Reihenfolge nach Rücksprache korrigiert",
+                saved["latest_revision"]["reason"],
+            )
+
+            history_path = "/api/exam-rounds/1/confirmed-plan/revisions"
+            status, history = self.request(api, "GET", history_path)
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertEqual([saved["latest_revision"]], history["items"])
+
+            stale = copy.deepcopy(original)
+            stale["reason"] = "Veraltete Änderung"
+            status, conflict = self.request(api, "PUT", path, stale)
+            self.assertEqual(HTTPStatus.CONFLICT, status)
+            self.assertEqual("confirmed_plan_conflict", conflict["error"]["code"])
+
+    def test_confirmed_plan_revision_locks_started_day_but_accepts_later_day_change(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, _generated = self.request(
+                api, "POST", "/api/planning-proposals", {"round_id": 1}
+            )
+            self.assertEqual(HTTPStatus.CREATED, status)
+            status, _confirmed = self.request(api, "POST", "/api/exam-rounds/1/confirm-plan", {})
+            self.assertEqual(HTTPStatus.OK, status)
+
+            path = "/api/exam-rounds/1/confirmed-plan"
+            status, original = self.request(api, "GET", path)
+            self.assertEqual(HTTPStatus.OK, status)
+            first_day = original["exam_days"][0]
+            later_day = original["exam_days"][1]
+            later_regular = [slot for slot in later_day["slots"] if slot["slot_type"] == "regular"]
+            later_mep = [slot for slot in later_day["slots"] if slot["slot_type"] == "mep"]
+            self.assertGreaterEqual(len(later_regular), 2)
+            with connect(db_path) as connection:
+                connection.execute(
+                    text(
+                        "UPDATE exam_slot SET execution_status = 'running', "
+                        "actual_started_at = '2026-11-16T08:30:00+00:00' WHERE id = :id"
+                    ),
+                    {"id": first_day["slots"][0]["id"]},
+                )
+                connection.commit()
+
+            later_change = copy.deepcopy(original)
+            later_change["reason"] = "Späteren Prüfungstag umsortiert"
+            later_change["exam_days"][1]["slots"] = [*reversed(later_regular), *later_mep]
+            status, saved = self.request(api, "PUT", path, later_change)
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertEqual(original["exam_days"][0], saved["exam_days"][0])
+            self.assertNotEqual(original["exam_days"][1]["slots"], saved["exam_days"][1]["slots"])
+
+            started_change = copy.deepcopy(saved)
+            started_change["reason"] = "Begonnenen Prüfungstag ändern"
+            started_regular = [
+                slot
+                for slot in started_change["exam_days"][0]["slots"]
+                if slot["slot_type"] == "regular"
+            ]
+            started_mep = [
+                slot
+                for slot in started_change["exam_days"][0]["slots"]
+                if slot["slot_type"] == "mep"
+            ]
+            started_change["exam_days"][0]["slots"] = [*reversed(started_regular), *started_mep]
+            status, conflict = self.request(api, "PUT", path, started_change)
+            self.assertEqual(HTTPStatus.CONFLICT, status)
+            self.assertEqual("confirmed_plan_conflict", conflict["error"]["code"])
+
+            status, persisted = self.request(api, "GET", path)
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertEqual(saved["revision"], persisted["revision"])
+            self.assertEqual(saved["exam_days"], persisted["exam_days"])
+            status, history = self.request(api, "GET", f"{path}/revisions")
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertEqual(1, len(history["items"]))
 
     def test_frontend_write_operations_match_the_openapi_responses(self) -> None:
         """Cover each Angular write flow with an actual API response."""

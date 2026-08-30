@@ -240,6 +240,44 @@ def editable_planning_proposal(proposal: dict[str, Any]) -> dict[str, Any]:
     return linked
 
 
+def editable_confirmed_plan(
+    proposal: dict[str, Any],
+    *,
+    latest_revision: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Link the controlled aggregate for revising a confirmed plan."""
+    round_id = proposal["round_id"]
+    linked = dict(proposal)
+    if latest_revision is not None:
+        linked["latest_revision"] = latest_revision
+    linked["_links"] = {
+        "self": {"href": f"/api/exam-rounds/{round_id}/confirmed-plan"},
+        "update": {
+            "href": f"/api/exam-rounds/{round_id}/confirmed-plan",
+            "method": "PUT",
+        },
+        "revisions": {"href": f"/api/exam-rounds/{round_id}/confirmed-plan/revisions"},
+        "round": {"href": f"/api/exam-rounds/{round_id}"},
+        "api": {"href": "/api"},
+    }
+    return linked
+
+
+def confirmed_plan_revisions(
+    round_id: int,
+    revisions: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "items": revisions,
+        "_links": {
+            "self": {"href": f"/api/exam-rounds/{round_id}/confirmed-plan/revisions"},
+            "confirmed-plan": {"href": f"/api/exam-rounds/{round_id}/confirmed-plan"},
+            "round": {"href": f"/api/exam-rounds/{round_id}"},
+            "api": {"href": "/api"},
+        },
+    }
+
+
 def confirmed_plan(result: dict[str, Any]) -> dict[str, Any]:
     round_id = result["round_id"]
     linked = dict(result)
