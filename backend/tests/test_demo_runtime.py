@@ -139,6 +139,8 @@ class DemoRuntimeTests(unittest.TestCase):
                     "exam-result:confirm-record",
                     "exam-result:export",
                     "exam-result:read",
+                    "exam-round-lifecycle:export",
+                    "exam-round-lifecycle:read",
                     "notifications:read-own",
                 ],
                 session["capabilities"],
@@ -199,7 +201,6 @@ class DemoRuntimeTests(unittest.TestCase):
                 ("PATCH", "/api/candidate-exam-days/1", {"is_active": 0}),
                 ("POST", "/api/exam-half-years", {"season": "summer", "year": 2027}),
                 ("PATCH", "/api/exam-half-years/1", {"status": "completed"}),
-                ("POST", "/api/exam-rounds", {"exam_half_year_id": 1, "committee_id": 1}),
                 ("POST", "/api/push-subscriptions", {"endpoint": "https://example.invalid"}),
                 ("POST", "/api/calendar/feed", {"rotate": False}),
                 ("DELETE", "/api/calendar/feed", None),
@@ -211,6 +212,14 @@ class DemoRuntimeTests(unittest.TestCase):
                     with self.subTest(account_id=credentials.account_id, method=method, path=path):
                         status, _body = api.request(method, path, payload, credentials=credentials)
                         assert_status(status, HTTPStatus.FORBIDDEN)
+
+            status, _body = api.request(
+                "POST",
+                "/api/exam-rounds",
+                {"season": "summer", "year": 2027, "committee_id": 1},
+                credentials=examiner,
+            )
+            assert_status(status, HTTPStatus.FORBIDDEN)
 
             status, _body = api.request(
                 "PATCH",
@@ -262,7 +271,7 @@ class DemoRuntimeTests(unittest.TestCase):
                         )
                         with self.assertRaises(ForbiddenRequestError):
                             policy.authorize_mutation(
-                                object(), "DELETE", sample_parts, context  # type: ignore[arg-type]
+                                object(), "OPTIONS", sample_parts, context  # type: ignore[arg-type]
                             )
                     else:
                         self.assertNotIn(contract.capability, ROLE_CAPABILITIES[role])

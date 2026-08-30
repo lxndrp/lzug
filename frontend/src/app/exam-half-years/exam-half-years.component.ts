@@ -10,6 +10,7 @@ import {
   Committee,
   ExamHalfYear,
   ExamRound,
+  ExamRoundLifecycle,
 } from '../api/api.models';
 import { PlanningApiService } from '../api/planning-api.service';
 import { appIcons } from '../app-icons';
@@ -39,10 +40,9 @@ export class ExamHalfYearsComponent implements OnInit {
   protected readonly icons = appIcons;
   protected readonly halfYears = signal<ExamHalfYear[]>([]);
   protected readonly rounds = signal<ExamRound[]>([]);
+  protected readonly lifecycles = signal<Record<number, ExamRoundLifecycle>>({});
   protected readonly selectedHalfYearId = signal<number | null>(null);
   protected readonly creatingHalfYear = signal(false);
-  protected readonly editingHalfYearId = signal<number | null>(null);
-  protected readonly editDraft = signal<HalfYearDraft | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly success = signal<string | null>(null);
@@ -73,6 +73,7 @@ export class ExamHalfYearsComponent implements OnInit {
           next: (rounds) => {
             this.rounds.set(rounds);
             this.ensureSelectedHalfYear(halfYears, rounds);
+            this.loadLifecycles(rounds);
             this.loading.set(false);
           },
           error: () => this.loadError(),
@@ -101,62 +102,32 @@ export class ExamHalfYearsComponent implements OnInit {
     const data = new FormData(form);
     const year = Number(data.get('year'));
     const season = String(data.get('season')) as ExamHalfYear['season'];
-    if (!Number.isInteger(year) || !season) {
-      return;
-    }
-    this.loading.set(true);
-    this.api.createExamHalfYear({ season, year, status: 'draft' }).subscribe({
-      next: (halfYear) => {
-        this.creatingHalfYear.set(false);
-        this.selectedHalfYearId.set(halfYear.id);
-        this.success.set('Prüfungshalbjahr angelegt. Öffnen Sie es, um Ausschüsse zu verwalten.');
-        this.load();
-      },
-      error: () => this.saveError('Das Prüfungshalbjahr konnte nicht angelegt werden.'),
-    });
-  }
-
-  protected startEditing(halfYear: ExamHalfYear): void {
-    if (!this.canEdit(halfYear)) {
-      return;
-    }
-    this.editingHalfYearId.set(halfYear.id);
-    this.editDraft.set({ season: halfYear.season as ExamHalfYear['season'], year: halfYear.year });
-  }
-
-  protected submitHalfYearUpdate(): void {
-    if (this.readOnly) return;
-    const id = this.editingHalfYearId();
-    const draft = this.editDraft();
-    if (!id || !draft || !Number.isInteger(Number(draft.year))) {
+    const committeeId = Number(data.get('committee_id'));
+    const committee = this.committees.find((item) => item.id === committeeId);
+    if (!Number.isInteger(year) || !season || !committee) {
       return;
     }
     this.loading.set(true);
     this.api
-      .updateExamHalfYear(id, {
-        season: draft.season,
-        year: Number(draft.year),
+      .createExamRound({
+        season,
+        year,
+        committee_id: committee.id,
+        name: `${season === 'summer' ? 'Sommer' : 'Winter'} ${year} · ${committee.name}`,
       })
       .subscribe({
-        next: () => {
-          this.editingHalfYearId.set(null);
-          this.editDraft.set(null);
-          this.success.set('Prüfungshalbjahr aktualisiert.');
+        next: (round) => {
+          this.creatingHalfYear.set(false);
+          this.success.set('Prüfungsrunde und gemeinsamer Halbjahreskontext wurden angelegt.');
+          this.roundSelected.emit(round.id);
           this.load();
         },
-        error: () => this.saveError('Das Prüfungshalbjahr konnte nicht aktualisiert werden.'),
+        error: () => this.saveError('Die Prüfungsrunde konnte nicht angelegt werden.'),
       });
-  }
-
-  protected cancelEditing(): void {
-    this.editingHalfYearId.set(null);
-    this.editDraft.set(null);
   }
 
   protected selectHalfYear(halfYear: ExamHalfYear): void {
     this.selectedHalfYearId.set(halfYear.id);
-    this.editingHalfYearId.set(null);
-    this.editDraft.set(null);
     this.error.set(null);
   }
 
@@ -201,6 +172,11 @@ export class ExamHalfYearsComponent implements OnInit {
       active: 'In Bearbeitung',
       completed: 'Abgeschlossen',
       archived: 'Archiviert',
+      open: 'Offen',
+      closed: 'Abgeschlossen',
+      cancelled: 'Abgesagt',
+      reopening: 'Wieder geöffnet',
+      historical: 'Historisch',
     };
     return labels[status] ?? status;
   }
@@ -211,6 +187,11 @@ export class ExamHalfYearsComponent implements OnInit {
       active: 'warning',
       completed: 'positive',
       archived: 'info',
+      open: 'warning',
+      closed: 'positive',
+      cancelled: 'negative',
+      reopening: 'warning',
+      historical: 'info',
     };
     return appearances[status] ?? 'neutral';
   }
@@ -252,32 +233,146 @@ export class ExamHalfYearsComponent implements OnInit {
     return new Set(this.roundsFor(halfYear).map((entry) => entry.round.committee_id)).size;
   }
 
-  protected canEdit(halfYear: ExamHalfYear): boolean {
-    return !this.readOnly && !['completed', 'archived'].includes(halfYear.status);
-  }
-
   protected canManageRounds(halfYear: ExamHalfYear): boolean {
     return !this.readOnly && !['completed', 'archived'].includes(halfYear.status);
-  }
-
-  protected canComplete(): boolean {
-    return false;
-  }
-
-  protected canArchive(halfYear: ExamHalfYear): boolean {
-    return halfYear.status === 'completed';
-  }
-
-  protected statusActionHint(halfYear: ExamHalfYear): string {
-    if (halfYear.status === 'completed') {
-      return 'Das Halbjahr kann archiviert werden.';
-    }
-    return 'Abschluss und Archivierung folgen der fachlichen Abschlusslogik aus #89.';
   }
 
   protected selectRound(round: ExamRound): void {
     this.selectedHalfYearId.set(round.exam_half_year_id);
     this.roundSelected.emit(round.id);
+  }
+
+  protected lifecycleFor(roundId: number): ExamRoundLifecycle | null {
+    return this.lifecycles()[roundId] ?? null;
+  }
+
+  protected candidateName(candidateId: number): string {
+    const candidate = this.candidates.find((item) => item.candidate.id === candidateId)?.candidate;
+    return candidate ? `${candidate.first_name} ${candidate.last_name}` : `Prüfling ${candidateId}`;
+  }
+
+  protected setCandidateTerminalStatus(
+    round: ExamRound,
+    roundCandidateId: number,
+    terminalStatus: string,
+    reason: string,
+    detail: string,
+  ): void {
+    const lifecycle = this.lifecycleFor(round.id);
+    if (this.readOnly || !lifecycle || !terminalStatus) return;
+    const payload: {
+      revision: number;
+      terminal_status: string;
+      reason?: string;
+      effective_new_round_id?: number;
+      postponed_until?: string;
+      ihk_decision_reference?: string;
+    } = { revision: lifecycle.revision, terminal_status: terminalStatus };
+    if (reason.trim()) payload.reason = reason.trim();
+    if (terminalStatus === 'transferred') payload.effective_new_round_id = Number(detail);
+    if (terminalStatus === 'postponed') payload.postponed_until = detail.trim();
+    if (terminalStatus === 'ihk_terminated') payload.ihk_decision_reference = detail.trim();
+    this.loading.set(true);
+    this.api.setRoundCandidateTerminalStatus(round.id, roundCandidateId, payload).subscribe({
+      next: (updated) =>
+        this.lifecycleSaved(round.id, updated, 'Abschließender Prüflingsstatus gespeichert.'),
+      error: () => this.saveError('Der Prüflingsstatus ist unvollständig oder widersprüchlich.'),
+    });
+  }
+
+  protected documentIhkStatus(
+    round: ExamRound,
+    resultId: number,
+    documentStatus: string,
+    reference: string,
+  ): void {
+    if (
+      this.readOnly ||
+      !Number.isInteger(resultId) ||
+      !documentStatus.trim() ||
+      !reference.trim()
+    ) {
+      return;
+    }
+    this.loading.set(true);
+    this.api
+      .documentExamRoundIhkStatus(round.id, resultId, documentStatus.trim(), reference.trim())
+      .subscribe({
+        next: (updated) =>
+          this.lifecycleSaved(round.id, updated, 'Förmlicher IHK-Status dokumentiert.'),
+        error: () => this.saveError('Der IHK-Status konnte nicht dokumentiert werden.'),
+      });
+  }
+
+  protected closeRound(round: ExamRound, confirmed: boolean): void {
+    const lifecycle = this.lifecycleFor(round.id);
+    if (this.readOnly || !lifecycle || !confirmed) return;
+    this.loading.set(true);
+    this.api.closeExamRound(round.id, lifecycle.revision).subscribe({
+      next: (updated) => this.lifecycleSaved(round.id, updated, 'Prüfungsrunde abgeschlossen.'),
+      error: () => this.saveError('Die Prüfungsrunde konnte nicht abgeschlossen werden.'),
+    });
+  }
+
+  protected cancelRound(round: ExamRound, reason: string, confirmed: boolean): void {
+    const lifecycle = this.lifecycleFor(round.id);
+    if (this.readOnly || !lifecycle || !confirmed || !reason.trim()) return;
+    this.loading.set(true);
+    this.api.cancelExamRound(round.id, lifecycle.revision, reason.trim()).subscribe({
+      next: (updated) => this.lifecycleSaved(round.id, updated, 'Prüfungsrunde abgesagt.'),
+      error: () => this.saveError('Die Prüfungsrunde konnte nicht abgesagt werden.'),
+    });
+  }
+
+  protected reopenRound(
+    round: ExamRound,
+    occasion: string,
+    source: string,
+    reason: string,
+    scopeKind: string,
+    scopeId: number,
+    confirmed: boolean,
+  ): void {
+    const lifecycle = this.lifecycleFor(round.id);
+    if (
+      this.readOnly ||
+      !lifecycle ||
+      !confirmed ||
+      !occasion.trim() ||
+      !source.trim() ||
+      !reason.trim() ||
+      !scopeKind ||
+      !Number.isInteger(scopeId)
+    ) {
+      return;
+    }
+    this.loading.set(true);
+    this.api
+      .reopenExamRound(round.id, {
+        revision: lifecycle.revision,
+        occasion: occasion.trim(),
+        source: source.trim(),
+        reason: reason.trim(),
+        scope: [{ kind: scopeKind, entity_id: scopeId }],
+      })
+      .subscribe({
+        next: (updated) =>
+          this.lifecycleSaved(round.id, updated, 'Prüfungsrunde gezielt wieder geöffnet.'),
+        error: () => this.saveError('Die Prüfungsrunde konnte nicht wieder geöffnet werden.'),
+      });
+  }
+
+  protected deleteRound(round: ExamRound, confirmed: boolean): void {
+    const lifecycle = this.lifecycleFor(round.id);
+    if (this.readOnly || !lifecycle?.permissions.delete || !confirmed) return;
+    this.loading.set(true);
+    this.api.deleteEmptyExamRound(round.id).subscribe({
+      next: () => {
+        this.success.set('Leere Entwurfsrunde gelöscht.');
+        this.load();
+      },
+      error: () => this.saveError('Nur eine vollständig leere Entwurfsrunde kann gelöscht werden.'),
+    });
   }
 
   private ensureSelectedHalfYear(halfYears: ExamHalfYear[], rounds: ExamRound[]): void {
@@ -289,6 +384,23 @@ export class ExamHalfYearsComponent implements OnInit {
       (round) => round.id === this.activeRoundId,
     )?.exam_half_year_id;
     this.selectedHalfYearId.set(activeHalfYearId ?? halfYears[0]?.id ?? null);
+  }
+
+  private loadLifecycles(rounds: ExamRound[]): void {
+    this.lifecycles.set({});
+    for (const round of rounds) {
+      this.api.getExamRoundLifecycle(round.id).subscribe({
+        next: (lifecycle) =>
+          this.lifecycles.update((current) => ({ ...current, [round.id]: lifecycle })),
+      });
+    }
+  }
+
+  private lifecycleSaved(roundId: number, lifecycle: ExamRoundLifecycle, message: string): void {
+    this.lifecycles.update((current) => ({ ...current, [roundId]: lifecycle }));
+    this.loading.set(false);
+    this.success.set(message);
+    this.error.set(null);
   }
 
   private loadError(): void {

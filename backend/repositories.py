@@ -311,32 +311,55 @@ class ResourceRepository:
         if "status" in normalized and normalized["status"] not in {
             "draft",
             "active",
-            "completed",
             "archived",
         }:
             raise ValueError("Unknown exam half-year status")
         return normalized
 
     def _create_exam_round(self, store: Store, payload: dict[str, Any]) -> dict[str, Any]:
+        normalized = dict(payload)
+        if normalized.get("exam_half_year_id") is None:
+            half_year_payload = self._exam_half_year_payload(
+                {
+                    "season": normalized.pop("season", None),
+                    "year": normalized.pop("year", None),
+                    "status": "active",
+                }
+            )
+            if half_year_payload.get("season") is None or half_year_payload.get("year") is None:
+                raise ValueError("Season and year are required")
+            half_year = store.first(
+                EXAM_HALF_YEAR,
+                season=half_year_payload["season"],
+                year=half_year_payload["year"],
+            )
+            if half_year is None:
+                half_year = store.create(EXAM_HALF_YEAR, half_year_payload)
+            normalized["exam_half_year_id"] = half_year["id"]
+        else:
+            normalized.pop("season", None)
+            normalized.pop("year", None)
         required = ("exam_half_year_id", "committee_id", "created_by_member_id")
         for field in required:
-            if field not in payload:
+            if field not in normalized:
                 raise ValueError(f"Missing required field: {field}")
-        if store.get(EXAM_HALF_YEAR, payload["exam_half_year_id"]) is None:
+        if store.get(EXAM_HALF_YEAR, normalized["exam_half_year_id"]) is None:
             raise ValueError("Exam half-year not found")
-        committee = store.get(COMMITTEE, payload["committee_id"])
+        committee = store.get(COMMITTEE, normalized["committee_id"])
         if committee is None:
             raise ValueError("Committee not found")
         if not committee["is_active"] or committee["bootstrap_state"] != "ready":
             raise ValueError("Committee is not ready for an exam round")
-        creator = store.get(COMMITTEE_MEMBER, payload["created_by_member_id"])
-        if creator is None or creator["committee_id"] != payload["committee_id"]:
+        creator = store.get(COMMITTEE_MEMBER, normalized["created_by_member_id"])
+        if creator is None or creator["committee_id"] != normalized["committee_id"]:
             raise ValueError("Creating member does not belong to the exam round committee")
-        if not str(payload.get("name", "")).strip():
+        if not str(normalized.get("name", "")).strip():
             raise ValueError("Exam round name is required")
-        if payload.get("status") in PLAN_AGGREGATE_STATUSES:
+        if normalized.get("status") in PLAN_AGGREGATE_STATUSES:
             raise ValueError("Planning proposal statuses require the planning aggregate")
-        return store.create(EXAM_ROUND, payload)
+        normalized["revision"] = 1
+        normalized["lifecycle_status"] = "open"
+        return store.create(EXAM_ROUND, normalized)
 
     def _create_round_candidate(self, store: Store, payload: dict[str, Any]) -> dict[str, Any]:
         candidate_id = int(payload["candidate_id"])

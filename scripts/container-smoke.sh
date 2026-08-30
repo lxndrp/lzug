@@ -175,28 +175,19 @@ foreign_write_status=$(curl --silent --output "$foreign_write_body" --write-out 
 assert_status "Foreign committee write" 403 "$foreign_write_status" "$foreign_write_body"
 echo "Committee read concealment and write isolation passed."
 
-half_year=$(curl --silent --show-error --fail \
-    --request POST \
-    --header 'Content-Type: application/json' \
-    --header "Cookie: __Host-lzug_session=$actor_token" \
-    --header "X-CSRF-Token: $actor_csrf" \
-    --data '{"season":"summer","year":2030,"status":"draft"}' \
-    "$url/api/exam-half-years")
-half_year_id=$(printf '%s' "$half_year" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
-echo "Authorized half-year creation passed."
 created_round=$(curl --silent --show-error --fail \
     --request POST \
     --header 'Content-Type: application/json' \
     --header "Cookie: __Host-lzug_session=$actor_token" \
     --header "X-CSRF-Token: $actor_csrf" \
-    --data "{\"exam_half_year_id\":$half_year_id,\"committee_id\":1,\"name\":\"Actor boundary\",\"created_by_member_id\":999999}" \
+    --data '{"season":"summer","year":2030,"committee_id":1,"name":"Actor boundary","created_by_member_id":999999}' \
     "$url/api/exam-rounds")
 created_by=$(printf '%s' "$created_round" | python3 -c 'import json,sys; print(json.load(sys.stdin)["created_by_member_id"])')
 if [ "$created_by" != "1" ]; then
     echo "Server-derived actor: expected member 1, received $created_by." >&2
     exit 1
 fi
-echo "Server-derived actor passed."
+echo "Atomic half-year context and server-derived actor passed."
 
 echo "Verifying session-cookie and secret-free logging boundaries."
 curl --silent --show-error --dump-header "$headers" --output /dev/null \

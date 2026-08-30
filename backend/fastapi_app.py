@@ -29,6 +29,7 @@ from .database import database_path
 from .exam_day_closures import ExamDayConflictError, ExamDayValidationError
 from .exam_protocols import ExamProtocolConflictError
 from .exam_results import ExamResultConflictError
+from .exam_round_lifecycle import ExamRoundConflictError, ExamRoundValidationError
 from .local_auth import LocalAuthError
 from .models import (
     CANDIDATE_COMMITTEE_ASSIGNMENT,
@@ -548,6 +549,30 @@ def create_app(
             ApplicationResult(
                 {"error": {"code": "confirmed_plan_conflict", "message": str(error)}},
                 HTTPStatus.CONFLICT,
+            )
+        )
+
+    @app.exception_handler(ExamRoundConflictError)
+    def exam_round_conflict(_request: Request, error: ExamRoundConflictError):
+        return _json_response(
+            ApplicationResult(
+                {"error": {"code": "exam_round_conflict", "message": str(error)}},
+                HTTPStatus.CONFLICT,
+            )
+        )
+
+    @app.exception_handler(ExamRoundValidationError)
+    def exam_round_validation(_request: Request, error: ExamRoundValidationError):
+        return _json_response(
+            ApplicationResult(
+                {
+                    "error": {
+                        "code": "exam_round_prerequisites_failed",
+                        "message": str(error),
+                        "findings": error.findings,
+                    }
+                },
+                HTTPStatus.UNPROCESSABLE_ENTITY,
             )
         )
 
@@ -1200,6 +1225,114 @@ def create_app(
             if day is None
             else _finish(context, context.respond(hateoas.confirmed_plan_day(day)))
         )
+
+    @app.get("/api/exam-rounds/{id}/lifecycle", openapi_extra=read_security)
+    def exam_round_lifecycle(request: Request, id: str):
+        context = _context(request, resolved)
+        context.require_authenticated()
+        result = context.exam_round_lifecycle_service.get(context.authorization_scope, int(id))
+        return _not_found() if result is None else _finish(context, context.respond(result))
+
+    @app.post("/api/exam-rounds/{id}/closure", openapi_extra=write_security)
+    def close_exam_round(request: Request, id: str):
+        context = _context(request, resolved, _body(request))
+        auth = context.require_authenticated(require_csrf=True)
+        context.authorize_mutation("POST", ["exam-rounds", id, "closure"], auth)
+        result = context.exam_round_lifecycle_service.close(
+            context.authorization_scope, int(id), context.read_json()
+        )
+        return _finish(context, context.respond(result))
+
+    @app.post("/api/exam-rounds/{id}/cancellation", openapi_extra=write_security)
+    def cancel_exam_round(request: Request, id: str):
+        context = _context(request, resolved, _body(request))
+        auth = context.require_authenticated(require_csrf=True)
+        context.authorize_mutation("POST", ["exam-rounds", id, "cancellation"], auth)
+        result = context.exam_round_lifecycle_service.cancel(
+            context.authorization_scope, int(id), context.read_json()
+        )
+        return _finish(context, context.respond(result))
+
+    @app.post("/api/exam-rounds/{id}/reopening-impact", openapi_extra=write_security)
+    def exam_round_reopening_impact(request: Request, id: str):
+        context = _context(request, resolved, _body(request))
+        auth = context.require_authenticated(require_csrf=True)
+        context.authorize_mutation("POST", ["exam-rounds", id, "reopening-impact"], auth)
+        result = context.exam_round_lifecycle_service.reopening_impact(
+            context.authorization_scope, int(id), context.read_json()
+        )
+        return _finish(context, context.respond(result))
+
+    @app.post("/api/exam-rounds/{id}/reopenings", openapi_extra=write_security)
+    def reopen_exam_round(request: Request, id: str):
+        context = _context(request, resolved, _body(request))
+        auth = context.require_authenticated(require_csrf=True)
+        context.authorize_mutation("POST", ["exam-rounds", id, "reopenings"], auth)
+        result = context.exam_round_lifecycle_service.reopen(
+            context.authorization_scope, int(id), context.read_json()
+        )
+        return _finish(context, context.respond(result))
+
+    @app.put(
+        "/api/exam-rounds/{id}/candidates/{candidate_id}/terminal-status",
+        openapi_extra=write_security,
+    )
+    def set_exam_round_candidate_terminal_status(request: Request, id: str, candidate_id: str):
+        context = _context(request, resolved, _body(request))
+        auth = context.require_authenticated(require_csrf=True)
+        context.authorize_mutation(
+            "PUT", ["exam-rounds", id, "candidates", candidate_id, "terminal-status"], auth
+        )
+        result = context.exam_round_lifecycle_service.set_candidate_terminal_status(
+            context.authorization_scope,
+            int(id),
+            int(candidate_id),
+            context.read_json(),
+        )
+        return _finish(context, context.respond(result))
+
+    @app.put(
+        "/api/exam-rounds/{id}/results/{result_id}/ihk-status",
+        openapi_extra=write_security,
+    )
+    def document_exam_round_ihk_status(request: Request, id: str, result_id: str):
+        context = _context(request, resolved, _body(request))
+        auth = context.require_authenticated(require_csrf=True)
+        context.authorize_mutation(
+            "PUT", ["exam-rounds", id, "results", result_id, "ihk-status"], auth
+        )
+        result = context.exam_round_lifecycle_service.document_ihk_status(
+            context.authorization_scope,
+            int(id),
+            int(result_id),
+            context.read_json(),
+        )
+        return _finish(context, context.respond(result))
+
+    @app.get(
+        "/api/exam-rounds/{id}/lifecycle/export.json",
+        openapi_extra=read_security,
+    )
+    def export_exam_round_json(request: Request, id: str):
+        context = _context(request, resolved)
+        context.require_authenticated()
+        result = context.exam_round_lifecycle_service.machine_export(
+            context.authorization_scope, int(id)
+        )
+        return _finish(context, context.respond(result))
+
+    @app.get(
+        "/api/exam-rounds/{id}/lifecycle/export.txt",
+        response_class=Response,
+        openapi_extra=read_security,
+    )
+    def export_exam_round_text(request: Request, id: str):
+        context = _context(request, resolved)
+        context.require_authenticated()
+        result = context.exam_round_lifecycle_service.human_export(
+            context.authorization_scope, int(id)
+        )
+        return _plain_text(context, result, f"pruefungsrunde-{int(id)}-nachweis.txt")
 
     @app.get(
         "/api/confirmed-plan-days/{id}/closure",
@@ -2159,7 +2292,13 @@ def create_app(
             deleted = (
                 context.repository.delete_candidate(ident)
                 if resource_name == "candidates"
-                else context.repository.delete(resource, ident)
+                else (
+                    context.exam_round_lifecycle_service.delete_empty_draft(
+                        context.authorization_scope, ident
+                    )
+                    if resource_name == "exam-rounds"
+                    else context.repository.delete(resource, ident)
+                )
             )
             return (
                 _not_found()

@@ -24,7 +24,7 @@
                 class="app-button-icon"
                 aria-hidden="true"
               ></svg>
-              {{ creatingHalfYear() ? 'Anlegen abbrechen' : 'Prüfungshalbjahr anlegen' }}
+              {{ creatingHalfYear() ? 'Anlegen abbrechen' : 'Prüfungsrunde anlegen' }}
             </button>
           }
           <button
@@ -62,9 +62,9 @@
           >
             <header class="app-context-editor-header">
               <div>
-                <strong id="exam-half-year-create-title">Prüfungshalbjahr anlegen</strong>
+                <strong id="exam-half-year-create-title">Prüfungsrunde anlegen</strong>
                 <span class="app-muted app-block"
-                  >Saison und Jahr des Prüfungsdurchgangs erfassen</span
+                  >Halbjahr und Ausschuss werden in einem Schritt zugeordnet</span
                 >
               </div>
               <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
@@ -76,6 +76,16 @@
                   <select id="examHalfYearSeason" name="season" required>
                     <option value="summer">Sommer</option>
                     <option value="winter">Winter</option>
+                  </select>
+                </tui-textfield>
+              </div>
+              <div class="app-field-full">
+                <label for="newRoundCommittee">Ausschuss <span aria-hidden="true">*</span></label>
+                <tui-textfield [tuiTextfieldCleaner]="false">
+                  <select id="newRoundCommittee" name="committee_id" required>
+                    @for (committee of committees; track committee.id) {
+                      <option [value]="committee.id">{{ committee.name }}</option>
+                    }
                   </select>
                 </tui-textfield>
               </div>
@@ -98,7 +108,7 @@
               </div>
               <div class="app-field-full app-form-actions">
                 <span class="app-form-action-hint"
-                  >Das Halbjahr wird zunächst als Entwurf angelegt.</span
+                  >Ein vorhandener Halbjahreskontext wird wiederverwendet.</span
                 >
                 <div class="app-form-action-buttons">
                   <button
@@ -112,7 +122,7 @@
                   </button>
                   <button tuiButton appearance="primary" type="submit" [disabled]="loading()">
                     <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
-                    Prüfungshalbjahr anlegen
+                    Prüfungsrunde anlegen
                   </button>
                 </div>
               </div>
@@ -145,20 +155,6 @@
                     <svg [cIcon]="icons.overview" class="app-button-icon" aria-hidden="true"></svg>
                     Öffnen
                   </button>
-                  @if (!readOnly) {
-                    <button
-                      tuiButton
-                      appearance="secondary"
-                      size="s"
-                      type="button"
-                      [disabled]="!canEdit(halfYear)"
-                      [attr.aria-label]="halfYearLabel(halfYear) + ' bearbeiten'"
-                      (click)="startEditing(halfYear)"
-                    >
-                      <svg [cIcon]="icons.edit" class="app-button-icon" aria-hidden="true"></svg>
-                      Bearbeiten
-                    </button>
-                  }
                 </div>
               </header>
 
@@ -176,107 +172,6 @@
                   <dd>{{ progressLabel(halfYear) }}</dd>
                 </div>
               </dl>
-
-              @if (!readOnly) {
-                <div class="app-half-year-card-actions">
-                  <div class="app-form-action-buttons">
-                    <button
-                      tuiButton
-                      appearance="secondary"
-                      size="s"
-                      type="button"
-                      [disabled]="loading() || !canComplete()"
-                      [title]="statusActionHint(halfYear)"
-                      [attr.aria-label]="halfYearLabel(halfYear) + ' abschließen'"
-                    >
-                      <svg [cIcon]="icons.confirm" class="app-button-icon" aria-hidden="true"></svg>
-                      Abschließen
-                    </button>
-                    <button
-                      tuiButton
-                      appearance="secondary"
-                      size="s"
-                      type="button"
-                      [disabled]="loading() || !canArchive(halfYear)"
-                      [title]="statusActionHint(halfYear)"
-                      [attr.aria-label]="halfYearLabel(halfYear) + ' archivieren'"
-                    >
-                      <svg [cIcon]="icons.archive" class="app-button-icon" aria-hidden="true"></svg>
-                      Archivieren
-                    </button>
-                  </div>
-                  <span class="app-form-action-hint">{{ statusActionHint(halfYear) }}</span>
-                </div>
-              }
-
-              @if (editingHalfYearId() === halfYear.id) {
-                @if (editDraft(); as draft) {
-                  <form
-                    tuiForm="m"
-                    class="app-form-grid app-inline-editor"
-                    [attr.aria-label]="halfYearLabel(halfYear) + ' bearbeiten'"
-                    (ngSubmit)="submitHalfYearUpdate()"
-                  >
-                    <div class="app-field-half">
-                      <label [for]="'editHalfYearSeason-' + halfYear.id">Saison</label>
-                      <tui-textfield [tuiTextfieldCleaner]="false">
-                        <select
-                          [id]="'editHalfYearSeason-' + halfYear.id"
-                          [name]="'editHalfYearSeason-' + halfYear.id"
-                          [(ngModel)]="draft.season"
-                          required
-                        >
-                          <option value="summer">Sommer</option>
-                          <option value="winter">Winter</option>
-                        </select>
-                      </tui-textfield>
-                    </div>
-                    <div class="app-field-half">
-                      <tui-textfield>
-                        <label tuiLabel [for]="'editHalfYearYear-' + halfYear.id">Jahr</label>
-                        <input
-                          tuiInput
-                          [id]="'editHalfYearYear-' + halfYear.id"
-                          [name]="'editHalfYearYear-' + halfYear.id"
-                          type="number"
-                          min="2000"
-                          max="2100"
-                          [(ngModel)]="draft.year"
-                          required
-                        />
-                      </tui-textfield>
-                    </div>
-                    <div class="app-field-full app-form-actions">
-                      <span class="app-form-action-hint"
-                        >Die Änderung aktualisiert nur den Halbjahreskontext.</span
-                      >
-                      <div class="app-form-action-buttons">
-                        <button
-                          tuiButton
-                          appearance="secondary"
-                          type="button"
-                          (click)="cancelEditing()"
-                        >
-                          <svg
-                            [cIcon]="icons.cancel"
-                            class="app-button-icon"
-                            aria-hidden="true"
-                          ></svg>
-                          Abbrechen
-                        </button>
-                        <button tuiButton appearance="primary" type="submit" [disabled]="loading()">
-                          <svg
-                            [cIcon]="icons.save"
-                            class="app-button-icon"
-                            aria-hidden="true"
-                          ></svg>
-                          Änderungen speichern
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-                }
-              }
             </article>
           } @empty {
             <div class="app-empty-state">
@@ -374,6 +269,307 @@
                       </span>
                     </span>
                   </button>
+                  @if (lifecycleFor(entry.round.id); as lifecycle) {
+                    <section
+                      class="app-context-editor"
+                      [attr.aria-label]="entry.round.name + ' Lebenszyklus'"
+                    >
+                      <header class="app-context-editor-header">
+                        <div>
+                          <strong>Ausschussbezogener Rundenstand</strong>
+                          <span class="app-muted app-block">Revision {{ lifecycle.revision }}</span>
+                        </div>
+                        <span tuiBadge [appearance]="statusAppearance(lifecycle.status)">
+                          {{ statusLabel(lifecycle.status) }}
+                        </span>
+                      </header>
+
+                      @if (lifecycle.historical_without_formal_evidence) {
+                        <div tuiNotification appearance="warning" role="status">
+                          Historischer Altstand ohne nachträglich erfundene Abschlussnachweise.
+                        </div>
+                      }
+
+                      <ul>
+                        @for (finding of lifecycle.evaluation.items; track finding.code) {
+                          <li>{{ finding.ok ? 'Erfüllt' : 'Offen' }}: {{ finding.label }}</li>
+                        }
+                      </ul>
+
+                      <div class="app-form-action-buttons">
+                        <a
+                          tuiButton
+                          appearance="secondary"
+                          size="s"
+                          [href]="'/api/exam-rounds/' + entry.round.id + '/lifecycle/export.json'"
+                          >JSON-Nachweis</a
+                        >
+                        <a
+                          tuiButton
+                          appearance="secondary"
+                          size="s"
+                          [href]="'/api/exam-rounds/' + entry.round.id + '/lifecycle/export.txt'"
+                          >Lesbarer Nachweis</a
+                        >
+                      </div>
+
+                      <p class="app-muted">
+                        Aufbewahrung bis:
+                        {{ lifecycle.retention.retain_until || 'keine Frist hinterlegt' }}
+                        @if (lifecycle.retention.legal_hold) {
+                          · Aufbewahrungssperre aktiv
+                        }
+                      </p>
+
+                      @if (!readOnly) {
+                        <form tuiForm="s" class="app-form-grid app-compact-form">
+                          <div class="app-field-half">
+                            <label [for]="'ihkResult-' + entry.round.id">Ergebnis-ID</label>
+                            <input
+                              #ihkResult
+                              type="number"
+                              min="1"
+                              [id]="'ihkResult-' + entry.round.id"
+                            />
+                          </div>
+                          <div class="app-field-half">
+                            <label [for]="'ihkStatus-' + entry.round.id"
+                              >Förmlicher IHK-Status</label
+                            >
+                            <input #ihkStatus [id]="'ihkStatus-' + entry.round.id" />
+                          </div>
+                          <div class="app-field-full">
+                            <label [for]="'ihkReference-' + entry.round.id">Referenz</label>
+                            <input #ihkReference [id]="'ihkReference-' + entry.round.id" />
+                          </div>
+                          <button
+                            tuiButton
+                            appearance="secondary"
+                            type="button"
+                            (click)="
+                              documentIhkStatus(
+                                entry.round,
+                                +ihkResult.value,
+                                ihkStatus.value,
+                                ihkReference.value
+                              )
+                            "
+                          >
+                            IHK-Status dokumentieren
+                          </button>
+                        </form>
+                      }
+
+                      @if (lifecycle.ihk_statuses.length) {
+                        <ul>
+                          @for (ihkStatus of lifecycle.ihk_statuses; track ihkStatus.id) {
+                            <li>
+                              Ergebnis {{ ihkStatus.exam_result_id }}:
+                              {{ ihkStatus.document_status }} · {{ ihkStatus.document_reference }}
+                            </li>
+                          }
+                        </ul>
+                      }
+
+                      @if (
+                        !readOnly && (lifecycle.permissions.close || lifecycle.permissions.cancel)
+                      ) {
+                        <form tuiForm="s" class="app-form-grid">
+                          <div class="app-field-full">
+                            <label [for]="'cancelReason-' + entry.round.id">Absagegrund</label>
+                            <textarea
+                              #cancelReason
+                              [id]="'cancelReason-' + entry.round.id"
+                              rows="2"
+                            ></textarea>
+                          </div>
+                          <label class="app-field-full">
+                            <input #decisionConfirmed type="checkbox" />
+                            Angezeigte Voraussetzungen und Folgen ausdrücklich bestätigen
+                          </label>
+                          <div class="app-field-full app-form-action-buttons">
+                            <button
+                              tuiButton
+                              appearance="primary"
+                              type="button"
+                              [disabled]="loading() || !lifecycle.evaluation.ready"
+                              (click)="closeRound(entry.round, decisionConfirmed.checked)"
+                            >
+                              Runde abschließen
+                            </button>
+                            <button
+                              tuiButton
+                              appearance="secondary"
+                              type="button"
+                              [disabled]="loading() || !cancelReason.value.trim()"
+                              (click)="
+                                cancelRound(
+                                  entry.round,
+                                  cancelReason.value,
+                                  decisionConfirmed.checked
+                                )
+                              "
+                            >
+                              Runde vollständig absagen
+                            </button>
+                          </div>
+                        </form>
+                      }
+
+                      @if (!readOnly && lifecycle.permissions.reopen) {
+                        <form tuiForm="s" class="app-form-grid">
+                          <div class="app-field-half">
+                            <label [for]="'reopenOccasion-' + entry.round.id">Anlass</label>
+                            <input #reopenOccasion [id]="'reopenOccasion-' + entry.round.id" />
+                          </div>
+                          <div class="app-field-half">
+                            <label [for]="'reopenSource-' + entry.round.id">Quelle</label>
+                            <input #reopenSource [id]="'reopenSource-' + entry.round.id" />
+                          </div>
+                          <div class="app-field-full">
+                            <label [for]="'reopenReason-' + entry.round.id">Begründung</label>
+                            <textarea
+                              #reopenReason
+                              [id]="'reopenReason-' + entry.round.id"
+                              rows="2"
+                            ></textarea>
+                          </div>
+                          <div class="app-field-half">
+                            <label [for]="'reopenScope-' + entry.round.id">Korrekturbereich</label>
+                            <select #reopenScope [id]="'reopenScope-' + entry.round.id">
+                              <option value="candidate_assignment">Prüflingszuordnung</option>
+                              <option value="availability">Verfügbarkeit</option>
+                              <option value="planning">Planung</option>
+                              <option value="exam_day">Prüfungstag</option>
+                              <option value="absence">Ausfall/Ersatz</option>
+                              <option value="exam_protocol">Protokoll</option>
+                              <option value="exam_result">Ergebnis</option>
+                            </select>
+                          </div>
+                          <div class="app-field-half">
+                            <label [for]="'reopenEntity-' + entry.round.id">Datensatz-ID</label>
+                            <input
+                              #reopenEntity
+                              type="number"
+                              min="1"
+                              [id]="'reopenEntity-' + entry.round.id"
+                            />
+                          </div>
+                          <label class="app-field-full">
+                            <input #reopenConfirmed type="checkbox" />
+                            Auswirkungsanalyse und Benachrichtigungsfolgen bestätigen
+                          </label>
+                          <button
+                            tuiButton
+                            appearance="primary"
+                            type="button"
+                            (click)="
+                              reopenRound(
+                                entry.round,
+                                reopenOccasion.value,
+                                reopenSource.value,
+                                reopenReason.value,
+                                reopenScope.value,
+                                +reopenEntity.value,
+                                reopenConfirmed.checked
+                              )
+                            "
+                          >
+                            Gezielt wieder öffnen
+                          </button>
+                        </form>
+                      }
+
+                      @if (!readOnly && lifecycle.candidates.length) {
+                        <h3>Abschließende Prüflingsstatus</h3>
+                        @for (
+                          candidate of lifecycle.candidates;
+                          track candidate.round_candidate_id
+                        ) {
+                          <form tuiForm="s" class="app-form-grid app-compact-form">
+                            <strong class="app-field-full">{{
+                              candidateName(candidate.candidate_id)
+                            }}</strong>
+                            <div class="app-field-half">
+                              <label [for]="'terminalStatus-' + candidate.round_candidate_id"
+                                >Status</label
+                              >
+                              <select
+                                #terminalStatus
+                                [id]="'terminalStatus-' + candidate.round_candidate_id"
+                              >
+                                <option value="open">Offen</option>
+                                <option value="result_communicated">Ergebnis mitgeteilt</option>
+                                <option value="transferred">Wirksam neu zugeordnet</option>
+                                <option value="postponed">Verbindlich verschoben</option>
+                                <option value="ihk_terminated">Durch IHK beendet</option>
+                              </select>
+                            </div>
+                            <div class="app-field-half">
+                              <label [for]="'terminalReason-' + candidate.round_candidate_id"
+                                >Grund</label
+                              >
+                              <input
+                                #terminalReason
+                                [id]="'terminalReason-' + candidate.round_candidate_id"
+                              />
+                            </div>
+                            <div class="app-field-full">
+                              <label [for]="'terminalDetail-' + candidate.round_candidate_id">
+                                Neue Runden-ID, Termin oder IHK-Referenz
+                              </label>
+                              <input
+                                #terminalDetail
+                                [id]="'terminalDetail-' + candidate.round_candidate_id"
+                              />
+                            </div>
+                            <button
+                              tuiButton
+                              appearance="secondary"
+                              type="button"
+                              (click)="
+                                setCandidateTerminalStatus(
+                                  entry.round,
+                                  candidate.round_candidate_id,
+                                  terminalStatus.value,
+                                  terminalReason.value,
+                                  terminalDetail.value
+                                )
+                              "
+                            >
+                              Status speichern
+                            </button>
+                          </form>
+                        }
+                      }
+
+                      @if (!readOnly && lifecycle.permissions.delete) {
+                        <label>
+                          <input #deleteConfirmed type="checkbox" /> Leere Entwurfsrunde löschen
+                        </label>
+                        <button
+                          tuiButton
+                          appearance="secondary"
+                          type="button"
+                          (click)="deleteRound(entry.round, deleteConfirmed.checked)"
+                        >
+                          Löschen
+                        </button>
+                      }
+
+                      @if (lifecycle.history.length) {
+                        <h3>Historie</h3>
+                        <ol>
+                          @for (event of lifecycle.history; track event.id) {
+                            <li>
+                              Revision {{ event.round_revision }}:
+                              {{ statusLabel(event.event_type) }}
+                            </li>
+                          }
+                        </ol>
+                      }
+                    </section>
+                  }
                 } @empty {
                   <div class="app-compact-empty">
                     <strong>Noch kein Ausschuss zugeordnet.</strong>

@@ -36,4 +36,8 @@ Den Sperr-, Korrektur- und Nachweisvertrag beschreibt der [formelle Tagesabschlu
 Migration `020_add_confirmed_plan_revisions.sql` ergänzt die unveränderliche Vorher-/Nachher-Historie bestätigter Planänderungen.
 Migration `022_add_plan_consequences.sql` ergänzt deren getrennte, wiederholbare Benachrichtigungs- und Kalenderfolgen.
 Vorhandene Nachrichten, Zustellungen und Kalenderidentitäten bleiben erhalten; vergangene Revisionen erzeugen bei der Migration keine neuen fachlichen Folgen.
+
+Migration `023_add_exam_round_lifecycle.sql` verschiebt den fachlichen Abschluss vom gemeinsam genutzten Prüfungshalbjahr auf die ausschussbezogene Prüfungsrunde.
+Sie ergänzt Rundenrevision, terminale Prüflingsstatus sowie unveränderliche Entscheidungs-, Wiederöffnungs-, Aufgaben-, Audit- und Exporthistorien.
+Historische Halbjahres- und Rundenstände werden mit technischer Migrationsevidenz übernommen, ohne formale Abschlussnachweise zu erfinden.
 Den Zustands-, Idempotenz- und Wiederanlaufvertrag beschreibt die [Folgenarchitektur](architecture/plan-change-consequences.md).

@@ -22,6 +22,7 @@ import {
   CommitteeMember,
   ExamRound,
   ExamRoundCreate,
+  ExamRoundLifecycle,
   ExamRoundUpdate,
   ExamDay,
   ExamDayAssignment,
@@ -580,6 +581,75 @@ export class PlanningApiService {
 
   createExamRound(payload: ExamRoundCreate) {
     return this.http.post<ExamRound>('/api/exam-rounds', payload);
+  }
+
+  getExamRoundLifecycle(roundId: number) {
+    return this.http.get<ExamRoundLifecycle>(`/api/exam-rounds/${roundId}/lifecycle`);
+  }
+
+  closeExamRound(roundId: number, revision: number) {
+    return this.http.post<ExamRoundLifecycle>(`/api/exam-rounds/${roundId}/closure`, {
+      revision,
+      confirmed: true,
+    });
+  }
+
+  cancelExamRound(roundId: number, revision: number, reason: string) {
+    return this.http.post<ExamRoundLifecycle>(`/api/exam-rounds/${roundId}/cancellation`, {
+      revision,
+      confirmed: true,
+      reason,
+    });
+  }
+
+  reopenExamRound(
+    roundId: number,
+    payload: {
+      revision: number;
+      occasion: string;
+      source: string;
+      reason: string;
+      scope: Array<{ kind: string; entity_id: number }>;
+    },
+  ) {
+    return this.http.post<ExamRoundLifecycle>(`/api/exam-rounds/${roundId}/reopenings`, payload);
+  }
+
+  deleteEmptyExamRound(roundId: number) {
+    return this.http.delete<void>(`/api/exam-rounds/${roundId}`);
+  }
+
+  setRoundCandidateTerminalStatus(
+    roundId: number,
+    roundCandidateId: number,
+    payload: {
+      revision: number;
+      terminal_status: string;
+      reason?: string;
+      effective_new_round_id?: number;
+      postponed_until?: string;
+      ihk_decision_reference?: string;
+    },
+  ) {
+    return this.http.put<ExamRoundLifecycle>(
+      `/api/exam-rounds/${roundId}/candidates/${roundCandidateId}/terminal-status`,
+      payload,
+    );
+  }
+
+  documentExamRoundIhkStatus(
+    roundId: number,
+    resultId: number,
+    documentStatus: string,
+    documentReference: string,
+  ) {
+    return this.http.put<ExamRoundLifecycle>(
+      `/api/exam-rounds/${roundId}/results/${resultId}/ihk-status`,
+      {
+        document_status: documentStatus,
+        document_reference: documentReference,
+      },
+    );
   }
 
   /**
