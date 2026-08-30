@@ -1,55 +1,69 @@
-# Architekturübersicht
+# Architekturgrundlage
 
-`lzug` besteht aus einem Angular-Frontend, einem Python-Anwendungskern und einer lokalen SQLite-Instanz.
-Das Frontend ist das Arbeitswerkzeug für Prüfungsausschüsse.
-Der FastAPI-Adapter vermittelt zwischen ihm und den fachlichen Services; SQLAlchemy-Modelle, Repositories und Migrationen halten den lokalen Zustand.
+`lzug` ist ein modularer Monolith für die Arbeit eines Prüfungsausschusses.
+Die Architekturgrundlage ordnet den aktuellen Stand nach den für das Projekt relevanten arc42-Blickrichtungen, ohne eine vollständige arc42-Schablone oder eine zweite technische Referenz zu pflegen.
+Ausführbarer Code, Schema, Migrationen, OpenAPI, Containerverträge und Workflows bleiben für ihre Details maßgeblich.
+
+## Orientierung
+
+| arc42-Blickrichtung | Leitfrage | Kanonische Quelle |
+| --- | --- | --- |
+| Ziele und Randbedingungen | Welche Leitplanken begrenzen Änderungen? | [Architekturprinzipien](principles.md) |
+| Kontext und Abgrenzung | Wer nutzt `lzug`, und welche externen Systeme werden berührt? | [Systemkontext](views.md#systemkontext) |
+| Lösungsstrategie und Bausteine | Wie bleibt der modulare Monolith gegliedert? | [Container-Sicht](views.md#container-sicht) und [Backend-Grenzen](backend.md) |
+| Laufzeit | Wie durchläuft eine kritische Änderung Sicherheits-, Fach- und Persistenzgrenzen? | [Kritischer Ablauf](views.md) und die fachlichen Architekturseiten |
+| Verteilung | Was läuft in Browser, OCI-Container und persistentem Datenbereich? | [Deployment-Sicht](views.md#deployment-sicht) und [OCI-Runtime](oci-runtime.md) |
+| Querschnittliche Konzepte | Wo liegen Identität, Daten, Oberfläche und Betrieb? | [Authentifizierung](authentication.md), [Datenmodell](../domain-model.md), [Datenbankschema](../database-schema.md) und [Frontend-Richtlinie](../frontend-guidelines.md) |
+| Entscheidungen | Warum wurde eine langfristige Richtung gewählt? | [ADR-Register](../decisions/index.md) |
+| Qualität und Risiken | Welche Risiken müssen Änderungen sichtbar behandeln? | [Reviewkriterien](../reviews/kriterien.md) |
+
+## System- und Fachgrenzen
+
+Das Angular-Frontend ist das Arbeitswerkzeug für Ausschussmitglieder.
+Der produktive FastAPI-Adapter vermittelt zwischen Browser und den frameworkfreien Anwendungsservices; SQLAlchemy-Modelle, Repositories und Migrationen halten den lokalen Zustand in SQLite.
+Die Self-Hosting-Instanz gehört genau einem Ausschuss.
+Betreiberrechte und die lokale Betreiber-CLI erzeugen keine fachliche Ausschussrolle.
 
 Der [Lebenszyklus einer Prüfungsrunde](exam-round-lifecycle.md) beschreibt den ausschussbezogenen Abschluss, die vollständige Absage, die zentrale Sperre, gezielte Wiederöffnungen und revisionsgebundene Nachweise.
+[Benachrichtigungen](notifications.md), [Kalenderfolgen](plan-change-consequences.md) und andere technische Integrationen bleiben von dem auslösenden Fachvorgang getrennt.
 Der frühe Prototyp unter `prototypes/pruefungsrunde-prototyp/` ist keine Produktlaufzeit.
-
-```text
-Angular-Frontend
-  -> produktiver FastAPI-HTTP-Adapter (Uvicorn)
-  -> JSON-API mit OpenAPI-Vertrag
-  -> frameworkfreie Anwendungsschicht, Repositories und Services
-  -> SQLAlchemy-Modelle, Schema und Migrationen
-  -> SQLite je Instanz
-```
 
 Die aktuelle technische Quelle liegt jeweils beim ausführbaren Vertrag:
 
 - HTTP-Routen und OpenAPI-Antwortmodell: `backend/fastapi_app.py`; Start und
-Transportgrenzen: `backend/server.py` und `backend/transport.py`.
-- Datenstruktur und deren Weiterentwicklung: `backend/models.py`,
-`db/schema.sql` und `db/migrations/`.
+  Transportgrenzen: `backend/server.py` und `backend/transport.py`.
+- Datenstruktur und Weiterentwicklung: `backend/models.py`, `db/schema.sql`
+  und `db/migrations/`.
 - Produktversion: die beim Build erzeugte `build-metadata.json`; sie leitet
-die Identität aus Commit und gegebenenfalls Release-Tag ab.
+  die Identität aus Commit und gegebenenfalls Release-Tag ab.
 - Betriebs-, Sicherheits- und Qualitätsgrenzen: Dockerfiles, Compose-Datei,
-Taskfile und Workflows.
+  Taskfile und Workflows.
 
-Die langfristigen Entscheidungen stehen als [ADRs](../decisions/index.md).
-Jeder ADR folgt dem durch [ADR-0029](../decisions/0029-einheitliches-nygard-format.md) verbindlich festgelegten Nygard-Format.
-Sie erklären die gewählte Richtung, nicht deren aktuelle Endpunkt-, Feld- oder Workflowdetails.
+## Lösungsstrategie und bewusste Grenzen
 
-## Fachliche und technische Grenzen
+- Frontend, HTTP-Adapter, Anwendungskern und Persistenz bleiben klar getrennte
+  Verantwortungen innerhalb eines modularen Monolithen.
+- Das OCI-Image fasst Browser-Bundle und Python-Anwendung für eine einfache
+  Self-Hosting-Instanz zusammen; `/data` ist ihr einziger dauerhafter Bereich.
+- Die öffentliche Demo ist eine getrennte flüchtige Assembly und kein
+  Produktions- oder Self-Hosting-Muster.
+- Externe Zustellkanäle sind optional und best effort.
+  Ihr Ausfall macht einen
+  bereits erfolgreichen Fachvorgang nicht rückgängig.
+- Microservices, Kubernetes, eine zentrale Mandantenplattform und eine
+  zusätzliche Architektur-Governance sind nicht Teil des aktuellen Systems.
+  Eine langfristige Richtungsänderung benötigt einen nachvollziehbaren ADR.
+
+## Detaillierte Facharchitektur
 
 Die [Backend-Übersicht](backend.md) ordnet die produktiven Services ihren Schichten zu.
 [Authentifizierung](authentication.md), [Benachrichtigungen](notifications.md), der [Ausfall- und Ersatzprozess](absence-replacement.md), die [Prüfungsprotokolle](exam-protocols.md), [Bewertungen und Ergebnisse](exam-results.md), die [revisionierte Planänderung](confirmed-plan-revisions.md), deren [nachgelagerte Benachrichtigungs- und Kalenderfolgen](plan-change-consequences.md) sowie der [formelle Tagesabschluss](exam-day-closure.md) beschreiben die fachlichen Verantwortungsgrenzen.
 Das [fachliche Datenmodell](../domain-model.md) erläutert Begriffe, Aggregate und Invarianten; es ersetzt kein Schema.
 
-Die [Frontend-Richtlinie](../frontend-guidelines.md) beschreibt die Angular-Grenze und die Qualitätsmaßstäbe.
-Die [OCI-Runtime](oci-runtime.md) erläutert die Instanz-, Persistenz- und Sicherheitsgrenze für die Auslieferung.
-
-## Laufzeit- und Bereitschaftssignale
-
-`GET /api/health` ist ein reines Liveness-Signal des laufenden Prozesses und liefert HTTP 200.
-`GET /api/ready` prüft die Anwendungs- und Datenbankbereitschaft: ein bereiter Zustand liefert HTTP 200, ein nicht bereiter Zustand HTTP 503.
+`GET /api/health` ist ein reines Liveness-Signal des laufenden Prozesses.
+`GET /api/ready` prüft die Anwendungs- und Datenbankbereitschaft und liefert HTTP 200 beziehungsweise HTTP 503.
 Die vollständigen Maschinenverträge gehören zur OpenAPI-Quelle; diese Übersicht wiederholt sie nicht.
 
-## Veröffentlichung und Betrieb
-
-Eine Self-Hosting-Instanz gehört zu genau einem Ausschuss und speichert ihren Zustand unter `/data`.
-Das OCI-Image fasst Frontend und Backend zusammen; die [öffentliche Demo](../demo-deployment.md) bleibt eine getrennte flüchtige Assembly mit eigenem [Kostenvertrag](../demo-cost-baseline.md).
-Der Release-Tag bindet unveränderliche Artefakte und deren Build-Metadaten.
-Abläufe und Nachweise liegen in den jeweiligen Runbooks und ADRs.
-Die lokale Kontenpflege bleibt eine separate [Betreiber-CLI-Grenze](operator-auth-cli.md).
+Die langfristigen Entscheidungen stehen im [ADR-Register](../decisions/index.md).
+Jeder ADR folgt dem durch [ADR-0029](../decisions/0029-einheitliches-nygard-format.md) verbindlich festgelegten Nygard-Format.
+ADRs erklären die gewählte Richtung, nicht aktuelle Endpunkt-, Feld- oder Workflowdetails.
