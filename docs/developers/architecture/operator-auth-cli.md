@@ -1,4 +1,4 @@
-# Betreiber-CLI für Authentifizierung und Ausschuss-Bootstrap
+# Betreiber-CLI für Administration und Diagnose
 
 Die portable Go-CLI `lzug-admin` ist eine lokale Betriebsgrenze.
 Sie öffnet keinen Netzwerk-Endpunkt und kennt weder SQLite noch SQLAlchemy.
@@ -44,7 +44,60 @@ Fehlertexte, Diagnosen und Requestdaten spiegeln keine Token zurück.
 | 23 | `account_not_found` / `committee_not_found` / `person_not_found` | Objekt nicht vorhanden oder nicht aktiv |
 | 24 | `token_invalid` | Token ungültig, abgelaufen oder verbraucht |
 | 25 | `persistence_error` | kontrollierter Persistenzfehler |
+| 30 | Diagnose mit `status: warning` | Prüfung vollständig, Handlungsbedarf erkannt |
+| 31 | Diagnose mit `status: error` | Prüfung vollständig, Betriebsfehler erkannt |
 | 70 | `internal_error` | unerwarteter Fehler, fail-closed |
+
+## Systemdiagnose
+
+`status`, `config` und `doctor` sind parameterlose, rein lokale Diagnosebefehle.
+`status` prüft die Übereinstimmung der CLI- und Runtime-Version, die Schema-Kompatibilität und den bestehenden öffentlichen Health-Endpunkt.
+`config` validiert Persistenzpfade, HTTP-/Security-, Dokument- und Benachrichtigungskonfiguration, ohne konfigurierte Werte auszugeben.
+`doctor` führt beide Prüfebenen zusammen und ergänzt Schreibproben für die persistenten Verzeichnisse und die Datenbank sowie den freien Speicher.
+
+Eine vollständig ausgeführte Diagnose verwendet weiterhin `ok: true`.
+Der Betriebszustand steht in `result.status`; `ok: false` bleibt Transport-, Protokoll- und Ausführungsfehlern vorbehalten.
+Jeder Check besitzt die stabilen Felder `id`, `status`, `code` und `message` sowie ausschließlich explizit erlaubte technische `details`:
+
+```json
+{
+  "version": 1,
+  "ok": true,
+  "result": {
+    "command": "doctor",
+    "status": "warning",
+    "checks": [
+      {
+        "id": "free_space",
+        "status": "warning",
+        "code": "free_space_low",
+        "message": "Persistent storage has less free space than recommended",
+        "details": {
+          "available_bytes": 33554432,
+          "minimum_bytes": 67108864
+        }
+      }
+    ]
+  }
+}
+```
+
+Exit `0` bedeutet ausschließlich `status: ok`, Exit `30` mindestens eine Warnung ohne Fehler und Exit `31` mindestens einen Fehler.
+Ein Konfigurationsfehler nennt die betroffene Variable und die erwartete Form, spiegelt aber niemals ihren Wert.
+Die Ausgabe darf Runtime-Identität und Revision, Migrationsnamen, technische Statuscodes, abstrakte Persistenzbereiche sowie Byte-Zähler enthalten.
+Pfade, Umgebungswerte, Datenbankinhalte, Konten, Personen, Fachobjekte und Secrets sind nicht Teil des Diagnosevertrags.
+
+Die Health-Prüfung verwendet ausschließlich `LZUG_HEALTHCHECK_URL` auf einem Loopback-Ziel mit dem öffentlichen Pfad `/api/health`.
+Sie führt keinen Netzwerk-Adminaufruf aus.
+Schema- und Persistenzprüfungen liegen im Python-Backend; die Go-CLI kennt weiterhin weder SQLite-Pfad noch SQL.
+
+Beispiele für Docker und Podman verwenden denselben Request- und Antwortvertrag:
+
+```sh
+lzug-admin --engine docker --container lzug doctor
+lzug-admin --engine podman --container lzug status
+lzug-admin --container lzug config
+```
 
 ## Befehle und Sicherheitsgrenzen
 
@@ -111,6 +164,9 @@ task quality:operator-container
 
 Der Qualitätstask führt die Vertragstests aus und baut die sechs portablen Kombinationen aus Linux, macOS und Windows für amd64 und arm64 in ein temporäres Verzeichnis.
 Dadurch bleibt `dist/` unverändert.
+
+Der Containervertrag führt `status`, `config` und `doctor` über dieselbe ausgewählte Docker- oder Podman-Engine aus.
+Backend-Tests decken gesunde Instanzen, fehlende Runtime-Metadaten, inkompatible Schemas, ungeeignete Persistenzrechte, knappen Speicher und geheimnisfreie Fehlerausgaben ab.
 
 Die Python-Contract- und Persistenztests laufen mit `uv run --locked --extra dev python -m unittest`.
 Das vollständige `task quality` bleibt die breite Abnahme für diese sicherheits- und migrationsrelevante Änderung.

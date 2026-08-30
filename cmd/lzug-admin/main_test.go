@@ -68,6 +68,71 @@ func TestCanonicalBuildMetadataUsesLinkedIdentity(t *testing.T) {
 	}
 }
 
+func TestDiagnosticCommandsUsePortableSecretFreeRequests(t *testing.T) {
+	previousVersion := applicationVersion
+	previousRevision := applicationRevision
+	applicationVersion = "1.2.3"
+	applicationRevision = strings.Repeat("a", 40)
+	t.Cleanup(func() {
+		applicationVersion = previousVersion
+		applicationRevision = previousRevision
+	})
+
+	var statusPayload string
+	for _, engine := range []string{"docker", "podman"} {
+		opts, err := parseOptions(
+			[]string{"--engine", engine, "--container", "lzug", "status"},
+			strings.NewReader(""),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload, err := protocolPayload(opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if statusPayload == "" {
+			statusPayload = string(payload)
+		} else if string(payload) != statusPayload {
+			t.Fatalf("container engines produced different requests: %q != %q", payload, statusPayload)
+		}
+	}
+	expected := `{"version":1,"command":"status","arguments":{"client":{"identity":"1.2.3","revision":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}}` + "\n"
+	if statusPayload != expected {
+		t.Fatalf("unexpected status request %q", statusPayload)
+	}
+
+	config, err := parseOptions(
+		[]string{"--container", "lzug", "config"}, strings.NewReader(""),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := protocolPayload(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(payload) != `{"version":1,"command":"config","arguments":{}}`+"\n" {
+		t.Fatalf("unexpected config request %q", payload)
+	}
+	for _, forbidden := range []string{"token", "password", "sqlite", "/data", "http"} {
+		if strings.Contains(strings.ToLower(statusPayload+string(payload)), forbidden) {
+			t.Fatalf("diagnostic request contains forbidden value %q", forbidden)
+		}
+	}
+}
+
+func TestDiagnosticCommandsRejectAllUserOptions(t *testing.T) {
+	for _, command := range []string{"config", "doctor", "status"} {
+		if _, err := parseOptions(
+			[]string{"--container", "lzug", command, "--email", "secret@example.invalid"},
+			strings.NewReader(""),
+		); err == nil {
+			t.Fatalf("%s accepted an unrelated option", command)
+		}
+	}
+}
+
 func TestNotificationCommandsUseExplicitSafeArguments(t *testing.T) {
 	test, err := parseOptions(
 		[]string{"--container", "lzug", "test-notification", "--member-id", "7", "--channel", "web_push"},

@@ -51,7 +51,7 @@ nav:
           - Regelgebundene Bewertungen und Ergebnisse: developers/architecture/exam-results.md
           - Formeller Abschluss von Prüfungstagen: developers/architecture/exam-day-closure.md
           - Lebenszyklus von Prüfungsrunden: developers/architecture/exam-round-lifecycle.md
-          - Betreiber-CLI für Authentifizierung: developers/architecture/operator-auth-cli.md
+          - Betreiber-CLI für Administration und Diagnose: developers/architecture/operator-auth-cli.md
           - OCI-Runtime: developers/architecture/oci-runtime.md
       - Referenz:
           - Fachliches Datenmodell: developers/domain-model.md
