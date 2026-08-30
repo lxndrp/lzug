@@ -51,6 +51,13 @@ type runner struct {
 	container string
 }
 
+func diagnosticClientMetadata() map[string]any {
+	return map[string]any{
+		"identity": applicationVersion,
+		"revision": applicationRevision,
+	}
+}
+
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "--version" {
 		_, _ = fmt.Fprintln(os.Stdout, versionText())
@@ -65,16 +72,11 @@ func main() {
 		writeLocalError(os.Stdout, "invalid_request", err.Error())
 		os.Exit(2)
 	}
-	payload, err := json.Marshal(request{
-		Version:   protocolVersion,
-		Command:   opts.command,
-		Arguments: opts.arguments,
-	})
+	payload, err := protocolPayload(opts)
 	if err != nil {
 		writeLocalError(os.Stdout, "invalid_request", "Request could not be encoded")
 		os.Exit(2)
 	}
-	payload = append(payload, '\n')
 
 	code, err := (runner{engine: opts.engine, container: opts.container}).execute(
 		context.Background(), payload, os.Stdout, os.Stderr,
@@ -89,6 +91,18 @@ func main() {
 		writeLocalError(os.Stdout, class, "Container engine could not be invoked")
 	}
 	os.Exit(code)
+}
+
+func protocolPayload(opts options) ([]byte, error) {
+	payload, err := json.Marshal(request{
+		Version:   protocolVersion,
+		Command:   opts.command,
+		Arguments: opts.arguments,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return append(payload, '\n'), nil
 }
 
 func versionText() string {
@@ -187,7 +201,16 @@ func parseOptions(args []string, input io.Reader) (options, error) {
 		strings.TrimSpace(*deputyLastName) != "" || strings.TrimSpace(*deputyEmail) != "" ||
 		strings.TrimSpace(*deputyMobile) != "" || strings.TrimSpace(*deputyMemberStatus) != "" ||
 		strings.TrimSpace(*deputyRepresentingSide) != ""
+	commonAdminFlagsUsed := strings.TrimSpace(*email) != "" || *accountID != 0 ||
+		*memberID != 0 || *revisionID != 0 || strings.TrimSpace(*channel) != ""
 	switch command {
+	case "config", "doctor", "status":
+		if commonAdminFlagsUsed || committeeAdminFlagsUsed {
+			return options{}, fmt.Errorf("%s accepts no options", command)
+		}
+		if command != "config" {
+			arguments["client"] = diagnosticClientMetadata()
+		}
 	case "bootstrap", "invite":
 		if strings.TrimSpace(*email) == "" || *accountID != 0 || *memberID != 0 || *revisionID != 0 || *channel != "" || committeeAdminFlagsUsed {
 			return options{}, fmt.Errorf("%s requires --email", command)

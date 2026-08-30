@@ -32,7 +32,9 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-lzug_start_contract_container "$container" "$volume" "$image"
+lzug_start_contract_container "$container" "$volume" "$image" \
+    --env "LZUG_SMTP_USERNAME=diagnostic-operator" \
+    --env "LZUG_SMTP_PASSWORD=diagnostic-secret-marker"
 if ! lzug_wait_for_container_health "$container" 30; then
     echo "Container did not become ready for the operator contract." >&2
     "$engine" logs "$container" >&2 || true
@@ -99,4 +101,29 @@ assert len(payload["result"]["invitations"]) == 1
 assert payload["result"]["invitations"][0]["token"]
 ' >/dev/null
 
-echo "Operator CLI-to-container invitation and committee contracts passed with $engine: $image"
+for diagnostic in status config doctor; do
+    diagnostic_output=$(
+        "$admin_binary" --engine "$engine" --container "$container" "$diagnostic"
+    )
+    printf '%s' "$diagnostic_output" | python3 -c '
+import json
+import sys
+
+command, invitation_token = sys.argv[1:]
+payload = json.load(sys.stdin)
+assert payload["version"] == 1 and payload["ok"] is True
+result = payload["result"]
+assert result["command"] == command and result["status"] == "ok"
+assert result["checks"]
+encoded = json.dumps(payload)
+for forbidden in (
+    "diagnostic-secret-marker",
+    "cli-contract@example.invalid",
+    "cli-chair@example.invalid",
+    invitation_token,
+):
+    assert forbidden not in encoded
+' "$diagnostic" "$token" >/dev/null
+done
+
+echo "Operator CLI-to-container administration and diagnostic contracts passed with $engine: $image"

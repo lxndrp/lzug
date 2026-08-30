@@ -22,7 +22,8 @@ Ausführbarer Code, Schema, Migrationen, OpenAPI, Containerverträge und Workflo
 Das Angular-Frontend ist das Arbeitswerkzeug für Ausschussmitglieder.
 Der produktive FastAPI-Adapter vermittelt zwischen Browser und den frameworkfreien Anwendungsservices; SQLAlchemy-Modelle, Repositories und Migrationen halten den lokalen Zustand in SQLite.
 Die Self-Hosting-Instanz gehört genau einem Ausschuss.
-Betreiberrechte und die lokale Betreiber-CLI erzeugen keine fachliche Ausschussrolle.
+Betreiberrechte und die lokale [Betreiber-CLI](operator-auth-cli.md) erzeugen keine fachliche Ausschussrolle.
+Vertiefte Systemdiagnose bleibt ebenfalls an diese lokale Betriebsgrenze gebunden.
 
 Der [Lebenszyklus einer Prüfungsrunde](exam-round-lifecycle.md) beschreibt den ausschussbezogenen Abschluss, die vollständige Absage, die zentrale Sperre, gezielte Wiederöffnungen und revisionsgebundene Nachweise.
 [Benachrichtigungen](notifications.md), [Kalenderfolgen](plan-change-consequences.md) und andere technische Integrationen bleiben von dem auslösenden Fachvorgang getrennt.

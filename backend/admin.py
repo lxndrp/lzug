@@ -7,6 +7,7 @@ does not expose a socket, accept a database path on argv, or log request data.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from collections.abc import Mapping
 from typing import Any
@@ -16,6 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from .admin_service import AdminOperationError, OperatorAuthService
 from .committee_admin import CommitteeAdminService
 from .database import MigrationError, database_path, database_readiness
+from .diagnostics import run_diagnostics
 from .notifications import NotificationService
 from .plan_consequences import PlanConsequenceService
 
@@ -47,6 +49,33 @@ _EXIT_CODES = {
     "token_invalid": EXIT_TOKEN_INVALID,
     "persistence_error": EXIT_PERSISTENCE,
 }
+
+_DIAGNOSTIC_COMMANDS = frozenset({"config", "doctor", "status"})
+_ADMIN_COMMANDS = frozenset(
+    {
+        "bootstrap",
+        "invite",
+        "disable",
+        "recover",
+        "consume-invitation",
+        "consume-recovery",
+        "process-notifications",
+        "test-notification",
+        "committee-bootstrap",
+        "committee-complete",
+        "committee-reinvite",
+        "committee-deactivate",
+        "committee-reactivate",
+        "plan-consequences-status",
+        "retry-plan-consequences",
+    }
+)
+_REVISION_PATTERN = re.compile(r"^(?:unknown|[0-9a-f]{40})$")
+_IDENTITY_PATTERN = re.compile(
+    r"^(?:development|0\.0\.0-dev\+sha\.[0-9a-f]{40}|"
+    r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+    r"(?:-rc\.(?:0|[1-9][0-9]*))?)$"
+)
 
 
 def _response(*, ok: bool, result: Any = None, error: dict[str, str] | None = None) -> bytes:
@@ -95,36 +124,46 @@ def _positive_id(arguments: Mapping[str, Any], name: str) -> int:
     return value
 
 
+def _request_parts(request: Mapping[str, Any]) -> tuple[str, Mapping[str, Any]]:
+    if request.get("version") != PROTOCOL_VERSION:
+        raise AdminOperationError("invalid_request", "Unsupported protocol version")
+    command = request.get("command")
+    if not isinstance(command, str) or command not in _ADMIN_COMMANDS | _DIAGNOSTIC_COMMANDS:
+        raise AdminOperationError("invalid_request", "Unsupported admin command")
+    arguments = _require_mapping(request.get("arguments", {}), "Arguments must be an object")
+    return command, arguments
+
+
+def _diagnostic_client(command: str, arguments: Mapping[str, Any]) -> Mapping[str, str] | None:
+    if command == "config":
+        if arguments:
+            raise AdminOperationError("invalid_request", "config accepts no arguments")
+        return None
+    if set(arguments) != {"client"}:
+        raise AdminOperationError("invalid_request", f"{command} requires exact CLI build metadata")
+    client = _require_mapping(arguments["client"], "CLI build metadata must be an object")
+    if set(client) != {"identity", "revision"}:
+        raise AdminOperationError("invalid_request", "CLI build metadata is invalid")
+    identity = client.get("identity")
+    revision = client.get("revision")
+    if (
+        not isinstance(identity, str)
+        or _IDENTITY_PATTERN.fullmatch(identity) is None
+        or not isinstance(revision, str)
+        or _REVISION_PATTERN.fullmatch(revision) is None
+    ):
+        raise AdminOperationError("invalid_request", "CLI build metadata is invalid")
+    return {"identity": identity, "revision": revision}
+
+
 def _execute(
-    request: Mapping[str, Any],
+    command: str,
+    arguments: Mapping[str, Any],
     service: OperatorAuthService,
     notifications: NotificationService | None = None,
     committee_service: CommitteeAdminService | None = None,
     consequences: PlanConsequenceService | None = None,
 ) -> dict[str, Any]:
-    if request.get("version") != PROTOCOL_VERSION:
-        raise AdminOperationError("invalid_request", "Unsupported protocol version")
-    command = request.get("command")
-    if not isinstance(command, str) or command not in {
-        "bootstrap",
-        "invite",
-        "disable",
-        "recover",
-        "consume-invitation",
-        "consume-recovery",
-        "process-notifications",
-        "test-notification",
-        "committee-bootstrap",
-        "committee-complete",
-        "committee-reinvite",
-        "committee-deactivate",
-        "committee-reactivate",
-        "plan-consequences-status",
-        "retry-plan-consequences",
-    }:
-        raise AdminOperationError("invalid_request", "Unsupported admin command")
-    arguments = _require_mapping(request.get("arguments", {}), "Arguments must be an object")
-
     if command.startswith("committee-"):
         active_committee_service = committee_service or CommitteeAdminService(service.db_path)
         if command == "committee-bootstrap":
@@ -216,12 +255,18 @@ def run(
     try:
         request = json.loads(payload.decode("utf-8"))
         request = _require_mapping(request, "Request must be an object")
+        command, arguments = _request_parts(request)
     except UnicodeDecodeError, json.JSONDecodeError:
         return _error("invalid_request", "Request is not valid JSON")
     except AdminOperationError as error:
         return _error(error.code, str(error))
 
     try:
+        if command in _DIAGNOSTIC_COMMANDS:
+            client = _diagnostic_client(command, arguments)
+            result, exit_code = run_diagnostics(command, client)
+            _write(_response(ok=True, result=result))
+            return exit_code
         active_service = service
         if active_service is None:
             readiness = database_readiness(database_path())
@@ -229,7 +274,8 @@ def run(
                 return _error("database_not_ready", "Database is not ready")
             active_service = OperatorAuthService(database_path())
         result = _execute(
-            request,
+            command,
+            arguments,
             active_service,
             notifications,
             committee_service,
