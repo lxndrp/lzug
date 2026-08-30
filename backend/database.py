@@ -11,7 +11,7 @@ from collections.abc import Iterator
 from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from fcntl import LOCK_EX, LOCK_UN, flock
+from fcntl import LOCK_EX, LOCK_SH, LOCK_UN, flock
 from pathlib import Path
 
 from sqlalchemy import MetaData, Table, create_engine, event, insert, inspect, select
@@ -234,6 +234,63 @@ def engine_for(db_path: Path = DEFAULT_DB_PATH) -> Engine:
     return engine
 
 
+def _snapshot_lock_path(db_path: Path) -> Path:
+    return Path(f"{db_path}.snapshot.lock")
+
+
+def _activation_lock_path(db_path: Path) -> Path:
+    return Path(f"{db_path}.activation.lock")
+
+
+@contextmanager
+def _file_lock(path: Path, operation: int) -> Iterator[None]:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+") as lock_file:
+        flock(lock_file.fileno(), operation)
+        try:
+            yield
+        finally:
+            flock(lock_file.fileno(), LOCK_UN)
+
+
+@contextmanager
+def mutation_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[None]:
+    """Keep one database/document mutation outside an artifact snapshot or activation."""
+    db_path = Path(db_path)
+    with _file_lock(_activation_lock_path(db_path), LOCK_SH):
+        with _file_lock(_snapshot_lock_path(db_path), LOCK_SH):
+            yield
+
+
+@contextmanager
+def snapshot_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[None]:
+    """Wait for active mutations and prevent new ones while readers continue."""
+    with _file_lock(_snapshot_lock_path(Path(db_path)), LOCK_EX):
+        yield
+
+
+@contextmanager
+def activation_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[None]:
+    """Drain all application transactions before atomically activating a restore."""
+    with _file_lock(_activation_lock_path(Path(db_path)), LOCK_EX):
+        yield
+
+
+def _is_mutating_statement(statement: str) -> bool:
+    token = statement.lstrip().partition(" ")[0].partition("\n")[0].upper()
+    return token in {
+        "ALTER",
+        "CREATE",
+        "DELETE",
+        "DROP",
+        "INSERT",
+        "REINDEX",
+        "REPLACE",
+        "UPDATE",
+        "VACUUM",
+    }
+
+
 def connect(db_path: Path = DEFAULT_DB_PATH) -> Connection:
     return engine_for(db_path).connect()
 
@@ -263,17 +320,38 @@ def session_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[Session]:
     Yields:
         An open SQLAlchemy session.
     """
+    db_path = Path(db_path)
     engine = engine_for(db_path)
     session_factory = sessionmaker(bind=engine, future=True)
     session = session_factory()
+    snapshot_lock_path = _snapshot_lock_path(db_path)
+    snapshot_lock_path.parent.mkdir(parents=True, exist_ok=True)
+    snapshot_lock_file = snapshot_lock_path.open("a+")
+    mutation_locked = False
+
+    def lock_before_mutation(
+        _connection, _cursor, statement, _parameters, _context, _executemany
+    ) -> None:
+        nonlocal mutation_locked
+        if not mutation_locked and _is_mutating_statement(statement):
+            flock(snapshot_lock_file.fileno(), LOCK_SH)
+            mutation_locked = True
+
+    event.listen(engine, "before_cursor_execute", lock_before_mutation)
     try:
-        yield session
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
+        with _file_lock(_activation_lock_path(db_path), LOCK_SH):
+            try:
+                yield session
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
     finally:
         session.close()
+        event.remove(engine, "before_cursor_execute", lock_before_mutation)
+        if mutation_locked:
+            flock(snapshot_lock_file.fileno(), LOCK_UN)
+        snapshot_lock_file.close()
         engine.dispose()
 
 

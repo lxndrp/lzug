@@ -42,3 +42,4 @@ die Formatentscheidung steht im Registereintrag für ADR-0029.
 | [0027](0027-synchroner-fastapi-migrationskern.md) | Synchroner FastAPI-Kern für die schrittweise HTTP-Migration | Akzeptiert |
 | [0028](0028-sbom-orchestrierung-und-cyclonedx-standardwerkzeuge.md) | SBOM-Orchestrierung und CycloneDX-Standardwerkzeuge abgrenzen | Akzeptiert |
 | [0029](0029-einheitliches-nygard-format.md) | Einheitliches Nygard-Format für Architekturentscheidungen | Akzeptiert |
+| [0030](0030-x25519-aes-gcm-fuer-geschuetzte-artefakte.md) | X25519 und AES-GCM für geschützte Artefakte | Akzeptiert |

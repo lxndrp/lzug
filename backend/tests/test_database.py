@@ -274,8 +274,28 @@ def rewind_plan_consequence_migration(connection: sqlite3.Connection) -> None:
     )
 
 
+def rewind_artifact_operation_migration(connection: sqlite3.Connection) -> None:
+    """Restore the pre-024 instance schema without leaving a history gap."""
+    connection.executescript("""
+        DROP INDEX IF EXISTS artifact_operation_occurred;
+        DROP TABLE IF EXISTS artifact_operation;
+        DROP TABLE IF EXISTS instance_metadata;
+        DELETE FROM schema_migration
+          WHERE name = '024_add_artifact_operations.sql';
+    """)
+    if connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        ("schema_migration_checksum",),
+    ).fetchone():
+        connection.execute(
+            "DELETE FROM schema_migration_checksum WHERE name = ?",
+            ("024_add_artifact_operations.sql",),
+        )
+
+
 def rewind_exam_round_lifecycle_migration(connection: sqlite3.Connection) -> None:
     """Restore the pre-023 round schema without leaving a history gap."""
+    rewind_artifact_operation_migration(connection)
     if not connection.execute(
         "SELECT 1 FROM schema_migration WHERE name = ?",
         ("023_add_exam_round_lifecycle.sql",),
@@ -622,7 +642,7 @@ class DatabaseTests(unittest.TestCase):
             initialize(db_path)
             after = migration_status(db_path)
             self.assertEqual("ready", after["state"])
-            self.assertEqual("023_add_exam_round_lifecycle.sql", after["current"])
+            self.assertEqual("024_add_artifact_operations.sql", after["current"])
             self.assertTrue(list(db_path.parent.joinpath("backups").glob("*.sqlite")))
 
             history_before = after["history"]
@@ -655,7 +675,7 @@ class DatabaseTests(unittest.TestCase):
             )
             self.assertEqual(("confirmed_plan_revision",), revision_table)
             self.assertEqual(
-                "023_add_exam_round_lifecycle.sql",
+                "024_add_artifact_operations.sql",
                 migration_status(db_path)["current"],
             )
 
@@ -733,8 +753,9 @@ class DatabaseTests(unittest.TestCase):
                     "021_add_committee_bootstrap.sql",
                     "022_add_plan_consequences.sql",
                     "023_add_exam_round_lifecycle.sql",
+                    "024_add_artifact_operations.sql",
                 ],
-                [entry["name"] for entry in status["history"][-16:]],
+                [entry["name"] for entry in status["history"][-17:]],
             )
 
     def test_committee_bootstrap_migration_classifies_legacy_committees_without_changing_ids(
@@ -889,7 +910,7 @@ class DatabaseTests(unittest.TestCase):
             self.assertTrue({"claim_token", "claimed_at", "claim_expires_at"}.issubset(columns))
             self.assertEqual(("temporarily_failed", 2, None, None, None), delivery)
             self.assertEqual(
-                "023_add_exam_round_lifecycle.sql",
+                "024_add_artifact_operations.sql",
                 migration_status(db_path)["current"],
             )
 

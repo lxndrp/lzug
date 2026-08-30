@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lxndrp/lzug/full-export-v1.schema.json",
+  "title": "lzug full export data",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "format_version",
+    "snapshot_at",
+    "instance_id",
+    "record_count",
+    "tables"
+  ],
+  "properties": {
+    "format": {"const": "lzug-full-export"},
+    "format_version": {"const": 1},
+    "snapshot_at": {"type": "string", "format": "date-time"},
+    "instance_id": {"type": "string"},
+    "record_count": {"type": "integer", "minimum": 0},
+    "tables": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["columns", "rows"],
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {"type": "string"},
+            "uniqueItems": true
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["export_id", "attributes", "relationships"],
+              "properties": {
+                "export_id": {"type": "string"},
+                "attributes": {"type": "object"},
+                "relationships": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["export_id", "target_column"],
+                    "properties": {
+                      "export_id": {"type": "string"},
+                      "target_column": {"type": "string"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
