@@ -5,6 +5,9 @@ nachvollziehbare technische Arbeit. Für Beiträge und lokale Entwicklung gilt
 direkt [`CONTRIBUTING.md`](https://github.com/lxndrp/lzug/blob/master/CONTRIBUTING.md);
 die redaktionellen Anleitungen für Einrichtung und Qualität stehen im
 [GitHub Wiki](https://github.com/lxndrp/lzug/wiki).
+Die [Betreiberanleitung](https://github.com/lxndrp/lzug/wiki/Administration)
+verweist von Installation, Konfiguration und Wiederherstellung auf die hier
+kanonischen technischen Verträge.
 
 - **Architektur** erklärt Systemgrenzen, Verantwortungen und die Verweise auf
 ausführbare Verträge.

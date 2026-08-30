@@ -104,7 +104,10 @@ Format, Snapshot- und Restore-Vertrag beschreibt [Backup, Restore und Vollexport
 Health ist die öffentliche Liveness; Ready trennt die Application-Readiness mit HTTP 200 beziehungsweise HTTP 503.
 Die erforderlichen Login-/Aktivierungs-/Recovery-POST-Routen und ihre Session- und Autorisierungsgrenze beschreibt die [Authentifizierungsarchitektur](authentication.md).
 Vorhandene Assets werden direkt ausgeliefert, fehlende Assets liefern 404 und nur Routen ohne Dateisuffix erhalten den Angular-SPA-Fallback.
-Damit kann ein Reverse Proxy später vor dem Container ergänzt werden, ohne dass dieser Runtime-Schritt bereits Compose oder eine Proxy-Konfiguration vorwegnimmt.
+Die Referenzinstallation bindet den Container per Compose standardmäßig an Loopback.
+TLS-Terminierung und öffentlicher Reverse Proxy bleiben betreiberseitig; das
+[Administrationshandbuch](https://github.com/lxndrp/lzug/wiki/Administration-Installation-und-Konfiguration)
+beschreibt den dazugehörigen Ablauf, ohne die ausführbaren Runtimewerte zu duplizieren.
 
 Der OCI-Workflow baut das Image bei relevanten Pull Requests genau einmal und übergibt das per SHA-256 abgesicherte Docker-Archiv an zwei getrennte Jobs.
 Der Runtime-Job prüft Revision, Non-Root-Vertrag, Start, Health, API, SPA und die gehärteten Isolationsgrenzen.

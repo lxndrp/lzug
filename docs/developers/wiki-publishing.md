@@ -36,7 +36,9 @@ Die Dokumentation einer Wiki-Commit-ID in einem GitHub-Issue ist keine generelle
 Das Wiki beschreibt nur den vorhandenen Produkt- und Betriebsstand.
 ADRs, OpenAPI-Vertrag, Datenbankschema, Migrationen, technische Modelle, Docstrings/TSDoc und CI-/Security-/Deployment-Konfiguration bleiben im Hauptrepository.
 Generierte Referenzen bleiben CI-Artefakte.
-Produktive Self-Hosting-, Backup- und Upgrade-Anleitungen werden erst mit den jeweiligen ausführbaren Betriebsverfahren ergänzt.
+Self-Hosting-, Backup-, Restore- und Upgrade-Anleitungen beschreiben im Wiki
+ausschließlich vorhandene ausführbare Betriebsverfahren und verlinken deren
+technische Verträge im Hauptrepository, statt sie als zweite Fassung zu kopieren.
 
 ## Lokale Prüfung eines Wiki-Clones
 
