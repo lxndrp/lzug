@@ -22,7 +22,8 @@ import {
 } from '../api/api.models';
 import { PlanningApiService } from '../api/planning-api.service';
 
-type EditorState = 'loading' | 'ready' | 'saving' | 'error';
+/** Lifecycle states exposed by the confirmed-plan editor. */
+export type EditorState = 'loading' | 'ready' | 'saving' | 'error';
 
 /**
  * Edits the revisioned confirmed-plan aggregate.  The server remains
