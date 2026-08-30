@@ -12,6 +12,33 @@ class Base(DeclarativeBase):
     pass
 
 
+class InstanceMetadata(Base):
+    """Stable non-secret identity for one self-hosted instance."""
+
+    __tablename__ = "instance_metadata"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    instance_id: Mapped[str] = mapped_column(String, unique=True)
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class ArtifactOperation(Base):
+    """Secret-free technical evidence for backup, verification, restore, and export."""
+
+    __tablename__ = "artifact_operation"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    operation_type: Mapped[str] = mapped_column(String)
+    artifact_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    artifact_type: Mapped[str | None] = mapped_column(String, nullable=True)
+    snapshot_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    recipient_key_fingerprint: Mapped[str | None] = mapped_column(String, nullable=True)
+    result: Mapped[str] = mapped_column(String)
+    error_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    technical_actor: Mapped[str] = mapped_column(String, server_default=sql_text("'operator-cli'"))
+    occurred_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
 class Committee(Base):
     __tablename__ = "committee"
 

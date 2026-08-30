@@ -27,7 +27,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import or_, select, update
 
 from .auth import SESSION_TTL, AuthenticationRepository, SessionCredentials
-from .database import DEFAULT_DB_PATH, session_scope
+from .database import DEFAULT_DB_PATH, mutation_scope, session_scope
 from .models import AuthRecoveryCode, AuthToken, UserAccount
 
 PASSWORD_TIME_COST = 3
@@ -120,6 +120,46 @@ class LoginRateLimiter:
         threshold = now - cls.window
         while attempts and attempts[0] <= threshold:
             attempts.popleft()
+
+
+def authentication_key_path(db_path: Path = DEFAULT_DB_PATH) -> Path:
+    """Return the persistent application-owned key path for local TOTP secrets."""
+    return Path(db_path).with_name(".lzug-auth.key")
+
+
+def authentication_key(db_path: Path = DEFAULT_DB_PATH) -> bytes:
+    """Load or atomically create the persistent local-authentication key.
+
+    A configured key initializes a new instance once. Afterwards the persistent
+    key wins so a protected restore can carry the instance key without requiring
+    a second external restore artifact.
+    """
+    db_path = Path(db_path)
+    key_path = authentication_key_path(db_path)
+    with mutation_scope(db_path):
+        try:
+            if key_path.exists():
+                key = key_path.read_bytes()
+            else:
+                configured = os.environ.get("LZUG_AUTH_ENCRYPTION_KEY")
+                key = configured.encode("ascii") if configured else Fernet.generate_key()
+                try:
+                    descriptor = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                except FileExistsError:
+                    key = key_path.read_bytes()
+                else:
+                    try:
+                        os.write(descriptor, key)
+                        os.fsync(descriptor)
+                    finally:
+                        os.close(descriptor)
+            os.chmod(key_path, 0o600)
+            Fernet(key)
+            return key
+        except (OSError, ValueError, binascii.Error) as error:
+            raise LocalAuthError(
+                "persistence_error", "Lokale Authentifizierung ist nicht verfügbar."
+            ) from error
 
 
 def _now(value: datetime | None = None) -> datetime:
@@ -475,36 +515,7 @@ class LocalAuthService:
         return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
     def _key(self) -> bytes:
-        configured = os.environ.get("LZUG_AUTH_ENCRYPTION_KEY")
-        if configured:
-            try:
-                Fernet(configured.encode("ascii"))
-            except (ValueError, binascii.Error) as error:
-                raise LocalAuthError(
-                    "persistence_error", "Lokale Authentifizierung ist nicht verfügbar."
-                ) from error
-            return configured.encode("ascii")
-        key_path = self.db_path.with_name(".lzug-auth.key")
-        try:
-            key = key_path.read_bytes() if key_path.exists() else None
-            if key is None:
-                key = Fernet.generate_key()
-                try:
-                    descriptor = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-                except FileExistsError:
-                    key = key_path.read_bytes()
-                else:
-                    try:
-                        os.write(descriptor, key)
-                    finally:
-                        os.close(descriptor)
-            os.chmod(key_path, 0o600)
-            Fernet(key)
-            return key
-        except (OSError, ValueError, binascii.Error) as error:
-            raise LocalAuthError(
-                "persistence_error", "Lokale Authentifizierung ist nicht verfügbar."
-            ) from error
+        return authentication_key(self.db_path)
 
     def _encrypt_secret(self, secret: str) -> str:
         return Fernet(self._key()).encrypt(secret.encode("ascii")).decode("ascii")

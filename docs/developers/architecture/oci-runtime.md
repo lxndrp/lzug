@@ -75,6 +75,8 @@ Die wichtigsten Werte sind:
 | SQLite-Pfad/URL     | `--db`/`--database-url` | `LZUG_DATABASE_PATH`/`LZUG_DATABASE_URL`                 | `/data/lzug.sqlite`                |
 | Dokumente           | `--documents`           | `LZUG_DOCUMENTS_PATH`                                    | `/data/documents`                  |
 | Migration-Backups   | `--backups`             | `LZUG_BACKUPS_PATH`                                      | `/data/backups`                    |
+| Backup-Empfänger    | —                       | `LZUG_BACKUP_RECIPIENT_PUBLIC_KEY`                       | leer, Backup nicht möglich         |
+| externe Pflichtwerte | —                      | `LZUG_REQUIRED_EXTERNAL_CONFIG`                          | leer                               |
 | Healthcheck-URL     | —                       | `LZUG_HEALTHCHECK_URL`                                   | `http://127.0.0.1:8000/api/health` |
 | HTTPS-/Cookie-Modus | —                       | `LZUG_HTTPS_ONLY`                                        | `true`                             |
 | CORS-Allowlist      | —                       | `LZUG_CORS_ALLOWED_ORIGINS`                              | leer/same-origin                   |
@@ -91,6 +93,12 @@ Der Prozess ist nicht privilegiert, verwirft keine Anwendungssicherheitsregeln u
 Der Build-Kontext ist über `.dockerignore` deny-by-default begrenzt.
 Das Image enthält keine Git-Historie, `.env`-Dateien, Tests, Seed-Daten oder lokalen Auth-Schlüssel.
 Ohne `LZUG_AUTH_ENCRYPTION_KEY` erzeugt die Anwendung den Fernet-Schlüssel mit Modus 0600 im persistenten `/data`-Vertrag; er muss mit dem Datenbestand gesichert werden und gehört nicht in Image oder Compose-Datei.
+Der Schlüssel wird dauerhaft als `/data/.lzug-auth.key` geführt, damit ein geschütztes vollständiges Backup ihn ohne separates Betreiberartefakt dem Datenstand zuordnen und beim Restore mit aktivieren kann.
+`LZUG_AUTH_ENCRYPTION_KEY` initialisiert diese Datei nur, solange noch kein persistenter Schlüssel vorhanden ist.
+
+Vollständige Backups und Vollexporte werden unter `/data/backups` erst nach erfolgreicher Prüfung als `.lzug`-Artefakt veröffentlicht.
+Nur der öffentliche Backup-Empfängerschlüssel wird im Container konfiguriert; private Schlüssel gelangen ausschließlich über stdin zum lokalen Adminprozess.
+Format, Snapshot- und Restore-Vertrag beschreibt [Backup, Restore und Vollexport](backup-restore-export.md).
 
 `/api`, `/api/health`, `/api/ready`, `/api/openapi.json` und `/api/docs` bleiben API-Routen.
 Health ist die öffentliche Liveness; Ready trennt die Application-Readiness mit HTTP 200 beziehungsweise HTTP 503.

@@ -8,7 +8,7 @@ from collections.abc import Collection, Mapping
 from pathlib import Path
 from typing import Any, BinaryIO
 
-from .database import DEFAULT_DB_PATH, session_scope
+from .database import DEFAULT_DB_PATH, mutation_scope, session_scope
 from .document_storage import (
     DocumentStorage,
     DocumentStorageError,
@@ -124,35 +124,36 @@ class DocumentService:
         original_filename: str,
         media_type: str,
     ) -> dict[str, Any]:
-        validate_document_filename(original_filename)
-        self._validate_media_type(media_type)
-        if media_type.lower() not in self.allowed_media_types:
-            raise UnsupportedDocumentMediaTypeError(
-                f"Document media type is not allowed: {media_type}"
-            )
-        bounded_content = self._bounded_content(content)
-        storage_id = new_storage_id()
-        stored = self.storage.put(storage_id, bounded_content)
-        try:
-            with session_scope(self.db_path) as session:
-                return Store(session).create(
-                    DOCUMENT,
-                    {
-                        "storage_id": storage_id,
-                        "original_filename": original_filename,
-                        "media_type": media_type,
-                        "size_bytes": stored.size_bytes,
-                        "checksum_sha256": stored.checksum_sha256,
-                    },
+        with mutation_scope(self.db_path):
+            validate_document_filename(original_filename)
+            self._validate_media_type(media_type)
+            if media_type.lower() not in self.allowed_media_types:
+                raise UnsupportedDocumentMediaTypeError(
+                    f"Document media type is not allowed: {media_type}"
                 )
-        except Exception:
+            bounded_content = self._bounded_content(content)
+            storage_id = new_storage_id()
+            stored = self.storage.put(storage_id, bounded_content)
             try:
-                self.storage.delete(storage_id)
-            except Exception as cleanup_error:
-                raise DocumentConsistencyError(
-                    f"Document metadata failed and content cleanup also failed: {storage_id}"
-                ) from cleanup_error
-            raise
+                with session_scope(self.db_path) as session:
+                    return Store(session).create(
+                        DOCUMENT,
+                        {
+                            "storage_id": storage_id,
+                            "original_filename": original_filename,
+                            "media_type": media_type,
+                            "size_bytes": stored.size_bytes,
+                            "checksum_sha256": stored.checksum_sha256,
+                        },
+                    )
+            except Exception:
+                try:
+                    self.storage.delete(storage_id)
+                except Exception as cleanup_error:
+                    raise DocumentConsistencyError(
+                        f"Document metadata failed and content cleanup also failed: {storage_id}"
+                    ) from cleanup_error
+                raise
 
     def get(self, document_id: int) -> tuple[dict[str, Any], bytes]:
         with session_scope(self.db_path) as session:
@@ -163,30 +164,33 @@ class DocumentService:
         return metadata, content
 
     def delete(self, document_id: int) -> bool:
-        with session_scope(self.db_path) as session:
-            metadata = Store(session).get(DOCUMENT, document_id)
-        if metadata is None:
-            return False
-        content = self.storage.read(metadata["storage_id"])
-        if not self.storage.delete(metadata["storage_id"]):
-            raise DocumentConsistencyError(
-                f"Document metadata exists but content is missing: {metadata['storage_id']}"
-            )
-        try:
+        with mutation_scope(self.db_path):
             with session_scope(self.db_path) as session:
-                deleted = Store(session).delete(DOCUMENT, document_id)
-                if not deleted:
-                    raise DocumentConsistencyError(f"Document metadata disappeared: {document_id}")
-                return True
-        except Exception:
-            try:
-                self.storage.put(metadata["storage_id"], content)
-            except Exception as restore_error:
+                metadata = Store(session).get(DOCUMENT, document_id)
+            if metadata is None:
+                return False
+            content = self.storage.read(metadata["storage_id"])
+            if not self.storage.delete(metadata["storage_id"]):
                 raise DocumentConsistencyError(
-                    f"Document metadata deletion failed and content restore also failed: "
-                    f"{metadata['storage_id']}"
-                ) from restore_error
-            raise
+                    f"Document metadata exists but content is missing: {metadata['storage_id']}"
+                )
+            try:
+                with session_scope(self.db_path) as session:
+                    deleted = Store(session).delete(DOCUMENT, document_id)
+                    if not deleted:
+                        raise DocumentConsistencyError(
+                            f"Document metadata disappeared: {document_id}"
+                        )
+                    return True
+            except Exception:
+                try:
+                    self.storage.put(metadata["storage_id"], content)
+                except Exception as restore_error:
+                    raise DocumentConsistencyError(
+                        f"Document metadata deletion failed and content restore also failed: "
+                        f"{metadata['storage_id']}"
+                    ) from restore_error
+                raise
 
     @staticmethod
     def _validate_media_type(media_type: str) -> None:

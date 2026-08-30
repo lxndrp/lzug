@@ -60,6 +60,8 @@ Die aktuelle technische Quelle liegt jeweils beim ausführbaren Vertrag:
 Die [Backend-Übersicht](backend.md) ordnet die produktiven Services ihren Schichten zu.
 [Authentifizierung](authentication.md), [Benachrichtigungen](notifications.md), der [Ausfall- und Ersatzprozess](absence-replacement.md), die [Prüfungsprotokolle](exam-protocols.md), [Bewertungen und Ergebnisse](exam-results.md), die [revisionierte Planänderung](confirmed-plan-revisions.md), deren [nachgelagerte Benachrichtigungs- und Kalenderfolgen](plan-change-consequences.md) sowie der [formelle Tagesabschluss](exam-day-closure.md) beschreiben die fachlichen Verantwortungsgrenzen.
 Das [fachliche Datenmodell](../domain-model.md) erläutert Begriffe, Aggregate und Invarianten; es ersetzt kein Schema.
+[Backup, Restore und Vollexport](backup-restore-export.md) beschreibt konsistente Snapshots, den geschützten Artefaktvertrag und die lokale Restore-Grenze.
+Diese Funktionen verwenden die lokale [Betreiber-CLI-Grenze](operator-auth-cli.md) und sind nicht Teil der HTTP-API.
 
 `GET /api/health` ist ein reines Liveness-Signal des laufenden Prozesses.
 `GET /api/ready` prüft die Anwendungs- und Datenbankbereitschaft und liefert HTTP 200 beziehungsweise HTTP 503.

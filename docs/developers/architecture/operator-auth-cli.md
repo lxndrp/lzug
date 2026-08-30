@@ -27,7 +27,7 @@ Python antwortet mit genau einem JSON-Objekt und einer stabilen Prozesskennung:
 ```
 
 Erfolgreiche Antworten haben `{"version":1,"ok":true,"result":{...}}`.
-Fehler haben `{"version":1,"ok":false,"error":{"class":"...","message":"..."}}`.
+Fehler haben `{"version":1,"ok":false,"error":{"class":"...","message":"..."}}`; Artefaktfehler ergänzen die genaue Restore-Phase.
 Tokenwerte erscheinen ausschließlich in der erfolgreichen einmaligen Ausgabe einer Kontooperation oder in `result.invitations` eines neuen Ausschuss-Bootstraps beziehungsweise einer Neuausstellung.
 Eine idempotente Wiederholung liefert denselben fachlichen Stand, aber kein Token erneut.
 Fehlertexte, Diagnosen und Requestdaten spiegeln keine Token zurück.
@@ -44,8 +44,14 @@ Fehlertexte, Diagnosen und Requestdaten spiegeln keine Token zurück.
 | 23 | `account_not_found` / `committee_not_found` / `person_not_found` | Objekt nicht vorhanden oder nicht aktiv |
 | 24 | `token_invalid` | Token ungültig, abgelaufen oder verbraucht |
 | 25 | `persistence_error` | kontrollierter Persistenzfehler |
+| 26 | Artefakt ungültig oder beschädigt | Schutz-, Manifest-, Datenbank- oder Dokumentprüfung fehlgeschlagen |
+| 27 | Empfängerschlüssel ungültig | öffentlicher oder privater Empfängerschlüssel unbrauchbar oder unpassend |
+| 28 | Artefakt inkompatibel | Quellschema neuer, nicht mehr unterstützt oder nicht migrierbar |
+| 29 | Ersetzung erforderlich | Ziel ist nicht leer oder hat sich während der Vorbereitung geändert |
 | 30 | Diagnose mit `status: warning` | Prüfung vollständig, Handlungsbedarf erkannt |
 | 31 | Diagnose mit `status: error` | Prüfung vollständig, Betriebsfehler erkannt |
+| 32 | Speicherplatz unzureichend | Snapshot, Prüfung oder Restore kann nicht sicher vorbereitet werden |
+| 33 | Artefaktvorgang fehlgeschlagen | Snapshot, Veröffentlichung, Nachprüfung oder Aktivierung fehlgeschlagen |
 | 70 | `internal_error` | unerwarteter Fehler, fail-closed |
 
 ## Systemdiagnose
@@ -126,6 +132,10 @@ Der interne Python-Service markiert die Werte beim Verbrauch atomar als verbrauc
 Kennwort, Argon2id, TOTP und Recovery-Codes gehören weiterhin nicht zum Betreiber-CLI-Vertrag #269. #266 verwendet die dort ausgegebenen Einladungs- und Betreiber-Recovery-Token ausschließlich über die öffentlichen lokalen Auth-Flows und erweitert die CLI nicht.
 Recovery-Codes sind davon strikt getrennte Mitgliedsgeheimnisse: Sie werden niemals von der CLI erzeugt oder ausgegeben.
 Passkeys und OIDC bleiben die getrennten Folgearbeiten #267 und #268.
+
+Backup, nicht mutierende Artefaktprüfung, Restore und geschützter Vollexport verwenden denselben Python-stdin/stdout-Vertrag.
+Der vollständige Backendvertrag einschließlich Schlüsselzuführung, Restore-Phasen und Berichten steht unter [Backup, Restore und Vollexport](backup-restore-export.md).
+Die Go-CLI-Erweiterung bleibt Aufgabe von #271; sie darf weder SQLite direkt öffnen noch Schutz-, Prüf- oder Restore-Logik duplizieren.
 
 ## Ausschuss-Bootstrap und technischer Lebenszyklus
 

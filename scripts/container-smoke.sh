@@ -17,7 +17,18 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+recipient_keys=$("$engine" run --rm --entrypoint python "$image" -c '
+import json
+from backend.backup_restore import generate_recipient_keypair
+
+public_key, private_key = generate_recipient_keypair()
+print(json.dumps({"public": public_key, "private": private_key}))
+')
+recipient_public_key=$(printf '%s' "$recipient_keys" | python3 -c 'import json,sys; print(json.load(sys.stdin)["public"])')
+recipient_private_key=$(printf '%s' "$recipient_keys" | python3 -c 'import json,sys; print(json.load(sys.stdin)["private"])')
+
 lzug_start_contract_container "$container" "$volume" "$image" \
+    --env "LZUG_BACKUP_RECIPIENT_PUBLIC_KEY=$recipient_public_key" \
     --publish 127.0.0.1::8000
 
 resolve_url() {
@@ -115,6 +126,43 @@ assert_status "Operator without domain role" 403 \
     "$(curl --silent --output /dev/null --write-out '%{http_code}' \
         --header "Cookie: __Host-lzug_session=$operator_token" "$url/api/candidates")"
 echo "Operator/domain-role separation passed."
+
+echo "Verifying protected backup and non-mutating verification through stdin."
+backup_response=$(printf '%s' \
+    '{"version":1,"command":"backup-create","arguments":{}}' | \
+    "$engine" exec --interactive "$container" python -m backend.admin --protocol 1)
+backup_artifact=$(printf '%s' "$backup_response" | python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+assert payload["ok"] is True
+assert payload["result"]["artifact_type"] == "backup"
+print(payload["result"]["artifact"])
+')
+verify_response=$(printf \
+    '{"version":1,"command":"artifact-verify","arguments":{"artifact":"%s","recipient_private_key":"%s"}}' \
+    "$backup_artifact" "$recipient_private_key" | \
+    "$engine" exec --interactive "$container" python -m backend.admin --protocol 1)
+printf '%s' "$verify_response" | python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+assert payload["ok"] is True
+assert payload["result"]["artifact_type"] == "backup"
+assert payload["result"]["documents"] >= 0
+'
+if printf '%s\n%s\n' "$backup_response" "$verify_response" | \
+    grep -F "$recipient_private_key" >/dev/null; then
+    echo "Artifact response exposed the private recipient key." >&2
+    exit 1
+fi
+if "$engine" logs "$container" 2>&1 | grep -F "$recipient_private_key" >/dev/null; then
+    echo "Container logs exposed the private recipient key." >&2
+    exit 1
+fi
+echo "Protected backup and verification passed."
 
 actor_credentials=$("$engine" exec "$container" python -c '
 import json

@@ -30,6 +30,20 @@ class OpenApiContractTests(unittest.TestCase):
         validate_response(api.client.app.openapi(), method, path, status, response)
         return status, response
 
+    def test_local_artifact_operations_are_not_public_http_routes(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            if api.client is None:
+                raise AssertionError("API client is not active")
+            paths = api.client.app.openapi()["paths"]
+
+        self.assertFalse(
+            {
+                path
+                for path in paths
+                if any(term in path for term in ("backup", "restore", "full-export"))
+            }
+        )
+
     def test_seeded_read_operations_match_the_openapi_responses(self) -> None:
         """Exercise each documented collection and item response through the HTTP adapter."""
         with TempDatabase() as db_path, ApiServer(db_path) as api:

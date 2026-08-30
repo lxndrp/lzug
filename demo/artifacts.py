@@ -98,6 +98,11 @@ def _normalize_timestamps(database: Path) -> None:
                     f'UPDATE "{table}" SET "{column}" = ? WHERE "{column}" IS NOT NULL',
                     (FIXED_TIMESTAMP,),
                 )
+        if "instance_metadata" in tables:
+            connection.execute(
+                "UPDATE instance_metadata SET instance_id = ? WHERE id = 1",
+                ("00000000-0000-4000-a000-000000000001",),
+            )
         connection.commit()
 
     # Changing a SQLite journal mode needs an exclusive lock.  Keep it in a

@@ -15,8 +15,9 @@ from typing import Any
 from sqlalchemy.exc import SQLAlchemyError
 
 from .admin_service import AdminOperationError, OperatorAuthService
+from .backup_restore import ArtifactError, ArtifactService
 from .committee_admin import CommitteeAdminService
-from .database import MigrationError, database_path, database_readiness
+from .database import MigrationError, database_path, database_readiness, persistence_paths
 from .diagnostics import run_diagnostics
 from .notifications import NotificationService
 from .plan_consequences import PlanConsequenceService
@@ -30,6 +31,12 @@ EXIT_CONFLICT = 22
 EXIT_NOT_FOUND = 23
 EXIT_TOKEN_INVALID = 24
 EXIT_PERSISTENCE = 25
+EXIT_ARTIFACT_INVALID = 26
+EXIT_RECIPIENT_KEY = 27
+EXIT_INCOMPATIBLE = 28
+EXIT_REPLACE_REQUIRED = 29
+EXIT_INSUFFICIENT_STORAGE = 32
+EXIT_ARTIFACT_OPERATION = 33
 EXIT_INTERNAL = 70
 
 _EXIT_CODES = {
@@ -48,9 +55,41 @@ _EXIT_CODES = {
     "person_not_found": EXIT_NOT_FOUND,
     "token_invalid": EXIT_TOKEN_INVALID,
     "persistence_error": EXIT_PERSISTENCE,
+    "artifact_name_invalid": EXIT_ARTIFACT_INVALID,
+    "artifact_not_found": EXIT_ARTIFACT_INVALID,
+    "artifact_invalid": EXIT_ARTIFACT_INVALID,
+    "artifact_content_invalid": EXIT_ARTIFACT_INVALID,
+    "artifact_integrity_failed": EXIT_ARTIFACT_INVALID,
+    "manifest_invalid": EXIT_ARTIFACT_INVALID,
+    "database_integrity_failed": EXIT_ARTIFACT_INVALID,
+    "document_integrity_failed": EXIT_ARTIFACT_INVALID,
+    "document_relation_failed": EXIT_ARTIFACT_INVALID,
+    "authentication_key_invalid": EXIT_ARTIFACT_INVALID,
+    "authentication_key_missing": EXIT_ARTIFACT_INVALID,
+    "export_invalid": EXIT_ARTIFACT_INVALID,
+    "export_secret_detected": EXIT_ARTIFACT_INVALID,
+    "recipient_key_invalid": EXIT_RECIPIENT_KEY,
+    "recipient_key_mismatch": EXIT_RECIPIENT_KEY,
+    "source_newer": EXIT_INCOMPATIBLE,
+    "source_unsupported": EXIT_INCOMPATIBLE,
+    "schema_incompatible": EXIT_INCOMPATIBLE,
+    "restore_requires_backup": EXIT_INCOMPATIBLE,
+    "migration_failed": EXIT_INCOMPATIBLE,
+    "replace_confirmation_required": EXIT_REPLACE_REQUIRED,
+    "target_changed": EXIT_REPLACE_REQUIRED,
+    "target_invalid": EXIT_REPLACE_REQUIRED,
+    "insufficient_storage": EXIT_INSUFFICIENT_STORAGE,
+    "snapshot_failed": EXIT_ARTIFACT_OPERATION,
+    "artifact_write_failed": EXIT_ARTIFACT_OPERATION,
+    "restore_failed": EXIT_ARTIFACT_OPERATION,
+    "postcheck_failed": EXIT_ARTIFACT_OPERATION,
+    "activation_failed": EXIT_ARTIFACT_OPERATION,
 }
 
 _DIAGNOSTIC_COMMANDS = frozenset({"config", "doctor", "status"})
+_ARTIFACT_COMMANDS = frozenset(
+    {"backup-create", "artifact-verify", "backup-restore", "full-export"}
+)
 _ADMIN_COMMANDS = frozenset(
     {
         "bootstrap",
@@ -92,8 +131,11 @@ def _write(payload: bytes) -> None:
     sys.stdout.buffer.flush()
 
 
-def _error(code: str, message: str) -> int:
-    _write(_response(ok=False, error={"class": code, "message": message}))
+def _error(code: str, message: str, *, phase: str | None = None) -> int:
+    details = {"class": code, "message": message}
+    if phase is not None:
+        details["phase"] = phase
+    _write(_response(ok=False, error=details))
     return _EXIT_CODES.get(code, EXIT_INTERNAL)
 
 
@@ -128,7 +170,9 @@ def _request_parts(request: Mapping[str, Any]) -> tuple[str, Mapping[str, Any]]:
     if request.get("version") != PROTOCOL_VERSION:
         raise AdminOperationError("invalid_request", "Unsupported protocol version")
     command = request.get("command")
-    if not isinstance(command, str) or command not in _ADMIN_COMMANDS | _DIAGNOSTIC_COMMANDS:
+    if not isinstance(command, str) or command not in (
+        _ADMIN_COMMANDS | _DIAGNOSTIC_COMMANDS | _ARTIFACT_COMMANDS
+    ):
         raise AdminOperationError("invalid_request", "Unsupported admin command")
     arguments = _require_mapping(request.get("arguments", {}), "Arguments must be an object")
     return command, arguments
@@ -159,11 +203,33 @@ def _diagnostic_client(command: str, arguments: Mapping[str, Any]) -> Mapping[st
 def _execute(
     command: str,
     arguments: Mapping[str, Any],
-    service: OperatorAuthService,
+    service: OperatorAuthService | None,
     notifications: NotificationService | None = None,
     committee_service: CommitteeAdminService | None = None,
     consequences: PlanConsequenceService | None = None,
+    artifacts: ArtifactService | None = None,
 ) -> dict[str, Any]:
+    if command in _ARTIFACT_COMMANDS:
+        active_artifacts = artifacts or ArtifactService()
+        if command == "backup-create":
+            if arguments:
+                raise AdminOperationError("invalid_request", "backup-create takes no arguments")
+            return active_artifacts.create_backup()
+        if command == "full-export":
+            return active_artifacts.create_full_export(
+                _require_string(arguments, "recipient_public_key")
+            )
+        artifact = _require_string(arguments, "artifact")
+        private_key = _require_string(arguments, "recipient_private_key")
+        if command == "artifact-verify":
+            return active_artifacts.verify(artifact, private_key)
+        replace = arguments.get("replace", False)
+        if not isinstance(replace, bool):
+            raise AdminOperationError("invalid_request", "Argument replace must be boolean")
+        return active_artifacts.restore(artifact, private_key, replace=replace)
+
+    if service is None:
+        raise AdminOperationError("database_not_ready", "Database is not ready")
     if command.startswith("committee-"):
         active_committee_service = committee_service or CommitteeAdminService(service.db_path)
         if command == "committee-bootstrap":
@@ -248,6 +314,7 @@ def run(
     notifications: NotificationService | None = None,
     committee_service: CommitteeAdminService | None = None,
     consequences: PlanConsequenceService | None = None,
+    artifacts: ArtifactService | None = None,
 ) -> int:
     """Process exactly one protocol request and return its stable exit code."""
     if len(payload) > MAX_REQUEST_BYTES:
@@ -267,8 +334,12 @@ def run(
             result, exit_code = run_diagnostics(command, client)
             _write(_response(ok=True, result=result))
             return exit_code
+        artifact_command = command in _ARTIFACT_COMMANDS
         active_service = service
-        if active_service is None:
+        active_artifacts = artifacts
+        if artifact_command and active_artifacts is None:
+            active_artifacts = ArtifactService(persistence_paths())
+        if active_service is None and not artifact_command:
             readiness = database_readiness(database_path())
             if not readiness["ready"]:
                 return _error("database_not_ready", "Database is not ready")
@@ -280,11 +351,14 @@ def run(
             notifications,
             committee_service,
             consequences,
+            active_artifacts,
         )
         _write(_response(ok=True, result=result))
         return EXIT_OK
     except AdminOperationError as error:
         return _error(error.code, str(error))
+    except ArtifactError as error:
+        return _error(error.code, str(error), phase=error.phase)
     except MigrationError, OSError, SQLAlchemyError, ValueError:
         return _error("persistence_error", "Admin operation failed")
     except Exception:
