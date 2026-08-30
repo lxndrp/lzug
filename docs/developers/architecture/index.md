@@ -3,6 +3,8 @@
 `lzug` besteht aus einem Angular-Frontend, einem Python-Anwendungskern und einer lokalen SQLite-Instanz.
 Das Frontend ist das Arbeitswerkzeug für Prüfungsausschüsse.
 Der FastAPI-Adapter vermittelt zwischen ihm und den fachlichen Services; SQLAlchemy-Modelle, Repositories und Migrationen halten den lokalen Zustand.
+
+Der [Lebenszyklus einer Prüfungsrunde](exam-round-lifecycle.md) beschreibt den ausschussbezogenen Abschluss, die vollständige Absage, die zentrale Sperre, gezielte Wiederöffnungen und revisionsgebundene Nachweise.
 Der frühe Prototyp unter `prototypes/pruefungsrunde-prototyp/` ist keine Produktlaufzeit.
 
 ```text

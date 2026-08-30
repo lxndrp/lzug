@@ -425,7 +425,7 @@
                     [candidates]="masterData()?.candidates || []"
                     [candidateAssignments]="masterData()?.candidateAssignments || []"
                     [activeRoundId]="round()?.id || null"
-                    [readOnly]="demoSession() !== null"
+                    [readOnly]="demoSession() !== null && !hasCapability('exam-round:close')"
                     (roundSelected)="selectExamRound($event)"
                   />
                 }

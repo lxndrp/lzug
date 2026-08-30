@@ -39,6 +39,12 @@ TIMESTAMP_COLUMNS = {
     "reported_at",
     "responded_at",
     "revoked_at",
+    "decided_at",
+    "opened_at",
+    "completed_at",
+    "generated_at",
+    "superseded_at",
+    "terminal_at",
     "status_changed_at",
     "updated_at",
 }
@@ -84,6 +90,8 @@ def _normalize_timestamps(database: Path) -> None:
             )
         ]
         for table in tables:
+            if table == "exam_round_decision":
+                continue
             columns = {row[1] for row in connection.execute(f'PRAGMA table_info("{table}")')}
             for column in sorted(columns & TIMESTAMP_COLUMNS):
                 connection.execute(
@@ -432,6 +440,102 @@ def _add_exam_protocol_scenario(database: Path) -> None:
         connection.commit()
 
 
+def _add_exam_round_lifecycle_scenarios(database: Path) -> None:
+    """Add isolated positive and negative round-lifecycle demo states."""
+    with closing(sqlite3.connect(database)) as connection:
+        connection.executescript("""
+            INSERT INTO exam_half_year (id, season, year, status) VALUES
+              (90, 'summer', 2028, 'active'),
+              (91, 'winter', 2028, 'active'),
+              (92, 'summer', 2029, 'active'),
+              (93, 'winter', 2029, 'active');
+
+            INSERT INTO committee (
+              id, name, occupation, ihk, is_active, bootstrap_state
+            ) VALUES (
+              90, 'Synthetischer Parallelausschuss', 'Fachinformatiker/in',
+              'IHK Teststadt', 1, 'ready'
+            );
+            INSERT INTO committee_member (
+              id, committee_id, person_id, member_status, committee_role,
+              representing_side, is_active
+            ) VALUES (90, 90, 4, 'ordinary', 'chair', 'employer', 1);
+
+            INSERT INTO exam_round (
+              id, exam_half_year_id, committee_id, name, status, plan_revision,
+              revision, lifecycle_status, created_by_member_id
+            ) VALUES
+              (90, 90, 1, 'Sommer 2028 · leere Entwurfsrunde', 'draft', 0, 1, 'open', 1),
+              (91, 91, 1, 'Winter 2028 · absagbare Runde', 'draft', 0, 1, 'open', 1),
+              (92, 92, 1, 'Sommer 2029 · abschließbare Runde', 'plan_confirmed', 1, 1, 'open', 1),
+              (93, 93, 1, 'Winter 2029 · abgeschlossene Runde',
+               'plan_confirmed', 1, 2, 'closed', 1),
+              (94, 92, 90, 'Sommer 2029 · unveränderte Parallelrunde', 'draft', 0, 1, 'open', 90);
+
+            INSERT INTO round_candidate (
+              id, exam_round_id, candidate_id, attempt_number, requires_mep, is_active,
+              terminal_status, terminal_reason, postponed_until, terminal_at
+            ) VALUES
+              (90, 91, 1, 1, 0, 0, 'postponed', 'Synthetische Neuplanung',
+               '2029-05-01', '2026-01-01T00:00:00+00:00'),
+              (91, 92, 2, 1, 0, 0, 'postponed', 'Synthetische Neuplanung',
+               '2030-05-01', '2026-01-01T00:00:00+00:00'),
+              (92, 93, 3, 1, 0, 0, 'postponed', 'Synthetische Neuplanung',
+               '2030-11-01', '2026-01-01T00:00:00+00:00');
+
+            INSERT INTO candidate_committee_assignment (
+              id, candidate_id, exam_half_year_id, exam_round_id, round_candidate_id,
+              assigned_at, ended_at
+            ) VALUES
+              (90, 1, 91, 91, 90, '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00'),
+              (91, 2, 92, 92, 91, '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00'),
+              (92, 3, 93, 93, 92, '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00');
+
+            INSERT INTO exam_day (
+              id, exam_round_id, location_id, date, status, revision, closure_status
+            ) VALUES
+              (90, 92, 1, '2029-05-15', 'completed', 2, 'closed'),
+              (91, 93, 1, '2029-11-15', 'completed', 2, 'closed');
+
+            INSERT INTO exam_day_closure (
+              id, exam_day_id, requested_revision, resulting_revision, closure_type,
+              actor_member_id, checklist_json, warnings_json, protocol_references_json,
+              result_references_json, status, command_fingerprint, closed_at
+            ) VALUES
+              (90, 90, 1, 2, 'regular', 1, '[]', '[]', '[]', '[]', 'current',
+               'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+               '2026-01-01T00:00:00+00:00'),
+              (91, 91, 1, 2, 'regular', 1, '[]', '[]', '[]', '[]', 'current',
+               'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+               '2026-01-01T00:00:00+00:00');
+
+            INSERT INTO exam_round_decision (
+              id, exam_round_id, decision_type, requested_revision, resulting_revision,
+              actor_member_id, checklist_json, snapshot_json, status, command_fingerprint,
+              decided_at
+            ) VALUES (
+              90, 93, 'close', 1, 2, 1, '[]', '{"demo":"synthetic closed round"}',
+              'current',
+              'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+              '2026-01-01T00:00:00+00:00'
+            );
+            INSERT INTO exam_round_audit_event (
+              id, exam_round_id, round_revision, event_type, actor_member_id,
+              decision_id, scope_json, created_at
+            ) VALUES (
+              90, 93, 2, 'closed', 1, 90, '[]', '2026-01-01T00:00:00+00:00'
+            );
+            INSERT INTO exam_round_export (
+              id, exam_round_id, decision_id, round_revision, export_kind,
+              lifecycle_status, generated_by_member_id, generated_at
+            ) VALUES (
+              90, 93, 90, 2, 'machine', 'closed', 1,
+              '2026-01-01T00:00:00+00:00'
+            );
+        """)
+        connection.commit()
+
+
 def build_seed(
     source_root: Path,
     database: Path,
@@ -448,6 +552,7 @@ def build_seed(
     database.parent.mkdir(parents=True, exist_ok=True)
     initialize(database, with_seed=True, reset=True, backup_dir=database.parent / "backups")
     _add_exam_protocol_scenario(database)
+    _add_exam_round_lifecycle_scenarios(database)
     _normalize_timestamps(database)
     _validate_synthetic_content(database)
     readiness = database_readiness(database)

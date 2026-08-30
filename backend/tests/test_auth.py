@@ -95,23 +95,23 @@ class AuthenticationTests(unittest.TestCase):
             invalid_csrf = replace(api.credentials, csrf_token="invalid-csrf")
             status, _body = api.request(
                 "POST",
-                "/api/exam-half-years",
-                {"season": "summer", "year": 2030, "status": "draft"},
+                "/api/exam-rounds",
+                {
+                    "season": "summer",
+                    "year": 2030,
+                    "committee_id": 1,
+                    "name": "Session actor",
+                },
                 credentials=invalid_csrf,
             )
             assert_status(status, HTTPStatus.FORBIDDEN)
 
-            status, half_year = api.request(
-                "POST",
-                "/api/exam-half-years",
-                {"season": "summer", "year": 2030, "status": "draft"},
-            )
-            assert_status(status, HTTPStatus.CREATED)
             status, round_data = api.request(
                 "POST",
                 "/api/exam-rounds",
                 {
-                    "exam_half_year_id": half_year["id"],
+                    "season": "summer",
+                    "year": 2030,
                     "committee_id": 1,
                     "name": "Session actor",
                     "created_by_member_id": 999999,

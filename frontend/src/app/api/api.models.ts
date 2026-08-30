@@ -526,6 +526,9 @@ export type ExamRound = {
   name: string;
   committee_id: number;
   status: RoundStatus;
+  revision?: number;
+  lifecycle_status?: ExamRoundLifecycleStatus;
+  legacy_status?: string | null;
   availability_deadline: string | null;
   availability_reminder_at: string | null;
   created_at?: string;
@@ -538,12 +541,93 @@ export type ExamHalfYear = {
   id: number;
   season: 'summer' | 'winter';
   year: number;
-  status: 'draft' | 'active' | 'completed' | 'archived' | string;
+  status: 'draft' | 'active' | 'archived' | string;
+  legacy_status?: string | null;
   created_at?: string;
   updated_at?: string;
 };
 
-export type ExamRoundCreate = Pick<ExamRound, 'exam_half_year_id' | 'committee_id' | 'name'>;
+export type ExamRoundCreate = Pick<ExamRound, 'committee_id' | 'name'> &
+  (
+    | { exam_half_year_id: number; season?: never; year?: never }
+    | { exam_half_year_id?: never; season: ExamHalfYear['season']; year: number }
+  );
+
+export type ExamRoundLifecycleStatus = 'open' | 'closed' | 'cancelled' | 'reopening' | 'historical';
+
+export type ExamRoundLifecycleFinding = {
+  code: string;
+  label: string;
+  ok: boolean;
+  details: unknown;
+};
+
+export type ExamRoundLifecycle = {
+  round_id: number;
+  revision: number;
+  status: ExamRoundLifecycleStatus;
+  legacy_status: string | null;
+  historical_without_formal_evidence: boolean;
+  evaluation: { ready: boolean; items: ExamRoundLifecycleFinding[] };
+  candidates: Array<{
+    round_candidate_id: number;
+    candidate_id: number;
+    terminal_status: RoundCandidateTerminalStatus;
+    terminal_reason: string | null;
+    effective_new_round_id: number | null;
+    postponed_until: string | null;
+    ihk_decision_reference: string | null;
+    terminal_at: string | null;
+  }>;
+  current_decision: Record<string, unknown> | null;
+  decisions: Array<Record<string, unknown>>;
+  reopenings: Array<Record<string, unknown>>;
+  history: Array<{
+    id: number;
+    round_revision: number;
+    event_type: string;
+    reason: string | null;
+    created_at: string;
+  }>;
+  tasks: Array<Record<string, unknown>>;
+  exports: Array<{
+    id: number;
+    export_kind: 'machine' | 'human';
+    round_revision: number;
+    generated_at: string;
+    obsolete: boolean;
+  }>;
+  ihk_statuses: Array<{
+    id: number;
+    exam_result_id: number;
+    document_status: string;
+    document_reference: string;
+    recorded_by_member_id: number;
+    recorded_at: string;
+  }>;
+  retention: {
+    retain_until: string | null;
+    legal_hold: boolean;
+    sources: Array<{
+      kind: 'protocol' | 'result';
+      id: number;
+      retain_until: string | null;
+      legal_hold: boolean;
+      hold_reason: string | null;
+    }>;
+  };
+  permissions: {
+    close: boolean;
+    cancel: boolean;
+    reopen: boolean;
+    delete: boolean;
+    export: boolean;
+  };
+  _links: Record<string, ApiLink>;
+};
+
+export type RoundCandidateTerminalStatus =
+  'open' | 'result_communicated' | 'transferred' | 'postponed' | 'ihk_terminated';
 
 export type ExamRoundUpdate = Pick<
   ExamRound,
@@ -779,6 +863,12 @@ export type RoundCandidate = {
   attempt_number: number;
   requires_mep: number;
   is_active: number;
+  terminal_status?: RoundCandidateTerminalStatus;
+  terminal_reason?: string | null;
+  effective_new_round_id?: number | null;
+  postponed_until?: string | null;
+  ihk_decision_reference?: string | null;
+  terminal_at?: string | null;
   created_at?: string;
   updated_at?: string;
 };

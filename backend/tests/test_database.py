@@ -184,6 +184,7 @@ def rewind_exam_result_migration(connection: sqlite3.Connection) -> None:
 
 def rewind_plan_consequence_migration(connection: sqlite3.Connection) -> None:
     """Restore notification tables and history to their pre-021 contract."""
+    rewind_exam_round_lifecycle_migration(connection)
     columns = {row[1] for row in connection.execute("PRAGMA table_info(notification)")}
     connection.executescript("""
         DROP TABLE IF EXISTS plan_consequence;
@@ -271,6 +272,47 @@ def rewind_plan_consequence_migration(connection: sqlite3.Connection) -> None:
         "DELETE FROM schema_migration WHERE name = ?",
         ("022_add_plan_consequences.sql",),
     )
+
+
+def rewind_exam_round_lifecycle_migration(connection: sqlite3.Connection) -> None:
+    """Restore the pre-023 round schema without leaving a history gap."""
+    if not connection.execute(
+        "SELECT 1 FROM schema_migration WHERE name = ?",
+        ("023_add_exam_round_lifecycle.sql",),
+    ).fetchone():
+        return
+    connection.executescript("""
+        DROP TRIGGER IF EXISTS exam_round_decision_immutable_update;
+        DROP TRIGGER IF EXISTS exam_round_decision_immutable_delete;
+        DROP TABLE IF EXISTS exam_round_export;
+        DROP TABLE IF EXISTS exam_round_ihk_status;
+        DROP TABLE IF EXISTS exam_round_task;
+        DROP TABLE IF EXISTS exam_round_audit_event;
+        DROP TABLE IF EXISTS exam_round_reopening;
+        DROP TABLE IF EXISTS exam_round_decision;
+        DROP TABLE IF EXISTS exam_round_migration_evidence;
+        DROP TABLE IF EXISTS exam_half_year_migration_evidence;
+        ALTER TABLE round_candidate DROP COLUMN terminal_at;
+        ALTER TABLE round_candidate DROP COLUMN ihk_decision_reference;
+        ALTER TABLE round_candidate DROP COLUMN postponed_until;
+        ALTER TABLE round_candidate DROP COLUMN effective_new_round_id;
+        ALTER TABLE round_candidate DROP COLUMN terminal_reason;
+        ALTER TABLE round_candidate DROP COLUMN terminal_status;
+        ALTER TABLE exam_round DROP COLUMN legacy_status;
+        ALTER TABLE exam_round DROP COLUMN lifecycle_status;
+        ALTER TABLE exam_round DROP COLUMN revision;
+        ALTER TABLE exam_half_year DROP COLUMN legacy_status;
+        DELETE FROM schema_migration
+          WHERE name = '023_add_exam_round_lifecycle.sql';
+    """)
+    if connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        ("schema_migration_checksum",),
+    ).fetchone():
+        connection.execute(
+            "DELETE FROM schema_migration_checksum WHERE name = ?",
+            ("023_add_exam_round_lifecycle.sql",),
+        )
 
 
 def rewind_exam_day_closure_migration(connection: sqlite3.Connection) -> None:
@@ -580,7 +622,7 @@ class DatabaseTests(unittest.TestCase):
             initialize(db_path)
             after = migration_status(db_path)
             self.assertEqual("ready", after["state"])
-            self.assertEqual("022_add_plan_consequences.sql", after["current"])
+            self.assertEqual("023_add_exam_round_lifecycle.sql", after["current"])
             self.assertTrue(list(db_path.parent.joinpath("backups").glob("*.sqlite")))
 
             history_before = after["history"]
@@ -613,7 +655,7 @@ class DatabaseTests(unittest.TestCase):
             )
             self.assertEqual(("confirmed_plan_revision",), revision_table)
             self.assertEqual(
-                "022_add_plan_consequences.sql",
+                "023_add_exam_round_lifecycle.sql",
                 migration_status(db_path)["current"],
             )
 
@@ -690,8 +732,9 @@ class DatabaseTests(unittest.TestCase):
                     "020_add_confirmed_plan_revisions.sql",
                     "021_add_committee_bootstrap.sql",
                     "022_add_plan_consequences.sql",
+                    "023_add_exam_round_lifecycle.sql",
                 ],
-                [entry["name"] for entry in status["history"][-15:]],
+                [entry["name"] for entry in status["history"][-16:]],
             )
 
     def test_committee_bootstrap_migration_classifies_legacy_committees_without_changing_ids(
@@ -846,7 +889,7 @@ class DatabaseTests(unittest.TestCase):
             self.assertTrue({"claim_token", "claimed_at", "claim_expires_at"}.issubset(columns))
             self.assertEqual(("temporarily_failed", 2, None, None, None), delivery)
             self.assertEqual(
-                "022_add_plan_consequences.sql",
+                "023_add_exam_round_lifecycle.sql",
                 migration_status(db_path)["current"],
             )
 
@@ -1049,6 +1092,44 @@ class DatabaseTests(unittest.TestCase):
                 days,
             )
             self.assertEqual(0, invented)
+
+    def test_exam_round_lifecycle_migration_preserves_legacy_meaning_without_evidence(
+        self,
+    ) -> None:
+        with TempDatabase() as db_path:
+            with closing(sqlite3.connect(db_path)) as connection:
+                rewind_exam_round_lifecycle_migration(connection)
+                connection.execute("UPDATE exam_half_year SET status = 'completed' WHERE id = 1")
+                connection.execute("UPDATE exam_round SET status = 'completed' WHERE id = 1")
+                connection.commit()
+
+            initialize(db_path)
+
+            with closing(sqlite3.connect(db_path)) as connection:
+                half_year = connection.execute(
+                    "SELECT status, legacy_status FROM exam_half_year WHERE id = 1"
+                ).fetchone()
+                exam_round = connection.execute(
+                    "SELECT lifecycle_status, legacy_status FROM exam_round WHERE id = 1"
+                ).fetchone()
+                half_year_evidence = connection.execute(
+                    "SELECT previous_status, resulting_status "
+                    "FROM exam_half_year_migration_evidence WHERE exam_half_year_id = 1"
+                ).fetchone()
+                round_evidence = connection.execute(
+                    "SELECT previous_status, resulting_lifecycle_status, "
+                    "clarification_required FROM exam_round_migration_evidence "
+                    "WHERE exam_round_id = 1"
+                ).fetchone()
+                invented = connection.execute(
+                    "SELECT count(*) FROM exam_round_decision"
+                ).fetchone()[0]
+
+        self.assertEqual(("archived", "completed"), half_year)
+        self.assertEqual(("historical", "completed"), exam_round)
+        self.assertEqual(("completed", "archived"), half_year_evidence)
+        self.assertEqual(("completed", "historical", 0), round_evidence)
+        self.assertEqual(0, invented)
 
     def test_initialize_rejects_unversioned_legacy_round_schema(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

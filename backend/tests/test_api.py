@@ -497,17 +497,12 @@ class ApiTests(unittest.TestCase):
                 (2028, "Bestätigte Runde", "plan_confirmed"),
                 (2029, "Archivierte Runde", "completed"),
             ):
-                status, half_year = api.request(
-                    "POST",
-                    "/api/exam-half-years",
-                    {"season": "summer", "year": year, "status": "draft"},
-                )
-                assert_status(status, HTTPStatus.CREATED)
                 status, created_round = api.request(
                     "POST",
                     "/api/exam-rounds",
                     {
-                        "exam_half_year_id": half_year["id"],
+                        "season": "summer",
+                        "year": year,
                         "committee_id": 1,
                         "name": name,
                         "status": "draft",
@@ -657,34 +652,32 @@ class ApiTests(unittest.TestCase):
                 error["error"],
             )
 
-    def test_exam_half_year_and_committee_round_can_be_created_over_http(self) -> None:
+    def test_exam_round_creates_or_reuses_its_half_year_context_over_http(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
-            status, half_year = api.request(
-                "POST",
-                "/api/exam-half-years",
-                {"season": "summer", "year": 2027, "status": "draft"},
-            )
-            assert_status(status, HTTPStatus.CREATED)
-            self.assertEqual("summer", half_year["season"])
-
             status, exam_round = api.request(
                 "POST",
                 "/api/exam-rounds",
                 {
-                    "exam_half_year_id": half_year["id"],
+                    "season": "summer",
+                    "year": 2027,
                     "committee_id": 1,
                     "name": "Sommer 2027 · Prüfungsausschuss Teststadt 1",
                     "created_by_member_id": 1,
                 },
             )
             assert_status(status, HTTPStatus.CREATED)
-            self.assertEqual(half_year["id"], exam_round["exam_half_year_id"])
+            status, half_year = api.request(
+                "GET", f"/api/exam-half-years/{exam_round['exam_half_year_id']}"
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(("summer", 2027), (half_year["season"], half_year["year"]))
 
             status, error = api.request(
                 "POST",
                 "/api/exam-rounds",
                 {
-                    "exam_half_year_id": half_year["id"],
+                    "season": "summer",
+                    "year": 2027,
                     "committee_id": 1,
                     "name": "Doppelte Runde",
                     "created_by_member_id": 1,
@@ -1015,17 +1008,12 @@ class ApiTests(unittest.TestCase):
             assert_status(status, HTTPStatus.BAD_REQUEST)
             self.assertIn("planning aggregate", body["error"])
 
-            status, half_year = api.request(
-                "POST",
-                "/api/exam-half-years",
-                {"season": "summer", "year": 2099, "status": "draft"},
-            )
-            assert_status(status, HTTPStatus.CREATED)
             status, body = api.request(
                 "POST",
                 "/api/exam-rounds",
                 {
-                    "exam_half_year_id": half_year["id"],
+                    "season": "summer",
+                    "year": 2099,
                     "committee_id": 1,
                     "name": "Bypass",
                     "status": "plan_proposed",

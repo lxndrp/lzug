@@ -90,7 +90,20 @@ class DemoArtifactTests(unittest.TestCase):
                     """,
                 ),
             )
-            self.assertEqual(3, self._scalar(first_db, "SELECT COUNT(*) FROM exam_day"))
+            self.assertEqual(5, self._scalar(first_db, "SELECT COUNT(*) FROM exam_day"))
+            self.assertEqual(
+                [
+                    (90, "open"),
+                    (91, "open"),
+                    (92, "open"),
+                    (93, "closed"),
+                    (94, "open"),
+                ],
+                self._rows(
+                    first_db,
+                    "SELECT id, lifecycle_status FROM exam_round WHERE id >= 90 ORDER BY id",
+                ),
+            )
             self.assertEqual(
                 1,
                 self._scalar(
@@ -366,6 +379,11 @@ class DemoArtifactTests(unittest.TestCase):
     def _row(database: Path, query: str):
         with sqlite3.connect(database) as connection:
             return connection.execute(query).fetchone()
+
+    @staticmethod
+    def _rows(database: Path, query: str):
+        with sqlite3.connect(database) as connection:
+            return connection.execute(query).fetchall()
 
 
 if __name__ == "__main__":

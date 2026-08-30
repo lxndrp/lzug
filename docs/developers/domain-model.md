@@ -39,8 +39,11 @@ autorisierende Arbeitskontext.
 Personen können Mitgliedschaften mit Rolle, Vertreterseite und Aktivitätsstatus halten.
 Ein Betreiberkonto ist keine fachliche Mitgliedschaft.
 Ein neuer Ausschuss wird ausschließlich über den lokalen Betreiberweg atomar mit genau einem aktiven Erstvorsitz gebootstrappt.
-- **Prüfungszeitraum und Prüfungsrunde**: Ein Prüfungshalbjahr fasst die
-zeitliche Einordnung; eine Prüfungsrunde ist der planbare Vorgang eines Ausschusses.
+- **Prüfungszeitraum und Prüfungsrunde**: Ein Prüfungshalbjahr fasst nur die
+  gemeinsame zeitliche Einordnung; eine Prüfungsrunde ist der planbare und
+  fachlich abschließbare Vorgang genau eines Ausschusses.
+  Abschluss, vollständige Absage, Sperre, Wiederöffnung, Historie und Export
+  sind revisionsgebunden an diese Prüfungsrunde.
 Zugeordnete Prüflinge gehören zur Runde, nicht unmittelbar zum Ausschuss.
 - **Planung und Durchführung**: Orte, Verfügbarkeiten, mögliche Tage und ein
 Vorschlag führen zu Prüfungstagen, Slots und Besetzungen.

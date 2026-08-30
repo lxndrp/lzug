@@ -224,6 +224,7 @@ class ExamHalfYear(Base):
     season: Mapped[str] = mapped_column(String)
     year: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String, server_default=sql_text("'draft'"))
+    legacy_status: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
     updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
 
@@ -237,6 +238,9 @@ class ExamRound(Base):
     name: Mapped[str] = mapped_column(String)
     status: Mapped[str] = mapped_column(String, server_default=sql_text("'draft'"))
     plan_revision: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
+    revision: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    lifecycle_status: Mapped[str] = mapped_column(String, server_default=sql_text("'open'"))
+    legacy_status: Mapped[str | None] = mapped_column(String, nullable=True)
     availability_deadline: Mapped[str | None] = mapped_column(String, nullable=True)
     availability_reminder_at: Mapped[str | None] = mapped_column(String, nullable=True)
     created_by_member_id: Mapped[int] = mapped_column(ForeignKey("committee_member.id"))
@@ -248,6 +252,196 @@ class ExamRound(Base):
         String,
         server_default=sql_text("CURRENT_TIMESTAMP"),
     )
+
+
+class ExamRoundDecision(Base):
+    """Immutable evidence for one close, cancellation, or repeated decision."""
+
+    __tablename__ = "exam_round_decision"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_round_id: Mapped[int] = mapped_column(ForeignKey("exam_round.id", ondelete="CASCADE"))
+    decision_type: Mapped[str] = mapped_column(String)
+    requested_revision: Mapped[int] = mapped_column(Integer)
+    resulting_revision: Mapped[int] = mapped_column(Integer)
+    actor_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    checklist_json: Mapped[str] = mapped_column(String)
+    snapshot_json: Mapped[str] = mapped_column(String)
+    previous_decision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_round_decision.id", ondelete="RESTRICT"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'current'"))
+    command_fingerprint: Mapped[str] = mapped_column(String)
+    decided_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+    __table_args__ = (
+        Index(
+            "exam_round_decision_revision",
+            "exam_round_id",
+            "resulting_revision",
+            unique=True,
+        ),
+        Index(
+            "exam_round_decision_command",
+            "exam_round_id",
+            "command_fingerprint",
+            unique=True,
+        ),
+    )
+
+
+class ExamRoundReopening(Base):
+    """One bounded correction window for a terminal exam round."""
+
+    __tablename__ = "exam_round_reopening"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_round_id: Mapped[int] = mapped_column(ForeignKey("exam_round.id", ondelete="CASCADE"))
+    previous_decision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_round_decision.id", ondelete="RESTRICT"), nullable=True
+    )
+    requested_revision: Mapped[int] = mapped_column(Integer)
+    resulting_revision: Mapped[int] = mapped_column(Integer)
+    occasion: Mapped[str] = mapped_column(String)
+    source: Mapped[str] = mapped_column(String)
+    reason: Mapped[str] = mapped_column(String)
+    requested_scope_json: Mapped[str] = mapped_column(String)
+    scope_json: Mapped[str] = mapped_column(String)
+    impacts_json: Mapped[str] = mapped_column(String)
+    actor_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'open'"))
+    command_fingerprint: Mapped[str] = mapped_column(String)
+    opened_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (
+        Index("exam_round_reopening_open", "exam_round_id", "status"),
+        Index(
+            "exam_round_reopening_command",
+            "exam_round_id",
+            "command_fingerprint",
+            unique=True,
+        ),
+    )
+
+
+class ExamRoundTask(Base):
+    """A durable follow-up task caused by a round reopening."""
+
+    __tablename__ = "exam_round_task"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_round_id: Mapped[int] = mapped_column(ForeignKey("exam_round.id", ondelete="CASCADE"))
+    reopening_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_round_reopening.id", ondelete="CASCADE")
+    )
+    recipient_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="CASCADE")
+    )
+    task_type: Mapped[str] = mapped_column(String)
+    origin_key: Mapped[str] = mapped_column(String)
+    details_json: Mapped[str] = mapped_column(String, server_default=sql_text("'{}'"))
+    status: Mapped[str] = mapped_column(String, server_default=sql_text("'open'"))
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (
+        Index(
+            "exam_round_task_origin",
+            "recipient_member_id",
+            "task_type",
+            "origin_key",
+            unique=True,
+        ),
+        Index("exam_round_task_round_status", "exam_round_id", "status"),
+    )
+
+
+class ExamRoundAuditEvent(Base):
+    """Append-only lifecycle history for one committee-specific round."""
+
+    __tablename__ = "exam_round_audit_event"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_round_id: Mapped[int] = mapped_column(ForeignKey("exam_round.id", ondelete="CASCADE"))
+    round_revision: Mapped[int] = mapped_column(Integer)
+    event_type: Mapped[str] = mapped_column(String)
+    actor_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    decision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_round_decision.id", ondelete="RESTRICT"), nullable=True
+    )
+    reopening_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_round_reopening.id", ondelete="RESTRICT"), nullable=True
+    )
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    scope_json: Mapped[str] = mapped_column(String, server_default=sql_text("'[]'"))
+    created_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+
+    __table_args__ = (Index("exam_round_audit_history", "exam_round_id", "id"),)
+
+
+class ExamRoundExport(Base):
+    """Trace of a human or machine export and its later obsolescence."""
+
+    __tablename__ = "exam_round_export"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_round_id: Mapped[int] = mapped_column(ForeignKey("exam_round.id", ondelete="CASCADE"))
+    decision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_round_decision.id", ondelete="RESTRICT"), nullable=True
+    )
+    round_revision: Mapped[int] = mapped_column(Integer)
+    export_kind: Mapped[str] = mapped_column(String)
+    lifecycle_status: Mapped[str] = mapped_column(String)
+    generated_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    generated_at: Mapped[str] = mapped_column(
+        String,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )
+    superseded_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    superseded_by_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    __table_args__ = (Index("exam_round_export_history", "exam_round_id", "generated_at"),)
+
+
+class ExamRoundIhkStatus(Base):
+    """Append-only documentation of a later formal IHK process state."""
+
+    __tablename__ = "exam_round_ihk_status"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_round_id: Mapped[int] = mapped_column(ForeignKey("exam_round.id", ondelete="CASCADE"))
+    exam_result_id: Mapped[int] = mapped_column(ForeignKey("exam_result.id", ondelete="RESTRICT"))
+    document_status: Mapped[str] = mapped_column(String)
+    document_reference: Mapped[str] = mapped_column(String)
+    recorded_by_member_id: Mapped[int] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT")
+    )
+    command_fingerprint: Mapped[str] = mapped_column(String, unique=True)
+    recorded_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (Index("exam_round_ihk_status_history", "exam_round_id", "id"),)
 
 
 class ConfirmedPlanRevision(Base):
@@ -363,6 +557,14 @@ class RoundCandidate(Base):
     attempt_number: Mapped[int] = mapped_column(Integer)
     requires_mep: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
     is_active: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    terminal_status: Mapped[str] = mapped_column(String, server_default=sql_text("'open'"))
+    terminal_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    effective_new_round_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_round.id", ondelete="RESTRICT"), nullable=True
+    )
+    postponed_until: Mapped[str | None] = mapped_column(String, nullable=True)
+    ihk_decision_reference: Mapped[str | None] = mapped_column(String, nullable=True)
+    terminal_at: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[str] = mapped_column(
         String,
         server_default=sql_text("CURRENT_TIMESTAMP"),
@@ -1634,6 +1836,9 @@ EXAM_ROUND = Resource(
         "committee_id",
         "name",
         "status",
+        "revision",
+        "lifecycle_status",
+        "legacy_status",
         "availability_deadline",
         "availability_reminder_at",
         "created_by_member_id",
@@ -1654,7 +1859,7 @@ EXAM_ROUND = Resource(
 
 EXAM_HALF_YEAR = Resource(
     model=ExamHalfYear,
-    fields=("season", "year", "status", "created_at", "updated_at"),
+    fields=("season", "year", "status", "legacy_status", "created_at", "updated_at"),
     order_by=("-year", "season"),
     writable_fields=("season", "year", "status"),
 )
@@ -1667,6 +1872,12 @@ ROUND_CANDIDATE = Resource(
         "attempt_number",
         "requires_mep",
         "is_active",
+        "terminal_status",
+        "terminal_reason",
+        "effective_new_round_id",
+        "postponed_until",
+        "ihk_decision_reference",
+        "terminal_at",
         "created_at",
         "updated_at",
     ),
@@ -1677,6 +1888,12 @@ ROUND_CANDIDATE = Resource(
         "attempt_number",
         "requires_mep",
         "is_active",
+        "terminal_status",
+        "terminal_reason",
+        "effective_new_round_id",
+        "postponed_until",
+        "ihk_decision_reference",
+        "terminal_at",
     ),
 )
 

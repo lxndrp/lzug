@@ -27,6 +27,7 @@ from .candidate_days import CandidateDayService
 from .exam_day_closures import ExamDayClosureService
 from .exam_protocols import ExamProtocolService
 from .exam_results import ExamResultService
+from .exam_round_lifecycle import ExamRoundLifecycleService
 from .local_auth import LocalAuthService
 from .models import (
     CANDIDATE,
@@ -226,6 +227,10 @@ class RequestContext:
         return ExamDayClosureService(self.db_path, self.notification_service)
 
     @property
+    def exam_round_lifecycle_service(self) -> ExamRoundLifecycleService:
+        return ExamRoundLifecycleService(self.db_path, self.notification_service)
+
+    @property
     def read_application(self) -> ReadApplication:
         return ReadApplication(self.db_path)
 
@@ -317,6 +322,11 @@ class RequestContext:
 
     def authorize_mutation(self, method: str, path_parts: list[str], context: AuthContext) -> None:
         self.runtime_policy.authorize_mutation(self, method, path_parts, context)
+        self.exam_round_lifecycle_service.assert_http_mutation(
+            method,
+            path_parts,
+            self.read_json() if self._body else {},
+        )
 
     def require_round_access(self, round_id: int, *, manage: bool = False) -> None:
         round_data = self.repository.get(EXAM_ROUND, round_id)
@@ -405,9 +415,9 @@ class RequestContext:
                 normalized["candidate_exam_day_id"] = existing["candidate_exam_day_id"]
             return normalized
         if resource == EXAM_HALF_YEAR:
-            if not self.authorization_scope.management_committee_ids:
-                raise ForbiddenRequestError("Forbidden.")
-            return normalized
+            raise ForbiddenRequestError(
+                "Prüfungshalbjahre entstehen ausschließlich gemeinsam mit einer Ausschussrunde."
+            )
         committee_id = self.repository.committee_id_for_resource(resource, entity_id, normalized)
         if not self.authorization_scope.can_manage_committee(committee_id):
             raise ForbiddenRequestError("Forbidden.")

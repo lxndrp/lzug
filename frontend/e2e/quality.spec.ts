@@ -1324,38 +1324,26 @@ test.describe('lzug browser workflows', () => {
     );
   }
 
-  test('creates a half-year and its committee-specific exam round', async ({ page }) => {
+  test('creates a half-year context and its committee-specific round atomically', async ({
+    page,
+  }) => {
     await page.goto('/exam-half-years');
     await expect(page.getByRole('heading', { name: 'Prüfungshalbjahre' })).toBeVisible({
       timeout: 30_000,
     });
 
-    const createHalfYearButton = page
+    const createRoundButton = page
       .locator('.app-panel-header')
-      .getByRole('button', { name: 'Prüfungshalbjahr anlegen' });
-    await createHalfYearButton.click();
+      .getByRole('button', { name: 'Prüfungsrunde anlegen' });
+    await createRoundButton.click();
     await page.locator('#examHalfYearSeason').selectOption('summer');
     await page.locator('#examHalfYearYear').fill('2027');
-    const halfYearResponse = page.waitForResponse(
-      (response) =>
-        response.url().endsWith('/api/exam-half-years') && response.request().method() === 'POST',
-    );
-    await page
-      .getByRole('button', { name: 'Prüfungshalbjahr anlegen', exact: true })
-      .last()
-      .click();
-    expect((await halfYearResponse).status()).toBe(201);
-
-    const newHalfYear = page.locator('article').filter({ hasText: 'Sommer 2027' });
-    await expect(newHalfYear).toBeVisible();
-    await newHalfYear.getByRole('button', { name: 'Öffnen' }).click();
-    await expect(page.getByRole('heading', { name: 'Sommer 2027' })).toBeVisible();
-    await page.locator('#roundCommittee').selectOption('1');
+    await page.locator('#newRoundCommittee').selectOption('1');
     const roundResponse = page.waitForResponse(
       (response) =>
         response.url().endsWith('/api/exam-rounds') && response.request().method() === 'POST',
     );
-    await page.getByRole('button', { name: 'Ausschuss hinzufügen' }).click();
+    await page.getByRole('button', { name: 'Prüfungsrunde anlegen', exact: true }).last().click();
     expect((await roundResponse).status()).toBe(201);
     await expect(page).toHaveURL('/dashboard');
     await expect(page.getByLabel('Aktueller Prüfungskontext')).toContainText('Sommer 2027');

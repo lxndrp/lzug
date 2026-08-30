@@ -448,35 +448,19 @@ class HttpContractParityTests(unittest.TestCase):
                         fastapi.request("GET", path),
                     )
 
-            created = legacy.request(
-                "POST",
-                "/api/exam-half-years",
-                {"season": "summer", "year": 2030, "status": "draft"},
-            )
-            fastapi_created = fastapi.request(
-                "POST",
-                "/api/exam-half-years",
-                {"season": "summer", "year": 2030, "status": "draft"},
-            )
-            self.assert_parity(created, fastapi_created)
-            half_year_id = created.json["id"]
-
-            updated = legacy.request(
-                "PATCH",
-                f"/api/exam-half-years/{half_year_id}",
-                {"status": "active"},
-            )
-            fastapi_updated = fastapi.request(
-                "PATCH",
-                f"/api/exam-half-years/{half_year_id}",
-                {"status": "active"},
-            )
-            self.assert_parity(updated, fastapi_updated)
-
-            self.assert_parity(
-                legacy.request("DELETE", f"/api/exam-half-years/{half_year_id}"),
-                fastapi.request("DELETE", f"/api/exam-half-years/{half_year_id}"),
-            )
+            for method, path, payload in (
+                (
+                    "POST",
+                    "/api/exam-half-years",
+                    {"season": "summer", "year": 2030, "status": "draft"},
+                ),
+                ("PATCH", "/api/exam-half-years/1", {"status": "active"}),
+                ("DELETE", "/api/exam-half-years/1", None),
+            ):
+                self.assert_parity(
+                    legacy.request(method, path, payload),
+                    fastapi.request(method, path, payload),
+                )
 
     def test_planning_routes_do_not_depend_on_the_legacy_fallback(self) -> None:
         """Keep #476's aggregate, revision, execution, and demo paths dual-adapter safe."""
