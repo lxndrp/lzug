@@ -257,6 +257,7 @@ def editable_confirmed_plan(
             "method": "PUT",
         },
         "revisions": {"href": f"/api/exam-rounds/{round_id}/confirmed-plan/revisions"},
+        "consequences": {"href": f"/api/exam-rounds/{round_id}/confirmed-plan/consequences"},
         "round": {"href": f"/api/exam-rounds/{round_id}"},
         "api": {"href": "/api"},
     }
@@ -273,6 +274,18 @@ def confirmed_plan_revisions(
             "self": {"href": f"/api/exam-rounds/{round_id}/confirmed-plan/revisions"},
             "confirmed-plan": {"href": f"/api/exam-rounds/{round_id}/confirmed-plan"},
             "round": {"href": f"/api/exam-rounds/{round_id}"},
+            "api": {"href": "/api"},
+        },
+    }
+
+
+def plan_consequences(round_id: int, consequences: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "items": consequences,
+        "_links": {
+            "self": {"href": f"/api/exam-rounds/{round_id}/confirmed-plan/consequences"},
+            "confirmed-plan": {"href": f"/api/exam-rounds/{round_id}/confirmed-plan"},
+            "revisions": {"href": f"/api/exam-rounds/{round_id}/confirmed-plan/revisions"},
             "api": {"href": "/api"},
         },
     }

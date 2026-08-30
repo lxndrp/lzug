@@ -57,6 +57,14 @@ Es ist nicht mit `person` oder einer Ausschussmitgliedschaft verbunden und gibt 
 Sessions in derselben Transaktion.
 - `recover (--account-id <id> | --email <email>)` löst für ein aktives Konto
 einen 30 Minuten gültigen Recovery-Token aus.
+- `process-notifications` verarbeitet fällige interne Benachrichtigungen,
+technische Zustellwiederholungen und fällige Folgen bestätigter Planänderungen.
+- `plan-consequences-status --revision-id <id>` zeigt ausschließlich technische
+Kennungen, Zeitpunkte, Zustände, Versuchszahlen und Fehlercodes.
+- `retry-plan-consequences --revision-id <id>` stößt ausschließlich fehlende
+oder fehlgeschlagene, weiterhin aktuelle Folgen der gewählten Planrevision erneut an.
+Die Ausgabe enthält nur technische Kennungen, Zeitpunkte, Zähler, Zustände und Fehlercodes, aber keine
+Benachrichtigungs- oder Kalenderinhalte.
 
 Token werden mit kryptografisch zufälligem Material erzeugt und ausschließlich als SHA-256-Prüfwert in `auth_token` gespeichert.
 Der interne Python-Service markiert die Werte beim Verbrauch atomar als verbraucht; Ablauf und Wiederholung werden identisch abgewiesen.

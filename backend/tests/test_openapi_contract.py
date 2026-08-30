@@ -5,6 +5,7 @@ import re
 import unittest
 from http import HTTPStatus
 from pathlib import Path
+from unittest.mock import patch
 
 from sqlalchemy import text
 
@@ -135,17 +136,62 @@ class OpenApiContractTests(unittest.TestCase):
                 "Reihenfolge nach Rücksprache korrigiert",
                 saved["latest_revision"]["reason"],
             )
+            self.assertEqual("succeeded", saved["consequence_status"]["derivation_status"])
 
             history_path = "/api/exam-rounds/1/confirmed-plan/revisions"
             status, history = self.request(api, "GET", history_path)
             self.assertEqual(HTTPStatus.OK, status)
             self.assertEqual([saved["latest_revision"]], history["items"])
 
+            consequences_path = "/api/exam-rounds/1/confirmed-plan/consequences"
+            status, consequences = self.request(api, "GET", consequences_path)
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertEqual([], consequences["items"])
+            retry_path = (
+                "/api/exam-rounds/1/confirmed-plan/revisions/"
+                f"{saved['latest_revision']['id']}/consequences/retry"
+            )
+            status, retried = api.request("POST", retry_path, {})
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertEqual("succeeded", retried["derivation_status"])
+
             stale = copy.deepcopy(original)
             stale["reason"] = "Veraltete Änderung"
             status, conflict = self.request(api, "PUT", path, stale)
             self.assertEqual(HTTPStatus.CONFLICT, status)
             self.assertEqual("confirmed_plan_conflict", conflict["error"]["code"])
+
+    def test_consequence_failure_does_not_roll_back_the_confirmed_revision(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, _generated = self.request(
+                api, "POST", "/api/planning-proposals", {"round_id": 1}
+            )
+            self.assertEqual(HTTPStatus.CREATED, status)
+            status, _confirmed = self.request(api, "POST", "/api/exam-rounds/1/confirm-plan", {})
+            self.assertEqual(HTTPStatus.OK, status)
+            path = "/api/exam-rounds/1/confirmed-plan"
+            status, original = self.request(api, "GET", path)
+            self.assertEqual(HTTPStatus.OK, status)
+            change = copy.deepcopy(original)
+            change["reason"] = "Folgenfehler unabhängig behandeln"
+
+            with patch(
+                "backend.plan_consequences.PlanConsequenceService.process_revision",
+                side_effect=RuntimeError("simulated consequence failure"),
+            ):
+                status, saved = self.request(api, "PUT", path, change)
+
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertEqual(original["revision"] + 1, saved["revision"])
+            self.assertIn("consequence_warning", saved)
+            status, persisted = self.request(api, "GET", path)
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertEqual(saved["revision"], persisted["revision"])
+            status, history = self.request(
+                api, "GET", "/api/exam-rounds/1/confirmed-plan/revisions"
+            )
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertEqual(saved["latest_revision"]["id"], history["items"][0]["id"])
 
     def test_confirmed_plan_revision_locks_started_day_but_accepts_later_day_change(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:

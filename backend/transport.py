@@ -39,6 +39,7 @@ from .models import (
 )
 from .notifications import NotificationService
 from .observability import emit_event
+from .plan_consequences import PlanConsequenceService
 from .planning import (
     ConfirmedPlanChange,
     PlanAssignment,
@@ -199,6 +200,14 @@ class RequestContext:
     @property
     def calendar_service(self) -> CalendarService:
         return CalendarService(self.db_path)
+
+    @property
+    def plan_consequence_service(self) -> PlanConsequenceService:
+        return PlanConsequenceService(
+            self.db_path,
+            self.notification_service,
+            self.calendar_service,
+        )
 
     @property
     def absence_service(self) -> AbsenceService:

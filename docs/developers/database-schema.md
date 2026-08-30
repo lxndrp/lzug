@@ -32,3 +32,8 @@ Bereits abgeschlossene oder abgesagte Tage werden ausschließlich als historisch
 Die Migration erzeugt dafür weder Akteur und Zeitpunkt noch eine vermeintlich erfüllte Prüfliste oder Begründung.
 Offene, laufende und inkonsistente Bestände bleiben offen.
 Den Sperr-, Korrektur- und Nachweisvertrag beschreibt der [formelle Tagesabschluss](architecture/exam-day-closure.md).
+
+Migration `020_add_confirmed_plan_revisions.sql` ergänzt die unveränderliche Vorher-/Nachher-Historie bestätigter Planänderungen.
+Migration `022_add_plan_consequences.sql` ergänzt deren getrennte, wiederholbare Benachrichtigungs- und Kalenderfolgen.
+Vorhandene Nachrichten, Zustellungen und Kalenderidentitäten bleiben erhalten; vergangene Revisionen erzeugen bei der Migration keine neuen fachlichen Folgen.
+Den Zustands-, Idempotenz- und Wiederanlaufvertrag beschreibt die [Folgenarchitektur](architecture/plan-change-consequences.md).

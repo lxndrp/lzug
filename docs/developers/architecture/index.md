@@ -32,7 +32,7 @@ Sie erklären die gewählte Richtung, nicht deren aktuelle Endpunkt-, Feld- oder
 ## Fachliche und technische Grenzen
 
 Die [Backend-Übersicht](backend.md) ordnet die produktiven Services ihren Schichten zu.
-[Authentifizierung](authentication.md), [Benachrichtigungen](notifications.md), der [Ausfall- und Ersatzprozess](absence-replacement.md), die [Prüfungsprotokolle](exam-protocols.md), [Bewertungen und Ergebnisse](exam-results.md), die [revisionierte Planänderung](confirmed-plan-revisions.md) sowie der [formelle Tagesabschluss](exam-day-closure.md) beschreiben die fachlichen Verantwortungsgrenzen.
+[Authentifizierung](authentication.md), [Benachrichtigungen](notifications.md), der [Ausfall- und Ersatzprozess](absence-replacement.md), die [Prüfungsprotokolle](exam-protocols.md), [Bewertungen und Ergebnisse](exam-results.md), die [revisionierte Planänderung](confirmed-plan-revisions.md), deren [nachgelagerte Benachrichtigungs- und Kalenderfolgen](plan-change-consequences.md) sowie der [formelle Tagesabschluss](exam-day-closure.md) beschreiben die fachlichen Verantwortungsgrenzen.
 Das [fachliche Datenmodell](../domain-model.md) erläutert Begriffe, Aggregate und Invarianten; es ersetzt kein Schema.
 
 Die [Frontend-Richtlinie](../frontend-guidelines.md) beschreibt die Angular-Grenze und die Qualitätsmaßstäbe.
