@@ -15,6 +15,20 @@ func TestMain(m *testing.M) {
 		if argsPath := os.Getenv("LZUG_CLI_ARGS_FILE"); argsPath != "" {
 			_ = os.WriteFile(argsPath, []byte(strings.Join(os.Args[1:], "\x00")), 0o600)
 		}
+		if os.Getenv("LZUG_CLI_HELPER_INSPECT") == "1" {
+			args := strings.Join(os.Args[1:], " ")
+			switch {
+			case strings.Contains(args, "container inspect"):
+				_, _ = os.Stdout.WriteString("sha256:image-id\n")
+			case strings.Contains(args, ".RepoDigests"):
+				_, _ = os.Stdout.WriteString(os.Getenv("LZUG_CLI_REPO_DIGESTS") + "\n")
+			case strings.Contains(args, ".Config.Labels"):
+				_, _ = os.Stdout.WriteString(os.Getenv("LZUG_CLI_IMAGE_LABELS") + "\n")
+			default:
+				os.Exit(1)
+			}
+			os.Exit(0)
+		}
 		input, _ := io.ReadAll(os.Stdin)
 		exitCode := 23
 		if os.Getenv("LZUG_CLI_SAFE_RESPONSE") == "1" {
@@ -220,6 +234,125 @@ func TestArtifactCommandsFailClosedBeforeContainerInvocation(t *testing.T) {
 		if _, err := parseOptions(test.args, strings.NewReader(test.input)); err == nil {
 			t.Fatalf("invalid artifact command was accepted: %q", test.args)
 		}
+	}
+}
+
+func TestLifecycleCommandsUseReleaseBoundPortableRequests(t *testing.T) {
+	previousVersion := applicationVersion
+	previousRevision := applicationRevision
+	previousTag := applicationTag
+	applicationVersion = "0.6.0"
+	applicationRevision = strings.Repeat("a", 40)
+	applicationTag = "v0.6.0"
+	t.Cleanup(func() {
+		applicationVersion = previousVersion
+		applicationRevision = previousRevision
+		applicationTag = previousTag
+	})
+
+	t.Setenv("LZUG_CLI_HELPER", "1")
+	t.Setenv("LZUG_CLI_HELPER_INSPECT", "1")
+	t.Setenv(
+		"LZUG_CLI_REPO_DIGESTS",
+		`["example.invalid/other@sha256:`+strings.Repeat("b", 64)+`","ghcr.io/lxndrp/lzug@sha256:`+strings.Repeat("c", 64)+`"]`,
+	)
+	labels, err := json.Marshal(map[string]string{
+		"org.opencontainers.image.source":   "https://github.com/lxndrp/lzug",
+		"org.opencontainers.image.version":  applicationVersion,
+		"org.opencontainers.image.revision": applicationRevision,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("LZUG_CLI_IMAGE_LABELS", string(labels))
+	target, err := (runner{engine: os.Args[0], container: "lzug-maintenance"}).releaseTarget(
+		context.Background(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var encoded string
+	for _, engine := range []string{"docker", "podman"} {
+		opts, parseErr := parseOptions(
+			[]string{
+				"--engine", engine, "--container", "lzug-maintenance", "upgrade",
+				"--confirm-irreversible",
+			},
+			strings.NewReader("private-key-marker"),
+		)
+		if parseErr != nil {
+			t.Fatal(parseErr)
+		}
+		opts.arguments["target"] = target
+		payload, payloadErr := protocolPayload(opts)
+		if payloadErr != nil {
+			t.Fatal(payloadErr)
+		}
+		if encoded == "" {
+			encoded = string(payload)
+		} else if encoded != string(payload) {
+			t.Fatalf("Docker and Podman lifecycle payloads differ: %q != %q", encoded, payload)
+		}
+	}
+	var request request
+	if err := json.Unmarshal([]byte(encoded), &request); err != nil {
+		t.Fatal(err)
+	}
+	if request.Command != "upgrade" || request.Arguments["confirm_irreversible"] != true {
+		t.Fatalf("unexpected lifecycle request: %#v", request)
+	}
+	release := request.Arguments["target"].(map[string]any)
+	if release["image"] != "ghcr.io/lxndrp/lzug@sha256:"+strings.Repeat("c", 64) ||
+		release["tag"] != "v0.6.0" {
+		t.Fatalf("unexpected target release: %#v", release)
+	}
+}
+
+func TestLifecycleCommandsRejectUnsafeLocalInputs(t *testing.T) {
+	invalid := []struct {
+		args  []string
+		input string
+	}{
+		{[]string{"--container", "lzug", "upgrade"}, ""},
+		{[]string{"--container", "lzug", "upgrade", "--artifact", "backup.lzug"}, "private"},
+		{[]string{"--container", "lzug", "upgrade"}, "private\nkey"},
+		{[]string{"--container", "lzug", "rollback", "--confirm-irreversible"}, ""},
+		{[]string{"--container", "lzug", "rollback", "--replace"}, ""},
+	}
+	for _, test := range invalid {
+		if _, err := parseOptions(test.args, strings.NewReader(test.input)); err == nil {
+			t.Fatalf("unsafe lifecycle input was accepted: %q", test.args)
+		}
+	}
+}
+
+func TestLifecycleReleaseInspectionFailsClosed(t *testing.T) {
+	previousVersion := applicationVersion
+	previousRevision := applicationRevision
+	previousTag := applicationTag
+	t.Cleanup(func() {
+		applicationVersion = previousVersion
+		applicationRevision = previousRevision
+		applicationTag = previousTag
+	})
+
+	applicationVersion = "development"
+	applicationRevision = "unknown"
+	applicationTag = ""
+	if _, err := (runner{engine: os.Args[0], container: "lzug"}).releaseTarget(context.Background()); err == nil {
+		t.Fatal("development CLI was accepted for lifecycle work")
+	}
+
+	applicationVersion = "0.6.0"
+	applicationRevision = strings.Repeat("a", 40)
+	applicationTag = "v0.6.0"
+	t.Setenv("LZUG_CLI_HELPER", "1")
+	t.Setenv("LZUG_CLI_HELPER_INSPECT", "1")
+	t.Setenv("LZUG_CLI_REPO_DIGESTS", `[]`)
+	t.Setenv("LZUG_CLI_IMAGE_LABELS", `{}`)
+	if _, err := (runner{engine: os.Args[0], container: "lzug"}).releaseTarget(context.Background()); err == nil {
+		t.Fatal("image without canonical repository digest was accepted")
 	}
 }
 

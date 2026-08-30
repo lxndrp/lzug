@@ -19,6 +19,7 @@ from .backup_restore import ArtifactError, ArtifactService
 from .committee_admin import CommitteeAdminService
 from .database import MigrationError, database_path, database_readiness, persistence_paths
 from .diagnostics import run_diagnostics
+from .lifecycle import LifecycleError, LifecycleService
 from .notifications import NotificationService
 from .plan_consequences import PlanConsequenceService
 
@@ -84,12 +85,18 @@ _EXIT_CODES = {
     "restore_failed": EXIT_ARTIFACT_OPERATION,
     "postcheck_failed": EXIT_ARTIFACT_OPERATION,
     "activation_failed": EXIT_ARTIFACT_OPERATION,
+    "maintenance_required": EXIT_ARTIFACT_OPERATION,
+    "release_artifact_unverified": EXIT_ARTIFACT_OPERATION,
+    "upgrade_backup_invalid": EXIT_ARTIFACT_INVALID,
+    "irreversible_confirmation_required": EXIT_REPLACE_REQUIRED,
+    "rollback_not_supported": EXIT_INCOMPATIBLE,
 }
 
 _DIAGNOSTIC_COMMANDS = frozenset({"config", "doctor", "status"})
 _ARTIFACT_COMMANDS = frozenset(
     {"backup-create", "artifact-verify", "backup-restore", "full-export"}
 )
+_LIFECYCLE_COMMANDS = frozenset({"upgrade", "rollback"})
 _ADMIN_COMMANDS = frozenset(
     {
         "bootstrap",
@@ -117,7 +124,7 @@ _IDENTITY_PATTERN = re.compile(
 )
 
 
-def _response(*, ok: bool, result: Any = None, error: dict[str, str] | None = None) -> bytes:
+def _response(*, ok: bool, result: Any = None, error: dict[str, Any] | None = None) -> bytes:
     payload: dict[str, Any] = {"version": PROTOCOL_VERSION, "ok": ok}
     if ok:
         payload["result"] = result
@@ -131,11 +138,19 @@ def _write(payload: bytes) -> None:
     sys.stdout.buffer.flush()
 
 
-def _error(code: str, message: str, *, phase: str | None = None) -> int:
-    details = {"class": code, "message": message}
+def _error(
+    code: str,
+    message: str,
+    *,
+    phase: str | None = None,
+    details: Mapping[str, Any] | None = None,
+) -> int:
+    error = {"class": code, "message": message}
     if phase is not None:
-        details["phase"] = phase
-    _write(_response(ok=False, error=details))
+        error["phase"] = phase
+    if details:
+        error["details"] = dict(details)
+    _write(_response(ok=False, error=error))
     return _EXIT_CODES.get(code, EXIT_INTERNAL)
 
 
@@ -171,7 +186,7 @@ def _request_parts(request: Mapping[str, Any]) -> tuple[str, Mapping[str, Any]]:
         raise AdminOperationError("invalid_request", "Unsupported protocol version")
     command = request.get("command")
     if not isinstance(command, str) or command not in (
-        _ADMIN_COMMANDS | _DIAGNOSTIC_COMMANDS | _ARTIFACT_COMMANDS
+        _ADMIN_COMMANDS | _DIAGNOSTIC_COMMANDS | _ARTIFACT_COMMANDS | _LIFECYCLE_COMMANDS
     ):
         raise AdminOperationError("invalid_request", "Unsupported admin command")
     arguments = _require_mapping(request.get("arguments", {}), "Arguments must be an object")
@@ -208,7 +223,32 @@ def _execute(
     committee_service: CommitteeAdminService | None = None,
     consequences: PlanConsequenceService | None = None,
     artifacts: ArtifactService | None = None,
+    lifecycle: LifecycleService | None = None,
 ) -> dict[str, Any]:
+    if command in _LIFECYCLE_COMMANDS:
+        active_lifecycle = lifecycle or LifecycleService()
+        target = _require_mapping(
+            arguments.get("target"), "Argument target must be release metadata"
+        )
+        if command == "rollback":
+            if set(arguments) != {"target"}:
+                raise AdminOperationError("invalid_request", "rollback requires only target")
+            return active_lifecycle.rollback(target)
+        if set(arguments) != {"target", "recipient_private_key", "confirm_irreversible"}:
+            raise AdminOperationError(
+                "invalid_request", "upgrade requires exact backup and target arguments"
+            )
+        confirmation = arguments.get("confirm_irreversible")
+        if not isinstance(confirmation, bool):
+            raise AdminOperationError(
+                "invalid_request", "Argument confirm_irreversible must be boolean"
+            )
+        return active_lifecycle.upgrade(
+            target,
+            _require_string(arguments, "recipient_private_key"),
+            confirm_irreversible=confirmation,
+        )
+
     if command in _ARTIFACT_COMMANDS:
         active_artifacts = artifacts or ArtifactService()
         if command == "backup-create":
@@ -315,6 +355,7 @@ def run(
     committee_service: CommitteeAdminService | None = None,
     consequences: PlanConsequenceService | None = None,
     artifacts: ArtifactService | None = None,
+    lifecycle: LifecycleService | None = None,
 ) -> int:
     """Process exactly one protocol request and return its stable exit code."""
     if len(payload) > MAX_REQUEST_BYTES:
@@ -335,11 +376,15 @@ def run(
             _write(_response(ok=True, result=result))
             return exit_code
         artifact_command = command in _ARTIFACT_COMMANDS
+        lifecycle_command = command in _LIFECYCLE_COMMANDS
         active_service = service
         active_artifacts = artifacts
         if artifact_command and active_artifacts is None:
             active_artifacts = ArtifactService(persistence_paths())
-        if active_service is None and not artifact_command:
+        active_lifecycle = lifecycle
+        if lifecycle_command and active_lifecycle is None:
+            active_lifecycle = LifecycleService(persistence_paths())
+        if active_service is None and not artifact_command and not lifecycle_command:
             readiness = database_readiness(database_path())
             if not readiness["ready"]:
                 return _error("database_not_ready", "Database is not ready")
@@ -352,6 +397,7 @@ def run(
             committee_service,
             consequences,
             active_artifacts,
+            active_lifecycle,
         )
         _write(_response(ok=True, result=result))
         return EXIT_OK
@@ -359,6 +405,13 @@ def run(
         return _error(error.code, str(error))
     except ArtifactError as error:
         return _error(error.code, str(error), phase=error.phase)
+    except LifecycleError as error:
+        return _error(
+            error.code,
+            str(error),
+            phase=error.phase,
+            details=error.details,
+        )
     except MigrationError, OSError, SQLAlchemyError, ValueError:
         return _error("persistence_error", "Admin operation failed")
     except Exception:

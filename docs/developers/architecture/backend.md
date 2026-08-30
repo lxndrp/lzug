@@ -16,7 +16,7 @@ Die Application Factory erzeugt die OpenAPI-Beschreibung aus den FastAPI- Routen
 | Planung und Durchführung | `planning`, `candidate_days`, `holiday_provider`, `absence`, `exam_protocols`, `exam_results`, `exam_day_closures` | Vorschläge, Verfügbarkeiten, bestätigte Planung, Ausfall-/Ersatzprozess, versionierte Prüfungsprotokolle, regelgebundene Ergebnisfeststellung und formeller Tagesabschluss |
 | Fachliche Integrationen | `notifications`, `calendar`, `documents`, `document_storage` | Best-Effort-Zustellung, persönliche Kalender und atomare Dokumentablage; externe Kanäle machen den Fachvorgang nicht rückgängig |
 | Persistenz | `models`, `repositories`, `store`, `database` | fachnahe Repositories und Transaktionen über SQLAlchemy; Schema und Migrationen bleiben ausführbare Quellen |
-| Betrieb | `runtime_policy`, `observability`, `build_metadata`, `version`, `admin`, `admin_service` | Assembly-spezifische Erweiterungen, datensparsame Diagnose, unveränderliche Build-Identität und lokale Betreibergrenze |
+| Betrieb | `runtime_policy`, `observability`, `build_metadata`, `version`, `admin`, `admin_service`, `lifecycle` | Assembly-spezifische Erweiterungen, datensparsame Diagnose, unveränderliche Build-Identität sowie lokale Betreiber- und Lifecycle-Grenze |
 
 Services und Repositories bleiben frameworkunabhängig.
 Eine neue HTTP- oder Speichertechnik darf Fachlogik weder kopieren noch an ihr vorbeiführen.

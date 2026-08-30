@@ -502,6 +502,12 @@ def _instance_id(path: Path) -> str:
     return value[0]
 
 
+def _snapshot_instance_id(path: Path) -> str:
+    if "024_add_artifact_operations.sql" not in _migration_names(path):
+        return str(uuid4())
+    return _instance_id(path)
+
+
 def _document_rows(path: Path) -> list[dict[str, Any]]:
     try:
         with closing(_database_connection(path)) as connection:
@@ -784,7 +790,7 @@ class ArtifactService:
             documents=documents,
             authentication_key=key,
             snapshot_at=snapshot_at,
-            instance_id=_instance_id(database),
+            instance_id=_snapshot_instance_id(database),
             schema_version=schema_version,
             database_records=_database_record_count(database),
             document_count=len(rows),

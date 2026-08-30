@@ -53,6 +53,7 @@ nav:
           - Lebenszyklus von Prüfungsrunden: developers/architecture/exam-round-lifecycle.md
           - Betreiber-CLI für Administration und Diagnose: developers/architecture/operator-auth-cli.md
           - Backup, Restore und Vollexport: developers/architecture/backup-restore-export.md
+          - Upgrade und Rollback: developers/architecture/upgrade-rollback.md
           - OCI-Runtime: developers/architecture/oci-runtime.md
       - Referenz:
           - Fachliches Datenmodell: developers/domain-model.md

@@ -51,7 +51,7 @@ Fehlertexte, Diagnosen und Requestdaten spiegeln keine Token zurück.
 | 30 | Diagnose mit `status: warning` | Prüfung vollständig, Handlungsbedarf erkannt |
 | 31 | Diagnose mit `status: error` | Prüfung vollständig, Betriebsfehler erkannt |
 | 32 | Speicherplatz unzureichend | Snapshot, Prüfung oder Restore kann nicht sicher vorbereitet werden |
-| 33 | Artefaktvorgang fehlgeschlagen | Snapshot, Veröffentlichung, Nachprüfung oder Aktivierung fehlgeschlagen |
+| 33 | Artefakt- oder Lifecycle-Vorgang fehlgeschlagen | Snapshot, Veröffentlichung, Nachprüfung, Aktivierung, Release-Prüfung oder Wartungsmodus fehlgeschlagen |
 | 70 | `internal_error` | unerwarteter Fehler, fail-closed |
 
 ## Systemdiagnose
@@ -153,6 +153,12 @@ Eine allgemeine Automatisierungs- oder Bestätigungsoption aktiviert diesen Modu
 Docker und Podman erhalten dieselben einzelnen `exec --interactive`-Argumente, dasselbe JSON auf stdin und reichen die stabilen Backend-Exit-Codes unverändert weiter.
 Erfolgsberichte enthalten die abgeschlossenen Phasen, Betriebsbereitschaft, Warnungen und geheimnisfreie Artefaktangaben; Fehler nennen Klasse und Fehlerphase.
 Die CLI öffnet weder SQLite noch den Dokumentenspeicher und enthält keine Schlüssel-, Manifest-, Prüf-, Backup-, Restore- oder Exportlogik.
+
+Upgrade und Rollback verwenden dieselbe Container- und Protokollgrenze in einem ausdrücklich als Wartungscontainer gestarteten veröffentlichten Release-Image.
+Die CLI prüft vor `exec` den kanonischen GHCR-Repo-Digest und die OCI-Labels und übergibt diese geheimnisfreien Zielmetadaten an das Backend.
+`upgrade` liest den privaten Backup-Empfängerschlüssel aus stdin und verlangt bei ausstehenden Migrationen `--confirm-irreversible`.
+`rollback` ist nicht mutierend und gelingt nur, wenn die gewählte Release-Runtime das vorhandene Schema ohne ausstehende oder unbekannte Migration vollständig akzeptiert.
+Der vollständige Ablauf und die sicheren Abbruchgrenzen stehen unter [Upgrade und Rollback](upgrade-rollback.md).
 
 ## Ausschuss-Bootstrap und technischer Lebenszyklus
 
