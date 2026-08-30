@@ -20,6 +20,16 @@ Die Konvention ändert weder Aussage noch Rendering der Dokumentation.
 Tabellen, Listenstruktur, Codeblöcke, Front Matter, URLs und technische Zeichenketten bleiben unverändert.
 Drittmaterial, Lizenztexte und generierte Inhalte werden nicht rein redaktionell umgebrochen.
 
+## Portable Diagrammquellen
+
+Architekturdiagramme liegen direkt als Mermaid-Codeblöcke in der zugehörigen Markdown-Seite.
+Für C4-orientierte Sichten wird stabile `flowchart`-Syntax mit benannten C4-Abstraktionsebenen verwendet; Abläufe verwenden `sequenceDiagram`.
+Die experimentelle Mermaid-C4-Grammatik und separat erzeugte Bildkopien werden nicht verwendet.
+
+GitHub-Repository und GitHub Wiki rendern dieselben `mermaid`-Codeblöcke nativ.
+Der technische MkDocs-Build rendert sie mit `mkdocs-mermaid2-plugin`.
+Ein späterer Hugo-Auftritt benötigt für dieselben Quellen nur einen theme-lokalen Code-Block-Render-Hook und keinen getrennten Diagramm-Build.
+
 ## Dokumentarten und Lebenszyklus
 
 | Dokumentart | Primäre Zielgruppe und Zweck | Kanonische Quelle | Änderungsanlass |
@@ -81,7 +91,7 @@ Beschreiben Sie Invarianten, sichtbare Seiteneffekte, Fehler und Transaktionsgre
 Exportierte TypeScript-Services, Modelle und fachliche Komponenten oder Methoden verwenden TSDoc.
 Kommentare erklären Semantik, Zustandsübergänge, Ownership und Seiteneffekte; HTTP-Verträge bleiben in OpenAPI.
 
-MkDocs und `mkdocstrings` erzeugen die technische Dokumentation und Python-Referenz.
+MkDocs, `mkdocs-mermaid2-plugin` und `mkdocstrings` erzeugen die technische Dokumentation, Mermaid-Diagramme und Python-Referenz.
 TypeDoc erzeugt mit dem gelockten TypeScript-Compiler die Frontend-Referenz.
 `task docs` baut beide; CI veröffentlicht `site/` als geschütztes Artefakt `lzug-documentation`.
 TypeDoc wurde Compodoc vorgezogen, weil Compodoc einen abweichenden eingebetteten TypeScript-Compiler verwendet hätte.
