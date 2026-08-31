@@ -9,6 +9,71 @@ Versionen folgen [Semantic Versioning](https://semver.org/lang/de/).
 Bei einer Release-Vorbereitung verschiebt ein Maintainer die freizugebenden Einträge in genau einen Abschnitt `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`.
 Der Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Notes und veröffentlicht nur aus dem nach der Environment-Freigabe erzeugten, annotierten SemVer-Tag.
 
+## [0.6.0] - 2026-08-31
+
+### Added
+
+- Self-Hosting-Instanzen können den SQLite-Datenbestand, Dokumente und
+  anwendungsverwaltete Authentifizierungsschlüssel geschützt sichern,
+  unabhängig prüfen, wiederherstellen und als vollständiges Exportartefakt
+  ausgeben.
+  Konsistenzprüfung, Verschlüsselung, Fehler-Rollback, konkurrierende Zugriffe,
+  Migrationen und der Ausschluss nicht exportierbarer Daten sind vertraglich
+  und für die Containerlaufzeit abgesichert.
+- Die versionierte Betreiber-CLI bietet datensparsame `status`-, `config`- und
+  `doctor`-Diagnosen sowie orchestrierte Backup-, Prüf-, Restore- und
+  Vollexportvorgänge.
+  Die Verträge gelten für Docker und Podman, schützen private Schlüssel vor
+  Argumenten, Ausgaben und Logs und liefern nachvollziehbare Fehlerzustände.
+- Upgrades und Rollbacks können releasegebunden über die Betreiber-CLI
+  ausgeführt werden.
+  Wartungscontainer, kanonischer GHCR-Digest, passendes Release und ein vor
+  Migration erzeugtes und nicht mutierend geprüftes Vollbackup bilden dabei
+  die verpflichtenden Voraussetzungen.
+
+### Changed
+
+- Die technische Dokumentation wurde als arc42-/C4-orientierter Einstieg mit
+  Architekturprinzipien, Review-Checkliste und tragfähigen Mermaid-Quellen
+  aufgebaut und anschließend auf die fünf kanonischen Entwicklerbereiche
+  konsolidiert.
+  Betriebs-, Datenschutz-, Architektur-, Release- und Entwicklerhinweise
+  verweisen nun auf den einheitlichen Betreibervertrag.
+- Die Betriebsdokumentation beschreibt Installation, vollständige
+  Konfiguration, Backup-Prüfung, Restore, Upgrade, Rollback,
+  Datenschutzverantwortung, bekannte Grenzen und Support.
+  Redundante Entwickler- und Legacyseiten wurden entfernt, gültige ADRs und
+  generierte Referenzen bleiben erhalten.
+
+### Security
+
+- Backup- und Restore-Artefakte bewahren die Konsistenz des Anwendungs- und
+  Sicherheitszustands und behandeln Schlüsselmaterial mit einem festgelegten
+  kryptografischen Vertrag.
+  Betreiberpfade bleiben von fachlichen Berechtigungen getrennt und legen
+  keine privaten Empfängerschlüssel in argv, Ausgaben oder Logs offen.
+- Diagnose, Migration, Upgrade und Rollback prüfen Identität, Konfiguration,
+  Persistenzrechte, freien Speicher, Releasebindung und den vorgesehenen
+  Wiederanlauf fail-closed.
+
+### Scope and compatibility
+
+- `v0.6.0` ist ein kompatibler Self-Hosting- und Betreiberrelease seit
+  `v0.5.0`.
+  Der Abschnitt umfasst den vollständig gemergten Stand aus #562, #563, #564,
+  #574, #575, #576 und #577 einschließlich der dafür erforderlichen
+  Dokumentations-, Architektur- und Releasevertragsänderungen.
+- Dieser Vorbereitungseintrag erzeugt weder einen Produkt-Tag noch einen
+  GitHub Release, GHCR- oder CLI-Artefakte, Attestations, eine Demo-Promotion
+  oder eine Environment-Freigabe.
+  Der geschützte Release-Workflow darf erst nach separatem Maintainer-GO und
+  erfolgreichem Preflight auf dem aktuellen `master` ausgeführt werden.
+- Alternative Datenbanken, S3-kompatibler Dokumentenspeicher, externe
+  Administration, PR-Previews, eine zentrale Mandantenflotte sowie rechtliche,
+  datenschutzbezogene, barrierefreie und organisatorische Freigaben der
+  öffentlichen Demo bleiben außerhalb dieses Releases und sind für spätere
+  Entscheidungen oder Milestones vorgesehen.
+
 ## [0.5.0] - 2026-08-30
 
 ### Added
