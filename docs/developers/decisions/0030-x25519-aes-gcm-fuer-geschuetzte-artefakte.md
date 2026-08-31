@@ -40,7 +40,7 @@ Passphrasen, mehrere Empfänger, alternative Algorithmen und Schlüsselverwaltun
 
 ## Referenzen
 
-- [Backup, Restore und Vollexport](../architecture/backup-restore-export.md)
+- [Lokaler Admin- und Artefaktvertrag](../data-and-contracts.md#lokaler-admin-und-artefaktvertrag)
 - [RFC 7748: Elliptic Curves for Security](https://www.rfc-editor.org/rfc/rfc7748)
 - [RFC 5869: HMAC-based Extract-and-Expand Key Derivation Function](https://www.rfc-editor.org/rfc/rfc5869)
 - [NIST SP 800-38D: Galois/Counter Mode](https://csrc.nist.gov/publications/detail/sp/800-38d/final)

@@ -53,5 +53,5 @@ Entscheidung; der technische Build bleibt erhalten.
 ## Referenzen
 
 - [ADR-0007: MkDocs und Code-Referenzen](0007-dokumentation-und-code-referenz.md)
-- [Wiki-Publikation](../wiki-publishing.md)
+- [Wiki-Publikation](../delivery.md#wiki-publikation)
 - [GitHub Wiki](https://github.com/lxndrp/lzug/wiki)

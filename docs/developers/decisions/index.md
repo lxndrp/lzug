@@ -2,7 +2,10 @@
 
 Diese rückwirkenden ADRs fassen Entscheidungen zusammen, die bereits im Repository umgesetzt oder dokumentiert waren.
 Sie ändern keine frühere Historie, machen aber Kontext, Konsequenzen und Verweise dauerhaft auffindbar.
-Die [Architekturgrundlage](../architecture/index.md) ordnet ihren aktuellen Systemkontext, die Sichten und die verbindlichen Prinzipien ein; dieses Register bleibt die maßgebliche Liste langfristiger Entscheidungen und ihres Status.
+Die [Architekturgrundlage](../architecture.md) ordnet ihren aktuellen
+Systemkontext, die Sichten und die verbindlichen Prinzipien ein; dieses
+Register bleibt die maßgebliche Liste langfristiger Entscheidungen und ihres
+Status.
 
 Der Index führt den aktuellen Status jeder Entscheidung.
 Bei einer vollständigen Ablösung verweisen alter und neuer ADR im jeweiligen Abschnitt `Status` aufeinander (`Superseded by` beziehungsweise `Supersedes`).

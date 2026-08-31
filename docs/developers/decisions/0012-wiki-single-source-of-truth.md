@@ -41,5 +41,5 @@ Technische Dokumente dürfen aus dem Wiki verlinkt werden, werden aber nicht als
 ## Referenzen
 
 - [ADR-0011: GitHub Wiki als redaktionelle Handbuchoberfläche](0011-github-wiki-handbuch.md)
-- [Wiki-Publikation](../wiki-publishing.md)
+- [Wiki-Publikation](../delivery.md#wiki-publikation)
 - [GitHub Wiki](https://github.com/lxndrp/lzug/wiki)

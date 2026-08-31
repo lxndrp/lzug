@@ -69,8 +69,8 @@ autorisiert weder einen Apply noch eine GitHub-Environment- oder Azure-Änderung
 
 ## Referenzen
 
-- [Releases und GHCR](../releases.md)
-- [Azure-Demo deployen](../demo-deployment.md)
+- [Release und Artefakte](../delivery.md#release-und-artefakte)
+- [Demo-Promotion und Deployment](../delivery.md#demo-promotion-und-deployment)
 - [GitHub: Reusable workflows](https://docs.github.com/actions/using-workflows/reusing-workflows)
 - [GitHub: Aktionen mit `GITHUB_TOKEN` auslösen](https://docs.github.com/actions/using-workflows/triggering-a-workflow#triggering-a-workflow-from-a-workflow)
 - [Issue #444](https://github.com/lxndrp/lzug/issues/444)

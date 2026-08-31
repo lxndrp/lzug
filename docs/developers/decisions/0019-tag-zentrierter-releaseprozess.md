@@ -62,7 +62,7 @@ widerspricht aber dem bewusst einfachen `master`-basierten Entwicklungsfluss.
 
 ## Referenzen
 
-- [Releases und GHCR](../releases.md)
-- [Stabiler Qualitätsvertrag](../continuous-integration.md)
+- [Release und Artefakte](../delivery.md#release-und-artefakte)
+- [Vollständige Qualität](../delivery.md#vollstandige-qualitat)
 - [ADR-0018](0018-semver-release-und-milestones.md)
 - Issue [#339](https://github.com/lxndrp/lzug/issues/339)

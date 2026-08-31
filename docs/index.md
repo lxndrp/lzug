@@ -7,9 +7,8 @@ Sie beschreibt den aktuellen versionierten Stand von `lzug`.
   [`CONTRIBUTING.md`](https://github.com/lxndrp/lzug/blob/master/CONTRIBUTING.md).
 - Für Fachlichkeit, Nutzung und Administration führt das
   [GitHub Wiki](https://github.com/lxndrp/lzug/wiki) weiter.
-- Aktuelle Verträge, Runbooks, Referenzen und Entscheidungen stehen im
-[Entwicklerhandbuch](developers/index.md).
-- Die Zuordnung der kanonischen Quellen erklärt
-[Dokumentation](developers/documentation.md).
+- Aktuelle technische Orientierung, Referenzen und Entscheidungen stehen im
+  [Entwicklerhandbuch](developers/index.md).
+- Die fünf Kernbereiche grenzen ihre kanonischen Quellen jeweils direkt ab.
 
 Die technische Referenz entsteht lokal mit `task docs`; CI stellt den Build als geschütztes Artefakt `lzug-documentation` bereit.

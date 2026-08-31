@@ -128,4 +128,7 @@ Chromium nie mit `--no-sandbox` starten.
 - Bei störendem Git-Fsmonitor
 `git -c core.fsmonitor=false status ...` verwenden.
 
-Ergänzend gelten die [Frontend-Richtlinie](docs/developers/frontend-guidelines.md), die kanonische [Review Policy](docs/developers/reviews/index.md) und das [Entwicklerhandbuch](docs/developers/index.md).
+Ergänzend gelten die Frontend- und Reviewregeln unter
+[Komponenten](docs/developers/components.md) und
+[Entwicklung](docs/developers/development.md) sowie das
+[Entwicklerhandbuch](docs/developers/index.md).

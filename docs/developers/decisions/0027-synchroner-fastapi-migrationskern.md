@@ -56,6 +56,6 @@ Dieses Risiko ist für eine schrittweise, rückfallfähige Migration unnötig.
 ## Referenzen
 
 - [ADR-0006: HTTP-API als OpenAPI-Vertrag](0006-openapi-http-vertrag.md)
-- [Backend und Datenzugriff](../architecture/backend.md)
+- [Backend](../components.md#backend)
 - [FastAPI: Nebenläufigkeit und `def`-Funktionen](https://fastapi.tiangolo.com/async/)
 - [Starlette: Thread Pool](https://www.starlette.io/threadpool/)

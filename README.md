@@ -36,7 +36,8 @@ Entwicklung.
 - Das [Entwicklerhandbuch](docs/developers/index.md) enthält aktuelle
 technische Verträge, Runbooks, Referenzen und Entscheidungen.
 
-Die verbindliche Zuordnung der Quellen und Dokumentarten steht unter [Dokumentation](docs/developers/documentation.md).
+Die verbindliche Zuordnung der Quellen und Dokumentarten steht im
+[Entwicklerhandbuch](docs/developers/index.md).
 `task docs` baut die versionierte technische Referenz lokal; CI stellt sie als geschütztes Artefakt bereit.
 
 ## Lizenz

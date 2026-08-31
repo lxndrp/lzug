@@ -122,8 +122,8 @@ Asset-Generationen behalten: vergrößert den normalen Pfad für seltene histori
 
 - [ADR-0018](0018-semver-release-und-milestones.md)
 - [ADR-0019](0019-tag-zentrierter-releaseprozess.md)
-- [Releases und GHCR](../releases.md)
-- [Stabiler Qualitätsvertrag](../continuous-integration.md)
+- [Release und Artefakte](../delivery.md#release-und-artefakte)
+- [Vollständige Qualität](../delivery.md#vollstandige-qualitat)
 - [Manuell gestartete Workflows](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)
 - [Geschützte Environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)
 - [Workflow-Läufe erneut ausführen](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs)

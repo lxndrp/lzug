@@ -50,6 +50,6 @@ und kontrollierte Änderungen verschlechtern.
 
 - [ADR-0013: Dezentrale Instanzen je Ausschuss](0013-dezentrale-instanzen-je-ausschuss.md)
 - [ADR-0015: Flüchtige Azure-Container-Apps-Demo](0015-fluechtige-azure-demo.md)
-- [Architekturübersicht](../architecture/index.md)
+- [Architekturübersicht](../architecture.md)
 - Epic [#113](https://github.com/lxndrp/lzug/issues/113)
 - Nachrangige Konzepte [#133](https://github.com/lxndrp/lzug/issues/133) und [#134](https://github.com/lxndrp/lzug/issues/134)

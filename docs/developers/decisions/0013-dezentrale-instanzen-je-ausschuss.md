@@ -43,7 +43,7 @@ dezentrale Self-Hosting-Ziel aufgeben.
 
 ## Referenzen
 
-- [Architekturübersicht](../architecture/index.md)
+- [Architekturübersicht](../architecture.md)
 - [ADR-0014: OCI-Einzelcontainer mit SQLite und persistentem `/data`](0014-oci-einzelcontainer-und-persistentes-data.md)
 - Epic [#113](https://github.com/lxndrp/lzug/issues/113)
 - Umsetzung [#114](https://github.com/lxndrp/lzug/issues/114)

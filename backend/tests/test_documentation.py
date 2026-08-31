@@ -7,6 +7,7 @@ from pathlib import Path
 from scripts.check_documentation import (
     check,
     check_adrs,
+    check_developer_structure,
     check_navigation,
     check_redundant_inventories,
 )
@@ -60,6 +61,34 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertTrue(any("DOC-CONTENT-001" in violation for violation in violations))
         self.assertTrue(any("DOC-CONTENT-002" in violation for violation in violations))
         self.assertTrue(any("DOC-CONTENT-003" in violation for violation in violations))
+
+    def test_developer_structure_rejects_legacy_pages(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            developers = root / "docs/developers"
+            decisions = developers / "decisions"
+            reference = developers / "reference"
+            decisions.mkdir(parents=True)
+            reference.mkdir()
+            for filename in (
+                "architecture.md",
+                "components.md",
+                "data-and-contracts.md",
+                "delivery.md",
+                "development.md",
+                "index.md",
+            ):
+                (developers / filename).write_text(f"# {filename}\n", encoding="utf-8")
+            (decisions / "index.md").write_text("# Decisions\n", encoding="utf-8")
+            (decisions / "TEMPLATE.md").write_text("# Template\n", encoding="utf-8")
+            (reference / "backend.md").write_text("# Backend\n", encoding="utf-8")
+            (reference / "frontend.md").write_text("# Frontend\n", encoding="utf-8")
+            (reference / "full-export-v1.schema.json").write_text("{}\n", encoding="utf-8")
+            (developers / "legacy.md").write_text("# Legacy\n", encoding="utf-8")
+
+            violations = check_developer_structure(root)
+
+        self.assertTrue(any("DOC-STRUCT-003" in violation for violation in violations))
 
     def test_adr_requires_status_and_keeps_supersession_in_status(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

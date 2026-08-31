@@ -70,6 +70,6 @@ Auch ein Merge auf `master` genügt nicht: Ohne den bewussten annotierten Tag-Pu
 
 ## Referenzen
 
-- [Öffentliche Demo](../demo-deployment.md)
-- [Azure-Demo-Deployment](../demo-deployment.md)
+- [Demo-Promotion und Deployment](../delivery.md#demo-promotion-und-deployment)
+- [Delivery und Veröffentlichung](../delivery.md)
 - [Issue #380](https://github.com/lxndrp/lzug/issues/380)

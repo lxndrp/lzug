@@ -24,4 +24,4 @@ Die Anwendung konsumiert die JSON-API über `PlanningApiService`.
 Das Frontend wird mit npm und dem eingecheckten `package-lock.json` installiert und über einen lokalen Proxy gegen das Python-Backend entwickelt.
 Komponenten-, Browser- und Accessibility-Tests gehören zur Änderung.
 Der HTTP-Vertrag selbst ist mit [ADR-0006](0006-openapi-http-vertrag.md) festgehalten.
-Die aktive Übersicht steht unter [Frontend-Richtlinie](../frontend-guidelines.md).
+Die aktive Übersicht steht unter [Frontend](../components.md#frontend).

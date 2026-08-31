@@ -120,5 +120,5 @@ Eine solche Neubewertung muss erneut den Mehrwert gegenüber den vorhandenen Ope
 - [InSpec-Docker-Resource-Pack](https://docs.chef.io/inspec/resource_packs/docker/)
 - [InSpec-Podman-Resource-Pack](https://docs.chef.io/inspec/resource_packs/podman/)
 - [InSpec-Azure-Resource-Pack](https://github.com/inspec/inspec-azure)
-- [Azure-Demo deployen](../demo-deployment.md)
+- [Demo-Promotion und Deployment](../delivery.md#demo-promotion-und-deployment)
 - [ADR-0009: Toolchain und Entwicklungs-Tasks trennen](0009-toolchain-und-entwicklungs-tasks.md)
