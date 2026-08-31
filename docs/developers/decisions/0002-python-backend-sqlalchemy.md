@@ -22,4 +22,5 @@ HTTP- und Fachcode arbeiten über SQLAlchemy-Modelle, Repositories und einen kle
 ## Konsequenzen
 
 Das relationale Modell ist lokal ausführbar und von SQLite-spezifischen APIs entkoppelt.
-Die aktive Architekturreferenz liegt unter [Backend und Datenzugriff](../architecture/backend.md); die Git-Historie bewahrt den früheren Prototypbericht.
+Die aktive Architekturreferenz liegt unter [Backend](../components.md#backend);
+die Git-Historie bewahrt den früheren Prototypbericht.

@@ -1,10 +1,11 @@
 site_name: lzug technische Referenz
-site_description: Versionierte technische Referenzen, Runbooks und Entscheidungen für lzug.
+site_description: Versionierte technische Orientierung, Referenzen und Entscheidungen für lzug.
 site_dir: site
 docs_dir: docs
 strict: true
 not_in_nav: |
   developers/decisions/*.md
+  developers/reference/*
 theme:
   name: mkdocs
 plugins:
@@ -24,41 +25,9 @@ nav:
   - Dokumentationslizenz: LICENSE.md
   - Für Entwickler:
       - Überblick: developers/index.md
-      - Pull-Request-Lifecycle: developers/pull-requests.md
-      - Synthetische Testdaten: developers/synthetic-fixtures.md
-      - Reviews:
-          - Review Policy: developers/reviews/index.md
-          - Reviewkriterien: developers/reviews/kriterien.md
-      - Frontend-Richtlinie: developers/frontend-guidelines.md
-      - Releases und GHCR: developers/releases.md
-      - Dokumentation: developers/documentation.md
-      - Continuous Integration: developers/continuous-integration.md
-      - Öffentliche Demo: developers/demo-deployment.md
-      - Demo-Kostenbaseline: developers/demo-cost-baseline.md
-      - Dependabot-Aktualisierungen: developers/dependabot.md
-      - Wiki-Publikation: developers/wiki-publishing.md
-      - Architektur:
-          - Übersicht: developers/architecture/index.md
-          - C4-Sichten und kritischer Ablauf: developers/architecture/views.md
-          - Architekturprinzipien: developers/architecture/principles.md
-          - Backend und Datenzugriff: developers/architecture/backend.md
-          - Authentifizierung und Sitzungen: developers/architecture/authentication.md
-          - Kanalneutrale Benachrichtigungen: developers/architecture/notifications.md
-          - Ausfall- und Ersatzprozess: developers/architecture/absence-replacement.md
-          - Revisionierte Planänderung: developers/architecture/confirmed-plan-revisions.md
-          - Auswirkungen von Planänderungen: developers/architecture/plan-change-consequences.md
-          - Versionierte Prüfungsprotokolle: developers/architecture/exam-protocols.md
-          - Regelgebundene Bewertungen und Ergebnisse: developers/architecture/exam-results.md
-          - Formeller Abschluss von Prüfungstagen: developers/architecture/exam-day-closure.md
-          - Lebenszyklus von Prüfungsrunden: developers/architecture/exam-round-lifecycle.md
-          - Betreiber-CLI für Administration und Diagnose: developers/architecture/operator-auth-cli.md
-          - Backup, Restore und Vollexport: developers/architecture/backup-restore-export.md
-          - Upgrade und Rollback: developers/architecture/upgrade-rollback.md
-          - OCI-Runtime: developers/architecture/oci-runtime.md
-      - Referenz:
-          - Fachliches Datenmodell: developers/domain-model.md
-          - Datenbankschema: developers/database-schema.md
-          - Python-Backend: developers/reference/backend.md
-          - TypeScript-Frontend: developers/reference/frontend.md
-      - Entscheidungen:
-          - Übersicht: developers/decisions/index.md
+      - Fachmodell und Verträge: developers/data-and-contracts.md
+      - Architektur und Entscheidungen: developers/architecture.md
+      - Komponenten: developers/components.md
+      - Delivery und Veröffentlichung: developers/delivery.md
+      - Entwicklung: developers/development.md
+      - ADR-Register: developers/decisions/index.md

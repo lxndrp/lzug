@@ -24,4 +24,5 @@ MkDocs, mkdocstrings und TypeDoc bleiben davon unabhängige Referenzgeneratoren.
 
 `task docs` baut MkDocs zuerst und erzeugt anschließend TypeDoc unter `site/developers/reference/frontend/`.
 Der Build wird nicht eingecheckt und nicht öffentlich gehostet; CI veröffentlicht `site/` als geschütztes Artefakt `lzug-documentation`.
-Konvention und Toolentscheidung stehen unter [Dokumentation](../documentation.md).
+Konvention und Toolentscheidung stehen unter
+[Dokumentation bearbeiten](../development.md#dokumentation-bearbeiten).

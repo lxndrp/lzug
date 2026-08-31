@@ -26,9 +26,9 @@ und technische Dokumentationsstandards stehen im
 Das [GitHub Wiki](https://github.com/lxndrp/lzug/wiki) enthält die
 redaktionellen Entwicklungsanleitungen. Die Zuordnung aller Dokumentarten und
 kanonischen Quellen steht unter
-[Dokumentation](docs/developers/documentation.md); der konkrete Wiki-Review-
-und Veröffentlichungsablauf unter
-[Wiki-Publikation](docs/developers/wiki-publishing.md).
+[Entwicklung](docs/developers/development.md#dokumentation-bearbeiten); der
+konkrete Wiki-Review- und Veröffentlichungsablauf unter
+[Delivery und Veröffentlichung](docs/developers/delivery.md#wiki-publikation).
 
 Eigene gepflegte Markdown-Prosa wird mit Semantic Line Breaks geschrieben: Sätze und sinnvolle Gedankeneinheiten beginnen in neuen Quellzeilen.
 Tabellen, Listenstruktur, Codeblöcke, Front Matter, URLs und technische Zeichenketten bleiben unverändert; Drittmaterial, Lizenztexte und generierte Inhalte werden nicht rein redaktionell umgebrochen.
@@ -46,7 +46,10 @@ Teilumsetzung eine nicht schließende Verknüpfung.
 - Prüfe die Zuordnungen nach dem Erstellen mit `gh pr view`.
 - CI und Review sind Voraussetzung für den Merge.
 
-Die vollständigen Befehle und der Ablauf bis zum Closeout stehen im [Pull-Request-Lifecycle](docs/developers/pull-requests.md).
+Die vollständigen Befehle und der Ablauf bis zum Closeout stehen unter
+[Pull Request und Closeout](docs/developers/development.md#pull-request-und-closeout).
 
 Release-Tags und öffentliche Artefakte bleiben Maintainer-Aufgaben.
-Der verbindliche SemVer-, Changelog-, GitHub-Release- und GHCR-Ablauf steht im [Release-Prozess](docs/developers/releases.md); ein Pull Request oder Merge allein löst keine Veröffentlichung aus.
+Der verbindliche SemVer-, Changelog-, GitHub-Release- und GHCR-Ablauf steht
+unter [Release und Artefakte](docs/developers/delivery.md#release-und-artefakte);
+ein Pull Request oder Merge allein löst keine Veröffentlichung aus.

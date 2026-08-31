@@ -24,7 +24,8 @@ Die Demo ist ein separates Veröffentlichungsziel.
 Sie ist weder die Referenzinstallation für Self-Hosting noch eine Mandanteninstanz für reale Ausschussdaten.
 Konkrete Azure-Ressourcen, Domains, TLS-, Reset- und Beobachtbarkeits- und Kostenregeln werden in den dafür vorgesehenen Folge-Issues entschieden.
 Für die typische öffentliche Nutzung gilt dabei ein verbindliches Kostenziel von höchstens 1 EUR pro Kalendermonat.
-Die reproduzierbare Annahme, die vollständige Ressourcenbaseline und der read-only-Abgleich stehen unter [Demo-Kostenbaseline](../demo-cost-baseline.md).
+Der aktuelle Budget- und Nachweisvertrag steht unter
+[Demo-Promotion und Deployment](../delivery.md#demo-promotion-und-deployment).
 
 ## Konsequenzen
 
@@ -51,7 +52,7 @@ Runtime- und Bediennachweis der Anwendung nicht erbringen.
 
 ## Referenzen
 
-- [Architekturübersicht](../architecture/index.md)
+- [Architekturübersicht](../architecture.md)
 - [ADR-0014: OCI-Einzelcontainer mit SQLite und persistentem `/data`](0014-oci-einzelcontainer-und-persistentes-data.md)
 - [ADR-0022: Tag-gebundene Demo-Assembly und inhaltsadressierter Seed](0022-tag-gebundene-demo-assembly-und-seed.md)
 - Epic [#113](https://github.com/lxndrp/lzug/issues/113)

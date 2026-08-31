@@ -414,7 +414,7 @@ class DemoDeploymentTests(unittest.TestCase):
         self.assertIn("demo_deployment.py wait-application-readiness", workflow[azure_login:])
         self.assertIn("demo_deployment.py smoke", workflow[azure_login:])
         self.assertIn("if: failure()", workflow)
-        deployment_docs = Path("docs/developers/demo-deployment.md").read_text(encoding="utf-8")
+        deployment_docs = Path("docs/developers/delivery.md").read_text(encoding="utf-8")
         self.assertIn("HTTP 401", deployment_docs)
         self.assertIn('{"error": "Authentication required."}', deployment_docs)
         publish = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")

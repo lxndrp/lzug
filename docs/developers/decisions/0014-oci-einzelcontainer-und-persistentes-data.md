@@ -57,9 +57,9 @@ Neustarts datenverlustgefährdet machen.
 
 ## Referenzen
 
-- [Architekturübersicht](../architecture/index.md)
-- [Backend und Datenzugriff](../architecture/backend.md)
-- [Datenbankschema](../database-schema.md)
+- [Architekturübersicht](../architecture.md)
+- [Backend](../components.md#backend)
+- [Persistenz und Migrationen](../data-and-contracts.md#persistenz-und-migrationen)
 - [ADR-0001: Lokale relationale Persistenz](0001-lokale-relationale-persistenz.md)
 - [ADR-0013: Dezentrale Instanzen je Ausschuss](0013-dezentrale-instanzen-je-ausschuss.md)
 - Issues [#116](https://github.com/lxndrp/lzug/issues/116), [#117](https://github.com/lxndrp/lzug/issues/117) und [#118](https://github.com/lxndrp/lzug/issues/118)

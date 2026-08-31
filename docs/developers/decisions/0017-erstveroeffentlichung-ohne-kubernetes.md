@@ -44,7 +44,7 @@ reproduzierbaren Referenzpfad schwächen; Compose bleibt deshalb die Referenzins
 
 ## Referenzen
 
-- [Architekturübersicht](../architecture/index.md)
+- [Architekturübersicht](../architecture.md)
 - [ADR-0014: OCI-Einzelcontainer mit SQLite und persistentem `/data`](0014-oci-einzelcontainer-und-persistentes-data.md)
 - [ADR-0016: Spätere getrennte Mandantenflotte](0016-spaetere-mandantenflotte.md)
 - Issue [#115](https://github.com/lxndrp/lzug/issues/115)

@@ -49,6 +49,29 @@ ROOT_DOCUMENT_MARKERS = {
 
 ADR_PATH = Path("docs/developers/decisions")
 ADR_FILENAME = re.compile(r"(?P<number>\d{4})-[a-z0-9]+(?:-[a-z0-9]+)*\.md$")
+DEVELOPER_PATH = Path("docs/developers")
+EDITORIAL_DEVELOPER_FILES = {
+    Path("architecture.md"),
+    Path("components.md"),
+    Path("data-and-contracts.md"),
+    Path("delivery.md"),
+    Path("development.md"),
+    Path("index.md"),
+}
+GENERATED_REFERENCE_FILES = {
+    Path("reference/backend.md"),
+    Path("reference/frontend.md"),
+    Path("reference/full-export-v1.schema.json"),
+}
+DEVELOPER_NAV_TARGETS = {
+    "developers/architecture.md",
+    "developers/components.md",
+    "developers/data-and-contracts.md",
+    "developers/decisions/index.md",
+    "developers/delivery.md",
+    "developers/development.md",
+    "developers/index.md",
+}
 SUPERSESSION_MARKER = re.compile(r"\b(?P<kind>Supersedes|Superseded by):\s*ADR-(?P<number>\d{4})\b")
 STATUS_HEADING = re.compile(r"^## Status\s*$", re.MULTILINE)
 NAV_TARGET = re.compile(r"^\s*-\s+[^\n:]+:\s+(?P<target>[\w./*-]+\.md)\s*$", re.MULTILINE)
@@ -131,6 +154,64 @@ def check_navigation(root: Path) -> list[str]:
                 f"[DOC-NAV-005] mkdocs.yml: navigated page {target!r} does not exist; "
                 "correct or remove the entry, then run task docs."
             )
+    developer_targets = {target for target in targets if target.startswith("developers/")}
+    if developer_targets != DEVELOPER_NAV_TARGETS:
+        missing = sorted(DEVELOPER_NAV_TARGETS - developer_targets)
+        unexpected = sorted(developer_targets - DEVELOPER_NAV_TARGETS)
+        violations.append(
+            "[DOC-NAV-006] mkdocs.yml: developer navigation must contain only the entry, "
+            "five core areas, and ADR register; "
+            f"missing={missing!r}, unexpected={unexpected!r}."
+        )
+    return violations
+
+
+def check_developer_structure(root: Path) -> list[str]:
+    """Require the consolidated editorial structure and explicit exceptions."""
+
+    directory = root / DEVELOPER_PATH
+    if not directory.is_dir():
+        return [
+            "[DOC-STRUCT-001] docs/developers: developer documentation is missing; "
+            "restore the entry, five core areas, ADR register, and generated references."
+        ]
+
+    files = {path.relative_to(directory) for path in directory.rglob("*") if path.is_file()}
+    missing_editorial = sorted(EDITORIAL_DEVELOPER_FILES - files)
+    if missing_editorial:
+        violations = [
+            "[DOC-STRUCT-002] docs/developers: consolidated editorial files are missing; "
+            f"restore {[str(path) for path in missing_editorial]!r}."
+        ]
+    else:
+        violations = []
+
+    allowed = (
+        EDITORIAL_DEVELOPER_FILES
+        | GENERATED_REFERENCE_FILES
+        | {
+            Path("decisions/index.md"),
+            Path("decisions/TEMPLATE.md"),
+        }
+    )
+    unexpected = []
+    for path in sorted(files - allowed):
+        if path.parent == Path("decisions") and ADR_FILENAME.fullmatch(path.name):
+            continue
+        unexpected.append(str(path))
+    if unexpected:
+        violations.append(
+            "[DOC-STRUCT-003] docs/developers: files outside the entry, five core areas, "
+            "ADR register/template/records, and generated references are forbidden; "
+            f"remove {unexpected!r} instead of adding legacy, redirect, or placeholder pages."
+        )
+
+    missing_references = sorted(GENERATED_REFERENCE_FILES - files)
+    if missing_references:
+        violations.append(
+            "[DOC-STRUCT-004] docs/developers/reference: required generated-reference "
+            f"sources are missing; restore {[str(path) for path in missing_references]!r}."
+        )
     return violations
 
 
@@ -307,6 +388,7 @@ def check(root: Path) -> list[str]:
 
     return [
         *check_documentation_paths(root),
+        *check_developer_structure(root),
         *check_navigation(root),
         *check_redundant_inventories(root),
         *check_adrs(root),

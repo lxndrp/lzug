@@ -55,7 +55,9 @@ Health ist Liveness; Ready prüft die Anwendungs- und Datenbankbereitschaft.
 Auth-Rate-Limits und secret-freie Access-Logs sind produktive Defaults.
 
 Aktuelle Durchsetzung liegt in den Workflows, Dockerfiles, Compose-Datei und den Runtime-Konfigurationsmodellen.
-Ihre Grenzen erläutern die [Authentifizierungsarchitektur](docs/developers/architecture/authentication.md) und die [OCI-Runtime](docs/developers/architecture/oci-runtime.md); die langfristigen Entscheidungen stehen in den ADRs.
+Ihre Grenzen erläutern [Architektur und Entscheidungen](docs/developers/architecture.md)
+und [Komponenten](docs/developers/components.md); die langfristigen
+Entscheidungen stehen in den ADRs.
 
 ## Sicherheitsgrenzen
 

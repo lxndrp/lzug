@@ -22,7 +22,8 @@ Syft ersetzt die projektspezifische Lizenzinventur durch standardisierte Cyclone
 `Taskfile.yml` ist die einzige öffentliche Schnittstelle für lokale Entwicklungsabläufe; `task setup`, `task test`, `task docs`, `task sbom`, `task quality` und `task dev` sowie ihre dokumentierten Teilaufgaben ersetzen die bisherigen `mise run`-Befehle.
 
 GitHub Actions ist keine lokale Entwickler-Schnittstelle: Die Pipeline modelliert bewusst getrennte Jobs, wählt ihre Jobs konservativ nach Änderungsumfang, nutzt jobspezifische Caches und veröffentlicht Coverage- sowie getrennte Playwright-Artefakte.
-Der immer laufende Gesamtstatus und die Pfadklassifikation sind unter [Continuous Integration](../continuous-integration.md) dokumentiert.
+Der immer laufende Gesamtstatus und die Pfadklassifikation sind unter
+[Pull-Request-Gates](../delivery.md#pull-request-gates) dokumentiert.
 Die darin ausgeführten Prüfkommandos entsprechen weiter den lokalen Workflow-Schritten.
 
 ## Konsequenzen
@@ -69,6 +70,6 @@ erkennbaren Nutzen komplexer machen.
 ## Referenzen
 
 - [ADR-0003: Toolchain mit mise, uv und npm](0003-toolchain-mise-uv-npm.md)
-- [Continuous Integration](../continuous-integration.md)
+- [Delivery und Veröffentlichung](../delivery.md)
 - [Entwickler-Setup im GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung-Einrichtung)
 - [Qualität und Sicherheitsprozess im GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung-Qualitaet-und-Sicherheit)

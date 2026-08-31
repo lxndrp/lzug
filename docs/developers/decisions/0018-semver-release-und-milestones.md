@@ -77,7 +77,7 @@ Für `v1.1.0` wird bis zur Verfeinerung von #165 bewusst weder ein Datum noch ei
 2. Die Kandidatenautomation erzeugt das einzige verbleibende Release-Issue,
 hält die Kandidat-SHA fest und ordnet es demselben Milestone zu.
 3. Das Release-Issue dokumentiert Scope-Freeze, die stabilen Qualitätsgates
-aus dem [CI-Vertrag](../continuous-integration.md), Security- und Betriebsprüfung, Release Notes und die ausdrückliche Freigabe.
+aus der [vollständigen Qualität](../delivery.md#vollstandige-qualitat), Security- und Betriebsprüfung, Release Notes und die ausdrückliche Freigabe.
 4. Nur das Schließen durch eine Person mit `maintain` oder `admin` startet die
 erneute serverseitige Validierung.
 Der Veröffentlichungsjob wartet zusätzlich im GitHub-Environment `release` auf einen Required Reviewer.
@@ -145,8 +145,8 @@ Commit könnte damit weiterhin eine veröffentlichte Version vortäuschen.
 
 ## Referenzen
 
-- [Releases und GHCR](../releases.md)
-- [Stabiler Qualitätsvertrag](../continuous-integration.md)
+- [Release und Artefakte](../delivery.md#release-und-artefakte)
+- [Vollständige Qualität](../delivery.md#vollstandige-qualitat)
 - Issues [#301](https://github.com/lxndrp/lzug/issues/301),
   [#303](https://github.com/lxndrp/lzug/issues/303),
   [#306](https://github.com/lxndrp/lzug/issues/306),
