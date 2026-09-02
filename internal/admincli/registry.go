@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 var commandTokenPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
@@ -62,6 +63,10 @@ func NewRegistry(groups []CommandGroup, commands []Command) (*Registry, error) {
 	legacy := map[string]string{}
 	for index := range commands {
 		command := commands[index]
+		applyInteractiveMetadata(&command)
+		if command.BackendCommand != "" && command.Timeout == 0 {
+			command.Timeout = commandTimeout(command.Name())
+		}
 		if err := validateCommand(command, registry.groups); err != nil {
 			return nil, err
 		}
@@ -83,6 +88,46 @@ func NewRegistry(groups []CommandGroup, commands []Command) (*Registry, error) {
 		return registry.commands[left].Name() < registry.commands[right].Name()
 	})
 	return registry, nil
+}
+
+func commandTimeout(name string) time.Duration {
+	switch name {
+	case "backup restore", "upgrade apply":
+		return 30 * time.Minute
+	case "backup create", "export create", "notification process", "plan-consequence retry":
+		return 10 * time.Minute
+	default:
+		return 2 * time.Minute
+	}
+}
+
+func applyInteractiveMetadata(command *Command) {
+	terms := map[string][]string{
+		"account":          {"konto", "benutzer", "einladung", "wiederherstellung"},
+		"backup":           {"sicherung", "wiederherstellung", "restore"},
+		"cli":              {"dialog", "interaktiv", "geführt"},
+		"committee":        {"ausschuss", "prüfungsausschuss", "mitglied"},
+		"completion":       {"shell", "vervollstaendigung"},
+		"config":           {"konfiguration", "ziel", "engine", "container"},
+		"export":           {"export", "archiv"},
+		"notification":     {"benachrichtigung", "zustellung"},
+		"plan-consequence": {"planfolge", "termin", "status"},
+		"system":           {"system", "diagnose", "bereitschaft", "status"},
+		"upgrade":          {"aktualisierung", "migration", "rollback"},
+	}
+	command.SearchTerms = append(command.SearchTerms, terms[command.Path[0]]...)
+	readOnly := map[string]bool{
+		"backup verify":           true,
+		"config inspect":          true,
+		"export verify":           true,
+		"plan-consequence status": true,
+		"system config":           true,
+		"system doctor":           true,
+		"system status":           true,
+		"upgrade rollback":        true,
+	}
+	command.Mutating = command.BackendCommand != "" && !readOnly[command.Name()]
+	command.RetrySafe = readOnly[command.Name()] || strings.HasPrefix(command.Name(), "completion ") || strings.HasPrefix(command.Name(), "committee ")
 }
 
 func validateCommand(command Command, groups map[string]CommandGroup) error {

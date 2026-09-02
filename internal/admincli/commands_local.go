@@ -37,16 +37,16 @@ func localCommands() []Command {
 		},
 		{
 			Path:        []string{"cli"},
-			Summary:     "Start the guided interactive mode (reserved).",
-			Description: "The registry entry reserves the shared interactive entry point for issue #570; this release does not implement an interactive user interface.",
+			Summary:     "Start the guided interactive operator dialog.",
+			Description: "Start the line-oriented terminal dialog generated from this command registry. Interactive input and output terminals are required; --json and --force are invalid. Direct subcommands remain the interface for automation.",
 			Examples:    []string{"lzug-admin cli"},
 			Transport:   LocalTransport,
-			Output:      OutputSpec{Human: HumanLocal, Verbose: VerboseSummary, JSON: JSONLocal, Summary: "Returns a stable unavailable-command error until the interactive mode is implemented."},
+			Output:      OutputSpec{Human: HumanLocal, Verbose: VerboseSummary, JSON: JSONLocal, Summary: "Runs the guided terminal session until the operator exits or interrupts it."},
 			Local: func(_ context.Context, _ LocalContext, _ Values) (LocalResult, *CLIError) {
 				return LocalResult{}, &CLIError{
-					Class:    "interactive_mode_unavailable",
-					Message:  "The guided interactive mode is not available in this release.",
-					NextStep: "Invoke a registered object and action directly.",
+					Class:    "interactive_session_required",
+					Message:  "The guided mode must be entered through the top-level cli invocation.",
+					NextStep: "Run lzug-admin cli in an interactive terminal.",
 					ExitCode: ExitInvalidInvocation,
 				}
 			},
