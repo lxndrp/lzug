@@ -42,9 +42,21 @@ type LocationsHarness = LocationsComponent & {
   decisionReason: string;
   searchTerm: WritableSignal<string>;
   scopeFilter: WritableSignal<'all' | 'global' | 'committee'>;
+  statusFilter: WritableSignal<'all' | 'active' | 'inactive' | 'clarification'>;
   accessibilityFilter: WritableSignal<'all' | 'yes' | 'no' | 'unknown'>;
   venues(): ExamVenue[];
   filteredVenues(): ExamVenue[];
+  detailVenue(): ExamVenue | null;
+  activeRooms(venue: ExamVenue): ExamRoom[];
+  activeRoomNames(venue: ExamVenue): string;
+  committeeName(venue: ExamVenue): string;
+  scopeLabel(venue: ExamVenue): string;
+  statusLabel(venue: ExamVenue): string;
+  accessibilityLabel(venue: ExamVenue): string;
+  roomLocation(room: ExamRoom): string;
+  optional(value: string | null | undefined): string;
+  address(venue: ExamVenue): string;
+  clearFilters(): void;
   submitVenue(): void;
   toggleVenueCreation(): void;
   startEditing(venue: ExamVenue): void;
@@ -115,6 +127,130 @@ describe('LocationsComponent', () => {
     const root = fixture.nativeElement as HTMLElement;
     expect(root.textContent).toContain('Prüfungsort nicht hinterlegt');
     expect(root.textContent).not.toContain('Ort bearbeiten');
+  });
+
+  it('covers venue labels, filter branches and detail fallbacks', () => {
+    const harness = fixture.componentInstance as unknown as LocationsHarness;
+    const baseVenue = masterDataFixture.examVenues[0];
+    const globalVenue: ExamVenue = {
+      ...baseVenue,
+      id: 2,
+      scope: 'global',
+      committee_id: null,
+      name: 'Globaler Saal',
+      street: '',
+      postal_code: '',
+      city: '',
+      country: '',
+      site_name: 'Hauptstandort',
+      entrance: 'Eingang Ost',
+      travel_directions: 'Vom Bahnhof über die Brücke.',
+      accessibility_notes: 'Aufzug vorhanden.',
+      is_accessible: 0,
+      is_active: 0,
+      rooms: [
+        { ...baseVenue.rooms[0], id: 2, name: 'Inaktiver Raum', is_active: 0 },
+        {
+          ...baseVenue.rooms[0],
+          id: 3,
+          name: 'Nordraum',
+          building: 'Haus B',
+          wing: 'Ost',
+          floor: '2',
+          room_number: 'B-202',
+          access_notes: 'Stufenlos erreichbar.',
+          is_active: 1,
+        },
+      ],
+    };
+    const unknownVenue: ExamVenue = {
+      ...baseVenue,
+      id: 3,
+      name: 'Noch zu prüfender Ort',
+      committee_id: 999,
+      is_accessible: null,
+      accessibility_status: 'needs_clarification',
+      is_active: 0,
+      rooms: [],
+    };
+    harness.masterData = {
+      ...masterDataFixture,
+      examVenues: [baseVenue, globalVenue, unknownVenue],
+    };
+
+    harness.statusFilter.set('active');
+    expect(harness.filteredVenues()).toEqual([baseVenue]);
+    harness.statusFilter.set('inactive');
+    expect(harness.filteredVenues()).toEqual([globalVenue, unknownVenue]);
+    harness.statusFilter.set('clarification');
+    expect(harness.filteredVenues()).toEqual([unknownVenue]);
+    harness.statusFilter.set('all');
+    harness.accessibilityFilter.set('yes');
+    expect(harness.filteredVenues()).toEqual([baseVenue]);
+    harness.accessibilityFilter.set('no');
+    expect(harness.filteredVenues()).toEqual([globalVenue]);
+    harness.accessibilityFilter.set('unknown');
+    expect(harness.filteredVenues()).toEqual([unknownVenue]);
+
+    harness.searchTerm.set('haus b');
+    expect(harness.filteredVenues()).toEqual([]);
+    harness.accessibilityFilter.set('all');
+    expect(harness.filteredVenues()).toEqual([globalVenue]);
+    harness.detailVenueId = null;
+    expect(harness.detailVenue()).toBeNull();
+    harness.detailVenueId = 2;
+    expect(harness.detailVenue()).toBe(globalVenue);
+    harness.detailVenueId = 999;
+    expect(harness.detailVenue()).toBeNull();
+
+    expect(harness.activeRooms(globalVenue)).toHaveLength(1);
+    expect(harness.activeRoomNames(globalVenue)).toBe('Nordraum');
+    expect(harness.committeeName(globalVenue)).toBe('Alle Ausschüsse');
+    expect(harness.committeeName(unknownVenue)).toBe('Zuständiger Ausschuss');
+    expect(harness.scopeLabel(globalVenue)).toBe('Globaler Ort');
+    expect(harness.scopeLabel(baseVenue)).toContain('Ausschuss:');
+    expect(harness.statusLabel(unknownVenue)).toBe('Klärung erforderlich');
+    expect(harness.statusLabel(globalVenue)).toBe('Inaktiv');
+    expect(harness.statusLabel(baseVenue)).toBe('Aktiv');
+    expect(harness.accessibilityLabel(baseVenue)).toBe('Ja');
+    expect(harness.accessibilityLabel(globalVenue)).toBe('Nein');
+    expect(harness.accessibilityLabel(unknownVenue)).toBe('Noch nicht bestätigt');
+    expect(harness.roomLocation(globalVenue.rooms[1])).toBe('Haus B · Ost · 2 · B-202');
+    expect(harness.roomLocation(globalVenue.rooms[0])).toBe('Nicht hinterlegt');
+    expect(harness.optional('  vorhanden ')).toBe('vorhanden');
+    expect(harness.optional('   ')).toBe('Nicht hinterlegt');
+    expect(harness.optional(null)).toBe('Nicht hinterlegt');
+    expect(harness.address(globalVenue)).toBe('');
+    expect(harness.address(baseVenue)).toContain(baseVenue.city);
+
+    harness.searchTerm.set('suchbegriff');
+    harness.scopeFilter.set('global');
+    harness.statusFilter.set('inactive');
+    harness.accessibilityFilter.set('no');
+    harness.clearFilters();
+    expect(harness.searchTerm()).toBe('');
+    expect(harness.scopeFilter()).toBe('all');
+    expect(harness.statusFilter()).toBe('all');
+    expect(harness.accessibilityFilter()).toBe('all');
+  });
+
+  it('renders loading, error and empty overview states', () => {
+    fixture.componentRef.setInput('masterData', null);
+    fixture.componentRef.setInput('loading', true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Prüfungsorte werden geladen');
+
+    fixture.componentRef.setInput('loading', false);
+    fixture.componentRef.setInput('loadError', true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Keine Ortsdaten verfügbar');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Prüfungsorte konnten nicht synchronisiert werden.',
+    );
+
+    fixture.componentRef.setInput('masterData', { ...masterDataFixture, examVenues: [] });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Keine sichtbaren Prüfungsorte.');
   });
 
   it('does not render management actions for a read-only venue', () => {
