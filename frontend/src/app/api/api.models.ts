@@ -1055,4 +1055,5 @@ export type MasterData = {
   candidateAssignments: CandidateCommitteeAssignment[];
   locations: Location[];
   examVenues: ExamVenue[];
+  examVenuesCanCreate?: boolean;
 };

@@ -70,6 +70,7 @@ export type ContactUpdate = {
   selector: 'app-locations',
   imports: [FormsModule, TuiBadge, TuiButton, TuiForm, TuiHeader, TuiInput, TuiTextfield],
   templateUrl: './locations.component.html',
+  styleUrl: './locations.component.css',
 })
 export class LocationsComponent {
   @ViewChild('venueCreateButton')
@@ -79,7 +80,13 @@ export class LocationsComponent {
   @Input() actionBusy = false;
   @Input() isOperator = false;
   @Input() readOnly = false;
+  @Input() loading = false;
+  @Input() loadError = false;
+  @Input() detailVenueId: number | null = null;
+  @Input() canCreateVenue = false;
 
+  @Output() openVenue = new EventEmitter<number>();
+  @Output() closeDetail = new EventEmitter<void>();
   @Output() createVenue = new EventEmitter<VenueCreate>();
   @Output() updateVenue = new EventEmitter<VenueUpdate>();
   @Output() deleteVenue = new EventEmitter<ExamVenue>();
@@ -104,6 +111,10 @@ export class LocationsComponent {
   protected readonly editingContactId = signal<number | null>(null);
   protected readonly promotionVenueId = signal<number | null>(null);
   protected readonly decisionVenueId = signal<number | null>(null);
+  protected readonly searchTerm = signal('');
+  protected readonly scopeFilter = signal<'all' | 'global' | 'committee'>('all');
+  protected readonly statusFilter = signal<'all' | 'active' | 'inactive' | 'clarification'>('all');
+  protected readonly accessibilityFilter = signal<'all' | 'yes' | 'no' | 'unknown'>('all');
   protected editDraft: VenueCreate | null = null;
   protected promotionReason = '';
   protected decisionReason = '';
@@ -126,6 +137,114 @@ export class LocationsComponent {
 
   protected venues(): ExamVenue[] {
     return this.masterData?.examVenues ?? [];
+  }
+
+  protected filteredVenues(): ExamVenue[] {
+    const query = this.searchTerm().trim().toLocaleLowerCase();
+    return this.venues().filter((venue) => {
+      if (this.scopeFilter() !== 'all' && venue.scope !== this.scopeFilter()) return false;
+      if (this.statusFilter() === 'active' && !venue.is_active) return false;
+      if (this.statusFilter() === 'inactive' && venue.is_active) return false;
+      if (
+        this.statusFilter() === 'clarification' &&
+        venue.accessibility_status !== 'needs_clarification'
+      ) {
+        return false;
+      }
+      if (!this.matchesAccessibilityFilter(venue)) return false;
+      if (!query) return true;
+      const searchable = [
+        venue.name,
+        venue.street,
+        venue.postal_code,
+        venue.city,
+        venue.country,
+        ...venue.rooms.flatMap((room) => [
+          room.name,
+          room.building,
+          room.wing,
+          room.floor,
+          room.room_number,
+        ]),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLocaleLowerCase();
+      return searchable.includes(query);
+    });
+  }
+
+  protected detailVenue(): ExamVenue | null {
+    if (this.detailVenueId === null) return null;
+    return this.venues().find((venue) => venue.id === this.detailVenueId) ?? null;
+  }
+
+  protected activeRooms(venue: ExamVenue): ExamRoom[] {
+    return venue.rooms.filter((room) => Boolean(room.is_active));
+  }
+
+  protected activeRoomNames(venue: ExamVenue): string {
+    return this.activeRooms(venue)
+      .map((room) => room.name)
+      .join(', ');
+  }
+
+  protected committeeName(venue: ExamVenue): string {
+    if (venue.scope === 'global') return 'Alle Ausschüsse';
+    return (
+      this.masterData?.committees.find((committee) => committee.id === venue.committee_id)?.name ??
+      'Zuständiger Ausschuss'
+    );
+  }
+
+  protected scopeLabel(venue: ExamVenue): string {
+    return venue.scope === 'global' ? 'Globaler Ort' : `Ausschuss: ${this.committeeName(venue)}`;
+  }
+
+  protected statusLabel(venue: ExamVenue): string {
+    if (venue.accessibility_status === 'needs_clarification') return 'Klärung erforderlich';
+    return venue.is_active ? 'Aktiv' : 'Inaktiv';
+  }
+
+  protected accessibilityLabel(venue: ExamVenue): string {
+    if (venue.accessibility_status !== 'confirmed' || venue.is_accessible === null) {
+      return 'Noch nicht bestätigt';
+    }
+    return venue.is_accessible ? 'Ja' : 'Nein';
+  }
+
+  protected roomLocation(room: ExamRoom): string {
+    return (
+      [room.building, room.wing, room.floor, room.room_number].filter(Boolean).join(' · ') ||
+      'Nicht hinterlegt'
+    );
+  }
+
+  protected optional(value: string | null | undefined): string {
+    return value?.trim() || 'Nicht hinterlegt';
+  }
+
+  protected address(venue: ExamVenue): string {
+    return [venue.street, [venue.postal_code, venue.city].filter(Boolean).join(' '), venue.country]
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  protected clearFilters(): void {
+    this.searchTerm.set('');
+    this.scopeFilter.set('all');
+    this.statusFilter.set('all');
+    this.accessibilityFilter.set('all');
+  }
+
+  private matchesAccessibilityFilter(venue: ExamVenue): boolean {
+    const filter = this.accessibilityFilter();
+    if (filter === 'all') return true;
+    if (filter === 'yes')
+      return venue.accessibility_status === 'confirmed' && venue.is_accessible === 1;
+    if (filter === 'no')
+      return venue.accessibility_status === 'confirmed' && venue.is_accessible === 0;
+    return venue.accessibility_status !== 'confirmed' || venue.is_accessible === null;
   }
 
   protected submitVenue(): void {

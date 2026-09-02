@@ -40,7 +40,11 @@ type LocationsHarness = LocationsComponent & {
   };
   promotionReason: string;
   decisionReason: string;
+  searchTerm: WritableSignal<string>;
+  scopeFilter: WritableSignal<'all' | 'global' | 'committee'>;
+  accessibilityFilter: WritableSignal<'all' | 'yes' | 'no' | 'unknown'>;
   venues(): ExamVenue[];
+  filteredVenues(): ExamVenue[];
   submitVenue(): void;
   toggleVenueCreation(): void;
   startEditing(venue: ExamVenue): void;
@@ -69,12 +73,48 @@ describe('LocationsComponent', () => {
   });
 
   it('renders the aggregate with rooms and management actions from capabilities', () => {
+    fixture.componentRef.setInput('detailVenueId', masterDataFixture.examVenues[0].id);
+    fixture.detectChanges();
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
     expect(text).toContain(masterDataFixture.examVenues[0].name);
     expect(text).toContain(masterDataFixture.examVenues[0].rooms[0].name);
     expect(text).toContain('Global vorschlagen');
     expect(text).toContain('Kontakt anlegen');
+  });
+
+  it('renders a searchable overview with scope and accessibility filters', () => {
+    const harness = fixture.componentInstance as unknown as LocationsHarness;
+    const secondVenue = {
+      ...masterDataFixture.examVenues[0],
+      id: 2,
+      name: 'Globaler Saal',
+      scope: 'global' as const,
+      committee_id: null,
+      is_accessible: 0,
+      capabilities: { manage: false, request_promotion: false, decide_promotion: false },
+    };
+    harness.masterData = {
+      ...masterDataFixture,
+      examVenues: [masterDataFixture.examVenues[0], secondVenue],
+    };
+    harness.searchTerm.set('globaler');
+    expect(harness.filteredVenues()).toEqual([secondVenue]);
+    harness.searchTerm.set('');
+    harness.scopeFilter.set('global');
+    expect(harness.filteredVenues()).toEqual([secondVenue]);
+    harness.scopeFilter.set('all');
+    harness.accessibilityFilter.set('no');
+    expect(harness.filteredVenues()).toEqual([secondVenue]);
+  });
+
+  it('shows a readable missing-detail state without exposing management controls', () => {
+    fixture.componentRef.setInput('detailVenueId', 999);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.textContent).toContain('Prüfungsort nicht hinterlegt');
+    expect(root.textContent).not.toContain('Ort bearbeiten');
   });
 
   it('does not render management actions for a read-only venue', () => {
@@ -100,6 +140,8 @@ describe('LocationsComponent', () => {
   });
 
   it('emits a revisioned room status change', () => {
+    fixture.componentRef.setInput('detailVenueId', masterDataFixture.examVenues[0].id);
+    fixture.detectChanges();
     const component = fixture.componentInstance;
     vi.spyOn(component.updateRoom, 'emit').mockReturnValue(undefined);
 
@@ -379,6 +421,7 @@ describe('LocationsComponent', () => {
       capabilities: { manage: true, request_promotion: true, decide_promotion: true },
     } satisfies ExamVenue;
     fixture.componentRef.setInput('masterData', { ...masterDataFixture, examVenues: [venue] });
+    fixture.componentRef.setInput('detailVenueId', venue.id);
     harness.creating.set(true);
     harness.startEditing(venue);
     harness.roomVenueId.set(venue.id);

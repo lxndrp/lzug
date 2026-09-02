@@ -1647,6 +1647,33 @@ test.describe('lzug browser workflows', () => {
     expect(layout.actionsFit).toBe(true);
   });
 
+  test('searches and filters venues before opening an accessible detail view', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const providerRequests: string[] = [];
+    page.on('request', (request) => {
+      if (/tile|nominatim|googleapis|maps/.test(request.url()))
+        providerRequests.push(request.url());
+    });
+
+    await page.goto('/locations');
+    const venueCard = page.getByRole('article', { name: athenCourtLocation.name });
+    await expect(venueCard).toBeVisible();
+    const search = page.getByRole('searchbox', { name: 'Suche' });
+    await search.fill(athenCourtLocation.name);
+    await expect(
+      page.getByRole('status').filter({ hasText: /von .* sichtbaren Orten/ }),
+    ).toContainText('1 von');
+    await page.getByRole('combobox', { name: 'Scope' }).selectOption('committee');
+    await expect(venueCard).toBeVisible();
+
+    await page.getByRole('button', { name: 'Details ansehen' }).click();
+    await expect(page).toHaveURL(/\/locations\/\d+$/);
+    await expect(page.getByRole('heading', { name: 'Ort und Anreise' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Räume' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Zulässige Kontakte' })).toBeVisible();
+    expect(providerRequests).toEqual([]);
+  });
+
   test('opens the candidate form with the keyboard', async ({ page }) => {
     await page.goto('/candidates');
 
