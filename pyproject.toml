@@ -24,7 +24,7 @@ dev = [
   "pip-audit>=2.9.0,<3.0",
   "ruff>=0.16.2",
   "black>=24.0.0",
-  "mypy>=1.19,<2",
+  "mypy>=1.19,<3",
 ]
 
 [tool.unittest]
