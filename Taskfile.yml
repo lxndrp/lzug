@@ -249,6 +249,7 @@ tasks:
   quality:backend:
     desc: Run backend lint, audit, tests, and coverage
     cmds:
+      - task: backend:complexity
       - task: backend:lint
       - task: backend:format
       - task: backend:audit
@@ -453,6 +454,16 @@ tasks:
     internal: true
     cmds:
       - '{{.UV}} python -m ruff check .'
+
+  backend:complexity:
+    desc: Report cyclomatic complexity of productive backend modules
+    cmds:
+      - >-
+        {{.UV}} python -m ruff check backend
+        --select C901
+        --exclude backend/tests
+        --output-format concise
+        --exit-zero
 
   backend:format:
     internal: true
