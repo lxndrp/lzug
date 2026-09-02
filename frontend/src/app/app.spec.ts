@@ -501,6 +501,157 @@ describe('App', () => {
       .flush({ error: 'unavailable' }, { status: 503, statusText: 'Unavailable' });
   });
 
+  it('keeps explicit geocoding candidates separate from venue data on success and failure', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+    const app = fixture.componentInstance as unknown as {
+      geocodeVenue(venue: ExamVenue): void;
+      geocodeCandidate(): {
+        venueId: number;
+        latitude: number;
+        longitude: number;
+        source: string;
+      } | null;
+      actionBusy(): boolean;
+      updateVenue(update: VenueUpdate): void;
+    };
+    const venue = masterDataFixture.examVenues[0];
+
+    app.geocodeVenue(venue);
+    expect(app.actionBusy()).toBe(true);
+    const success = http.expectOne(`/api/exam-venues/${venue.id}/geocode`);
+    expect(success.request.body).toEqual({ expected_revision: venue.revision });
+    success.flush({ latitude: 53.55, longitude: 9.99, source: 'nominatim' });
+    expect(app.geocodeCandidate()).toEqual({
+      venueId: venue.id,
+      latitude: 53.55,
+      longitude: 9.99,
+      source: 'nominatim',
+    });
+    expect(app.actionBusy()).toBe(false);
+
+    app.geocodeVenue(venue);
+    http
+      .expectOne(`/api/exam-venues/${venue.id}/geocode`)
+      .flush({}, { status: 503, statusText: 'Provider unavailable' });
+    expect(app.geocodeCandidate()).toEqual({
+      venueId: venue.id,
+      latitude: 53.55,
+      longitude: 9.99,
+      source: 'nominatim',
+    });
+    expect(app.actionBusy()).toBe(false);
+
+    const coordinateUpdate: VenueUpdate = {
+      id: venue.id,
+      payload: {
+        expected_revision: venue.revision,
+        latitude: 53.55,
+        longitude: 9.99,
+        coordinate_status: 'confirmed',
+        coordinate_source: 'nominatim',
+      },
+    };
+    app.updateVenue(coordinateUpdate);
+    http.expectOne(`/api/exam-venues/${venue.id}/change-impact`).flush({ count: 0 });
+    http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
+    http
+      .expectOne(`/api/exam-venues/${venue.id}`)
+      .flush({ ...venue, ...coordinateUpdate.payload, revision: venue.revision + 1 });
+    flushDashboardRequests(http);
+    expect(app.geocodeCandidate()).toBeNull();
+
+    app.geocodeVenue(venue);
+    http
+      .expectOne(`/api/exam-venues/${venue.id}/geocode`)
+      .flush({ latitude: 53.55, longitude: 9.99, source: 'nominatim' });
+    app.updateVenue(coordinateUpdate);
+    http.expectOne(`/api/exam-venues/${venue.id}/change-impact`).flush({ count: 0 });
+    http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
+    http
+      .expectOne(`/api/exam-venues/${venue.id}`)
+      .flush({}, { status: 503, statusText: 'Provider unavailable' });
+    expect(app.geocodeCandidate()).not.toBeNull();
+  });
+
+  it('routes into and out of the selected venue detail', async () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    const router = TestBed.inject(Router);
+    flushDashboardRequests(http);
+    const app = fixture.componentInstance as unknown as {
+      openVenue(id: number): void;
+      closeVenueDetail(): void;
+      breadcrumb(): string;
+    };
+
+    app.openVenue(masterDataFixture.examVenues[0].id);
+    await fixture.whenStable();
+    expect(router.url).toBe(`/locations/${masterDataFixture.examVenues[0].id}`);
+    expect(app.breadcrumb()).toBe('Globale Bereiche');
+
+    app.closeVenueDetail();
+    await fixture.whenStable();
+    expect(router.url).toBe('/locations');
+  });
+
+  it('covers confirmed venue actions and their non-mutating failure paths', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+    const confirm = TestBed.inject(TuiConfirmService);
+    vi.spyOn(confirm, 'withConfirm').mockReturnValue(of(true));
+    const app = fixture.componentInstance as unknown as {
+      requestVenueDeletion(venue: ExamVenue): void;
+      createVenue(payload: VenueCreate): void;
+      updateRoom(update: RoomUpdate): void;
+    };
+    const venue = masterDataFixture.examVenues[0];
+
+    app.requestVenueDeletion(venue);
+    http
+      .expectOne(`/api/exam-venues/${venue.id}`)
+      .flush({}, { status: 409, statusText: 'Venue in use' });
+
+    const create: VenueCreate = {
+      scope: 'committee',
+      committee_id: 1,
+      name: 'Prüfungszentrum West',
+      street: 'Testweg 2',
+      postal_code: '20095',
+      city: 'Hamburg',
+      country: 'Deutschland',
+      accessibility_status: 'confirmed',
+      is_accessible: true,
+      is_active: true,
+    };
+    app.createVenue(create);
+    http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
+    http
+      .expectOne('/api/exam-venues')
+      .flush({}, { status: 503, statusText: 'Persistence unavailable' });
+
+    const roomUpdate: RoomUpdate = {
+      id: venue.rooms[0].id,
+      payload: { expected_revision: venue.rooms[0].revision, name: 'A-102' },
+    };
+    app.updateRoom(roomUpdate);
+    http.expectOne(`/api/exam-rooms/${roomUpdate.id}/change-impact`).flush({
+      count: 1,
+      date_from: '2026-11-01',
+      date_to: '2026-11-01',
+    });
+    http
+      .expectOne(`/api/exam-rooms/${roomUpdate.id}`)
+      .flush({}, { status: 409, statusText: 'Revision conflict' });
+
+    app.updateRoom(roomUpdate);
+    http
+      .expectOne(`/api/exam-rooms/${roomUpdate.id}/change-impact`)
+      .flush({}, { status: 503, statusText: 'Impact unavailable' });
+  });
+
   it('routes every nested venue command through the aggregate API', () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);

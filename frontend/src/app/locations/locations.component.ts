@@ -4,10 +4,12 @@ import {
   EventEmitter,
   Input,
   Output,
+  inject,
   signal,
   ViewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { TuiButton, TuiInput, TuiTextfield } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
@@ -25,7 +27,17 @@ export type VenueCreate = {
   accessibility_status: 'confirmed' | 'needs_clarification';
   is_accessible: boolean | null;
   is_active: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+  coordinate_status?: 'missing' | 'needs_review' | 'confirmed';
+  coordinate_source?: string | null;
   duplicate_reason?: string;
+};
+export type GeocodeCandidate = {
+  venueId: number;
+  latitude: number;
+  longitude: number;
+  source: string;
 };
 export type VenueUpdate = {
   id: number;
@@ -73,6 +85,8 @@ export type ContactUpdate = {
   styleUrl: './locations.component.css',
 })
 export class LocationsComponent {
+  private readonly sanitizer = inject(DomSanitizer);
+
   @ViewChild('venueCreateButton')
   private venueCreateButton?: ElementRef<HTMLButtonElement>;
 
@@ -84,6 +98,7 @@ export class LocationsComponent {
   @Input() loadError = false;
   @Input() detailVenueId: number | null = null;
   @Input() canCreateVenue = false;
+  @Input() geocodeCandidate: GeocodeCandidate | null = null;
 
   @Output() openVenue = new EventEmitter<number>();
   @Output() closeDetail = new EventEmitter<void>();
@@ -102,6 +117,7 @@ export class LocationsComponent {
     decision: 'approve' | 'reject';
     reason: string;
   }>();
+  @Output() geocodeVenue = new EventEmitter<ExamVenue>();
 
   protected readonly creating = signal(false);
   protected readonly editingVenueId = signal<number | null>(null);
@@ -115,6 +131,7 @@ export class LocationsComponent {
   protected readonly scopeFilter = signal<'all' | 'global' | 'committee'>('all');
   protected readonly statusFilter = signal<'all' | 'active' | 'inactive' | 'clarification'>('all');
   protected readonly accessibilityFilter = signal<'all' | 'yes' | 'no' | 'unknown'>('all');
+  protected readonly mapLoadError = signal(false);
   protected editDraft: VenueCreate | null = null;
   protected promotionReason = '';
   protected decisionReason = '';
@@ -230,6 +247,66 @@ export class LocationsComponent {
       .join(', ');
   }
 
+  protected coordinateLabel(venue: ExamVenue): string {
+    if (venue.coordinate_status === 'confirmed') return 'Bestätigt';
+    if (venue.coordinate_status === 'needs_review') return 'Erneut zu prüfen';
+    return 'Nicht hinterlegt';
+  }
+
+  protected mapIsActive(venue: ExamVenue): boolean {
+    return this.mapProvider(venue).mode !== 'off';
+  }
+
+  protected mapProvider(venue: ExamVenue): NonNullable<ExamVenue['map_provider']> {
+    return venue.map_provider ?? { mode: 'off' };
+  }
+
+  protected canShowMap(venue: ExamVenue): boolean {
+    return this.mapIsActive(venue) && venue.coordinate_status === 'confirmed';
+  }
+
+  protected mapEmbedUrl(venue: ExamVenue): SafeResourceUrl {
+    const latitude = venue.latitude ?? 0;
+    const longitude = venue.longitude ?? 0;
+    const source =
+      this.mapProvider(venue).mode === 'osm'
+        ? `https://www.openstreetmap.org/export/embed.html?marker=${latitude},${longitude}&layer=mapnik`
+        : `https://www.google.com/maps/embed/v1/view?key=${encodeURIComponent(this.googleMapsEmbedKey())}&center=${latitude},${longitude}&zoom=16`;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(source);
+  }
+
+  protected routeUrl(venue: ExamVenue): string {
+    const latitude = venue.latitude ?? 0;
+    const longitude = venue.longitude ?? 0;
+    return this.mapProvider(venue).mode === 'osm'
+      ? `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=17/${latitude}/${longitude}`
+      : `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+  }
+
+  private googleMapsEmbedKey(): string {
+    return document.querySelector('app-root')?.getAttribute('data-google-maps-embed-key') ?? '';
+  }
+
+  protected candidateFor(venue: ExamVenue): GeocodeCandidate | null {
+    if (venue.coordinate_status === 'confirmed' || this.geocodeCandidate?.venueId !== venue.id) {
+      return null;
+    }
+    return this.geocodeCandidate;
+  }
+
+  protected confirmGeocode(venue: ExamVenue, candidate: GeocodeCandidate): void {
+    this.updateVenue.emit({
+      id: venue.id,
+      payload: {
+        expected_revision: venue.revision,
+        latitude: candidate.latitude,
+        longitude: candidate.longitude,
+        coordinate_status: 'confirmed',
+        coordinate_source: candidate.source,
+      },
+    });
+  }
+
   protected clearFilters(): void {
     this.searchTerm.set('');
     this.scopeFilter.set('all');
@@ -278,14 +355,30 @@ export class LocationsComponent {
       accessibility_status: venue.accessibility_status,
       is_accessible: venue.is_accessible === null ? null : Boolean(venue.is_accessible),
       is_active: Boolean(venue.is_active),
+      latitude: venue.latitude,
+      longitude: venue.longitude,
+      coordinate_status: venue.coordinate_status,
+      coordinate_source: venue.coordinate_source,
     };
   }
 
   protected submitVenueUpdate(venue: ExamVenue): void {
     if (!this.editDraft) return;
+    const payload = this.normalizedVenue(this.editDraft);
+    if (
+      payload.latitude === venue.latitude &&
+      payload.longitude === venue.longitude &&
+      payload.coordinate_status === venue.coordinate_status &&
+      payload.coordinate_source === venue.coordinate_source
+    ) {
+      delete payload.latitude;
+      delete payload.longitude;
+      delete payload.coordinate_status;
+      delete payload.coordinate_source;
+    }
     this.updateVenue.emit({
       id: venue.id,
-      payload: { ...this.normalizedVenue(this.editDraft), expected_revision: venue.revision },
+      payload: { ...payload, expected_revision: venue.revision },
     });
   }
 

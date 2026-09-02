@@ -191,6 +191,7 @@ class ExamVenueResponse(BaseModel):
     updated_at: str
     rooms: list[ExamRoomResponse]
     contacts: list[ExamVenueContactResponse]
+    map_provider: dict[str, str]
     links: dict[str, object] = Field(alias="_links")
 
 
@@ -281,6 +282,20 @@ class ExamVenueUpdateRequest(BaseModel):
     duplicates_reviewed: bool = False
     duplicate_reason: str | None = None
     confirm_future_assignments: bool = False
+
+
+class ExamVenueGeocodeRequest(BaseModel):
+    """Require an explicit, revision-safe request before contacting Nominatim."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    expected_revision: int
+
+
+class ExamVenueGeocodeResponse(BaseModel):
+    latitude: float
+    longitude: float
+    source: str
 
 
 class ExamRoomCreateRequest(BaseModel):

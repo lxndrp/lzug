@@ -50,6 +50,7 @@ import { DashboardComponent } from './dashboard/dashboard.component';
 import {
   ContactCreate,
   ContactUpdate,
+  GeocodeCandidate,
   LocationsComponent,
   RoomCreate,
   RoomUpdate,
@@ -137,6 +138,7 @@ export class App {
   protected readonly message = signal('Bereit');
   protected readonly loading = signal(false);
   protected readonly actionBusy = signal(false);
+  protected readonly geocodeCandidate = signal<GeocodeCandidate | null>(null);
   protected readonly contextualRoundId = signal<number | null>(null);
   protected readonly contextualDayId = signal<number | null>(null);
   protected readonly contextualVenueId = signal<number | null>(null);
@@ -668,6 +670,29 @@ export class App {
       });
   }
 
+  protected geocodeVenue(venue: ExamVenue): void {
+    this.actionBusy.set(true);
+    this.api
+      .geocodeExamVenue(venue.id, venue.revision)
+      .pipe(finalize(() => this.actionBusy.set(false)))
+      .subscribe({
+        next: (candidate) => {
+          this.geocodeCandidate.set({ venueId: venue.id, ...candidate });
+          this.notify(
+            'success',
+            'Position vorgeschlagen',
+            'Bitte die vorgeschlagene Position vor dem Speichern bestätigen.',
+          );
+        },
+        error: () =>
+          this.notify(
+            'error',
+            'Position nicht verfügbar',
+            'Die Ortsdaten wurden nicht verändert. Bitte später erneut versuchen.',
+          ),
+      });
+  }
+
   private persistVenueUpdate(
     update: VenueUpdate,
     confirmed: boolean,
@@ -684,6 +709,12 @@ export class App {
       .subscribe({
         next: (venue) => {
           this.locationsComponent?.finishEditing(venue.id);
+          if (
+            update.payload.coordinate_status === 'confirmed' &&
+            this.geocodeCandidate()?.venueId === venue.id
+          ) {
+            this.geocodeCandidate.set(null);
+          }
           this.notify('success', 'Prüfungsort gespeichert', venue.name);
           this.refresh();
         },

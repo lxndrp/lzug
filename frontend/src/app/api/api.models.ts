@@ -929,12 +929,22 @@ export type ExamVenue = {
   is_accessible: number | null;
   accessibility_status: 'confirmed' | 'needs_clarification';
   accessibility_notes: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  coordinate_status?: 'missing' | 'needs_review' | 'confirmed';
+  coordinate_source?: string | null;
   is_active: number;
   revision: number;
   rooms: ExamRoom[];
   contacts: ExamVenueContact[];
+  map_provider?: {
+    mode: 'off' | 'osm' | 'google';
+    attribution?: string;
+    attribution_url?: string;
+  };
   capabilities: {
     manage: boolean;
+    geocode?: boolean;
     request_promotion: boolean;
     decide_promotion: boolean;
   };

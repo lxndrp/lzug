@@ -7,6 +7,7 @@ import os
 from dataclasses import dataclass
 from datetime import timedelta
 from functools import lru_cache
+from html import escape
 from http import HTTPStatus
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -33,6 +34,8 @@ from .api_contracts import (
     ExamVenueContactUpdateRequest,
     ExamVenueCreateRequest,
     ExamVenueDuplicateCheckRequest,
+    ExamVenueGeocodeRequest,
+    ExamVenueGeocodeResponse,
     ExamVenuePromotionDecisionRequest,
     ExamVenuePromotionRequest,
     ExamVenueResponse,
@@ -68,6 +71,11 @@ from .exam_venues import (
     ExamVenueInUseError,
 )
 from .local_auth import LocalAuthError
+from .map_provider import (
+    MapProviderConfig,
+    MapProviderDisabledError,
+    MapProviderUnavailableError,
+)
 from .models import (
     CANDIDATE_COMMITTEE_ASSIGNMENT,
     COMMITTEE,
@@ -106,6 +114,8 @@ __all__ = [
     "ExamVenueContactUpdateRequest",
     "ExamVenueCreateRequest",
     "ExamVenueDuplicateCheckRequest",
+    "ExamVenueGeocodeRequest",
+    "ExamVenueGeocodeResponse",
     "ExamVenuePromotionDecisionRequest",
     "ExamVenuePromotionRequest",
     "ExamVenueResponse",
@@ -160,6 +170,7 @@ class FastAPIConfig:
     auth_rate_limit: int = 20
     auth_rate_window: timedelta = timedelta(minutes=1)
     auth_rate_limiter: RequestRateLimiter | None = None
+    map_provider: MapProviderConfig = MapProviderConfig()
 
     @classmethod
     def from_environment(cls) -> FastAPIConfig:
@@ -177,6 +188,7 @@ class FastAPIConfig:
             ),
             auth_rate_limit=security.auth_rate_limit,
             auth_rate_window=security.auth_rate_window,
+            map_provider=MapProviderConfig.from_environment(),
         )
 
 
@@ -529,6 +541,7 @@ def _add_openapi_models(schemas: dict) -> None:
         ExamVenueCreateRequest,
         ExamVenueUpdateRequest,
         ExamVenueDuplicateCheckRequest,
+        ExamVenueGeocodeRequest,
         ExamVenuePromotionRequest,
         ExamVenuePromotionDecisionRequest,
         ExamRoomCreateRequest,
@@ -627,6 +640,10 @@ def _plain_text(context: RequestContext, value: str, filename: str) -> Response:
 
 
 def _security_headers(config: FastAPIConfig, request: Request) -> dict[str, str]:
+    frame_source = {
+        "osm": "https://www.openstreetmap.org",
+        "google": "https://www.google.com",
+    }.get(config.map_provider.mode, "'none'")
     headers = {
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "DENY",
@@ -639,7 +656,7 @@ def _security_headers(config: FastAPIConfig, request: Request) -> dict[str, str]
             "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; "
             "form-action 'self'; object-src 'none'; script-src 'self'; "
             "style-src 'self' 'unsafe-inline'; font-src 'self' data:; "
-            "img-src 'self' data:; connect-src 'self'"
+            f"img-src 'self' data:; connect-src 'self'; frame-src {frame_source}"
         ),
     }
     if config.https_only:
@@ -813,6 +830,7 @@ def _static_response(config: FastAPIConfig, request: Request) -> Response:
     except OSError, ValueError:
         return _not_found()
     asset = assets.get(decoded)
+    serves_index = decoded == "/index.html"
     asset_path = (
         decoded in {"/favicon.ico", "/favicon.svg", "/robots.txt"}
         or decoded == "/assets"
@@ -821,15 +839,25 @@ def _static_response(config: FastAPIConfig, request: Request) -> Response:
     )
     if asset is None and not asset_path:
         asset = assets.get("/index.html")
+        serves_index = asset is not None
     if asset is None:
         return _not_found()
     body, media_type = asset
+    if serves_index:
+        google_key = config.map_provider.browser_runtime_contract().get("googleMapsEmbedKey")
+        if google_key:
+            marker = b"<app-root></app-root>"
+            replacement = (
+                '<app-root data-google-maps-embed-key="'
+                f'{escape(google_key, quote=True)}"></app-root>'
+            ).encode()
+            body = body.replace(marker, replacement, 1)
     return Response(
         body,
         headers={
             "Content-Type": media_type,
             "Cache-Control": (
-                "no-cache" if decoded == "/index.html" else "public, max-age=31536000, immutable"
+                "no-cache" if serves_index else "public, max-age=31536000, immutable"
             ),
         },
     )
@@ -1033,6 +1061,24 @@ def _register_request_errors(
             ApplicationResult(
                 {"error": {"code": "exam_venue_in_use", "message": str(error)}},
                 HTTPStatus.CONFLICT,
+            )
+        )
+
+    @app.exception_handler(MapProviderDisabledError)
+    def map_provider_disabled(_request: Request, error: MapProviderDisabledError):
+        return _json_response(
+            ApplicationResult(
+                {"error": {"code": "map_provider_disabled", "message": str(error)}},
+                HTTPStatus.CONFLICT,
+            )
+        )
+
+    @app.exception_handler(MapProviderUnavailableError)
+    def map_provider_unavailable(_request: Request, error: MapProviderUnavailableError):
+        return _json_response(
+            ApplicationResult(
+                {"error": {"code": "map_provider_unavailable", "message": str(error)}},
+                HTTPStatus.SERVICE_UNAVAILABLE,
             )
         )
 
@@ -2797,7 +2843,7 @@ def _register_attendance_routes(
 def _register_exam_venue_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
-    venue_api = ExamVenueApi(resolved.db_path)
+    venue_api = ExamVenueApi(resolved.db_path, resolved.map_provider)
 
     @app.get(
         "/api/exam-venues",
@@ -2942,6 +2988,20 @@ def _register_exam_venue_routes(
             if venue is None
             else _finish(context, context.respond(hateoas.exam_venue(venue)))
         )
+
+    @app.post(
+        "/api/exam-venues/{id}/geocode",
+        response_model=ExamVenueGeocodeResponse,
+        openapi_extra=venue_write_openapi("ExamVenueGeocodeRequest"),
+    )
+    def geocode_exam_venue(request: Request, id: int):
+        context = _venue_context(
+            request, resolved, ["exam-venues", str(id), "geocode"], mutation=True
+        )
+        candidate = venue_api.geocode_venue(
+            id, context.read_json(), context.authorization_scope, context.auth_context
+        )
+        return _not_found() if candidate is None else _finish(context, context.respond(candidate))
 
     @app.delete(
         "/api/exam-venues/{id}",
