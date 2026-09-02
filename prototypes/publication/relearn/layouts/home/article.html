@@ -1,5 +1,11 @@
 <article class="home publication-home">
   <section class="publication-hero" aria-labelledby="publication-title">
+    <picture class="publication-hero-visual" aria-hidden="true">
+      <img class="publication-hero-visual-light" src="{{ relURL "images/brand/key-visual-light.svg" }}" alt="" />
+      <img class="publication-hero-visual-dark" src="{{ relURL "images/brand/key-visual-dark.svg" }}" alt="" />
+    </picture>
+    <img class="publication-wordmark publication-wordmark-light" src="{{ relURL "images/brand/logo-horizontal-light.svg" }}" alt="lzug" />
+    <img class="publication-wordmark publication-wordmark-dark" src="{{ relURL "images/brand/logo-horizontal-dark.svg" }}" alt="lzug" />
     <p class="publication-kicker">Prüfungsorganisation, die gemeinsam trägt</p>
     <h1 id="publication-title">{{ .Title }}</h1>
     <p class="publication-lead">{{ .Description }}</p>

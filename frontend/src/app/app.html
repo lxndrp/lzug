@@ -25,9 +25,10 @@
         aria-label="Prüfungsverwaltung"
       >
         <div class="app-sidebar-header">
-          <a class="app-brand" href="/dashboard" (click)="navigateFromShell('dashboard', $event)"
-            >LZUG</a
-          >
+          <a class="app-brand" href="/dashboard" (click)="navigateFromShell('dashboard', $event)">
+            <img src="brand/logo-mark-dark.svg" alt="" />
+            <span>lzug</span>
+          </a>
           <button
             #sidebarClose
             tuiButton
@@ -37,7 +38,7 @@
             aria-label="Navigation schließen"
             (click)="closeSidebar()"
           >
-            <span class="app-menu-icon is-close" aria-hidden="true"></span>
+            <svg [cIcon]="icons.cancel" class="app-icon-only" aria-hidden="true"></svg>
           </button>
         </div>
 
@@ -192,7 +193,11 @@
               [class.is-open]="sidebarVisible()"
               (click)="toggleSidebar()"
             >
-              <span class="app-menu-icon header-toggler-icon" aria-hidden="true"></span>
+              <svg
+                [cIcon]="sidebarVisible() ? icons.cancel : icons.menu"
+                class="app-icon-only"
+                aria-hidden="true"
+              ></svg>
             </button>
             <a
               class="app-header-title"

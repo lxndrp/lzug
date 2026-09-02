@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "family": "Inter",
+  "package": "@fontsource-variable/inter",
+  "packageVersion": "5.3.0",
+  "upstreamVersion": "v20",
+  "license": "OFL-1.1",
+  "licenseFile": "brand/licenses/Inter-OFL.txt",
+  "subsets": ["latin", "greek", "greek-ext"],
+  "axes": ["wght 100-900"],
+  "approval": "https://github.com/lxndrp/lzug/issues/568#issuecomment-5514030813"
+}

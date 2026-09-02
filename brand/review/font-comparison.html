@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>lzug Schriftvergleich</title>
+    <link rel="stylesheet" href="review.css" />
+  </head>
+  <body>
+    <main class="review-page">
+      <header class="review-heading">
+        <div>
+          <h1 data-candidate>Schriftkandidat</h1>
+          <p>
+            Identische Probe mit deutscher und griechischer UI, Zahlen und
+            langen Begriffen.
+          </p>
+        </div>
+        <span class="review-meta" data-theme-label>Helles Schema</span>
+      </header>
+
+      <section class="sample-grid">
+        <article class="panel shell-preview">
+          <nav class="sidebar" aria-label="Hauptnavigation">
+            <div class="brand-line">
+              <img src="../source/logo-mark.svg" alt="" />
+              <span>lzug</span>
+            </div>
+            <p class="nav-label">Prüfungskontext</p>
+            <a class="nav-item active" href="#">Übersicht</a>
+            <a class="nav-item" href="#">Terminorganisation</a>
+            <a class="nav-item" href="#">Prüfungsorte</a>
+          </nav>
+          <div class="workspace">
+            <div class="toolbar">
+              <div>
+                <h2>Prüfungsorganisation</h2>
+                <span class="muted">Fachinformatik Sommer 2027</span>
+              </div>
+              <button class="button" type="button">Plan prüfen</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Prüfling</th>
+                    <th>Ort</th>
+                    <th>Datum</th>
+                    <th>Zeit</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Zoë Schaefer-Lindner</td>
+                    <td>Athen · Ἀθήνα</td>
+                    <td>24.06.2027</td>
+                    <td>08:30-10:15</td>
+                    <td>Geplant</td>
+                  </tr>
+                  <tr>
+                    <td>Νικος Παπαδοπουλος</td>
+                    <td>Thessaloniki · Θεσσαλονικη</td>
+                    <td>24.06.2027</td>
+                    <td>10:30-12:15</td>
+                    <td>Bestätigt</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="status-row" aria-label="Statusbeispiele">
+              <span class="status success">Erfolg · bestätigt</span>
+              <span class="status warning">Warnung · Rückfrage</span>
+              <span class="status danger">Fehler · unvollstaendig</span>
+              <span class="status info">Information · in Prüfung</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <header class="panel-header">
+            <h2>Formular mit Validierung</h2>
+            <p class="muted">
+              Kleine Schrift, Sonderzeichen und lange Bezeichnungen.
+            </p>
+          </header>
+          <div class="panel-body">
+            <div class="field-grid">
+              <label class="field">
+                Prüfungsausschussbezeichnung
+                <input value="Anwendungsentwicklung Koeln-Sued" />
+              </label>
+              <label class="field">
+                Standardprüfungsort
+                <select>
+                  <option>Bildungszentrum Μητροπολιτικο</option>
+                </select>
+              </label>
+            </div>
+            <p class="validation">
+              Der Zeitraum überschneidet sich mit einem bestätigten
+              Prüfungsabschnitt.
+            </p>
+          </div>
+        </article>
+
+        <article class="panel landing-sample">
+          <div class="landing-copy">
+            <p>Prüfungen gemeinsam verlässlich planen</p>
+            <h2>lzug</h2>
+            <p>
+              Klare Abläufe für Ausschüsse, Prüflinge und gemeinsame
+              Entscheidungen.
+            </p>
+            <button class="button" type="button">Demo starten</button>
+          </div>
+        </article>
+
+        <article class="panel">
+          <header class="panel-header">
+            <h2>Status und Fehler</h2>
+            <p class="muted">12:45 · Revision 2027.06.24-β · 1.234,50 EUR</p>
+          </header>
+          <div class="panel-body">
+            <p class="error-sample">
+              <strong>Plan konnte nicht gespeichert werden</strong>
+              <span
+                >Konflikt mit einer neueren Fassung. Laden Sie den Stand
+                erneut.</span
+              >
+            </p>
+            <button class="button secondary" type="button">
+              Aktuellen Stand laden
+            </button>
+          </div>
+        </article>
+      </section>
+    </main>
+    <script>
+      const parameters = new URLSearchParams(location.search);
+      const theme = parameters.get("theme") === "dark" ? "dark" : "light";
+      document.documentElement.dataset.theme = theme;
+      document.querySelector("[data-candidate]").textContent =
+        parameters.get("candidate") || "Schriftkandidat";
+      document.querySelector("[data-theme-label]").textContent =
+        theme === "dark" ? "Dunkles Schema" : "Helles Schema";
+    </script>
+  </body>
+</html>

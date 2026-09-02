@@ -61,7 +61,7 @@ test.describe('optimized frontend artifact', () => {
               ),
             }));
             expect(globalStyles.bodyBackground).not.toBe('rgba(0, 0, 0, 0)');
-            expect(globalStyles.bodyFont).toContain('Source Sans 3');
+            expect(globalStyles.bodyFont).toContain('Inter');
             expect(globalStyles.canvasColor.trim()).not.toBe('');
           });
         }

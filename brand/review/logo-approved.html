@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>lzug Logo-Freigabenachweis</title>
+    <link rel="stylesheet" href="review.css" />
+  </head>
+  <body>
+    <main class="review-page">
+      <header class="review-heading">
+        <div>
+          <h1>Freigegebene Bildmarke</h1>
+          <p>B2b mit eigenständiger Urkunde rechts oberhalb des Prüflings.</p>
+        </div>
+        <span class="review-meta" data-theme-label>Helles Schema</span>
+      </header>
+
+      <section
+        class="comparison-grid approved-logo"
+        aria-label="Freigegebene Bildmarke"
+      >
+        <article class="panel">
+          <header class="panel-header">
+            <h2>B2b: Urkunde rechts oben</h2>
+            <p class="muted">
+              Ergebniszeichen separat neben der klaren Hauptfigur.
+            </p>
+          </header>
+          <div class="logo-stage">
+            <img
+              src="../source/logo-mark.svg"
+              alt="Freigegebene Bildmarke mit Urkunde rechts oben neben dem Prüfling"
+            />
+          </div>
+          <div class="logo-wordmark">
+            <img src="../source/logo-mark.svg" alt="" />
+            <span>lzug</span>
+          </div>
+          <div
+            class="size-row"
+            aria-label="Kleinformatprobe Urkunde rechts oben"
+          >
+            <div class="size-sample">
+              <img src="../source/logo-mark.svg" alt="16 Pixel" />
+              <span>16 px</span>
+            </div>
+            <div class="size-sample">
+              <img src="../source/logo-mark.svg" alt="32 Pixel" />
+              <span>32 px</span>
+            </div>
+            <div class="size-sample">
+              <img src="../source/logo-mark.svg" alt="64 Pixel" />
+              <span>64 px</span>
+            </div>
+          </div>
+          <img
+            class="key-visual"
+            src="../source/key-visual.svg"
+            alt="Key Visual mit Urkunde rechts oben neben dem Prüfling"
+          />
+        </article>
+      </section>
+    </main>
+    <script>
+      const theme =
+        new URLSearchParams(location.search).get("theme") === "dark"
+          ? "dark"
+          : "light";
+      document.documentElement.dataset.theme = theme;
+      document.querySelector("[data-theme-label]").textContent =
+        theme === "dark" ? "Dunkles Schema" : "Helles Schema";
+    </script>
+  </body>
+</html>

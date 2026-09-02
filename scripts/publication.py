@@ -186,6 +186,9 @@ def configure_relearn(root: Path, site: Path, base_url: str, demo_url: str) -> N
     (site / "layouts" / "partials").mkdir(parents=True)
     (site / "assets" / "css").mkdir(parents=True)
     (site / "static" / "images").mkdir(parents=True)
+    (site / "static" / "images" / "brand").mkdir(parents=True)
+    (site / "static" / "fonts").mkdir(parents=True)
+    (site / "static" / "css").mkdir(parents=True)
     (site / "static" / "js").mkdir(parents=True)
     shutil.copyfile(
         root / "prototypes" / "publication" / "relearn" / "layouts" / "home" / "article.html",
@@ -204,9 +207,33 @@ def configure_relearn(root: Path, site: Path, base_url: str, demo_url: str) -> N
         site / "static" / "js" / "demo-warmup.js",
     )
     shutil.copyfile(
-        root / "frontend" / "public" / "favicon.svg",
+        root / "brand" / "derived" / "favicon.svg",
         site / "static" / "images" / "favicon.svg",
     )
+    shutil.copytree(
+        root / "brand" / "derived",
+        site / "static" / "images" / "brand",
+        dirs_exist_ok=True,
+    )
+    shutil.copyfile(
+        root / "brand" / "tokens.css",
+        site / "static" / "css" / "brand-tokens.css",
+    )
+    shutil.copyfile(
+        root / "brand" / "public-font.css",
+        site / "static" / "css" / "brand-font.css",
+    )
+    for subset in ("latin", "greek", "greek-ext"):
+        shutil.copyfile(
+            root
+            / "frontend"
+            / "node_modules"
+            / "@fontsource-variable"
+            / "inter"
+            / "files"
+            / f"inter-{subset}-wght-normal.woff2",
+            site / "static" / "fonts" / f"inter-{subset}-wght-normal.woff2",
+        )
     repository_revision = run("git", "rev-parse", "HEAD", cwd=root)
     (site / "layouts" / "partials" / "assetbusting.gotmpl").write_text(
         f'{{{{- return "?{repository_revision[:12]}" }}}}\n', encoding="utf-8"

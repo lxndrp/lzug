@@ -1,0 +1,62 @@
+{
+  "schema": 2,
+  "approval": {
+    "logo": {
+      "variant": "B2b: Urkunde rechts oben",
+      "issueComment": "https://github.com/lxndrp/lzug/issues/568#issuecomment-5512076189"
+    },
+    "font": {
+      "family": "Inter",
+      "issueComment": "https://github.com/lxndrp/lzug/issues/568#issuecomment-5514030813"
+    }
+  },
+  "sources": [
+    {
+      "id": "logo-mark",
+      "path": "brand/source/logo-mark.svg",
+      "viewBox": "0 0 256 256",
+      "role": "Kanonische Bildmarke"
+    },
+    {
+      "id": "key-visual",
+      "path": "brand/source/key-visual.svg",
+      "viewBox": "0 0 1600 900",
+      "role": "Kanonisches Key Visual"
+    }
+  ],
+  "variants": {
+    "light": {
+      "ink": "#2d235c",
+      "accent": "#f3b33d",
+      "wordmark": "#2d235c",
+      "background": "#ffffff"
+    },
+    "dark": {
+      "ink": "#e9e4ff",
+      "accent": "#ffd27a",
+      "wordmark": "#f5f2ff",
+      "background": "#151225"
+    },
+    "black": {
+      "ink": "#000000",
+      "accent": "#000000",
+      "wordmark": "#000000",
+      "background": "#ffffff"
+    },
+    "white": {
+      "ink": "#ffffff",
+      "accent": "#ffffff",
+      "wordmark": "#ffffff",
+      "background": "#000000"
+    }
+  },
+  "derivatives": {
+    "standalone": ["light", "dark", "black", "white"],
+    "horizontal": ["light", "dark", "black", "white"],
+    "compact": ["light", "dark"],
+    "favicon": [16, 32, 48],
+    "appIcon": [192, 512],
+    "keyVisual": [1200, 1600],
+    "socialPreview": [1200]
+  }
+}
