@@ -1,0 +1,30 @@
+lzug-admin - local administration for lzug
+
+Usage:
+  lzug-admin [global options] <object> <action> [options]
+  lzug-admin [global options] cli
+
+Objects:
+  account            Manage operator accounts and one-time credentials.
+  backup             Create, verify, and restore protected backups.
+  committee          Bootstrap and maintain examination committees.
+  completion         Generate shell completion scripts.
+  config             Inspect local CLI configuration.
+  export             Create and verify protected full exports.
+  notification       Process and test technical notifications.
+  plan-consequence   Inspect and retry confirmed-plan consequences.
+  system             Inspect the local runtime and its readiness.
+  upgrade            Apply upgrades and inspect rollback eligibility.
+  cli                Start the guided interactive mode (reserved).
+
+Global options:
+  --engine ENGINE          Container engine: auto, docker, or podman. Values: auto, docker, podman. Default: auto.
+  --container NAME         Exact running container name.
+  --config FILE            Read this explicit non-secret JSON configuration file.
+  --no-config              Do not read a configuration file.
+  --json                   Write exactly one machine-readable result object to stdout.
+  --verbose                Write additional secret-free diagnostics to stderr.
+  --force                  Skip an ordinary destructive-operation prompt.
+  --help             Show global or contextual help.
+  --version          Show the CLI version.
+  --build-metadata   Show canonical build metadata as JSON.

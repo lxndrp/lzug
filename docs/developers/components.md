@@ -91,10 +91,20 @@ Dokumentationsartefakt von TypeDoc ersetzt.
 
 `lzug-admin` ist eine portable Go-CLI für Linux, macOS und Windows auf amd64 und
 arm64.
-Sie wählt Docker oder Podman, validiert den expliziten Containernamen und ruft
-den Python-Adminprozess ohne Shell-Stringverkettung auf.
-Request und Response sind genau ein UTF-8-JSON-Objekt; stabile Exit-Codes und
-Fehlerklassen bilden denselben Backendvertrag auf allen Plattformen ab.
+Eine statische Registry ordnet jeden Command nach dem Muster
+`lzug-admin <objekt> <aktion>` ein und ist die gemeinsame Quelle für Parser,
+Hilfe, Completion und die
+[generierte Befehlsreferenz](reference/cli.md).
+Explizite Konstruktorverdrahtung verbindet Registry, Konfiguration, sichere
+Eingabe, Renderer sowie Docker-/Podman-Transport ohne IoC-Framework,
+Service Locator, Reflection oder versteckte Registrierung.
+
+Der Transport validiert den expliziten Containernamen und ruft den
+Python-Adminprozess ohne Shell-Stringverkettung auf.
+Auftrag und Backendantwort sind jeweils genau ein UTF-8-JSON-Objekt.
+Command-Handler greifen weder direkt auf Persistenz zu noch kennen sie
+Engine-spezifische Details; Docker und Podman verwenden denselben versionierten
+Backendauftrag.
 
 Die Befehlsgruppen umfassen:
 
@@ -106,12 +116,28 @@ Die Befehlsgruppen umfassen:
 - releasegebundenes Upgrade und nicht mutierende Rollback-Freigabe in einem
   ausdrücklich vorbereiteten Wartungscontainer.
 
-Private Empfängerschlüssel werden ausschließlich über stdin gelesen.
-Ein Restore auf nicht leerem Ziel und irreversible Migrationen benötigen
-jeweils ihre spezifische ausdrückliche Bestätigung.
+Private Empfängerschlüssel und Einmaltoken werden ausschließlich über `stdin`
+gelesen, am TTY ohne Echo erfasst und nicht als Argument, Konfiguration oder
+Umgebungswert akzeptiert.
+Gewöhnlich destruktive Commands benötigen am Terminal eine konkrete Rückfrage;
+ohne TTY ist vor jedem mutierenden Transportaufruf `--force` erforderlich.
+Ein Restore auf nicht leerem Ziel und irreversible Migrationen behalten ihre
+separaten semantischen Bestätigungen, die `--force` nicht ersetzt.
+
+Human-Ausgabe ist standardmäßig still und gibt nur erforderliche einmalige
+Werte oder ausdrücklich abgefragte Diagnose aus.
+`--verbose` ergänzt geheimnisfreie Details auf `stderr`.
+`--json` liefert bei Erfolg und Fehler genau ein Objekt mit Schema- und
+Protokollversion, Fehlerklasse und Exit Code auf `stdout`; ungeprüfte
+Backendtexte und Engine-Diagnose werden nicht durchgereicht.
+Nur Engine und Containername dürfen mit der Priorität Flag,
+Umgebungsvariable, optionale JSON-Datei und Standardwert konfiguriert werden.
+`lzug-admin config inspect` zeigt diese effektiven Werte und ihre Herkunft,
+ohne Konfiguration zu verändern.
+
 CLI und Backend geben technische Identität, Zustände, Phasen, Zähler und
-geheimnisfreie Fehlercodes aus, aber keine Schlüssel, Konfigurationswerte,
-Pfade oder Fachdaten.
+geheimnisfreie Fehlercodes aus, aber keine privaten Schlüssel, internen
+Engine-Ausgaben oder ungefilterten Fehlertexte.
 Die aufgabenorientierte Bedienung bleibt im
 [Administrationshandbuch](https://github.com/lxndrp/lzug/wiki/Administration).
 

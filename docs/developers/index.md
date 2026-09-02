@@ -43,10 +43,12 @@ Handbuch keine Installations-, Backup-, Restore- oder Upgrade-Anleitung.
 Das [ADR-Register](decisions/index.md) enthält die langfristigen technischen
 Entscheidungen und ihre Ersetzungssemantik.
 Die [Python-Referenz](reference/backend.md),
-[TypeScript-Referenz](reference/frontend.md) und das
+[TypeScript-Referenz](reference/frontend.md), die
+[Betreiber-CLI-Referenz](reference/cli.md) und das
 [JSON-Schema des Vollexports](reference/full-export-v1.schema.json) sind
 untergeordnete Referenzquellen und keine weiteren redaktionellen Kernbereiche.
 
-`task docs` baut das Handbuch strikt und erzeugt die Code-Referenzen.
+`task docs` baut das Handbuch strikt, prüft die Registry-generierte
+CLI-Referenz und erzeugt die übrigen Code-Referenzen.
 Die CI stellt das Ergebnis revisionsgebunden als Artefakt
 `lzug-documentation` bereit.

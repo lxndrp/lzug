@@ -35,6 +35,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.codeql = workflow_text(".github/workflows/ci.yml")
+        cls.dependabot_config = workflow_text(".github/dependabot.yml")
         cls.pull_request = workflow_text(".github/workflows/pull-request.yml")
         cls.quality = workflow_text(".github/workflows/quality.yml")
         cls.dependabot = workflow_text(".github/workflows/dependabot-auto-merge.yml")
@@ -78,6 +79,12 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("- '.github/**'", self.pull_request)
         self.assertIn("- 'uv.lock'", self.pull_request)
         self.assertIn("- 'frontend/package-lock.json'", self.pull_request)
+        self.assertIn("- 'go.sum'", self.pull_request)
+
+    def test_locked_go_modules_receive_grouped_dependabot_updates(self) -> None:
+        self.assertIn("package-ecosystem: gomod", self.dependabot_config)
+        self.assertIn("golang-x:", self.dependabot_config)
+        self.assertIn("golang-x-security:", self.dependabot_config)
 
     def test_productive_web_changes_select_separate_browser_contracts(self) -> None:
         self.assertIn("browser:\n              - 'backend/**'", self.pull_request)

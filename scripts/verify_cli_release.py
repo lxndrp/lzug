@@ -36,16 +36,17 @@ def expected_metadata(version: str, revision: str, tag: str | None) -> dict[str,
 
 
 def read_archive(path: Path, binary: str) -> dict[str, Any]:
+    expected = {binary, "build-metadata.json", "LICENSE", "THIRD_PARTY_NOTICES.md"}
     if path.suffix == ".zip":
         with zipfile.ZipFile(path) as archive:
             names = archive.namelist()
-            if len(names) != 2 or set(names) != {binary, "build-metadata.json"}:
+            if len(names) != len(expected) or set(names) != expected:
                 raise ValueError(f"unexpected archive contents: {path}")
             return json.loads(archive.read("build-metadata.json"))
 
     with tarfile.open(path, mode="r:gz") as archive:
         names = archive.getnames()
-        if len(names) != 2 or set(names) != {binary, "build-metadata.json"}:
+        if len(names) != len(expected) or set(names) != expected:
             raise ValueError(f"unexpected archive contents: {path}")
         metadata = archive.extractfile("build-metadata.json")
         if metadata is None:

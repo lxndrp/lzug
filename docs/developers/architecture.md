@@ -72,7 +72,7 @@ flowchart LR
   repo["Repositories und Integrationsadapter<br/>Persistenz, Dokumente, Kalender, Zustellung"]
   store[("SQLAlchemy, SQLite und /data")]
   admin["Python-Adminservice<br/>Diagnose und Lifecycle"]
-  cli["Go-CLI<br/>lokale Orchestrierung"]
+  cli["Go-CLI<br/>Registry, Renderer und lokale Orchestrierung"]
 
   spa --> client
   client --> http
@@ -84,6 +84,9 @@ flowchart LR
   admin --> store
 ```
 
+Die statische Go-Registry trennt Command-Metadaten, Validierung,
+Backendauftrag, Transport und Darstellung und wird in einer sichtbaren
+Composition Root explizit verdrahtet.
 Transport- und Adapterdetails dürfen keine Fachlogik duplizieren.
 Services und Repositories bleiben frameworkunabhängig; HTTP und Adminprozess
 verwenden dieselben fachlichen und betrieblichen Kernverträge.
@@ -212,7 +215,7 @@ Migrationen laufen vorwärts, und Restore aktiviert Datenbank, Dokumente und
 Authentifizierungsschlüssel erst nach vollständiger Vor- und Nachprüfung.
 
 **Betrieb und Observability:** Health ist nur Liveness, Ready prüft
-Anwendungsbereitschaft, und `lzug-admin doctor` ergänzt lokale Schema-,
+Anwendungsbereitschaft, und `lzug-admin system doctor` ergänzt lokale Schema-,
 Konfigurations-, Persistenz- und Speicherprüfungen.
 Diagnosen, strukturierte Ereignisse und Workflow-Zusammenfassungen bleiben
 geheimnisfrei; sie belegen ohne entsprechende Evidenz keinen produktiven

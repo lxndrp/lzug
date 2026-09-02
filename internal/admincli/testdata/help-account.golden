@@ -1,0 +1,24 @@
+lzug-admin account - Manage operator accounts and one-time credentials.
+
+Bootstrap, invite, disable, recover, or consume one-time account credentials.
+
+Usage:
+  lzug-admin [global options] account <action> [options]
+
+Actions:
+  bootstrap          Create the first operator account.
+  consume-invitation Consume a one-time invitation token.
+  consume-recovery   Consume a one-time recovery token.
+  disable            Disable an operator account.
+  invite             Invite an operator account.
+  recover            Issue account recovery credentials.
+
+Global options:
+  --engine ENGINE          Container engine: auto, docker, or podman. Values: auto, docker, podman. Default: auto.
+  --container NAME         Exact running container name.
+  --config FILE            Read this explicit non-secret JSON configuration file.
+  --no-config              Do not read a configuration file.
+  --json                   Write exactly one machine-readable result object to stdout.
+  --verbose                Write additional secret-free diagnostics to stderr.
+  --force                  Skip an ordinary destructive-operation prompt.
+  --help             Show this help.

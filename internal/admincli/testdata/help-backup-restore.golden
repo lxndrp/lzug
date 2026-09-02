@@ -1,0 +1,29 @@
+lzug-admin backup restore - Restore a protected backup.
+
+Restore a complete protected backup after validation. Replacing non-empty state also requires --replace.
+
+Usage:
+  lzug-admin [global options] backup restore --artifact NAME [options]
+
+Command options:
+  --artifact NAME          Protected artifact name inside the application data area. Required.
+  --replace                Confirm replacement of a non-empty installation. Default: false. Danger-zone confirmation.
+
+Secure input:
+  stdin              Private recipient key read only from standard input.
+
+Confirmation:
+  Requires an interactive terminal confirmation or --force.
+  --replace is a separate danger-zone confirmation and is never implied by --force.
+
+Transport:
+  Versioned request through the shared Docker/Podman container transport.
+
+Output:
+  Successful human output is silent; JSON includes the validated restore result.
+  --verbose adds the secret-free progress and result summary on stderr.
+  --json uses the declared projected result contract on stdout.
+
+Examples:
+  printf 'PRIVATE_KEY' | lzug-admin --container lzug backup restore --artifact backup.lzug --force
+  printf 'PRIVATE_KEY' | lzug-admin --container lzug backup restore --artifact backup.lzug --replace --force
