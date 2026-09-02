@@ -31,6 +31,7 @@ from backend.planning import (
     PlanValidationError,
 )
 from backend.repositories import ResourceRepository
+from backend.store import Store
 from backend.tests.helpers import TempDatabase
 
 
@@ -58,6 +59,15 @@ class PlanningTests(unittest.TestCase):
                 connection.commit()
 
             with self.assertRaisesRegex(ValueError, "Planning settings not found"):
+                PlanningService(db_path).generate_proposal(1)
+
+    def test_missing_default_room_is_rejected_before_proposal_building(self) -> None:
+        with TempDatabase() as db_path:
+            repository = ResourceRepository(db_path)
+            settings = repository.list_filtered(PLANNING_SETTINGS, {"exam_round_id": 1})[0]
+            repository.update(PLANNING_SETTINGS, settings["id"], {"default_room_id": None})
+
+            with self.assertRaisesRegex(ValueError, "Planning settings need a default room"):
                 PlanningService(db_path).generate_proposal(1)
 
     def test_no_active_candidate_days_are_rejected(self) -> None:
@@ -566,6 +576,81 @@ class PlanningTests(unittest.TestCase):
             "candidate_day_inactive",
             {issue.code for issue in day_error.exception.issues},
         )
+
+    def test_validator_covers_assignment_week_and_candidate_contracts(self) -> None:
+        with TempDatabase() as db_path:
+            service = PlanningService(db_path)
+            service.generate_proposal(1)
+            proposal = service.get_proposal(1)
+            repository = ResourceRepository(db_path)
+            settings = repository.list_filtered(PLANNING_SETTINGS, {"exam_round_id": 1})[0]
+            repository.update(PLANNING_SETTINGS, settings["id"], {"max_exam_days_per_week": 1})
+            round_candidate_id = proposal.days[0].slots[0].round_candidate_id
+            with connect(db_path) as connection:
+                connection.execute(
+                    text(
+                        "UPDATE candidate_committee_assignment "
+                        "SET ended_at = '2099-01-02 00:00:00' "
+                        "WHERE round_candidate_id = :round_candidate_id"
+                    ),
+                    {"round_candidate_id": round_candidate_id},
+                )
+                connection.commit()
+            first_day = proposal.days[0]
+            invalid_assignment = replace(
+                first_day.assignments[0], assignment_role="observer", day_part="overnight"
+            )
+            changed = replace(
+                proposal,
+                days=(
+                    replace(
+                        first_day,
+                        assignments=(invalid_assignment, *first_day.assignments[1:]),
+                    ),
+                    *proposal.days[1:],
+                ),
+            )
+
+            with self.assertRaises(PlanValidationError) as error:
+                service.save_proposal(changed)
+
+        codes = {issue.code for issue in error.exception.issues}
+        self.assertTrue(
+            {
+                "assignment_role_invalid",
+                "assignment_day_part_invalid",
+                "assignment_day_part_unused",
+                "weekly_day_limit_exceeded",
+                "candidate_assignment_inactive",
+            }.issubset(codes)
+        )
+
+    def test_proposal_builder_preserves_stepwise_capacity_messages(self) -> None:
+        with TempDatabase() as db_path:
+            service = PlanningService(db_path)
+            with session_scope(db_path) as session:
+                context = service._load_context(Store(session), 1)
+                context["members"] = []
+                candidate_days = sorted(context["candidate_days"], key=lambda row: row["date"])
+                regular_count = len(context["round_candidates"])
+                mep_count = sum(row["requires_mep"] for row in context["round_candidates"])
+                result = service._build_proposal(context)
+
+        self.assertFalse(result["validation"]["passed"])
+        self.assertEqual(
+            [
+                *[
+                    f"{day['date']}: keine vollstaendige Vormittagsbesetzung"
+                    for day in candidate_days
+                ],
+                f"Fuer {regular_count + mep_count} Pruefungstermine fehlt Kapazitaet",
+                f"{regular_count} regulaere Pruefungen konnten nicht platziert werden",
+                f"{mep_count} MEP-Termine konnten nicht regelkonform platziert werden",
+                "Es konnte kein Pruefungstag geplant werden",
+            ],
+            result["validation"]["messages"],
+        )
+        self.assertEqual([], result["days"])
 
     def test_confirm_plan_updates_statuses_and_blocks_replacement(self) -> None:
         with TempDatabase() as db_path:
