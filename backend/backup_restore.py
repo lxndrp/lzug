@@ -1051,6 +1051,15 @@ class ArtifactService:
             shutil.rmtree(root, ignore_errors=True)
 
     def _validate_manifest(self, root: Path, manifest: object) -> None:
+        manifest = self._validated_manifest_shape(manifest)
+        artifact_type = self._validated_manifest_identity(manifest)
+        self._validate_manifest_counts(manifest)
+        self._validate_manifest_key_binding(manifest, artifact_type)
+        self._validate_manifest_configuration(manifest)
+        self._validate_manifest_compatibility(manifest, artifact_type)
+        self._validate_manifest_contents(root, manifest)
+
+    def _validated_manifest_shape(self, manifest: object) -> dict[str, Any]:
         fields = {
             "artifact_id",
             "artifact_type",
@@ -1068,6 +1077,9 @@ class ArtifactService:
         }
         if not isinstance(manifest, dict) or set(manifest) != fields:
             raise ArtifactError("manifest_invalid", "Protected manifest is invalid")
+        return manifest
+
+    def _validated_manifest_identity(self, manifest: dict[str, Any]) -> str:
         artifact_type = manifest.get("artifact_type")
         if (
             artifact_type not in {"backup", "full_export"}
@@ -1089,7 +1101,9 @@ class ArtifactService:
                     raise ValueError
         except TypeError, ValueError:
             raise ArtifactError("manifest_invalid", "Protected manifest is invalid") from None
+        return artifact_type
 
+    def _validate_manifest_counts(self, manifest: dict[str, Any]) -> None:
         counts = manifest.get("counts")
         if not isinstance(counts, dict) or set(counts) != {
             "database_records",
@@ -1102,6 +1116,7 @@ class ArtifactService:
         ):
             raise ArtifactError("manifest_invalid", "Protected manifest is invalid")
 
+    def _validate_manifest_key_binding(self, manifest: dict[str, Any], artifact_type: str) -> None:
         binding = manifest.get("authentication_key_binding")
         if artifact_type == "backup":
             if (
@@ -1113,6 +1128,7 @@ class ArtifactService:
         elif binding is not None:
             raise ArtifactError("manifest_invalid", "Protected manifest is invalid")
 
+    def _validate_manifest_configuration(self, manifest: dict[str, Any]) -> None:
         configuration = manifest.get("operator_configuration")
         if (
             not isinstance(configuration, dict)
@@ -1141,6 +1157,9 @@ class ArtifactService:
             ):
                 raise ArtifactError("manifest_invalid", "Protected manifest is invalid")
 
+    def _validate_manifest_compatibility(
+        self, manifest: dict[str, Any], artifact_type: str
+    ) -> None:
         compatibility = manifest.get("compatibility")
         expected_purpose = (
             "complete_instance_restore"
@@ -1157,34 +1176,10 @@ class ArtifactService:
         ):
             raise ArtifactError("manifest_invalid", "Protected manifest is invalid")
 
+    def _validate_manifest_contents(self, root: Path, manifest: dict[str, Any]) -> None:
         declared: set[str] = set()
         for entry in manifest["contents"]:
-            if not isinstance(entry, dict) or set(entry) != {
-                "path",
-                "size_bytes",
-                "checksum_sha256",
-            }:
-                raise ArtifactError("manifest_invalid", "Protected manifest is invalid")
-            name = entry["path"]
-            size = entry["size_bytes"]
-            checksum = entry["checksum_sha256"]
-            path = PurePosixPath(name) if isinstance(name, str) else None
-            if (
-                path is None
-                or path.is_absolute()
-                or ".." in path.parts
-                or name in declared
-                or isinstance(size, bool)
-                or not isinstance(size, int)
-                or size < 0
-                or not isinstance(checksum, str)
-                or _SHA256.fullmatch(checksum) is None
-            ):
-                raise ArtifactError("manifest_invalid", "Protected manifest is invalid")
-            declared.add(name)
-            target = root.joinpath(*path.parts)
-            if not target.is_file() or target.stat().st_size != size or _sha256(target) != checksum:
-                raise ArtifactError("artifact_content_invalid", "Artifact content is invalid")
+            self._validate_manifest_content(root, entry, declared)
         actual = {
             path.relative_to(root).as_posix()
             for path in root.rglob("*")
@@ -1192,6 +1187,34 @@ class ArtifactService:
         }
         if actual != declared:
             raise ArtifactError("manifest_invalid", "Protected manifest content list is incomplete")
+
+    def _validate_manifest_content(self, root: Path, entry: object, declared: set[str]) -> None:
+        if not isinstance(entry, dict) or set(entry) != {
+            "path",
+            "size_bytes",
+            "checksum_sha256",
+        }:
+            raise ArtifactError("manifest_invalid", "Protected manifest is invalid")
+        name = entry["path"]
+        size = entry["size_bytes"]
+        checksum = entry["checksum_sha256"]
+        path = PurePosixPath(name) if isinstance(name, str) else None
+        if (
+            path is None
+            or path.is_absolute()
+            or ".." in path.parts
+            or name in declared
+            or isinstance(size, bool)
+            or not isinstance(size, int)
+            or size < 0
+            or not isinstance(checksum, str)
+            or _SHA256.fullmatch(checksum) is None
+        ):
+            raise ArtifactError("manifest_invalid", "Protected manifest is invalid")
+        declared.add(name)
+        target = root.joinpath(*path.parts)
+        if not target.is_file() or target.stat().st_size != size or _sha256(target) != checksum:
+            raise ArtifactError("artifact_content_invalid", "Artifact content is invalid")
 
     def _verify_loaded(self, loaded: LoadedArtifact) -> dict[str, Any]:
         manifest = loaded.manifest
@@ -1239,6 +1262,13 @@ class ArtifactService:
         }
 
     def _validate_export(self, root: Path, manifest: dict[str, Any]) -> None:
+        declared = self._validate_export_paths(manifest)
+        data, documents, value_lists, schema = self._load_export_payloads(root)
+        self._validate_export_contract(data, documents, value_lists, schema, manifest)
+        self._validate_export_tables(data, manifest)
+        self._validate_export_documents(root, documents, declared, manifest)
+
+    def _validate_export_paths(self, manifest: dict[str, Any]) -> set[str]:
         required = {
             "export/data.json",
             "export/documents.json",
@@ -1249,6 +1279,9 @@ class ArtifactService:
         declared = {entry["path"] for entry in manifest["contents"]}
         if not required.issubset(declared) or any(name.startswith("payload/") for name in declared):
             raise ArtifactError("export_invalid", "Full export content is invalid")
+        return declared
+
+    def _load_export_payloads(self, root: Path) -> tuple[object, object, object, object]:
         try:
             data = json.loads((root / "export/data.json").read_text(encoding="utf-8"))
             documents = json.loads((root / "export/documents.json").read_text(encoding="utf-8"))
@@ -1258,6 +1291,23 @@ class ArtifactService:
             )
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
             raise ArtifactError("export_invalid", "Full export JSON is invalid") from error
+        return data, documents, value_lists, schema
+
+    def _validate_export_contract(
+        self,
+        data: object,
+        documents: object,
+        value_lists: object,
+        schema: object,
+        manifest: dict[str, Any],
+    ) -> None:
+        self._validate_export_data_contract(data, manifest)
+        if schema != FULL_EXPORT_SCHEMA:
+            raise ArtifactError("export_invalid", "Full export contract is invalid")
+        self._validate_export_documents_contract(documents)
+        self._validate_export_value_lists_contract(value_lists)
+
+    def _validate_export_data_contract(self, data: object, manifest: dict[str, Any]) -> None:
         if (
             not isinstance(data, dict)
             or set(data)
@@ -1276,110 +1326,166 @@ class ArtifactService:
             or isinstance(data.get("record_count"), bool)
             or not isinstance(data.get("record_count"), int)
             or not isinstance(data.get("tables"), dict)
-            or schema != FULL_EXPORT_SCHEMA
-            or not isinstance(documents, dict)
+        ):
+            raise ArtifactError("export_invalid", "Full export contract is invalid")
+
+    def _validate_export_documents_contract(self, documents: object) -> None:
+        if (
+            not isinstance(documents, dict)
             or set(documents) != {"format", "format_version", "documents"}
             or documents.get("format") != "lzug-full-export-documents"
             or documents.get("format_version") != 1
             or not isinstance(documents.get("documents"), list)
-            or not isinstance(value_lists, dict)
+        ):
+            raise ArtifactError("export_invalid", "Full export contract is invalid")
+
+    def _validate_export_value_lists_contract(self, value_lists: object) -> None:
+        if (
+            not isinstance(value_lists, dict)
             or set(value_lists) != {"format", "format_version", "lists"}
             or value_lists.get("format") != "lzug-full-export-value-lists"
             or value_lists.get("format_version") != 1
             or not isinstance(value_lists.get("lists"), dict)
         ):
             raise ArtifactError("export_invalid", "Full export contract is invalid")
+
+    def _validate_export_tables(self, data: object, manifest: dict[str, Any]) -> None:
+        assert isinstance(data, dict)
         if set(data["tables"]) & _EXCLUDED_EXPORT_TABLES:
             raise ArtifactError("export_secret_detected", "Full export contains excluded tables")
         export_ids: set[str] = set()
         relationships: list[dict[str, Any]] = []
         record_count = 0
         for table_name, table in data["tables"].items():
-            if (
-                not isinstance(table_name, str)
-                or not isinstance(table, dict)
-                or set(table) != {"columns", "rows"}
-                or not isinstance(table["columns"], list)
-                or not all(isinstance(column, str) for column in table["columns"])
-                or len(table["columns"]) != len(set(table["columns"]))
-                or not isinstance(table["rows"], list)
-            ):
-                raise ArtifactError("export_invalid", "Full export table is invalid")
-            columns = set(table["columns"])
-            if columns & _FORBIDDEN_EXPORT_FIELDS:
-                raise ArtifactError("export_secret_detected", "Full export contains secret fields")
-            for row in table["rows"]:
-                if (
-                    not isinstance(row, dict)
-                    or set(row) != {"export_id", "attributes", "relationships"}
-                    or not isinstance(row["export_id"], str)
-                    or not row["export_id"].startswith(f"{table_name}:")
-                    or row["export_id"] in export_ids
-                    or not isinstance(row["attributes"], dict)
-                    or set(row["attributes"]) != columns
-                    or not isinstance(row["relationships"], dict)
-                ):
-                    raise ArtifactError("export_invalid", "Full export row is invalid")
-                export_ids.add(row["export_id"])
-                record_count += 1
-                for column, relationship in row["relationships"].items():
-                    if column not in columns or not isinstance(relationship, dict):
-                        raise ArtifactError("export_invalid", "Full export relation is invalid")
-                    relationships.append(relationship)
+            record_count += self._validate_export_table(
+                table_name, table, export_ids, relationships
+            )
         for relationship in relationships:
-            if (
-                set(relationship) != {"export_id", "target_column"}
-                or relationship.get("export_id") not in export_ids
-                or not isinstance(relationship.get("target_column"), str)
-            ):
-                raise ArtifactError("export_invalid", "Full export relation is invalid")
+            self._validate_export_relationship(relationship, export_ids)
         if (
             record_count != data["record_count"]
             or record_count != manifest["counts"]["database_records"]
         ):
             raise ArtifactError("export_invalid", "Full export record count is invalid")
 
+    def _validate_export_table(
+        self,
+        table_name: object,
+        table: object,
+        export_ids: set[str],
+        relationships: list[dict[str, Any]],
+    ) -> int:
+        if (
+            not isinstance(table_name, str)
+            or not isinstance(table, dict)
+            or set(table) != {"columns", "rows"}
+            or not isinstance(table["columns"], list)
+            or not all(isinstance(column, str) for column in table["columns"])
+            or len(table["columns"]) != len(set(table["columns"]))
+            or not isinstance(table["rows"], list)
+        ):
+            raise ArtifactError("export_invalid", "Full export table is invalid")
+        columns = set(table["columns"])
+        if columns & _FORBIDDEN_EXPORT_FIELDS:
+            raise ArtifactError("export_secret_detected", "Full export contains secret fields")
+        for row in table["rows"]:
+            self._validate_export_row(row, table_name, columns, export_ids, relationships)
+        return len(table["rows"])
+
+    def _validate_export_row(
+        self,
+        row: object,
+        table_name: str,
+        columns: set[str],
+        export_ids: set[str],
+        relationships: list[dict[str, Any]],
+    ) -> None:
+        if (
+            not isinstance(row, dict)
+            or set(row) != {"export_id", "attributes", "relationships"}
+            or not isinstance(row["export_id"], str)
+            or not row["export_id"].startswith(f"{table_name}:")
+            or row["export_id"] in export_ids
+            or not isinstance(row["attributes"], dict)
+            or set(row["attributes"]) != columns
+            or not isinstance(row["relationships"], dict)
+        ):
+            raise ArtifactError("export_invalid", "Full export row is invalid")
+        export_ids.add(row["export_id"])
+        for column, relationship in row["relationships"].items():
+            if column not in columns or not isinstance(relationship, dict):
+                raise ArtifactError("export_invalid", "Full export relation is invalid")
+            relationships.append(relationship)
+
+    def _validate_export_relationship(
+        self, relationship: dict[str, Any], export_ids: set[str]
+    ) -> None:
+        if (
+            set(relationship) != {"export_id", "target_column"}
+            or relationship.get("export_id") not in export_ids
+            or not isinstance(relationship.get("target_column"), str)
+        ):
+            raise ArtifactError("export_invalid", "Full export relation is invalid")
+
+    def _validate_export_documents(
+        self,
+        root: Path,
+        documents: object,
+        declared: set[str],
+        manifest: dict[str, Any],
+    ) -> None:
+        assert isinstance(documents, dict)
         document_ids: set[str] = set()
         content_paths: set[str] = set()
         for document in documents["documents"]:
-            if (
-                not isinstance(document, dict)
-                or set(document)
-                != {
-                    "export_id",
-                    "source_document_id",
-                    "content_path",
-                    "original_filename",
-                    "media_type",
-                    "size_bytes",
-                    "checksum_sha256",
-                    "relationships",
-                }
-                or not isinstance(document["export_id"], str)
-                or document["export_id"] in document_ids
-                or not isinstance(document["content_path"], str)
-                or document["content_path"] in content_paths
-                or not isinstance(document["size_bytes"], int)
-                or isinstance(document["size_bytes"], bool)
-                or document["size_bytes"] < 0
-                or not isinstance(document["checksum_sha256"], str)
-                or _SHA256.fullmatch(document["checksum_sha256"]) is None
-                or not isinstance(document["relationships"], list)
-            ):
-                raise ArtifactError("export_invalid", "Full export document is invalid")
-            package_path = "export/" + document["content_path"]
-            content = root.joinpath(*PurePosixPath(package_path).parts)
-            if (
-                package_path not in declared
-                or not content.is_file()
-                or content.stat().st_size != document["size_bytes"]
-                or _sha256(content) != document["checksum_sha256"]
-            ):
-                raise ArtifactError("export_invalid", "Full export document is invalid")
-            document_ids.add(document["export_id"])
-            content_paths.add(document["content_path"])
+            self._validate_export_document(root, document, declared, document_ids, content_paths)
         if len(documents["documents"]) != manifest["counts"]["documents"]:
             raise ArtifactError("export_invalid", "Full export document count is invalid")
+
+    def _validate_export_document(
+        self,
+        root: Path,
+        document: object,
+        declared: set[str],
+        document_ids: set[str],
+        content_paths: set[str],
+    ) -> None:
+        if (
+            not isinstance(document, dict)
+            or set(document)
+            != {
+                "export_id",
+                "source_document_id",
+                "content_path",
+                "original_filename",
+                "media_type",
+                "size_bytes",
+                "checksum_sha256",
+                "relationships",
+            }
+            or not isinstance(document["export_id"], str)
+            or document["export_id"] in document_ids
+            or not isinstance(document["content_path"], str)
+            or document["content_path"] in content_paths
+            or not isinstance(document["size_bytes"], int)
+            or isinstance(document["size_bytes"], bool)
+            or document["size_bytes"] < 0
+            or not isinstance(document["checksum_sha256"], str)
+            or _SHA256.fullmatch(document["checksum_sha256"]) is None
+            or not isinstance(document["relationships"], list)
+        ):
+            raise ArtifactError("export_invalid", "Full export document is invalid")
+        package_path = "export/" + document["content_path"]
+        content = root.joinpath(*PurePosixPath(package_path).parts)
+        if (
+            package_path not in declared
+            or not content.is_file()
+            or content.stat().st_size != document["size_bytes"]
+            or _sha256(content) != document["checksum_sha256"]
+        ):
+            raise ArtifactError("export_invalid", "Full export document is invalid")
+        document_ids.add(document["export_id"])
+        content_paths.add(document["content_path"])
 
     def _export_data(self, snapshot: CapturedSnapshot) -> tuple[dict[str, Any], dict[str, Any]]:
         tables: dict[str, Any] = {}
@@ -1551,47 +1657,13 @@ class ArtifactService:
         moved: list[tuple[Path, Path]] = []
         installed: list[Path] = []
         try:
-            if self.paths.database.exists():
-                with closing(
-                    _database_connection(self.paths.database, read_only=False)
-                ) as connection:
-                    connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            for target in (
-                self.paths.database,
-                Path(f"{self.paths.database}-wal"),
-                Path(f"{self.paths.database}-shm"),
-                self.paths.documents,
-                target_key,
-            ):
-                if target.exists():
-                    destination = retired / target.name
-                    os.replace(target, destination)
-                    moved.append((destination, target))
-            os.replace(database, self.paths.database)
-            installed.append(self.paths.database)
-            os.replace(documents, self.paths.documents)
-            installed.append(self.paths.documents)
-            os.replace(key, target_key)
-            installed.append(target_key)
-            _database_integrity(self.paths.database)
-            _validate_document_snapshot(self.paths.database, self.paths.documents)
-            _validate_totp_secrets(self.paths.database, target_key.read_bytes())
-            if _instance_id(self.paths.database) != manifest["instance_id"]:
-                raise ArtifactError(
-                    "activation_failed",
-                    "Activated instance identity is invalid",
-                    phase="activation",
-                )
+            self._checkpoint_target_database()
+            self._retire_restore_targets(retired, target_key, moved)
+            self._install_prepared_restore(database, documents, key, target_key, installed)
+            self._validate_activated_restore(target_key, manifest)
             self._fault("activation")
         except Exception as error:
-            for target in reversed(installed):
-                if target.is_dir():
-                    shutil.rmtree(target, ignore_errors=True)
-                else:
-                    target.unlink(missing_ok=True)
-            for source, target in reversed(moved):
-                if source.exists():
-                    os.replace(source, target)
+            self._rollback_restore_activation(installed, moved)
             if isinstance(error, ArtifactError):
                 raise
             raise ArtifactError(
@@ -1599,6 +1671,62 @@ class ArtifactService:
             ) from error
         finally:
             shutil.rmtree(retired, ignore_errors=True)
+
+    def _checkpoint_target_database(self) -> None:
+        if not self.paths.database.exists():
+            return
+        with closing(_database_connection(self.paths.database, read_only=False)) as connection:
+            connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+    def _retire_restore_targets(
+        self, retired: Path, target_key: Path, moved: list[tuple[Path, Path]]
+    ) -> None:
+        for target in (
+            self.paths.database,
+            Path(f"{self.paths.database}-wal"),
+            Path(f"{self.paths.database}-shm"),
+            self.paths.documents,
+            target_key,
+        ):
+            if target.exists():
+                destination = retired / target.name
+                os.replace(target, destination)
+                moved.append((destination, target))
+
+    def _install_prepared_restore(
+        self, database: Path, documents: Path, key: Path, target_key: Path, installed: list[Path]
+    ) -> None:
+        destinations = (
+            (database, self.paths.database),
+            (documents, self.paths.documents),
+            (key, target_key),
+        )
+        for source, target in destinations:
+            os.replace(source, target)
+            installed.append(target)
+
+    def _validate_activated_restore(self, target_key: Path, manifest: dict[str, Any]) -> None:
+        _database_integrity(self.paths.database)
+        _validate_document_snapshot(self.paths.database, self.paths.documents)
+        _validate_totp_secrets(self.paths.database, target_key.read_bytes())
+        if _instance_id(self.paths.database) != manifest["instance_id"]:
+            raise ArtifactError(
+                "activation_failed",
+                "Activated instance identity is invalid",
+                phase="activation",
+            )
+
+    def _rollback_restore_activation(
+        self, installed: list[Path], moved: list[tuple[Path, Path]]
+    ) -> None:
+        for target in reversed(installed):
+            if target.is_dir():
+                shutil.rmtree(target, ignore_errors=True)
+            else:
+                target.unlink(missing_ok=True)
+        for source, target in reversed(moved):
+            if source.exists():
+                os.replace(source, target)
 
     def _target_is_empty(self) -> bool:
         if any(self.paths.documents.iterdir()):
