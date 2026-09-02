@@ -4,7 +4,8 @@
 
 Dieser Stand ist ein visuell prüfbarer Entwurf für Issue #568.
 Er integriert noch keine neue Marke oder neue Schrift in Produkt und Publikation.
-Logo und Schrift benötigen zunächst eine dokumentierte Maintainer-Freigabe.
+Die erste Logo-Vergleichsstufe wurde im Issue verworfen.
+Logo und Schrift benötigen weiterhin eine dokumentierte Maintainer-Freigabe.
 
 ## Designvertrag
 
@@ -26,16 +27,19 @@ Helles und dunkles Schema verwenden dieselben Rollen, aber separat geprüfte Wer
 - Funktionale Icons sind derzeit ausgewählte lokal kopierte CoreUI-Pfade und noch nicht die verlangte Lucide-Semantik.
 - Produkt und Publikation besitzen keine gemeinsame kanonische Asset- oder Tokenquelle.
 
-## Logoauswahl
+## Logoauswahl · zweite Vergleichsstufe
 
-Beide Entwürfe setzen denselben Bühnenrahmen und Lichtkegel ein.
-Sie unterscheiden ausschließlich die zentrale Qualifikationsmetapher:
+Beide überarbeiteten Entwürfe setzen den Prüfling als deutlich größte, kontraststarke Hauptfigur ins Zentrum.
+Der positiv bewertete Prüfungsausschuss bleibt als kleineres abstrahiertes Publikum erhalten.
+Bühnenrahmen und Lichtkegel sind in Strichstärke, Kontrast und Fläche zurückgenommen.
+Die Varianten unterscheiden ausschließlich das sekundäre Attribut der Hauptfigur:
 
-- **A: Bühnenhut** ist unmittelbar als Qualifikation lesbar, kann aber akademischer wirken.
-- **B: Geordneter Weg** verbindet drei Schritte mit einem Abschlusszeichen und bleibt näher an strukturierten Prüfungsabläufen.
+- **A: Prüfling mit Abschluss** verwendet einen kleinen Qualifikationshut und ist dadurch unmittelbar als Abschlussmotiv lesbar, kann aber akademischer wirken.
+- **B: Prüfling mit Ergebnis** verwendet ein kleines Prüfzeichen und bleibt näher an einem branchenoffenen, erfolgreich abgeschlossenen Prüfungsprozess.
 
 Die Vektorquellen unter `brand/proposals/` sind eigenständige SVG-Gestaltungen.
 `brand/review/evidence/logo-comparison-light.png` und `logo-comparison-dark.png` zeigen beide Richtungen als Bildmarke, vorläufige Wort-/Bildmarke, Kleinformatprobe und Key Visual.
+Die Kleinformatprobe rendert jede unveränderte Bildmarkenquelle mit 16, 32 und 64 Pixeln und macht damit dieselbe Gewichtung ohne separate vereinfachte Ersatzgrafik prüfbar.
 Die endgültige Wortmarke wird erst nach gemeinsamer Logo- und Schriftfreigabe festgelegt.
 
 ### Helles Schema
@@ -113,7 +117,7 @@ Paketintegrität, Upstream-Fassung und OFL-Lizenz werden maschinenlesbar geprüf
 
 Vor der Integration ist im Issue jeweils eine eindeutige Auswahl zu dokumentieren:
 
-1. **Logo:** `A: Bühnenhut` oder `B: Geordneter Weg`, gegebenenfalls mit präzise benannter Korrektur.
+1. **Logo:** `A: Prüfling mit Abschluss` oder `B: Prüfling mit Ergebnis`, gegebenenfalls mit präzise benannter Korrektur.
 2. **Schrift:** `Source Sans 3`, `Noto Sans` oder `Inter`, gegebenenfalls mit präzise benannter Korrektur.
 
 Die Freigabe bestätigt die subjektive visuelle Richtung, nicht die technische Abnahme.

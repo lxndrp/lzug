@@ -5,14 +5,14 @@
     {
       "name": "logo-comparison-light.png",
       "theme": "light",
-      "height": 1220,
+      "height": 1236,
       "overflow": 0,
       "width": 1440
     },
     {
       "name": "logo-comparison-dark.png",
       "theme": "dark",
-      "height": 1220,
+      "height": 1236,
       "overflow": 0,
       "width": 1440
     }
@@ -34,7 +34,11 @@
       ],
       "sourceVersion": "v19",
       "upstream": "https://github.com/google/fonts",
-      "subsets": ["latin", "greek", "greek-ext"],
+      "subsets": [
+        "latin",
+        "greek",
+        "greek-ext"
+      ],
       "height": 1434,
       "overflow": 0,
       "width": 1440
@@ -55,7 +59,11 @@
       ],
       "sourceVersion": "v19",
       "upstream": "https://github.com/google/fonts",
-      "subsets": ["latin", "greek", "greek-ext"],
+      "subsets": [
+        "latin",
+        "greek",
+        "greek-ext"
+      ],
       "height": 2046,
       "overflow": 0,
       "width": 390
@@ -76,7 +84,11 @@
       ],
       "sourceVersion": "v42",
       "upstream": "https://github.com/google/fonts",
-      "subsets": ["latin", "greek", "greek-ext"],
+      "subsets": [
+        "latin",
+        "greek",
+        "greek-ext"
+      ],
       "height": 1434,
       "overflow": 0,
       "width": 1440
@@ -97,7 +109,11 @@
       ],
       "sourceVersion": "v42",
       "upstream": "https://github.com/google/fonts",
-      "subsets": ["latin", "greek", "greek-ext"],
+      "subsets": [
+        "latin",
+        "greek",
+        "greek-ext"
+      ],
       "height": 2136,
       "overflow": 0,
       "width": 390
@@ -118,7 +134,11 @@
       ],
       "sourceVersion": "v20",
       "upstream": "https://github.com/google/fonts",
-      "subsets": ["latin", "greek", "greek-ext"],
+      "subsets": [
+        "latin",
+        "greek",
+        "greek-ext"
+      ],
       "height": 1434,
       "overflow": 0,
       "width": 1440
@@ -139,7 +159,11 @@
       ],
       "sourceVersion": "v20",
       "upstream": "https://github.com/google/fonts",
-      "subsets": ["latin", "greek", "greek-ext"],
+      "subsets": [
+        "latin",
+        "greek",
+        "greek-ext"
+      ],
       "height": 2136,
       "overflow": 0,
       "width": 390
