@@ -52,6 +52,7 @@ import {
   ExamResult,
 } from './api.models';
 import { RoundContextService } from './round-context.service';
+import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
 
 /**
  * Maps UI-oriented planning aggregates onto the JSON API.
@@ -63,6 +64,7 @@ import { RoundContextService } from './round-context.service';
 export class PlanningApiService {
   private readonly http = inject(HttpClient);
   private readonly roundContext = inject(RoundContextService);
+  private readonly runtimeExperience = inject(RuntimeExperienceService);
 
   private get roundId(): number {
     return this.roundContext.roundId();
@@ -70,6 +72,14 @@ export class PlanningApiService {
 
   getRoot() {
     return this.http.get<ApiRoot>('/api');
+  }
+
+  getDemoScenarios() {
+    return this.runtimeExperience.getDemoScenarios();
+  }
+
+  resetDemoScenarios() {
+    return this.runtimeExperience.resetDemoScenarios();
   }
 
   getRoundSummary() {
@@ -113,8 +123,10 @@ export class PlanningApiService {
   }
 
   saveEditableConfirmedPlan(roundId: number, proposal: EditablePlanningProposal, reason: string) {
+    const { _links, ...payload } = proposal;
+    void _links;
     return this.http.put<EditablePlanningProposal>(`/api/exam-rounds/${roundId}/confirmed-plan`, {
-      ...proposal,
+      ...payload,
       reason: reason.trim(),
     });
   }

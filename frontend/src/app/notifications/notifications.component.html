@@ -107,7 +107,10 @@
               <span>
                 <strong>{{ event.date }} · {{ event.round_name }}</strong>
                 <small>{{ event.starts_at }}–{{ event.ends_at }} · {{ event.role }}</small>
-                <small>{{ calendarStatusLabel(event) }}</small>
+                <small>
+                  {{ calendarStatusLabel(event) }} · Version {{ event.version }} · Ereignis-ID
+                  <code>{{ event.external_event_id }}</code>
+                </small>
               </span>
               <a tuiButton appearance="secondary" [href]="event.download_url">Datei laden</a>
             </li>
@@ -137,6 +140,7 @@
                 </time>
               </div>
               <p>{{ notification.message }}</p>
+              <small class="app-muted">Ursprung: {{ notification.event_type }}</small>
               <a tuiButton appearance="secondary" [href]="notification.action_path"
                 >Details öffnen</a
               >

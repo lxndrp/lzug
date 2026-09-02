@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "revision": "midsummer-night-dream-v1",
+  "revision": "midsummer-night-dream-v2",
   "fixture_root": "name.papaspyrou.repertoire.lzug.fixture",
-  "demo_matrix_version": "demo-paths-v6",
+  "demo_matrix_version": "demo-paths-v7",
   "narrative": {
     "work": "William Shakespeare: Ein Sommernachtstraum",
     "public_domain_scope": "Figuren und Motive des gemeinfreien Werkes; keine Übersetzung oder fremde Gestaltung",
@@ -79,8 +79,8 @@
       "email": "hippolyta.athen@demo.lzug.invalid",
       "mobile": null,
       "ensemble": "Athener Hof",
-      "data_role": "deputy_chair_and_requested_replacement",
-      "demo_role": "deputy",
+      "data_role": "deputy_chair",
+      "demo_role": null,
       "scenarios": ["authorization.positive.athen", "demo.487.absence"]
     },
     {
@@ -132,7 +132,7 @@
       "mobile": null,
       "ensemble": "Handwerkerensemble",
       "data_role": "suitable_replacement",
-      "demo_role": null,
+      "demo_role": "replacement",
       "scenarios": ["demo.487.absence", "demo.487.planchange", "staffing.suitable"]
     },
     {
@@ -363,7 +363,7 @@
       "membership_key": "name.papaspyrou.repertoire.lzug.fixture.membership.chair.athen",
       "email": "chair@demo.lzug.invalid",
       "demo_role": "chair",
-      "capability_contract": "demo-paths-v6"
+      "capability_contract": "demo-paths-v7"
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.account.examiner",
@@ -372,7 +372,7 @@
       "membership_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.absent",
       "email": "examiner@demo.lzug.invalid",
       "demo_role": "examiner",
-      "capability_contract": "demo-paths-v6"
+      "capability_contract": "demo-paths-v7"
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.account.deputy",
@@ -380,8 +380,17 @@
       "person_key": "name.papaspyrou.repertoire.lzug.fixture.person.deputy.athen",
       "membership_key": "name.papaspyrou.repertoire.lzug.fixture.membership.deputy.athen",
       "email": "deputy@demo.lzug.invalid",
-      "demo_role": "deputy",
-      "capability_contract": "demo-paths-v6"
+      "demo_role": null,
+      "capability_contract": "demo-paths-v7"
+    },
+    {
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.account.replacement",
+      "id": 4,
+      "person_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.replacement",
+      "membership_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.replacement",
+      "email": "replacement@demo.lzug.invalid",
+      "demo_role": "replacement",
+      "capability_contract": "demo-paths-v7"
     }
   ],
   "locations": [

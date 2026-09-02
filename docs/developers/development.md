@@ -132,6 +132,11 @@ task fixtures:check
 
 Der Demo-Artefaktbau ergänzt fachlich gezielte synthetische Zustände für
 Protokoll, Bewertung, Abschluss, Wiederöffnung und Reset.
+Die isolierten Szenarien aus #487 werden dagegen beim Start eines
+Besucher-Arbeitsstands relativ zur aktuellen Instanzzeit erzeugt.
+`backend.tests.test_demo_runtime` prüft beide Reihenfolgen, Rollen- und
+Allowlist-Grenzen, Benachrichtigungs- und Kalenderfolgen, Isolation, Ablauf und
+Reset.
 Katalogversion, Katalogrevision und Demo-Matrixversion sind an das
 inhaltsadressierte Seed-Manifest gebunden; eine unpassende Kombination
 verhindert den Demo-Start.

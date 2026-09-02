@@ -212,7 +212,10 @@ class RequestContext:
 
     @property
     def notification_service(self) -> NotificationService:
-        return NotificationService(self.db_path)
+        return NotificationService(
+            self.db_path,
+            external_delivery_enabled=self.runtime_policy.external_notifications_enabled(),
+        )
 
     @property
     def calendar_service(self) -> CalendarService:
@@ -460,13 +463,29 @@ class RequestContext:
             normalized["updated_by_member_id"] = member_id
         return normalized
 
-    def issue_session_cookies(self, credentials: SessionCredentials) -> None:
+    def issue_session_cookies(
+        self,
+        credentials: SessionCredentials,
+        *,
+        max_age: int | None = None,
+    ) -> None:
         self.add_header(
-            "Set-Cookie", self.cookie(self.session_cookie_name, credentials.token, http_only=True)
+            "Set-Cookie",
+            self.cookie(
+                self.session_cookie_name,
+                credentials.token,
+                http_only=True,
+                max_age=max_age,
+            ),
         )
         self.add_header(
             "Set-Cookie",
-            self.cookie(self.csrf_cookie_name, credentials.csrf_token, http_only=False),
+            self.cookie(
+                self.csrf_cookie_name,
+                credentials.csrf_token,
+                http_only=False,
+                max_age=max_age,
+            ),
         )
 
     def clear_session_cookies(self) -> None:
@@ -479,9 +498,9 @@ class RequestContext:
 
     def cookie(self, name: str, value: str, *, http_only: bool, max_age: int | None = None) -> str:
         effective_max_age = (
-            int(self.session_ttl.total_seconds())
-            if value
-            else (max_age if max_age is not None else 8 * 60 * 60)
+            max_age
+            if max_age is not None
+            else (int(self.session_ttl.total_seconds()) if value else 8 * 60 * 60)
         )
         attributes = [
             f"{name}={value}",

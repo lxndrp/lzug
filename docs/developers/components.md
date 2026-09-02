@@ -187,8 +187,16 @@ Lifecycle, Health-Waiting und Build-Identitätsprüfung in
 Die öffentliche Demo verwendet ein separates Produkt-/Seed-Imagepaar mit
 gemeinsamer Produktrevision, Runtimevertrag, Schemafingerprint und
 Seed-Revision.
-Der Seed ist synthetisch, das Datenvolume flüchtig und der tägliche Reset kein
-Self-Hosting-Verfahren.
+Beim Einstieg erzeugt die Demo aus dem synthetischen Basisseed eine eigene
+SQLite-Arbeitskopie pro Besuch.
+Nur die drei Rollen dieses Besuchs teilen sie; Sitzung und Arbeitskopie laufen
+ab Erzeugung nach höchstens 60 Minuten ab und werden bei Abmeldung oder Reset
+verworfen.
+Die Demo-Policy erlaubt ausschließlich die in ihrer Matrix gebundenen
+Fachaktionen, unterdrückt externe Benachrichtigungszustellung und lässt die
+produktive Autorisierung zusätzlich unverändert prüfen.
+Das Datenvolume bleibt flüchtig und der tägliche Reset ist eine zusätzliche
+Absicherung, kein Self-Hosting-Verfahren.
 `infra/demo/` beschreibt die Azure-Ressourcen deklarativ; GitHub OIDC und das
 geschützte Environment `demo` begrenzen echte Mutationen.
 

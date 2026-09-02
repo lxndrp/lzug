@@ -205,7 +205,6 @@ describe('PlanningApiService', () => {
       round_id: 2,
       revision: 4,
       exam_days: [],
-      _links: {},
       reason: 'Korrektur',
     });
     save.flush({ round_id: 2, revision: 5, exam_days: [], _links: {} });
@@ -214,6 +213,19 @@ describe('PlanningApiService', () => {
     const history = http.expectOne('/api/exam-rounds/2/confirmed-plan/revisions');
     expect(history.request.method).toBe('GET');
     history.flush({ items: [], _links: {} });
+  });
+
+  it('should expose the isolated demo scenario and reset endpoints', () => {
+    service.getDemoScenarios().subscribe((overview) => expect(overview.current_role).toBe('chair'));
+    const scenarios = http.expectOne('/api/demo/scenarios');
+    expect(scenarios.request.method).toBe('GET');
+    scenarios.flush({ current_role: 'chair' });
+
+    service.resetDemoScenarios().subscribe((result) => expect(result.status).toBe('reset'));
+    const reset = http.expectOne('/api/demo/reset');
+    expect(reset.request.method).toBe('POST');
+    expect(reset.request.body).toEqual({});
+    reset.flush({ status: 'reset', role: 'chair', expires_at: '2026-09-02T11:00:00Z' });
   });
 
   it('should use the channel-neutral notification endpoints', () => {
