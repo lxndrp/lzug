@@ -25,6 +25,7 @@ type Registry struct {
 func DefaultRegistry() (*Registry, error) {
 	groups := []CommandGroup{
 		{Name: "account", Summary: "Manage operator accounts and one-time credentials.", Description: "Bootstrap, invite, disable, recover, or consume one-time account credentials."},
+		{Name: "artifact", Summary: "Inspect protected artifact metadata.", Description: "Inspect only the public minimum preamble without decrypting business data."},
 		{Name: "backup", Summary: "Create, verify, and restore protected backups.", Description: "Operate protected backup artifacts through the versioned local administration boundary."},
 		{Name: "committee", Summary: "Bootstrap and maintain examination committees.", Description: "Perform idempotent committee bootstrap and lifecycle administration."},
 		{Name: "completion", Summary: "Generate shell completion scripts.", Description: "Print an installable completion script without changing shell configuration."},
@@ -32,6 +33,7 @@ func DefaultRegistry() (*Registry, error) {
 		{Name: "export", Summary: "Create and verify protected full exports.", Description: "Operate protected full-export artifacts through the versioned local administration boundary."},
 		{Name: "notification", Summary: "Process and test technical notifications.", Description: "Run secret-free notification processing and synthetic delivery diagnostics."},
 		{Name: "plan-consequence", Summary: "Inspect and retry confirmed-plan consequences.", Description: "Inspect or retry technical follow-up work without exposing business content."},
+		{Name: "recipient-key", Summary: "Manage local age recipient keys.", Description: "Generate and inspect local X25519 age identities without transmitting private keys."},
 		{Name: "system", Summary: "Inspect the local runtime and its readiness.", Description: "Run secret-free configuration, status, and diagnostic checks in the selected container."},
 		{Name: "upgrade", Summary: "Apply upgrades and inspect rollback eligibility.", Description: "Use release-bound lifecycle operations in a prepared maintenance container."},
 	}
@@ -64,7 +66,7 @@ func NewRegistry(groups []CommandGroup, commands []Command) (*Registry, error) {
 	for index := range commands {
 		command := commands[index]
 		applyInteractiveMetadata(&command)
-		if command.BackendCommand != "" && command.Timeout == 0 {
+		if (command.BackendCommand != "" || command.UsesConfig) && command.Timeout == 0 {
 			command.Timeout = commandTimeout(command.Name())
 		}
 		if err := validateCommand(command, registry.groups); err != nil {
@@ -117,7 +119,9 @@ func applyInteractiveMetadata(command *Command) {
 	}
 	command.SearchTerms = append(command.SearchTerms, terms[command.Path[0]]...)
 	readOnly := map[string]bool{
+		"artifact inspect":        true,
 		"backup verify":           true,
+		"backup recipient show":   true,
 		"config inspect":          true,
 		"export verify":           true,
 		"plan-consequence status": true,
@@ -126,20 +130,27 @@ func applyInteractiveMetadata(command *Command) {
 		"system status":           true,
 		"upgrade rollback":        true,
 	}
-	command.Mutating = command.BackendCommand != "" && !readOnly[command.Name()]
+	localMutations := map[string]bool{
+		"backup create":            true,
+		"backup recipient replace": true,
+		"backup recipient set":     true,
+		"backup restore":           true,
+		"export create":            true,
+	}
+	command.Mutating = (command.BackendCommand != "" && !readOnly[command.Name()]) || localMutations[command.Name()]
 	command.RetrySafe = readOnly[command.Name()] || strings.HasPrefix(command.Name(), "completion ") || strings.HasPrefix(command.Name(), "committee ")
 }
 
 func validateCommand(command Command, groups map[string]CommandGroup) error {
-	if len(command.Path) == 0 || len(command.Path) > 2 {
-		return fmt.Errorf("command path must contain one or two tokens")
+	if len(command.Path) == 0 || len(command.Path) > 3 {
+		return fmt.Errorf("command path must contain one to three tokens")
 	}
 	for _, token := range command.Path {
 		if !commandTokenPattern.MatchString(token) {
 			return fmt.Errorf("invalid command token %q", token)
 		}
 	}
-	if len(command.Path) == 2 {
+	if len(command.Path) >= 2 {
 		if _, exists := groups[command.Path[0]]; !exists {
 			return fmt.Errorf("command %q references an unknown group", command.Name())
 		}
@@ -267,7 +278,7 @@ func (r *Registry) Groups() []CommandGroup {
 func (r *Registry) CommandsInGroup(name string) []*Command {
 	commands := []*Command{}
 	for _, command := range r.commands {
-		if len(command.Path) == 2 && command.Path[0] == name {
+		if len(command.Path) >= 2 && command.Path[0] == name {
 			commands = append(commands, command)
 		}
 	}

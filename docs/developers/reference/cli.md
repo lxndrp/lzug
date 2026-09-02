@@ -192,71 +192,148 @@ lzug-admin --container lzug account recover --account-id 7
 lzug-admin --container lzug account recover --email member@example.invalid
 ```
 
+### `lzug-admin artifact inspect`
+
+Show format, protection method, and required fingerprint without an identity or business data.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--artifact PATH` | Regular protected artifact file. | Pflicht |
+
+Transport: lokale Ausführung ohne Container-Auftrag.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
+
+Ausgabe: Shows only the public preamble.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin artifact inspect --artifact backup.lzug
+```
+
 ### `lzug-admin backup create`
 
-Create a consistent protected backup through the versioned local administration boundary.
+Stream a backend-validated clear package directly into a local age-encrypted atomic target.
 
-Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--output PATH` | New protected target artifact file. | Pflicht |
 
-Zeitlimit: `10m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
 
-Ausgabe: Prints the created artifact name; JSON includes the validated artifact result.
-`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+Ausgabe: Prints the activated local artifact path; JSON includes secret-free metadata.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug backup create
+lzug-admin --container lzug backup create --output backup.lzug
+```
+
+### `lzug-admin backup recipient replace`
+
+Manage only the persistent public age recipient after local possession proof; private identities never reach the backend.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--identity-file PATH` | Protected local age identity file. | optional |
+| `--identity-stdin` | Read the age identity from redirected standard input. | optional; Standard: false |
+| `--identity-prompt` | Read the age identity from a hidden terminal prompt. | optional; Standard: false |
+
+Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
+
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
+Ausgabe: Shows the canonical public recipient and complete fingerprint.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug backup recipient replace --identity-file backup.agekey
+```
+
+### `lzug-admin backup recipient set`
+
+Manage only the persistent public age recipient after local possession proof; private identities never reach the backend.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--identity-file PATH` | Protected local age identity file. | optional |
+| `--identity-stdin` | Read the age identity from redirected standard input. | optional; Standard: false |
+| `--identity-prompt` | Read the age identity from a hidden terminal prompt. | optional; Standard: false |
+
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
+Ausgabe: Shows the canonical public recipient and complete fingerprint.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug backup recipient set --identity-file backup.agekey
+```
+
+### `lzug-admin backup recipient show`
+
+Manage only the persistent public age recipient after local possession proof; private identities never reach the backend.
+
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
+
+Ausgabe: Shows the canonical public recipient and complete fingerprint.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug backup recipient show
 ```
 
 ### `lzug-admin backup restore`
 
-Restore a complete protected backup after validation. Replacing non-empty state also requires --replace.
+Decrypt locally, validate and stage in the backend, then activate only after every precheck succeeds.
 
 | Option | Bedeutung | Pflicht/Standard |
 | --- | --- | --- |
-| `--artifact NAME` | Protected artifact name inside the application data area. | Pflicht |
-| `--replace` | Confirm replacement of a non-empty installation. | optional; Standard: false; separate Danger-Zone-Bestätigung |
-
-Sichere Eingabe: Private recipient key read only from standard input.
+| `--artifact PATH` | Regular protected artifact file. | Pflicht |
+| `--replace` | Replace a non-empty installation after creating a safety artifact. | optional; Standard: false; separate Danger-Zone-Bestätigung |
+| `--identity-file PATH` | Protected local age identity file. | optional |
+| `--identity-stdin` | Read the age identity from redirected standard input. | optional; Standard: false |
+| `--identity-prompt` | Read the age identity from a hidden terminal prompt. | optional; Standard: false |
 
 Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
 
-Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
-
-Zeitlimit: `30m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
 
-Ausgabe: Successful human output is silent; JSON includes the validated restore result.
-`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+Ausgabe: Human success is silent; JSON includes restore phases and safety evidence.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-printf 'PRIVATE_KEY' | lzug-admin --container lzug backup restore --artifact backup.lzug --force
-printf 'PRIVATE_KEY' | lzug-admin --container lzug backup restore --artifact backup.lzug --replace --force
+lzug-admin --container lzug backup restore --artifact backup.lzug --identity-file backup.agekey --force
 ```
 
 ### `lzug-admin backup verify`
 
-Verify integrity, decryptability, and backup structure without changing the installation.
+Decrypt locally and stream the clear package to the backend for complete validation.
 
 | Option | Bedeutung | Pflicht/Standard |
 | --- | --- | --- |
-| `--artifact NAME` | Protected artifact name inside the application data area. | Pflicht |
+| `--artifact PATH` | Regular protected artifact file. | Pflicht |
+| `--identity-file PATH` | Protected local age identity file. | optional |
+| `--identity-stdin` | Read the age identity from redirected standard input. | optional; Standard: false |
+| `--identity-prompt` | Read the age identity from a hidden terminal prompt. | optional; Standard: false |
 
-Sichere Eingabe: Private recipient key read only from standard input.
-
-Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
-
-Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
-Ausgabe: Successful human output is silent; JSON includes the validated verification result.
-`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+Ausgabe: Human success is silent; JSON contains the validated backend report.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-printf 'PRIVATE_KEY' | lzug-admin --container lzug backup verify --artifact backup.lzug
+lzug-admin --container lzug backup verify --artifact backup.lzug --identity-file backup.agekey
 ```
 
 ### `lzug-admin cli`
@@ -491,7 +568,7 @@ lzug-admin completion zsh > lzug-admin.zsh
 
 Show the effective engine and container together with their flag, environment, file, or default source. No configuration is changed.
 
-Transport: lokale Ausführung ohne Container-Auftrag.
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
@@ -505,46 +582,46 @@ lzug-admin --no-config --engine podman --container lzug config inspect --json
 
 ### `lzug-admin export create`
 
-Create a protected full export for an explicitly supplied public recipient key.
+Stream a backend-validated clear package directly into a local age-encrypted atomic target.
 
 | Option | Bedeutung | Pflicht/Standard |
 | --- | --- | --- |
-| `--recipient-public-key KEY` | Public recipient key for the protected export. | Pflicht |
+| `--output PATH` | New protected target artifact file. | Pflicht |
+| `--recipient AGE_RECIPIENT` | Explicit public X25519 age recipient. | Pflicht |
 
-Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
 
-Zeitlimit: `10m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
 
-Ausgabe: Prints the created artifact name; JSON includes the validated artifact result.
-`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+Ausgabe: Prints the activated local artifact path; JSON includes secret-free metadata.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug export create --recipient-public-key PUBLIC_KEY
+lzug-admin --container lzug export create --recipient age1... --output export.lzug --force
 ```
 
 ### `lzug-admin export verify`
 
-Verify integrity, decryptability, and full-export structure without changing the installation.
+Decrypt locally and stream the clear package to the backend for complete validation.
 
 | Option | Bedeutung | Pflicht/Standard |
 | --- | --- | --- |
-| `--artifact NAME` | Protected artifact name inside the application data area. | Pflicht |
+| `--artifact PATH` | Regular protected artifact file. | Pflicht |
+| `--identity-file PATH` | Protected local age identity file. | optional |
+| `--identity-stdin` | Read the age identity from redirected standard input. | optional; Standard: false |
+| `--identity-prompt` | Read the age identity from a hidden terminal prompt. | optional; Standard: false |
 
-Sichere Eingabe: Private recipient key read only from standard input.
-
-Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
-
-Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
-Ausgabe: Successful human output is silent; JSON includes the validated verification result.
-`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+Ausgabe: Human success is silent; JSON contains the validated backend report.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-printf 'PRIVATE_KEY' | lzug-admin --container lzug export verify --artifact export.lzug
+lzug-admin --container lzug export verify --artifact export.lzug --identity-file backup.agekey
 ```
 
 ### `lzug-admin notification process`
@@ -628,6 +705,41 @@ Ausgabe: Prints a technical status summary; JSON includes the validated technica
 lzug-admin --container lzug plan-consequence status --revision-id 17
 ```
 
+### `lzug-admin recipient-key generate`
+
+Create a protected private identity and a shareable public recipient atomically without overwriting files.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--identity-file PATH` | New private identity file. | Pflicht |
+| `--recipient-file PATH` | New public recipient file. | Pflicht |
+
+Transport: lokale Ausführung ohne Container-Auftrag.
+
+Ausgabe: Human output reminds about independent key backup; JSON excludes the private identity.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin recipient-key generate --identity-file backup.agekey --recipient-file backup.agepub
+```
+
+### `lzug-admin recipient-key inspect`
+
+Show only the canonical public recipient, method, and complete fingerprint.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--key-file PATH` | Private identity or public recipient file. | Pflicht |
+
+Transport: lokale Ausführung ohne Container-Auftrag.
+
+Ausgabe: Shows no private identity value.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin recipient-key inspect --key-file backup.agekey
+```
+
 ### `lzug-admin system config`
 
 Validate the runtime's secret-free configuration contract. The backend receives no operator secrets or business data.
@@ -681,28 +793,25 @@ lzug-admin --container lzug system status
 
 ### `lzug-admin upgrade apply`
 
-Verify CLI and container release identity, create and verify a safety backup, and apply supported migrations in a maintenance container.
+Create and locally decrypt a protected safety backup before applying supported migrations in a maintenance container.
 
 | Option | Bedeutung | Pflicht/Standard |
 | --- | --- | --- |
+| `--backup-output PATH` | New local protected pre-upgrade backup. | Pflicht |
+| `--identity-file PATH` | Protected local age identity file. | optional |
+| `--identity-stdin` | Read the age identity from redirected standard input. | optional; Standard: false |
+| `--identity-prompt` | Read the age identity from a hidden terminal prompt. | optional; Standard: false |
 | `--confirm-irreversible` | Confirm pending irreversible migrations when the backend requires it. | optional; Standard: false; separate Danger-Zone-Bestätigung |
-
-Sichere Eingabe: Private recipient key read only from standard input.
 
 Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
 
-Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
-
-Zeitlimit: `30m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
-
-Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Ausgabe: Successful human output is silent; JSON includes the validated lifecycle result.
-`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-printf 'PRIVATE_KEY' | lzug-admin --container lzug-maintenance upgrade apply --force
-printf 'PRIVATE_KEY' | lzug-admin --container lzug-maintenance upgrade apply --confirm-irreversible --force
+lzug-admin --container lzug-maintenance upgrade apply --backup-output pre-upgrade.lzug --identity-file backup.agekey --force
 ```
 
 ### `lzug-admin upgrade rollback`

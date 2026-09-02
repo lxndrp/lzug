@@ -16,6 +16,7 @@ from typing import Any
 from sqlalchemy.exc import SQLAlchemyError
 
 from .admin_service import AdminOperationError, OperatorAuthService
+from .backup_recipients import BackupRecipientRepository
 from .backup_restore import ArtifactError, ArtifactService
 from .committee_admin import CommitteeAdminService
 from .database import MigrationError, database_path, database_readiness, persistence_paths
@@ -72,6 +73,10 @@ _EXIT_CODES = {
     "export_secret_detected": EXIT_ARTIFACT_INVALID,
     "recipient_key_invalid": EXIT_RECIPIENT_KEY,
     "recipient_key_mismatch": EXIT_RECIPIENT_KEY,
+    "recipient_not_configured": EXIT_RECIPIENT_KEY,
+    "recipient_already_configured": EXIT_CONFLICT,
+    "artifact_type_mismatch": EXIT_ARTIFACT_INVALID,
+    "safety_artifact_required": EXIT_REPLACE_REQUIRED,
     "source_newer": EXIT_INCOMPATIBLE,
     "source_unsupported": EXIT_INCOMPATIBLE,
     "schema_incompatible": EXIT_INCOMPATIBLE,
@@ -95,7 +100,11 @@ _EXIT_CODES = {
 
 _DIAGNOSTIC_COMMANDS = frozenset({"config", "doctor", "status"})
 _ARTIFACT_COMMANDS = frozenset(
-    {"backup-create", "artifact-verify", "backup-restore", "full-export"}
+    {
+        "backup-recipient-show",
+        "backup-recipient-set",
+        "backup-recipient-replace",
+    }
 )
 _LIFECYCLE_COMMANDS = frozenset({"upgrade", "rollback"})
 _ADMIN_COMMANDS = frozenset(
@@ -234,7 +243,7 @@ def _execute_lifecycle(
         if set(arguments) != {"target"}:
             raise AdminOperationError("invalid_request", "rollback requires only target")
         return active_lifecycle.rollback(target)
-    if set(arguments) != {"target", "recipient_private_key", "confirm_irreversible"}:
+    if set(arguments) != {"target", "backup", "confirm_irreversible"}:
         raise AdminOperationError(
             "invalid_request", "upgrade requires exact backup and target arguments"
         )
@@ -245,7 +254,7 @@ def _execute_lifecycle(
         )
     return active_lifecycle.upgrade(
         target,
-        _require_string(arguments, "recipient_private_key"),
+        _require_mapping(arguments.get("backup"), "Argument backup must be verified evidence"),
         confirm_irreversible=confirmation,
     )
 
@@ -254,22 +263,26 @@ def _execute_artifact(
     command: str, arguments: Mapping[str, Any], artifacts: ArtifactService | None
 ) -> dict[str, Any]:
     active_artifacts = artifacts or ArtifactService()
-    if command == "backup-create":
+    repository = BackupRecipientRepository(
+        active_artifacts.paths.database,
+        environment=active_artifacts.environment,
+    )
+    if command == "backup-recipient-show":
         if arguments:
-            raise AdminOperationError("invalid_request", "backup-create takes no arguments")
-        return active_artifacts.create_backup()
-    if command == "full-export":
-        return active_artifacts.create_full_export(
-            _require_string(arguments, "recipient_public_key")
-        )
-    artifact = _require_string(arguments, "artifact")
-    private_key = _require_string(arguments, "recipient_private_key")
-    if command == "artifact-verify":
-        return active_artifacts.verify(artifact, private_key)
-    replace = arguments.get("replace", False)
-    if not isinstance(replace, bool):
-        raise AdminOperationError("invalid_request", "Argument replace must be boolean")
-    return active_artifacts.restore(artifact, private_key, replace=replace)
+            raise AdminOperationError("invalid_request", "backup-recipient-show takes no arguments")
+        current = repository.show()
+        if current is None:
+            raise ArtifactError("recipient_not_configured", "No backup recipient is configured")
+        return current
+    if set(arguments) != {"recipient", "fingerprint"}:
+        raise AdminOperationError("invalid_request", "Recipient update arguments are invalid")
+    recipient = _require_string(arguments, "recipient")
+    fingerprint = _require_string(arguments, "fingerprint")
+    return (
+        repository.replace(recipient, fingerprint)
+        if command.endswith("replace")
+        else repository.set(recipient, fingerprint)
+    )
 
 
 def _execute_committee(

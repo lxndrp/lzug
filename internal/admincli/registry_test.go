@@ -17,14 +17,16 @@ func TestDefaultRegistryContainsTheCompletePublicCommandTree(t *testing.T) {
 	}
 	want := []string{
 		"account bootstrap", "account consume-invitation", "account consume-recovery",
-		"account disable", "account invite", "account recover",
-		"backup create", "backup restore", "backup verify", "cli",
+		"account disable", "account invite", "account recover", "artifact inspect",
+		"backup create", "backup recipient replace", "backup recipient set",
+		"backup recipient show", "backup restore", "backup verify", "cli",
 		"committee bootstrap", "committee complete", "committee deactivate",
 		"committee reactivate", "committee reinvite",
 		"completion bash", "completion fish", "completion powershell", "completion zsh",
 		"config inspect", "export create", "export verify",
 		"notification process", "notification test",
 		"plan-consequence retry", "plan-consequence status",
+		"recipient-key generate", "recipient-key inspect",
 		"system config", "system doctor", "system status",
 		"upgrade apply", "upgrade rollback",
 	}

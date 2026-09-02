@@ -311,7 +311,7 @@ func (session *interactiveSession) command(ctx context.Context, command *Command
 		session.summary(command, args)
 	}
 	for {
-		if command.Transport == ContainerExecTransport && !session.checked {
+		if commandNeedsBackendTarget(command) && !session.checked {
 			if command.Name() != "system status" {
 				session.write("Ziel wird vor dem ersten Backendauftrag geprüft.\n")
 				if code, failure, interrupted := session.execute(ctx, mustCommand(session.application.Registry, "system", "status"), nil); code != ExitOK {
@@ -355,6 +355,10 @@ func (session *interactiveSession) command(ctx context.Context, command *Command
 	}
 }
 
+func commandNeedsBackendTarget(command *Command) bool {
+	return command.Transport == ContainerExecTransport || (command.UsesConfig && command.Name() != "config inspect")
+}
+
 func (session *interactiveSession) collect(ctx context.Context, command *Command) ([]string, dialogAction, error) {
 	values := Values{}
 	for {
@@ -370,6 +374,9 @@ func (session *interactiveSession) collect(ctx context.Context, command *Command
 			}
 		}
 		for _, option := range orderedOptions(command.Options) {
+			if hasIdentitySources(command) && (option.Name == "identity-stdin" || option.Name == "identity-prompt") {
+				continue
+			}
 			value, action, err := session.option(ctx, option, values)
 			if err != nil || action != dialogValue {
 				return nil, action, err
@@ -379,6 +386,9 @@ func (session *interactiveSession) collect(ctx context.Context, command *Command
 			} else {
 				values[option.Name] = value
 			}
+		}
+		if hasIdentitySources(command) && values.String("identity-file") == "" {
+			values["identity-prompt"] = true
 		}
 		args := valuesToArgs(command, values)
 		if _, failure := parseCommandOptions(command, args); failure == nil {
@@ -394,6 +404,14 @@ func (session *interactiveSession) collect(ctx context.Context, command *Command
 			}
 		}
 	}
+}
+
+func hasIdentitySources(command *Command) bool {
+	found := map[string]bool{}
+	for _, option := range command.Options {
+		found[option.Name] = true
+	}
+	return found["identity-file"] && found["identity-stdin"] && found["identity-prompt"]
 }
 
 func (session *interactiveSession) field(ctx context.Context, name, summary string, required bool, choices []string, defaultText string, danger bool, values Values) (string, dialogAction, error) {

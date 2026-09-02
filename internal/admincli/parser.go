@@ -129,14 +129,20 @@ func resolveInvocation(registry *Registry, args []string) (invocation, string, *
 			}
 			return invocation{}, root, nil
 		}
-		command, found := registry.Find(args[:2])
+		pathLength := 2
+		command, found := registry.Find(args[:pathLength])
+		if len(args) >= 3 {
+			if nested, nestedFound := registry.Find(args[:3]); nestedFound {
+				command, found, pathLength = nested, true, 3
+			}
+		}
 		if !found {
 			return invocation{}, root, invalidInvocation("unsupported %s action %q", root, args[1])
 		}
-		if len(args) == 3 && (args[2] == "--help" || args[2] == "-h") {
+		if len(args) == pathLength+1 && (args[pathLength] == "--help" || args[pathLength] == "-h") {
 			return invocation{}, command.Name(), nil
 		}
-		return invocation{command: command, args: args[2:]}, "", nil
+		return invocation{command: command, args: args[pathLength:]}, "", nil
 	}
 	command, found := registry.Find(args[:1])
 	if !found {
@@ -292,6 +298,10 @@ func requireExactlyOne(values Values, names ...string) error {
 				}
 			case int:
 				if typed != 0 {
+					count++
+				}
+			case bool:
+				if typed {
 					count++
 				}
 			default:

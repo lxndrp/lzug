@@ -1,14 +1,12 @@
-"""Protected backup, restore, verification, and full-export application contract.
+"""Clear artifact package, restore, and full-export domain contract.
 
-The module is called only by the local admin protocol. It owns SQLite and
-document consistency, artifact protection, restore staging, and validation so
-the later operator CLI remains a thin container-exec adapter.
+The backend owns SQLite and document consistency, package validation, restore
+staging, and activation. Cryptographic protection is exclusively owned by the
+Go operator CLI.
 """
 
 from __future__ import annotations
 
-import base64
-import binascii
 import hashlib
 import hmac
 import json
@@ -16,9 +14,7 @@ import os
 import re
 import shutil
 import sqlite3
-import struct
 import tempfile
-import zipfile
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import closing, contextmanager
 from dataclasses import dataclass
@@ -27,18 +23,12 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 from uuid import UUID, uuid4
 
-from cryptography.exceptions import InvalidTag
 from cryptography.fernet import Fernet, InvalidToken
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from .database import (
     BUSY_TIMEOUT_MS,
     MIGRATIONS_PATH,
     PersistencePaths,
-    activation_scope,
     apply_migrations,
     database_readiness,
     migration_status,
@@ -49,14 +39,8 @@ from .database import (
 from .local_auth import authentication_key, authentication_key_path
 from .version import application_version
 
-ARTIFACT_MAGIC = b"LZUGA01\n"
-ARTIFACT_FORMAT = "lzug-protected-artifact"
 ARTIFACT_FORMAT_VERSION = 1
-PROTECTION = "x25519-hkdf-sha256-aes256-gcm"
-GCM_NONCE_BYTES = 12
-GCM_TAG_BYTES = 16
 STREAM_CHUNK_BYTES = 1024 * 1024
-MAX_HEADER_BYTES = 16 * 1024
 MIN_SUPPORTED_SCHEMA = "009_harden_migration_history.sql"
 KEY_NAME = "payload/keys/key-1.bin"
 DATABASE_NAME = "payload/database.sqlite"
@@ -65,17 +49,6 @@ ARTIFACT_SUFFIX = ".lzug"
 REQUIRED_CONFIG_ENV = "LZUG_REQUIRED_EXTERNAL_CONFIG"
 BACKUP_PUBLIC_KEY_ENV = "LZUG_BACKUP_RECIPIENT_PUBLIC_KEY"
 
-_HEADER_FIELDS = frozenset(
-    {
-        "format",
-        "format_version",
-        "protection",
-        "recipient_key_fingerprint",
-        "ephemeral_public_key",
-        "nonce",
-        "tag_length",
-    }
-)
 _EXCLUDED_EXPORT_TABLES = frozenset(
     {
         "artifact_operation",
@@ -209,190 +182,6 @@ def _canonical_json(value: object) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
         "utf-8"
     )
-
-
-def _b64encode(value: bytes) -> str:
-    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
-
-
-def _b64decode(value: object) -> bytes:
-    if not isinstance(value, str) or not value or len(value) > 256:
-        raise ArtifactError("artifact_invalid", "Artifact key material is invalid")
-    try:
-        return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
-    except (ValueError, binascii.Error) as error:
-        raise ArtifactError("artifact_invalid", "Artifact key material is invalid") from error
-
-
-def _public_bytes(key: X25519PublicKey) -> bytes:
-    return key.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
-
-
-def _private_bytes(key: X25519PrivateKey) -> bytes:
-    return key.private_bytes(
-        serialization.Encoding.Raw,
-        serialization.PrivateFormat.Raw,
-        serialization.NoEncryption(),
-    )
-
-
-def generate_recipient_keypair() -> tuple[str, str]:
-    """Generate the documented raw X25519 recipient formats."""
-    private_key = X25519PrivateKey.generate()
-    public_key = private_key.public_key()
-    return (
-        "x25519:" + _b64encode(_public_bytes(public_key)),
-        "x25519-private:" + _b64encode(_private_bytes(private_key)),
-    )
-
-
-def _parse_public_key(value: object) -> X25519PublicKey:
-    if not isinstance(value, str) or not value.startswith("x25519:"):
-        raise ArtifactError("recipient_key_invalid", "Recipient public key is invalid")
-    raw = _b64decode(value.removeprefix("x25519:"))
-    if len(raw) != 32:
-        raise ArtifactError("recipient_key_invalid", "Recipient public key is invalid")
-    try:
-        return X25519PublicKey.from_public_bytes(raw)
-    except ValueError as error:
-        raise ArtifactError("recipient_key_invalid", "Recipient public key is invalid") from error
-
-
-def _parse_private_key(value: object) -> X25519PrivateKey:
-    if not isinstance(value, str) or not value.startswith("x25519-private:"):
-        raise ArtifactError("recipient_key_invalid", "Recipient private key is invalid")
-    raw = _b64decode(value.removeprefix("x25519-private:"))
-    if len(raw) != 32:
-        raise ArtifactError("recipient_key_invalid", "Recipient private key is invalid")
-    try:
-        return X25519PrivateKey.from_private_bytes(raw)
-    except ValueError as error:
-        raise ArtifactError("recipient_key_invalid", "Recipient private key is invalid") from error
-
-
-def _fingerprint(key: X25519PublicKey) -> str:
-    return "sha256:" + hashlib.sha256(_public_bytes(key)).hexdigest()
-
-
-def _derived_key(private_key: X25519PrivateKey, public_key: X25519PublicKey) -> bytes:
-    return HKDF(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=None,
-        info=b"lzug-protected-artifact-v1",
-    ).derive(private_key.exchange(public_key))
-
-
-def _encrypt_file(source: Path, target: Path, recipient: X25519PublicKey) -> dict[str, Any]:
-    ephemeral = X25519PrivateKey.generate()
-    nonce = os.urandom(GCM_NONCE_BYTES)
-    header = {
-        "format": ARTIFACT_FORMAT,
-        "format_version": ARTIFACT_FORMAT_VERSION,
-        "protection": PROTECTION,
-        "recipient_key_fingerprint": _fingerprint(recipient),
-        "ephemeral_public_key": _b64encode(_public_bytes(ephemeral.public_key())),
-        "nonce": _b64encode(nonce),
-        "tag_length": GCM_TAG_BYTES,
-    }
-    header_bytes = _canonical_json(header)
-    frame = ARTIFACT_MAGIC + struct.pack(">I", len(header_bytes)) + header_bytes
-    encryptor = Cipher(
-        algorithms.AES(_derived_key(ephemeral, recipient)), modes.GCM(nonce)
-    ).encryptor()
-    encryptor.authenticate_additional_data(frame)
-    try:
-        with source.open("rb") as plaintext, target.open("wb") as protected:
-            os.chmod(target, 0o600)
-            protected.write(frame)
-            while chunk := plaintext.read(STREAM_CHUNK_BYTES):
-                protected.write(encryptor.update(chunk))
-            protected.write(encryptor.finalize())
-            protected.write(encryptor.tag)
-            protected.flush()
-            os.fsync(protected.fileno())
-    except OSError as error:
-        raise ArtifactError(
-            "artifact_write_failed", "Protected artifact could not be written"
-        ) from error
-    return header
-
-
-def _read_header(source) -> tuple[dict[str, Any], bytes]:
-    magic = source.read(len(ARTIFACT_MAGIC))
-    raw_length = source.read(4)
-    if magic != ARTIFACT_MAGIC or len(raw_length) != 4:
-        raise ArtifactError("artifact_invalid", "Artifact preamble is invalid")
-    header_length = struct.unpack(">I", raw_length)[0]
-    if not 1 <= header_length <= MAX_HEADER_BYTES:
-        raise ArtifactError("artifact_invalid", "Artifact preamble is invalid")
-    header_bytes = source.read(header_length)
-    try:
-        header = json.loads(header_bytes)
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise ArtifactError("artifact_invalid", "Artifact preamble is invalid") from error
-    if (
-        not isinstance(header, dict)
-        or set(header) != _HEADER_FIELDS
-        or header.get("format") != ARTIFACT_FORMAT
-        or header.get("format_version") != ARTIFACT_FORMAT_VERSION
-        or header.get("protection") != PROTECTION
-        or header.get("tag_length") != GCM_TAG_BYTES
-        or not isinstance(header.get("recipient_key_fingerprint"), str)
-        or not header["recipient_key_fingerprint"].startswith("sha256:")
-        or _SHA256.fullmatch(header["recipient_key_fingerprint"].removeprefix("sha256:")) is None
-    ):
-        raise ArtifactError("artifact_invalid", "Artifact preamble is invalid")
-    return header, magic + raw_length + header_bytes
-
-
-def _decrypt_file(source: Path, target: Path, recipient: X25519PrivateKey) -> dict[str, Any]:
-    try:
-        source_size = source.stat().st_size
-        with source.open("rb") as protected:
-            header, frame = _read_header(protected)
-            if header["recipient_key_fingerprint"] != _fingerprint(recipient.public_key()):
-                raise ArtifactError(
-                    "recipient_key_mismatch", "Recipient private key does not match"
-                )
-            ephemeral_raw = _b64decode(header["ephemeral_public_key"])
-            nonce = _b64decode(header["nonce"])
-            if len(ephemeral_raw) != 32 or len(nonce) != GCM_NONCE_BYTES:
-                raise ArtifactError("artifact_invalid", "Artifact preamble is invalid")
-            ciphertext_length = source_size - len(frame) - GCM_TAG_BYTES
-            if ciphertext_length <= 0:
-                raise ArtifactError("artifact_invalid", "Artifact ciphertext is missing")
-            protected.seek(source_size - GCM_TAG_BYTES)
-            tag = protected.read(GCM_TAG_BYTES)
-            protected.seek(len(frame))
-            decryptor = Cipher(
-                algorithms.AES(
-                    _derived_key(recipient, X25519PublicKey.from_public_bytes(ephemeral_raw))
-                ),
-                modes.GCM(nonce, tag),
-            ).decryptor()
-            decryptor.authenticate_additional_data(frame)
-            remaining = ciphertext_length
-            with target.open("wb") as plaintext:
-                os.chmod(target, 0o600)
-                while remaining:
-                    chunk = protected.read(min(STREAM_CHUNK_BYTES, remaining))
-                    if not chunk:
-                        raise ArtifactError("artifact_invalid", "Artifact ciphertext is truncated")
-                    remaining -= len(chunk)
-                    plaintext.write(decryptor.update(chunk))
-                plaintext.write(decryptor.finalize())
-                plaintext.flush()
-                os.fsync(plaintext.fileno())
-            return header
-    except ArtifactError:
-        target.unlink(missing_ok=True)
-        raise
-    except (InvalidTag, ValueError, OSError) as error:
-        target.unlink(missing_ok=True)
-        raise ArtifactError(
-            "artifact_integrity_failed", "Artifact integrity validation failed"
-        ) from error
 
 
 def _sha256(path: Path) -> str:
@@ -575,7 +364,7 @@ def _validate_totp_secrets(database: Path, key: bytes) -> int:
 
 
 class ArtifactService:
-    """Local-only backup, verification, restore, and full-export service."""
+    """Clear-package domain service shared by the backend stream boundary."""
 
     def __init__(
         self,
@@ -587,133 +376,6 @@ class ArtifactService:
         self.paths = paths or persistence_paths()
         self.environment = environment if environment is not None else os.environ
         self.fault_injector = fault_injector
-
-    def create_backup(self, recipient_public_key: str | None = None) -> dict[str, Any]:
-        recipient_value = recipient_public_key or self.environment.get(BACKUP_PUBLIC_KEY_ENV)
-        recipient = _parse_public_key(recipient_value)
-        try:
-            with self._capture_snapshot(include_authentication_key=True) as snapshot:
-                result = self._publish_backup(snapshot, recipient, prefix="backup")
-            self._record_operation("backup", result=result)
-            return result
-        except ArtifactError as error:
-            self._record_operation("backup", error=error)
-            raise
-
-    def create_full_export(self, recipient_public_key: str) -> dict[str, Any]:
-        recipient = _parse_public_key(recipient_public_key)
-        try:
-            with self._capture_snapshot(include_authentication_key=False) as snapshot:
-                result = self._publish_export(snapshot, recipient)
-            self._record_operation("full_export", result=result)
-            return result
-        except ArtifactError as error:
-            self._record_operation("full_export", error=error)
-            raise
-
-    def verify(self, artifact_name: str, recipient_private_key: str) -> dict[str, Any]:
-        artifact = self._artifact_path(artifact_name)
-        private_key = _parse_private_key(recipient_private_key)
-        with self._loaded_artifact(artifact, private_key) as loaded:
-            report = self._verify_loaded(loaded)
-        return report
-
-    def restore(
-        self,
-        artifact_name: str,
-        recipient_private_key: str,
-        *,
-        replace: bool = False,
-    ) -> dict[str, Any]:
-        artifact = self._artifact_path(artifact_name)
-        private_key = _parse_private_key(recipient_private_key)
-        phase = "precheck"
-        manifest: dict[str, Any] | None = None
-        try:
-            self._fault(phase)
-            with self._loaded_artifact(artifact, private_key) as loaded:
-                manifest = loaded.manifest
-                if manifest.get("artifact_type") != "backup":
-                    raise ArtifactError("restore_requires_backup", "Only a backup can be restored")
-                verification = self._verify_loaded(loaded)
-                target_empty = self._target_is_empty()
-                if not target_empty and not replace:
-                    raise ArtifactError(
-                        "replace_confirmation_required",
-                        "Target contains data and explicit replacement was not confirmed",
-                    )
-
-                phase = "prepared_restore"
-                self._fault(phase)
-                with self._prepared_restore(loaded) as prepared:
-                    prepared_db, prepared_documents, prepared_key, migrations, reset = prepared
-                    phase = "migration"
-                    self._fault(phase)
-                    phase = "postcheck"
-                    self._fault(phase)
-                    self._verify_prepared(
-                        prepared_db,
-                        prepared_documents,
-                        prepared_key,
-                        manifest,
-                    )
-                    configuration = self._configuration_report(manifest)
-                    safety_artifact = None
-                    phase = "activation"
-                    with activation_scope(self.paths.database):
-                        if not replace and not self._target_is_empty():
-                            raise ArtifactError(
-                                "target_changed",
-                                "Target changed while the restore was prepared",
-                                phase=phase,
-                            )
-                        if replace and not self._target_is_empty():
-                            with self._capture_snapshot_locked() as current:
-                                safety_artifact = self._publish_backup(
-                                    current,
-                                    private_key.public_key(),
-                                    prefix="pre-restore",
-                                )["artifact"]
-                        self._activate_restore(
-                            prepared_db,
-                            prepared_documents,
-                            prepared_key,
-                            manifest,
-                        )
-            result = {
-                "artifact_id": manifest["artifact_id"],
-                "artifact_type": "backup",
-                "source_application_version": manifest["application_version"],
-                "target_application_version": application_version(),
-                "source_schema_version": verification["source_schema_version"],
-                "target_schema_version": _available_migrations()[-1],
-                "snapshot_at": manifest["snapshot_at"],
-                "records": manifest["counts"]["database_records"],
-                "documents": manifest["counts"]["documents"],
-                "migrations": migrations,
-                "reset_security_state": reset,
-                "configuration": configuration,
-                "readiness": configuration["readiness"],
-                "safety_artifact": safety_artifact,
-                "phases": [
-                    "precheck",
-                    "prepared_restore",
-                    "migration",
-                    "postcheck",
-                    "activation",
-                ],
-            }
-            self._record_operation("restore", result=result)
-            return result
-        except ArtifactError as error:
-            if error.phase == "precheck" and phase != "precheck":
-                error.phase = phase
-            self._record_operation("restore", error=error, manifest=manifest)
-            raise
-        except Exception as error:
-            wrapped = ArtifactError("restore_failed", "Restore failed", phase=phase)
-            self._record_operation("restore", error=wrapped, manifest=manifest)
-            raise wrapped from error
 
     @contextmanager
     def _capture_snapshot(self, *, include_authentication_key: bool) -> Iterator[CapturedSnapshot]:
@@ -802,110 +464,6 @@ class ArtifactService:
         if snapshot.authentication_key is not None:
             _validate_totp_secrets(snapshot.database, snapshot.authentication_key)
 
-    def _publish_backup(
-        self,
-        snapshot: CapturedSnapshot,
-        recipient: X25519PublicKey,
-        *,
-        prefix: str,
-    ) -> dict[str, Any]:
-        entries: dict[str, Path] = {DATABASE_NAME: snapshot.database}
-        for document in sorted(snapshot.documents.iterdir()):
-            entries[f"payload/documents/{document.name}"] = document
-        if snapshot.authentication_key is None:
-            raise ArtifactError("authentication_key_missing", "Authentication key is missing")
-        key_file = snapshot.root / "key-1.bin"
-        key_file.write_bytes(snapshot.authentication_key)
-        os.chmod(key_file, 0o600)
-        entries[KEY_NAME] = key_file
-        artifact_id = str(uuid4())
-        manifest = self._manifest(
-            snapshot,
-            artifact_id=artifact_id,
-            artifact_type="backup",
-            entries=entries,
-            authentication_key_binding=_totp_key_binding(
-                snapshot.database, snapshot.authentication_key
-            ),
-            purpose="complete_instance_restore",
-        )
-        artifact = self._publish_package(prefix, artifact_id, manifest, entries, recipient)
-        return {
-            "artifact_id": artifact_id,
-            "artifact_type": "backup",
-            "artifact": artifact.name,
-            "snapshot_at": snapshot.snapshot_at,
-            "records": snapshot.database_records,
-            "documents": snapshot.document_count,
-            "recipient_key_fingerprint": _fingerprint(recipient),
-        }
-
-    def _publish_export(
-        self, snapshot: CapturedSnapshot, recipient: X25519PublicKey
-    ) -> dict[str, Any]:
-        export_root = snapshot.root / "export"
-        export_root.mkdir(mode=0o700)
-        data, value_lists = self._export_data(snapshot)
-        documents = _document_rows(snapshot.database)
-        document_list = {
-            "format": "lzug-full-export-documents",
-            "format_version": 1,
-            "documents": [
-                {
-                    "export_id": f"document:{row['id']}",
-                    "source_document_id": row["id"],
-                    "content_path": f"documents/{row['storage_id']}",
-                    "original_filename": row["original_filename"],
-                    "media_type": row["media_type"],
-                    "size_bytes": row["size_bytes"],
-                    "checksum_sha256": row["checksum_sha256"],
-                    "relationships": [],
-                }
-                for row in documents
-            ],
-        }
-        files = {
-            "export/data.json": _canonical_json(data),
-            "export/documents.json": _canonical_json(document_list),
-            "export/value-lists.json": _canonical_json(value_lists),
-            "export/full-export-v1.schema.json": _canonical_json(FULL_EXPORT_SCHEMA),
-            "export/README.txt": (
-                b"lzug Vollexport Format 1\n\n"
-                b"data.json enthaelt fachliche Tabellen mit stabilen Exportkennungen, "
-                b"Attributen und ausdruecklichen Beziehungen. documents.json ordnet "
-                b"Dokumentmetadaten ihren geschuetzten Binaerdateien zu. value-lists.json "
-                b"dokumentiert die im Datenstand verwendeten Codewerte. Authentifizierungs-, "
-                b"Sitzungs-, Zustell- und Betriebsgeheimnisse sind nicht enthalten.\n"
-            ),
-        }
-        entries: dict[str, Path] = {}
-        for name, content in files.items():
-            target = export_root / name.removeprefix("export/")
-            target.write_bytes(content)
-            entries[name] = target
-        for document in sorted(snapshot.documents.iterdir()):
-            entries[f"export/documents/{document.name}"] = document
-        artifact_id = str(uuid4())
-        manifest = self._manifest(
-            snapshot,
-            artifact_id=artifact_id,
-            artifact_type="full_export",
-            entries=entries,
-            authentication_key_binding=None,
-            purpose="authorized_portable_full_export",
-            database_records=data["record_count"],
-        )
-        artifact = self._publish_package("full-export", artifact_id, manifest, entries, recipient)
-        return {
-            "artifact_id": artifact_id,
-            "artifact_type": "full_export",
-            "artifact": artifact.name,
-            "snapshot_at": snapshot.snapshot_at,
-            "records": data["record_count"],
-            "documents": snapshot.document_count,
-            "recipient_key_fingerprint": _fingerprint(recipient),
-        }
-
     def _manifest(
         self,
         snapshot: CapturedSnapshot,
@@ -949,106 +507,6 @@ class ArtifactService:
                 "purpose": purpose,
             },
         }
-
-    def _publish_package(
-        self,
-        prefix: str,
-        artifact_id: str,
-        manifest: dict[str, Any],
-        entries: Mapping[str, Path],
-        recipient: X25519PublicKey,
-    ) -> Path:
-        self.paths.backups.mkdir(parents=True, exist_ok=True)
-        archive = temporary_artifact = None
-        final = self.paths.backups / (
-            f"{prefix}-{datetime.now(UTC).strftime('%Y%m%dt%H%M%Sz')}-{artifact_id}{ARTIFACT_SUFFIX}"
-        )
-        try:
-            descriptor, archive_value = tempfile.mkstemp(
-                prefix=".lzug-package-", suffix=".zip", dir=self.paths.backups
-            )
-            os.close(descriptor)
-            archive = Path(archive_value)
-            os.chmod(archive, 0o600)
-            with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as package:
-                package.writestr(MANIFEST_NAME, _canonical_json(manifest))
-                for name, source in sorted(entries.items()):
-                    package.write(source, name)
-            with zipfile.ZipFile(archive) as package:
-                if package.testzip() is not None:
-                    raise ArtifactError(
-                        "artifact_content_invalid", "Package integrity check failed"
-                    )
-            descriptor, artifact_value = tempfile.mkstemp(
-                prefix=".lzug-artifact-", suffix=ARTIFACT_SUFFIX, dir=self.paths.backups
-            )
-            os.close(descriptor)
-            temporary_artifact = Path(artifact_value)
-            _encrypt_file(archive, temporary_artifact, recipient)
-            os.replace(temporary_artifact, final)
-            temporary_artifact = None
-            return final
-        except ArtifactError:
-            raise
-        except (OSError, zipfile.BadZipFile) as error:
-            raise ArtifactError(
-                "artifact_write_failed", "Artifact package could not be published"
-            ) from error
-        finally:
-            if archive is not None:
-                archive.unlink(missing_ok=True)
-            if temporary_artifact is not None:
-                temporary_artifact.unlink(missing_ok=True)
-
-    @contextmanager
-    def _loaded_artifact(
-        self, artifact: Path, private_key: X25519PrivateKey
-    ) -> Iterator[LoadedArtifact]:
-        self._ensure_runtime_paths()
-        self._ensure_space(self.paths.backups, max(artifact.stat().st_size * 3, 1024 * 1024))
-        root = Path(tempfile.mkdtemp(prefix=".lzug-verify-", dir=self.paths.backups))
-        os.chmod(root, 0o700)
-        archive = root / "package.zip"
-        try:
-            header = _decrypt_file(artifact, archive, private_key)
-            with zipfile.ZipFile(archive) as package:
-                members = package.infolist()
-                names = [member.filename for member in members]
-                if len(names) != len(set(names)) or MANIFEST_NAME not in names:
-                    raise ArtifactError("artifact_content_invalid", "Artifact package is invalid")
-                total_size = 0
-                for member in members:
-                    path = PurePosixPath(member.filename)
-                    if (
-                        member.compress_type != zipfile.ZIP_STORED
-                        or path.is_absolute()
-                        or ".." in path.parts
-                        or not path.parts
-                        or member.is_dir()
-                        or (member.external_attr >> 16) & 0o170000 == 0o120000
-                    ):
-                        raise ArtifactError(
-                            "artifact_content_invalid", "Artifact package is invalid"
-                        )
-                    total_size += member.file_size
-                self._ensure_space(root, total_size + artifact.stat().st_size)
-                for member in members:
-                    target = root.joinpath(*PurePosixPath(member.filename).parts)
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    with package.open(member) as source, target.open("wb") as destination:
-                        shutil.copyfileobj(source, destination, STREAM_CHUNK_BYTES)
-            try:
-                manifest = json.loads((root / MANIFEST_NAME).read_text(encoding="utf-8"))
-            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-                raise ArtifactError("manifest_invalid", "Protected manifest is invalid") from error
-            self._validate_manifest(root, manifest)
-            yield LoadedArtifact(root, manifest, header)
-        except zipfile.BadZipFile as error:
-            raise ArtifactError(
-                "artifact_content_invalid", "Artifact package is invalid"
-            ) from error
-        finally:
-            shutil.rmtree(root, ignore_errors=True)
 
     def _validate_manifest(self, root: Path, manifest: object) -> None:
         manifest = self._validated_manifest_shape(manifest)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 )
@@ -60,6 +61,15 @@ type ReleaseInspector interface {
 type RuntimeFactory interface {
 	Transport(EffectiveConfig) Transport
 	ReleaseInspector(EffectiveConfig) ReleaseInspector
+}
+
+type ArtifactTransport interface {
+	Produce(context.Context, BackendRequest, io.Writer) (BackendResponse, int, error)
+	Consume(context.Context, BackendRequest, io.Reader) (BackendResponse, int, error)
+}
+
+type ArtifactRuntimeFactory interface {
+	ArtifactTransport(EffectiveConfig) ArtifactTransport
 }
 
 type ConfigResolver interface {
@@ -142,6 +152,7 @@ type SecretSpec struct {
 
 type ConfirmationSpec struct {
 	Required bool
+	Deferred bool
 	Prompt   func(Values, EffectiveConfig) string
 }
 
@@ -201,6 +212,10 @@ type PrepareContext struct {
 type LocalContext struct {
 	Registry *Registry
 	Config   EffectiveConfig
+	Runtime  RuntimeFactory
+	Input    Input
+	Global   GlobalOptions
+	Build    BuildInfo
 }
 
 type LocalResult struct {

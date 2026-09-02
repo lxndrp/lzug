@@ -6,7 +6,8 @@
 
 ## Status
 
-Akzeptiert.
+Akzeptiert bis v0.6.0; abgelöst durch
+[ADR-0031](0031-age-huelle-in-der-betreiber-cli.md) ab v0.7.0.
 
 ## Kontext
 

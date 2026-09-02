@@ -112,7 +112,11 @@ func GenerateReference(registry *Registry) string {
 			output.WriteString("Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.\n\n")
 		}
 		if command.Transport == LocalTransport {
-			output.WriteString("Transport: lokale Ausführung ohne Container-Auftrag.\n\n")
+			if command.UsesConfig {
+				output.WriteString("Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.\n\n")
+			} else {
+				output.WriteString("Transport: lokale Ausführung ohne Container-Auftrag.\n\n")
+			}
 		} else {
 			output.WriteString("Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.\n\n")
 			fmt.Fprintf(&output, "Zeitlimit: `%s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.\n\n", command.Timeout)

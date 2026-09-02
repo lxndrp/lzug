@@ -63,6 +63,10 @@ func (factory *ContainerRuntimeFactory) Transport(config EffectiveConfig) Transp
 	return &ContainerTransport{Config: config, Resolver: factory.Resolver}
 }
 
+func (factory *ContainerRuntimeFactory) ArtifactTransport(config EffectiveConfig) ArtifactTransport {
+	return &ContainerArtifactTransport{Config: config, Resolver: factory.Resolver}
+}
+
 func (factory *ContainerRuntimeFactory) ReleaseInspector(config EffectiveConfig) ReleaseInspector {
 	return &ContainerReleaseInspector{Config: config, Resolver: factory.Resolver}
 }

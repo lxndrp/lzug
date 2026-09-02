@@ -3,48 +3,12 @@ package admincli
 import (
 	"context"
 	"fmt"
+	"io"
 )
 
 func operationalCommands() []Command {
 	return []Command{
-		{
-			Path:        []string{"upgrade", "apply"},
-			Summary:     "Apply a release-bound upgrade.",
-			Description: "Verify CLI and container release identity, create and verify a safety backup, and apply supported migrations in a maintenance container.",
-			Examples: []string{
-				"printf 'PRIVATE_KEY' | lzug-admin --container lzug-maintenance upgrade apply --force",
-				"printf 'PRIVATE_KEY' | lzug-admin --container lzug-maintenance upgrade apply --confirm-irreversible --force",
-			},
-			Options: []OptionSpec{
-				{Name: "confirm-irreversible", Summary: "Confirm pending irreversible migrations when the backend requires it.", Kind: BooleanOption, DangerZone: true, DefaultText: "false"},
-			},
-			Secrets: []SecretSpec{{Name: "recipient-private-key", Description: "Private recipient key read only from standard input.", Prompt: "Private recipient key", Input: SecretStdin}},
-			Confirmation: ConfirmationSpec{
-				Required: true,
-				Prompt: func(_ Values, config EffectiveConfig) string {
-					return fmt.Sprintf("Apply the verified release upgrade to maintenance container %q?", config.Container.Value)
-				},
-			},
-			Transport:      ContainerExecTransport,
-			BackendCommand: "upgrade",
-			LegacyForms:    []string{"upgrade"},
-			Output:         OutputSpec{Human: HumanSilent, Verbose: VerboseSummary, JSON: JSONProjected, Summary: "Successful human output is silent; JSON includes the validated lifecycle result.", ResultKeys: []string{"target", "backup", "phases", "readiness"}},
-			BuildRequest: func(ctx context.Context, prepare PrepareContext, values, secrets Values) (BackendRequest, error) {
-				target, err := prepare.ReleaseInspector.Target(ctx, prepare.Build)
-				if err != nil {
-					return BackendRequest{}, err
-				}
-				return BackendRequest{
-					Version: ProtocolVersion,
-					Command: "upgrade",
-					Arguments: map[string]any{
-						"recipient_private_key": secrets.String("recipient-private-key"),
-						"confirm_irreversible":  values.Bool("confirm-irreversible"),
-						"target":                target,
-					},
-				}, nil
-			},
-		},
+		upgradeApplyCommand(),
 		{
 			Path:           []string{"upgrade", "rollback"},
 			Summary:        "Inspect release-bound rollback eligibility.",
@@ -92,6 +56,94 @@ func operationalCommands() []Command {
 		},
 		planConsequenceCommand("status"),
 		planConsequenceCommand("retry"),
+	}
+}
+
+func upgradeApplyCommand() Command {
+	return Command{
+		Path:        []string{"upgrade", "apply"},
+		Summary:     "Apply a release-bound upgrade.",
+		Description: "Create and locally decrypt a protected safety backup before applying supported migrations in a maintenance container.",
+		Examples: []string{
+			"lzug-admin --container lzug-maintenance upgrade apply --backup-output pre-upgrade.lzug --identity-file backup.agekey --force",
+		},
+		Options: []OptionSpec{
+			{Name: "backup-output", ValueName: "PATH", Summary: "New local protected pre-upgrade backup.", Kind: StringOption, Required: true},
+			{Name: "identity-file", ValueName: "PATH", Summary: "Protected local age identity file.", Kind: StringOption},
+			{Name: "identity-stdin", Summary: "Read the age identity from redirected standard input.", Kind: BooleanOption, DefaultText: "false"},
+			{Name: "identity-prompt", Summary: "Read the age identity from a hidden terminal prompt.", Kind: BooleanOption, DefaultText: "false"},
+			{Name: "confirm-irreversible", Summary: "Confirm pending irreversible migrations when the backend requires it.", Kind: BooleanOption, DangerZone: true, DefaultText: "false"},
+		},
+		Confirmation: ConfirmationSpec{Required: true, Prompt: func(_ Values, config EffectiveConfig) string {
+			return fmt.Sprintf("Apply the verified release upgrade to maintenance container %q?", config.Container.Value)
+		}},
+		UsesConfig:  true,
+		Transport:   LocalTransport,
+		LegacyForms: []string{"upgrade"},
+		Output:      OutputSpec{Human: HumanLocal, Verbose: VerboseSummary, JSON: JSONLocal, Summary: "Successful human output is silent; JSON includes the validated lifecycle result."},
+		Validate:    validateIdentitySource,
+		Local: func(ctx context.Context, local LocalContext, values Values) (LocalResult, *CLIError) {
+			target, err := local.Runtime.ReleaseInspector(local.Config).Target(ctx, local.Build)
+			if err != nil {
+				return LocalResult{}, runtimeFailure(err)
+			}
+			identity, _, fingerprint, failure := loadIdentity(local.Input, values)
+			if failure != nil {
+				return LocalResult{}, failure
+			}
+			configured, failure := callBackend(ctx, local, "backup-recipient-show", map[string]any{})
+			if failure != nil {
+				return LocalResult{}, failure
+			}
+			recipientValue, _ := configured["recipient"].(string)
+			recipient, configuredFingerprint, parseErr := parseRecipient(recipientValue)
+			if parseErr != nil {
+				return LocalResult{}, parseErr.(*CLIError)
+			}
+			if configuredFingerprint != fingerprint {
+				return LocalResult{}, artifactLocalError("recipient_key_mismatch", "The identity does not match the configured backup recipient.", ExitInvalidInvocation)
+			}
+			transport, failure := ensureArtifactTransport(local)
+			if failure != nil {
+				return LocalResult{}, failure
+			}
+			createRequest := BackendRequest{Command: "backup-package-create", Arguments: map[string]any{"recipient_key_fingerprint": fingerprint}}
+			created, _, localFailure := writeProtectedArtifact(ctx, values.String("backup-output"), recipient, fingerprint, func(target io.Writer) (BackendResponse, int, error) {
+				return transport.Produce(ctx, createRequest, target)
+			})
+			if localFailure != nil {
+				return LocalResult{}, localFailure
+			}
+			createdResult, failure := decodeBackendResult(created)
+			if failure != nil {
+				return LocalResult{}, failure
+			}
+			verifyRequest := BackendRequest{Command: "artifact-package-verify", Arguments: map[string]any{"artifact_type": "backup"}}
+			verified, _, localFailure := consumeProtectedArtifact(values.String("backup-output"), identity, fingerprint, func(source io.Reader) (BackendResponse, int, error) {
+				return transport.Consume(ctx, verifyRequest, source)
+			})
+			if localFailure != nil {
+				return LocalResult{}, localFailure
+			}
+			backup, failure := decodeBackendResult(verified)
+			if failure != nil {
+				return LocalResult{}, failure
+			}
+			backup["artifact"] = values.String("backup-output")
+			backup["artifact_id"] = createdResult["artifact_id"]
+			backup["recipient_key_fingerprint"] = fingerprint
+			backup["protection"] = artifactProtection
+			backup["verified"] = true
+			result, failure := callBackend(ctx, local, "upgrade", map[string]any{
+				"target":               target,
+				"backup":               backup,
+				"confirm_irreversible": values.Bool("confirm-irreversible"),
+			})
+			if failure != nil {
+				return LocalResult{}, failure
+			}
+			return LocalResult{Result: result, HumanOutput: ""}, nil
+		},
 	}
 }
 

@@ -453,8 +453,28 @@ def rewind_plan_consequence_migration(connection: sqlite3.Connection) -> None:
     )
 
 
+def rewind_backup_recipient_migration(connection: sqlite3.Connection) -> None:
+    """Remove the post-024 recipient configuration before older rewinds."""
+    connection.executescript("""
+        DROP INDEX IF EXISTS backup_recipient_audit_occurred;
+        DROP TABLE IF EXISTS backup_recipient_audit;
+        DROP TABLE IF EXISTS backup_recipient;
+        DELETE FROM schema_migration
+          WHERE name = '026_add_backup_recipient.sql';
+    """)
+    if connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        ("schema_migration_checksum",),
+    ).fetchone():
+        connection.execute(
+            "DELETE FROM schema_migration_checksum WHERE name = ?",
+            ("026_add_backup_recipient.sql",),
+        )
+
+
 def rewind_artifact_operation_migration(connection: sqlite3.Connection) -> None:
     """Restore the pre-024 instance schema without leaving a history gap."""
+    rewind_backup_recipient_migration(connection)
     rewind_exam_venue_migration(connection)
     connection.executescript("""
         DROP INDEX IF EXISTS artifact_operation_occurred;
@@ -765,7 +785,7 @@ class DatabaseTests(unittest.TestCase):
         with TempDatabase(with_seed=False) as db_path:
             with connect(db_path) as connection, connection.begin():
                 connection.execute(
-                    text("INSERT INTO committee (id, name, occupation) " "VALUES (99, 'Alt', 'FI')")
+                    text("INSERT INTO committee (id, name, occupation) VALUES (99, 'Alt', 'FI')")
                 )
 
             initialize(db_path, with_seed=True, reset=True)
@@ -804,7 +824,7 @@ class DatabaseTests(unittest.TestCase):
                 rewind_calendar_migration(connection)
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "DELETE FROM schema_migration WHERE name IN (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
@@ -831,7 +851,7 @@ class DatabaseTests(unittest.TestCase):
             initialize(db_path)
             after = migration_status(db_path)
             self.assertEqual("ready", after["state"])
-            self.assertEqual("025_model_exam_venues.sql", after["current"])
+            self.assertEqual("026_add_backup_recipient.sql", after["current"])
             self.assertTrue(list(db_path.parent.joinpath("backups").glob("*.sqlite")))
 
             history_before = after["history"]
@@ -864,7 +884,7 @@ class DatabaseTests(unittest.TestCase):
             )
             self.assertEqual(("confirmed_plan_revision",), revision_table)
             self.assertEqual(
-                "025_model_exam_venues.sql",
+                "026_add_backup_recipient.sql",
                 migration_status(db_path)["current"],
             )
 
@@ -944,8 +964,9 @@ class DatabaseTests(unittest.TestCase):
                     "023_add_exam_round_lifecycle.sql",
                     "024_add_artifact_operations.sql",
                     "025_model_exam_venues.sql",
+                    "026_add_backup_recipient.sql",
                 ],
-                [entry["name"] for entry in status["history"][-18:]],
+                [entry["name"] for entry in status["history"][-19:]],
             )
 
     def test_committee_bootstrap_migration_classifies_legacy_committees_without_changing_ids(
@@ -1083,8 +1104,7 @@ class DatabaseTests(unittest.TestCase):
                     )
                 """)
                 notification_id = connection.execute(
-                    "SELECT id FROM notification "
-                    "WHERE origin_key = 'migration:claim-preservation'"
+                    "SELECT id FROM notification WHERE origin_key = 'migration:claim-preservation'"
                 ).fetchone()[0]
                 connection.execute(
                     "INSERT INTO notification_delivery "
@@ -1110,7 +1130,7 @@ class DatabaseTests(unittest.TestCase):
             self.assertTrue({"claim_token", "claimed_at", "claim_expires_at"}.issubset(columns))
             self.assertEqual(("temporarily_failed", 2, None, None, None), delivery)
             self.assertEqual(
-                "025_model_exam_venues.sql",
+                "026_add_backup_recipient.sql",
                 migration_status(db_path)["current"],
             )
 
@@ -1167,7 +1187,7 @@ class DatabaseTests(unittest.TestCase):
                     "SELECT COUNT(*) FROM plan_consequence"
                 ).fetchone()[0]
                 batch = connection.execute(
-                    "SELECT status, attempt_count, error_code " "FROM plan_consequence_batch"
+                    "SELECT status, attempt_count, error_code FROM plan_consequence_batch"
                 ).fetchone()
 
         self.assertEqual((notification_id, "synthetic_test", None), notification_after)
@@ -1410,7 +1430,7 @@ class DatabaseTests(unittest.TestCase):
                 rewind_calendar_migration(connection)
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "DELETE FROM schema_migration WHERE name IN (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",
@@ -1470,7 +1490,7 @@ class DatabaseTests(unittest.TestCase):
                 rewind_calendar_migration(connection)
                 connection.execute("DROP INDEX user_account_one_operator")
                 connection.execute(
-                    "DELETE FROM schema_migration " "WHERE name IN (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "DELETE FROM schema_migration WHERE name IN (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         "009_harden_migration_history.sql",
                         "010_add_operator_auth_tokens.sql",

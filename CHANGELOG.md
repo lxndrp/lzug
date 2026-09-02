@@ -22,6 +22,14 @@ Der Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Not
 
 ### Changed
 
+- Backup und Vollexport verwenden ab v0.7.0 das interoperable
+  `age-encryption.org/v1`-Format mit genau einem X25519-Empfänger.
+  `lzug-admin` verwaltet Schlüsseldateien und Fingerabdrücke, hält private
+  Identitäten vollständig auf dem Bedienrechner und schützt beziehungsweise
+  öffnet die vom Backend fachlich geprüften Paketströme atomar.
+  Der aktive öffentliche Backup-Empfänger wird persistent und auditiert;
+  v0.6-Artefakte werden mit einem eindeutigen Wiederherstellungshinweis
+  abgewiesen und benötigen die veröffentlichte v0.6.0-Laufzeit.
 - `lzug-admin` verwendet ab v0.7.0 eine statische modulare Registry und den
   einheitlichen Command-Baum `lzug-admin <objekt> <aktion>`.
   Hilfe, Shell-Completion und die technische Befehlsreferenz entstehen aus
