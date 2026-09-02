@@ -74,8 +74,7 @@ class ExamVenueMigrationTests(unittest.TestCase):
 
             with closing(sqlite3.connect(db_path)) as connection:
                 venues = connection.execute(
-                    "SELECT id, name, is_active, accessibility_status "
-                    "FROM exam_venue ORDER BY id"
+                    "SELECT id, name, is_active, accessibility_status FROM exam_venue ORDER BY id"
                 ).fetchall()
                 rooms = connection.execute(
                     "SELECT id, venue_id, name FROM exam_room ORDER BY id"
@@ -151,7 +150,7 @@ class ExamVenueMigrationTests(unittest.TestCase):
         self.assertFalse(legacy_table)
         self.assertEqual(7, first_audit_count)
         self.assertEqual(first_audit_count, audit_count)
-        self.assertEqual("027_expand_exam_venue_audit.sql", current_migration)
+        self.assertEqual("028_add_exam_venue_change_notifications.sql", current_migration)
 
     def test_duplicate_normalized_rooms_stop_before_schema_changes_and_leave_reports(self) -> None:
         with tempfile.TemporaryDirectory() as raw_directory:

@@ -241,6 +241,23 @@
   margin-block: 1rem;
 }
 
+.locations-consequence-problems {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-inline-start: 0.25rem solid var(--app-color-danger-text);
+  background: var(--app-color-canvas);
+}
+
+.locations-consequence-problems h2,
+.locations-consequence-problems p {
+  margin: 0;
+}
+
+.locations-consequence-problems h2 {
+  font-size: 1rem;
+}
+
 .locations-map {
   display: grid;
   gap: 1rem;

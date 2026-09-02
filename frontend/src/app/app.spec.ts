@@ -448,7 +448,10 @@ describe('App', () => {
       payload: { expected_revision: venue.revision, name: 'Prüfungszentrum Neu' },
     };
     app.updateVenue(update);
-    http.expectOne(`/api/exam-venues/${venue.id}/change-impact`).flush({ count: 0 });
+    const venueImpact = http.expectOne(`/api/exam-venues/${venue.id}/change-impact`);
+    expect(venueImpact.request.method).toBe('POST');
+    expect(venueImpact.request.body).toEqual(update.payload);
+    venueImpact.flush({ count: 0 });
     http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
     const updateRequest = http.expectOne(`/api/exam-venues/${venue.id}`);
     expect(updateRequest.request.body).toEqual({
@@ -463,7 +466,13 @@ describe('App', () => {
       id: venue.rooms[0].id,
       payload: { expected_revision: venue.rooms[0].revision, name: 'A-102' },
     });
-    http.expectOne(`/api/exam-rooms/${venue.rooms[0].id}/change-impact`).flush({ count: 0 });
+    const roomImpact = http.expectOne(`/api/exam-rooms/${venue.rooms[0].id}/change-impact`);
+    expect(roomImpact.request.method).toBe('POST');
+    expect(roomImpact.request.body).toEqual({
+      expected_revision: venue.rooms[0].revision,
+      name: 'A-102',
+    });
+    roomImpact.flush({ count: 0 });
     const roomRequest = http.expectOne(`/api/exam-rooms/${venue.rooms[0].id}`);
     expect(roomRequest.request.body.confirm_future_assignments).toBe(false);
     roomRequest.flush({ ...venue.rooms[0], name: 'A-102', revision: 2 });

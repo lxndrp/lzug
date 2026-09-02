@@ -639,24 +639,23 @@ export class App {
   protected updateVenue(update: VenueUpdate): void {
     this.actionBusy.set(true);
     forkJoin({
-      impact: this.api.getExamVenueChangeImpact(update.id),
+      impact: this.api.getExamVenueChangeImpact(update.id, update.payload),
       duplicates: this.api.checkExamVenueDuplicates(update.payload, update.id),
     })
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
         next: ({ impact, duplicates }) => {
-          const needsConfirmation = impact.count > 0 || duplicates.items.length > 0;
+          const requiresConfirmation = impact.requires_confirmation ?? impact.count > 0;
+          const needsConfirmation = requiresConfirmation || duplicates.items.length > 0;
           const save = () =>
-            this.persistVenueUpdate(update, impact.count > 0, duplicates.items.length > 0);
+            this.persistVenueUpdate(update, requiresConfirmation, duplicates.items.length > 0);
           if (!needsConfirmation) return save();
           this.requestConfirmation(
             duplicates.items.length
               ? 'Ähnliche Prüfungsorte gefunden'
               : 'Bestätigte Termine betroffen',
             [
-              impact.count
-                ? `${impact.count} Einplanungen vom ${impact.date_from} bis ${impact.date_to}.`
-                : '',
+              this.venueImpactMessage(impact),
               ...duplicates.items.map((item) => `${item.name} · ${item.address}`),
             ]
               .filter(Boolean)
@@ -715,7 +714,13 @@ export class App {
           ) {
             this.geocodeCandidate.set(null);
           }
-          this.notify('success', 'Prüfungsort gespeichert', venue.name);
+          this.notify(
+            venue.consequence_warning ? 'error' : 'success',
+            venue.consequence_warning
+              ? 'Prüfungsort gespeichert, Folgen unvollständig'
+              : 'Prüfungsort gespeichert',
+            venue.consequence_warning ?? venue.name,
+          );
           this.refresh();
         },
         error: () =>
@@ -742,23 +747,24 @@ export class App {
   protected updateRoom(command: RoomUpdate): void {
     this.actionBusy.set(true);
     this.api
-      .getExamRoomChangeImpact(command.id)
+      .getExamRoomChangeImpact(command.id, command.payload)
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
         next: (impact) => {
+          const requiresConfirmation = impact.requires_confirmation ?? impact.count > 0;
           const save = () =>
             this.runVenueAction(
               this.api.updateExamRoom(command.id, {
                 ...command.payload,
-                confirm_future_assignments: impact.count > 0,
+                confirm_future_assignments: requiresConfirmation,
               }),
               'Raum gespeichert',
               '',
             );
-          if (!impact.count) return save();
+          if (!requiresConfirmation) return save();
           this.requestConfirmation(
             'Bestätigte Termine betroffen',
-            `${impact.count} Einplanungen vom ${impact.date_from} bis ${impact.date_to}.`,
+            this.venueImpactMessage(impact),
             'Änderung bestätigen',
             save,
           );
@@ -773,6 +779,14 @@ export class App {
       this.api.deleteExamRoom(room.id, room.revision),
       'Raum gelöscht',
       room.name,
+    );
+  }
+
+  protected retryVenueConsequences(auditId: number): void {
+    this.runVenueAction(
+      this.api.retryExamVenueConsequences(auditId),
+      'Folgen erneut verarbeitet',
+      'Der aktuelle Status wurde geprüft.',
     );
   }
   protected createContact(command: ContactCreate): void {
@@ -823,9 +837,17 @@ export class App {
   private runVenueAction(request: Observable<unknown>, title: string, detail: string): void {
     this.actionBusy.set(true);
     request.pipe(finalize(() => this.actionBusy.set(false))).subscribe({
-      next: () => {
+      next: (result) => {
         this.locationsComponent?.finishEditing(-1);
-        this.notify('success', title, detail);
+        const warning =
+          typeof result === 'object' && result !== null && 'consequence_warning' in result
+            ? String(result.consequence_warning)
+            : null;
+        this.notify(
+          warning ? 'error' : 'success',
+          warning ? `${title}, Folgen unvollständig` : title,
+          warning ?? detail,
+        );
         this.refresh();
       },
       error: () =>
@@ -1174,6 +1196,26 @@ export class App {
 
   private notify(type: 'success' | 'error', title: string, message: string): void {
     this.feedback.set({ type, title, message });
+  }
+
+  private venueImpactMessage(impact: {
+    count: number;
+    date_from: string | null;
+    date_to: string | null;
+    calendar?: { event_count: number; fields: string[] };
+    notifications?: { recipient_count: number; fields: string[] };
+  }): string {
+    if (!impact.count) return '';
+    const lines = [
+      `${impact.count} bestätigte Einplanungen vom ${impact.date_from} bis ${impact.date_to}.`,
+      impact.calendar?.event_count
+        ? `${impact.calendar.event_count} Kalenderereignisse werden aktualisiert (${impact.calendar.fields.join(', ')}).`
+        : 'Keine Kalenderaktualisierung erwartet.',
+      impact.notifications?.recipient_count
+        ? `${impact.notifications.recipient_count} Mitglieder werden benachrichtigt (${impact.notifications.fields.join(', ')}).`
+        : 'Keine Benachrichtigung erwartet.',
+    ];
+    return lines.join('\n');
   }
 
   private notifyRoleRestriction(): void {

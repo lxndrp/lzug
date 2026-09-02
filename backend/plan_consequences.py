@@ -106,7 +106,10 @@ class PlanConsequenceService:
         with session_scope(self.db_path) as session:
             due_task_ids = list(
                 session.scalars(
-                    select(PlanConsequence.id).where(
+                    select(PlanConsequence.id)
+                    .join(PlanConsequenceBatch)
+                    .where(
+                        PlanConsequenceBatch.origin_type == "confirmed_plan_revision",
                         PlanConsequence.status.in_({"pending", "temporarily_failed"}),
                         (
                             PlanConsequence.next_attempt_at.is_(None)
@@ -119,13 +122,16 @@ class PlanConsequenceService:
         with session_scope(self.db_path) as session:
             remaining_problems = (
                 session.query(PlanConsequence)
+                .join(PlanConsequenceBatch)
                 .filter(PlanConsequence.status.in_({"temporarily_failed", "permanently_failed"}))
+                .filter(PlanConsequenceBatch.origin_type == "confirmed_plan_revision")
                 .count()
             )
             failed_batches = (
                 session.query(PlanConsequenceBatch)
                 .filter(
-                    PlanConsequenceBatch.status.in_({"temporarily_failed", "permanently_failed"})
+                    PlanConsequenceBatch.origin_type == "confirmed_plan_revision",
+                    PlanConsequenceBatch.status.in_({"temporarily_failed", "permanently_failed"}),
                 )
                 .count()
             )
@@ -485,12 +491,17 @@ class PlanConsequenceService:
 
     def _process_tasks(self, *, batch_id: int | None, current: datetime) -> None:
         with session_scope(self.db_path) as session:
-            statement = select(PlanConsequence.id).where(
-                PlanConsequence.status.in_({"pending", "temporarily_failed"}),
-                (
-                    PlanConsequence.next_attempt_at.is_(None)
-                    | (PlanConsequence.next_attempt_at <= _timestamp(current))
-                ),
+            statement = (
+                select(PlanConsequence.id)
+                .join(PlanConsequenceBatch)
+                .where(
+                    PlanConsequenceBatch.origin_type == "confirmed_plan_revision",
+                    PlanConsequence.status.in_({"pending", "temporarily_failed"}),
+                    (
+                        PlanConsequence.next_attempt_at.is_(None)
+                        | (PlanConsequence.next_attempt_at <= _timestamp(current))
+                    ),
+                )
             )
             if batch_id is not None:
                 statement = statement.where(PlanConsequence.batch_id == batch_id)

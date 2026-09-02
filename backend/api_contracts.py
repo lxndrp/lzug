@@ -282,6 +282,7 @@ class ExamVenueUpdateRequest(BaseModel):
     duplicates_reviewed: bool = False
     duplicate_reason: str | None = None
     confirm_future_assignments: bool = False
+    meaningful_change: bool = True
 
 
 class ExamVenueGeocodeRequest(BaseModel):
@@ -330,6 +331,7 @@ class ExamRoomUpdateRequest(BaseModel):
     is_active: bool | int | None = None
     reason: str | None = None
     confirm_future_assignments: bool = False
+    meaningful_change: bool = True
 
 
 class ExamVenueContactCreateRequest(BaseModel):

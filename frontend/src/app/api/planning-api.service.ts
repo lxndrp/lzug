@@ -45,6 +45,7 @@ import {
   NotificationChannels,
   NotificationItem,
   NotificationProblem,
+  VenueChangeImpact,
   CalendarEvent,
   CalendarFeedActivation,
   CalendarStatus,
@@ -844,16 +845,12 @@ export class PlanningApiService {
     }>('/api/exam-venues/duplicate-check', { ...payload, excluded_id: excludedId });
   }
 
-  getExamVenueChangeImpact(id: number) {
-    return this.http.get<{ count: number; date_from: string | null; date_to: string | null }>(
-      `/api/exam-venues/${id}/change-impact`,
-    );
+  getExamVenueChangeImpact(id: number, payload: Record<string, unknown>) {
+    return this.http.post<VenueChangeImpact>(`/api/exam-venues/${id}/change-impact`, payload);
   }
 
-  getExamRoomChangeImpact(id: number) {
-    return this.http.get<{ count: number; date_from: string | null; date_to: string | null }>(
-      `/api/exam-rooms/${id}/change-impact`,
-    );
+  getExamRoomChangeImpact(id: number, payload: Record<string, unknown>) {
+    return this.http.post<VenueChangeImpact>(`/api/exam-rooms/${id}/change-impact`, payload);
   }
 
   updateExamVenue(id: number, payload: Record<string, unknown> & { expected_revision: number }) {
@@ -879,6 +876,16 @@ export class PlanningApiService {
 
   updateExamRoom(id: number, payload: Record<string, unknown> & { expected_revision: number }) {
     return this.http.patch<ExamRoom>(`/api/exam-rooms/${id}`, payload);
+  }
+
+  retryExamVenueConsequences(auditId: number) {
+    return this.http.post<{
+      audit_id: number;
+      processed: number;
+      problems: number;
+      pending: number;
+      superseded: number;
+    }>(`/api/exam-venue-changes/${auditId}/consequences/retry`, {});
   }
 
   deleteExamRoom(id: number, expectedRevision: number) {

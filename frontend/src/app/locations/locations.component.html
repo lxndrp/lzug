@@ -220,6 +220,40 @@
               </div>
             </section>
           }
+          @if (venue.consequence_problems?.length) {
+            <section class="locations-consequence-problems">
+              <h2>Folgen unvollständig</h2>
+              <p>
+                Die Stammdaten sind gespeichert. Aktuelle Kalender- oder Benachrichtigungsfolgen
+                benötigen einen erneuten Versuch.
+              </p>
+              @for (
+                problem of venue.consequence_problems;
+                track problem.audit_id + '-' + problem.consequence_type
+              ) {
+                <div class="app-row-actions">
+                  <span>{{
+                    problem.consequence_type === 'calendar'
+                      ? 'Kalender'
+                      : problem.consequence_type === 'notification'
+                        ? 'Benachrichtigung'
+                        : 'Ableitung'
+                  }}</span>
+                  @if (venue.capabilities.retry_consequences) {
+                    <button
+                      tuiButton
+                      type="button"
+                      appearance="secondary"
+                      [disabled]="actionBusy"
+                      (click)="retryConsequences.emit(problem.audit_id)"
+                    >
+                      Erneut versuchen
+                    </button>
+                  }
+                </div>
+              }
+            </section>
+          }
           @if (!readOnly && venue.capabilities.decide_promotion) {
             <div class="app-row-actions locations-management-actions">
               <button
@@ -255,6 +289,18 @@
               <tui-textfield class="app-field-third">
                 <label tuiLabel>Ort</label>
                 <input tuiInput name="editCity" [(ngModel)]="edit.city" />
+              </tui-textfield>
+              <tui-textfield class="app-field-third">
+                <label tuiLabel>Gebäude oder Standort</label>
+                <input tuiInput name="editSiteName" [(ngModel)]="edit.site_name" />
+              </tui-textfield>
+              <tui-textfield class="app-field-third">
+                <label tuiLabel>Eingang oder Treffpunkt</label>
+                <input tuiInput name="editEntrance" [(ngModel)]="edit.entrance" />
+              </tui-textfield>
+              <tui-textfield class="app-field-full">
+                <label tuiLabel>Anreise- und Auffindungshinweis</label>
+                <input tuiInput name="editTravelDirections" [(ngModel)]="edit.travel_directions" />
               </tui-textfield>
               @if (mapIsActive(venue)) {
                 <tui-textfield class="app-field-third">
@@ -298,6 +344,22 @@
                   </select>
                 </label>
               }
+              <tui-textfield class="app-field-full">
+                <label tuiLabel>Hinweis zur Barrierefreiheit</label>
+                <input
+                  tuiInput
+                  name="editAccessibilityNotes"
+                  [(ngModel)]="edit.accessibility_notes"
+                />
+              </tui-textfield>
+              <label class="app-field-full">
+                <input
+                  type="checkbox"
+                  name="editMeaningfulChange"
+                  [(ngModel)]="edit.meaningful_change"
+                />
+                Die Änderung ist inhaltlich relevant und soll betroffene Mitglieder benachrichtigen.
+              </label>
               <div class="app-field-full app-form-actions">
                 <button tuiButton type="submit" [disabled]="actionBusy">Speichern</button>
                 <button
@@ -332,6 +394,26 @@
                   [(ngModel)]="roomDraft.capacity"
                   min="1"
                 />
+              </tui-textfield>
+              <tui-textfield class="app-field-third">
+                <label tuiLabel>Gebäude</label>
+                <input tuiInput name="roomBuilding" [(ngModel)]="roomDraft.building" />
+              </tui-textfield>
+              <tui-textfield class="app-field-quarter">
+                <label tuiLabel>Trakt</label>
+                <input tuiInput name="roomWing" [(ngModel)]="roomDraft.wing" />
+              </tui-textfield>
+              <tui-textfield class="app-field-quarter">
+                <label tuiLabel>Etage</label>
+                <input tuiInput name="roomFloor" [(ngModel)]="roomDraft.floor" />
+              </tui-textfield>
+              <tui-textfield class="app-field-quarter">
+                <label tuiLabel>Raumnummer</label>
+                <input tuiInput name="roomNumber" [(ngModel)]="roomDraft.room_number" />
+              </tui-textfield>
+              <tui-textfield class="app-field-full">
+                <label tuiLabel>Zugangs- oder Auffindungshinweis</label>
+                <input tuiInput name="roomAccessNotes" [(ngModel)]="roomDraft.access_notes" />
               </tui-textfield>
               <div class="app-field-full app-form-actions">
                 <button tuiButton type="submit" [disabled]="actionBusy">Raum anlegen</button>
@@ -530,6 +612,47 @@
                             min="1"
                           />
                         </tui-textfield>
+                        <tui-textfield class="app-field-third">
+                          <label tuiLabel>Gebäude</label>
+                          <input
+                            tuiInput
+                            name="editRoomBuilding"
+                            [(ngModel)]="roomEditDraft.building"
+                          />
+                        </tui-textfield>
+                        <tui-textfield class="app-field-quarter">
+                          <label tuiLabel>Trakt</label>
+                          <input tuiInput name="editRoomWing" [(ngModel)]="roomEditDraft.wing" />
+                        </tui-textfield>
+                        <tui-textfield class="app-field-quarter">
+                          <label tuiLabel>Etage</label>
+                          <input tuiInput name="editRoomFloor" [(ngModel)]="roomEditDraft.floor" />
+                        </tui-textfield>
+                        <tui-textfield class="app-field-quarter">
+                          <label tuiLabel>Raumnummer</label>
+                          <input
+                            tuiInput
+                            name="editRoomNumber"
+                            [(ngModel)]="roomEditDraft.room_number"
+                          />
+                        </tui-textfield>
+                        <tui-textfield class="app-field-full">
+                          <label tuiLabel>Zugangs- oder Auffindungshinweis</label>
+                          <input
+                            tuiInput
+                            name="editRoomAccessNotes"
+                            [(ngModel)]="roomEditDraft.access_notes"
+                          />
+                        </tui-textfield>
+                        <label class="app-field-full">
+                          <input
+                            type="checkbox"
+                            name="editRoomMeaningfulChange"
+                            [(ngModel)]="roomEditDraft.meaningful_change"
+                          />
+                          Die Änderung ist inhaltlich relevant und soll betroffene Mitglieder
+                          benachrichtigen.
+                        </label>
                         <div class="app-field-full app-form-actions">
                           <button tuiButton type="submit" [disabled]="actionBusy">Speichern</button>
                           <button

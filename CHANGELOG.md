@@ -22,6 +22,12 @@ Der Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Not
 
 ### Changed
 
+- Bedeutungsrelevante Änderungen an Prüfungsorten und Räumen zeigen vor dem
+  Speichern die betroffenen zukünftigen Einplanungen sowie erwartete Kalender-
+  und Benachrichtigungsfolgen.
+  Kalender-IDs bleiben stabil, vergangene Ereignisse und interne Felder bleiben
+  unverändert, und fehlgeschlagene Folgen können aktualitätsgeprüft erneut
+  verarbeitet werden, ohne eine Planrevision zu erzeugen.
 - Backup und Vollexport verwenden ab v0.7.0 das interoperable
   `age-encryption.org/v1`-Format mit genau einem X25519-Empfänger.
   `lzug-admin` verwaltet Schlüsseldateien und Fingerabdrücke, hält private
