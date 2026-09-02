@@ -156,6 +156,24 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("docs:check:", taskfile)
         self.assertIn("python3 -m scripts.check_documentation", taskfile)
 
+    def test_backend_complexity_report_is_public_non_blocking_and_productive_only(self) -> None:
+        taskfile = workflow_text("Taskfile.yml")
+        pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
+
+        self.assertIn("[tool.ruff.lint.mccabe]", pyproject)
+        self.assertIn("max-complexity = 10", pyproject)
+        self.assertIn("backend:complexity:", taskfile)
+        complexity_task = taskfile.split("  backend:complexity:", 1)[1].split(
+            "  backend:format:", 1
+        )[0]
+        self.assertNotIn("internal: true", complexity_task)
+        self.assertIn("python -m ruff check backend", complexity_task)
+        self.assertIn("--exclude backend/tests", complexity_task)
+        self.assertIn("--exit-zero", complexity_task)
+        self.assertIn("- task: backend:complexity", taskfile)
+        self.assertIn("task quality:backend", self.pull_request)
+        self.assertIn("task quality:backend", self.quality)
+
     def test_synthetic_fixture_check_has_a_complete_trigger_and_ci_contract(self) -> None:
         taskfile = workflow_text("Taskfile.yml")
         changes = job_block(self.pull_request, "changes")

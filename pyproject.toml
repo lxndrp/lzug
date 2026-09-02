@@ -69,6 +69,9 @@ exclude = [".venv", "dist", "build", ".git", "__pycache__"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B"]
 
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
 [tool.black]
 line-length = 100
 target-version = ["py314"]

@@ -42,6 +42,7 @@ Seiteneffekt des normalen Servers.
 | --- | --- |
 | schmale Python-Regel | betroffener `unittest` unter `backend/tests/` |
 | Backend insgesamt | `task quality:backend` |
+| Backend-Komplexität | `task backend:complexity` |
 | Angular-Code | betroffener Vitest-Test, danach `task quality:frontend` |
 | produktive npm-Abhängigkeiten | `task quality:security` |
 | Go-CLI | `task test:operator` oder `task quality:operator` |
@@ -63,6 +64,11 @@ Container-Engine-Fehler wird als Umgebungsthema dokumentiert.
 Er rechtfertigt keine Abschwächung von Produktcode oder Sicherheitsgrenzen.
 Die CI ist die finale Abnahme für die ausgewählten Plattform- und
 Repositoryverträge.
+
+`task backend:complexity` gibt den Ruff-C901-Befund für produktive
+Backendmodule mit der Schwelle 10 aus.
+Der Befund ist zunächst nicht blockierend und wird über `task quality:backend`
+auch in der Backend-CI ausgegeben.
 
 ## Dependencies und Dependabot
 
