@@ -51,6 +51,41 @@ OpenAPI entsteht direkt aus der FastAPI-Assembly.
 Beides ergänzt die Komponentenorientierung, ersetzt aber nicht Service- und
 Vertragstests.
 
+## Optionale Kartenanbieter
+
+Die Kartenintegration ist ausschließlich geschützte Deployment-Konfiguration
+des Betreibers, nicht Teil der Produktoberfläche.
+`LZUG_MAP_PROVIDER` ist standardmäßig `off` und erlaubt nur `off`, `osm` oder
+`google`.
+Aktive Modi verlangen `LZUG_NOMINATIM_USER_AGENT`; ein abweichender
+`LZUG_NOMINATIM_URL` muss ein HTTPS-Endpunkt sein.
+Der Google-Modus prüft zusätzlich einen passend eingeschränkten
+`LZUG_GOOGLE_MAPS_API_KEY`.
+Ein Google Maps Embed API Browser-Key ist technisch kein Geheimnis, weil Google
+ihn im Iframe-URL erhält.
+Er wird daher ausschließlich als nicht sichtbares Attribut der ohnehin
+geladenen HTML-Shell an den Browser gegeben und muss auf die produktiven
+Referrer sowie die Maps Embed API beschränkt sein.
+Er erscheint weder in JSON-/OpenAPI-Antworten, Diagnosen, Logs noch als
+Produktoberflächentext; andere Zugangswerte werden nicht ausgeliefert.
+`lzug-admin system config` prüft nur die geheimnisfreie Gültigkeit.
+
+Nur die Ortsdetailansicht lädt eine Karte und zeigt die providerseitige
+Attribution.
+Ein bewusster externer Wechsel übergibt ausschließlich bestätigte
+Zielkoordinaten.
+Nominatim wird ohne Autocomplete und ohne Wiederholung nur für eine
+ausdrücklich ausgelöste Positionsprüfung aufgerufen.
+Die Antwort wird auf Koordinaten und Herkunft reduziert, bevor ein
+berechtigtes Ausschussmitglied oder ein Betreiber sie bestätigt.
+
+Koordinaten bleiben anbieterneutral gespeichert.
+Eine Adressänderung erhält die bisherige Position, markiert sie aber als
+`needs_review`.
+Bei aktivem Anbieter sind neue Planungen bis zur Bestätigung gesperrt.
+Provider-, Quoten- und Timeoutfehler verändern keine Fachdaten und enthalten
+in der Diagnose nur Anbieter und Fehlerklasse.
+
 ## Frontend
 
 Das Angular-Frontend verwendet TypeScript, Angular Router und Taiga UI.

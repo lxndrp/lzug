@@ -241,6 +241,37 @@
   margin-block: 1rem;
 }
 
+.locations-map {
+  display: grid;
+  gap: 1rem;
+}
+
+.locations-map-frame {
+  inline-size: 100%;
+  block-size: 20rem;
+  border: 1px solid var(--app-color-border);
+}
+
+.locations-map-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 0;
+}
+
+.locations-geocode-candidate {
+  margin-block: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-color-canvas);
+}
+
+.locations-geocode-candidate h2,
+.locations-geocode-candidate p {
+  margin-block: 0 0.75rem;
+}
+
 @media (max-width: 1100px) {
   .locations-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

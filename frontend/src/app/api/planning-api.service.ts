@@ -860,6 +860,13 @@ export class PlanningApiService {
     return this.http.patch<ExamVenue>(`/api/exam-venues/${id}`, payload);
   }
 
+  geocodeExamVenue(id: number, expectedRevision: number) {
+    return this.http.post<{ latitude: number; longitude: number; source: string }>(
+      `/api/exam-venues/${id}/geocode`,
+      { expected_revision: expectedRevision },
+    );
+  }
+
   deleteExamVenue(id: number, expectedRevision: number) {
     return this.http.delete<void>(`/api/exam-venues/${id}`, {
       body: { expected_revision: expectedRevision },

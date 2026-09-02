@@ -145,6 +145,11 @@ def exam_venue(venue: dict[str, Any]) -> dict[str, Any]:
                 "change-impact": {"href": f"/api/exam-venues/{venue_id}/change-impact"},
             }
         )
+    if capabilities.get("geocode"):
+        links["geocode"] = {
+            "href": f"/api/exam-venues/{venue_id}/geocode",
+            "method": "POST",
+        }
     if capabilities.get("request_promotion"):
         links["request-promotion"] = {
             "href": f"/api/exam-venues/{venue_id}/promotion-requests",

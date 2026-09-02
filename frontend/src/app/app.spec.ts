@@ -501,6 +501,48 @@ describe('App', () => {
       .flush({ error: 'unavailable' }, { status: 503, statusText: 'Unavailable' });
   });
 
+  it('keeps explicit geocoding candidates separate from venue data on success and failure', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+    const app = fixture.componentInstance as unknown as {
+      geocodeVenue(venue: ExamVenue): void;
+      geocodeCandidate(): {
+        venueId: number;
+        latitude: number;
+        longitude: number;
+        source: string;
+      } | null;
+      actionBusy(): boolean;
+    };
+    const venue = masterDataFixture.examVenues[0];
+
+    app.geocodeVenue(venue);
+    expect(app.actionBusy()).toBe(true);
+    const success = http.expectOne(`/api/exam-venues/${venue.id}/geocode`);
+    expect(success.request.body).toEqual({ expected_revision: venue.revision });
+    success.flush({ latitude: 53.55, longitude: 9.99, source: 'nominatim' });
+    expect(app.geocodeCandidate()).toEqual({
+      venueId: venue.id,
+      latitude: 53.55,
+      longitude: 9.99,
+      source: 'nominatim',
+    });
+    expect(app.actionBusy()).toBe(false);
+
+    app.geocodeVenue(venue);
+    http
+      .expectOne(`/api/exam-venues/${venue.id}/geocode`)
+      .flush({}, { status: 503, statusText: 'Provider unavailable' });
+    expect(app.geocodeCandidate()).toEqual({
+      venueId: venue.id,
+      latitude: 53.55,
+      longitude: 9.99,
+      source: 'nominatim',
+    });
+    expect(app.actionBusy()).toBe(false);
+  });
+
   it('routes every nested venue command through the aggregate API', () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);

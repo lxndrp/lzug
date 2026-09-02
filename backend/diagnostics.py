@@ -19,6 +19,7 @@ from .database import (
 )
 from .documents import document_upload_policy
 from .healthcheck import public_health_ready
+from .map_provider import MapProviderConfig
 from .notifications import NotificationError, NotificationService
 from .security import RuntimeSecurityConfig
 from .version import build_metadata
@@ -264,6 +265,25 @@ def _notification_configuration(environment: Mapping[str, str]) -> dict[str, Any
     )
 
 
+def _map_provider_configuration(environment: Mapping[str, str]) -> dict[str, Any]:
+    try:
+        provider = MapProviderConfig.from_environment(dict(environment))
+    except ValueError as error:
+        return _check(
+            "map_provider_configuration",
+            "error",
+            "configuration_invalid",
+            str(error),
+        )
+    return _check(
+        "map_provider_configuration",
+        "ok",
+        "configuration_valid",
+        "Map provider configuration is valid",
+        details={"mode": provider.mode},
+    )
+
+
 def _configuration_checks() -> tuple[list[dict[str, Any]], PersistencePaths | None]:
     persistence, paths = _persistence_configuration()
     environment = os.environ
@@ -273,6 +293,7 @@ def _configuration_checks() -> tuple[list[dict[str, Any]], PersistencePaths | No
             _http_configuration(environment),
             _document_configuration(environment),
             _notification_configuration(environment),
+            _map_provider_configuration(environment),
         ],
         paths,
     )

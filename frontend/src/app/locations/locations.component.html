@@ -78,6 +78,57 @@
             </section>
           </div>
 
+          @if (mapIsActive(venue)) {
+            <section
+              class="locations-detail-section locations-map"
+              aria-labelledby="venue-map-title"
+            >
+              <h2 id="venue-map-title">Kartenansicht</h2>
+              <dl class="locations-definition-list">
+                <div>
+                  <dt>Position</dt>
+                  <dd>{{ coordinateLabel(venue) }}</dd>
+                </div>
+                @if (venue.coordinate_source) {
+                  <div>
+                    <dt>Herkunft</dt>
+                    <dd>{{ venue.coordinate_source }}</dd>
+                  </div>
+                }
+              </dl>
+              @if (canShowMap(venue)) {
+                @if (!mapLoadError()) {
+                  <iframe
+                    class="locations-map-frame"
+                    [src]="mapEmbedUrl(venue)"
+                    [title]="'Karte für ' + venue.name"
+                    (load)="mapLoadError.set(false)"
+                    (error)="mapLoadError.set(true)"
+                  ></iframe>
+                } @else {
+                  <p class="app-muted" role="status">
+                    Die Kartenansicht ist derzeit nicht verfügbar. Die Ortsdaten bleiben nutzbar.
+                  </p>
+                }
+                <p class="locations-map-meta">
+                  <a
+                    [href]="mapProvider(venue).attribution_url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {{ mapProvider(venue).attribution }}
+                  </a>
+                  <a [href]="routeUrl(venue)" target="_blank" rel="noopener noreferrer">
+                    Zielpunkt in
+                    {{ mapProvider(venue).mode === 'osm' ? 'OpenStreetMap' : 'Google Maps' }} öffnen
+                  </a>
+                </p>
+              } @else {
+                <p class="app-muted">Die Position muss vor neuen Planungen bestätigt werden.</p>
+              }
+            </section>
+          }
+
           @if (!readOnly && venue.capabilities.manage) {
             <div class="app-row-actions locations-management-actions" aria-label="Ortsverwaltung">
               <button tuiButton type="button" appearance="secondary" (click)="startEditing(venue)">
@@ -108,6 +159,17 @@
               >
                 Kontakt anlegen
               </button>
+              @if (venue.capabilities.geocode && venue.coordinate_status !== 'confirmed') {
+                <button
+                  tuiButton
+                  type="button"
+                  appearance="secondary"
+                  (click)="geocodeVenue.emit(venue)"
+                  [disabled]="actionBusy"
+                >
+                  Position anhand der Anschrift prüfen
+                </button>
+              }
               @if (venue.capabilities.request_promotion) {
                 <button
                   tuiButton
@@ -128,6 +190,23 @@
                 Ort löschen
               </button>
             </div>
+          }
+
+          @if (candidateFor(venue); as candidate) {
+            <section class="locations-geocode-candidate" aria-labelledby="geocode-candidate-title">
+              <h2 id="geocode-candidate-title">Vorgeschlagene Position</h2>
+              <p>{{ candidate.latitude }}, {{ candidate.longitude }} ({{ candidate.source }})</p>
+              <div class="app-row-actions">
+                <button
+                  tuiButton
+                  type="button"
+                  [disabled]="actionBusy"
+                  (click)="confirmGeocode(venue, candidate)"
+                >
+                  Position bestätigen
+                </button>
+              </div>
+            </section>
           }
           @if (!readOnly && venue.capabilities.decide_promotion) {
             <div class="app-row-actions locations-management-actions">
@@ -165,6 +244,32 @@
                 <label tuiLabel>Ort</label>
                 <input tuiInput name="editCity" [(ngModel)]="edit.city" />
               </tui-textfield>
+              @if (mapIsActive(venue)) {
+                <tui-textfield class="app-field-third">
+                  <label tuiLabel>Breitengrad</label>
+                  <input tuiInput type="number" name="editLatitude" [(ngModel)]="edit.latitude" />
+                </tui-textfield>
+                <tui-textfield class="app-field-third">
+                  <label tuiLabel>Längengrad</label>
+                  <input tuiInput type="number" name="editLongitude" [(ngModel)]="edit.longitude" />
+                </tui-textfield>
+                <label class="app-field-third">
+                  Position
+                  <select name="editCoordinateStatus" [(ngModel)]="edit.coordinate_status">
+                    <option value="missing">Nicht hinterlegt</option>
+                    <option value="needs_review">Erneut zu prüfen</option>
+                    <option value="confirmed">Bestätigt</option>
+                  </select>
+                </label>
+                <tui-textfield class="app-field-third">
+                  <label tuiLabel>Herkunft der Position</label>
+                  <input
+                    tuiInput
+                    name="editCoordinateSource"
+                    [(ngModel)]="edit.coordinate_source"
+                  />
+                </tui-textfield>
+              }
               <label class="app-field-third">
                 Barrierefreiheit
                 <select name="editAccessibilityStatus" [(ngModel)]="edit.accessibility_status">

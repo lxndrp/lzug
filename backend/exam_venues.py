@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .database import DEFAULT_DB_PATH, session_scope
+from .map_provider import planning_requires_confirmed_coordinates
 from .models import (
     EXAM_ROOM,
     EXAM_VENUE,
@@ -122,6 +123,9 @@ def room_is_usable_for_committee(session: Session, room_id: int, committee_id: i
         venue
         and venue.is_active
         and (venue.scope == "global" or venue.committee_id == committee_id)
+        and (
+            not planning_requires_confirmed_coordinates() or venue.coordinate_status == "confirmed"
+        )
     )
 
 
@@ -142,6 +146,12 @@ class ExamVenueService:
         with session_scope(self.db_path) as session:
             venue = session.get(ExamVenue, venue_id)
             return self._venue_payload(session, venue) if venue else None
+
+    def address_label(self, venue_id: int) -> str | None:
+        """Return the address only for the authorized explicit geocoding command."""
+        with session_scope(self.db_path) as session:
+            venue = session.get(ExamVenue, venue_id)
+            return self._address_label(vars(venue)) if venue else None
 
     def referenced_committee_ids(self, venue_id: int) -> frozenset[int]:
         """Return committees with a durable plan reference to this venue."""
@@ -367,6 +377,18 @@ class ExamVenueService:
                 return None
             self._assert_revision(venue.revision, expected_revision)
             values, reason = self._venue_values(command, current=venue)
+            address_changed = any(
+                values[field] != getattr(venue, field)
+                for field in ("street", "postal_code", "city", "country")
+            )
+            coordinates_supplied = bool(
+                {"latitude", "longitude", "coordinate_status", "coordinate_source"}.intersection(
+                    command
+                )
+            )
+            if address_changed and not coordinates_supplied and values["latitude"] is not None:
+                values["coordinate_status"] = "needs_review"
+                command["coordinate_status"] = "needs_review"
             duplicate_reason = self._optional_text(command.get("duplicate_reason"))
             self._assert_future_impact_confirmation(session, venue.id, None, command)
             self._assert_venue_name_available(

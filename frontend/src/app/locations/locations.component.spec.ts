@@ -56,6 +56,7 @@ type LocationsHarness = LocationsComponent & {
   roomLocation(room: ExamRoom): string;
   optional(value: string | null | undefined): string;
   address(venue: ExamVenue): string;
+  mapEmbedUrl(venue: ExamVenue): unknown;
   clearFilters(): void;
   submitVenue(): void;
   toggleVenueCreation(): void;
@@ -273,6 +274,99 @@ describe('LocationsComponent', () => {
     expect(text).not.toContain('Bearbeiten');
     expect(text).not.toContain('Kontakt anlegen');
     expect(text).not.toContain('Global vorschlagen');
+  });
+
+  it('loads one attributed map only in the selected venue detail', () => {
+    const venue = {
+      ...masterDataFixture.examVenues[0],
+      latitude: 53.55,
+      longitude: 9.99,
+      coordinate_status: 'confirmed' as const,
+      coordinate_source: 'nominatim',
+      map_provider: {
+        mode: 'osm' as const,
+        attribution: 'OpenStreetMap-Mitwirkende',
+        attribution_url: 'https://www.openstreetmap.org/copyright',
+      },
+    };
+    fixture.componentRef.setInput('masterData', { ...masterDataFixture, examVenues: [venue] });
+    fixture.componentRef.setInput('detailVenueId', null);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('iframe')).toBeNull();
+
+    fixture.componentRef.setInput('detailVenueId', venue.id);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('iframe')?.getAttribute('title')).toContain(venue.name);
+    expect(root.textContent).toContain('OpenStreetMap-Mitwirkende');
+    expect(root.textContent).toContain('Zielpunkt in OpenStreetMap öffnen');
+  });
+
+  it('uses the restricted browser key only for the Google Embed API URL', () => {
+    const appRoot = document.createElement('app-root');
+    appRoot.setAttribute('data-google-maps-embed-key', 'restricted-browser-key');
+    document.body.append(appRoot);
+    const venue = {
+      ...masterDataFixture.examVenues[0],
+      latitude: 53.55,
+      longitude: 9.99,
+      coordinate_status: 'confirmed' as const,
+      map_provider: {
+        mode: 'google' as const,
+        attribution: 'Google Maps',
+        attribution_url: 'https://www.google.com/intl/de/help/terms_maps/',
+      },
+    };
+    fixture.componentRef.setInput('masterData', { ...masterDataFixture, examVenues: [venue] });
+    fixture.componentRef.setInput('detailVenueId', venue.id);
+    fixture.detectChanges();
+
+    const source = (fixture.nativeElement as HTMLElement)
+      .querySelector('iframe')
+      ?.getAttribute('src');
+    expect(source).toContain(
+      'https://www.google.com/maps/embed/v1/view?key=restricted-browser-key',
+    );
+    expect(source).toContain('center=53.55,9.99');
+    appRoot.remove();
+  });
+
+  it('requires explicit confirmation before a geocoding candidate becomes a venue update', () => {
+    const venue = {
+      ...masterDataFixture.examVenues[0],
+      coordinate_status: 'needs_review' as const,
+      map_provider: { mode: 'osm' as const },
+      capabilities: {
+        ...masterDataFixture.examVenues[0].capabilities,
+        geocode: true,
+      },
+    };
+    fixture.componentRef.setInput('masterData', { ...masterDataFixture, examVenues: [venue] });
+    fixture.componentRef.setInput('detailVenueId', venue.id);
+    fixture.componentRef.setInput('geocodeCandidate', {
+      venueId: venue.id,
+      latitude: 53.55,
+      longitude: 9.99,
+      source: 'nominatim',
+    });
+    fixture.detectChanges();
+    const emit = vi.spyOn(fixture.componentInstance.updateVenue, 'emit').mockReturnValue(undefined);
+
+    const button = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+    ).find((item) => item.textContent?.includes('Position bestätigen'));
+    button?.click();
+
+    expect(emit).toHaveBeenCalledWith({
+      id: venue.id,
+      payload: {
+        expected_revision: venue.revision,
+        latitude: 53.55,
+        longitude: 9.99,
+        coordinate_status: 'confirmed',
+        coordinate_source: 'nominatim',
+      },
+    });
   });
 
   it('emits a revisioned room status change', () => {
