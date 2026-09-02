@@ -27,7 +27,7 @@ describe('DashboardComponent', () => {
     expect(text).toContain('Hauptausschuss Athen');
     expect(text).toContain('Prüflinge');
     expect(text).toContain('12');
-    expect(text).toContain('Hof Athen (synthetisch)');
+    expect(text).toContain('Prüfungszentrum am Zappeion (Demo)');
     expect(text).toContain('08:30');
     expect(text).toContain('Hermia von Athen');
     expect(text).toContain('MEP');

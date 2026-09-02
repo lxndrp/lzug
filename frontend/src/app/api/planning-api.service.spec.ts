@@ -47,7 +47,7 @@ describe('PlanningApiService', () => {
     service.getPlanningBoard().subscribe((board) => {
       dayDates = board.days.map((item) => item.day.date);
       slotIds = board.days[0].slots.map((slot) => slot.id);
-      expect(board.days[0].location?.name).toBe('Hof Athen (synthetisch)');
+      expect(board.days[0].location?.name).toBe('Prüfungszentrum am Zappeion (Demo)');
       expect(board.days[0].assignments.length).toBe(2);
       expect(board.members.length).toBe(3);
       expect(board.candidates.length).toBe(2);

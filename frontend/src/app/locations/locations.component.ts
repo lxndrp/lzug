@@ -3,7 +3,9 @@ import {
   ElementRef,
   EventEmitter,
   Input,
+  OnChanges,
   Output,
+  SimpleChanges,
   inject,
   signal,
   ViewChild,
@@ -115,7 +117,7 @@ export type ContactUpdate = {
   templateUrl: './locations.component.html',
   styleUrl: './locations.component.css',
 })
-export class LocationsComponent {
+export class LocationsComponent implements OnChanges {
   private readonly sanitizer = inject(DomSanitizer);
 
   @ViewChild('venueCreateButton')
@@ -183,6 +185,10 @@ export class LocationsComponent {
     phone: '',
     availability_notes: '',
   };
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['detailVenueId']) this.mapLoadError.set(false);
+  }
 
   protected venues(): ExamVenue[] {
     return this.masterData?.examVenues ?? [];
@@ -280,9 +286,35 @@ export class LocationsComponent {
   }
 
   protected coordinateLabel(venue: ExamVenue): string {
-    if (venue.coordinate_status === 'confirmed') return 'Bestätigt';
+    if (
+      venue.coordinate_status === 'confirmed' &&
+      venue.latitude !== null &&
+      venue.latitude !== undefined &&
+      venue.longitude !== null &&
+      venue.longitude !== undefined
+    ) {
+      return `${venue.latitude.toFixed(6)}, ${venue.longitude.toFixed(6)} (WGS84, bestätigt)`;
+    }
     if (venue.coordinate_status === 'needs_review') return 'Erneut zu prüfen';
     return 'Nicht hinterlegt';
+  }
+
+  protected isSyntheticDemoVenue(venue: ExamVenue): boolean {
+    return (
+      venue.name.endsWith('(Demo)') && Boolean(venue.site_name?.startsWith('Reale geografische'))
+    );
+  }
+
+  protected coordinateSourceLabel(venue: ExamVenue): string {
+    return venue.coordinate_source?.split(';')[0]?.trim() || 'Nicht hinterlegt';
+  }
+
+  protected coordinateSourceUrl(venue: ExamVenue): string | null {
+    return venue.coordinate_source?.match(/https:\/\/[^;\s]+/)?.[0] ?? null;
+  }
+
+  protected coordinateSourceDate(venue: ExamVenue): string | null {
+    return venue.coordinate_source?.match(/Abrufdatum:\s*(\d{4}-\d{2}-\d{2})/)?.[1] ?? null;
   }
 
   protected mapIsActive(venue: ExamVenue): boolean {
@@ -298,18 +330,26 @@ export class LocationsComponent {
   }
 
   protected mapEmbedUrl(venue: ExamVenue): SafeResourceUrl {
-    const latitude = venue.latitude ?? 0;
-    const longitude = venue.longitude ?? 0;
+    const latitude = (venue.latitude ?? 0).toFixed(6);
+    const longitude = (venue.longitude ?? 0).toFixed(6);
+    const latitudeValue = Number(latitude);
+    const longitudeValue = Number(longitude);
+    const bbox = [
+      (longitudeValue - 0.01).toFixed(6),
+      (latitudeValue - 0.006).toFixed(6),
+      (longitudeValue + 0.01).toFixed(6),
+      (latitudeValue + 0.006).toFixed(6),
+    ].join(',');
     const source =
       this.mapProvider(venue).mode === 'osm'
-        ? `https://www.openstreetmap.org/export/embed.html?marker=${latitude},${longitude}&layer=mapnik`
+        ? `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${latitude},${longitude}`
         : `https://www.google.com/maps/embed/v1/view?key=${encodeURIComponent(this.googleMapsEmbedKey())}&center=${latitude},${longitude}&zoom=16`;
     return this.sanitizer.bypassSecurityTrustResourceUrl(source);
   }
 
   protected routeUrl(venue: ExamVenue): string {
-    const latitude = venue.latitude ?? 0;
-    const longitude = venue.longitude ?? 0;
+    const latitude = (venue.latitude ?? 0).toFixed(6);
+    const longitude = (venue.longitude ?? 0).toFixed(6);
     return this.mapProvider(venue).mode === 'osm'
       ? `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=17/${latitude}/${longitude}`
       : `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;

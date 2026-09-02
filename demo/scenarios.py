@@ -57,8 +57,8 @@ EXAMINER_MEMBER_ID = fixture_id("membership.examiner.absent")
 REPLACEMENT_MEMBER_ID = fixture_id("membership.examiner.replacement")
 PLAN_REPLACEMENT_MEMBER_ID = REPLACEMENT_MEMBER_ID
 WRONG_SIDE_MEMBER_ID = fixture_id("membership.examiner.unsuitable")
-SOURCE_LOCATION_ID = fixture_id("location.synthetic.court")
-TARGET_LOCATION_ID = fixture_id("location.synthetic.garden")
+SOURCE_LOCATION_ID = fixture_id("room.zappeion.theseus")
+TARGET_LOCATION_ID = fixture_id("room.gazi.handwerkerensemble")
 
 
 def seed_demo_scenarios(db_path: Path, created_at: datetime) -> None:
@@ -374,7 +374,11 @@ def scenario_overview(
             "Keine realen personenbezogenen Daten eingeben.",
             "Externe Zustellung ist in der öffentlichen Demo deaktiviert.",
         ],
-        "location_contract": "Theaterbasierte reale Ortsdaten und OSM folgen separat mit #572.",
+        "location_contract": (
+            "Reale Athener Anschriften und Referenzpunkte verorten ausschließlich synthetische "
+            "Prüfungsstätten. In Ortsdetails lädt OpenStreetMap automatisch externe "
+            "Kartenkacheln; ein Routenlink öffnet den Zielpunkt erst nach bewusster Auswahl."
+        ),
     }
 
 

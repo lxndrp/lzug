@@ -72,33 +72,38 @@ FROM committee;
 
 INSERT INTO exam_venue
   (id, scope, committee_id, name, normalized_name, street, postal_code, city,
-   country, is_accessible, accessibility_status, is_active)
+   country, site_name, entrance, travel_directions, is_accessible,
+   accessibility_status, accessibility_notes, latitude, longitude,
+   coordinate_status, coordinate_source, is_active)
 VALUES
-  (1, 'committee', 1, 'Hof Athen (synthetisch)', 'hof athen (synthetisch)', 'Demoallee 1', '00000', 'Athen (Demo)', 'Deutschland', 1, 'confirmed', 0),
-  (2, 'committee', 1, 'Gartenbühne Athen (synthetisch)', 'gartenbühne athen (synthetisch)', 'Demoallee 2', '00000', 'Athen (Demo)', 'Deutschland', 1, 'confirmed', 0),
-  (3, 'committee', 2, 'Lichtung Feenwald (synthetisch)', 'lichtung feenwald (synthetisch)', 'Fiktiver Waldpfad 1', '00000', 'Attischer Wald (Demo)', 'Deutschland', 1, 'confirmed', 0);
+  (1, 'global', NULL, 'Prüfungszentrum am Zappeion (Demo)', 'prüfungszentrum am zappeion (demo)', 'Vasilissis Olgas Avenue', '10557', 'Athens', 'Greece', 'Reale geografische Referenz: Zappeion Megaron, Athen', 'Synthetischer Demo-Eingang und Treffpunkt Theseus', 'Reale Orientierung: Bereich Zappeion, fußläufig von Syntagma. Der bezeichnete Eingang und Treffpunkt gehören ausschließlich zum synthetischen Prüfungsszenario.', 1, 'confirmed', 'Nur im synthetischen Prüfungsszenario als barrierefrei bewertet; keine Aussage über das reale Zappeion.', 37.971620, 23.736520, 'confirmed', 'Zappeion-Kontaktseite und OpenStreetMap-Referenz; https://www.zappeion.gr/en/contact.html; Abrufdatum: 2026-09-01', 0),
+  (2, 'committee', 1, 'Prüfungswerkstätten Gazi (Demo)', 'prüfungswerkstätten gazi (demo)', 'Pireos 100', '11854', 'Athens', 'Greece', 'Reale geografische Referenz: Technopolis City of Athens', 'Synthetisches Demo-Tor und Treffpunkt Handwerkerensemble', 'Reale Orientierung: Metrostation Kerameikos und Pireos 100. Das bezeichnete Tor und der Treffpunkt gehören ausschließlich zum synthetischen Prüfungsszenario.', 1, 'confirmed', 'Nur im synthetischen Prüfungsszenario als barrierefrei bewertet; keine Aussage über die reale Technopolis.', 37.977779, 23.714099, 'confirmed', 'Technopolis City of Athens; https://www.athens-technopolis.gr/index.php/en/contact-us-eng; Abrufdatum: 2026-09-01', 0),
+  (3, 'committee', 2, 'Prüfungsbereich Nationalgarten (Demo)', 'prüfungsbereich nationalgarten (demo)', 'Leoforos Vasilissis Amalias 1', '10557', 'Athens', 'Greece', 'Reale geografische Referenz: National Garden of Athens', 'Synthetischer Treffpunkt Feenwald', 'Reale Orientierung: Haupteingang an der Amalias-Allee und Umgebung Syntagma. Der bezeichnete Treffpunkt gehört ausschließlich zum synthetischen Prüfungsszenario.', 0, 'confirmed', 'Der für das Demo-Szenario angenommene Außenbereich besitzt unebene Wege und wird nicht als barrierefrei bewertet. Dies ist keine Aussage über den realen Nationalgarten.', 37.973365, 23.737690, 'confirmed', 'Stadt Athen, Nationalgarten; https://old.cityofathens.gr/episkeptes/aksiotheata/diadromes-stin-istoria-tis-athinas/o-kipos-tis-athinas; Abrufdatum: 2026-09-01', 0);
 
-INSERT INTO exam_room (id, venue_id, name, normalized_name, is_active)
+INSERT INTO exam_room
+  (id, venue_id, name, normalized_name, access_notes, capacity, is_active)
 VALUES
-  (1, 1, 'Saal Theseus', 'saal theseus', 1),
-  (2, 2, 'Bühne Hippolyta', 'bühne hippolyta', 1),
-  (3, 3, 'Lichtung Oberon', 'lichtung oberon', 1);
+  (1, 1, 'Theseussaal', 'theseussaal', 'Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.', 24, 1),
+  (2, 2, 'Werkstatt Handwerkerensemble', 'werkstatt handwerkerensemble', 'Synthetische Auffindung: ab Demo-Tor dem Treffpunkt Handwerkerensemble folgen.', 18, 1),
+  (3, 3, 'Lichtung Oberon', 'lichtung oberon', 'Synthetische Auffindung: ab Treffpunkt Feenwald der Demo-Beschilderung Oberon folgen.', 15, 1),
+  (4, 1, 'Hippolytasaal', 'hippolytasaal', 'Synthetische Auffindung: ab Demo-Eingang dem Hinweis Hippolyta folgen.', 12, 1),
+  (5, 2, 'Prüfhalle Pyramus', 'prüfhalle pyramus', 'Synthetische Auffindung: ab Demo-Tor dem Hinweis Pyramus folgen.', 30, 1),
+  (6, 3, 'Lichtung Titania', 'lichtung titania', 'Synthetische Auffindung: ab Treffpunkt Feenwald der Demo-Beschilderung Titania folgen.', 15, 1);
 
 UPDATE exam_venue
 SET is_active = 1
-WHERE id IN (SELECT venue_id FROM exam_room WHERE is_active = 1);
+WHERE id IN (1, 2, 3);
 
-INSERT INTO exam_venue_contact (id, venue_id, label, role, phone)
+INSERT INTO exam_venue_contact
+  (id, venue_id, label, role, phone, email, availability_notes, is_active)
 VALUES
-  (1, 1, 'Empfang Hof Athen (synthetisch)', 'Empfang', '+49 000 0001'),
-  (2, 2, 'Empfang Gartenbühne Athen (synthetisch)', 'Empfang', '+49 000 0002'),
-  (3, 3, 'Empfang Lichtung Feenwald (synthetisch)', 'Empfang', '+49 000 0003');
+  (1, 1, 'Hippolyta von Athen', 'Synthetische Ortskoordination', NULL, 'hippolyta.athen@demo.lzug.invalid', 'Synthetischer Demo-Kontakt für den gesamten Prüfungsort.', 1),
+  (2, 2, 'Peter Quince', 'Synthetische Raumkoordination', NULL, 'peter.quince@demo.lzug.invalid', 'Synthetischer Demo-Kontakt ausschließlich für die Werkstatt Handwerkerensemble.', 1);
 
 INSERT INTO exam_venue_contact_room (contact_id, room_id)
 VALUES
-  (1, 1),
-  (2, 2),
-  (3, 3);
+  (2, 2);
+
 
 INSERT INTO candidate
   (id, first_name, last_name, ihk_exam_number, specialization, training_company)

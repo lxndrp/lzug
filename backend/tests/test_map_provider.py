@@ -113,7 +113,7 @@ class MapProviderTests(unittest.TestCase):
         self.assertEqual(200, status)
         self.assertIn("frame-src https://www.openstreetmap.org", headers["content-security-policy"])
         self.assertNotIn("www.google.com", headers["content-security-policy"])
-        self.assertEqual("no-referrer", headers["referrer-policy"])
+        self.assertEqual("strict-origin-when-cross-origin", headers["referrer-policy"])
 
     def test_geocoder_sends_only_the_address_and_returns_a_small_candidate(self) -> None:
         config = MapProviderConfig.from_environment(

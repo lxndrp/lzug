@@ -97,11 +97,17 @@ variable "container_environment" {
       for name in keys(var.container_environment) :
       can(regex("^[A-Z_][A-Z0-9_]*$", name)) &&
       !contains(
-        ["LZUG_DATA_DIR", "LZUG_DEPLOYMENT_DIGEST", "LZUG_CORS_ALLOWED_ORIGINS"],
+        [
+          "LZUG_DATA_DIR",
+          "LZUG_DEPLOYMENT_DIGEST",
+          "LZUG_CORS_ALLOWED_ORIGINS",
+          "LZUG_MAP_PROVIDER",
+          "LZUG_NOMINATIM_USER_AGENT",
+        ],
         name,
       )
     ])
-    error_message = "container_environment keys must be uppercase environment variable names and must not replace managed data, deployment, or CORS settings."
+    error_message = "container_environment keys must be uppercase environment variable names and must not replace managed data, deployment, CORS, or map settings."
   }
 }
 

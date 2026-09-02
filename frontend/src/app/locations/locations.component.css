@@ -188,6 +188,18 @@
   margin-block: 1.25rem;
 }
 
+.locations-reality-notice {
+  border-inline-start: 0.25rem solid var(--app-color-focus);
+  padding: 0.85rem 1rem;
+  background: var(--app-color-surface-subtle);
+}
+
+.locations-reality-notice p,
+.locations-map-privacy {
+  margin: 0.35rem 0 0;
+  line-height: 1.55;
+}
+
 .locations-detail-section {
   min-inline-size: 0;
   margin-block-start: 1.25rem;

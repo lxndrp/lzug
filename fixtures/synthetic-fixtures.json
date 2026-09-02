@@ -1,13 +1,13 @@
 {
-  "version": 2,
-  "revision": "midsummer-night-dream-v2",
+  "version": 3,
+  "revision": "athens-theater-venues-v3",
   "fixture_root": "name.papaspyrou.repertoire.lzug.fixture",
-  "demo_matrix_version": "demo-paths-v7",
+  "demo_matrix_version": "demo-paths-v8",
   "narrative": {
     "work": "William Shakespeare: Ein Sommernachtstraum",
     "public_domain_scope": "Figuren und Motive des gemeinfreien Werkes; keine Übersetzung oder fremde Gestaltung",
-    "disclaimer": "Alle Kammern, Ausschüsse, Personen, Kontakte, Orte und Prüfungsvorgänge sind fiktiv.",
-    "location_contract": "Reale Athener Anschriften, Koordinaten und Kartenintegration werden ausschließlich in #572 festgelegt."
+    "disclaimer": "Alle Kammern, Ausschüsse, Personen, Kontakte und Prüfungsvorgänge sind fiktiv. Nur die ausdrücklich bezeichneten Athener Anschriften und geografischen Referenzpunkte sind real.",
+    "location_contract": "Reale Athener Anschriften und fest versionierte Referenzpunkte verorten die synthetischen Prüfungsstätten; daraus folgt weder eine Kooperation noch eine reale Prüfungsnutzung."
   },
   "conventions": {
     "country": "Griechenland",
@@ -363,7 +363,7 @@
       "membership_key": "name.papaspyrou.repertoire.lzug.fixture.membership.chair.athen",
       "email": "chair@demo.lzug.invalid",
       "demo_role": "chair",
-      "capability_contract": "demo-paths-v7"
+      "capability_contract": "demo-paths-v8"
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.account.examiner",
@@ -372,7 +372,7 @@
       "membership_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.absent",
       "email": "examiner@demo.lzug.invalid",
       "demo_role": "examiner",
-      "capability_contract": "demo-paths-v7"
+      "capability_contract": "demo-paths-v8"
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.account.deputy",
@@ -381,7 +381,7 @@
       "membership_key": "name.papaspyrou.repertoire.lzug.fixture.membership.deputy.athen",
       "email": "deputy@demo.lzug.invalid",
       "demo_role": null,
-      "capability_contract": "demo-paths-v7"
+      "capability_contract": "demo-paths-v8"
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.account.replacement",
@@ -390,55 +390,106 @@
       "membership_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.replacement",
       "email": "replacement@demo.lzug.invalid",
       "demo_role": "replacement",
-      "capability_contract": "demo-paths-v7"
+      "capability_contract": "demo-paths-v8"
     }
   ],
   "locations": [
     {
-      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.synthetic.court",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion",
       "id": 1,
-      "committee_key": "name.papaspyrou.repertoire.lzug.fixture.committee.athen",
-      "name": "Hof Athen (synthetisch)",
-      "street": "Demoallee 1",
-      "postal_code": "00000",
-      "city": "Athen (Demo)",
-      "country": "Griechenland",
-      "room": "Saal Theseus",
+      "scope": "global",
+      "committee_key": null,
+      "name": "Prüfungszentrum am Zappeion (Demo)",
+      "street": "Vasilissis Olgas Avenue",
+      "postal_code": "10557",
+      "city": "Athens",
+      "country": "Greece",
+      "site_name": "Reale geografische Referenz: Zappeion Megaron, Athen",
+      "entrance": "Synthetischer Demo-Eingang und Treffpunkt Theseus",
+      "travel_directions": "Reale Orientierung: Bereich Zappeion, fußläufig von Syntagma. Der bezeichnete Eingang und Treffpunkt gehören ausschließlich zum synthetischen Prüfungsszenario.",
+      "is_accessible": 1,
+      "accessibility_status": "confirmed",
+      "accessibility_notes": "Nur im synthetischen Prüfungsszenario als barrierefrei bewertet; keine Aussage über das reale Zappeion.",
+      "latitude": 37.971620,
+      "longitude": 23.736520,
+      "coordinate_status": "confirmed",
+      "coordinate_source": "Zappeion-Kontaktseite und OpenStreetMap-Referenz; https://www.zappeion.gr/en/contact.html; Abrufdatum: 2026-09-01",
+      "source_name": "Offizielle Zappeion-Kontaktseite und OpenStreetMap-Referenz",
+      "source_url": "https://www.zappeion.gr/en/contact.html",
+      "source_retrieved_at": "2026-09-01",
+      "reality_notice": "Nur Anschrift, allgemeine Orientierung und Referenzpunkt sind real. Prüfungsstätte, Räume, Kontakte und Fachangaben sind synthetisch; es besteht keine Kooperation.",
       "is_active": 1,
-      "geodata": null,
-      "scenarios": ["authorization.positive.athen", "demo.487.absence"],
+      "scenarios": ["authorization.positive.athen", "authorization.negative.foreign-committee", "demo.487.absence", "demo.487.planchange"],
       "adapters": ["seed", "frontend", "prototype"]
     },
     {
-      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.synthetic.garden",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi",
       "id": 2,
+      "scope": "committee",
       "committee_key": "name.papaspyrou.repertoire.lzug.fixture.committee.athen",
-      "name": "Gartenbühne Athen (synthetisch)",
-      "street": "Demoallee 2",
-      "postal_code": "00000",
-      "city": "Athen (Demo)",
-      "country": "Griechenland",
-      "room": "Bühne Hippolyta",
+      "name": "Prüfungswerkstätten Gazi (Demo)",
+      "street": "Pireos 100",
+      "postal_code": "11854",
+      "city": "Athens",
+      "country": "Greece",
+      "site_name": "Reale geografische Referenz: Technopolis City of Athens",
+      "entrance": "Synthetisches Demo-Tor und Treffpunkt Handwerkerensemble",
+      "travel_directions": "Reale Orientierung: Metrostation Kerameikos und Pireos 100. Das bezeichnete Tor und der Treffpunkt gehören ausschließlich zum synthetischen Prüfungsszenario.",
+      "is_accessible": 1,
+      "accessibility_status": "confirmed",
+      "accessibility_notes": "Nur im synthetischen Prüfungsszenario als barrierefrei bewertet; keine Aussage über die reale Technopolis.",
+      "latitude": 37.977779,
+      "longitude": 23.714099,
+      "coordinate_status": "confirmed",
+      "coordinate_source": "Technopolis City of Athens; https://www.athens-technopolis.gr/index.php/en/contact-us-eng; Abrufdatum: 2026-09-01",
+      "source_name": "Offizielle Kontaktseite der Technopolis City of Athens",
+      "source_url": "https://www.athens-technopolis.gr/index.php/en/contact-us-eng",
+      "source_retrieved_at": "2026-09-01",
+      "reality_notice": "Nur Anschrift, allgemeine Orientierung und Referenzpunkt sind real. Prüfungsstätte, Räume, Kontakte und Fachangaben sind synthetisch; es besteht keine Kooperation.",
       "is_active": 1,
-      "geodata": null,
-      "scenarios": ["demo.487.planchange"],
-      "adapters": ["seed", "prototype"]
+      "scenarios": ["authorization.positive.athen", "demo.487.planchange"],
+      "adapters": ["seed", "frontend", "prototype"]
     },
     {
-      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.synthetic.feenwald",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.feenwald.nationalgarden",
       "id": 3,
+      "scope": "committee",
       "committee_key": "name.papaspyrou.repertoire.lzug.fixture.committee.feenwald",
-      "name": "Lichtung Feenwald (synthetisch)",
-      "street": "Fiktiver Waldpfad 1",
-      "postal_code": "00000",
-      "city": "Attischer Wald (Demo)",
-      "country": "Griechenland",
-      "room": "Lichtung Oberon",
+      "name": "Prüfungsbereich Nationalgarten (Demo)",
+      "street": "Leoforos Vasilissis Amalias 1",
+      "postal_code": "10557",
+      "city": "Athens",
+      "country": "Greece",
+      "site_name": "Reale geografische Referenz: National Garden of Athens",
+      "entrance": "Synthetischer Treffpunkt Feenwald",
+      "travel_directions": "Reale Orientierung: Haupteingang an der Amalias-Allee und Umgebung Syntagma. Der bezeichnete Treffpunkt gehört ausschließlich zum synthetischen Prüfungsszenario.",
+      "is_accessible": 0,
+      "accessibility_status": "confirmed",
+      "accessibility_notes": "Der für das Demo-Szenario angenommene Außenbereich besitzt unebene Wege und wird nicht als barrierefrei bewertet. Dies ist keine Aussage über den realen Nationalgarten.",
+      "latitude": 37.973365,
+      "longitude": 23.737690,
+      "coordinate_status": "confirmed",
+      "coordinate_source": "Stadt Athen, Nationalgarten; https://old.cityofathens.gr/episkeptes/aksiotheata/diadromes-stin-istoria-tis-athinas/o-kipos-tis-athinas; Abrufdatum: 2026-09-01",
+      "source_name": "Institutioneller Ortsnachweis der Stadt Athen",
+      "source_url": "https://old.cityofathens.gr/episkeptes/aksiotheata/diadromes-stin-istoria-tis-athinas/o-kipos-tis-athinas",
+      "source_retrieved_at": "2026-09-01",
+      "reality_notice": "Nur Anschrift, allgemeine Orientierung und Referenzpunkt sind real. Prüfungsbereich, Räume und Fachangaben sind synthetisch; es besteht keine Kooperation.",
       "is_active": 1,
-      "geodata": null,
       "scenarios": ["authorization.negative.foreign-committee"],
       "adapters": ["seed", "frontend"]
     }
+  ],
+  "rooms": [
+    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.zappeion.theseus", "id": 1, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion", "name": "Theseussaal", "capacity": 24, "access_notes": "Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.", "is_active": 1, "scenarios": ["demo.487.absence", "demo.487.planchange"], "adapters": ["seed", "frontend", "prototype"]},
+    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.gazi.handwerkerensemble", "id": 2, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi", "name": "Werkstatt Handwerkerensemble", "capacity": 18, "access_notes": "Synthetische Auffindung: ab Demo-Tor dem Treffpunkt Handwerkerensemble folgen.", "is_active": 1, "scenarios": ["demo.487.planchange"], "adapters": ["seed", "frontend", "prototype"]},
+    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.nationalgarden.oberon", "id": 3, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.feenwald.nationalgarden", "name": "Lichtung Oberon", "capacity": 15, "access_notes": "Synthetische Auffindung: ab Treffpunkt Feenwald der Demo-Beschilderung Oberon folgen.", "is_active": 1, "scenarios": ["authorization.negative.foreign-committee"], "adapters": ["seed", "frontend"]},
+    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.zappeion.hippolyta", "id": 4, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion", "name": "Hippolytasaal", "capacity": 12, "access_notes": "Synthetische Auffindung: ab Demo-Eingang dem Hinweis Hippolyta folgen.", "is_active": 1, "scenarios": ["authorization.positive.athen"], "adapters": ["seed", "frontend", "prototype"]},
+    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.gazi.pyramus", "id": 5, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi", "name": "Prüfhalle Pyramus", "capacity": 30, "access_notes": "Synthetische Auffindung: ab Demo-Tor dem Hinweis Pyramus folgen.", "is_active": 1, "scenarios": ["authorization.positive.athen"], "adapters": ["seed", "frontend", "prototype"]},
+    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.nationalgarden.titania", "id": 6, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.feenwald.nationalgarden", "name": "Lichtung Titania", "capacity": 15, "access_notes": "Synthetische Auffindung: ab Treffpunkt Feenwald der Demo-Beschilderung Titania folgen.", "is_active": 1, "scenarios": ["authorization.negative.foreign-committee"], "adapters": ["seed", "frontend"]}
+  ],
+  "location_contacts": [
+    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location-contact.zappeion.hippolyta", "id": 1, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion", "person_key": "name.papaspyrou.repertoire.lzug.fixture.person.deputy.athen", "label": "Hippolyta von Athen", "role": "Synthetische Ortskoordination", "email": "hippolyta.athen@demo.lzug.invalid", "phone": null, "availability_notes": "Synthetischer Demo-Kontakt für den gesamten Prüfungsort.", "room_keys": [], "is_active": 1, "scenarios": ["authorization.positive.athen", "demo.487.absence"], "adapters": ["seed", "frontend"]},
+    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location-contact.gazi.quince", "id": 2, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi", "person_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.absent", "label": "Peter Quince", "role": "Synthetische Raumkoordination", "email": "peter.quince@demo.lzug.invalid", "phone": null, "availability_notes": "Synthetischer Demo-Kontakt ausschließlich für die Werkstatt Handwerkerensemble.", "room_keys": ["name.papaspyrou.repertoire.lzug.fixture.room.gazi.handwerkerensemble"], "is_active": 1, "scenarios": ["demo.487.planchange"], "adapters": ["seed", "frontend"]}
   ],
   "candidates": [
     {
@@ -691,8 +742,8 @@
     {"legacy": "Testperson Eta", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.unsuitable", "technical_id": 7},
     {"legacy": "Testperson Theta", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.reserve", "technical_id": 8},
     {"legacy": "Testperson Iota", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.chair.feenwald", "technical_id": 9},
-    {"legacy": "Prüfungszentrum Alpha (Test)", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.synthetic.court", "technical_id": 1},
-    {"legacy": "Prüfungszentrum Beta (Test)", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.synthetic.garden", "technical_id": 2},
+    {"legacy": "Prüfungszentrum Alpha (Test)", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion", "technical_id": 1},
+    {"legacy": "Prüfungszentrum Beta (Test)", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi", "technical_id": 2},
     {"legacy": "Prüfling Alpha", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.planchange", "technical_id": 1},
     {"legacy": "Prüfling Beta", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.absence", "technical_id": 2},
     {"legacy": "Prüfling Gamma", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.lysander", "technical_id": 3},

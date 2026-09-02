@@ -783,15 +783,32 @@ class DemoRuntimeTests(unittest.TestCase):
             self._role(client, "chair")
             requests = (
                 ("POST", "/api/exam-venues", {"name": "Nicht anlegen"}),
+                ("POST", "/api/exam-venues/duplicate-check", {}),
                 (
                     "PATCH",
                     "/api/exam-venues/1",
                     {"expected_revision": 1, "is_active": False},
                 ),
+                ("DELETE", "/api/exam-venues/1", {"expected_revision": 1}),
+                ("POST", "/api/exam-venues/1/geocode", {"expected_revision": 1}),
+                ("POST", "/api/exam-venues/1/change-impact", {}),
+                ("POST", "/api/exam-venues/1/rooms", {"name": "Nicht anlegen"}),
+                ("PATCH", "/api/exam-rooms/1", {"expected_revision": 1}),
+                ("DELETE", "/api/exam-rooms/1", {"expected_revision": 1}),
+                ("POST", "/api/exam-rooms/1/change-impact", {}),
+                ("POST", "/api/exam-venues/1/contacts", {"label": "Nicht anlegen"}),
+                ("PATCH", "/api/exam-venue-contacts/1", {"expected_revision": 1}),
+                ("DELETE", "/api/exam-venue-contacts/1", {"expected_revision": 1}),
+                ("POST", "/api/exam-venue-changes/1/consequences/retry", {}),
                 (
                     "POST",
                     "/api/exam-venues/1/promotion-requests",
                     {"expected_revision": 1, "reason": "Nicht beantragen"},
+                ),
+                (
+                    "POST",
+                    "/api/exam-venue-promotion-requests/1/decision",
+                    {"decision": "approve", "reason": "Nicht freigeben"},
                 ),
             )
 

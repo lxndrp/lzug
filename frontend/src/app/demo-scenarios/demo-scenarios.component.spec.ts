@@ -151,7 +151,7 @@ function session(role: 'chair' | 'examiner' | 'replacement') {
 function overview(role: 'chair' | 'examiner' | 'replacement' = 'examiner'): DemoScenarioOverview {
   return {
     mode: 'demo',
-    demo_matrix_version: 'demo-paths-v7',
+    demo_matrix_version: 'demo-paths-v8',
     current_role: role,
     created_at: '2026-09-02T10:00:00Z',
     expires_at: '2026-09-02T11:00:00Z',
@@ -201,6 +201,7 @@ function overview(role: 'chair' | 'examiner' | 'replacement' = 'examiner'): Demo
       'Keine realen personenbezogenen Daten eingeben.',
       'Externe Zustellung ist in der öffentlichen Demo deaktiviert.',
     ],
-    location_contract: 'Theaterbasierte reale Ortsdaten und OSM folgen separat mit #572.',
+    location_contract:
+      'Reale Athener Anschriften und Referenzpunkte verorten ausschließlich synthetische Prüfungsstätten. In Ortsdetails lädt OpenStreetMap automatisch externe Kartenkacheln; ein Routenlink öffnet den Zielpunkt erst nach bewusster Auswahl.',
   };
 }

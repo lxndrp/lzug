@@ -6,6 +6,7 @@ from http import HTTPStatus
 from backend.auth import AuthenticationRepository
 from backend.contract import validate_response
 from backend.tests.helpers import ApiServer, TempDatabase
+from demo.synthetic_fixtures_generated import FIXTURE_IDS, FIXTURE_ROOT
 
 
 class ExamVenueHttpTests(unittest.TestCase):
@@ -181,7 +182,14 @@ class ExamVenueHttpTests(unittest.TestCase):
                 credentials=operator_session,
             )
             self.assertEqual(HTTPStatus.OK, status)
-            self.assertEqual([venue["id"]], [item["id"] for item in visible["items"]])
+            visible_ids = [item["id"] for item in visible["items"]]
+            self.assertEqual(
+                [
+                    venue["id"],
+                    FIXTURE_IDS[f"{FIXTURE_ROOT}.location.global.zappeion"]["id"],
+                ],
+                visible_ids,
+            )
             self.assertNotIn(hidden_venue["id"], [item["id"] for item in visible["items"]])
 
             status, promoted = self.request(

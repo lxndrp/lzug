@@ -87,7 +87,7 @@ export const athenDeputyMembershipFixture = fixtureById(
 );
 export const athenCourtLocationFixture = fixtureById(
   locationsFixture,
-  fixtureId('locations', 'name.papaspyrou.repertoire.lzug.fixture.location.synthetic.court'),
+  fixtureId('rooms', 'name.papaspyrou.repertoire.lzug.fixture.room.zappeion.theseus'),
 );
 export const planchangeCandidateFixture = fixtureById(
   candidatesFixture,
@@ -99,7 +99,7 @@ export const absenceCandidateFixture = fixtureById(
 );
 export const feenwaldLocationFixture = fixtureById(
   locationsFixture,
-  fixtureId('locations', 'name.papaspyrou.repertoire.lzug.fixture.location.synthetic.feenwald'),
+  fixtureId('rooms', 'name.papaspyrou.repertoire.lzug.fixture.room.nationalgarden.oberon'),
 );
 
 export const roundCandidatesFixture: RoundCandidate[] = [
@@ -296,43 +296,18 @@ export const masterDataFixture: MasterData = {
   locations: locationsFixture,
   examVenues: [
     {
-      id: 1,
+      ...syntheticFixtures.examVenues[0],
       scope: 'committee',
       committee_id: 1,
-      name: athenCourtLocationFixture.name,
-      street: athenCourtLocationFixture.street ?? '',
-      postal_code: athenCourtLocationFixture.postal_code ?? '',
-      city: athenCourtLocationFixture.city,
-      country: 'Deutschland',
-      site_name: null,
-      entrance: null,
-      travel_directions: null,
-      is_accessible: 1,
-      accessibility_status: 'confirmed',
-      accessibility_notes: null,
-      is_active: 1,
       revision: 2,
-      rooms: [
-        {
-          id: 1,
-          venue_id: 1,
-          name: athenCourtLocationFixture.room,
-          building: null,
-          wing: null,
-          floor: null,
-          room_number: null,
-          access_notes: null,
-          capacity: 20,
-          is_active: 1,
-          revision: 1,
-          _links: {},
-        },
-      ],
-      contacts: [],
+      rooms: syntheticFixtures.examVenues[0].rooms.slice(0, 1).map((room) => ({ ...room })),
+      contacts: syntheticFixtures.examVenues[0].contacts.map((contact) => ({
+        ...contact,
+        room_ids: [...contact.room_ids],
+      })),
       capabilities: { manage: true, request_promotion: true, decide_promotion: false },
-      _links: {},
-    } satisfies ExamVenue,
-  ],
+    },
+  ] satisfies ExamVenue[],
 };
 
 export const planningBoardFixture: PlanningBoard = {
