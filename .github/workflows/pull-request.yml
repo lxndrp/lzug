@@ -402,8 +402,6 @@ jobs:
     needs: changes
     if: needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
-    env:
-      PLAYWRIGHT_BROWSER_CHANNEL: chrome
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
@@ -429,6 +427,10 @@ jobs:
           uv sync --locked --extra dev
           npm ci --prefix frontend
           cd frontend && npx playwright install --with-deps chromium
+      - name: Enable the Chromium user-namespace sandbox
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          test "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns)" = 0
       - name: Run browser end-to-end tests
         run: npm --prefix frontend run test:e2e
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -444,8 +446,6 @@ jobs:
     needs: changes
     if: needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
-    env:
-      PLAYWRIGHT_BROWSER_CHANNEL: chrome
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
@@ -471,6 +471,10 @@ jobs:
           uv sync --locked --extra dev
           npm ci --prefix frontend
           cd frontend && npx playwright install --with-deps chromium
+      - name: Enable the Chromium user-namespace sandbox
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          test "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns)" = 0
       - name: Run accessibility tests
         run: npm --prefix frontend run test:a11y
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
