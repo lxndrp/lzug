@@ -75,6 +75,22 @@ def planning_proposal_from_payload(round_id: int, payload: dict[str, Any]) -> Pl
             raise ValueError(f"{field_name} must be an integer")
         return value
 
+    def room_identifier(container: dict[str, Any]) -> int:
+        """Accept the temporary location alias without weakening room identity."""
+        has_room = "room_id" in container
+        has_location = "location_id" in container
+        if not has_room and not has_location:
+            raise ValueError("room_id must be an integer")
+        room_id = integer(container, "room_id") if has_room else None
+        location_id = integer(container, "location_id") if has_location else None
+        if room_id is not None and location_id is not None and room_id != location_id:
+            raise ValueError("room_id and location_id must match")
+        if room_id is not None:
+            return room_id
+        if location_id is None:
+            raise ValueError("location_id must be an integer")
+        return location_id
+
     if integer(payload, "round_id") != round_id:
         raise ValueError("round_id must match the request path")
     raw_days = payload.get("exam_days")
@@ -119,7 +135,7 @@ def planning_proposal_from_payload(round_id: int, payload: dict[str, Any]) -> Pl
             PlanDay(
                 id=integer(raw_day, "id", nullable=True),
                 candidate_exam_day_id=integer(raw_day, "candidate_exam_day_id"),
-                location_id=integer(raw_day, "location_id"),
+                room_id=room_identifier(raw_day),
                 slots=tuple(slots),
                 assignments=tuple(assignments),
             )
@@ -267,6 +283,14 @@ class RequestContext:
     def normalize_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         normalized = dict(payload)
         normalized.pop("specialization_label", None)
+        if "default_location_id" in normalized:
+            default_location_id = normalized.pop("default_location_id")
+            if (
+                "default_room_id" in normalized
+                and normalized["default_room_id"] != default_location_id
+            ):
+                raise ValueError("default_room_id and default_location_id must match")
+            normalized["default_room_id"] = default_location_id
         if "attempt_number" in normalized:
             normalized["attempt_number"] = max(1, int(normalized["attempt_number"]))
         for field_name in (

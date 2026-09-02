@@ -13,7 +13,8 @@ from backend.database import session_scope
 from backend.models import (
     CalendarEvent,
     CommitteeMember,
-    Location,
+    ExamRoom,
+    ExamVenue,
     MemberAvailability,
     Notification,
     PlanConsequence,
@@ -24,6 +25,35 @@ from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
 
 class PlanConsequenceServiceTests(unittest.TestCase):
+    @staticmethod
+    def _create_active_room(session, *, name: str, street: str, room_name: str) -> int:
+        venue = ExamVenue(
+            scope="committee",
+            committee_id=1,
+            name=name,
+            normalized_name=name.casefold(),
+            street=street,
+            postal_code="00000",
+            city="Teststadt",
+            country="Deutschland",
+            is_accessible=1,
+            accessibility_status="confirmed",
+            is_active=0,
+        )
+        session.add(venue)
+        session.flush()
+        room = ExamRoom(
+            venue_id=venue.id,
+            name=room_name,
+            normalized_name=room_name.casefold(),
+            is_active=1,
+        )
+        session.add(room)
+        session.flush()
+        venue.is_active = 1
+        session.flush()
+        return room.id
+
     def _confirmed_plan(self, db_path):
         planning = PlanningService(db_path)
         planning.generate_proposal(1)
@@ -31,25 +61,19 @@ class PlanConsequenceServiceTests(unittest.TestCase):
         CalendarService(db_path).sync_round(1)
         return planning, planning.get_confirmed_plan(1)
 
-    def test_location_change_updates_stable_events_and_creates_one_notice_per_recipient(
+    def test_room_change_updates_stable_events_and_creates_one_notice_per_recipient(
         self,
     ) -> None:
         with TempDatabase() as db_path:
             planning, original = self._confirmed_plan(db_path)
             first_day = original.days[0]
             with session_scope(db_path) as session:
-                location = Location(
-                    committee_id=1,
+                room_id = self._create_active_room(
+                    session,
                     name="Synthetischer Ausweichort",
                     street="Testweg 2",
-                    postal_code="00000",
-                    city="Teststadt",
-                    room="2.01",
-                    is_active=1,
+                    room_name="2.01",
                 )
-                session.add(location)
-                session.flush()
-                location_id = location.id
                 before_events = {
                     event.exam_day_assignment_id: (event.id, event.external_event_id, event.version)
                     for event in session.scalars(
@@ -59,7 +83,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
             changed = replace(
                 original,
                 days=(
-                    replace(first_day, location_id=location_id),
+                    replace(first_day, room_id=room_id),
                     *original.days[1:],
                 ),
             )
@@ -207,21 +231,15 @@ class PlanConsequenceServiceTests(unittest.TestCase):
             planning, original = self._confirmed_plan(db_path)
             day = original.days[0]
             with session_scope(db_path) as session:
-                location = Location(
-                    committee_id=1,
+                room_id = self._create_active_room(
+                    session,
                     name="Synthetischer Fehlerort",
                     street="Testweg 3",
-                    postal_code="00000",
-                    city="Teststadt",
-                    room="3.01",
-                    is_active=1,
+                    room_name="3.01",
                 )
-                session.add(location)
-                session.flush()
-                location_id = location.id
             changed = replace(
                 original,
-                days=(replace(day, location_id=location_id), *original.days[1:]),
+                days=(replace(day, room_id=room_id), *original.days[1:]),
             )
             saved, revision = planning.save_confirmed_plan(
                 ConfirmedPlanChange(changed, "Unabhängige Fehlergrenze prüfen"),
@@ -245,23 +263,19 @@ class PlanConsequenceServiceTests(unittest.TestCase):
             planning, original = self._confirmed_plan(db_path)
             day = original.days[0]
             with session_scope(db_path) as session:
-                locations = []
+                room_ids = []
                 for index in (4, 5):
-                    location = Location(
-                        committee_id=1,
-                        name=f"Synthetischer Revisionsort {index}",
-                        street=f"Testweg {index}",
-                        postal_code="00000",
-                        city="Teststadt",
-                        room=f"{index}.01",
-                        is_active=1,
+                    room_ids.append(
+                        self._create_active_room(
+                            session,
+                            name=f"Synthetischer Revisionsort {index}",
+                            street=f"Testweg {index}",
+                            room_name=f"{index}.01",
+                        )
                     )
-                    session.add(location)
-                    session.flush()
-                    locations.append(location.id)
             first_change = replace(
                 original,
-                days=(replace(day, location_id=locations[0]), *original.days[1:]),
+                days=(replace(day, room_id=room_ids[0]), *original.days[1:]),
             )
             _first_saved, first_revision = planning.save_confirmed_plan(
                 ConfirmedPlanChange(first_change, "Erste schnelle Änderung"),
@@ -275,7 +289,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
             second_change = replace(
                 current,
                 days=(
-                    replace(second_day, location_id=locations[1]),
+                    replace(second_day, room_id=room_ids[1]),
                     *current.days[1:],
                 ),
             )
@@ -297,21 +311,15 @@ class PlanConsequenceServiceTests(unittest.TestCase):
             planning, original = self._confirmed_plan(db_path)
             day = original.days[0]
             with session_scope(db_path) as session:
-                location = Location(
-                    committee_id=1,
+                room_id = self._create_active_room(
+                    session,
                     name="Synthetischer Zielort",
                     street="Testweg 6",
-                    postal_code="00000",
-                    city="Teststadt",
-                    room="6.01",
-                    is_active=1,
+                    room_name="6.01",
                 )
-                session.add(location)
-                session.flush()
-                location_id = location.id
             changed = replace(
                 original,
-                days=(replace(day, location_id=location_id), *original.days[1:]),
+                days=(replace(day, room_id=room_id), *original.days[1:]),
             )
             _saved, first_revision = planning.save_confirmed_plan(
                 ConfirmedPlanChange(changed, "Kalenderfolge zunächst verzögern"),
@@ -350,21 +358,15 @@ class PlanConsequenceServiceTests(unittest.TestCase):
             planning, original = self._confirmed_plan(db_path)
             day = original.days[0]
             with session_scope(db_path) as session:
-                location = Location(
-                    committee_id=1,
+                room_id = self._create_active_room(
+                    session,
                     name="Synthetischer Dauerfehlerort",
                     street="Testweg 7",
-                    postal_code="00000",
-                    city="Teststadt",
-                    room="7.01",
-                    is_active=1,
+                    room_name="7.01",
                 )
-                session.add(location)
-                session.flush()
-                location_id = location.id
             changed = replace(
                 original,
-                days=(replace(day, location_id=location_id), *original.days[1:]),
+                days=(replace(day, room_id=room_id), *original.days[1:]),
             )
             _saved, revision = planning.save_confirmed_plan(
                 ConfirmedPlanChange(changed, "Dauerfehler nachvollziehen"),

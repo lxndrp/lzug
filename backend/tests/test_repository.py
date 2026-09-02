@@ -315,7 +315,7 @@ class RepositoryTests(unittest.TestCase):
                     "lunch_break_enabled": 0,
                     "exclude_public_holidays": 1,
                     "holiday_subdivision_code": "DE-NW",
-                    "default_location_id": 2,
+                    "default_room_id": 2,
                     "updated_by_member_id": 1,
                 }
             )
@@ -334,7 +334,7 @@ class RepositoryTests(unittest.TestCase):
                     "lunch_break_enabled": 0,
                     "exclude_public_holidays": 1,
                     "holiday_subdivision_code": "DE-NW",
-                    "default_location_id": 2,
+                    "default_room_id": 2,
                     "updated_by_member_id": 2,
                 }
             )
@@ -361,7 +361,7 @@ class RepositoryTests(unittest.TestCase):
                 "lunch_break_enabled": 1,
                 "exclude_public_holidays": 1,
                 "holiday_subdivision_code": None,
-                "default_location_id": 1,
+                "default_room_id": 1,
                 "updated_by_member_id": 1,
             }
 

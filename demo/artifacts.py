@@ -278,7 +278,7 @@ def _add_exam_protocol_scenario(database: Path) -> None:
             VALUES (1, 2, 2, 13);
 
             INSERT INTO exam_day
-              (id, exam_round_id, location_id, date, status, lunch_break_enabled,
+              (id, exam_round_id, room_id, date, status, lunch_break_enabled,
                created_from_proposal)
             VALUES (1, 2, 1, '2027-05-18', 'confirmed', 1, 1);
 
@@ -377,7 +377,7 @@ def _add_exam_protocol_scenario(database: Path) -> None:
               (3, 2, 2, 15);
 
             INSERT INTO exam_day
-              (id, exam_round_id, location_id, date, status, lunch_break_enabled,
+              (id, exam_round_id, room_id, date, status, lunch_break_enabled,
                created_from_proposal)
             VALUES
               (2, 2, 1, '2027-05-19', 'confirmed', 1, 1),
@@ -515,7 +515,7 @@ def _add_exam_round_lifecycle_scenarios(database: Path) -> None:
               (92, 3, 93, 93, 92, '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00');
 
             INSERT INTO exam_day (
-              id, exam_round_id, location_id, date, status, revision, closure_status
+              id, exam_round_id, room_id, date, status, revision, closure_status
             ) VALUES
               (90, 92, 1, '2029-05-15', 'completed', 2, 'closed'),
               (91, 93, 1, '2029-11-15', 'completed', 2, 'closed');
@@ -573,7 +573,14 @@ def build_seed(
         raise DemoArtifactError("Product tag and commit are required")
     identity = _artifact_identity(product_tag, product_commit)
     database.parent.mkdir(parents=True, exist_ok=True)
-    initialize(database, with_seed=True, reset=True, backup_dir=database.parent / "backups")
+    initialize(
+        database,
+        with_seed=True,
+        reset=True,
+        backup_dir=database.parent / "backups",
+        migration_backup_name="demo-seed.migration-safety.sqlite",
+        migration_timestamp=FIXED_TIMESTAMP,
+    )
     _add_exam_protocol_scenario(database)
     _add_exam_round_lifecycle_scenarios(database)
     _normalize_timestamps(database)

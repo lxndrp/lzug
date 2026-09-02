@@ -41,11 +41,13 @@ from backend.backup_restore import (
 from backend.database import PersistencePaths, initialize, session_scope
 from backend.document_storage import FilesystemDocumentStorage
 from backend.documents import DocumentService
+from backend.exam_venues import ExamVenueService
 from backend.local_auth import (
     PASSWORD_HASHER,
     LocalAuthService,
     authentication_key,
 )
+from backend.tests.test_database import rewind_exam_venue_migration
 from demo.synthetic_fixtures_generated import DEMO_ROLES
 
 PASSWORD = "correct horse battery staple"
@@ -222,23 +224,13 @@ class BackupRestoreTests(unittest.TestCase):
         paths, service = self.runtime("previous-release", seed=False)
         authentication_key(paths.database)
         with closing(sqlite3.connect(paths.database)) as connection:
-            connection.execute("DROP TABLE artifact_operation")
-            connection.execute("DROP TABLE instance_metadata")
-            connection.execute(
-                "DELETE FROM schema_migration_checksum WHERE name = ?",
-                ("024_add_artifact_operations.sql",),
-            )
-            connection.execute(
-                "DELETE FROM schema_migration WHERE name = ?",
-                ("024_add_artifact_operations.sql",),
-            )
-            connection.commit()
+            rewind_exam_venue_migration(connection)
 
         backup = service.create_backup()
         report = service.verify(backup["artifact"], self.private_key)
 
-        self.assertEqual("023_add_exam_round_lifecycle.sql", report["source_schema_version"])
-        self.assertEqual(["024_add_artifact_operations.sql"], report["pending_migrations"])
+        self.assertEqual("024_add_artifact_operations.sql", report["source_schema_version"])
+        self.assertEqual(["025_model_exam_venues.sql"], report["pending_migrations"])
         self.assertEqual("backup", report["artifact_type"])
 
     def test_wrong_key_and_ciphertext_tampering_are_rejected(self) -> None:
@@ -341,6 +333,82 @@ class BackupRestoreTests(unittest.TestCase):
                 ).read_text(encoding="utf-8")
             )
             self.assertEqual(FULL_EXPORT_SCHEMA, repository_schema)
+
+    def test_exam_venue_data_preserves_identity_in_export_backup_and_restore(self) -> None:
+        source_paths, source = self.runtime("venue-source", seed=True)
+        venues = ExamVenueService(source_paths.database)
+        venue = venues.create_venue(
+            {
+                "scope": "committee",
+                "committee_id": 1,
+                "name": "Prüfungszentrum Backup",
+                "street": "Archivweg 1",
+                "postal_code": "20095",
+                "city": "Hamburg",
+                "country": "Deutschland",
+                "accessibility_status": "confirmed",
+                "is_accessible": True,
+                "coordinate_status": "missing",
+                "is_active": False,
+            },
+            actor_member_id=1,
+        )
+        room = venues.create_room(
+            venue["id"],
+            {"name": "Archivraum", "capacity": 18, "is_active": True},
+            actor_member_id=1,
+        )
+        venue = venues.update_venue(
+            venue["id"],
+            {"expected_revision": venue["revision"], "is_active": True},
+            actor_member_id=1,
+        )
+        assert venue is not None
+        contact = venues.create_contact(
+            venue["id"],
+            {
+                "label": "Hausdienst Backup",
+                "email": "hausdienst@example.invalid",
+                "room_ids": [room["id"]],
+            },
+            actor_member_id=1,
+        )
+
+        exported = source.create_full_export(self.public_key)
+        private_key = _parse_private_key(self.private_key)
+        with source._loaded_artifact(
+            source_paths.backups / exported["artifact"], private_key
+        ) as loaded:
+            export_data = json.loads((loaded.root / "export/data.json").read_text(encoding="utf-8"))
+
+        backup = source.create_backup()
+        target_paths, target = self.runtime("venue-target", seed=False)
+        self.copy_artifact(source_paths, target_paths, backup["artifact"])
+        target.restore(backup["artifact"], self.private_key, replace=True)
+        with closing(sqlite3.connect(target_paths.database)) as connection:
+            restored = connection.execute(
+                "SELECT venue.id, room.id, contact.id, contact_room.room_id "
+                "FROM exam_venue AS venue "
+                "JOIN exam_room AS room ON room.venue_id = venue.id "
+                "JOIN exam_venue_contact AS contact ON contact.venue_id = venue.id "
+                "JOIN exam_venue_contact_room AS contact_room "
+                "ON contact_room.contact_id = contact.id "
+                "WHERE venue.id = ?",
+                (venue["id"],),
+            ).fetchone()
+
+        self.assertTrue(
+            {
+                "exam_venue",
+                "exam_room",
+                "exam_venue_contact",
+                "exam_venue_contact_room",
+                "exam_venue_audit_event",
+                "exam_venue_migration_report",
+                "legacy_location_room_mapping",
+            }.issubset(export_data["tables"])
+        )
+        self.assertEqual((venue["id"], room["id"], contact["id"], room["id"]), restored)
 
     def test_empty_restore_resets_short_lived_state_and_supports_real_totp_login(self) -> None:
         source_paths, source, old_session = self.prepare_source()
@@ -508,13 +576,7 @@ class BackupRestoreTests(unittest.TestCase):
 
         def make_previous(database: Path, manifest: dict) -> None:
             with closing(sqlite3.connect(database)) as connection:
-                connection.execute("DROP TABLE artifact_operation")
-                connection.execute("DROP TABLE instance_metadata")
-                connection.execute(
-                    "DELETE FROM schema_migration_checksum WHERE name = ?", (current,)
-                )
-                connection.execute("DELETE FROM schema_migration WHERE name = ?", (current,))
-                connection.commit()
+                rewind_exam_venue_migration(connection)
             manifest["schema_version"] = previous
 
         older = self.rewrite_backup(source_paths, source, backup["artifact"], make_previous)

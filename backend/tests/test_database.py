@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import sqlite3
 import tempfile
@@ -35,6 +36,178 @@ from demo.synthetic_fixtures_generated import (
     FIXTURE_IDS,
     FIXTURE_ROOT,
 )
+
+
+def _rewind_plan_reference_json(raw: str) -> str:
+    """Restore legacy location keys while preparing an earlier migration fixture."""
+    value = json.loads(raw)
+
+    def rewind(item):
+        if isinstance(item, list):
+            return [rewind(entry) for entry in item]
+        if not isinstance(item, dict):
+            return item
+        restored = {key: rewind(entry) for key, entry in item.items()}
+        for new, old in (
+            ("room_id", "location_id"),
+            ("default_room_id", "default_location_id"),
+        ):
+            if new in restored:
+                restored[old] = restored.pop(new)
+        return restored
+
+    return json.dumps(rewind(value), separators=(",", ":"), sort_keys=True)
+
+
+def rewind_exam_venue_migration(connection: sqlite3.Connection) -> None:
+    """Restore the pre-025 schema for tests of earlier upgrade paths."""
+    if not connection.execute(
+        "SELECT 1 FROM schema_migration WHERE name = ?",
+        ("025_model_exam_venues.sql",),
+    ).fetchone():
+        return
+    connection.create_function("lzug_rewind_plan_json", 1, _rewind_plan_reference_json)
+    cleanup_checksum = (
+        "DELETE FROM schema_migration_checksum WHERE name = '025_model_exam_venues.sql';"
+        if connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+            ("schema_migration_checksum",),
+        ).fetchone()
+        else ""
+    )
+    connection.executescript(f"""
+        PRAGMA foreign_keys = OFF;
+        BEGIN TRANSACTION;
+
+        CREATE TABLE location (
+          id INTEGER PRIMARY KEY,
+          committee_id INTEGER NOT NULL REFERENCES committee(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          street TEXT NOT NULL,
+          postal_code TEXT NOT NULL,
+          city TEXT NOT NULL,
+          room TEXT NOT NULL,
+          is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        INSERT INTO location (
+          id, committee_id, name, street, postal_code, city, room, is_active,
+          created_at, updated_at
+        )
+        SELECT
+          room.id,
+          venue.committee_id,
+          venue.name,
+          venue.street,
+          venue.postal_code,
+          venue.city,
+          room.name,
+          room.is_active,
+          room.created_at,
+          room.updated_at
+        FROM exam_room AS room
+        JOIN exam_venue AS venue ON venue.id = room.venue_id
+        WHERE venue.committee_id IS NOT NULL;
+
+        CREATE TABLE planning_settings_025_rewind (
+          id INTEGER PRIMARY KEY,
+          exam_round_id INTEGER NOT NULL UNIQUE REFERENCES exam_round(id) ON DELETE CASCADE,
+          calendar_week_from TEXT NOT NULL,
+          calendar_week_to TEXT NOT NULL,
+          exams_per_day INTEGER NOT NULL CHECK (exams_per_day >= 1),
+          max_exam_days_per_week INTEGER NOT NULL DEFAULT 3
+            CHECK (max_exam_days_per_week BETWEEN 1 AND 5),
+          lunch_break_enabled INTEGER NOT NULL DEFAULT 1 CHECK (lunch_break_enabled IN (0, 1)),
+          exclude_public_holidays INTEGER NOT NULL DEFAULT 0
+            CHECK (exclude_public_holidays IN (0, 1)),
+          holiday_subdivision_code TEXT,
+          default_location_id INTEGER REFERENCES location(id) ON DELETE SET NULL,
+          updated_by_member_id INTEGER NOT NULL REFERENCES committee_member(id) ON DELETE RESTRICT,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CHECK (calendar_week_from <= calendar_week_to),
+          CHECK (
+            holiday_subdivision_code IS NULL
+            OR holiday_subdivision_code IN (
+              'DE-BB', 'DE-BE', 'DE-BW', 'DE-BY', 'DE-HB', 'DE-HE', 'DE-HH', 'DE-MV',
+              'DE-NI', 'DE-NW', 'DE-RP', 'DE-SH', 'DE-SL', 'DE-SN', 'DE-ST', 'DE-TH'
+            )
+          ),
+          CHECK (exclude_public_holidays = 0 OR holiday_subdivision_code IS NOT NULL)
+        );
+        INSERT INTO planning_settings_025_rewind (
+          id, exam_round_id, calendar_week_from, calendar_week_to, exams_per_day,
+          max_exam_days_per_week, lunch_break_enabled, exclude_public_holidays,
+          holiday_subdivision_code, default_location_id, updated_by_member_id,
+          created_at, updated_at
+        )
+        SELECT
+          id, exam_round_id, calendar_week_from, calendar_week_to, exams_per_day,
+          max_exam_days_per_week, lunch_break_enabled, exclude_public_holidays,
+          holiday_subdivision_code, default_room_id, updated_by_member_id,
+          created_at, updated_at
+        FROM planning_settings;
+        DROP TABLE planning_settings;
+        ALTER TABLE planning_settings_025_rewind RENAME TO planning_settings;
+
+        CREATE TABLE exam_day_025_rewind (
+          id INTEGER PRIMARY KEY,
+          exam_round_id INTEGER NOT NULL REFERENCES exam_round(id) ON DELETE CASCADE,
+          location_id INTEGER NOT NULL REFERENCES location(id) ON DELETE RESTRICT,
+          date TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'proposed' CHECK (
+            status IN ('proposed', 'confirmed', 'changed', 'cancelled', 'completed')
+          ),
+          revision INTEGER NOT NULL DEFAULT 1 CHECK (revision >= 1),
+          closure_status TEXT NOT NULL DEFAULT 'open' CHECK (
+            closure_status IN ('open', 'closed', 'closed_exception', 'reopening', 'historical')
+          ),
+          lunch_break_enabled INTEGER NOT NULL DEFAULT 1 CHECK (lunch_break_enabled IN (0, 1)),
+          created_from_proposal INTEGER NOT NULL DEFAULT 1 CHECK (created_from_proposal IN (0, 1)),
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE (exam_round_id, date)
+        );
+        INSERT INTO exam_day_025_rewind (
+          id, exam_round_id, location_id, date, status, revision, closure_status,
+          lunch_break_enabled, created_from_proposal, created_at, updated_at
+        )
+        SELECT
+          id, exam_round_id, room_id, date, status, revision, closure_status,
+          lunch_break_enabled, created_from_proposal, created_at, updated_at
+        FROM exam_day;
+        DROP TABLE exam_day;
+        ALTER TABLE exam_day_025_rewind RENAME TO exam_day;
+        CREATE INDEX exam_day_round_date ON exam_day(exam_round_id, date);
+
+        UPDATE confirmed_plan_revision
+        SET before_state_json = lzug_rewind_plan_json(before_state_json),
+            after_state_json = lzug_rewind_plan_json(after_state_json);
+
+        DROP TRIGGER IF EXISTS exam_venue_active_requires_room_insert;
+        DROP TRIGGER IF EXISTS exam_venue_active_requires_room_update;
+        DROP TRIGGER IF EXISTS exam_room_keep_active_venue_on_update;
+        DROP TRIGGER IF EXISTS exam_room_keep_active_venue_on_delete;
+        DROP TRIGGER IF EXISTS exam_venue_contact_room_same_venue_insert;
+        DROP TRIGGER IF EXISTS exam_venue_contact_room_same_venue_update;
+        DROP TRIGGER IF EXISTS exam_venue_audit_immutable_update;
+        DROP TRIGGER IF EXISTS exam_venue_audit_immutable_delete;
+        DROP TRIGGER IF EXISTS exam_venue_migration_report_immutable_update;
+        DROP TRIGGER IF EXISTS exam_venue_migration_report_immutable_delete;
+        DROP TABLE exam_venue_contact_room;
+        DROP TABLE exam_venue_contact;
+        DROP TABLE legacy_location_room_mapping;
+        DROP TABLE exam_venue_audit_event;
+        DROP TABLE exam_venue_migration_report;
+        DROP TABLE exam_room;
+        DROP TABLE exam_venue;
+        {cleanup_checksum}
+        DELETE FROM schema_migration WHERE name = '025_model_exam_venues.sql';
+        COMMIT;
+        PRAGMA foreign_keys = ON;
+    """)
 
 
 def rewind_notification_migration(connection: sqlite3.Connection) -> None:
@@ -282,6 +455,7 @@ def rewind_plan_consequence_migration(connection: sqlite3.Connection) -> None:
 
 def rewind_artifact_operation_migration(connection: sqlite3.Connection) -> None:
     """Restore the pre-024 instance schema without leaving a history gap."""
+    rewind_exam_venue_migration(connection)
     connection.executescript("""
         DROP INDEX IF EXISTS artifact_operation_occurred;
         DROP TABLE IF EXISTS artifact_operation;
@@ -504,7 +678,8 @@ class DatabaseTests(unittest.TestCase):
                 for table in (
                     "committee",
                     "committee_member",
-                    "location",
+                    "exam_venue",
+                    "exam_room",
                     "candidate",
                     "exam_half_year",
                     "exam_round",
@@ -520,7 +695,8 @@ class DatabaseTests(unittest.TestCase):
             {
                 "committee": ADAPTER_COUNTS["seed"]["committees"],
                 "committee_member": ADAPTER_COUNTS["seed"]["memberships"],
-                "location": ADAPTER_COUNTS["seed"]["locations"],
+                "exam_venue": ADAPTER_COUNTS["seed"]["locations"],
+                "exam_room": ADAPTER_COUNTS["seed"]["locations"],
                 "candidate": ADAPTER_COUNTS["seed"]["candidates"],
                 "exam_half_year": 1,
                 "exam_round": 1,
@@ -655,7 +831,7 @@ class DatabaseTests(unittest.TestCase):
             initialize(db_path)
             after = migration_status(db_path)
             self.assertEqual("ready", after["state"])
-            self.assertEqual("024_add_artifact_operations.sql", after["current"])
+            self.assertEqual("025_model_exam_venues.sql", after["current"])
             self.assertTrue(list(db_path.parent.joinpath("backups").glob("*.sqlite")))
 
             history_before = after["history"]
@@ -688,7 +864,7 @@ class DatabaseTests(unittest.TestCase):
             )
             self.assertEqual(("confirmed_plan_revision",), revision_table)
             self.assertEqual(
-                "024_add_artifact_operations.sql",
+                "025_model_exam_venues.sql",
                 migration_status(db_path)["current"],
             )
 
@@ -767,8 +943,9 @@ class DatabaseTests(unittest.TestCase):
                     "022_add_plan_consequences.sql",
                     "023_add_exam_round_lifecycle.sql",
                     "024_add_artifact_operations.sql",
+                    "025_model_exam_venues.sql",
                 ],
-                [entry["name"] for entry in status["history"][-17:]],
+                [entry["name"] for entry in status["history"][-18:]],
             )
 
     def test_committee_bootstrap_migration_classifies_legacy_committees_without_changing_ids(
@@ -933,7 +1110,7 @@ class DatabaseTests(unittest.TestCase):
             self.assertTrue({"claim_token", "claimed_at", "claim_expires_at"}.issubset(columns))
             self.assertEqual(("temporarily_failed", 2, None, None, None), delivery)
             self.assertEqual(
-                "024_add_artifact_operations.sql",
+                "025_model_exam_venues.sql",
                 migration_status(db_path)["current"],
             )
 

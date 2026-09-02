@@ -16,11 +16,12 @@ from backend.models import (
     EXAM_DAY_ASSIGNMENT,
     EXAM_ROUND,
     EXAM_SLOT,
-    LOCATION,
     MEMBER_AVAILABILITY,
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
     Committee,
+    ExamRoom,
+    ExamVenue,
 )
 from backend.planning import (
     ConfirmedPlanChange,
@@ -478,12 +479,12 @@ class PlanningTests(unittest.TestCase):
             proposal = service.get_proposal(1)
             repository = ResourceRepository(db_path)
 
-            invalid_location = replace(
+            invalid_room = replace(
                 proposal,
-                days=(replace(proposal.days[0], location_id=999999), *proposal.days[1:]),
+                days=(replace(proposal.days[0], room_id=999999), *proposal.days[1:]),
             )
-            with self.assertRaises(PlanValidationError) as location_error:
-                service.save_proposal(invalid_location)
+            with self.assertRaises(PlanValidationError) as room_error:
+                service.save_proposal(invalid_room)
 
             without_fallback = replace(
                 proposal,
@@ -550,7 +551,7 @@ class PlanningTests(unittest.TestCase):
             with self.assertRaises(PlanValidationError) as day_error:
                 service.save_proposal(proposal)
 
-        self.assertIn("location_invalid", {issue.code for issue in location_error.exception.issues})
+        self.assertIn("room_invalid", {issue.code for issue in room_error.exception.issues})
         self.assertIn("fallback_missing", {issue.code for issue in crew_error.exception.issues})
         self.assertIn("mep_not_last", {issue.code for issue in mep_error.exception.issues})
         self.assertIn(
@@ -653,18 +654,33 @@ class PlanningTests(unittest.TestCase):
             committee_model = session.get(Committee, committee["id"])
             assert committee_model is not None
             committee_model.bootstrap_state = "ready"
-        location = repository.create(
-            LOCATION,
-            {
-                "committee_id": committee["id"],
-                "name": "Raum 2",
-                "street": "Testweg 1",
-                "postal_code": "00000",
-                "city": "Teststadt",
-                "room": "2.01",
-                "is_active": 1,
-            },
-        )
+        with session_scope(repository.db_path) as session:
+            venue = ExamVenue(
+                scope="committee",
+                committee_id=committee["id"],
+                name="Prüfungszentrum 2",
+                normalized_name="prüfungszentrum 2",
+                street="Testweg 1",
+                postal_code="00000",
+                city="Teststadt",
+                country="Deutschland",
+                is_accessible=1,
+                accessibility_status="confirmed",
+                is_active=0,
+            )
+            session.add(venue)
+            session.flush()
+            room = ExamRoom(
+                venue_id=venue.id,
+                name="2.01",
+                normalized_name="2.01",
+                is_active=1,
+            )
+            session.add(room)
+            session.flush()
+            venue.is_active = 1
+            session.flush()
+            room_id = room.id
         exam_round = repository.create(
             EXAM_ROUND,
             {
@@ -707,7 +723,7 @@ class PlanningTests(unittest.TestCase):
                 "lunch_break_enabled": 1,
                 "exclude_public_holidays": 0,
                 "holiday_subdivision_code": None,
-                "default_location_id": location["id"],
+                "default_room_id": room_id,
                 "updated_by_member_id": members[0]["id"],
             },
         )

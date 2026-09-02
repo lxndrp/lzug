@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -257,6 +258,11 @@ def sql_rows(rows: list[list[Any]]) -> str:
     return ",\n".join("  (" + ", ".join(sql_value(value) for value in row) + ")" for row in rows)
 
 
+def normalized_seed_text(value: object) -> str:
+    """Use the same stable comparison key as the persisted venue model."""
+    return " ".join(unicodedata.normalize("NFKC", str(value)).split()).casefold()
+
+
 def render_sql(data: dict[str, Any]) -> str:
     committees = adapter_rows(data, "committees", "seed")
     members = resolved_memberships(data, "seed")
@@ -308,18 +314,44 @@ def render_sql(data: dict[str, Any]) -> str:
         ]
         for row in accounts
     ]
-    location_rows = [
+    venue_rows = [
         [
             row["id"],
+            "committee",
             item_by_key(data, row["committee_key"], "committees")["id"],
             row["name"],
+            normalized_seed_text(row["name"]),
             row["street"],
             row["postal_code"],
             row["city"],
-            row["room"],
+            "Deutschland",
+            1,
+            "confirmed",
+            0,
         ]
         for row in locations
     ]
+    room_rows = [
+        [
+            row["id"],
+            row["id"],
+            row["room"],
+            normalized_seed_text(row["room"]),
+            row["is_active"],
+        ]
+        for row in locations
+    ]
+    contact_rows = [
+        [
+            row["id"],
+            row["id"],
+            f"Empfang {row['name']}",
+            "Empfang",
+            f"+49 000 {row['id']:04d}",
+        ]
+        for row in locations
+    ]
+    contact_room_rows = [[row["id"], row["id"]] for row in locations]
     candidate_rows = [
         [
             row["id"],
@@ -403,10 +435,27 @@ SELECT
   'migration'
 FROM committee;
 
-INSERT INTO location
-  (id, committee_id, name, street, postal_code, city, room)
+INSERT INTO exam_venue
+  (id, scope, committee_id, name, normalized_name, street, postal_code, city,
+   country, is_accessible, accessibility_status, is_active)
 VALUES
-{sql_rows(location_rows)};
+{sql_rows(venue_rows)};
+
+INSERT INTO exam_room (id, venue_id, name, normalized_name, is_active)
+VALUES
+{sql_rows(room_rows)};
+
+UPDATE exam_venue
+SET is_active = 1
+WHERE id IN (SELECT venue_id FROM exam_room WHERE is_active = 1);
+
+INSERT INTO exam_venue_contact (id, venue_id, label, role, phone)
+VALUES
+{sql_rows(contact_rows)};
+
+INSERT INTO exam_venue_contact_room (contact_id, room_id)
+VALUES
+{sql_rows(contact_room_rows)};
 
 INSERT INTO candidate
   (id, first_name, last_name, ihk_exam_number, specialization, training_company)
@@ -435,7 +484,7 @@ FROM round_candidate;
 
 INSERT INTO planning_settings
   (id, exam_round_id, calendar_week_from, calendar_week_to, exams_per_day,
-   max_exam_days_per_week, lunch_break_enabled, default_location_id,
+   max_exam_days_per_week, lunch_break_enabled, default_room_id,
    updated_by_member_id)
 VALUES
   (1, 1, '2026-W47', '2026-W49', 6, 3, 1, 1, 1);

@@ -28,8 +28,9 @@ from .models import (
     ConfirmedPlanRevision,
     ExamDay,
     ExamDayAssignment,
+    ExamRoom,
     ExamRound,
-    Location,
+    ExamVenue,
     MemberAvailability,
     Notification,
     NotificationDelivery,
@@ -649,19 +650,18 @@ class NotificationService:
     @staticmethod
     def _confirmed_schedule_message(session, round_id: int, member_id: int) -> str:
         rows = session.execute(
-            select(ExamDay, Location)
+            select(ExamDay, ExamVenue, ExamRoom)
             .join(ExamDayAssignment, ExamDayAssignment.exam_day_id == ExamDay.id)
-            .join(Location, Location.id == ExamDay.location_id)
+            .join(ExamRoom, ExamRoom.id == ExamDay.room_id)
+            .join(ExamVenue, ExamVenue.id == ExamRoom.venue_id)
             .where(
                 ExamDay.exam_round_id == round_id,
                 ExamDayAssignment.committee_member_id == member_id,
             )
-            .order_by(ExamDay.date, Location.name)
+            .order_by(ExamDay.date, ExamVenue.name, ExamRoom.name)
         ).all()
         appointments = list(
-            dict.fromkeys(
-                f"{day.date} – {location.name}, {location.room}" for day, location in rows
-            )
+            dict.fromkeys(f"{day.date} – {venue.name}, {room.name}" for day, venue, room in rows)
         )
         return "Ihre Einsätze: " + "; ".join(appointments)
 

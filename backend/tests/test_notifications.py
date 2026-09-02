@@ -122,7 +122,7 @@ class NotificationServiceTests(unittest.TestCase):
         with session_scope(self.db_path) as session:
             day = ExamDay(
                 exam_round_id=1,
-                location_id=1,
+                room_id=1,
                 date="2026-11-23",
                 status="confirmed",
             )

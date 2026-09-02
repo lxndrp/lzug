@@ -13,6 +13,7 @@ from sqlalchemy import select as sql_select
 from sqlalchemy import update as sql_update
 
 from .database import DEFAULT_DB_PATH, session_scope
+from .exam_venues import room_is_usable_for_committee
 from .models import (
     CANDIDATE,
     CANDIDATE_COMMITTEE_ASSIGNMENT,
@@ -22,7 +23,6 @@ from .models import (
     EXAM_DAY_ASSIGNMENT,
     EXAM_ROUND,
     EXAM_SLOT,
-    LOCATION,
     MEMBER_AVAILABILITY,
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
@@ -72,7 +72,7 @@ class PlanDay:
     """One candidate exam day and all slots and assignments planned for it."""
 
     candidate_exam_day_id: int
-    location_id: int
+    room_id: int
     slots: tuple[PlanSlot, ...]
     assignments: tuple[PlanAssignment, ...]
     id: int | None = None
@@ -470,7 +470,7 @@ class PlanningService:
             days.append(
                 PlanDay(
                     candidate_exam_day_id=planned_day["candidate_exam_day_id"],
-                    location_id=settings["default_location_id"],
+                    room_id=settings["default_room_id"],
                     slots=tuple(slots),
                     assignments=tuple(assignments),
                 )
@@ -577,7 +577,7 @@ class PlanningService:
             days.append(
                 PlanDay(
                     candidate_exam_day_id=candidate_day["id"] if candidate_day else -1,
-                    location_id=row["location_id"],
+                    room_id=row["room_id"],
                     slots=slots,
                     assignments=assignments,
                     id=row["id"],
@@ -600,7 +600,7 @@ class PlanningService:
                 EXAM_DAY,
                 {
                     "exam_round_id": proposal.round_id,
-                    "location_id": day.location_id,
+                    "room_id": day.room_id,
                     "date": day.date,
                     "status": "proposed",
                     "lunch_break_enabled": int(bool(settings["lunch_break_enabled"])),
@@ -661,7 +661,7 @@ class PlanningService:
                 EXAM_DAY,
                 day.id,
                 {
-                    "location_id": day.location_id,
+                    "room_id": day.room_id,
                     "date": day.date,
                     "status": "confirmed",
                 },
@@ -728,7 +728,7 @@ class PlanningService:
                 "id": day.id,
                 "candidate_exam_day_id": day.candidate_exam_day_id,
                 "date": day.date,
-                "location_id": day.location_id,
+                "room_id": day.room_id,
                 "status": day.status,
                 "slots": [
                     {
@@ -995,15 +995,12 @@ class PlanningService:
                     "Exam-day date and status must match the active proposal day",
                     day_id=day.id,
                 )
-            location = store.get(LOCATION, day.location_id)
-            if (
-                location is None
-                or not location["is_active"]
-                or location["committee_id"] != exam_round["committee_id"]
+            if not room_is_usable_for_committee(
+                store.session, day.room_id, exam_round["committee_id"]
             ):
                 reject(
-                    "location_invalid",
-                    "Exam-day location must be active and belong to the round committee",
+                    "room_invalid",
+                    "Exam-day room must be active and usable by the round committee",
                     day_id=day.id,
                 )
             if not day.slots:
@@ -1278,8 +1275,8 @@ class PlanningService:
 
     def _build_proposal(self, context: dict[str, Any]) -> dict[str, Any]:
         settings = context["settings"]
-        if settings["default_location_id"] is None:
-            raise ValueError("Planning settings need a default location")
+        if settings["default_room_id"] is None:
+            raise ValueError("Planning settings need a default room")
         round_candidates = sorted(context["round_candidates"], key=lambda row: row["id"])
         regular_queue = list(round_candidates)
         mep_queue = [row for row in round_candidates if row["requires_mep"]]

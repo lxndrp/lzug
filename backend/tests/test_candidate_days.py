@@ -105,7 +105,7 @@ class CandidateDayServiceTests(unittest.TestCase):
                 "lunch_break_enabled": 1,
                 "exclude_public_holidays": exclude_public_holidays,
                 "holiday_subdivision_code": holiday_subdivision_code,
-                "default_location_id": 1,
+                "default_room_id": 1,
                 "updated_by_member_id": 1,
             }
         )

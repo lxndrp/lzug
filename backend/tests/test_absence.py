@@ -39,7 +39,7 @@ class AbsenceServiceTests(unittest.TestCase):
             round_row.status = "plan_confirmed"
             day = ExamDay(
                 exam_round_id=1,
-                location_id=1,
+                room_id=1,
                 date="2026-11-16",
                 status="confirmed",
             )

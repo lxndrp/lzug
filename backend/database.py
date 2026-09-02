@@ -12,6 +12,7 @@ from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from fcntl import LOCK_EX, LOCK_SH, LOCK_UN, flock
+from functools import partial
 from pathlib import Path
 
 from sqlalchemy import MetaData, Table, create_engine, event, insert, inspect, select
@@ -21,6 +22,15 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
+from .exam_venue_migration import (
+    MIGRATION_NAME as EXAM_VENUE_MIGRATION,
+)
+from .exam_venue_migration import (
+    ExamVenueMigrationConflictError,
+    migrate_plan_reference_json,
+    normalize_migration_text,
+    prepare_exam_venue_migration,
+)
 from .models import Base
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -456,11 +466,22 @@ def _migration_lock(db_path: Path) -> Iterator[None]:
             flock(lock_file.fileno(), LOCK_UN)
 
 
-def _migration_backup(db_path: Path, backup_dir: Path) -> Path:
+def _migration_backup(
+    db_path: Path,
+    backup_dir: Path,
+    *,
+    backup_name: str | None = None,
+) -> Path:
     if backup_dir.exists() and backup_dir.is_symlink():
         raise MigrationError("Migration backup directory must not be a symlink.")
-    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    backup_path = backup_dir / f"{db_path.stem}.migration-{timestamp}.sqlite"
+    if backup_name is None:
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        backup_path = backup_dir / f"{db_path.stem}.migration-{timestamp}.sqlite"
+    else:
+        candidate = Path(backup_name)
+        if candidate != Path(candidate.name) or candidate.suffix != ".sqlite":
+            raise MigrationError("Migration backup name must be a local SQLite filename.")
+        backup_path = backup_dir / candidate
     temporary_path: Path | None = None
     try:
         backup_dir.mkdir(parents=True, exist_ok=True)
@@ -472,9 +493,17 @@ def _migration_backup(db_path: Path, backup_dir: Path) -> Path:
             with closing(sqlite3.connect(str(temporary_path))) as destination:
                 source.backup(destination)
                 destination.commit()
+                integrity = destination.execute("PRAGMA integrity_check").fetchall()
+                relations = destination.execute("PRAGMA foreign_key_check").fetchall()
+                if integrity != [("ok",)] or relations:
+                    raise MigrationError(
+                        "Could not verify migration safety snapshot: database integrity failed."
+                    )
         os.replace(temporary_path, backup_path)
         temporary_path = None
         return backup_path
+    except MigrationError:
+        raise
     except (OSError, sqlite3.Error) as error:
         raise MigrationError(f"Could not create migration safety snapshot: {error}") from error
     finally:
@@ -508,7 +537,13 @@ def _record_migration(engine: Engine, migration: Path) -> None:
                     )
 
 
-def _apply_migrations_unlocked(db_path: Path, backup_dir: Path | None = None) -> None:
+def _apply_migrations_unlocked(
+    db_path: Path,
+    backup_dir: Path | None = None,
+    *,
+    migration_backup_name: str | None = None,
+    migration_timestamp: str | None = None,
+) -> None:
     if not db_path.exists() or db_path.stat().st_size == 0:
         raise MigrationError(
             "Cannot migrate a missing or empty database.", reason="database_missing"
@@ -517,11 +552,54 @@ def _apply_migrations_unlocked(db_path: Path, backup_dir: Path | None = None) ->
     try:
         with engine.connect() as connection:
             _records, pending = _migration_state(connection)
+        backup_path = None
+        effective_backup_dir = backup_dir or db_path.parent / "backups"
         if pending:
-            _migration_backup(db_path, backup_dir or db_path.parent / "backups")
+            backup_path = _migration_backup(
+                db_path,
+                effective_backup_dir,
+                backup_name=migration_backup_name,
+            )
         for migration in pending:
+            venue_preparation = None
+            if migration.name == EXAM_VENUE_MIGRATION:
+                if backup_path is None:
+                    raise MigrationError("Exam-venue migration requires a verified backup.")
+                try:
+                    venue_preparation = prepare_exam_venue_migration(
+                        db_path, backup_path, effective_backup_dir
+                    )
+                except ExamVenueMigrationConflictError as error:
+                    raise MigrationError(str(error), reason="migration_conflict") from error
             raw_connection = engine.raw_connection()
             try:
+                raw_connection.create_function(
+                    "lzug_normalize", 1, normalize_migration_text, deterministic=True
+                )
+                raw_connection.create_function(
+                    "lzug_migrate_plan_json", 1, migrate_plan_reference_json, deterministic=True
+                )
+                if venue_preparation is not None:
+                    raw_connection.create_function(
+                        "lzug_migration_timestamp",
+                        0,
+                        lambda: migration_timestamp or datetime.now(UTC).isoformat(),
+                    )
+                    raw_connection.create_function(
+                        "lzug_migration_backup",
+                        0,
+                        partial(str, venue_preparation.backup_reference),
+                    )
+                    raw_connection.create_function(
+                        "lzug_migration_report_json",
+                        0,
+                        partial(str, venue_preparation.machine_report),
+                    )
+                    raw_connection.create_function(
+                        "lzug_migration_report_text",
+                        0,
+                        partial(str, venue_preparation.human_report),
+                    )
                 raw_connection.executescript(migration.read_text(encoding="utf-8"))
                 raw_connection.commit()
             except (OSError, sqlite3.Error) as error:
@@ -551,6 +629,8 @@ def initialize(
     with_seed: bool = False,
     reset: bool = False,
     backup_dir: Path | None = None,
+    migration_backup_name: str | None = None,
+    migration_timestamp: str | None = None,
 ) -> None:
     db_path = Path(db_path)
     with _migration_lock(db_path):
@@ -576,7 +656,12 @@ def initialize(
                 raw_connection.close()
                 engine.dispose()
 
-        _apply_migrations_unlocked(db_path, backup_dir)
+        _apply_migrations_unlocked(
+            db_path,
+            backup_dir,
+            migration_backup_name=migration_backup_name,
+            migration_timestamp=migration_timestamp,
+        )
 
         if is_new_database and with_seed:
             engine = engine_for(db_path)

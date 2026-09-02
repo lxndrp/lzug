@@ -44,6 +44,46 @@ class OpenApiContractTests(unittest.TestCase):
             }
         )
 
+    def test_exam_venue_write_routes_reference_explicit_openapi_commands(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            if api.client is None:
+                raise AssertionError("API client is not active")
+            document = api.client.app.openapi()
+            schemas = document["components"]["schemas"]
+            commands = (
+                ("post", "/api/exam-venues", "ExamVenueCreateRequest"),
+                ("patch", "/api/exam-venues/{id}", "ExamVenueUpdateRequest"),
+                ("delete", "/api/exam-venues/{id}", "RevisionDeleteRequest"),
+                ("post", "/api/exam-venues/{id}/rooms", "ExamRoomCreateRequest"),
+                ("patch", "/api/exam-rooms/{id}", "ExamRoomUpdateRequest"),
+                ("delete", "/api/exam-rooms/{id}", "RevisionDeleteRequest"),
+                (
+                    "post",
+                    "/api/exam-venues/{id}/contacts",
+                    "ExamVenueContactCreateRequest",
+                ),
+                (
+                    "patch",
+                    "/api/exam-venue-contacts/{id}",
+                    "ExamVenueContactUpdateRequest",
+                ),
+                (
+                    "delete",
+                    "/api/exam-venue-contacts/{id}",
+                    "RevisionDeleteRequest",
+                ),
+            )
+
+        for method, path, schema_name in commands:
+            with self.subTest(method=method, path=path):
+                request_schema = document["paths"][path][method]["requestBody"]["content"][
+                    "application/json"
+                ]["schema"]
+                self.assertEqual(f"#/components/schemas/{schema_name}", request_schema["$ref"])
+                self.assertIn(schema_name, schemas)
+
+        self.assertIn("expected_revision", schemas["RevisionDeleteRequest"]["required"])
+
     def test_seeded_read_operations_match_the_openapi_responses(self) -> None:
         """Exercise each documented collection and item response through the HTTP adapter."""
         with TempDatabase() as db_path, ApiServer(db_path) as api:
@@ -70,6 +110,29 @@ class OpenApiContractTests(unittest.TestCase):
                 if collection["items"]:
                     item_id = collection["items"][0]["id"]
                     status, _item = self.request(api, "GET", f"/api/{resource_name}/{item_id}")
+                    self.assertEqual(HTTPStatus.OK, status)
+
+            status, venues = self.request(api, "GET", "/api/exam-venues")
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertIsInstance(venues, dict)
+            status, locations = self.request(api, "GET", "/api/locations")
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertIsInstance(locations, dict)
+            if venues["items"]:
+                venue = venues["items"][0]
+                status, _venue = self.request(api, "GET", f"/api/exam-venues/{venue['id']}")
+                self.assertEqual(HTTPStatus.OK, status)
+                if venue["rooms"]:
+                    room_id = venue["rooms"][0]["id"]
+                    status, _room = self.request(api, "GET", f"/api/exam-rooms/{room_id}")
+                    self.assertEqual(HTTPStatus.OK, status)
+                    status, _location = self.request(api, "GET", f"/api/locations/{room_id}")
+                    self.assertEqual(HTTPStatus.OK, status)
+                if venue["contacts"]:
+                    contact_id = venue["contacts"][0]["id"]
+                    status, _contact = self.request(
+                        api, "GET", f"/api/exam-venue-contacts/{contact_id}"
+                    )
                     self.assertEqual(HTTPStatus.OK, status)
 
     def test_notification_channel_write_contracts(self) -> None:
@@ -327,26 +390,60 @@ class OpenApiContractTests(unittest.TestCase):
             self.assertEqual(HTTPStatus.NO_CONTENT, status)
             self.assertIsNone(response)
 
-            status, location = self.request(
+            status, venue = self.request(
                 api,
                 "POST",
-                "/api/locations",
+                "/api/exam-venues",
                 {
+                    "scope": "committee",
                     "committee_id": 1,
                     "name": "Prüfungszentrum Vertrag (Test)",
                     "street": "Testweg 99",
                     "postal_code": "00000",
                     "city": "Teststadt",
-                    "room": "Testraum V-01",
-                    "is_active": 1,
+                    "country": "Deutschland",
+                    "accessibility_status": "confirmed",
+                    "is_accessible": True,
+                    "coordinate_status": "missing",
+                    "is_active": False,
                 },
             )
             self.assertEqual(HTTPStatus.CREATED, status)
-            status, _location = self.request(
-                api, "PATCH", f"/api/locations/{location['id']}", {"room": "V 2"}
+            status, room = self.request(
+                api,
+                "POST",
+                f"/api/exam-venues/{venue['id']}/rooms",
+                {"name": "Testraum V-01", "is_active": True},
+            )
+            self.assertEqual(HTTPStatus.CREATED, status)
+            status, updated_venue = self.request(
+                api,
+                "PATCH",
+                f"/api/exam-venues/{venue['id']}",
+                {"expected_revision": venue["revision"], "site_name": "Haupteingang"},
             )
             self.assertEqual(HTTPStatus.OK, status)
-            status, response = self.request(api, "DELETE", f"/api/locations/{location['id']}")
+            status, updated_room = self.request(
+                api,
+                "PATCH",
+                f"/api/exam-rooms/{room['id']}",
+                {"expected_revision": room["revision"], "name": "V 2"},
+            )
+            self.assertEqual(HTTPStatus.OK, status)
+            status, response = self.request(
+                api,
+                "DELETE",
+                f"/api/exam-rooms/{room['id']}",
+                {"expected_revision": updated_room["revision"]},
+            )
+            self.assertEqual(HTTPStatus.NO_CONTENT, status)
+            self.assertIsNone(response)
+            status, response = self.request(
+                api,
+                "DELETE",
+                f"/api/exam-venues/{venue['id']}",
+                {"expected_revision": updated_venue["revision"]},
+            )
             self.assertEqual(HTTPStatus.NO_CONTENT, status)
             self.assertIsNone(response)
 
