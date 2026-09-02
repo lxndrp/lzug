@@ -135,6 +135,25 @@ Umgebungsvariable, optionale JSON-Datei und Standardwert konfiguriert werden.
 `lzug-admin config inspect` zeigt diese effektiven Werte und ihre Herkunft,
 ohne Konfiguration zu verändern.
 
+`lzug-admin cli` ist ein zeilenorientierter Adapter auf dieselbe Registry.
+Er erzeugt Objekt- und Aktionsnavigation, Suche, Eingabeschritte und Hilfe aus
+den Command-Metadaten und ruft danach denselben `Application.Execute`-Pfad wie
+die direkte Syntax auf.
+Damit bleiben Argumentschema, vollständige Validierung, Request Builder,
+Transport, Secret-Eingabe und Ergebnisrenderer eine gemeinsame
+Implementierung.
+Der Dialog prüft sein Sitzungsziel vor dem ersten backendabhängigen Command;
+lokale Commands bleiben auch ohne erreichbares Ziel nutzbar.
+
+Die Dialogoberfläche benötigt interaktive Ein- und Ausgabe-Terminals und
+verwendet linearen Text ohne Vollbild-Neuzeichnung.
+Sie speichert weder Dialogzustand noch Eingaben, Geheimnisse oder
+Bestätigungen.
+Geheimnisse werden für jeden Versuch über den bestehenden echo-freien
+Eingabekanal neu erfasst.
+`--json` und sitzungsweites `--force` sind im Dialog unzulässig; Automation
+verwendet weiterhin direkte Subcommands.
+
 CLI und Backend geben technische Identität, Zustände, Phasen, Zähler und
 geheimnisfreie Fehlercodes aus, aber keine privaten Schlüssel, internen
 Engine-Ausgaben oder ungefilterten Fehlertexte.

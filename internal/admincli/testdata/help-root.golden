@@ -15,7 +15,7 @@ Objects:
   plan-consequence   Inspect and retry confirmed-plan consequences.
   system             Inspect the local runtime and its readiness.
   upgrade            Apply upgrades and inspect rollback eligibility.
-  cli                Start the guided interactive mode (reserved).
+  cli                Start the guided interactive operator dialog.
 
 Global options:
   --engine ENGINE          Container engine: auto, docker, or podman. Values: auto, docker, podman. Default: auto.

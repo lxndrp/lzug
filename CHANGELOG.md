@@ -9,12 +9,23 @@ Versionen folgen [Semantic Versioning](https://semver.org/lang/de/).
 Bei einer Release-Vorbereitung verschiebt ein Maintainer die freizugebenden Einträge in genau einen Abschnitt `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`.
 Der Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Notes und veröffentlicht nur aus dem nach der Environment-Freigabe erzeugten, annotierten SemVer-Tag.
 
+### Added
+
+- `lzug-admin cli` ergänzt die direkten Subcommands um einen zeilenorientierten,
+  vollständig aus der Command Registry erzeugten Dialog für interaktive
+  Betreiberaufgaben.
+  Suche, Zielprüfung, schrittweise Eingabe, konkrete Bestätigungen und
+  eindeutige Ergebniszustände verwenden dieselben Handler, Validierungen,
+  Transportaufträge und Exit Codes wie der direkte Aufruf.
+  Der Modus benötigt Ein- und Ausgabe-Terminals und ist ausdrücklich nicht für
+  Automation, `--json` oder sitzungsweites `--force` vorgesehen.
+
 ### Changed
 
 - `lzug-admin` verwendet ab v0.7.0 eine statische modulare Registry und den
   einheitlichen Command-Baum `lzug-admin <objekt> <aktion>`.
   Hilfe, Shell-Completion und die technische Befehlsreferenz entstehen aus
-  denselben Metadaten; direkte und spätere interaktive Aufrufe verwenden
+  denselben Metadaten; direkte und interaktive Aufrufe verwenden
   dieselben Validierungen, Backend-Aufträge und Ergebnisdarstellungen.
 - Erfolgreiche Human-Aufrufe bleiben grundsätzlich still und geben nur
   erforderliche Ergebnisse wie Einmaltoken oder Artefaktnamen auf `stdout` aus.

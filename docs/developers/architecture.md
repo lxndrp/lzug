@@ -117,6 +117,15 @@ flowchart TB
   app -->|"einziger dauerhafter Schreibbereich"| data
 ```
 
+Der direkte Einstieg `lzug-admin <objekt> <aktion>` und der geführte Einstieg
+`lzug-admin cli` enden in derselben statischen Registry und demselben
+Ausführungspfad.
+Der Dialog ergänzt ausschließlich Navigation, Eingabe, Zusammenfassung und
+Statusrückmeldung.
+Er enthält weder eigene Commandparameter noch Backendaufträge oder
+Fachlogik und kann deshalb künftige Transportadapter verwenden, ohne die
+Bedien- oder Commandverträge zu duplizieren.
+
 Die unterstützte Referenz ist eine einzelne Self-Hosting-Instanz mit
 persistenter `/data`-Grenze.
 TLS-Terminierung, Host-Härtung, Schlüsselverwahrung, Sicherung und

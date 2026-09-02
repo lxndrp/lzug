@@ -21,7 +21,11 @@ func main() {
 		_, _ = fmt.Fprintln(os.Stderr, "Error [unexpected_local_error]: The command registry is invalid.")
 		os.Exit(admincli.ExitUnexpected)
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	var ctx context.Context = context.Background()
+	stop := func() {}
+	if !admincli.InteractiveRequested(os.Args[1:]) {
+		ctx, stop = signal.NotifyContext(ctx, os.Interrupt)
+	}
 	defer stop()
 	application := admincli.NewApplication(
 		registry,

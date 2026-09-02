@@ -57,6 +57,21 @@ func TestEveryLegacyFormHasExactlyOneMigrationTarget(t *testing.T) {
 	}
 }
 
+func TestEveryBackendCommandDeclaresABoundedTimeout(t *testing.T) {
+	registry, err := DefaultRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range registry.Commands() {
+		if command.Transport == ContainerExecTransport && command.Timeout <= 0 {
+			t.Fatalf("backend command %q has no bounded timeout", command.Name())
+		}
+	}
+	if restore, _ := registry.Find([]string{"backup", "restore"}); restore.Timeout <= commandTimeout("system status") {
+		t.Fatal("long-running restore did not receive its explicit extended timeout")
+	}
+}
+
 func TestRegistryRejectsDuplicatesAndIncompleteMetadata(t *testing.T) {
 	groups := []CommandGroup{{Name: "test", Summary: "Test commands.", Description: "Test command group."}}
 	valid := Command{
