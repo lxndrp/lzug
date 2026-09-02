@@ -26,6 +26,7 @@ from demo.contract import (
 from demo.identity import DemoIdentity
 from demo.synthetic_fixtures_generated import (
     DEMO_MATRIX_VERSION,
+    DEMO_ROLES,
     FIXTURE_CATALOG_REVISION,
     FIXTURE_CATALOG_VERSION,
     FIXTURE_IDS,
@@ -128,6 +129,7 @@ def _normalize_timestamps(database: Path) -> None:
 
 
 def _validate_synthetic_content(database: Path) -> None:
+    demo_account_ids = ", ".join(str(role["account_id"]) for role in DEMO_ROLES.values())
     checks = {
         "person names": (
             "SELECT COUNT(*) FROM person WHERE trim(first_name) = '' OR trim(last_name) = ''",
@@ -149,9 +151,9 @@ def _validate_synthetic_content(database: Path) -> None:
             "SELECT COUNT(*) FROM candidate WHERE ihk_exam_number NOT LIKE 'ATHEN-DEMO-%'",
             0,
         ),
-        "demo roles": (
+        "canonical demo roles": (
             "SELECT COUNT(*) FROM user_account "
-            "WHERE email LIKE '%@demo.lzug.invalid' AND is_active = 1",
+            f"WHERE id IN ({demo_account_ids}) AND is_active = 1",
             3,
         ),
         "fictional organizations": (

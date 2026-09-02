@@ -195,8 +195,8 @@ def validate_catalog(data: dict[str, Any]) -> None:
         if location.get("country") != "Griechenland" or location.get("geodata") is not None:
             raise ValueError("Real location data is deferred to #572")
 
-    roles = [account["demo_role"] for account in data["accounts"]]
-    if sorted(roles) != ["chair", "deputy", "examiner"]:
+    roles = [account["demo_role"] for account in data["accounts"] if account["demo_role"]]
+    if sorted(roles) != ["chair", "examiner", "replacement"]:
         raise ValueError("Exactly the three canonical demo roles are required")
 
     cross_key = f"{FIXTURE_ROOT}.person.crosscommittee"
@@ -667,6 +667,8 @@ def render_prototype(data: dict[str, Any]) -> str:
 def demo_roles(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
     roles = {}
     for account in data["accounts"]:
+        if not account["demo_role"]:
+            continue
         person = item_by_key(data, account["person_key"], "persons")
         membership = item_by_key(data, account["membership_key"], "memberships")
         roles[account["demo_role"]] = {

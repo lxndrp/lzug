@@ -5,9 +5,9 @@
 import json
 
 FIXTURE_CATALOG_VERSION = 2
-FIXTURE_CATALOG_REVISION = "midsummer-night-dream-v1"
+FIXTURE_CATALOG_REVISION = "midsummer-night-dream-v2"
 FIXTURE_ROOT = "name.papaspyrou.repertoire.lzug.fixture"
-DEMO_MATRIX_VERSION = "demo-paths-v6"
+DEMO_MATRIX_VERSION = "demo-paths-v7"
 
 FIXTURE_IDS = json.loads(r"""{
   "name.papaspyrou.repertoire.lzug.fixture.account.chair": {
@@ -21,6 +21,10 @@ FIXTURE_IDS = json.loads(r"""{
   "name.papaspyrou.repertoire.lzug.fixture.account.examiner": {
     "entity_type": "accounts",
     "id": 2
+  },
+  "name.papaspyrou.repertoire.lzug.fixture.account.replacement": {
+    "entity_type": "accounts",
+    "id": 4
   },
   "name.papaspyrou.repertoire.lzug.fixture.candidate.absence": {
     "entity_type": "candidates",
@@ -276,17 +280,6 @@ DEMO_ROLES = json.loads(r"""{
     "person_email": "theseus.athen@demo.lzug.invalid",
     "person_id": 1
   },
-  "deputy": {
-    "account_email": "deputy@demo.lzug.invalid",
-    "account_id": 3,
-    "committee_member_id": 2,
-    "display_name": "Hippolyta von Athen",
-    "first_name": "Hippolyta",
-    "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.deputy.athen",
-    "last_name": "von Athen",
-    "person_email": "hippolyta.athen@demo.lzug.invalid",
-    "person_id": 2
-  },
   "examiner": {
     "account_email": "examiner@demo.lzug.invalid",
     "account_id": 2,
@@ -297,5 +290,16 @@ DEMO_ROLES = json.loads(r"""{
     "last_name": "Quince",
     "person_email": "peter.quince@demo.lzug.invalid",
     "person_id": 3
+  },
+  "replacement": {
+    "account_email": "replacement@demo.lzug.invalid",
+    "account_id": 4,
+    "committee_member_id": 6,
+    "display_name": "Francis Flute",
+    "first_name": "Francis",
+    "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.replacement",
+    "last_name": "Flute",
+    "person_email": "francis.flute@demo.lzug.invalid",
+    "person_id": 6
   }
 }""")

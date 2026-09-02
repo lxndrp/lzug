@@ -5,7 +5,7 @@
       Ausfälle bestätigter Besetzungen, Ersatzanfragen und Entscheidungen bleiben hier
       nachvollziehbar dokumentiert.
     </p>
-    @if (!canRespondToOwnAbsence()) {
+    @if (!canRespondToOwnAbsence() && !canCoordinateAbsence()) {
       <p class="app-muted">Ausfall- und Ersatzaktionen sind für diese Demo-Rolle read-only.</p>
     }
     @if (message()) {
@@ -55,16 +55,39 @@
                     >
                       Ich kann übernehmen
                     </button>
+                    @if (canDecline()) {
+                      <button
+                        tuiButton
+                        appearance="secondary"
+                        type="button"
+                        [disabled]="busyResponse() !== null"
+                        (click)="answer(response.id, 'unavailable')"
+                      >
+                        Ich kann nicht übernehmen
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            }
+            @if (canCoordinateAbsence() && report.status === 'replacement_requested') {
+              <div class="absence-response">
+                <strong>Antworten der Ersatzsuche</strong>
+                @for (response of report.responses; track response.id) {
+                  <span>
+                    Ersatzmitglied {{ response.committee_member_id }} · {{ response.response }}
+                  </span>
+                  @if (response.response === 'available') {
                     <button
                       tuiButton
-                      appearance="secondary"
+                      appearance="primary"
                       type="button"
                       [disabled]="busyResponse() !== null"
-                      (click)="answer(response.id, 'unavailable')"
+                      (click)="selectReplacement(report, response.committee_member_id)"
                     >
-                      Ich kann nicht übernehmen
+                      Vorgegebenen Ersatz auswählen
                     </button>
-                  </div>
+                  }
                 }
               </div>
             }

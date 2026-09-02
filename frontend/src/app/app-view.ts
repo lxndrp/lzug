@@ -9,4 +9,5 @@ export type AppView =
   | 'locations'
   | 'exam-half-years'
   | 'notifications'
-  | 'absence-reports';
+  | 'absence-reports'
+  | 'demo-scenarios';

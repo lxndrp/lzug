@@ -79,6 +79,75 @@ describe('AbsenceReportsComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('available');
   });
 
+  it('limits the replacement demo role to its available answer', () => {
+    TestBed.inject(AuthService).session.set({
+      authenticated: true,
+      account_id: 4,
+      person_id: 6,
+      committee_member_id: 7,
+      is_operator: false,
+      demo_role: 'replacement',
+      capabilities: ['absence:respond-own'],
+    });
+    const fixture = TestBed.createComponent(AbsenceReportsComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/absence-reports').flush({ items: [report()], _links: {} });
+    fixture.detectChanges();
+
+    const buttons = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+    );
+    expect(buttons.map((button) => button.textContent?.trim())).toEqual(['Ich kann übernehmen']);
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain(
+      'Ich kann nicht übernehmen',
+    );
+
+    buttons[0].click();
+    http.expectOne('/api/replacement-responses/5').flush(report({ response: 'available' }));
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Öffnen Sie die Demo-Szenarien für den nächsten Schritt.',
+    );
+  });
+
+  it('lets the chair select only an available listed replacement', () => {
+    TestBed.inject(AuthService).session.set({
+      authenticated: true,
+      account_id: 1,
+      person_id: 1,
+      committee_member_id: 1,
+      is_operator: false,
+      demo_role: 'chair',
+      capabilities: ['absence:coordinate'],
+    });
+    const fixture = TestBed.createComponent(AbsenceReportsComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/absence-reports').flush({
+      items: [report({ response: 'available' })],
+      _links: {},
+    });
+    fixture.detectChanges();
+
+    const button = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+      'button',
+    );
+    expect(button?.textContent).toContain('Vorgegebenen Ersatz auswählen');
+    button?.click();
+    const request = http.expectOne('/api/absence-reports/1/select-replacement');
+    expect(request.request.body).toEqual({ committee_member_id: 7, version: 1 });
+    request.flush({
+      ...report({ response: 'available' }),
+      status: 'replacement_selected',
+      selected_replacement_member_id: 7,
+      version: 2,
+    });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Ersatz ausgewählt.');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Öffnen Sie die Demo-Szenarien',
+    );
+  });
+
   it('reports answer and loading failures to the user', () => {
     const fixture = TestBed.createComponent(AbsenceReportsComponent);
     fixture.detectChanges();

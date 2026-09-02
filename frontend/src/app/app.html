@@ -42,6 +42,18 @@
         </div>
 
         <nav class="app-navigation" aria-label="Hauptnavigation">
+          @if (demoSession()) {
+            <p class="app-nav-title">Öffentliche Demo</p>
+            <a
+              class="app-nav-link"
+              href="/demo-scenarios"
+              [class.is-active]="activeView() === 'demo-scenarios'"
+              (click)="navigateFromShell('demo-scenarios', $event)"
+            >
+              <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
+              Szenarien und Rollen
+            </a>
+          }
           <p class="app-nav-title">Prüfungskontext</p>
           @if (canAccessView('exam-half-years')) {
             <a
@@ -238,6 +250,15 @@
                 <span>{{ breadcrumb() }}</span>
               </nav>
               <h1>{{ pageTitle() }}</h1>
+              @if (demoSession() && activeView() !== 'demo-scenarios') {
+                <a
+                  tuiButton
+                  appearance="secondary"
+                  href="/demo-scenarios"
+                  (click)="navigateFromShell('demo-scenarios', $event)"
+                  >Zu Szenarien, Rollen und Neustart</a
+                >
+              }
             </header>
 
             @if (isContextualView()) {
@@ -321,6 +342,9 @@
                     [actionBusy]="actionBusy()"
                     (openView)="showView($event)"
                   />
+                }
+                @case ('demo-scenarios') {
+                  <app-demo-scenarios />
                 }
                 @case ('scheduling-overview') {
                   <app-scheduling-overview (openRound)="openSchedulingRound($event)" />

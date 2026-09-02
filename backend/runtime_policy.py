@@ -7,6 +7,7 @@ placing their implementation or configuration in the product image.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
@@ -26,8 +27,17 @@ class RuntimePolicy(Protocol):
     def allow_product_auth(self) -> bool:
         """Return whether the normal local authentication routes remain available."""
 
-    def session_view(self, context: AuthContext) -> dict[str, Any]:
+    def database_for_request(self, base_db_path: Path, session_token: str | None) -> Path:
+        """Resolve the persistence boundary for one request."""
+
+    def external_notifications_enabled(self) -> bool:
+        """Return whether technical notification channels may be used."""
+
+    def session_view(self, handler: RequestContext, context: AuthContext) -> dict[str, Any]:
         """Return assembly-specific, non-secret fields for ``GET /api/session``."""
+
+    def discard_session(self, handler: RequestContext, session_token: str | None) -> None:
+        """Discard assembly-owned state after an explicit logout."""
 
     def authorize_mutation(
         self,
@@ -51,8 +61,19 @@ class ProductRuntimePolicy:
     def allow_product_auth(self) -> bool:
         return True
 
-    def session_view(self, context: AuthContext) -> dict[str, Any]:
+    def database_for_request(self, base_db_path: Path, session_token: str | None) -> Path:
+        del session_token
+        return base_db_path
+
+    def external_notifications_enabled(self) -> bool:
+        return True
+
+    def session_view(self, handler: RequestContext, context: AuthContext) -> dict[str, Any]:
+        del handler, context
         return {}
+
+    def discard_session(self, handler: RequestContext, session_token: str | None) -> None:
+        del handler, session_token
 
     def authorize_mutation(
         self,

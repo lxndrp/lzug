@@ -236,7 +236,7 @@ class NotificationServiceTests(unittest.TestCase):
         smtp.assert_called_once_with("smtp.example.invalid", 25, timeout=10)
         sent = smtp.send_message.call_args.args[0]
         self.assertEqual(DEMO_ROLES["chair"]["person_email"], sent["To"])
-        self.assertNotIn(DEMO_ROLES["deputy"]["display_name"], sent.get_content())
+        self.assertNotIn(DEMO_ROLES["replacement"]["display_name"], sent.get_content())
         with sqlite3.connect(self.db_path) as connection:
             invalidated_at = connection.execute(
                 "SELECT invalidated_at FROM push_subscription WHERE id = ?",

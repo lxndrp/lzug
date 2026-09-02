@@ -5,6 +5,7 @@ import { provideTaiga } from '@taiga-ui/core';
 
 import { ConfirmedPlanEditorComponent } from './confirmed-plan-editor.component';
 import { ConfirmedPlan, PlanningBoard } from '../api/api.models';
+import { AuthService } from '../auth/auth.service';
 
 describe('ConfirmedPlanEditorComponent', () => {
   let fixture: ComponentFixture<ConfirmedPlanEditorComponent>;
@@ -101,6 +102,60 @@ describe('ConfirmedPlanEditorComponent', () => {
     fixture.detectChanges();
     expect(element.textContent).toContain('Der Plan wurde inzwischen geändert.');
     expect(element.textContent).toContain('Revision 3');
+  });
+
+  it('offers only the prepared atomic revision in the demo', () => {
+    TestBed.inject(AuthService).session.set({
+      authenticated: true,
+      account_id: 1,
+      person_id: 1,
+      committee_member_id: 1,
+      is_operator: false,
+      demo_role: 'chair',
+      capabilities: ['confirmed-plan:revise'],
+    });
+    fixture.detectChanges();
+    http.expectOne('/api/exam-rounds/1/confirmed-plan').flush(editablePlan());
+    http.expectOne('/api/demo/scenarios').flush({
+      prepared_plan_change: {
+        round_id: 1,
+        day_id: 1,
+        source_location_id: 1,
+        target_location_id: 2,
+        assignment_id: 1,
+        replacement_member_id: 2,
+        reason: 'Synthetischer Ortswechsel mit gleichseitiger Ersatzbesetzung',
+      },
+    });
+    http.expectOne('/api/exam-rounds/1/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).toContain('ausschließlich die vorbereitete Ortsänderung');
+    expect(element.querySelector<HTMLTextAreaElement>('#confirmedPlanChangeReason')?.readOnly).toBe(
+      true,
+    );
+    expect(element.querySelector<HTMLFieldSetElement>('fieldset')?.disabled).toBe(true);
+    const component = fixture.componentInstance as unknown as {
+      controlsDisabled(day: ReturnType<typeof editablePlan>['exam_days'][number]): boolean;
+    };
+    expect(component.controlsDisabled(editablePlan().exam_days[0])).toBe(true);
+
+    button(element, 'Änderung vorbereiten').click();
+    fixture.detectChanges();
+    button(element, 'Änderung mit Grund speichern').click();
+    const request = http.expectOne('/api/exam-rounds/1/confirmed-plan');
+    expect(request.request.body.reason).toBe(
+      'Synthetischer Ortswechsel mit gleichseitiger Ersatzbesetzung',
+    );
+    expect(request.request.body.exam_days[0].room_id).toBe(2);
+    expect(request.request.body.exam_days[0].location_id).toBe(2);
+    expect(request.request.body.exam_days[0].assignments[0].committee_member_id).toBe(2);
+    expect(request.request.body._links).toBeUndefined();
+    request.flush({ ...editablePlan(), revision: 2 });
+    http.expectOne('/api/exam-rounds/1/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    fixture.detectChanges();
+    expect(element.textContent).toContain('Öffnen Sie die Demo-Szenarien');
   });
 
   function loadEditor(): void {
@@ -265,7 +320,10 @@ function board(): PlanningBoard {
         is_active: 1,
       },
     ],
-    locations: [{ id: 1, name: 'Prüfungszentrum', room: '101', city: 'Teststadt' }],
+    locations: [
+      { id: 1, name: 'Prüfungszentrum', room: '101', city: 'Teststadt' },
+      { id: 2, name: 'Ausweichort', room: '202', city: 'Teststadt' },
+    ],
     candidates: [
       {
         candidate: {

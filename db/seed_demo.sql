@@ -36,7 +36,8 @@ INSERT INTO user_account (id, person_id, email, password_hash)
 VALUES
   (1, 1, 'chair@demo.lzug.invalid', 'demo-password-hash'),
   (2, 3, 'examiner@demo.lzug.invalid', 'demo-password-hash'),
-  (3, 2, 'deputy@demo.lzug.invalid', 'demo-password-hash');
+  (3, 2, 'deputy@demo.lzug.invalid', 'demo-password-hash'),
+  (4, 6, 'replacement@demo.lzug.invalid', 'demo-password-hash');
 
 INSERT INTO committee_admin_operation (
   operation_type, committee_id, person_ids_json, membership_ids_json,

@@ -262,7 +262,7 @@ describe('App', () => {
           person_id: number;
           committee_member_id: number;
           is_operator: boolean;
-          demo_role: 'chair' | 'examiner';
+          demo_role: 'chair' | 'examiner' | 'replacement';
           display_name: string;
           capabilities: string[];
         }): void;
@@ -276,15 +276,15 @@ describe('App', () => {
       is_operator: false,
       demo_role: 'examiner',
       display_name: 'Peter Quince',
-      capabilities: ['attendance:write-own', 'availability:write-own'],
+      capabilities: ['absence:write-own', 'notifications:read-own', 'calendar:read-own'],
     });
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
     expect(element.textContent).toContain('Peter Quince');
-    expect(element.textContent).toContain('Prüfperson');
+    expect(element.textContent).toContain('Eingeplanter Prüfer');
     expect(element.textContent).toContain('Rolle wechseln');
-    expect(element.querySelector('a[href="/scheduling-overview"]')).not.toBeNull();
+    expect(element.querySelector('a[href="/scheduling-overview"]')).toBeNull();
     expect(element.querySelector('a[href="/confirmed-plans"]')).not.toBeNull();
     expect(element.querySelector('a[href="/candidates"]')).toBeNull();
     expect(element.textContent).not.toContain('Prüfungsausschüsse');
@@ -311,7 +311,7 @@ describe('App', () => {
           person_id: number;
           committee_member_id: number;
           is_operator: boolean;
-          demo_role: 'chair' | 'examiner';
+          demo_role: 'chair' | 'examiner' | 'replacement';
           display_name: string;
           capabilities: string[];
         }): void;
@@ -325,7 +325,7 @@ describe('App', () => {
       is_operator: false,
       demo_role: 'examiner',
       display_name: 'Peter Quince',
-      capabilities: ['attendance:write-own', 'availability:write-own'],
+      capabilities: ['absence:write-own', 'notifications:read-own', 'calendar:read-own'],
     });
     fixture.detectChanges();
 
@@ -347,9 +347,9 @@ describe('App', () => {
       roleSwitchBusy(): boolean;
     };
 
-    expect(app.demoRoleLabel()).toBe('Prüfperson');
-    expect(app.demoRoleTask()).toBe('Eigene Verfügbarkeit und Anwesenheit');
-    expect(app.canAccessView('planning')).toBe(true);
+    expect(app.demoRoleLabel()).toBe('Eingeplanter Prüfer');
+    expect(app.demoRoleTask()).toBe('Eigenen Ausfall melden');
+    expect(app.canAccessView('planning')).toBe(false);
     expect(app.canAccessView('confirmed-plans')).toBe(true);
     expect(app.canAccessView('candidates')).toBe(false);
 
@@ -382,16 +382,16 @@ describe('App', () => {
       demo_role: 'chair',
       display_name: 'Vorsitz Teststadt',
       capabilities: [
-        'planning-settings:write',
-        'availability:coordinate',
-        'attendance:coordinate',
-        'exam-status:write',
+        'absence:coordinate',
+        'confirmed-plan:revise',
+        'notifications:read-own',
+        'calendar:read-own',
       ],
     });
     fixture.detectChanges();
     expect(app.demoRoleLabel()).toBe('Vorsitz');
-    expect(app.demoRoleTask()).toBe('Planung und Koordination');
-    expect(app.canAccessView('planning')).toBe(true);
+    expect(app.demoRoleTask()).toBe('Koordination und Planrevision');
+    expect(app.canAccessView('planning')).toBe(false);
     expect(app.canAccessView('exam-day')).toBe(true);
 
     app.switchDemoRole();

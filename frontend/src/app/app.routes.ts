@@ -19,5 +19,6 @@ export const routes: Routes = [
   { path: 'exam-half-years', children: [] },
   { path: 'notifications', children: [] },
   { path: 'absence-reports', children: [] },
+  { path: 'demo-scenarios', children: [] },
   { path: '**', redirectTo: 'dashboard' },
 ];

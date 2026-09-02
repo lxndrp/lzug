@@ -1,10 +1,8 @@
-import { HttpClient } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 
-import { AuthService } from './auth.service';
+import { DemoRole } from '../api/api.models';
 import { syntheticFixtures } from '../testing/synthetic-fixtures.generated';
-
-type DemoRole = 'chair' | 'deputy' | 'examiner';
+import { AuthService } from './auth.service';
 
 @Component({
   selector: 'app-auth-flow',
@@ -15,7 +13,8 @@ type DemoRole = 'chair' | 'deputy' | 'examiner';
         <h1 id="auth-title">Demo-Rolle auswählen</h1>
         <p class="auth-intro">
           Erkunden Sie ausschließlich synthetische Beispieldaten. Alle Änderungen und Sitzungen
-          werden spätestens beim täglichen Reset um 03:00 Uhr verworfen.
+          werden nach 60 Minuten, bei Abmeldung oder spätestens beim täglichen Systemreset
+          verworfen.
         </p>
         <div class="demo-warning" role="note">
           <strong>Keine realen personenbezogenen Daten eingeben.</strong>
@@ -27,15 +26,15 @@ type DemoRole = 'chair' | 'deputy' | 'examiner';
         <div class="demo-role-grid" aria-label="Verfügbare Demo-Rollen">
           <button type="button" [disabled]="busy()" (click)="start('chair')">
             <strong>{{ demoRoles.chair.display_name }}</strong>
-            <span>Vorsitz · Planung und Koordination ausprobieren</span>
+            <span>Vorsitz · Ersatz koordinieren und vorbereitete Planrevision bestätigen</span>
           </button>
           <button type="button" [disabled]="busy()" (click)="start('examiner')">
             <strong>{{ demoRoles.examiner.display_name }}</strong>
-            <span>Prüfperson · eigene Verfügbarkeit und Anwesenheit bearbeiten</span>
+            <span>Eingeplanter Prüfer · eigenen vorbereiteten Ausfall melden</span>
           </button>
-          <button type="button" [disabled]="busy()" (click)="start('deputy')">
-            <strong>{{ demoRoles.deputy.display_name }}</strong>
-            <span>Stellvertretung · Vier-Augen-Bestätigung und Ergebnisprozess</span>
+          <button type="button" [disabled]="busy()" (click)="start('replacement')">
+            <strong>{{ demoRoles.replacement.display_name }}</strong>
+            <span>Ersatzprüfer · eigene dringliche Ersatzanfrage beantworten</span>
           </button>
         </div>
         @if (busy()) {
@@ -148,7 +147,6 @@ type DemoRole = 'chair' | 'deputy' | 'examiner';
 export class AuthFlowComponent {
   protected readonly demoRoles = syntheticFixtures.demoRoles;
   private readonly auth = inject(AuthService);
-  private readonly http = inject(HttpClient);
 
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -156,13 +154,8 @@ export class AuthFlowComponent {
   protected start(role: DemoRole): void {
     this.busy.set(true);
     this.error.set(null);
-    this.http.post('/api/demo/session', { role }).subscribe({
-      next: () => {
-        this.auth.acceptAuthentication().subscribe({
-          next: () => this.busy.set(false),
-          error: (error) => this.fail(error),
-        });
-      },
+    this.auth.startDemoSession(role).subscribe({
+      next: () => this.busy.set(false),
       error: (error) => this.fail(error),
     });
   }

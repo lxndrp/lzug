@@ -27,6 +27,77 @@ const planchangeCandidate = syntheticFixtures.candidates.find(
 );
 if (!planchangeCandidate) throw new Error('Canonical plan-change candidate fixture is missing');
 const demoRoles = syntheticFixtures.demoRoles;
+const athenDeputyMember = syntheticFixtures.members.find((member) => member.id === 2);
+if (!athenDeputyMember) throw new Error('Canonical Athen deputy fixture is missing');
+
+function demoCapabilities(role: 'chair' | 'examiner' | 'replacement'): string[] {
+  const ownReads = ['calendar:read-own', 'notifications:read-own'];
+  if (role === 'chair') return ['absence:coordinate', 'confirmed-plan:revise', ...ownReads];
+  if (role === 'examiner') return ['absence:write-own', ...ownReads];
+  return ['absence:respond-own', ...ownReads];
+}
+
+function demoWorkspaceExpiry(): string {
+  return new Date(Date.now() + 60 * 60 * 1000).toISOString();
+}
+
+function demoScenarioOverview(role: 'chair' | 'examiner' | 'replacement') {
+  return {
+    mode: 'demo',
+    demo_matrix_version: 'demo-paths-v7',
+    current_role: role,
+    created_at: new Date().toISOString(),
+    expires_at: demoWorkspaceExpiry(),
+    remaining_seconds: 3600,
+    roles: (['chair', 'examiner', 'replacement'] as const).map((name) => ({
+      name,
+      display_name: demoRoles[name].display_name,
+      task:
+        name === 'chair'
+          ? 'Koordination und Planrevision'
+          : name === 'examiner'
+            ? 'Eigenen Ausfall melden'
+            : 'Eigene Ersatzanfrage beantworten',
+    })),
+    scenarios: [
+      {
+        id: 'absence',
+        title: 'Dringlicher Ausfall und Ersatz',
+        status: 'ready',
+        completed_steps: 0,
+        total_steps: 3,
+        next_role: 'examiner',
+        next_action: 'Eigenen Ausfall am vorbereiteten Prüfungstag melden',
+        path: '/confirmed-plans/1/days/1',
+      },
+      {
+        id: 'plan-change',
+        title: 'Bestätigte Planänderung',
+        status: 'ready',
+        completed_steps: 0,
+        total_steps: 1,
+        next_role: 'chair',
+        next_action: 'Vorbereitete Ortsänderung und Personentausch bestätigen',
+        path: '/confirmed-plans/1/edit',
+      },
+    ],
+    prepared_plan_change: {
+      round_id: 1,
+      day_id: 2,
+      source_location_id: 1,
+      target_location_id: 2,
+      assignment_id: 6,
+      replacement_member_id: demoRoles.replacement.committee_member_id,
+      reason: 'Synthetischer Ortswechsel mit gleichseitiger Ersatzbesetzung',
+    },
+    notices: [
+      'Der Arbeitsstand wird 60 Minuten nach seinem Start verworfen.',
+      'Keine realen personenbezogenen Daten eingeben.',
+      'Externe Zustellung ist in der öffentlichen Demo deaktiviert.',
+    ],
+    location_contract: 'Theaterbasierte reale Ortsdaten und OSM folgen separat mit #572.',
+  };
+}
 
 const productiveViews = [
   { name: 'Übersicht', path: '/dashboard' },
@@ -980,17 +1051,14 @@ test.describe('lzug browser workflows', () => {
     ).toHaveCount(0);
   });
 
-  test('keeps demo roles visible and role-safe on desktop and mobile', async ({ page }) => {
+  test('keeps isolated demo scenarios and roles safe on desktop and mobile', async ({ page }) => {
     test.setTimeout(180_000);
-    let role: 'chair' | 'examiner' | 'deputy' = 'chair';
+    let role: 'chair' | 'examiner' | 'replacement' = 'chair';
     await page.route('**/api/session', async (route) => {
       if (route.request().method() === 'POST') {
         await route.fulfill({ status: 204 });
         return;
       }
-      const isChair = role === 'chair';
-      const isDeputy = role === 'deputy';
-      const isManager = isChair || isDeputy;
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
@@ -1001,51 +1069,41 @@ test.describe('lzug browser workflows', () => {
           is_operator: false,
           demo_role: role,
           display_name: demoRoles[role].display_name,
-          capabilities: isManager
-            ? [
-                'absence:read-own',
-                'attendance:coordinate',
-                'availability:coordinate',
-                'calendar:read-own',
-                'candidate-days:generate',
-                'exam-half-years:read',
-                'exam-status:write',
-                'notifications:read-own',
-                'planning-proposal:confirm',
-                'planning-proposal:generate',
-                'planning-proposal:replace',
-                'planning-settings:write',
-                'round:write',
-              ]
-            : [
-                'absence:read-own',
-                'attendance:write-own',
-                'availability:write-own',
-                'calendar:read-own',
-                'exam-half-years:read',
-                'notifications:read-own',
-              ],
+          capabilities: demoCapabilities(role),
+          demo_matrix_version: 'demo-paths-v7',
+          demo_workspace_expires_at: demoWorkspaceExpiry(),
         }),
       });
     });
+    await page.route('**/api/demo/scenarios', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(demoScenarioOverview(role)),
+      }),
+    );
+    await page.route('**/api/demo/session', async (route) => {
+      const payload = route.request().postDataJSON() as { role: typeof role };
+      role = payload.role;
+      await route.fulfill({ status: 201, body: JSON.stringify({ authenticated: true }) });
+    });
 
-    for (const currentRole of ['chair', 'deputy', 'examiner'] as const) {
+    for (const currentRole of ['chair', 'examiner', 'replacement'] as const) {
       role = currentRole;
       for (const viewport of viewports) {
         await test.step(`${currentRole} · ${viewport.name}`, async () => {
           await page.setViewportSize(viewport);
-          await page.goto('/dashboard');
+          await page.goto('/demo-scenarios');
           await expect(page.getByLabel('Aktive Demo-Identität')).toContainText(
             demoRoles[currentRole].display_name,
           );
           await expect(
-            page.getByText(
-              currentRole === 'chair'
-                ? 'Vorsitz'
-                : currentRole === 'deputy'
-                  ? 'Stellvertretung'
-                  : 'Prüfperson',
-            ),
+            page.getByRole('heading', { name: 'Zwei unabhängige Fachabläufe' }),
+          ).toBeVisible();
+          await expect(page.getByText('Dringlicher Ausfall und Ersatz')).toBeVisible();
+          await expect(page.getByText('Bestätigte Planänderung')).toBeVisible();
+          await expect(page.getByText('60 Minuten ab Start')).toBeVisible();
+          await expect(
+            page.getByText('Keine realen personenbezogenen Daten eingeben.'),
           ).toBeVisible();
           await expect(page.getByRole('button', { name: 'Rolle wechseln' })).toBeVisible();
           if (viewport.name === 'mobile') {
@@ -1060,14 +1118,14 @@ test.describe('lzug browser workflows', () => {
           ).toHaveCount(0);
           await expect(
             page.getByRole('link', { name: 'Terminorganisationen', exact: true }),
-          ).toBeVisible();
-          await expect(
-            page.getByRole('link', { name: 'Prüfungspläne', exact: true }),
-          ).toBeVisible();
+          ).toHaveCount(0);
+          await expect(page.getByRole('link', { name: 'Prüfungspläne', exact: true })).toHaveCount(
+            currentRole === 'replacement' ? 0 : 1,
+          );
           const mainNavigation = page.getByLabel('Hauptnavigation');
           await expect(
             mainNavigation.getByRole('link', { name: 'Prüfungskontext auswählen', exact: true }),
-          ).toBeVisible();
+          ).toHaveCount(0);
           await expect(
             mainNavigation.getByRole('link', { name: 'Benachrichtigungen', exact: true }),
           ).toBeVisible();
@@ -1083,13 +1141,8 @@ test.describe('lzug browser workflows', () => {
 
           await page.goto('/exam-half-years');
           await expect(
-            page.getByText('Prüfungshalbjahre sind in der öffentlichen Demo schreibgeschützt.'),
+            page.getByText('Dieser Demo-Bereich ist für Ihre Rolle nicht freigegeben.'),
           ).toBeVisible();
-          await expect(page.getByRole('button', { name: 'Prüfungshalbjahr anlegen' })).toHaveCount(
-            0,
-          );
-          await expect(page.getByRole('button', { name: /bearbeiten$/i })).toHaveCount(0);
-          await expect(page.getByRole('button', { name: /abschließen$/i })).toHaveCount(0);
 
           await page.goto('/notifications');
           await expect(
@@ -1101,12 +1154,6 @@ test.describe('lzug browser workflows', () => {
           await expect(
             page.getByRole('button', { name: 'Persönlichen Feed aktivieren' }),
           ).toHaveCount(0);
-
-          await page.goto('/absence-reports');
-          await expect(
-            page.getByText('Ausfall- und Ersatzaktionen sind für diese Demo-Rolle read-only.'),
-          ).toBeVisible();
-          await expect(page.getByRole('button', { name: /übernehmen/i })).toHaveCount(0);
         });
       }
     }
@@ -1118,10 +1165,17 @@ test.describe('lzug browser workflows', () => {
     await switchButton.focus();
     await expect(switchButton).toBeFocused();
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('heading', { name: 'Anmelden' })).toBeVisible();
+    await expect(page).toHaveURL('/demo-scenarios');
+    const chairButton = page.getByRole('button', { name: 'Vorsitz', exact: true });
+    await chairButton.focus();
+    await expect(chairButton).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.getByText('Vorsitz · ' + demoRoles.chair.display_name)).toBeVisible();
   });
 
-  test('keeps demo read-only paths screen-reader accessible @a11y', async ({ page }) => {
+  test('keeps demo scenarios and regular own-data paths screen-reader accessible @a11y', async ({
+    page,
+  }) => {
     await page.route('**/api/session', (route) =>
       route.fulfill({
         contentType: 'application/json',
@@ -1133,19 +1187,18 @@ test.describe('lzug browser workflows', () => {
           is_operator: false,
           demo_role: 'examiner',
           display_name: demoRoles.examiner.display_name,
-          capabilities: [
-            'absence:read-own',
-            'attendance:write-own',
-            'availability:write-own',
-            'calendar:read-own',
-            'exam-half-years:read',
-            'notifications:read-own',
-          ],
+          capabilities: demoCapabilities('examiner'),
         }),
       }),
     );
+    await page.route('**/api/demo/scenarios', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(demoScenarioOverview('examiner')),
+      }),
+    );
 
-    for (const path of ['/exam-half-years', '/notifications', '/absence-reports']) {
+    for (const path of ['/demo-scenarios', '/notifications', '/absence-reports']) {
       await page.goto(path);
       await expect(page.locator('main')).toBeVisible();
       const accessibility = await new AxeBuilder({ page }).include('main').analyze();
@@ -1905,8 +1958,8 @@ function confirmedPlan(
             attendance: { status: 'open', arrived_at: null },
             member: {
               id: id * 10 + 2,
-              first_name: demoRoles.deputy.first_name,
-              last_name: demoRoles.deputy.last_name,
+              first_name: athenDeputyMember.first_name,
+              last_name: athenDeputyMember.last_name,
               representing_side: 'school',
             },
           },

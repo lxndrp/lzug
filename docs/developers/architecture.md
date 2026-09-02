@@ -133,7 +133,10 @@ TLS-Terminierung, Host-Härtung, Schlüsselverwahrung, Sicherung und
 Aufbewahrung liegen in Betreiberverantwortung und sind im
 [Wiki](https://github.com/lxndrp/lzug/wiki/Administration) beschrieben.
 Die öffentliche Demo ist eine getrennte flüchtige Azure-Assembly mit
-synthetischem Seed und kein Self-Hosting-Muster.
+synthetischem Basisseed und kein Self-Hosting-Muster.
+Ihre Runtime-Policy erzeugt je Besuch eine isolierte SQLite-Arbeitskopie,
+bindet Rollenwechsel an dieselbe absolute 60-Minuten-Frist und entfernt den
+Arbeitsstand bei Ablauf, Reset oder Abmeldung.
 
 ## Kritischer Ablauf: Plan bestätigen
 
@@ -235,6 +238,11 @@ Betriebszustand.
 
 **Öffentliche Demo:** Die Demo verwendet ein unveränderliches App-/Seed-Paar,
 flüchtigen Zustand und synthetische Daten.
+Die fachlichen Demo-Szenarien laufen in regulären Produktansichten gegen einen
+besucherspezifischen Arbeitsstand; produktive Autorisierung und eine enge
+rollen- und zustandsgebundene Demo-Allowlist müssen gemeinsam erfüllt sein.
+Benachrichtigungen bleiben intern, persönliche Kalenderereignisse sind nur als
+eigene Einzeltermine abrufbar und externe Zustellung ist deaktiviert.
 OIDC, Environment-Gates, Readiness und Smoke grenzen die technische Promotion
 ab; sie begründen keine Produktivitätszusage.
 

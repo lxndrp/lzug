@@ -18,6 +18,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from . import hateoas
 from .api_contracts import (
     ApiRootResponse,
+    DemoScenarioOverviewResponse,
+    DemoScenarioResetResponse,
     DomainCollectionResponse,
     DomainResourceResponse,
     DomainResourceWrite,
@@ -82,6 +84,8 @@ from .transport import (
 
 __all__ = [
     "ApiRootResponse",
+    "DemoScenarioOverviewResponse",
+    "DemoScenarioResetResponse",
     "DomainCollectionResponse",
     "DomainResourceResponse",
     "DomainResourceWrite",
@@ -187,9 +191,10 @@ def _not_found() -> Response:
 
 
 def _context(request: Request, config: FastAPIConfig, body: bytes = b"") -> RequestContext:
+    session_token = request.cookies.get(config.session_cookie_name)
     context = RequestContext(
         request=request,
-        db_path=config.db_path,
+        db_path=config.runtime_policy.database_for_request(config.db_path, session_token),
         session_cookie_name=config.session_cookie_name,
         csrf_cookie_name=config.csrf_cookie_name,
         cookie_secure=config.cookie_secure,
@@ -1101,6 +1106,32 @@ def _register_runtime_routes(
     def demo_session(request: Request):
         return runtime_post(request, ["demo", "session"])
 
+    @app.get(
+        f"{demo_api_prefix}/scenarios",
+        response_model=DemoScenarioOverviewResponse,
+        openapi_extra=read_security,
+    )
+    def demo_scenarios(request: Request):
+        return runtime_get(request, ["demo", "scenarios"])
+
+    @app.post(
+        f"{demo_api_prefix}/reset",
+        response_model=DemoScenarioResetResponse,
+        openapi_extra={
+            **write_security,
+            "requestBody": {
+                "required": True,
+                "content": {
+                    "application/json": {
+                        "schema": {"type": "object", "additionalProperties": False}
+                    }
+                },
+            },
+        },
+    )
+    def demo_reset(request: Request):
+        return runtime_post(request, ["demo", "reset"])
+
 
 def _register_login_route(
     app, resolved, application, read_security, write_security, venue_write_openapi
@@ -1217,7 +1248,7 @@ def _register_session_routes(
                     "person_id": auth.person_id,
                     "committee_member_id": auth.committee_member_id,
                     "is_operator": auth.is_operator,
-                    **resolved.runtime_policy.session_view(auth),
+                    **resolved.runtime_policy.session_view(context, auth),
                 }
             ),
         )
@@ -1250,8 +1281,10 @@ def _register_session_routes(
         context = _context(request, resolved)
         auth = context.require_authenticated(require_actor=False, require_csrf=True)
         context.authorize_mutation("POST", ["session", "logout"], auth)
-        context.authentication_repository.revoke_session(context.session_token, reason="logout")
+        session_token = context.session_token
+        context.authentication_repository.revoke_session(session_token, reason="logout")
         context.clear_session_cookies()
+        resolved.runtime_policy.discard_session(context, session_token)
         return _finish(context, context.respond({}, HTTPStatus.NO_CONTENT))
 
 

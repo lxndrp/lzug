@@ -2,6 +2,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { vi } from 'vitest';
 
 import { routes } from '../app.routes';
 import { AuthService } from './auth.service';
@@ -18,7 +19,11 @@ describe('AuthService', () => {
     http = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    service.markAnonymous();
+    http.verify();
+    vi.useRealTimers();
+  });
 
   it('initializes an authenticated session', () => {
     let authenticated = false;
@@ -147,6 +152,54 @@ describe('AuthService', () => {
     expect(request.request.method).toBe('POST');
     request.flush(null);
 
+    expect(service.state()).toBe('anonymous');
+    expect(service.session()).toBeNull();
+  });
+
+  it('starts a demo role and enters the shared scenario workspace', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-02T10:00:00Z'));
+    service.startDemoSession('replacement').subscribe();
+    const start = http.expectOne('/api/demo/session');
+    expect(start.request.method).toBe('POST');
+    expect(start.request.body).toEqual({ role: 'replacement' });
+    start.flush({ authenticated: true });
+
+    const sessionRequest = http.expectOne('/api/session');
+    sessionRequest.flush({
+      authenticated: true,
+      account_id: 4,
+      person_id: 6,
+      committee_member_id: 6,
+      is_operator: false,
+      demo_role: 'replacement',
+      display_name: 'Francis Flute',
+      capabilities: ['absence:respond-own', 'notifications:read-own', 'calendar:read-own'],
+      demo_workspace_expires_at: '2026-09-02T11:00:00Z',
+    });
+
+    expect(service.state()).toBe('authenticated');
+    expect(service.session()?.demo_role).toBe('replacement');
+  });
+
+  it('ends a demo session at its absolute workspace expiry', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-02T10:00:00Z'));
+    service.startDemoSession('examiner').subscribe();
+    http.expectOne('/api/demo/session').flush({ authenticated: true });
+    http.expectOne('/api/session').flush({
+      authenticated: true,
+      account_id: 2,
+      person_id: 3,
+      committee_member_id: 3,
+      is_operator: false,
+      demo_role: 'examiner',
+      demo_workspace_expires_at: '2026-09-02T10:00:01Z',
+    });
+
+    vi.advanceTimersByTime(999);
+    expect(service.state()).toBe('authenticated');
+    vi.advanceTimersByTime(1);
     expect(service.state()).toBe('anonymous');
     expect(service.session()).toBeNull();
   });

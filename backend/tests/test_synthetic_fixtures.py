@@ -20,8 +20,8 @@ class SyntheticFixtureGeneratorTests(unittest.TestCase):
         self.assertEqual(generator.REQUIRED_COVERAGE, set(data["coverage_matrix"]))
         self.assertTrue(all(key.startswith(f"{generator.FIXTURE_ROOT}.") for key in index))
         self.assertEqual(
-            {"chair", "deputy", "examiner"},
-            {account["demo_role"] for account in data["accounts"]},
+            {"chair", "examiner", "replacement"},
+            {account["demo_role"] for account in data["accounts"] if account["demo_role"]},
         )
         self.assertTrue(
             all(

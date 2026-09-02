@@ -14,6 +14,7 @@ import { TuiBadge } from '@taiga-ui/kit';
 import {
   ConfirmedPlan,
   ConfirmedPlanRevision,
+  DemoScenarioOverview,
   EditablePlanningProposal,
   PlanningBoard,
   PlanningProposalAssignment,
@@ -21,6 +22,7 @@ import {
   PlanningProposalSlot,
 } from '../api/api.models';
 import { PlanningApiService } from '../api/planning-api.service';
+import { AuthService } from '../auth/auth.service';
 
 /** Lifecycle states exposed by the confirmed-plan editor. */
 export type EditorState = 'loading' | 'ready' | 'saving' | 'error';
@@ -38,6 +40,7 @@ export type EditorState = 'loading' | 'ready' | 'saving' | 'error';
 })
 export class ConfirmedPlanEditorComponent implements OnChanges {
   private readonly api = inject(PlanningApiService);
+  private readonly auth = inject(AuthService);
 
   @Input({ required: true }) roundId!: number;
   @Input({ required: true }) plan!: ConfirmedPlan;
@@ -49,6 +52,10 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly reason = signal('');
   protected readonly dirty = signal(false);
+  protected readonly demoPreparedChange = signal<
+    DemoScenarioOverview['prepared_plan_change'] | null
+  >(null);
+  protected readonly isDemo = computed(() => this.auth.session()?.demo_role !== undefined);
   private readonly planView = signal<ConfirmedPlan | null>(null);
   protected readonly lockedDayIds = computed(
     () =>
@@ -90,6 +97,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
         this.reason.set('');
         this.dirty.set(false);
         this.state.set('ready');
+        this.loadDemoContract();
         this.loadRevisions();
       },
       error: () => {
@@ -110,7 +118,11 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
         this.reason.set('');
         this.dirty.set(false);
         this.state.set('ready');
-        this.errorMessage.set('Die Änderung wurde als neue Planrevision gespeichert.');
+        this.errorMessage.set(
+          this.isDemo()
+            ? 'Die Planrevision wurde gespeichert. Öffnen Sie die Demo-Szenarien für den nächsten Schritt.'
+            : 'Die Änderung wurde als neue Planrevision gespeichert.',
+        );
         this.loadRevisions();
       },
       error: (error: { status?: number; error?: { error?: { message?: string } | string } }) => {
@@ -136,8 +148,33 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     return day.id === null || this.lockedDayIds().has(day.id);
   }
 
+  protected controlsDisabled(day: PlanningProposalDay): boolean {
+    return this.isLocked(day) || this.isDemo() || this.state() === 'saving';
+  }
+
+  protected prepareDemoChange(): void {
+    const change = this.demoPreparedChange();
+    const current = this.draft();
+    if (!change || !current || this.dirty() || this.state() !== 'ready') return;
+    const proposal = this.clone(current);
+    const day = proposal.exam_days.find((item) => item.id === change.day_id);
+    const assignment = day?.assignments.find((item) => item.id === change.assignment_id);
+    if (!day || !assignment) {
+      this.errorMessage.set('Die vorbereitete Demo-Änderung passt nicht zum aktuellen Planstand.');
+      return;
+    }
+    day.room_id = change.target_location_id;
+    day.location_id = change.target_location_id;
+    assignment.committee_member_id = change.replacement_member_id;
+    this.draft.set(proposal);
+    this.reason.set(change.reason);
+    this.dirty.set(true);
+    this.errorMessage.set(null);
+  }
+
   protected updateLocation(day: PlanningProposalDay, locationId: number): void {
-    this.updateDay(day, { location_id: Number(locationId) });
+    const roomId = Number(locationId);
+    this.updateDay(day, { room_id: roomId, location_id: roomId });
   }
 
   protected updateSlot(
@@ -145,7 +182,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     slot: PlanningProposalSlot,
     patch: Partial<Pick<PlanningProposalSlot, 'round_candidate_id' | 'slot_type'>>,
   ): void {
-    if (this.isLocked(day)) return;
+    if (this.isLocked(day) || this.isDemo()) return;
     this.update((proposal) => {
       const target = proposal.exam_days.find((item) => item.id === day.id);
       const existing = target?.slots.find((item) => item.id === slot.id);
@@ -154,7 +191,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
   }
 
   protected moveSlot(day: PlanningProposalDay, index: number, direction: -1 | 1): void {
-    if (this.isLocked(day)) return;
+    if (this.isLocked(day) || this.isDemo()) return;
     this.update((proposal) => {
       const target = proposal.exam_days.find((item) => item.id === day.id);
       if (!target) return;
@@ -172,7 +209,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
       Pick<PlanningProposalAssignment, 'committee_member_id' | 'assignment_role' | 'day_part'>
     >,
   ): void {
-    if (this.isLocked(day)) return;
+    if (this.isLocked(day) || this.isDemo()) return;
     this.update((proposal) => {
       const target = proposal.exam_days.find((item) => item.id === day.id);
       const existing = target?.assignments.find((item) => item.id === assignment.id);
@@ -217,6 +254,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
         this.reason.set('');
         this.dirty.set(false);
         this.state.set('ready');
+        this.loadDemoContract();
         this.loadRevisions();
       },
       error: () => {
@@ -235,8 +273,22 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     });
   }
 
+  private loadDemoContract(): void {
+    if (!this.isDemo()) {
+      this.demoPreparedChange.set(null);
+      return;
+    }
+    this.api.getDemoScenarios().subscribe({
+      next: (overview) => this.demoPreparedChange.set(overview.prepared_plan_change),
+      error: () => {
+        this.demoPreparedChange.set(null);
+        this.errorMessage.set('Die vorbereitete Demo-Änderung konnte nicht geladen werden.');
+      },
+    });
+  }
+
   private updateDay(day: PlanningProposalDay, patch: Partial<PlanningProposalDay>): void {
-    if (this.isLocked(day)) return;
+    if (this.isLocked(day) || this.isDemo()) return;
     this.update((proposal) => {
       const target = proposal.exam_days.find((item) => item.id === day.id);
       if (target) Object.assign(target, patch);

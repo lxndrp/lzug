@@ -1,5 +1,7 @@
 """Pydantic models used at the public FastAPI contract boundary."""
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -47,10 +49,62 @@ class SessionResponse(BaseModel):
     person_id: int | None
     committee_member_id: int | None
     is_operator: bool
+    demo_role: Literal["chair", "examiner", "replacement"] | None = None
+    display_name: str | None = None
+    capabilities: list[str] | None = None
+    demo_matrix_version: str | None = None
+    demo_workspace_expires_at: str | None = None
 
 
 class SessionRotationResponse(BaseModel):
     status: str
+    expires_at: str
+
+
+class DemoScenarioRoleResponse(BaseModel):
+    name: Literal["chair", "examiner", "replacement"]
+    display_name: str
+    task: str
+
+
+class DemoScenarioResponse(BaseModel):
+    id: str
+    title: str
+    status: Literal["ready", "in_progress", "complete"]
+    completed_steps: int
+    total_steps: int
+    next_role: Literal["chair", "examiner", "replacement"]
+    next_action: str
+    path: str
+
+
+class DemoPreparedPlanChangeResponse(BaseModel):
+    round_id: int
+    day_id: int
+    source_location_id: int
+    target_location_id: int
+    assignment_id: int
+    replacement_member_id: int
+    reason: str
+
+
+class DemoScenarioOverviewResponse(BaseModel):
+    mode: Literal["demo"]
+    demo_matrix_version: str
+    current_role: Literal["chair", "examiner", "replacement"]
+    created_at: str
+    expires_at: str
+    remaining_seconds: int
+    roles: list[DemoScenarioRoleResponse]
+    scenarios: list[DemoScenarioResponse]
+    prepared_plan_change: DemoPreparedPlanChangeResponse
+    notices: list[str]
+    location_contract: str
+
+
+class DemoScenarioResetResponse(BaseModel):
+    status: Literal["reset"]
+    role: Literal["chair", "examiner", "replacement"]
     expires_at: str
 
 

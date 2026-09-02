@@ -68,6 +68,7 @@ import { AuthService } from './auth/auth.service';
 import { RuntimeNoticeComponent } from './runtime/runtime-notice.component';
 import { NotificationsComponent } from './notifications/notifications.component';
 import { AbsenceReportsComponent } from './absence-reports/absence-reports.component';
+import { DemoScenariosComponent } from './demo-scenarios/demo-scenarios.component';
 
 @Component({
   selector: 'app-root',
@@ -79,6 +80,7 @@ import { AbsenceReportsComponent } from './absence-reports/absence-reports.compo
     ConfirmedPlansComponent,
     ExamDayComponent,
     DashboardComponent,
+    DemoScenariosComponent,
     ExamHalfYearsComponent,
     LocationsComponent,
     NotificationsComponent,
@@ -170,9 +172,7 @@ export class App {
   protected readonly canToggleCandidateDay = computed(() =>
     this.hasCapability('candidate-days:toggle'),
   );
-  protected readonly directAccessDenied = computed(
-    () => this.demoSession() !== null && !this.canAccessView(this.activeView()),
-  );
+  protected readonly directAccessDenied = computed(() => !this.canAccessView(this.activeView()));
 
   protected readonly pageTitle = computed(() => {
     const labels: Record<AppView, string> = {
@@ -187,6 +187,7 @@ export class App {
       'exam-half-years': 'Prüfungshalbjahre',
       notifications: 'Benachrichtigungen',
       'absence-reports': 'Ausfall und Ersatz',
+      'demo-scenarios': 'Demo-Szenarien',
     };
     return labels[this.activeView()];
   });
@@ -221,6 +222,7 @@ export class App {
 
   protected readonly breadcrumb = computed(() => {
     if (this.activeView() === 'exam-half-years') return 'Prüfungskontext';
+    if (this.activeView() === 'demo-scenarios') return 'Öffentliche Demo';
     if (['notifications', 'absence-reports'].includes(this.activeView()))
       return 'Persönlicher Bereich';
     if (['committee', 'locations'].includes(this.activeView())) return 'Globale Bereiche';
@@ -383,14 +385,15 @@ export class App {
   protected demoRoleLabel(): string {
     const role = this.demoSession()?.demo_role;
     if (role === 'chair') return 'Vorsitz';
-    if (role === 'deputy') return 'Stellvertretung';
-    return 'Prüfperson';
+    if (role === 'replacement') return 'Angefragter Ersatzprüfer';
+    return 'Eingeplanter Prüfer';
   }
 
   protected demoRoleTask(): string {
-    return this.isDemoExaminer()
-      ? 'Eigene Verfügbarkeit und Anwesenheit'
-      : 'Planung und Koordination';
+    const role = this.demoSession()?.demo_role;
+    if (role === 'chair') return 'Koordination und Planrevision';
+    if (role === 'replacement') return 'Eigene Ersatzanfrage beantworten';
+    return 'Eigenen Ausfall melden';
   }
 
   protected hasCapability(capability: string): boolean {
@@ -398,10 +401,17 @@ export class App {
   }
 
   protected canAccessView(view: AppView): boolean {
-    if (!this.demoSession()) return true;
+    if (!this.demoSession()) return view !== 'demo-scenarios';
+    if (view === 'demo-scenarios') return true;
     if (view === 'dashboard') return true;
     if (view === 'notifications') return this.hasCapability('notifications:read-own');
-    if (view === 'absence-reports') return this.hasCapability('absence:read-own');
+    if (view === 'absence-reports') {
+      return (
+        this.hasCapability('absence:coordinate') ||
+        this.hasCapability('absence:write-own') ||
+        this.hasCapability('absence:respond-own')
+      );
+    }
     if (view === 'exam-half-years') return this.hasCapability('exam-half-years:read');
     if (['scheduling-overview', 'planning'].includes(view)) {
       return (
@@ -412,6 +422,8 @@ export class App {
     }
     if (['confirmed-plans', 'exam-day'].includes(view)) {
       return (
+        this.hasCapability('confirmed-plan:revise') ||
+        this.hasCapability('absence:write-own') ||
         this.hasCapability('attendance:write-own') ||
         this.hasCapability('attendance:coordinate') ||
         this.hasCapability('exam-status:write') ||
@@ -423,18 +435,7 @@ export class App {
 
   protected switchDemoRole(): void {
     if (!this.demoSession() || this.roleSwitchBusy()) return;
-    this.roleSwitchBusy.set(true);
-    this.auth
-      .logout()
-      .pipe(finalize(() => this.roleSwitchBusy.set(false)))
-      .subscribe({
-        error: () =>
-          this.notify(
-            'error',
-            'Rollenwechsel nicht möglich',
-            'Die Demo-Sitzung konnte nicht beendet werden. Bitte erneut versuchen.',
-          ),
-      });
+    void this.router.navigateByUrl('/demo-scenarios');
   }
 
   protected requestCandidateDeletion(id: number, label: string): void {
@@ -1001,6 +1002,7 @@ export class App {
       'exam-half-years': 'exam-half-years',
       notifications: 'notifications',
       'absence-reports': 'absence-reports',
+      'demo-scenarios': 'demo-scenarios',
     };
     return view === 'planning' ? `scheduling-overview/${this.roundContext.roundId()}` : paths[view];
   }
@@ -1025,6 +1027,7 @@ export class App {
       'exam-half-years': 'exam-half-years',
       notifications: 'notifications',
       'absence-reports': 'absence-reports',
+      'demo-scenarios': 'demo-scenarios',
     };
     return views[segment ?? 'dashboard'] ?? 'dashboard';
   }
