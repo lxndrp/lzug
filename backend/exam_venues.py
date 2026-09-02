@@ -27,6 +27,7 @@ from .models import (
     EXAM_VENUE_CONTACT,
     CommitteeMember,
     ExamDay,
+    ExamDayAssignment,
     ExamRoom,
     ExamRound,
     ExamVenue,
@@ -100,7 +101,13 @@ CONTACT_FIELDS = frozenset(
     {"label", "role", "phone", "email", "availability_notes", "is_active", "room_ids"}
 )
 COMMAND_META_FIELDS = frozenset(
-    {"reason", "duplicates_reviewed", "duplicate_reason", "confirm_future_assignments"}
+    {
+        "reason",
+        "duplicates_reviewed",
+        "duplicate_reason",
+        "confirm_future_assignments",
+        "meaningful_change",
+    }
 )
 VENUE_DUPLICATE_FIELDS = frozenset({"name", "street", "postal_code", "city", "country"})
 
@@ -165,28 +172,58 @@ class ExamVenueService:
             ).scalars()
             return frozenset(rows)
 
-    def future_impact(self, venue_id: int, room_id: int | None = None) -> dict[str, Any]:
-        """Summarize confirmed future appointments affected by a master-data change."""
+    def future_impact(
+        self,
+        venue_id: int,
+        room_id: int | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Summarize assignments and field-specific effects before a change."""
         with session_scope(self.db_path) as session:
-            statement = (
-                select(ExamDay.id, ExamDay.date)
-                .join(ExamRoom, ExamRoom.id == ExamDay.room_id)
-                .where(
-                    ExamRoom.venue_id == venue_id,
-                    ExamDay.status == "confirmed",
-                    ExamDay.date >= date.today().isoformat(),
-                )
-                .order_by(ExamDay.date, ExamDay.id)
-            )
-            if room_id is not None:
-                statement = statement.where(ExamDay.room_id == room_id)
-            rows = list(session.execute(statement))
-        dates = [row.date for row in rows]
-        return {
-            "count": len(rows),
-            "date_from": min(dates) if dates else None,
-            "date_to": max(dates) if dates else None,
-        }
+            venue = session.get(ExamVenue, venue_id)
+            room = session.get(ExamRoom, room_id) if room_id is not None else None
+            if venue is None or (
+                room_id is not None and (room is None or room.venue_id != venue_id)
+            ):
+                raise ExamVenueNotFoundError("Exam venue entity not found")
+            command = dict(payload or {})
+            expected = command.pop("expected_revision", None)
+            entity = room if room is not None else venue
+            if expected is not None:
+                self._assert_revision(entity.revision, expected)
+            if room is not None:
+                after, _reason = self._room_values(command, current=room)
+                fields = ROOM_FIELDS
+                entity_type = "room"
+            else:
+                after, _reason = self._venue_values(command, current=venue)
+                if any(
+                    after[field] != getattr(venue, field)
+                    for field in ("street", "postal_code", "city", "country")
+                ) and not {
+                    "latitude",
+                    "longitude",
+                    "coordinate_status",
+                    "coordinate_source",
+                }.intersection(
+                    command
+                ):
+                    if after["latitude"] is not None:
+                        after["coordinate_status"] = "needs_review"
+                fields = VENUE_FIELDS
+                entity_type = "venue"
+            before = {field: getattr(entity, field) for field in fields}
+            resolved_entity_id = entity.id
+        from .venue_consequences import VenueConsequenceService
+
+        return VenueConsequenceService(self.db_path).preview(
+            venue_id=venue_id,
+            entity_type=entity_type,
+            entity_id=resolved_entity_id,
+            before=before,
+            after=after,
+            meaningful_change=command.get("meaningful_change", True) is not False,
+        )
 
     def find_duplicates(
         self,
@@ -370,6 +407,8 @@ class ExamVenueService:
         technical_actor: str | None = None,
     ) -> dict[str, Any] | None:
         expected_revision, command = self._expected_revision(payload)
+        audit_id: int | None = None
+        changed_fields: set[str] = set()
         with session_scope(self.db_path) as session:
             actor = self._require_actor(session, actor_member_id, technical_actor)
             venue = session.get(ExamVenue, venue_id)
@@ -390,7 +429,6 @@ class ExamVenueService:
                 values["coordinate_status"] = "needs_review"
                 command["coordinate_status"] = "needs_review"
             duplicate_reason = self._optional_text(command.get("duplicate_reason"))
-            self._assert_future_impact_confirmation(session, venue.id, None, command)
             self._assert_venue_name_available(
                 session,
                 values["scope"],
@@ -402,11 +440,16 @@ class ExamVenueService:
             if values["is_active"]:
                 self._assert_venue_can_be_active(session, venue.id, values)
             was_active = bool(venue.is_active)
+            before = {field: getattr(venue, field) for field in VENUE_FIELDS}
+            changed_fields = {field for field in VENUE_FIELDS if before[field] != values[field]}
+            self._assert_future_impact_confirmation(
+                session, venue.id, None, changed_fields, command
+            )
             for field, value in values.items():
                 setattr(venue, field, value)
             venue.revision += 1
             session.flush()
-            self._audit(
+            audit_id = self._audit(
                 session,
                 venue_id=venue.id,
                 entity_type="venue",
@@ -417,9 +460,14 @@ class ExamVenueService:
                 technical_actor=actor[1],
                 reason=reason or duplicate_reason,
                 fields=command,
+                before=before,
+                after={field: getattr(venue, field) for field in VENUE_FIELDS},
+                changed_fields=changed_fields,
+                meaningful_change=command.get("meaningful_change", True) is not False,
             )
             session.flush()
-            return self._venue_payload(session, venue)
+            result = self._venue_payload(session, venue)
+        return self._apply_consequences(result, audit_id, changed_fields)
 
     def delete_venue(
         self,
@@ -497,6 +545,8 @@ class ExamVenueService:
         technical_actor: str | None = None,
     ) -> dict[str, Any] | None:
         expected_revision, command = self._expected_revision(payload)
+        audit_id: int | None = None
+        changed_fields: set[str] = set()
         with session_scope(self.db_path) as session:
             actor = self._require_actor(session, actor_member_id, technical_actor)
             room = session.get(ExamRoom, room_id)
@@ -504,18 +554,22 @@ class ExamVenueService:
                 return None
             self._assert_revision(room.revision, expected_revision)
             values, reason = self._room_values(command, current=room)
-            self._assert_future_impact_confirmation(session, room.venue_id, room.id, command)
             self._assert_room_name_available(
                 session, room.venue_id, values["normalized_name"], room.id
             )
             was_active = bool(room.is_active)
             if was_active and not values["is_active"]:
                 self._assert_room_can_be_deactivated(session, room)
+            before = {field: getattr(room, field) for field in ROOM_FIELDS}
+            changed_fields = {field for field in ROOM_FIELDS if before[field] != values[field]}
+            self._assert_future_impact_confirmation(
+                session, room.venue_id, room.id, changed_fields, command
+            )
             for field, value in values.items():
                 setattr(room, field, value)
             room.revision += 1
             session.flush()
-            self._audit(
+            audit_id = self._audit(
                 session,
                 venue_id=room.venue_id,
                 entity_type="room",
@@ -526,9 +580,14 @@ class ExamVenueService:
                 technical_actor=actor[1],
                 reason=reason,
                 fields=command,
+                before=before,
+                after={field: getattr(room, field) for field in ROOM_FIELDS},
+                changed_fields=changed_fields,
+                meaningful_change=command.get("meaningful_change", True) is not False,
             )
             session.flush()
-            return self._room_payload(room)
+            result = self._room_payload(room)
+        return self._apply_consequences(result, audit_id, changed_fields)
 
     def delete_room(
         self,
@@ -894,13 +953,14 @@ class ExamVenueService:
         session: Session,
         venue_id: int,
         room_id: int | None,
+        changed_fields: set[str],
         payload: dict[str, Any],
     ) -> None:
-        changed_fields = (VENUE_FIELDS if room_id is None else ROOM_FIELDS).intersection(payload)
         if not changed_fields:
             return
         statement = (
-            select(ExamDay.id)
+            select(ExamDayAssignment.id)
+            .join(ExamDay, ExamDay.id == ExamDayAssignment.exam_day_id)
             .join(ExamRoom, ExamRoom.id == ExamDay.room_id)
             .where(
                 ExamRoom.venue_id == venue_id,
@@ -1003,25 +1063,75 @@ class ExamVenueService:
         technical_actor: str | None,
         reason: str | None,
         fields: dict[str, Any],
-    ) -> None:
-        session.add(
-            ExamVenueAuditEvent(
-                venue_id=venue_id,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                entity_revision=entity_revision,
-                change_type=change_type,
-                actor_kind="member" if actor_member_id is not None else "operator",
-                actor_member_id=actor_member_id,
-                technical_actor=technical_actor,
-                reason=reason,
-                details_json=json.dumps(
-                    {"fields": sorted(fields), "values": fields},
-                    ensure_ascii=False,
-                    separators=(",", ":"),
-                ),
+        before: dict[str, Any] | None = None,
+        after: dict[str, Any] | None = None,
+        changed_fields: set[str] | None = None,
+        meaningful_change: bool = True,
+    ) -> int:
+        details: dict[str, Any] = {"fields": sorted(fields), "values": fields}
+        if before is not None and after is not None and changed_fields:
+            details.update(
+                {
+                    "consequence_version": 1,
+                    "before": before,
+                    "after": after,
+                    "changed_fields": sorted(changed_fields),
+                    "meaningful_change": meaningful_change,
+                }
             )
+        event = ExamVenueAuditEvent(
+            venue_id=venue_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            entity_revision=entity_revision,
+            change_type=change_type,
+            actor_kind="member" if actor_member_id is not None else "operator",
+            actor_member_id=actor_member_id,
+            technical_actor=technical_actor,
+            reason=reason,
+            details_json=json.dumps(
+                details,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
         )
+        session.add(event)
+        session.flush()
+        return event.id
+
+    def _apply_consequences(
+        self, result: dict[str, Any], audit_id: int | None, changed_fields: set[str]
+    ) -> dict[str, Any]:
+        if audit_id is None or not changed_fields:
+            return result
+        try:
+            from .venue_consequences import VenueConsequenceService
+
+            consequence_status = VenueConsequenceService(self.db_path).process_audit(audit_id)
+        except Exception:
+            return {
+                **result,
+                "consequence_audit_id": audit_id,
+                "consequence_warning": (
+                    "Die Stammdaten wurden gespeichert, aber Kalender- oder "
+                    "Benachrichtigungsfolgen konnten nicht vollständig verarbeitet werden."
+                ),
+            }
+        return {
+            **result,
+            "consequence_audit_id": audit_id,
+            "consequence_status": consequence_status,
+            **(
+                {
+                    "consequence_warning": (
+                        "Die Stammdaten wurden gespeichert, aber Kalender- oder "
+                        "Benachrichtigungsfolgen konnten nicht vollständig verarbeitet werden."
+                    )
+                }
+                if consequence_status["problems"] or consequence_status["pending"]
+                else {}
+            ),
+        }
 
     def _venue_payload(self, session: Session, venue: ExamVenue) -> dict[str, Any]:
         return {

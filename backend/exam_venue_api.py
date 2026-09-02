@@ -9,6 +9,7 @@ from .authorization import AuthorizationScope
 from .database import DEFAULT_DB_PATH
 from .exam_venues import ExamVenueService
 from .map_provider import MapProviderConfig, NominatimGeocoder
+from .venue_consequences import VenueConsequenceService
 
 
 class ExamVenueApi:
@@ -18,6 +19,7 @@ class ExamVenueApi:
         self, db_path: Path = DEFAULT_DB_PATH, map_provider: MapProviderConfig | None = None
     ):
         self.service = ExamVenueService(db_path)
+        self.consequences = VenueConsequenceService(db_path)
         self.map_provider = map_provider or MapProviderConfig()
 
     def list_venues(self, scope: AuthorizationScope, auth: AuthContext | None = None):
@@ -45,12 +47,30 @@ class ExamVenueApi:
             payload, visible_venue_ids=visible, excluded_id=excluded_id
         )
 
-    def future_impact(self, venue_id, scope, auth=None, *, room_id=None):
+    def future_impact(self, venue_id, scope, auth=None, *, room_id=None, payload=None):
         venue = self.service.get_venue(venue_id)
         if venue is None:
             return None
         self._actor_for_venue(scope, auth, venue)
-        return self.service.future_impact(venue_id, room_id)
+        return self.service.future_impact(venue_id, room_id, payload)
+
+    def retry_consequences(self, audit_id, scope, auth=None):
+        problem = next(
+            (
+                item
+                for venue in self.service.list_venues()
+                for item in self.consequences.problems_for_venue(venue["id"])
+                if item["audit_id"] == audit_id
+            ),
+            None,
+        )
+        if problem is None:
+            return None
+        venue = self.service.get_venue(problem["venue_id"])
+        if venue is None:
+            return None
+        self._actor_for_venue(scope, auth, venue)
+        return self.consequences.retry_audit(audit_id)
 
     def create_venue(self, payload, scope, auth=None):
         if payload.get("scope") == "global":
@@ -231,11 +251,16 @@ class ExamVenueApi:
 
     def _decorate(self, scope, auth, venue):
         manage = self._can_manage(scope, auth, venue)
+        view_consequences = self._can_view_consequences(scope, auth, venue)
         return {
             **venue,
+            "consequence_problems": (
+                self.consequences.problems_for_venue(venue["id"]) if view_consequences else []
+            ),
             "map_provider": self.map_provider.public_contract(),
             "capabilities": {
                 "manage": manage,
+                "retry_consequences": manage,
                 "geocode": manage and self.map_provider.active,
                 "request_promotion": manage and venue["scope"] == "committee",
                 "decide_promotion": bool(
@@ -250,6 +275,16 @@ class ExamVenueApi:
             bool(auth and auth.is_operator)
             if venue["scope"] == "global"
             else scope.can_manage_committee(venue["committee_id"])
+        )
+
+    def _can_view_consequences(self, scope, auth, venue):
+        if auth and auth.is_operator:
+            return True
+        if venue["scope"] == "committee":
+            return scope.can_manage_committee(venue["committee_id"])
+        return any(
+            scope.can_manage_committee(committee_id)
+            for committee_id in self.service.referenced_committee_ids(venue["id"])
         )
 
     def _actor_for_payload(self, scope, payload):

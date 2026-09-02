@@ -226,14 +226,22 @@ class ExamVenueServiceTests(unittest.TestCase):
             service = ExamVenueService(db_path)
             venue, room = self._create_active_venue_and_room(service)
             with session_scope(db_path) as session:
-                from backend.models import ExamDay
+                from backend.models import ExamDay, ExamDayAssignment
 
+                day = ExamDay(
+                    exam_round_id=1,
+                    room_id=room["id"],
+                    date="2099-05-20",
+                    status="confirmed",
+                )
+                session.add(day)
+                session.flush()
                 session.add(
-                    ExamDay(
-                        exam_round_id=1,
-                        room_id=room["id"],
-                        date="2099-05-20",
-                        status="confirmed",
+                    ExamDayAssignment(
+                        exam_day_id=day.id,
+                        committee_member_id=1,
+                        assignment_role="examiner",
+                        day_part="full_day",
                     )
                 )
 
@@ -256,7 +264,7 @@ class ExamVenueServiceTests(unittest.TestCase):
 
         self.assertEqual(
             {"count": 1, "date_from": "2099-05-20", "date_to": "2099-05-20"},
-            impact,
+            {key: impact[key] for key in ("count", "date_from", "date_to")},
         )
         assert updated is not None
         self.assertEqual("Eingang Nord", updated["entrance"])

@@ -2898,6 +2898,22 @@ def _register_exam_venue_routes(
         impact = venue_api.future_impact(id, context.authorization_scope, context.auth_context)
         return _not_found() if impact is None else _finish(context, context.respond(impact))
 
+    @app.post(
+        "/api/exam-venues/{id}/change-impact",
+        openapi_extra=venue_write_openapi("ExamVenueUpdateRequest"),
+    )
+    def preview_exam_venue_change(request: Request, id: int):
+        context = _venue_context(
+            request, resolved, ["exam-venues", str(id), "change-impact"], mutation=True
+        )
+        impact = venue_api.future_impact(
+            id,
+            context.authorization_scope,
+            context.auth_context,
+            payload=context.read_json(),
+        )
+        return _not_found() if impact is None else _finish(context, context.respond(impact))
+
     @app.get("/api/exam-rooms/{id}/change-impact", openapi_extra=read_security)
     def exam_room_change_impact(request: Request, id: int):
         context = _venue_context(request, resolved, ["exam-rooms", str(id), "change-impact"])
@@ -2913,6 +2929,44 @@ def _register_exam_venue_routes(
             )
         )
         return _not_found() if impact is None else _finish(context, context.respond(impact))
+
+    @app.post(
+        "/api/exam-rooms/{id}/change-impact",
+        openapi_extra=venue_write_openapi("ExamRoomUpdateRequest"),
+    )
+    def preview_exam_room_change(request: Request, id: int):
+        context = _venue_context(
+            request, resolved, ["exam-rooms", str(id), "change-impact"], mutation=True
+        )
+        room = venue_api.get_room(id, context.authorization_scope, context.auth_context)
+        impact = (
+            None
+            if room is None
+            else venue_api.future_impact(
+                room["venue_id"],
+                context.authorization_scope,
+                context.auth_context,
+                room_id=id,
+                payload=context.read_json(),
+            )
+        )
+        return _not_found() if impact is None else _finish(context, context.respond(impact))
+
+    @app.post(
+        "/api/exam-venue-changes/{audit_id}/consequences/retry",
+        openapi_extra=write_security,
+    )
+    def retry_exam_venue_change_consequences(request: Request, audit_id: int):
+        context = _venue_context(
+            request,
+            resolved,
+            ["exam-venue-changes", str(audit_id), "consequences", "retry"],
+            mutation=True,
+        )
+        result = venue_api.retry_consequences(
+            audit_id, context.authorization_scope, context.auth_context
+        )
+        return _not_found() if result is None else _finish(context, context.respond(result))
 
     @app.post(
         "/api/exam-venues/{id}/promotion-requests",

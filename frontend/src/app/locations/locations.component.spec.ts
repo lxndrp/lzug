@@ -523,7 +523,7 @@ describe('LocationsComponent', () => {
     harness.submitRoom(venue);
     expect(create).toHaveBeenCalledWith({
       venueId: venue.id,
-      payload: { name: 'B-202', capacity: 18, is_active: true },
+      payload: expect.objectContaining({ name: 'B-202', capacity: 18, is_active: true }),
     } satisfies RoomCreate);
 
     harness.toggleRoom(room);
@@ -539,7 +539,11 @@ describe('LocationsComponent', () => {
     harness.submitRoomUpdate(room);
     expect(update).toHaveBeenLastCalledWith({
       id: room.id,
-      payload: { expected_revision: room.revision, name: 'A-102', capacity: 22 },
+      payload: expect.objectContaining({
+        expected_revision: room.revision,
+        name: 'A-102',
+        capacity: 22,
+      }),
     } satisfies RoomUpdate);
   });
 
@@ -683,5 +687,61 @@ describe('LocationsComponent', () => {
     expect(harness.editingContactId()).toBeNull();
     expect(harness.promotionVenueId()).toBeNull();
     expect(harness.decisionVenueId()).toBeNull();
+  });
+
+  it('shows retryable venue consequences and emits a controlled retry', () => {
+    const venue = {
+      ...masterDataFixture.examVenues[0],
+      capabilities: {
+        ...masterDataFixture.examVenues[0].capabilities,
+        retry_consequences: true,
+      },
+      consequence_problems: [
+        {
+          audit_id: 17,
+          venue_id: 1,
+          entity_type: 'venue' as const,
+          entity_id: 1,
+          consequence_type: 'calendar' as const,
+          status: 'temporarily_failed' as const,
+          attempt_count: 1,
+          error_code: 'calendar_processing_failed',
+          updated_at: '2026-09-02T20:00:00+00:00',
+        },
+      ],
+    };
+    const retry = vi
+      .spyOn(fixture.componentInstance.retryConsequences, 'emit')
+      .mockReturnValue(undefined);
+    fixture.componentRef.setInput('masterData', {
+      ...masterDataFixture,
+      examVenues: [venue],
+    });
+    fixture.componentRef.setInput('detailVenueId', venue.id);
+    fixture.detectChanges();
+
+    const button = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+    ).find((candidate) => candidate.textContent?.includes('Erneut versuchen'));
+    expect(button).toBeTruthy();
+    button?.click();
+    expect(retry).toHaveBeenCalledWith(17);
+
+    fixture.componentRef.setInput('masterData', {
+      ...masterDataFixture,
+      examVenues: [
+        {
+          ...venue,
+          capabilities: { ...venue.capabilities, retry_consequences: false },
+        },
+      ],
+    });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Folgen unvollständig');
+    expect(
+      Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+      ).some((candidate) => candidate.textContent?.includes('Erneut versuchen')),
+    ).toBe(false);
   });
 });

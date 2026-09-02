@@ -100,6 +100,24 @@ erDiagram
   für neue Planungen nicht verwendbar.
   Änderungen an Orten, Räumen und Kontakten schreiben einen append-only
   Auditnachweis und verwenden Revisionsnummern gegen verlorene Updates.
+  Bei bestätigten zukünftigen Einplanungen nennt die Vorprüfung Anzahl,
+  Zeitraum sowie die erwarteten Kalender- und Benachrichtigungsfolgen und
+  verlangt vor dem Speichern eine ausdrückliche Bestätigung.
+  Name, Anschrift, Standort, konkrete Raum- und ausgegebene Auffindungsangaben
+  aktualisieren nur zukünftige persönliche Kalenderereignisse unter ihrer
+  stabilen externen ID.
+  Anschrift, Standort, Eingang, Raum, Auffindung und Barrierefreiheit erzeugen
+  bei bedeutungsrelevanten Änderungen normal priorisierte Hinweise für die
+  betroffenen Mitglieder; Schreibkorrekturen können ausdrücklich als nicht
+  bedeutungsrelevant bestätigt werden.
+  Kontakte, Kartenpositionen, Aktivstatus und Raumkapazität lösen allein keine
+  dieser Folgen aus.
+  Die unveränderliche Orts-Audit-ID ist der idempotente Ursprung persistierter
+  Folgetasks.
+  Fehler rollen die Stammdatenänderung nicht zurück, bleiben für die handelnde
+  Person sowie Vorsitz und Stellvertretung sichtbar und können nur nach einer
+  Aktualitätsprüfung erneut verarbeitet werden.
+  Diese Verarbeitung verändert keine bestätigte Planrevision.
 - Fachlich relevante Korrekturen überschreiben weder Protokolle, Bewertungen,
   Feststellungen noch Abschlussentscheidungen stillschweigend.
 - Individuelle Bewertungen bleiben bis zur vollständigen Eigenbewertung und
@@ -113,7 +131,7 @@ erDiagram
 Die fachliche Bedeutung liegt in den Services und ihren Tests, insbesondere
 unter `backend/planning.py`, `backend/exam_protocols.py`,
 `backend/exam_results.py`, `backend/exam_day_closures.py` und
-`backend/exam_round_lifecycle.py`.
+`backend/exam_round_lifecycle.py` sowie `backend/venue_consequences.py`.
 Ändert sich eine Invariante, müssen Service, Persistenz, HTTP-Vertrag,
 Frontendverhalten und betroffene Tests gemeinsam geprüft werden.
 
@@ -194,8 +212,15 @@ ausschussbezogenen Ort nur während eines offenen Hochstufungsantrags.
 
 Vor dem Anlegen oder Ändern liefert `/api/exam-venues/duplicate-check` ähnliche
 Namen und Anschriften aus dem jeweils sichtbaren Scope.
-Betroffene bestätigte künftige Termine werden über die `change-impact`-Routen
-ermittelt und müssen vor der Mutation ausdrücklich bestätigt werden.
+Betroffene bestätigte künftige Einplanungen werden durch `POST` auf den
+`change-impact`-Routen anhand des konkreten Änderungsentwurfs ermittelt.
+Die Antwort trennt aktualisierte Kalenderereignisse und benachrichtigte
+Mitglieder samt auslösenden Feldgruppen; die Mutation verlangt anschließend
+die ausdrückliche Bestätigung.
+Fehlgeschlagene aktuelle Folgen erscheinen am verwaltbaren Ortsaggregat und
+werden über
+`/api/exam-venue-changes/{audit_id}/consequences/retry` kontrolliert erneut
+angestoßen.
 Ausschussverantwortliche beantragen eine identitätserhaltende Hochstufung über
 `/api/exam-venues/{id}/promotion-requests`; Operatoren entscheiden sie über
 `/api/exam-venue-promotion-requests/{id}/decision`.

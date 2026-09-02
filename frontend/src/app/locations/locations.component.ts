@@ -24,14 +24,19 @@ export type VenueCreate = {
   postal_code: string;
   city: string;
   country: string;
+  site_name?: string | null;
+  entrance?: string | null;
+  travel_directions?: string | null;
   accessibility_status: 'confirmed' | 'needs_clarification';
   is_accessible: boolean | null;
+  accessibility_notes?: string | null;
   is_active: boolean;
   latitude?: number | null;
   longitude?: number | null;
   coordinate_status?: 'missing' | 'needs_review' | 'confirmed';
   coordinate_source?: string | null;
   duplicate_reason?: string;
+  meaningful_change?: boolean;
 };
 export type GeocodeCandidate = {
   venueId: number;
@@ -45,15 +50,41 @@ export type VenueUpdate = {
 };
 export type RoomCreate = {
   venueId: number;
-  payload: { name: string; capacity: number | null; is_active: boolean };
+  payload: {
+    name: string;
+    building?: string | null;
+    wing?: string | null;
+    floor?: string | null;
+    room_number?: string | null;
+    access_notes?: string | null;
+    capacity: number | null;
+    is_active: boolean;
+  };
+};
+export type RoomDraft = {
+  name: string;
+  building?: string | null;
+  wing?: string | null;
+  floor?: string | null;
+  room_number?: string | null;
+  access_notes?: string | null;
+  capacity: number | null;
+  is_active?: boolean;
+  meaningful_change?: boolean;
 };
 export type RoomUpdate = {
   id: number;
   payload: {
     expected_revision: number;
     name?: string;
+    building?: string | null;
+    wing?: string | null;
+    floor?: string | null;
+    room_number?: string | null;
+    access_notes?: string | null;
     capacity?: number | null;
     is_active?: boolean;
+    meaningful_change?: boolean;
   };
 };
 export type ContactCreate = {
@@ -118,6 +149,7 @@ export class LocationsComponent {
     reason: string;
   }>();
   @Output() geocodeVenue = new EventEmitter<ExamVenue>();
+  @Output() retryConsequences = new EventEmitter<number>();
 
   protected readonly creating = signal(false);
   protected readonly editingVenueId = signal<number | null>(null);
@@ -136,8 +168,8 @@ export class LocationsComponent {
   protected promotionReason = '';
   protected decisionReason = '';
   protected readonly draft: VenueCreate = this.emptyVenue();
-  protected roomDraft = { name: '', capacity: null as number | null, is_active: true };
-  protected roomEditDraft = { name: '', capacity: null as number | null };
+  protected roomDraft: RoomDraft = this.emptyRoom(true);
+  protected roomEditDraft: RoomDraft = this.emptyRoom(false);
   protected contactDraft = {
     label: '',
     email: '',
@@ -352,13 +384,18 @@ export class LocationsComponent {
       postal_code: venue.postal_code,
       city: venue.city,
       country: venue.country,
+      site_name: venue.site_name,
+      entrance: venue.entrance,
+      travel_directions: venue.travel_directions,
       accessibility_status: venue.accessibility_status,
       is_accessible: venue.is_accessible === null ? null : Boolean(venue.is_accessible),
+      accessibility_notes: venue.accessibility_notes,
       is_active: Boolean(venue.is_active),
       latitude: venue.latitude,
       longitude: venue.longitude,
       coordinate_status: venue.coordinate_status,
       coordinate_source: venue.coordinate_source,
+      meaningful_change: true,
     };
   }
 
@@ -390,9 +427,10 @@ export class LocationsComponent {
   }
 
   protected submitRoom(venue: ExamVenue): void {
-    const name = this.roomDraft.name.trim();
+    const payload = this.normalizedRoom(this.roomDraft);
+    const name = payload.name;
     if (!name) return;
-    this.createRoom.emit({ venueId: venue.id, payload: { ...this.roomDraft, name } });
+    this.createRoom.emit({ venueId: venue.id, payload: { ...payload, is_active: true } });
   }
 
   protected toggleRoom(room: ExamRoom): void {
@@ -404,18 +442,28 @@ export class LocationsComponent {
 
   protected startEditingRoom(room: ExamRoom): void {
     this.editingRoomId.set(room.id);
-    this.roomEditDraft = { name: room.name, capacity: room.capacity };
+    this.roomEditDraft = {
+      name: room.name,
+      building: room.building,
+      wing: room.wing,
+      floor: room.floor,
+      room_number: room.room_number,
+      access_notes: room.access_notes,
+      capacity: room.capacity,
+      is_active: Boolean(room.is_active),
+      meaningful_change: true,
+    };
   }
 
   protected submitRoomUpdate(room: ExamRoom): void {
-    const name = this.roomEditDraft.name.trim();
+    const payload = this.normalizedRoom(this.roomEditDraft);
+    const name = payload.name;
     if (!name) return;
     this.updateRoom.emit({
       id: room.id,
       payload: {
         expected_revision: room.revision,
-        name,
-        capacity: this.roomEditDraft.capacity,
+        ...payload,
       },
     });
   }
@@ -490,8 +538,8 @@ export class LocationsComponent {
     this.editingContactId.set(null);
     this.promotionVenueId.set(null);
     this.decisionVenueId.set(null);
-    this.roomDraft = { name: '', capacity: null, is_active: true };
-    this.roomEditDraft = { name: '', capacity: null };
+    this.roomDraft = this.emptyRoom(true);
+    this.roomEditDraft = this.emptyRoom(false);
     this.contactDraft = {
       label: '',
       email: '',
@@ -513,6 +561,10 @@ export class LocationsComponent {
       postal_code: source.postal_code.trim(),
       city: source.city.trim(),
       country: source.country.trim(),
+      site_name: source.site_name?.trim() || null,
+      entrance: source.entrance?.trim() || null,
+      travel_directions: source.travel_directions?.trim() || null,
+      accessibility_notes: source.accessibility_notes?.trim() || null,
     };
   }
 
@@ -529,6 +581,37 @@ export class LocationsComponent {
       is_accessible: null,
       is_active: false,
       duplicate_reason: '',
+      site_name: null,
+      entrance: null,
+      travel_directions: null,
+      accessibility_notes: null,
+      meaningful_change: true,
+    };
+  }
+
+  private normalizedRoom(source: RoomDraft): RoomDraft {
+    return {
+      ...source,
+      name: source.name.trim(),
+      building: source.building?.trim() || null,
+      wing: source.wing?.trim() || null,
+      floor: source.floor?.trim() || null,
+      room_number: source.room_number?.trim() || null,
+      access_notes: source.access_notes?.trim() || null,
+    };
+  }
+
+  private emptyRoom(isActive: boolean) {
+    return {
+      name: '',
+      building: null as string | null,
+      wing: null as string | null,
+      floor: null as string | null,
+      room_number: null as string | null,
+      access_notes: null as string | null,
+      capacity: null as number | null,
+      is_active: isActive,
+      meaningful_change: true,
     };
   }
 }

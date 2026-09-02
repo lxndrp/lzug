@@ -897,7 +897,29 @@ export type ExamRoom = {
   capacity: number | null;
   is_active: number;
   revision: number;
+  consequence_warning?: string;
   _links: Record<string, ApiLink>;
+};
+
+export type VenueChangeImpact = {
+  count: number;
+  date_from: string | null;
+  date_to: string | null;
+  requires_confirmation: boolean;
+  calendar: { event_count: number; fields: string[] };
+  notifications: { recipient_count: number; fields: string[] };
+};
+
+export type VenueConsequenceProblem = {
+  audit_id: number;
+  venue_id: number;
+  entity_type: 'venue' | 'room';
+  entity_id: number;
+  consequence_type: 'calendar' | 'notification' | 'derivation';
+  status: 'temporarily_failed' | 'permanently_failed';
+  attempt_count: number;
+  error_code: string | null;
+  updated_at: string;
 };
 
 export type ExamVenueContact = {
@@ -935,8 +957,10 @@ export type ExamVenue = {
   coordinate_source?: string | null;
   is_active: number;
   revision: number;
+  consequence_warning?: string;
   rooms: ExamRoom[];
   contacts: ExamVenueContact[];
+  consequence_problems?: VenueConsequenceProblem[];
   map_provider?: {
     mode: 'off' | 'osm' | 'google';
     attribution?: string;
@@ -944,6 +968,7 @@ export type ExamVenue = {
   };
   capabilities: {
     manage: boolean;
+    retry_consequences?: boolean;
     geocode?: boolean;
     request_promotion: boolean;
     decide_promotion: boolean;
