@@ -76,6 +76,15 @@ COMPONENT_FIELDS = {
 }
 CRITERION_FIELDS = {"key", "label", "raw_min", "raw_max", "weight"}
 EXTERNAL_AREA_FIELDS = {"key", "label", "weight", "required"}
+RULE_FIELDS = {"components", "external_areas", "rounding", "grades", "passing", "quorum"}
+RETENTION_FIELDS = {
+    "version",
+    "period_start",
+    "retain_until",
+    "legal_hold",
+    "hold_reason",
+    "release_reason",
+}
 MODEL_MODES = {"committee", "independent"}
 RESULT_STATES = {"incomplete", "calculation_ready", "determined", "communicated"}
 HISTORY_STATUSES = {"current", "superseded"}
@@ -897,63 +906,21 @@ class ExamResultService:
     def set_retention(
         self, scope: AuthorizationScope, result_id: int, payload: dict[str, Any]
     ) -> dict[str, Any]:
-        allowed_fields = {
-            "version",
-            "period_start",
-            "retain_until",
-            "legal_hold",
-            "hold_reason",
-            "release_reason",
-        }
-        if set(payload) - allowed_fields:
-            raise ValueError("Die Aufbewahrungsregel enthält unzulässige Felder")
+        retention = self._retention_payload(payload)
         expected_version = self._required_result_version(payload)
-        period_start = self._optional_date(payload.get("period_start"), "period_start")
-        retain_until = self._optional_date(payload.get("retain_until"), "retain_until")
-        legal_hold = payload.get("legal_hold", False)
-        if not isinstance(legal_hold, bool):
-            raise ValueError("legal_hold muss ein boolescher Wert sein")
-        hold_reason = self._optional_text(payload.get("hold_reason"), 3000)
-        if legal_hold and hold_reason is None:
-            raise ValueError("Eine Aufbewahrungssperre benötigt eine Begründung")
         with session_scope(self.db_path) as session:
             result = self._required_result(session, result_id)
             actor_id, _participants, can_manage = self._require_access(session, result, scope)
             if actor_id is None or not can_manage:
                 raise PermissionError("Forbidden.")
             _binding, model, _rules = self._model_context(session, result)
-            if retain_until is not None and period_start is None:
-                raise ValueError("Eine Aufbewahrungsfrist benötigt einen Fristbeginn")
-            if period_start is not None:
-                minimum = self._add_years(period_start, model.retention_years)
-                if retain_until is None or retain_until < minimum:
-                    raise ValueError(
-                        "Die regelgebundene Mindestaufbewahrung darf nicht verkürzt werden"
-                    )
             existing = session.scalar(
                 select(ResultRetention).where(ResultRetention.exam_result_id == result.id)
             )
-            if (
-                existing is not None
-                and existing.retain_until is not None
-                and (retain_until is None or retain_until.isoformat() < existing.retain_until)
-            ):
-                raise ValueError("Eine verbindliche Aufbewahrungsfrist darf nicht verkürzt werden")
-            if existing is not None and bool(existing.legal_hold) and not legal_hold:
-                release_reason = self._optional_text(payload.get("release_reason"), 3000)
-                if release_reason is None:
-                    raise ValueError("Das Aufheben einer Sperre benötigt eine Begründung")
-                hold_reason = f"Freigabe: {release_reason}"
-            period_start_text = period_start.isoformat() if period_start else None
-            retain_until_text = retain_until.isoformat() if retain_until else None
-            if (
-                existing is not None
-                and existing.rule_reference == model.retention_rule_reference
-                and existing.period_start == period_start_text
-                and existing.retain_until == retain_until_text
-                and bool(existing.legal_hold) == legal_hold
-                and existing.hold_reason == hold_reason
-            ):
+            self._assert_retention_minimum(retention, model)
+            self._assert_retention_not_shortened(existing, retention)
+            retention["hold_reason"] = self._retention_hold_reason(existing, retention)
+            if self._same_retention(existing, model, retention):
                 return self._view(session, result, scope)
             self._assert_version(result, expected_version)
             day_guards = self._guard_day_mutations(
@@ -970,17 +937,98 @@ class ExamResultService:
                     updated_by_member_id=actor_id,
                 )
                 session.add(existing)
-            existing.rule_reference = model.retention_rule_reference
-            existing.period_start = period_start_text
-            existing.retain_until = retain_until_text
-            existing.legal_hold = int(legal_hold)
-            existing.hold_reason = hold_reason
-            existing.updated_by_member_id = actor_id
-            existing.updated_at = _now()
+            self._apply_retention(existing, model, retention, actor_id)
             self._touch(result)
             session.flush()
             self._complete_day_mutations(session, day_guards, actor_member_id=actor_id)
             return self._view(session, result, scope)
+
+    def _retention_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if set(payload) - RETENTION_FIELDS:
+            raise ValueError("Die Aufbewahrungsregel enthält unzulässige Felder")
+        legal_hold = payload.get("legal_hold", False)
+        if not isinstance(legal_hold, bool):
+            raise ValueError("legal_hold muss ein boolescher Wert sein")
+        hold_reason = self._optional_text(payload.get("hold_reason"), 3000)
+        if legal_hold and hold_reason is None:
+            raise ValueError("Eine Aufbewahrungssperre benötigt eine Begründung")
+        period_start = self._optional_date(payload.get("period_start"), "period_start")
+        retain_until = self._optional_date(payload.get("retain_until"), "retain_until")
+        return {
+            "period_start": period_start,
+            "retain_until": retain_until,
+            "legal_hold": legal_hold,
+            "hold_reason": hold_reason,
+            "release_reason": payload.get("release_reason"),
+        }
+
+    def _assert_retention_minimum(
+        self, retention: dict[str, Any], model: AssessmentModelVersion
+    ) -> None:
+        period_start = retention["period_start"]
+        retain_until = retention["retain_until"]
+        if retain_until is not None and period_start is None:
+            raise ValueError("Eine Aufbewahrungsfrist benötigt einen Fristbeginn")
+        if period_start is None:
+            return
+        minimum = self._add_years(period_start, model.retention_years)
+        if retain_until is None or retain_until < minimum:
+            raise ValueError("Die regelgebundene Mindestaufbewahrung darf nicht verkürzt werden")
+
+    @staticmethod
+    def _assert_retention_not_shortened(
+        existing: ResultRetention | None, retention: dict[str, Any]
+    ) -> None:
+        if existing is None or existing.retain_until is None:
+            return
+        retain_until = retention["retain_until"]
+        if retain_until is None or retain_until.isoformat() < existing.retain_until:
+            raise ValueError("Eine verbindliche Aufbewahrungsfrist darf nicht verkürzt werden")
+
+    def _retention_hold_reason(
+        self, existing: ResultRetention | None, retention: dict[str, Any]
+    ) -> str | None:
+        if existing is None or not existing.legal_hold or retention["legal_hold"]:
+            return retention["hold_reason"]
+        release_reason = self._optional_text(retention["release_reason"], 3000)
+        if release_reason is None:
+            raise ValueError("Das Aufheben einer Sperre benötigt eine Begründung")
+        return f"Freigabe: {release_reason}"
+
+    @staticmethod
+    def _same_retention(
+        existing: ResultRetention | None,
+        model: AssessmentModelVersion,
+        retention: dict[str, Any],
+    ) -> bool:
+        if existing is None:
+            return False
+        period_start = retention["period_start"]
+        retain_until = retention["retain_until"]
+        return (
+            existing.rule_reference == model.retention_rule_reference
+            and existing.period_start == (period_start.isoformat() if period_start else None)
+            and existing.retain_until == (retain_until.isoformat() if retain_until else None)
+            and bool(existing.legal_hold) == retention["legal_hold"]
+            and existing.hold_reason == retention["hold_reason"]
+        )
+
+    @staticmethod
+    def _apply_retention(
+        retention_record: ResultRetention,
+        model: AssessmentModelVersion,
+        retention: dict[str, Any],
+        actor_id: int,
+    ) -> None:
+        period_start = retention["period_start"]
+        retain_until = retention["retain_until"]
+        retention_record.rule_reference = model.retention_rule_reference
+        retention_record.period_start = period_start.isoformat() if period_start else None
+        retention_record.retain_until = retain_until.isoformat() if retain_until else None
+        retention_record.legal_hold = int(retention["legal_hold"])
+        retention_record.hold_reason = retention["hold_reason"]
+        retention_record.updated_by_member_id = actor_id
+        retention_record.updated_at = _now()
 
     # Completion and exports --------------------------------------------------------
 
@@ -1890,89 +1938,105 @@ class ExamResultService:
     def _validate_rules(self, raw: Any) -> dict[str, Any]:
         if not isinstance(raw, dict):
             raise ValueError("rules muss ein Objekt sein")
-        required = {"components", "external_areas", "rounding", "grades", "passing", "quorum"}
-        if set(raw) != required:
+        if set(raw) != RULE_FIELDS:
             raise ValueError("Die Rechenregeln sind unvollständig oder enthalten unbekannte Felder")
-        components = raw["components"]
-        external_areas = raw["external_areas"]
-        if not isinstance(components, list) or not components:
+        normalized_components, component_keys = self._validate_components(raw["components"])
+        normalized_external, external_keys = self._validate_external_areas(
+            raw["external_areas"], component_keys
+        )
+        self._assert_weight_sum(
+            [Decimal(item["weight"]) for item in normalized_components]
+            + [Decimal(item["weight"]) for item in normalized_external],
+            "Komponenten und Prüfungsbereiche",
+        )
+        return {
+            "components": normalized_components,
+            "external_areas": normalized_external,
+            "rounding": self._validate_rounding(raw["rounding"]),
+            "grades": self._validate_grades(raw["grades"]),
+            "passing": self._validate_passing(raw["passing"], component_keys, external_keys),
+            "quorum": self._validate_quorum(raw["quorum"]),
+        }
+
+    def _validate_components(self, raw: Any) -> tuple[list[dict[str, Any]], set[str]]:
+        if not isinstance(raw, list) or not raw:
             raise ValueError("Mindestens eine bewertete Komponente ist erforderlich")
-        if not isinstance(external_areas, list):
-            raise ValueError("external_areas muss eine Liste sein")
         normalized_components = []
         keys: set[str] = set()
-        component_keys: set[str] = set()
-        for component in components:
-            if not isinstance(component, dict) or set(component) != COMPONENT_FIELDS:
-                raise ValueError("Eine Komponente ist unvollständig oder enthält unbekannte Felder")
-            key = self._required_text(component.get("key"), "component key", 100)
+        for component in raw:
+            normalized = self._validate_component(component)
+            key = normalized["key"]
             if key in keys:
                 raise ValueError("Komponentenschlüssel müssen eindeutig sein")
             keys.add(key)
-            component_keys.add(key)
-            mode = component.get("mode")
-            if mode not in MODEL_MODES:
-                raise ValueError("Unbekanntes Bewertungsverfahren")
-            criteria = component.get("criteria")
-            if not isinstance(criteria, list) or not criteria:
-                raise ValueError("Eine Komponente benötigt Kriterien")
-            normalized_criteria = []
-            criterion_keys: set[str] = set()
-            for criterion in criteria:
-                if not isinstance(criterion, dict) or set(criterion) != CRITERION_FIELDS:
-                    raise ValueError(
-                        "Ein Kriterium ist unvollständig oder enthält unbekannte Felder"
-                    )
-                criterion_key = self._required_text(criterion.get("key"), "criterion key", 100)
-                if criterion_key in criterion_keys:
-                    raise ValueError("Kriterienschlüssel müssen eindeutig sein")
-                criterion_keys.add(criterion_key)
-                raw_min = self._decimal(criterion.get("raw_min"), "raw_min")
-                raw_max = self._decimal(criterion.get("raw_max"), "raw_max")
-                if raw_max <= raw_min:
-                    raise ValueError("Eine Rohpunkteskala benötigt ein echtes Intervall")
-                normalized_criteria.append(
-                    {
-                        "key": criterion_key,
-                        "label": self._required_text(criterion.get("label"), "label", 300),
-                        "raw_min": _decimal_text(raw_min),
-                        "raw_max": _decimal_text(raw_max),
-                        "weight": _decimal_text(
-                            self._percentage(criterion.get("weight"), "criterion weight")
-                        ),
-                    }
-                )
-            self._assert_weight_sum(
-                [Decimal(item["weight"]) for item in normalized_criteria], "Kriterien"
-            )
-            required_assessors = self._integer(
-                component.get("required_assessors"), "required_assessors", 1
-            )
-            day_scoped = component.get("day_scoped")
-            additional = component.get("additional_assessor_on_deviation")
-            if not isinstance(day_scoped, bool) or not isinstance(additional, bool):
-                raise ValueError("day_scoped und additional_assessor_on_deviation sind boolesch")
-            max_deviation = self._percentage(
-                component.get("max_deviation"), "max_deviation", allow_zero=True
-            )
-            normalized_components.append(
+            normalized_components.append(normalized)
+        return normalized_components, keys
+
+    def _validate_component(self, raw: Any) -> dict[str, Any]:
+        if not isinstance(raw, dict) or set(raw) != COMPONENT_FIELDS:
+            raise ValueError("Eine Komponente ist unvollständig oder enthält unbekannte Felder")
+        mode = raw.get("mode")
+        if mode not in MODEL_MODES:
+            raise ValueError("Unbekanntes Bewertungsverfahren")
+        day_scoped = raw.get("day_scoped")
+        additional = raw.get("additional_assessor_on_deviation")
+        if not isinstance(day_scoped, bool) or not isinstance(additional, bool):
+            raise ValueError("day_scoped und additional_assessor_on_deviation sind boolesch")
+        return {
+            "key": self._required_text(raw.get("key"), "component key", 100),
+            "label": self._required_text(raw.get("label"), "label", 300),
+            "mode": mode,
+            "weight": _decimal_text(self._percentage(raw.get("weight"), "component weight")),
+            "day_scoped": day_scoped,
+            "required_assessors": self._integer(
+                raw.get("required_assessors"), "required_assessors", 1
+            ),
+            "max_deviation": _decimal_text(
+                self._percentage(raw.get("max_deviation"), "max_deviation", allow_zero=True)
+            ),
+            "additional_assessor_on_deviation": additional,
+            "criteria": self._validate_criteria(raw.get("criteria")),
+        }
+
+    def _validate_criteria(self, raw: Any) -> list[dict[str, Any]]:
+        if not isinstance(raw, list) or not raw:
+            raise ValueError("Eine Komponente benötigt Kriterien")
+        normalized = []
+        keys: set[str] = set()
+        for criterion in raw:
+            if not isinstance(criterion, dict) or set(criterion) != CRITERION_FIELDS:
+                raise ValueError("Ein Kriterium ist unvollständig oder enthält unbekannte Felder")
+            key = self._required_text(criterion.get("key"), "criterion key", 100)
+            if key in keys:
+                raise ValueError("Kriterienschlüssel müssen eindeutig sein")
+            keys.add(key)
+            raw_min = self._decimal(criterion.get("raw_min"), "raw_min")
+            raw_max = self._decimal(criterion.get("raw_max"), "raw_max")
+            if raw_max <= raw_min:
+                raise ValueError("Eine Rohpunkteskala benötigt ein echtes Intervall")
+            normalized.append(
                 {
                     "key": key,
-                    "label": self._required_text(component.get("label"), "label", 300),
-                    "mode": mode,
+                    "label": self._required_text(criterion.get("label"), "label", 300),
+                    "raw_min": _decimal_text(raw_min),
+                    "raw_max": _decimal_text(raw_max),
                     "weight": _decimal_text(
-                        self._percentage(component.get("weight"), "component weight")
+                        self._percentage(criterion.get("weight"), "criterion weight")
                     ),
-                    "day_scoped": day_scoped,
-                    "required_assessors": required_assessors,
-                    "max_deviation": _decimal_text(max_deviation),
-                    "additional_assessor_on_deviation": additional,
-                    "criteria": normalized_criteria,
                 }
             )
+        self._assert_weight_sum([Decimal(item["weight"]) for item in normalized], "Kriterien")
+        return normalized
+
+    def _validate_external_areas(
+        self, raw: Any, occupied_keys: set[str]
+    ) -> tuple[list[dict[str, Any]], set[str]]:
+        if not isinstance(raw, list):
+            raise ValueError("external_areas muss eine Liste sein")
         normalized_external = []
         external_keys: set[str] = set()
-        for area in external_areas:
+        keys = set(occupied_keys)
+        for area in raw:
             if not isinstance(area, dict) or set(area) != EXTERNAL_AREA_FIELDS:
                 raise ValueError("Ein externer Prüfungsbereich ist unvollständig")
             key = self._required_text(area.get("key"), "external area key", 100)
@@ -1993,23 +2057,7 @@ class ExamResultService:
                     "required": required_area,
                 }
             )
-        self._assert_weight_sum(
-            [Decimal(item["weight"]) for item in normalized_components]
-            + [Decimal(item["weight"]) for item in normalized_external],
-            "Komponenten und Prüfungsbereiche",
-        )
-        rounding = self._validate_rounding(raw["rounding"])
-        grades = self._validate_grades(raw["grades"])
-        passing = self._validate_passing(raw["passing"], component_keys, external_keys)
-        quorum = self._validate_quorum(raw["quorum"])
-        return {
-            "components": normalized_components,
-            "external_areas": normalized_external,
-            "rounding": rounding,
-            "grades": grades,
-            "passing": passing,
-            "quorum": quorum,
-        }
+        return normalized_external, external_keys
 
     def _validate_rounding(self, raw: Any) -> dict[str, Any]:
         if not isinstance(raw, dict) or set(raw) != {
