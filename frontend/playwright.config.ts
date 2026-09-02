@@ -14,6 +14,10 @@ const frontendPort = portFor('frontend', 40_000);
 const backendUrl = `http://127.0.0.1:${backendPort}`;
 const frontendUrl = `http://127.0.0.1:${frontendPort}`;
 const productionBuild = process.env.LZUG_E2E_PRODUCTION_BUILD === 'true';
+const browserChannel = process.env.PLAYWRIGHT_BROWSER_CHANNEL;
+if (browserChannel !== undefined && browserChannel !== 'chrome') {
+  throw new Error(`Unsupported Playwright browser channel: ${browserChannel}`);
+}
 
 export default defineConfig({
   testDir: './e2e',
@@ -29,6 +33,7 @@ export default defineConfig({
     video: 'retain-on-failure',
     launchOptions: { chromiumSandbox: true },
     ...devices['Desktop Chrome'],
+    ...(browserChannel === 'chrome' ? { channel: browserChannel } : {}),
   },
   webServer: productionBuild
     ? [
