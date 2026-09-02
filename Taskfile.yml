@@ -101,12 +101,13 @@ tasks:
   test:operator:
     desc: Run Go operator CLI contract tests
     cmds:
-      - go test ./cmd/lzug-admin
+      - go test ./cmd/... ./internal/...
 
   docs:
     desc: Build the local handbook and generated code references
     cmds:
       - task: docs:check
+      - task: docs:cli
       - task: docs:handbook
       - task: docs:frontend
 
@@ -114,6 +115,12 @@ tasks:
     desc: Check project-specific documentation structure contracts
     cmds:
       - python3 -m scripts.check_documentation
+
+  docs:cli:
+    desc: Verify the generated operator CLI reference
+    internal: true
+    cmds:
+      - go run ./cmd/lzug-admin-reference --check docs/developers/reference/cli.md
 
   docs:publication:
     desc: Build the complete static GitHub Pages artifact without deploying it
@@ -275,6 +282,7 @@ tasks:
     desc: Run Go operator CLI tests and verify reproducible GoReleaser archives
     cmds:
       - task: test:operator
+      - go vet ./cmd/... ./internal/...
       - goreleaser check
       - |
         set -eu

@@ -60,6 +60,7 @@ EDITORIAL_DEVELOPER_FILES = {
 }
 GENERATED_REFERENCE_FILES = {
     Path("reference/backend.md"),
+    Path("reference/cli.md"),
     Path("reference/frontend.md"),
     Path("reference/full-export-v1.schema.json"),
 }

@@ -82,6 +82,7 @@ class DocumentationContractTests(unittest.TestCase):
             (decisions / "index.md").write_text("# Decisions\n", encoding="utf-8")
             (decisions / "TEMPLATE.md").write_text("# Template\n", encoding="utf-8")
             (reference / "backend.md").write_text("# Backend\n", encoding="utf-8")
+            (reference / "cli.md").write_text("# CLI\n", encoding="utf-8")
             (reference / "frontend.md").write_text("# Frontend\n", encoding="utf-8")
             (reference / "full-export-v1.schema.json").write_text("{}\n", encoding="utf-8")
             (developers / "legacy.md").write_text("# Legacy\n", encoding="utf-8")

@@ -1,0 +1,627 @@
+# `lzug-admin`-Befehlsreferenz
+
+<!-- Generated from internal/admincli registry metadata. Do not edit directly. -->
+
+Diese technische Referenz wird aus derselben statischen Registry wie Hilfe und Completion erzeugt.
+Die handgeschriebenen Betriebsabläufe bleiben im Administrationshandbuch.
+
+## Globale Optionen
+
+| Option | Bedeutung | Werte/Standard |
+| --- | --- | --- |
+| `--engine ENGINE` | Container engine: auto, docker, or podman. | auto, docker, podman; Standard: auto |
+| `--container NAME` | Exact running container name. | - |
+| `--config FILE` | Read this explicit non-secret JSON configuration file. | - |
+| `--no-config` | Do not read a configuration file. | - |
+| `--json` | Write exactly one machine-readable result object to stdout. | - |
+| `--verbose` | Write additional secret-free diagnostics to stderr. | - |
+| `--force` | Skip an ordinary destructive-operation prompt. | - |
+| `--help` | Globale oder kontextbezogene Hilfe ausgeben. | - |
+| `--version` | CLI-Version ausgeben. | - |
+| `--build-metadata` | Kanonische Build-Metadaten als JSON ausgeben. | - |
+
+Konfigurierbar sind nur Engine und Containername.
+Die Priorität lautet Flag vor Umgebungsvariable vor optionaler JSON-Datei vor Standardwert.
+
+## Konfiguration und sichere Eingabe
+
+Die Umgebungsvariablen `LZUG_ADMIN_ENGINE` und `LZUG_ADMIN_CONTAINER` sind die einzigen von der CLI ausgewerteten Konfigurationswerte.
+Ohne `--config` sucht die CLI plattformgerecht unter dem durch `os.UserConfigDir` bestimmten Verzeichnis nach `lzug/admin.json`; eine fehlende Standarddatei ist zulässig.
+Eine explizite fehlende oder ungültige Datei ist ein Konfigurationsfehler, und `--no-config` unterbindet jeden Dateizugriff.
+
+```json
+{"engine":"podman","container":"lzug"}
+```
+
+Andere Dateischlüssel sowie Umgebungsvariablen für Secrets, Bestätigungen oder Ausgabepräferenzen werden abgewiesen.
+Einmaltoken und private Empfängerschlüssel besitzen keine CLI-Option und werden ausschließlich als einzelne Eingabe über `stdin` gelesen; am TTY bleibt die Eingabe ohne Echo.
+
+## Ausgabe, Fehler und Bestätigung
+
+Human-Ausgabe ist der Standard und bleibt bei einem vollständig spezifizierten erfolgreichen Vorgang grundsätzlich leer.
+Erforderliche Einmalwerte und ausdrücklich abgefragte Diagnose erscheinen auf `stdout`; Fehler, Warnungen, Rückfragen und `--verbose`-Diagnose erscheinen auf `stderr`.
+`--json` liefert bei Erfolg und Fehler genau ein Objekt mit `schema_version`, `protocol_version`, `ok`, `exit_code`, `command` und einem zulässigen `result` oder `error`.
+Rohe Engine-Ausgabe, interne Backendtexte und nicht deklarierte Ergebnisfelder werden nicht weitergereicht.
+
+| Exit Code | Bedeutung |
+| --- | --- |
+| `0` | Erfolg |
+| `1` | Unerwarteter lokaler Fehler |
+| `2` | Ungültiger Aufruf oder ungültige CLI-Eingabe |
+| `10-19` | Lokale Umgebung oder Transport |
+| `20-39` | Kontrollierter Backend-, Sicherheits-, Betriebs- oder Fachkonflikt |
+| `40-49` | Versions- oder Protokollinkompatibilität |
+| `130` | Abbruch durch `Ctrl+C` |
+
+Gewöhnlich destruktive Commands fragen an einem TTY konkret nach und benötigen ohne TTY `--force`.
+Als Danger Zone markierte semantische Flags bleiben davon unabhängig und werden durch `--force`, `--json` oder `--verbose` nie gesetzt.
+
+## Commands
+
+### `lzug-admin account bootstrap`
+
+Bootstrap an empty installation and issue its one-time invitation token.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--email EMAIL` | Account email address. | Pflicht |
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Prints the issued one-time token; JSON includes the validated backend result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug account bootstrap --email operator@example.invalid
+```
+
+### `lzug-admin account consume-invitation`
+
+Read one invitation token from standard input and consume it through the local administration boundary.
+
+Sichere Eingabe: One-time token read only from standard input.
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Successful human output is silent; JSON includes the account result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+printf 'TOKEN' | lzug-admin --container lzug account consume-invitation
+```
+
+### `lzug-admin account consume-recovery`
+
+Read one recovery token from standard input and consume it through the local administration boundary.
+
+Sichere Eingabe: One-time token read only from standard input.
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Successful human output is silent; JSON includes the account result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+printf 'TOKEN' | lzug-admin --container lzug account consume-recovery
+```
+
+### `lzug-admin account disable`
+
+Disable one account and revoke its active sessions.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--account-id ID` | Positive account identifier. | Pflicht |
+
+Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Successful human output is silent; JSON includes account and revocation details.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug account disable --account-id 7 --force
+```
+
+### `lzug-admin account invite`
+
+Create or reuse an eligible account invitation and print its one-time token.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--email EMAIL` | Account email address. | Pflicht |
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Prints the issued one-time token; JSON includes the validated backend result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug account invite --email member@example.invalid
+```
+
+### `lzug-admin account recover`
+
+Select exactly one account by identifier or email and issue a one-time recovery token.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--account-id ID` | Positive account identifier. | optional |
+| `--email EMAIL` | Account email address. | optional |
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Prints the issued one-time token; JSON includes the validated backend result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug account recover --account-id 7
+lzug-admin --container lzug account recover --email member@example.invalid
+```
+
+### `lzug-admin backup create`
+
+Create a consistent protected backup through the versioned local administration boundary.
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Prints the created artifact name; JSON includes the validated artifact result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug backup create
+```
+
+### `lzug-admin backup restore`
+
+Restore a complete protected backup after validation. Replacing non-empty state also requires --replace.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--artifact NAME` | Protected artifact name inside the application data area. | Pflicht |
+| `--replace` | Confirm replacement of a non-empty installation. | optional; Standard: false; separate Danger-Zone-Bestätigung |
+
+Sichere Eingabe: Private recipient key read only from standard input.
+
+Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Successful human output is silent; JSON includes the validated restore result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+printf 'PRIVATE_KEY' | lzug-admin --container lzug backup restore --artifact backup.lzug --force
+printf 'PRIVATE_KEY' | lzug-admin --container lzug backup restore --artifact backup.lzug --replace --force
+```
+
+### `lzug-admin backup verify`
+
+Verify integrity, decryptability, and backup structure without changing the installation.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--artifact NAME` | Protected artifact name inside the application data area. | Pflicht |
+
+Sichere Eingabe: Private recipient key read only from standard input.
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Successful human output is silent; JSON includes the validated verification result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+printf 'PRIVATE_KEY' | lzug-admin --container lzug backup verify --artifact backup.lzug
+```
+
+### `lzug-admin cli`
+
+The registry entry reserves the shared interactive entry point for issue #570; this release does not implement an interactive user interface.
+
+Transport: lokale Ausführung ohne Container-Auftrag.
+
+Ausgabe: Returns a stable unavailable-command error until the interactive mode is implemented.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin cli
+```
+
+### `lzug-admin committee bootstrap`
+
+Create one committee, select its initial chair and optional deputy, and issue any required invitations atomically.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--idempotency-key KEY` | Unique retry key with at least eight safe characters. | Pflicht |
+| `--name NAME` | Committee name. | Pflicht |
+| `--ihk NAME` | Responsible chamber of commerce. | Pflicht |
+| `--occupation NAME` | Training occupation. | Pflicht |
+| `--chair-existing-email EMAIL` | Chair existing person email. | optional |
+| `--chair-first-name NAME` | Chair new person first name. | optional |
+| `--chair-last-name NAME` | Chair new person last name. | optional |
+| `--chair-email EMAIL` | Chair new person email. | optional |
+| `--chair-mobile NUMBER` | Chair optional new person mobile number. | optional |
+| `--chair-member-status STATUS` | Chair membership status. | optional |
+| `--chair-representing-side SIDE` | Chair represented side. | optional |
+| `--deputy-existing-email EMAIL` | Deputy chair existing person email. | optional |
+| `--deputy-first-name NAME` | Deputy chair new person first name. | optional |
+| `--deputy-last-name NAME` | Deputy chair new person last name. | optional |
+| `--deputy-email EMAIL` | Deputy chair new person email. | optional |
+| `--deputy-mobile NUMBER` | Deputy chair optional new person mobile number. | optional |
+| `--deputy-member-status STATUS` | Deputy chair membership status. | optional |
+| `--deputy-representing-side SIDE` | Deputy chair represented side. | optional |
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Prints newly issued one-time invitation tokens; JSON includes the technical bootstrap result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug committee bootstrap --idempotency-key bootstrap-001 --name 'PA Nord' --ihk 'IHK Teststadt' --occupation 'Fachinformatiker/in' --chair-existing-email chair@example.invalid --chair-member-status ordinary --chair-representing-side employer
+```
+
+### `lzug-admin committee complete`
+
+Complete one imported committee with its chair and optional deputy using an idempotent administration request.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--idempotency-key KEY` | Unique retry key with at least eight safe characters. | Pflicht |
+| `--committee-id ID` | Positive committee identifier. | Pflicht |
+| `--chair-existing-email EMAIL` | Chair existing person email. | optional |
+| `--chair-first-name NAME` | Chair new person first name. | optional |
+| `--chair-last-name NAME` | Chair new person last name. | optional |
+| `--chair-email EMAIL` | Chair new person email. | optional |
+| `--chair-mobile NUMBER` | Chair optional new person mobile number. | optional |
+| `--chair-member-status STATUS` | Chair membership status. | optional |
+| `--chair-representing-side SIDE` | Chair represented side. | optional |
+| `--deputy-existing-email EMAIL` | Deputy chair existing person email. | optional |
+| `--deputy-first-name NAME` | Deputy chair new person first name. | optional |
+| `--deputy-last-name NAME` | Deputy chair new person last name. | optional |
+| `--deputy-email EMAIL` | Deputy chair new person email. | optional |
+| `--deputy-mobile NUMBER` | Deputy chair optional new person mobile number. | optional |
+| `--deputy-member-status STATUS` | Deputy chair membership status. | optional |
+| `--deputy-representing-side SIDE` | Deputy chair represented side. | optional |
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Prints newly issued one-time invitation tokens; JSON includes the technical completion result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug committee complete --idempotency-key complete-001 --committee-id 7 --chair-existing-email chair@example.invalid --chair-member-status ordinary --chair-representing-side employer
+```
+
+### `lzug-admin committee deactivate`
+
+Deactivate one committee with an idempotent, reasoned administration request.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--idempotency-key KEY` | Unique retry key with at least eight safe characters. | Pflicht |
+| `--committee-id ID` | Positive committee identifier. | Pflicht |
+| `--reason TEXT` | Required lifecycle reason. | Pflicht |
+
+Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Successful human output is silent; JSON includes the technical lifecycle result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug committee deactivate --idempotency-key deactivate-001 --committee-id 7 --reason 'Operator decision' --force
+```
+
+### `lzug-admin committee reactivate`
+
+Reactivate one committee with an idempotent, reasoned administration request.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--idempotency-key KEY` | Unique retry key with at least eight safe characters. | Pflicht |
+| `--committee-id ID` | Positive committee identifier. | Pflicht |
+| `--reason TEXT` | Required lifecycle reason. | Pflicht |
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Successful human output is silent; JSON includes the technical lifecycle result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug committee reactivate --idempotency-key reactivate-001 --committee-id 7 --reason 'Operator decision'
+```
+
+### `lzug-admin committee reinvite`
+
+Reissue an invitation for one committee account through an idempotent administration request.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--idempotency-key KEY` | Unique retry key with at least eight safe characters. | Pflicht |
+| `--committee-id ID` | Positive committee identifier. | Pflicht |
+| `--email EMAIL` | Eligible committee account email address. | Pflicht |
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Prints the newly issued one-time invitation token; JSON includes the technical result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug committee reinvite --idempotency-key reinvite-001 --committee-id 7 --email member@example.invalid
+```
+
+### `lzug-admin completion bash`
+
+Print an installable bash completion script derived only from static registry metadata.
+
+Transport: lokale Ausführung ohne Container-Auftrag.
+
+Ausgabe: Prints the generated script; JSON returns the script as a string.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin completion bash > lzug-admin.bash
+```
+
+### `lzug-admin completion fish`
+
+Print an installable fish completion script derived only from static registry metadata.
+
+Transport: lokale Ausführung ohne Container-Auftrag.
+
+Ausgabe: Prints the generated script; JSON returns the script as a string.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin completion fish > lzug-admin.fish
+```
+
+### `lzug-admin completion powershell`
+
+Print an installable powershell completion script derived only from static registry metadata.
+
+Transport: lokale Ausführung ohne Container-Auftrag.
+
+Ausgabe: Prints the generated script; JSON returns the script as a string.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin completion powershell > lzug-admin.ps1
+```
+
+### `lzug-admin completion zsh`
+
+Print an installable zsh completion script derived only from static registry metadata.
+
+Transport: lokale Ausführung ohne Container-Auftrag.
+
+Ausgabe: Prints the generated script; JSON returns the script as a string.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin completion zsh > lzug-admin.zsh
+```
+
+### `lzug-admin config inspect`
+
+Show the effective engine and container together with their flag, environment, file, or default source. No configuration is changed.
+
+Transport: lokale Ausführung ohne Container-Auftrag.
+
+Ausgabe: Prints effective non-secret values and their source; JSON exposes the same fields.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin config inspect
+lzug-admin --no-config --engine podman --container lzug config inspect --json
+```
+
+### `lzug-admin export create`
+
+Create a protected full export for an explicitly supplied public recipient key.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--recipient-public-key KEY` | Public recipient key for the protected export. | Pflicht |
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Prints the created artifact name; JSON includes the validated artifact result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug export create --recipient-public-key PUBLIC_KEY
+```
+
+### `lzug-admin export verify`
+
+Verify integrity, decryptability, and full-export structure without changing the installation.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--artifact NAME` | Protected artifact name inside the application data area. | Pflicht |
+
+Sichere Eingabe: Private recipient key read only from standard input.
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Successful human output is silent; JSON includes the validated verification result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+printf 'PRIVATE_KEY' | lzug-admin --container lzug export verify --artifact export.lzug
+```
+
+### `lzug-admin notification process`
+
+Process due notification deliveries and confirmed-plan consequences without returning message content.
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Successful human output is silent; JSON includes technical counters only.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug notification process
+```
+
+### `lzug-admin notification test`
+
+Run a technical synthetic delivery for one committee member without returning message content.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--member-id ID` | Positive committee member identifier. | Pflicht |
+| `--channel CHANNEL` | Notification channel. | Pflicht |
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Successful human output is silent; JSON includes synthetic technical delivery details.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug notification test --member-id 7 --channel web_push
+```
+
+### `lzug-admin plan-consequence retry`
+
+Retry eligible technical follow-up work for one confirmed plan revision without exposing business content.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--revision-id ID` | Positive confirmed plan revision identifier. | Pflicht |
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Successful human output is silent; JSON includes technical counters only.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug plan-consequence retry --revision-id 17
+```
+
+### `lzug-admin plan-consequence status`
+
+Inspect technical follow-up states for one confirmed plan revision without exposing business content.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--revision-id ID` | Positive confirmed plan revision identifier. | Pflicht |
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Prints a technical status summary; JSON includes the validated technical result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug plan-consequence status --revision-id 17
+```
+
+### `lzug-admin system config`
+
+Validate the runtime's secret-free configuration contract. The backend receives no operator secrets or business data.
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Prints a secret-free status and check summary; JSON includes the validated diagnostic result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug system config
+```
+
+### `lzug-admin system doctor`
+
+Run runtime, schema, persistence, storage, and readiness diagnostics. The backend receives no operator secrets or business data.
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Prints a secret-free status and check summary; JSON includes the validated diagnostic result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug system doctor
+```
+
+### `lzug-admin system status`
+
+Inspect runtime identity and application readiness. The backend receives no operator secrets or business data.
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Prints a secret-free status and check summary; JSON includes the validated diagnostic result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug system status
+```
+
+### `lzug-admin upgrade apply`
+
+Verify CLI and container release identity, create and verify a safety backup, and apply supported migrations in a maintenance container.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--confirm-irreversible` | Confirm pending irreversible migrations when the backend requires it. | optional; Standard: false; separate Danger-Zone-Bestätigung |
+
+Sichere Eingabe: Private recipient key read only from standard input.
+
+Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Successful human output is silent; JSON includes the validated lifecycle result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+printf 'PRIVATE_KEY' | lzug-admin --container lzug-maintenance upgrade apply --force
+printf 'PRIVATE_KEY' | lzug-admin --container lzug-maintenance upgrade apply --confirm-irreversible --force
+```
+
+### `lzug-admin upgrade rollback`
+
+Verify CLI and container release identity and evaluate rollback eligibility without mutating the installation.
+
+Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Ausgabe: Successful human output is silent; JSON includes the validated rollback result.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug-maintenance upgrade rollback
+```
+
+## Migration der alten Syntax
+
+Die alten flachen Formen sind keine Aliase und werden als ungültiger Aufruf abgewiesen.
+
+| Alte Form bis v0.6.x | Neue Form ab v0.7.0 |
+| --- | --- |
+| `lzug-admin artifact-verify (backup artifact)` | `lzug-admin backup verify` |
+| `lzug-admin artifact-verify (full-export artifact)` | `lzug-admin export verify` |
+| `lzug-admin backup-create` | `lzug-admin backup create` |
+| `lzug-admin backup-restore` | `lzug-admin backup restore` |
+| `lzug-admin bootstrap` | `lzug-admin account bootstrap` |
+| `lzug-admin committee-bootstrap` | `lzug-admin committee bootstrap` |
+| `lzug-admin committee-complete` | `lzug-admin committee complete` |
+| `lzug-admin committee-deactivate` | `lzug-admin committee deactivate` |
+| `lzug-admin committee-reactivate` | `lzug-admin committee reactivate` |
+| `lzug-admin committee-reinvite` | `lzug-admin committee reinvite` |
+| `lzug-admin config` | `lzug-admin system config` |
+| `lzug-admin consume-invitation` | `lzug-admin account consume-invitation` |
+| `lzug-admin consume-recovery` | `lzug-admin account consume-recovery` |
+| `lzug-admin disable` | `lzug-admin account disable` |
+| `lzug-admin doctor` | `lzug-admin system doctor` |
+| `lzug-admin full-export` | `lzug-admin export create` |
+| `lzug-admin invite` | `lzug-admin account invite` |
+| `lzug-admin plan-consequences-status` | `lzug-admin plan-consequence status` |
+| `lzug-admin process-notifications` | `lzug-admin notification process` |
+| `lzug-admin recover` | `lzug-admin account recover` |
+| `lzug-admin retry-plan-consequences` | `lzug-admin plan-consequence retry` |
+| `lzug-admin rollback` | `lzug-admin upgrade rollback` |
+| `lzug-admin status` | `lzug-admin system status` |
+| `lzug-admin test-notification` | `lzug-admin notification test` |
+| `lzug-admin upgrade` | `lzug-admin upgrade apply` |

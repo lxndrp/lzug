@@ -50,6 +50,7 @@ jobs:
               - 'mkdocs.yml'
               - 'README.md'
               - 'CHANGELOG.md'
+              - 'THIRD_PARTY_NOTICES.md'
               - 'frontend/**/*.md'
               - 'frontend/THIRD_PARTY_NOTICES.md'
             backend:
@@ -63,7 +64,12 @@ jobs:
               - '!frontend/THIRD_PARTY_NOTICES.md'
             cli:
               - 'cmd/lzug-admin/**'
+              - 'cmd/lzug-admin-reference/**'
+              - 'internal/admincli/**'
               - '.goreleaser.yml'
+              - 'go.mod'
+              - 'go.sum'
+              - 'THIRD_PARTY_NOTICES.md'
             infra:
               - 'infra/**'
             container:
@@ -100,6 +106,7 @@ jobs:
               - 'frontend/package.json'
               - 'frontend/package-lock.json'
               - 'go.mod'
+              - 'go.sum'
               - 'scripts/**'
 
       - name: Select CodeQL languages
@@ -155,6 +162,7 @@ jobs:
               - '!fixtures/**'
               - '!frontend/**'
               - '!infra/**'
+              - '!internal/admincli/**'
               - '!prototypes/**'
               - '!scripts/**'
               - '!.github/**'
@@ -179,6 +187,7 @@ jobs:
               - '!Taskfile.yml'
               - '!compose.yaml'
               - '!go.mod'
+              - '!go.sum'
               - '!mkdocs.yml'
               - '!pyproject.toml'
               - '!uv.lock'

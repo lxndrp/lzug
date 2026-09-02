@@ -81,8 +81,9 @@ Eine Änderung an Runtime, Lockfile, Toolchain oder Workflow benötigt die
 betroffenen Audits, Builds und Vertragstests und in der Regel den breiten
 Qualitätspfad.
 
-Dependabot prüft uv, npm und GitHub Actions wöchentlich.
-Angular, Taiga UI, Frontend-Linting, Vitest und CodeQL werden in ihren in
+Dependabot prüft Go-Module, uv, npm und GitHub Actions wöchentlich.
+Die Go-Erweiterungsmodule, Angular, Taiga UI, Frontend-Linting, Vitest und
+CodeQL werden in ihren in
 `.github/dependabot.yml` definierten technischen Familien gebündelt;
 Version- und Sicherheitsgruppen bleiben getrennt.
 Eine neue Gruppierungsregel ändert bereits offene Einzel-Pull-Requests nicht

@@ -9,6 +9,58 @@ Versionen folgen [Semantic Versioning](https://semver.org/lang/de/).
 Bei einer Release-Vorbereitung verschiebt ein Maintainer die freizugebenden Einträge in genau einen Abschnitt `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`.
 Der Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Notes und veröffentlicht nur aus dem nach der Environment-Freigabe erzeugten, annotierten SemVer-Tag.
 
+### Changed
+
+- `lzug-admin` verwendet ab v0.7.0 eine statische modulare Registry und den
+  einheitlichen Command-Baum `lzug-admin <objekt> <aktion>`.
+  Hilfe, Shell-Completion und die technische Befehlsreferenz entstehen aus
+  denselben Metadaten; direkte und spätere interaktive Aufrufe verwenden
+  dieselben Validierungen, Backend-Aufträge und Ergebnisdarstellungen.
+- Erfolgreiche Human-Aufrufe bleiben grundsätzlich still und geben nur
+  erforderliche Ergebnisse wie Einmaltoken oder Artefaktnamen auf `stdout` aus.
+  `--verbose` schreibt geheimnisfreie Diagnose nach `stderr`, während `--json`
+  genau ein versioniertes Ergebnisobjekt mit stabilem Exit Code ausgibt.
+- Engine und Containername können als Flag, Umgebungsvariable oder in einer
+  optionalen nicht geheimen JSON-Konfiguration gesetzt werden.
+  Geheimnisse werden ausschließlich über `stdin` und am TTY ohne Echo gelesen.
+  Gewöhnlich destruktive Vorgänge verlangen am Terminal eine Rückfrage oder
+  `--force`; separate Danger-Zone-Bestätigungen werden durch `--force` nie
+  ersetzt.
+
+### Migration der Betreiber-CLI
+
+Die alte flache Syntax entfällt ohne Laufzeit-Aliase.
+Skripte, die das bisherige rohe Backend-JSON ausgewertet haben, verwenden
+zusätzlich `--json` und lesen den neuen Ausgabeumschlag.
+
+| Alte Form bis v0.6.x | Neue Form ab v0.7.0 |
+| --- | --- |
+| `lzug-admin artifact-verify` für ein Backup | `lzug-admin backup verify` |
+| `lzug-admin artifact-verify` für einen Vollexport | `lzug-admin export verify` |
+| `lzug-admin backup-create` | `lzug-admin backup create` |
+| `lzug-admin backup-restore` | `lzug-admin backup restore` |
+| `lzug-admin bootstrap` | `lzug-admin account bootstrap` |
+| `lzug-admin committee-bootstrap` | `lzug-admin committee bootstrap` |
+| `lzug-admin committee-complete` | `lzug-admin committee complete` |
+| `lzug-admin committee-deactivate` | `lzug-admin committee deactivate` |
+| `lzug-admin committee-reactivate` | `lzug-admin committee reactivate` |
+| `lzug-admin committee-reinvite` | `lzug-admin committee reinvite` |
+| `lzug-admin config` | `lzug-admin system config` |
+| `lzug-admin consume-invitation` | `lzug-admin account consume-invitation` |
+| `lzug-admin consume-recovery` | `lzug-admin account consume-recovery` |
+| `lzug-admin disable` | `lzug-admin account disable` |
+| `lzug-admin doctor` | `lzug-admin system doctor` |
+| `lzug-admin full-export` | `lzug-admin export create` |
+| `lzug-admin invite` | `lzug-admin account invite` |
+| `lzug-admin plan-consequences-status` | `lzug-admin plan-consequence status` |
+| `lzug-admin process-notifications` | `lzug-admin notification process` |
+| `lzug-admin recover` | `lzug-admin account recover` |
+| `lzug-admin retry-plan-consequences` | `lzug-admin plan-consequence retry` |
+| `lzug-admin rollback` | `lzug-admin upgrade rollback` |
+| `lzug-admin status` | `lzug-admin system status` |
+| `lzug-admin test-notification` | `lzug-admin notification test` |
+| `lzug-admin upgrade` | `lzug-admin upgrade apply` |
+
 ## [0.6.0] - 2026-08-31
 
 ### Added

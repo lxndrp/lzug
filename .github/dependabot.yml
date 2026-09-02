@@ -1,6 +1,20 @@
 version: 2
 
 updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      golang-x:
+        applies-to: version-updates
+        patterns:
+          - "golang.org/x/*"
+      golang-x-security:
+        applies-to: security-updates
+        patterns:
+          - "golang.org/x/*"
+
   - package-ecosystem: uv
     directory: /
     schedule:
