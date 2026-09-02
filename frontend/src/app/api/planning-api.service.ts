@@ -733,8 +733,14 @@ export class PlanningApiService {
         '/api/candidate-committee-assignments',
       ),
       locations: this.list<Location>('/api/locations'),
-      examVenues: this.list<ExamVenue>('/api/exam-venues'),
-    });
+      examVenueCollection: this.collection<ExamVenue>('/api/exam-venues'),
+    }).pipe(
+      map(({ examVenueCollection, ...masterData }) => ({
+        ...masterData,
+        examVenues: examVenueCollection.items,
+        examVenuesCanCreate: Boolean(examVenueCollection._links['create']),
+      })),
+    );
   }
 
   /**
@@ -973,5 +979,9 @@ export class PlanningApiService {
 
   private list<T>(url: string) {
     return this.http.get<ApiCollection<T>>(url).pipe(map((collection) => collection.items));
+  }
+
+  private collection<T>(url: string) {
+    return this.http.get<ApiCollection<T>>(url);
   }
 }

@@ -139,6 +139,7 @@ export class App {
   protected readonly actionBusy = signal(false);
   protected readonly contextualRoundId = signal<number | null>(null);
   protected readonly contextualDayId = signal<number | null>(null);
+  protected readonly contextualVenueId = signal<number | null>(null);
   protected readonly confirmedPlanEditRoundId = signal<number | null>(null);
   protected readonly applicationVersion = signal<string | null>(null);
   protected readonly feedback = signal<{
@@ -146,6 +147,7 @@ export class App {
     title: string;
     message: string;
   } | null>(null);
+  protected readonly masterDataError = signal(false);
   protected readonly roleSwitchBusy = signal(false);
   protected readonly demoSession = computed(() => {
     const session = this.auth.session();
@@ -166,6 +168,12 @@ export class App {
   protected readonly canReportOwnAbsence = computed(() => this.hasCapability('absence:write-own'));
   protected readonly canEditConfirmedPlan = computed(() =>
     this.hasCapability('confirmed-plan:revise'),
+  );
+  protected readonly canManageVenueCreation = computed(
+    () =>
+      !this.demoSession() &&
+      (this.auth.session()?.is_operator === true ||
+        this.masterData()?.examVenuesCanCreate === true),
   );
   protected readonly canGenerateCandidateDays = computed(
     () =>
@@ -266,6 +274,7 @@ export class App {
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: ({ root, round, summary, board, masterData }) => {
+          this.masterDataError.set(false);
           this.applicationVersion.set(root.version);
           this.round.set(round);
           this.summary.set(summary);
@@ -287,6 +296,7 @@ export class App {
           this.message.set('Daten synchronisiert');
         },
         error: (error: { status?: number }) => {
+          this.masterDataError.set(true);
           if (error.status === 401) {
             this.auth.markAnonymous();
             return;
@@ -366,6 +376,14 @@ export class App {
     this.candidateDayGenerationResult.set(null);
     const area = action.target === 'confirmed-plan' ? 'confirmed-plans' : 'scheduling-overview';
     void this.router.navigateByUrl(`/${area}/${action.id}`);
+  }
+
+  protected openVenue(id: number): void {
+    void this.router.navigateByUrl(`/locations/${id}`);
+  }
+
+  protected closeVenueDetail(): void {
+    void this.router.navigateByUrl('/locations');
   }
 
   protected cancelScheduling(): void {
@@ -1183,6 +1201,7 @@ export class App {
     const roundId = this.roundIdFromUrl(url);
     this.contextualRoundId.set(roundId);
     this.contextualDayId.set(this.dayIdFromUrl(url));
+    this.contextualVenueId.set(this.venueIdFromUrl(url));
     this.confirmedPlanEditRoundId.set(this.confirmedPlanEditIdFromUrl(url));
     if (roundId === null || roundId === this.roundContext.roundId()) {
       return;
@@ -1215,6 +1234,13 @@ export class App {
   private confirmedPlanEditIdFromUrl(url: string): number | null {
     const segments = this.urlSegments(url);
     if (segments[0] !== 'confirmed-plans' || segments[2] !== 'edit') return null;
+    const id = Number(segments[1]);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  }
+
+  private venueIdFromUrl(url: string): number | null {
+    const segments = this.urlSegments(url);
+    if (segments[0] !== 'locations' || !segments[1]) return null;
     const id = Number(segments[1]);
     return Number.isInteger(id) && id > 0 ? id : null;
   }

@@ -16,6 +16,7 @@ export const routes: Routes = [
   { path: 'committee', children: [] },
   { path: 'planning', pathMatch: 'full', redirectTo: 'scheduling-overview' },
   { path: 'locations', children: [] },
+  { path: 'locations/:id', children: [] },
   { path: 'exam-half-years', children: [] },
   { path: 'notifications', children: [] },
   { path: 'absence-reports', children: [] },
