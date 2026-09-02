@@ -1,0 +1,53 @@
+.about-card {
+  display: grid;
+  gap: 1rem;
+  max-inline-size: 48rem;
+  padding: clamp(1.25rem, 4vw, 2rem);
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-lg);
+  background: var(--app-color-surface);
+  box-shadow: var(--app-shadow-subtle);
+}
+
+.about-card h2,
+.about-card p {
+  margin: 0;
+}
+
+.about-card dl {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.about-card dl div {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-color-canvas);
+}
+
+.about-card dt {
+  color: var(--app-color-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.about-card dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.about-notice {
+  padding: 0.875rem 1rem;
+  border-inline-start: 0.25rem solid var(--app-color-info-border);
+  background: var(--app-color-info-soft);
+}
+
+.about-links {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}

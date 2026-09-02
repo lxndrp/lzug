@@ -126,9 +126,6 @@ tasks:
     desc: Build the complete static GitHub Pages artifact without deploying it
     deps:
       - docs:check
-    requires:
-      vars:
-        - WIKI_ROOT
     vars:
       OUTPUT: '{{default "build/publication" .OUTPUT}}'
       DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
@@ -136,7 +133,6 @@ tasks:
     cmds:
       - >-
         {{.UV}} python -m scripts.publication build
-        --wiki-root "{{.WIKI_ROOT}}"
         --typedoc frontend/node_modules/.bin/typedoc
         --base-url "{{.BASE_URL}}"
         --demo-url "{{.DEMO_URL}}"
@@ -146,16 +142,12 @@ tasks:
     desc: Verify that the configured public site builds byte-identically
     deps:
       - docs:check
-    requires:
-      vars:
-        - WIKI_ROOT
     vars:
       DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
       BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
       - >-
         {{.UV}} python -m scripts.publication check
-        --wiki-root "{{.WIKI_ROOT}}"
         --typedoc frontend/node_modules/.bin/typedoc
         --base-url "{{.BASE_URL}}"
         --demo-url "{{.DEMO_URL}}"
@@ -173,16 +165,6 @@ tasks:
       - docs:publication
     cmds:
       - npm --prefix frontend run test:publication:a11y
-
-  wiki:check:
-    desc: Check a local Wiki checkout before manually publishing it
-    cmds:
-      - test -n "${WIKI_ROOT:-}" || { echo "set WIKI_ROOT to a local Wiki checkout"; exit 1; }
-      - python3 -m scripts.check_wiki "$WIKI_ROOT"
-      - >-
-        docker run --rm --user "$(id -u):$(id -g)"
-        -v "$WIKI_ROOT:/wiki:ro" -w /wiki lycheeverse/lychee:0.24.2
-        --fallback-extensions md --no-progress '*.md'
 
   quality:
     desc: Run the complete local quality assurance suite in parallel
@@ -227,6 +209,7 @@ tasks:
     desc: Verify synthetic fixture adapters match their canonical source
     cmds:
       - python3 scripts/generate_synthetic_fixtures.py --check
+      - python3 scripts/check_demo_media.py
 
   quality:infra:
     desc: Format, validate, and mock-plan the public demo infrastructure without cloud access

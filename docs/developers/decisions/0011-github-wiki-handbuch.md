@@ -7,7 +7,7 @@
 ## Status
 
 Akzeptiert.
-Superseded by: ADR-0012.
+Superseded by: ADR-0032.
 
 ## Kontext
 

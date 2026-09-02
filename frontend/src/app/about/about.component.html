@@ -1,0 +1,50 @@
+<section class="about-card" aria-labelledby="about-title">
+  <p class="app-eyebrow">Über lzug</p>
+  <h2 id="about-title">Prüfungsorganisation, die gemeinsam trägt</h2>
+  <p>
+    lzug unterstützt Prüfungsausschüsse bei der Planung, Durchführung und nachvollziehbaren
+    Abstimmung halbjährlicher Fachinformatiker-Prüfungen.
+  </p>
+  <dl>
+    <div>
+      <dt>Build</dt>
+      <dd>{{ version ?? 'Build-Identität wird geladen' }}</dd>
+    </div>
+    @if (demo) {
+      <div>
+        <dt>Demo-Stand</dt>
+        <dd>{{ demoMatrixVersion ?? 'synthetischer Demo-Arbeitsstand' }}</dd>
+      </div>
+    }
+  </dl>
+  @if (demo) {
+    <p class="about-notice">
+      Diese öffentliche Demo ist flüchtig und enthält ausschließlich synthetische Daten. Sie ist
+      keine Produktivinstanz.
+    </p>
+  }
+  <div class="about-links" aria-label="Produktinformationen und Kontakte">
+    <a tuiButton appearance="secondary" href="https://lzug.repertoire.papaspyrou.name/produkt/">
+      Dokumentation öffnen
+    </a>
+    <a tuiButton appearance="secondary" href="https://github.com/lxndrp/lzug">Quellcode</a>
+    <a tuiButton appearance="secondary" href="https://github.com/lxndrp/lzug/blob/master/LICENSE">
+      AGPL-3.0-or-later
+    </a>
+    <a tuiButton appearance="secondary" href="https://github.com/lxndrp/lzug/issues/new/choose">
+      Projektsupport
+    </a>
+    <a
+      tuiButton
+      appearance="secondary"
+      href="https://github.com/lxndrp/lzug/security/advisories/new"
+    >
+      Sicherheitslücke vertraulich melden
+    </a>
+  </div>
+  <p class="app-muted">
+    Selbst betriebene Instanzen verwenden zuerst den lokalen Betreiberkontakt. Fehlt er, entsteht
+    kein zentraler Supportanspruch. Öffentliche rechtliche Hinweise für die Demo bleiben der
+    separaten Freigabe vorbehalten.
+  </p>
+</section>

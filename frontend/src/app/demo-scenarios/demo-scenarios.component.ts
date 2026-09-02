@@ -7,10 +7,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DemoRole, DemoScenario, DemoScenarioOverview } from '../api/api.models';
 import { PlanningApiService } from '../api/planning-api.service';
 import { AuthService } from '../auth/auth.service';
+import { DemoTourComponent } from './demo-tour.component';
 
 @Component({
   selector: 'app-demo-scenarios',
-  imports: [TuiButton, TuiNotification],
+  imports: [DemoTourComponent, TuiButton, TuiNotification],
   templateUrl: './demo-scenarios.component.html',
   styleUrl: './demo-scenarios.component.css',
 })

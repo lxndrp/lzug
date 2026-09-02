@@ -1,0 +1,24 @@
+{
+  "fixture_catalog_version": 3,
+  "fixture_catalog_revision": "athens-theater-venues-v3",
+  "demo_matrix_version": "demo-paths-v8",
+  "capture": {
+    "viewport": { "width": 1440, "height": 1024 },
+    "theme": "light",
+    "role": "chair",
+    "network": "masked-osm"
+  },
+  "screenshots": [
+    {
+      "id": "demo-scenarios",
+      "path": "/demo-scenarios",
+      "alt": "Synthetischer Demo-Arbeitsstand mit Rollen und Szenarien"
+    },
+    {
+      "id": "demo-mobile-context",
+      "path": "/dashboard",
+      "viewport": { "width": 390, "height": 844 },
+      "alt": "Mobiler Arbeitskontext einer synthetischen Prüfungsrunde"
+    }
+  ]
+}

@@ -271,7 +271,7 @@ Persistenzprobleme, Artefakt- und Schlüsselbefunde, Inkompatibilität,
 erforderliche Ersetzungs- oder Migrationsbestätigung sowie vollständig
 ausgeführte Diagnosewarnungen und -fehler.
 Die verbindlichen Bedienfolgen stehen ausschließlich im
-[Administrationshandbuch](https://github.com/lxndrp/lzug/wiki/Administration).
+[Administrationshandbuch](../portal/betreiben.md).
 
 ## Erzeugte Referenzen
 

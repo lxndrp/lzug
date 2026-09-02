@@ -1,0 +1,59 @@
+.demo-tour-offer,
+.demo-tour-dialog {
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-lg);
+  background: var(--app-color-surface);
+  box-shadow: var(--app-shadow-floating);
+}
+
+.demo-tour-offer {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-end: 1rem;
+  padding: 1rem 1.25rem;
+  flex-wrap: wrap;
+}
+
+.demo-tour-offer h2,
+.demo-tour-offer p,
+.demo-tour-dialog h2,
+.demo-tour-dialog p {
+  margin: 0;
+}
+
+.demo-tour-restart {
+  margin-block: 0 1rem;
+}
+
+.demo-tour-backdrop {
+  position: fixed;
+  z-index: 1100;
+  inset: 0;
+  background: rgb(15 23 42 / 54%);
+}
+
+.demo-tour-dialog {
+  position: fixed;
+  z-index: 1101;
+  inset: auto 1rem 1rem auto;
+  display: grid;
+  gap: 1rem;
+  max-inline-size: min(30rem, calc(100vw - 2rem));
+  padding: 1.25rem;
+}
+
+.demo-tour-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: end;
+  flex-wrap: wrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-tour-dialog,
+  .demo-tour-backdrop {
+    transition: none;
+  }
+}

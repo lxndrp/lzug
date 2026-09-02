@@ -2,10 +2,8 @@
 
 [`CONTRIBUTING.md`](https://github.com/lxndrp/lzug/blob/master/CONTRIBUTING.md)
 enthält die verbindlichen Beitragsregeln.
-Das [GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung) führt Menschen
-durch Einrichtung und täglichen Arbeitsprozess.
-Diese Seite bündelt die revisionsgebundenen technischen Einstiege und kopiert
-weder Issue-Prozess noch Wiki-Anleitungen vollständig.
+Diese Seite bündelt die revisionsgebundenen technischen Einstiege,
+Einrichtung, Arbeitsprozess und passende lokale Prüfungen.
 
 ## Toolchain und Einrichtung
 
@@ -160,8 +158,8 @@ an.
 
 Jede Information hat eine primäre Zielgruppe, genau eine Dokumentart und eine
 kanonische Quelle.
-Fachliche, Nutzungs- und Betreiberanleitungen liegen im Wiki; aktuelle
-technische Orientierung in Einstieg plus fünf Kernbereichen; langfristige
+Fachliche, Nutzungs- und Betreiberanleitungen liegen unter `docs/handbook/`
+und `docs/portal/`; aktuelle technische Orientierung in Einstieg plus fünf Kernbereichen; langfristige
 Entscheidungen in ADRs; ausführbare API-, Daten-, Qualitäts- und
 Releaseverträge in Code und deklarativen Quellen.
 
@@ -194,7 +192,7 @@ nicht triviale Typangaben oder eine zweite OpenAPI-Fassung.
 ADR-Register und Ersetzungssemantik, das Verbot eines Ersatzarchivs sowie den
 Ausschluss offensichtlicher Planungs-, Routen- und Schema-Zweitlisten.
 `task docs` ergänzt den strikten MkDocs- und TypeDoc-Build.
-Der öffentliche Referenzaufbau und das Wiki bleiben getrennte Verträge unter
+Der öffentliche Referenzaufbau folgt dem Repository-Vertrag unter
 [Delivery und Veröffentlichung](delivery.md).
 
 ## Review

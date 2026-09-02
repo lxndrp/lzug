@@ -1,5 +1,18 @@
 <div class="app-page-grid">
   <div class="app-page-full">
+    @if (contextualHelp(); as help) {
+      <section class="app-context-help" aria-labelledby="dashboard-help-title">
+        <div>
+          <span class="app-eyebrow">Kontextuelle Hilfe</span>
+          <h2 id="dashboard-help-title">{{ help.title }}</h2>
+          <p>{{ help.text }}</p>
+        </div>
+        <a tuiButton appearance="secondary" [href]="help.href">Passende Hilfe öffnen</a>
+      </section>
+    }
+  </div>
+
+  <div class="app-page-full">
     <section class="app-panel app-dashboard-hero">
       <div class="app-panel-body">
         <div class="app-dashboard-hero-layout">

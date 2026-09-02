@@ -131,7 +131,7 @@ Die unterstützte Referenz ist eine einzelne Self-Hosting-Instanz mit
 persistenter `/data`-Grenze.
 TLS-Terminierung, Host-Härtung, Schlüsselverwahrung, Sicherung und
 Aufbewahrung liegen in Betreiberverantwortung und sind im
-[Wiki](https://github.com/lxndrp/lzug/wiki/Administration) beschrieben.
+[Betreiberanleitung](../portal/betreiben.md) beschrieben.
 Die öffentliche Demo ist eine getrennte flüchtige Azure-Assembly mit
 synthetischem Basisseed und kein Self-Hosting-Muster.
 Ihre Runtime-Policy erzeugt je Besuch eine isolierte SQLite-Arbeitskopie,

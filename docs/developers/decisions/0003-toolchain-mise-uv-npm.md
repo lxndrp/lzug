@@ -22,4 +22,4 @@ Das Frontend verwendet npm mit `frontend/package-lock.json`; pnpm wird nicht ver
 
 ## Konsequenzen
 
-Die lokale Einrichtung erfolgt über `mise install` und `task setup`. CI verwendet dieselben Versionen und Lockfiles. Versionspins in `.mise.toml`, `.python-version` und `.node-version` werden bewusst manuell bewertet. Die konkrete Bedienung steht im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung-Einrichtung) und in [ADR-0009](0009-toolchain-und-entwicklungs-tasks.md). Die lokale Laufzeit ist im GitHub Wiki beschrieben.
+Die lokale Einrichtung erfolgt über `mise install` und `task setup`. CI verwendet dieselben Versionen und Lockfiles. Versionspins in `.mise.toml`, `.python-version` und `.node-version` werden bewusst manuell bewertet. Die konkrete Bedienung steht in [Entwicklung](../development.md) und in [ADR-0009](0009-toolchain-und-entwicklungs-tasks.md).
