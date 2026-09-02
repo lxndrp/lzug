@@ -10,6 +10,7 @@ from pathlib import Path
 from backend.application import ForbiddenRequestError
 from backend.auth import AuthContext, AuthenticationRepository
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler, assert_status
+from demo.artifacts import DemoArtifactError
 from demo.contract import RUNTIME_CONTRACT, canonical_digest, demo_identity
 from demo.runtime_policy import (
     DEMO_MATRIX_VERSION,
@@ -18,6 +19,10 @@ from demo.runtime_policy import (
     DEMO_ROLES,
     ROLE_CAPABILITIES,
     DemoRuntimePolicy,
+)
+from demo.synthetic_fixtures_generated import (
+    FIXTURE_CATALOG_REVISION,
+    FIXTURE_CATALOG_VERSION,
 )
 
 
@@ -31,6 +36,8 @@ class DemoRuntimeTests(unittest.TestCase):
         root = Path(self.directory.name)
         app_manifest = root / "app.json"
         seed_manifest = root / "seed.json"
+        self.app_manifest = app_manifest
+        self.seed_manifest = seed_manifest
         product = demo_identity("v0.1.1", "a" * 40).product
         schema = {"fingerprint": "b" * 64}
         seed_binding = {
@@ -38,6 +45,11 @@ class DemoRuntimeTests(unittest.TestCase):
             "runtime_contract": RUNTIME_CONTRACT,
             "product": product,
             "schema": schema,
+            "fixture_catalog": {
+                "version": FIXTURE_CATALOG_VERSION,
+                "revision": FIXTURE_CATALOG_REVISION,
+                "demo_matrix_version": DEMO_MATRIX_VERSION,
+            },
         }
         self.seed_revision = canonical_digest(seed_binding)
         app_manifest.write_text(
@@ -92,6 +104,8 @@ class DemoRuntimeTests(unittest.TestCase):
             self.assertEqual("2026-08-14T01:00:00+00:00", payload["last_reset_at"])
             self.assertEqual("scheduled", payload["reset_status"])
             self.assertEqual(DEMO_MATRIX_VERSION, payload["demo_matrix_version"])
+            self.assertEqual(FIXTURE_CATALOG_VERSION, payload["fixture_catalog_version"])
+            self.assertEqual(FIXTURE_CATALOG_REVISION, payload["fixture_catalog_revision"])
             self.assertNotIn("snapshot_sha256", payload)
 
             status, created = api.request(
@@ -99,14 +113,14 @@ class DemoRuntimeTests(unittest.TestCase):
             )
             assert_status(status, HTTPStatus.CREATED)
             self.assertEqual("examiner", created["role"])
-            self.assertEqual("Testperson Gamma", created["display_name"])
+            self.assertEqual("Peter Quince", created["display_name"])
 
             status, created = api.request(
                 "POST", "/api/demo/session", {"role": "deputy"}, authenticated=False
             )
             assert_status(status, HTTPStatus.CREATED)
             self.assertEqual("deputy", created["role"])
-            self.assertEqual("Testperson Beta", created["display_name"])
+            self.assertEqual("Hippolyta von Athen", created["display_name"])
 
             status, error = api.request(
                 "POST", "/api/demo/session", {"role": "operator"}, authenticated=False
@@ -172,7 +186,7 @@ class DemoRuntimeTests(unittest.TestCase):
                 "POST",
                 "/api/auth/login",
                 {
-                    "email": "testperson.alpha@example.invalid",
+                    "email": "theseus.athen@demo.lzug.invalid",
                     "password": "x",
                     "second_factor": "x",
                 },
@@ -180,6 +194,18 @@ class DemoRuntimeTests(unittest.TestCase):
             )
             assert_status(status, HTTPStatus.FORBIDDEN)
             self.assertEqual("Forbidden.", error["error"])
+
+    def test_runtime_rejects_a_seed_from_another_fixture_matrix(self) -> None:
+        manifest = json.loads(self.seed_manifest.read_text(encoding="utf-8"))
+        manifest["fixture_catalog"]["demo_matrix_version"] = "demo-paths-stale"
+        binding = {key: value for key, value in manifest.items() if key != "seed_revision"}
+        manifest["seed_revision"] = canonical_digest(binding)
+        self.seed_manifest.write_text(json.dumps(manifest), encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            DemoArtifactError, "fixture catalog does not match the demo matrix"
+        ):
+            DemoRuntimePolicy(self.app_manifest, self.seed_manifest)
 
     def test_default_deny_blocks_unapproved_writes_for_both_roles(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path, DemoTestHandler) as api:

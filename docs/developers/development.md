@@ -101,9 +101,28 @@ nur verifizierte Dependabot-Metadaten gegen das normale Ruleset aus.
 
 `fixtures/synthetic-fixtures.json` ist die kanonische Quelle für gemeinsame
 Demo- und Testidentitäten.
-Sie verwendet ausschließlich nicht zustellbare und eindeutig fiktive Daten.
+Der versionierte Katalog verwendet Figuren und Motive aus William Shakespeares
+„Ein Sommernachtstraum“ und trennt den Hauptausschuss Athen vom Fremdausschuss
+Feenwald.
+Beide Kammern, sämtliche Personen, Kontakte, Orte und Prüfungsvorgänge sind
+ausdrücklich fiktiv.
+Reale Athener Orts- und Kartendaten bleiben bis zur getrennten Umsetzung von
+#572 ausgeschlossen.
+
+Jede sichtbare Entität besitzt einen stabilen Schlüssel unter
+`name.papaspyrou.repertoire.lzug.fixture`.
+Personen, Mitgliedschaften und fachliche Datenbank-IDs bleiben getrennt;
+Lookup und Szenariozuordnung erfolgen über den semantischen Schlüssel.
+Die Abdeckungsmatrix im Katalog weist Vorsitz, Stellvertretung, alle
+Vertreterseiten, reguläre und stellvertretende Mitglieder, Fallback,
+Ersatzperson, Mehrfachmitgliedschaft, Prüflinge, Fremdausschuss sowie positive
+und negative Autorisierungspfade einschließlich der beiden #487-Szenarien aus.
+
+Synthetische E-Mail-Adressen verwenden ausschließlich
+`@demo.lzug.invalid`; Telefonnummern sind nicht belegt.
 `scripts/generate_synthetic_fixtures.py` erzeugt daraus SQL-, Angular- und
-Prototypadapter; generierte Dateien werden nicht direkt bearbeitet.
+Prototypadapter sowie den Python-Adapter für Demo-Rollen und semantische IDs.
+Generierte Dateien werden nicht direkt bearbeitet.
 
 ```sh
 python3 scripts/generate_synthetic_fixtures.py
@@ -112,7 +131,16 @@ task fixtures:check
 
 Der Demo-Artefaktbau ergänzt fachlich gezielte synthetische Zustände für
 Protokoll, Bewertung, Abschluss, Wiederöffnung und Reset.
-Der Driftcheck ist Teil von Pull-Request-Auswahl und `task quality`.
+Katalogversion, Katalogrevision und Demo-Matrixversion sind an das
+inhaltsadressierte Seed-Manifest gebunden; eine unpassende Kombination
+verhindert den Demo-Start.
+Der Driftcheck ist Teil von Pull-Request-Auswahl und `task quality` und weist
+manuelle Änderungen an jedem generierten Adapter zurück.
+Eine Veröffentlichung des geänderten sichtbaren Demo-Inhalts und des daraus
+entstehenden Deployment-Digests setzt die Freigabe des konkreten Stands oder
+eine Delta-Freigabe nach #584 voraus.
+Diese Fixture-Umstellung erteilt selbst keine Freigabe und stößt keinen Release
+an.
 
 ## Dokumentation bearbeiten
 

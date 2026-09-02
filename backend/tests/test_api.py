@@ -10,6 +10,7 @@ from unittest.mock import patch
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler, assert_status
+from demo.synthetic_fixtures_generated import DISPLAY_NAMES, FIXTURE_IDS, FIXTURE_ROOT
 
 
 class StaticTestHandler(TestLzugHandler):
@@ -243,7 +244,9 @@ class ApiTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertEqual("/api/confirmed-plans", calendar["_links"]["self"]["href"])
             plan = calendar["items"][0]
-            self.assertEqual("Prüfungsausschuss Teststadt 1", plan["committee"]["name"])
+            committee_key = f"{FIXTURE_ROOT}.committee.athen"
+            self.assertEqual(FIXTURE_IDS[committee_key]["id"], plan["committee"]["id"])
+            self.assertEqual(DISPLAY_NAMES[committee_key], plan["committee"]["name"])
             self.assertGreaterEqual(len(plan["days"]), 1)
             first_day = plan["days"][0]
             self.assertGreaterEqual(len(first_day["slots"]), 1)

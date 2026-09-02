@@ -38,7 +38,7 @@ E2E-, Preview- und Devcontainer-Umgebungen resetten stattdessen durch Neuerzeugu
 Ein neutraler Runtime-Policy-Erweiterungspunkt bleibt im gemeinsamen Backend.
 Die Produktpolicy verändert das bisherige Verhalten nicht.
 Nur das Demo-Image enthält die Default-Deny-Policy und die öffentlichen Demo-Routen.
-Sie erzeugt 60 Minuten gültige normale Sitzungen für `Testperson Alpha` als Vorsitz oder `Testperson Gamma` als Prüfperson.
+Sie erzeugt 60 Minuten gültige normale Sitzungen für die über semantische Fixture-Schlüssel gebundenen Rollen Vorsitz, Prüfperson und Stellvertretung.
 Fachliche Schreibfunktionen sind serverseitig allowlist-basiert; Lösch-, Konto-, Betreiber- und Stammdatenänderungen bleiben gesperrt.
 Neue Mutationen sind standardmäßig verboten.
 Dokumentuploads werden erst mit einer entsprechenden Fachlichkeit entschieden; ausgehende Benachrichtigungszugänge existieren in der Demo nicht.

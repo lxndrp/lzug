@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { CommitteeComponent } from './committee.component';
-import { masterDataFixture, membersFixture } from '../testing/fixtures';
+import { athenChairMembershipFixture, masterDataFixture } from '../testing/fixtures';
 
 describe('CommitteeComponent', () => {
   let fixture: ComponentFixture<CommitteeComponent>;
@@ -31,10 +31,10 @@ describe('CommitteeComponent', () => {
     const bodies = element.querySelectorAll('tbody');
     const members = bodies.item(bodies.length - 1).textContent ?? '';
 
-    expect(element.textContent).toContain('Prüfungsausschuss Teststadt 1');
-    expect(members).toContain('Testperson Alpha');
-    expect(members).toContain('Testperson Beta');
-    expect(members).not.toContain('Testperson Iota');
+    expect(element.textContent).toContain('Hauptausschuss Athen');
+    expect(members).toContain('Theseus von Athen');
+    expect(members).toContain('Hippolyta von Athen');
+    expect(members).not.toContain('Oberon vom Feenwald');
     expect(element.querySelectorAll('.app-committee-metrics > div > dt')).toHaveLength(3);
     expect(element.querySelectorAll('.app-committee-metrics > div > dd')).toHaveLength(6);
   });
@@ -42,7 +42,7 @@ describe('CommitteeComponent', () => {
   it('should emit selected committee changes', () => {
     vi.spyOn(component.selectedCommitteeIdChange, 'emit').mockReturnValue(undefined);
 
-    clickButton('Prüfungsausschuss Teststadt 2');
+    clickButton('Fremdausschuss Feenwald');
 
     expect(component.selectedCommitteeIdChange.emit).toHaveBeenCalledWith(2);
   });
@@ -75,7 +75,7 @@ describe('CommitteeComponent', () => {
 
     clickButton('Deaktivieren');
 
-    expect(component.toggleMember.emit).toHaveBeenCalledWith(membersFixture[0]);
+    expect(component.toggleMember.emit).toHaveBeenCalledWith(athenChairMembershipFixture);
   });
 
   it('should give repeated member actions object-specific accessible names', () => {
@@ -85,7 +85,7 @@ describe('CommitteeComponent', () => {
       ),
     ).map((button) => button.getAttribute('aria-label'));
 
-    expect(labels).toEqual(['Testperson Alpha deaktivieren', 'Testperson Beta aktivieren']);
+    expect(labels).toEqual(['Theseus von Athen deaktivieren', 'Hippolyta von Athen deaktivieren']);
     expect(new Set(labels).size).toBe(labels.length);
   });
 
@@ -107,10 +107,10 @@ describe('CommitteeComponent', () => {
 
     expect(committee).toBeNull();
     expect(element.querySelector('.app-context-summary')?.textContent).toContain(
-      'Prüfungsausschuss Teststadt 1',
+      'Hauptausschuss Athen',
     );
     expect(optionLabels(person)).toContain('Neue Person erfassen');
-    expect(optionLabels(person)).toContain('Testperson Alpha · testperson.alpha@example.invalid');
+    expect(optionLabels(person)).toContain('Theseus von Athen · theseus.athen@demo.lzug.invalid');
     expect(optionLabels(status)).toContain('Ordentlich');
     expect(optionLabels(role)).toContain('Mitglied');
     expect(optionLabels(side)).toContain('Arbeitgeber');

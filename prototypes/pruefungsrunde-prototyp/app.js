@@ -7,6 +7,12 @@ const seed = {
   settings:{weekFrom:"2026-W47",weekTo:"2026-W49",examsPerDay:6,maxExamDaysPerWeek:3,lunch:true,locationId:1},
   candidateDates:[],availability:{},plan:[],planConfirmed:false,confirmedAt:null,planningModelVersion:2,candidateModelVersion:2
 };
+const chairFixture =
+  seed.members.find(
+    member =>
+      member.fixtureKey ===
+      "name.papaspyrou.repertoire.lzug.fixture.membership.chair.athen",
+  ) || seed.members.find(member => member.function === "Vorsitz");
 
 let state = loadState();
 let toastTimer;
@@ -42,7 +48,7 @@ function showToast(message){
   clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove("show"),3200);
 }
 
-const titles={dashboard:"Guten Morgen, Testperson.",candidates:"Prüflinge",members:"Prüfungsausschuss",planning:"Terminplanung",locations:"Prüfungsorte"};
+const titles={dashboard:`Guten Morgen, ${chairFixture?.firstName || "Athen"}.`,candidates:"Prüflinge",members:"Prüfungsausschuss",planning:"Terminplanung",locations:"Prüfungsorte"};
 function showView(view){
   document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id===`${view}-view`));
   document.querySelectorAll(".nav-item").forEach(el=>el.classList.toggle("active",el.dataset.view===view));
@@ -51,7 +57,13 @@ function showView(view){
 }
 
 function renderAll(){
-  renderDashboard();renderCandidates();renderMembers();renderLocations();renderPlanningControls();renderAvailability();renderPlan();
+  renderProfile();renderDashboard();renderCandidates();renderMembers();renderLocations();renderPlanningControls();renderAvailability();renderPlan();
+}
+
+function renderProfile(){
+  if(!chairFixture)return;
+  document.querySelector("#profile-avatar").textContent=initials(chairFixture);
+  document.querySelector("#profile-name").textContent=fullName(chairFixture);
 }
 
 function renderDashboard(){

@@ -17,6 +17,7 @@ from backend.models import (
     MemberExamAttendance,
 )
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
+from demo.synthetic_fixtures_generated import FIXTURE_ROOT, ORGANIZATION_NAMES
 
 
 def assessment_rules() -> dict:
@@ -260,7 +261,7 @@ class ExamResultTests(unittest.TestCase):
         return {
             "model_key": "fiae-final-2026",
             "version": version,
-            "ihk": "IHK Teststadt",
+            "ihk": ORGANIZATION_NAMES[f"{FIXTURE_ROOT}.organization.athen"],
             "occupation": "Fachinformatiker/in",
             "specialization": None,
             "training_regulation": "Test-Ausbildungsordnung 2020",

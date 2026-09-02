@@ -29,6 +29,12 @@ from backend.database import (
 )
 from backend.planning import ConfirmedPlanChange, PlanningService
 from backend.tests.helpers import TempDatabase
+from demo.synthetic_fixtures_generated import (
+    ADAPTER_COUNTS,
+    CANDIDATE_EXAM_NUMBERS,
+    FIXTURE_IDS,
+    FIXTURE_ROOT,
+)
 
 
 def rewind_notification_migration(connection: sqlite3.Connection) -> None:
@@ -512,10 +518,10 @@ class DatabaseTests(unittest.TestCase):
 
         self.assertEqual(
             {
-                "committee": 1,
-                "committee_member": 8,
-                "location": 2,
-                "candidate": 12,
+                "committee": ADAPTER_COUNTS["seed"]["committees"],
+                "committee_member": ADAPTER_COUNTS["seed"]["memberships"],
+                "location": ADAPTER_COUNTS["seed"]["locations"],
+                "candidate": ADAPTER_COUNTS["seed"]["candidates"],
                 "exam_half_year": 1,
                 "exam_round": 1,
                 "round_candidate": 12,
@@ -559,7 +565,9 @@ class DatabaseTests(unittest.TestCase):
                     {
                         "first_name": "Prüfling",
                         "last_name": "Datenbank",
-                        "ihk_exam_number": "TEST-2026-0001",
+                        "ihk_exam_number": CANDIDATE_EXAM_NUMBERS[
+                            f"{FIXTURE_ROOT}.candidate.planchange"
+                        ],
                         "specialization": "application_development",
                         "training_company": "Testbetrieb Datenbank",
                     },
@@ -592,7 +600,12 @@ class DatabaseTests(unittest.TestCase):
                     for row in connection.execute(text("SELECT id FROM committee ORDER BY id"))
                 ]
 
-        self.assertEqual([1], ids)
+        expected_ids = sorted(
+            fixture["id"]
+            for fixture in FIXTURE_IDS.values()
+            if fixture["entity_type"] == "committees"
+        )
+        self.assertEqual(expected_ids, ids)
 
     def test_initialize_rejects_unversioned_existing_database(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -845,8 +858,18 @@ class DatabaseTests(unittest.TestCase):
                         )
                     ]
                 self.assertEqual(expected_state, state)
+                expected_chair_ids = []
+                if expected_state == "conflict":
+                    expected_chair_ids = sorted(
+                        FIXTURE_IDS[f"{FIXTURE_ROOT}.{suffix}"]["id"]
+                        for suffix in (
+                            "membership.chair.athen",
+                            "membership.deputy.athen",
+                            "membership.chair.feenwald",
+                        )
+                    )
                 self.assertEqual(
-                    [] if expected_state == "needs_clarification" else [1, 2],
+                    expected_chair_ids,
                     chair_ids,
                 )
 

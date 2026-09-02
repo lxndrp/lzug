@@ -4,7 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideTaiga } from '@taiga-ui/core';
 
 import { ExamHalfYearsComponent } from './exam-half-years.component';
-import { committeesFixture } from '../testing/fixtures';
+import { athenCommitteeFixture, committeesFixture } from '../testing/fixtures';
 
 describe('ExamHalfYearsComponent', () => {
   let fixture: ComponentFixture<ExamHalfYearsComponent>;
@@ -49,13 +49,13 @@ describe('ExamHalfYearsComponent', () => {
     expect(request.request.body).toEqual({
       exam_half_year_id: 1,
       committee_id: 1,
-      name: 'Winter 2026 · Prüfungsausschuss Teststadt 1',
+      name: `Winter 2026 · ${athenCommitteeFixture.name}`,
     });
     request.flush({
       id: 2,
       exam_half_year_id: 1,
       committee_id: 1,
-      name: 'Winter 2026 · Prüfungsausschuss Teststadt 1',
+      name: `Winter 2026 · ${athenCommitteeFixture.name}`,
       status: 'draft',
       availability_deadline: null,
       availability_reminder_at: null,
@@ -85,13 +85,13 @@ describe('ExamHalfYearsComponent', () => {
       season: 'summer',
       year: 2027,
       committee_id: 1,
-      name: 'Sommer 2027 · Prüfungsausschuss Teststadt 1',
+      name: `Sommer 2027 · ${athenCommitteeFixture.name}`,
     });
     request.flush({
       id: 2,
       exam_half_year_id: 2,
       committee_id: 1,
-      name: 'Sommer 2027 · Prüfungsausschuss Teststadt 1',
+      name: `Sommer 2027 · ${athenCommitteeFixture.name}`,
       status: 'draft',
     });
     flushInitialLoad(http, [{ id: 2, season: 'summer', year: 2027, status: 'active' }]);

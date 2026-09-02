@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 
 import { AuthService } from './auth.service';
+import { syntheticFixtures } from '../testing/synthetic-fixtures.generated';
 
 type DemoRole = 'chair' | 'deputy' | 'examiner';
 
@@ -25,15 +26,15 @@ type DemoRole = 'chair' | 'deputy' | 'examiner';
         }
         <div class="demo-role-grid" aria-label="Verfügbare Demo-Rollen">
           <button type="button" [disabled]="busy()" (click)="start('chair')">
-            <strong>Testperson Alpha</strong>
+            <strong>{{ demoRoles.chair.display_name }}</strong>
             <span>Vorsitz · Planung und Koordination ausprobieren</span>
           </button>
           <button type="button" [disabled]="busy()" (click)="start('examiner')">
-            <strong>Testperson Gamma</strong>
+            <strong>{{ demoRoles.examiner.display_name }}</strong>
             <span>Prüfperson · eigene Verfügbarkeit und Anwesenheit bearbeiten</span>
           </button>
           <button type="button" [disabled]="busy()" (click)="start('deputy')">
-            <strong>Testperson Beta</strong>
+            <strong>{{ demoRoles.deputy.display_name }}</strong>
             <span>Stellvertretung · Vier-Augen-Bestätigung und Ergebnisprozess</span>
           </button>
         </div>
@@ -145,6 +146,7 @@ type DemoRole = 'chair' | 'deputy' | 'examiner';
   `,
 })
 export class AuthFlowComponent {
+  protected readonly demoRoles = syntheticFixtures.demoRoles;
   private readonly auth = inject(AuthService);
   private readonly http = inject(HttpClient);
 

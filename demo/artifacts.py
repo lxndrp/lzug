@@ -24,6 +24,14 @@ from demo.contract import (
     validate_runtime_manifest_pair,
 )
 from demo.identity import DemoIdentity
+from demo.synthetic_fixtures_generated import (
+    DEMO_MATRIX_VERSION,
+    FIXTURE_CATALOG_REVISION,
+    FIXTURE_CATALOG_VERSION,
+    FIXTURE_IDS,
+    FIXTURE_ROOT,
+    ORGANIZATION_NAMES,
+)
 
 FIXED_TIMESTAMP = "2026-01-01T00:00:00+00:00"
 TIMESTAMP_COLUMNS = {
@@ -67,6 +75,10 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _fixture_id(suffix: str) -> int:
+    return int(FIXTURE_IDS[f"{FIXTURE_ROOT}.{suffix}"]["id"])
 
 
 def schema_binding(source_root: Path) -> dict[str, Any]:
@@ -118,24 +130,34 @@ def _normalize_timestamps(database: Path) -> None:
 def _validate_synthetic_content(database: Path) -> None:
     checks = {
         "person names": (
-            "SELECT COUNT(*) FROM person WHERE first_name != 'Testperson'",
+            "SELECT COUNT(*) FROM person WHERE trim(first_name) = '' OR trim(last_name) = ''",
             0,
         ),
         "person e-mail addresses": (
-            "SELECT COUNT(*) FROM person WHERE email NOT LIKE '%@example.invalid'",
+            "SELECT COUNT(*) FROM person WHERE email NOT LIKE '%@demo.lzug.invalid'",
+            0,
+        ),
+        "person phone numbers": (
+            "SELECT COUNT(*) FROM person WHERE mobile IS NOT NULL",
             0,
         ),
         "candidate names": (
-            "SELECT COUNT(*) FROM candidate WHERE first_name != 'Prüfling'",
+            "SELECT COUNT(*) FROM candidate WHERE trim(first_name) = '' OR trim(last_name) = ''",
             0,
         ),
         "candidate numbers": (
-            "SELECT COUNT(*) FROM candidate WHERE ihk_exam_number NOT LIKE 'TEST-%'",
+            "SELECT COUNT(*) FROM candidate WHERE ihk_exam_number NOT LIKE 'ATHEN-DEMO-%'",
             0,
         ),
         "demo roles": (
-            "SELECT COUNT(*) FROM user_account WHERE person_id IN (1, 2, 3) AND is_active = 1",
+            "SELECT COUNT(*) FROM user_account "
+            "WHERE email LIKE '%@demo.lzug.invalid' AND is_active = 1",
             3,
+        ),
+        "fictional organizations": (
+            "SELECT COUNT(*) FROM committee "
+            "WHERE ihk NOT LIKE 'Industrie- und Handelskammer % (Demo)'",
+            0,
         ),
     }
     with closing(sqlite3.connect(database)) as connection:
@@ -315,13 +337,17 @@ def _add_exam_protocol_scenario(database: Path) -> None:
                valid_until, official_scale_min, official_scale_max, rules_json,
                retention_rule_reference, retention_years, created_by_member_id, created_at)
             VALUES
-              (1, 'demo-fisi-2027', 1, 'IHK Teststadt', 'Fachinformatiker/in', NULL,
-               'Test-Ausbildungsordnung 2020', 'Test-Prüfungsordnung 2027',
-               'Verbindliche Demo-Richtlinie 2027', '2027-01-01', '2027-12-31',
-               '0', '100', ?, 'PrüfO Teststadt § 31', 15, 1,
+              (1, 'demo-fisi-2027', 1, ?, 'Fachinformatiker/in', NULL,
+               'Synthetische Ausbildungsordnung Athen 2020',
+               'Synthetische Prüfungsordnung Athen 2027',
+               'Verbindliche Demo-Richtlinie Athen 2027', '2027-01-01', '2027-12-31',
+               '0', '100', ?, 'Demo-PrüfO Athen § 31', 15, 1,
                '2027-01-01 00:00:00')
             """,
-            (json.dumps(assessment_rules, ensure_ascii=False, sort_keys=True),),
+            (
+                ORGANIZATION_NAMES[f"{FIXTURE_ROOT}.organization.athen"],
+                json.dumps(assessment_rules, ensure_ascii=False, sort_keys=True),
+            ),
         )
         connection.executescript("""
             INSERT INTO exam_round_assessment_binding
@@ -447,24 +473,15 @@ def _add_exam_protocol_scenario(database: Path) -> None:
 
 def _add_exam_round_lifecycle_scenarios(database: Path) -> None:
     """Add isolated positive and negative round-lifecycle demo states."""
+    foreign_committee_id = _fixture_id("committee.feenwald")
+    foreign_chair_id = _fixture_id("membership.chair.feenwald")
     with closing(sqlite3.connect(database)) as connection:
-        connection.executescript("""
+        connection.executescript(f"""
             INSERT INTO exam_half_year (id, season, year, status) VALUES
               (90, 'summer', 2028, 'active'),
               (91, 'winter', 2028, 'active'),
               (92, 'summer', 2029, 'active'),
               (93, 'winter', 2029, 'active');
-
-            INSERT INTO committee (
-              id, name, occupation, ihk, is_active, bootstrap_state
-            ) VALUES (
-              90, 'Synthetischer Parallelausschuss', 'Fachinformatiker/in',
-              'IHK Teststadt', 1, 'ready'
-            );
-            INSERT INTO committee_member (
-              id, committee_id, person_id, member_status, committee_role,
-              representing_side, is_active
-            ) VALUES (90, 90, 4, 'ordinary', 'chair', 'employer', 1);
 
             INSERT INTO exam_round (
               id, exam_half_year_id, committee_id, name, status, plan_revision,
@@ -475,7 +492,8 @@ def _add_exam_round_lifecycle_scenarios(database: Path) -> None:
               (92, 92, 1, 'Sommer 2029 · abschließbare Runde', 'plan_confirmed', 1, 1, 'open', 1),
               (93, 93, 1, 'Winter 2029 · abgeschlossene Runde',
                'plan_confirmed', 1, 2, 'closed', 1),
-              (94, 92, 90, 'Sommer 2029 · unveränderte Parallelrunde', 'draft', 0, 1, 'open', 90);
+              (94, 92, {foreign_committee_id}, 'Sommer 2029 · Fremdrunde Feenwald',
+               'draft', 0, 1, 'open', {foreign_chair_id});
 
             INSERT INTO round_candidate (
               id, exam_round_id, candidate_id, attempt_number, requires_mep, is_active,
@@ -519,7 +537,7 @@ def _add_exam_round_lifecycle_scenarios(database: Path) -> None:
               actor_member_id, checklist_json, snapshot_json, status, command_fingerprint,
               decided_at
             ) VALUES (
-              90, 93, 'close', 1, 2, 1, '[]', '{"demo":"synthetic closed round"}',
+              90, 93, 'close', 1, 2, 1, '[]', '{{"demo":"synthetic closed round"}}',
               'current',
               'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
               '2026-01-01T00:00:00+00:00'
@@ -570,6 +588,11 @@ def build_seed(
         "product": identity.product,
         "runtime_contract": RUNTIME_CONTRACT,
         "schema": schema,
+        "fixture_catalog": {
+            "version": FIXTURE_CATALOG_VERSION,
+            "revision": FIXTURE_CATALOG_REVISION,
+            "demo_matrix_version": DEMO_MATRIX_VERSION,
+        },
         "fixture_sha256": sha256_file(source_root / "fixtures/synthetic-fixtures.json"),
         "generator_sha256": sha256_file(source_root / "scripts/generate_synthetic_fixtures.py"),
         "seed_sql_sha256": sha256_file(source_root / "db/seed_demo.sql"),
@@ -630,6 +653,7 @@ def load_runtime_manifests(
 
     app_manifest = load_manifest(app_manifest_path)
     seed_manifest = load_manifest(seed_manifest_path)
+    _validate_fixture_contract(seed_manifest)
     try:
         return validate_runtime_manifest_pair(app_manifest, seed_manifest)
     except DemoContractError as error:
@@ -651,11 +675,22 @@ def load_runtime_manifests(
         raise DemoArtifactError(replacements.get(message, message)) from error
 
 
+def _validate_fixture_contract(manifest: dict[str, Any]) -> None:
+    expected = {
+        "version": FIXTURE_CATALOG_VERSION,
+        "revision": FIXTURE_CATALOG_REVISION,
+        "demo_matrix_version": DEMO_MATRIX_VERSION,
+    }
+    if manifest.get("fixture_catalog") != expected:
+        raise DemoArtifactError("Seed fixture catalog does not match the demo matrix")
+
+
 def _validate_seed_manifest(manifest: dict[str, Any]) -> None:
     try:
         validate_manifest(manifest, "seed")
     except DemoContractError as error:
         raise DemoArtifactError(str(error)) from error
+    _validate_fixture_contract(manifest)
 
 
 def verify_seed(

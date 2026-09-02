@@ -20,6 +20,22 @@ import {
 } from '../api/api.models';
 import { syntheticFixtures } from './synthetic-fixtures.generated';
 
+function fixtureId(group: keyof typeof syntheticFixtures.keys, key: string): number {
+  const id = (syntheticFixtures.keys[group] as Record<string, number>)[key];
+  if (id === undefined) {
+    throw new Error(`Unknown synthetic fixture key: ${key}`);
+  }
+  return id;
+}
+
+function fixtureById<T extends { id: number }>(items: T[], id: number): T {
+  const item = items.find((candidate) => candidate.id === id);
+  if (!item) {
+    throw new Error(`Unknown synthetic fixture id: ${id}`);
+  }
+  return item;
+}
+
 export const apiRootFixture: ApiRoot = {
   name: 'lzug API',
   version: '0.1.0',
@@ -52,6 +68,39 @@ export const candidatesFixture: Candidate[] = syntheticFixtures.candidates.map((
   ...item,
 }));
 
+export const athenCommitteeFixture = fixtureById(
+  committeesFixture,
+  fixtureId('committees', 'name.papaspyrou.repertoire.lzug.fixture.committee.athen'),
+);
+export const feenwaldCommitteeFixture = fixtureById(
+  committeesFixture,
+  fixtureId('committees', 'name.papaspyrou.repertoire.lzug.fixture.committee.feenwald'),
+);
+export const athenChairMembershipFixture = fixtureById(
+  membersFixture,
+  fixtureId('memberships', 'name.papaspyrou.repertoire.lzug.fixture.membership.chair.athen'),
+);
+export const athenDeputyMembershipFixture = fixtureById(
+  membersFixture,
+  fixtureId('memberships', 'name.papaspyrou.repertoire.lzug.fixture.membership.deputy.athen'),
+);
+export const athenCourtLocationFixture = fixtureById(
+  locationsFixture,
+  fixtureId('locations', 'name.papaspyrou.repertoire.lzug.fixture.location.synthetic.court'),
+);
+export const planchangeCandidateFixture = fixtureById(
+  candidatesFixture,
+  fixtureId('candidates', 'name.papaspyrou.repertoire.lzug.fixture.candidate.planchange'),
+);
+export const absenceCandidateFixture = fixtureById(
+  candidatesFixture,
+  fixtureId('candidates', 'name.papaspyrou.repertoire.lzug.fixture.candidate.absence'),
+);
+export const feenwaldLocationFixture = fixtureById(
+  locationsFixture,
+  fixtureId('locations', 'name.papaspyrou.repertoire.lzug.fixture.location.synthetic.feenwald'),
+);
+
 export const roundCandidatesFixture: RoundCandidate[] = [
   {
     id: 1,
@@ -80,6 +129,7 @@ export const candidateDaysFixture: CandidateExamDay[] = [
   { id: 1, exam_round_id: 1, date: '2026-11-16', is_active: 1 },
   { id: 2, exam_round_id: 1, date: '2026-11-17', is_active: 0 },
 ];
+export const inactiveCandidateDayFixture = fixtureById(candidateDaysFixture, 2);
 
 export const examRoundFixture: ExamRound = {
   id: 1,
@@ -103,6 +153,7 @@ export const examRoundsFixture: ExamRound[] = [
     availability_reminder_at: null,
   },
 ];
+export const foreignExamRoundFixture = fixtureById(examRoundsFixture, 2);
 
 export const candidateAssignmentsFixture: CandidateCommitteeAssignment[] = [
   {
@@ -160,6 +211,7 @@ export const examDaysFixture: ExamDay[] = [
     lunch_break_enabled: 1,
   },
 ];
+const primaryExamDayFixture = fixtureById(examDaysFixture, 1);
 
 export const examSlotsFixture: ExamSlot[] = [
   {
@@ -183,6 +235,8 @@ export const examSlotsFixture: ExamSlot[] = [
     status: 'proposed',
   },
 ];
+const mepExamSlotFixture = fixtureById(examSlotsFixture, 2);
+const regularExamSlotFixture = fixtureById(examSlotsFixture, 1);
 
 export const assignmentsFixture: ExamDayAssignment[] = [
   {
@@ -208,7 +262,7 @@ export const summaryFixture: RoundSummary = {
     id: 1,
     name: 'Winter 2026/27',
     status: 'availability_requested',
-    committee_name: committeesFixture[0].name,
+    committee_name: athenCommitteeFixture.name,
   },
   counts: {
     candidates: 12,
@@ -249,9 +303,9 @@ export const planningBoardFixture: PlanningBoard = {
   availabilities: availabilitiesFixture,
   days: [
     {
-      day: examDaysFixture[1],
-      location: locationsFixture[0],
-      slots: [examSlotsFixture[1], examSlotsFixture[0]],
+      day: primaryExamDayFixture,
+      location: athenCourtLocationFixture,
+      slots: [regularExamSlotFixture, mepExamSlotFixture],
       assignments: assignmentsFixture,
     },
   ],

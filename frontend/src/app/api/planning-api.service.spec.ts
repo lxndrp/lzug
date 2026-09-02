@@ -4,6 +4,9 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 
 import { PlanningApiService } from './planning-api.service';
 import {
+  absenceCandidateFixture,
+  athenChairMembershipFixture,
+  athenCourtLocationFixture,
   assignmentsFixture,
   availabilitiesFixture,
   candidateDaysFixture,
@@ -16,6 +19,8 @@ import {
   examSlotsFixture,
   locationsFixture,
   membersFixture,
+  inactiveCandidateDayFixture,
+  planchangeCandidateFixture,
   roundCandidatesFixture,
 } from '../testing/fixtures';
 
@@ -43,7 +48,7 @@ describe('PlanningApiService', () => {
     service.getPlanningBoard().subscribe((board) => {
       dayDates = board.days.map((item) => item.day.date);
       slotIds = board.days[0].slots.map((slot) => slot.id);
-      expect(board.days[0].location?.name).toBe('Prüfungszentrum Alpha (Test)');
+      expect(board.days[0].location?.name).toBe('Hof Athen (synthetisch)');
       expect(board.days[0].assignments.length).toBe(2);
       expect(board.members.length).toBe(3);
       expect(board.candidates.length).toBe(2);
@@ -139,7 +144,7 @@ describe('PlanningApiService', () => {
       .createExamRound({
         exam_half_year_id: 2,
         committee_id: 1,
-        name: 'Sommer 2027 · Prüfungsausschuss Teststadt 1',
+        name: 'Sommer 2027 · Hauptausschuss Athen',
       })
       .subscribe();
     const createRound = http.expectOne('/api/exam-rounds');
@@ -162,7 +167,7 @@ describe('PlanningApiService', () => {
           name: 'Winter 2026/27',
           status: 'availability_requested',
           status_group: 'coordination',
-          committee_name: 'Prüfungsausschuss Teststadt 1',
+          committee_name: 'Hauptausschuss Athen',
           exam_half_year: { id: 1, season: 'winter', year: 2026, status: 'active' },
           calendar_week_from: '2026-W47',
           calendar_week_to: '2026-W49',
@@ -290,13 +295,13 @@ describe('PlanningApiService', () => {
     const member = http.expectOne('/api/members/1');
     expect(member.request.method).toBe('PATCH');
     expect(member.request.body).toEqual({ is_active: 0 });
-    member.flush({ ...membersFixture[0], is_active: 0 });
+    member.flush({ ...athenChairMembershipFixture, is_active: 0 });
   });
 
   it('should combine candidates with their round metadata', () => {
     service.getCandidateViews().subscribe((items) => {
       expect(items.length).toBe(2);
-      expect(items[1].candidate.last_name).toBe('Beta');
+      expect(items[1].candidate.id).toBe(absenceCandidateFixture.id);
       expect(items[1].roundCandidate?.attempt_number).toBe(2);
       expect(items[1].roundCandidate?.requires_mep).toBe(1);
     });
@@ -333,7 +338,7 @@ describe('PlanningApiService', () => {
       requires_mep: 0,
       exam_round_id: 1,
     });
-    create.flush(candidatesFixture[0]);
+    create.flush(planchangeCandidateFixture);
 
     service
       .updateCandidate(1, {
@@ -358,7 +363,7 @@ describe('PlanningApiService', () => {
       requires_mep: 1,
       exam_round_id: 1,
     });
-    update.flush(candidatesFixture[0]);
+    update.flush(planchangeCandidateFixture);
 
     service
       .updateCandidate(1, {
@@ -376,7 +381,7 @@ describe('PlanningApiService', () => {
     const transfer = http.expectOne('/api/candidates/1');
     expect(transfer.request.body.exam_round_id).toBe(2);
     expect(transfer.request.body.assignment_change_reason).toBe('Wechsel in den zweiten Ausschuss');
-    transfer.flush(candidatesFixture[0]);
+    transfer.flush(planchangeCandidateFixture);
 
     service.deleteCandidate(1).subscribe();
     const remove = http.expectOne('/api/candidates/1');
@@ -437,13 +442,13 @@ describe('PlanningApiService', () => {
       room: 'Testraum S-01',
       is_active: 1,
     });
-    request.flush(locationsFixture[0]);
+    request.flush(athenCourtLocationFixture);
 
     service.updateLocation(1, { is_active: 0 }).subscribe();
     const update = http.expectOne('/api/locations/1');
     expect(update.request.method).toBe('PATCH');
     expect(update.request.body).toEqual({ is_active: 0 });
-    update.flush({ ...locationsFixture[0], is_active: 0 });
+    update.flush({ ...athenCourtLocationFixture, is_active: 0 });
 
     service
       .updateLocation(1, { name: 'Prüfungszentrum Service Neu (Test)', room: 'S-02' })
@@ -455,7 +460,7 @@ describe('PlanningApiService', () => {
       room: 'S-02',
     });
     edit.flush({
-      ...locationsFixture[0],
+      ...athenCourtLocationFixture,
       name: 'Prüfungszentrum Service Neu (Test)',
       room: 'S-02',
     });
@@ -561,7 +566,7 @@ describe('PlanningApiService', () => {
     const candidateDay = http.expectOne('/api/candidate-exam-days/2');
     expect(candidateDay.request.method).toBe('PATCH');
     expect(candidateDay.request.body).toEqual({ is_active: 1 });
-    candidateDay.flush({ ...candidateDaysFixture[1], is_active: 1 });
+    candidateDay.flush({ ...inactiveCandidateDayFixture, is_active: 1 });
 
     service
       .saveMemberAvailability({

@@ -46,6 +46,7 @@ from backend.local_auth import (
     LocalAuthService,
     authentication_key,
 )
+from demo.synthetic_fixtures_generated import DEMO_ROLES
 
 PASSWORD = "correct horse battery staple"
 TOTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
@@ -378,7 +379,7 @@ class BackupRestoreTests(unittest.TestCase):
         now = datetime.now(UTC)
         code = pyotp.TOTP(TOTP_SECRET).at(int(now.timestamp()))
         login = LocalAuthService(target_paths.database).login(
-            "demo.alpha@example.invalid",
+            DEMO_ROLES["chair"]["account_email"],
             PASSWORD,
             code,
             now=now,
