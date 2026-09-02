@@ -4,7 +4,7 @@
 
 Dieser Stand ist ein visuell prüfbarer Entwurf für Issue #568.
 Er integriert noch keine neue Marke oder neue Schrift in Produkt und Publikation.
-Die ersten beiden Logo-Vergleichsstufen wurden im Issue nicht freigegeben.
+Die ersten drei Logo-Vergleichsstufen wurden im Issue nicht freigegeben.
 Logo und Schrift benötigen weiterhin eine dokumentierte Maintainer-Freigabe.
 
 ## Designvertrag
@@ -27,24 +27,23 @@ Helles und dunkles Schema verwenden dieselben Rollen, aber separat geprüfte Wer
 - Funktionale Icons sind derzeit ausgewählte lokal kopierte CoreUI-Pfade und noch nicht die verlangte Lucide-Semantik.
 - Produkt und Publikation besitzen keine gemeinsame kanonische Asset- oder Tokenquelle.
 
-## Logoauswahl · dritte Vergleichsstufe
+## Logoauswahl · vierte Vergleichsstufe
 
-Die dritte Stufe entwickelt die leicht bevorzugte, aber nicht freigegebene Richtung „Prüfling mit Ergebnis“ weiter.
-Alle drei Entwürfe verwenden dieselbe Geometrie und unterscheiden ausschließlich das Ergebniszeichen:
+Die vierte Stufe entwickelt ausschließlich die verbindliche, aber noch nicht final freigegebene Richtung **B2: Urkunde** weiter.
+Beide Entwürfe verwenden dieselbe Geometrie und unterscheiden ausschließlich die Position des eigenständigen Ergebniszeichens:
 
-- **B1: Prüfzeichen** ist als digitales Ergebnis- und Statuszeichen unmittelbar lesbar, kann aber generisch wirken.
-- **B2: Urkunde** bezeichnet den konkreten Ergebnisnachweis, benötigt im Kleinformat jedoch mehr Binnenstruktur.
-- **B3: Siegel** verdichtet das Ergebnis auf eine kompakte Form, wirkt aber formaler und stärker nach Auszeichnung.
+- **B2a: Urkunde oben** ordnet das Ergebniszeichen axial über der Hauptfigur an und hält die Bildmarke symmetrisch.
+- **B2b: Urkunde rechts oben** trennt Ergebnis und Person deutlicher, erzeugt aber eine bewusst asymmetrische Gewichtung.
 
-Der Prüfling bleibt als größter Kopf mit reduzierter Schulterlinie die Hauptfigur.
-Vier erkennbare Köpfe und Büsten bilden in der Bildmarke den Prüfungsausschuss; im Key Visual sind es fünf.
-Die konsistente Liniengeometrie ersetzt die zuvor schweren Körperflächen.
+Der Prüfling bleibt als größter Kopf mit schmaler, offener Schulterlinie die Hauptfigur.
+Der verkleinerte Kopf und die deutlich engere Büste korrigieren das zuvor schwere Kopf-Körper-Verhältnis.
+Vier kleinere Köpfe und schmale Büsten bilden in der Bildmarke den nachgeordneten Prüfungsausschuss; im Key Visual sind es fünf.
 Bühnenrahmen und Lichtkegel bleiben durch geringere Strichstärke, Deckkraft und Fläche im Hintergrund.
 
 Die Vektorquellen unter `brand/proposals/` sind eigenständige SVG-Gestaltungen.
-`brand/review/evidence/logo-comparison-light.png` und `logo-comparison-dark.png` zeigen alle drei Varianten als Bildmarke, vorläufige Wort-/Bildmarke, Kleinformatprobe und Key Visual.
+`brand/review/evidence/logo-comparison-light.png` und `logo-comparison-dark.png` zeigen beide Varianten als Bildmarke, vorläufige Wort-/Bildmarke, Kleinformatprobe und Key Visual.
 Die Kleinformatprobe rendert jede unveränderte Bildmarkenquelle mit 16, 32 und 64 Pixeln und macht damit dieselbe Gewichtung ohne separate vereinfachte Ersatzgrafik prüfbar.
-Der Renderbericht prüft für beide Farbschemata drei Varianten, erfolgreiche SVG-Ladung, die tatsächlichen Pixelmaße und horizontalen Überlauf.
+Der Renderbericht prüft für beide Farbschemata zwei Varianten, erfolgreiche SVG-Ladung, die tatsächlichen Pixelmaße und horizontalen Überlauf.
 Die endgültige Wortmarke wird erst nach gemeinsamer Logo- und Schriftfreigabe festgelegt.
 
 ### Helles Schema
@@ -122,7 +121,7 @@ Paketintegrität, Upstream-Fassung und OFL-Lizenz werden maschinenlesbar geprüf
 
 Vor der Integration ist im Issue jeweils eine eindeutige Auswahl zu dokumentieren:
 
-1. **Logo:** `B1: Prüfzeichen`, `B2: Urkunde` oder `B3: Siegel`, gegebenenfalls mit präzise benannter Korrektur.
+1. **Logo:** `B2a: Urkunde oben` oder `B2b: Urkunde rechts oben`, gegebenenfalls mit präzise benannter Korrektur.
 2. **Schrift:** `Source Sans 3`, `Noto Sans` oder `Inter`, gegebenenfalls mit präzise benannter Korrektur.
 
 Die Freigabe bestätigt die subjektive visuelle Richtung, nicht die technische Abnahme.

@@ -166,9 +166,9 @@ async function main() {
           })),
         );
       await context.close();
-      const expectedSizes = [16, 32, 64, 16, 32, 64, 16, 32, 64];
+      const expectedSizes = [16, 32, 64, 16, 32, 64];
       if (
-        variants !== 3 ||
+        variants !== 2 ||
         samples.length !== expectedSizes.length ||
         samples.some(
           (sample, index) =>
@@ -178,7 +178,7 @@ async function main() {
             sample.height !== expectedSizes[index],
         )
       ) {
-        throw new Error(`${name} does not contain three valid 16/32/64px sets`);
+        throw new Error(`${name} does not contain two valid 16/32/64px sets`);
       }
       report.logo.push({ name, theme, variants, samples, ...dimensions });
     }

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
+  <title id="title">lzug Bildmarkenentwurf Urkunde rechts oben</title>
+  <desc id="description">Eine eigenständige Urkunde steht rechts oben neben einem schlank abstrahierten Prüfling. Vier kleinere Prüferköpfe mit leichten Büsten bilden das nachgeordnete Publikum.</desc>
+  <style>
+    :root { --brand-ink: #2d235c; --brand-accent: #f3b33d; }
+    @media (prefers-color-scheme: dark) { :root { --brand-ink: #f7f4ff; --brand-accent: #ffc85a; } }
+  </style>
+  <path d="M50 184V66c0-11 9-20 20-20h116c11 0 20 9 20 20v118" fill="none" stroke="var(--brand-ink)" stroke-linecap="round" stroke-linejoin="round" stroke-opacity=".32" stroke-width="7" />
+  <path d="M128 51 108 185h40z" fill="var(--brand-accent)" opacity=".14" />
+  <g fill="var(--brand-ink)" stroke="var(--brand-ink)" stroke-linecap="round" stroke-width="5" opacity=".6">
+    <circle cx="67" cy="184" r="6" stroke="none" /><circle cx="91" cy="188" r="5.5" stroke="none" /><circle cx="165" cy="188" r="5.5" stroke="none" /><circle cx="189" cy="184" r="6" stroke="none" />
+    <path d="M57 205c0-11 4-17 10-17s10 6 10 17M82 205c0-10 4-15 9-15s9 5 9 15M156 205c0-10 4-15 9-15s9 5 9 15M179 205c0-11 4-17 10-17s10 6 10 17" fill="none" />
+  </g>
+  <circle cx="128" cy="112" r="16" fill="var(--brand-ink)" />
+  <path d="M101 174c0-32 10-50 27-50s27 18 27 50" fill="none" stroke="var(--brand-ink)" stroke-linecap="round" stroke-width="9" />
+  <g>
+    <rect x="165" y="69" width="28" height="34" rx="3" fill="var(--brand-accent)" />
+    <path d="M171 79h16M171 86h11" fill="none" stroke="var(--brand-ink)" stroke-linecap="round" stroke-width="3" />
+    <circle cx="186" cy="95" r="4" fill="var(--brand-ink)" />
+  </g>
+  <path d="M50 214h156" fill="none" stroke="var(--brand-ink)" stroke-linecap="round" stroke-opacity=".32" stroke-width="7" />
+</svg>

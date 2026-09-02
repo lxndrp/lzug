@@ -5,26 +5,8 @@
     {
       "name": "logo-comparison-light.png",
       "theme": "light",
-      "variants": 3,
+      "variants": 2,
       "samples": [
-        {
-          "complete": true,
-          "height": 16,
-          "naturalWidth": 150,
-          "width": 16
-        },
-        {
-          "complete": true,
-          "height": 32,
-          "naturalWidth": 150,
-          "width": 32
-        },
-        {
-          "complete": true,
-          "height": 64,
-          "naturalWidth": 150,
-          "width": 64
-        },
         {
           "complete": true,
           "height": 16,
@@ -62,33 +44,15 @@
           "width": 64
         }
       ],
-      "height": 1103,
+      "height": 1236,
       "overflow": 0,
       "width": 1440
     },
     {
       "name": "logo-comparison-dark.png",
       "theme": "dark",
-      "variants": 3,
+      "variants": 2,
       "samples": [
-        {
-          "complete": true,
-          "height": 16,
-          "naturalWidth": 150,
-          "width": 16
-        },
-        {
-          "complete": true,
-          "height": 32,
-          "naturalWidth": 150,
-          "width": 32
-        },
-        {
-          "complete": true,
-          "height": 64,
-          "naturalWidth": 150,
-          "width": 64
-        },
         {
           "complete": true,
           "height": 16,
@@ -126,7 +90,7 @@
           "width": 64
         }
       ],
-      "height": 1103,
+      "height": 1236,
       "overflow": 0,
       "width": 1440
     }
