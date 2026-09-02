@@ -42,6 +42,7 @@ Seiteneffekt des normalen Servers.
 | --- | --- |
 | schmale Python-Regel | betroffener `unittest` unter `backend/tests/` |
 | Backend insgesamt | `task quality:backend` |
+| API-, Transport- und Persistenzmodelle | `task backend:typecheck` |
 | Backend-Komplexität | `task backend:complexity` |
 | Angular-Code | betroffener Vitest-Test, danach `task quality:frontend` |
 | produktive npm-Abhängigkeiten | `task quality:security` |

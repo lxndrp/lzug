@@ -24,6 +24,7 @@ dev = [
   "pip-audit>=2.9.0,<3.0",
   "ruff>=0.16.2",
   "black>=24.0.0",
+  "mypy>=1.19,<2",
 ]
 
 [tool.unittest]
@@ -84,3 +85,9 @@ extend-exclude = '''
   | \.git
 )/
 '''
+
+[tool.mypy]
+files = ["backend/api_contracts.py", "backend/transport.py", "backend/models.py"]
+python_version = "3.14"
+follow_imports = "skip"
+warn_unused_configs = true

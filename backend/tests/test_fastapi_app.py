@@ -12,6 +12,20 @@ from unittest.mock import Mock, patch
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
+from backend.api_contracts import (
+    ApiRootResponse,
+    DomainCollectionResponse,
+    DomainResourceResponse,
+    DomainResourceWrite,
+    ErrorResponse,
+    FactorActivationRequest,
+    FrontendErrorRequest,
+    HealthResponse,
+    LoginRequest,
+    SessionResponse,
+    SessionRotationResponse,
+    TokenRequest,
+)
 from backend.application import ApplicationServices
 from backend.auth import AuthenticationRepository, SessionCredentials
 from backend.fastapi_app import (
@@ -24,6 +38,30 @@ from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
 
 
 class FastAPIApplicationTests(unittest.TestCase):
+    def test_routes_use_the_extracted_api_contract_models(self) -> None:
+        """Keep FastAPI's model identities stable while isolating their type-check scope."""
+        from backend import fastapi_app
+
+        contract_models = (
+            ApiRootResponse,
+            DomainCollectionResponse,
+            DomainResourceResponse,
+            DomainResourceWrite,
+            ErrorResponse,
+            FactorActivationRequest,
+            FrontendErrorRequest,
+            HealthResponse,
+            LoginRequest,
+            SessionResponse,
+            SessionRotationResponse,
+            TokenRequest,
+        )
+
+        for model in contract_models:
+            with self.subTest(model=model.__name__):
+                self.assertIs(model, getattr(fastapi_app, model.__name__))
+                self.assertEqual("backend.api_contracts", model.__module__)
+
     def config(self, db_path: Path) -> FastAPIConfig:
         return FastAPIConfig(
             db_path=db_path,

@@ -5,6 +5,7 @@ import unittest
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from shutil import copy2
 from tempfile import TemporaryDirectory
@@ -584,10 +585,11 @@ class HttpContractParityTests(unittest.TestCase):
             fastapi_feed_path = fastapi_activation.json["feed_url"].replace(
                 "https://app.example.invalid", ""
             )
-            self.assert_parity(
-                legacy.request("GET", legacy_feed_path, authenticated=False),
-                fastapi.request("GET", fastapi_feed_path, authenticated=False),
-            )
+            with patch("backend.calendar._now", return_value=datetime(2026, 1, 1, tzinfo=UTC)):
+                self.assert_parity(
+                    legacy.request("GET", legacy_feed_path, authenticated=False),
+                    fastapi.request("GET", fastapi_feed_path, authenticated=False),
+                )
 
     def test_candidate_day_generation_and_planning_failures_keep_adapter_parity(self) -> None:
         """Cover the candidate-day action plus large-body and database failure boundaries."""
