@@ -1,9 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
-  <title id="title">lzug Bildmarkenentwurf Urkunde rechts oben</title>
+  <title id="title">lzug Bildmarke</title>
   <desc id="description">Eine eigenständige Urkunde steht rechts oben neben einem schlank abstrahierten Prüfling. Vier kleinere Prüferköpfe mit leichten Büsten bilden das nachgeordnete Publikum.</desc>
   <style>
     :root { --brand-ink: #2d235c; --brand-accent: #f3b33d; }
-    @media (prefers-color-scheme: dark) { :root { --brand-ink: #f7f4ff; --brand-accent: #ffc85a; } }
   </style>
   <path d="M50 184V66c0-11 9-20 20-20h116c11 0 20 9 20 20v118" fill="none" stroke="var(--brand-ink)" stroke-linecap="round" stroke-linejoin="round" stroke-opacity=".32" stroke-width="7" />
   <path d="M128 51 108 185h40z" fill="var(--brand-accent)" opacity=".14" />

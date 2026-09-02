@@ -26,6 +26,8 @@ WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/angular.json frontend/tsconfig.app.json frontend/tsconfig.json ./
+COPY brand/tokens.css brand/taiga-adapter.css /src/brand/
+COPY brand/derived /src/brand/derived
 COPY frontend/public ./public
 COPY --from=build-metadata /build-metadata.json ./public/build-metadata.json
 COPY frontend/src ./src

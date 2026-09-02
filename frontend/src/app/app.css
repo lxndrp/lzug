@@ -29,10 +29,10 @@
   block-size: 100vh;
   flex-direction: column;
   overflow-y: auto;
-  background: #202633;
-  color: #f4f7f8;
-  box-shadow: 8px 0 30px rgb(31 41 51 / 12%);
-  transition: transform 180ms ease;
+  background: var(--lzug-color-brand-surface);
+  color: var(--lzug-color-text-on-brand);
+  box-shadow: 8px 0 30px rgb(30 26 46 / 22%);
+  transition: transform var(--lzug-motion-fast) ease;
 }
 
 .app-shell.sidebar-collapsed .app-sidebar {
@@ -59,8 +59,16 @@
 }
 
 .app-brand {
-  font-size: 1.35rem;
-  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 1.25rem;
+  letter-spacing: 0;
+}
+
+.app-brand img {
+  inline-size: 2rem;
+  block-size: 2rem;
 }
 
 .app-navigation {
@@ -71,13 +79,13 @@
 
 .app-version {
   margin: auto 1.5rem 1.25rem;
-  color: #aeb9c5;
+  color: color-mix(in srgb, var(--lzug-color-text-on-brand) 72%, transparent);
   font-size: 0.75rem;
 }
 
 .app-nav-title {
   margin: 0.9rem 0 0.35rem 0.75rem;
-  color: #aeb9c5;
+  color: color-mix(in srgb, var(--lzug-color-text-on-brand) 72%, transparent);
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -92,12 +100,12 @@
   border: 1px solid rgb(255 255 255 / 12%);
   border-radius: 0.65rem;
   background: rgb(255 255 255 / 6%);
-  color: #e7edf1;
+  color: color-mix(in srgb, var(--lzug-color-text-on-brand) 90%, transparent);
   font-size: 0.8125rem;
 }
 
 .app-nav-context strong {
-  color: #fff;
+  color: var(--lzug-color-text-on-brand);
   font-size: 0.75rem;
 }
 
@@ -110,7 +118,7 @@
   border: 1px solid transparent;
   border-radius: 0.65rem;
   background: transparent;
-  color: #e7edf1;
+  color: color-mix(in srgb, var(--lzug-color-text-on-brand) 90%, transparent);
   font: inherit;
   text-align: start;
   text-decoration: none;
@@ -124,13 +132,13 @@
 .app-nav-link:focus-visible {
   border-color: rgb(255 255 255 / 14%);
   background: rgb(255 255 255 / 8%);
-  color: #fff;
+  color: var(--lzug-color-text-on-brand);
 }
 
 .app-nav-link.is-active {
   border-color: rgb(255 255 255 / 8%);
-  background: #303847;
-  color: #fff;
+  background: color-mix(in srgb, var(--lzug-color-text-on-brand) 12%, transparent);
+  color: var(--lzug-color-text-on-brand);
   box-shadow: inset 3px 0 var(--app-color-focus);
 }
 
@@ -242,12 +250,20 @@
   color: var(--app-color-text);
 }
 
+.app-sidebar-toggle .app-icon-only,
+.app-sidebar-close .app-icon-only {
+  inline-size: var(--lzug-icon-size-md);
+  min-inline-size: var(--lzug-icon-size-md);
+  block-size: var(--lzug-icon-size-md);
+  flex: 0 0 var(--lzug-icon-size-md);
+}
+
 .app-sidebar-close {
   display: none;
   inline-size: 2.25rem;
   block-size: 2.25rem;
   margin-inline-start: auto;
-  color: #fff;
+  color: var(--lzug-color-text-on-brand);
 }
 
 .app-refresh-button {
@@ -269,51 +285,7 @@
 .app-refresh-button:disabled {
   cursor: wait;
   color: var(--app-color-text-muted);
-}
-
-.app-menu-icon {
-  position: relative;
-  display: inline-block;
-  inline-size: 1.5rem;
-  min-inline-size: 1.5rem;
-  block-size: 1.2rem;
-  flex: 0 0 1.5rem;
-}
-
-.app-menu-icon::before,
-.app-menu-icon::after {
-  position: absolute;
-  inset-inline: 0;
-  display: block;
-  block-size: 2px;
-  border-radius: 2px;
-  background: currentcolor;
-  content: '';
-  transition:
-    transform 180ms ease,
-    box-shadow 180ms ease;
-}
-
-.app-menu-icon::before {
-  inset-block-start: 0.1rem;
-  box-shadow:
-    0 0.5rem currentcolor,
-    0 1rem currentcolor;
-}
-
-.app-menu-icon::after {
-  inset-block-start: 0.6rem;
-  transform: scaleX(0);
-}
-
-.app-menu-icon.is-close::before {
-  inset-block-start: 0.6rem;
-  box-shadow: none;
-  transform: rotate(45deg);
-}
-
-.app-menu-icon.is-close::after {
-  transform: rotate(-45deg);
+  opacity: 1;
 }
 
 .app-sidebar-toggle:focus-visible,
@@ -624,9 +596,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-sidebar,
-  .app-menu-icon::before,
-  .app-menu-icon::after {
+  .app-sidebar {
     transition: none;
   }
 

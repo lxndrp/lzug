@@ -27,6 +27,7 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
+    launchOptions: { chromiumSandbox: true },
     ...devices['Desktop Chrome'],
   },
   webServer: productionBuild

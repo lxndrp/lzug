@@ -1,4 +1,4 @@
-version: '3.52'
+version: "3.52"
 
 vars:
   UV: uv run --locked --extra dev
@@ -44,13 +44,13 @@ tasks:
       DRAFT: '{{default "false" .DRAFT}}'
       LINK_MODE: '{{default "closes" .LINK_MODE}}'
     env:
-      PR_ISSUE: '{{.ISSUE}}'
-      PR_TITLE: '{{.TITLE}}'
-      PR_BODY_FILE: '{{.BODY_FILE}}'
-      PR_ASSIGNEES: '{{.ASSIGNEES}}'
-      PR_MILESTONE: '{{.MILESTONE}}'
-      PR_DRAFT: '{{.DRAFT}}'
-      PR_LINK_MODE: '{{.LINK_MODE}}'
+      PR_ISSUE: "{{.ISSUE}}"
+      PR_TITLE: "{{.TITLE}}"
+      PR_BODY_FILE: "{{.BODY_FILE}}"
+      PR_ASSIGNEES: "{{.ASSIGNEES}}"
+      PR_MILESTONE: "{{.MILESTONE}}"
+      PR_DRAFT: "{{.DRAFT}}"
+      PR_LINK_MODE: "{{.LINK_MODE}}"
     cmds:
       - |
         set -eu
@@ -90,7 +90,7 @@ tasks:
   test:backend:
     desc: Run backend unit tests
     cmds:
-      - '{{.UV}} python -m unittest'
+      - "{{.UV}} python -m unittest"
 
   test:frontend:
     desc: Run frontend unit tests
@@ -188,6 +188,7 @@ tasks:
     desc: Run the complete local quality assurance suite in parallel
     deps:
       - fixtures:check
+      - brand:check
       - quality:backend
       - quality:frontend
       - quality:security
@@ -199,6 +200,28 @@ tasks:
       - quality:demo-deployment
       - quality:demo
       - docs
+
+  brand:check:
+    desc: Verify canonical brand sources, derivatives, font, and icon contracts
+    cmds:
+      - node scripts/check_brand_assets.mjs
+
+  brand:generate:
+    desc: Generate reproducible brand derivatives from canonical vector sources
+    cmds:
+      - node scripts/generate_brand_assets.mjs
+
+  brand:references:
+    desc: Generate final product, publication, state, reflow, and asset reference views
+    deps:
+      - brand:check
+      - docs:publication
+    cmds:
+      - LZUG_BRAND_REFERENCES=true node frontend/e2e/run-playwright.mjs brand-reference.spec.ts
+      - >-
+        LZUG_BRAND_REFERENCES=true LZUG_PUBLICATION_SUITE=reference
+        node frontend/e2e/run-playwright.mjs --config playwright.publication.config.ts
+      - node scripts/check_brand_references.mjs --write-report
 
   fixtures:check:
     desc: Verify synthetic fixture adapters match their canonical source
@@ -377,7 +400,7 @@ tasks:
   quality:demo-matrix:
     desc: Verify demo roles, capabilities, mutation allowlist, and default-deny paths
     cmds:
-      - '{{.UV}} python -m unittest backend.tests.test_demo_runtime'
+      - "{{.UV}} python -m unittest backend.tests.test_demo_runtime"
 
   quality:overall:
     desc: Run all local cross-domain integration contracts in parallel
@@ -440,7 +463,7 @@ tasks:
       - >-
         LZUG_IMAGE=ghcr.io/lxndrp/lzug:0.0.0-dev.local
         scripts/validate-compose.sh
-      - '{{.UV}} python -m unittest backend.tests.test_compose_policy'
+      - "{{.UV}} python -m unittest backend.tests.test_compose_policy"
 
   quality:e2e:
     desc: Run browser end-to-end tests
@@ -463,7 +486,7 @@ tasks:
   backend:lint:
     internal: true
     cmds:
-      - '{{.UV}} python -m ruff check .'
+      - "{{.UV}} python -m ruff check ."
 
   backend:complexity:
     desc: Report cyclomatic complexity of productive backend modules
@@ -478,28 +501,28 @@ tasks:
   backend:typecheck:
     desc: Statically check API, transport, and persistence contract models
     cmds:
-      - '{{.UV}} python -m mypy'
+      - "{{.UV}} python -m mypy"
 
   backend:format:
     internal: true
     cmds:
-      - '{{.UV}} python -m black --check .'
+      - "{{.UV}} python -m black --check ."
 
   backend:audit:
     internal: true
     cmds:
-      - '{{.UV}} python -m pip_audit --skip-editable --cache-dir /tmp/lzug-pip-audit'
+      - "{{.UV}} python -m pip_audit --skip-editable --cache-dir /tmp/lzug-pip-audit"
 
   backend:coverage:
     internal: true
     cmds:
-      - '{{.UV}} python -m coverage run -m unittest'
-      - '{{.UV}} python -m coverage report'
+      - "{{.UV}} python -m coverage run -m unittest"
+      - "{{.UV}} python -m coverage report"
 
   docs:handbook:
     internal: true
     cmds:
-      - '{{.UV}} mkdocs build --strict --site-dir site'
+      - "{{.UV}} mkdocs build --strict --site-dir site"
 
   docs:frontend:
     internal: true
@@ -576,7 +599,7 @@ tasks:
   dev:backend:
     desc: Start the backend development server
     cmds:
-      - '{{.UV}} python -m backend.server --init'
+      - "{{.UV}} python -m backend.server --init"
 
   dev:frontend:
     desc: Start the frontend development server

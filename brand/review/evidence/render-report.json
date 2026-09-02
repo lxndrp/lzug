@@ -1,30 +1,33 @@
 {
   "schema": 1,
   "renderer": "151.0.7922.34",
+  "logoApproval": {
+    "status": "approved",
+    "variant": "B2b: Urkunde rechts oben",
+    "issueComment": "https://github.com/lxndrp/lzug/issues/568#issuecomment-5512076189"
+  },
+  "logoSources": [
+    {
+      "id": "logo-mark",
+      "path": "brand/source/logo-mark.svg",
+      "viewBox": "0 0 256 256",
+      "role": "Kanonische Bildmarke",
+      "sha256": "d98f1b8c815d9dd31654c3e034dc23b4fb5bc973648a91d8a6caaa9f9119dfb8"
+    },
+    {
+      "id": "key-visual",
+      "path": "brand/source/key-visual.svg",
+      "viewBox": "0 0 1600 900",
+      "role": "Kanonisches Key Visual",
+      "sha256": "af8363b8b157844891035b7bebeff707ecd767394fd82b16c4f76ba6b78327ff"
+    }
+  ],
   "logo": [
     {
-      "name": "logo-comparison-light.png",
+      "name": "logo-approved-light.png",
       "theme": "light",
-      "variants": 2,
+      "variants": 1,
       "samples": [
-        {
-          "complete": true,
-          "height": 16,
-          "naturalWidth": 150,
-          "width": 16
-        },
-        {
-          "complete": true,
-          "height": 32,
-          "naturalWidth": 150,
-          "width": 32
-        },
-        {
-          "complete": true,
-          "height": 64,
-          "naturalWidth": 150,
-          "width": 64
-        },
         {
           "complete": true,
           "height": 16,
@@ -44,33 +47,15 @@
           "width": 64
         }
       ],
-      "height": 1236,
+      "height": 1246,
       "overflow": 0,
       "width": 1440
     },
     {
-      "name": "logo-comparison-dark.png",
+      "name": "logo-approved-dark.png",
       "theme": "dark",
-      "variants": 2,
+      "variants": 1,
       "samples": [
-        {
-          "complete": true,
-          "height": 16,
-          "naturalWidth": 150,
-          "width": 16
-        },
-        {
-          "complete": true,
-          "height": 32,
-          "naturalWidth": 150,
-          "width": 32
-        },
-        {
-          "complete": true,
-          "height": 64,
-          "naturalWidth": 150,
-          "width": 64
-        },
         {
           "complete": true,
           "height": 16,
@@ -90,7 +75,7 @@
           "width": 64
         }
       ],
-      "height": 1236,
+      "height": 1246,
       "overflow": 0,
       "width": 1440
     }

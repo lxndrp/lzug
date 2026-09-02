@@ -22,6 +22,9 @@ const require = createRequire(import.meta.url);
 const { chromium } = require(resolve(root, "frontend/node_modules/playwright"));
 const reviewDirectory = resolve(root, "brand/review");
 const outputDirectory = resolve(reviewDirectory, "evidence");
+const assetContract = JSON.parse(
+  readFileSync(resolve(root, "brand/asset-contract.json"), "utf8"),
+);
 const candidateManifest = JSON.parse(
   readFileSync(resolve(reviewDirectory, "font-candidates.json"), "utf8"),
 );
@@ -131,16 +134,21 @@ async function main() {
   let browser;
 
   try {
-    browser = await chromium.launch({ ignoreDefaultArgs: ["--no-sandbox"] });
+    browser = await chromium.launch({ chromiumSandbox: true });
     const report = {
       schema: 1,
       renderer: await browser.version(),
+      logoApproval: assetContract.approval,
+      logoSources: assetContract.sources.map((source) => ({
+        ...source,
+        sha256: sha256(resolve(root, source.path)),
+      })),
       logo: [],
       fonts: [],
     };
     for (const theme of ["light", "dark"]) {
-      const name = `logo-comparison-${theme}.png`;
-      const file = `${pathToFileURL(resolve(reviewDirectory, "logo-comparison.html")).href}?theme=${theme}`;
+      const name = `logo-approved-${theme}.png`;
+      const file = `${pathToFileURL(resolve(reviewDirectory, "logo-approved.html")).href}?theme=${theme}`;
       const output = resolve(outputDirectory, name);
       const dimensions = await renderPage(browser, {
         file,
@@ -166,9 +174,9 @@ async function main() {
           })),
         );
       await context.close();
-      const expectedSizes = [16, 32, 64, 16, 32, 64];
+      const expectedSizes = [16, 32, 64];
       if (
-        variants !== 2 ||
+        variants !== 1 ||
         samples.length !== expectedSizes.length ||
         samples.some(
           (sample, index) =>
@@ -178,7 +186,7 @@ async function main() {
             sample.height !== expectedSizes[index],
         )
       ) {
-        throw new Error(`${name} does not contain two valid 16/32/64px sets`);
+        throw new Error(`${name} does not contain one valid 16/32/64px set`);
       }
       report.logo.push({ name, theme, variants, samples, ...dimensions });
     }

@@ -125,6 +125,11 @@ a:focus-visible {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.comparison-grid.approved-logo {
+  grid-template-columns: minmax(0, 44rem);
+  justify-content: center;
+}
+
 .sample-grid {
   grid-template-columns: minmax(15rem, 0.7fr) minmax(0, 1.3fr);
 }
@@ -418,8 +423,7 @@ th {
   position: absolute;
   inset: 0 0 0 auto;
   width: 48%;
-  background: url("../proposals/key-visual-stage-path.svg") center / cover
-    no-repeat;
+  background: url("../source/key-visual.svg") center / cover no-repeat;
   content: "";
 }
 

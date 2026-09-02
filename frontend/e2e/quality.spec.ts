@@ -1238,7 +1238,7 @@ test.describe('lzug browser workflows', () => {
     await expect(sidebar).toHaveAttribute('aria-hidden', 'true');
     await expect(accessibleSidebar).toHaveCount(0);
     const iconWidth = await sidebarToggle
-      .locator('.header-toggler-icon')
+      .locator('svg')
       .evaluate((element) => element.getBoundingClientRect().width);
     expect(iconWidth).toBeGreaterThan(0);
 
@@ -1883,9 +1883,9 @@ test.describe('lzug theme and accessibility matrix', () => {
             }
 
             if (viewport.name === 'mobile') {
-              const menuIcon = page.locator('.app-sidebar-toggle .app-menu-icon');
+              const menuIcon = page.locator('.app-sidebar-toggle svg');
               await expect(menuIcon).toBeVisible();
-              await expectReadableContrast(menuIcon, '::before', 'background-color');
+              await expectReadableContrast(menuIcon);
 
               const scrollRegion = page.locator('.app-table-scroll').first();
               if (await scrollRegion.count()) {

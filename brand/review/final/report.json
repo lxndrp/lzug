@@ -1,0 +1,128 @@
+{
+  "schema": 1,
+  "renderer": "Playwright 1.62.1",
+  "contracts": {
+    "assets": "83a900aa93ee9109b7a553c971aecd717d9ac5c4fb684a2e4885cb7fdb442807",
+    "font": "2972c14bc793f0803fc3aec1a39592e1dee34832ccc78b9c062ca879e3f62ebf",
+    "icons": "9ea0d961f4ece7619a4cfeb01e7b5d9bb6293c2fd536f3cf5b727595b5fbb2cc",
+    "tokens": "94e89b8917eeb23614e24a33a51ea0b19aa3408cea33ee04ce679cdd97b67224"
+  },
+  "checks": [
+    "light and dark themes",
+    "desktop and mobile viewports",
+    "200-percent text reflow",
+    "reduced motion",
+    "transparent, themed, black, and white logo variants",
+    "16, 32, and 48 pixel raster derivatives"
+  ],
+  "references": [
+    {
+      "name": "assets-theme-monochrome-small-sizes.png",
+      "width": 1440,
+      "height": 1253,
+      "sha256": "09c84df5deb4429f377a3b080439b37ed12135e7e52b413aec95d1cb1a5a809a"
+    },
+    {
+      "name": "product-dashboard-dark-desktop.png",
+      "width": 1440,
+      "height": 1441,
+      "sha256": "f35cb16b919c82cdc15bff7648dc29774ed1b80e2d14a040a4285458ecadde47"
+    },
+    {
+      "name": "product-dashboard-light-desktop.png",
+      "width": 1440,
+      "height": 1441,
+      "sha256": "80effda4e7cdb7cfec24c1747072d59b5b5825e788afe57689fd29dde854e40b"
+    },
+    {
+      "name": "product-detail-cards-light-desktop.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "034c73d63deb4aa7647644cc837021e953bec85230ddd9cd4e9fefa4185e21c5"
+    },
+    {
+      "name": "product-form-validation-light-desktop.png",
+      "width": 1440,
+      "height": 1493,
+      "sha256": "d67cbaf6a37e21a3483c29c694f505cbe4dd931e45f332d2597e730f1ef4ead1"
+    },
+    {
+      "name": "product-login-light-desktop.png",
+      "width": 1440,
+      "height": 1064,
+      "sha256": "e8af8472b041e36b8c26fcf4cbfee4f497beef07e415156ad2f4e0432b3a7b80"
+    },
+    {
+      "name": "product-mobile-navigation-dark.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "80b5d4078c8f0457b238917bad98943af2e5c474c8512e082a6d4668831c0966"
+    },
+    {
+      "name": "product-reflow-200-percent-light.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "1485a0077d12ca020d54024be2642c4b9debca041e7ca8c218ddb4ce39c9509b"
+    },
+    {
+      "name": "product-table-dark-desktop.png",
+      "width": 1440,
+      "height": 1093,
+      "sha256": "295f711436bcd80832a0767a8490bfa170711dba829082ad08bffc4b10641fa9"
+    },
+    {
+      "name": "publication-handbook-light-desktop.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "915d7d1fd67440b608a4c8a4c036d7994be4f15dba1e5c8a0d158ce5f00fb20d"
+    },
+    {
+      "name": "publication-landing-dark-mobile.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "17f5c03f1a67cbeefc0aa877575798441cb0d762c62bd70db7c4ee7da7bbf861"
+    },
+    {
+      "name": "publication-landing-light-desktop.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "d1afa01cc068041c06899388bf2ac4a26ac66860dc96b74ec0eb6a013a714872"
+    },
+    {
+      "name": "state-conflict-dark-desktop.png",
+      "width": 1440,
+      "height": 1129,
+      "sha256": "a85895869fc525cca248f8d629db4a12930cc9168f4d199aa41c97d29585eae0"
+    },
+    {
+      "name": "state-empty-light-desktop.png",
+      "width": 1440,
+      "height": 1093,
+      "sha256": "af904fa04f42d3477408efdc6ded28725b1ce2d7b1c66ce1c0aace3d7eda91fb"
+    },
+    {
+      "name": "state-error-dark-desktop.png",
+      "width": 1440,
+      "height": 1476,
+      "sha256": "4327deb2f60a96101a4be0974895487037a54eadc273befa98d9fc6bbb19e802"
+    },
+    {
+      "name": "state-loading-dark-desktop.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "3c9d4aaa9212ca6fd5310b101030f62c8cfa750930ff591c6ef03c320fd90861"
+    },
+    {
+      "name": "state-success-light-desktop.png",
+      "width": 1440,
+      "height": 1093,
+      "sha256": "c6ed6270f386360d74774794f89d42368121147bd0b3c638a4c3abaf7c7d36fa"
+    },
+    {
+      "name": "state-warning-dark-desktop.png",
+      "width": 1440,
+      "height": 1476,
+      "sha256": "6c8806e228aaec4c3e4ed51ff0342461c26c53884e374fa28bbb0fb1981520c5"
+    }
+  ]
+}

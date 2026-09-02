@@ -1,0 +1,107 @@
+/* Canonical, toolkit-neutral lzug brand tokens. */
+:root {
+  color-scheme: light;
+  --lzug-color-brand-ink: #2d235c;
+  --lzug-color-brand-ink-hover: #433579;
+  --lzug-color-brand-ink-active: #211942;
+  --lzug-color-brand-surface: #2d235c;
+  --lzug-color-brand-accent: #9a5c00;
+  --lzug-color-brand-accent-strong: #754400;
+  --lzug-color-neutral-canvas: #f7f7fb;
+  --lzug-color-neutral-surface: #ffffff;
+  --lzug-color-neutral-surface-raised: #ffffff;
+  --lzug-color-neutral-surface-translucent: rgb(255 255 255 / 92%);
+  --lzug-color-neutral-border: #d9d6e6;
+  --lzug-color-text: #1e1a2e;
+  --lzug-color-text-muted: #59546b;
+  --lzug-color-text-on-brand: #ffffff;
+  --lzug-color-text-on-interaction: #ffffff;
+  --lzug-color-focus: #9a5c00;
+  --lzug-color-status-success: #176b3a;
+  --lzug-color-status-success-soft: #e5f5eb;
+  --lzug-color-status-warning: #8a5200;
+  --lzug-color-status-warning-soft: #fff1cf;
+  --lzug-color-status-danger: #ae2940;
+  --lzug-color-status-danger-soft: #fff0f2;
+  --lzug-color-status-info: #2456a6;
+  --lzug-color-status-info-soft: #edf3ff;
+  --lzug-color-data-1: #5743a5;
+  --lzug-color-data-2: #13716d;
+  --lzug-color-data-3: #a45e00;
+  --lzug-color-data-4: #a72e54;
+  --lzug-font-family:
+    "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --lzug-font-size-body: 1rem;
+  --lzug-font-size-small: 0.875rem;
+  --lzug-font-size-caption: 0.75rem;
+  --lzug-font-size-heading: 1.5rem;
+  --lzug-font-weight-regular: 400;
+  --lzug-font-weight-medium: 600;
+  --lzug-font-weight-strong: 700;
+  --lzug-line-height-body: 1.5;
+  --lzug-line-height-tight: 1.25;
+  --lzug-space-1: 0.25rem;
+  --lzug-space-2: 0.5rem;
+  --lzug-space-3: 0.75rem;
+  --lzug-space-4: 1rem;
+  --lzug-space-5: 1.5rem;
+  --lzug-space-6: 2rem;
+  --lzug-content-max: 96rem;
+  --lzug-radius-sm: 0.25rem;
+  --lzug-radius-md: 0.375rem;
+  --lzug-radius-lg: 0.5rem;
+  --lzug-shadow-subtle: 0 1px 2px rgb(30 26 46 / 8%);
+  --lzug-shadow-floating: 0 10px 28px rgb(30 26 46 / 18%);
+  --lzug-focus-width: 0.1875rem;
+  --lzug-focus-offset: 0.125rem;
+  --lzug-icon-size-sm: 1rem;
+  --lzug-icon-size-md: 1.25rem;
+  --lzug-icon-stroke: 2;
+  --lzug-touch-target-min: 2.75rem;
+  --lzug-motion-fast: 160ms;
+  --lzug-motion-normal: 200ms;
+  --lzug-breakpoint-compact: 48rem;
+}
+
+body[tuiTheme="dark"],
+[data-r-theme-variant="relearn-dark"] {
+  color-scheme: dark;
+  --lzug-color-brand-ink: #c8bbff;
+  --lzug-color-brand-ink-hover: #ded6ff;
+  --lzug-color-brand-ink-active: #a99bf2;
+  --lzug-color-brand-surface: #2d235c;
+  --lzug-color-brand-accent: #ffd083;
+  --lzug-color-brand-accent-strong: #ffdc9f;
+  --lzug-color-neutral-canvas: #151225;
+  --lzug-color-neutral-surface: #201b35;
+  --lzug-color-neutral-surface-raised: #292342;
+  --lzug-color-neutral-surface-translucent: rgb(32 27 53 / 92%);
+  --lzug-color-neutral-border: #514a70;
+  --lzug-color-text: #f5f2ff;
+  --lzug-color-text-muted: #c5bedb;
+  --lzug-color-text-on-brand: #ffffff;
+  --lzug-color-text-on-interaction: #211942;
+  --lzug-color-focus: #ffd083;
+  --lzug-color-status-success: #85d9aa;
+  --lzug-color-status-success-soft: #173c2d;
+  --lzug-color-status-warning: #ffd083;
+  --lzug-color-status-warning-soft: #4b3918;
+  --lzug-color-status-danger: #ffb3bf;
+  --lzug-color-status-danger-soft: #502333;
+  --lzug-color-status-info: #aecbff;
+  --lzug-color-status-info-soft: #1d3562;
+  --lzug-color-data-1: #c8bbff;
+  --lzug-color-data-2: #79d3ca;
+  --lzug-color-data-3: #ffd083;
+  --lzug-color-data-4: #ffafcb;
+  --lzug-shadow-subtle: 0 1px 2px rgb(0 0 0 / 30%);
+  --lzug-shadow-floating: 0 10px 28px rgb(0 0 0 / 45%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --lzug-motion-fast: 0ms;
+    --lzug-motion-normal: 0ms;
+  }
+}

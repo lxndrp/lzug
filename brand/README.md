@@ -2,10 +2,10 @@
 
 ## Status
 
-Dieser Stand ist ein visuell prüfbarer Entwurf für Issue #568.
-Er integriert noch keine neue Marke oder neue Schrift in Produkt und Publikation.
-Die ersten drei Logo-Vergleichsstufen wurden im Issue nicht freigegeben.
-Logo und Schrift benötigen weiterhin eine dokumentierte Maintainer-Freigabe.
+Die Bildmarke **B2b: Urkunde rechts oben** ist durch den Maintainer [kanonisch freigegeben](https://github.com/lxndrp/lzug/issues/568#issuecomment-5512076189).
+Die freigegebene Schrift ist [Inter](https://github.com/lxndrp/lzug/issues/568#issuecomment-5514030813).
+Produkt, öffentliche Publikation, lokale Schriftauslieferung, Taiga-Adapter und der Lucide-Vertrag werden aus den hier dokumentierten Quellen integriert.
+Die finalen Referenzansichten sind durch den Maintainer [kanonisch freigegeben](https://github.com/lxndrp/lzug/issues/568#issuecomment-5515890169).
 
 ## Designvertrag
 
@@ -17,46 +17,55 @@ Die vorgeschlagene Farbwelt verbindet einen ruhigen dunkelvioletten Primärberei
 Fachstatus, Interaktion und Diagramme erhalten davon unabhängige semantische Rollen.
 Helles und dunkles Schema verwenden dieselben Rollen, aber separat geprüfte Werte.
 
-## Inventarbefund
+## Lieferstand
 
-- `frontend/public/favicon.svg` und `favicon.ico` sind die einzigen derzeit veröffentlichten Markenassets.
-- Die Produktoberfläche zeigt die Textmarke `LZUG`; die Publikation zeigt `lzug` ohne Bildmarke oder Key Visual.
-- `frontend/src/styles.scss` enthält direkt benannte Teal-, Status- und Taiga-Werte in einer gemeinsamen Ebene.
-- Einzelne Komponenten enthalten zusätzliche direkte Farben und Fallback-Tokens.
-- Source Sans 3 wird bereits lokal über Fontsource ausgeliefert, besitzt für #568 aber noch keine vergleichende Maintainer-Freigabe.
-- Funktionale Icons sind derzeit ausgewählte lokal kopierte CoreUI-Pfade und noch nicht die verlangte Lucide-Semantik.
-- Produkt und Publikation besitzen keine gemeinsame kanonische Asset- oder Tokenquelle.
+- `brand/source/` enthält ausschließlich die kanonische B2b-Bildmarke und das daraus abgeleitete Key Visual.
+- `brand/derived/` enthält die reproduzierbaren Light-, Dark-, Schwarz- und Weißfassungen der Bildmarke und horizontalen Wort-/Bildmarke sowie Favicons, App-Icons, Raster-Key-Visuals und Social Previews.
+- `brand/tokens.css` ist die toolkit-neutrale semantische Quelle; `brand/taiga-adapter.css` ordnet die Taiga-Rollen zu.
+- Das Produkt bindet die lokal paketierte Inter-Fassung und die abgeleiteten Assets über `frontend/public/brand` ein.
+- Die Publikation kopiert dieselben Assets, Tokens und die notwendigen Inter-Subsets beim Build in ihren statischen Ausgabebaum.
+- `brand/icon-contract.json` definiert die stabilen semantischen Namen für die lokale Lucide-Auslieferung.
 
-## Logoauswahl · vierte Vergleichsstufe
+## Kanonischer Logo-Assetvertrag
 
-Die vierte Stufe entwickelt ausschließlich die verbindliche, aber noch nicht final freigegebene Richtung **B2: Urkunde** weiter.
-Beide Entwürfe verwenden dieselbe Geometrie und unterscheiden ausschließlich die Position des eigenständigen Ergebniszeichens:
-
-- **B2a: Urkunde oben** ordnet das Ergebniszeichen axial über der Hauptfigur an und hält die Bildmarke symmetrisch.
-- **B2b: Urkunde rechts oben** trennt Ergebnis und Person deutlicher, erzeugt aber eine bewusst asymmetrische Gewichtung.
-
+`brand/source/logo-mark.svg` ist die einzige kanonische Bildmarkenquelle.
+`brand/source/key-visual.svg` überträgt dieselbe B2b-Komposition auf das Key Visual.
 Der Prüfling bleibt als größter Kopf mit schmaler, offener Schulterlinie die Hauptfigur.
-Der verkleinerte Kopf und die deutlich engere Büste korrigieren das zuvor schwere Kopf-Körper-Verhältnis.
 Vier kleinere Köpfe und schmale Büsten bilden in der Bildmarke den nachgeordneten Prüfungsausschuss; im Key Visual sind es fünf.
 Bühnenrahmen und Lichtkegel bleiben durch geringere Strichstärke, Deckkraft und Fläche im Hintergrund.
+Die Urkunde steht als eigenständiges Ergebniszeichen rechts oberhalb des Prüflings.
 
-Die Vektorquellen unter `brand/proposals/` sind eigenständige SVG-Gestaltungen.
-`brand/review/evidence/logo-comparison-light.png` und `logo-comparison-dark.png` zeigen beide Varianten als Bildmarke, vorläufige Wort-/Bildmarke, Kleinformatprobe und Key Visual.
-Die Kleinformatprobe rendert jede unveränderte Bildmarkenquelle mit 16, 32 und 64 Pixeln und macht damit dieselbe Gewichtung ohne separate vereinfachte Ersatzgrafik prüfbar.
-Der Renderbericht prüft für beide Farbschemata zwei Varianten, erfolgreiche SVG-Ladung, die tatsächlichen Pixelmaße und horizontalen Überlauf.
-Die endgültige Wortmarke wird erst nach gemeinsamer Logo- und Schriftfreigabe festgelegt.
+`brand/asset-contract.json` benennt Freigabe, Quellen, ViewBoxes, Themefarben, echte Schwarz-/Weißversionen sowie Formate und Größen maschinenlesbar.
+`scripts/generate_brand_assets.mjs` erzeugt alle Ableitungen deterministisch mit Resvg aus den kanonischen Vektorquellen.
+`task brand:check` stellt sicher, dass keine konkurrierende Logoquelle zurückkehrt, beide SVGs zugänglich und ohne externe Referenzen bleiben, jede geforderte Ableitung existiert und kein thematischer Akzent in eine monochrome Fassung gelangt.
+Frühere Varianten einschließlich B2a bleiben ausschließlich als Entscheidungsartefakte in der Git-Historie und in den unveränderlichen Issue-Nachweisen erhalten.
+
+Die Einzelansicht unter `brand/review/evidence/logo-approved-light.png` und `logo-approved-dark.png` zeigt die freigegebene Bildmarke, die Wortmarkenkombination, die unveränderte 16/32/64-Pixel-Probe und das Key Visual.
+Der Renderbericht bindet beide kanonischen Quellen über SHA-256 an den Nachweis und prüft SVG-Ladung, tatsächliche Pixelmaße und horizontalen Überlauf.
+Die endgültige Wortmarke verwendet Inter und ist im Assetvertrag hinterlegt.
 
 ### Helles Schema
 
-![Logovergleich im hellen Schema](review/evidence/logo-comparison-light.png)
+![Freigegebene Bildmarke im hellen Schema](review/evidence/logo-approved-light.png)
 
 ### Dunkles Schema
 
-![Logovergleich im dunklen Schema](review/evidence/logo-comparison-dark.png)
+![Freigegebene Bildmarke im dunklen Schema](review/evidence/logo-approved-dark.png)
+
+## Ausgelieferte Integration
+
+Der Assetvertrag liefert folgende Ableitungen aus der Bildmarke: Bildmarke und horizontale Wort-/Bildmarke jeweils in Light, Dark, echtem Schwarz und echtem Weiß, kompakte Light-/Dark-Fassungen, Favicon mit 16/32/48 Pixeln sowie App-Icons mit 192/512 Pixeln.
+Das Key Visual ist als SVG sowie als PNG mit 1200 und 1600 Pixeln Breite vorhanden.
+Die Rasterdateien und das ICO werden im gleichen Durchlauf erzeugt und per Bytevergleich auf Drift geprüft.
+
+Das Produkt verwendet die Wort-/Bildmarke in der Navigation und die abgeleiteten Favicons.
+Die öffentliche Publikation erhält helles und dunkles Key Visual sowie die entsprechende Wort-/Bildmarke.
+Die finalen Referenzansichten decken kleine Größen, transparente SVGs, helle und dunkle Untergründe sowie die zwei echten monochromen Fassungen ab.
 
 ## Schriftvergleich
 
-Die drei Kandidaten werden ausschließlich für den Vergleich geladen und sind noch nicht Teil des Produkt-Bundles.
+Die folgenden Vergleichskandidaten sind erhaltene Entscheidungsbelege.
+Nur die freigegebene Inter-Fassung ist Teil des Produkt-Bundles.
 Alle stammen aus Fontsource 5.3.0, stehen unter OFL-1.1 und enthalten variable Schnitte sowie getrennte Latin-, Greek- und Greek-Extended-Subsets.
 
 | Kandidat      | Upstream-Fassung | Verwendete Achse | WOFF2-Payload der Probe | Charakter im Vergleich                                      |
@@ -88,41 +97,36 @@ Jeder Kandidat wird identisch als Desktop im hellen und Mobilansicht im dunklen 
 
 ![Inter auf Mobilgerät im dunklen Schema](review/evidence/font-inter-mobile-dark.png)
 
-## Reproduktion
+## Reproduktion und Lieferkette
 
-Die Review-Schriften werden außerhalb des Repositorys als unveränderte Registry-Tarballs vorgehalten.
-Der Renderer prüft vor Verwendung deren vollständige npm-SHA512-Integrität aus `font-candidates.json`.
+Inter `5.3.0` stammt aus dem exakt gepinnten Paket `@fontsource-variable/inter`.
+`brand/font-contract.json` hält Upstream-Fassung, OFL-1.1-Lizenz, Subsets und Freigabelink fest;
+die unveränderte Lizenz liegt unter `brand/licenses/Inter-OFL.txt`.
+Produkt und Publikation liefern nur die WOFF2-Subsets `latin`, `greek` und `greek-ext` lokal aus.
 
 ```sh
-mkdir -p /private/tmp/lzug-568-fonts
-npm pack \
-  @fontsource-variable/source-sans-3@5.3.0 \
-  @fontsource-variable/noto-sans@5.3.0 \
-  @fontsource-variable/inter@5.3.0 \
-  --pack-destination /private/tmp/lzug-568-fonts
-node scripts/render_brand_review.mjs --font-cache /private/tmp/lzug-568-fonts
+task brand:generate
+task brand:check
 ```
 
-Die Anwendung lädt dabei keine externen Font-, Icon- oder Asset-URLs.
-Nur die später freigegebene Schrift und ihre tatsächlich benötigten lokalen WOFF2-Artefakte werden in das Produkt übernommen.
-Der vorliegende visuelle Nachweis wurde unter macOS x64 mit Chromium 151.0.7922.34 erzeugt.
-Die unterstützte Browser- und CI-Matrix wird nach Auswahl mit der integrierten Schrift geprüft.
+Die Anwendung lädt keine externen Font-, Icon- oder Asset-URLs.
+Der Generator läuft browserfrei und prüft das resultierende Inventar im temporären Ausgabeverzeichnis gegen `brand/derived/`.
+Die erhaltenen Vergleichsrenders bleiben historische Entscheidungsnachweise; die finale Referenzansicht wird aus dem integrierten Produkt- und Publikationsstand erzeugt.
 
 ## Herkunft und Urheberschaft
 
 Leitidee und Markenanforderungen stammen aus Issue #568 und den dort dokumentierten Maintainer-Entscheidungen.
-Die SVG-Entwürfe wurden für lzug als eigenständige geometrische Vektorgestaltungen umgesetzt und enthalten keine fremden Logo-, Marken- oder Iconpfade.
-Die Entwürfe begründen keine Freigabe der Marke für einen produktiven oder veröffentlichten Einsatz.
+Die SVG-Quellen wurden für lzug als eigenständige geometrische Vektorgestaltungen umgesetzt und enthalten keine fremden Logo-, Marken- oder Iconpfade.
+Die Logo-Freigabe gilt für B2b als gestalterische Richtung; Produktintegration und technische Abnahme erfolgen mit den geforderten Prüfungen.
 
 Die Schriftkandidaten stammen aus den exakt bezeichneten Fontsource-Paketen und werden unverändert nur für den Vergleich verwendet.
-Paketintegrität, Upstream-Fassung und OFL-Lizenz werden maschinenlesbar geprüft; die final ausgewählte Fassung erhält ihren Lizenztext im Repository.
+Paketintegrität, Upstream-Fassung, OFL-Lizenz und die freigegebene Inter-Fassung werden maschinenlesbar geprüft.
 
-## Maintainer-Freigabe
+## Maintainer-Freigaben
 
-Vor der Integration ist im Issue jeweils eine eindeutige Auswahl zu dokumentieren:
+- **Logo:** B2b ist [freigegeben](https://github.com/lxndrp/lzug/issues/568#issuecomment-5512076189).
+- **Schrift:** Inter ist [freigegeben](https://github.com/lxndrp/lzug/issues/568#issuecomment-5514030813).
+- **Finale Referenzansichten:** Der integrierte Produkt- und Publikationsstand ist [freigegeben](https://github.com/lxndrp/lzug/issues/568#issuecomment-5515890169).
 
-1. **Logo:** `B2a: Urkunde oben` oder `B2b: Urkunde rechts oben`, gegebenenfalls mit präzise benannter Korrektur.
-2. **Schrift:** `Source Sans 3`, `Noto Sans` oder `Inter`, gegebenenfalls mit präzise benannter Korrektur.
-
-Die Freigabe bestätigt die subjektive visuelle Richtung, nicht die technische Abnahme.
-Kontrast, Assets, Tokenvollständigkeit, lokale Auslieferung, Lucide-Integration und automatisierte Prüfungen bleiben anschließend Aufgabe der Umsetzung.
+Die Freigaben bestätigen die subjektive visuelle Richtung, nicht die technische Abnahme.
+Kontrast, reproduzierbare Assets, Tokenvollständigkeit, lokale Schriftauslieferung, Lucide-Integration und automatisierte Prüfungen bleiben Aufgabe der weiteren Umsetzung.
