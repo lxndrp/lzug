@@ -143,7 +143,7 @@ Frontendverhalten und betroffene Tests gemeinsam geprüft werden.
 Die Laufzeit prüft Reihenfolge, Prüfsummen und Integrität der
 Migrationshistorie fail-closed.
 
-Die Migrationen bis `027_expand_exam_venue_audit.sql` bilden den aktuellen
+Die Migrationen bis `028_add_exam_venue_change_notifications.sql` bilden den aktuellen
 Stand von Authentifizierung und Sitzungen, Planrevisionen, Benachrichtigungen,
 Kalendern, Ausfall und Ersatz, Prüfungsprotokollen, Ergebnissen,
 Tagesabschlüssen, Ausschuss-Bootstrap, Planfolgen, Rundenlebenszyklus sowie
@@ -163,6 +163,8 @@ Bestätigungen oder Abschlussentscheidungen.
 `027_expand_exam_venue_audit.sql` erweitert den unveränderlichen Verlauf um
 technische Operator-Akteure und die Ereignisse für beantragte, genehmigte oder
 abgelehnte Hochstufungen.
+`028_add_exam_venue_change_notifications.sql` ergänzt den Ereignistyp für
+persistierte Benachrichtigungen nach wirksamen Prüfungsortänderungen.
 Unbekannte oder nicht unterstützte Schemastände verhindern Start, Restore oder
 Lifecycle-Mutation an der jeweiligen kontrollierenden Grenze.
 
