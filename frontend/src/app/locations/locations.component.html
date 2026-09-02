@@ -30,6 +30,18 @@
             </div>
           </header>
 
+          @if (isSyntheticDemoVenue(venue)) {
+            <aside class="locations-reality-notice" aria-label="Realitätsgrenze des Demo-Orts">
+              <strong>Reale Georeferenz, synthetische Prüfungsstätte</strong>
+              <p>
+                Nur Anschrift, allgemeine Orientierung und Referenzpunkt beziehen sich auf den
+                realen Ort. Räume, Kapazitäten, Kontakte, Treffpunkte, Zugänge und
+                Barrierefreiheitsangaben gehören ausschließlich zum Demo-Szenario. Es besteht keine
+                Kooperation oder tatsächliche Prüfungsnutzung.
+              </p>
+            </aside>
+          }
+
           <div class="locations-detail-grid">
             <section class="locations-detail-section" aria-labelledby="venue-address-title">
               <h2 id="venue-address-title">Ort und Anreise</h2>
@@ -86,16 +98,42 @@
               <h2 id="venue-map-title">Kartenansicht</h2>
               <dl class="locations-definition-list">
                 <div>
-                  <dt>Position</dt>
+                  <dt>Bestätigter Referenzpunkt</dt>
                   <dd>{{ coordinateLabel(venue) }}</dd>
                 </div>
                 @if (venue.coordinate_source) {
                   <div>
-                    <dt>Herkunft</dt>
-                    <dd>{{ venue.coordinate_source }}</dd>
+                    <dt>Quelle der Georeferenz</dt>
+                    <dd>
+                      {{ coordinateSourceLabel(venue) }}
+                      @if (coordinateSourceUrl(venue); as sourceUrl) {
+                        ·
+                        <a [href]="sourceUrl" target="_blank" rel="noopener noreferrer">
+                          Quellenangabe öffnen
+                        </a>
+                      }
+                      @if (coordinateSourceDate(venue); as sourceDate) {
+                        · abgerufen am {{ sourceDate }}
+                      }
+                    </dd>
                   </div>
                 }
               </dl>
+              @if (mapProvider(venue).mode === 'osm') {
+                <p class="locations-map-privacy">
+                  Die Detailansicht lädt Kartenkacheln automatisch von der OpenStreetMap Foundation
+                  beziehungsweise ihrem Cache-Netz. Dabei können insbesondere IP-Adresse, Browser-
+                  und Requestdaten, Referer sowie angeforderte Kachelkoordinaten außerhalb der
+                  lzug-Instanz verarbeitet werden.
+                  <a
+                    href="https://osmfoundation.org/wiki/GDPR_Privacy_Statement"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Datenschutzinformation der OSMF
+                  </a>
+                </p>
+              }
               @if (canShowMap(venue)) {
                 @if (!mapLoadError()) {
                   @if (mapProvider(venue).mode === 'google') {
@@ -112,14 +150,14 @@
                       class="locations-map-frame"
                       [src]="mapEmbedUrl(venue)"
                       [title]="'Karte für ' + venue.name"
-                      referrerpolicy="no-referrer"
+                      referrerpolicy="strict-origin-when-cross-origin"
                       (load)="mapLoadError.set(false)"
                       (error)="mapLoadError.set(true)"
                     ></iframe>
                   }
                 } @else {
                   <p class="app-muted" role="status">
-                    Die Kartenansicht ist derzeit nicht verfügbar. Die Ortsdaten bleiben nutzbar.
+                    Karte derzeit nicht verfügbar. Die Ortsdaten bleiben vollständig nutzbar.
                   </p>
                 }
                 <p class="locations-map-meta">
@@ -131,7 +169,7 @@
                     {{ mapProvider(venue).attribution }}
                   </a>
                   <a [href]="routeUrl(venue)" target="_blank" rel="noopener noreferrer">
-                    Zielpunkt in
+                    Externer Dienst: Zielpunkt in
                     {{ mapProvider(venue).mode === 'osm' ? 'OpenStreetMap' : 'Google Maps' }} öffnen
                   </a>
                 </p>

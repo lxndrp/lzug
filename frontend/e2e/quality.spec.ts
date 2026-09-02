@@ -13,9 +13,7 @@ if (!athenCommittee) throw new Error('Canonical Athen committee fixture is missi
 const athenCourtLocation = syntheticFixtures.locations.find(
   (location) =>
     location.id ===
-    syntheticFixtures.keys.locations[
-      'name.papaspyrou.repertoire.lzug.fixture.location.synthetic.court'
-    ],
+    syntheticFixtures.keys.rooms['name.papaspyrou.repertoire.lzug.fixture.room.zappeion.theseus'],
 );
 if (!athenCourtLocation) throw new Error('Canonical Athen location fixture is missing');
 const planchangeCandidate = syntheticFixtures.candidates.find(
@@ -44,7 +42,7 @@ function demoWorkspaceExpiry(): string {
 function demoScenarioOverview(role: 'chair' | 'examiner' | 'replacement') {
   return {
     mode: 'demo',
-    demo_matrix_version: 'demo-paths-v7',
+    demo_matrix_version: 'demo-paths-v8',
     current_role: role,
     created_at: new Date().toISOString(),
     expires_at: demoWorkspaceExpiry(),
@@ -95,7 +93,8 @@ function demoScenarioOverview(role: 'chair' | 'examiner' | 'replacement') {
       'Keine realen personenbezogenen Daten eingeben.',
       'Externe Zustellung ist in der öffentlichen Demo deaktiviert.',
     ],
-    location_contract: 'Theaterbasierte reale Ortsdaten und OSM folgen separat mit #572.',
+    location_contract:
+      'Reale Athener Anschriften und Referenzpunkte verorten ausschließlich synthetische Prüfungsstätten. In Ortsdetails lädt OpenStreetMap automatisch externe Kartenkacheln; ein Routenlink öffnet den Zielpunkt erst nach bewusster Auswahl.',
   };
 }
 
@@ -1070,7 +1069,7 @@ test.describe('lzug browser workflows', () => {
           demo_role: role,
           display_name: demoRoles[role].display_name,
           capabilities: demoCapabilities(role),
-          demo_matrix_version: 'demo-paths-v7',
+          demo_matrix_version: 'demo-paths-v8',
           demo_workspace_expires_at: demoWorkspaceExpiry(),
         }),
       });
@@ -1663,7 +1662,7 @@ test.describe('lzug browser workflows', () => {
     await expect(
       page.getByRole('status').filter({ hasText: /von .* sichtbaren Orten/ }),
     ).toContainText('1 von');
-    await page.getByRole('combobox', { name: 'Scope' }).selectOption('committee');
+    await page.getByRole('combobox', { name: 'Scope' }).selectOption('global');
     await expect(venueCard).toBeVisible();
 
     await page.getByRole('button', { name: 'Details ansehen' }).click();

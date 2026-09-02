@@ -74,6 +74,16 @@ Nur die Ortsdetailansicht lädt eine Karte und zeigt die providerseitige
 Attribution.
 Ein bewusster externer Wechsel übergibt ausschließlich bestätigte
 Zielkoordinaten.
+Die öffentliche Demo ist für eine spätere freigegebene Auslieferung fest auf
+OpenStreetMap konfiguriert.
+Das Iframe lädt Kacheln erst beim Öffnen eines Ortsdetails; Übersichts-,
+Vorab- und Offline-Downloads finden nicht statt.
+Browser-Caching und ein gültiger Referrer bleiben entsprechend der
+OpenStreetMap-Tile-Policy erhalten.
+Vor dem Iframe erklärt die Oberfläche, dass Browser- und Anfragedaten direkt an
+OpenStreetMap-Infrastruktur übertragen werden können.
+Schlägt der Provider fehl, bleiben alle Ortsdaten und der bewusst auslösbare
+externe Ziellink nutzbar.
 Nominatim wird ohne Autocomplete und ohne Wiederholung nur für eine
 ausdrücklich ausgelöste Positionsprüfung aufgerufen.
 Die Antwort wird auf Koordinaten und Herkunft reduziert, bevor ein

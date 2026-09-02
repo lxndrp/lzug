@@ -152,7 +152,7 @@ class NotificationServiceTests(unittest.TestCase):
         self.assertEqual([(1,), (3,), (5,)], recipients)
         own = self.service.list_own(self.scope(1))[0]
         self.assertIn("2026-11-23", own["message"])
-        self.assertIn(DISPLAY_NAMES[f"{FIXTURE_ROOT}.location.synthetic.court"], own["message"])
+        self.assertIn(DISPLAY_NAMES[f"{FIXTURE_ROOT}.location.global.zappeion"], own["message"])
 
     def test_web_push_registration_confirmation_and_timeout_fallback_are_separate(self) -> None:
         private_key = vapid_private_key()

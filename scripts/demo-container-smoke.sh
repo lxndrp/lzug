@@ -71,7 +71,7 @@ assert payload["mode"] == "demo"
 assert payload["initialized"] is True
 assert payload["initialization_status"] == "ready"
 assert payload["runtime_contract"] == "lzug-demo-health-ready-v1"
-assert payload["demo_matrix_version"] == "demo-paths-v7"
+assert payload["demo_matrix_version"] == "demo-paths-v8"
 assert payload["reset_status"] == "scheduled"
 assert len(payload["seed_revision"]) == 64
 assert payload["reset_timezone"] == "Europe/Berlin"
@@ -105,7 +105,7 @@ assert payload["capabilities"] == [
     "confirmed-plan:revise",
     "notifications:read-own",
 ]
-assert payload["demo_matrix_version"] == "demo-paths-v7"
+assert payload["demo_matrix_version"] == "demo-paths-v8"
 assert payload["demo_workspace_expires_at"]
 '
 

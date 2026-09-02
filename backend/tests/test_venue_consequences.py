@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import unittest
+from http import HTTPStatus
 from unittest.mock import patch
 
 from sqlalchemy import func, select
 
+from backend.auth import AuthenticationRepository
 from backend.authorization import AuthorizationScope
 from backend.calendar import CalendarService
 from backend.database import session_scope
@@ -22,6 +24,7 @@ from backend.models import (
 from backend.planning import PlanningService
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 from backend.venue_consequences import VenueConsequenceService
+from demo.synthetic_fixtures_generated import FIXTURE_IDS, FIXTURE_ROOT
 
 
 class VenueConsequenceTests(unittest.TestCase):
@@ -124,7 +127,8 @@ class VenueConsequenceTests(unittest.TestCase):
             service = VenueConsequenceService(db_path)
             venue = ExamVenueService(db_path).get_venue(1)
             assert venue is not None
-            room = venue["rooms"][0]
+            room_id = FIXTURE_IDS[f"{FIXTURE_ROOT}.room.zappeion.theseus"]["id"]
+            room = next(item for item in venue["rooms"] if item["id"] == room_id)
             cases = (
                 (
                     "venue",
@@ -385,9 +389,17 @@ class VenueConsequenceApiTests(unittest.TestCase):
                 "site_name": "Gebäude API",
                 "confirm_future_assignments": True,
             }
+            auth = AuthenticationRepository(db_path)
+            operator = auth.create_account("operator@example.invalid", is_operator=True)
+            operator_session = auth.create_session(operator["id"])
             with ApiServer(db_path) as api:
-                status, impact = api.request("POST", "/api/exam-venues/1/change-impact", payload)
-                assert_status(status, 200)
+                status, impact = api.request(
+                    "POST",
+                    "/api/exam-venues/1/change-impact",
+                    payload,
+                    credentials=operator_session,
+                )
+                assert_status(status, HTTPStatus.OK)
                 self.assertGreater(impact["calendar"]["event_count"], 0)
                 self.assertGreater(impact["notifications"]["recipient_count"], 0)
 
@@ -395,25 +407,37 @@ class VenueConsequenceApiTests(unittest.TestCase):
                     "backend.venue_consequences.CalendarService.sync_assignment",
                     side_effect=RuntimeError("simulated calendar failure"),
                 ):
-                    status, changed = api.request("PATCH", "/api/exam-venues/1", payload)
-                assert_status(status, 200)
+                    status, changed = api.request(
+                        "PATCH",
+                        "/api/exam-venues/1",
+                        payload,
+                        credentials=operator_session,
+                    )
+                assert_status(status, HTTPStatus.OK)
                 self.assertEqual("Gebäude API", changed["site_name"])
                 self.assertIn("consequence_warning", changed)
 
-                status, visible = api.request("GET", "/api/exam-venues/1")
-                assert_status(status, 200)
+                status, visible = api.request(
+                    "GET", "/api/exam-venues/1", credentials=operator_session
+                )
+                assert_status(status, HTTPStatus.OK)
                 problems = visible["consequence_problems"]
                 self.assertTrue(problems)
                 audit_id = problems[0]["audit_id"]
 
                 status, retried = api.request(
-                    "POST", f"/api/exam-venue-changes/{audit_id}/consequences/retry", {}
+                    "POST",
+                    f"/api/exam-venue-changes/{audit_id}/consequences/retry",
+                    {},
+                    credentials=operator_session,
                 )
-                assert_status(status, 200)
+                assert_status(status, HTTPStatus.OK)
                 self.assertEqual(0, retried["problems"])
 
-                status, visible = api.request("GET", "/api/exam-venues/1")
-                assert_status(status, 200)
+                status, visible = api.request(
+                    "GET", "/api/exam-venues/1", credentials=operator_session
+                )
+                assert_status(status, HTTPStatus.OK)
                 self.assertEqual([], visible["consequence_problems"])
 
 

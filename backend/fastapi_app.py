@@ -647,7 +647,11 @@ def _security_headers(config: FastAPIConfig, request: Request) -> dict[str, str]
     headers = {
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "DENY",
-        "Referrer-Policy": "no-referrer",
+        "Referrer-Policy": (
+            "strict-origin-when-cross-origin"
+            if config.map_provider.mode == "osm"
+            else "no-referrer"
+        ),
         "Permissions-Policy": "camera=(), geolocation=(), microphone=()",
         "Cross-Origin-Opener-Policy": "same-origin",
         "Cross-Origin-Resource-Policy": "same-origin",

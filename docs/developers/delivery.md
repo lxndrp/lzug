@@ -99,6 +99,17 @@ Frontendroute.
 Die anonyme OpenAPI-Anfrage muss HTTP 401 mit
 `{"error": "Authentication required."}` liefern.
 
+Vor der ersten öffentlichen Auslieferung der Athener Ortsreferenzen und bei
+jeder späteren Änderung ihrer Quellen oder des Kartenproviders muss die
+Freigabe den sichtbaren Delta-Stand erneut prüfen.
+Dazu gehören Quellen und Abrufdaten, synthetische Kennzeichnung,
+OpenStreetMap-Tile-Policy, OSMF-Datenschutzhinweis sowie das Verhalten bei
+Providerfehlern.
+Die organisatorisch-rechtliche Freigabe #584 bleibt ein eigenständiges Gate;
+Merge, Release oder vorhandene technische Qualität ersetzen sie nicht.
+Ohne diese Freigabe darf kein Demo-Deployment mit dem geänderten
+Deployment-Digest aktiviert werden.
+
 Ein manueller Snapshot benötigt einen neuen annotierten, revisionsgebundenen
 Tag nach erfolgreicher vollständiger Qualität.
 Ein manueller Deploy oder Rollback benötigt ein ausdrücklich freigegebenes,

@@ -93,6 +93,16 @@ resource "azurerm_container_app" "demo" {
         value = var.landingpage_origin
       }
 
+      env {
+        name  = "LZUG_MAP_PROVIDER"
+        value = "osm"
+      }
+
+      env {
+        name  = "LZUG_NOMINATIM_USER_AGENT"
+        value = "lzug-public-demo/1 (+https://lzug.repertoire.papaspyrou.name)"
+      }
+
       dynamic "env" {
         for_each = var.container_environment
         content {

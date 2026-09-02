@@ -874,7 +874,7 @@ export type Person = {
 
 export type Location = {
   id: number;
-  committee_id?: number;
+  committee_id?: number | null;
   name: string;
   street?: string;
   postal_code?: string;

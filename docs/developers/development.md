@@ -105,15 +105,21 @@ Demo- und Testidentitäten.
 Der versionierte Katalog verwendet Figuren und Motive aus William Shakespeares
 „Ein Sommernachtstraum“ und trennt den Hauptausschuss Athen vom Fremdausschuss
 Feenwald.
-Beide Kammern, sämtliche Personen, Kontakte, Orte und Prüfungsvorgänge sind
+Beide Kammern, sämtliche Personen, Kontakte und Prüfungsvorgänge sind
 ausdrücklich fiktiv.
-Reale Athener Orts- und Kartendaten bleiben bis zur getrennten Umsetzung von
-#572 ausgeschlossen.
+Die drei Athener Demo-Orte verwenden ausschließlich die im Katalog bezeichneten
+realen Anschriften, Orientierungen und Referenzkoordinaten.
+Prüfungsstätten, Räume, Kapazitäten, Barrierefreiheitsbewertungen, Kontakte und
+fachliche Zuordnungen bleiben sichtbar synthetisch und behaupten keine
+Kooperation mit den realen Orten.
 
 Jede sichtbare Entität besitzt einen stabilen Schlüssel unter
 `name.papaspyrou.repertoire.lzug.fixture`.
 Personen, Mitgliedschaften und fachliche Datenbank-IDs bleiben getrennt;
 Lookup und Szenariozuordnung erfolgen über den semantischen Schlüssel.
+Orte, Räume und Ortskontakte besitzen eigene Schlüssel und technische IDs.
+Die `legacy_mapping` erhält vorhandene technische IDs bei der Umstellung;
+Anzeigenamen dienen nie als Identität oder Verknüpfung.
 Die Abdeckungsmatrix im Katalog weist Vorsitz, Stellvertretung, alle
 Vertreterseiten, reguläre und stellvertretende Mitglieder, Fallback,
 Ersatzperson, Mehrfachmitgliedschaft, Prüflinge, Fremdausschuss sowie positive
@@ -121,6 +127,8 @@ und negative Autorisierungspfade einschließlich der beiden #487-Szenarien aus.
 
 Synthetische E-Mail-Adressen verwenden ausschließlich
 `@demo.lzug.invalid`; Telefonnummern sind nicht belegt.
+Jede reale Ortsreferenz enthält eine kanonische HTTPS-Quelle und das feste
+Abrufdatum `2026-09-01`.
 `scripts/generate_synthetic_fixtures.py` erzeugt daraus SQL-, Angular- und
 Prototypadapter sowie den Python-Adapter für Demo-Rollen und semantische IDs.
 Generierte Dateien werden nicht direkt bearbeitet.

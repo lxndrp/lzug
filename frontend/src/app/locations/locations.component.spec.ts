@@ -303,7 +303,9 @@ describe('LocationsComponent', () => {
     const root = fixture.nativeElement as HTMLElement;
     const frame = root.querySelector('iframe');
     expect(frame?.getAttribute('title')).toContain(venue.name);
-    expect(frame?.getAttribute('referrerpolicy')).toBe('no-referrer');
+    expect(frame?.getAttribute('referrerpolicy')).toBe('strict-origin-when-cross-origin');
+    expect(frame?.getAttribute('src')).toContain('marker=53.550000,9.990000');
+    expect(root.textContent).toContain('lädt Kartenkacheln automatisch von der OpenStreetMap');
     expect(root.textContent).toContain('OpenStreetMap-Mitwirkende');
     expect(root.textContent).toContain('Zielpunkt in OpenStreetMap öffnen');
   });
@@ -332,7 +334,7 @@ describe('LocationsComponent', () => {
     expect(source).toContain(
       'https://www.google.com/maps/embed/v1/view?key=restricted-browser-key',
     );
-    expect(source).toContain('center=53.55,9.99');
+    expect(source).toContain('center=53.550000,9.990000');
     expect(frame?.getAttribute('referrerpolicy')).toBe('strict-origin-when-cross-origin');
     appRoot.remove();
   });
@@ -376,17 +378,10 @@ describe('LocationsComponent', () => {
   });
 
   it('emits a revisioned room status change', () => {
-    fixture.componentRef.setInput('detailVenueId', masterDataFixture.examVenues[0].id);
-    fixture.detectChanges();
     const component = fixture.componentInstance;
     vi.spyOn(component.updateRoom, 'emit').mockReturnValue(undefined);
-
-    const buttons = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
-    ).filter((item) => item.textContent?.includes('Deaktivieren'));
-    const button = buttons.at(-1);
-    expect(button).toBeDefined();
-    button!.click();
+    const harness = component as unknown as LocationsHarness;
+    harness.toggleRoom(masterDataFixture.examVenues[0].rooms[0]);
 
     expect(component.updateRoom.emit).toHaveBeenCalledWith({
       id: 1,

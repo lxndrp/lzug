@@ -12,8 +12,11 @@ Die Anwendung ist ein Arbeitswerkzeug für die Ausschussarbeit, nicht für die i
 Die [öffentliche Demo](https://demo.lzug.repertoire.papaspyrou.name) zeigt den aktuellen Prototyp.
 
 > **Öffentlicher Quellcode-Prototyp:** `lzug` ist ausdrücklich nicht
-> produktionsreif. Der Quellcode enthält ausschließlich synthetische Demo- und
-> Testdaten. Die lokale Kennwort-/TOTP-Authentifizierung ist kein Versprechen
+> produktionsreif. Fachliche Demo-Daten sind synthetisch; bezeichnete Athener
+> Anschriften und Referenzkoordinaten stammen aus den im Ortsdetail genannten
+> Quellen. Beim Öffnen einer Karte lädt der Browser Inhalte von OpenStreetMap.
+> Personenbezogene und fachliche Demo- und Testdaten sind ausschließlich
+> synthetisch. Die lokale Kennwort-/TOTP-Authentifizierung ist kein Versprechen
 > für produktiven Betrieb, Self-Hosting oder Support. `lzug` steht in keiner
 > offiziellen Beziehung zur IHK.
 

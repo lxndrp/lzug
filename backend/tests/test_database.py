@@ -102,7 +102,7 @@ def rewind_exam_venue_migration(connection: sqlite3.Connection) -> None:
         )
         SELECT
           room.id,
-          venue.committee_id,
+          COALESCE(venue.committee_id, 1),
           venue.name,
           venue.street,
           venue.postal_code,
@@ -112,8 +112,7 @@ def rewind_exam_venue_migration(connection: sqlite3.Connection) -> None:
           room.created_at,
           room.updated_at
         FROM exam_room AS room
-        JOIN exam_venue AS venue ON venue.id = room.venue_id
-        WHERE venue.committee_id IS NOT NULL;
+        JOIN exam_venue AS venue ON venue.id = room.venue_id;
 
         CREATE TABLE planning_settings_025_rewind (
           id INTEGER PRIMARY KEY,
@@ -711,6 +710,8 @@ class DatabaseTests(unittest.TestCase):
                     "committee_member",
                     "exam_venue",
                     "exam_room",
+                    "exam_venue_contact",
+                    "exam_venue_contact_room",
                     "candidate",
                     "exam_half_year",
                     "exam_round",
@@ -727,7 +728,9 @@ class DatabaseTests(unittest.TestCase):
                 "committee": ADAPTER_COUNTS["seed"]["committees"],
                 "committee_member": ADAPTER_COUNTS["seed"]["memberships"],
                 "exam_venue": ADAPTER_COUNTS["seed"]["locations"],
-                "exam_room": ADAPTER_COUNTS["seed"]["locations"],
+                "exam_room": ADAPTER_COUNTS["seed"]["rooms"],
+                "exam_venue_contact": ADAPTER_COUNTS["seed"]["location_contacts"],
+                "exam_venue_contact_room": 1,
                 "candidate": ADAPTER_COUNTS["seed"]["candidates"],
                 "exam_half_year": 1,
                 "exam_round": 1,
