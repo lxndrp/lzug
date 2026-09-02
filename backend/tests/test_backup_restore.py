@@ -411,6 +411,42 @@ class BackupRestoreTests(unittest.TestCase):
         safety = list(target_paths.backups.glob("pre-restore-*.lzug"))
         self.assertEqual(1, len(safety))
 
+    def test_replace_mode_rolls_back_partial_activation_install_failure(self) -> None:
+        source_paths, source, _token = self.prepare_source()
+        backup = source.create_backup()
+        target_paths, target = self.runtime("target", seed=True)
+        target_key = authentication_key(target_paths.database)
+        with closing(sqlite3.connect(target_paths.database)) as connection:
+            connection.execute("UPDATE candidate SET first_name = 'TargetOnly' WHERE id = 1")
+            connection.commit()
+        self.copy_artifact(source_paths, target_paths, backup["artifact"])
+
+        import backend.backup_restore as backup_restore
+
+        original_replace = backup_restore.os.replace
+        failure_injected = False
+
+        def fail_document_install(source: str | bytes | Path, target: str | bytes | Path) -> None:
+            nonlocal failure_injected
+            if Path(target) == target_paths.documents and not failure_injected:
+                failure_injected = True
+                raise OSError("injected")
+            original_replace(source, target)
+
+        with patch("backend.backup_restore.os.replace", side_effect=fail_document_install):
+            with self.assertRaises(ArtifactError) as failure:
+                target.restore(backup["artifact"], self.private_key, replace=True)
+
+        self.assertEqual("activation_failed", failure.exception.code)
+        self.assertEqual(target_key, authentication_key(target_paths.database))
+        self.assertTrue(target_paths.documents.is_dir())
+        self.assertFalse(any(target_paths.documents.iterdir()))
+        with closing(sqlite3.connect(target_paths.database)) as connection:
+            self.assertEqual(
+                "TargetOnly",
+                connection.execute("SELECT first_name FROM candidate WHERE id = 1").fetchone()[0],
+            )
+
     def test_replace_mode_keeps_a_protected_safety_artifact(self) -> None:
         source_paths, source, _token = self.prepare_source()
         backup = source.create_backup()
