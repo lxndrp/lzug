@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
-  <title id="title">lzug Bildmarkenentwurf Prüfzeichen</title>
-  <desc id="description">Ein leicht abstrahierter Prüfling mit Prüfzeichen steht vor einem Prüfungsausschuss aus vier Köpfen und reduzierten Büsten. Bühne und Lichtkegel bleiben im Hintergrund.</desc>
+  <title id="title">lzug Bildmarkenentwurf Urkunde</title>
+  <desc id="description">Ein leicht abstrahierter Prüfling mit Urkunde steht vor einem Prüfungsausschuss aus vier Köpfen und reduzierten Büsten. Bühne und Lichtkegel bleiben im Hintergrund.</desc>
   <style>
     :root { --brand-ink: #2d235c; --brand-accent: #f3b33d; }
     @media (prefers-color-scheme: dark) { :root { --brand-ink: #f7f4ff; --brand-accent: #ffc85a; } }
@@ -13,7 +13,8 @@
   </g>
   <circle cx="128" cy="96" r="22" fill="var(--brand-ink)" />
   <path d="M88 174c0-35 17-57 40-57s40 22 40 57" fill="none" stroke="var(--brand-ink)" stroke-linecap="round" stroke-width="13" />
-  <circle cx="128" cy="151" r="16" fill="var(--brand-accent)" />
-  <path d="m119 151 6 6 13-16" fill="none" stroke="var(--brand-ink)" stroke-linecap="round" stroke-linejoin="round" stroke-width="6" />
+  <rect x="113" y="132" width="30" height="38" rx="3" fill="var(--brand-accent)" />
+  <path d="M120 142h16M120 150h11" fill="none" stroke="var(--brand-ink)" stroke-linecap="round" stroke-width="4" />
+  <circle cx="135" cy="161" r="5" fill="var(--brand-ink)" />
   <path d="M50 214h156" fill="none" stroke="var(--brand-ink)" stroke-linecap="round" stroke-opacity=".35" stroke-width="8" />
 </svg>

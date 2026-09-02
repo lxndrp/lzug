@@ -148,7 +148,39 @@ async function main() {
         theme,
         viewport: { width: 1440, height: 1000 },
       });
-      report.logo.push({ name, theme, ...dimensions });
+      const context = await browser.newContext({
+        colorScheme: theme,
+        viewport: { width: 1440, height: 1000 },
+      });
+      const page = await context.newPage();
+      await page.goto(file, { waitUntil: "load" });
+      const variants = await page.locator(".panel").count();
+      const samples = await page
+        .locator(".size-sample img")
+        .evaluateAll((images) =>
+          images.map((image) => ({
+            complete: image.complete,
+            height: image.getBoundingClientRect().height,
+            naturalWidth: image.naturalWidth,
+            width: image.getBoundingClientRect().width,
+          })),
+        );
+      await context.close();
+      const expectedSizes = [16, 32, 64, 16, 32, 64, 16, 32, 64];
+      if (
+        variants !== 3 ||
+        samples.length !== expectedSizes.length ||
+        samples.some(
+          (sample, index) =>
+            !sample.complete ||
+            sample.naturalWidth === 0 ||
+            sample.width !== expectedSizes[index] ||
+            sample.height !== expectedSizes[index],
+        )
+      ) {
+        throw new Error(`${name} does not contain three valid 16/32/64px sets`);
+      }
+      report.logo.push({ name, theme, variants, samples, ...dimensions });
     }
 
     const modes = [

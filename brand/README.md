@@ -4,7 +4,7 @@
 
 Dieser Stand ist ein visuell prüfbarer Entwurf für Issue #568.
 Er integriert noch keine neue Marke oder neue Schrift in Produkt und Publikation.
-Die erste Logo-Vergleichsstufe wurde im Issue verworfen.
+Die ersten beiden Logo-Vergleichsstufen wurden im Issue nicht freigegeben.
 Logo und Schrift benötigen weiterhin eine dokumentierte Maintainer-Freigabe.
 
 ## Designvertrag
@@ -27,19 +27,24 @@ Helles und dunkles Schema verwenden dieselben Rollen, aber separat geprüfte Wer
 - Funktionale Icons sind derzeit ausgewählte lokal kopierte CoreUI-Pfade und noch nicht die verlangte Lucide-Semantik.
 - Produkt und Publikation besitzen keine gemeinsame kanonische Asset- oder Tokenquelle.
 
-## Logoauswahl · zweite Vergleichsstufe
+## Logoauswahl · dritte Vergleichsstufe
 
-Beide überarbeiteten Entwürfe setzen den Prüfling als deutlich größte, kontraststarke Hauptfigur ins Zentrum.
-Der positiv bewertete Prüfungsausschuss bleibt als kleineres abstrahiertes Publikum erhalten.
-Bühnenrahmen und Lichtkegel sind in Strichstärke, Kontrast und Fläche zurückgenommen.
-Die Varianten unterscheiden ausschließlich das sekundäre Attribut der Hauptfigur:
+Die dritte Stufe entwickelt die leicht bevorzugte, aber nicht freigegebene Richtung „Prüfling mit Ergebnis“ weiter.
+Alle drei Entwürfe verwenden dieselbe Geometrie und unterscheiden ausschließlich das Ergebniszeichen:
 
-- **A: Prüfling mit Abschluss** verwendet einen kleinen Qualifikationshut und ist dadurch unmittelbar als Abschlussmotiv lesbar, kann aber akademischer wirken.
-- **B: Prüfling mit Ergebnis** verwendet ein kleines Prüfzeichen und bleibt näher an einem branchenoffenen, erfolgreich abgeschlossenen Prüfungsprozess.
+- **B1: Prüfzeichen** ist als digitales Ergebnis- und Statuszeichen unmittelbar lesbar, kann aber generisch wirken.
+- **B2: Urkunde** bezeichnet den konkreten Ergebnisnachweis, benötigt im Kleinformat jedoch mehr Binnenstruktur.
+- **B3: Siegel** verdichtet das Ergebnis auf eine kompakte Form, wirkt aber formaler und stärker nach Auszeichnung.
+
+Der Prüfling bleibt als größter Kopf mit reduzierter Schulterlinie die Hauptfigur.
+Vier erkennbare Köpfe und Büsten bilden in der Bildmarke den Prüfungsausschuss; im Key Visual sind es fünf.
+Die konsistente Liniengeometrie ersetzt die zuvor schweren Körperflächen.
+Bühnenrahmen und Lichtkegel bleiben durch geringere Strichstärke, Deckkraft und Fläche im Hintergrund.
 
 Die Vektorquellen unter `brand/proposals/` sind eigenständige SVG-Gestaltungen.
-`brand/review/evidence/logo-comparison-light.png` und `logo-comparison-dark.png` zeigen beide Richtungen als Bildmarke, vorläufige Wort-/Bildmarke, Kleinformatprobe und Key Visual.
+`brand/review/evidence/logo-comparison-light.png` und `logo-comparison-dark.png` zeigen alle drei Varianten als Bildmarke, vorläufige Wort-/Bildmarke, Kleinformatprobe und Key Visual.
 Die Kleinformatprobe rendert jede unveränderte Bildmarkenquelle mit 16, 32 und 64 Pixeln und macht damit dieselbe Gewichtung ohne separate vereinfachte Ersatzgrafik prüfbar.
+Der Renderbericht prüft für beide Farbschemata drei Varianten, erfolgreiche SVG-Ladung, die tatsächlichen Pixelmaße und horizontalen Überlauf.
 Die endgültige Wortmarke wird erst nach gemeinsamer Logo- und Schriftfreigabe festgelegt.
 
 ### Helles Schema
@@ -117,7 +122,7 @@ Paketintegrität, Upstream-Fassung und OFL-Lizenz werden maschinenlesbar geprüf
 
 Vor der Integration ist im Issue jeweils eine eindeutige Auswahl zu dokumentieren:
 
-1. **Logo:** `A: Prüfling mit Abschluss` oder `B: Prüfling mit Ergebnis`, gegebenenfalls mit präzise benannter Korrektur.
+1. **Logo:** `B1: Prüfzeichen`, `B2: Urkunde` oder `B3: Siegel`, gegebenenfalls mit präzise benannter Korrektur.
 2. **Schrift:** `Source Sans 3`, `Noto Sans` oder `Inter`, gegebenenfalls mit präzise benannter Korrektur.
 
 Die Freigabe bestätigt die subjektive visuelle Richtung, nicht die technische Abnahme.

@@ -5,14 +5,128 @@
     {
       "name": "logo-comparison-light.png",
       "theme": "light",
-      "height": 1236,
+      "variants": 3,
+      "samples": [
+        {
+          "complete": true,
+          "height": 16,
+          "naturalWidth": 150,
+          "width": 16
+        },
+        {
+          "complete": true,
+          "height": 32,
+          "naturalWidth": 150,
+          "width": 32
+        },
+        {
+          "complete": true,
+          "height": 64,
+          "naturalWidth": 150,
+          "width": 64
+        },
+        {
+          "complete": true,
+          "height": 16,
+          "naturalWidth": 150,
+          "width": 16
+        },
+        {
+          "complete": true,
+          "height": 32,
+          "naturalWidth": 150,
+          "width": 32
+        },
+        {
+          "complete": true,
+          "height": 64,
+          "naturalWidth": 150,
+          "width": 64
+        },
+        {
+          "complete": true,
+          "height": 16,
+          "naturalWidth": 150,
+          "width": 16
+        },
+        {
+          "complete": true,
+          "height": 32,
+          "naturalWidth": 150,
+          "width": 32
+        },
+        {
+          "complete": true,
+          "height": 64,
+          "naturalWidth": 150,
+          "width": 64
+        }
+      ],
+      "height": 1103,
       "overflow": 0,
       "width": 1440
     },
     {
       "name": "logo-comparison-dark.png",
       "theme": "dark",
-      "height": 1236,
+      "variants": 3,
+      "samples": [
+        {
+          "complete": true,
+          "height": 16,
+          "naturalWidth": 150,
+          "width": 16
+        },
+        {
+          "complete": true,
+          "height": 32,
+          "naturalWidth": 150,
+          "width": 32
+        },
+        {
+          "complete": true,
+          "height": 64,
+          "naturalWidth": 150,
+          "width": 64
+        },
+        {
+          "complete": true,
+          "height": 16,
+          "naturalWidth": 150,
+          "width": 16
+        },
+        {
+          "complete": true,
+          "height": 32,
+          "naturalWidth": 150,
+          "width": 32
+        },
+        {
+          "complete": true,
+          "height": 64,
+          "naturalWidth": 150,
+          "width": 64
+        },
+        {
+          "complete": true,
+          "height": 16,
+          "naturalWidth": 150,
+          "width": 16
+        },
+        {
+          "complete": true,
+          "height": 32,
+          "naturalWidth": 150,
+          "width": 32
+        },
+        {
+          "complete": true,
+          "height": 64,
+          "naturalWidth": 150,
+          "width": 64
+        }
+      ],
+      "height": 1103,
       "overflow": 0,
       "width": 1440
     }
