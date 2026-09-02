@@ -72,6 +72,21 @@ class OpenApiContractTests(unittest.TestCase):
                     "/api/exam-venue-contacts/{id}",
                     "RevisionDeleteRequest",
                 ),
+                (
+                    "post",
+                    "/api/exam-venues/duplicate-check",
+                    "ExamVenueDuplicateCheckRequest",
+                ),
+                (
+                    "post",
+                    "/api/exam-venues/{id}/promotion-requests",
+                    "ExamVenuePromotionRequest",
+                ),
+                (
+                    "post",
+                    "/api/exam-venue-promotion-requests/{id}/decision",
+                    "ExamVenuePromotionDecisionRequest",
+                ),
             )
 
         for method, path, schema_name in commands:

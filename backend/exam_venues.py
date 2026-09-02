@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 import unicodedata
 from collections.abc import Iterable
+from datetime import date
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +27,7 @@ from .models import (
     CommitteeMember,
     ExamDay,
     ExamRoom,
+    ExamRound,
     ExamVenue,
     ExamVenueAuditEvent,
     ExamVenueContact,
@@ -49,6 +52,10 @@ class ExamVenueNotFoundError(ExamVenueError):
 
 class ExamVenueInUseError(ExamVenueError):
     """Signal an entity that still has durable planning or migration references."""
+
+
+class ExamVenueConfirmationRequiredError(ExamVenueError):
+    """Signal that a visible impact or duplicate warning needs confirmation."""
 
 
 VENUE_SCOPES = frozenset({"global", "committee"})
@@ -91,6 +98,10 @@ ROOM_FIELDS = frozenset(
 CONTACT_FIELDS = frozenset(
     {"label", "role", "phone", "email", "availability_notes", "is_active", "room_ids"}
 )
+COMMAND_META_FIELDS = frozenset(
+    {"reason", "duplicates_reviewed", "duplicate_reason", "confirm_future_assignments"}
+)
+VENUE_DUPLICATE_FIELDS = frozenset({"name", "street", "postal_code", "city", "country"})
 
 
 def normalize_venue_text(value: object) -> str:
@@ -132,18 +143,188 @@ class ExamVenueService:
             venue = session.get(ExamVenue, venue_id)
             return self._venue_payload(session, venue) if venue else None
 
-    def create_venue(self, payload: dict[str, Any], *, actor_member_id: int) -> dict[str, Any]:
+    def referenced_committee_ids(self, venue_id: int) -> frozenset[int]:
+        """Return committees with a durable plan reference to this venue."""
+        with session_scope(self.db_path) as session:
+            rows = session.execute(
+                select(ExamRound.committee_id)
+                .join(ExamDay, ExamDay.exam_round_id == ExamRound.id)
+                .join(ExamRoom, ExamRoom.id == ExamDay.room_id)
+                .where(ExamRoom.venue_id == venue_id)
+                .distinct()
+            ).scalars()
+            return frozenset(rows)
+
+    def future_impact(self, venue_id: int, room_id: int | None = None) -> dict[str, Any]:
+        """Summarize confirmed future appointments affected by a master-data change."""
+        with session_scope(self.db_path) as session:
+            statement = (
+                select(ExamDay.id, ExamDay.date)
+                .join(ExamRoom, ExamRoom.id == ExamDay.room_id)
+                .where(
+                    ExamRoom.venue_id == venue_id,
+                    ExamDay.status == "confirmed",
+                    ExamDay.date >= date.today().isoformat(),
+                )
+                .order_by(ExamDay.date, ExamDay.id)
+            )
+            if room_id is not None:
+                statement = statement.where(ExamDay.room_id == room_id)
+            rows = list(session.execute(statement))
+        dates = [row.date for row in rows]
+        return {
+            "count": len(rows),
+            "date_from": min(dates) if dates else None,
+            "date_to": max(dates) if dates else None,
+        }
+
+    def find_duplicates(
+        self,
+        payload: dict[str, Any],
+        *,
+        visible_venue_ids: frozenset[int] | None = None,
+        excluded_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return non-blocking duplicate candidates without exposing hidden venues."""
+        source = self._venue_source(None, payload)
+        normalized_name = normalize_venue_text(source["name"])
+        normalized_address = self._normalized_address(source)
+        if not normalized_name and not normalized_address:
+            return []
+        matches: list[dict[str, Any]] = []
+        with session_scope(self.db_path) as session:
+            for venue in session.scalars(select(ExamVenue).order_by(ExamVenue.id)):
+                if venue.id == excluded_id:
+                    continue
+                if visible_venue_ids is not None and venue.id not in visible_venue_ids:
+                    continue
+                name_score = SequenceMatcher(None, normalized_name, venue.normalized_name).ratio()
+                address_match = normalized_address == self._normalized_address(vars(venue))
+                if name_score < 0.9 and not address_match:
+                    continue
+                matches.append(
+                    {
+                        "id": venue.id,
+                        "scope": venue.scope,
+                        "committee_id": venue.committee_id,
+                        "name": venue.name,
+                        "address": self._address_label(vars(venue)),
+                        "same_address": address_match,
+                        "name_similarity": round(name_score, 2),
+                    }
+                )
+        return matches
+
+    def request_promotion(
+        self,
+        venue_id: int,
+        *,
+        expected_revision: int,
+        actor_member_id: int,
+        reason: str,
+    ) -> dict[str, Any]:
+        """Record one pending request without changing venue visibility."""
+        with session_scope(self.db_path) as session:
+            self._require_actor(session, actor_member_id, None)
+            venue = self._venue_or_raise(session, venue_id)
+            self._assert_revision(venue.revision, expected_revision)
+            if venue.scope != "committee":
+                raise ExamVenueError("Only committee venues can be promoted")
+            if self._promotion_status(session, venue.id) == "pending":
+                raise ExamVenueConflictError("A promotion request is already pending")
+            request_reason = self._text(reason)
+            if not request_reason:
+                raise ExamVenueError("A promotion request needs a reason")
+            self._audit(
+                session,
+                venue_id=venue.id,
+                entity_type="venue",
+                entity_id=venue.id,
+                entity_revision=venue.revision,
+                change_type="promotion_requested",
+                actor_member_id=actor_member_id,
+                technical_actor=None,
+                reason=request_reason,
+                fields={"scope": venue.scope, "committee_id": venue.committee_id},
+            )
+            return self._promotion_payload(session, venue)
+
+    def list_pending_promotions(self) -> list[dict[str, Any]]:
+        with session_scope(self.db_path) as session:
+            return [
+                self._promotion_payload(session, venue)
+                for venue in session.scalars(
+                    select(ExamVenue).order_by(ExamVenue.name, ExamVenue.id)
+                )
+                if venue.scope == "committee"
+                and self._promotion_status(session, venue.id) == "pending"
+            ]
+
+    def decide_promotion(
+        self,
+        venue_id: int,
+        *,
+        expected_revision: int,
+        decision: str,
+        reason: str,
+        technical_actor: str,
+    ) -> dict[str, Any]:
+        """Approve or reject a pending promotion while preserving the venue identity."""
+        with session_scope(self.db_path) as session:
+            actor = self._require_actor(session, None, technical_actor)
+            venue = self._venue_or_raise(session, venue_id)
+            self._assert_revision(venue.revision, expected_revision)
+            if self._promotion_status(session, venue.id) != "pending":
+                raise ExamVenueConflictError("No pending promotion request exists")
+            if decision not in {"approve", "reject"}:
+                raise ExamVenueError("Promotion decision must be approve or reject")
+            decision_reason = self._text(reason)
+            if not decision_reason:
+                raise ExamVenueError("A promotion decision needs a reason")
+            if decision == "approve":
+                values = self._venue_source(venue, {"scope": "global", "committee_id": None})
+                self._assert_venue_can_be_active(session, venue.id, values)
+                collisions = self._duplicate_matches(session, values, excluded_id=venue.id)
+                if any(item.scope == "global" for item in collisions):
+                    raise ExamVenueConflictError("A colliding global venue prevents promotion")
+                venue.scope = "global"
+                venue.committee_id = None
+                venue.revision += 1
+                session.flush()
+            self._audit(
+                session,
+                venue_id=venue.id,
+                entity_type="venue",
+                entity_id=venue.id,
+                entity_revision=venue.revision,
+                change_type=f"promotion_{'approved' if decision == 'approve' else 'rejected'}",
+                actor_member_id=None,
+                technical_actor=actor[1],
+                reason=decision_reason,
+                fields={"decision": decision},
+            )
+            return self._venue_payload(session, venue)
+
+    def create_venue(
+        self,
+        payload: dict[str, Any],
+        *,
+        actor_member_id: int | None = None,
+        technical_actor: str | None = None,
+    ) -> dict[str, Any]:
         values, reason = self._venue_values(payload, current=None)
+        duplicate_reason = self._optional_text(payload.get("duplicate_reason"))
         if values["is_active"]:
             raise ExamVenueError("A venue must be created inactive before its first room exists")
         with session_scope(self.db_path) as session:
-            self._require_actor(session, actor_member_id)
+            actor = self._require_actor(session, actor_member_id, technical_actor)
             self._assert_venue_name_available(
                 session,
                 values["scope"],
                 values["committee_id"],
                 values["normalized_name"],
             )
+            self._assert_duplicate_confirmation(session, values, payload)
             venue = ExamVenue(**values)
             session.add(venue)
             session.flush()
@@ -155,8 +336,17 @@ class ExamVenueService:
                 entity_revision=venue.revision,
                 change_type="created",
                 actor_member_id=actor_member_id,
-                reason=reason,
-                fields=values,
+                technical_actor=actor[1],
+                reason=reason or duplicate_reason,
+                fields={
+                    **values,
+                    "duplicates_reviewed": payload.get("duplicates_reviewed") is True,
+                    **(
+                        {"duplicate_reason": duplicate_reason}
+                        if duplicate_reason is not None
+                        else {}
+                    ),
+                },
             )
             session.flush()
             return self._venue_payload(session, venue)
@@ -166,16 +356,19 @@ class ExamVenueService:
         venue_id: int,
         payload: dict[str, Any],
         *,
-        actor_member_id: int,
+        actor_member_id: int | None = None,
+        technical_actor: str | None = None,
     ) -> dict[str, Any] | None:
         expected_revision, command = self._expected_revision(payload)
         with session_scope(self.db_path) as session:
-            self._require_actor(session, actor_member_id)
+            actor = self._require_actor(session, actor_member_id, technical_actor)
             venue = session.get(ExamVenue, venue_id)
             if venue is None:
                 return None
             self._assert_revision(venue.revision, expected_revision)
             values, reason = self._venue_values(command, current=venue)
+            duplicate_reason = self._optional_text(command.get("duplicate_reason"))
+            self._assert_future_impact_confirmation(session, venue.id, None, command)
             self._assert_venue_name_available(
                 session,
                 values["scope"],
@@ -183,6 +376,7 @@ class ExamVenueService:
                 values["normalized_name"],
                 excluded_id=venue.id,
             )
+            self._assert_duplicate_confirmation(session, values, command, excluded_id=venue.id)
             if values["is_active"]:
                 self._assert_venue_can_be_active(session, venue.id, values)
             was_active = bool(venue.is_active)
@@ -198,7 +392,8 @@ class ExamVenueService:
                 entity_revision=venue.revision,
                 change_type=self._change_type(was_active, bool(venue.is_active)),
                 actor_member_id=actor_member_id,
-                reason=reason,
+                technical_actor=actor[1],
+                reason=reason or duplicate_reason,
                 fields=command,
             )
             session.flush()
@@ -209,11 +404,12 @@ class ExamVenueService:
         venue_id: int,
         *,
         expected_revision: int,
-        actor_member_id: int,
+        actor_member_id: int | None = None,
+        technical_actor: str | None = None,
         reason: str | None = None,
     ) -> bool:
         with session_scope(self.db_path) as session:
-            self._require_actor(session, actor_member_id)
+            actor = self._require_actor(session, actor_member_id, technical_actor)
             venue = session.get(ExamVenue, venue_id)
             if venue is None:
                 return False
@@ -232,6 +428,7 @@ class ExamVenueService:
                 entity_revision=venue.revision,
                 change_type="deleted",
                 actor_member_id=actor_member_id,
+                technical_actor=actor[1],
                 reason=self._optional_text(reason),
                 fields={},
             )
@@ -243,11 +440,12 @@ class ExamVenueService:
         venue_id: int,
         payload: dict[str, Any],
         *,
-        actor_member_id: int,
+        actor_member_id: int | None = None,
+        technical_actor: str | None = None,
     ) -> dict[str, Any]:
         values, reason = self._room_values(payload, current=None)
         with session_scope(self.db_path) as session:
-            self._require_actor(session, actor_member_id)
+            actor = self._require_actor(session, actor_member_id, technical_actor)
             venue = self._venue_or_raise(session, venue_id)
             self._assert_room_name_available(session, venue.id, values["normalized_name"])
             room = ExamRoom(venue_id=venue.id, **values)
@@ -261,6 +459,7 @@ class ExamVenueService:
                 entity_revision=room.revision,
                 change_type="created",
                 actor_member_id=actor_member_id,
+                technical_actor=actor[1],
                 reason=reason,
                 fields=values,
             )
@@ -272,16 +471,18 @@ class ExamVenueService:
         room_id: int,
         payload: dict[str, Any],
         *,
-        actor_member_id: int,
+        actor_member_id: int | None = None,
+        technical_actor: str | None = None,
     ) -> dict[str, Any] | None:
         expected_revision, command = self._expected_revision(payload)
         with session_scope(self.db_path) as session:
-            self._require_actor(session, actor_member_id)
+            actor = self._require_actor(session, actor_member_id, technical_actor)
             room = session.get(ExamRoom, room_id)
             if room is None:
                 return None
             self._assert_revision(room.revision, expected_revision)
             values, reason = self._room_values(command, current=room)
+            self._assert_future_impact_confirmation(session, room.venue_id, room.id, command)
             self._assert_room_name_available(
                 session, room.venue_id, values["normalized_name"], room.id
             )
@@ -300,6 +501,7 @@ class ExamVenueService:
                 entity_revision=room.revision,
                 change_type=self._change_type(was_active, bool(room.is_active)),
                 actor_member_id=actor_member_id,
+                technical_actor=actor[1],
                 reason=reason,
                 fields=command,
             )
@@ -311,11 +513,12 @@ class ExamVenueService:
         room_id: int,
         *,
         expected_revision: int,
-        actor_member_id: int,
+        actor_member_id: int | None = None,
+        technical_actor: str | None = None,
         reason: str | None = None,
     ) -> bool:
         with session_scope(self.db_path) as session:
-            self._require_actor(session, actor_member_id)
+            actor = self._require_actor(session, actor_member_id, technical_actor)
             room = session.get(ExamRoom, room_id)
             if room is None:
                 return False
@@ -330,6 +533,7 @@ class ExamVenueService:
                 entity_revision=room.revision,
                 change_type="deleted",
                 actor_member_id=actor_member_id,
+                technical_actor=actor[1],
                 reason=self._optional_text(reason),
                 fields={},
             )
@@ -341,11 +545,12 @@ class ExamVenueService:
         venue_id: int,
         payload: dict[str, Any],
         *,
-        actor_member_id: int,
+        actor_member_id: int | None = None,
+        technical_actor: str | None = None,
     ) -> dict[str, Any]:
         values, room_ids, reason = self._contact_values(payload, current=None)
         with session_scope(self.db_path) as session:
-            self._require_actor(session, actor_member_id)
+            actor = self._require_actor(session, actor_member_id, technical_actor)
             venue = self._venue_or_raise(session, venue_id)
             contact = ExamVenueContact(venue_id=venue.id, **values)
             session.add(contact)
@@ -359,6 +564,7 @@ class ExamVenueService:
                 entity_revision=contact.revision,
                 change_type="created",
                 actor_member_id=actor_member_id,
+                technical_actor=actor[1],
                 reason=reason,
                 fields={**values, "room_ids": room_ids},
             )
@@ -370,11 +576,12 @@ class ExamVenueService:
         contact_id: int,
         payload: dict[str, Any],
         *,
-        actor_member_id: int,
+        actor_member_id: int | None = None,
+        technical_actor: str | None = None,
     ) -> dict[str, Any] | None:
         expected_revision, command = self._expected_revision(payload)
         with session_scope(self.db_path) as session:
-            self._require_actor(session, actor_member_id)
+            actor = self._require_actor(session, actor_member_id, technical_actor)
             contact = session.get(ExamVenueContact, contact_id)
             if contact is None:
                 return None
@@ -395,6 +602,7 @@ class ExamVenueService:
                 entity_revision=contact.revision,
                 change_type=self._change_type(was_active, bool(contact.is_active)),
                 actor_member_id=actor_member_id,
+                technical_actor=actor[1],
                 reason=reason,
                 fields=command,
             )
@@ -406,11 +614,12 @@ class ExamVenueService:
         contact_id: int,
         *,
         expected_revision: int,
-        actor_member_id: int,
+        actor_member_id: int | None = None,
+        technical_actor: str | None = None,
         reason: str | None = None,
     ) -> bool:
         with session_scope(self.db_path) as session:
-            self._require_actor(session, actor_member_id)
+            actor = self._require_actor(session, actor_member_id, technical_actor)
             contact = session.get(ExamVenueContact, contact_id)
             if contact is None:
                 return False
@@ -423,6 +632,7 @@ class ExamVenueService:
                 entity_revision=contact.revision,
                 change_type="deleted",
                 actor_member_id=actor_member_id,
+                technical_actor=actor[1],
                 reason=self._optional_text(reason),
                 fields={},
             )
@@ -610,6 +820,82 @@ class ExamVenueService:
         if session.scalar(statement.limit(1)) is not None:
             raise ExamVenueConflictError("Venue name is already used within this scope")
 
+    def _assert_duplicate_confirmation(
+        self,
+        session: Session,
+        values: dict[str, Any],
+        payload: dict[str, Any],
+        excluded_id: int | None = None,
+    ) -> None:
+        relevant_change = excluded_id is None or bool(VENUE_DUPLICATE_FIELDS.intersection(payload))
+        if not relevant_change:
+            return
+        matches = self._duplicate_matches(session, values, excluded_id=excluded_id)
+        if not matches:
+            return
+        if payload.get("duplicates_reviewed") is not True:
+            raise ExamVenueConfirmationRequiredError("Duplicate candidates must be reviewed")
+        if values["scope"] == "committee" and any(item.scope == "global" for item in matches):
+            if not self._optional_text(payload.get("duplicate_reason")):
+                raise ExamVenueConfirmationRequiredError(
+                    "A committee venue similar to a global venue needs a reason"
+                )
+
+    def _duplicate_matches(
+        self,
+        session: Session,
+        values: dict[str, Any],
+        *,
+        excluded_id: int | None,
+    ) -> list[ExamVenue]:
+        normalized_name = normalize_venue_text(values["name"])
+        normalized_address = self._normalized_address(values)
+        matches: list[ExamVenue] = []
+        for venue in session.scalars(select(ExamVenue).order_by(ExamVenue.id)):
+            if venue.id == excluded_id:
+                continue
+            if values["scope"] == "global" and venue.scope != "global":
+                continue
+            if (
+                values["scope"] == "committee"
+                and venue.scope == "committee"
+                and venue.committee_id != values["committee_id"]
+            ):
+                continue
+            name_score = SequenceMatcher(None, normalized_name, venue.normalized_name).ratio()
+            if name_score >= 0.9 or normalized_address == self._normalized_address(vars(venue)):
+                matches.append(venue)
+        return matches
+
+    def _assert_future_impact_confirmation(
+        self,
+        session: Session,
+        venue_id: int,
+        room_id: int | None,
+        payload: dict[str, Any],
+    ) -> None:
+        changed_fields = (VENUE_FIELDS if room_id is None else ROOM_FIELDS).intersection(payload)
+        if not changed_fields:
+            return
+        statement = (
+            select(ExamDay.id)
+            .join(ExamRoom, ExamRoom.id == ExamDay.room_id)
+            .where(
+                ExamRoom.venue_id == venue_id,
+                ExamDay.status == "confirmed",
+                ExamDay.date >= date.today().isoformat(),
+            )
+        )
+        if room_id is not None:
+            statement = statement.where(ExamDay.room_id == room_id)
+        if (
+            session.scalar(statement.limit(1)) is not None
+            and payload.get("confirm_future_assignments") is not True
+        ):
+            raise ExamVenueConfirmationRequiredError(
+                "Future confirmed appointments must be reviewed and confirmed"
+            )
+
     @staticmethod
     def _assert_revision(actual: int, expected: int) -> None:
         if actual != expected:
@@ -691,7 +977,8 @@ class ExamVenueService:
         entity_id: int,
         entity_revision: int,
         change_type: str,
-        actor_member_id: int,
+        actor_member_id: int | None,
+        technical_actor: str | None,
         reason: str | None,
         fields: dict[str, Any],
     ) -> None:
@@ -702,10 +989,15 @@ class ExamVenueService:
                 entity_id=entity_id,
                 entity_revision=entity_revision,
                 change_type=change_type,
-                actor_kind="member",
+                actor_kind="member" if actor_member_id is not None else "operator",
                 actor_member_id=actor_member_id,
+                technical_actor=technical_actor,
                 reason=reason,
-                details_json=json.dumps({"fields": sorted(fields)}, separators=(",", ":")),
+                details_json=json.dumps(
+                    {"fields": sorted(fields), "values": fields},
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ),
             )
         )
 
@@ -758,12 +1050,85 @@ class ExamVenueService:
         return "updated"
 
     @staticmethod
-    def _require_actor(session: Session, actor_member_id: int) -> None:
-        if not isinstance(actor_member_id, int) or isinstance(actor_member_id, bool):
-            raise ExamVenueError("A venue change needs a committee-member actor")
-        if session.get(CommitteeMember, actor_member_id):
-            return
-        raise ExamVenueError("The audit actor does not exist")
+    def _require_actor(
+        session: Session,
+        actor_member_id: int | None,
+        technical_actor: str | None,
+    ) -> tuple[int | None, str | None]:
+        if actor_member_id is not None:
+            if isinstance(actor_member_id, int) and not isinstance(actor_member_id, bool):
+                if session.get(CommitteeMember, actor_member_id):
+                    return actor_member_id, None
+            raise ExamVenueError("The audit actor does not exist")
+        normalized_actor = ExamVenueService._optional_text(technical_actor)
+        if normalized_actor:
+            return None, normalized_actor
+        raise ExamVenueError("A venue change needs an audit actor")
+
+    @staticmethod
+    def _promotion_status(session: Session, venue_id: int) -> str | None:
+        event = session.scalars(
+            select(ExamVenueAuditEvent)
+            .where(
+                ExamVenueAuditEvent.venue_id == venue_id,
+                ExamVenueAuditEvent.change_type.in_(
+                    {"promotion_requested", "promotion_approved", "promotion_rejected"}
+                ),
+            )
+            .order_by(ExamVenueAuditEvent.id.desc())
+            .limit(1)
+        ).first()
+        if event is None:
+            return None
+        return {
+            "promotion_requested": "pending",
+            "promotion_approved": "approved",
+            "promotion_rejected": "rejected",
+        }.get(event.change_type)
+
+    def _promotion_payload(self, session: Session, venue: ExamVenue) -> dict[str, Any]:
+        event = session.scalars(
+            select(ExamVenueAuditEvent)
+            .where(
+                ExamVenueAuditEvent.venue_id == venue.id,
+                ExamVenueAuditEvent.change_type == "promotion_requested",
+            )
+            .order_by(ExamVenueAuditEvent.id.desc())
+            .limit(1)
+        ).first()
+        return {
+            "status": self._promotion_status(session, venue.id),
+            "requested_at": event.created_at if event else None,
+            "requested_by_member_id": event.actor_member_id if event else None,
+            "reason": event.reason if event else None,
+            "venue": self._venue_payload(session, venue),
+        }
+
+    @staticmethod
+    def _normalized_address(source: dict[str, Any]) -> str:
+        return "|".join(
+            normalize_venue_text(source.get(field))
+            for field in ("street", "postal_code", "city", "country")
+        )
+
+    @staticmethod
+    def _address_label(source: dict[str, Any]) -> str:
+        return ", ".join(
+            part
+            for part in (
+                str(source.get("street") or "").strip(),
+                " ".join(
+                    part
+                    for part in (
+                        str(source.get("postal_code") or "").strip(),
+                        str(source.get("city") or "").strip(),
+                    )
+                    if part
+                ),
+                str(source.get("country") or "").strip(),
+            )
+            if part
+        )
 
     @staticmethod
     def _venue_or_raise(session: Session, venue_id: int) -> ExamVenue:
@@ -785,7 +1150,7 @@ class ExamVenueService:
     ) -> tuple[dict[str, Any], str | None]:
         if not isinstance(payload, dict):
             raise ExamVenueError("Venue payload must be an object")
-        unknown = set(payload) - allowed - {"reason"}
+        unknown = set(payload) - allowed - COMMAND_META_FIELDS
         if unknown:
             raise ExamVenueError("Unknown venue fields: " + ", ".join(sorted(unknown)))
         return (

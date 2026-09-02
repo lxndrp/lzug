@@ -564,6 +564,11 @@ form.app-form-grid[tuiForm] {
   white-space: nowrap;
 }
 
+.app-list-card .app-row-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
 .app-filter-bar {
   margin-block-end: 1rem;
   padding: 0.875rem;

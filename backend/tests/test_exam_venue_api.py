@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 
+from backend.auth import AuthContext
 from backend.authorization import AuthorizationScope
 from backend.exam_venue_api import ExamVenueApi
 from backend.exam_venues import ExamVenueService
@@ -16,6 +17,16 @@ def scope(*, management: bool) -> AuthorizationScope:
         member_ids=frozenset({1}),
         management_committee_ids=frozenset({1}) if management else frozenset(),
         member_by_committee={1: 1},
+    )
+
+
+def operator() -> AuthContext:
+    return AuthContext(
+        session_id=2,
+        account_id=2,
+        person_id=None,
+        is_operator=True,
+        committee_member_id=None,
     )
 
 
@@ -97,6 +108,79 @@ class ExamVenueApiTests(unittest.TestCase):
                     },
                     scope(management=True),
                 )
+
+    def test_active_global_venues_are_visible_but_only_operators_manage_them(self) -> None:
+        with TempDatabase() as db_path:
+            service = ExamVenueService(db_path)
+            venue = service.create_venue(
+                self._payload(scope="global", committee_id=None, name="Globaler Ort"),
+                actor_member_id=1,
+            )
+            service.create_room(venue["id"], {"name": "Saal", "is_active": True}, actor_member_id=1)
+            venue = service.update_venue(
+                venue["id"],
+                {"expected_revision": venue["revision"], "is_active": True},
+                actor_member_id=1,
+            )
+            assert venue is not None
+            api = ExamVenueApi(db_path)
+
+            member_view = api.get_venue(venue["id"], scope(management=False))
+            operator_view = api.get_venue(venue["id"], scope(management=False), operator())
+            with self.assertRaises(PermissionError):
+                api.update_venue(
+                    venue["id"],
+                    {"expected_revision": venue["revision"], "name": "Nicht erlaubt"},
+                    scope(management=True),
+                )
+
+        assert member_view is not None
+        assert operator_view is not None
+        self.assertFalse(member_view["capabilities"]["manage"])
+        self.assertTrue(operator_view["capabilities"]["manage"])
+
+    def test_promotion_requires_committee_management_and_operator_decision(self) -> None:
+        with TempDatabase() as db_path:
+            api = ExamVenueApi(db_path)
+            venue = api.create_venue(self._payload(), scope(management=True))
+            api.create_room(
+                venue["id"], {"name": "A-101", "is_active": True}, scope(management=True)
+            )
+            venue = api.update_venue(
+                venue["id"],
+                {"expected_revision": venue["revision"], "is_active": True},
+                scope(management=True),
+            )
+            assert venue is not None
+
+            with self.assertRaises(PermissionError):
+                api.request_promotion(
+                    venue["id"],
+                    {"expected_revision": venue["revision"], "reason": "Geeignet"},
+                    scope(management=False),
+                )
+            request = api.request_promotion(
+                venue["id"],
+                {"expected_revision": venue["revision"], "reason": "Überregional geeignet"},
+                scope(management=True),
+            )
+            pending = api.list_pending_promotions(operator())
+            promoted = api.decide_promotion(
+                venue["id"],
+                {
+                    "expected_revision": venue["revision"],
+                    "decision": "approve",
+                    "reason": "Daten geprüft",
+                },
+                operator(),
+            )
+
+        assert request is not None
+        self.assertEqual("pending", request["status"])
+        self.assertEqual([venue["id"]], [item["venue"]["id"] for item in pending])
+        self.assertEqual("global", promoted["scope"])
+        self.assertIsNone(promoted["committee_id"])
+        self.assertEqual(venue["id"], promoted["id"])
 
 
 if __name__ == "__main__":

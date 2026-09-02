@@ -777,6 +777,29 @@ class DemoRuntimeTests(unittest.TestCase):
                 for role in contract.roles:
                     self.assertIn(contract.capability, ROLE_CAPABILITIES[role])
 
+    def test_exam_venue_mutations_remain_fail_closed_in_the_demo(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path, DemoTestHandler) as api:
+            client = self._client(api)
+            self._role(client, "chair")
+            requests = (
+                ("POST", "/api/exam-venues", {"name": "Nicht anlegen"}),
+                (
+                    "PATCH",
+                    "/api/exam-venues/1",
+                    {"expected_revision": 1, "is_active": False},
+                ),
+                (
+                    "POST",
+                    "/api/exam-venues/1/promotion-requests",
+                    {"expected_revision": 1, "reason": "Nicht beantragen"},
+                ),
+            )
+
+            for method, path, payload in requests:
+                with self.subTest(method=method, path=path):
+                    response = self._write(client, method, path, payload)
+                    self.assertEqual(HTTPStatus.FORBIDDEN, response.status_code, response.text)
+
 
 if __name__ == "__main__":
     unittest.main()

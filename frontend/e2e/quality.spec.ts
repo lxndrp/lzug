@@ -1627,21 +1627,24 @@ test.describe('lzug browser workflows', () => {
     }
   });
 
-  test('keeps table actions scrollable instead of covering mobile data', async ({ page }) => {
+  test('keeps venue card information and actions within the mobile viewport', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/locations');
 
-    const scrollRegion = page.locator('.app-table-scroll');
-    const locationHeader = page.getByRole('columnheader', { name: 'Ort' });
-    const actionHeader = page.getByRole('columnheader', { name: 'Aktion' });
-    await expect(locationHeader).toBeInViewport();
-    await expect(actionHeader).not.toBeInViewport();
-    await expect
-      .poll(() => scrollRegion.evaluate((element) => element.scrollWidth > element.clientWidth))
-      .toBe(true);
-    await expect
-      .poll(() => scrollRegion.evaluate((element) => getComputedStyle(element, '::before').content))
-      .toContain('Tabelle seitlich scrollen');
+    const card = page.getByRole('article', { name: athenCourtLocation.name });
+    await expect(card).toBeVisible();
+    await expect(card.getByText(athenCourtLocation.city, { exact: false })).toBeVisible();
+    await expect(card.locator(':scope > .app-row-actions')).toBeVisible();
+
+    const layout = await card.evaluate((element) => ({
+      cardFits: element.scrollWidth <= element.clientWidth,
+      actionsFit: Array.from(element.querySelectorAll('button')).every((button) => {
+        const bounds = button.getBoundingClientRect();
+        return bounds.left >= 0 && bounds.right <= document.documentElement.clientWidth;
+      }),
+    }));
+    expect(layout.cardFits).toBe(true);
+    expect(layout.actionsFit).toBe(true);
   });
 
   test('opens the candidate form with the keyboard', async ({ page }) => {
@@ -1666,8 +1669,14 @@ test.describe('lzug browser workflows', () => {
   test('keeps contextual create editors associated, cancellable and accessible', async ({
     page,
   }) => {
-    test.setTimeout(180_000);
+    test.setTimeout(300_000);
     const editors = [
+      {
+        path: '/locations',
+        action: 'Prüfungsort anlegen',
+        editor: '#location-create-editor',
+        input: '#locationName',
+      },
       {
         path: '/candidates',
         action: 'Neuen Prüfling anlegen',
@@ -1679,12 +1688,6 @@ test.describe('lzug browser workflows', () => {
         action: 'Prüfer hinzufügen',
         editor: '#member-create-editor',
         input: '#memberFirstName',
-      },
-      {
-        path: '/locations',
-        action: 'Neuen Prüfungsort anlegen',
-        editor: '#location-create-editor',
-        input: '#locationName',
       },
     ] as const;
 

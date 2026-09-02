@@ -251,6 +251,8 @@ class ExamVenueCreateRequest(BaseModel):
     coordinate_source: str | None = None
     is_active: bool | int = False
     reason: str | None = None
+    duplicates_reviewed: bool = False
+    duplicate_reason: str | None = None
 
 
 class ExamVenueUpdateRequest(BaseModel):
@@ -276,6 +278,9 @@ class ExamVenueUpdateRequest(BaseModel):
     coordinate_source: str | None = None
     is_active: bool | int | None = None
     reason: str | None = None
+    duplicates_reviewed: bool = False
+    duplicate_reason: str | None = None
+    confirm_future_assignments: bool = False
 
 
 class ExamRoomCreateRequest(BaseModel):
@@ -309,6 +314,7 @@ class ExamRoomUpdateRequest(BaseModel):
     capacity: int | None = None
     is_active: bool | int | None = None
     reason: str | None = None
+    confirm_future_assignments: bool = False
 
 
 class ExamVenueContactCreateRequest(BaseModel):
@@ -349,3 +355,31 @@ class RevisionDeleteRequest(BaseModel):
 
     expected_revision: int
     reason: str | None = None
+
+
+class ExamVenueDuplicateCheckRequest(BaseModel):
+    """Candidate fields used for a non-mutating duplicate preview."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = ""
+    street: str = ""
+    postal_code: str = ""
+    city: str = ""
+    country: str = "Deutschland"
+    excluded_id: int | None = None
+
+
+class ExamVenuePromotionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_revision: int
+    reason: str
+
+
+class ExamVenuePromotionDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_revision: int
+    decision: str
+    reason: str

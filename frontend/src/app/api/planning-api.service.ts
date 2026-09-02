@@ -21,6 +21,9 @@ import {
   Committee,
   CommitteeMember,
   ExamRound,
+  ExamRoom,
+  ExamVenue,
+  ExamVenueContact,
   ExamRoundCreate,
   ExamRoundLifecycle,
   ExamRoundUpdate,
@@ -730,6 +733,7 @@ export class PlanningApiService {
         '/api/candidate-committee-assignments',
       ),
       locations: this.list<Location>('/api/locations'),
+      examVenues: this.list<ExamVenue>('/api/exam-venues'),
     });
   }
 
@@ -824,16 +828,87 @@ export class PlanningApiService {
     return this.http.delete<void>(`/api/candidates/${id}`);
   }
 
-  createLocation(payload: Omit<Location, 'id'>) {
-    return this.http.post<Location>('/api/locations', payload);
+  createExamVenue(payload: Record<string, unknown>) {
+    return this.http.post<ExamVenue>('/api/exam-venues', payload);
   }
 
-  updateLocation(id: number, payload: Partial<Omit<Location, 'id'>>) {
-    return this.http.patch<Location>(`/api/locations/${id}`, payload);
+  checkExamVenueDuplicates(payload: Record<string, unknown>, excludedId?: number) {
+    return this.http.post<{
+      items: Array<{ id: number; name: string; scope: string; address: string }>;
+    }>('/api/exam-venues/duplicate-check', { ...payload, excluded_id: excludedId });
   }
 
-  deleteLocation(id: number) {
-    return this.http.delete<void>(`/api/locations/${id}`);
+  getExamVenueChangeImpact(id: number) {
+    return this.http.get<{ count: number; date_from: string | null; date_to: string | null }>(
+      `/api/exam-venues/${id}/change-impact`,
+    );
+  }
+
+  getExamRoomChangeImpact(id: number) {
+    return this.http.get<{ count: number; date_from: string | null; date_to: string | null }>(
+      `/api/exam-rooms/${id}/change-impact`,
+    );
+  }
+
+  updateExamVenue(id: number, payload: Record<string, unknown> & { expected_revision: number }) {
+    return this.http.patch<ExamVenue>(`/api/exam-venues/${id}`, payload);
+  }
+
+  deleteExamVenue(id: number, expectedRevision: number) {
+    return this.http.delete<void>(`/api/exam-venues/${id}`, {
+      body: { expected_revision: expectedRevision },
+    });
+  }
+
+  createExamRoom(venueId: number, payload: Record<string, unknown>) {
+    return this.http.post<ExamRoom>(`/api/exam-venues/${venueId}/rooms`, payload);
+  }
+
+  updateExamRoom(id: number, payload: Record<string, unknown> & { expected_revision: number }) {
+    return this.http.patch<ExamRoom>(`/api/exam-rooms/${id}`, payload);
+  }
+
+  deleteExamRoom(id: number, expectedRevision: number) {
+    return this.http.delete<void>(`/api/exam-rooms/${id}`, {
+      body: { expected_revision: expectedRevision },
+    });
+  }
+
+  createExamVenueContact(venueId: number, payload: Record<string, unknown>) {
+    return this.http.post<ExamVenueContact>(`/api/exam-venues/${venueId}/contacts`, payload);
+  }
+
+  updateExamVenueContact(
+    id: number,
+    payload: Record<string, unknown> & { expected_revision: number },
+  ) {
+    return this.http.patch<ExamVenueContact>(`/api/exam-venue-contacts/${id}`, payload);
+  }
+
+  deleteExamVenueContact(id: number, expectedRevision: number) {
+    return this.http.delete<void>(`/api/exam-venue-contacts/${id}`, {
+      body: { expected_revision: expectedRevision },
+    });
+  }
+
+  requestExamVenuePromotion(id: number, expectedRevision: number, reason: string) {
+    return this.http.post(`/api/exam-venues/${id}/promotion-requests`, {
+      expected_revision: expectedRevision,
+      reason,
+    });
+  }
+
+  decideExamVenuePromotion(
+    id: number,
+    expectedRevision: number,
+    decision: 'approve' | 'reject',
+    reason: string,
+  ) {
+    return this.http.post<ExamVenue>(`/api/exam-venue-promotion-requests/${id}/decision`, {
+      expected_revision: expectedRevision,
+      decision,
+      reason,
+    });
   }
 
   savePlanningSettings(

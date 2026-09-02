@@ -151,7 +151,7 @@ class ExamVenueMigrationTests(unittest.TestCase):
         self.assertFalse(legacy_table)
         self.assertEqual(7, first_audit_count)
         self.assertEqual(first_audit_count, audit_count)
-        self.assertEqual("026_add_backup_recipient.sql", current_migration)
+        self.assertEqual("027_expand_exam_venue_audit.sql", current_migration)
 
     def test_duplicate_normalized_rooms_stop_before_schema_changes_and_leave_reports(self) -> None:
         with tempfile.TemporaryDirectory() as raw_directory:

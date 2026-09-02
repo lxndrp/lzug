@@ -8,7 +8,16 @@ import { TuiConfirmService } from '@taiga-ui/kit';
 import { of } from 'rxjs';
 
 import { App } from './app';
+import { ExamRoom, ExamVenue, ExamVenueContact } from './api/api.models';
 import { AuthService } from './auth/auth.service';
+import {
+  ContactCreate,
+  ContactUpdate,
+  RoomCreate,
+  RoomUpdate,
+  VenueCreate,
+  VenueUpdate,
+} from './locations/locations.component';
 import { RoundContextService } from './api/round-context.service';
 import { routes } from './app.routes';
 import {
@@ -25,6 +34,7 @@ import {
   examSlotsFixture,
   foreignExamRoundFixture,
   locationsFixture,
+  masterDataFixture,
   membersFixture,
   personsFixture,
   roundCandidatesFixture,
@@ -397,6 +407,177 @@ describe('App', () => {
     app.switchDemoRole();
     expect(app.roleSwitchBusy()).toBe(false);
   });
+
+  it('checks venue duplicates and future impact before persisting aggregates', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+    const app = fixture.componentInstance as unknown as {
+      createVenue(payload: VenueCreate): void;
+      updateVenue(update: VenueUpdate): void;
+      updateRoom(update: RoomUpdate): void;
+      actionBusy(): boolean;
+    };
+    const venue = masterDataFixture.examVenues[0];
+    const create: VenueCreate = {
+      scope: 'committee',
+      committee_id: 1,
+      name: 'Prüfungszentrum West',
+      street: 'Testweg 2',
+      postal_code: '20095',
+      city: 'Hamburg',
+      country: 'Deutschland',
+      accessibility_status: 'confirmed',
+      is_accessible: true,
+      is_active: true,
+    };
+
+    app.createVenue(create);
+    expect(app.actionBusy()).toBe(true);
+    const duplicateCheck = http.expectOne('/api/exam-venues/duplicate-check');
+    expect(duplicateCheck.request.method).toBe('POST');
+    duplicateCheck.flush({ items: [] });
+    const createRequest = http.expectOne('/api/exam-venues');
+    expect(createRequest.request.body).toEqual({ ...create, duplicates_reviewed: false });
+    createRequest.flush({ ...venue, id: 7, name: create.name });
+    flushDashboardRequests(http);
+    expect(app.actionBusy()).toBe(false);
+
+    const update: VenueUpdate = {
+      id: venue.id,
+      payload: { expected_revision: venue.revision, name: 'Prüfungszentrum Neu' },
+    };
+    app.updateVenue(update);
+    http.expectOne(`/api/exam-venues/${venue.id}/change-impact`).flush({ count: 0 });
+    http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
+    const updateRequest = http.expectOne(`/api/exam-venues/${venue.id}`);
+    expect(updateRequest.request.body).toEqual({
+      ...update.payload,
+      confirm_future_assignments: false,
+      duplicates_reviewed: false,
+    });
+    updateRequest.flush({ ...venue, name: 'Prüfungszentrum Neu', revision: venue.revision + 1 });
+    flushDashboardRequests(http);
+
+    app.updateRoom({
+      id: venue.rooms[0].id,
+      payload: { expected_revision: venue.rooms[0].revision, name: 'A-102' },
+    });
+    http.expectOne(`/api/exam-rooms/${venue.rooms[0].id}/change-impact`).flush({ count: 0 });
+    const roomRequest = http.expectOne(`/api/exam-rooms/${venue.rooms[0].id}`);
+    expect(roomRequest.request.body.confirm_future_assignments).toBe(false);
+    roomRequest.flush({ ...venue.rooms[0], name: 'A-102', revision: 2 });
+    flushDashboardRequests(http);
+
+    app.createVenue(create);
+    http
+      .expectOne('/api/exam-venues/duplicate-check')
+      .flush({ error: 'unavailable' }, { status: 503, statusText: 'Unavailable' });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Dublettenprüfung fehlgeschlagen',
+    );
+
+    const confirm = TestBed.inject(TuiConfirmService);
+    vi.spyOn(confirm, 'withConfirm').mockReturnValue(of(false));
+    app.createVenue(create);
+    http.expectOne('/api/exam-venues/duplicate-check').flush({
+      items: [{ id: 9, name: 'Prüfungszentrum West', address: 'Testweg 2, Hamburg' }],
+    });
+
+    app.updateVenue(update);
+    http.expectOne(`/api/exam-venues/${venue.id}/change-impact`).flush({
+      count: 2,
+      date_from: '2026-11-01',
+      date_to: '2026-11-30',
+    });
+    http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
+    expect(http.match(`/api/exam-venues/${venue.id}`)).toHaveLength(0);
+
+    app.updateVenue(update);
+    http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
+    http
+      .expectOne(`/api/exam-venues/${venue.id}/change-impact`)
+      .flush({ error: 'unavailable' }, { status: 503, statusText: 'Unavailable' });
+  });
+
+  it('routes every nested venue command through the aggregate API', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+    const app = fixture.componentInstance as unknown as {
+      deleteVenue(venue: ExamVenue): void;
+      createRoom(command: RoomCreate): void;
+      deleteRoom(room: ExamRoom): void;
+      createContact(command: ContactCreate): void;
+      updateContact(command: ContactUpdate): void;
+      deleteContact(contact: ExamVenueContact): void;
+      requestPromotion(command: { venue: ExamVenue; reason: string }): void;
+      decidePromotion(command: {
+        venue: ExamVenue;
+        decision: 'approve' | 'reject';
+        reason: string;
+      }): void;
+    };
+    const venue = masterDataFixture.examVenues[0];
+    const room = venue.rooms[0];
+    const contact: ExamVenueContact = {
+      id: 4,
+      venue_id: venue.id,
+      label: 'Empfang',
+      role: null,
+      phone: '+49 40 123',
+      email: null,
+      availability_notes: null,
+      is_active: 1,
+      revision: 3,
+      room_ids: [],
+      _links: {},
+    };
+    const fail = (path: string, method: string) => {
+      const request = http.expectOne(path);
+      expect(request.request.method).toBe(method);
+      request.flush({ error: 'expected test failure' }, { status: 409, statusText: 'Conflict' });
+    };
+
+    app.deleteVenue(venue);
+    const deleteVenue = http.expectOne(`/api/exam-venues/${venue.id}`);
+    expect(deleteVenue.request.method).toBe('DELETE');
+    deleteVenue.flush(null, { status: 204, statusText: 'No Content' });
+    flushDashboardRequests(http);
+    app.createRoom({
+      venueId: venue.id,
+      payload: { name: 'B-202', capacity: 12, is_active: true },
+    });
+    fail(`/api/exam-venues/${venue.id}/rooms`, 'POST');
+    app.deleteRoom(room);
+    fail(`/api/exam-rooms/${room.id}`, 'DELETE');
+    app.createContact({
+      venueId: venue.id,
+      payload: {
+        label: 'Empfang',
+        email: null,
+        phone: '123',
+        availability_notes: null,
+        is_active: true,
+      },
+    });
+    fail(`/api/exam-venues/${venue.id}/contacts`, 'POST');
+    app.updateContact({
+      id: contact.id,
+      payload: { expected_revision: contact.revision, label: 'Neu' },
+    });
+    fail(`/api/exam-venue-contacts/${contact.id}`, 'PATCH');
+    app.deleteContact(contact);
+    fail(`/api/exam-venue-contacts/${contact.id}`, 'DELETE');
+    app.requestPromotion({ venue, reason: 'Bundesweit geeignet' });
+    fail(`/api/exam-venues/${venue.id}/promotion-requests`, 'POST');
+    app.decidePromotion({ venue, decision: 'approve', reason: 'Geprüft' });
+    fail(`/api/exam-venue-promotion-requests/${venue.id}/decision`, 'POST');
+
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Aktion fehlgeschlagen');
+  });
 });
 
 function clickButton(fixture: ComponentFixture<App>, label: string): void {
@@ -463,6 +644,10 @@ function flushDashboardRequests(http: HttpTestingController, round = examRoundFi
   http.expectOne('/api/exam-rounds').flush({ items: examRoundsFixture, _links: {} });
   http.expectOne('/api/candidate-committee-assignments').flush({
     items: candidateAssignmentsFixture,
+    _links: {},
+  });
+  http.expectOne('/api/exam-venues').flush({
+    items: masterDataFixture.examVenues,
     _links: {},
   });
 

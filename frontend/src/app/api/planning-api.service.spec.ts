@@ -6,7 +6,6 @@ import { PlanningApiService } from './planning-api.service';
 import {
   absenceCandidateFixture,
   athenChairMembershipFixture,
-  athenCourtLocationFixture,
   assignmentsFixture,
   availabilitiesFixture,
   candidateDaysFixture,
@@ -428,58 +427,36 @@ describe('PlanningApiService', () => {
       _links: {},
     });
     http.expectOne('/api/locations').flush({ items: locationsFixture, _links: {} });
+    http.expectOne('/api/exam-venues').flush({ items: [], _links: {} });
   });
 
-  it('should expose location write operations', () => {
+  it('should expose revisioned exam venue management operations', () => {
     service
-      .createLocation({
+      .createExamVenue({
+        scope: 'committee',
         committee_id: 1,
         name: 'Prüfungszentrum Service (Test)',
         street: 'Testweg 20',
         postal_code: '00000',
         city: 'Teststadt',
-        room: 'Testraum S-01',
-        is_active: 1,
+        country: 'Deutschland',
       })
       .subscribe();
 
-    const request = http.expectOne('/api/locations');
+    const request = http.expectOne('/api/exam-venues');
     expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({
-      committee_id: 1,
-      name: 'Prüfungszentrum Service (Test)',
-      street: 'Testweg 20',
-      postal_code: '00000',
-      city: 'Teststadt',
-      room: 'Testraum S-01',
-      is_active: 1,
-    });
-    request.flush(athenCourtLocationFixture);
+    request.flush({});
 
-    service.updateLocation(1, { is_active: 0 }).subscribe();
-    const update = http.expectOne('/api/locations/1');
+    service.updateExamVenue(1, { expected_revision: 2, is_active: 0 }).subscribe();
+    const update = http.expectOne('/api/exam-venues/1');
     expect(update.request.method).toBe('PATCH');
-    expect(update.request.body).toEqual({ is_active: 0 });
-    update.flush({ ...athenCourtLocationFixture, is_active: 0 });
+    expect(update.request.body).toEqual({ expected_revision: 2, is_active: 0 });
+    update.flush({});
 
-    service
-      .updateLocation(1, { name: 'Prüfungszentrum Service Neu (Test)', room: 'S-02' })
-      .subscribe();
-    const edit = http.expectOne('/api/locations/1');
-    expect(edit.request.method).toBe('PATCH');
-    expect(edit.request.body).toEqual({
-      name: 'Prüfungszentrum Service Neu (Test)',
-      room: 'S-02',
-    });
-    edit.flush({
-      ...athenCourtLocationFixture,
-      name: 'Prüfungszentrum Service Neu (Test)',
-      room: 'S-02',
-    });
-
-    service.deleteLocation(1).subscribe();
-    const remove = http.expectOne('/api/locations/1');
+    service.deleteExamVenue(1, 2).subscribe();
+    const remove = http.expectOne('/api/exam-venues/1');
     expect(remove.request.method).toBe('DELETE');
+    expect(remove.request.body).toEqual({ expected_revision: 2 });
     remove.flush({});
   });
 

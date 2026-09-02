@@ -32,6 +32,9 @@ from .api_contracts import (
     ExamVenueContactResponse,
     ExamVenueContactUpdateRequest,
     ExamVenueCreateRequest,
+    ExamVenueDuplicateCheckRequest,
+    ExamVenuePromotionDecisionRequest,
+    ExamVenuePromotionRequest,
     ExamVenueResponse,
     ExamVenueUpdateRequest,
     FactorActivationRequest,
@@ -59,7 +62,11 @@ from .exam_protocols import ExamProtocolConflictError
 from .exam_results import ExamResultConflictError
 from .exam_round_lifecycle import ExamRoundConflictError, ExamRoundValidationError
 from .exam_venue_api import ExamVenueApi
-from .exam_venues import ExamVenueConflictError, ExamVenueInUseError
+from .exam_venues import (
+    ExamVenueConfirmationRequiredError,
+    ExamVenueConflictError,
+    ExamVenueInUseError,
+)
 from .local_auth import LocalAuthError
 from .models import (
     CANDIDATE_COMMITTEE_ASSIGNMENT,
@@ -98,6 +105,9 @@ __all__ = [
     "ExamVenueContactResponse",
     "ExamVenueContactUpdateRequest",
     "ExamVenueCreateRequest",
+    "ExamVenueDuplicateCheckRequest",
+    "ExamVenuePromotionDecisionRequest",
+    "ExamVenuePromotionRequest",
     "ExamVenueResponse",
     "ExamVenueUpdateRequest",
     "FactorActivationRequest",
@@ -506,7 +516,9 @@ def _venue_context(
     mutation: bool = False,
 ) -> RequestContext:
     context = _context(request, resolved, _body(request) if mutation else b"")
-    auth = context.require_authenticated(require_csrf=mutation)
+    auth = context.require_authenticated(require_actor=False, require_csrf=mutation)
+    if not auth.is_operator and not context.authorization_scope.has_active_membership:
+        raise ForbiddenRequestError("Forbidden.")
     if mutation:
         context.authorize_mutation(request.method, path_parts, auth)
     return context
@@ -516,6 +528,9 @@ def _add_openapi_models(schemas: dict) -> None:
     for model in (
         ExamVenueCreateRequest,
         ExamVenueUpdateRequest,
+        ExamVenueDuplicateCheckRequest,
+        ExamVenuePromotionRequest,
+        ExamVenuePromotionDecisionRequest,
         ExamRoomCreateRequest,
         ExamRoomUpdateRequest,
         ExamVenueContactCreateRequest,
@@ -992,6 +1007,22 @@ def _register_request_errors(
         return _json_response(
             ApplicationResult(
                 {"error": {"code": "exam_venue_conflict", "message": str(error)}},
+                HTTPStatus.CONFLICT,
+            )
+        )
+
+    @app.exception_handler(ExamVenueConfirmationRequiredError)
+    def exam_venue_confirmation_required(
+        _request: Request, error: ExamVenueConfirmationRequiredError
+    ):
+        return _json_response(
+            ApplicationResult(
+                {
+                    "error": {
+                        "code": "exam_venue_confirmation_required",
+                        "message": str(error),
+                    }
+                },
                 HTTPStatus.CONFLICT,
             )
         )
@@ -2778,9 +2809,96 @@ def _register_exam_venue_routes(
         return _finish(
             context,
             context.respond(
-                hateoas.exam_venue_collection(venue_api.list_venues(context.authorization_scope))
+                hateoas.exam_venue_collection(
+                    venue_api.list_venues(context.authorization_scope, context.auth_context),
+                    allow_create=bool(
+                        context.auth_context
+                        and context.auth_context.is_operator
+                        or context.authorization_scope.management_committee_ids
+                    ),
+                )
             ),
         )
+
+    @app.post(
+        "/api/exam-venues/duplicate-check",
+        openapi_extra=venue_write_openapi("ExamVenueDuplicateCheckRequest"),
+    )
+    def exam_venue_duplicate_check(request: Request):
+        context = _venue_context(
+            request, resolved, ["exam-venues", "duplicate-check"], mutation=True
+        )
+        payload = context.read_json()
+        excluded_id = payload.pop("excluded_id", None)
+        matches = venue_api.find_duplicates(
+            payload,
+            context.authorization_scope,
+            context.auth_context,
+            excluded_id=excluded_id,
+        )
+        return _finish(context, context.respond({"items": matches}))
+
+    @app.get("/api/exam-venue-promotion-requests", openapi_extra=read_security)
+    def exam_venue_promotion_requests(request: Request):
+        context = _venue_context(request, resolved, ["exam-venue-promotion-requests"])
+        return _finish(
+            context,
+            context.respond({"items": venue_api.list_pending_promotions(context.auth_context)}),
+        )
+
+    @app.get("/api/exam-venues/{id}/change-impact", openapi_extra=read_security)
+    def exam_venue_change_impact(request: Request, id: int):
+        context = _venue_context(request, resolved, ["exam-venues", str(id), "change-impact"])
+        impact = venue_api.future_impact(id, context.authorization_scope, context.auth_context)
+        return _not_found() if impact is None else _finish(context, context.respond(impact))
+
+    @app.get("/api/exam-rooms/{id}/change-impact", openapi_extra=read_security)
+    def exam_room_change_impact(request: Request, id: int):
+        context = _venue_context(request, resolved, ["exam-rooms", str(id), "change-impact"])
+        room = venue_api.get_room(id, context.authorization_scope, context.auth_context)
+        impact = (
+            None
+            if room is None
+            else venue_api.future_impact(
+                room["venue_id"],
+                context.authorization_scope,
+                context.auth_context,
+                room_id=id,
+            )
+        )
+        return _not_found() if impact is None else _finish(context, context.respond(impact))
+
+    @app.post(
+        "/api/exam-venues/{id}/promotion-requests",
+        openapi_extra=venue_write_openapi("ExamVenuePromotionRequest"),
+    )
+    def request_exam_venue_promotion(request: Request, id: int):
+        context = _venue_context(
+            request,
+            resolved,
+            ["exam-venues", str(id), "promotion-requests"],
+            mutation=True,
+        )
+        result = venue_api.request_promotion(id, context.read_json(), context.authorization_scope)
+        return (
+            _not_found()
+            if result is None
+            else _finish(context, context.respond(result, HTTPStatus.CREATED))
+        )
+
+    @app.post(
+        "/api/exam-venue-promotion-requests/{id}/decision",
+        openapi_extra=venue_write_openapi("ExamVenuePromotionDecisionRequest"),
+    )
+    def decide_exam_venue_promotion(request: Request, id: int):
+        context = _venue_context(
+            request,
+            resolved,
+            ["exam-venue-promotion-requests", str(id), "decision"],
+            mutation=True,
+        )
+        result = venue_api.decide_promotion(id, context.read_json(), context.auth_context)
+        return _finish(context, context.respond(hateoas.exam_venue(result)))
 
     @app.get(
         "/api/exam-venues/{id}",
@@ -2789,7 +2907,7 @@ def _register_exam_venue_routes(
     )
     def exam_venue_item(request: Request, id: int):
         context = _venue_context(request, resolved, ["exam-venues", str(id)])
-        venue = venue_api.get_venue(id, context.authorization_scope)
+        venue = venue_api.get_venue(id, context.authorization_scope, context.auth_context)
         return (
             _not_found()
             if venue is None
@@ -2804,7 +2922,9 @@ def _register_exam_venue_routes(
     )
     def create_exam_venue(request: Request):
         context = _venue_context(request, resolved, ["exam-venues"], mutation=True)
-        venue = venue_api.create_venue(context.read_json(), context.authorization_scope)
+        venue = venue_api.create_venue(
+            context.read_json(), context.authorization_scope, context.auth_context
+        )
         return _finish(context, context.respond(hateoas.exam_venue(venue), HTTPStatus.CREATED))
 
     @app.patch(
@@ -2814,7 +2934,9 @@ def _register_exam_venue_routes(
     )
     def update_exam_venue(request: Request, id: int):
         context = _venue_context(request, resolved, ["exam-venues", str(id)], mutation=True)
-        venue = venue_api.update_venue(id, context.read_json(), context.authorization_scope)
+        venue = venue_api.update_venue(
+            id, context.read_json(), context.authorization_scope, context.auth_context
+        )
         return (
             _not_found()
             if venue is None
@@ -2828,7 +2950,9 @@ def _register_exam_venue_routes(
     )
     def delete_exam_venue(request: Request, id: int):
         context = _venue_context(request, resolved, ["exam-venues", str(id)], mutation=True)
-        deleted = venue_api.delete_venue(id, context.read_json(), context.authorization_scope)
+        deleted = venue_api.delete_venue(
+            id, context.read_json(), context.authorization_scope, context.auth_context
+        )
         return (
             _not_found()
             if deleted is None
@@ -2851,7 +2975,9 @@ def _register_exam_room_routes(
         context = _venue_context(
             request, resolved, ["exam-venues", str(id), "rooms"], mutation=True
         )
-        room = venue_api.create_room(id, context.read_json(), context.authorization_scope)
+        room = venue_api.create_room(
+            id, context.read_json(), context.authorization_scope, context.auth_context
+        )
         return (
             _not_found()
             if room is None
@@ -2865,7 +2991,7 @@ def _register_exam_room_routes(
     )
     def exam_room_item(request: Request, id: int):
         context = _venue_context(request, resolved, ["exam-rooms", str(id)])
-        room = venue_api.get_room(id, context.authorization_scope)
+        room = venue_api.get_room(id, context.authorization_scope, context.auth_context)
         return (
             _not_found()
             if room is None
@@ -2879,7 +3005,9 @@ def _register_exam_room_routes(
     )
     def update_exam_room(request: Request, id: int):
         context = _venue_context(request, resolved, ["exam-rooms", str(id)], mutation=True)
-        room = venue_api.update_room(id, context.read_json(), context.authorization_scope)
+        room = venue_api.update_room(
+            id, context.read_json(), context.authorization_scope, context.auth_context
+        )
         return (
             _not_found()
             if room is None
@@ -2893,7 +3021,9 @@ def _register_exam_room_routes(
     )
     def delete_exam_room(request: Request, id: int):
         context = _venue_context(request, resolved, ["exam-rooms", str(id)], mutation=True)
-        deleted = venue_api.delete_room(id, context.read_json(), context.authorization_scope)
+        deleted = venue_api.delete_room(
+            id, context.read_json(), context.authorization_scope, context.auth_context
+        )
         return (
             _not_found()
             if deleted is None
@@ -2916,7 +3046,9 @@ def _register_exam_venue_contact_routes(
         context = _venue_context(
             request, resolved, ["exam-venues", str(id), "contacts"], mutation=True
         )
-        contact = venue_api.create_contact(id, context.read_json(), context.authorization_scope)
+        contact = venue_api.create_contact(
+            id, context.read_json(), context.authorization_scope, context.auth_context
+        )
         return (
             _not_found()
             if contact is None
@@ -2932,7 +3064,7 @@ def _register_exam_venue_contact_routes(
     )
     def exam_venue_contact_item(request: Request, id: int):
         context = _venue_context(request, resolved, ["exam-venue-contacts", str(id)])
-        contact = venue_api.get_contact(id, context.authorization_scope)
+        contact = venue_api.get_contact(id, context.authorization_scope, context.auth_context)
         return (
             _not_found()
             if contact is None
@@ -2946,7 +3078,9 @@ def _register_exam_venue_contact_routes(
     )
     def update_exam_venue_contact(request: Request, id: int):
         context = _venue_context(request, resolved, ["exam-venue-contacts", str(id)], mutation=True)
-        contact = venue_api.update_contact(id, context.read_json(), context.authorization_scope)
+        contact = venue_api.update_contact(
+            id, context.read_json(), context.authorization_scope, context.auth_context
+        )
         return (
             _not_found()
             if contact is None
@@ -2960,7 +3094,9 @@ def _register_exam_venue_contact_routes(
     )
     def delete_exam_venue_contact(request: Request, id: int):
         context = _venue_context(request, resolved, ["exam-venue-contacts", str(id)], mutation=True)
-        deleted = venue_api.delete_contact(id, context.read_json(), context.authorization_scope)
+        deleted = venue_api.delete_contact(
+            id, context.read_json(), context.authorization_scope, context.auth_context
+        )
         return (
             _not_found()
             if deleted is None
@@ -2985,7 +3121,9 @@ def _register_legacy_location_routes(
             context,
             context.respond(
                 hateoas.legacy_location_collection(
-                    venue_api.list_legacy_locations(context.authorization_scope)
+                    venue_api.list_legacy_locations(
+                        context.authorization_scope, context.auth_context
+                    )
                 )
             ),
         )
@@ -2998,7 +3136,9 @@ def _register_legacy_location_routes(
     )
     def legacy_location_item(request: Request, id: int):
         context = _venue_context(request, resolved, ["locations", str(id)])
-        location = venue_api.get_legacy_location(id, context.authorization_scope)
+        location = venue_api.get_legacy_location(
+            id, context.authorization_scope, context.auth_context
+        )
         return (
             _not_found()
             if location is None
