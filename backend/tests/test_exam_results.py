@@ -770,6 +770,39 @@ class ExamResultTests(unittest.TestCase):
             assert_status(status, HTTPStatus.BAD_REQUEST)
             self.assertIn("Mindestaufbewahrung", error["error"])
 
+            status, error = api.request(
+                "PUT",
+                f"/api/exam-results/{result['id']}/retention",
+                {
+                    "version": result["version"],
+                    "period_start": "2026-11-16",
+                    "retain_until": "2041-11-16",
+                    "legal_hold": False,
+                },
+                credentials=self.chair,
+            )
+            assert_status(status, HTTPStatus.BAD_REQUEST)
+            self.assertIn("Aufheben einer Sperre", error["error"])
+
+            status, result = api.request(
+                "PUT",
+                f"/api/exam-results/{result['id']}/retention",
+                {
+                    "version": result["version"],
+                    "period_start": "2026-11-16",
+                    "retain_until": "2041-11-16",
+                    "legal_hold": False,
+                    "release_reason": "Rechtsbehelfsverfahren abgeschlossen",
+                },
+                credentials=self.chair,
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertFalse(result["retention"]["legal_hold"])
+            self.assertEqual(
+                "Freigabe: Rechtsbehelfsverfahren abgeschlossen",
+                result["retention"]["hold_reason"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
