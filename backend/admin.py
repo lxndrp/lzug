@@ -10,6 +10,7 @@ import json
 import re
 import sys
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -215,6 +216,142 @@ def _diagnostic_client(command: str, arguments: Mapping[str, Any]) -> Mapping[st
     return {"identity": identity, "revision": revision}
 
 
+def _issued_response(issued: Any) -> dict[str, Any]:
+    return {
+        "account": issued.account,
+        "kind": issued.kind,
+        "expires_at": issued.expires_at,
+        "token": issued.token,
+    }
+
+
+def _execute_lifecycle(
+    command: str, arguments: Mapping[str, Any], lifecycle: LifecycleService | None
+) -> dict[str, Any]:
+    active_lifecycle = lifecycle or LifecycleService()
+    target = _require_mapping(arguments.get("target"), "Argument target must be release metadata")
+    if command == "rollback":
+        if set(arguments) != {"target"}:
+            raise AdminOperationError("invalid_request", "rollback requires only target")
+        return active_lifecycle.rollback(target)
+    if set(arguments) != {"target", "recipient_private_key", "confirm_irreversible"}:
+        raise AdminOperationError(
+            "invalid_request", "upgrade requires exact backup and target arguments"
+        )
+    confirmation = arguments.get("confirm_irreversible")
+    if not isinstance(confirmation, bool):
+        raise AdminOperationError(
+            "invalid_request", "Argument confirm_irreversible must be boolean"
+        )
+    return active_lifecycle.upgrade(
+        target,
+        _require_string(arguments, "recipient_private_key"),
+        confirm_irreversible=confirmation,
+    )
+
+
+def _execute_artifact(
+    command: str, arguments: Mapping[str, Any], artifacts: ArtifactService | None
+) -> dict[str, Any]:
+    active_artifacts = artifacts or ArtifactService()
+    if command == "backup-create":
+        if arguments:
+            raise AdminOperationError("invalid_request", "backup-create takes no arguments")
+        return active_artifacts.create_backup()
+    if command == "full-export":
+        return active_artifacts.create_full_export(
+            _require_string(arguments, "recipient_public_key")
+        )
+    artifact = _require_string(arguments, "artifact")
+    private_key = _require_string(arguments, "recipient_private_key")
+    if command == "artifact-verify":
+        return active_artifacts.verify(artifact, private_key)
+    replace = arguments.get("replace", False)
+    if not isinstance(replace, bool):
+        raise AdminOperationError("invalid_request", "Argument replace must be boolean")
+    return active_artifacts.restore(artifact, private_key, replace=replace)
+
+
+def _execute_committee(
+    command: str,
+    arguments: Mapping[str, Any],
+    service: OperatorAuthService,
+    committee_service: CommitteeAdminService | None,
+) -> dict[str, Any]:
+    active_committee_service = committee_service or CommitteeAdminService(service.db_path)
+    handler = {
+        "committee-bootstrap": active_committee_service.bootstrap,
+        "committee-complete": active_committee_service.complete,
+        "committee-reinvite": active_committee_service.reinvite,
+        "committee-deactivate": active_committee_service.deactivate,
+        "committee-reactivate": active_committee_service.reactivate,
+    }[command]
+    return handler(arguments)
+
+
+def _execute_notification_processing(
+    service: OperatorAuthService,
+    notifications: NotificationService | None,
+    consequences: PlanConsequenceService | None,
+) -> dict[str, Any]:
+    active_notifications = notifications or NotificationService(service.db_path)
+    result = active_notifications.process_due_events()
+    consequence_result = (
+        consequences or PlanConsequenceService(service.db_path, active_notifications)
+    ).process_due()
+    return {**result, "plan_consequences": consequence_result}
+
+
+def _execute_plan_consequences(
+    command: str,
+    arguments: Mapping[str, Any],
+    service: OperatorAuthService,
+    consequences: PlanConsequenceService | None,
+) -> dict[str, Any]:
+    revision_id = _positive_id(arguments, "revision_id")
+    active_consequences = consequences or PlanConsequenceService(service.db_path)
+    if command == "retry-plan-consequences":
+        return active_consequences.retry_revision(revision_id)
+    return active_consequences.operator_status(revision_id)
+
+
+def _execute_notification_test(
+    arguments: Mapping[str, Any],
+    service: OperatorAuthService,
+    notifications: NotificationService | None,
+) -> dict[str, Any]:
+    channel = _require_string(arguments, "channel")
+    if channel not in {"web_push", "email"}:
+        raise AdminOperationError("invalid_request", "Argument channel must be web_push or email")
+    member_id = arguments.get("member_id")
+    if isinstance(member_id, bool) or not isinstance(member_id, int) or member_id <= 0:
+        raise AdminOperationError("invalid_request", "Argument member_id must be positive")
+    return (notifications or NotificationService(service.db_path)).synthetic_test(
+        member_id, channel
+    )
+
+
+def _execute_account(
+    command: str, arguments: Mapping[str, Any], service: OperatorAuthService
+) -> dict[str, Any]:
+    if command == "bootstrap":
+        return _issued_response(service.bootstrap(_require_string(arguments, "email")))
+    if command == "invite":
+        return _issued_response(service.invite(_require_string(arguments, "email")))
+    if command == "disable":
+        account, revoked_sessions = service.disable(_account_id(arguments))
+        return {"account": account, "revoked_sessions": revoked_sessions}
+    if command == "recover":
+        account_value = arguments.get("account_id")
+        email_value = arguments.get("email")
+        account_id = None if account_value is None else _account_id(arguments)
+        email = None if email_value is None else _require_string(arguments, "email")
+        return _issued_response(service.recover(account_id=account_id, email=email))
+    token = _require_string(arguments, "token")
+    kind = "invitation" if command == "consume-invitation" else "recovery"
+    return {"account": service.consume(token, kind)}
+
+
 def _execute(
     command: str,
     arguments: Mapping[str, Any],
@@ -226,125 +363,108 @@ def _execute(
     lifecycle: LifecycleService | None = None,
 ) -> dict[str, Any]:
     if command in _LIFECYCLE_COMMANDS:
-        active_lifecycle = lifecycle or LifecycleService()
-        target = _require_mapping(
-            arguments.get("target"), "Argument target must be release metadata"
-        )
-        if command == "rollback":
-            if set(arguments) != {"target"}:
-                raise AdminOperationError("invalid_request", "rollback requires only target")
-            return active_lifecycle.rollback(target)
-        if set(arguments) != {"target", "recipient_private_key", "confirm_irreversible"}:
-            raise AdminOperationError(
-                "invalid_request", "upgrade requires exact backup and target arguments"
-            )
-        confirmation = arguments.get("confirm_irreversible")
-        if not isinstance(confirmation, bool):
-            raise AdminOperationError(
-                "invalid_request", "Argument confirm_irreversible must be boolean"
-            )
-        return active_lifecycle.upgrade(
-            target,
-            _require_string(arguments, "recipient_private_key"),
-            confirm_irreversible=confirmation,
-        )
-
+        return _execute_lifecycle(command, arguments, lifecycle)
     if command in _ARTIFACT_COMMANDS:
-        active_artifacts = artifacts or ArtifactService()
-        if command == "backup-create":
-            if arguments:
-                raise AdminOperationError("invalid_request", "backup-create takes no arguments")
-            return active_artifacts.create_backup()
-        if command == "full-export":
-            return active_artifacts.create_full_export(
-                _require_string(arguments, "recipient_public_key")
-            )
-        artifact = _require_string(arguments, "artifact")
-        private_key = _require_string(arguments, "recipient_private_key")
-        if command == "artifact-verify":
-            return active_artifacts.verify(artifact, private_key)
-        replace = arguments.get("replace", False)
-        if not isinstance(replace, bool):
-            raise AdminOperationError("invalid_request", "Argument replace must be boolean")
-        return active_artifacts.restore(artifact, private_key, replace=replace)
-
+        return _execute_artifact(command, arguments, artifacts)
     if service is None:
         raise AdminOperationError("database_not_ready", "Database is not ready")
     if command.startswith("committee-"):
-        active_committee_service = committee_service or CommitteeAdminService(service.db_path)
-        if command == "committee-bootstrap":
-            return active_committee_service.bootstrap(arguments)
-        if command == "committee-complete":
-            return active_committee_service.complete(arguments)
-        if command == "committee-reinvite":
-            return active_committee_service.reinvite(arguments)
-        if command == "committee-deactivate":
-            return active_committee_service.deactivate(arguments)
-        return active_committee_service.reactivate(arguments)
-
+        return _execute_committee(command, arguments, service, committee_service)
     if command == "process-notifications":
-        active_notifications = notifications or NotificationService(service.db_path)
-        result = active_notifications.process_due_events()
-        consequence_result = (
-            consequences or PlanConsequenceService(service.db_path, active_notifications)
-        ).process_due()
-        return {**result, "plan_consequences": consequence_result}
-    if command == "retry-plan-consequences":
-        revision_id = _positive_id(arguments, "revision_id")
-        return (consequences or PlanConsequenceService(service.db_path)).retry_revision(revision_id)
-    if command == "plan-consequences-status":
-        revision_id = _positive_id(arguments, "revision_id")
-        return (consequences or PlanConsequenceService(service.db_path)).operator_status(
-            revision_id
-        )
+        return _execute_notification_processing(service, notifications, consequences)
+    if command in {"retry-plan-consequences", "plan-consequences-status"}:
+        return _execute_plan_consequences(command, arguments, service, consequences)
     if command == "test-notification":
-        channel = _require_string(arguments, "channel")
-        if channel not in {"web_push", "email"}:
-            raise AdminOperationError(
-                "invalid_request", "Argument channel must be web_push or email"
-            )
-        member_id = arguments.get("member_id")
-        if isinstance(member_id, bool) or not isinstance(member_id, int) or member_id <= 0:
-            raise AdminOperationError("invalid_request", "Argument member_id must be positive")
-        return (notifications or NotificationService(service.db_path)).synthetic_test(
-            member_id, channel
-        )
+        return _execute_notification_test(arguments, service, notifications)
+    return _execute_account(command, arguments, service)
 
-    if command == "bootstrap":
-        issued = service.bootstrap(_require_string(arguments, "email"))
-        return {
-            "account": issued.account,
-            "kind": issued.kind,
-            "expires_at": issued.expires_at,
-            "token": issued.token,
-        }
-    if command == "invite":
-        issued = service.invite(_require_string(arguments, "email"))
-        return {
-            "account": issued.account,
-            "kind": issued.kind,
-            "expires_at": issued.expires_at,
-            "token": issued.token,
-        }
-    if command == "disable":
-        account, revoked_sessions = service.disable(_account_id(arguments))
-        return {"account": account, "revoked_sessions": revoked_sessions}
-    if command == "recover":
-        account_value = arguments.get("account_id")
-        email_value = arguments.get("email")
-        account_id = None if account_value is None else _account_id(arguments)
-        email = None if email_value is None else _require_string(arguments, "email")
-        issued = service.recover(account_id=account_id, email=email)
-        return {
-            "account": issued.account,
-            "kind": issued.kind,
-            "expires_at": issued.expires_at,
-            "token": issued.token,
-        }
 
-    token = _require_string(arguments, "token")
-    kind = "invitation" if command == "consume-invitation" else "recovery"
-    return {"account": service.consume(token, kind)}
+@dataclass
+class _CommandDependencies:
+    service: OperatorAuthService | None
+    notifications: NotificationService | None
+    committee_service: CommitteeAdminService | None
+    consequences: PlanConsequenceService | None
+    artifacts: ArtifactService | None
+    lifecycle: LifecycleService | None
+
+
+def _prepare_dependencies(
+    command: str,
+    service: OperatorAuthService | None,
+    notifications: NotificationService | None,
+    committee_service: CommitteeAdminService | None,
+    consequences: PlanConsequenceService | None,
+    artifacts: ArtifactService | None,
+    lifecycle: LifecycleService | None,
+) -> _CommandDependencies:
+    active_artifacts = artifacts
+    if command in _ARTIFACT_COMMANDS and active_artifacts is None:
+        active_artifacts = ArtifactService(persistence_paths())
+    active_lifecycle = lifecycle
+    if command in _LIFECYCLE_COMMANDS and active_lifecycle is None:
+        active_lifecycle = LifecycleService(persistence_paths())
+    active_service = service
+    if active_service is None and command not in (_ARTIFACT_COMMANDS | _LIFECYCLE_COMMANDS):
+        readiness = database_readiness(database_path())
+        if not readiness["ready"]:
+            raise AdminOperationError("database_not_ready", "Database is not ready")
+        active_service = OperatorAuthService(database_path())
+    return _CommandDependencies(
+        active_service,
+        notifications,
+        committee_service,
+        consequences,
+        active_artifacts,
+        active_lifecycle,
+    )
+
+
+def _run_command(
+    command: str,
+    arguments: Mapping[str, Any],
+    service: OperatorAuthService | None,
+    notifications: NotificationService | None,
+    committee_service: CommitteeAdminService | None,
+    consequences: PlanConsequenceService | None,
+    artifacts: ArtifactService | None,
+    lifecycle: LifecycleService | None,
+) -> tuple[dict[str, Any], int]:
+    if command in _DIAGNOSTIC_COMMANDS:
+        client = _diagnostic_client(command, arguments)
+        return run_diagnostics(command, client)
+    dependencies = _prepare_dependencies(
+        command,
+        service,
+        notifications,
+        committee_service,
+        consequences,
+        artifacts,
+        lifecycle,
+    )
+    return (
+        _execute(
+            command,
+            arguments,
+            dependencies.service,
+            dependencies.notifications,
+            dependencies.committee_service,
+            dependencies.consequences,
+            dependencies.artifacts,
+            dependencies.lifecycle,
+        ),
+        EXIT_OK,
+    )
+
+
+def _parse_request(payload: bytes) -> tuple[str, Mapping[str, Any]]:
+    if len(payload) > MAX_REQUEST_BYTES:
+        raise AdminOperationError("invalid_request", "Request is too large")
+    try:
+        request = json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise AdminOperationError("invalid_request", "Request is not valid JSON") from error
+    return _request_parts(_require_mapping(request, "Request must be an object"))
 
 
 def run(
@@ -358,49 +478,24 @@ def run(
     lifecycle: LifecycleService | None = None,
 ) -> int:
     """Process exactly one protocol request and return its stable exit code."""
-    if len(payload) > MAX_REQUEST_BYTES:
-        return _error("invalid_request", "Request is too large")
     try:
-        request = json.loads(payload.decode("utf-8"))
-        request = _require_mapping(request, "Request must be an object")
-        command, arguments = _request_parts(request)
-    except UnicodeDecodeError, json.JSONDecodeError:
-        return _error("invalid_request", "Request is not valid JSON")
+        command, arguments = _parse_request(payload)
     except AdminOperationError as error:
         return _error(error.code, str(error))
 
     try:
-        if command in _DIAGNOSTIC_COMMANDS:
-            client = _diagnostic_client(command, arguments)
-            result, exit_code = run_diagnostics(command, client)
-            _write(_response(ok=True, result=result))
-            return exit_code
-        artifact_command = command in _ARTIFACT_COMMANDS
-        lifecycle_command = command in _LIFECYCLE_COMMANDS
-        active_service = service
-        active_artifacts = artifacts
-        if artifact_command and active_artifacts is None:
-            active_artifacts = ArtifactService(persistence_paths())
-        active_lifecycle = lifecycle
-        if lifecycle_command and active_lifecycle is None:
-            active_lifecycle = LifecycleService(persistence_paths())
-        if active_service is None and not artifact_command and not lifecycle_command:
-            readiness = database_readiness(database_path())
-            if not readiness["ready"]:
-                return _error("database_not_ready", "Database is not ready")
-            active_service = OperatorAuthService(database_path())
-        result = _execute(
+        result, exit_code = _run_command(
             command,
             arguments,
-            active_service,
+            service,
             notifications,
             committee_service,
             consequences,
-            active_artifacts,
-            active_lifecycle,
+            artifacts,
+            lifecycle,
         )
         _write(_response(ok=True, result=result))
-        return EXIT_OK
+        return exit_code
     except AdminOperationError as error:
         return _error(error.code, str(error))
     except ArtifactError as error:

@@ -10,11 +10,40 @@ import sys
 import unittest
 from contextlib import redirect_stdout
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+from unittest.mock import patch
 
-from backend.admin import EXIT_OK, EXIT_TOKEN_INVALID, run
+from backend.admin import EXIT_OK, EXIT_TOKEN_INVALID, _execute, _run_command, run
 from backend.admin_service import AdminOperationError, IssuedAuthToken, OperatorAuthService
 from backend.auth import AuthenticationRepository
 from backend.tests.helpers import TempDatabase
+
+
+class _RecordingDependency:
+    db_path = "/data/lzug.sqlite"
+
+    def __init__(self, *, failing: bool = False, issues_tokens: bool = False) -> None:
+        self.failing = failing
+        self.issues_tokens = issues_tokens
+        self.calls: list[str] = []
+
+    def __getattr__(self, name: str):
+        def handler(*_args: object, **_kwargs: object):
+            self.calls.append(name)
+            if self.failing:
+                raise AdminOperationError("persistence_error", f"{name} failed")
+            if self.issues_tokens and name in {"bootstrap", "invite", "recover"}:
+                return SimpleNamespace(
+                    account={"id": 7},
+                    kind="invitation",
+                    expires_at="2026-09-02T12:00:00+00:00",
+                    token="test-token",
+                )
+            if name == "disable":
+                return {"id": 7}, 1
+            return {"handler": name}
+
+        return handler
 
 
 class AdminAuthenticationTests(unittest.TestCase):
@@ -354,3 +383,124 @@ class AdminAuthenticationTests(unittest.TestCase):
             "calendar_processing_failed",
             response["result"]["technical_items"][0]["error_code"],
         )
+
+
+class AdminCommandHandlerTests(unittest.TestCase):
+    _COMMANDS = {
+        "bootstrap": {"email": "operator@example.invalid"},
+        "invite": {"email": "member@example.invalid"},
+        "disable": {"account_id": 7},
+        "recover": {"account_id": 7},
+        "consume-invitation": {"token": "test-token"},
+        "consume-recovery": {"token": "test-token"},
+        "process-notifications": {},
+        "test-notification": {"member_id": 7, "channel": "email"},
+        "committee-bootstrap": {"idempotency_key": "bootstrap-001"},
+        "committee-complete": {"idempotency_key": "complete-001"},
+        "committee-reinvite": {"idempotency_key": "reinvite-001"},
+        "committee-deactivate": {"idempotency_key": "deactivate-001"},
+        "committee-reactivate": {"idempotency_key": "reactivate-001"},
+        "retry-plan-consequences": {"revision_id": 7},
+        "plan-consequences-status": {"revision_id": 7},
+        "backup-create": {},
+        "artifact-verify": {"artifact": "backup.lzug", "recipient_private_key": "key"},
+        "backup-restore": {
+            "artifact": "backup.lzug",
+            "recipient_private_key": "key",
+            "replace": True,
+        },
+        "full-export": {"recipient_public_key": "key"},
+        "upgrade": {
+            "target": {"version": "0.7.0"},
+            "recipient_private_key": "key",
+            "confirm_irreversible": True,
+        },
+        "rollback": {"target": {"version": "0.6.0"}},
+    }
+
+    _EXPECTED_HANDLER = {
+        "bootstrap": "bootstrap",
+        "invite": "invite",
+        "disable": "disable",
+        "recover": "recover",
+        "consume-invitation": "consume",
+        "consume-recovery": "consume",
+        "process-notifications": "process_due_events",
+        "test-notification": "synthetic_test",
+        "committee-bootstrap": "bootstrap",
+        "committee-complete": "complete",
+        "committee-reinvite": "reinvite",
+        "committee-deactivate": "deactivate",
+        "committee-reactivate": "reactivate",
+        "retry-plan-consequences": "retry_revision",
+        "plan-consequences-status": "operator_status",
+        "backup-create": "create_backup",
+        "artifact-verify": "verify",
+        "backup-restore": "restore",
+        "full-export": "create_full_export",
+        "upgrade": "upgrade",
+        "rollback": "rollback",
+    }
+
+    def execute(
+        self, command: str, *, failing: bool = False
+    ) -> tuple[dict[str, object], tuple[_RecordingDependency, ...]]:
+        service = _RecordingDependency(failing=failing, issues_tokens=True)
+        notifications = _RecordingDependency(failing=failing)
+        committee = _RecordingDependency(failing=failing)
+        consequences = _RecordingDependency(failing=failing)
+        artifacts = _RecordingDependency(failing=failing)
+        lifecycle = _RecordingDependency(failing=failing)
+        result = _execute(
+            command,
+            self._COMMANDS[command],
+            service,
+            notifications,
+            committee,
+            consequences,
+            artifacts,
+            lifecycle,
+        )
+        return result, (service, notifications, committee, consequences, artifacts, lifecycle)
+
+    def test_each_backend_command_dispatches_to_its_handler(self) -> None:
+        for command, expected_handler in self._EXPECTED_HANDLER.items():
+            with self.subTest(command=command):
+                result, dependencies = self.execute(command)
+
+                self.assertTrue(
+                    any(expected_handler in dependency.calls for dependency in dependencies)
+                )
+                if command in {"bootstrap", "invite", "recover"}:
+                    self.assertEqual("test-token", result["token"])
+                else:
+                    self.assertIsInstance(result, dict)
+
+    def test_each_backend_command_preserves_handler_errors(self) -> None:
+        for command in self._EXPECTED_HANDLER:
+            with self.subTest(command=command):
+                with self.assertRaisesRegex(AdminOperationError, "failed"):
+                    self.execute(command, failing=True)
+
+    def test_each_diagnostic_command_has_success_and_error_evidence(self) -> None:
+        commands = {
+            "config": {},
+            "doctor": {"client": {"identity": "development", "revision": "unknown"}},
+            "status": {"client": {"identity": "development", "revision": "unknown"}},
+        }
+        for command, arguments in commands.items():
+            with self.subTest(command=command, outcome="success"):
+                with patch("backend.admin.run_diagnostics", return_value=({"command": command}, 0)):
+                    result, exit_code = _run_command(
+                        command, arguments, None, None, None, None, None, None
+                    )
+                self.assertEqual(EXIT_OK, exit_code)
+                self.assertEqual(command, result["command"])
+
+            with self.subTest(command=command, outcome="error"):
+                with patch(
+                    "backend.admin.run_diagnostics",
+                    side_effect=AdminOperationError("invalid_request", "diagnostic failed"),
+                ):
+                    with self.assertRaisesRegex(AdminOperationError, "diagnostic failed"):
+                        _run_command(command, arguments, None, None, None, None, None, None)
