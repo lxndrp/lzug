@@ -51,7 +51,7 @@ flowchart LR
   member -->|"bedient"| spa
   spa -->|"same-origin JSON/HTTPS"| app
   operator -->|"lokaler CLI-Aufruf"| admin
-  admin -->|"versioniertes JSON via Engine exec"| app
+  admin -->|"JSON-Kontrolle und Klartext-Paketstrom via Engine exec"| app
   app -->|"SQLAlchemy und Dateizugriff"| data
   app -.->|"best effort"| channels
 ```
@@ -79,7 +79,8 @@ flowchart LR
   http --> core
   core --> repo
   repo --> store
-  cli --> admin
+  cli -->|"öffentliche Konfiguration; Klartext-Paketstrom"| admin
+  cli -->|"age-Hülle; private Identität bleibt lokal"| artifact["Geschütztes Artefakt"]
   admin --> core
   admin --> store
 ```
@@ -222,6 +223,8 @@ Verträge; Secrets und Token erscheinen weder in URLs noch in Logs.
 Snapshot-Sperre besitzen eine gemeinsame kontrollierte Grenze.
 Migrationen laufen vorwärts, und Restore aktiviert Datenbank, Dokumente und
 Authentifizierungsschlüssel erst nach vollständiger Vor- und Nachprüfung.
+Die CLI legt die age-Hülle um den Backend-Paketstrom; private Identitäten
+verlassen den Bedienrechner nicht.
 
 **Betrieb und Observability:** Health ist nur Liveness, Ready prüft
 Anwendungsbereitschaft, und `lzug-admin system doctor` ergänzt lokale Schema-,

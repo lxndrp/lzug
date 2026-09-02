@@ -1,29 +1,28 @@
 lzug-admin backup restore - Restore a protected backup.
 
-Restore a complete protected backup after validation. Replacing non-empty state also requires --replace.
+Decrypt locally, validate and stage in the backend, then activate only after every precheck succeeds.
 
 Usage:
-  lzug-admin [global options] backup restore --artifact NAME [options]
+  lzug-admin [global options] backup restore --artifact PATH [options]
 
 Command options:
-  --artifact NAME          Protected artifact name inside the application data area. Required.
-  --replace                Confirm replacement of a non-empty installation. Default: false. Danger-zone confirmation.
-
-Secure input:
-  stdin              Private recipient key read only from standard input.
+  --artifact PATH          Regular protected artifact file. Required.
+  --replace                Replace a non-empty installation after creating a safety artifact. Default: false. Danger-zone confirmation.
+  --identity-file PATH     Protected local age identity file.
+  --identity-stdin         Read the age identity from redirected standard input. Default: false.
+  --identity-prompt        Read the age identity from a hidden terminal prompt. Default: false.
 
 Confirmation:
   Requires an interactive terminal confirmation or --force.
   --replace is a separate danger-zone confirmation and is never implied by --force.
 
 Transport:
-  Versioned request through the shared Docker/Podman container transport.
+  Local orchestration over the shared Docker/Podman container transport; secret key material stays in the CLI.
 
 Output:
-  Successful human output is silent; JSON includes the validated restore result.
+  Human success is silent; JSON includes restore phases and safety evidence.
   --verbose adds the secret-free progress and result summary on stderr.
-  --json uses the declared projected result contract on stdout.
+  --json uses the declared local result contract on stdout.
 
 Examples:
-  printf 'PRIVATE_KEY' | lzug-admin --container lzug backup restore --artifact backup.lzug --force
-  printf 'PRIVATE_KEY' | lzug-admin --container lzug backup restore --artifact backup.lzug --replace --force
+  lzug-admin --container lzug backup restore --artifact backup.lzug --identity-file backup.agekey --force

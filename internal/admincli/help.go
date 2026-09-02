@@ -128,7 +128,11 @@ func commandHelp(command *Command) string {
 	}
 	output.WriteString("\nTransport:\n")
 	if command.Transport == LocalTransport {
-		output.WriteString("  Local command; no container request is sent.\n")
+		if command.UsesConfig {
+			output.WriteString("  Local orchestration over the shared Docker/Podman container transport; secret key material stays in the CLI.\n")
+		} else {
+			output.WriteString("  Local command; no container request is sent.\n")
+		}
 	} else {
 		output.WriteString("  Versioned request through the shared Docker/Podman container transport.\n")
 	}

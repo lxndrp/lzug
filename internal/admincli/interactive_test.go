@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -59,8 +60,15 @@ type queuedTransport struct {
 	requests  []BackendRequest
 }
 
+type queuedArtifactTransport struct {
+	responses []BackendResponse
+	codes     []int
+	requests  []BackendRequest
+}
+
 type dialogRuntimeFactory struct {
 	transport Transport
+	artifact  ArtifactTransport
 	inspector ReleaseInspector
 }
 
@@ -82,6 +90,10 @@ func (factory *dialogRuntimeFactory) Transport(EffectiveConfig) Transport {
 	return factory.transport
 }
 
+func (factory *dialogRuntimeFactory) ArtifactTransport(EffectiveConfig) ArtifactTransport {
+	return factory.artifact
+}
+
 func (factory *dialogRuntimeFactory) ReleaseInspector(EffectiveConfig) ReleaseInspector {
 	return factory.inspector
 }
@@ -95,6 +107,30 @@ func (transport *queuedTransport) Execute(_ context.Context, request BackendRequ
 	return transport.responses[index], transport.codes[index], nil
 }
 
+func (transport *queuedArtifactTransport) Produce(_ context.Context, request BackendRequest, target io.Writer) (BackendResponse, int, error) {
+	transport.requests = append(transport.requests, request)
+	if _, err := target.Write([]byte("clear-package")); err != nil {
+		return BackendResponse{}, ExitUnexpected, err
+	}
+	return transport.next()
+}
+
+func (transport *queuedArtifactTransport) Consume(_ context.Context, request BackendRequest, source io.Reader) (BackendResponse, int, error) {
+	transport.requests = append(transport.requests, request)
+	if _, err := io.Copy(io.Discard, source); err != nil {
+		return BackendResponse{}, ExitUnexpected, err
+	}
+	return transport.next()
+}
+
+func (transport *queuedArtifactTransport) next() (BackendResponse, int, error) {
+	index := len(transport.requests) - 1
+	if index >= len(transport.responses) {
+		return BackendResponse{}, ExitUnexpected, fmt.Errorf("unexpected artifact request")
+	}
+	return transport.responses[index], transport.codes[index], nil
+}
+
 func interactiveApplication(t *testing.T, lines []string, responses ...BackendResponse) (*Application, *dialogInput, *queuedTransport, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
 	registry, err := DefaultRegistry()
@@ -103,6 +139,7 @@ func interactiveApplication(t *testing.T, lines []string, responses ...BackendRe
 	}
 	input := &dialogInput{lines: lines, terminal: true, confirmation: true}
 	transport := &queuedTransport{responses: responses, codes: make([]int, len(responses))}
+	artifact := &queuedArtifactTransport{}
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 	renderer := NewOutputRenderer(stdout, stderr)
@@ -110,7 +147,7 @@ func interactiveApplication(t *testing.T, lines []string, responses ...BackendRe
 	application := NewApplication(
 		registry,
 		BuildInfo{Version: "1.2.3", Revision: strings.Repeat("a", 40), Tag: "v1.2.3"},
-		&dialogRuntimeFactory{transport: transport, inspector: &fakeInspector{target: map[string]any{"identity": "1.2.3", "release": true}}},
+		&dialogRuntimeFactory{transport: transport, artifact: artifact, inspector: &fakeInspector{target: map[string]any{"identity": "1.2.3", "release": true}}},
 		&fakeConfigResolver{config: EffectiveConfig{
 			Engine:    EffectiveValue{Value: "docker", Source: "default"},
 			Container: EffectiveValue{Value: "lzug", Source: "file"},
@@ -256,12 +293,15 @@ func TestMutatingCommandShowsSummaryAndUsesConcreteConfirmation(t *testing.T) {
 }
 
 func TestInteractiveSecretsAreNeverRenderedOrReused(t *testing.T) {
-	secret := "private-secret-marker"
+	artifactPath, secret := dialogArtifact(t)
 	status := successResponse(`{"command":"status","status":"ok","checks":[]}`)
 	verified := successResponse(`{"artifact":"backup.lzug","artifact_type":"backup","verification":{"ok":true}}`)
 	application, input, transport, stdout, stderr := interactiveApplication(t, []string{
-		"backup", "verify", "backup.lzug", "beenden",
-	}, status, verified)
+		"backup", "verify", artifactPath, "", "beenden",
+	}, status)
+	artifactTransport := application.Runtime.(*dialogRuntimeFactory).artifact.(*queuedArtifactTransport)
+	artifactTransport.responses = []BackendResponse{verified}
+	artifactTransport.codes = []int{ExitOK}
 	input.secrets = []string{secret}
 	if code := application.Run(context.Background(), []string{"cli"}); code != ExitOK {
 		t.Fatalf("session returned %d", code)
@@ -270,29 +310,32 @@ func TestInteractiveSecretsAreNeverRenderedOrReused(t *testing.T) {
 	if strings.Contains(combined, secret) {
 		t.Fatal("secret reached dialog output or prompts")
 	}
-	if input.secretIndex != 1 || len(transport.requests) != 2 {
-		t.Fatalf("secret input or transport count is wrong: secrets=%d requests=%d", input.secretIndex, len(transport.requests))
+	if input.secretIndex != 1 || len(transport.requests) != 1 || len(artifactTransport.requests) != 1 {
+		t.Fatalf("secret input or transport count is wrong: secrets=%d requests=%d artifact-requests=%d", input.secretIndex, len(transport.requests), len(artifactTransport.requests))
 	}
-	if got := transport.requests[1].Arguments["recipient_private_key"]; got != secret {
-		t.Fatal("secret did not reach the existing request builder")
+	encoded := fmt.Sprintf("%#v", artifactTransport.requests[0])
+	if strings.Contains(encoded, secret) || artifactTransport.requests[0].Command != "artifact-package-verify" {
+		t.Fatalf("private identity crossed the artifact transport boundary: %s", encoded)
 	}
 }
 
 func TestSafeRetryRecapturesSecretsAndNeverReusesConfirmation(t *testing.T) {
-	secret := "private-secret-marker"
+	artifactPath, secret := dialogArtifact(t)
 	status := successResponse(`{"command":"status","status":"ok","checks":[]}`)
 	failure := BackendResponse{Version: ProtocolVersion, OK: false, Error: &BackendError{Class: "artifact_integrity_failed"}}
 	verified := successResponse(`{"artifact":"backup.lzug","artifact_type":"backup","verification":{"ok":true}}`)
 	application, input, transport, stdout, stderr := interactiveApplication(t, []string{
-		"backup", "verify", "backup.lzug", "ja", "beenden",
-	}, status, failure, verified)
+		"backup", "verify", artifactPath, "", "ja", "beenden",
+	}, status)
+	artifactTransport := application.Runtime.(*dialogRuntimeFactory).artifact.(*queuedArtifactTransport)
+	artifactTransport.responses = []BackendResponse{failure, verified}
+	artifactTransport.codes = []int{23, ExitOK}
 	input.secrets = []string{secret, secret}
-	transport.codes[1] = 23
 	if code := application.Run(context.Background(), []string{"cli"}); code != ExitOK {
 		t.Fatalf("session returned %d", code)
 	}
-	if input.secretIndex != 2 || len(transport.requests) != 3 {
-		t.Fatalf("safe retry did not recapture the secret: secrets=%d requests=%d", input.secretIndex, len(transport.requests))
+	if input.secretIndex != 2 || len(transport.requests) != 1 || len(artifactTransport.requests) != 2 {
+		t.Fatalf("safe retry did not recapture the secret: secrets=%d requests=%d artifact-requests=%d", input.secretIndex, len(transport.requests), len(artifactTransport.requests))
 	}
 	if !strings.Contains(stdout.String(), "Geheimnisse werden für die Wiederholung erneut erfasst") {
 		t.Fatalf("retry contract was not explained: %q", stdout.String())
@@ -300,6 +343,33 @@ func TestSafeRetryRecapturesSecretsAndNeverReusesConfirmation(t *testing.T) {
 	if strings.Contains(stdout.String()+stderr.String(), secret) {
 		t.Fatal("secret leaked during retry")
 	}
+}
+
+func dialogArtifact(t *testing.T) (string, string) {
+	t.Helper()
+	directory := t.TempDir()
+	identityPath := filepath.Join(directory, "backup.agekey")
+	recipientPath := filepath.Join(directory, "backup.agepub")
+	generated, failure := generateRecipientKeypair(identityPath, recipientPath)
+	if failure != nil {
+		t.Fatal(failure)
+	}
+	identityValue := strings.TrimSpace(string(mustRead(t, identityPath)))
+	recipient, fingerprint, parseFailure := parseRecipient(string(mustRead(t, recipientPath)))
+	if parseFailure != nil {
+		t.Fatal(parseFailure)
+	}
+	if fingerprint != generated["fingerprint"] {
+		t.Fatal("generated recipient fingerprint changed during parsing")
+	}
+	artifactPath := filepath.Join(directory, "backup.lzug")
+	if _, _, writeFailure := writeProtectedArtifact(context.Background(), artifactPath, recipient, fingerprint, func(target io.Writer) (BackendResponse, int, error) {
+		_, err := target.Write([]byte("clear-package"))
+		return successfulArtifactResponse(t), ExitOK, err
+	}); writeFailure != nil {
+		t.Fatal(writeFailure)
+	}
+	return artifactPath, identityValue
 }
 
 func TestTargetChangeRequiresANewHandshake(t *testing.T) {

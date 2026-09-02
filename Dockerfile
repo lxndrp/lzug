@@ -67,7 +67,7 @@ RUN groupadd --system --gid 10001 lzug \
 COPY --from=python-dependencies --chown=10001:10001 /src/.venv /opt/venv
 COPY --from=build-metadata --chown=10001:10001 /build-metadata.json ./build-metadata.json
 COPY --chown=10001:10001 \
-    backend/__init__.py backend/admin.py backend/admin_service.py backend/application.py backend/auth.py backend/authorization.py backend/backup_restore.py backend/committee_admin.py \
+    backend/__init__.py backend/admin.py backend/admin_service.py backend/application.py backend/artifact_packages.py backend/artifact_stream.py backend/auth.py backend/authorization.py backend/backup_recipients.py backend/backup_restore.py backend/committee_admin.py \
     backend/absence.py backend/build_metadata.py backend/calendar.py backend/candidate_days.py backend/contract.py backend/database.py backend/diagnostics.py \
     backend/document_storage.py backend/documents.py backend/exam_day_closures.py backend/exam_protocols.py backend/exam_results.py backend/exam_round_lifecycle.py backend/exam_venue_api.py backend/exam_venue_migration.py backend/exam_venues.py backend/hateoas.py \
     backend/healthcheck.py backend/holiday_provider.py backend/lifecycle.py backend/local_auth.py backend/models.py \

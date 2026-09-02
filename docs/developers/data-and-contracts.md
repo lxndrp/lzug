@@ -125,20 +125,21 @@ Frontendverhalten und betroffene Tests gemeinsam geprüft werden.
 Die Laufzeit prüft Reihenfolge, Prüfsummen und Integrität der
 Migrationshistorie fail-closed.
 
-Die Migrationen bis `025_model_exam_venues.sql` bilden den aktuellen Stand von
-Authentifizierung und Sitzungen, Planrevisionen, Benachrichtigungen,
+Die Migrationen bis `026_add_backup_recipient.sql` bilden den aktuellen
+Stand von Authentifizierung und Sitzungen, Planrevisionen, Benachrichtigungen,
 Kalendern, Ausfall und Ersatz, Prüfungsprotokollen, Ergebnissen,
-Tagesabschlüssen, Ausschuss-Bootstrap, Planfolgen, Rundenlebenszyklus,
-Prüfungsorten sowie Backup-/Export-Nachweisen ab.
+Tagesabschlüssen, Ausschuss-Bootstrap, Planfolgen, Rundenlebenszyklus sowie
+Prüfungsorten, Backup-/Export-Nachweisen und der auditierten öffentlichen
+Backup-Empfängerkonfiguration ab.
 `025_model_exam_venues.sql` ersetzt den bisherigen kombinierten Altbestand.
 Sie gruppiert nur bei gleichem Ausschuss, normalisiertem Namen und vollständiger
 normalisierter Anschrift, erhält jede Alt-ID über eine dauerhafte Raumzuordnung
 und stellt Planungsstandards, Prüfungstage sowie gespeicherte Planrevisionen
 auf Raumreferenzen um.
-Ein Preflight prüft das Backup, erzeugt maschinen- und menschenlesbare Berichte
-und bricht bei verwaisten Referenzen, Namens- oder Raumkonflikten atomar ab.
-Migrierte Orte bleiben wegen ungeklärter Barrierefreiheit inaktiv.
-Die Migration verwendet keinen externen Karten- oder Geocodingdienst.
+Ein Preflight prüft die Ortsmigration und bricht bei verwaisten Referenzen,
+Namens- oder Raumkonflikten atomar ab.
+Migrierte Orte bleiben wegen ungeklärter Barrierefreiheit inaktiv; externe
+Karten- oder Geocodingdienste werden nicht verwendet.
 Bestandsmigrationen erfinden keine historischen Actor, Bewertungen,
 Bestätigungen oder Abschlussentscheidungen.
 Unbekannte oder nicht unterstützte Schemastände verhindern Start, Restore oder
@@ -201,13 +202,25 @@ Ansicht von `db/schema.sql`.
 
 ## Lokaler Admin- und Artefaktvertrag
 
-Die Betreiber-CLI spricht ausschließlich Protokollversion 1 des lokalen
-Python-Adminprozesses über Container-`exec` und ein JSON-Objekt auf stdin/stdout.
-Sie kennt weder SQLite noch SQLAlchemy und dupliziert keine Backup-, Restore-,
-Migrations- oder Kryptologik.
-Private Empfängerschlüssel gelangen nur über stdin in die kontrollierte
-Operation; öffentliche Schlüssel, Release-Digests und technische Kennungen
-dürfen als geheimnisfreie Metadaten verwendet werden.
+Die Betreiber-CLI verwendet Protokollversion 1 für kleine JSON-Aufträge und
+Protokollversion 2 für getrennte Binär- und Kontrollströme über Container-`exec`.
+Sie kennt weder SQLite noch SQLAlchemy und dupliziert keine fachliche Backup-,
+Restore-, Export-, Manifest- oder Migrationslogik.
+
+Die Go-CLI besitzt allein die kryptografische Hülle mit `filippo.io/age`.
+Sie erzeugt und prüft X25519-age-Identitäten lokal, verschlüsselt den vom
+Backend erzeugten ZIP-Strom unmittelbar in ein atomisches geschütztes Ziel und
+entschlüsselt Prüfung oder Restore ohne lokale Klartextdatei.
+Private Identitäten gelangen weder in Backendauftrag, argv, Umgebung,
+Konfiguration, Ausgabe, Audit noch Logs.
+Das Backend kennt ausschließlich den persistenten auditierten öffentlichen
+Backup-Empfänger, dessen vollständigen SHA-256-Fingerabdruck und kontrollierte
+Klartext-Paket- beziehungsweise Restore-Stagingbereiche.
+
+Der öffentliche Vorspann `lzug-age-artifact` Version 2 nennt nur Format,
+`age-x25519-v1` und den Fingerabdruck.
+Das v0.6-Format wird als inkompatibel erkannt; der unterstützte Pfad führt über
+Restore mit v0.6.0, reguläres Upgrade und ein neues geprüftes age-Backup.
 
 Diagnose, Konto- und Ausschussverwaltung, Benachrichtigungsverarbeitung,
 Backup, nicht mutierende Artefaktprüfung, Restore, Vollexport, Upgrade und

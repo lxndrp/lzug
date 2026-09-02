@@ -421,6 +421,7 @@ tasks:
       - quality:image
     cmds:
       - scripts/operator-container-smoke.sh lzug:0.0.0-dev.local
+      - scripts/v060-age-migration-smoke.sh lzug:0.0.0-dev.local
 
   quality:compose:
     desc: Run the Compose runtime and persistence contract

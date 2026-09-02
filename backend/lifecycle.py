@@ -8,7 +8,6 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
-from .backup_restore import ArtifactService
 from .build_metadata import BuildMetadata
 from .database import (
     PersistencePaths,
@@ -61,14 +60,12 @@ class LifecycleService:
         paths: PersistencePaths | None = None,
         *,
         environment: Mapping[str, str] | None = None,
-        artifacts: ArtifactService | None = None,
         metadata: BuildMetadata | None = None,
         migration_runner: Callable[[Path, Path | None], None] = apply_migrations,
         maintenance_probe: Callable[[], bool] = _dedicated_maintenance_process,
     ) -> None:
         self.paths = paths or persistence_paths()
         self.environment = environment if environment is not None else os.environ
-        self.artifacts = artifacts or ArtifactService(self.paths, environment=self.environment)
         self.metadata = metadata or build_metadata()
         self.migration_runner = migration_runner
         self.maintenance_probe = maintenance_probe
@@ -76,7 +73,7 @@ class LifecycleService:
     def upgrade(
         self,
         target: Mapping[str, Any],
-        recipient_private_key: str,
+        backup: Mapping[str, Any],
         *,
         confirm_irreversible: bool,
     ) -> dict[str, Any]:
@@ -96,9 +93,7 @@ class LifecycleService:
                 "Pending migrations require explicit irreversible-step confirmation",
             )
 
-        backup = self.artifacts.create_backup()
-        verification = self.artifacts.verify(str(backup.get("artifact", "")), recipient_private_key)
-        self._verified_upgrade_backup(verification, before)
+        self._verified_upgrade_backup(backup, before)
 
         if pending:
             try:
@@ -202,6 +197,8 @@ class LifecycleService:
         pending = before.get("pending")
         if (
             verification.get("artifact_type") != "backup"
+            or verification.get("verified") is not True
+            or verification.get("protection") != "age-x25519-v1"
             or verification.get("source_schema_version") != before.get("current")
             or verification.get("pending_migrations") != pending
             or verification.get("readiness") == "not_ready"

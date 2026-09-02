@@ -101,7 +101,9 @@ Service Locator, Reflection oder versteckte Registrierung.
 
 Der Transport validiert den expliziten Containernamen und ruft den
 Python-Adminprozess ohne Shell-Stringverkettung auf.
-Auftrag und Backendantwort sind jeweils genau ein UTF-8-JSON-Objekt.
+Kleine Aufträge und Antworten sind genau ein UTF-8-JSON-Objekt;
+Artefaktoperationen trennen den potenziell großen Binärstrom von der
+strukturierten Kontrollantwort.
 Command-Handler greifen weder direkt auf Persistenz zu noch kennen sie
 Engine-spezifische Details; Docker und Podman verwenden denselben versionierten
 Backendauftrag.
@@ -116,9 +118,12 @@ Die Befehlsgruppen umfassen:
 - releasegebundenes Upgrade und nicht mutierende Rollback-Freigabe in einem
   ausdrücklich vorbereiteten Wartungscontainer.
 
-Private Empfängerschlüssel und Einmaltoken werden ausschließlich über `stdin`
-gelesen, am TTY ohne Echo erfasst und nicht als Argument, Konfiguration oder
-Umgebungswert akzeptiert.
+Private age-Identitäten werden ausschließlich lokal aus einer geschützten
+Datei, ausdrücklich gewähltem `stdin` oder am TTY ohne Echo gelesen.
+Sie erreichen den Backendtransport nicht.
+Einmaltoken werden über den bisherigen sicheren stdin-Kanal übertragen.
+Beide Geheimnistypen sind als Argument, Konfiguration oder Umgebungswert
+ausgeschlossen.
 Gewöhnlich destruktive Commands benötigen am Terminal eine konkrete Rückfrage;
 ohne TTY ist vor jedem mutierenden Transportaufruf `--force` erforderlich.
 Ein Restore auf nicht leerem Ziel und irreversible Migrationen behalten ihre

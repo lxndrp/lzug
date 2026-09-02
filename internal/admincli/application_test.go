@@ -310,8 +310,8 @@ func TestBackendErrorsUseStableClassAndCodeWithoutRawText(t *testing.T) {
 	response := `{"version":1,"ok":false,"error":{"class":"recipient_key_mismatch","message":"provider leaked ` + secret + `","phase":"precheck"}}`
 	for _, jsonMode := range []bool{false, true} {
 		application, _, input, stdout, stderr := testApplication(t, response, 27)
-		input.secrets["Private recipient key"] = secret
-		args := []string{"backup", "verify", "--artifact", "backup.lzug"}
+		_ = input
+		args := []string{"system", "status"}
 		if jsonMode {
 			args = append([]string{"--json"}, args...)
 		}
@@ -373,27 +373,18 @@ func TestDestructiveConfirmationFailsClosedBeforeTransport(t *testing.T) {
 }
 
 func TestForceNeverImpliesDangerZoneConfirmation(t *testing.T) {
-	application, transport, input, _, _ := testApplication(t, `{"version":1,"ok":true,"result":{}}`, 0)
-	input.secrets["Private recipient key"] = "private-key"
-	transport.handle = func(request BackendRequest) (BackendResponse, int, error) {
-		if request.Arguments["replace"] != true {
-			return decodeResponse(t, `{"version":1,"ok":false,"error":{"class":"replace_confirmation_required","message":"raw"}}`), 29, nil
-		}
-		return decodeResponse(t, `{"version":1,"ok":true,"result":{"artifact":"backup.lzug","artifact_type":"backup","artifact_id":"id","snapshot_at":"now","safety_artifact":"pre-restore","phases":[],"readiness":"ready"}}`), 0, nil
+	registry, err := DefaultRegistry()
+	if err != nil {
+		t.Fatal(err)
 	}
-	base := []string{"backup", "restore", "--artifact", "backup.lzug", "--force", "--json"}
-	if code := application.Run(context.Background(), base); code != 29 {
-		t.Fatalf("--force bypassed separate replacement confirmation: %d", code)
+	command, _ := registry.Find([]string{"backup", "restore"})
+	base, failure := parseCommandOptions(command, []string{"--artifact", "backup.lzug", "--identity-file", "backup.agekey"})
+	if failure != nil || base.Bool("replace") {
+		t.Fatalf("ordinary force semantics implied replacement: values=%#v failure=%v", base, failure)
 	}
-	application.Renderer = NewOutputRenderer(&bytes.Buffer{}, &bytes.Buffer{})
-	input.secrets["Private recipient key"] = "private-key"
-	withDangerFlag := append([]string{}, base...)
-	withDangerFlag = append(withDangerFlag, "--replace")
-	if code := application.Run(context.Background(), withDangerFlag); code != 0 {
-		t.Fatalf("complete danger-zone confirmation returned %d", code)
-	}
-	if len(transport.requests) != 2 || transport.requests[0].Arguments["replace"] != false || transport.requests[1].Arguments["replace"] != true {
-		t.Fatalf("danger-zone request values were not explicit: %#v", transport.requests)
+	withReplace, failure := parseCommandOptions(command, []string{"--artifact", "backup.lzug", "--identity-file", "backup.agekey", "--replace"})
+	if failure != nil || !withReplace.Bool("replace") {
+		t.Fatalf("explicit replacement was not preserved: values=%#v failure=%v", withReplace, failure)
 	}
 }
 

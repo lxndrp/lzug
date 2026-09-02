@@ -77,7 +77,7 @@ func (resolver *fixedEngineResolver) Resolve(preferred string) (string, error) {
 	return resolver.path, nil
 }
 
-func TestContainerTransportUsesOneSecretStdinRequestAndNoShell(t *testing.T) {
+func TestContainerTransportUsesOneStdinRequestAndNoShell(t *testing.T) {
 	t.Setenv("LZUG_ADMINCLI_HELPER", "1")
 	t.Setenv("LZUG_ADMINCLI_RESPONSE", `{"version":1,"ok":false,"error":{"class":"recipient_key_mismatch","message":"safe"}}`+"\n")
 	t.Setenv("LZUG_ADMINCLI_STDERR", "untrusted engine diagnostic secret-marker")
@@ -97,10 +97,9 @@ func TestContainerTransportUsesOneSecretStdinRequestAndNoShell(t *testing.T) {
 	}
 	request := BackendRequest{
 		Version: ProtocolVersion,
-		Command: "artifact-verify",
+		Command: "consume-invitation",
 		Arguments: map[string]any{
-			"artifact":              "backup.lzug",
-			"recipient_private_key": "secret-marker",
+			"token": "secret-marker",
 		},
 	}
 	response, code, err := transport.Execute(context.Background(), request)
@@ -118,7 +117,7 @@ func TestContainerTransportUsesOneSecretStdinRequestAndNoShell(t *testing.T) {
 	if got := strings.Split(string(args), "\x00"); !equalStrings(got, wantArgs) {
 		t.Fatalf("unexpected engine argv: %#v", got)
 	}
-	if strings.Contains(string(args), "secret-marker") || strings.Contains(string(args), "artifact-verify") {
+	if strings.Contains(string(args), "secret-marker") || strings.Contains(string(args), "consume-invitation") {
 		t.Fatalf("request data reached engine argv: %q", args)
 	}
 	payload, err := os.ReadFile(inputFile)
@@ -129,7 +128,7 @@ func TestContainerTransportUsesOneSecretStdinRequestAndNoShell(t *testing.T) {
 	if err := json.Unmarshal(payload, &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if decoded.Command != "artifact-verify" || decoded.Arguments["recipient_private_key"] != "secret-marker" {
+	if decoded.Command != "consume-invitation" || decoded.Arguments["token"] != "secret-marker" {
 		t.Fatalf("unexpected stdin request: %#v", decoded)
 	}
 }

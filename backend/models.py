@@ -39,6 +39,31 @@ class ArtifactOperation(Base):
     occurred_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
 
 
+class BackupRecipient(Base):
+    """Active, public age recipient configuration for this instance."""
+
+    __tablename__ = "backup_recipient"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recipient: Mapped[str] = mapped_column(String)
+    fingerprint: Mapped[str] = mapped_column(String)
+    activated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class BackupRecipientAudit(Base):
+    """Immutable, secret-free evidence for recipient activation and replacement."""
+
+    __tablename__ = "backup_recipient_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    action: Mapped[str] = mapped_column(String)
+    previous_fingerprint: Mapped[str | None] = mapped_column(String, nullable=True)
+    fingerprint: Mapped[str] = mapped_column(String)
+    technical_actor: Mapped[str] = mapped_column(String, server_default=sql_text("'operator-cli'"))
+    occurred_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
 class Committee(Base):
     __tablename__ = "committee"
 

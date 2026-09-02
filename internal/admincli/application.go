@@ -194,7 +194,7 @@ func (application *Application) Execute(
 		return failure.ExitCode
 	}
 
-	if command.Confirmation.Required && !global.Force {
+	if command.Confirmation.Required && !command.Confirmation.Deferred && !global.Force {
 		if !application.Input.IsTerminal() {
 			failure = &CLIError{
 				Class:    "confirmation_required",
@@ -252,7 +252,14 @@ func (application *Application) Execute(
 		defer cancel()
 	}
 	if command.IsLocal() {
-		result, localFailure := command.Local(ctx, LocalContext{Registry: application.Registry, Config: config}, values)
+		result, localFailure := command.Local(ctx, LocalContext{
+			Registry: application.Registry,
+			Config:   config,
+			Runtime:  application.Runtime,
+			Input:    application.Input,
+			Global:   global,
+			Build:    application.Build,
+		}, values)
 		if localFailure != nil {
 			application.Renderer.Error(global, command.Name(), localFailure)
 			return localFailure.ExitCode
