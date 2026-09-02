@@ -640,6 +640,10 @@ def _plain_text(context: RequestContext, value: str, filename: str) -> Response:
 
 
 def _security_headers(config: FastAPIConfig, request: Request) -> dict[str, str]:
+    frame_source = {
+        "osm": "https://www.openstreetmap.org",
+        "google": "https://www.google.com",
+    }.get(config.map_provider.mode, "'none'")
     headers = {
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "DENY",
@@ -652,7 +656,7 @@ def _security_headers(config: FastAPIConfig, request: Request) -> dict[str, str]
             "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; "
             "form-action 'self'; object-src 'none'; script-src 'self'; "
             "style-src 'self' 'unsafe-inline'; font-src 'self' data:; "
-            "img-src 'self' data:; connect-src 'self'"
+            f"img-src 'self' data:; connect-src 'self'; frame-src {frame_source}"
         ),
     }
     if config.https_only:

@@ -1674,6 +1674,26 @@ test.describe('lzug browser workflows', () => {
     expect(providerRequests).toEqual([]);
   });
 
+  test('keeps the browser map boundary closed when the provider is off', async ({ page }) => {
+    const providerRequests: string[] = [];
+    page.on('request', (request) => {
+      if (/openstreetmap|google\.com\/maps|nominatim/.test(request.url())) {
+        providerRequests.push(request.url());
+      }
+    });
+
+    const response = await page.goto('/locations');
+    expect(response).not.toBeNull();
+    if (process.env.LZUG_E2E_PRODUCTION_BUILD === 'true') {
+      expect(response?.headers()['content-security-policy']).toContain("frame-src 'none'");
+      expect(response?.headers()['referrer-policy']).toBe('no-referrer');
+    }
+    await page.getByRole('button', { name: 'Details ansehen' }).first().click();
+
+    await expect(page.locator('iframe.locations-map-frame')).toHaveCount(0);
+    expect(providerRequests).toEqual([]);
+  });
+
   test('opens the candidate form with the keyboard', async ({ page }) => {
     await page.goto('/candidates');
 

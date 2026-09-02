@@ -93,10 +93,27 @@ class MapProviderTests(unittest.TestCase):
         self.assertEqual(200, status)
         self.assertEqual("text/html", headers["content-type"])
         self.assertIn(b'data-google-maps-embed-key="restricted-browser-key"', body)
+        self.assertIn("frame-src https://www.google.com", headers["content-security-policy"])
+        self.assertNotIn("openstreetmap.org", headers["content-security-policy"])
+        self.assertEqual("no-referrer", headers["referrer-policy"])
         self.assertEqual(200, venue_status)
         self.assertNotIn("restricted-browser-key", str(venues))
         self.assertEqual(200, off_status)
         self.assertEqual(b"<app-root></app-root>", off_body)
+
+    def test_osm_security_headers_allow_only_the_osm_embed_origin(self) -> None:
+        class OsmHandler(TestLzugHandler):
+            map_provider = MapProviderConfig.from_environment(
+                {"LZUG_MAP_PROVIDER": "osm", "LZUG_NOMINATIM_USER_AGENT": "lzug-test"}
+            )
+
+        with TempDatabase() as db_path, ApiServer(db_path, OsmHandler) as api:
+            status, headers, _body = api.request_raw("GET", "/api/health", authenticated=False)
+
+        self.assertEqual(200, status)
+        self.assertIn("frame-src https://www.openstreetmap.org", headers["content-security-policy"])
+        self.assertNotIn("www.google.com", headers["content-security-policy"])
+        self.assertEqual("no-referrer", headers["referrer-policy"])
 
     def test_geocoder_sends_only_the_address_and_returns_a_small_candidate(self) -> None:
         config = MapProviderConfig.from_environment(

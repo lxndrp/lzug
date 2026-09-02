@@ -56,6 +56,7 @@ type LocationsHarness = LocationsComponent & {
   roomLocation(room: ExamRoom): string;
   optional(value: string | null | undefined): string;
   address(venue: ExamVenue): string;
+  coordinateLabel(venue: ExamVenue): string;
   mapEmbedUrl(venue: ExamVenue): unknown;
   clearFilters(): void;
   submitVenue(): void;
@@ -223,6 +224,9 @@ describe('LocationsComponent', () => {
     expect(harness.optional(null)).toBe('Nicht hinterlegt');
     expect(harness.address(globalVenue)).toBe('');
     expect(harness.address(baseVenue)).toContain(baseVenue.city);
+    expect(harness.coordinateLabel({ ...baseVenue, coordinate_status: 'missing' })).toBe(
+      'Nicht hinterlegt',
+    );
 
     harness.searchTerm.set('suchbegriff');
     harness.scopeFilter.set('global');
@@ -297,7 +301,9 @@ describe('LocationsComponent', () => {
     fixture.componentRef.setInput('detailVenueId', venue.id);
     fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
-    expect(root.querySelector('iframe')?.getAttribute('title')).toContain(venue.name);
+    const frame = root.querySelector('iframe');
+    expect(frame?.getAttribute('title')).toContain(venue.name);
+    expect(frame?.getAttribute('referrerpolicy')).toBe('no-referrer');
     expect(root.textContent).toContain('OpenStreetMap-Mitwirkende');
     expect(root.textContent).toContain('Zielpunkt in OpenStreetMap öffnen');
   });
@@ -321,13 +327,13 @@ describe('LocationsComponent', () => {
     fixture.componentRef.setInput('detailVenueId', venue.id);
     fixture.detectChanges();
 
-    const source = (fixture.nativeElement as HTMLElement)
-      .querySelector('iframe')
-      ?.getAttribute('src');
+    const frame = (fixture.nativeElement as HTMLElement).querySelector('iframe');
+    const source = frame?.getAttribute('src');
     expect(source).toContain(
       'https://www.google.com/maps/embed/v1/view?key=restricted-browser-key',
     );
     expect(source).toContain('center=53.55,9.99');
+    expect(frame?.getAttribute('referrerpolicy')).toBe('strict-origin-when-cross-origin');
     appRoot.remove();
   });
 

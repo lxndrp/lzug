@@ -98,13 +98,25 @@
               </dl>
               @if (canShowMap(venue)) {
                 @if (!mapLoadError()) {
-                  <iframe
-                    class="locations-map-frame"
-                    [src]="mapEmbedUrl(venue)"
-                    [title]="'Karte für ' + venue.name"
-                    (load)="mapLoadError.set(false)"
-                    (error)="mapLoadError.set(true)"
-                  ></iframe>
+                  @if (mapProvider(venue).mode === 'google') {
+                    <iframe
+                      class="locations-map-frame"
+                      [src]="mapEmbedUrl(venue)"
+                      [title]="'Karte für ' + venue.name"
+                      referrerpolicy="strict-origin-when-cross-origin"
+                      (load)="mapLoadError.set(false)"
+                      (error)="mapLoadError.set(true)"
+                    ></iframe>
+                  } @else {
+                    <iframe
+                      class="locations-map-frame"
+                      [src]="mapEmbedUrl(venue)"
+                      [title]="'Karte für ' + venue.name"
+                      referrerpolicy="no-referrer"
+                      (load)="mapLoadError.set(false)"
+                      (error)="mapLoadError.set(true)"
+                    ></iframe>
+                  }
                 } @else {
                   <p class="app-muted" role="status">
                     Die Kartenansicht ist derzeit nicht verfügbar. Die Ortsdaten bleiben nutzbar.
