@@ -71,7 +71,7 @@ COPY --chown=10001:10001 \
     backend/absence.py backend/build_metadata.py backend/calendar.py backend/candidate_days.py backend/contract.py backend/database.py backend/diagnostics.py \
     backend/document_storage.py backend/documents.py backend/exam_day_closures.py backend/exam_protocols.py backend/exam_results.py backend/exam_round_lifecycle.py backend/hateoas.py \
     backend/healthcheck.py backend/holiday_provider.py backend/lifecycle.py backend/local_auth.py backend/models.py \
-    backend/fastapi_app.py backend/notifications.py backend/observability.py backend/plan_consequences.py backend/planning.py backend/repositories.py backend/runtime_policy.py backend/security.py backend/server.py backend/store.py backend/transport.py backend/version.py \
+    backend/api_contracts.py backend/fastapi_app.py backend/notifications.py backend/observability.py backend/plan_consequences.py backend/planning.py backend/repositories.py backend/runtime_policy.py backend/security.py backend/server.py backend/store.py backend/transport.py backend/version.py \
     ./backend/
 COPY --chown=10001:10001 db/schema.sql ./db/schema.sql
 COPY --chown=10001:10001 db/migrations ./db/migrations

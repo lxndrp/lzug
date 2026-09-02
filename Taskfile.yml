@@ -250,6 +250,7 @@ tasks:
     desc: Run backend lint, audit, tests, and coverage
     cmds:
       - task: backend:complexity
+      - task: backend:typecheck
       - task: backend:lint
       - task: backend:format
       - task: backend:audit
@@ -464,6 +465,11 @@ tasks:
         --exclude backend/tests
         --output-format concise
         --exit-zero
+
+  backend:typecheck:
+    desc: Statically check API, transport, and persistence contract models
+    cmds:
+      - '{{.UV}} python -m mypy'
 
   backend:format:
     internal: true
