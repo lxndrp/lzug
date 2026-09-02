@@ -1,7 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { CandidatesComponent } from './candidates.component';
-import { examRoundFixture, masterDataFixture } from '../testing/fixtures';
+import {
+  absenceCandidateFixture,
+  examRoundFixture,
+  masterDataFixture,
+  planchangeCandidateFixture,
+} from '../testing/fixtures';
 
 describe('CandidatesComponent', () => {
   let fixture: ComponentFixture<CandidatesComponent>;
@@ -29,8 +34,10 @@ describe('CandidatesComponent', () => {
     const element = fixture.nativeElement as HTMLElement;
     const text = element.textContent ?? '';
 
-    expect(text).toContain('Alpha, Prüfling');
-    expect(text).toContain('TEST-2026-0001');
+    expect(text).toContain(
+      `${planchangeCandidateFixture.last_name}, ${planchangeCandidateFixture.first_name}`,
+    );
+    expect(text).toContain(planchangeCandidateFixture.ihk_exam_number);
     expect(text).toContain('2. Versuch');
     expect(text).toContain('MEP');
     expect((fixture.nativeElement as HTMLElement).querySelector('.app-table-scroll')).toBeTruthy();
@@ -46,10 +53,10 @@ describe('CandidatesComponent', () => {
     ).map((button) => button.getAttribute('aria-label'));
 
     expect(labels).toEqual([
-      'Prüfling Alpha bearbeiten',
-      'Prüfling Alpha löschen',
-      'Prüfling Beta bearbeiten',
-      'Prüfling Beta löschen',
+      'Hermia von Athen bearbeiten',
+      'Hermia von Athen löschen',
+      'Helena von Athen bearbeiten',
+      'Helena von Athen löschen',
     ]);
     expect(new Set(labels).size).toBe(labels.length);
   });
@@ -59,13 +66,17 @@ describe('CandidatesComponent', () => {
       '#candidateSearch',
     );
     expect(input).toBeTruthy();
-    input!.value = 'Beta';
+    input!.value = absenceCandidateFixture.ihk_exam_number;
     input!.dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Beta, Prüfling');
-    expect(text).not.toContain('Alpha, Prüfling');
+    expect(text).toContain(
+      `${absenceCandidateFixture.last_name}, ${absenceCandidateFixture.first_name}`,
+    );
+    expect(text).not.toContain(
+      `${planchangeCandidateFixture.last_name}, ${planchangeCandidateFixture.first_name}`,
+    );
   });
 
   it('should show readable specialization labels and filter by the selected value', () => {
@@ -89,8 +100,18 @@ describe('CandidatesComponent', () => {
     const rows = Array.from(element.querySelectorAll<HTMLTableRowElement>('tbody > tr')).map(
       (row) => row.textContent ?? '',
     );
-    expect(rows.some((row) => row.includes('Beta, Prüfling'))).toBe(true);
-    expect(rows.some((row) => row.includes('Alpha, Prüfling'))).toBe(false);
+    expect(
+      rows.some((row) =>
+        row.includes(`${absenceCandidateFixture.last_name}, ${absenceCandidateFixture.first_name}`),
+      ),
+    ).toBe(true);
+    expect(
+      rows.some((row) =>
+        row.includes(
+          `${planchangeCandidateFixture.last_name}, ${planchangeCandidateFixture.first_name}`,
+        ),
+      ),
+    ).toBe(false);
   });
 
   it('should provide a shared toolbar for filters and the create action', () => {
@@ -235,7 +256,7 @@ describe('CandidatesComponent', () => {
     const element = fixture.nativeElement as HTMLElement;
     expect(element.querySelector('#editCandidateRound-1')).toBeTruthy();
     expect(element.textContent).toContain('Zuordnungshistorie');
-    expect(element.textContent).toContain('Prüfungsausschuss Teststadt 1');
+    expect(element.textContent).toContain('Hauptausschuss Athen');
   });
 
   function setInput(selector: string, value: string): void {

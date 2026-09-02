@@ -25,6 +25,7 @@ SYNTHETIC_FIXTURE_PATHS = {
     "fixtures/synthetic-fixtures.json",
     "scripts/generate_synthetic_fixtures.py",
     "db/seed_demo.sql",
+    "demo/synthetic_fixtures_generated.py",
     "frontend/src/app/testing/synthetic-fixtures.generated.ts",
     "prototypes/pruefungsrunde-prototyp/synthetic-fixtures.generated.js",
 }

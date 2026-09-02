@@ -1,7 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { LocationsComponent } from './locations.component';
-import { masterDataFixture } from '../testing/fixtures';
+import {
+  athenCourtLocationFixture,
+  athenCommitteeFixture,
+  feenwaldLocationFixture,
+  masterDataFixture,
+} from '../testing/fixtures';
 
 describe('LocationsComponent', () => {
   let fixture: ComponentFixture<LocationsComponent>;
@@ -27,8 +32,8 @@ describe('LocationsComponent', () => {
   it('should render location details', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
-    expect(text).toContain('Prüfungszentrum Alpha (Test)');
-    expect(text).toContain('Testraum A-01');
+    expect(text).toContain(athenCourtLocationFixture.name);
+    expect(text).toContain(athenCourtLocationFixture.room);
     expect(text).toContain('00000');
   });
 
@@ -38,8 +43,8 @@ describe('LocationsComponent', () => {
       locations: [
         ...masterDataFixture.locations,
         {
-          ...masterDataFixture.locations[0],
-          id: 2,
+          ...athenCourtLocationFixture,
+          id: 99,
           name: 'Prüfungszentrum Beta (Test)',
           room: 'Testraum B-01',
           is_active: 0,
@@ -55,9 +60,12 @@ describe('LocationsComponent', () => {
     ).map((button) => button.getAttribute('aria-label'));
 
     expect(labels).toEqual([
-      'Prüfungszentrum Alpha (Test) bearbeiten',
-      'Prüfungszentrum Alpha (Test) deaktivieren',
-      'Prüfungszentrum Alpha (Test) · Testraum A-01 löschen',
+      `${athenCourtLocationFixture.name} bearbeiten`,
+      `${athenCourtLocationFixture.name} deaktivieren`,
+      `${athenCourtLocationFixture.name} · ${athenCourtLocationFixture.room} löschen`,
+      `${feenwaldLocationFixture.name} bearbeiten`,
+      `${feenwaldLocationFixture.name} deaktivieren`,
+      `${feenwaldLocationFixture.name} · ${feenwaldLocationFixture.room} löschen`,
       'Prüfungszentrum Beta (Test) bearbeiten',
       'Prüfungszentrum Beta (Test) aktivieren',
       'Prüfungszentrum Beta (Test) · Testraum B-01 löschen',
@@ -113,7 +121,7 @@ describe('LocationsComponent', () => {
     expect(component.deleteLocation.emit).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 1,
-        name: 'Prüfungszentrum Alpha (Test)',
+        name: athenCourtLocationFixture.name,
       }),
     );
   });
@@ -179,7 +187,7 @@ describe('LocationsComponent', () => {
 
     const labels = Array.from(select.options).map((option) => option.textContent?.trim());
     expect(labels).toContain('Standardausschuss');
-    expect(labels).toContain('Prüfungsausschuss Teststadt 1');
+    expect(labels).toContain(athenCommitteeFixture.name);
     expect(select.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();
     expect(select.required).toBe(true);
   });

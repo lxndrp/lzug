@@ -187,6 +187,11 @@ class DemoArtifactTests(unittest.TestCase):
                 )
 
     def test_init_reset_removes_changes_files_and_old_sessions(self) -> None:
+        catalog = json.loads(Path("fixtures/synthetic-fixtures.json").read_text(encoding="utf-8"))
+        candidate_key = "name.papaspyrou.repertoire.lzug.fixture.candidate.planchange"
+        candidate = next(
+            row for row in catalog["candidates"] if row["fixture_key"] == candidate_key
+        )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             seed_db = root / "seed.sqlite"
@@ -202,13 +207,20 @@ class DemoArtifactTests(unittest.TestCase):
             initialize_workdir(seed_db, seed_manifest, data_dir)
             database = data_dir / "lzug.sqlite"
             credentials = AuthenticationRepository(database).create_session(1)
-            ResourceRepository(database).update(CANDIDATE, 1, {"last_name": "Geändert"})
+            ResourceRepository(database).update(
+                CANDIDATE, candidate["id"], {"last_name": "Geändert"}
+            )
             (data_dir / "documents" / "temporary.txt").write_text("demo", encoding="utf-8")
 
             initialize_workdir(seed_db, seed_manifest, data_dir)
 
             self.assertEqual(
-                "Alpha", self._scalar(database, "SELECT last_name FROM candidate WHERE id = 1")
+                candidate["last_name"],
+                self._scalar(
+                    database,
+                    "SELECT last_name FROM candidate WHERE id = ?",
+                    (candidate["id"],),
+                ),
             )
             self.assertFalse((data_dir / "documents" / "temporary.txt").exists())
             self.assertIsNone(AuthenticationRepository(database).authenticate(credentials.token))
@@ -369,11 +381,11 @@ class DemoArtifactTests(unittest.TestCase):
                 validate_runtime_binding(app_manifest, data_dir)
 
     @staticmethod
-    def _scalar(database: Path, query: str):
+    def _scalar(database: Path, query: str, parameters: tuple = ()):
         import sqlite3
 
         with sqlite3.connect(database) as connection:
-            return connection.execute(query).fetchone()[0]
+            return connection.execute(query, parameters).fetchone()[0]
 
     @staticmethod
     def _row(database: Path, query: str):

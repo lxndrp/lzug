@@ -24,14 +24,14 @@ describe('DashboardComponent', () => {
     fixture.detectChanges();
 
     const text = textContent();
-    expect(text).toContain('Prüfungsausschuss Teststadt 1');
+    expect(text).toContain('Hauptausschuss Athen');
     expect(text).toContain('Prüflinge');
     expect(text).toContain('12');
-    expect(text).toContain('Prüfungszentrum Alpha (Test)');
+    expect(text).toContain('Hof Athen (synthetisch)');
     expect(text).toContain('08:30');
-    expect(text).toContain('Prüfling Alpha');
+    expect(text).toContain('Hermia von Athen');
     expect(text).toContain('MEP');
-    expect(text).toContain('Testperson Alpha');
+    expect(text).toContain('Theseus von Athen');
     expect(text).toContain('Nächste Schritte');
     expect(text).toContain('Rückmeldefrist');
     expect(text).toContain('15.10.2026');
@@ -119,7 +119,7 @@ describe('DashboardComponent', () => {
     expect(button('Plan bestätigen')).toBeUndefined();
     expect(element.querySelector('.app-agenda-list')).toBeTruthy();
     expect(element.querySelector('.app-agenda-list')?.textContent).toContain(
-      'Prüfungsausschuss Teststadt 1',
+      'Hauptausschuss Athen',
     );
     expect(element.querySelector('.app-agenda-list')?.textContent).toContain('2 Termine');
   });

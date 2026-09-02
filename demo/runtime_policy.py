@@ -13,14 +13,7 @@ from backend.auth import AuthContext, AuthenticationError
 from backend.transport import RequestContext
 
 from .artifacts import load_runtime_manifests, load_runtime_status
-
-DEMO_ROLES = {
-    "chair": {"account_id": 1, "person_id": 1, "display_name": "Testperson Alpha"},
-    "examiner": {"account_id": 2, "person_id": 3, "display_name": "Testperson Gamma"},
-    "deputy": {"account_id": 3, "person_id": 2, "display_name": "Testperson Beta"},
-}
-
-DEMO_MATRIX_VERSION = "demo-paths-v6"
+from .synthetic_fixtures_generated import DEMO_MATRIX_VERSION, DEMO_ROLES
 
 
 @dataclass(frozen=True)
@@ -1003,6 +996,8 @@ class DemoRuntimePolicy:
                 "product_commit": self.app_manifest["product"]["commit"],
                 "runtime_contract": self.app_manifest["runtime_contract"],
                 "demo_matrix_version": DEMO_MATRIX_VERSION,
+                "fixture_catalog_version": self.seed_manifest["fixture_catalog"]["version"],
+                "fixture_catalog_revision": self.seed_manifest["fixture_catalog"]["revision"],
                 "seed_revision": self.seed_manifest["seed_revision"],
                 "schema_fingerprint": self.seed_manifest["schema"]["fingerprint"],
                 "initialized": self.runtime_status["initialized"],

@@ -2,6 +2,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { PlanningComponent } from './planning.component';
 import {
+  athenChairMembershipFixture,
+  athenCourtLocationFixture,
+  athenDeputyMembershipFixture,
   examRoundFixture,
   masterDataFixture,
   planningBoardFixture,
@@ -83,8 +86,8 @@ describe('PlanningComponent', () => {
       previousStep(): void;
       changeAvailability(member: never, day: never, availability: never): void;
     };
-    const ownMember = masterDataFixture.members[0];
-    const otherMember = masterDataFixture.members[1];
+    const ownMember = athenChairMembershipFixture;
+    const otherMember = athenDeputyMembershipFixture;
     const day = planningBoardFixture.candidateDays[0];
     vi.spyOn(fixture.componentInstance.saveAvailability, 'emit').mockReturnValue(undefined);
     fixture.componentRef.setInput('availabilityOnly', true);
@@ -221,7 +224,9 @@ describe('PlanningComponent', () => {
     const location = element.querySelector<HTMLSelectElement>('#defaultLocation')!;
 
     expect(optionLabels(state)).toContain('Nordrhein-Westfalen');
-    expect(optionLabels(location)).toContain('Prüfungszentrum Alpha (Test) · Testraum A-01');
+    expect(optionLabels(location)).toContain(
+      `${athenCourtLocationFixture.name} · ${athenCourtLocationFixture.room}`,
+    );
     expect(state.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();
     expect(location.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeTruthy();
   });
@@ -439,7 +444,7 @@ describe('PlanningComponent', () => {
       isAvailabilitySaving: (memberId: number, dayId: number) => boolean;
     };
     changeAvailability.changeAvailability(
-      masterDataFixture.members[0],
+      athenChairMembershipFixture,
       planningBoardFixture.candidateDays[0],
       'morning',
     );
@@ -473,7 +478,7 @@ describe('PlanningComponent', () => {
     };
 
     changeAvailability.changeAvailability(
-      masterDataFixture.members[0],
+      athenChairMembershipFixture,
       planningBoardFixture.candidateDays[0],
       'morning',
     );

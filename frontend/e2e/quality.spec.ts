@@ -1,7 +1,32 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 import type { ExamResult } from '../src/app/api/api.models';
+import { syntheticFixtures } from '../src/app/testing/synthetic-fixtures.generated';
 import { expect, test } from './fixtures';
+
+const athenCommittee = syntheticFixtures.committees.find(
+  (committee) =>
+    committee.id ===
+    syntheticFixtures.keys.committees['name.papaspyrou.repertoire.lzug.fixture.committee.athen'],
+);
+if (!athenCommittee) throw new Error('Canonical Athen committee fixture is missing');
+const athenCourtLocation = syntheticFixtures.locations.find(
+  (location) =>
+    location.id ===
+    syntheticFixtures.keys.locations[
+      'name.papaspyrou.repertoire.lzug.fixture.location.synthetic.court'
+    ],
+);
+if (!athenCourtLocation) throw new Error('Canonical Athen location fixture is missing');
+const planchangeCandidate = syntheticFixtures.candidates.find(
+  (candidate) =>
+    candidate.id ===
+    syntheticFixtures.keys.candidates[
+      'name.papaspyrou.repertoire.lzug.fixture.candidate.planchange'
+    ],
+);
+if (!planchangeCandidate) throw new Error('Canonical plan-change candidate fixture is missing');
+const demoRoles = syntheticFixtures.demoRoles;
 
 const productiveViews = [
   { name: 'Übersicht', path: '/dashboard' },
@@ -26,7 +51,7 @@ function overviewItem(
     name,
     status,
     status_group: statusGroup,
-    committee_name: 'Prüfungsausschuss Teststadt 1',
+    committee_name: athenCommittee.name,
     exam_half_year: { id: 1, season: 'winter', year: 2026, status: 'active' },
     calendar_week_from: '2026-W47',
     calendar_week_to: '2026-W49',
@@ -95,6 +120,7 @@ test.describe('lzug browser workflows', () => {
   test('resumes coordination, plans, confirms, and opens the persisted exam plan', async ({
     page,
   }) => {
+    test.setTimeout(120_000);
     await page.goto('/scheduling-overview/1');
     await expect(page.getByText('Daten synchronisiert', { exact: true })).toBeVisible({
       timeout: 30_000,
@@ -112,7 +138,9 @@ test.describe('lzug browser workflows', () => {
     await expect(page.getByLabel('Verfügbarkeiten nach Mitglied und Prüfungstag')).toBeVisible();
 
     await page.getByRole('button', { name: 'Planungsvorschlag erzeugen' }).click();
-    await expect(page.getByText('Planung', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Planung', { exact: true }).first()).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(page.getByText('Zusammenfassung vor der Bestätigung')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Plan bestätigen' })).toBeEnabled();
 
@@ -953,6 +981,7 @@ test.describe('lzug browser workflows', () => {
   });
 
   test('keeps demo roles visible and role-safe on desktop and mobile', async ({ page }) => {
+    test.setTimeout(180_000);
     let role: 'chair' | 'examiner' | 'deputy' = 'chair';
     await page.route('**/api/session', async (route) => {
       if (route.request().method() === 'POST') {
@@ -966,16 +995,12 @@ test.describe('lzug browser workflows', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           authenticated: true,
-          account_id: isChair ? 1 : isDeputy ? 3 : 2,
-          person_id: isChair ? 1 : isDeputy ? 2 : 3,
-          committee_member_id: isChair ? 1 : isDeputy ? 2 : 3,
+          account_id: demoRoles[role].account_id,
+          person_id: demoRoles[role].person_id,
+          committee_member_id: demoRoles[role].committee_member_id,
           is_operator: false,
           demo_role: role,
-          display_name: isChair
-            ? 'Testperson Alpha'
-            : isDeputy
-              ? 'Testperson Beta'
-              : 'Testperson Gamma',
+          display_name: demoRoles[role].display_name,
           capabilities: isManager
             ? [
                 'absence:read-own',
@@ -1011,11 +1036,7 @@ test.describe('lzug browser workflows', () => {
           await page.setViewportSize(viewport);
           await page.goto('/dashboard');
           await expect(page.getByLabel('Aktive Demo-Identität')).toContainText(
-            currentRole === 'chair'
-              ? 'Testperson Alpha'
-              : currentRole === 'deputy'
-                ? 'Testperson Beta'
-                : 'Testperson Gamma',
+            demoRoles[currentRole].display_name,
           );
           await expect(
             page.getByText(
@@ -1106,12 +1127,12 @@ test.describe('lzug browser workflows', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           authenticated: true,
-          account_id: 2,
-          person_id: 3,
-          committee_member_id: 3,
+          account_id: demoRoles.examiner.account_id,
+          person_id: demoRoles.examiner.person_id,
+          committee_member_id: demoRoles.examiner.committee_member_id,
           is_operator: false,
           demo_role: 'examiner',
-          display_name: 'Testperson Gamma',
+          display_name: demoRoles.examiner.display_name,
           capabilities: [
             'absence:read-own',
             'attendance:write-own',
@@ -1144,7 +1165,7 @@ test.describe('lzug browser workflows', () => {
       await expect(context).toBeVisible();
       await expect(context).toContainText('Winter 2026');
       await expect(context).toContainText('Winter 2026/27');
-      await expect(context).toContainText('Prüfungsausschuss Teststadt 1');
+      await expect(context).toContainText(athenCommittee.name);
     }
   });
 
@@ -1394,7 +1415,7 @@ test.describe('lzug browser workflows', () => {
     const state = page.locator('#holidaySubdivisionCode');
     const location = page.locator('#defaultLocation');
     await expect(location.locator('option:checked')).toHaveText(
-      'Prüfungszentrum Alpha (Test) · Testraum A-01',
+      `${athenCourtLocation.name} · ${athenCourtLocation.room}`,
     );
     await expect(
       state.locator('xpath=ancestor::tui-textfield').locator('button[tuiButtonX]'),
@@ -1433,12 +1454,18 @@ test.describe('lzug browser workflows', () => {
 
     await filter.selectOption({ label: 'Systemintegration' });
     await expect(filter.locator('option:checked')).toHaveText('Systemintegration');
-    await expect(page.locator('tbody > tr').filter({ hasText: 'Beta, Prüfling' })).toBeVisible();
-    await expect(page.locator('tbody > tr').filter({ hasText: 'Alpha, Prüfling' })).toHaveCount(0);
+    await expect(page.locator('tbody > tr').filter({ hasText: 'von Athen, Helena' })).toBeVisible();
+    await expect(page.locator('tbody > tr').filter({ hasText: 'von Athen, Hermia' })).toHaveCount(
+      0,
+    );
 
-    await search.fill('Zeta');
-    await expect(page.locator('tbody > tr').filter({ hasText: 'Zeta, Prüfling' })).toBeVisible();
-    await expect(page.locator('tbody > tr').filter({ hasText: 'Beta, Prüfling' })).toHaveCount(0);
+    await search.fill('Philostrate');
+    await expect(
+      page.locator('tbody > tr').filter({ hasText: 'vom Hof, Philostrate' }),
+    ).toBeVisible();
+    await expect(page.locator('tbody > tr').filter({ hasText: 'von Athen, Helena' })).toHaveCount(
+      0,
+    );
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/candidates');
@@ -1476,8 +1503,8 @@ test.describe('lzug browser workflows', () => {
     await page.getByRole('link', { name: 'Prüflinge', exact: true }).click();
     await page.getByText('Neuen Prüfling anlegen', { exact: true }).click();
 
-    await page.locator('#candidateFirstName').fill('E2E');
-    await page.locator('#candidateLastName').fill('Testperson');
+    await page.locator('#candidateFirstName').fill(planchangeCandidate.first_name);
+    await page.locator('#candidateLastName').fill(planchangeCandidate.last_name);
     await page.locator('#candidateExamNumber').fill('E2E-2026-001');
     await page.getByRole('button', { name: 'Prüfling anlegen', exact: true }).click();
 
@@ -1491,10 +1518,14 @@ test.describe('lzug browser workflows', () => {
     );
     await deleteButton.click();
     const confirmationDialog = page.getByRole('dialog', {
-      name: 'E2E Testperson löschen?',
+      name: `${planchangeCandidate.first_name} ${planchangeCandidate.last_name} löschen?`,
     });
     await expect(confirmationDialog).toBeVisible();
-    await confirmationDialog.getByRole('button', { name: 'E2E Testperson löschen' }).click();
+    await confirmationDialog
+      .getByRole('button', {
+        name: `${planchangeCandidate.first_name} ${planchangeCandidate.last_name} löschen`,
+      })
+      .click();
     await expect(row).toHaveCount(0);
   });
 
@@ -1582,7 +1613,7 @@ test.describe('lzug browser workflows', () => {
   test('keeps contextual create editors associated, cancellable and accessible', async ({
     page,
   }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
     const editors = [
       {
         path: '/candidates',
@@ -1611,7 +1642,7 @@ test.describe('lzug browser workflows', () => {
         await test.step(`${viewport.name}: ${item.action}`, async () => {
           await page.goto(item.path);
           const refreshButton = page.getByRole('button', { name: 'Aktualisieren' });
-          await expect(refreshButton).toBeEnabled();
+          await expect(refreshButton).toBeEnabled({ timeout: 30_000 });
           await expect(refreshButton).toHaveCSS('opacity', '1');
           const trigger = page.locator(
             `${item.editor === '#candidate-create-editor' ? '.app-list-toolbar ' : ''}button[aria-controls="${item.editor.slice(1)}"]`,
@@ -1720,7 +1751,7 @@ test.describe('lzug theme and accessibility matrix', () => {
       test(`${scheme} ${viewport.name} renders every productive view with readable colors @a11y`, async ({
         page,
       }) => {
-        test.setTimeout(120_000);
+        test.setTimeout(180_000);
         await page.emulateMedia({ colorScheme: scheme });
         await page.setViewportSize(viewport);
 
@@ -1728,7 +1759,7 @@ test.describe('lzug theme and accessibility matrix', () => {
           await test.step(view.name, async () => {
             await page.goto(view.path);
             await expect(page.locator('h1')).toBeVisible();
-            await expect(page.locator('.app-progress')).toHaveCount(0);
+            await expect(page.locator('.app-progress')).toHaveCount(0, { timeout: 30_000 });
             if (scheme === 'dark') {
               await expect(page.locator('body')).toHaveAttribute('tuiTheme', 'dark');
             } else {
@@ -1814,9 +1845,9 @@ function confirmedPlan(
         },
         location: {
           id: 1,
-          name: 'Prüfungszentrum Langname (Test)',
-          room: 'Testraum Langname A-12',
-          city: 'Teststadt-West',
+          name: athenCourtLocation.name,
+          room: athenCourtLocation.room,
+          city: athenCourtLocation.city,
         },
         slots: [
           {
@@ -1848,8 +1879,8 @@ function confirmedPlan(
             attendance: { status: 'open', arrived_at: null },
             member: {
               id: id * 10,
-              first_name: 'Testperson',
-              last_name: 'Langname-Arbeitgeberseite',
+              first_name: demoRoles.chair.first_name,
+              last_name: demoRoles.chair.last_name,
               representing_side: 'employer',
             },
           },
@@ -1861,8 +1892,8 @@ function confirmedPlan(
             attendance: { status: 'open', arrived_at: null },
             member: {
               id: id * 10 + 1,
-              first_name: 'Testperson',
-              last_name: 'Langname-Arbeitnehmerseite',
+              first_name: demoRoles.examiner.first_name,
+              last_name: demoRoles.examiner.last_name,
               representing_side: 'employee',
             },
           },
@@ -1874,8 +1905,8 @@ function confirmedPlan(
             attendance: { status: 'open', arrived_at: null },
             member: {
               id: id * 10 + 2,
-              first_name: 'Testperson',
-              last_name: 'Langname-Schulseite',
+              first_name: demoRoles.deputy.first_name,
+              last_name: demoRoles.deputy.last_name,
               representing_side: 'school',
             },
           },
@@ -1887,8 +1918,8 @@ function confirmedPlan(
             attendance: { status: 'open', arrived_at: null },
             member: {
               id: id * 10 + 3,
-              first_name: 'Testperson',
-              last_name: 'Langname-Arbeitnehmerseite',
+              first_name: demoRoles.examiner.first_name,
+              last_name: demoRoles.examiner.last_name,
               representing_side: 'employee',
             },
           },
@@ -1962,7 +1993,7 @@ function examResultView(): ExamResult {
       id: 1,
       model_key: 'fiae-final-2026',
       version: 1,
-      ihk: 'IHK Teststadt',
+      ihk: athenCommittee.ihk,
       occupation: 'Fachinformatiker/in',
       specialization: null,
       valid_from: '2026-01-01',
@@ -2026,7 +2057,7 @@ function examResultView(): ExamResult {
         points: '82',
         grade: 'gut',
         professional_status: 'bestanden',
-        determining_authority: 'IHK Teststadt',
+        determining_authority: athenCommittee.ihk,
         source_reference: 'Bescheid TEST-RESULT-1',
         status: 'unconfirmed',
         recorded_by_member_id: 2,

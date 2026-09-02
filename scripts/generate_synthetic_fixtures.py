@@ -17,6 +17,38 @@ TYPESCRIPT_TARGET = (
 PROTOTYPE_TARGET = (
     ROOT / "prototypes" / "pruefungsrunde-prototyp" / "synthetic-fixtures.generated.js"
 )
+PYTHON_TARGET = ROOT / "demo" / "synthetic_fixtures_generated.py"
+
+FIXTURE_ROOT = "name.papaspyrou.repertoire.lzug.fixture"
+ENTITY_GROUPS = (
+    "organizations",
+    "committees",
+    "persons",
+    "memberships",
+    "accounts",
+    "locations",
+    "candidates",
+)
+REQUIRED_COVERAGE = {
+    "chair",
+    "deputy_chair",
+    "representing_side_employer",
+    "representing_side_employee",
+    "representing_side_school",
+    "ordinary_member",
+    "deputy_member",
+    "fallback",
+    "replacement",
+    "cross_committee",
+    "candidates",
+    "foreign_committee",
+    "suitable_staffing",
+    "unsuitable_staffing",
+    "positive_authorization",
+    "negative_authorization",
+    "demo_487_absence",
+    "demo_487_planchange",
+}
 
 SPECIALIZATION_LABELS = {
     "application_development": "Anwendungsentwicklung",
@@ -45,18 +77,163 @@ def load_source() -> dict[str, Any]:
 
 
 def adapter_rows(data: dict[str, Any], group: str, adapter: str) -> list[dict[str, Any]]:
-    return [row for row in data[group] if adapter in row["adapters"]]
+    return [row for row in data[group] if adapter in row.get("adapters", ())]
+
+
+def catalog_index(data: dict[str, Any]) -> dict[str, tuple[str, dict[str, Any]]]:
+    index: dict[str, tuple[str, dict[str, Any]]] = {}
+    for group in ENTITY_GROUPS:
+        for row in data[group]:
+            key = row["fixture_key"]
+            if key in index:
+                raise ValueError(f"Duplicate semantic fixture key: {key}")
+            index[key] = (group, row)
+    return index
+
+
+def item_by_key(data: dict[str, Any], key: str, group: str) -> dict[str, Any]:
+    indexed_group, item = catalog_index(data).get(key, (None, None))
+    if indexed_group != group or item is None:
+        raise ValueError(f"Unknown {group} fixture key: {key}")
+    return item
+
+
+def resolved_memberships(data: dict[str, Any], adapter: str | None = None) -> list[dict[str, Any]]:
+    memberships = data["memberships"]
+    if adapter is not None:
+        memberships = [row for row in memberships if adapter in row["adapters"]]
+    resolved = []
+    for membership in memberships:
+        person = item_by_key(data, membership["person_key"], "persons")
+        committee = item_by_key(data, membership["committee_key"], "committees")
+        resolved.append(
+            {
+                **membership,
+                "person_id": person["id"],
+                "committee_id": committee["id"],
+                "first_name": person["first_name"],
+                "last_name": person["last_name"],
+                "email": person["email"],
+                "mobile": person["mobile"],
+            }
+        )
+    return resolved
+
+
+def validate_catalog(data: dict[str, Any]) -> None:
+    """Fail closed when the canonical fixture catalog is incomplete or unsafe."""
+    if data.get("version") != 2 or not data.get("revision"):
+        raise ValueError("Unsupported or missing fixture catalog version")
+    if data.get("fixture_root") != FIXTURE_ROOT:
+        raise ValueError(f"Fixture root must be {FIXTURE_ROOT}")
+    if not data.get("demo_matrix_version"):
+        raise ValueError("Demo matrix version is required")
+    for group in ENTITY_GROUPS:
+        if not isinstance(data.get(group), list) or not data[group]:
+            raise ValueError(f"Fixture group must not be empty: {group}")
+
+    index = catalog_index(data)
+    for key in index:
+        if not key.startswith(f"{FIXTURE_ROOT}."):
+            raise ValueError(f"Fixture key has an invalid root: {key}")
+
+    for group in ENTITY_GROUPS:
+        ids = [row["id"] for row in data[group] if "id" in row]
+        if len(ids) != len(set(ids)):
+            raise ValueError(f"Duplicate technical id in fixture group: {group}")
+
+    scenario_keys = {scenario["key"] for scenario in data["scenarios"]}
+    if len(scenario_keys) != len(data["scenarios"]):
+        raise ValueError("Duplicate scenario key")
+    for _, row in index.values():
+        if not row.get("scenarios") and "scenarios" in row:
+            raise ValueError(f"Fixture has no scenario coverage: {row['fixture_key']}")
+        unknown_scenarios = set(row.get("scenarios", ())) - scenario_keys
+        if unknown_scenarios:
+            raise ValueError(f"Fixture references unknown scenarios: {row['fixture_key']}")
+
+    for organization in data["organizations"]:
+        if (
+            organization.get("is_fictional") is not True
+            or organization.get("country") != "Griechenland"
+            or organization.get("contact") is not None
+        ):
+            raise ValueError("Organizations must be fictional Greek demo records")
+
+    email_domain = data["conventions"].get("email_domain")
+    if email_domain != "demo.lzug.invalid":
+        raise ValueError("Synthetic email domain must be demo.lzug.invalid")
+    for person in data["persons"]:
+        if not person.get("first_name") or not person.get("last_name"):
+            raise ValueError("Every synthetic person requires a full name")
+        if not person["email"].endswith(f"@{email_domain}"):
+            raise ValueError("Synthetic person email uses a forbidden domain")
+        if person.get("mobile") is not None:
+            raise ValueError("Synthetic person phone numbers are forbidden")
+    for candidate in data["candidates"]:
+        if not candidate.get("first_name") or not candidate.get("last_name"):
+            raise ValueError("Every synthetic candidate requires a full name")
+    for account in data["accounts"]:
+        if not account["email"].endswith(f"@{email_domain}"):
+            raise ValueError("Synthetic account email uses a forbidden domain")
+        if account.get("capability_contract") != data["demo_matrix_version"]:
+            raise ValueError("Account capability contract does not match demo matrix")
+
+    for committee in data["committees"]:
+        item_by_key(data, committee["organization_key"], "organizations")
+    for membership in data["memberships"]:
+        item_by_key(data, membership["person_key"], "persons")
+        item_by_key(data, membership["committee_key"], "committees")
+    for account in data["accounts"]:
+        item_by_key(data, account["person_key"], "persons")
+        membership = item_by_key(data, account["membership_key"], "memberships")
+        if membership["person_key"] != account["person_key"]:
+            raise ValueError("Demo account and membership reference different people")
+    for location in data["locations"]:
+        item_by_key(data, location["committee_key"], "committees")
+        if location.get("country") != "Griechenland" or location.get("geodata") is not None:
+            raise ValueError("Real location data is deferred to #572")
+
+    roles = [account["demo_role"] for account in data["accounts"]]
+    if sorted(roles) != ["chair", "deputy", "examiner"]:
+        raise ValueError("Exactly the three canonical demo roles are required")
+
+    cross_key = f"{FIXTURE_ROOT}.person.crosscommittee"
+    cross_committees = {
+        membership["committee_key"]
+        for membership in data["memberships"]
+        if membership["person_key"] == cross_key and membership.get("is_active")
+    }
+    if len(cross_committees) < 2:
+        raise ValueError("Cross-committee fixture must have two active memberships")
+
+    coverage = data.get("coverage_matrix", {})
+    if set(coverage) != REQUIRED_COVERAGE:
+        raise ValueError("Fixture coverage matrix is incomplete or contains unknown rows")
+    for name, keys in coverage.items():
+        if not keys or any(key not in index for key in keys):
+            raise ValueError(f"Fixture coverage row is invalid: {name}")
+
+    legacy_names = [row["legacy"] for row in data["legacy_mapping"]]
+    if len(legacy_names) != len(set(legacy_names)):
+        raise ValueError("Legacy fixture mapping is ambiguous")
+    for mapping in data["legacy_mapping"]:
+        _, target = index.get(mapping["fixture_key"], (None, None))
+        if target is None or target.get("id") != mapping["technical_id"]:
+            raise ValueError("Legacy fixture mapping does not preserve its technical id")
+
+    validate_seed_committees(data)
 
 
 def validate_seed_committees(data: dict[str, Any]) -> None:
     """Require every synthetic active committee to have exactly one active chair."""
     committees = adapter_rows(data, "committees", "seed")
-    members = adapter_rows(data, "members", "seed")
+    members = resolved_memberships(data, "seed")
     for committee in committees:
         active_chairs = [
             member
             for member in members
-            if member["committee_id"] == committee["id"]
+            if member["committee_key"] == committee["fixture_key"]
             and member["committee_role"] == "chair"
             and member.get("is_active", 1)
         ]
@@ -82,21 +259,34 @@ def sql_rows(rows: list[list[Any]]) -> str:
 
 def render_sql(data: dict[str, Any]) -> str:
     committees = adapter_rows(data, "committees", "seed")
-    members = adapter_rows(data, "members", "seed")
+    members = resolved_memberships(data, "seed")
     locations = adapter_rows(data, "locations", "seed")
     candidates = adapter_rows(data, "candidates", "seed")
+    accounts = data["accounts"]
+    people = {
+        member["person_id"]: item_by_key(data, member["person_key"], "persons")
+        for member in members
+    }
     committee_rows = [
-        [row["id"], row["name"], row["occupation"], row["ihk"], 1, "ready"] for row in committees
+        [
+            row["id"],
+            row["name"],
+            row["occupation"],
+            item_by_key(data, row["organization_key"], "organizations")["name"],
+            1,
+            "ready",
+        ]
+        for row in committees
     ]
     person_rows = [
         [
-            row["person_id"],
+            row["id"],
             row["first_name"],
             row["last_name"],
             row["email"],
             row["mobile"],
         ]
-        for row in members
+        for row in sorted(people.values(), key=lambda item: item["id"])
     ]
     member_rows = [
         [
@@ -109,10 +299,19 @@ def render_sql(data: dict[str, Any]) -> str:
         ]
         for row in members
     ]
+    account_rows = [
+        [
+            row["id"],
+            item_by_key(data, row["person_key"], "persons")["id"],
+            row["email"],
+            "demo-password-hash",
+        ]
+        for row in accounts
+    ]
     location_rows = [
         [
             row["id"],
-            row["committee_id"],
+            item_by_key(data, row["committee_key"], "committees")["id"],
             row["name"],
             row["street"],
             row["postal_code"],
@@ -142,6 +341,19 @@ def render_sql(data: dict[str, Any]) -> str:
         ]
         for row in candidates
     ]
+
+    def membership_id(suffix: str) -> int:
+        return item_by_key(data, f"{FIXTURE_ROOT}.membership.{suffix}", "memberships")["id"]
+
+    pending_member_ids = ", ".join(
+        str(membership_id(suffix)) for suffix in ("examiner.fallback", "examiner.unsuitable")
+    )
+    afternoon_member_ids = ", ".join(
+        str(membership_id(suffix)) for suffix in ("deputy.athen", "examiner.replacement")
+    )
+    morning_member_ids = ", ".join(
+        str(membership_id(suffix)) for suffix in ("examiner.absent", "examiner.reserve")
+    )
     return f"""-- Generated by scripts/generate_synthetic_fixtures.py. Do not edit directly.
 INSERT INTO committee (id, name, occupation, ihk, is_active, bootstrap_state)
 VALUES
@@ -158,9 +370,7 @@ VALUES
 
 INSERT INTO user_account (id, person_id, email, password_hash)
 VALUES
-  (1, 1, 'demo.alpha@example.invalid', 'demo-password-hash'),
-  (2, 3, 'demo.gamma@example.invalid', 'demo-password-hash'),
-  (3, 2, 'demo.beta@example.invalid', 'demo-password-hash');
+{sql_rows(account_rows)};
 
 INSERT INTO committee_admin_operation (
   operation_type, committee_id, person_ids_json, membership_ids_json,
@@ -245,12 +455,14 @@ SELECT
   committee_member.id,
   candidate_exam_day.id,
   CASE
-    WHEN committee_member.id IN (5, 7) THEN 'pending'
-    WHEN candidate_exam_day.id = 3 AND committee_member.id IN (2, 6) THEN 'afternoon'
-    WHEN candidate_exam_day.id = 4 AND committee_member.id IN (3, 8) THEN 'morning'
+    WHEN committee_member.id IN ({pending_member_ids}) THEN 'pending'
+    WHEN candidate_exam_day.id = 3
+      AND committee_member.id IN ({afternoon_member_ids}) THEN 'afternoon'
+    WHEN candidate_exam_day.id = 4
+      AND committee_member.id IN ({morning_member_ids}) THEN 'morning'
     ELSE 'full_day'
   END,
-  CASE WHEN committee_member.id IN (5, 7) THEN NULL ELSE CURRENT_TIMESTAMP END
+  CASE WHEN committee_member.id IN ({pending_member_ids}) THEN NULL ELSE CURRENT_TIMESTAMP END
 FROM committee_member
 CROSS JOIN candidate_exam_day
 WHERE committee_member.committee_id = 1
@@ -261,20 +473,45 @@ WHERE committee_member.committee_id = 1
 def render_typescript(data: dict[str, Any]) -> str:
     committees = []
     for row in adapter_rows(data, "committees", "frontend"):
-        committee = {key: value for key, value in row.items() if key != "adapters"}
-        committee["is_active"] = 1
-        committee["bootstrap_state"] = "ready"
-        committees.append(committee)
+        committees.append(
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "occupation": row["occupation"],
+                "ihk": item_by_key(data, row["organization_key"], "organizations")["name"],
+                "is_active": 1,
+                "bootstrap_state": "ready",
+            }
+        )
     members = []
-    for row in adapter_rows(data, "members", "frontend"):
-        member = {key: value for key, value in row.items() if key not in {"adapters", "response"}}
-        member["email_verified_at"] = None
-        if member["id"] == 2:
-            member["committee_role"] = "member"
-            member["is_active"] = 0
-        members.append(member)
+    for row in resolved_memberships(data, "frontend"):
+        members.append(
+            {
+                "id": row["id"],
+                "person_id": row["person_id"],
+                "committee_id": row["committee_id"],
+                "first_name": row["first_name"],
+                "last_name": row["last_name"],
+                "email": row["email"],
+                "mobile": row["mobile"],
+                "member_status": row["member_status"],
+                "committee_role": row["committee_role"],
+                "representing_side": row["representing_side"],
+                "is_active": row["is_active"],
+                "email_verified_at": None,
+            }
+        )
     locations = [
-        {key: value for key, value in row.items() if key != "adapters"}
+        {
+            "id": row["id"],
+            "committee_id": item_by_key(data, row["committee_key"], "committees")["id"],
+            "name": row["name"],
+            "street": row["street"],
+            "postal_code": row["postal_code"],
+            "city": row["city"],
+            "room": row["room"],
+            "is_active": row["is_active"],
+        }
         for row in adapter_rows(data, "locations", "frontend")
     ]
     candidates = []
@@ -290,6 +527,22 @@ def render_typescript(data: dict[str, Any]) -> str:
             }
         )
     payload = {
+        "version": data["version"],
+        "revision": data["revision"],
+        "fixtureRoot": data["fixture_root"],
+        "demoMatrixVersion": data["demo_matrix_version"],
+        "keys": {
+            group: {row["fixture_key"]: row["id"] for row in data[group] if "id" in row}
+            for group in (
+                "committees",
+                "persons",
+                "memberships",
+                "accounts",
+                "locations",
+                "candidates",
+            )
+        },
+        "demoRoles": demo_roles(data),
         "committees": committees,
         "members": members,
         "locations": locations,
@@ -304,9 +557,10 @@ def render_typescript(data: dict[str, Any]) -> str:
 
 def render_prototype(data: dict[str, Any]) -> str:
     members = []
-    for row in adapter_rows(data, "members", "prototype"):
+    for row in resolved_memberships(data, "prototype"):
         members.append(
             {
+                "fixtureKey": row["fixture_key"],
                 "id": row["id"],
                 "firstName": row["first_name"],
                 "lastName": row["last_name"],
@@ -323,6 +577,7 @@ def render_prototype(data: dict[str, Any]) -> str:
     for row in adapter_rows(data, "candidates", "prototype"):
         candidates.append(
             {
+                "fixtureKey": row["fixture_key"],
                 "id": row["id"],
                 "firstName": row["first_name"],
                 "lastName": row["last_name"],
@@ -337,6 +592,7 @@ def render_prototype(data: dict[str, Any]) -> str:
     for row in adapter_rows(data, "locations", "prototype"):
         locations.append(
             {
+                "fixtureKey": row["fixture_key"],
                 "id": row["id"],
                 "name": row["name"],
                 "street": row["street"],
@@ -345,7 +601,13 @@ def render_prototype(data: dict[str, Any]) -> str:
                 "room": row["room"],
             }
         )
-    payload = {"candidates": candidates, "members": members, "locations": locations}
+    payload = {
+        "version": data["version"],
+        "revision": data["revision"],
+        "candidates": candidates,
+        "members": members,
+        "locations": locations,
+    }
     content = json.dumps(payload, ensure_ascii=False, indent=2)
     return (
         "// Generated by scripts/generate_synthetic_fixtures.py. Do not edit directly.\n"
@@ -353,12 +615,92 @@ def render_prototype(data: dict[str, Any]) -> str:
     )
 
 
+def demo_roles(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    roles = {}
+    for account in data["accounts"]:
+        person = item_by_key(data, account["person_key"], "persons")
+        membership = item_by_key(data, account["membership_key"], "memberships")
+        roles[account["demo_role"]] = {
+            "account_id": account["id"],
+            "person_id": person["id"],
+            "committee_member_id": membership["id"],
+            "first_name": person["first_name"],
+            "last_name": person["last_name"],
+            "display_name": f"{person['first_name']} {person['last_name']}",
+            "account_email": account["email"],
+            "person_email": person["email"],
+            "fixture_key": person["fixture_key"],
+        }
+    return roles
+
+
+def render_python(data: dict[str, Any]) -> str:
+    fixture_ids = {
+        row["fixture_key"]: {
+            "entity_type": group,
+            **({"id": row["id"]} if "id" in row else {}),
+        }
+        for group in ENTITY_GROUPS
+        for row in data[group]
+    }
+
+    def json_assignment(name: str, value: Any) -> str:
+        payload = json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True)
+        return f'{name} = json.loads(r"""{payload}""")\n'
+
+    organizations = {row["fixture_key"]: row["name"] for row in data["organizations"]}
+    display_names = {
+        row["fixture_key"]: (
+            row["name"] if "name" in row else f"{row['first_name']} {row['last_name']}"
+        )
+        for group in ENTITY_GROUPS
+        for row in data[group]
+        if "name" in row or ("first_name" in row and "last_name" in row)
+    }
+    candidate_exam_numbers = {
+        row["fixture_key"]: row["ihk_exam_number"] for row in data["candidates"]
+    }
+    adapter_names = sorted(
+        {
+            adapter
+            for group in ENTITY_GROUPS
+            for row in data[group]
+            for adapter in row.get("adapters", ())
+        }
+    )
+    adapter_counts = {
+        adapter: {group: len(adapter_rows(data, group, adapter)) for group in ENTITY_GROUPS}
+        for adapter in adapter_names
+    }
+    return (
+        '"""Generated semantic identities for the public demo. Do not edit directly."""\n\n'
+        "# ruff: noqa: E501\n\n"
+        "import json\n\n"
+        f"FIXTURE_CATALOG_VERSION = {data['version']}\n"
+        f"FIXTURE_CATALOG_REVISION = {json.dumps(data['revision'])}\n"
+        f"FIXTURE_ROOT = {json.dumps(data['fixture_root'])}\n"
+        f"DEMO_MATRIX_VERSION = {json.dumps(data['demo_matrix_version'])}\n\n"
+        + json_assignment("FIXTURE_IDS", fixture_ids)
+        + "\n"
+        + json_assignment("ORGANIZATION_NAMES", organizations)
+        + "\n"
+        + json_assignment("DISPLAY_NAMES", display_names)
+        + "\n"
+        + json_assignment("CANDIDATE_EXAM_NUMBERS", candidate_exam_numbers)
+        + "\n"
+        + json_assignment("ADAPTER_COUNTS", adapter_counts)
+        + "\n"
+        + json_assignment("DEMO_ROLES", demo_roles(data))
+    )
+
+
 def outputs(data: dict[str, Any]) -> dict[Path, str]:
-    validate_seed_committees(data)
+    validate_catalog(data)
     return {
         SQL_TARGET: render_sql(data),
         TYPESCRIPT_TARGET: render_typescript(data),
         PROTOTYPE_TARGET: render_prototype(data),
+        PYTHON_TARGET: render_python(data),
     }
 
 

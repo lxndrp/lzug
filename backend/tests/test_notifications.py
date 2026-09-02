@@ -20,6 +20,7 @@ from backend.database import session_scope
 from backend.models import ExamDay, ExamDayAssignment, NotificationDelivery
 from backend.notifications import DELIVERY_CLAIM_TTL, NotificationService
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
+from demo.synthetic_fixtures_generated import DEMO_ROLES, DISPLAY_NAMES, FIXTURE_ROOT
 
 
 def vapid_private_key() -> str:
@@ -151,7 +152,7 @@ class NotificationServiceTests(unittest.TestCase):
         self.assertEqual([(1,), (3,), (5,)], recipients)
         own = self.service.list_own(self.scope(1))[0]
         self.assertIn("2026-11-23", own["message"])
-        self.assertIn("Prüfungszentrum Alpha", own["message"])
+        self.assertIn(DISPLAY_NAMES[f"{FIXTURE_ROOT}.location.synthetic.court"], own["message"])
 
     def test_web_push_registration_confirmation_and_timeout_fallback_are_separate(self) -> None:
         private_key = vapid_private_key()
@@ -234,8 +235,8 @@ class NotificationServiceTests(unittest.TestCase):
 
         smtp.assert_called_once_with("smtp.example.invalid", 25, timeout=10)
         sent = smtp.send_message.call_args.args[0]
-        self.assertEqual("testperson.alpha@example.invalid", sent["To"])
-        self.assertNotIn("Testperson Beta", sent.get_content())
+        self.assertEqual(DEMO_ROLES["chair"]["person_email"], sent["To"])
+        self.assertNotIn(DEMO_ROLES["deputy"]["display_name"], sent.get_content())
         with sqlite3.connect(self.db_path) as connection:
             invalidated_at = connection.execute(
                 "SELECT invalidated_at FROM push_subscription WHERE id = ?",
@@ -451,27 +452,27 @@ class NotificationServiceTests(unittest.TestCase):
         with sqlite3.connect(self.db_path) as connection:
             connection.execute("PRAGMA foreign_keys = ON")
             connection.executescript("""
-                INSERT INTO committee (id, name) VALUES (2, 'Retention committee');
+                INSERT INTO committee (id, name) VALUES (99, 'Retention committee');
                 INSERT INTO person (id, first_name, last_name, email)
-                  VALUES (9, 'Retention', 'Member', 'retention@example.invalid');
+                  VALUES (99, 'Retention', 'Member', 'retention@example.invalid');
                 INSERT INTO committee_member
                   (id, person_id, committee_id, member_status, committee_role, representing_side)
-                  VALUES (9, 9, 2, 'ordinary', 'chair', 'employer');
+                  VALUES (99, 99, 99, 'ordinary', 'chair', 'employer');
                 INSERT INTO exam_round
                   (id, exam_half_year_id, committee_id, name, availability_deadline,
                    created_by_member_id)
-                  VALUES (2, 1, 2, 'Retention round', '2026-10-10 18:00:00', 9);
+                  VALUES (99, 1, 99, 'Retention round', '2026-10-10 18:00:00', 99);
                 """)
             connection.commit()
-        self.service.create_for_event("availability_requested", 2)
+        self.service.create_for_event("availability_requested", 99)
         with sqlite3.connect(self.db_path) as connection:
             connection.execute("PRAGMA foreign_keys = ON")
-            connection.execute("DELETE FROM exam_round WHERE id = 2")
+            connection.execute("DELETE FROM exam_round WHERE id = 99")
             connection.commit()
             self.assertEqual(
                 0,
                 connection.execute(
-                    "SELECT COUNT(*) FROM notification WHERE exam_round_id = 2"
+                    "SELECT COUNT(*) FROM notification WHERE exam_round_id = 99"
                 ).fetchone()[0],
             )
             self.assertEqual(
@@ -479,7 +480,7 @@ class NotificationServiceTests(unittest.TestCase):
                 connection.execute(
                     "SELECT COUNT(*) FROM notification_delivery d "
                     "JOIN notification n ON n.id = d.notification_id "
-                    "WHERE n.exam_round_id = 2"
+                    "WHERE n.exam_round_id = 99"
                 ).fetchone()[0],
             )
 

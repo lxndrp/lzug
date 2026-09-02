@@ -23,6 +23,7 @@ import {
   examRoundFixture,
   examRoundsFixture,
   examSlotsFixture,
+  foreignExamRoundFixture,
   locationsFixture,
   membersFixture,
   personsFixture,
@@ -84,7 +85,7 @@ describe('App', () => {
     expect(compiled.textContent).toContain('Terminorganisationen öffnen');
     expect(compiled.textContent).toContain('Aktueller Prüfungskontext');
     expect(compiled.textContent).toContain('Winter 2026');
-    expect(compiled.textContent).toContain('Prüfungsausschuss Teststadt 1');
+    expect(compiled.textContent).toContain('Hauptausschuss Athen');
     expect(compiled.textContent).toContain('Version 0.1.0');
   });
 
@@ -163,13 +164,11 @@ describe('App', () => {
       selectExamRound(id: number): void;
     };
     app.selectExamRound(2);
-    flushDashboardRequests(http, examRoundsFixture[1]);
+    flushDashboardRequests(http, foreignExamRoundFixture);
     fixture.detectChanges();
 
     expect(TestBed.inject(RoundContextService).roundId()).toBe(2);
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
-      'Prüfungsausschuss Teststadt 2',
-    );
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Fremdausschuss Feenwald');
   });
 
   it('should ask before deleting a candidate', async () => {
@@ -188,8 +187,8 @@ describe('App', () => {
     expect(confirmSpy).toHaveBeenCalled();
     expect(vi.mocked(confirmSpy).mock.lastCall?.[0]).toEqual(
       expect.objectContaining({
-        label: 'Prüfling Alpha löschen?',
-        data: expect.objectContaining({ yes: 'Prüfling Alpha löschen' }),
+        label: 'Hermia von Athen löschen?',
+        data: expect.objectContaining({ yes: 'Hermia von Athen löschen' }),
       }),
     );
     expect(http.match((request) => request.method === 'DELETE').length).toBe(0);
@@ -276,13 +275,13 @@ describe('App', () => {
       committee_member_id: 3,
       is_operator: false,
       demo_role: 'examiner',
-      display_name: 'Testperson Gamma',
+      display_name: 'Peter Quince',
       capabilities: ['attendance:write-own', 'availability:write-own'],
     });
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
-    expect(element.textContent).toContain('Testperson Gamma');
+    expect(element.textContent).toContain('Peter Quince');
     expect(element.textContent).toContain('Prüfperson');
     expect(element.textContent).toContain('Rolle wechseln');
     expect(element.querySelector('a[href="/scheduling-overview"]')).not.toBeNull();
@@ -325,7 +324,7 @@ describe('App', () => {
       committee_member_id: 3,
       is_operator: false,
       demo_role: 'examiner',
-      display_name: 'Testperson Gamma',
+      display_name: 'Peter Quince',
       capabilities: ['attendance:write-own', 'availability:write-own'],
     });
     fixture.detectChanges();
