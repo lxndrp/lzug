@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
+  <title id="title">lzug Key-Visual-Entwurf Bühnenhut</title>
+  <desc id="description">Eine sachlich abstrahierte Bühne mit Spotlight auf ein Qualifikationssymbol und einem Ensemble im Vordergrund.</desc>
+  <style>
+    :root {
+      --brand-ink: #201945;
+      --brand-panel: #2d235c;
+      --brand-accent: #f3b33d;
+      --brand-paper: #f8f7fc;
+      --brand-muted: #d7d0ec;
+      --brand-audience: #110d25;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --brand-ink: #f7f4ff;
+        --brand-panel: #211a43;
+        --brand-accent: #ffc85a;
+        --brand-paper: #151128;
+        --brand-muted: #6f6598;
+      }
+    }
+  </style>
+  <rect width="1600" height="900" fill="var(--brand-paper)" />
+  <rect x="170" y="110" width="1260" height="610" rx="28" fill="var(--brand-panel)" />
+  <path d="M800 150 500 700h600z" fill="var(--brand-accent)" opacity=".24" />
+  <path d="m620 434 180-98 180 98-180 100z" fill="var(--brand-paper)" />
+  <path
+    d="M690 492v92c65 54 155 54 220 0v-92"
+    fill="none"
+    stroke="var(--brand-paper)"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="38"
+  />
+  <path d="M385 700h830" fill="none" stroke="var(--brand-accent)" stroke-linecap="round" stroke-width="18" />
+  <g fill="var(--brand-audience)">
+    <circle cx="430" cy="760" r="34" />
+    <circle cx="555" cy="740" r="36" />
+    <circle cx="690" cy="770" r="34" />
+    <circle cx="800" cy="738" r="38" />
+    <circle cx="910" cy="770" r="34" />
+    <circle cx="1045" cy="740" r="36" />
+    <circle cx="1170" cy="760" r="34" />
+    <path d="M350 900v-52c0-54 36-94 80-94s80 40 80 94v52z" />
+    <path d="M467 900v-70c0-60 40-104 88-104s88 44 88 104v70z" />
+    <path d="M612 900v-48c0-55 35-96 78-96s78 41 78 96v48z" />
+    <path d="M714 900v-76c0-65 39-112 86-112s86 47 86 112v76z" />
+    <path d="M832 900v-48c0-55 35-96 78-96s78 41 78 96v48z" />
+    <path d="M957 900v-70c0-60 40-104 88-104s88 44 88 104v70z" />
+    <path d="M1090 900v-52c0-54 36-94 80-94s80 40 80 94v52z" />
+  </g>
+</svg>

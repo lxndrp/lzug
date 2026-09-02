@@ -1,0 +1,148 @@
+{
+  "schema": 1,
+  "renderer": "151.0.7922.34",
+  "logo": [
+    {
+      "name": "logo-comparison-light.png",
+      "theme": "light",
+      "height": 1220,
+      "overflow": 0,
+      "width": 1440
+    },
+    {
+      "name": "logo-comparison-dark.png",
+      "theme": "dark",
+      "height": 1220,
+      "overflow": 0,
+      "width": 1440
+    }
+  ],
+  "fonts": [
+    {
+      "axes": "wght 200-900",
+      "candidate": "Source Sans 3",
+      "family": "Source Sans 3 Variable",
+      "license": "OFL-1.1",
+      "licenseSha256": "18aabf190848725e2576eefb5c29ba06aac1029d02132252a7f312eac2e50cf3",
+      "mode": "desktop-light",
+      "name": "font-source-sans-3-desktop-light.png",
+      "payloadBytes": 53124,
+      "payloadFiles": [
+        "source-sans-3-greek-ext-wght-normal.woff2",
+        "source-sans-3-greek-wght-normal.woff2",
+        "source-sans-3-latin-wght-normal.woff2"
+      ],
+      "sourceVersion": "v19",
+      "upstream": "https://github.com/google/fonts",
+      "subsets": ["latin", "greek", "greek-ext"],
+      "height": 1434,
+      "overflow": 0,
+      "width": 1440
+    },
+    {
+      "axes": "wght 200-900",
+      "candidate": "Source Sans 3",
+      "family": "Source Sans 3 Variable",
+      "license": "OFL-1.1",
+      "licenseSha256": "18aabf190848725e2576eefb5c29ba06aac1029d02132252a7f312eac2e50cf3",
+      "mode": "mobile-dark",
+      "name": "font-source-sans-3-mobile-dark.png",
+      "payloadBytes": 53124,
+      "payloadFiles": [
+        "source-sans-3-greek-ext-wght-normal.woff2",
+        "source-sans-3-greek-wght-normal.woff2",
+        "source-sans-3-latin-wght-normal.woff2"
+      ],
+      "sourceVersion": "v19",
+      "upstream": "https://github.com/google/fonts",
+      "subsets": ["latin", "greek", "greek-ext"],
+      "height": 2046,
+      "overflow": 0,
+      "width": 390
+    },
+    {
+      "axes": "wght 100-900",
+      "candidate": "Noto Sans",
+      "family": "Noto Sans Variable",
+      "license": "OFL-1.1",
+      "licenseSha256": "54ec7b5a35310ad66f9f3091426f7028484cbf9ae1ab5da30122ee412a3009e1",
+      "mode": "desktop-light",
+      "name": "font-noto-sans-desktop-light.png",
+      "payloadBytes": 68356,
+      "payloadFiles": [
+        "noto-sans-greek-ext-wght-normal.woff2",
+        "noto-sans-greek-wght-normal.woff2",
+        "noto-sans-latin-wght-normal.woff2"
+      ],
+      "sourceVersion": "v42",
+      "upstream": "https://github.com/google/fonts",
+      "subsets": ["latin", "greek", "greek-ext"],
+      "height": 1434,
+      "overflow": 0,
+      "width": 1440
+    },
+    {
+      "axes": "wght 100-900",
+      "candidate": "Noto Sans",
+      "family": "Noto Sans Variable",
+      "license": "OFL-1.1",
+      "licenseSha256": "54ec7b5a35310ad66f9f3091426f7028484cbf9ae1ab5da30122ee412a3009e1",
+      "mode": "mobile-dark",
+      "name": "font-noto-sans-mobile-dark.png",
+      "payloadBytes": 68356,
+      "payloadFiles": [
+        "noto-sans-greek-ext-wght-normal.woff2",
+        "noto-sans-greek-wght-normal.woff2",
+        "noto-sans-latin-wght-normal.woff2"
+      ],
+      "sourceVersion": "v42",
+      "upstream": "https://github.com/google/fonts",
+      "subsets": ["latin", "greek", "greek-ext"],
+      "height": 2136,
+      "overflow": 0,
+      "width": 390
+    },
+    {
+      "axes": "wght 100-900",
+      "candidate": "Inter",
+      "family": "Inter Variable",
+      "license": "OFL-1.1",
+      "licenseSha256": "3b0a5fca3d17942cde889069889dedbbbd075e9b599968c82a95f4d944e9b345",
+      "mode": "desktop-light",
+      "name": "font-inter-desktop-light.png",
+      "payloadBytes": 78484,
+      "payloadFiles": [
+        "inter-greek-ext-wght-normal.woff2",
+        "inter-greek-wght-normal.woff2",
+        "inter-latin-wght-normal.woff2"
+      ],
+      "sourceVersion": "v20",
+      "upstream": "https://github.com/google/fonts",
+      "subsets": ["latin", "greek", "greek-ext"],
+      "height": 1434,
+      "overflow": 0,
+      "width": 1440
+    },
+    {
+      "axes": "wght 100-900",
+      "candidate": "Inter",
+      "family": "Inter Variable",
+      "license": "OFL-1.1",
+      "licenseSha256": "3b0a5fca3d17942cde889069889dedbbbd075e9b599968c82a95f4d944e9b345",
+      "mode": "mobile-dark",
+      "name": "font-inter-mobile-dark.png",
+      "payloadBytes": 78484,
+      "payloadFiles": [
+        "inter-greek-ext-wght-normal.woff2",
+        "inter-greek-wght-normal.woff2",
+        "inter-latin-wght-normal.woff2"
+      ],
+      "sourceVersion": "v20",
+      "upstream": "https://github.com/google/fonts",
+      "subsets": ["latin", "greek", "greek-ext"],
+      "height": 2136,
+      "overflow": 0,
+      "width": 390
+    }
+  ]
+}

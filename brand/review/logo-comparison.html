@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>lzug Logovergleich</title>
+    <link rel="stylesheet" href="review.css" />
+  </head>
+  <body>
+    <main class="review-page">
+      <header class="review-heading">
+        <div>
+          <h1>Logo-Freigabe</h1>
+          <p>
+            Zwei Ausprägungen derselben Leitidee: Bühne, Spotlight und
+            Qualifikation.
+          </p>
+        </div>
+        <span class="review-meta" data-theme-label>Helles Schema</span>
+      </header>
+
+      <section class="comparison-grid" aria-label="Logoentwürfe">
+        <article class="panel">
+          <header class="panel-header">
+            <h2>A: Bühnenhut</h2>
+            <p class="muted">
+              Direkte Qualifikationsmetapher, bewusst stark reduziert.
+            </p>
+          </header>
+          <div class="logo-stage">
+            <img src="../proposals/stage-cap.svg" alt="Entwurf Bühnenhut" />
+          </div>
+          <div class="logo-wordmark">
+            <img src="../proposals/stage-cap.svg" alt="" />
+            <span>lzug</span>
+          </div>
+          <div class="size-row" aria-label="Kleinformatprobe">
+            <img src="../proposals/stage-cap.svg" alt="16 Pixel" />
+            <img src="../proposals/stage-cap.svg" alt="32 Pixel" />
+            <img src="../proposals/stage-cap.svg" alt="64 Pixel" />
+          </div>
+          <img
+            class="key-visual"
+            src="../proposals/key-visual-stage-cap.svg"
+            alt="Key Visual Bühnenhut"
+          />
+        </article>
+
+        <article class="panel">
+          <header class="panel-header">
+            <h2>B: Geordneter Weg</h2>
+            <p class="muted">
+              Abstrakte Qualifikation als nachvollziehbarer Ablauf.
+            </p>
+          </header>
+          <div class="logo-stage">
+            <img
+              src="../proposals/stage-path.svg"
+              alt="Entwurf Geordneter Weg"
+            />
+          </div>
+          <div class="logo-wordmark">
+            <img src="../proposals/stage-path.svg" alt="" />
+            <span>lzug</span>
+          </div>
+          <div class="size-row" aria-label="Kleinformatprobe">
+            <img src="../proposals/stage-path.svg" alt="16 Pixel" />
+            <img src="../proposals/stage-path.svg" alt="32 Pixel" />
+            <img src="../proposals/stage-path.svg" alt="64 Pixel" />
+          </div>
+          <img
+            class="key-visual"
+            src="../proposals/key-visual-stage-path.svg"
+            alt="Key Visual Geordneter Weg"
+          />
+        </article>
+      </section>
+    </main>
+    <script>
+      const theme =
+        new URLSearchParams(location.search).get("theme") === "dark"
+          ? "dark"
+          : "light";
+      document.documentElement.dataset.theme = theme;
+      document.querySelector("[data-theme-label]").textContent =
+        theme === "dark" ? "Dunkles Schema" : "Helles Schema";
+    </script>
+  </body>
+</html>
