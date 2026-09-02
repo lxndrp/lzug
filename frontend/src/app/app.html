@@ -429,12 +429,19 @@
                   <app-locations
                     [masterData]="masterData()"
                     [actionBusy]="actionBusy()"
-                    (createLocation)="createLocation($event)"
-                    (updateLocation)="updateLocation($event)"
-                    (toggleLocation)="toggleLocation($event)"
-                    (deleteLocation)="
-                      requestLocationDeletion($event.id, $event.name + ' · ' + $event.room)
-                    "
+                    [isOperator]="auth.session()?.is_operator ?? false"
+                    [readOnly]="demoSession() !== null"
+                    (createVenue)="createVenue($event)"
+                    (updateVenue)="updateVenue($event)"
+                    (deleteVenue)="requestVenueDeletion($event)"
+                    (createRoom)="createRoom($event)"
+                    (updateRoom)="updateRoom($event)"
+                    (deleteRoom)="deleteRoom($event)"
+                    (createContact)="createContact($event)"
+                    (updateContact)="updateContact($event)"
+                    (deleteContact)="deleteContact($event)"
+                    (requestPromotion)="requestPromotion($event)"
+                    (decidePromotion)="decidePromotion($event)"
                   />
                 }
                 @case ('notifications') {

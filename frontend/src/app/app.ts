@@ -15,7 +15,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { TuiButton, TuiNotification, TuiRoot } from '@taiga-ui/core';
 import { TuiConfirmService } from '@taiga-ui/kit';
-import { filter, finalize, switchMap } from 'rxjs';
+import { Observable, filter, finalize, forkJoin, switchMap } from 'rxjs';
 
 import {
   AvailabilityRequest,
@@ -25,7 +25,9 @@ import {
   EditablePlanningProposal,
   ExamRound,
   ExamRoundUpdate,
-  Location,
+  ExamRoom,
+  ExamVenue,
+  ExamVenueContact,
   MasterData,
   PlanningBoard,
   PlanningResult,
@@ -46,9 +48,13 @@ import {
 import { CommitteeComponent, CommitteeMemberPayload } from './committee/committee.component';
 import { DashboardComponent } from './dashboard/dashboard.component';
 import {
-  LocationPayload,
+  ContactCreate,
+  ContactUpdate,
   LocationsComponent,
-  LocationUpdate,
+  RoomCreate,
+  RoomUpdate,
+  VenueCreate,
+  VenueUpdate,
 } from './locations/locations.component';
 import {
   AvailabilityPayload,
@@ -447,12 +453,12 @@ export class App {
     );
   }
 
-  protected requestLocationDeletion(id: number, label: string): void {
+  protected requestVenueDeletion(venue: ExamVenue): void {
     this.requestConfirmation(
-      `${label} löschen?`,
-      `${label} wird dauerhaft aus der Prüfungsverwaltung entfernt.`,
-      `${label} löschen`,
-      () => this.deleteLocation(id, label),
+      `${venue.name} löschen?`,
+      'Nur ein vollständig ungenutzter Ort ohne Räume und Kontakte kann gelöscht werden.',
+      `${venue.name} löschen`,
+      () => this.deleteVenue(venue),
     );
   }
 
@@ -569,77 +575,217 @@ export class App {
       });
   }
 
-  protected createLocation(payload: LocationPayload): void {
+  protected createVenue(payload: VenueCreate): void {
     this.actionBusy.set(true);
     this.api
-      .createLocation(payload)
+      .checkExamVenueDuplicates(payload as unknown as Record<string, unknown>)
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
-        next: (location) => {
-          this.locationsComponent?.resetDraft();
-          this.notify('success', 'Prüfungsort angelegt', location.name);
-          this.refresh();
-        },
-        error: () =>
-          this.notify(
-            'error',
-            'Prüfungsort nicht gespeichert',
-            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
-          ),
-      });
-  }
-
-  protected deleteLocation(id: number, label: string): void {
-    this.actionBusy.set(true);
-    this.api
-      .deleteLocation(id)
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: () => {
-          this.notify('success', 'Prüfungsort gelöscht', label);
-          this.refresh();
-        },
-        error: () => this.notify('error', 'Prüfungsort nicht gelöscht', 'Bitte erneut versuchen.'),
-      });
-  }
-
-  protected updateLocation(update: LocationUpdate): void {
-    this.actionBusy.set(true);
-    this.api
-      .updateLocation(update.id, update.payload)
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: (location) => {
-          this.locationsComponent?.finishEditing(location.id);
-          this.notify('success', 'Prüfungsort gespeichert', `${location.name} · ${location.room}`);
-          this.refresh();
-        },
-        error: () =>
-          this.notify(
-            'error',
-            'Prüfungsort nicht gespeichert',
-            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
-          ),
-      });
-  }
-
-  protected toggleLocation(location: Location): void {
-    const nextActive = location.is_active === 0 ? 1 : 0;
-    this.actionBusy.set(true);
-    this.api
-      .updateLocation(location.id, { is_active: nextActive })
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: () => {
-          this.notify(
-            'success',
-            `Prüfungsort ${nextActive ? 'aktiviert' : 'deaktiviert'}`,
-            location.name,
+        next: ({ items }) => {
+          const save = () => this.persistVenue(payload, items.length > 0);
+          if (!items.length) return save();
+          this.requestConfirmation(
+            'Ähnliche Prüfungsorte gefunden',
+            items.map((item) => `${item.name} · ${item.address}`).join('\n'),
+            'Trotzdem anlegen',
+            save,
           );
+        },
+        error: () =>
+          this.notify('error', 'Dublettenprüfung fehlgeschlagen', 'Bitte erneut versuchen.'),
+      });
+  }
+
+  private persistVenue(payload: VenueCreate, duplicatesReviewed: boolean): void {
+    this.actionBusy.set(true);
+    this.api
+      .createExamVenue({ ...payload, duplicates_reviewed: duplicatesReviewed })
+      .pipe(finalize(() => this.actionBusy.set(false)))
+      .subscribe({
+        next: (venue) => {
+          this.locationsComponent?.resetDraft();
+          this.notify('success', 'Prüfungsort angelegt', venue.name);
           this.refresh();
         },
-        error: () => this.notify('error', 'Status nicht geändert', 'Bitte erneut versuchen.'),
+        error: () =>
+          this.notify(
+            'error',
+            'Prüfungsort nicht gespeichert',
+            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
+          ),
       });
+  }
+
+  protected updateVenue(update: VenueUpdate): void {
+    this.actionBusy.set(true);
+    forkJoin({
+      impact: this.api.getExamVenueChangeImpact(update.id),
+      duplicates: this.api.checkExamVenueDuplicates(update.payload, update.id),
+    })
+      .pipe(finalize(() => this.actionBusy.set(false)))
+      .subscribe({
+        next: ({ impact, duplicates }) => {
+          const needsConfirmation = impact.count > 0 || duplicates.items.length > 0;
+          const save = () =>
+            this.persistVenueUpdate(update, impact.count > 0, duplicates.items.length > 0);
+          if (!needsConfirmation) return save();
+          this.requestConfirmation(
+            duplicates.items.length
+              ? 'Ähnliche Prüfungsorte gefunden'
+              : 'Bestätigte Termine betroffen',
+            [
+              impact.count
+                ? `${impact.count} Einplanungen vom ${impact.date_from} bis ${impact.date_to}.`
+                : '',
+              ...duplicates.items.map((item) => `${item.name} · ${item.address}`),
+            ]
+              .filter(Boolean)
+              .join('\n'),
+            'Änderung bestätigen',
+            save,
+          );
+        },
+        error: () =>
+          this.notify('error', 'Auswirkungsprüfung fehlgeschlagen', 'Bitte erneut versuchen.'),
+      });
+  }
+
+  private persistVenueUpdate(
+    update: VenueUpdate,
+    confirmed: boolean,
+    duplicatesReviewed: boolean,
+  ): void {
+    this.actionBusy.set(true);
+    this.api
+      .updateExamVenue(update.id, {
+        ...update.payload,
+        confirm_future_assignments: confirmed,
+        duplicates_reviewed: duplicatesReviewed,
+      })
+      .pipe(finalize(() => this.actionBusy.set(false)))
+      .subscribe({
+        next: (venue) => {
+          this.locationsComponent?.finishEditing(venue.id);
+          this.notify('success', 'Prüfungsort gespeichert', venue.name);
+          this.refresh();
+        },
+        error: () =>
+          this.notify('error', 'Prüfungsort nicht gespeichert', 'Bitte erneut versuchen.'),
+      });
+  }
+
+  protected deleteVenue(venue: ExamVenue): void {
+    this.runVenueAction(
+      this.api.deleteExamVenue(venue.id, venue.revision),
+      'Prüfungsort gelöscht',
+      venue.name,
+    );
+  }
+
+  protected createRoom(command: RoomCreate): void {
+    this.runVenueAction(
+      this.api.createExamRoom(command.venueId, command.payload),
+      'Raum angelegt',
+      String(command.payload.name ?? ''),
+    );
+  }
+
+  protected updateRoom(command: RoomUpdate): void {
+    this.actionBusy.set(true);
+    this.api
+      .getExamRoomChangeImpact(command.id)
+      .pipe(finalize(() => this.actionBusy.set(false)))
+      .subscribe({
+        next: (impact) => {
+          const save = () =>
+            this.runVenueAction(
+              this.api.updateExamRoom(command.id, {
+                ...command.payload,
+                confirm_future_assignments: impact.count > 0,
+              }),
+              'Raum gespeichert',
+              '',
+            );
+          if (!impact.count) return save();
+          this.requestConfirmation(
+            'Bestätigte Termine betroffen',
+            `${impact.count} Einplanungen vom ${impact.date_from} bis ${impact.date_to}.`,
+            'Änderung bestätigen',
+            save,
+          );
+        },
+        error: () =>
+          this.notify('error', 'Auswirkungsprüfung fehlgeschlagen', 'Bitte erneut versuchen.'),
+      });
+  }
+
+  protected deleteRoom(room: ExamRoom): void {
+    this.runVenueAction(
+      this.api.deleteExamRoom(room.id, room.revision),
+      'Raum gelöscht',
+      room.name,
+    );
+  }
+  protected createContact(command: ContactCreate): void {
+    this.runVenueAction(
+      this.api.createExamVenueContact(command.venueId, command.payload),
+      'Kontakt angelegt',
+      String(command.payload.label ?? ''),
+    );
+  }
+  protected updateContact(command: ContactUpdate): void {
+    this.runVenueAction(
+      this.api.updateExamVenueContact(command.id, command.payload),
+      'Kontakt gespeichert',
+      '',
+    );
+  }
+  protected deleteContact(contact: ExamVenueContact): void {
+    this.runVenueAction(
+      this.api.deleteExamVenueContact(contact.id, contact.revision),
+      'Kontakt gelöscht',
+      contact.label,
+    );
+  }
+  protected requestPromotion(command: { venue: ExamVenue; reason: string }): void {
+    this.runVenueAction(
+      this.api.requestExamVenuePromotion(command.venue.id, command.venue.revision, command.reason),
+      'Hochstufung beantragt',
+      command.venue.name,
+    );
+  }
+  protected decidePromotion(command: {
+    venue: ExamVenue;
+    decision: 'approve' | 'reject';
+    reason: string;
+  }): void {
+    this.runVenueAction(
+      this.api.decideExamVenuePromotion(
+        command.venue.id,
+        command.venue.revision,
+        command.decision,
+        command.reason,
+      ),
+      command.decision === 'approve' ? 'Prüfungsort hochgestuft' : 'Hochstufung abgelehnt',
+      command.venue.name,
+    );
+  }
+
+  private runVenueAction(request: Observable<unknown>, title: string, detail: string): void {
+    this.actionBusy.set(true);
+    request.pipe(finalize(() => this.actionBusy.set(false))).subscribe({
+      next: () => {
+        this.locationsComponent?.finishEditing(-1);
+        this.notify('success', title, detail);
+        this.refresh();
+      },
+      error: () =>
+        this.notify(
+          'error',
+          'Aktion fehlgeschlagen',
+          'Bitte prüfen Sie Status, Verwendung und Revision.',
+        ),
+    });
   }
 
   protected savePlanningSettings(payload: PlanningSettingsPayload): void {

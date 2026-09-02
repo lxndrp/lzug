@@ -885,6 +885,62 @@ export type Location = {
   updated_at?: string;
 };
 
+export type ExamRoom = {
+  id: number;
+  venue_id: number;
+  name: string;
+  building: string | null;
+  wing: string | null;
+  floor: string | null;
+  room_number: string | null;
+  access_notes: string | null;
+  capacity: number | null;
+  is_active: number;
+  revision: number;
+  _links: Record<string, ApiLink>;
+};
+
+export type ExamVenueContact = {
+  id: number;
+  venue_id: number;
+  label: string;
+  role: string | null;
+  phone: string | null;
+  email: string | null;
+  availability_notes: string | null;
+  is_active: number;
+  revision: number;
+  room_ids: number[];
+  _links: Record<string, ApiLink>;
+};
+
+export type ExamVenue = {
+  id: number;
+  scope: 'global' | 'committee';
+  committee_id: number | null;
+  name: string;
+  street: string;
+  postal_code: string;
+  city: string;
+  country: string;
+  site_name: string | null;
+  entrance: string | null;
+  travel_directions: string | null;
+  is_accessible: number | null;
+  accessibility_status: 'confirmed' | 'needs_clarification';
+  accessibility_notes: string | null;
+  is_active: number;
+  revision: number;
+  rooms: ExamRoom[];
+  contacts: ExamVenueContact[];
+  capabilities: {
+    manage: boolean;
+    request_promotion: boolean;
+    decide_promotion: boolean;
+  };
+  _links: Record<string, ApiLink>;
+};
+
 export type Candidate = {
   id: number;
   first_name: string;
@@ -998,4 +1054,5 @@ export type MasterData = {
   examRounds: ExamRound[];
   candidateAssignments: CandidateCommitteeAssignment[];
   locations: Location[];
+  examVenues: ExamVenue[];
 };

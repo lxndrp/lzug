@@ -125,7 +125,7 @@ Frontendverhalten und betroffene Tests gemeinsam geprüft werden.
 Die Laufzeit prüft Reihenfolge, Prüfsummen und Integrität der
 Migrationshistorie fail-closed.
 
-Die Migrationen bis `026_add_backup_recipient.sql` bilden den aktuellen
+Die Migrationen bis `027_expand_exam_venue_audit.sql` bilden den aktuellen
 Stand von Authentifizierung und Sitzungen, Planrevisionen, Benachrichtigungen,
 Kalendern, Ausfall und Ersatz, Prüfungsprotokollen, Ergebnissen,
 Tagesabschlüssen, Ausschuss-Bootstrap, Planfolgen, Rundenlebenszyklus sowie
@@ -142,6 +142,9 @@ Migrierte Orte bleiben wegen ungeklärter Barrierefreiheit inaktiv; externe
 Karten- oder Geocodingdienste werden nicht verwendet.
 Bestandsmigrationen erfinden keine historischen Actor, Bewertungen,
 Bestätigungen oder Abschlussentscheidungen.
+`027_expand_exam_venue_audit.sql` erweitert den unveränderlichen Verlauf um
+technische Operator-Akteure und die Ereignisse für beantragte, genehmigte oder
+abgelehnte Hochstufungen.
 Unbekannte oder nicht unterstützte Schemastände verhindern Start, Restore oder
 Lifecycle-Mutation an der jeweiligen kontrollierenden Grenze.
 
@@ -182,10 +185,21 @@ Sie liest und ändert Orte über ihre Revision und legt Räume sowie Kontakte ü
 `/api/exam-venues/{id}/rooms` und `/api/exam-venues/{id}/contacts` an.
 Einzelne Räume und Kontakte bleiben unter `/api/exam-rooms/{id}` und
 `/api/exam-venue-contacts/{id}` les- und revisionsbasiert änderbar.
-Die aktuelle HTTP-Grenze beschränkt diese Operationen auf den vorhandenen
-Ausschuss-Scope.
-Globale Sichtbarkeit, Verwaltung und die kontrollierte Scope-Promotion bleiben
-einer darauf abgestimmten Berechtigungsregel vorbehalten.
+Aktive Mitglieder sehen aktive globale Orte und aktive Orte ihrer Ausschüsse;
+inaktive Orte bleiben nur bei Verwendung in einem zugänglichen Plan sichtbar.
+Vorsitz und Stellvertretung verwalten den Bestand ihrer Ausschüsse einschließlich
+inaktiver oder noch zu klärender Orte.
+Operatoren verwalten globale Orte ohne fachliche Ausschussrechte und sehen einen
+ausschussbezogenen Ort nur während eines offenen Hochstufungsantrags.
+
+Vor dem Anlegen oder Ändern liefert `/api/exam-venues/duplicate-check` ähnliche
+Namen und Anschriften aus dem jeweils sichtbaren Scope.
+Betroffene bestätigte künftige Termine werden über die `change-impact`-Routen
+ermittelt und müssen vor der Mutation ausdrücklich bestätigt werden.
+Ausschussverantwortliche beantragen eine identitätserhaltende Hochstufung über
+`/api/exam-venues/{id}/promotion-requests`; Operatoren entscheiden sie über
+`/api/exam-venue-promotion-requests/{id}/decision`.
+Kollidierende globale Orte verhindern die Hochstufung.
 
 `/api/locations` bleibt übergangsweise eine als veraltet markierte Leseprojektion
 von Räumen für noch nicht migrierte Clients.

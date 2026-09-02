@@ -4,177 +4,319 @@ import {
   EventEmitter,
   Input,
   Output,
-  ViewChild,
   signal,
+  ViewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TuiButton, TuiInput, TuiTextfield } from '@taiga-ui/core';
-import { TuiBadge, TuiSelect } from '@taiga-ui/kit';
-import { TuiTable } from '@taiga-ui/addon-table';
+import { TuiBadge } from '@taiga-ui/kit';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 
-import { Location, MasterData } from '../api/api.models';
-import { appIcons } from '../app-icons';
-import { AppIconDirective } from '../app-icon.directive';
-import { type SelectOption, selectStringify, selectValues } from '../select-options';
+import { ExamRoom, ExamVenue, ExamVenueContact, MasterData } from '../api/api.models';
 
-export type LocationPayload = Omit<Location, 'id'>;
-export type LocationUpdate = {
+export type VenueCreate = {
+  scope: 'global' | 'committee';
+  committee_id: number | null;
+  name: string;
+  street: string;
+  postal_code: string;
+  city: string;
+  country: string;
+  accessibility_status: 'confirmed' | 'needs_clarification';
+  is_accessible: boolean | null;
+  is_active: boolean;
+  duplicate_reason?: string;
+};
+export type VenueUpdate = {
   id: number;
-  payload: LocationPayload;
+  payload: Partial<VenueCreate> & { expected_revision: number };
+};
+export type RoomCreate = {
+  venueId: number;
+  payload: { name: string; capacity: number | null; is_active: boolean };
+};
+export type RoomUpdate = {
+  id: number;
+  payload: {
+    expected_revision: number;
+    name?: string;
+    capacity?: number | null;
+    is_active?: boolean;
+  };
+};
+export type ContactCreate = {
+  venueId: number;
+  payload: {
+    label: string;
+    email: string | null;
+    phone: string | null;
+    availability_notes: string | null;
+    is_active: boolean;
+  };
+};
+export type ContactUpdate = {
+  id: number;
+  payload: {
+    expected_revision: number;
+    label?: string;
+    email?: string | null;
+    phone?: string | null;
+    availability_notes?: string | null;
+    is_active?: boolean;
+  };
 };
 
 @Component({
   selector: 'app-locations',
-  imports: [
-    AppIconDirective,
-    FormsModule,
-    TuiButton,
-    TuiBadge,
-    TuiForm,
-    TuiHeader,
-    TuiInput,
-    TuiSelect,
-    TuiTable,
-    TuiTextfield,
-  ],
+  imports: [FormsModule, TuiBadge, TuiButton, TuiForm, TuiHeader, TuiInput, TuiTextfield],
   templateUrl: './locations.component.html',
 })
 export class LocationsComponent {
-  protected readonly icons = appIcons;
-  @ViewChild('locationCreateButton')
-  private locationCreateButton?: ElementRef<HTMLButtonElement>;
-  @ViewChild('locationCreateForm', { read: ElementRef })
-  private locationCreateForm?: ElementRef<HTMLFormElement>;
+  @ViewChild('venueCreateButton')
+  private venueCreateButton?: ElementRef<HTMLButtonElement>;
 
   @Input() masterData: MasterData | null = null;
   @Input() actionBusy = false;
+  @Input() isOperator = false;
+  @Input() readOnly = false;
 
-  @Output() createLocation = new EventEmitter<LocationPayload>();
-  @Output() updateLocation = new EventEmitter<LocationUpdate>();
-  @Output() toggleLocation = new EventEmitter<Location>();
-  @Output() deleteLocation = new EventEmitter<Location>();
+  @Output() createVenue = new EventEmitter<VenueCreate>();
+  @Output() updateVenue = new EventEmitter<VenueUpdate>();
+  @Output() deleteVenue = new EventEmitter<ExamVenue>();
+  @Output() createRoom = new EventEmitter<RoomCreate>();
+  @Output() updateRoom = new EventEmitter<RoomUpdate>();
+  @Output() deleteRoom = new EventEmitter<ExamRoom>();
+  @Output() createContact = new EventEmitter<ContactCreate>();
+  @Output() updateContact = new EventEmitter<ContactUpdate>();
+  @Output() deleteContact = new EventEmitter<ExamVenueContact>();
+  @Output() requestPromotion = new EventEmitter<{ venue: ExamVenue; reason: string }>();
+  @Output() decidePromotion = new EventEmitter<{
+    venue: ExamVenue;
+    decision: 'approve' | 'reject';
+    reason: string;
+  }>();
 
-  protected readonly editingLocationId = signal<number | null>(null);
-  protected readonly editDraft = signal<LocationPayload | null>(null);
-  protected readonly creatingLocation = signal(false);
-  protected readonly committeeStringify = selectStringify(() => this.committeeSelectOptions());
-
-  protected readonly draft: LocationPayload = {
-    committee_id: 0,
-    name: '',
-    street: '',
-    postal_code: '',
-    city: '',
-    room: '',
-    is_active: 1,
+  protected readonly creating = signal(false);
+  protected readonly editingVenueId = signal<number | null>(null);
+  protected readonly roomVenueId = signal<number | null>(null);
+  protected readonly editingRoomId = signal<number | null>(null);
+  protected readonly contactVenueId = signal<number | null>(null);
+  protected readonly editingContactId = signal<number | null>(null);
+  protected readonly promotionVenueId = signal<number | null>(null);
+  protected readonly decisionVenueId = signal<number | null>(null);
+  protected editDraft: VenueCreate | null = null;
+  protected promotionReason = '';
+  protected decisionReason = '';
+  protected readonly draft: VenueCreate = this.emptyVenue();
+  protected roomDraft = { name: '', capacity: null as number | null, is_active: true };
+  protected roomEditDraft = { name: '', capacity: null as number | null };
+  protected contactDraft = {
+    label: '',
+    email: '',
+    phone: '',
+    availability_notes: '',
+    is_active: true,
+  };
+  protected contactEditDraft = {
+    label: '',
+    email: '',
+    phone: '',
+    availability_notes: '',
   };
 
-  protected committeeOptions(): readonly number[] {
-    return selectValues(this.committeeSelectOptions());
+  protected venues(): ExamVenue[] {
+    return this.masterData?.examVenues ?? [];
   }
 
-  protected submitLocation(): void {
-    const committeeId = this.draft.committee_id || this.masterData?.committees[0]?.id;
-    if (!committeeId || !this.draft.name.trim() || !this.draft.room.trim()) {
-      return;
-    }
-
-    this.createLocation.emit({
+  protected submitVenue(): void {
+    const payload = this.normalizedVenue({
       ...this.draft,
-      committee_id: committeeId,
-      name: this.draft.name.trim(),
-      street: this.draft.street?.trim() ?? '',
-      postal_code: this.draft.postal_code?.trim() ?? '',
-      city: this.draft.city?.trim() ?? '',
-      room: this.draft.room.trim(),
-      is_active: this.draft.is_active ?? 1,
+      scope: this.isOperator ? 'global' : 'committee',
+      committee_id: this.isOperator ? null : this.draft.committee_id,
     });
+    if (!payload.name || (payload.scope === 'committee' && !payload.committee_id)) return;
+    this.createVenue.emit(payload);
   }
 
-  resetDraft(): void {
-    this.locationCreateForm?.nativeElement.reset();
-    this.draft.committee_id = 0;
-    this.draft.name = '';
-    this.draft.street = '';
-    this.draft.postal_code = '';
-    this.draft.city = '';
-    this.draft.room = '';
-    this.draft.is_active = 1;
-    this.creatingLocation.set(false);
-    this.focusCreateButton();
-  }
-
-  protected toggleLocationCreation(): void {
-    if (this.creatingLocation()) {
+  protected toggleVenueCreation(): void {
+    if (this.creating()) {
       this.resetDraft();
       return;
     }
-
-    this.creatingLocation.set(true);
+    this.creating.set(true);
   }
 
-  protected cancelLocationCreation(): void {
-    this.resetDraft();
+  protected startEditing(venue: ExamVenue): void {
+    this.editingVenueId.set(venue.id);
+    this.editDraft = {
+      scope: venue.scope,
+      committee_id: venue.committee_id,
+      name: venue.name,
+      street: venue.street,
+      postal_code: venue.postal_code,
+      city: venue.city,
+      country: venue.country,
+      accessibility_status: venue.accessibility_status,
+      is_accessible: venue.is_accessible === null ? null : Boolean(venue.is_accessible),
+      is_active: Boolean(venue.is_active),
+    };
   }
 
-  protected startEditing(location: Location): void {
-    this.editingLocationId.set(location.id);
-    this.editDraft.set({
-      committee_id: location.committee_id,
-      name: location.name,
-      street: location.street,
-      postal_code: location.postal_code,
-      city: location.city,
-      room: location.room,
-      is_active: location.is_active,
+  protected submitVenueUpdate(venue: ExamVenue): void {
+    if (!this.editDraft) return;
+    this.updateVenue.emit({
+      id: venue.id,
+      payload: { ...this.normalizedVenue(this.editDraft), expected_revision: venue.revision },
     });
   }
 
-  protected submitLocationUpdate(): void {
-    const id = this.editingLocationId();
-    const draft = this.editDraft();
-    if (!id || !draft) {
-      return;
-    }
-
-    const payload: LocationPayload = {
-      ...draft,
-      name: draft.name.trim(),
-      street: draft.street?.trim() ?? '',
-      postal_code: draft.postal_code?.trim() ?? '',
-      city: draft.city?.trim() ?? '',
-      room: draft.room.trim(),
-    };
-    if (!payload.committee_id || !payload.name || !payload.room) {
-      return;
-    }
-
-    this.updateLocation.emit({ id, payload });
+  protected toggleVenue(venue: ExamVenue): void {
+    this.updateVenue.emit({
+      id: venue.id,
+      payload: { expected_revision: venue.revision, is_active: !venue.is_active },
+    });
   }
 
-  protected cancelEditing(): void {
-    this.editingLocationId.set(null);
-    this.editDraft.set(null);
+  protected submitRoom(venue: ExamVenue): void {
+    const name = this.roomDraft.name.trim();
+    if (!name) return;
+    this.createRoom.emit({ venueId: venue.id, payload: { ...this.roomDraft, name } });
+  }
+
+  protected toggleRoom(room: ExamRoom): void {
+    this.updateRoom.emit({
+      id: room.id,
+      payload: { expected_revision: room.revision, is_active: !room.is_active },
+    });
+  }
+
+  protected startEditingRoom(room: ExamRoom): void {
+    this.editingRoomId.set(room.id);
+    this.roomEditDraft = { name: room.name, capacity: room.capacity };
+  }
+
+  protected submitRoomUpdate(room: ExamRoom): void {
+    const name = this.roomEditDraft.name.trim();
+    if (!name) return;
+    this.updateRoom.emit({
+      id: room.id,
+      payload: {
+        expected_revision: room.revision,
+        name,
+        capacity: this.roomEditDraft.capacity,
+      },
+    });
+  }
+
+  protected submitContact(venue: ExamVenue): void {
+    const payload = {
+      ...this.contactDraft,
+      label: this.contactDraft.label.trim(),
+      email: this.contactDraft.email.trim() || null,
+      phone: this.contactDraft.phone.trim() || null,
+      availability_notes: this.contactDraft.availability_notes.trim() || null,
+    };
+    if (!payload.label || (!payload.email && !payload.phone && !payload.availability_notes)) return;
+    this.createContact.emit({ venueId: venue.id, payload });
+  }
+
+  protected toggleContact(contact: ExamVenueContact): void {
+    this.updateContact.emit({
+      id: contact.id,
+      payload: { expected_revision: contact.revision, is_active: !contact.is_active },
+    });
+  }
+
+  protected startEditingContact(contact: ExamVenueContact): void {
+    this.editingContactId.set(contact.id);
+    this.contactEditDraft = {
+      label: contact.label,
+      email: contact.email ?? '',
+      phone: contact.phone ?? '',
+      availability_notes: contact.availability_notes ?? '',
+    };
+  }
+
+  protected submitContactUpdate(contact: ExamVenueContact): void {
+    const payload = {
+      expected_revision: contact.revision,
+      label: this.contactEditDraft.label.trim(),
+      email: this.contactEditDraft.email.trim() || null,
+      phone: this.contactEditDraft.phone.trim() || null,
+      availability_notes: this.contactEditDraft.availability_notes.trim() || null,
+    };
+    if (!payload.label || (!payload.email && !payload.phone && !payload.availability_notes)) return;
+    this.updateContact.emit({ id: contact.id, payload });
+  }
+
+  protected submitPromotion(venue: ExamVenue): void {
+    const reason = this.promotionReason.trim();
+    if (!reason) return;
+    this.requestPromotion.emit({ venue, reason });
+  }
+
+  protected submitPromotionDecision(venue: ExamVenue, decision: 'approve' | 'reject'): void {
+    const reason = this.decisionReason.trim();
+    if (!reason) return;
+    this.decidePromotion.emit({ venue, decision, reason });
+  }
+
+  resetDraft(): void {
+    Object.assign(this.draft, this.emptyVenue());
+    this.creating.set(false);
+    queueMicrotask(() => this.venueCreateButton?.nativeElement.focus());
   }
 
   finishEditing(id: number): void {
-    if (this.editingLocationId() === id) {
-      this.cancelEditing();
+    if (this.editingVenueId() === id) {
+      this.editingVenueId.set(null);
+      this.editDraft = null;
     }
+    this.roomVenueId.set(null);
+    this.editingRoomId.set(null);
+    this.contactVenueId.set(null);
+    this.editingContactId.set(null);
+    this.promotionVenueId.set(null);
+    this.decisionVenueId.set(null);
+    this.roomDraft = { name: '', capacity: null, is_active: true };
+    this.roomEditDraft = { name: '', capacity: null };
+    this.contactDraft = {
+      label: '',
+      email: '',
+      phone: '',
+      availability_notes: '',
+      is_active: true,
+    };
+    this.contactEditDraft = { label: '', email: '', phone: '', availability_notes: '' };
+    this.promotionReason = '';
+    this.decisionReason = '';
   }
 
-  private focusCreateButton(): void {
-    queueMicrotask(() => this.locationCreateButton?.nativeElement.focus());
+  private normalizedVenue(source: VenueCreate): VenueCreate {
+    return {
+      ...source,
+      committee_id: source.scope === 'global' ? null : source.committee_id,
+      name: source.name.trim(),
+      street: source.street.trim(),
+      postal_code: source.postal_code.trim(),
+      city: source.city.trim(),
+      country: source.country.trim(),
+    };
   }
 
-  private committeeSelectOptions(): readonly SelectOption<number>[] {
-    return [
-      { value: 0, label: 'Standardausschuss' },
-      ...(this.masterData?.committees ?? []).map((committee) => ({
-        value: committee.id,
-        label: committee.name,
-      })),
-    ];
+  private emptyVenue(): VenueCreate {
+    return {
+      scope: this.isOperator ? 'global' : 'committee',
+      committee_id: null,
+      name: '',
+      street: '',
+      postal_code: '',
+      city: '',
+      country: 'Deutschland',
+      accessibility_status: 'needs_clarification',
+      is_accessible: null,
+      is_active: false,
+      duplicate_reason: '',
+    };
   }
 }

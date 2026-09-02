@@ -159,7 +159,7 @@ from backend.database import database_path, migration_status
 
 status = migration_status(database_path())
 assert status["state"] == "ready"
-assert status["current"].endswith("_add_backup_recipient.sql")
+assert status["current"] == "027_expand_exam_venue_audit.sql"
 '
 
 "$admin_binary" recipient-key generate \

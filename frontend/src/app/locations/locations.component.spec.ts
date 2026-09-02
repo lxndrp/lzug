@@ -1,251 +1,408 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { WritableSignal } from '@angular/core';
 
-import { LocationsComponent } from './locations.component';
 import {
-  athenCourtLocationFixture,
-  athenCommitteeFixture,
-  feenwaldLocationFixture,
-  masterDataFixture,
-} from '../testing/fixtures';
+  ContactCreate,
+  ContactUpdate,
+  LocationsComponent,
+  RoomCreate,
+  RoomUpdate,
+  VenueCreate,
+} from './locations.component';
+import { masterDataFixture } from '../testing/fixtures';
+import { ExamRoom, ExamVenue, ExamVenueContact } from '../api/api.models';
+
+type LocationsHarness = LocationsComponent & {
+  creating: WritableSignal<boolean>;
+  editingVenueId: WritableSignal<number | null>;
+  roomVenueId: WritableSignal<number | null>;
+  editingRoomId: WritableSignal<number | null>;
+  contactVenueId: WritableSignal<number | null>;
+  editingContactId: WritableSignal<number | null>;
+  promotionVenueId: WritableSignal<number | null>;
+  decisionVenueId: WritableSignal<number | null>;
+  draft: VenueCreate;
+  editDraft: VenueCreate | null;
+  roomDraft: { name: string; capacity: number | null; is_active: boolean };
+  roomEditDraft: { name: string; capacity: number | null };
+  contactDraft: {
+    label: string;
+    email: string;
+    phone: string;
+    availability_notes: string;
+    is_active: boolean;
+  };
+  contactEditDraft: {
+    label: string;
+    email: string;
+    phone: string;
+    availability_notes: string;
+  };
+  promotionReason: string;
+  decisionReason: string;
+  venues(): ExamVenue[];
+  submitVenue(): void;
+  toggleVenueCreation(): void;
+  startEditing(venue: ExamVenue): void;
+  submitVenueUpdate(venue: ExamVenue): void;
+  toggleVenue(venue: ExamVenue): void;
+  submitRoom(venue: ExamVenue): void;
+  toggleRoom(room: ExamRoom): void;
+  startEditingRoom(room: ExamRoom): void;
+  submitRoomUpdate(room: ExamRoom): void;
+  submitContact(venue: ExamVenue): void;
+  toggleContact(contact: ExamVenueContact): void;
+  startEditingContact(contact: ExamVenueContact): void;
+  submitContactUpdate(contact: ExamVenueContact): void;
+  submitPromotion(venue: ExamVenue): void;
+  submitPromotionDecision(venue: ExamVenue, decision: 'approve' | 'reject'): void;
+};
 
 describe('LocationsComponent', () => {
   let fixture: ComponentFixture<LocationsComponent>;
 
-  beforeAll(() => {
-    Object.defineProperty(HTMLSelectElement.prototype, 'readOnly', {
-      configurable: true,
-      get: () => false,
-      set: () => undefined,
-    });
-  });
-
   beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [LocationsComponent],
-    }).compileComponents();
-
+    await TestBed.configureTestingModule({ imports: [LocationsComponent] }).compileComponents();
     fixture = TestBed.createComponent(LocationsComponent);
     fixture.componentRef.setInput('masterData', masterDataFixture);
     fixture.detectChanges();
   });
 
-  it('should render location details', () => {
+  it('renders the aggregate with rooms and management actions from capabilities', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
-    expect(text).toContain(athenCourtLocationFixture.name);
-    expect(text).toContain(athenCourtLocationFixture.room);
-    expect(text).toContain('00000');
+    expect(text).toContain(masterDataFixture.examVenues[0].name);
+    expect(text).toContain(masterDataFixture.examVenues[0].rooms[0].name);
+    expect(text).toContain('Global vorschlagen');
+    expect(text).toContain('Kontakt anlegen');
   });
 
-  it('should give repeated location actions object-specific accessible names', () => {
+  it('does not render management actions for a read-only venue', () => {
     fixture.componentRef.setInput('masterData', {
       ...masterDataFixture,
-      locations: [
-        ...masterDataFixture.locations,
+      examVenues: [
         {
-          ...athenCourtLocationFixture,
-          id: 99,
-          name: 'Prüfungszentrum Beta (Test)',
-          room: 'Testraum B-01',
-          is_active: 0,
+          ...masterDataFixture.examVenues[0],
+          capabilities: {
+            manage: false,
+            request_promotion: false,
+            decide_promotion: false,
+          },
         },
       ],
     });
     fixture.detectChanges();
 
-    const labels = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
-        '.app-row-actions button',
-      ),
-    ).map((button) => button.getAttribute('aria-label'));
-
-    expect(labels).toEqual([
-      `${athenCourtLocationFixture.name} bearbeiten`,
-      `${athenCourtLocationFixture.name} deaktivieren`,
-      `${athenCourtLocationFixture.name} · ${athenCourtLocationFixture.room} löschen`,
-      `${feenwaldLocationFixture.name} bearbeiten`,
-      `${feenwaldLocationFixture.name} deaktivieren`,
-      `${feenwaldLocationFixture.name} · ${feenwaldLocationFixture.room} löschen`,
-      'Prüfungszentrum Beta (Test) bearbeiten',
-      'Prüfungszentrum Beta (Test) aktivieren',
-      'Prüfungszentrum Beta (Test) · Testraum B-01 löschen',
-    ]);
-    expect(new Set(labels).size).toBe(labels.length);
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('Bearbeiten');
+    expect(text).not.toContain('Kontakt anlegen');
+    expect(text).not.toContain('Global vorschlagen');
   });
 
-  it('should emit valid location form submissions', () => {
+  it('emits a revisioned room status change', () => {
     const component = fixture.componentInstance;
-    vi.spyOn(component.createLocation, 'emit').mockReturnValue(undefined);
+    vi.spyOn(component.updateRoom, 'emit').mockReturnValue(undefined);
 
-    setInput('#locationName', 'Prüfungszentrum Formular (Test)');
-    setInput('#locationRoom', 'Testraum F-01');
-    setInput('#locationStreet', 'Testweg 30');
-    setInput('#locationPostalCode', '00000');
-    setInput('#locationCity', 'Teststadt');
-
-    const form = (fixture.nativeElement as HTMLElement).querySelector('form');
-    expect(form).toBeTruthy();
-    form!.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
-
-    expect(component.createLocation.emit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        committee_id: 1,
-        name: 'Prüfungszentrum Formular (Test)',
-        room: 'Testraum F-01',
-      }),
-    );
-    expect(inputValue('#locationName')).toBe('Prüfungszentrum Formular (Test)');
-
-    component.resetDraft();
-    expect(
-      (
-        component as unknown as {
-          draft: {
-            name: string;
-          };
-        }
-      ).draft.name,
-    ).toBe('');
-  });
-
-  it('should emit location deletion requests', () => {
-    const component = fixture.componentInstance;
-    vi.spyOn(component.deleteLocation, 'emit').mockReturnValue(undefined);
-
-    const button = Array.from(
+    const buttons = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
-    ).find((item) => item.textContent?.includes('Löschen'));
+    ).filter((item) => item.textContent?.includes('Deaktivieren'));
+    const button = buttons.at(-1);
     expect(button).toBeDefined();
     button!.click();
 
-    expect(component.deleteLocation.emit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 1,
-        name: athenCourtLocationFixture.name,
-      }),
-    );
-  });
-
-  it('should emit location status toggle requests', () => {
-    const component = fixture.componentInstance;
-    vi.spyOn(component.toggleLocation, 'emit').mockReturnValue(undefined);
-
-    const button = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
-    ).find((item) => item.textContent?.includes('Deaktivieren'));
-    expect(button).toBeDefined();
-    button!.click();
-
-    expect(component.toggleLocation.emit).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 1, is_active: 1 }),
-    );
-  });
-
-  it('should edit a location without clearing the form before success', () => {
-    const component = fixture.componentInstance;
-    vi.spyOn(component.updateLocation, 'emit').mockReturnValue(undefined);
-
-    clickButton('Bearbeiten');
-    const editor = component as unknown as {
-      editDraft: () => {
-        name: string;
-        room: string;
-      };
-      submitLocationUpdate: () => void;
-    };
-    editor.editDraft().name = 'Prüfungszentrum Alpha Neu (Test)';
-    editor.editDraft().room = 'Testraum A-02';
-    editor.submitLocationUpdate();
-
-    expect(component.updateLocation.emit).toHaveBeenCalledWith({
+    expect(component.updateRoom.emit).toHaveBeenCalledWith({
       id: 1,
-      payload: expect.objectContaining({
-        name: 'Prüfungszentrum Alpha Neu (Test)',
-        room: 'Testraum A-02',
-        is_active: 1,
-      }),
+      payload: { expected_revision: 1, is_active: false },
     });
-    expect(editor.editDraft().name).toBe('Prüfungszentrum Alpha Neu (Test)');
+  });
 
-    component.finishEditing(1);
+  it('offers promotion decisions only when the operator capability is present', () => {
+    fixture.componentRef.setInput('masterData', {
+      ...masterDataFixture,
+      examVenues: [
+        {
+          ...masterDataFixture.examVenues[0],
+          capabilities: {
+            manage: false,
+            request_promotion: false,
+            decide_promotion: true,
+          },
+        },
+      ],
+    });
     fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).querySelector('#editLocationName-1')).toBeNull();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Hochstufung entscheiden');
   });
 
-  it('should present form guidance and grouped row actions', () => {
-    const element = fixture.nativeElement as HTMLElement;
+  it('hides every mutation control in the public demo', () => {
+    fixture.componentRef.setInput('readOnly', true);
+    fixture.detectChanges();
 
-    expect(element.querySelector('.app-required-hint')?.textContent).toContain('Pflichtfelder');
-    expect(element.querySelector('.app-form-action-hint')?.textContent).toContain('Terminplanung');
-    expect(element.querySelector('.app-row-actions')?.querySelectorAll('button').length).toBe(3);
+    const root = fixture.nativeElement as HTMLElement;
+    const visibleButtonText = Array.from(root.querySelectorAll('button'))
+      .filter((button) => !button.closest('[hidden]'))
+      .map((button) => button.textContent?.trim());
+    expect(root.querySelector('button[aria-controls="location-create-editor"]')).toBeNull();
+    expect(visibleButtonText).not.toContain('Bearbeiten');
+    expect(visibleButtonText).not.toContain('Deaktivieren');
+    expect(visibleButtonText).not.toContain('Global vorschlagen');
   });
 
-  it('should show readable committee labels without a clear action', () => {
-    const select = (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>(
-      '#locationCommittee',
-    )!;
-
-    const labels = Array.from(select.options).map((option) => option.textContent?.trim());
-    expect(labels).toContain('Standardausschuss');
-    expect(labels).toContain(athenCommitteeFixture.name);
-    expect(select.closest('tui-textfield')?.querySelector('[tuiButtonX]')).toBeNull();
-    expect(select.required).toBe(true);
-  });
-
-  it('should keep the create action in the section header and cancel without emitting', () => {
+  it('normalizes and emits committee and global venue creation', () => {
     const component = fixture.componentInstance;
-    const element = fixture.nativeElement as HTMLElement;
-    const trigger = buttonWithLabel('Neuen Prüfungsort anlegen');
-    const editor = element.querySelector<HTMLElement>('#location-create-editor');
-    vi.spyOn(component.createLocation, 'emit').mockReturnValue(undefined);
+    const harness = component as unknown as LocationsHarness;
+    const emit = vi.spyOn(component.createVenue, 'emit').mockReturnValue(undefined);
 
-    expect(trigger.closest('.app-panel-header')).toBeTruthy();
-    expect(editor?.hidden).toBe(true);
+    harness.submitVenue();
+    expect(emit).not.toHaveBeenCalled();
 
-    trigger.click();
-    fixture.detectChanges();
-    setInput('#locationName', 'Nicht speichern');
-    clickButton('Abbrechen');
+    Object.assign(harness.draft, {
+      committee_id: 1,
+      name: '  Prüfungszentrum West  ',
+      street: '  Testweg 2 ',
+      postal_code: ' 20095 ',
+      city: ' Hamburg ',
+      country: ' Deutschland ',
+    });
+    harness.submitVenue();
+    expect(emit).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        scope: 'committee',
+        committee_id: 1,
+        name: 'Prüfungszentrum West',
+        street: 'Testweg 2',
+        postal_code: '20095',
+        city: 'Hamburg',
+        country: 'Deutschland',
+      }),
+    );
 
-    expect(component.createLocation.emit).not.toHaveBeenCalled();
-    expect(inputValue('#locationName')).toBe('');
-    expect(trigger.getAttribute('aria-expanded')).toBe('false');
-    expect(editor?.hidden).toBe(true);
+    component.isOperator = true;
+    harness.submitVenue();
+    expect(emit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: 'global', committee_id: null }),
+    );
   });
 
-  it('should use Taiga form and header layout with app grid classes', () => {
-    const element = fixture.nativeElement as HTMLElement;
+  it('opens and cancels venue creation with a reset draft', () => {
+    const harness = fixture.componentInstance as unknown as LocationsHarness;
 
-    expect(element.querySelector('.app-page-grid')).toBeTruthy();
-    expect(element.querySelectorAll('form[tuiForm]').length).toBe(1);
-    expect(element.querySelectorAll('.app-panel-header[tuiHeader]').length).toBe(1);
-    expect(element.querySelectorAll('tui-textfield > label[tuiLabel]').length).toBeGreaterThan(0);
-    expect(element.querySelectorAll('select[tuiSelect]').length).toBeGreaterThan(0);
-    expect(element.querySelector('[class~="row"], [class*="col-"]')).toBeNull();
+    harness.toggleVenueCreation();
+    expect(harness.creating()).toBe(true);
+    harness.draft.name = 'Nicht speichern';
+
+    harness.toggleVenueCreation();
+    expect(harness.creating()).toBe(false);
+    expect(harness.draft.name).toBe('');
   });
 
-  function setInput(selector: string, value: string): void {
-    const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(selector);
-    expect(input).toBeTruthy();
-    input!.value = value;
-    input!.dispatchEvent(new Event('input'));
+  it('edits, toggles, and resets a venue with its revision', () => {
+    const component = fixture.componentInstance;
+    const harness = component as unknown as LocationsHarness;
+    const venue = masterDataFixture.examVenues[0];
+    const emit = vi.spyOn(component.updateVenue, 'emit').mockReturnValue(undefined);
+
+    harness.submitVenueUpdate(venue);
+    expect(emit).not.toHaveBeenCalled();
+
+    harness.startEditing(venue);
+    expect(harness.editingVenueId()).toBe(venue.id);
+    expect(harness.editDraft?.name).toBe(venue.name);
+    harness.editDraft!.name = '  Neuer Name  ';
+    harness.submitVenueUpdate(venue);
+    expect(emit).toHaveBeenLastCalledWith({
+      id: venue.id,
+      payload: expect.objectContaining({ expected_revision: venue.revision, name: 'Neuer Name' }),
+    });
+
+    harness.toggleVenue(venue);
+    expect(emit).toHaveBeenLastCalledWith({
+      id: venue.id,
+      payload: { expected_revision: venue.revision, is_active: false },
+    });
+
+    harness.creating.set(true);
+    component.resetDraft();
+    expect(harness.creating()).toBe(false);
+    expect(harness.draft.name).toBe('');
+    component.finishEditing(venue.id);
+    expect(harness.editingVenueId()).toBeNull();
+    expect(harness.editDraft).toBeNull();
+  });
+
+  it('creates, edits, and toggles rooms only with valid names', () => {
+    const component = fixture.componentInstance;
+    const harness = component as unknown as LocationsHarness;
+    const venue = masterDataFixture.examVenues[0];
+    const room = venue.rooms[0];
+    const create = vi.spyOn(component.createRoom, 'emit').mockReturnValue(undefined);
+    const update = vi.spyOn(component.updateRoom, 'emit').mockReturnValue(undefined);
+
+    harness.submitRoom(venue);
+    expect(create).not.toHaveBeenCalled();
+    harness.roomDraft = { name: '  B-202  ', capacity: 18, is_active: true };
+    harness.submitRoom(venue);
+    expect(create).toHaveBeenCalledWith({
+      venueId: venue.id,
+      payload: { name: 'B-202', capacity: 18, is_active: true },
+    } satisfies RoomCreate);
+
+    harness.toggleRoom(room);
+    expect(update).toHaveBeenLastCalledWith({
+      id: room.id,
+      payload: { expected_revision: room.revision, is_active: false },
+    });
+    harness.startEditingRoom(room);
+    harness.roomEditDraft.name = '   ';
+    harness.submitRoomUpdate(room);
+    expect(update).toHaveBeenCalledTimes(1);
+    harness.roomEditDraft = { name: '  A-102 ', capacity: 22 };
+    harness.submitRoomUpdate(room);
+    expect(update).toHaveBeenLastCalledWith({
+      id: room.id,
+      payload: { expected_revision: room.revision, name: 'A-102', capacity: 22 },
+    } satisfies RoomUpdate);
+  });
+
+  it('creates, edits, and toggles contacts with normalized optional fields', () => {
+    const component = fixture.componentInstance;
+    const harness = component as unknown as LocationsHarness;
+    const venue = masterDataFixture.examVenues[0];
+    const contact: ExamVenueContact = {
+      id: 4,
+      venue_id: venue.id,
+      label: 'Empfang',
+      role: null,
+      phone: '+49 40 123',
+      email: null,
+      availability_notes: null,
+      is_active: 1,
+      revision: 3,
+      room_ids: [],
+      _links: {},
+    };
+    const create = vi.spyOn(component.createContact, 'emit').mockReturnValue(undefined);
+    const update = vi.spyOn(component.updateContact, 'emit').mockReturnValue(undefined);
+
+    harness.submitContact(venue);
+    expect(create).not.toHaveBeenCalled();
+    harness.contactDraft = {
+      label: '  Empfang ',
+      email: ' info@example.invalid ',
+      phone: ' ',
+      availability_notes: ' werktags ',
+      is_active: true,
+    };
+    harness.submitContact(venue);
+    expect(create).toHaveBeenCalledWith({
+      venueId: venue.id,
+      payload: {
+        label: 'Empfang',
+        email: 'info@example.invalid',
+        phone: null,
+        availability_notes: 'werktags',
+        is_active: true,
+      },
+    } satisfies ContactCreate);
+
+    harness.toggleContact(contact);
+    expect(update).toHaveBeenLastCalledWith({
+      id: contact.id,
+      payload: { expected_revision: contact.revision, is_active: false },
+    });
+    harness.startEditingContact(contact);
+    harness.contactEditDraft = { label: ' ', email: '', phone: '', availability_notes: '' };
+    harness.submitContactUpdate(contact);
+    expect(update).toHaveBeenCalledTimes(1);
+    harness.contactEditDraft = {
+      label: '  Hausmeister ',
+      email: '',
+      phone: ' +49 40 456 ',
+      availability_notes: '',
+    };
+    harness.submitContactUpdate(contact);
+    expect(update).toHaveBeenLastCalledWith({
+      id: contact.id,
+      payload: {
+        expected_revision: contact.revision,
+        label: 'Hausmeister',
+        email: null,
+        phone: '+49 40 456',
+        availability_notes: null,
+      },
+    } satisfies ContactUpdate);
+  });
+
+  it('requires reasons for promotion requests and decisions', () => {
+    const component = fixture.componentInstance;
+    const harness = component as unknown as LocationsHarness;
+    const venue = masterDataFixture.examVenues[0];
+    const request = vi.spyOn(component.requestPromotion, 'emit').mockReturnValue(undefined);
+    const decide = vi.spyOn(component.decidePromotion, 'emit').mockReturnValue(undefined);
+
+    harness.submitPromotion(venue);
+    harness.submitPromotionDecision(venue, 'approve');
+    expect(request).not.toHaveBeenCalled();
+    expect(decide).not.toHaveBeenCalled();
+
+    harness.promotionReason = '  landesweit nutzbar ';
+    harness.submitPromotion(venue);
+    expect(request).toHaveBeenCalledWith({ venue, reason: 'landesweit nutzbar' });
+
+    harness.decisionReason = '  geprüft ';
+    harness.submitPromotionDecision(venue, 'approve');
+    harness.submitPromotionDecision(venue, 'reject');
+    expect(decide).toHaveBeenNthCalledWith(1, { venue, decision: 'approve', reason: 'geprüft' });
+    expect(decide).toHaveBeenNthCalledWith(2, { venue, decision: 'reject', reason: 'geprüft' });
+  });
+
+  it('renders every aggregate editor state without losing nested data', () => {
+    const harness = fixture.componentInstance as unknown as LocationsHarness;
+    const venue = {
+      ...masterDataFixture.examVenues[0],
+      contacts: [
+        {
+          id: 4,
+          venue_id: 1,
+          label: 'Empfang',
+          role: null,
+          phone: '+49 40 123',
+          email: null,
+          availability_notes: 'werktags',
+          is_active: 1,
+          revision: 1,
+          room_ids: [1],
+          _links: {},
+        },
+      ],
+      capabilities: { manage: true, request_promotion: true, decide_promotion: true },
+    } satisfies ExamVenue;
+    fixture.componentRef.setInput('masterData', { ...masterDataFixture, examVenues: [venue] });
+    harness.creating.set(true);
+    harness.startEditing(venue);
+    harness.roomVenueId.set(venue.id);
+    harness.startEditingRoom(venue.rooms[0]);
+    harness.contactVenueId.set(venue.id);
+    harness.startEditingContact(venue.contacts[0]);
+    harness.promotionVenueId.set(venue.id);
+    harness.decisionVenueId.set(venue.id);
     fixture.detectChanges();
-  }
 
-  function inputValue(selector: string): string {
-    return (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(selector)!.value;
-  }
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text.match(/Speichern/g)).toHaveLength(3);
+    expect(text).toContain('Hochstufung beantragen');
+    expect(text).toContain('Hochstufen');
+    expect(harness.venues()).toEqual([venue]);
 
-  function clickButton(label: string): void {
-    buttonWithLabel(label).click();
-    fixture.detectChanges();
-  }
-
-  function buttonWithLabel(label: string): HTMLButtonElement {
-    const button = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
-    ).find((item) => item.textContent?.includes(label));
-    expect(button).toBeDefined();
-    return button!;
-  }
+    harness.masterData = null;
+    expect(harness.venues()).toEqual([]);
+    harness.finishEditing(-1);
+    expect(harness.roomVenueId()).toBeNull();
+    expect(harness.editingRoomId()).toBeNull();
+    expect(harness.contactVenueId()).toBeNull();
+    expect(harness.editingContactId()).toBeNull();
+    expect(harness.promotionVenueId()).toBeNull();
+    expect(harness.decisionVenueId()).toBeNull();
+  });
 });
