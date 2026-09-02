@@ -1737,6 +1737,7 @@ class ArtifactService:
             with closing(_database_connection(self.paths.database)) as connection:
                 excluded = {
                     "artifact_operation",
+                    "exam_venue_migration_report",
                     "instance_metadata",
                     "schema_migration",
                     "schema_migration_checksum",

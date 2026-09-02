@@ -69,12 +69,35 @@ SELECT
   'migration'
 FROM committee;
 
-INSERT INTO location
-  (id, committee_id, name, street, postal_code, city, room)
+INSERT INTO exam_venue
+  (id, scope, committee_id, name, normalized_name, street, postal_code, city,
+   country, is_accessible, accessibility_status, is_active)
 VALUES
-  (1, 1, 'Hof Athen (synthetisch)', 'Demoallee 1', '00000', 'Athen (Demo)', 'Saal Theseus'),
-  (2, 1, 'Gartenbühne Athen (synthetisch)', 'Demoallee 2', '00000', 'Athen (Demo)', 'Bühne Hippolyta'),
-  (3, 2, 'Lichtung Feenwald (synthetisch)', 'Fiktiver Waldpfad 1', '00000', 'Attischer Wald (Demo)', 'Lichtung Oberon');
+  (1, 'committee', 1, 'Hof Athen (synthetisch)', 'hof athen (synthetisch)', 'Demoallee 1', '00000', 'Athen (Demo)', 'Deutschland', 1, 'confirmed', 0),
+  (2, 'committee', 1, 'Gartenbühne Athen (synthetisch)', 'gartenbühne athen (synthetisch)', 'Demoallee 2', '00000', 'Athen (Demo)', 'Deutschland', 1, 'confirmed', 0),
+  (3, 'committee', 2, 'Lichtung Feenwald (synthetisch)', 'lichtung feenwald (synthetisch)', 'Fiktiver Waldpfad 1', '00000', 'Attischer Wald (Demo)', 'Deutschland', 1, 'confirmed', 0);
+
+INSERT INTO exam_room (id, venue_id, name, normalized_name, is_active)
+VALUES
+  (1, 1, 'Saal Theseus', 'saal theseus', 1),
+  (2, 2, 'Bühne Hippolyta', 'bühne hippolyta', 1),
+  (3, 3, 'Lichtung Oberon', 'lichtung oberon', 1);
+
+UPDATE exam_venue
+SET is_active = 1
+WHERE id IN (SELECT venue_id FROM exam_room WHERE is_active = 1);
+
+INSERT INTO exam_venue_contact (id, venue_id, label, role, phone)
+VALUES
+  (1, 1, 'Empfang Hof Athen (synthetisch)', 'Empfang', '+49 000 0001'),
+  (2, 2, 'Empfang Gartenbühne Athen (synthetisch)', 'Empfang', '+49 000 0002'),
+  (3, 3, 'Empfang Lichtung Feenwald (synthetisch)', 'Empfang', '+49 000 0003');
+
+INSERT INTO exam_venue_contact_room (contact_id, room_id)
+VALUES
+  (1, 1),
+  (2, 2),
+  (3, 3);
 
 INSERT INTO candidate
   (id, first_name, last_name, ihk_exam_number, specialization, training_company)
@@ -125,7 +148,7 @@ FROM round_candidate;
 
 INSERT INTO planning_settings
   (id, exam_round_id, calendar_week_from, calendar_week_to, exams_per_day,
-   max_exam_days_per_week, lunch_break_enabled, default_location_id,
+   max_exam_days_per_week, lunch_break_enabled, default_room_id,
    updated_by_member_id)
 VALUES
   (1, 1, '2026-W47', '2026-W49', 6, 3, 1, 1, 1);

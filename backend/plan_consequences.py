@@ -370,7 +370,7 @@ class PlanConsequenceService:
                     **assignment,
                     "day_id": int(day["id"]),
                     "date": day["date"],
-                    "location_id": int(day["location_id"]),
+                    "room_id": int(day["room_id"]),
                     "starts_at": min(str(slot["starts_at"]) for slot in section),
                     "ends_at": max(str(slot["ends_at"]) for slot in section),
                 }
@@ -382,7 +382,7 @@ class PlanConsequenceService:
             assignment["committee_member_id"],
             assignment["day_id"],
             assignment["date"],
-            assignment["location_id"],
+            assignment["room_id"],
             assignment["assignment_role"],
             assignment["day_part"],
             assignment["starts_at"],

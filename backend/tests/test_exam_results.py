@@ -195,7 +195,7 @@ class ExamResultTests(unittest.TestCase):
             exam_round.status = "plan_confirmed"
             day = ExamDay(
                 exam_round_id=1,
-                location_id=1,
+                room_id=1,
                 date="2026-11-16",
                 status="confirmed",
                 lunch_break_enabled=1,

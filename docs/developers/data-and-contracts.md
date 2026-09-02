@@ -14,9 +14,13 @@ erDiagram
   PERSON ||--o{ MEMBERSHIP : holds
   COMMITTEE ||--o{ EXAM_ROUND : plans
   EXAM_HALF_YEAR ||--o{ EXAM_ROUND : groups
+  COMMITTEE ||--o{ EXAM_VENUE : owns
+  EXAM_VENUE ||--|{ EXAM_ROOM : contains
+  EXAM_VENUE ||--o{ EXAM_VENUE_CONTACT : names
   EXAM_ROUND ||--o{ CONFIRMED_PLAN_REVISION : revises
   EXAM_ROUND ||--o{ ROUND_CANDIDATE : includes
   EXAM_ROUND ||--o{ EXAM_DAY : contains
+  EXAM_ROOM ||--o{ EXAM_DAY : hosts
   EXAM_DAY ||--o{ EXAM_SLOT : schedules
   EXAM_DAY ||--o{ EXAM_DAY_CLOSURE : closes
   EXAM_DAY ||--o{ EXAM_DAY_REOPENING : corrects
@@ -49,6 +53,14 @@ erDiagram
   führen zu Prüfungstagen, Slots und Besetzungen.
   Eine bestätigte Planung kann nur vor dem tatsächlichen Start als vollständiges
   Aggregat und mit unveränderlicher Vorher-/Nachher-Revision geändert werden.
+- **Prüfungsorte, Räume und Kontakte:** Ein Prüfungsort ist ein wiederverwendbarer
+  globaler oder ausschussbezogener Stammdatensatz mit vollständiger Anschrift.
+  Sein normalisierter Name ist im jeweiligen Scope eindeutig.
+  Räume gehören genau zu einem Ort, führen keine zweite Anschrift und sind dort
+  über ihre normalisierte Bezeichnung eindeutig.
+  Kontakte gehören zu einem Ort, gelten ohne Raumzuordnung ortsweit und bleiben
+  berechtigungsfreie Stammdaten.
+  Neue Einplanungen referenzieren immer einen konkreten aktiven Raum.
 - **Ausfall und Folgen:** Ein Ausfall bezieht sich auf eine bestätigte
   Besetzung und ändert den Plan nicht voreilig.
   Benachrichtigungs- und Kalenderfolgen werden nach einem erfolgreichen
@@ -82,6 +94,12 @@ erDiagram
   berechtigtem Actor verändert.
   Gestartete, geschlossene oder gezielt gesperrte Gegenstände werden nicht
   durch einen allgemeinen Schreibpfad umgangen.
+- Ein Prüfungsort kann erst mit bestätigter Barrierefreiheitsangabe und mindestens
+  einem aktiven Raum aktiviert werden.
+  Inaktive Orte und Räume bleiben für bestehende Referenzen erhalten, sind aber
+  für neue Planungen nicht verwendbar.
+  Änderungen an Orten, Räumen und Kontakten schreiben einen append-only
+  Auditnachweis und verwenden Revisionsnummern gegen verlorene Updates.
 - Fachlich relevante Korrekturen überschreiben weder Protokolle, Bewertungen,
   Feststellungen noch Abschlussentscheidungen stillschweigend.
 - Individuelle Bewertungen bleiben bis zur vollständigen Eigenbewertung und
@@ -107,11 +125,20 @@ Frontendverhalten und betroffene Tests gemeinsam geprüft werden.
 Die Laufzeit prüft Reihenfolge, Prüfsummen und Integrität der
 Migrationshistorie fail-closed.
 
-Die Migrationen bis `024_add_artifact_operations.sql` bilden den aktuellen
-Stand von Authentifizierung und Sitzungen, Planrevisionen, Benachrichtigungen,
+Die Migrationen bis `025_model_exam_venues.sql` bilden den aktuellen Stand von
+Authentifizierung und Sitzungen, Planrevisionen, Benachrichtigungen,
 Kalendern, Ausfall und Ersatz, Prüfungsprotokollen, Ergebnissen,
-Tagesabschlüssen, Ausschuss-Bootstrap, Planfolgen, Rundenlebenszyklus sowie
-Backup-/Export-Nachweisen ab.
+Tagesabschlüssen, Ausschuss-Bootstrap, Planfolgen, Rundenlebenszyklus,
+Prüfungsorten sowie Backup-/Export-Nachweisen ab.
+`025_model_exam_venues.sql` ersetzt den bisherigen kombinierten Altbestand.
+Sie gruppiert nur bei gleichem Ausschuss, normalisiertem Namen und vollständiger
+normalisierter Anschrift, erhält jede Alt-ID über eine dauerhafte Raumzuordnung
+und stellt Planungsstandards, Prüfungstage sowie gespeicherte Planrevisionen
+auf Raumreferenzen um.
+Ein Preflight prüft das Backup, erzeugt maschinen- und menschenlesbare Berichte
+und bricht bei verwaisten Referenzen, Namens- oder Raumkonflikten atomar ab.
+Migrierte Orte bleiben wegen ungeklärter Barrierefreiheit inaktiv.
+Die Migration verwendet keinen externen Karten- oder Geocodingdienst.
 Bestandsmigrationen erfinden keine historischen Actor, Bewertungen,
 Bestätigungen oder Abschlussentscheidungen.
 Unbekannte oder nicht unterstützte Schemastände verhindern Start, Restore oder
@@ -124,6 +151,10 @@ gemeinsamen Snapshot-Zeitpunkt geschützt zusammen.
 Ein Vollexport ist dagegen ein geschütztes offenes Fachartefakt ohne
 Authentifizierungs-, Sitzungs-, Zustell- oder Betriebsgeheimnisse und kein
 Restore-Eingang.
+Er umfasst auch Prüfungsorte, Räume, Kontakte, Zuordnungen, Audit- und
+Migrationsreferenzen mit unveränderten Identitäten.
+Providerzugangsdaten, Kartenkacheln und unverarbeitete Geocoder-Antworten sind
+ausgeschlossen.
 Sein maschinenlesbarer Datenvertrag liegt unter
 [full-export-v1.schema.json](reference/full-export-v1.schema.json).
 
@@ -144,6 +175,22 @@ Fachoperationen benötigen eine gültige Session; schreibende Operationen
 benötigen zusätzlich den CSRF-Nachweis.
 Actor, Ausschuss-Scope und Rollen werden ausschließlich serverseitig aus der
 Session abgeleitet.
+
+Die Venue-API führt `/api/exam-venues` als Aggregatroute ein.
+Sie liest und ändert Orte über ihre Revision und legt Räume sowie Kontakte über
+`/api/exam-venues/{id}/rooms` und `/api/exam-venues/{id}/contacts` an.
+Einzelne Räume und Kontakte bleiben unter `/api/exam-rooms/{id}` und
+`/api/exam-venue-contacts/{id}` les- und revisionsbasiert änderbar.
+Die aktuelle HTTP-Grenze beschränkt diese Operationen auf den vorhandenen
+Ausschuss-Scope.
+Globale Sichtbarkeit, Verwaltung und die kontrollierte Scope-Promotion bleiben
+einer darauf abgestimmten Berechtigungsregel vorbehalten.
+
+`/api/locations` bleibt übergangsweise eine als veraltet markierte Leseprojektion
+von Räumen für noch nicht migrierte Clients.
+Ihre Schreiboperationen antworten mit HTTP 410 und verweisen auf die
+aggregierten Venue-Routen, damit kein Altformular eine Aktivierung ohne
+Barrierefreiheitsnachweis umgehen kann.
 
 Die OpenAPI-Vertragstests vergleichen produktive Antworten, dokumentierte
 Fehler und alle vom Angular-Client verwendeten Operationen mit der erzeugten

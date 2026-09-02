@@ -21,9 +21,10 @@ from .models import (
     ExamDay,
     ExamDayAssignment,
     ExamHalfYear,
+    ExamRoom,
     ExamRound,
     ExamSlot,
-    Location,
+    ExamVenue,
 )
 
 DEFAULT_TIME_ZONE = "Europe/Berlin"
@@ -376,15 +377,17 @@ class CalendarService:
         source_key,
         sent_at,
     ):
-        location = session.get(Location, day.location_id)
+        room = session.get(ExamRoom, day.room_id)
+        venue = session.get(ExamVenue, room.venue_id) if room else None
         location_text = ""
-        if location:
+        if venue and room:
             location_text = ", ".join(
                 part
                 for part in (
-                    location.name,
-                    location.room,
-                    " ".join(part for part in (location.postal_code, location.city) if part),
+                    venue.name,
+                    room.name,
+                    venue.street,
+                    " ".join(part for part in (venue.postal_code, venue.city) if part),
                 )
                 if part
             )

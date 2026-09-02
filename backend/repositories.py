@@ -10,6 +10,7 @@ from .authorization import AuthorizationScope
 from .database import DEFAULT_DB_PATH, session_scope
 from .exam_day_closures import complete_day_mutation, guard_day_mutation
 from .exam_protocols import create_protocol_for_started_slot
+from .exam_venues import room_is_usable_for_committee
 from .holiday_provider import GERMAN_SUBDIVISION_CODES
 from .models import (
     CANDIDATE,
@@ -21,9 +22,10 @@ from .models import (
     EXAM_DAY,
     EXAM_DAY_ASSIGNMENT,
     EXAM_HALF_YEAR,
+    EXAM_ROOM,
     EXAM_ROUND,
     EXAM_SLOT,
-    LOCATION,
+    EXAM_VENUE,
     MEMBER_AVAILABILITY,
     MEMBER_EXAM_ATTENDANCE,
     PERSON,
@@ -176,7 +178,7 @@ class ResourceRepository:
                 return values.get("id")
             if resource == EXAM_ROUND:
                 return values.get("committee_id")
-            if resource in {COMMITTEE_MEMBER, LOCATION}:
+            if resource == COMMITTEE_MEMBER:
                 return values.get("committee_id")
             if resource == PERSON:
                 members = store.where(COMMITTEE_MEMBER, person_id=values.get("id"))
@@ -853,7 +855,8 @@ class ResourceRepository:
             store = Store(session)
             committees = {row["id"]: row for row in store.all(COMMITTEE)}
             half_years = {row["id"]: row for row in store.all(EXAM_HALF_YEAR)}
-            locations = {row["id"]: row for row in store.all(LOCATION)}
+            rooms = {row["id"]: row for row in store.all(EXAM_ROOM)}
+            venues = {row["id"]: row for row in store.all(EXAM_VENUE)}
             candidates = {row["id"]: row for row in store.all(CANDIDATE)}
             round_candidates = {row["id"]: row for row in store.all(ROUND_CANDIDATE)}
             members = {
@@ -947,7 +950,8 @@ class ResourceRepository:
                                 },
                             }
                         )
-                    location = locations.get(exam_day["location_id"])
+                    room = rooms.get(exam_day["room_id"])
+                    venue = venues.get(room["venue_id"]) if room else None
                     days.append(
                         {
                             "id": exam_day["id"],
@@ -956,14 +960,15 @@ class ResourceRepository:
                             "closure_status": exam_day["closure_status"],
                             "location": (
                                 {
-                                    "id": location["id"],
-                                    "name": location["name"],
-                                    "room": location["room"],
-                                    "city": location["city"],
+                                    "id": venue["id"],
+                                    "name": venue["name"],
+                                    "room": room["name"],
+                                    "city": venue["city"],
                                 }
-                                if location
+                                if venue and room
                                 else None
                             ),
+                            "room_id": room["id"] if room else None,
                             "slots": slots,
                             "assignments": assignments,
                             "status_summary": self._execution_status_summary(slots),
@@ -1431,10 +1436,11 @@ class ResourceRepository:
         if updater is None or updater["committee_id"] != exam_round["committee_id"]:
             raise ValueError("Updating member does not belong to the exam round committee")
 
-        if "default_location_id" in payload and payload["default_location_id"] is not None:
-            location = store.get(LOCATION, payload["default_location_id"])
-            if location is None or location["committee_id"] != exam_round["committee_id"]:
-                raise ValueError("Default location does not belong to the exam round committee")
+        if "default_room_id" in payload and payload["default_room_id"] is not None:
+            if not room_is_usable_for_committee(
+                store.session, payload["default_room_id"], exam_round["committee_id"]
+            ):
+                raise ValueError("Default room is not active for the exam round committee")
 
         subdivision_code = payload.get("holiday_subdivision_code")
         if subdivision_code is not None and subdivision_code not in GERMAN_SUBDIVISION_CODES:
@@ -1541,8 +1547,6 @@ class ResourceRepository:
             return row["id"] in scope.person_ids
         if resource == COMMITTEE_MEMBER:
             return row["committee_id"] in scope.committee_ids
-        if resource == LOCATION:
-            return row["committee_id"] in scope.committee_ids
         if resource == EXAM_HALF_YEAR:
             # A half-year is a global planning context.  It contains no
             # committee data until a committee-specific round is attached.
@@ -1617,7 +1621,6 @@ REST_RESOURCES = {
     "persons": PERSON,
     "members": COMMITTEE_MEMBER,
     "memberships": COMMITTEE_MEMBER,
-    "locations": LOCATION,
     "exam-half-years": EXAM_HALF_YEAR,
     "exam-rounds": EXAM_ROUND,
     "round-candidates": ROUND_CANDIDATE,

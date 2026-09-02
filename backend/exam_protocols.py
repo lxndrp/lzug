@@ -32,9 +32,10 @@ from .models import (
     ExamProtocolRetention,
     ExamProtocolRevision,
     ExamResult,
+    ExamRoom,
     ExamRound,
     ExamSlot,
-    Location,
+    ExamVenue,
     MemberExamAttendance,
     Person,
     RoundCandidate,
@@ -839,7 +840,8 @@ class ExamProtocolService:
         exam_round = session.get(ExamRound, day.exam_round_id)
         round_candidate = session.get(RoundCandidate, slot.round_candidate_id)
         candidate = session.get(Candidate, round_candidate.candidate_id)
-        location = session.get(Location, day.location_id)
+        room = session.get(ExamRoom, day.room_id)
+        venue = session.get(ExamVenue, room.venue_id) if room else None
         candidate_attendance = session.scalar(
             select(CandidateExamAttendance).where(CandidateExamAttendance.exam_slot_id == slot.id)
         )
@@ -898,10 +900,10 @@ class ExamProtocolService:
                 "arrived_at": candidate_attendance.arrived_at if candidate_attendance else None,
             },
             "location": {
-                "id": location.id,
-                "name": location.name,
-                "room": location.room,
-                "city": location.city,
+                "id": venue.id if venue else None,
+                "name": venue.name if venue else "",
+                "room": room.name if room else "",
+                "city": venue.city if venue else "",
             },
             "participants": participant_references,
             "assessment": {

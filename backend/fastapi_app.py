@@ -22,10 +22,23 @@ from .api_contracts import (
     DomainResourceResponse,
     DomainResourceWrite,
     ErrorResponse,
+    ExamRoomCreateRequest,
+    ExamRoomResponse,
+    ExamRoomUpdateRequest,
+    ExamVenueCollectionResponse,
+    ExamVenueContactCreateRequest,
+    ExamVenueContactResponse,
+    ExamVenueContactUpdateRequest,
+    ExamVenueCreateRequest,
+    ExamVenueResponse,
+    ExamVenueUpdateRequest,
     FactorActivationRequest,
     FrontendErrorRequest,
     HealthResponse,
+    LegacyLocationCollectionResponse,
+    LegacyLocationResponse,
     LoginRequest,
+    RevisionDeleteRequest,
     SessionResponse,
     SessionRotationResponse,
     TokenRequest,
@@ -43,6 +56,8 @@ from .exam_day_closures import ExamDayConflictError, ExamDayValidationError
 from .exam_protocols import ExamProtocolConflictError
 from .exam_results import ExamResultConflictError
 from .exam_round_lifecycle import ExamRoundConflictError, ExamRoundValidationError
+from .exam_venue_api import ExamVenueApi
+from .exam_venues import ExamVenueConflictError, ExamVenueInUseError
 from .local_auth import LocalAuthError
 from .models import (
     CANDIDATE_COMMITTEE_ASSIGNMENT,
@@ -71,10 +86,23 @@ __all__ = [
     "DomainResourceResponse",
     "DomainResourceWrite",
     "ErrorResponse",
+    "ExamRoomCreateRequest",
+    "ExamRoomResponse",
+    "ExamRoomUpdateRequest",
+    "ExamVenueCollectionResponse",
+    "ExamVenueContactCreateRequest",
+    "ExamVenueContactResponse",
+    "ExamVenueContactUpdateRequest",
+    "ExamVenueCreateRequest",
+    "ExamVenueResponse",
+    "ExamVenueUpdateRequest",
     "FactorActivationRequest",
     "FrontendErrorRequest",
     "HealthResponse",
+    "LegacyLocationCollectionResponse",
+    "LegacyLocationResponse",
     "LoginRequest",
+    "RevisionDeleteRequest",
     "SessionResponse",
     "SessionRotationResponse",
     "TokenRequest",
@@ -86,7 +114,6 @@ MIGRATED_DOMAIN_RESOURCES = (
     "persons",
     "members",
     "memberships",
-    "locations",
     "exam-half-years",
     "exam-rounds",
     "round-candidates",
@@ -434,6 +461,17 @@ def create_app(
     read_security = {"security": [{"sessionCookie": []}]}
     write_security = {"security": [{"sessionCookie": [], "csrfHeader": []}]}
 
+    def venue_write_openapi(model_name: str) -> dict[str, object]:
+        return {
+            **write_security,
+            "requestBody": {
+                "required": True,
+                "content": {
+                    "application/json": {"schema": {"$ref": f"#/components/schemas/{model_name}"}}
+                },
+            },
+        }
+
     @app.middleware("http")
     async def transport_guard(request: Request, call_next):
         return await _transport_guard(request, call_next, resolved)
@@ -579,6 +617,24 @@ def create_app(
                     }
                 },
                 HTTPStatus.UNPROCESSABLE_ENTITY,
+            )
+        )
+
+    @app.exception_handler(ExamVenueConflictError)
+    def exam_venue_conflict(_request: Request, error: ExamVenueConflictError):
+        return _json_response(
+            ApplicationResult(
+                {"error": {"code": "exam_venue_conflict", "message": str(error)}},
+                HTTPStatus.CONFLICT,
+            )
+        )
+
+    @app.exception_handler(ExamVenueInUseError)
+    def exam_venue_in_use(_request: Request, error: ExamVenueInUseError):
+        return _json_response(
+            ApplicationResult(
+                {"error": {"code": "exam_venue_in_use", "message": str(error)}},
+                HTTPStatus.CONFLICT,
             )
         )
 
@@ -2135,6 +2191,275 @@ def create_app(
             else _finish(context, context.respond(hateoas.confirmed_plan_day(day)))
         )
 
+    venue_api = ExamVenueApi(resolved.db_path)
+
+    def venue_context(request: Request, path_parts: list[str], *, mutation: bool = False):
+        context = _context(request, resolved, _body(request) if mutation else b"")
+        auth = context.require_authenticated(require_csrf=mutation)
+        if mutation:
+            context.authorize_mutation(request.method, path_parts, auth)
+        return context
+
+    @app.get(
+        "/api/exam-venues",
+        response_model=ExamVenueCollectionResponse,
+        openapi_extra=read_security,
+    )
+    def exam_venue_collection(request: Request):
+        context = venue_context(request, ["exam-venues"])
+        return _finish(
+            context,
+            context.respond(
+                hateoas.exam_venue_collection(venue_api.list_venues(context.authorization_scope))
+            ),
+        )
+
+    @app.get(
+        "/api/exam-venues/{id}",
+        response_model=ExamVenueResponse,
+        openapi_extra=read_security,
+    )
+    def exam_venue_item(request: Request, id: int):
+        context = venue_context(request, ["exam-venues", str(id)])
+        venue = venue_api.get_venue(id, context.authorization_scope)
+        return (
+            _not_found()
+            if venue is None
+            else _finish(context, context.respond(hateoas.exam_venue(venue)))
+        )
+
+    @app.post(
+        "/api/exam-venues",
+        response_model=ExamVenueResponse,
+        status_code=201,
+        openapi_extra=venue_write_openapi("ExamVenueCreateRequest"),
+    )
+    def create_exam_venue(request: Request):
+        context = venue_context(request, ["exam-venues"], mutation=True)
+        venue = venue_api.create_venue(context.read_json(), context.authorization_scope)
+        return _finish(context, context.respond(hateoas.exam_venue(venue), HTTPStatus.CREATED))
+
+    @app.patch(
+        "/api/exam-venues/{id}",
+        response_model=ExamVenueResponse,
+        openapi_extra=venue_write_openapi("ExamVenueUpdateRequest"),
+    )
+    def update_exam_venue(request: Request, id: int):
+        context = venue_context(request, ["exam-venues", str(id)], mutation=True)
+        venue = venue_api.update_venue(id, context.read_json(), context.authorization_scope)
+        return (
+            _not_found()
+            if venue is None
+            else _finish(context, context.respond(hateoas.exam_venue(venue)))
+        )
+
+    @app.delete(
+        "/api/exam-venues/{id}",
+        status_code=204,
+        openapi_extra=venue_write_openapi("RevisionDeleteRequest"),
+    )
+    def delete_exam_venue(request: Request, id: int):
+        context = venue_context(request, ["exam-venues", str(id)], mutation=True)
+        deleted = venue_api.delete_venue(id, context.read_json(), context.authorization_scope)
+        return (
+            _not_found()
+            if deleted is None
+            else _finish(context, context.respond({}, HTTPStatus.NO_CONTENT))
+        )
+
+    @app.post(
+        "/api/exam-venues/{id}/rooms",
+        response_model=ExamRoomResponse,
+        status_code=201,
+        openapi_extra=venue_write_openapi("ExamRoomCreateRequest"),
+    )
+    def create_exam_room(request: Request, id: int):
+        context = venue_context(request, ["exam-venues", str(id), "rooms"], mutation=True)
+        room = venue_api.create_room(id, context.read_json(), context.authorization_scope)
+        return (
+            _not_found()
+            if room is None
+            else _finish(context, context.respond(hateoas.exam_room(room), HTTPStatus.CREATED))
+        )
+
+    @app.get(
+        "/api/exam-rooms/{id}",
+        response_model=ExamRoomResponse,
+        openapi_extra=read_security,
+    )
+    def exam_room_item(request: Request, id: int):
+        context = venue_context(request, ["exam-rooms", str(id)])
+        room = venue_api.get_room(id, context.authorization_scope)
+        return (
+            _not_found()
+            if room is None
+            else _finish(context, context.respond(hateoas.exam_room(room)))
+        )
+
+    @app.patch(
+        "/api/exam-rooms/{id}",
+        response_model=ExamRoomResponse,
+        openapi_extra=venue_write_openapi("ExamRoomUpdateRequest"),
+    )
+    def update_exam_room(request: Request, id: int):
+        context = venue_context(request, ["exam-rooms", str(id)], mutation=True)
+        room = venue_api.update_room(id, context.read_json(), context.authorization_scope)
+        return (
+            _not_found()
+            if room is None
+            else _finish(context, context.respond(hateoas.exam_room(room)))
+        )
+
+    @app.delete(
+        "/api/exam-rooms/{id}",
+        status_code=204,
+        openapi_extra=venue_write_openapi("RevisionDeleteRequest"),
+    )
+    def delete_exam_room(request: Request, id: int):
+        context = venue_context(request, ["exam-rooms", str(id)], mutation=True)
+        deleted = venue_api.delete_room(id, context.read_json(), context.authorization_scope)
+        return (
+            _not_found()
+            if deleted is None
+            else _finish(context, context.respond({}, HTTPStatus.NO_CONTENT))
+        )
+
+    @app.post(
+        "/api/exam-venues/{id}/contacts",
+        response_model=ExamVenueContactResponse,
+        status_code=201,
+        openapi_extra=venue_write_openapi("ExamVenueContactCreateRequest"),
+    )
+    def create_exam_venue_contact(request: Request, id: int):
+        context = venue_context(request, ["exam-venues", str(id), "contacts"], mutation=True)
+        contact = venue_api.create_contact(id, context.read_json(), context.authorization_scope)
+        return (
+            _not_found()
+            if contact is None
+            else _finish(
+                context, context.respond(hateoas.exam_venue_contact(contact), HTTPStatus.CREATED)
+            )
+        )
+
+    @app.get(
+        "/api/exam-venue-contacts/{id}",
+        response_model=ExamVenueContactResponse,
+        openapi_extra=read_security,
+    )
+    def exam_venue_contact_item(request: Request, id: int):
+        context = venue_context(request, ["exam-venue-contacts", str(id)])
+        contact = venue_api.get_contact(id, context.authorization_scope)
+        return (
+            _not_found()
+            if contact is None
+            else _finish(context, context.respond(hateoas.exam_venue_contact(contact)))
+        )
+
+    @app.patch(
+        "/api/exam-venue-contacts/{id}",
+        response_model=ExamVenueContactResponse,
+        openapi_extra=venue_write_openapi("ExamVenueContactUpdateRequest"),
+    )
+    def update_exam_venue_contact(request: Request, id: int):
+        context = venue_context(request, ["exam-venue-contacts", str(id)], mutation=True)
+        contact = venue_api.update_contact(id, context.read_json(), context.authorization_scope)
+        return (
+            _not_found()
+            if contact is None
+            else _finish(context, context.respond(hateoas.exam_venue_contact(contact)))
+        )
+
+    @app.delete(
+        "/api/exam-venue-contacts/{id}",
+        status_code=204,
+        openapi_extra=venue_write_openapi("RevisionDeleteRequest"),
+    )
+    def delete_exam_venue_contact(request: Request, id: int):
+        context = venue_context(request, ["exam-venue-contacts", str(id)], mutation=True)
+        deleted = venue_api.delete_contact(id, context.read_json(), context.authorization_scope)
+        return (
+            _not_found()
+            if deleted is None
+            else _finish(context, context.respond({}, HTTPStatus.NO_CONTENT))
+        )
+
+    @app.get(
+        "/api/locations",
+        response_model=LegacyLocationCollectionResponse,
+        deprecated=True,
+        openapi_extra=read_security,
+    )
+    def legacy_location_collection(request: Request):
+        context = venue_context(request, ["locations"])
+        return _finish(
+            context,
+            context.respond(
+                hateoas.legacy_location_collection(
+                    venue_api.list_legacy_locations(context.authorization_scope)
+                )
+            ),
+        )
+
+    @app.get(
+        "/api/locations/{id}",
+        response_model=LegacyLocationResponse,
+        deprecated=True,
+        openapi_extra=read_security,
+    )
+    def legacy_location_item(request: Request, id: int):
+        context = venue_context(request, ["locations", str(id)])
+        location = venue_api.get_legacy_location(id, context.authorization_scope)
+        return (
+            _not_found()
+            if location is None
+            else _finish(context, context.respond(hateoas.legacy_location(location)))
+        )
+
+    def legacy_location_write(request: Request, path_parts: list[str]):
+        context = venue_context(request, path_parts, mutation=True)
+        return _finish(
+            context,
+            context.respond(
+                {
+                    "error": (
+                        "Location write endpoints are no longer available. "
+                        "Use the exam venue, room, and contact endpoints."
+                    )
+                },
+                HTTPStatus.GONE,
+            ),
+        )
+
+    @app.post(
+        "/api/locations",
+        response_model=dict[str, object],
+        status_code=410,
+        deprecated=True,
+        openapi_extra=write_security,
+    )
+    def create_legacy_location(request: Request):
+        return legacy_location_write(request, ["locations"])
+
+    @app.patch(
+        "/api/locations/{id}",
+        response_model=dict[str, object],
+        status_code=410,
+        deprecated=True,
+        openapi_extra=write_security,
+    )
+    def update_legacy_location(request: Request, id: int):
+        return legacy_location_write(request, ["locations", str(id)])
+
+    @app.delete(
+        "/api/locations/{id}",
+        response_model=dict[str, object],
+        status_code=410,
+        deprecated=True,
+        openapi_extra=write_security,
+    )
+    def delete_legacy_location(request: Request, id: int):
+        return legacy_location_write(request, ["locations", str(id)])
+
     def resource_routes(resource_name: str):
         resource = REST_RESOURCES[resource_name]
 
@@ -2408,6 +2733,20 @@ def create_app(
     def generated_openapi() -> dict:
         document = original_openapi()
         schemas = document.setdefault("components", {}).setdefault("schemas", {})
+        for model in (
+            ExamVenueCreateRequest,
+            ExamVenueUpdateRequest,
+            ExamRoomCreateRequest,
+            ExamRoomUpdateRequest,
+            ExamVenueContactCreateRequest,
+            ExamVenueContactUpdateRequest,
+            RevisionDeleteRequest,
+        ):
+            schema = model.model_json_schema()
+            definitions = schema.pop("$defs", {})
+            schemas.setdefault(model.__name__, schema)
+            for name, definition in definitions.items():
+                schemas.setdefault(name, definition)
         schemas.setdefault(
             "JsonObject",
             {"type": "object", "additionalProperties": True},

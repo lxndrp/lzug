@@ -12,7 +12,9 @@ RELATED_RESOURCE_FIELDS = {
     "created_by_member_id": "members",
     "updated_by_member_id": "members",
     "committee_member_id": "members",
-    "default_location_id": "locations",
+    "default_room_id": "exam-rooms",
+    "venue_id": "exam-venues",
+    "room_id": "exam-rooms",
     "exam_round_id": "exam-rounds",
     "candidate_id": "candidates",
     "candidate_exam_day_id": "candidate-exam-days",
@@ -103,9 +105,120 @@ def resource_item(
     row: dict[str, Any],
     allow_item_mutation: bool = True,
 ) -> dict[str, Any]:
-    item = dict(row)
+    item = _legacy_room_reference(resource_name, row)
     item["_links"] = item_links(resource_name, resource, row, allow_item_mutation)
     return item
+
+
+def exam_venue_collection(venues: list[dict[str, Any]]) -> dict[str, Any]:
+    """Link the dedicated venue aggregate without routing it through generic CRUD."""
+    return {
+        "items": [exam_venue(venue) for venue in venues],
+        "_links": {
+            "self": {"href": "/api/exam-venues"},
+            "api": {"href": "/api"},
+            "create": {"href": "/api/exam-venues", "method": "POST"},
+        },
+    }
+
+
+def exam_venue(venue: dict[str, Any]) -> dict[str, Any]:
+    """Represent venue, rooms, and contacts as one revisioned aggregate."""
+    venue_id = venue["id"]
+    return {
+        **venue,
+        "rooms": [exam_room(room) for room in venue["rooms"]],
+        "contacts": [exam_venue_contact(contact) for contact in venue["contacts"]],
+        "_links": {
+            "self": {"href": f"/api/exam-venues/{venue_id}"},
+            "collection": {"href": "/api/exam-venues"},
+            "update": {"href": f"/api/exam-venues/{venue_id}", "method": "PATCH"},
+            "delete": {"href": f"/api/exam-venues/{venue_id}", "method": "DELETE"},
+            "rooms": {"href": f"/api/exam-venues/{venue_id}/rooms", "method": "POST"},
+            "contacts": {"href": f"/api/exam-venues/{venue_id}/contacts", "method": "POST"},
+        },
+    }
+
+
+def exam_room(room: dict[str, Any]) -> dict[str, Any]:
+    """Link one room to its venue while keeping its own revision contract visible."""
+    room_id = room["id"]
+    venue_id = room["venue_id"]
+    return {
+        **room,
+        "_links": {
+            "self": {"href": f"/api/exam-rooms/{room_id}"},
+            "venue": {"href": f"/api/exam-venues/{venue_id}"},
+            "update": {"href": f"/api/exam-rooms/{room_id}", "method": "PATCH"},
+            "delete": {"href": f"/api/exam-rooms/{room_id}", "method": "DELETE"},
+        },
+    }
+
+
+def exam_venue_contact(contact: dict[str, Any]) -> dict[str, Any]:
+    """Link contact master data without treating it as an authenticated identity."""
+    contact_id = contact["id"]
+    venue_id = contact["venue_id"]
+    return {
+        **contact,
+        "_links": {
+            "self": {"href": f"/api/exam-venue-contacts/{contact_id}"},
+            "venue": {"href": f"/api/exam-venues/{venue_id}"},
+            "update": {"href": f"/api/exam-venue-contacts/{contact_id}", "method": "PATCH"},
+            "delete": {"href": f"/api/exam-venue-contacts/{contact_id}", "method": "DELETE"},
+        },
+    }
+
+
+def legacy_location_collection(locations: list[dict[str, Any]]) -> dict[str, Any]:
+    """Expose a read-only compatibility shape until the client uses venue aggregates."""
+    return {
+        "items": [legacy_location(location) for location in locations],
+        "_links": {"self": {"href": "/api/locations"}, "api": {"href": "/api"}},
+    }
+
+
+def legacy_location(location: dict[str, Any]) -> dict[str, Any]:
+    """Link the deprecated location projection back to its canonical venue."""
+    return {
+        **location,
+        "_links": {
+            "self": {"href": f"/api/locations/{location['id']}"},
+            "venue": {"href": f"/api/exam-venues/{location['venue_id']}"},
+        },
+    }
+
+
+def _legacy_room_reference(resource_name: str, row: dict[str, Any]) -> dict[str, Any]:
+    """Keep the pre-#587 client readable while exposing canonical room fields."""
+    item = dict(row)
+    aliases = {
+        "planning-settings": ("default_room_id", "default_location_id"),
+        "exam-days": ("room_id", "location_id"),
+    }
+    canonical, legacy = aliases.get(resource_name, (None, None))
+    if canonical is not None and legacy is not None and canonical in item:
+        item[legacy] = item[canonical]
+    return item
+
+
+def _legacy_proposal_room_references(proposal: dict[str, Any]) -> dict[str, Any]:
+    """Expose a temporary location alias without changing persisted plan payloads."""
+    linked = dict(proposal)
+    days = proposal.get("exam_days")
+    if isinstance(days, list):
+        linked["exam_days"] = [
+            (
+                {
+                    **day,
+                    **({"location_id": day["room_id"]} if "room_id" in day else {}),
+                }
+                if isinstance(day, dict)
+                else day
+            )
+            for day in days
+        ]
+    return linked
 
 
 def item_links(
@@ -132,6 +245,9 @@ def item_links(
 
 def round_summary(summary: dict[str, Any], round_id: int) -> dict[str, Any]:
     linked = dict(summary)
+    settings = summary.get("settings")
+    if isinstance(settings, dict):
+        linked["settings"] = _legacy_room_reference("planning-settings", settings)
     linked["_links"] = {
         "self": {"href": f"/api/round-summary?round_id={round_id}"},
         "api": {"href": "/api"},
@@ -201,7 +317,7 @@ def confirmed_plan_day(item: dict[str, Any]) -> dict[str, Any]:
 
 def planning_proposal(proposal: dict[str, Any]) -> dict[str, Any]:
     round_id = proposal["round_id"]
-    linked = dict(proposal)
+    linked = _legacy_proposal_room_references(proposal)
     linked["_links"] = {
         "self": {"href": "/api/planning-proposals", "method": "POST"},
         "api": {"href": "/api"},
@@ -221,7 +337,7 @@ def planning_proposal(proposal: dict[str, Any]) -> dict[str, Any]:
 def editable_planning_proposal(proposal: dict[str, Any]) -> dict[str, Any]:
     """Link one complete, revisioned proposal at its aggregate resource."""
     round_id = proposal["round_id"]
-    linked = dict(proposal)
+    linked = _legacy_proposal_room_references(proposal)
     linked["_links"] = {
         "self": {
             "href": f"/api/exam-rounds/{round_id}/planning-proposal",
@@ -247,7 +363,7 @@ def editable_confirmed_plan(
 ) -> dict[str, Any]:
     """Link the controlled aggregate for revising a confirmed plan."""
     round_id = proposal["round_id"]
-    linked = dict(proposal)
+    linked = _legacy_proposal_room_references(proposal)
     if latest_revision is not None:
         linked["latest_revision"] = latest_revision
     linked["_links"] = {
@@ -293,7 +409,7 @@ def plan_consequences(round_id: int, consequences: list[dict[str, Any]]) -> dict
 
 def confirmed_plan(result: dict[str, Any]) -> dict[str, Any]:
     round_id = result["round_id"]
-    linked = dict(result)
+    linked = _legacy_proposal_room_references(result)
     linked["_links"] = {
         "self": {
             "href": f"/api/exam-rounds/{round_id}/confirm-plan",
