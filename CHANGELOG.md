@@ -9,6 +9,8 @@ Versionen folgen [Semantic Versioning](https://semver.org/lang/de/).
 Bei einer Release-Vorbereitung verschiebt ein Maintainer die freizugebenden Einträge in genau einen Abschnitt `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`.
 Der Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Notes und veröffentlicht nur aus dem nach der Environment-Freigabe erzeugten, annotierten SemVer-Tag.
 
+## [0.7.0] - 2026-09-03
+
 ### Added
 
 - `lzug-admin cli` ergänzt die direkten Subcommands um einen zeilenorientierten,
@@ -19,6 +21,20 @@ Der Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Not
   Transportaufträge und Exit Codes wie der direkte Aufruf.
   Der Modus benötigt Ein- und Ausgabe-Terminals und ist ausdrücklich nicht für
   Automation, `--json` oder sitzungsweites `--force` vorgesehen.
+- Prüfungsorte können mit Räumen, Kontaktwegen und stabilen Identitäten
+  scopesicher verwaltet, aus dem bisherigen Ortsbestand migriert und in einer
+  responsiven Übersicht sowie Detailansicht verwendet werden.
+  Eine optionale Karten-, Geocoding- und Routenintegration bleibt an explizite
+  Providerkonfiguration, Datenschutzinformation, Attribution und sichere
+  Fallbacks gebunden.
+- Die öffentliche Demo verwendet einen reproduzierbar generierten,
+  eindeutig synthetischen Theaterensemble-Datensatz.
+  Zwei voneinander isolierte und zurücksetzbare Szenarien machen Ausfall und
+  Ersatz sowie Änderungen bestätigter Pläne mit Rollenwechsel,
+  Benachrichtigungen und persönlichen Kalendern nachvollziehbar.
+  Drei Athener Theaterreferenzen und synthetische Räume ergänzen diesen
+  Katalog, ohne reale Prüfungsorte oder eine organisatorische Demo-Freigabe zu
+  behaupten.
 
 ### Changed
 
@@ -51,6 +67,36 @@ Der Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Not
   Gewöhnlich destruktive Vorgänge verlangen am Terminal eine Rückfrage oder
   `--force`; separate Danger-Zone-Bestätigungen werden durch `--force` nie
   ersetzt.
+- Das gemeinsame Corporate Design führt die freigegebene Bildmarke,
+  lokal ausgelieferte Inter-Schrift, semantische Design-Tokens, Hell- und
+  Dunkelmodus sowie reproduzierbar geprüfte Markenreferenzen in Produkt und
+  öffentlicher Dokumentation zusammen.
+- Der repository-zentrierte öffentliche Einstieg verbindet Zielgruppen,
+  Self-Hosting-Nachweis, Handbuch, kontextuelle Produkthilfe und eine
+  ausschließlich in der Demo sichtbare Tour mit den kanonischen Quellen.
+- Navigation, Reflow bei 200 Prozent, Validierungs- und
+  Synchronisationsrückmeldungen sowie die wichtigsten Interaktionen wurden
+  abschließend für Chromium, Firefox und WebKit geprüft und visuell
+  vereinheitlicht.
+- Die komplexesten Backend-Vertrags-, Repository-, Planungs-,
+  Prüfungstag-, Backup- und FastAPI-Bausteine wurden ohne Änderung ihrer
+  fachlichen Verträge zerlegt und um statische Typ- und Komplexitätsprüfungen
+  ergänzt.
+  Ruff, ESLint und Browserslist wurden innerhalb der bestehenden
+  Qualitätsverträge aktualisiert.
+
+### Security
+
+- Private age-Identitäten verbleiben auf dem Bedienrechner; Backend,
+  Containertransport und CLI tauschen nur fachlich geprüfte Paketströme und
+  den aktiven öffentlichen Empfänger aus.
+  Temporäre Klartextartefakte, Geheimnisse in Argumenten und unvollständige
+  Zieldateien werden fail-closed vermieden.
+- Prüfungsortzugriffe respektieren den Ausschuss-Scope, und externe
+  Kartenanbieter bleiben standardmäßig deaktiviert.
+  Änderungen mit Auswirkung auf zukünftige Einplanungen verlangen eine
+  explizite Vorschau und erzeugen Kalender- und Benachrichtigungsfolgen
+  idempotent und revisionsgebunden.
 
 ### Migration der Betreiber-CLI
 
@@ -85,6 +131,30 @@ zusätzlich `--json` und lesen den neuen Ausgabeumschlag.
 | `lzug-admin status` | `lzug-admin system status` |
 | `lzug-admin test-notification` | `lzug-admin notification test` |
 | `lzug-admin upgrade` | `lzug-admin upgrade apply` |
+
+### Scope and compatibility
+
+- `v0.7.0` bereitet den vollständig gemergten Product-Polish- und
+  Operator-Experience-Stand seit `v0.6.0` vor.
+  Der Umfang enthält die neue Betreiber-CLI, die geschützte Backup- und
+  Exporthülle, Prüfungsorte, synthetische Demo-Szenarien, Corporate Design,
+  öffentliche Produktdarstellung, finales UI-Polishing und die zugehörigen
+  Qualitätsstabilisierungen, aber keine neuen fachlichen Kernprozesse.
+- Die flache CLI-Syntax und das proprietäre v0.6-Backupformat werden nicht
+  weiterverarbeitet.
+  Bestehende Automationen müssen auf den dokumentierten Command-Baum und bei
+  maschinenlesbarer Verarbeitung auf `--json` wechseln; v0.6-Artefakte müssen
+  vor dem Upgrade mit der veröffentlichten v0.6.0-Laufzeit geöffnet oder
+  wiederhergestellt werden.
+- Ein externer Admintransport, die qualitative Screenreader-Abnahme aus #630,
+  rechtliche oder organisatorische Produktzusagen sowie die Freigabe der
+  öffentlichen Demo aus #584 bleiben außerhalb dieses Releases.
+  Der vorhandene lokale Docker-/Podman-Containertransport bleibt maßgeblich.
+- Dieser Vorbereitungseintrag erzeugt weder einen Produkt-Tag noch einen
+  GitHub Release, GHCR- oder CLI-Artefakte, Attestations, eine Demo-Promotion
+  oder eine Environment-Freigabe.
+  Diese Schritte entstehen ausschließlich in den getrennt freigegebenen
+  Release- und Demo-Workflows nach ihren jeweiligen Gates.
 
 ## [0.6.0] - 2026-08-31
 
