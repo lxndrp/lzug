@@ -68,7 +68,11 @@ def rewind_exam_venue_migration(connection: sqlite3.Connection) -> None:
         return
     connection.create_function("lzug_rewind_plan_json", 1, _rewind_plan_reference_json)
     cleanup_checksum = (
-        "DELETE FROM schema_migration_checksum WHERE name = '025_model_exam_venues.sql';"
+        "DELETE FROM schema_migration_checksum "
+        "WHERE name IN ("
+        "'025_model_exam_venues.sql', '027_expand_exam_venue_audit.sql', "
+        "'028_add_exam_venue_change_notifications.sql'"
+        ");"
         if connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
             ("schema_migration_checksum",),
@@ -98,7 +102,7 @@ def rewind_exam_venue_migration(connection: sqlite3.Connection) -> None:
         )
         SELECT
           room.id,
-          venue.committee_id,
+          COALESCE(venue.committee_id, 1),
           venue.name,
           venue.street,
           venue.postal_code,
@@ -108,8 +112,7 @@ def rewind_exam_venue_migration(connection: sqlite3.Connection) -> None:
           room.created_at,
           room.updated_at
         FROM exam_room AS room
-        JOIN exam_venue AS venue ON venue.id = room.venue_id
-        WHERE venue.committee_id IS NOT NULL;
+        JOIN exam_venue AS venue ON venue.id = room.venue_id;
 
         CREATE TABLE planning_settings_025_rewind (
           id INTEGER PRIMARY KEY,
@@ -204,7 +207,12 @@ def rewind_exam_venue_migration(connection: sqlite3.Connection) -> None:
         DROP TABLE exam_room;
         DROP TABLE exam_venue;
         {cleanup_checksum}
-        DELETE FROM schema_migration WHERE name = '025_model_exam_venues.sql';
+        DELETE FROM schema_migration
+        WHERE name IN (
+          '025_model_exam_venues.sql',
+          '027_expand_exam_venue_audit.sql',
+          '028_add_exam_venue_change_notifications.sql'
+        );
         COMMIT;
         PRAGMA foreign_keys = ON;
     """)
@@ -213,6 +221,8 @@ def rewind_exam_venue_migration(connection: sqlite3.Connection) -> None:
 def rewind_notification_migration(connection: sqlite3.Connection) -> None:
     """Restore the pre-013 schema used by migration-order test fixtures."""
     connection.executescript("""
+        DELETE FROM schema_migration
+        WHERE name = '028_add_exam_venue_change_notifications.sql';
         DROP INDEX IF EXISTS absence_report_assignment_active;
         DROP INDEX IF EXISTS absence_report_day_status;
         DROP INDEX IF EXISTS absence_audit_report_created;
@@ -700,6 +710,8 @@ class DatabaseTests(unittest.TestCase):
                     "committee_member",
                     "exam_venue",
                     "exam_room",
+                    "exam_venue_contact",
+                    "exam_venue_contact_room",
                     "candidate",
                     "exam_half_year",
                     "exam_round",
@@ -716,7 +728,9 @@ class DatabaseTests(unittest.TestCase):
                 "committee": ADAPTER_COUNTS["seed"]["committees"],
                 "committee_member": ADAPTER_COUNTS["seed"]["memberships"],
                 "exam_venue": ADAPTER_COUNTS["seed"]["locations"],
-                "exam_room": ADAPTER_COUNTS["seed"]["locations"],
+                "exam_room": ADAPTER_COUNTS["seed"]["rooms"],
+                "exam_venue_contact": ADAPTER_COUNTS["seed"]["location_contacts"],
+                "exam_venue_contact_room": 1,
                 "candidate": ADAPTER_COUNTS["seed"]["candidates"],
                 "exam_half_year": 1,
                 "exam_round": 1,
@@ -851,7 +865,7 @@ class DatabaseTests(unittest.TestCase):
             initialize(db_path)
             after = migration_status(db_path)
             self.assertEqual("ready", after["state"])
-            self.assertEqual("026_add_backup_recipient.sql", after["current"])
+            self.assertEqual("028_add_exam_venue_change_notifications.sql", after["current"])
             self.assertTrue(list(db_path.parent.joinpath("backups").glob("*.sqlite")))
 
             history_before = after["history"]
@@ -884,9 +898,31 @@ class DatabaseTests(unittest.TestCase):
             )
             self.assertEqual(("confirmed_plan_revision",), revision_table)
             self.assertEqual(
-                "026_add_backup_recipient.sql",
+                "028_add_exam_venue_change_notifications.sql",
                 migration_status(db_path)["current"],
             )
+
+    def test_exam_venue_audit_accepts_operator_promotion_events_and_remains_immutable(
+        self,
+    ) -> None:
+        with TempDatabase() as db_path, closing(sqlite3.connect(db_path)) as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO exam_venue_audit_event (
+                  venue_id, entity_type, entity_id, entity_revision, change_type,
+                  actor_kind, technical_actor, reason
+                )
+                VALUES (1, 'venue', 1, 1, 'promotion_requested', 'operator', ?, ?)
+                """,
+                ("account:99", "Prüfung"),
+            )
+            connection.commit()
+
+            with self.assertRaisesRegex(sqlite3.IntegrityError, "audit is immutable"):
+                connection.execute(
+                    "UPDATE exam_venue_audit_event SET reason = 'Geändert' WHERE id = ?",
+                    (cursor.lastrowid,),
+                )
 
     def test_initialize_runs_multiple_pending_migrations_in_order(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
@@ -946,7 +982,6 @@ class DatabaseTests(unittest.TestCase):
             self.assertEqual("ready", status["state"])
             self.assertEqual(
                 [
-                    "008_add_authentication_sessions.sql",
                     "009_harden_migration_history.sql",
                     "010_add_operator_auth_tokens.sql",
                     "011_add_local_password_totp_auth.sql",
@@ -965,8 +1000,10 @@ class DatabaseTests(unittest.TestCase):
                     "024_add_artifact_operations.sql",
                     "025_model_exam_venues.sql",
                     "026_add_backup_recipient.sql",
+                    "027_expand_exam_venue_audit.sql",
+                    "028_add_exam_venue_change_notifications.sql",
                 ],
-                [entry["name"] for entry in status["history"][-19:]],
+                [entry["name"] for entry in status["history"][-20:]],
             )
 
     def test_committee_bootstrap_migration_classifies_legacy_committees_without_changing_ids(
@@ -1130,7 +1167,7 @@ class DatabaseTests(unittest.TestCase):
             self.assertTrue({"claim_token", "claimed_at", "claim_expires_at"}.issubset(columns))
             self.assertEqual(("temporarily_failed", 2, None, None, None), delivery)
             self.assertEqual(
-                "026_add_backup_recipient.sql",
+                "028_add_exam_venue_change_notifications.sql",
                 migration_status(db_path)["current"],
             )
 

@@ -1,14 +1,14 @@
-# lzug technische Referenz
+# lzug Dokumentation
 
-Diese Referenz richtet sich an Entwickelnde und technische Prüfer.
-Sie beschreibt den aktuellen versionierten Stand von `lzug`.
+Das Repository ist die einzige kanonische Quelle für Produkt-, Nutzer-, Betreiber- und Entwicklerdokumentation.
+Das öffentliche [Produkt- und Dokumentationsportal](https://lzug.repertoire.papaspyrou.name)
+rendert diese Quellen aus derselben Revision und bietet Suche sowie vier Einstiege.
 
-- Für Beiträge und lokale Entwicklung beginnt der Weg bei
-  [`CONTRIBUTING.md`](https://github.com/lxndrp/lzug/blob/master/CONTRIBUTING.md).
-- Für Fachlichkeit, Nutzung und Administration führt das
-  [GitHub Wiki](https://github.com/lxndrp/lzug/wiki) weiter.
-- Aktuelle technische Orientierung, Referenzen und Entscheidungen stehen im
-  [Entwicklerhandbuch](developers/index.md).
-- Die fünf Kernbereiche grenzen ihre kanonischen Quellen jeweils direkt ab.
+- [Produkt und Demo](portal/produkt.md)
+- [Nutzung](portal/nutzen.md)
+- [Self-Hosting und Betrieb](portal/betreiben.md)
+- [Entwicklerhandbuch](developers/index.md)
 
+Der frühere Wiki-Bestand ist mit [Migrationsnachweis](migrations/wiki-2026-09-03.md)
+versioniert nach `docs/handbook/` übernommen.
 Die technische Referenz entsteht lokal mit `task docs`; CI stellt den Build als geschütztes Artefakt `lzug-documentation` bereit.

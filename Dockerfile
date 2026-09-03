@@ -26,6 +26,8 @@ WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/angular.json frontend/tsconfig.app.json frontend/tsconfig.json ./
+COPY brand/tokens.css brand/taiga-adapter.css /src/brand/
+COPY brand/derived /src/brand/derived
 COPY frontend/public ./public
 COPY --from=build-metadata /build-metadata.json ./public/build-metadata.json
 COPY frontend/src ./src
@@ -70,8 +72,8 @@ COPY --chown=10001:10001 \
     backend/__init__.py backend/admin.py backend/admin_service.py backend/application.py backend/artifact_packages.py backend/artifact_stream.py backend/auth.py backend/authorization.py backend/backup_recipients.py backend/backup_restore.py backend/committee_admin.py \
     backend/absence.py backend/build_metadata.py backend/calendar.py backend/candidate_days.py backend/contract.py backend/database.py backend/diagnostics.py \
     backend/document_storage.py backend/documents.py backend/exam_day_closures.py backend/exam_protocols.py backend/exam_results.py backend/exam_round_lifecycle.py backend/exam_venue_api.py backend/exam_venue_migration.py backend/exam_venues.py backend/hateoas.py \
-    backend/healthcheck.py backend/holiday_provider.py backend/lifecycle.py backend/local_auth.py backend/models.py \
-    backend/api_contracts.py backend/fastapi_app.py backend/notifications.py backend/observability.py backend/plan_consequences.py backend/planning.py backend/repositories.py backend/runtime_policy.py backend/security.py backend/server.py backend/store.py backend/transport.py backend/version.py \
+    backend/healthcheck.py backend/holiday_provider.py backend/lifecycle.py backend/local_auth.py backend/map_provider.py backend/models.py \
+    backend/api_contracts.py backend/fastapi_app.py backend/notifications.py backend/observability.py backend/plan_consequences.py backend/planning.py backend/repositories.py backend/runtime_policy.py backend/security.py backend/server.py backend/store.py backend/transport.py backend/venue_consequences.py backend/version.py \
     ./backend/
 COPY --chown=10001:10001 db/schema.sql ./db/schema.sql
 COPY --chown=10001:10001 db/seed_demo.sql ./db/seed_demo.sql

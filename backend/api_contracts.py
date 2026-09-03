@@ -1,5 +1,7 @@
 """Pydantic models used at the public FastAPI contract boundary."""
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -47,10 +49,62 @@ class SessionResponse(BaseModel):
     person_id: int | None
     committee_member_id: int | None
     is_operator: bool
+    demo_role: Literal["chair", "examiner", "replacement"] | None = None
+    display_name: str | None = None
+    capabilities: list[str] | None = None
+    demo_matrix_version: str | None = None
+    demo_workspace_expires_at: str | None = None
 
 
 class SessionRotationResponse(BaseModel):
     status: str
+    expires_at: str
+
+
+class DemoScenarioRoleResponse(BaseModel):
+    name: Literal["chair", "examiner", "replacement"]
+    display_name: str
+    task: str
+
+
+class DemoScenarioResponse(BaseModel):
+    id: str
+    title: str
+    status: Literal["ready", "in_progress", "complete"]
+    completed_steps: int
+    total_steps: int
+    next_role: Literal["chair", "examiner", "replacement"]
+    next_action: str
+    path: str
+
+
+class DemoPreparedPlanChangeResponse(BaseModel):
+    round_id: int
+    day_id: int
+    source_location_id: int
+    target_location_id: int
+    assignment_id: int
+    replacement_member_id: int
+    reason: str
+
+
+class DemoScenarioOverviewResponse(BaseModel):
+    mode: Literal["demo"]
+    demo_matrix_version: str
+    current_role: Literal["chair", "examiner", "replacement"]
+    created_at: str
+    expires_at: str
+    remaining_seconds: int
+    roles: list[DemoScenarioRoleResponse]
+    scenarios: list[DemoScenarioResponse]
+    prepared_plan_change: DemoPreparedPlanChangeResponse
+    notices: list[str]
+    location_contract: str
+
+
+class DemoScenarioResetResponse(BaseModel):
+    status: Literal["reset"]
+    role: Literal["chair", "examiner", "replacement"]
     expires_at: str
 
 
@@ -137,6 +191,7 @@ class ExamVenueResponse(BaseModel):
     updated_at: str
     rooms: list[ExamRoomResponse]
     contacts: list[ExamVenueContactResponse]
+    map_provider: dict[str, str]
     links: dict[str, object] = Field(alias="_links")
 
 
@@ -197,6 +252,8 @@ class ExamVenueCreateRequest(BaseModel):
     coordinate_source: str | None = None
     is_active: bool | int = False
     reason: str | None = None
+    duplicates_reviewed: bool = False
+    duplicate_reason: str | None = None
 
 
 class ExamVenueUpdateRequest(BaseModel):
@@ -222,6 +279,24 @@ class ExamVenueUpdateRequest(BaseModel):
     coordinate_source: str | None = None
     is_active: bool | int | None = None
     reason: str | None = None
+    duplicates_reviewed: bool = False
+    duplicate_reason: str | None = None
+    confirm_future_assignments: bool = False
+    meaningful_change: bool = True
+
+
+class ExamVenueGeocodeRequest(BaseModel):
+    """Require an explicit, revision-safe request before contacting Nominatim."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    expected_revision: int
+
+
+class ExamVenueGeocodeResponse(BaseModel):
+    latitude: float
+    longitude: float
+    source: str
 
 
 class ExamRoomCreateRequest(BaseModel):
@@ -255,6 +330,8 @@ class ExamRoomUpdateRequest(BaseModel):
     capacity: int | None = None
     is_active: bool | int | None = None
     reason: str | None = None
+    confirm_future_assignments: bool = False
+    meaningful_change: bool = True
 
 
 class ExamVenueContactCreateRequest(BaseModel):
@@ -295,3 +372,31 @@ class RevisionDeleteRequest(BaseModel):
 
     expected_revision: int
     reason: str | None = None
+
+
+class ExamVenueDuplicateCheckRequest(BaseModel):
+    """Candidate fields used for a non-mutating duplicate preview."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = ""
+    street: str = ""
+    postal_code: str = ""
+    city: str = ""
+    country: str = "Deutschland"
+    excluded_id: int | None = None
+
+
+class ExamVenuePromotionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_revision: int
+    reason: str
+
+
+class ExamVenuePromotionDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_revision: int
+    decision: str
+    reason: str

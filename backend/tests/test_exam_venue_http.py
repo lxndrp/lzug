@@ -6,6 +6,7 @@ from http import HTTPStatus
 from backend.auth import AuthenticationRepository
 from backend.contract import validate_response
 from backend.tests.helpers import ApiServer, TempDatabase
+from demo.synthetic_fixtures_generated import FIXTURE_IDS, FIXTURE_ROOT
 
 
 class ExamVenueHttpTests(unittest.TestCase):
@@ -128,6 +129,84 @@ class ExamVenueHttpTests(unittest.TestCase):
             )
             self.assertEqual(HTTPStatus.GONE, status)
             self.assertIsInstance(deprecated_error, dict)
+
+    def test_operator_decides_pending_promotion_without_gaining_committee_access(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            status, hidden_venue = self.request(
+                api,
+                "POST",
+                "/api/exam-venues",
+                self.venue_payload(name="Nur im Ausschuss"),
+            )
+            self.assertEqual(HTTPStatus.CREATED, status)
+
+            status, venue = self.request(
+                api,
+                "POST",
+                "/api/exam-venues",
+                self.venue_payload(name="Global geeignet", street="Anderer Weg 7"),
+            )
+            self.assertEqual(HTTPStatus.CREATED, status)
+            status, _room = self.request(
+                api,
+                "POST",
+                f"/api/exam-venues/{venue['id']}/rooms",
+                {"name": "Saal", "capacity": 20, "is_active": True},
+            )
+            self.assertEqual(HTTPStatus.CREATED, status)
+            status, venue = self.request(
+                api,
+                "PATCH",
+                f"/api/exam-venues/{venue['id']}",
+                {"expected_revision": venue["revision"], "is_active": True},
+            )
+            self.assertEqual(HTTPStatus.OK, status)
+            status, request = self.request(
+                api,
+                "POST",
+                f"/api/exam-venues/{venue['id']}/promotion-requests",
+                {
+                    "expected_revision": venue["revision"],
+                    "reason": "Für mehrere Ausschüsse geeignet",
+                },
+            )
+            self.assertEqual(HTTPStatus.CREATED, status)
+
+            auth = AuthenticationRepository(db_path)
+            operator = auth.create_account("operator@example.invalid", is_operator=True)
+            operator_session = auth.create_session(operator["id"])
+            status, visible = self.request(
+                api,
+                "GET",
+                "/api/exam-venues",
+                credentials=operator_session,
+            )
+            self.assertEqual(HTTPStatus.OK, status)
+            visible_ids = [item["id"] for item in visible["items"]]
+            self.assertEqual(
+                [
+                    venue["id"],
+                    FIXTURE_IDS[f"{FIXTURE_ROOT}.location.global.zappeion"]["id"],
+                ],
+                visible_ids,
+            )
+            self.assertNotIn(hidden_venue["id"], [item["id"] for item in visible["items"]])
+
+            status, promoted = self.request(
+                api,
+                "POST",
+                f"/api/exam-venue-promotion-requests/{venue['id']}/decision",
+                {
+                    "expected_revision": venue["revision"],
+                    "decision": "approve",
+                    "reason": "Qualität geprüft",
+                },
+                credentials=operator_session,
+            )
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertEqual(venue["id"], promoted["id"])
+            self.assertEqual("global", promoted["scope"])
+            self.assertIsNone(promoted["committee_id"])
 
     def test_round_summary_keeps_the_legacy_default_location_reference(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:

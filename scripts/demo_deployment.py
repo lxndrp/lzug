@@ -31,6 +31,10 @@ from demo.contract import (  # noqa: E402
 API_VERSION = "2025-07-01"
 AZURE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.()-]{0,89}$")
 REVISION_SUFFIX_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,62}[a-z0-9]$")
+PUBLIC_DEMO_ENVIRONMENT = {
+    "LZUG_MAP_PROVIDER": "osm",
+    "LZUG_NOMINATIM_USER_AGENT": ("lzug-public-demo/1 (+https://lzug.repertoire.papaspyrou.name)"),
+}
 
 
 class DeploymentError(RuntimeError):
@@ -109,6 +113,22 @@ def _template(resource: dict[str, Any]) -> dict[str, Any]:
     return template
 
 
+def _set_environment_value(container: dict[str, Any], name: str, value: str) -> None:
+    entries = container.get("env")
+    if not isinstance(entries, list):
+        raise DeploymentError("Azure app container is missing environment variables")
+    matches = [entry for entry in entries if entry.get("name") == name]
+    if len(matches) > 1:
+        raise DeploymentError(f"Azure app container contains duplicate {name} settings")
+    if matches:
+        entry = matches[0]
+        if entry.get("secretRef") is not None:
+            raise DeploymentError(f"Public demo setting {name} must not use a secret")
+        entry["value"] = value
+        return
+    entries.append({"name": name, "value": value})
+
+
 def artifact_pair_from_resource(resource: dict[str, Any]) -> dict[str, str]:
     template = _template(resource)
     app = _named_entry(template.get("containers"), "lzug-demo-app", "app container")
@@ -147,6 +167,8 @@ def deployment_body(
         app.get("env"), "LZUG_DEPLOYMENT_DIGEST", "deployment digest environment variable"
     )
     deployment_digest["value"] = pair.app_image.rsplit("@", 1)[1]
+    for name, value in PUBLIC_DEMO_ENVIRONMENT.items():
+        _set_environment_value(app, name, value)
     template["revisionSuffix"] = revision_suffix
     return {"properties": {"template": template}}, previous
 

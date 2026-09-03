@@ -12,7 +12,7 @@ existiert, und eine möglichst kleine Reproduktion angeben.
 - Für lokale Einrichtung und Entwicklung ist
 [CONTRIBUTING.md](CONTRIBUTING.md) maßgeblich.
 - Für Installation, Konfiguration, Datensicherung und Wiederherstellung ist die
-[Betreiberanleitung](https://github.com/lxndrp/lzug/wiki/Administration) maßgeblich.
+[Betreiberanleitung](docs/portal/betreiben.md) maßgeblich.
 Sie beschreibt auch bekannte Grenzen und die Informationen, die eine technische
 Fehlermeldung enthalten sollte.
 

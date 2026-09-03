@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from .auth import AuthenticationRepository
 from .database import initialize
 from .fastapi_app import FastAPIConfig, create_app
+from .map_provider import MapProviderConfig
 from .runtime_policy import ProductRuntimePolicy
 from .security import RuntimeSecurityConfig
 from .server import parse_args
@@ -64,6 +65,7 @@ def main() -> None:
         runtime_policy=ProductRuntimePolicy(),
         auth_rate_limit=security.auth_rate_limit,
         auth_rate_window=security.auth_rate_window,
+        map_provider=MapProviderConfig.from_environment(),
     )
     print(f"lzug E2E backend listening on http://{args.host}:{args.port}")
     print(f"database: {args.db}")

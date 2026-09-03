@@ -113,6 +113,7 @@ class HttpSecurityTests(unittest.TestCase):
             self.assertEqual("nosniff", headers["x-content-type-options"])
             self.assertEqual("no-referrer", headers["referrer-policy"])
             self.assertIn("frame-ancestors 'none'", headers["content-security-policy"])
+            self.assertIn("frame-src 'none'", headers["content-security-policy"])
             self.assertIn("max-age=31536000", headers["strict-transport-security"])
 
             status, headers, _body = api.request_raw(

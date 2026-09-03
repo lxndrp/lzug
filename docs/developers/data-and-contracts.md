@@ -100,6 +100,24 @@ erDiagram
   für neue Planungen nicht verwendbar.
   Änderungen an Orten, Räumen und Kontakten schreiben einen append-only
   Auditnachweis und verwenden Revisionsnummern gegen verlorene Updates.
+  Bei bestätigten zukünftigen Einplanungen nennt die Vorprüfung Anzahl,
+  Zeitraum sowie die erwarteten Kalender- und Benachrichtigungsfolgen und
+  verlangt vor dem Speichern eine ausdrückliche Bestätigung.
+  Name, Anschrift, Standort, konkrete Raum- und ausgegebene Auffindungsangaben
+  aktualisieren nur zukünftige persönliche Kalenderereignisse unter ihrer
+  stabilen externen ID.
+  Anschrift, Standort, Eingang, Raum, Auffindung und Barrierefreiheit erzeugen
+  bei bedeutungsrelevanten Änderungen normal priorisierte Hinweise für die
+  betroffenen Mitglieder; Schreibkorrekturen können ausdrücklich als nicht
+  bedeutungsrelevant bestätigt werden.
+  Kontakte, Kartenpositionen, Aktivstatus und Raumkapazität lösen allein keine
+  dieser Folgen aus.
+  Die unveränderliche Orts-Audit-ID ist der idempotente Ursprung persistierter
+  Folgetasks.
+  Fehler rollen die Stammdatenänderung nicht zurück, bleiben für die handelnde
+  Person sowie Vorsitz und Stellvertretung sichtbar und können nur nach einer
+  Aktualitätsprüfung erneut verarbeitet werden.
+  Diese Verarbeitung verändert keine bestätigte Planrevision.
 - Fachlich relevante Korrekturen überschreiben weder Protokolle, Bewertungen,
   Feststellungen noch Abschlussentscheidungen stillschweigend.
 - Individuelle Bewertungen bleiben bis zur vollständigen Eigenbewertung und
@@ -113,7 +131,7 @@ erDiagram
 Die fachliche Bedeutung liegt in den Services und ihren Tests, insbesondere
 unter `backend/planning.py`, `backend/exam_protocols.py`,
 `backend/exam_results.py`, `backend/exam_day_closures.py` und
-`backend/exam_round_lifecycle.py`.
+`backend/exam_round_lifecycle.py` sowie `backend/venue_consequences.py`.
 Ändert sich eine Invariante, müssen Service, Persistenz, HTTP-Vertrag,
 Frontendverhalten und betroffene Tests gemeinsam geprüft werden.
 
@@ -125,7 +143,7 @@ Frontendverhalten und betroffene Tests gemeinsam geprüft werden.
 Die Laufzeit prüft Reihenfolge, Prüfsummen und Integrität der
 Migrationshistorie fail-closed.
 
-Die Migrationen bis `026_add_backup_recipient.sql` bilden den aktuellen
+Die Migrationen bis `028_add_exam_venue_change_notifications.sql` bilden den aktuellen
 Stand von Authentifizierung und Sitzungen, Planrevisionen, Benachrichtigungen,
 Kalendern, Ausfall und Ersatz, Prüfungsprotokollen, Ergebnissen,
 Tagesabschlüssen, Ausschuss-Bootstrap, Planfolgen, Rundenlebenszyklus sowie
@@ -142,6 +160,11 @@ Migrierte Orte bleiben wegen ungeklärter Barrierefreiheit inaktiv; externe
 Karten- oder Geocodingdienste werden nicht verwendet.
 Bestandsmigrationen erfinden keine historischen Actor, Bewertungen,
 Bestätigungen oder Abschlussentscheidungen.
+`027_expand_exam_venue_audit.sql` erweitert den unveränderlichen Verlauf um
+technische Operator-Akteure und die Ereignisse für beantragte, genehmigte oder
+abgelehnte Hochstufungen.
+`028_add_exam_venue_change_notifications.sql` ergänzt den Ereignistyp für
+persistierte Benachrichtigungen nach wirksamen Prüfungsortänderungen.
 Unbekannte oder nicht unterstützte Schemastände verhindern Start, Restore oder
 Lifecycle-Mutation an der jeweiligen kontrollierenden Grenze.
 
@@ -182,10 +205,28 @@ Sie liest und ändert Orte über ihre Revision und legt Räume sowie Kontakte ü
 `/api/exam-venues/{id}/rooms` und `/api/exam-venues/{id}/contacts` an.
 Einzelne Räume und Kontakte bleiben unter `/api/exam-rooms/{id}` und
 `/api/exam-venue-contacts/{id}` les- und revisionsbasiert änderbar.
-Die aktuelle HTTP-Grenze beschränkt diese Operationen auf den vorhandenen
-Ausschuss-Scope.
-Globale Sichtbarkeit, Verwaltung und die kontrollierte Scope-Promotion bleiben
-einer darauf abgestimmten Berechtigungsregel vorbehalten.
+Aktive Mitglieder sehen aktive globale Orte und aktive Orte ihrer Ausschüsse;
+inaktive Orte bleiben nur bei Verwendung in einem zugänglichen Plan sichtbar.
+Vorsitz und Stellvertretung verwalten den Bestand ihrer Ausschüsse einschließlich
+inaktiver oder noch zu klärender Orte.
+Operatoren verwalten globale Orte ohne fachliche Ausschussrechte und sehen einen
+ausschussbezogenen Ort nur während eines offenen Hochstufungsantrags.
+
+Vor dem Anlegen oder Ändern liefert `/api/exam-venues/duplicate-check` ähnliche
+Namen und Anschriften aus dem jeweils sichtbaren Scope.
+Betroffene bestätigte künftige Einplanungen werden durch `POST` auf den
+`change-impact`-Routen anhand des konkreten Änderungsentwurfs ermittelt.
+Die Antwort trennt aktualisierte Kalenderereignisse und benachrichtigte
+Mitglieder samt auslösenden Feldgruppen; die Mutation verlangt anschließend
+die ausdrückliche Bestätigung.
+Fehlgeschlagene aktuelle Folgen erscheinen am verwaltbaren Ortsaggregat und
+werden über
+`/api/exam-venue-changes/{audit_id}/consequences/retry` kontrolliert erneut
+angestoßen.
+Ausschussverantwortliche beantragen eine identitätserhaltende Hochstufung über
+`/api/exam-venues/{id}/promotion-requests`; Operatoren entscheiden sie über
+`/api/exam-venue-promotion-requests/{id}/decision`.
+Kollidierende globale Orte verhindern die Hochstufung.
 
 `/api/locations` bleibt übergangsweise eine als veraltet markierte Leseprojektion
 von Räumen für noch nicht migrierte Clients.
@@ -230,7 +271,7 @@ Persistenzprobleme, Artefakt- und Schlüsselbefunde, Inkompatibilität,
 erforderliche Ersetzungs- oder Migrationsbestätigung sowie vollständig
 ausgeführte Diagnosewarnungen und -fehler.
 Die verbindlichen Bedienfolgen stehen ausschließlich im
-[Administrationshandbuch](https://github.com/lxndrp/lzug/wiki/Administration).
+[Administrationshandbuch](../portal/betreiben.md).
 
 ## Erzeugte Referenzen
 

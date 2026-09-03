@@ -124,15 +124,19 @@ run "demo_contract" {
         profile.minimum_count == 0 &&
         profile.maximum_count == 0
       ]) &&
-      length(azurerm_container_app.demo.template[0].container[0].env) == 3 &&
+      length(azurerm_container_app.demo.template[0].container[0].env) == 5 &&
       azurerm_container_app.demo.template[0].container[0].env[0].name == "LZUG_DATA_DIR" &&
       azurerm_container_app.demo.template[0].container[0].env[0].value == "/data" &&
       azurerm_container_app.demo.template[0].container[0].env[1].name == "LZUG_DEPLOYMENT_DIGEST" &&
       azurerm_container_app.demo.template[0].container[0].env[1].value == "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" &&
       azurerm_container_app.demo.template[0].container[0].env[2].name == "LZUG_CORS_ALLOWED_ORIGINS" &&
-      azurerm_container_app.demo.template[0].container[0].env[2].value == "https://lzug.repertoire.papaspyrou.name"
+      azurerm_container_app.demo.template[0].container[0].env[2].value == "https://lzug.repertoire.papaspyrou.name" &&
+      azurerm_container_app.demo.template[0].container[0].env[3].name == "LZUG_MAP_PROVIDER" &&
+      azurerm_container_app.demo.template[0].container[0].env[3].value == "osm" &&
+      azurerm_container_app.demo.template[0].container[0].env[4].name == "LZUG_NOMINATIM_USER_AGENT" &&
+      azurerm_container_app.demo.template[0].container[0].env[4].value == "lzug-public-demo/1 (+https://lzug.repertoire.papaspyrou.name)"
     )
-    error_message = "The app must retain the shared /data path, immutable deployment digest, and exact landing-page CORS origin by default."
+    error_message = "The app must retain the shared /data path, immutable deployment digest, exact landing-page CORS origin, and public OSM settings by default."
   }
 
   assert {

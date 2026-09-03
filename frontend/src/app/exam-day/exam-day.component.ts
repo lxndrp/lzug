@@ -221,7 +221,9 @@ export class ExamDayComponent implements OnInit, OnChanges {
           if (actionSequence !== this.requestSequence) return;
           this.savingKeys.set(new Set());
           this.actionMessage.set('Ausfallmeldung gespeichert.');
-          void this.router.navigateByUrl('/absence-reports');
+          void this.router.navigateByUrl(
+            this.auth.session()?.demo_role ? '/demo-scenarios' : '/absence-reports',
+          );
         },
         error: (error: HttpErrorResponse) => {
           if (actionSequence !== this.requestSequence) return;

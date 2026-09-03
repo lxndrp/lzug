@@ -110,10 +110,18 @@ def _base64url(value: bytes) -> str:
 class NotificationService:
     """Persist domain notices once and process optional channels independently."""
 
-    def __init__(self, db_path: Path = DEFAULT_DB_PATH):
+    def __init__(
+        self,
+        db_path: Path = DEFAULT_DB_PATH,
+        *,
+        external_delivery_enabled: bool = True,
+    ):
         self.db_path = db_path
+        self.external_delivery_enabled = external_delivery_enabled
 
     def channels(self) -> NotificationChannels:
+        if not self.external_delivery_enabled:
+            return NotificationChannels(None, False, False)
         subject = self._vapid_subject()
         return NotificationChannels(
             push_public_key=self._push_public_key() if subject else None,
@@ -462,6 +470,8 @@ class NotificationService:
             }
 
     def process_deliveries(self, *, now: datetime | None = None) -> int:
+        if not self.external_delivery_enabled:
+            return 0
         current = _now(now)
         processed = 0
         for _index in range(DELIVERY_BATCH_SIZE):
@@ -673,6 +683,8 @@ class NotificationService:
         only_channel: str | None = None,
         urgent_email: bool = False,
     ) -> None:
+        if not self.external_delivery_enabled:
+            return
         channels = self.channels()
         if channels.sink_enabled:
             session.add(

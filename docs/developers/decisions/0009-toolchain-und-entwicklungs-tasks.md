@@ -71,5 +71,4 @@ erkennbaren Nutzen komplexer machen.
 
 - [ADR-0003: Toolchain mit mise, uv und npm](0003-toolchain-mise-uv-npm.md)
 - [Delivery und Veröffentlichung](../delivery.md)
-- [Entwickler-Setup im GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung-Einrichtung)
-- [Qualität und Sicherheitsprozess im GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung-Qualitaet-und-Sicherheit)
+- [Entwicklung](../development.md)

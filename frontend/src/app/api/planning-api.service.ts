@@ -21,6 +21,9 @@ import {
   Committee,
   CommitteeMember,
   ExamRound,
+  ExamRoom,
+  ExamVenue,
+  ExamVenueContact,
   ExamRoundCreate,
   ExamRoundLifecycle,
   ExamRoundUpdate,
@@ -42,6 +45,7 @@ import {
   NotificationChannels,
   NotificationItem,
   NotificationProblem,
+  VenueChangeImpact,
   CalendarEvent,
   CalendarFeedActivation,
   CalendarStatus,
@@ -52,6 +56,7 @@ import {
   ExamResult,
 } from './api.models';
 import { RoundContextService } from './round-context.service';
+import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
 
 /**
  * Maps UI-oriented planning aggregates onto the JSON API.
@@ -63,6 +68,7 @@ import { RoundContextService } from './round-context.service';
 export class PlanningApiService {
   private readonly http = inject(HttpClient);
   private readonly roundContext = inject(RoundContextService);
+  private readonly runtimeExperience = inject(RuntimeExperienceService);
 
   private get roundId(): number {
     return this.roundContext.roundId();
@@ -70,6 +76,14 @@ export class PlanningApiService {
 
   getRoot() {
     return this.http.get<ApiRoot>('/api');
+  }
+
+  getDemoScenarios() {
+    return this.runtimeExperience.getDemoScenarios();
+  }
+
+  resetDemoScenarios() {
+    return this.runtimeExperience.resetDemoScenarios();
   }
 
   getRoundSummary() {
@@ -113,8 +127,10 @@ export class PlanningApiService {
   }
 
   saveEditableConfirmedPlan(roundId: number, proposal: EditablePlanningProposal, reason: string) {
+    const { _links, ...payload } = proposal;
+    void _links;
     return this.http.put<EditablePlanningProposal>(`/api/exam-rounds/${roundId}/confirmed-plan`, {
-      ...proposal,
+      ...payload,
       reason: reason.trim(),
     });
   }
@@ -718,7 +734,14 @@ export class PlanningApiService {
         '/api/candidate-committee-assignments',
       ),
       locations: this.list<Location>('/api/locations'),
-    });
+      examVenueCollection: this.collection<ExamVenue>('/api/exam-venues'),
+    }).pipe(
+      map(({ examVenueCollection, ...masterData }) => ({
+        ...masterData,
+        examVenues: examVenueCollection.items,
+        examVenuesCanCreate: Boolean(examVenueCollection._links['create']),
+      })),
+    );
   }
 
   /**
@@ -812,16 +835,100 @@ export class PlanningApiService {
     return this.http.delete<void>(`/api/candidates/${id}`);
   }
 
-  createLocation(payload: Omit<Location, 'id'>) {
-    return this.http.post<Location>('/api/locations', payload);
+  createExamVenue(payload: Record<string, unknown>) {
+    return this.http.post<ExamVenue>('/api/exam-venues', payload);
   }
 
-  updateLocation(id: number, payload: Partial<Omit<Location, 'id'>>) {
-    return this.http.patch<Location>(`/api/locations/${id}`, payload);
+  checkExamVenueDuplicates(payload: Record<string, unknown>, excludedId?: number) {
+    return this.http.post<{
+      items: Array<{ id: number; name: string; scope: string; address: string }>;
+    }>('/api/exam-venues/duplicate-check', { ...payload, excluded_id: excludedId });
   }
 
-  deleteLocation(id: number) {
-    return this.http.delete<void>(`/api/locations/${id}`);
+  getExamVenueChangeImpact(id: number, payload: Record<string, unknown>) {
+    return this.http.post<VenueChangeImpact>(`/api/exam-venues/${id}/change-impact`, payload);
+  }
+
+  getExamRoomChangeImpact(id: number, payload: Record<string, unknown>) {
+    return this.http.post<VenueChangeImpact>(`/api/exam-rooms/${id}/change-impact`, payload);
+  }
+
+  updateExamVenue(id: number, payload: Record<string, unknown> & { expected_revision: number }) {
+    return this.http.patch<ExamVenue>(`/api/exam-venues/${id}`, payload);
+  }
+
+  geocodeExamVenue(id: number, expectedRevision: number) {
+    return this.http.post<{ latitude: number; longitude: number; source: string }>(
+      `/api/exam-venues/${id}/geocode`,
+      { expected_revision: expectedRevision },
+    );
+  }
+
+  deleteExamVenue(id: number, expectedRevision: number) {
+    return this.http.delete<void>(`/api/exam-venues/${id}`, {
+      body: { expected_revision: expectedRevision },
+    });
+  }
+
+  createExamRoom(venueId: number, payload: Record<string, unknown>) {
+    return this.http.post<ExamRoom>(`/api/exam-venues/${venueId}/rooms`, payload);
+  }
+
+  updateExamRoom(id: number, payload: Record<string, unknown> & { expected_revision: number }) {
+    return this.http.patch<ExamRoom>(`/api/exam-rooms/${id}`, payload);
+  }
+
+  retryExamVenueConsequences(auditId: number) {
+    return this.http.post<{
+      audit_id: number;
+      processed: number;
+      problems: number;
+      pending: number;
+      superseded: number;
+    }>(`/api/exam-venue-changes/${auditId}/consequences/retry`, {});
+  }
+
+  deleteExamRoom(id: number, expectedRevision: number) {
+    return this.http.delete<void>(`/api/exam-rooms/${id}`, {
+      body: { expected_revision: expectedRevision },
+    });
+  }
+
+  createExamVenueContact(venueId: number, payload: Record<string, unknown>) {
+    return this.http.post<ExamVenueContact>(`/api/exam-venues/${venueId}/contacts`, payload);
+  }
+
+  updateExamVenueContact(
+    id: number,
+    payload: Record<string, unknown> & { expected_revision: number },
+  ) {
+    return this.http.patch<ExamVenueContact>(`/api/exam-venue-contacts/${id}`, payload);
+  }
+
+  deleteExamVenueContact(id: number, expectedRevision: number) {
+    return this.http.delete<void>(`/api/exam-venue-contacts/${id}`, {
+      body: { expected_revision: expectedRevision },
+    });
+  }
+
+  requestExamVenuePromotion(id: number, expectedRevision: number, reason: string) {
+    return this.http.post(`/api/exam-venues/${id}/promotion-requests`, {
+      expected_revision: expectedRevision,
+      reason,
+    });
+  }
+
+  decideExamVenuePromotion(
+    id: number,
+    expectedRevision: number,
+    decision: 'approve' | 'reject',
+    reason: string,
+  ) {
+    return this.http.post<ExamVenue>(`/api/exam-venue-promotion-requests/${id}/decision`, {
+      expected_revision: expectedRevision,
+      decision,
+      reason,
+    });
   }
 
   savePlanningSettings(
@@ -886,5 +993,9 @@ export class PlanningApiService {
 
   private list<T>(url: string) {
     return this.http.get<ApiCollection<T>>(url).pipe(map((collection) => collection.items));
+  }
+
+  private collection<T>(url: string) {
+    return this.http.get<ApiCollection<T>>(url);
   }
 }

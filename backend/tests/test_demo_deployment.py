@@ -100,16 +100,30 @@ class DemoDeploymentTests(unittest.TestCase):
             BytesIO(json.dumps(body).encode("utf-8")),
         )
 
-    def test_atomic_revision_update_changes_only_both_images_and_suffix(self) -> None:
+    def test_atomic_revision_update_sets_images_suffix_and_public_map_contract(self) -> None:
         resource = self.resource()
+        resource["properties"]["template"]["containers"][0]["env"].extend(
+            [
+                {"name": "EXISTING_SETTING", "value": "kept"},
+                {"name": "LZUG_MAP_PROVIDER", "value": "off"},
+            ]
+        )
         body, previous = deployment_body(resource, self.pair, "gh-123-1")
         template = body["properties"]["template"]
 
         self.assertEqual(self.pair.app_image, template["containers"][0]["image"])
         self.assertEqual(self.pair.seed_image, template["initContainers"][0]["image"])
+        environment = {entry["name"]: entry["value"] for entry in template["containers"][0]["env"]}
+        self.assertEqual("sha256:" + "a" * 64, environment["LZUG_DEPLOYMENT_DIGEST"])
+        self.assertEqual("osm", environment["LZUG_MAP_PROVIDER"])
+        self.assertEqual("kept", environment["EXISTING_SETTING"])
         self.assertEqual(
-            "sha256:" + "a" * 64,
-            template["containers"][0]["env"][1]["value"],
+            1,
+            sum(entry["name"] == "LZUG_MAP_PROVIDER" for entry in template["containers"][0]["env"]),
+        )
+        self.assertEqual(
+            "lzug-public-demo/1 (+https://lzug.repertoire.papaspyrou.name)",
+            environment["LZUG_NOMINATIM_USER_AGENT"],
         )
         self.assertEqual("gh-123-1", template["revisionSuffix"])
         self.assertEqual(resource["properties"]["template"]["volumes"], template["volumes"])

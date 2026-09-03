@@ -26,7 +26,6 @@ on:
       - "prototypes/publication/**"
       - "pyproject.toml"
       - "scripts/publication.py"
-      - "scripts/wiki_routes.py"
       - "scripts/validate_demo_url_contract.py"
       - "uv.lock"
   push:
@@ -74,13 +73,6 @@ jobs:
           python3 -m demo.contract validate-url
           --canonical --value "$EFFECTIVE_DEMO_URL"
 
-      - name: Checkout canonical Wiki
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          repository: ${{ github.repository }}.wiki
-          path: published-wiki
-          persist-credentials: false
-
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
@@ -108,11 +100,11 @@ jobs:
 
       - name: Verify reproducible public artifact
         if: github.event_name == 'schedule'
-        run: mise x hugo-extended@0.165.0 -- task docs:publication:check WIKI_ROOT=published-wiki DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+        run: mise x hugo-extended@0.165.0 -- task docs:publication:check DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
       - name: Build public artifact
         if: github.event_name != 'schedule'
-        run: mise x hugo-extended@0.165.0 -- task docs:publication WIKI_ROOT=published-wiki DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+        run: mise x hugo-extended@0.165.0 -- task docs:publication DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
       - name: Check responsive themes and warm-up flow with Playwright
         if: github.event_name != 'schedule'

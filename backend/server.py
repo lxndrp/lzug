@@ -18,6 +18,7 @@ from .database import (
     validate_persistence,
 )
 from .fastapi_app import FastAPIConfig, create_app
+from .map_provider import MapProviderConfig
 from .observability import emit_event
 from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from .security import RuntimeSecurityConfig
@@ -98,6 +99,7 @@ def main(
         runtime_policy=runtime_policy or ProductRuntimePolicy(),
         auth_rate_limit=security.auth_rate_limit,
         auth_rate_window=security.auth_rate_window,
+        map_provider=MapProviderConfig.from_environment(),
     )
     emit_event("runtime", severity="info", signal="started")
     uvicorn.run(

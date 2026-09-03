@@ -4,10 +4,10 @@
 
 import json
 
-FIXTURE_CATALOG_VERSION = 2
-FIXTURE_CATALOG_REVISION = "midsummer-night-dream-v1"
+FIXTURE_CATALOG_VERSION = 3
+FIXTURE_CATALOG_REVISION = "athens-theater-venues-v3"
 FIXTURE_ROOT = "name.papaspyrou.repertoire.lzug.fixture"
-DEMO_MATRIX_VERSION = "demo-paths-v6"
+DEMO_MATRIX_VERSION = "demo-paths-v8"
 
 FIXTURE_IDS = json.loads(r"""{
   "name.papaspyrou.repertoire.lzug.fixture.account.chair": {
@@ -21,6 +21,10 @@ FIXTURE_IDS = json.loads(r"""{
   "name.papaspyrou.repertoire.lzug.fixture.account.examiner": {
     "entity_type": "accounts",
     "id": 2
+  },
+  "name.papaspyrou.repertoire.lzug.fixture.account.replacement": {
+    "entity_type": "accounts",
+    "id": 4
   },
   "name.papaspyrou.repertoire.lzug.fixture.candidate.absence": {
     "entity_type": "candidates",
@@ -78,17 +82,25 @@ FIXTURE_IDS = json.loads(r"""{
     "entity_type": "committees",
     "id": 2
   },
-  "name.papaspyrou.repertoire.lzug.fixture.location.synthetic.court": {
-    "entity_type": "locations",
+  "name.papaspyrou.repertoire.lzug.fixture.location-contact.gazi.quince": {
+    "entity_type": "location_contacts",
+    "id": 2
+  },
+  "name.papaspyrou.repertoire.lzug.fixture.location-contact.zappeion.hippolyta": {
+    "entity_type": "location_contacts",
     "id": 1
   },
-  "name.papaspyrou.repertoire.lzug.fixture.location.synthetic.feenwald": {
+  "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi": {
+    "entity_type": "locations",
+    "id": 2
+  },
+  "name.papaspyrou.repertoire.lzug.fixture.location.committee.feenwald.nationalgarden": {
     "entity_type": "locations",
     "id": 3
   },
-  "name.papaspyrou.repertoire.lzug.fixture.location.synthetic.garden": {
+  "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion": {
     "entity_type": "locations",
-    "id": 2
+    "id": 1
   },
   "name.papaspyrou.repertoire.lzug.fixture.membership.chair.athen": {
     "entity_type": "memberships",
@@ -179,6 +191,30 @@ FIXTURE_IDS = json.loads(r"""{
   "name.papaspyrou.repertoire.lzug.fixture.person.examiner.unsuitable": {
     "entity_type": "persons",
     "id": 7
+  },
+  "name.papaspyrou.repertoire.lzug.fixture.room.gazi.handwerkerensemble": {
+    "entity_type": "rooms",
+    "id": 2
+  },
+  "name.papaspyrou.repertoire.lzug.fixture.room.gazi.pyramus": {
+    "entity_type": "rooms",
+    "id": 5
+  },
+  "name.papaspyrou.repertoire.lzug.fixture.room.nationalgarden.oberon": {
+    "entity_type": "rooms",
+    "id": 3
+  },
+  "name.papaspyrou.repertoire.lzug.fixture.room.nationalgarden.titania": {
+    "entity_type": "rooms",
+    "id": 6
+  },
+  "name.papaspyrou.repertoire.lzug.fixture.room.zappeion.hippolyta": {
+    "entity_type": "rooms",
+    "id": 4
+  },
+  "name.papaspyrou.repertoire.lzug.fixture.room.zappeion.theseus": {
+    "entity_type": "rooms",
+    "id": 1
   }
 }""")
 
@@ -202,9 +238,9 @@ DISPLAY_NAMES = json.loads(r"""{
   "name.papaspyrou.repertoire.lzug.fixture.candidate.planchange": "Hermia von Athen",
   "name.papaspyrou.repertoire.lzug.fixture.committee.athen": "Hauptausschuss Athen",
   "name.papaspyrou.repertoire.lzug.fixture.committee.feenwald": "Fremdausschuss Feenwald",
-  "name.papaspyrou.repertoire.lzug.fixture.location.synthetic.court": "Hof Athen (synthetisch)",
-  "name.papaspyrou.repertoire.lzug.fixture.location.synthetic.feenwald": "Lichtung Feenwald (synthetisch)",
-  "name.papaspyrou.repertoire.lzug.fixture.location.synthetic.garden": "Gartenbühne Athen (synthetisch)",
+  "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi": "Prüfungswerkstätten Gazi (Demo)",
+  "name.papaspyrou.repertoire.lzug.fixture.location.committee.feenwald.nationalgarden": "Prüfungsbereich Nationalgarten (Demo)",
+  "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion": "Prüfungszentrum am Zappeion (Demo)",
   "name.papaspyrou.repertoire.lzug.fixture.organization.athen": "Industrie- und Handelskammer Athen (Demo)",
   "name.papaspyrou.repertoire.lzug.fixture.organization.feenwald": "Industrie- und Handelskammer Attischer Wald (Demo)",
   "name.papaspyrou.repertoire.lzug.fixture.person.chair.athen": "Theseus von Athen",
@@ -216,7 +252,13 @@ DISPLAY_NAMES = json.loads(r"""{
   "name.papaspyrou.repertoire.lzug.fixture.person.examiner.fallback": "Nick Bottom",
   "name.papaspyrou.repertoire.lzug.fixture.person.examiner.replacement": "Francis Flute",
   "name.papaspyrou.repertoire.lzug.fixture.person.examiner.reserve": "Snug vom Ensemble",
-  "name.papaspyrou.repertoire.lzug.fixture.person.examiner.unsuitable": "Tom Snout"
+  "name.papaspyrou.repertoire.lzug.fixture.person.examiner.unsuitable": "Tom Snout",
+  "name.papaspyrou.repertoire.lzug.fixture.room.gazi.handwerkerensemble": "Werkstatt Handwerkerensemble",
+  "name.papaspyrou.repertoire.lzug.fixture.room.gazi.pyramus": "Prüfhalle Pyramus",
+  "name.papaspyrou.repertoire.lzug.fixture.room.nationalgarden.oberon": "Lichtung Oberon",
+  "name.papaspyrou.repertoire.lzug.fixture.room.nationalgarden.titania": "Lichtung Titania",
+  "name.papaspyrou.repertoire.lzug.fixture.room.zappeion.hippolyta": "Hippolytasaal",
+  "name.papaspyrou.repertoire.lzug.fixture.room.zappeion.theseus": "Theseussaal"
 }""")
 
 CANDIDATE_EXAM_NUMBERS = json.loads(r"""{
@@ -239,28 +281,34 @@ ADAPTER_COUNTS = json.loads(r"""{
     "accounts": 0,
     "candidates": 2,
     "committees": 2,
-    "locations": 2,
+    "location_contacts": 2,
+    "locations": 3,
     "memberships": 3,
     "organizations": 0,
-    "persons": 0
+    "persons": 0,
+    "rooms": 6
   },
   "prototype": {
     "accounts": 0,
     "candidates": 12,
     "committees": 1,
+    "location_contacts": 0,
     "locations": 2,
     "memberships": 8,
     "organizations": 0,
-    "persons": 0
+    "persons": 0,
+    "rooms": 4
   },
   "seed": {
     "accounts": 0,
     "candidates": 12,
     "committees": 2,
+    "location_contacts": 2,
     "locations": 3,
     "memberships": 11,
     "organizations": 0,
-    "persons": 0
+    "persons": 0,
+    "rooms": 6
   }
 }""")
 
@@ -276,17 +324,6 @@ DEMO_ROLES = json.loads(r"""{
     "person_email": "theseus.athen@demo.lzug.invalid",
     "person_id": 1
   },
-  "deputy": {
-    "account_email": "deputy@demo.lzug.invalid",
-    "account_id": 3,
-    "committee_member_id": 2,
-    "display_name": "Hippolyta von Athen",
-    "first_name": "Hippolyta",
-    "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.deputy.athen",
-    "last_name": "von Athen",
-    "person_email": "hippolyta.athen@demo.lzug.invalid",
-    "person_id": 2
-  },
   "examiner": {
     "account_email": "examiner@demo.lzug.invalid",
     "account_id": 2,
@@ -297,5 +334,16 @@ DEMO_ROLES = json.loads(r"""{
     "last_name": "Quince",
     "person_email": "peter.quince@demo.lzug.invalid",
     "person_id": 3
+  },
+  "replacement": {
+    "account_email": "replacement@demo.lzug.invalid",
+    "account_id": 4,
+    "committee_member_id": 6,
+    "display_name": "Francis Flute",
+    "first_name": "Francis",
+    "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.replacement",
+    "last_name": "Flute",
+    "person_email": "francis.flute@demo.lzug.invalid",
+    "person_id": 6
   }
 }""")

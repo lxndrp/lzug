@@ -110,63 +110,111 @@ def resource_item(
     return item
 
 
-def exam_venue_collection(venues: list[dict[str, Any]]) -> dict[str, Any]:
+def exam_venue_collection(
+    venues: list[dict[str, Any]], *, allow_create: bool = False
+) -> dict[str, Any]:
     """Link the dedicated venue aggregate without routing it through generic CRUD."""
+    links = {"self": {"href": "/api/exam-venues"}, "api": {"href": "/api"}}
+    if allow_create:
+        links["create"] = {"href": "/api/exam-venues", "method": "POST"}
+        links["duplicate-check"] = {
+            "href": "/api/exam-venues/duplicate-check",
+            "method": "POST",
+        }
     return {
         "items": [exam_venue(venue) for venue in venues],
-        "_links": {
-            "self": {"href": "/api/exam-venues"},
-            "api": {"href": "/api"},
-            "create": {"href": "/api/exam-venues", "method": "POST"},
-        },
+        "_links": links,
     }
 
 
 def exam_venue(venue: dict[str, Any]) -> dict[str, Any]:
     """Represent venue, rooms, and contacts as one revisioned aggregate."""
     venue_id = venue["id"]
+    capabilities = venue.get("capabilities", {})
+    links = {
+        "self": {"href": f"/api/exam-venues/{venue_id}"},
+        "collection": {"href": "/api/exam-venues"},
+    }
+    if capabilities.get("manage"):
+        links.update(
+            {
+                "update": {"href": f"/api/exam-venues/{venue_id}", "method": "PATCH"},
+                "delete": {"href": f"/api/exam-venues/{venue_id}", "method": "DELETE"},
+                "rooms": {"href": f"/api/exam-venues/{venue_id}/rooms", "method": "POST"},
+                "contacts": {"href": f"/api/exam-venues/{venue_id}/contacts", "method": "POST"},
+                "change-impact": {"href": f"/api/exam-venues/{venue_id}/change-impact"},
+            }
+        )
+    if capabilities.get("geocode"):
+        links["geocode"] = {
+            "href": f"/api/exam-venues/{venue_id}/geocode",
+            "method": "POST",
+        }
+    if capabilities.get("request_promotion"):
+        links["request-promotion"] = {
+            "href": f"/api/exam-venues/{venue_id}/promotion-requests",
+            "method": "POST",
+        }
+    if capabilities.get("decide_promotion"):
+        links["decide-promotion"] = {
+            "href": f"/api/exam-venue-promotion-requests/{venue_id}/decision",
+            "method": "POST",
+        }
     return {
-        **venue,
-        "rooms": [exam_room(room) for room in venue["rooms"]],
-        "contacts": [exam_venue_contact(contact) for contact in venue["contacts"]],
-        "_links": {
-            "self": {"href": f"/api/exam-venues/{venue_id}"},
-            "collection": {"href": "/api/exam-venues"},
-            "update": {"href": f"/api/exam-venues/{venue_id}", "method": "PATCH"},
-            "delete": {"href": f"/api/exam-venues/{venue_id}", "method": "DELETE"},
-            "rooms": {"href": f"/api/exam-venues/{venue_id}/rooms", "method": "POST"},
-            "contacts": {"href": f"/api/exam-venues/{venue_id}/contacts", "method": "POST"},
-        },
+        **{key: value for key, value in venue.items() if key != "capabilities"},
+        "rooms": [
+            exam_room(room, allow_mutation=bool(capabilities.get("manage")))
+            for room in venue["rooms"]
+        ],
+        "contacts": [
+            exam_venue_contact(contact, allow_mutation=bool(capabilities.get("manage")))
+            for contact in venue["contacts"]
+        ],
+        "capabilities": capabilities,
+        "_links": links,
     }
 
 
-def exam_room(room: dict[str, Any]) -> dict[str, Any]:
+def exam_room(room: dict[str, Any], *, allow_mutation: bool = True) -> dict[str, Any]:
     """Link one room to its venue while keeping its own revision contract visible."""
     room_id = room["id"]
     venue_id = room["venue_id"]
+    links = {
+        "self": {"href": f"/api/exam-rooms/{room_id}"},
+        "venue": {"href": f"/api/exam-venues/{venue_id}"},
+    }
+    if allow_mutation:
+        links.update(
+            {
+                "update": {"href": f"/api/exam-rooms/{room_id}", "method": "PATCH"},
+                "delete": {"href": f"/api/exam-rooms/{room_id}", "method": "DELETE"},
+                "change-impact": {"href": f"/api/exam-rooms/{room_id}/change-impact"},
+            }
+        )
     return {
         **room,
-        "_links": {
-            "self": {"href": f"/api/exam-rooms/{room_id}"},
-            "venue": {"href": f"/api/exam-venues/{venue_id}"},
-            "update": {"href": f"/api/exam-rooms/{room_id}", "method": "PATCH"},
-            "delete": {"href": f"/api/exam-rooms/{room_id}", "method": "DELETE"},
-        },
+        "_links": links,
     }
 
 
-def exam_venue_contact(contact: dict[str, Any]) -> dict[str, Any]:
+def exam_venue_contact(contact: dict[str, Any], *, allow_mutation: bool = True) -> dict[str, Any]:
     """Link contact master data without treating it as an authenticated identity."""
     contact_id = contact["id"]
     venue_id = contact["venue_id"]
+    links = {
+        "self": {"href": f"/api/exam-venue-contacts/{contact_id}"},
+        "venue": {"href": f"/api/exam-venues/{venue_id}"},
+    }
+    if allow_mutation:
+        links.update(
+            {
+                "update": {"href": f"/api/exam-venue-contacts/{contact_id}", "method": "PATCH"},
+                "delete": {"href": f"/api/exam-venue-contacts/{contact_id}", "method": "DELETE"},
+            }
+        )
     return {
         **contact,
-        "_links": {
-            "self": {"href": f"/api/exam-venue-contacts/{contact_id}"},
-            "venue": {"href": f"/api/exam-venues/{venue_id}"},
-            "update": {"href": f"/api/exam-venue-contacts/{contact_id}", "method": "PATCH"},
-            "delete": {"href": f"/api/exam-venue-contacts/{contact_id}", "method": "DELETE"},
-        },
+        "_links": links,
     }
 
 

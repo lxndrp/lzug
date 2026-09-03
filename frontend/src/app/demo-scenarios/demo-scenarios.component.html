@@ -1,0 +1,157 @@
+<app-demo-tour />
+
+<section class="demo-scenario-intro" aria-labelledby="demo-scenario-title">
+  <div>
+    <p class="app-eyebrow">Ihr isolierter Demo-Arbeitsstand</p>
+    <h2 id="demo-scenario-title">Zwei unabhängige Fachabläufe</h2>
+    <p>
+      Wechseln Sie passend zum nächsten Schritt die Rolle. Die fachlichen Aktionen öffnen sich in
+      den regulären Produktansichten und wirken nur in diesem Arbeitsstand.
+    </p>
+  </div>
+  <dl class="demo-session-facts">
+    <div>
+      <dt>Verbleibende Zeit</dt>
+      <dd>{{ timeRemaining() }}</dd>
+    </div>
+    <div>
+      <dt>Lebensdauer</dt>
+      <dd>60 Minuten ab Start</dd>
+    </div>
+  </dl>
+</section>
+
+@if (error(); as message) {
+  <div tuiNotification appearance="negative" role="alert">
+    {{ message }}
+    <button tuiButton appearance="secondary" type="button" (click)="load()">Erneut laden</button>
+  </div>
+}
+
+@if (loading() && !overview()) {
+  <section class="app-panel" aria-busy="true">
+    <div class="app-panel-body" role="status">Demo-Szenarien werden geladen …</div>
+  </section>
+} @else if (overview(); as current) {
+  <section class="demo-role-section" aria-labelledby="demo-role-title">
+    <div class="demo-section-heading">
+      <div>
+        <h2 id="demo-role-title">Aktive Rolle</h2>
+        <p>
+          {{ roleLabel(current.current_role) }} ·
+          {{ roleDisplayName(current.current_role) }}
+        </p>
+      </div>
+      <div class="demo-role-actions" aria-label="Demo-Rolle wechseln">
+        @for (role of current.roles; track role.name) {
+          <button
+            tuiButton
+            [appearance]="role.name === current.current_role ? 'primary' : 'secondary'"
+            type="button"
+            [disabled]="busy() || role.name === current.current_role"
+            [attr.aria-pressed]="role.name === current.current_role"
+            (click)="switchRole(role.name)"
+          >
+            {{ roleLabel(role.name) }}
+          </button>
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="demo-scenario-section" aria-labelledby="demo-cases-title">
+    <div class="demo-section-heading">
+      <div>
+        <h2 id="demo-cases-title">Szenarien</h2>
+        <p>Beide Fälle können in beliebiger Reihenfolge bearbeitet werden.</p>
+      </div>
+    </div>
+    <div class="demo-scenario-grid">
+      @for (scenario of current.scenarios; track scenario.id) {
+        <article class="demo-scenario-card" [attr.aria-labelledby]="'scenario-' + scenario.id">
+          <header>
+            <div>
+              <p class="demo-scenario-status">{{ statusLabel(scenario.status) }}</p>
+              <h3 [id]="'scenario-' + scenario.id">{{ scenario.title }}</h3>
+            </div>
+            <strong>{{ scenario.completed_steps }}/{{ scenario.total_steps }}</strong>
+          </header>
+          <progress
+            [value]="scenario.completed_steps"
+            [max]="scenario.total_steps"
+            [attr.aria-label]="
+              scenario.title +
+              ': ' +
+              scenario.completed_steps +
+              ' von ' +
+              scenario.total_steps +
+              ' Schritten'
+            "
+          ></progress>
+          <dl>
+            <div>
+              <dt>Nächste Rolle</dt>
+              <dd>{{ roleLabel(scenario.next_role) }}</dd>
+            </div>
+            <div>
+              <dt>Nächster Schritt</dt>
+              <dd>{{ scenario.next_action }}</dd>
+            </div>
+          </dl>
+          @if (scenario.status === 'complete' || scenario.next_role === current.current_role) {
+            <a
+              tuiButton
+              appearance="primary"
+              [href]="scenario.path"
+              (click)="openScenario(scenario, $event)"
+            >
+              {{ scenario.status === 'complete' ? 'Folgen ansehen' : 'Schritt öffnen' }}
+            </a>
+          } @else {
+            <button
+              tuiButton
+              appearance="secondary"
+              type="button"
+              [disabled]="busy()"
+              (click)="switchRole(scenario.next_role)"
+            >
+              Zu {{ roleLabel(scenario.next_role) }} wechseln
+            </button>
+          }
+        </article>
+      }
+    </div>
+  </section>
+
+  <section class="app-panel demo-boundaries" aria-labelledby="demo-boundaries-title">
+    <div class="app-panel-body">
+      <h2 id="demo-boundaries-title">Grenzen dieses Arbeitsstands</h2>
+      <ul>
+        @for (notice of current.notices; track notice) {
+          <li>{{ notice }}</li>
+        }
+      </ul>
+      <p class="app-muted">{{ current.location_contract }}</p>
+      <div class="demo-workspace-actions">
+        <button
+          tuiButton
+          appearance="secondary"
+          type="button"
+          [disabled]="busy()"
+          (click)="restart()"
+        >
+          Szenario neu starten
+        </button>
+        <button
+          tuiButton
+          appearance="secondary"
+          type="button"
+          [disabled]="busy()"
+          (click)="leave()"
+        >
+          Demo verlassen
+        </button>
+      </div>
+    </div>
+  </section>
+}

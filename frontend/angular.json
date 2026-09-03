@@ -39,6 +39,12 @@
           },
           "configurations": {
             "production": {
+              "fileReplacements": [
+                {
+                  "replace": "src/app/runtime/runtime-experience.service.ts",
+                  "with": "src/app/runtime/runtime-experience.product.service.ts"
+                }
+              ],
               "optimization": {
                 "styles": {
                   "inlineCritical": false

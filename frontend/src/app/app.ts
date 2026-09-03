@@ -15,7 +15,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { TuiButton, TuiNotification, TuiRoot } from '@taiga-ui/core';
 import { TuiConfirmService } from '@taiga-ui/kit';
-import { filter, finalize, switchMap } from 'rxjs';
+import { Observable, filter, finalize, forkJoin, switchMap } from 'rxjs';
 
 import {
   AvailabilityRequest,
@@ -25,7 +25,9 @@ import {
   EditablePlanningProposal,
   ExamRound,
   ExamRoundUpdate,
-  Location,
+  ExamRoom,
+  ExamVenue,
+  ExamVenueContact,
   MasterData,
   PlanningBoard,
   PlanningResult,
@@ -46,9 +48,14 @@ import {
 import { CommitteeComponent, CommitteeMemberPayload } from './committee/committee.component';
 import { DashboardComponent } from './dashboard/dashboard.component';
 import {
-  LocationPayload,
+  ContactCreate,
+  ContactUpdate,
+  GeocodeCandidate,
   LocationsComponent,
-  LocationUpdate,
+  RoomCreate,
+  RoomUpdate,
+  VenueCreate,
+  VenueUpdate,
 } from './locations/locations.component';
 import {
   AvailabilityPayload,
@@ -68,6 +75,8 @@ import { AuthService } from './auth/auth.service';
 import { RuntimeNoticeComponent } from './runtime/runtime-notice.component';
 import { NotificationsComponent } from './notifications/notifications.component';
 import { AbsenceReportsComponent } from './absence-reports/absence-reports.component';
+import { DemoScenariosComponent } from './demo-scenarios/demo-scenarios.component';
+import { AboutComponent } from './about/about.component';
 
 @Component({
   selector: 'app-root',
@@ -79,10 +88,12 @@ import { AbsenceReportsComponent } from './absence-reports/absence-reports.compo
     ConfirmedPlansComponent,
     ExamDayComponent,
     DashboardComponent,
+    DemoScenariosComponent,
     ExamHalfYearsComponent,
     LocationsComponent,
     NotificationsComponent,
     AbsenceReportsComponent,
+    AboutComponent,
     PlanningComponent,
     RuntimeNoticeComponent,
     SchedulingOverviewComponent,
@@ -129,8 +140,10 @@ export class App {
   protected readonly message = signal('Bereit');
   protected readonly loading = signal(false);
   protected readonly actionBusy = signal(false);
+  protected readonly geocodeCandidate = signal<GeocodeCandidate | null>(null);
   protected readonly contextualRoundId = signal<number | null>(null);
   protected readonly contextualDayId = signal<number | null>(null);
+  protected readonly contextualVenueId = signal<number | null>(null);
   protected readonly confirmedPlanEditRoundId = signal<number | null>(null);
   protected readonly applicationVersion = signal<string | null>(null);
   protected readonly feedback = signal<{
@@ -138,6 +151,7 @@ export class App {
     title: string;
     message: string;
   } | null>(null);
+  protected readonly masterDataError = signal(false);
   protected readonly roleSwitchBusy = signal(false);
   protected readonly demoSession = computed(() => {
     const session = this.auth.session();
@@ -159,6 +173,12 @@ export class App {
   protected readonly canEditConfirmedPlan = computed(() =>
     this.hasCapability('confirmed-plan:revise'),
   );
+  protected readonly canManageVenueCreation = computed(
+    () =>
+      !this.demoSession() &&
+      (this.auth.session()?.is_operator === true ||
+        this.masterData()?.examVenuesCanCreate === true),
+  );
   protected readonly canGenerateCandidateDays = computed(
     () =>
       this.hasCapability('planning-settings:write') &&
@@ -170,9 +190,7 @@ export class App {
   protected readonly canToggleCandidateDay = computed(() =>
     this.hasCapability('candidate-days:toggle'),
   );
-  protected readonly directAccessDenied = computed(
-    () => this.demoSession() !== null && !this.canAccessView(this.activeView()),
-  );
+  protected readonly directAccessDenied = computed(() => !this.canAccessView(this.activeView()));
 
   protected readonly pageTitle = computed(() => {
     const labels: Record<AppView, string> = {
@@ -187,6 +205,8 @@ export class App {
       'exam-half-years': 'Prüfungshalbjahre',
       notifications: 'Benachrichtigungen',
       'absence-reports': 'Ausfall und Ersatz',
+      'demo-scenarios': 'Demo-Szenarien',
+      about: 'Über lzug',
     };
     return labels[this.activeView()];
   });
@@ -221,6 +241,8 @@ export class App {
 
   protected readonly breadcrumb = computed(() => {
     if (this.activeView() === 'exam-half-years') return 'Prüfungskontext';
+    if (this.activeView() === 'demo-scenarios') return 'Öffentliche Demo';
+    if (this.activeView() === 'about') return 'Produktinformation';
     if (['notifications', 'absence-reports'].includes(this.activeView()))
       return 'Persönlicher Bereich';
     if (['committee', 'locations'].includes(this.activeView())) return 'Globale Bereiche';
@@ -258,6 +280,7 @@ export class App {
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: ({ root, round, summary, board, masterData }) => {
+          this.masterDataError.set(false);
           this.applicationVersion.set(root.version);
           this.round.set(round);
           this.summary.set(summary);
@@ -279,11 +302,17 @@ export class App {
           this.message.set('Daten synchronisiert');
         },
         error: (error: { status?: number }) => {
+          this.masterDataError.set(true);
           if (error.status === 401) {
             this.auth.markAnonymous();
             return;
           }
           this.message.set('Synchronisierung nicht möglich');
+          this.notify(
+            'error',
+            'Synchronisierung nicht möglich',
+            'Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',
+          );
         },
       });
   }
@@ -360,6 +389,14 @@ export class App {
     void this.router.navigateByUrl(`/${area}/${action.id}`);
   }
 
+  protected openVenue(id: number): void {
+    void this.router.navigateByUrl(`/locations/${id}`);
+  }
+
+  protected closeVenueDetail(): void {
+    void this.router.navigateByUrl('/locations');
+  }
+
   protected cancelScheduling(): void {
     this.showView('scheduling-overview');
   }
@@ -383,14 +420,15 @@ export class App {
   protected demoRoleLabel(): string {
     const role = this.demoSession()?.demo_role;
     if (role === 'chair') return 'Vorsitz';
-    if (role === 'deputy') return 'Stellvertretung';
-    return 'Prüfperson';
+    if (role === 'replacement') return 'Angefragter Ersatzprüfer';
+    return 'Eingeplanter Prüfer';
   }
 
   protected demoRoleTask(): string {
-    return this.isDemoExaminer()
-      ? 'Eigene Verfügbarkeit und Anwesenheit'
-      : 'Planung und Koordination';
+    const role = this.demoSession()?.demo_role;
+    if (role === 'chair') return 'Koordination und Planrevision';
+    if (role === 'replacement') return 'Eigene Ersatzanfrage beantworten';
+    return 'Eigenen Ausfall melden';
   }
 
   protected hasCapability(capability: string): boolean {
@@ -398,10 +436,18 @@ export class App {
   }
 
   protected canAccessView(view: AppView): boolean {
-    if (!this.demoSession()) return true;
+    if (view === 'about') return true;
+    if (!this.demoSession()) return view !== 'demo-scenarios';
+    if (view === 'demo-scenarios') return true;
     if (view === 'dashboard') return true;
     if (view === 'notifications') return this.hasCapability('notifications:read-own');
-    if (view === 'absence-reports') return this.hasCapability('absence:read-own');
+    if (view === 'absence-reports') {
+      return (
+        this.hasCapability('absence:coordinate') ||
+        this.hasCapability('absence:write-own') ||
+        this.hasCapability('absence:respond-own')
+      );
+    }
     if (view === 'exam-half-years') return this.hasCapability('exam-half-years:read');
     if (['scheduling-overview', 'planning'].includes(view)) {
       return (
@@ -412,6 +458,8 @@ export class App {
     }
     if (['confirmed-plans', 'exam-day'].includes(view)) {
       return (
+        this.hasCapability('confirmed-plan:revise') ||
+        this.hasCapability('absence:write-own') ||
         this.hasCapability('attendance:write-own') ||
         this.hasCapability('attendance:coordinate') ||
         this.hasCapability('exam-status:write') ||
@@ -423,18 +471,7 @@ export class App {
 
   protected switchDemoRole(): void {
     if (!this.demoSession() || this.roleSwitchBusy()) return;
-    this.roleSwitchBusy.set(true);
-    this.auth
-      .logout()
-      .pipe(finalize(() => this.roleSwitchBusy.set(false)))
-      .subscribe({
-        error: () =>
-          this.notify(
-            'error',
-            'Rollenwechsel nicht möglich',
-            'Die Demo-Sitzung konnte nicht beendet werden. Bitte erneut versuchen.',
-          ),
-      });
+    void this.router.navigateByUrl('/demo-scenarios');
   }
 
   protected requestCandidateDeletion(id: number, label: string): void {
@@ -446,12 +483,12 @@ export class App {
     );
   }
 
-  protected requestLocationDeletion(id: number, label: string): void {
+  protected requestVenueDeletion(venue: ExamVenue): void {
     this.requestConfirmation(
-      `${label} löschen?`,
-      `${label} wird dauerhaft aus der Prüfungsverwaltung entfernt.`,
-      `${label} löschen`,
-      () => this.deleteLocation(id, label),
+      `${venue.name} löschen?`,
+      'Nur ein vollständig ungenutzter Ort ohne Räume und Kontakte kann gelöscht werden.',
+      `${venue.name} löschen`,
+      () => this.deleteVenue(venue),
     );
   }
 
@@ -568,15 +605,36 @@ export class App {
       });
   }
 
-  protected createLocation(payload: LocationPayload): void {
+  protected createVenue(payload: VenueCreate): void {
     this.actionBusy.set(true);
     this.api
-      .createLocation(payload)
+      .checkExamVenueDuplicates(payload as unknown as Record<string, unknown>)
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
-        next: (location) => {
+        next: ({ items }) => {
+          const save = () => this.persistVenue(payload, items.length > 0);
+          if (!items.length) return save();
+          this.requestConfirmation(
+            'Ähnliche Prüfungsorte gefunden',
+            items.map((item) => `${item.name} · ${item.address}`).join('\n'),
+            'Trotzdem anlegen',
+            save,
+          );
+        },
+        error: () =>
+          this.notify('error', 'Dublettenprüfung fehlgeschlagen', 'Bitte erneut versuchen.'),
+      });
+  }
+
+  private persistVenue(payload: VenueCreate, duplicatesReviewed: boolean): void {
+    this.actionBusy.set(true);
+    this.api
+      .createExamVenue({ ...payload, duplicates_reviewed: duplicatesReviewed })
+      .pipe(finalize(() => this.actionBusy.set(false)))
+      .subscribe({
+        next: (venue) => {
           this.locationsComponent?.resetDraft();
-          this.notify('success', 'Prüfungsort angelegt', location.name);
+          this.notify('success', 'Prüfungsort angelegt', venue.name);
           this.refresh();
         },
         error: () =>
@@ -588,57 +646,227 @@ export class App {
       });
   }
 
-  protected deleteLocation(id: number, label: string): void {
+  protected updateVenue(update: VenueUpdate): void {
     this.actionBusy.set(true);
-    this.api
-      .deleteLocation(id)
+    forkJoin({
+      impact: this.api.getExamVenueChangeImpact(update.id, update.payload),
+      duplicates: this.api.checkExamVenueDuplicates(update.payload, update.id),
+    })
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
-        next: () => {
-          this.notify('success', 'Prüfungsort gelöscht', label);
-          this.refresh();
-        },
-        error: () => this.notify('error', 'Prüfungsort nicht gelöscht', 'Bitte erneut versuchen.'),
-      });
-  }
-
-  protected updateLocation(update: LocationUpdate): void {
-    this.actionBusy.set(true);
-    this.api
-      .updateLocation(update.id, update.payload)
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: (location) => {
-          this.locationsComponent?.finishEditing(location.id);
-          this.notify('success', 'Prüfungsort gespeichert', `${location.name} · ${location.room}`);
-          this.refresh();
+        next: ({ impact, duplicates }) => {
+          const requiresConfirmation = impact.requires_confirmation ?? impact.count > 0;
+          const needsConfirmation = requiresConfirmation || duplicates.items.length > 0;
+          const save = () =>
+            this.persistVenueUpdate(update, requiresConfirmation, duplicates.items.length > 0);
+          if (!needsConfirmation) return save();
+          this.requestConfirmation(
+            duplicates.items.length
+              ? 'Ähnliche Prüfungsorte gefunden'
+              : 'Bestätigte Termine betroffen',
+            [
+              this.venueImpactMessage(impact),
+              ...duplicates.items.map((item) => `${item.name} · ${item.address}`),
+            ]
+              .filter(Boolean)
+              .join('\n'),
+            'Änderung bestätigen',
+            save,
+          );
         },
         error: () =>
-          this.notify(
-            'error',
-            'Prüfungsort nicht gespeichert',
-            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
-          ),
+          this.notify('error', 'Auswirkungsprüfung fehlgeschlagen', 'Bitte erneut versuchen.'),
       });
   }
 
-  protected toggleLocation(location: Location): void {
-    const nextActive = location.is_active === 0 ? 1 : 0;
+  protected geocodeVenue(venue: ExamVenue): void {
     this.actionBusy.set(true);
     this.api
-      .updateLocation(location.id, { is_active: nextActive })
+      .geocodeExamVenue(venue.id, venue.revision)
       .pipe(finalize(() => this.actionBusy.set(false)))
       .subscribe({
-        next: () => {
+        next: (candidate) => {
+          this.geocodeCandidate.set({ venueId: venue.id, ...candidate });
           this.notify(
             'success',
-            `Prüfungsort ${nextActive ? 'aktiviert' : 'deaktiviert'}`,
-            location.name,
+            'Position vorgeschlagen',
+            'Bitte die vorgeschlagene Position vor dem Speichern bestätigen.',
+          );
+        },
+        error: () =>
+          this.notify(
+            'error',
+            'Position nicht verfügbar',
+            'Die Ortsdaten wurden nicht verändert. Bitte später erneut versuchen.',
+          ),
+      });
+  }
+
+  private persistVenueUpdate(
+    update: VenueUpdate,
+    confirmed: boolean,
+    duplicatesReviewed: boolean,
+  ): void {
+    this.actionBusy.set(true);
+    this.api
+      .updateExamVenue(update.id, {
+        ...update.payload,
+        confirm_future_assignments: confirmed,
+        duplicates_reviewed: duplicatesReviewed,
+      })
+      .pipe(finalize(() => this.actionBusy.set(false)))
+      .subscribe({
+        next: (venue) => {
+          this.locationsComponent?.finishEditing(venue.id);
+          if (
+            update.payload.coordinate_status === 'confirmed' &&
+            this.geocodeCandidate()?.venueId === venue.id
+          ) {
+            this.geocodeCandidate.set(null);
+          }
+          this.notify(
+            venue.consequence_warning ? 'error' : 'success',
+            venue.consequence_warning
+              ? 'Prüfungsort gespeichert, Folgen unvollständig'
+              : 'Prüfungsort gespeichert',
+            venue.consequence_warning ?? venue.name,
           );
           this.refresh();
         },
-        error: () => this.notify('error', 'Status nicht geändert', 'Bitte erneut versuchen.'),
+        error: () =>
+          this.notify('error', 'Prüfungsort nicht gespeichert', 'Bitte erneut versuchen.'),
       });
+  }
+
+  protected deleteVenue(venue: ExamVenue): void {
+    this.runVenueAction(
+      this.api.deleteExamVenue(venue.id, venue.revision),
+      'Prüfungsort gelöscht',
+      venue.name,
+    );
+  }
+
+  protected createRoom(command: RoomCreate): void {
+    this.runVenueAction(
+      this.api.createExamRoom(command.venueId, command.payload),
+      'Raum angelegt',
+      String(command.payload.name ?? ''),
+    );
+  }
+
+  protected updateRoom(command: RoomUpdate): void {
+    this.actionBusy.set(true);
+    this.api
+      .getExamRoomChangeImpact(command.id, command.payload)
+      .pipe(finalize(() => this.actionBusy.set(false)))
+      .subscribe({
+        next: (impact) => {
+          const requiresConfirmation = impact.requires_confirmation ?? impact.count > 0;
+          const save = () =>
+            this.runVenueAction(
+              this.api.updateExamRoom(command.id, {
+                ...command.payload,
+                confirm_future_assignments: requiresConfirmation,
+              }),
+              'Raum gespeichert',
+              '',
+            );
+          if (!requiresConfirmation) return save();
+          this.requestConfirmation(
+            'Bestätigte Termine betroffen',
+            this.venueImpactMessage(impact),
+            'Änderung bestätigen',
+            save,
+          );
+        },
+        error: () =>
+          this.notify('error', 'Auswirkungsprüfung fehlgeschlagen', 'Bitte erneut versuchen.'),
+      });
+  }
+
+  protected deleteRoom(room: ExamRoom): void {
+    this.runVenueAction(
+      this.api.deleteExamRoom(room.id, room.revision),
+      'Raum gelöscht',
+      room.name,
+    );
+  }
+
+  protected retryVenueConsequences(auditId: number): void {
+    this.runVenueAction(
+      this.api.retryExamVenueConsequences(auditId),
+      'Folgen erneut verarbeitet',
+      'Der aktuelle Status wurde geprüft.',
+    );
+  }
+  protected createContact(command: ContactCreate): void {
+    this.runVenueAction(
+      this.api.createExamVenueContact(command.venueId, command.payload),
+      'Kontakt angelegt',
+      String(command.payload.label ?? ''),
+    );
+  }
+  protected updateContact(command: ContactUpdate): void {
+    this.runVenueAction(
+      this.api.updateExamVenueContact(command.id, command.payload),
+      'Kontakt gespeichert',
+      '',
+    );
+  }
+  protected deleteContact(contact: ExamVenueContact): void {
+    this.runVenueAction(
+      this.api.deleteExamVenueContact(contact.id, contact.revision),
+      'Kontakt gelöscht',
+      contact.label,
+    );
+  }
+  protected requestPromotion(command: { venue: ExamVenue; reason: string }): void {
+    this.runVenueAction(
+      this.api.requestExamVenuePromotion(command.venue.id, command.venue.revision, command.reason),
+      'Hochstufung beantragt',
+      command.venue.name,
+    );
+  }
+  protected decidePromotion(command: {
+    venue: ExamVenue;
+    decision: 'approve' | 'reject';
+    reason: string;
+  }): void {
+    this.runVenueAction(
+      this.api.decideExamVenuePromotion(
+        command.venue.id,
+        command.venue.revision,
+        command.decision,
+        command.reason,
+      ),
+      command.decision === 'approve' ? 'Prüfungsort hochgestuft' : 'Hochstufung abgelehnt',
+      command.venue.name,
+    );
+  }
+
+  private runVenueAction(request: Observable<unknown>, title: string, detail: string): void {
+    this.actionBusy.set(true);
+    request.pipe(finalize(() => this.actionBusy.set(false))).subscribe({
+      next: (result) => {
+        this.locationsComponent?.finishEditing(-1);
+        const warning =
+          typeof result === 'object' && result !== null && 'consequence_warning' in result
+            ? String(result.consequence_warning)
+            : null;
+        this.notify(
+          warning ? 'error' : 'success',
+          warning ? `${title}, Folgen unvollständig` : title,
+          warning ?? detail,
+        );
+        this.refresh();
+      },
+      error: () =>
+        this.notify(
+          'error',
+          'Aktion fehlgeschlagen',
+          'Bitte prüfen Sie Status, Verwendung und Revision.',
+        ),
+    });
   }
 
   protected savePlanningSettings(payload: PlanningSettingsPayload): void {
@@ -980,6 +1208,26 @@ export class App {
     this.feedback.set({ type, title, message });
   }
 
+  private venueImpactMessage(impact: {
+    count: number;
+    date_from: string | null;
+    date_to: string | null;
+    calendar?: { event_count: number; fields: string[] };
+    notifications?: { recipient_count: number; fields: string[] };
+  }): string {
+    if (!impact.count) return '';
+    const lines = [
+      `${impact.count} bestätigte Einplanungen vom ${impact.date_from} bis ${impact.date_to}.`,
+      impact.calendar?.event_count
+        ? `${impact.calendar.event_count} Kalenderereignisse werden aktualisiert (${impact.calendar.fields.join(', ')}).`
+        : 'Keine Kalenderaktualisierung erwartet.',
+      impact.notifications?.recipient_count
+        ? `${impact.notifications.recipient_count} Mitglieder werden benachrichtigt (${impact.notifications.fields.join(', ')}).`
+        : 'Keine Benachrichtigung erwartet.',
+    ];
+    return lines.join('\n');
+  }
+
   private notifyRoleRestriction(): void {
     this.notify(
       'error',
@@ -1001,6 +1249,8 @@ export class App {
       'exam-half-years': 'exam-half-years',
       notifications: 'notifications',
       'absence-reports': 'absence-reports',
+      'demo-scenarios': 'demo-scenarios',
+      about: 'about',
     };
     return view === 'planning' ? `scheduling-overview/${this.roundContext.roundId()}` : paths[view];
   }
@@ -1025,6 +1275,8 @@ export class App {
       'exam-half-years': 'exam-half-years',
       notifications: 'notifications',
       'absence-reports': 'absence-reports',
+      'demo-scenarios': 'demo-scenarios',
+      about: 'about',
     };
     return views[segment ?? 'dashboard'] ?? 'dashboard';
   }
@@ -1034,6 +1286,7 @@ export class App {
     const roundId = this.roundIdFromUrl(url);
     this.contextualRoundId.set(roundId);
     this.contextualDayId.set(this.dayIdFromUrl(url));
+    this.contextualVenueId.set(this.venueIdFromUrl(url));
     this.confirmedPlanEditRoundId.set(this.confirmedPlanEditIdFromUrl(url));
     if (roundId === null || roundId === this.roundContext.roundId()) {
       return;
@@ -1066,6 +1319,13 @@ export class App {
   private confirmedPlanEditIdFromUrl(url: string): number | null {
     const segments = this.urlSegments(url);
     if (segments[0] !== 'confirmed-plans' || segments[2] !== 'edit') return null;
+    const id = Number(segments[1]);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  }
+
+  private venueIdFromUrl(url: string): number | null {
+    const segments = this.urlSegments(url);
+    if (segments[0] !== 'locations' || !segments[1]) return null;
     const id = Number(segments[1]);
     return Number.isInteger(id) && id > 0 ? id : null;
   }

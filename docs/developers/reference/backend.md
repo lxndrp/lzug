@@ -18,6 +18,10 @@ Diese Referenz entsteht beim Dokumentationsbuild aus Google-Style-Docstrings. Si
 
 ::: backend.plan_consequences
 
+## Folgen von Prüfungsortänderungen
+
+::: backend.venue_consequences
+
 ## Repository und Persistenz
 
 ::: backend.repositories

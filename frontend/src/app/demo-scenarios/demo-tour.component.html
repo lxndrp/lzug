@@ -1,0 +1,38 @@
+@if (!offered()) {
+  <section class="demo-tour-offer" aria-labelledby="demo-tour-offer-title">
+    <div>
+      <h2 id="demo-tour-offer-title">Neu bei lzug?</h2>
+      <p>Starten Sie eine kurze, rein erklärende Tour durch Demo-Rollen und Szenarien.</p>
+    </div>
+    <button tuiButton appearance="secondary" type="button" (click)="start()">
+      Demo-Tour starten
+    </button>
+  </section>
+}
+
+<button tuiButton appearance="flat" class="demo-tour-restart" type="button" (click)="start()">
+  Demo-Tour starten
+</button>
+
+@if (visible()) {
+  <div class="demo-tour-backdrop" aria-hidden="true"></div>
+  <section
+    #dialog
+    class="demo-tour-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="demo-tour-title"
+    aria-describedby="demo-tour-description"
+    tabindex="-1"
+  >
+    <p class="app-eyebrow">Demo-Tour · {{ index() + 1 }}/{{ steps.length }}</p>
+    <h2 id="demo-tour-title">{{ step().title }}</h2>
+    <p id="demo-tour-description">{{ step().text }}</p>
+    <div class="demo-tour-actions">
+      <button tuiButton appearance="secondary" type="button" (click)="skip()">Überspringen</button>
+      <button tuiButton appearance="primary" type="button" (click)="next()">
+        {{ step().action }}
+      </button>
+    </div>
+  </section>
+}

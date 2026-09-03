@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 import unittest
 
 from sqlalchemy import func, select
 
 from backend.database import session_scope
 from backend.exam_venues import (
+    ExamVenueConfirmationRequiredError,
     ExamVenueConflictError,
     ExamVenueError,
     ExamVenueInUseError,
@@ -83,7 +85,8 @@ class ExamVenueServiceTests(unittest.TestCase):
             with self.assertRaisesRegex(ExamVenueConflictError, "Venue name"):
                 service.create_venue(self._venue_payload(street="Hafenstraße 2"), actor_member_id=1)
             global_venue = service.create_venue(
-                self._venue_payload(scope="global", committee_id=None), actor_member_id=1
+                self._venue_payload(scope="global", committee_id=None, duplicates_reviewed=True),
+                actor_member_id=1,
             )
             service.create_room(
                 first["id"], {"name": "A-101", "is_active": True}, actor_member_id=1
@@ -173,6 +176,98 @@ class ExamVenueServiceTests(unittest.TestCase):
                 usable = room_is_usable_for_committee(session, room["id"], committee_id=1)
 
         self.assertTrue(usable)
+
+    def test_duplicate_candidates_need_review_and_global_overlap_needs_reason(self) -> None:
+        with TempDatabase() as db_path:
+            service = ExamVenueService(db_path)
+            service.create_venue(
+                self._venue_payload(
+                    scope="global", committee_id=None, name="Prüfungszentrum Hafen"
+                ),
+                actor_member_id=1,
+            )
+            candidate = self._venue_payload(
+                name="Prüfungszentrum am Hafen", street="Andere Straße 2"
+            )
+            matches = service.find_duplicates(candidate)
+            with self.assertRaises(ExamVenueConfirmationRequiredError):
+                service.create_venue(candidate, actor_member_id=1)
+            with self.assertRaisesRegex(ExamVenueConfirmationRequiredError, "needs a reason"):
+                service.create_venue({**candidate, "duplicates_reviewed": True}, actor_member_id=1)
+            created = service.create_venue(
+                {
+                    **candidate,
+                    "duplicates_reviewed": True,
+                    "duplicate_reason": "Eigenständiger Standort des Ausschusses",
+                },
+                actor_member_id=1,
+            )
+            with session_scope(db_path) as session:
+                audit = session.scalars(
+                    select(ExamVenueAuditEvent)
+                    .where(ExamVenueAuditEvent.venue_id == created["id"])
+                    .order_by(ExamVenueAuditEvent.id.desc())
+                    .limit(1)
+                ).one()
+                audit_reason = audit.reason
+                audit_details = json.loads(audit.details_json)
+
+        self.assertEqual(1, len(matches))
+        self.assertEqual("committee", created["scope"])
+        self.assertEqual("Eigenständiger Standort des Ausschusses", audit_reason)
+        self.assertTrue(audit_details["values"]["duplicates_reviewed"])
+        self.assertEqual(
+            "Eigenständiger Standort des Ausschusses",
+            audit_details["values"]["duplicate_reason"],
+        )
+
+    def test_future_confirmed_appointment_requires_explicit_change_confirmation(self) -> None:
+        with TempDatabase() as db_path:
+            service = ExamVenueService(db_path)
+            venue, room = self._create_active_venue_and_room(service)
+            with session_scope(db_path) as session:
+                from backend.models import ExamDay, ExamDayAssignment
+
+                day = ExamDay(
+                    exam_round_id=1,
+                    room_id=room["id"],
+                    date="2099-05-20",
+                    status="confirmed",
+                )
+                session.add(day)
+                session.flush()
+                session.add(
+                    ExamDayAssignment(
+                        exam_day_id=day.id,
+                        committee_member_id=1,
+                        assignment_role="examiner",
+                        day_part="full_day",
+                    )
+                )
+
+            impact = service.future_impact(venue["id"])
+            with self.assertRaises(ExamVenueConfirmationRequiredError):
+                service.update_venue(
+                    venue["id"],
+                    {"expected_revision": venue["revision"], "entrance": "Eingang Nord"},
+                    actor_member_id=1,
+                )
+            updated = service.update_venue(
+                venue["id"],
+                {
+                    "expected_revision": venue["revision"],
+                    "entrance": "Eingang Nord",
+                    "confirm_future_assignments": True,
+                },
+                actor_member_id=1,
+            )
+
+        self.assertEqual(
+            {"count": 1, "date_from": "2099-05-20", "date_to": "2099-05-20"},
+            {key: impact[key] for key in ("count", "date_from", "date_to")},
+        )
+        assert updated is not None
+        self.assertEqual("Eingang Nord", updated["entrance"])
 
 
 if __name__ == "__main__":
