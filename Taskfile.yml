@@ -407,6 +407,7 @@ tasks:
     cmds:
       - task: quality:e2e
       - task: quality:a11y
+      - task: quality:ui-review
 
   quality:image:
     internal: true
@@ -468,6 +469,12 @@ tasks:
     dir: frontend
     cmds:
       - npm run test:a11y
+
+  quality:ui-review:
+    desc: Run the focused Chromium, Firefox, and WebKit UI review matrix
+    dir: frontend
+    cmds:
+      - npm run test:ui-review
 
   dev:
     desc: Start backend and frontend development servers in parallel
@@ -532,7 +539,7 @@ tasks:
     internal: true
     dir: frontend
     cmds:
-      - npx playwright install chromium
+      - npx playwright install chromium firefox webkit
 
   sbom:
     desc: Generate the canonical dependency and license-review CycloneDX SBOM

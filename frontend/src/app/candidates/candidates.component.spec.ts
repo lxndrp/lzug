@@ -151,6 +151,38 @@ describe('CandidatesComponent', () => {
     expect(editor?.hidden).toBe(true);
   });
 
+  it('should summarize invalid candidate fields and connect errors to their controls', async () => {
+    const component = fixture.componentInstance;
+    vi.spyOn(component.createCandidate, 'emit').mockReturnValue(undefined);
+    clickButton('Neuen Prüfling anlegen');
+
+    const form = (fixture.nativeElement as HTMLElement).querySelector<HTMLFormElement>(
+      '#candidate-create-editor form',
+    )!;
+    form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    await new Promise((resolve) => setTimeout(resolve));
+
+    const element = fixture.nativeElement as HTMLElement;
+    const summary = element.querySelector<HTMLElement>('.app-form-error-summary');
+    expect(summary?.textContent).toContain('Prüfling noch nicht angelegt');
+    expect(summary?.querySelectorAll('li')).toHaveLength(3);
+    expect(element.querySelector('#candidateFirstName')?.getAttribute('aria-describedby')).toBe(
+      'candidateFirstNameError',
+    );
+    expect(summary).toBe(document.activeElement);
+    expect(component.createCandidate.emit).not.toHaveBeenCalled();
+
+    setInput('#candidateFirstName', 'Hermia');
+    expect(
+      element.querySelector('#candidateFirstName')?.getAttribute('aria-describedby'),
+    ).toBeNull();
+    expect(element.querySelector('.app-form-error-summary')?.textContent).not.toContain(
+      'Vorname eingeben.',
+    );
+  });
+
   it('should offer candidate creation inside an empty list', () => {
     const element = fixture.nativeElement as HTMLElement;
     fixture.componentRef.setInput('masterData', { ...masterDataFixture, candidates: [] });

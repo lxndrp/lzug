@@ -32,7 +32,29 @@ async function themedPage(
 
 async function capture(page: Page, name: string): Promise<void> {
   mkdirSync(output, { recursive: true });
-  await page.screenshot({ path: resolve(output, `${name}.png`), fullPage: true });
+  await page.addStyleTag({
+    content: `
+      *, *::before, *::after {
+        animation-duration: 0s !important;
+        caret-color: transparent !important;
+        transition-duration: 0s !important;
+      }
+    `,
+  });
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    await new Promise<void>((resolveFrame) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame())),
+    );
+  });
+  await page.waitForTimeout(500);
+  await page.screenshot({
+    path: resolve(output, `${name}.png`),
+    fullPage: true,
+    animations: 'disabled',
+    caret: 'hide',
+  });
   await page.context().close();
 }
 

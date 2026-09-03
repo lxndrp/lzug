@@ -25,104 +25,104 @@
     {
       "name": "product-dashboard-dark-desktop.png",
       "width": 1440,
-      "height": 1441,
-      "sha256": "f35cb16b919c82cdc15bff7648dc29774ed1b80e2d14a040a4285458ecadde47"
+      "height": 1601,
+      "sha256": "b0f7e4ebf031759aead8f4365c6b285324a7a59c862d6669443d0cf0671245c5"
     },
     {
       "name": "product-dashboard-light-desktop.png",
       "width": 1440,
-      "height": 1441,
-      "sha256": "80effda4e7cdb7cfec24c1747072d59b5b5825e788afe57689fd29dde854e40b"
+      "height": 1601,
+      "sha256": "93ce739da63c0efc6bdc9ca54ff2b00bbded5690db466a4b1600e200fe2efc0d"
     },
     {
       "name": "product-detail-cards-light-desktop.png",
       "width": 1440,
       "height": 1000,
-      "sha256": "034c73d63deb4aa7647644cc837021e953bec85230ddd9cd4e9fefa4185e21c5"
+      "sha256": "ac87177885f7821df2716e10b2d68348a8753c58d5083315dda70763ded9459b"
     },
     {
       "name": "product-form-validation-light-desktop.png",
       "width": 1440,
-      "height": 1493,
-      "sha256": "d67cbaf6a37e21a3483c29c694f505cbe4dd931e45f332d2597e730f1ef4ead1"
+      "height": 1000,
+      "sha256": "afa25b539ade7eeed1570b919416e7f0d4d46d5794bce8cba4c5be9e330c4ddd"
     },
     {
       "name": "product-login-light-desktop.png",
       "width": 1440,
       "height": 1064,
-      "sha256": "e8af8472b041e36b8c26fcf4cbfee4f497beef07e415156ad2f4e0432b3a7b80"
+      "sha256": "50fd9241cd4235e347d4489f97a1c10a2fe998ee722b10741927d91c35042d42"
     },
     {
       "name": "product-mobile-navigation-dark.png",
       "width": 390,
       "height": 844,
-      "sha256": "80b5d4078c8f0457b238917bad98943af2e5c474c8512e082a6d4668831c0966"
+      "sha256": "af8c91c04a75674a6b50f32b07175a3ad5869ea294130eb2b0847e6ab58bcf64"
     },
     {
       "name": "product-reflow-200-percent-light.png",
       "width": 390,
       "height": 844,
-      "sha256": "1485a0077d12ca020d54024be2642c4b9debca041e7ca8c218ddb4ce39c9509b"
+      "sha256": "1d931fa0aa0bfd50560ec1c63b4e7b3d11178200167fb79a5c08b642185100b2"
     },
     {
       "name": "product-table-dark-desktop.png",
       "width": 1440,
-      "height": 1093,
-      "sha256": "295f711436bcd80832a0767a8490bfa170711dba829082ad08bffc4b10641fa9"
+      "height": 1813,
+      "sha256": "de637fdca626355b9d00e9953d07de488749fed6ae32d6ed6b334a7e6facc7f6"
     },
     {
       "name": "publication-handbook-light-desktop.png",
       "width": 1440,
       "height": 1000,
-      "sha256": "915d7d1fd67440b608a4c8a4c036d7994be4f15dba1e5c8a0d158ce5f00fb20d"
+      "sha256": "7c9aa45b335deaf72d87862f00f6536de28187ac73985fbae92bd5410268c798"
     },
     {
       "name": "publication-landing-dark-mobile.png",
       "width": 390,
       "height": 844,
-      "sha256": "17f5c03f1a67cbeefc0aa877575798441cb0d762c62bd70db7c4ee7da7bbf861"
+      "sha256": "425d6955bb60946511522bd70287a8fab5c151a930b0a90684914c4bafcb5580"
     },
     {
       "name": "publication-landing-light-desktop.png",
       "width": 1440,
       "height": 1000,
-      "sha256": "d1afa01cc068041c06899388bf2ac4a26ac66860dc96b74ec0eb6a013a714872"
+      "sha256": "04e04b6c13f93343dd3b2bc79bc8d92f11a8f9d7a7e8b8d1c4df20c1411a18dc"
     },
     {
       "name": "state-conflict-dark-desktop.png",
       "width": 1440,
-      "height": 1129,
-      "sha256": "a85895869fc525cca248f8d629db4a12930cc9168f4d199aa41c97d29585eae0"
+      "height": 1155,
+      "sha256": "c1710193c19d00358aa240542563b5dd579ee843b7bebfce3c91b811e85e7a28"
     },
     {
       "name": "state-empty-light-desktop.png",
       "width": 1440,
-      "height": 1093,
-      "sha256": "af904fa04f42d3477408efdc6ded28725b1ce2d7b1c66ce1c0aace3d7eda91fb"
+      "height": 1109,
+      "sha256": "ccb35b3dc8c2d869f0f7ed12adb195e386cb63bfdce2fd982155dcfe5bfebd90"
     },
     {
       "name": "state-error-dark-desktop.png",
       "width": 1440,
-      "height": 1476,
-      "sha256": "4327deb2f60a96101a4be0974895487037a54eadc273befa98d9fc6bbb19e802"
+      "height": 1601,
+      "sha256": "dda79b340133f92ef4d0972391f656ff26d8b19e1433882bd72c8520f4c366f8"
     },
     {
       "name": "state-loading-dark-desktop.png",
       "width": 1440,
       "height": 1000,
-      "sha256": "3c9d4aaa9212ca6fd5310b101030f62c8cfa750930ff591c6ef03c320fd90861"
+      "sha256": "1b2feebe1a441db55732f1991ffd5fcb6a3b09256fa29061f1ffa6be3dcac735"
     },
     {
       "name": "state-success-light-desktop.png",
       "width": 1440,
-      "height": 1093,
-      "sha256": "c6ed6270f386360d74774794f89d42368121147bd0b3c638a4c3abaf7c7d36fa"
+      "height": 1817,
+      "sha256": "f0f75b9bb92f8fd9d5480d311de09c3041e2541b6138879ef76bb55ff9552b51"
     },
     {
       "name": "state-warning-dark-desktop.png",
       "width": 1440,
-      "height": 1476,
-      "sha256": "6c8806e228aaec4c3e4ed51ff0342461c26c53884e374fa28bbb0fb1981520c5"
+      "height": 1601,
+      "sha256": "18e084c27075d9a97b5440ab4cb27d8f3c44fdbb85ff5a15d48e9be6cf17fbc1"
     }
   ]
 }

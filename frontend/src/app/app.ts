@@ -308,6 +308,11 @@ export class App {
             return;
           }
           this.message.set('Synchronisierung nicht möglich');
+          this.notify(
+            'error',
+            'Synchronisierung nicht möglich',
+            'Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',
+          );
         },
       });
   }

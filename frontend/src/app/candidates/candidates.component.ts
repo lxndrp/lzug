@@ -1,10 +1,12 @@
 import {
+  ChangeDetectorRef,
   Component,
   ElementRef,
   EventEmitter,
   Input,
   Output,
   ViewChild,
+  inject,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -53,6 +55,7 @@ export type CandidateUpdate = {
   templateUrl: './candidates.component.html',
 })
 export class CandidatesComponent {
+  private readonly changeDetector = inject(ChangeDetectorRef);
   protected readonly icons = appIcons;
   @ViewChild('candidateCreateButton')
   private candidateCreateButton?: ElementRef<HTMLButtonElement>;
@@ -70,6 +73,7 @@ export class CandidatesComponent {
   protected readonly editingCandidateId = signal<number | null>(null);
   protected readonly editDraft = signal<CandidatePayload | null>(null);
   protected readonly creatingCandidate = signal(false);
+  protected readonly createValidationAttempted = signal(false);
 
   protected readonly query = signal('');
   protected readonly specialization = signal<string | null>(null);
@@ -157,11 +161,12 @@ export class CandidatesComponent {
   }
 
   protected submitCandidate(): void {
-    if (
-      !this.draft.first_name.trim() ||
-      !this.draft.last_name.trim() ||
-      !this.draft.ihk_exam_number.trim()
-    ) {
+    this.createValidationAttempted.set(true);
+    if (this.candidateCreateErrors().length) {
+      this.changeDetector.detectChanges();
+      this.candidateCreateForm?.nativeElement
+        .querySelector<HTMLElement>('.app-form-error-summary')
+        ?.focus();
       return;
     }
 
@@ -185,8 +190,33 @@ export class CandidatesComponent {
     this.draft.training_company = '';
     this.draft.attempt_number = 1;
     this.draft.requires_mep = 0;
+    this.createValidationAttempted.set(false);
     this.creatingCandidate.set(false);
     this.focusCreateButton();
+  }
+
+  protected candidateCreateErrors(): readonly { field: string; message: string }[] {
+    return [
+      { field: 'candidateFirstName', message: 'Vorname eingeben.' },
+      { field: 'candidateLastName', message: 'Nachname eingeben.' },
+      { field: 'candidateExamNumber', message: 'Prüfungsnummer eingeben.' },
+    ].filter(({ field }) => {
+      if (field === 'candidateFirstName') return !this.draft.first_name.trim();
+      if (field === 'candidateLastName') return !this.draft.last_name.trim();
+      return !this.draft.ihk_exam_number.trim();
+    });
+  }
+
+  protected candidateCreateFieldInvalid(field: string): boolean {
+    return (
+      this.createValidationAttempted() &&
+      this.candidateCreateErrors().some((error) => error.field === field)
+    );
+  }
+
+  protected focusCandidateCreateField(field: string, event: Event): void {
+    event.preventDefault();
+    this.candidateCreateForm?.nativeElement.querySelector<HTMLElement>(`#${field}`)?.focus();
   }
 
   protected toggleCandidateCreation(): void {
