@@ -208,7 +208,7 @@ CLI und Backend geben technische Identität, Zustände, Phasen, Zähler und
 geheimnisfreie Fehlercodes aus, aber keine privaten Schlüssel, internen
 Engine-Ausgaben oder ungefilterten Fehlertexte.
 Die aufgabenorientierte Bedienung bleibt im
-[Administrationshandbuch](https://github.com/lxndrp/lzug/wiki/Administration).
+[Administrationshandbuch](../portal/betreiben.md).
 
 ## OCI-Runtime und Infrastruktur
 

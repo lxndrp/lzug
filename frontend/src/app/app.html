@@ -163,6 +163,16 @@
               Prüfungsorte
             </a>
           }
+          <p class="app-nav-title">Information</p>
+          <a
+            class="app-nav-link"
+            href="/about"
+            [class.is-active]="activeView() === 'about'"
+            (click)="navigateFromShell('about', $event)"
+          >
+            <svg [cIcon]="icons.documentation" class="app-nav-icon" aria-hidden="true"></svg>
+            Über lzug
+          </a>
         </nav>
         @if (applicationVersion(); as version) {
           <p class="app-version">Version {{ version }}</p>
@@ -350,6 +360,13 @@
                 }
                 @case ('demo-scenarios') {
                   <app-demo-scenarios />
+                }
+                @case ('about') {
+                  <app-about
+                    [version]="applicationVersion()"
+                    [demo]="demoSession() !== null"
+                    [demoMatrixVersion]="demoSession()?.demo_matrix_version ?? null"
+                  />
                 }
                 @case ('scheduling-overview') {
                   <app-scheduling-overview (openRound)="openSchedulingRound($event)" />

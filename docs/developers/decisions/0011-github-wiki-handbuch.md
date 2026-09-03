@@ -7,7 +7,7 @@
 ## Status
 
 Akzeptiert.
-Superseded by: ADR-0012.
+Superseded by: ADR-0032.
 
 ## Kontext
 
@@ -53,5 +53,5 @@ Entscheidung; der technische Build bleibt erhalten.
 ## Referenzen
 
 - [ADR-0007: MkDocs und Code-Referenzen](0007-dokumentation-und-code-referenz.md)
-- [Wiki-Publikation](../delivery.md#wiki-publikation)
+- [Aktueller Publikationsvertrag](../delivery.md)
 - [GitHub Wiki](https://github.com/lxndrp/lzug/wiki)

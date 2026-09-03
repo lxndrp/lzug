@@ -2,8 +2,8 @@
 
 The checker deliberately covers only structural invariants that standard
 documentation tools do not express. MkDocs remains responsible for the
-technical documentation build and its link validation; the Wiki, publication,
-and generated-reference checks remain separate contracts.
+technical documentation build and its link validation; publication and
+generated-reference checks remain separate contracts.
 """
 
 from __future__ import annotations
@@ -19,7 +19,8 @@ ROOT_DOCUMENT_MARKERS = {
         "GitHub Releases",
         "lzug Roadmap",
         "CONTRIBUTING.md",
-        "GitHub Wiki",
+        "Produkt- und Dokumentationsportal",
+        "Migrationsnachweis",
     ),
     "CONTRIBUTING.md": (
         "nicht produktionsreifer",
@@ -63,6 +64,44 @@ GENERATED_REFERENCE_FILES = {
     Path("reference/cli.md"),
     Path("reference/frontend.md"),
     Path("reference/full-export-v1.schema.json"),
+}
+HANDBOOK_FILES = {
+    "Administration-Backup-Pruefung-und-Restore.md",
+    "Administration-Installation-und-Konfiguration.md",
+    "Administration-Update-und-Rollback.md",
+    "Administration-Verantwortung-Grenzen-und-Support.md",
+    "Administration.md",
+    "Entscheidungsmatrix-Ausfall-und-Ersatzbesetzung.md",
+    "Entscheidungsmatrix-Besetzung-und-Planbarkeit.md",
+    "Entscheidungsmatrix-Verbindliche-Gesamtbewertung.md",
+    "Entwicklung-Arbeitsprozess.md",
+    "Entwicklung-Architektur.md",
+    "Entwicklung-Dokumentation.md",
+    "Entwicklung-Einrichtung.md",
+    "Entwicklung-Qualitaet-und-Sicherheit.md",
+    "Entwicklung.md",
+    "Fachlichkeit-Glossar.md",
+    "Fachlichkeit-Kernprozesse.md",
+    "Fachlichkeit-Rollen-und-Verantwortlichkeiten.md",
+    "Fachlichkeit.md",
+    "Home.md",
+    "Nutzung-Grundbegriffe.md",
+    "Nutzung-Pruefungshalbjahre.md",
+    "Nutzung-Stammdaten.md",
+    "Nutzung-Terminplanung.md",
+    "Nutzung.md",
+    "Prozess-Ergebnis-feststellen-und-bekanntgeben.md",
+    "Prozess-Muendliche-Pruefung-planen-und-durchfuehren.md",
+    "Prozess-Pruefungshalbjahr-planen.md",
+    "Prozess-Pruefungsleistungen-bewerten.md",
+    "Prozess-Schriftliche-Pruefungen-organisieren.md",
+    "Prozess-Zulassung-und-Antraege-bewerten.md",
+    "User-Journey-Dokumentation-individuell-bewerten.md",
+    "User-Journey-Ergebnis-gemeinsam-feststellen.md",
+    "User-Journey-Muendlichen-Pruefungstag-vorbereiten-und-durchfuehren.md",
+    "User-Journey-Praesentation-und-Fachgespraech-bewerten.md",
+    "User-Journey-Pruefungshalbjahr-planen.md",
+    "User-Journey-Verfuegbarkeit-melden.md",
 }
 DEVELOPER_NAV_TARGETS = {
     "developers/architecture.md",
@@ -230,6 +269,33 @@ def check_documentation_paths(root: Path) -> list[str]:
     return violations
 
 
+def check_handbook_migration(root: Path) -> list[str]:
+    """Require the complete, repository-owned replacement for the old Wiki."""
+
+    handbook = root / "docs" / "handbook"
+    actual = {path.name for path in handbook.glob("*.md")} if handbook.is_dir() else set()
+    missing = sorted(HANDBOOK_FILES - actual)
+    unexpected = sorted(actual - HANDBOOK_FILES - {"_Sidebar.md"})
+    violations: list[str] = []
+    if missing:
+        violations.append(
+            "[DOC-HANDBOOK-001] docs/handbook: migrated Wiki pages are missing; "
+            f"restore {missing!r}."
+        )
+    if unexpected:
+        violations.append(
+            "[DOC-HANDBOOK-002] docs/handbook: unexpected parallel handbook pages; "
+            f"move new material to its target documentation type instead: {unexpected!r}."
+        )
+    evidence = root / "docs" / "migrations" / "wiki-2026-09-03.md"
+    if not evidence.is_file():
+        violations.append(
+            "[DOC-HANDBOOK-003] docs/migrations/wiki-2026-09-03.md: "
+            "the Wiki migration evidence is missing."
+        )
+    return violations
+
+
 def _headings(document: str) -> list[tuple[str, str]]:
     matches = list(re.finditer(r"^(?P<level>#{1,6})\s+(?P<title>.+?)\s*$", document, re.MULTILINE))
     sections: list[tuple[str, str]] = []
@@ -389,6 +455,7 @@ def check(root: Path) -> list[str]:
 
     return [
         *check_documentation_paths(root),
+        *check_handbook_migration(root),
         *check_developer_structure(root),
         *check_navigation(root),
         *check_redundant_inventories(root),

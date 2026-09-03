@@ -4,9 +4,9 @@ Dieses Handbuch ordnet den aktuellen technischen Stand der jeweils gebauten Repo
 Für Beiträge und lokale Entwicklung bleibt
 [`CONTRIBUTING.md`](https://github.com/lxndrp/lzug/blob/master/CONTRIBUTING.md)
 der verbindliche Einstieg.
-Fachliche, Nutzungs- und Betreiberanleitungen stehen ausschließlich im
-[GitHub Wiki](https://github.com/lxndrp/lzug/wiki); insbesondere kopiert dieses
-Handbuch keine Installations-, Backup-, Restore- oder Upgrade-Anleitung.
+Fachliche, Nutzungs- und Betreiberanleitungen liegen im Repository unter
+[`docs/handbook/`](../handbook/Home.md) und den zielgruppenorientierten
+[Portal-Einstiegen](../portal/produkt.md).
 
 ## Fünf Kernbereiche
 
@@ -21,8 +21,7 @@ Handbuch keine Installations-, Backup-, Restore- oder Upgrade-Anleitung.
   Abhängigkeiten von Backend, Frontend, Betreiber-CLI, OCI-Runtime und
   Demo-Infrastruktur.
 - [Delivery und Veröffentlichung](delivery.md) verbindet Pull-Request-Gates,
-  vollständige Qualität, Release, SBOM, Demo-Promotion sowie Site- und
-  Wiki-Publikation.
+  vollständige Qualität, Release, SBOM, Demo-Promotion sowie Site-Publikation.
 - [Entwicklung](development.md) bündelt lokale Toolchain, Tasks, Testauswahl,
   Dependencies, Fixtures, Dokumentationspflege, Reviews und Closeout.
 
@@ -32,7 +31,7 @@ Handbuch keine Installations-, Backup-, Restore- oder Upgrade-Anleitung.
 | --- | --- |
 | Produktstatus und öffentlicher Einstieg | `README.md` |
 | Beitragsregeln | `CONTRIBUTING.md` |
-| Fachlichkeit, Nutzung und Betreiberverfahren | GitHub Wiki |
+| Fachlichkeit, Nutzung und Betreiberverfahren | `docs/handbook/` und `docs/portal/` |
 | Planung, Umfang und Fortschritt | GitHub Issues, native Beziehungen, Milestones und Project-Felder |
 | HTTP-Vertrag | FastAPI-Routen und daraus erzeugte OpenAPI-Beschreibung |
 | Datenstruktur | SQLAlchemy-Modelle, `db/schema.sql` und `db/migrations/` |

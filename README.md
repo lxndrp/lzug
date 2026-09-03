@@ -31,16 +31,21 @@ operative Reihenfolge im GitHub Project `lzug Roadmap`.
 
 Wähle den Einstieg nach Aufgabe:
 
-- Das [GitHub Wiki](https://github.com/lxndrp/lzug/wiki) richtet sich an
-Fachlichkeit und Nutzung; die [Betreiberanleitung](https://github.com/lxndrp/lzug/wiki/Administration)
-führt durch Installation und sicheren Betrieb.
+- Das öffentliche [Produkt- und Dokumentationsportal](https://lzug.repertoire.papaspyrou.name)
+führt zu Produktinformation und Demo sowie zu Nutzer-, Betreiber- und Entwicklerdokumentation.
+- Die [Betreiberanleitung](docs/portal/betreiben.md) führt durch Installation,
+Bootstrap, Diagnose und das erste verifizierte Backup.
+- Das [Nutzerhandbuch](docs/handbook/Nutzung.md) erklärt die fachliche Arbeit nach Anmeldung.
 - [CONTRIBUTING.md](CONTRIBUTING.md) ist der Einstieg für Beiträge und lokale
 Entwicklung.
 - Das [Entwicklerhandbuch](docs/developers/index.md) enthält aktuelle
 technische Verträge, Runbooks, Referenzen und Entscheidungen.
 
-Die verbindliche Zuordnung der Quellen und Dokumentarten steht im
-[Entwicklerhandbuch](docs/developers/index.md).
+Das Repository ist die einzige kanonische Quelle.
+Pages rendert diese Inhalte aus derselben Revision;
+jede Seite verlinkt ihre Quelle und Build-Revision.
+Der ehemalige Wiki-Bestand ist mit prüfbarem [Migrationsnachweis](docs/migrations/wiki-2026-09-03.md)
+in das Repository übernommen.
 `task docs` baut die versionierte technische Referenz lokal; CI stellt sie als geschütztes Artefakt bereit.
 
 ## Lizenz

@@ -8,11 +8,11 @@ from pathlib import Path
 from backend.tests.workflow_contract import job_block, trigger_block, workflow_text
 from scripts.publication import (
     PUBLICATION_BASE_URL,
-    convert_wiki_links,
+    convert_handbook_links,
+    handbook_route,
     public_url,
     publication_base_url,
 )
-from scripts.wiki_routes import wiki_route, wiki_source_url
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -89,25 +89,19 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn('{{ "images/favicon.svg" | relURL }}', favicon_partial)
         self.assertIn('"images/favicon.svg"', (ROOT / "scripts/publication.py").read_text())
 
-    def test_wiki_route_contract_is_shared_by_build_and_published_wiki_check(self) -> None:
-        home = wiki_route("Home")
-        page = wiki_route("Fachlichkeit")
-
+    def test_repository_handbook_routes_are_rendered_without_a_wiki_checkout(self) -> None:
+        self.assertEqual("/handbuch/", handbook_route(Path("Home.md")))
+        self.assertEqual("/nutzen/grundbegriffe/", handbook_route(Path("Nutzung-Grundbegriffe.md")))
         self.assertEqual(
-            ("Handbuch", "_index.md", "/handbuch/"),
-            (home.title, home.publication_file, home.publication_route),
+            "/betreiben/installation-und-konfiguration/",
+            handbook_route(Path("Administration-Installation-und-Konfiguration.md")),
         )
         self.assertEqual(
-            ("Fachlichkeit", "fachlichkeit.md", "/handbuch/fachlichkeit/"),
-            (page.title, page.publication_file, page.publication_route),
-        )
-        self.assertEqual(
-            "https://github.com/lxndrp/lzug/wiki/Fachlichkeit",
-            wiki_source_url("Fachlichkeit", "https://github.com/lxndrp/lzug/wiki"),
-        )
-        self.assertEqual(
-            "[Fachlichkeit](/handbuch/fachlichkeit/#details)",
-            convert_wiki_links("[Fachlichkeit](Fachlichkeit#details)", {"Home", "Fachlichkeit"}),
+            "[Nutzung](/nutzen/#details)",
+            convert_handbook_links(
+                "[Nutzung](Nutzung#details)",
+                {"Home": "/handbuch/", "Nutzung": "/nutzen/"},
+            ),
         )
 
     def test_pages_deployment_is_manual_fail_closed_and_cannot_enable_pages(self) -> None:
@@ -149,8 +143,10 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("environment:\n      name: github-pages", deploy)
         self.assertIn("actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d", deploy)
         self.assertIn("enablement: false", deploy)
-        self.assertIn("-- task docs:publication:check WIKI_ROOT=", build)
-        self.assertIn("-- task docs:publication WIKI_ROOT=", build)
+        self.assertIn("-- task docs:publication:check DEMO_URL=", build)
+        self.assertIn("-- task docs:publication DEMO_URL=", build)
+        self.assertNotIn("Checkout canonical Wiki", workflow)
+        self.assertNotIn("WIKI_ROOT", workflow)
         self.assertIn("if: github.event_name == 'schedule'", build)
         self.assertIn("if: github.event_name != 'schedule'", build)
         self.assertIn('cron: "29 4 * * 1"', triggers)
@@ -162,20 +158,6 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("npm --prefix frontend run test:publication", build)
         self.assertIn("npm --prefix frontend run test:publication:a11y", build)
         self.assertNotIn("--no-sandbox", build)
-
-    def test_wiki_post_publish_check_is_periodic_manual_diagnostics(self) -> None:
-        workflow = workflow_text(".github/workflows/wiki-post-publish.yml")
-        triggers = trigger_block(workflow)
-        check = job_block(workflow, "check")
-
-        self.assertIn("schedule:", triggers)
-        self.assertIn("workflow_dispatch:", triggers)
-        self.assertIn('cron: "43 5 * * 1"', triggers)
-        self.assertNotIn("gollum:", triggers)
-        self.assertNotIn("pull_request:", triggers)
-        self.assertNotIn("push:", triggers)
-        self.assertIn("-m scripts.check_wiki published-wiki", check)
-        self.assertIn("--max-redirects 0", check)
 
 
 if __name__ == "__main__":

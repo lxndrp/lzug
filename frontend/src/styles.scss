@@ -48,6 +48,26 @@ body {
   box-shadow: var(--app-shadow-subtle);
 }
 
+.app-context-help {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-inline-start: 0.25rem solid var(--app-color-info-border);
+  background: var(--app-color-info-soft);
+  flex-wrap: wrap;
+}
+
+.app-context-help h2,
+.app-context-help p {
+  margin: 0;
+}
+
+.app-context-help p {
+  margin-block-start: 0.25rem;
+}
+
 .app-panel + .app-panel {
   margin-block-start: 1.5rem;
 }

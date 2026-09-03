@@ -28,6 +28,12 @@ export type DashboardTask = {
   target: DashboardNavigation;
 };
 
+export type ContextualHelp = {
+  title: string;
+  text: string;
+  href: string;
+};
+
 @Component({
   selector: 'app-dashboard',
   imports: [AppIconDirective, TuiBadge, TuiButton, TuiHeader, TuiNotification],
@@ -89,6 +95,40 @@ export class DashboardComponent {
       plan_confirmed: 'Der Terminplan ist verbindlich bestätigt und bereit zur Durchführung.',
     };
     return descriptions[this.summary?.round.status ?? ''] ?? 'Die Prüfungsrunde wird geladen.';
+  }
+
+  protected contextualHelp(): ContextualHelp | null {
+    const status = this.summary?.round.status;
+    if (!status) return null;
+    if (status === 'draft') {
+      return {
+        title: 'Planungsgrundlagen vervollständigen',
+        text: 'Erfassen Sie zunächst Prüfungshalbjahr, Ausschuss, Beteiligte und Planungsrahmen.',
+        href: 'https://lzug.repertoire.papaspyrou.name/nutzen/terminplanung/',
+      };
+    }
+    if (status === 'availability_requested') {
+      return {
+        title: 'Rückmeldungen prüfen',
+        text: 'Warten Sie auf die offenen Verfügbarkeiten, bevor Sie einen Vorschlag erzeugen.',
+        href: 'https://lzug.repertoire.papaspyrou.name/nutzen/terminplanung/',
+      };
+    }
+    if (status === 'plan_proposed') {
+      return {
+        title: 'Vorschlag kontrollieren',
+        text: 'Prüfen Sie Termine, Besetzung und Folgen vor der verbindlichen Bestätigung.',
+        href: 'https://lzug.repertoire.papaspyrou.name/nutzen/terminplanung/',
+      };
+    }
+    if (status === 'plan_confirmed') {
+      return {
+        title: 'Prüfungstag vorbereiten',
+        text: 'Nutzen Sie den bestätigten Plan als Ausgangspunkt für Durchführung und Nachweise.',
+        href: 'https://lzug.repertoire.papaspyrou.name/fachlichkeit/user-journey-muendlichen-pruefungstag-vorbereiten-und-durchfuehren/',
+      };
+    }
+    return null;
   }
 
   protected responseCount(): number {

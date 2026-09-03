@@ -10,4 +10,5 @@ export type AppView =
   | 'exam-half-years'
   | 'notifications'
   | 'absence-reports'
-  | 'demo-scenarios';
+  | 'demo-scenarios'
+  | 'about';

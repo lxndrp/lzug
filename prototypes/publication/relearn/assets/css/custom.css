@@ -85,6 +85,10 @@
 .publication-features h3 {
   margin-top: 0;
 }
+.publication-features p a {
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+}
 .publication-visually-hidden {
   clip: rect(0 0 0 0);
   clip-path: inset(50%);

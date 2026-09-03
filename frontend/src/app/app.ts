@@ -76,6 +76,7 @@ import { RuntimeNoticeComponent } from './runtime/runtime-notice.component';
 import { NotificationsComponent } from './notifications/notifications.component';
 import { AbsenceReportsComponent } from './absence-reports/absence-reports.component';
 import { DemoScenariosComponent } from './demo-scenarios/demo-scenarios.component';
+import { AboutComponent } from './about/about.component';
 
 @Component({
   selector: 'app-root',
@@ -92,6 +93,7 @@ import { DemoScenariosComponent } from './demo-scenarios/demo-scenarios.componen
     LocationsComponent,
     NotificationsComponent,
     AbsenceReportsComponent,
+    AboutComponent,
     PlanningComponent,
     RuntimeNoticeComponent,
     SchedulingOverviewComponent,
@@ -204,6 +206,7 @@ export class App {
       notifications: 'Benachrichtigungen',
       'absence-reports': 'Ausfall und Ersatz',
       'demo-scenarios': 'Demo-Szenarien',
+      about: 'Über lzug',
     };
     return labels[this.activeView()];
   });
@@ -239,6 +242,7 @@ export class App {
   protected readonly breadcrumb = computed(() => {
     if (this.activeView() === 'exam-half-years') return 'Prüfungskontext';
     if (this.activeView() === 'demo-scenarios') return 'Öffentliche Demo';
+    if (this.activeView() === 'about') return 'Produktinformation';
     if (['notifications', 'absence-reports'].includes(this.activeView()))
       return 'Persönlicher Bereich';
     if (['committee', 'locations'].includes(this.activeView())) return 'Globale Bereiche';
@@ -427,6 +431,7 @@ export class App {
   }
 
   protected canAccessView(view: AppView): boolean {
+    if (view === 'about') return true;
     if (!this.demoSession()) return view !== 'demo-scenarios';
     if (view === 'demo-scenarios') return true;
     if (view === 'dashboard') return true;
@@ -1240,6 +1245,7 @@ export class App {
       notifications: 'notifications',
       'absence-reports': 'absence-reports',
       'demo-scenarios': 'demo-scenarios',
+      about: 'about',
     };
     return view === 'planning' ? `scheduling-overview/${this.roundContext.roundId()}` : paths[view];
   }
@@ -1265,6 +1271,7 @@ export class App {
       notifications: 'notifications',
       'absence-reports': 'absence-reports',
       'demo-scenarios': 'demo-scenarios',
+      about: 'about',
     };
     return views[segment ?? 'dashboard'] ?? 'dashboard';
   }

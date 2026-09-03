@@ -21,5 +21,6 @@ export const routes: Routes = [
   { path: 'notifications', children: [] },
   { path: 'absence-reports', children: [] },
   { path: 'demo-scenarios', children: [] },
+  { path: 'about', children: [] },
   { path: '**', redirectTo: 'dashboard' },
 ];
