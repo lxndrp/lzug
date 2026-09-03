@@ -1,4 +1,12 @@
-import { Component, ElementRef, ViewChild, afterNextRender, inject, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  Injector,
+  ViewChild,
+  afterNextRender,
+  inject,
+  signal,
+} from '@angular/core';
 import { Router } from '@angular/router';
 import { TuiButton } from '@taiga-ui/core';
 
@@ -12,6 +20,7 @@ const OFFERED_STORAGE_KEY = 'lzug-demo-tour-offered-v1';
 })
 export class DemoTourComponent {
   private readonly router = inject(Router);
+  private readonly injector = inject(Injector);
   @ViewChild('dialog') private dialog?: ElementRef<HTMLElement>;
 
   protected readonly visible = signal(false);
@@ -54,7 +63,7 @@ export class DemoTourComponent {
     this.storeOffered();
     this.index.set(0);
     this.visible.set(true);
-    afterNextRender(() => this.dialog?.nativeElement.focus());
+    this.focusDialogAfterRender();
   }
 
   skip(): void {
@@ -69,7 +78,7 @@ export class DemoTourComponent {
       return;
     }
     this.index.update((value) => value + 1);
-    afterNextRender(() => this.dialog?.nativeElement.focus());
+    this.focusDialogAfterRender();
   }
 
   protected step() {
@@ -90,5 +99,9 @@ export class DemoTourComponent {
     } catch {
       // Browser privacy settings may reject storage; the demo remains fully usable.
     }
+  }
+
+  private focusDialogAfterRender(): void {
+    afterNextRender(() => this.dialog?.nativeElement.focus(), { injector: this.injector });
   }
 }

@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
+import { resolve } from 'node:path';
 import type { ExamResult } from '../src/app/api/api.models';
 import { syntheticFixtures } from '../src/app/testing/synthetic-fixtures.generated';
 import { expect, test } from './fixtures';
@@ -1104,6 +1105,21 @@ test.describe('lzug browser workflows', () => {
           await expect(
             page.getByText('Keine realen personenbezogenen Daten eingeben.'),
           ).toBeVisible();
+          if (process.env['LZUG_CAPTURE_DEMO_MEDIA'] === 'true' && currentRole === 'chair') {
+            await page.screenshot({
+              path: resolve(
+                process.cwd(),
+                '..',
+                'docs',
+                'media',
+                `demo-scenarios-${viewport.name}.png`,
+              ),
+              fullPage: false,
+              animations: 'disabled',
+              mask: [page.locator('.demo-session-facts dd').first()],
+              maskColor: '#e7e9ec',
+            });
+          }
           await expect(page.getByRole('button', { name: 'Rolle wechseln' })).toBeVisible();
           if (viewport.name === 'mobile') {
             await page.getByRole('button', { name: 'Navigation öffnen' }).click();

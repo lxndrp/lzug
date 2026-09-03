@@ -29,6 +29,8 @@ MARKDOWN_LINK = re.compile(r"(?P<prefix>\[[^\]]+\]\()(?P<target>[^)]+)(?P<suffix
 EXPECTED_OUTPUTS = (
     "index.html",
     "images/favicon.svg",
+    "images/screenshots/demo-scenarios-desktop.png",
+    "images/screenshots/demo-scenarios-mobile.png",
     "js/demo-warmup.js",
     "produkt/index.html",
     "nutzen/index.html",
@@ -232,6 +234,7 @@ def configure_relearn(root: Path, site: Path, base_url: str, demo_url: str) -> N
     (site / "assets" / "css").mkdir(parents=True)
     (site / "static" / "images").mkdir(parents=True)
     (site / "static" / "images" / "brand").mkdir(parents=True)
+    (site / "static" / "images" / "screenshots").mkdir(parents=True)
     (site / "static" / "fonts").mkdir(parents=True)
     (site / "static" / "css").mkdir(parents=True)
     (site / "static" / "js").mkdir(parents=True)
@@ -260,6 +263,8 @@ def configure_relearn(root: Path, site: Path, base_url: str, demo_url: str) -> N
         site / "static" / "images" / "brand",
         dirs_exist_ok=True,
     )
+    for screenshot in (root / "docs" / "media").glob("*.png"):
+        shutil.copyfile(screenshot, site / "static" / "images" / "screenshots" / screenshot.name)
     shutil.copyfile(
         root / "brand" / "tokens.css",
         site / "static" / "css" / "brand-tokens.css",

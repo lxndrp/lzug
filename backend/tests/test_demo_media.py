@@ -30,4 +30,4 @@ class DemoMediaContractTests(unittest.TestCase):
             violations = check(root)
 
         self.assertTrue(any("fixture_catalog_version" in item for item in violations))
-        self.assertTrue(any("alt text" in item for item in violations))
+        self.assertTrue(any("id, path, file" in item for item in violations))

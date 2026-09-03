@@ -57,5 +57,5 @@ nicht ein impliziter Rückfall.
 ## Referenzen
 
 - [Wiki-Migrationsnachweis](../../migrations/wiki-2026-09-03.md)
-- [Publications-Skript](../../../scripts/publication.py)
+- [Publications-Skript](https://github.com/lxndrp/lzug/blob/master/scripts/publication.py)
 - [ADR-0007: MkDocs und Code-Referenzen](0007-dokumentation-und-code-referenz.md)

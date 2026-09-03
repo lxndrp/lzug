@@ -2,8 +2,8 @@
 
 The checker deliberately covers only structural invariants that standard
 documentation tools do not express. MkDocs remains responsible for the
-technical documentation build and its link validation; the Wiki, publication,
-and generated-reference checks remain separate contracts.
+technical documentation build and its link validation; publication and
+generated-reference checks remain separate contracts.
 """
 
 from __future__ import annotations

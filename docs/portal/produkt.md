@@ -12,6 +12,14 @@ Die Anwendung unterstützt insbesondere die Planung von Prüfungsterminen und Be
 die Durchführung am Prüfungstag,
 Prüfungsorte sowie die nachvollziehbare Kommunikation von Planänderungen.
 
+<img
+  src="/images/screenshots/demo-scenarios-desktop.png"
+  alt="Synthetischer Demo-Arbeitsstand mit Rollen und Szenarien"
+  width="1440"
+  height="1000"
+  loading="lazy"
+>
+
 ## Weiterführende Informationen
 
 - Das [Nutzerhandbuch](/nutzen/) erläutert die produktive Arbeit nach Anmeldung.
