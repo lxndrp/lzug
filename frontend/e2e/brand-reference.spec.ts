@@ -20,6 +20,7 @@ async function prepare(
   options: {
     scheme?: 'light' | 'dark';
     viewport?: { width: number; height: number };
+    waitForStable?: boolean;
   } = {},
 ): Promise<void> {
   await page.emulateMedia({
@@ -29,12 +30,45 @@ async function prepare(
   await page.setViewportSize(options.viewport ?? desktop);
   await page.goto(path);
   await expect(page.locator('main')).toBeVisible();
+  if (options.waitForStable !== false) {
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('.app-progress')).toHaveCount(0, { timeout: 30_000 });
+  }
   await page.evaluate(() => document.fonts.ready);
+  await page.addStyleTag({
+    content: `
+      *, *::before, *::after {
+        animation-duration: 0s !important;
+        caret-color: transparent !important;
+        transition-duration: 0s !important;
+      }
+    `,
+  });
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolveFrame) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame())),
+      ),
+  );
 }
 
 async function capture(page: Page, name: string, fullPage = true): Promise<void> {
   mkdirSync(output, { recursive: true });
-  await page.screenshot({ path: resolve(output, `${name}.png`), fullPage });
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    await new Promise<void>((resolveFrame) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame())),
+    );
+  });
+  await page.waitForTimeout(500);
+  if (fullPage) await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({
+    path: resolve(output, `${name}.png`),
+    fullPage,
+    animations: 'disabled',
+    caret: 'hide',
+  });
 }
 
 test('captures product shell, authentication, data, forms, and detail views', async ({ page }) => {
@@ -52,8 +86,11 @@ test('captures product shell, authentication, data, forms, and detail views', as
   await prepare(page, '/candidates');
   await page.getByText('Neuen Prüfling anlegen', { exact: true }).click();
   await page.getByRole('button', { name: 'Prüfling anlegen', exact: true }).click();
-  await expect(page.locator('#candidateFirstName')).toBeVisible();
-  await capture(page, 'product-form-validation-light-desktop');
+  await expect(page.getByText('Prüfling noch nicht angelegt')).toBeVisible();
+  await page
+    .locator('#candidate-create-editor')
+    .evaluate((editor) => editor.scrollIntoView({ block: 'start', behavior: 'instant' }));
+  await capture(page, 'product-form-validation-light-desktop', false);
 
   await prepare(page, '/locations');
   await expect(page.getByRole('heading', { name: 'Prüfungsorte' })).toBeVisible();
@@ -93,7 +130,7 @@ test('captures empty, loading, success, warning, error, and conflict states', as
     await summaryGate;
     await route.continue();
   });
-  await prepare(page, '/dashboard', { scheme: 'dark' });
+  await prepare(page, '/dashboard', { scheme: 'dark', waitForStable: false });
   await expect(page.locator('.app-progress')).toBeVisible();
   await capture(page, 'state-loading-dark-desktop', false);
   releaseSummary();
@@ -116,7 +153,7 @@ test('captures empty, loading, success, warning, error, and conflict states', as
 
   await page.route('**/api/round-summary*', (route) => route.fulfill({ status: 500 }));
   await page.getByRole('button', { name: 'Aktualisieren' }).click();
-  await expect(page.getByText('Synchronisierung nicht möglich')).toBeVisible();
+  await expect(page.getByRole('alert').getByText('Synchronisierung nicht möglich')).toBeVisible();
   await capture(page, 'state-error-dark-desktop');
   await page.unroute('**/api/round-summary*');
 
@@ -157,6 +194,7 @@ test('captures mobile navigation, 200-percent text reflow, and the complete asse
   page,
 }) => {
   await prepare(page, '/dashboard', { scheme: 'dark', viewport: mobile });
+  await expect(page.locator('.app-nav-context')).toHaveCount(1);
   await page.getByRole('button', { name: 'Navigation öffnen' }).click();
   await expect(page.getByRole('complementary', { name: 'Prüfungsverwaltung' })).toBeVisible();
   await capture(page, 'product-mobile-navigation-dark', false);

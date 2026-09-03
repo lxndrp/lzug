@@ -115,6 +115,34 @@ header.app-panel-header[tuiHeader] {
   background: var(--app-color-canvas);
 }
 
+.app-form-error-summary {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--app-color-danger);
+  border-inline-start-width: 0.25rem;
+  border-radius: var(--app-radius-sm);
+  background: var(--app-color-danger-soft);
+  color: var(--app-color-text);
+}
+
+.app-form-error-summary ul {
+  margin: 0;
+  padding-inline-start: 1.25rem;
+}
+
+.app-form-error-summary a,
+.app-field-error {
+  color: var(--app-color-danger-text);
+}
+
+.app-field-error {
+  display: block;
+  margin-block-start: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
 .app-half-year-list {
   display: grid;
   gap: 0.75rem;

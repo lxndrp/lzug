@@ -56,6 +56,28 @@
             class="app-form-grid"
             (ngSubmit)="submitCandidate()"
           >
+            @if (createValidationAttempted() && candidateCreateErrors().length) {
+              <div
+                #candidateCreateErrorSummary
+                class="app-form-error-summary app-field-full"
+                role="alert"
+                tabindex="-1"
+              >
+                <strong>Prüfling noch nicht angelegt</strong>
+                <span>Bitte ergänzen Sie die markierten Pflichtfelder:</span>
+                <ul>
+                  @for (error of candidateCreateErrors(); track error.field) {
+                    <li>
+                      <a
+                        [href]="'#' + error.field"
+                        (click)="focusCandidateCreateField(error.field, $event)"
+                        >{{ error.message }}</a
+                      >
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
             <div class="app-field-half">
               <tui-textfield>
                 <label tuiLabel for="candidateFirstName"
@@ -66,9 +88,18 @@
                   id="candidateFirstName"
                   name="firstName"
                   [(ngModel)]="draft.first_name"
+                  [attr.aria-describedby]="
+                    candidateCreateFieldInvalid('candidateFirstName')
+                      ? 'candidateFirstNameError'
+                      : null
+                  "
+                  [attr.aria-invalid]="candidateCreateFieldInvalid('candidateFirstName')"
                   required
                 />
               </tui-textfield>
+              @if (candidateCreateFieldInvalid('candidateFirstName')) {
+                <span id="candidateFirstNameError" class="app-field-error">Vorname eingeben.</span>
+              }
             </div>
             <div class="app-field-half">
               <tui-textfield>
@@ -80,9 +111,18 @@
                   id="candidateLastName"
                   name="lastName"
                   [(ngModel)]="draft.last_name"
+                  [attr.aria-describedby]="
+                    candidateCreateFieldInvalid('candidateLastName')
+                      ? 'candidateLastNameError'
+                      : null
+                  "
+                  [attr.aria-invalid]="candidateCreateFieldInvalid('candidateLastName')"
                   required
                 />
               </tui-textfield>
+              @if (candidateCreateFieldInvalid('candidateLastName')) {
+                <span id="candidateLastNameError" class="app-field-error">Nachname eingeben.</span>
+              }
             </div>
             <div class="app-field-third">
               <tui-textfield>
@@ -94,9 +134,20 @@
                   id="candidateExamNumber"
                   name="examNumber"
                   [(ngModel)]="draft.ihk_exam_number"
+                  [attr.aria-describedby]="
+                    candidateCreateFieldInvalid('candidateExamNumber')
+                      ? 'candidateExamNumberError'
+                      : null
+                  "
+                  [attr.aria-invalid]="candidateCreateFieldInvalid('candidateExamNumber')"
                   required
                 />
               </tui-textfield>
+              @if (candidateCreateFieldInvalid('candidateExamNumber')) {
+                <span id="candidateExamNumberError" class="app-field-error"
+                  >Prüfungsnummer eingeben.</span
+                >
+              }
             </div>
             <div class="app-field-third">
               <label for="candidateSpecialization"

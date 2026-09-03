@@ -245,8 +245,8 @@
 }
 
 .app-sidebar-toggle {
-  inline-size: 2.5rem;
-  block-size: 2.5rem;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
   color: var(--app-color-text);
 }
 
@@ -260,8 +260,8 @@
 
 .app-sidebar-close {
   display: none;
-  inline-size: 2.25rem;
-  block-size: 2.25rem;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
   margin-inline-start: auto;
   color: var(--lzug-color-text-on-brand);
 }
@@ -592,6 +592,10 @@
 
   .app-content {
     padding: 1rem 0.75rem;
+  }
+
+  .app-active-context dl {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
