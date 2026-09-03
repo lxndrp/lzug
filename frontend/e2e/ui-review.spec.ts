@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 
 import { expect, test } from './fixtures';
+import { expectFinalStyleState } from './style-stability';
 
 const routes = [
   '/dashboard',
@@ -72,6 +73,7 @@ test.describe('@ui-review cross-browser UI review', () => {
       await test.step(path, async () => {
         await page.goto(path);
         await expectStableLayout(page);
+        await expectFinalStyleState(page);
         const result = await new AxeBuilder({ page }).include('main').analyze();
         expect(result.violations, path).toEqual([]);
       });
@@ -95,6 +97,7 @@ test.describe('@ui-review cross-browser UI review', () => {
         await page.goto(path);
         await expectStableLayout(page);
         await expect(page.locator('.app-shell')).toHaveCount(0);
+        await expectFinalStyleState(page);
         const result = await new AxeBuilder({ page }).include('main').analyze();
         expect(result.violations, path).toEqual([]);
       });
@@ -180,12 +183,14 @@ test.describe('@ui-review cross-browser UI review', () => {
     await page.goto('/candidates');
     const table = page.getByRole('table');
     await expect(table).toBeVisible();
+    await expectFinalStyleState(page);
     expect((await new AxeBuilder({ page }).include('table').analyze()).violations).toEqual([]);
 
     const deleteButton = page.getByRole('button', { name: /löschen$/i }).first();
     await deleteButton.click();
     const confirmation = page.getByRole('dialog');
     await expect(confirmation).toBeVisible();
+    await expectFinalStyleState(page);
     expect(
       (await new AxeBuilder({ page }).include('[role="dialog"]').analyze()).violations,
     ).toEqual([]);
@@ -222,8 +227,19 @@ test.describe('@ui-review cross-browser UI review', () => {
     const tour = page.getByRole('dialog', { name: 'Synthetische Demo' });
     await expect(tour).toBeVisible();
     await expect(tour).toBeFocused();
+    await expectFinalStyleState(page);
     expect(
       (await new AxeBuilder({ page }).include('.demo-tour-dialog').analyze()).violations,
     ).toEqual([]);
+  });
+
+  test('keeps final color-contrast violations visible to axe', async ({ page }) => {
+    await page.setContent(
+      '<main><p id="contrast-probe" style="color: #fff; background: #8984a4">Kontrastprüfung</p></main>',
+    );
+    await expectFinalStyleState(page);
+
+    const result = await new AxeBuilder({ page }).include('#contrast-probe').analyze();
+    expect(result.violations.map((violation) => violation.id)).toContain('color-contrast');
   });
 });

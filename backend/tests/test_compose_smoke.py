@@ -20,7 +20,8 @@ case "$*" in
         echo "fake-container"
         ;;
     compose*" ps --all --format json")
-        printf '[{"Health":"%s"}]\n' "${FAKE_DOCKER_HEALTH:-starting}"
+        printf '[{"Health":"%s","State":"%s"}]\n' \
+            "${FAKE_DOCKER_HEALTH:-starting}" "${FAKE_DOCKER_STATE:-exited}"
         ;;
     compose*" ps --all")
         echo "fake-container running (${FAKE_DOCKER_HEALTH:-starting})"
@@ -95,12 +96,31 @@ class ComposeSmokeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Waiting for Compose readiness after start.", result.stdout)
         self.assertIn("Waiting for Compose readiness after restart.", result.stdout)
+        self.assertIn("Waiting for Compose stop to complete.", result.stdout)
         self.assertIn("Waiting for Compose readiness after stop/start.", result.stdout)
         self.assertEqual(commands.count("python -m backend.healthcheck"), 3)
         self.assertIn(" restart lzug", commands)
         self.assertIn(" stop lzug", commands)
         self.assertIn(" start lzug", commands)
         self.assertGreaterEqual(commands.count("read_text"), 2)
+        stop_offset = commands.index(" stop lzug")
+        stopped_state_offset = commands.index(" ps --all --format json", stop_offset)
+        start_offset = commands.index(" start lzug")
+        self.assertLess(stop_offset, stopped_state_offset)
+        self.assertLess(stopped_state_offset, start_offset)
+
+    def test_stop_timeout_does_not_start_a_container_that_is_still_stopping(self) -> None:
+        result, commands = self.run_smoke(
+            FAKE_DIRECT_HEALTH="passed",
+            FAKE_DOCKER_HEALTH="healthy",
+            FAKE_DOCKER_STATE="stopping",
+            FAKE_HTTP_STATUS="200",
+        )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Compose stop timed out", result.stderr)
+        self.assertIn("lifecycle_status=stopping", result.stderr)
+        self.assertNotIn(" start lzug", commands)
 
     def test_timeout_reports_direct_health_failure_with_runtime_diagnostics(self) -> None:
         result, _commands = self.run_smoke(
