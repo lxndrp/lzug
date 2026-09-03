@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import type { ExamResult } from '../src/app/api/api.models';
 import { syntheticFixtures } from '../src/app/testing/synthetic-fixtures.generated';
 import { expect, test } from './fixtures';
+import { expectFinalStyleState } from './style-stability';
 
 const athenCommittee = syntheticFixtures.committees.find(
   (committee) =>
@@ -1602,7 +1603,8 @@ test.describe('lzug browser workflows', () => {
     await page.route('**/api/round-summary*', (route) => route.fulfill({ status: 500 }));
 
     await page.getByRole('button', { name: 'Aktualisieren' }).click();
-    await expect(page.getByText('Synchronisierung nicht möglich')).toBeVisible();
+    const alert = page.getByRole('alert');
+    await expect(alert.getByText('Synchronisierung nicht möglich')).toBeVisible();
   });
 
   test('renders an empty candidate list without breaking the view', async ({ page }) => {
@@ -1788,6 +1790,7 @@ test.describe('lzug browser workflows', () => {
           }));
           expect(dimensions.scrollWidth).toBe(dimensions.clientWidth);
 
+          await expectFinalStyleState(page);
           const results = await new AxeBuilder({ page }).analyze();
           expect(results.violations, `${viewport.name} ${item.action}`).toEqual([]);
 
