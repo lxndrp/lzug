@@ -5,8 +5,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import unicodedata
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "fixtures" / "synthetic-fixtures.json"
@@ -27,8 +30,12 @@ ENTITY_GROUPS = (
     "memberships",
     "accounts",
     "locations",
+    "rooms",
+    "location_contacts",
     "candidates",
 )
+FIXTURE_KEY_PATTERN = re.compile(r"^[a-z0-9]+(?:[.-][a-z0-9]+)*$")
+SOURCE_RETRIEVED_AT = "2026-09-01"
 REQUIRED_COVERAGE = {
     "chair",
     "deputy_chair",
@@ -84,7 +91,9 @@ def catalog_index(data: dict[str, Any]) -> dict[str, tuple[str, dict[str, Any]]]
     index: dict[str, tuple[str, dict[str, Any]]] = {}
     for group in ENTITY_GROUPS:
         for row in data[group]:
-            key = row["fixture_key"]
+            key = row.get("fixture_key")
+            if not isinstance(key, str) or not key:
+                raise ValueError(f"Fixture key is missing in group: {group}")
             if key in index:
                 raise ValueError(f"Duplicate semantic fixture key: {key}")
             index[key] = (group, row)
@@ -122,7 +131,7 @@ def resolved_memberships(data: dict[str, Any], adapter: str | None = None) -> li
 
 def validate_catalog(data: dict[str, Any]) -> None:
     """Fail closed when the canonical fixture catalog is incomplete or unsafe."""
-    if data.get("version") != 2 or not data.get("revision"):
+    if data.get("version") != 3 or not data.get("revision"):
         raise ValueError("Unsupported or missing fixture catalog version")
     if data.get("fixture_root") != FIXTURE_ROOT:
         raise ValueError(f"Fixture root must be {FIXTURE_ROOT}")
@@ -134,7 +143,7 @@ def validate_catalog(data: dict[str, Any]) -> None:
 
     index = catalog_index(data)
     for key in index:
-        if not key.startswith(f"{FIXTURE_ROOT}."):
+        if not key.startswith(f"{FIXTURE_ROOT}.") or FIXTURE_KEY_PATTERN.fullmatch(key) is None:
             raise ValueError(f"Fixture key has an invalid root: {key}")
 
     for group in ENTITY_GROUPS:
@@ -189,13 +198,74 @@ def validate_catalog(data: dict[str, Any]) -> None:
         membership = item_by_key(data, account["membership_key"], "memberships")
         if membership["person_key"] != account["person_key"]:
             raise ValueError("Demo account and membership reference different people")
+    if len(data["locations"]) != 3 or len(data["rooms"]) != 6:
+        raise ValueError("The Athens fixture requires exactly three venues and six rooms")
     for location in data["locations"]:
-        item_by_key(data, location["committee_key"], "committees")
-        if location.get("country") != "Griechenland" or location.get("geodata") is not None:
-            raise ValueError("Real location data is deferred to #572")
+        if location["scope"] == "global":
+            if location.get("committee_key") is not None:
+                raise ValueError("Global fixture venues must not reference a committee")
+        elif location["scope"] == "committee":
+            item_by_key(data, location["committee_key"], "committees")
+        else:
+            raise ValueError("Fixture venue scope must be global or committee")
+        coordinates = (location.get("latitude"), location.get("longitude"))
+        if (
+            location.get("country") != "Greece"
+            or location.get("coordinate_status") != "confirmed"
+            or not all(isinstance(value, (int, float)) for value in coordinates)
+            or not -90 <= coordinates[0] <= 90
+            or not -180 <= coordinates[1] <= 180
+            or location.get("source_retrieved_at") != SOURCE_RETRIEVED_AT
+            or not location.get("reality_notice")
+            or not location.get("name", "").endswith("(Demo)")
+        ):
+            raise ValueError("Athens fixture venue geodata is incomplete or unsafe")
+        source_url = urlsplit(location.get("source_url", ""))
+        if source_url.scheme != "https" or not source_url.hostname:
+            raise ValueError("Fixture venue source URL must be canonical HTTPS")
 
-    roles = [account["demo_role"] for account in data["accounts"]]
-    if sorted(roles) != ["chair", "deputy", "examiner"]:
+    rooms_by_venue: dict[str, list[dict[str, Any]]] = {}
+    for room in data["rooms"]:
+        item_by_key(data, room["venue_key"], "locations")
+        rooms_by_venue.setdefault(room["venue_key"], []).append(room)
+        if not isinstance(room.get("capacity"), int) or room["capacity"] <= 0:
+            raise ValueError("Fixture room capacity must be a positive integer")
+        if not room.get("access_notes", "").startswith("Synthetische Auffindung:"):
+            raise ValueError("Fixture room access notes must be visibly synthetic")
+    if any(
+        len(rooms_by_venue.get(location["fixture_key"], ())) != 2 for location in data["locations"]
+    ):
+        raise ValueError("Every Athens fixture venue requires exactly two rooms")
+
+    contacts_by_venue: dict[str, list[dict[str, Any]]] = {}
+    for contact in data["location_contacts"]:
+        venue = item_by_key(data, contact["venue_key"], "locations")
+        person = item_by_key(data, contact["person_key"], "persons")
+        contacts_by_venue.setdefault(contact["venue_key"], []).append(contact)
+        if (
+            contact["label"] != f"{person['first_name']} {person['last_name']}"
+            or contact.get("email") != person["email"]
+            or not contact["email"].endswith(f"@{email_domain}")
+            or contact.get("phone") is not None
+        ):
+            raise ValueError("Fixture venue contacts must use synthetic canonical people")
+        for room_key in contact.get("room_keys", ()):
+            room = item_by_key(data, room_key, "rooms")
+            if room["venue_key"] != venue["fixture_key"]:
+                raise ValueError("Fixture contact cannot reference a room at another venue")
+    expected_contact_counts = {
+        f"{FIXTURE_ROOT}.location.global.zappeion": 1,
+        f"{FIXTURE_ROOT}.location.committee.athen.gazi": 1,
+        f"{FIXTURE_ROOT}.location.committee.feenwald.nationalgarden": 0,
+    }
+    if any(
+        len(contacts_by_venue.get(key, ())) != count
+        for key, count in expected_contact_counts.items()
+    ):
+        raise ValueError("Athens fixture contact cardinalities do not match the demo contract")
+
+    roles = [account["demo_role"] for account in data["accounts"] if account["demo_role"]]
+    if sorted(roles) != ["chair", "examiner", "replacement"]:
         raise ValueError("Exactly the three canonical demo roles are required")
 
     cross_key = f"{FIXTURE_ROOT}.person.crosscommittee"
@@ -250,6 +320,8 @@ def sql_value(value: Any) -> str:
         return str(int(value))
     if isinstance(value, int):
         return str(value)
+    if isinstance(value, float):
+        return f"{value:.6f}"
     return "'" + str(value).replace("'", "''") + "'"
 
 
@@ -257,10 +329,17 @@ def sql_rows(rows: list[list[Any]]) -> str:
     return ",\n".join("  (" + ", ".join(sql_value(value) for value in row) + ")" for row in rows)
 
 
+def normalized_seed_text(value: object) -> str:
+    """Use the same stable comparison key as the persisted venue model."""
+    return " ".join(unicodedata.normalize("NFKC", str(value)).split()).casefold()
+
+
 def render_sql(data: dict[str, Any]) -> str:
     committees = adapter_rows(data, "committees", "seed")
     members = resolved_memberships(data, "seed")
     locations = adapter_rows(data, "locations", "seed")
+    rooms = adapter_rows(data, "rooms", "seed")
+    contacts = adapter_rows(data, "location_contacts", "seed")
     candidates = adapter_rows(data, "candidates", "seed")
     accounts = data["accounts"]
     people = {
@@ -308,17 +387,64 @@ def render_sql(data: dict[str, Any]) -> str:
         ]
         for row in accounts
     ]
-    location_rows = [
+    venue_rows = [
         [
             row["id"],
-            item_by_key(data, row["committee_key"], "committees")["id"],
+            row["scope"],
+            (
+                item_by_key(data, row["committee_key"], "committees")["id"]
+                if row["committee_key"] is not None
+                else None
+            ),
             row["name"],
+            normalized_seed_text(row["name"]),
             row["street"],
             row["postal_code"],
             row["city"],
-            row["room"],
+            row["country"],
+            row["site_name"],
+            row["entrance"],
+            row["travel_directions"],
+            row["is_accessible"],
+            row["accessibility_status"],
+            row["accessibility_notes"],
+            row["latitude"],
+            row["longitude"],
+            row["coordinate_status"],
+            row["coordinate_source"],
+            0,
         ]
         for row in locations
+    ]
+    room_rows = [
+        [
+            row["id"],
+            item_by_key(data, row["venue_key"], "locations")["id"],
+            row["name"],
+            normalized_seed_text(row["name"]),
+            row["access_notes"],
+            row["capacity"],
+            row["is_active"],
+        ]
+        for row in rooms
+    ]
+    contact_rows = [
+        [
+            row["id"],
+            item_by_key(data, row["venue_key"], "locations")["id"],
+            row["label"],
+            row["role"],
+            row["phone"],
+            row["email"],
+            row["availability_notes"],
+            row["is_active"],
+        ]
+        for row in contacts
+    ]
+    contact_room_rows = [
+        [contact["id"], item_by_key(data, room_key, "rooms")["id"]]
+        for contact in contacts
+        for room_key in contact["room_keys"]
     ]
     candidate_rows = [
         [
@@ -354,6 +480,13 @@ def render_sql(data: dict[str, Any]) -> str:
     morning_member_ids = ", ".join(
         str(membership_id(suffix)) for suffix in ("examiner.absent", "examiner.reserve")
     )
+    contact_room_sql = ""
+    if contact_room_rows:
+        contact_room_sql = (
+            "INSERT INTO exam_venue_contact_room (contact_id, room_id)\nVALUES\n"
+            + sql_rows(contact_room_rows)
+            + ";\n\n"
+        )
     return f"""-- Generated by scripts/generate_synthetic_fixtures.py. Do not edit directly.
 INSERT INTO committee (id, name, occupation, ihk, is_active, bootstrap_state)
 VALUES
@@ -403,11 +536,29 @@ SELECT
   'migration'
 FROM committee;
 
-INSERT INTO location
-  (id, committee_id, name, street, postal_code, city, room)
+INSERT INTO exam_venue
+  (id, scope, committee_id, name, normalized_name, street, postal_code, city,
+   country, site_name, entrance, travel_directions, is_accessible,
+   accessibility_status, accessibility_notes, latitude, longitude,
+   coordinate_status, coordinate_source, is_active)
 VALUES
-{sql_rows(location_rows)};
+{sql_rows(venue_rows)};
 
+INSERT INTO exam_room
+  (id, venue_id, name, normalized_name, access_notes, capacity, is_active)
+VALUES
+{sql_rows(room_rows)};
+
+UPDATE exam_venue
+SET is_active = 1
+WHERE id IN ({", ".join(str(row["id"]) for row in locations if row["is_active"])});
+
+INSERT INTO exam_venue_contact
+  (id, venue_id, label, role, phone, email, availability_notes, is_active)
+VALUES
+{sql_rows(contact_rows)};
+
+{contact_room_sql}
 INSERT INTO candidate
   (id, first_name, last_name, ihk_exam_number, specialization, training_company)
 VALUES
@@ -435,7 +586,7 @@ FROM round_candidate;
 
 INSERT INTO planning_settings
   (id, exam_round_id, calendar_week_from, calendar_week_to, exams_per_day,
-   max_exam_days_per_week, lunch_break_enabled, default_location_id,
+   max_exam_days_per_week, lunch_break_enabled, default_room_id,
    updated_by_member_id)
 VALUES
   (1, 1, '2026-W47', '2026-W49', 6, 3, 1, 1, 1);
@@ -501,19 +652,114 @@ def render_typescript(data: dict[str, Any]) -> str:
                 "email_verified_at": None,
             }
         )
-    locations = [
-        {
-            "id": row["id"],
-            "committee_id": item_by_key(data, row["committee_key"], "committees")["id"],
-            "name": row["name"],
-            "street": row["street"],
-            "postal_code": row["postal_code"],
-            "city": row["city"],
-            "room": row["room"],
-            "is_active": row["is_active"],
-        }
-        for row in adapter_rows(data, "locations", "frontend")
-    ]
+    frontend_rooms = adapter_rows(data, "rooms", "frontend")
+    locations = []
+    for room in frontend_rooms:
+        venue = item_by_key(data, room["venue_key"], "locations")
+        locations.append(
+            {
+                "id": room["id"],
+                "committee_id": (
+                    item_by_key(data, venue["committee_key"], "committees")["id"]
+                    if venue["committee_key"] is not None
+                    else None
+                ),
+                "name": venue["name"],
+                "street": venue["street"],
+                "postal_code": venue["postal_code"],
+                "city": venue["city"],
+                "room": room["name"],
+                "is_active": int(bool(venue["is_active"]) and bool(room["is_active"])),
+            }
+        )
+    exam_venues = []
+    for venue in adapter_rows(data, "locations", "frontend"):
+        venue_rooms = [room for room in frontend_rooms if room["venue_key"] == venue["fixture_key"]]
+        venue_contacts = [
+            contact
+            for contact in adapter_rows(data, "location_contacts", "frontend")
+            if contact["venue_key"] == venue["fixture_key"]
+        ]
+        exam_venues.append(
+            {
+                "id": venue["id"],
+                "scope": venue["scope"],
+                "committee_id": (
+                    item_by_key(data, venue["committee_key"], "committees")["id"]
+                    if venue["committee_key"] is not None
+                    else None
+                ),
+                **{
+                    field: venue[field]
+                    for field in (
+                        "name",
+                        "street",
+                        "postal_code",
+                        "city",
+                        "country",
+                        "site_name",
+                        "entrance",
+                        "travel_directions",
+                        "is_accessible",
+                        "accessibility_status",
+                        "accessibility_notes",
+                        "latitude",
+                        "longitude",
+                        "coordinate_status",
+                        "coordinate_source",
+                        "is_active",
+                    )
+                },
+                "revision": 1,
+                "rooms": [
+                    {
+                        "id": room["id"],
+                        "venue_id": venue["id"],
+                        "name": room["name"],
+                        "building": None,
+                        "wing": None,
+                        "floor": None,
+                        "room_number": None,
+                        "access_notes": room["access_notes"],
+                        "capacity": room["capacity"],
+                        "is_active": room["is_active"],
+                        "revision": 1,
+                        "_links": {},
+                    }
+                    for room in venue_rooms
+                ],
+                "contacts": [
+                    {
+                        "id": contact["id"],
+                        "venue_id": venue["id"],
+                        "label": contact["label"],
+                        "role": contact["role"],
+                        "phone": contact["phone"],
+                        "email": contact["email"],
+                        "availability_notes": contact["availability_notes"],
+                        "is_active": contact["is_active"],
+                        "revision": 1,
+                        "room_ids": [
+                            item_by_key(data, room_key, "rooms")["id"]
+                            for room_key in contact["room_keys"]
+                        ],
+                        "_links": {},
+                    }
+                    for contact in venue_contacts
+                ],
+                "map_provider": {
+                    "mode": "osm",
+                    "attribution": "© OpenStreetMap-Mitwirkende",
+                    "attribution_url": "https://www.openstreetmap.org/copyright",
+                },
+                "capabilities": {
+                    "manage": False,
+                    "request_promotion": False,
+                    "decide_promotion": False,
+                },
+                "_links": {},
+            }
+        )
     candidates = []
     for row in adapter_rows(data, "candidates", "frontend"):
         candidates.append(
@@ -533,19 +779,13 @@ def render_typescript(data: dict[str, Any]) -> str:
         "demoMatrixVersion": data["demo_matrix_version"],
         "keys": {
             group: {row["fixture_key"]: row["id"] for row in data[group] if "id" in row}
-            for group in (
-                "committees",
-                "persons",
-                "memberships",
-                "accounts",
-                "locations",
-                "candidates",
-            )
+            for group in ENTITY_GROUPS
         },
         "demoRoles": demo_roles(data),
         "committees": committees,
         "members": members,
         "locations": locations,
+        "examVenues": exam_venues,
         "candidates": candidates,
     }
     content = json.dumps(payload, ensure_ascii=False, indent=2)
@@ -589,16 +829,17 @@ def render_prototype(data: dict[str, Any]) -> str:
             }
         )
     locations = []
-    for row in adapter_rows(data, "locations", "prototype"):
+    for room in adapter_rows(data, "rooms", "prototype"):
+        venue = item_by_key(data, room["venue_key"], "locations")
         locations.append(
             {
-                "fixtureKey": row["fixture_key"],
-                "id": row["id"],
-                "name": row["name"],
-                "street": row["street"],
-                "zip": row["postal_code"],
-                "city": row["city"],
-                "room": row["room"],
+                "fixtureKey": room["fixture_key"],
+                "id": room["id"],
+                "name": venue["name"],
+                "street": venue["street"],
+                "zip": venue["postal_code"],
+                "city": venue["city"],
+                "room": room["name"],
             }
         )
     payload = {
@@ -618,6 +859,8 @@ def render_prototype(data: dict[str, Any]) -> str:
 def demo_roles(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
     roles = {}
     for account in data["accounts"]:
+        if not account["demo_role"]:
+            continue
         person = item_by_key(data, account["person_key"], "persons")
         membership = item_by_key(data, account["membership_key"], "memberships")
         roles[account["demo_role"]] = {

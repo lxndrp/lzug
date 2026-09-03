@@ -1,5 +1,11 @@
 <article class="home publication-home">
   <section class="publication-hero" aria-labelledby="publication-title">
+    <picture class="publication-hero-visual" aria-hidden="true">
+      <img class="publication-hero-visual-light" src="{{ relURL "images/brand/key-visual-light.svg" }}" alt="" />
+      <img class="publication-hero-visual-dark" src="{{ relURL "images/brand/key-visual-dark.svg" }}" alt="" />
+    </picture>
+    <img class="publication-wordmark publication-wordmark-light" src="{{ relURL "images/brand/logo-horizontal-light.svg" }}" alt="lzug" />
+    <img class="publication-wordmark publication-wordmark-dark" src="{{ relURL "images/brand/logo-horizontal-dark.svg" }}" alt="lzug" />
     <p class="publication-kicker">Prüfungsorganisation, die gemeinsam trägt</p>
     <h1 id="publication-title">{{ .Title }}</h1>
     <p class="publication-lead">{{ .Description }}</p>
@@ -13,7 +19,7 @@
         data-demo-total-timeout-ms="90000"
         aria-describedby="demo-explanation"
       >Demo starten</button>
-      <a class="publication-button" href="{{ relURL "handbuch/" }}">Handbuch öffnen</a>
+      <a class="publication-button" href="{{ relURL "produkt/" }}">Produkt entdecken</a>
     </div>
     <div class="publication-demo" aria-live="polite" aria-atomic="true">
       <p id="demo-explanation" class="publication-demo-explanation">
@@ -25,9 +31,10 @@
   </section>
   <section class="publication-features" aria-labelledby="publication-areas">
     <h2 id="publication-areas" class="publication-visually-hidden">Bereiche</h2>
-    <article><h3>Gemeinsam planen</h3><p>Prüfungstermine, Beteiligte und Abläufe übersichtlich koordinieren.</p></article>
-    <article><h3>Unverbindlich ausprobieren</h3><p>Die öffentliche Demo enthält ausschließlich vorbereitete, flüchtige Beispieldaten.</p></article>
-    <article><h3>Offen nachvollziehen</h3><p><a href="https://github.com/lxndrp/lzug">Quellcode</a>, <a href="{{ relURL "handbuch/" }}">Handbuch</a> und <a href="{{ relURL "referenz/" }}">technische Referenz</a> bleiben direkt erreichbar.</p></article>
+    <article><h3>Für Interessierte</h3><p>Produktnutzen, Funktionen und <a href="{{ relURL "produkt/" }}">öffentliche Demo</a> ohne internes Projektwissen verstehen.</p></article>
+    <article><h3>Für Nutzer</h3><p>Nach der Anmeldung den <a href="{{ relURL "nutzen/" }}">nächsten fachlich zulässigen Schritt</a> finden.</p></article>
+    <article><h3>Für Betreiber</h3><p><a href="{{ relURL "betreiben/" }}">Self-Hosting, Bootstrap, Diagnose und erstes Backup</a> nachvollziehbar durchführen.</p></article>
+    <article><h3>Für Entwickler</h3><p><a href="{{ relURL "entwickeln/" }}">Architektur, Entwicklung, Referenzen und ADRs</a> aus einer Revision lesen.</p></article>
   </section>
 </article>
 <script src="{{ relURL "js/demo-warmup.js" }}" defer></script>

@@ -48,7 +48,6 @@ lzug_start_contract_container() {
         --read-only --tmpfs /tmp \
         "$@" \
         --mount "type=volume,source=$volume,target=/data" \
-        --mount "type=bind,source=$root_dir/db/seed_demo.sql,target=/app/db/seed_demo.sql,readonly" \
         "$image" --host 0.0.0.0 --port 8000 --init --seed >/dev/null
 }
 

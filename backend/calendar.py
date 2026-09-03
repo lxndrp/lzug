@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import secrets
-from datetime import UTC, datetime, time
+from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -21,9 +21,10 @@ from .models import (
     ExamDay,
     ExamDayAssignment,
     ExamHalfYear,
+    ExamRoom,
     ExamRound,
     ExamSlot,
-    Location,
+    ExamVenue,
 )
 
 DEFAULT_TIME_ZONE = "Europe/Berlin"
@@ -181,6 +182,31 @@ class CalendarService:
                 return 0
             return self._sync_round(session, exam_round)
 
+    def sync_assignment(
+        self, assignment_id: int, *, future_from: date | None = None
+    ) -> CalendarEvent | None:
+        """Refresh one assignment without touching unrelated or past events."""
+        with session_scope(self.db_path) as session:
+            assignment = session.get(ExamDayAssignment, assignment_id)
+            day = session.get(ExamDay, assignment.exam_day_id) if assignment else None
+            exam_round = session.get(ExamRound, day.exam_round_id) if day else None
+            if (
+                assignment is None
+                or day is None
+                or exam_round is None
+                or (future_from is not None and day.date < future_from.isoformat())
+            ):
+                return None
+            self._sync_round(session, exam_round, assignment_ids={assignment_id})
+            event = self._latest_event(
+                session, f"assignment:{assignment_id}", assignment.committee_member_id
+            )
+            if event is None:
+                return None
+            session.flush()
+            session.expunge(event)
+            return event
+
     def cancel_assignment(self, round_id: int, assignment_id: int) -> int:
         """Cancel only the calendar event for one affected assignment."""
         self.sync_round(round_id)
@@ -250,6 +276,7 @@ class CalendarService:
         exam_round: ExamRound,
         *,
         person_id: int | None = None,
+        assignment_ids: set[int] | None = None,
     ) -> int:
         half_year = session.get(ExamHalfYear, exam_round.exam_half_year_id)
         if half_year is None:
@@ -263,6 +290,8 @@ class CalendarService:
                 *([CommitteeMember.person_id == person_id] if person_id is not None else []),
             )
         ).all()
+        if assignment_ids is not None:
+            assignments = [item for item in assignments if item.id in assignment_ids]
         touched: set[str] = set()
         changed = 0
         for assignment in assignments:
@@ -340,6 +369,8 @@ class CalendarService:
                 event.content_hash = digest
                 event.updated_at = _timestamp()
 
+        if assignment_ids is not None:
+            return changed
         existing = session.scalars(
             select(CalendarEvent).where(
                 CalendarEvent.exam_round_id == exam_round.id,
@@ -376,15 +407,26 @@ class CalendarService:
         source_key,
         sent_at,
     ):
-        location = session.get(Location, day.location_id)
+        room = session.get(ExamRoom, day.room_id)
+        venue = session.get(ExamVenue, room.venue_id) if room else None
         location_text = ""
-        if location:
+        if venue and room:
             location_text = ", ".join(
                 part
                 for part in (
-                    location.name,
-                    location.room,
-                    " ".join(part for part in (location.postal_code, location.city) if part),
+                    venue.name,
+                    venue.site_name,
+                    room.name,
+                    room.building,
+                    room.wing,
+                    room.floor,
+                    room.room_number,
+                    venue.street,
+                    " ".join(part for part in (venue.postal_code, venue.city) if part),
+                    venue.country,
+                    venue.entrance,
+                    venue.travel_directions,
+                    room.access_notes,
                 )
                 if part
             )

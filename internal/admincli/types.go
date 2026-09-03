@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
+	"time"
 )
 
 const (
@@ -61,6 +63,15 @@ type RuntimeFactory interface {
 	ReleaseInspector(EffectiveConfig) ReleaseInspector
 }
 
+type ArtifactTransport interface {
+	Produce(context.Context, BackendRequest, io.Writer) (BackendResponse, int, error)
+	Consume(context.Context, BackendRequest, io.Reader) (BackendResponse, int, error)
+}
+
+type ArtifactRuntimeFactory interface {
+	ArtifactTransport(EffectiveConfig) ArtifactTransport
+}
+
 type ConfigResolver interface {
 	Resolve(GlobalOptions) (EffectiveConfig, *CLIError)
 }
@@ -71,12 +82,27 @@ type Input interface {
 	ReadSecret(string) (string, error)
 }
 
+// InteractiveInput extends secure command input with line-oriented dialog
+// input. Implementations must never route secret values through ReadLine.
+type InteractiveInput interface {
+	Input
+	ReadLine(context.Context, string) (string, error)
+}
+
 type Renderer interface {
 	Error(GlobalOptions, string, *CLIError)
 	Informational(GlobalOptions, any, string) *CLIError
 	Progress(GlobalOptions, *Command, string, int)
 	LocalSuccess(GlobalOptions, *Command, LocalResult) *CLIError
 	Backend(GlobalOptions, *Command, BackendResponse, int) *CLIError
+}
+
+// InteractiveRenderer is the terminal boundary used by the guided session.
+// Dialog output is plain, linear text and never requires ANSI support.
+type InteractiveRenderer interface {
+	Renderer
+	IsTerminal() bool
+	Dialog(string) error
 }
 
 type TransportKind string
@@ -126,6 +152,7 @@ type SecretSpec struct {
 
 type ConfirmationSpec struct {
 	Required bool
+	Deferred bool
 	Prompt   func(Values, EffectiveConfig) string
 }
 
@@ -185,6 +212,10 @@ type PrepareContext struct {
 type LocalContext struct {
 	Registry *Registry
 	Config   EffectiveConfig
+	Runtime  RuntimeFactory
+	Input    Input
+	Global   GlobalOptions
+	Build    BuildInfo
 }
 
 type LocalResult struct {
@@ -206,6 +237,10 @@ type Command struct {
 	BackendCommand string
 	LegacyForms    []string
 	Output         OutputSpec
+	SearchTerms    []string
+	Mutating       bool
+	RetrySafe      bool
+	Timeout        time.Duration
 	Validate       func(Values) error
 	BuildRequest   func(context.Context, PrepareContext, Values, Values) (BackendRequest, error)
 	Local          func(context.Context, LocalContext, Values) (LocalResult, *CLIError)

@@ -37,7 +37,10 @@ SAFE_API_SEGMENTS = frozenset(
         "exam-day-assignments",
         "exam-days",
         "exam-half-years",
+        "exam-rooms",
         "exam-rounds",
+        "exam-venue-contacts",
+        "exam-venues",
         "results",
         "ihk-status",
         "export.json",
@@ -58,6 +61,8 @@ SAFE_API_SEGMENTS = frozenset(
         "lifecycle",
         "reopening-impact",
         "reopenings",
+        "rooms",
+        "contacts",
         "terminal-status",
     }
 )

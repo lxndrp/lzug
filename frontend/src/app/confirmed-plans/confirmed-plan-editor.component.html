@@ -19,6 +19,12 @@
           >Nur noch nicht begonnene Prüfungstage können angepasst werden. Stand: Revision
           {{ current.revision }}.</span
         >
+        @if (isDemo()) {
+          <span class="app-muted app-block"
+            >In der Demo ist ausschließlich die vorbereitete Ortsänderung mit Personentausch
+            freigegeben.</span
+          >
+        }
       </div>
       <span tuiBadge [appearance]="dirty() ? 'warning' : 'positive'">{{
         dirty() ? 'Ungespeicherte Änderung' : 'Aktuelle Fassung'
@@ -55,7 +61,7 @@
               <label>
                 Prüfungsort
                 <select
-                  [disabled]="isLocked(day) || state() === 'saving'"
+                  [disabled]="controlsDisabled(day)"
                   [ngModel]="day.location_id"
                   (ngModelChange)="updateLocation(day, $event)"
                 >
@@ -88,7 +94,7 @@
                       <td>
                         <select
                           [attr.aria-label]="'Prüfling für Termin ' + slot.sequence_number"
-                          [disabled]="isLocked(day) || state() === 'saving'"
+                          [disabled]="controlsDisabled(day)"
                           [ngModel]="slot.round_candidate_id"
                           (ngModelChange)="updateSlot(day, slot, { round_candidate_id: $event })"
                         >
@@ -107,7 +113,7 @@
                       <td>
                         <select
                           aria-label="Prüfungsart"
-                          [disabled]="isLocked(day) || state() === 'saving'"
+                          [disabled]="controlsDisabled(day)"
                           [ngModel]="slot.slot_type"
                           (ngModelChange)="updateSlot(day, slot, { slot_type: $event })"
                         >
@@ -120,7 +126,7 @@
                           tuiButton
                           appearance="secondary"
                           type="button"
-                          [disabled]="isLocked(day) || state() === 'saving' || index === 0"
+                          [disabled]="controlsDisabled(day) || index === 0"
                           [attr.aria-label]="
                             'Termin ' + slot.sequence_number + ' nach oben verschieben'
                           "
@@ -132,9 +138,7 @@
                           tuiButton
                           appearance="secondary"
                           type="button"
-                          [disabled]="
-                            isLocked(day) || state() === 'saving' || index === day.slots.length - 1
-                          "
+                          [disabled]="controlsDisabled(day) || index === day.slots.length - 1"
                           [attr.aria-label]="
                             'Termin ' + slot.sequence_number + ' nach unten verschieben'
                           "
@@ -149,7 +153,7 @@
               </table>
             </div>
 
-            <fieldset [disabled]="isLocked(day) || state() === 'saving'">
+            <fieldset [disabled]="controlsDisabled(day)">
               <legend>Prüfer- und Fallback-Besetzung</legend>
               <div class="app-confirmed-editor-assignments">
                 @for (assignment of day.assignments; track assignment.id) {
@@ -192,6 +196,32 @@
         }
       </div>
 
+      @if (isDemo()) {
+        <div tuiNotification appearance="info" class="app-confirmed-editor-demo">
+          @if (demoPreparedChange(); as change) {
+            <div>
+              <strong>Vorbereitete Demo-Revision</strong>
+              <span>
+                {{ locationLabel(change.source_location_id) }} wird durch
+                {{ locationLabel(change.target_location_id) }} ersetzt; zugleich übernimmt
+                {{ memberLabel(change.replacement_member_id) }} die vorgegebene Besetzung.
+              </span>
+            </div>
+            <button
+              tuiButton
+              appearance="secondary"
+              type="button"
+              [disabled]="dirty() || state() === 'saving'"
+              (click)="prepareDemoChange()"
+            >
+              {{ dirty() ? 'Änderung vorbereitet' : 'Änderung vorbereiten' }}
+            </button>
+          } @else {
+            <span>Vorbereitete Demo-Revision wird geladen …</span>
+          }
+        </div>
+      }
+
       <div class="app-confirmed-editor-reason">
         <label for="confirmedPlanChangeReason"
           >Änderungsgrund <span aria-hidden="true">*</span></label
@@ -201,6 +231,7 @@
           rows="3"
           required
           [disabled]="state() === 'saving'"
+          [readOnly]="isDemo()"
           [ngModel]="reason()"
           (ngModelChange)="reason.set($event)"
           aria-describedby="confirmedPlanChangeReasonHint"

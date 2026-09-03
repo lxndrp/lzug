@@ -1,0 +1,235 @@
+{
+  "schema": 1,
+  "renderer": "151.0.7922.34",
+  "logoApproval": {
+    "status": "approved",
+    "variant": "B2b: Urkunde rechts oben",
+    "issueComment": "https://github.com/lxndrp/lzug/issues/568#issuecomment-5512076189"
+  },
+  "logoSources": [
+    {
+      "id": "logo-mark",
+      "path": "brand/source/logo-mark.svg",
+      "viewBox": "0 0 256 256",
+      "role": "Kanonische Bildmarke",
+      "sha256": "d98f1b8c815d9dd31654c3e034dc23b4fb5bc973648a91d8a6caaa9f9119dfb8"
+    },
+    {
+      "id": "key-visual",
+      "path": "brand/source/key-visual.svg",
+      "viewBox": "0 0 1600 900",
+      "role": "Kanonisches Key Visual",
+      "sha256": "af8363b8b157844891035b7bebeff707ecd767394fd82b16c4f76ba6b78327ff"
+    }
+  ],
+  "logo": [
+    {
+      "name": "logo-approved-light.png",
+      "theme": "light",
+      "variants": 1,
+      "samples": [
+        {
+          "complete": true,
+          "height": 16,
+          "naturalWidth": 150,
+          "width": 16
+        },
+        {
+          "complete": true,
+          "height": 32,
+          "naturalWidth": 150,
+          "width": 32
+        },
+        {
+          "complete": true,
+          "height": 64,
+          "naturalWidth": 150,
+          "width": 64
+        }
+      ],
+      "height": 1246,
+      "overflow": 0,
+      "width": 1440
+    },
+    {
+      "name": "logo-approved-dark.png",
+      "theme": "dark",
+      "variants": 1,
+      "samples": [
+        {
+          "complete": true,
+          "height": 16,
+          "naturalWidth": 150,
+          "width": 16
+        },
+        {
+          "complete": true,
+          "height": 32,
+          "naturalWidth": 150,
+          "width": 32
+        },
+        {
+          "complete": true,
+          "height": 64,
+          "naturalWidth": 150,
+          "width": 64
+        }
+      ],
+      "height": 1246,
+      "overflow": 0,
+      "width": 1440
+    }
+  ],
+  "fonts": [
+    {
+      "axes": "wght 200-900",
+      "candidate": "Source Sans 3",
+      "family": "Source Sans 3 Variable",
+      "license": "OFL-1.1",
+      "licenseSha256": "18aabf190848725e2576eefb5c29ba06aac1029d02132252a7f312eac2e50cf3",
+      "mode": "desktop-light",
+      "name": "font-source-sans-3-desktop-light.png",
+      "payloadBytes": 53124,
+      "payloadFiles": [
+        "source-sans-3-greek-ext-wght-normal.woff2",
+        "source-sans-3-greek-wght-normal.woff2",
+        "source-sans-3-latin-wght-normal.woff2"
+      ],
+      "sourceVersion": "v19",
+      "upstream": "https://github.com/google/fonts",
+      "subsets": [
+        "latin",
+        "greek",
+        "greek-ext"
+      ],
+      "height": 1434,
+      "overflow": 0,
+      "width": 1440
+    },
+    {
+      "axes": "wght 200-900",
+      "candidate": "Source Sans 3",
+      "family": "Source Sans 3 Variable",
+      "license": "OFL-1.1",
+      "licenseSha256": "18aabf190848725e2576eefb5c29ba06aac1029d02132252a7f312eac2e50cf3",
+      "mode": "mobile-dark",
+      "name": "font-source-sans-3-mobile-dark.png",
+      "payloadBytes": 53124,
+      "payloadFiles": [
+        "source-sans-3-greek-ext-wght-normal.woff2",
+        "source-sans-3-greek-wght-normal.woff2",
+        "source-sans-3-latin-wght-normal.woff2"
+      ],
+      "sourceVersion": "v19",
+      "upstream": "https://github.com/google/fonts",
+      "subsets": [
+        "latin",
+        "greek",
+        "greek-ext"
+      ],
+      "height": 2046,
+      "overflow": 0,
+      "width": 390
+    },
+    {
+      "axes": "wght 100-900",
+      "candidate": "Noto Sans",
+      "family": "Noto Sans Variable",
+      "license": "OFL-1.1",
+      "licenseSha256": "54ec7b5a35310ad66f9f3091426f7028484cbf9ae1ab5da30122ee412a3009e1",
+      "mode": "desktop-light",
+      "name": "font-noto-sans-desktop-light.png",
+      "payloadBytes": 68356,
+      "payloadFiles": [
+        "noto-sans-greek-ext-wght-normal.woff2",
+        "noto-sans-greek-wght-normal.woff2",
+        "noto-sans-latin-wght-normal.woff2"
+      ],
+      "sourceVersion": "v42",
+      "upstream": "https://github.com/google/fonts",
+      "subsets": [
+        "latin",
+        "greek",
+        "greek-ext"
+      ],
+      "height": 1434,
+      "overflow": 0,
+      "width": 1440
+    },
+    {
+      "axes": "wght 100-900",
+      "candidate": "Noto Sans",
+      "family": "Noto Sans Variable",
+      "license": "OFL-1.1",
+      "licenseSha256": "54ec7b5a35310ad66f9f3091426f7028484cbf9ae1ab5da30122ee412a3009e1",
+      "mode": "mobile-dark",
+      "name": "font-noto-sans-mobile-dark.png",
+      "payloadBytes": 68356,
+      "payloadFiles": [
+        "noto-sans-greek-ext-wght-normal.woff2",
+        "noto-sans-greek-wght-normal.woff2",
+        "noto-sans-latin-wght-normal.woff2"
+      ],
+      "sourceVersion": "v42",
+      "upstream": "https://github.com/google/fonts",
+      "subsets": [
+        "latin",
+        "greek",
+        "greek-ext"
+      ],
+      "height": 2136,
+      "overflow": 0,
+      "width": 390
+    },
+    {
+      "axes": "wght 100-900",
+      "candidate": "Inter",
+      "family": "Inter Variable",
+      "license": "OFL-1.1",
+      "licenseSha256": "3b0a5fca3d17942cde889069889dedbbbd075e9b599968c82a95f4d944e9b345",
+      "mode": "desktop-light",
+      "name": "font-inter-desktop-light.png",
+      "payloadBytes": 78484,
+      "payloadFiles": [
+        "inter-greek-ext-wght-normal.woff2",
+        "inter-greek-wght-normal.woff2",
+        "inter-latin-wght-normal.woff2"
+      ],
+      "sourceVersion": "v20",
+      "upstream": "https://github.com/google/fonts",
+      "subsets": [
+        "latin",
+        "greek",
+        "greek-ext"
+      ],
+      "height": 1434,
+      "overflow": 0,
+      "width": 1440
+    },
+    {
+      "axes": "wght 100-900",
+      "candidate": "Inter",
+      "family": "Inter Variable",
+      "license": "OFL-1.1",
+      "licenseSha256": "3b0a5fca3d17942cde889069889dedbbbd075e9b599968c82a95f4d944e9b345",
+      "mode": "mobile-dark",
+      "name": "font-inter-mobile-dark.png",
+      "payloadBytes": 78484,
+      "payloadFiles": [
+        "inter-greek-ext-wght-normal.woff2",
+        "inter-greek-wght-normal.woff2",
+        "inter-latin-wght-normal.woff2"
+      ],
+      "sourceVersion": "v20",
+      "upstream": "https://github.com/google/fonts",
+      "subsets": [
+        "latin",
+        "greek",
+        "greek-ext"
+      ],
+      "height": 2136,
+      "overflow": 0,
+      "width": 390
+    }
+  ]
+}

@@ -20,8 +20,8 @@ class SyntheticFixtureGeneratorTests(unittest.TestCase):
         self.assertEqual(generator.REQUIRED_COVERAGE, set(data["coverage_matrix"]))
         self.assertTrue(all(key.startswith(f"{generator.FIXTURE_ROOT}.") for key in index))
         self.assertEqual(
-            {"chair", "deputy", "examiner"},
-            {account["demo_role"] for account in data["accounts"]},
+            {"chair", "examiner", "replacement"},
+            {account["demo_role"] for account in data["accounts"] if account["demo_role"]},
         )
         self.assertTrue(
             all(
@@ -36,6 +36,64 @@ class SyntheticFixtureGeneratorTests(unittest.TestCase):
                 and organization["country"] == "Griechenland"
                 for organization in data["organizations"]
             )
+        )
+
+    def test_athens_catalog_matches_the_reviewed_demo_contract(self) -> None:
+        data = generator.load_source()
+        locations = {row["fixture_key"]: row for row in data["locations"]}
+        rooms = {row["fixture_key"]: row for row in data["rooms"]}
+
+        self.assertEqual(3, len(locations))
+        self.assertEqual(6, len(rooms))
+        self.assertEqual(2, len(data["location_contacts"]))
+        self.assertEqual(
+            {
+                "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion",
+                "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi",
+                "name.papaspyrou.repertoire.lzug.fixture.location.committee.feenwald.nationalgarden",
+            },
+            set(locations),
+        )
+        self.assertEqual(
+            (37.971620, 23.736520, "global", True),
+            self._location_contract(locations, "location.global.zappeion"),
+        )
+        self.assertEqual(
+            (37.977779, 23.714099, "committee", True),
+            self._location_contract(locations, "location.committee.athen.gazi"),
+        )
+        self.assertEqual(
+            (37.973365, 23.737690, "committee", False),
+            self._location_contract(locations, "location.committee.feenwald.nationalgarden"),
+        )
+        self.assertEqual(
+            {
+                "Theseussaal": 24,
+                "Hippolytasaal": 12,
+                "Werkstatt Handwerkerensemble": 18,
+                "Prüfhalle Pyramus": 30,
+                "Lichtung Oberon": 15,
+                "Lichtung Titania": 15,
+            },
+            {room["name"]: room["capacity"] for room in rooms.values()},
+        )
+        self.assertTrue(
+            all(location["source_retrieved_at"] == "2026-09-01" for location in locations.values())
+        )
+        self.assertTrue(all(contact["phone"] is None for contact in data["location_contacts"]))
+        self.assertEqual(
+            ["name.papaspyrou.repertoire.lzug.fixture.room.gazi.handwerkerensemble"],
+            data["location_contacts"][1]["room_keys"],
+        )
+
+    @staticmethod
+    def _location_contract(locations, suffix):
+        location = locations[f"{generator.FIXTURE_ROOT}.{suffix}"]
+        return (
+            location["latitude"],
+            location["longitude"],
+            location["scope"],
+            bool(location["is_accessible"]),
         )
 
     def test_seed_requires_exactly_one_active_chair_per_committee(self) -> None:
@@ -69,6 +127,16 @@ class SyntheticFixtureGeneratorTests(unittest.TestCase):
         duplicate["candidates"][0]["fixture_key"] = duplicate["persons"][0]["fixture_key"]
         with self.assertRaisesRegex(ValueError, "Duplicate semantic fixture key"):
             generator.outputs(duplicate)
+
+        missing_key = deepcopy(data)
+        del missing_key["rooms"][0]["fixture_key"]
+        with self.assertRaisesRegex(ValueError, "Fixture key is missing"):
+            generator.outputs(missing_key)
+
+        short_key = deepcopy(data)
+        short_key["rooms"][0]["fixture_key"] = "room.short"
+        with self.assertRaisesRegex(ValueError, "invalid root"):
+            generator.outputs(short_key)
 
         forbidden_email = deepcopy(data)
         forbidden_email["persons"][0]["email"] = "theseus@example.invalid"

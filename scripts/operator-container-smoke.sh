@@ -32,26 +32,17 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-recipient_keys=$("$engine" run --rm --entrypoint python "$image" -c '
-import json
-from backend.backup_restore import generate_recipient_keypair
-
-public_key, private_key = generate_recipient_keypair()
-_, wrong_private_key = generate_recipient_keypair()
-print(json.dumps({
-    "public": public_key,
-    "private": private_key,
-    "wrong_private": wrong_private_key,
-}))
-')
-recipient_public_key=$(printf '%s' "$recipient_keys" | python3 -c 'import json,sys; print(json.load(sys.stdin)["public"])')
-recipient_private_key=$(printf '%s' "$recipient_keys" | python3 -c 'import json,sys; print(json.load(sys.stdin)["private"])')
-wrong_private_key=$(printf '%s' "$recipient_keys" | python3 -c 'import json,sys; print(json.load(sys.stdin)["wrong_private"])')
+"$admin_binary" recipient-key generate \
+    --identity-file "$temporary_directory/backup.agekey" \
+    --recipient-file "$temporary_directory/backup.agepub" >/dev/null
+"$admin_binary" recipient-key generate \
+    --identity-file "$temporary_directory/wrong.agekey" \
+    --recipient-file "$temporary_directory/wrong.agepub" >/dev/null
+recipient_public_key=$(cat "$temporary_directory/backup.agepub")
 
 "$engine" volume create "$volume" >/dev/null
 "$engine" run --detach --name "$container" \
     --read-only --tmpfs /tmp \
-    --env "LZUG_BACKUP_RECIPIENT_PUBLIC_KEY=$recipient_public_key" \
     --env "LZUG_SMTP_USERNAME=diagnostic-operator" \
     --env "LZUG_SMTP_PASSWORD=diagnostic-secret-marker" \
     --mount "type=volume,source=$volume,target=/data" \
@@ -68,9 +59,10 @@ lzug_copy_build_metadata "$container" "$temporary_directory/container-metadata.j
 cmp "$temporary_directory/container-metadata.json" "$temporary_directory/cli-metadata.json"
 
 lifecycle_status=0
-printf '%s' "$recipient_private_key" | \
-    "$admin_binary" --engine "$engine" --container "$container" --json \
-        upgrade apply --confirm-irreversible --force \
+"$admin_binary" --engine "$engine" --container "$container" --json \
+        upgrade apply --backup-output "$temporary_directory/pre-upgrade.lzug" \
+        --identity-file "$temporary_directory/backup.agekey" \
+        --confirm-irreversible --force \
         >"$temporary_directory/unverified-release.json" \
         2>"$temporary_directory/unverified-release.stderr" || lifecycle_status=$?
 test "$lifecycle_status" -eq 33
@@ -186,8 +178,13 @@ for forbidden in (
 ' "$diagnostic" "$token" >/dev/null
 done
 
+"$admin_binary" --engine "$engine" --container "$container" --json \
+    backup recipient set --identity-file "$temporary_directory/backup.agekey" \
+    >"$temporary_directory/recipient.json"
+
 backup=$(
-    "$admin_binary" --engine "$engine" --container "$container" --json backup create
+    "$admin_binary" --engine "$engine" --container "$container" --json \
+        backup create --output "$temporary_directory/backup.lzug"
 )
 backup_artifact=$(printf '%s' "$backup" | python3 -c '
 import json
@@ -203,9 +200,9 @@ print(result["artifact"])
 ')
 
 verified_backup=$(
-    printf '%s' "$recipient_private_key" | \
-        "$admin_binary" --engine "$engine" --container "$container" --json \
-            backup verify --artifact "$backup_artifact"
+    "$admin_binary" --engine "$engine" --container "$container" --json \
+        backup verify --artifact "$backup_artifact" \
+        --identity-file "$temporary_directory/backup.agekey"
 )
 printf '%s' "$verified_backup" | python3 -c '
 import json
@@ -219,12 +216,12 @@ assert payload["result"]["documents"] >= 0
 ' >/dev/null
 
 wrong_key_status=0
-printf '%s' "$wrong_private_key" | \
-    "$admin_binary" --engine "$engine" --container "$container" --json \
+"$admin_binary" --engine "$engine" --container "$container" --json \
         backup verify --artifact "$backup_artifact" \
+        --identity-file "$temporary_directory/wrong.agekey" \
         >"$temporary_directory/wrong-key.json" \
         2>"$temporary_directory/wrong-key.stderr" || wrong_key_status=$?
-test "$wrong_key_status" -eq 27
+test "$wrong_key_status" -eq 2
 python3 -c '
 import json
 import sys
@@ -232,14 +229,15 @@ import sys
 with open(sys.argv[1], encoding="utf-8") as stream:
     payload = json.load(stream)
 assert payload["schema_version"] == 1 and payload["protocol_version"] == 1
-assert payload["exit_code"] == 27 and payload["ok"] is False
+assert payload["exit_code"] == 2 and payload["ok"] is False
 assert payload["error"]["class"] == "recipient_key_mismatch"
-assert payload["error"]["phase"] == "precheck"
+assert payload["error"]["phase"] == "local-artifact"
 ' "$temporary_directory/wrong-key.json"
 
 full_export=$(
     "$admin_binary" --engine "$engine" --container "$container" --json \
-        export create --recipient-public-key "$recipient_public_key"
+        export create --recipient "$recipient_public_key" \
+        --output "$temporary_directory/export.lzug" --force
 )
 export_artifact=$(printf '%s' "$full_export" | python3 -c '
 import json
@@ -254,9 +252,9 @@ assert result["artifact_id"] and result["snapshot_at"]
 print(result["artifact"])
 ')
 verified_export=$(
-    printf '%s' "$recipient_private_key" | \
-        "$admin_binary" --engine "$engine" --container "$container" --json \
-            export verify --artifact "$export_artifact"
+    "$admin_binary" --engine "$engine" --container "$container" --json \
+        export verify --artifact "$export_artifact" \
+        --identity-file "$temporary_directory/backup.agekey"
 )
 printf '%s' "$verified_export" | python3 -c '
 import json
@@ -269,9 +267,9 @@ assert payload["result"]["artifact_type"] == "full_export"
 ' >/dev/null
 
 replace_required_status=0
-printf '%s' "$recipient_private_key" | \
-    "$admin_binary" --engine "$engine" --container "$container" --json \
-        backup restore --artifact "$backup_artifact" --force \
+"$admin_binary" --engine "$engine" --container "$container" --json \
+        backup restore --artifact "$backup_artifact" \
+        --identity-file "$temporary_directory/backup.agekey" --force \
         >"$temporary_directory/replace-required.json" \
         2>"$temporary_directory/replace-required.stderr" || replace_required_status=$?
 test "$replace_required_status" -eq 29
@@ -288,9 +286,9 @@ assert payload["error"]["phase"] == "precheck"
 ' "$temporary_directory/replace-required.json"
 
 restored=$(
-    printf '%s' "$recipient_private_key" | \
-        "$admin_binary" --engine "$engine" --container "$container" --json \
-            backup restore --artifact "$backup_artifact" --replace --force
+    "$admin_binary" --engine "$engine" --container "$container" --json \
+        backup restore --artifact "$backup_artifact" \
+        --identity-file "$temporary_directory/backup.agekey" --replace --force
 )
 printf '%s' "$restored" | python3 -c '
 import json
@@ -301,7 +299,7 @@ assert payload["schema_version"] == 1 and payload["protocol_version"] == 1
 assert payload["exit_code"] == 0 and payload["ok"] is True
 result = payload["result"]
 assert result["artifact_type"] == "backup"
-assert result["safety_artifact"].startswith("pre-restore-")
+assert "pre-restore-" in result["safety_artifact"]
 assert result["phases"] == [
     "precheck", "prepared_restore", "migration", "postcheck", "activation"
 ]
@@ -310,11 +308,11 @@ assert result["readiness"] in {"ready", "restricted", "not_ready"}
 
 if printf '%s\n%s\n%s\n%s\n' \
     "$backup" "$verified_backup" "$full_export" "$restored" | \
-    grep -F "$recipient_private_key" >/dev/null; then
+    grep -F -f "$temporary_directory/backup.agekey" >/dev/null; then
     echo "Artifact command output exposed the private recipient key." >&2
     exit 1
 fi
-if grep -F "$recipient_private_key" \
+if grep -F -f "$temporary_directory/backup.agekey" \
     "$temporary_directory/unverified-release.json" \
     "$temporary_directory/unverified-release.stderr" \
     "$temporary_directory/wrong-key.json" \
@@ -324,7 +322,8 @@ if grep -F "$recipient_private_key" \
     echo "Artifact command error output exposed the private recipient key." >&2
     exit 1
 fi
-if "$engine" logs "$container" 2>&1 | grep -F "$recipient_private_key" >/dev/null; then
+if "$engine" logs "$container" 2>&1 | \
+    grep -F -f "$temporary_directory/backup.agekey" >/dev/null; then
     echo "Container logs exposed the private recipient key." >&2
     exit 1
 fi

@@ -71,7 +71,7 @@ assert payload["mode"] == "demo"
 assert payload["initialized"] is True
 assert payload["initialization_status"] == "ready"
 assert payload["runtime_contract"] == "lzug-demo-health-ready-v1"
-assert payload["demo_matrix_version"] == "demo-paths-v6"
+assert payload["demo_matrix_version"] == "demo-paths-v8"
 assert payload["reset_status"] == "scheduled"
 assert len(payload["seed_revision"]) == 64
 assert payload["reset_timezone"] == "Europe/Berlin"
@@ -99,8 +99,26 @@ curl --silent --show-error --fail \
 import json, sys
 payload = json.load(sys.stdin)
 assert payload["demo_role"] == "chair"
-assert "planning-proposal:generate" in payload["capabilities"]
-assert payload["demo_matrix_version"] == "demo-paths-v6"
+assert payload["capabilities"] == [
+    "absence:coordinate",
+    "calendar:read-own",
+    "confirmed-plan:revise",
+    "notifications:read-own",
+]
+assert payload["demo_matrix_version"] == "demo-paths-v8"
+assert payload["demo_workspace_expires_at"]
+'
+
+curl --silent --show-error --fail \
+    --header "Cookie: lzug_session=$session_token; lzug_csrf=$csrf_token" \
+    "$url/api/demo/scenarios" | python3 -c '
+import json, sys
+payload = json.load(sys.stdin)
+assert payload["current_role"] == "chair"
+assert [item["id"] for item in payload["scenarios"]] == ["absence", "plan-change"]
+assert [item["status"] for item in payload["scenarios"]] == ["ready", "ready"]
+assert 0 < payload["remaining_seconds"] <= 3600
+assert {item["name"] for item in payload["roles"]} == {"chair", "examiner", "replacement"}
 '
 
 denied_status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
@@ -109,11 +127,26 @@ denied_status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
     --header "X-CSRF-Token: $csrf_token" "$url/api/candidates/1")
 assert_status "Default-deny delete" 403 "$denied_status"
 
-curl --silent --show-error --fail --request POST \
+switch_headers="$temporary_directory/switch.headers"
+switch_status=$(curl --silent --show-error --dump-header "$switch_headers" --output /dev/null \
+    --write-out '%{http_code}' --request POST \
     --header 'Content-Type: application/json' \
     --header "Cookie: lzug_session=$session_token; lzug_csrf=$csrf_token" \
     --header "X-CSRF-Token: $csrf_token" \
-    --data '{"round_id":1}' "$url/api/planning-proposals" >/dev/null
+    --data '{"role":"replacement"}' "$url/api/demo/session")
+assert_status "Switch demo role" 201 "$switch_status"
+session_token=$(sed -n 's/^Set-Cookie: lzug_session=\([^;]*\).*/\1/ip' "$switch_headers" | tr -d '\r' | head -1)
+csrf_token=$(sed -n 's/^Set-Cookie: lzug_csrf=\([^;]*\).*/\1/ip' "$switch_headers" | tr -d '\r' | head -1)
+test -n "$session_token"
+test -n "$csrf_token"
+
+reset_status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+    --request POST \
+    --header 'Content-Type: application/json' \
+    --header "Cookie: lzug_session=$session_token; lzug_csrf=$csrf_token" \
+    --header "X-CSRF-Token: $csrf_token" \
+    --data '{}' "$url/api/demo/reset")
+assert_status "Reset isolated demo workspace" 200 "$reset_status"
 "$engine" exec "$container" sh -c 'printf demo > /data/documents/temporary.txt'
 
 echo "Reinitializing the same volume and verifying reset semantics."

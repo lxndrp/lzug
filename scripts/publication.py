@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 import os
+import posixpath
 import re
 import shutil
 import subprocess
@@ -19,7 +20,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from backend.fastapi_app import FastAPIConfig, create_app
-from scripts.wiki_routes import wiki_route, wiki_source_url
 
 RELEARN_REPOSITORY = "https://github.com/McShelby/hugo-theme-relearn.git"
 RELEARN_REVISION = "8bb66fa674351f3a0b0917a7552caac686eca920"
@@ -29,7 +29,13 @@ MARKDOWN_LINK = re.compile(r"(?P<prefix>\[[^\]]+\]\()(?P<target>[^)]+)(?P<suffix
 EXPECTED_OUTPUTS = (
     "index.html",
     "images/favicon.svg",
+    "images/screenshots/demo-scenarios-desktop.png",
+    "images/screenshots/demo-scenarios-mobile.png",
     "js/demo-warmup.js",
+    "produkt/index.html",
+    "nutzen/index.html",
+    "betreiben/index.html",
+    "entwickeln/index.html",
     "handbuch/index.html",
     "referenz/index.html",
     "referenz/api/index.html",
@@ -71,22 +77,7 @@ def ensure_safe_output(root: Path, output: Path) -> Path:
     return resolved
 
 
-def source_revision(source: Path) -> str:
-    if (source / ".git").exists():
-        if run("git", "status", "--porcelain", cwd=source):
-            raise ValueError(f"Wiki source must be clean: {source}")
-        return run("git", "rev-parse", "HEAD", cwd=source)
-
-    digest = hashlib.sha256()
-    for path in sorted(source.glob("*.md")):
-        digest.update(path.name.encode())
-        digest.update(b"\0")
-        digest.update(path.read_bytes())
-        digest.update(b"\0")
-    return f"fixture-sha256:{digest.hexdigest()}"
-
-
-def convert_wiki_links(markdown: str, known_pages: set[str]) -> str:
+def convert_handbook_links(markdown: str, known_pages: dict[str, str]) -> str:
     def replace(match: re.Match[str]) -> str:
         raw_target = match.group("target")
         target, separator, fragment = raw_target.partition("#")
@@ -98,8 +89,8 @@ def convert_wiki_links(markdown: str, known_pages: set[str]) -> str:
         ):
             return match.group(0)
         if target not in known_pages:
-            raise ValueError(f"Unknown extensionless Wiki target: {target}")
-        converted = wiki_route(target).publication_route
+            raise ValueError(f"Unknown extensionless handbook target: {target}")
+        converted = known_pages[target]
         if separator:
             converted += f"#{fragment}"
         return f"{match.group('prefix')}{converted}{match.group('suffix')}"
@@ -107,7 +98,62 @@ def convert_wiki_links(markdown: str, known_pages: set[str]) -> str:
     return MARKDOWN_LINK.sub(replace, markdown)
 
 
-def hugo_page(title: str, description: str, body: str, page_type: str | None = None) -> str:
+def convert_repository_links(markdown: str, source: Path, source_routes: dict[str, str]) -> str:
+    """Rewrite Markdown source links to their one generated public route."""
+
+    def replace(match: re.Match[str]) -> str:
+        raw_target = match.group("target")
+        target, separator, fragment = raw_target.partition("#")
+        if not target or target.startswith(("http://", "https://", "mailto:", "/")):
+            return match.group(0)
+        relative = posixpath.normpath((source.parent / target).as_posix())
+        route = source_routes.get(relative)
+        if route is None:
+            return match.group(0)
+        if separator:
+            route += f"#{fragment}"
+        return f"{match.group('prefix')}{route}{match.group('suffix')}"
+
+    return MARKDOWN_LINK.sub(replace, markdown)
+
+
+def source_url(path: Path, repository_revision: str) -> str:
+    """Return the immutable repository source URL for one rendered page."""
+
+    return "https://github.com/lxndrp/lzug/blob/" f"{repository_revision}/{path.as_posix()}"
+
+
+def handbook_route(path: Path) -> str:
+    """Return the public route for one migrated handbook source page."""
+
+    stem = path.stem.lower()
+    if path.name == "Home.md":
+        return "/handbuch/"
+    if stem.startswith("administration"):
+        return f"/betreiben/{stem.removeprefix('administration-')}/"
+    if stem.startswith("nutzung"):
+        return f"/nutzen/{stem.removeprefix('nutzung-')}/"
+    if stem.startswith("entwicklung"):
+        return f"/entwickeln/{stem.removeprefix('entwicklung-')}/"
+    return f"/fachlichkeit/{stem}/"
+
+
+def handbook_file(route: str) -> Path:
+    """Convert a public handbook route into its generated Hugo content path."""
+
+    parts = [part for part in route.strip("/").split("/") if part]
+    if route == "/handbuch/":
+        return Path("handbuch/_index.md")
+    return Path(*parts) / "_index.md"
+
+
+def hugo_page(
+    title: str,
+    description: str,
+    body: str,
+    page_type: str | None = None,
+    provenance: str | None = None,
+) -> str:
     frontmatter = {
         "title": title,
         "description": description,
@@ -115,7 +161,8 @@ def hugo_page(title: str, description: str, body: str, page_type: str | None = N
     }
     if page_type:
         frontmatter["type"] = page_type
-    return f"---\n{json.dumps(frontmatter, ensure_ascii=False)}\n---\n\n{body.rstrip()}\n"
+    prefix = f"> {provenance}\n\n" if provenance else ""
+    return f"---\n{json.dumps(frontmatter, ensure_ascii=False)}\n---\n\n{prefix}{body.rstrip()}\n"
 
 
 def prepare_relearn_checkout(destination: Path) -> None:
@@ -186,6 +233,10 @@ def configure_relearn(root: Path, site: Path, base_url: str, demo_url: str) -> N
     (site / "layouts" / "partials").mkdir(parents=True)
     (site / "assets" / "css").mkdir(parents=True)
     (site / "static" / "images").mkdir(parents=True)
+    (site / "static" / "images" / "brand").mkdir(parents=True)
+    (site / "static" / "images" / "screenshots").mkdir(parents=True)
+    (site / "static" / "fonts").mkdir(parents=True)
+    (site / "static" / "css").mkdir(parents=True)
     (site / "static" / "js").mkdir(parents=True)
     shutil.copyfile(
         root / "prototypes" / "publication" / "relearn" / "layouts" / "home" / "article.html",
@@ -204,28 +255,77 @@ def configure_relearn(root: Path, site: Path, base_url: str, demo_url: str) -> N
         site / "static" / "js" / "demo-warmup.js",
     )
     shutil.copyfile(
-        root / "frontend" / "public" / "favicon.svg",
+        root / "brand" / "derived" / "favicon.svg",
         site / "static" / "images" / "favicon.svg",
     )
+    shutil.copytree(
+        root / "brand" / "derived",
+        site / "static" / "images" / "brand",
+        dirs_exist_ok=True,
+    )
+    for screenshot in (root / "docs" / "media").glob("*.png"):
+        shutil.copyfile(screenshot, site / "static" / "images" / "screenshots" / screenshot.name)
+    shutil.copyfile(
+        root / "brand" / "tokens.css",
+        site / "static" / "css" / "brand-tokens.css",
+    )
+    shutil.copyfile(
+        root / "brand" / "public-font.css",
+        site / "static" / "css" / "brand-font.css",
+    )
+    for subset in ("latin", "greek", "greek-ext"):
+        shutil.copyfile(
+            root
+            / "frontend"
+            / "node_modules"
+            / "@fontsource-variable"
+            / "inter"
+            / "files"
+            / f"inter-{subset}-wght-normal.woff2",
+            site / "static" / "fonts" / f"inter-{subset}-wght-normal.woff2",
+        )
     repository_revision = run("git", "rev-parse", "HEAD", cwd=root)
     (site / "layouts" / "partials" / "assetbusting.gotmpl").write_text(
         f'{{{{- return "?{repository_revision[:12]}" }}}}\n', encoding="utf-8"
     )
 
 
-def write_content(root: Path, wiki_root: Path, site: Path, repository_revision: str) -> None:
-    wiki_files = sorted(path for path in wiki_root.glob("*.md") if path.name != "_Sidebar.md")
-    if (
-        not wiki_files
-        or not (wiki_root / "Home.md").is_file()
-        or not (wiki_root / "_Sidebar.md").is_file()
-    ):
-        raise ValueError("Wiki source must contain Home.md, _Sidebar.md, and content")
+def write_content(root: Path, site: Path, repository_revision: str) -> None:
+    handbook_root = root / "docs" / "handbook"
+    handbook_files = sorted(
+        path for path in handbook_root.glob("*.md") if path.name != "_Sidebar.md"
+    )
+    if not handbook_files or not (handbook_root / "Home.md").is_file():
+        raise ValueError("Repository handbook must contain Home.md and migrated content")
 
-    wiki_revision = source_revision(wiki_root)
-    known_pages = {path.stem for path in wiki_files}
+    known_pages = {path.stem: handbook_route(path) for path in handbook_files}
+    developer_files = sorted((root / "docs" / "developers").rglob("*.md"))
+    source_routes = {
+        **{path.relative_to(root).as_posix(): handbook_route(path) for path in handbook_files},
+        "docs/portal/produkt.md": "/produkt/",
+        "docs/portal/nutzen.md": "/nutzen/",
+        "docs/portal/betreiben.md": "/betreiben/",
+        **{
+            path.relative_to(root).as_posix(): "/entwickeln/"
+            + path.relative_to(root / "docs" / "developers")
+            .with_suffix("")
+            .as_posix()
+            .replace("/index", "")
+            + "/"
+            for path in developer_files
+        },
+        "docs/developers/reference/backend.md": "/referenz/backend/",
+        "docs/developers/reference/frontend.md": "/referenz/frontend/",
+        "docs/developers/reference/cli.md": "/referenz/cli/",
+    }
+    source_routes["docs/developers/index.md"] = "/entwickeln/"
+    source_routes["docs/developers/decisions/index.md"] = "/entwickeln/entscheidungen/"
     content = site / "content"
     (content / "handbuch").mkdir(parents=True)
+    (content / "produkt").mkdir(parents=True)
+    (content / "nutzen").mkdir(parents=True)
+    (content / "betreiben").mkdir(parents=True)
+    (content / "entwickeln").mkdir(parents=True)
     (content / "referenz" / "api").mkdir(parents=True)
     (content / "referenz" / "backend").mkdir(parents=True)
     (content / "referenz" / "frontend").mkdir(parents=True)
@@ -240,19 +340,85 @@ def write_content(root: Path, wiki_root: Path, site: Path, repository_revision: 
         hugo_page("lzug", "Prüfungen gemeinsam verlässlich planen", landing, "home"),
         encoding="utf-8",
     )
-    for wiki_file in wiki_files:
-        body = convert_wiki_links(wiki_file.read_text(encoding="utf-8"), known_pages)
-        route = wiki_route(wiki_file.stem)
-        canonical = wiki_source_url(wiki_file.stem, "https://github.com/lxndrp/lzug/wiki")
-        provenance = (
-            f"> Generierte Projektion der [kanonischen Wiki-Seite]({canonical}) "
-            f"aus Wiki-Commit `{wiki_revision}`.\n\n"
-        )
-        (content / "handbuch" / route.publication_file).write_text(
+    portal_pages = {
+        "produkt": ("lzug", "Produktinformation und öffentlicher Einstieg"),
+        "nutzen": ("Nutzung", "Erste fachliche Schritte und Nutzerhandbuch"),
+        "betreiben": ("Self-Hosting", "Installation, Bootstrap und Betrieb"),
+    }
+    for slug, (title, description) in portal_pages.items():
+        source = root / "docs" / "portal" / f"{slug if slug != 'betreiben' else 'betreiben'}.md"
+        (content / slug / "_index.md").write_text(
             hugo_page(
-                route.title,
-                f"Öffentliche Wiki-Projektion: {route.title}",
-                provenance + body,
+                title,
+                description,
+                convert_repository_links(
+                    source.read_text(encoding="utf-8"), source.relative_to(root), source_routes
+                ),
+                provenance=(
+                    f"Quelle: [{source.relative_to(root)}]"
+                    f"({source_url(source.relative_to(root), repository_revision)}) · "
+                    f"Revision `{repository_revision}`."
+                ),
+            ),
+            encoding="utf-8",
+        )
+    developer_source = root / "docs" / "developers" / "index.md"
+    (content / "entwickeln" / "_index.md").write_text(
+        hugo_page(
+            "Entwicklung",
+            "Architektur, Entwicklung, Referenzen und Entscheidungen",
+            convert_repository_links(
+                developer_source.read_text(encoding="utf-8"),
+                developer_source.relative_to(root),
+                source_routes,
+            ),
+            provenance=(
+                f"Quelle: [{developer_source.relative_to(root)}]"
+                f"({source_url(developer_source.relative_to(root), repository_revision)}) · "
+                f"Revision `{repository_revision}`."
+            ),
+        ),
+        encoding="utf-8",
+    )
+    for developer_source in developer_files:
+        if developer_source == root / "docs" / "developers" / "index.md":
+            continue
+        relative = developer_source.relative_to(root)
+        route = source_routes[relative.as_posix()]
+        target = content / Path(*route.strip("/").split("/")) / "_index.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            hugo_page(
+                developer_source.stem,
+                f"Kanonische Entwicklerdokumentation: {developer_source.stem}",
+                convert_repository_links(
+                    developer_source.read_text(encoding="utf-8"),
+                    relative,
+                    source_routes,
+                ),
+                provenance=(
+                    f"Quelle: [{relative}]({source_url(relative, repository_revision)}) · "
+                    f"Revision `{repository_revision}`."
+                ),
+            ),
+            encoding="utf-8",
+        )
+    for handbook_source in handbook_files:
+        relative = handbook_source.relative_to(root)
+        route = handbook_route(handbook_source)
+        body = convert_handbook_links(handbook_source.read_text(encoding="utf-8"), known_pages)
+        body = convert_repository_links(body, relative, source_routes)
+        target = content / handbook_file(route)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            hugo_page(
+                handbook_source.stem if handbook_source.name != "Home.md" else "Handbuch",
+                f"Kanonisches Repository-Handbuch: {handbook_source.stem}",
+                body,
+                provenance=(
+                    f"Quelle: [{relative}]({source_url(relative, repository_revision)}) · "
+                    f"Revision `{repository_revision}`."
+                ),
             ),
             encoding="utf-8",
         )
@@ -264,7 +430,8 @@ def write_content(root: Path, wiki_root: Path, site: Path, repository_revision: 
         hugo_page(
             "Python-Backend",
             "Aus Python-Docstrings erzeugte Backend-Referenz",
-            f"> Generiert aus Hauptrepository-Commit `{repository_revision}`.\n\n{backend}",
+            backend,
+            provenance=f"Revision `{repository_revision}`.",
         ),
         encoding="utf-8",
     )
@@ -280,10 +447,10 @@ def write_content(root: Path, wiki_root: Path, site: Path, repository_revision: 
         hugo_page(
             "API-Referenz",
             "Aus dem OpenAPI-Vertrag erzeugte API-Referenz",
-            f"> Generiert aus Hauptrepository-Commit `{repository_revision}`.\n\n"
             "Der Publikationsaufbau exportiert den Vertrag als "
             "[OpenAPI-JSON](/referenz/api/openapi.json). "
             "Die produktive Pipeline bündelt daraus eine gelockte Redoc-Ausgabe.",
+            provenance=f"Revision `{repository_revision}`.",
         ),
         encoding="utf-8",
     )
@@ -293,8 +460,8 @@ def write_content(root: Path, wiki_root: Path, site: Path, repository_revision: 
         hugo_page(
             "Datenbankschema",
             "Deterministische Ansicht des kanonischen Datenbankschemas",
-            f"> Generiert aus Hauptrepository-Commit `{repository_revision}`.\n\n"
             f"```sql\n{schema.rstrip()}\n```",
+            provenance=f"Revision `{repository_revision}`.",
         ),
         encoding="utf-8",
     )
@@ -303,6 +470,7 @@ def write_content(root: Path, wiki_root: Path, site: Path, repository_revision: 
             "TypeScript-Frontend",
             "Aus TSDoc erzeugte Frontend-Referenz",
             "TypeDoc ersetzt diese Seite im Zielartefakt.",
+            provenance=f"Revision `{repository_revision}`.",
         ),
         encoding="utf-8",
     )
@@ -311,6 +479,7 @@ def write_content(root: Path, wiki_root: Path, site: Path, repository_revision: 
             "Technische Referenz",
             "Revisionsgebundene technische Referenzen",
             "Die Generatoren schreiben unabhängig und werden erst im Zielartefakt zusammengeführt.",
+            provenance=f"Revision `{repository_revision}`.",
         ),
         encoding="utf-8",
     )
@@ -319,8 +488,6 @@ def write_content(root: Path, wiki_root: Path, site: Path, repository_revision: 
         "relearn_revision": RELEARN_REVISION,
         "repository": "https://github.com/lxndrp/lzug",
         "repository_revision": repository_revision,
-        "wiki": "https://github.com/lxndrp/lzug.wiki.git",
-        "wiki_revision": wiki_revision,
     }
     (site / "static" / "quellen.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -330,9 +497,9 @@ def write_content(root: Path, wiki_root: Path, site: Path, repository_revision: 
             "Quellen und Versionen",
             "Revisionsidentität der erzeugten Ausgabe",
             f"- Hauptrepository: `{repository_revision}`\n"
-            f"- GitHub Wiki: `{wiki_revision}`\n"
             f"- Relearn: `{RELEARN_REVISION}`\n\n"
             "[Maschinenlesbare Fassung](/quellen.json)",
+            provenance=f"Revision `{repository_revision}`.",
         ),
         encoding="utf-8",
     )
@@ -340,7 +507,6 @@ def write_content(root: Path, wiki_root: Path, site: Path, repository_revision: 
 
 def prepare_site(
     root: Path,
-    wiki_root: Path,
     destination: Path,
     base_url: str,
     demo_url: str,
@@ -348,7 +514,7 @@ def prepare_site(
     destination.mkdir(parents=True)
     prepare_relearn_checkout(destination / "themes" / "relearn")
     configure_relearn(root, destination, base_url, demo_url)
-    write_content(root, wiki_root, destination, run("git", "rev-parse", "HEAD", cwd=root))
+    write_content(root, destination, run("git", "rev-parse", "HEAD", cwd=root))
 
 
 def verify_output(output: Path, stage: Path) -> None:
@@ -410,7 +576,6 @@ def parse_args() -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command", required=True)
     for command in ("build", "check"):
         subparser = subparsers.add_parser(command)
-        subparser.add_argument("--wiki-root", type=Path, required=True)
         subparser.add_argument("--typedoc", type=Path, required=True)
         subparser.add_argument(
             "--base-url",
@@ -431,13 +596,12 @@ def main() -> int:
     os.environ.setdefault(
         "SOURCE_DATE_EPOCH", run("git", "show", "-s", "--format=%ct", "HEAD", cwd=root)
     )
-    wiki_root = args.wiki_root.resolve()
     typedoc = args.typedoc.resolve()
     base_url = publication_base_url(args.base_url)
     demo_url = public_url(args.demo_url, allow_path=False)
     with tempfile.TemporaryDirectory(prefix="lzug-publication-") as temporary:
         site = Path(temporary) / "relearn-site"
-        prepare_site(root, wiki_root, site, base_url, demo_url)
+        prepare_site(root, site, base_url, demo_url)
         if args.command == "build":
             output = ensure_safe_output(root, args.output)
             render(root, site, output, typedoc)

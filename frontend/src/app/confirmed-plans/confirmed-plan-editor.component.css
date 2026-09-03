@@ -49,6 +49,17 @@
 .app-confirmed-editor-reason {
   margin-top: 1rem;
 }
+.app-confirmed-editor-demo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.app-confirmed-editor-demo > div {
+  display: grid;
+  gap: 0.25rem;
+}
 .app-confirmed-editor-reason textarea {
   resize: vertical;
 }
@@ -94,7 +105,11 @@
 }
 @media (max-width: 767.98px) {
   .app-confirmed-editor-day header,
-  .app-confirmed-editor-assignments > div {
+  .app-confirmed-editor-assignments > div,
+  .app-confirmed-editor-demo {
     grid-template-columns: 1fr;
+  }
+  .app-confirmed-editor-demo {
+    display: grid;
   }
 }

@@ -10,6 +10,45 @@ export type ApiRoot = {
   _links: Record<string, ApiLink>;
 };
 
+export type DemoRole = 'chair' | 'examiner' | 'replacement';
+
+export type DemoScenario = {
+  id: 'absence' | 'plan-change';
+  title: string;
+  status: 'ready' | 'in_progress' | 'complete';
+  completed_steps: number;
+  total_steps: number;
+  next_role: DemoRole;
+  next_action: string;
+  path: string;
+};
+
+export type DemoScenarioOverview = {
+  mode: 'demo';
+  demo_matrix_version: string;
+  current_role: DemoRole;
+  created_at: string;
+  expires_at: string;
+  remaining_seconds: number;
+  roles: Array<{
+    name: DemoRole;
+    display_name: string;
+    task: string;
+  }>;
+  scenarios: DemoScenario[];
+  prepared_plan_change: {
+    round_id: number;
+    day_id: number;
+    source_location_id: number;
+    target_location_id: number;
+    assignment_id: number;
+    replacement_member_id: number;
+    reason: string;
+  };
+  notices: string[];
+  location_contract: string;
+};
+
 export type ApiCollection<T> = {
   items: T[];
   _links: Record<string, ApiLink>;
@@ -720,6 +759,7 @@ export type PlanningProposalDay = {
   id: number | null;
   candidate_exam_day_id: number;
   date: string;
+  room_id?: number;
   location_id: number;
   status: 'proposed' | 'confirmed' | 'completed' | 'cancelled' | string;
   slots: PlanningProposalSlot[];
@@ -834,7 +874,7 @@ export type Person = {
 
 export type Location = {
   id: number;
-  committee_id?: number;
+  committee_id?: number | null;
   name: string;
   street?: string;
   postal_code?: string;
@@ -843,6 +883,97 @@ export type Location = {
   is_active?: number;
   created_at?: string;
   updated_at?: string;
+};
+
+export type ExamRoom = {
+  id: number;
+  venue_id: number;
+  name: string;
+  building: string | null;
+  wing: string | null;
+  floor: string | null;
+  room_number: string | null;
+  access_notes: string | null;
+  capacity: number | null;
+  is_active: number;
+  revision: number;
+  consequence_warning?: string;
+  _links: Record<string, ApiLink>;
+};
+
+export type VenueChangeImpact = {
+  count: number;
+  date_from: string | null;
+  date_to: string | null;
+  requires_confirmation: boolean;
+  calendar: { event_count: number; fields: string[] };
+  notifications: { recipient_count: number; fields: string[] };
+};
+
+export type VenueConsequenceProblem = {
+  audit_id: number;
+  venue_id: number;
+  entity_type: 'venue' | 'room';
+  entity_id: number;
+  consequence_type: 'calendar' | 'notification' | 'derivation';
+  status: 'temporarily_failed' | 'permanently_failed';
+  attempt_count: number;
+  error_code: string | null;
+  updated_at: string;
+};
+
+export type ExamVenueContact = {
+  id: number;
+  venue_id: number;
+  label: string;
+  role: string | null;
+  phone: string | null;
+  email: string | null;
+  availability_notes: string | null;
+  is_active: number;
+  revision: number;
+  room_ids: number[];
+  _links: Record<string, ApiLink>;
+};
+
+export type ExamVenue = {
+  id: number;
+  scope: 'global' | 'committee';
+  committee_id: number | null;
+  name: string;
+  street: string;
+  postal_code: string;
+  city: string;
+  country: string;
+  site_name: string | null;
+  entrance: string | null;
+  travel_directions: string | null;
+  is_accessible: number | null;
+  accessibility_status: 'confirmed' | 'needs_clarification';
+  accessibility_notes: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  coordinate_status?: 'missing' | 'needs_review' | 'confirmed';
+  coordinate_source?: string | null;
+  is_active: number;
+  revision: number;
+  consequence_warning?: string;
+  rooms: ExamRoom[];
+  contacts: ExamVenueContact[];
+  consequence_problems?: VenueConsequenceProblem[];
+  map_provider?: {
+    mode: 'off' | 'osm' | 'google';
+    attribution?: string;
+    attribution_url?: string;
+  };
+  capabilities: {
+    manage: boolean;
+    retry_consequences?: boolean;
+    geocode?: boolean;
+    request_promotion: boolean;
+    decide_promotion: boolean;
+  };
+  _links: Record<string, ApiLink>;
 };
 
 export type Candidate = {
@@ -958,4 +1089,6 @@ export type MasterData = {
   examRounds: ExamRound[];
   candidateAssignments: CandidateCommitteeAssignment[];
   locations: Location[];
+  examVenues: ExamVenue[];
+  examVenuesCanCreate?: boolean;
 };

@@ -10,6 +10,7 @@ from .authorization import AuthorizationScope
 from .database import DEFAULT_DB_PATH, session_scope
 from .exam_day_closures import complete_day_mutation, guard_day_mutation
 from .exam_protocols import create_protocol_for_started_slot
+from .exam_venues import room_is_usable_for_committee
 from .holiday_provider import GERMAN_SUBDIVISION_CODES
 from .models import (
     CANDIDATE,
@@ -21,9 +22,10 @@ from .models import (
     EXAM_DAY,
     EXAM_DAY_ASSIGNMENT,
     EXAM_HALF_YEAR,
+    EXAM_ROOM,
     EXAM_ROUND,
     EXAM_SLOT,
-    LOCATION,
+    EXAM_VENUE,
     MEMBER_AVAILABILITY,
     MEMBER_EXAM_ATTENDANCE,
     PERSON,
@@ -176,7 +178,7 @@ class ResourceRepository:
                 return values.get("id")
             if resource == EXAM_ROUND:
                 return values.get("committee_id")
-            if resource in {COMMITTEE_MEMBER, LOCATION}:
+            if resource == COMMITTEE_MEMBER:
                 return values.get("committee_id")
             if resource == PERSON:
                 members = store.where(COMMITTEE_MEMBER, person_id=values.get("id"))
@@ -318,27 +320,42 @@ class ResourceRepository:
 
     def _create_exam_round(self, store: Store, payload: dict[str, Any]) -> dict[str, Any]:
         normalized = dict(payload)
-        if normalized.get("exam_half_year_id") is None:
-            half_year_payload = self._exam_half_year_payload(
-                {
-                    "season": normalized.pop("season", None),
-                    "year": normalized.pop("year", None),
-                    "status": "active",
-                }
-            )
-            if half_year_payload.get("season") is None or half_year_payload.get("year") is None:
-                raise ValueError("Season and year are required")
-            half_year = store.first(
-                EXAM_HALF_YEAR,
-                season=half_year_payload["season"],
-                year=half_year_payload["year"],
-            )
-            if half_year is None:
-                half_year = store.create(EXAM_HALF_YEAR, half_year_payload)
-            normalized["exam_half_year_id"] = half_year["id"]
-        else:
+        self._resolve_exam_round_half_year(store, normalized)
+        self._validate_exam_round_references(store, normalized)
+        self._validate_exam_round_state(normalized)
+        normalized["revision"] = 1
+        normalized["lifecycle_status"] = "open"
+        return store.create(EXAM_ROUND, normalized)
+
+    def _resolve_exam_round_half_year(
+        self,
+        store: Store,
+        normalized: dict[str, Any],
+    ) -> None:
+        if normalized.get("exam_half_year_id") is not None:
             normalized.pop("season", None)
             normalized.pop("year", None)
+            return
+        half_year_payload = self._exam_half_year_payload(
+            {
+                "season": normalized.pop("season", None),
+                "year": normalized.pop("year", None),
+                "status": "active",
+            }
+        )
+        if half_year_payload.get("season") is None or half_year_payload.get("year") is None:
+            raise ValueError("Season and year are required")
+        half_year = store.first(
+            EXAM_HALF_YEAR,
+            season=half_year_payload["season"],
+            year=half_year_payload["year"],
+        )
+        if half_year is None:
+            half_year = store.create(EXAM_HALF_YEAR, half_year_payload)
+        normalized["exam_half_year_id"] = half_year["id"]
+
+    @staticmethod
+    def _validate_exam_round_references(store: Store, normalized: dict[str, Any]) -> None:
         required = ("exam_half_year_id", "committee_id", "created_by_member_id")
         for field in required:
             if field not in normalized:
@@ -353,13 +370,13 @@ class ResourceRepository:
         creator = store.get(COMMITTEE_MEMBER, normalized["created_by_member_id"])
         if creator is None or creator["committee_id"] != normalized["committee_id"]:
             raise ValueError("Creating member does not belong to the exam round committee")
+
+    @staticmethod
+    def _validate_exam_round_state(normalized: dict[str, Any]) -> None:
         if not str(normalized.get("name", "")).strip():
             raise ValueError("Exam round name is required")
         if normalized.get("status") in PLAN_AGGREGATE_STATUSES:
             raise ValueError("Planning proposal statuses require the planning aggregate")
-        normalized["revision"] = 1
-        normalized["lifecycle_status"] = "open"
-        return store.create(EXAM_ROUND, normalized)
 
     def _create_round_candidate(self, store: Store, payload: dict[str, Any]) -> dict[str, Any]:
         candidate_id = int(payload["candidate_id"])
@@ -851,136 +868,201 @@ class ResourceRepository:
         """
         with session_scope(self.db_path) as session:
             store = Store(session)
-            committees = {row["id"]: row for row in store.all(COMMITTEE)}
-            half_years = {row["id"]: row for row in store.all(EXAM_HALF_YEAR)}
-            locations = {row["id"]: row for row in store.all(LOCATION)}
-            candidates = {row["id"]: row for row in store.all(CANDIDATE)}
-            round_candidates = {row["id"]: row for row in store.all(ROUND_CANDIDATE)}
-            members = {
-                row["id"]: self._member_view(store, row) for row in store.all(COMMITTEE_MEMBER)
-            }
-
+            context = self._confirmed_plan_context(store)
             plans = []
             for exam_round in store.where(EXAM_ROUND, status="plan_confirmed"):
                 if scope is not None and not self._round_visible(store, exam_round, scope):
                     continue
-                committee = committees.get(exam_round["committee_id"])
+                committee = context["committees"].get(exam_round["committee_id"])
                 if committee is None:
                     continue
-                days = []
-                for exam_day in sorted(
-                    store.where(EXAM_DAY, exam_round_id=exam_round["id"]),
-                    key=lambda row: (row["date"], row["id"]),
-                ):
-                    if exam_day["status"] not in {"confirmed", "completed", "cancelled"}:
-                        continue
-                    slots = []
-                    day_slots = store.where(EXAM_SLOT, exam_day_id=exam_day["id"])
-                    day_slot_ids = {slot["id"] for slot in day_slots}
-                    candidate_attendance = {
-                        row["exam_slot_id"]: row
-                        for row in store.all(CANDIDATE_EXAM_ATTENDANCE)
-                        if row["exam_slot_id"] in day_slot_ids
-                    }
-                    for slot in sorted(
-                        day_slots,
-                        key=lambda row: (row["starts_at"], row["sequence_number"], row["id"]),
-                    ):
-                        if slot["status"] not in {"confirmed", "completed", "cancelled"}:
-                            continue
-                        round_candidate = round_candidates.get(slot["round_candidate_id"])
-                        candidate = (
-                            candidates.get(round_candidate["candidate_id"])
-                            if round_candidate
-                            else None
-                        )
-                        if candidate is None:
-                            continue
-                        slots.append(
-                            {
-                                "id": slot["id"],
-                                "starts_at": slot["starts_at"],
-                                "ends_at": slot["ends_at"],
-                                "sequence_number": slot["sequence_number"],
-                                "slot_type": slot["slot_type"],
-                                "actual_started_at": slot["actual_started_at"],
-                                "execution_status": slot["execution_status"],
-                                "status_changed_at": slot["status_changed_at"],
-                                "actual_completed_at": slot["actual_completed_at"],
-                                "status_reason": slot["status_reason"],
-                                "candidate_attendance": self._attendance_view(
-                                    candidate_attendance.get(slot["id"])
-                                ),
-                                "candidate": {
-                                    "id": candidate["id"],
-                                    "first_name": candidate["first_name"],
-                                    "last_name": candidate["last_name"],
-                                    "ihk_exam_number": candidate["ihk_exam_number"],
-                                },
-                            }
-                        )
-                    assignments = []
-                    member_attendance = {
-                        (row["exam_day_id"], row["committee_member_id"]): row
-                        for row in store.where(MEMBER_EXAM_ATTENDANCE, exam_day_id=exam_day["id"])
-                    }
-                    for assignment in store.where(EXAM_DAY_ASSIGNMENT, exam_day_id=exam_day["id"]):
-                        member = members.get(assignment["committee_member_id"])
-                        if member is None:
-                            continue
-                        assignments.append(
-                            {
-                                "id": assignment["id"],
-                                "assignment_role": assignment["assignment_role"],
-                                "day_part": assignment["day_part"],
-                                "fallback_status": assignment["fallback_status"],
-                                "attendance": self._attendance_view(
-                                    member_attendance.get(
-                                        (exam_day["id"], assignment["committee_member_id"])
-                                    )
-                                ),
-                                "member": {
-                                    "id": member["id"],
-                                    "first_name": member["first_name"],
-                                    "last_name": member["last_name"],
-                                    "representing_side": member["representing_side"],
-                                },
-                            }
-                        )
-                    location = locations.get(exam_day["location_id"])
-                    days.append(
-                        {
-                            "id": exam_day["id"],
-                            "date": exam_day["date"],
-                            "revision": exam_day["revision"],
-                            "closure_status": exam_day["closure_status"],
-                            "location": (
-                                {
-                                    "id": location["id"],
-                                    "name": location["name"],
-                                    "room": location["room"],
-                                    "city": location["city"],
-                                }
-                                if location
-                                else None
-                            ),
-                            "slots": slots,
-                            "assignments": assignments,
-                            "status_summary": self._execution_status_summary(slots),
-                        }
-                    )
-                plans.append(
-                    {
-                        "id": exam_round["id"],
-                        "name": exam_round["name"],
-                        "committee": {"id": committee["id"], "name": committee["name"]},
-                        "exam_half_year": half_years.get(exam_round["exam_half_year_id"]),
-                        "days": days,
-                    }
-                )
+                plans.append(self._confirmed_plan_view(store, exam_round, committee, context))
             return sorted(
                 plans, key=lambda plan: (plan["committee"]["name"], plan["name"], plan["id"])
             )
+
+    def _confirmed_plan_context(self, store: Store) -> dict[str, dict[int, dict[str, Any]]]:
+        return {
+            "committees": {row["id"]: row for row in store.all(COMMITTEE)},
+            "half_years": {row["id"]: row for row in store.all(EXAM_HALF_YEAR)},
+            "rooms": {row["id"]: row for row in store.all(EXAM_ROOM)},
+            "venues": {row["id"]: row for row in store.all(EXAM_VENUE)},
+            "candidates": {row["id"]: row for row in store.all(CANDIDATE)},
+            "round_candidates": {row["id"]: row for row in store.all(ROUND_CANDIDATE)},
+            "members": {
+                row["id"]: self._member_view(store, row) for row in store.all(COMMITTEE_MEMBER)
+            },
+        }
+
+    def _confirmed_plan_view(
+        self,
+        store: Store,
+        exam_round: dict[str, Any],
+        committee: dict[str, Any],
+        context: dict[str, dict[int, dict[str, Any]]],
+    ) -> dict[str, Any]:
+        return {
+            "id": exam_round["id"],
+            "name": exam_round["name"],
+            "committee": {"id": committee["id"], "name": committee["name"]},
+            "exam_half_year": context["half_years"].get(exam_round["exam_half_year_id"]),
+            "days": self._confirmed_plan_days(store, exam_round["id"], context),
+        }
+
+    def _confirmed_plan_days(
+        self,
+        store: Store,
+        exam_round_id: int,
+        context: dict[str, dict[int, dict[str, Any]]],
+    ) -> list[dict[str, Any]]:
+        days = []
+        exam_days = sorted(
+            store.where(EXAM_DAY, exam_round_id=exam_round_id),
+            key=lambda row: (row["date"], row["id"]),
+        )
+        for exam_day in exam_days:
+            if exam_day["status"] in {"confirmed", "completed", "cancelled"}:
+                days.append(self._confirmed_day_view(store, exam_day, context))
+        return days
+
+    def _confirmed_day_view(
+        self,
+        store: Store,
+        exam_day: dict[str, Any],
+        context: dict[str, dict[int, dict[str, Any]]],
+    ) -> dict[str, Any]:
+        slots = self._confirmed_day_slots(store, exam_day["id"], context)
+        room = context["rooms"].get(exam_day["room_id"])
+        return {
+            "id": exam_day["id"],
+            "date": exam_day["date"],
+            "revision": exam_day["revision"],
+            "closure_status": exam_day["closure_status"],
+            "location": self._confirmed_day_location(room, context["venues"]),
+            "room_id": room["id"] if room else None,
+            "slots": slots,
+            "assignments": self._confirmed_day_assignments(store, exam_day["id"], context),
+            "status_summary": self._execution_status_summary(slots),
+        }
+
+    def _confirmed_day_slots(
+        self,
+        store: Store,
+        exam_day_id: int,
+        context: dict[str, dict[int, dict[str, Any]]],
+    ) -> list[dict[str, Any]]:
+        day_slots = store.where(EXAM_SLOT, exam_day_id=exam_day_id)
+        day_slot_ids = {slot["id"] for slot in day_slots}
+        attendance = {
+            row["exam_slot_id"]: row
+            for row in store.all(CANDIDATE_EXAM_ATTENDANCE)
+            if row["exam_slot_id"] in day_slot_ids
+        }
+        slots = []
+        for slot in sorted(
+            day_slots,
+            key=lambda row: (row["starts_at"], row["sequence_number"], row["id"]),
+        ):
+            if slot["status"] not in {"confirmed", "completed", "cancelled"}:
+                continue
+            candidate = self._confirmed_slot_candidate(slot, context)
+            if candidate is not None:
+                slots.append(self._confirmed_slot_view(slot, candidate, attendance.get(slot["id"])))
+        return slots
+
+    @staticmethod
+    def _confirmed_slot_candidate(
+        slot: dict[str, Any],
+        context: dict[str, dict[int, dict[str, Any]]],
+    ) -> dict[str, Any] | None:
+        round_candidate = context["round_candidates"].get(slot["round_candidate_id"])
+        return (
+            context["candidates"].get(round_candidate["candidate_id"]) if round_candidate else None
+        )
+
+    def _confirmed_slot_view(
+        self,
+        slot: dict[str, Any],
+        candidate: dict[str, Any],
+        attendance: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        return {
+            "id": slot["id"],
+            "starts_at": slot["starts_at"],
+            "ends_at": slot["ends_at"],
+            "sequence_number": slot["sequence_number"],
+            "slot_type": slot["slot_type"],
+            "actual_started_at": slot["actual_started_at"],
+            "execution_status": slot["execution_status"],
+            "status_changed_at": slot["status_changed_at"],
+            "actual_completed_at": slot["actual_completed_at"],
+            "status_reason": slot["status_reason"],
+            "candidate_attendance": self._attendance_view(attendance),
+            "candidate": {
+                "id": candidate["id"],
+                "first_name": candidate["first_name"],
+                "last_name": candidate["last_name"],
+                "ihk_exam_number": candidate["ihk_exam_number"],
+            },
+        }
+
+    def _confirmed_day_assignments(
+        self,
+        store: Store,
+        exam_day_id: int,
+        context: dict[str, dict[int, dict[str, Any]]],
+    ) -> list[dict[str, Any]]:
+        attendance = {
+            row["committee_member_id"]: row
+            for row in store.where(MEMBER_EXAM_ATTENDANCE, exam_day_id=exam_day_id)
+        }
+        assignments = []
+        for assignment in store.where(EXAM_DAY_ASSIGNMENT, exam_day_id=exam_day_id):
+            member = context["members"].get(assignment["committee_member_id"])
+            if member is not None:
+                assignments.append(
+                    self._confirmed_assignment_view(
+                        assignment,
+                        member,
+                        attendance.get(assignment["committee_member_id"]),
+                    )
+                )
+        return assignments
+
+    def _confirmed_assignment_view(
+        self,
+        assignment: dict[str, Any],
+        member: dict[str, Any],
+        attendance: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        return {
+            "id": assignment["id"],
+            "assignment_role": assignment["assignment_role"],
+            "day_part": assignment["day_part"],
+            "fallback_status": assignment["fallback_status"],
+            "attendance": self._attendance_view(attendance),
+            "member": {
+                "id": member["id"],
+                "first_name": member["first_name"],
+                "last_name": member["last_name"],
+                "representing_side": member["representing_side"],
+            },
+        }
+
+    @staticmethod
+    def _confirmed_day_location(
+        room: dict[str, Any] | None,
+        venues: dict[int, dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        venue = venues.get(room["venue_id"]) if room else None
+        if venue is None or room is None:
+            return None
+        return {
+            "id": venue["id"],
+            "name": venue["name"],
+            "room": room["name"],
+            "city": venue["city"],
+        }
 
     def confirmed_plan_day(
         self,
@@ -1103,41 +1185,20 @@ class ResourceRepository:
             if day is None:
                 raise ValueError("Prüfungstag nicht gefunden")
             correction_mode = day.closure_status == "reopening"
-            target_status = payload.get("status")
-            if target_status not in EXECUTION_STATUS_VALUES:
-                raise ValueError("Unbekannter Durchführungsstatus")
-            reason = payload.get("reason")
-            if target_status in {"cancelled", "needs_follow_up"}:
-                if not isinstance(reason, str) or not reason.strip():
-                    raise ValueError(
-                        "Für einen Ausfall oder eine Nachbereitung ist eine Begründung erforderlich"
-                    )
-                reason = reason.strip()
-            else:
-                reason = slot["status_reason"]
-
+            target_status = self._slot_status_target(payload)
+            reason = self._slot_status_reason(slot, payload, target_status)
             changed_at = datetime.now(UTC).replace(microsecond=0).isoformat()
-            actual_started_at = slot["actual_started_at"]
-            actual_completed_at = slot["actual_completed_at"]
-            if correction_mode:
-                actual_started_at = payload.get("actual_started_at", actual_started_at)
-                actual_completed_at = payload.get("actual_completed_at", actual_completed_at)
-                self._validate_corrected_slot_facts(
-                    target_status,
-                    actual_started_at,
-                    actual_completed_at,
-                )
-            elif target_status == "completed":
-                actual_completed_at = changed_at
-
-            if (
-                target_status == slot["execution_status"]
-                and reason == slot["status_reason"]
-                and actual_started_at == slot["actual_started_at"]
-                and actual_completed_at == slot["actual_completed_at"]
+            actual_started_at, actual_completed_at = self._slot_status_facts(
+                slot,
+                payload,
+                target_status,
+                changed_at,
+                correction_mode,
+            )
+            if self._slot_status_is_unchanged(
+                slot, target_status, reason, actual_started_at, actual_completed_at
             ):
                 return slot
-
             guard = guard_day_mutation(
                 session,
                 day=day,
@@ -1146,34 +1207,18 @@ class ResourceRepository:
                 payload=payload,
                 actor_member_id=actor_member_id,
             )
-            if target_status == "running" and not correction_mode:
-                raise ValueError(
-                    "Der Status Läuft wird ausschließlich durch die Startaktion gesetzt"
-                )
-            if (
-                not correction_mode
-                and target_status == "cancelled"
-                and slot["actual_started_at"] is not None
-            ):
-                raise ValueError(
-                    "Ein gestarteter Prüfungsslot kann nicht als ausgefallen markiert werden"
-                )
-            allowed = EXECUTION_STATUS_TRANSITIONS.get(slot["execution_status"], set())
-            if not correction_mode and target_status not in allowed:
-                transition = (
-                    f"Der Statuswechsel von {slot['execution_status']} "
-                    f"zu {target_status} ist nicht erlaubt"
-                )
-                raise ValueError(transition)
-
+            self._validate_slot_status_transition(slot, target_status, correction_mode)
             exam_slot = session.get(EXAM_SLOT.model, slot_id)
             if exam_slot is None:
                 raise ValueError("Prüfungsslot nicht gefunden")
-            exam_slot.execution_status = target_status
-            exam_slot.status_changed_at = changed_at
-            exam_slot.status_reason = reason
-            exam_slot.actual_started_at = actual_started_at
-            exam_slot.actual_completed_at = actual_completed_at
+            self._apply_slot_status(
+                exam_slot,
+                target_status,
+                changed_at,
+                reason,
+                actual_started_at,
+                actual_completed_at,
+            )
             session.flush()
             complete_day_mutation(
                 session,
@@ -1190,6 +1235,103 @@ class ResourceRepository:
                 "status_reason": reason,
             }
 
+    @staticmethod
+    def _slot_status_target(payload: dict[str, Any]) -> str:
+        target_status = payload.get("status")
+        if target_status not in EXECUTION_STATUS_VALUES:
+            raise ValueError("Unbekannter Durchführungsstatus")
+        return target_status
+
+    @staticmethod
+    def _slot_status_reason(
+        slot: dict[str, Any],
+        payload: dict[str, Any],
+        target_status: str,
+    ) -> str | None:
+        if target_status not in {"cancelled", "needs_follow_up"}:
+            return slot["status_reason"]
+        reason = payload.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError(
+                "Für einen Ausfall oder eine Nachbereitung ist eine Begründung erforderlich"
+            )
+        return reason.strip()
+
+    def _slot_status_facts(
+        self,
+        slot: dict[str, Any],
+        payload: dict[str, Any],
+        target_status: str,
+        changed_at: str,
+        correction_mode: bool,
+    ) -> tuple[Any, Any]:
+        actual_started_at = slot["actual_started_at"]
+        actual_completed_at = slot["actual_completed_at"]
+        if correction_mode:
+            actual_started_at = payload.get("actual_started_at", actual_started_at)
+            actual_completed_at = payload.get("actual_completed_at", actual_completed_at)
+            self._validate_corrected_slot_facts(
+                target_status,
+                actual_started_at,
+                actual_completed_at,
+            )
+        elif target_status == "completed":
+            actual_completed_at = changed_at
+        return actual_started_at, actual_completed_at
+
+    @staticmethod
+    def _slot_status_is_unchanged(
+        slot: dict[str, Any],
+        target_status: str,
+        reason: str | None,
+        actual_started_at: Any,
+        actual_completed_at: Any,
+    ) -> bool:
+        return (
+            target_status == slot["execution_status"]
+            and reason == slot["status_reason"]
+            and actual_started_at == slot["actual_started_at"]
+            and actual_completed_at == slot["actual_completed_at"]
+        )
+
+    @staticmethod
+    def _validate_slot_status_transition(
+        slot: dict[str, Any],
+        target_status: str,
+        correction_mode: bool,
+    ) -> None:
+        if target_status == "running" and not correction_mode:
+            raise ValueError("Der Status Läuft wird ausschließlich durch die Startaktion gesetzt")
+        if (
+            not correction_mode
+            and target_status == "cancelled"
+            and slot["actual_started_at"] is not None
+        ):
+            raise ValueError(
+                "Ein gestarteter Prüfungsslot kann nicht als ausgefallen markiert werden"
+            )
+        allowed = EXECUTION_STATUS_TRANSITIONS.get(slot["execution_status"], set())
+        if not correction_mode and target_status not in allowed:
+            raise ValueError(
+                f"Der Statuswechsel von {slot['execution_status']} "
+                f"zu {target_status} ist nicht erlaubt"
+            )
+
+    @staticmethod
+    def _apply_slot_status(
+        exam_slot: Any,
+        target_status: str,
+        changed_at: str,
+        reason: str | None,
+        actual_started_at: Any,
+        actual_completed_at: Any,
+    ) -> None:
+        exam_slot.execution_status = target_status
+        exam_slot.status_changed_at = changed_at
+        exam_slot.status_reason = reason
+        exam_slot.actual_started_at = actual_started_at
+        exam_slot.actual_completed_at = actual_completed_at
+
     def start_exam_slot(
         self,
         day_id: int,
@@ -1201,70 +1343,21 @@ class ResourceRepository:
         with session_scope(self.db_path) as session:
             store = Store(session)
             slot = self._confirmed_slot(store, day_id, slot_id)
-            if slot["execution_status"] not in {"open", "running"}:
-                raise ValueError(
-                    "Ein abgeschlossener oder ausgefallener Prüfungsslot "
-                    "kann nicht gestartet werden"
-                )
-            if slot["execution_status"] == "running" and slot["actual_started_at"] is None:
-                raise ValueError(
-                    "Der laufende Prüfungsslot hat keinen tatsächlichen Startzeitpunkt"
-                )
-            candidate_attendance = store.first(CANDIDATE_EXAM_ATTENDANCE, exam_slot_id=slot_id)
-            if candidate_attendance is None or candidate_attendance["status"] not in {
-                "present",
-                "late",
-            }:
-                raise ValueError("Prüfling muss als anwesend oder verspätet erfasst sein")
-
-            present_sides: set[str] = set()
-            present_regular_members: set[int] = set()
-            for assignment in store.where(EXAM_DAY_ASSIGNMENT, exam_day_id=day_id):
-                if assignment["assignment_role"] != "examiner":
-                    continue
-                if not self._assignment_applies_to_slot(assignment, slot):
-                    continue
-                attendance = store.first(
-                    MEMBER_EXAM_ATTENDANCE,
-                    exam_day_id=day_id,
-                    committee_member_id=assignment["committee_member_id"],
-                )
-                if attendance is None or attendance["status"] not in {"present", "late"}:
-                    continue
-                member = store.get(COMMITTEE_MEMBER, assignment["committee_member_id"])
-                if member is None:
-                    continue
-                present_regular_members.add(member["id"])
-                present_sides.add(member["representing_side"])
-            if len(present_regular_members) < 3 or not REPRESENTING_SIDES.issubset(present_sides):
-                raise ValueError(
-                    "Mindestens drei anwesende reguläre Prüfer mit allen drei Vertreterseiten "
-                    "sind erforderlich"
-                )
-
+            self._validate_startable_slot(slot)
+            self._require_present_candidate(store, slot_id)
+            present_regular_members = self._present_regular_members(store, day_id, slot)
             requested_started_at = payload.get("actual_started_at")
-            if slot["actual_started_at"] is not None:
-                if slot["execution_status"] != "running":
-                    raise ValueError("Der Prüfungsslot kann nicht erneut gestartet werden")
-                if requested_started_at and slot["actual_started_at"] != requested_started_at:
-                    raise ValueError(
-                        f"Prüfungsstart wurde bereits um {slot['actual_started_at']} erfasst"
-                    )
-                create_protocol_for_started_slot(
-                    session,
-                    slot_id=slot_id,
-                    participant_member_ids=present_regular_members,
-                    created_by_member_id=actor_member_id,
-                    created_at=slot["actual_started_at"],
-                )
-                return slot
-
-            actual_started_at = (
-                requested_started_at or datetime.now(UTC).replace(microsecond=0).isoformat()
+            repeated = self._repeat_slot_start(
+                session,
+                slot,
+                slot_id,
+                requested_started_at,
+                present_regular_members,
+                actor_member_id,
             )
-            if not isinstance(actual_started_at, str) or not actual_started_at.strip():
-                raise ValueError("Tatsächlicher Startzeitpunkt ist erforderlich")
-
+            if repeated is not None:
+                return repeated
+            actual_started_at = self._actual_slot_start(requested_started_at)
             exam_slot = session.get(EXAM_SLOT.model, slot_id)
             if exam_slot is None:
                 raise ValueError("Prüfungsslot nicht gefunden")
@@ -1295,6 +1388,85 @@ class ResourceRepository:
                 "execution_status": "running",
                 "status_changed_at": actual_started_at,
             }
+
+    @staticmethod
+    def _validate_startable_slot(slot: dict[str, Any]) -> None:
+        if slot["execution_status"] not in {"open", "running"}:
+            raise ValueError(
+                "Ein abgeschlossener oder ausgefallener Prüfungsslot kann nicht gestartet werden"
+            )
+        if slot["execution_status"] == "running" and slot["actual_started_at"] is None:
+            raise ValueError("Der laufende Prüfungsslot hat keinen tatsächlichen Startzeitpunkt")
+
+    @staticmethod
+    def _require_present_candidate(store: Store, slot_id: int) -> None:
+        attendance = store.first(CANDIDATE_EXAM_ATTENDANCE, exam_slot_id=slot_id)
+        if attendance is None or attendance["status"] not in {"present", "late"}:
+            raise ValueError("Prüfling muss als anwesend oder verspätet erfasst sein")
+
+    def _present_regular_members(
+        self,
+        store: Store,
+        day_id: int,
+        slot: dict[str, Any],
+    ) -> set[int]:
+        members: set[int] = set()
+        sides: set[str] = set()
+        for assignment in store.where(EXAM_DAY_ASSIGNMENT, exam_day_id=day_id):
+            if assignment["assignment_role"] != "examiner":
+                continue
+            if not self._assignment_applies_to_slot(assignment, slot):
+                continue
+            attendance = store.first(
+                MEMBER_EXAM_ATTENDANCE,
+                exam_day_id=day_id,
+                committee_member_id=assignment["committee_member_id"],
+            )
+            if attendance is None or attendance["status"] not in {"present", "late"}:
+                continue
+            member = store.get(COMMITTEE_MEMBER, assignment["committee_member_id"])
+            if member is not None:
+                members.add(member["id"])
+                sides.add(member["representing_side"])
+        if len(members) < 3 or not REPRESENTING_SIDES.issubset(sides):
+            raise ValueError(
+                "Mindestens drei anwesende reguläre Prüfer mit allen drei "
+                "Vertreterseiten sind erforderlich"
+            )
+        return members
+
+    @staticmethod
+    def _repeat_slot_start(
+        session: Any,
+        slot: dict[str, Any],
+        slot_id: int,
+        requested_started_at: Any,
+        present_regular_members: set[int],
+        actor_member_id: int,
+    ) -> dict[str, Any] | None:
+        if slot["actual_started_at"] is None:
+            return None
+        if slot["execution_status"] != "running":
+            raise ValueError("Der Prüfungsslot kann nicht erneut gestartet werden")
+        if requested_started_at and slot["actual_started_at"] != requested_started_at:
+            raise ValueError(f"Prüfungsstart wurde bereits um {slot['actual_started_at']} erfasst")
+        create_protocol_for_started_slot(
+            session,
+            slot_id=slot_id,
+            participant_member_ids=present_regular_members,
+            created_by_member_id=actor_member_id,
+            created_at=slot["actual_started_at"],
+        )
+        return slot
+
+    @staticmethod
+    def _actual_slot_start(requested_started_at: Any) -> str:
+        actual_started_at = (
+            requested_started_at or datetime.now(UTC).replace(microsecond=0).isoformat()
+        )
+        if not isinstance(actual_started_at, str) or not actual_started_at.strip():
+            raise ValueError("Tatsächlicher Startzeitpunkt ist erforderlich")
+        return actual_started_at
 
     @staticmethod
     def _execution_status_summary(slots: list[dict[str, Any]]) -> dict[str, int]:
@@ -1431,10 +1603,11 @@ class ResourceRepository:
         if updater is None or updater["committee_id"] != exam_round["committee_id"]:
             raise ValueError("Updating member does not belong to the exam round committee")
 
-        if "default_location_id" in payload and payload["default_location_id"] is not None:
-            location = store.get(LOCATION, payload["default_location_id"])
-            if location is None or location["committee_id"] != exam_round["committee_id"]:
-                raise ValueError("Default location does not belong to the exam round committee")
+        if "default_room_id" in payload and payload["default_room_id"] is not None:
+            if not room_is_usable_for_committee(
+                store.session, payload["default_room_id"], exam_round["committee_id"]
+            ):
+                raise ValueError("Default room is not active for the exam round committee")
 
         subdivision_code = payload.get("holiday_subdivision_code")
         if subdivision_code is not None and subdivision_code not in GERMAN_SUBDIVISION_CODES:
@@ -1535,73 +1708,100 @@ class ResourceRepository:
         scope: AuthorizationScope,
     ) -> bool:
         """Apply committee scoping to direct and indirectly related resources."""
-        if resource == COMMITTEE:
-            return row["id"] in scope.committee_ids
-        if resource == PERSON:
-            return row["id"] in scope.person_ids
-        if resource == COMMITTEE_MEMBER:
-            return row["committee_id"] in scope.committee_ids
-        if resource == LOCATION:
-            return row["committee_id"] in scope.committee_ids
+        if resource in {COMMITTEE, PERSON, COMMITTEE_MEMBER}:
+            return self._direct_resource_visible(resource, row, scope)
         if resource == EXAM_HALF_YEAR:
             # A half-year is a global planning context.  It contains no
             # committee data until a committee-specific round is attached.
             return bool(scope.committee_ids)
-        if resource == EXAM_ROUND:
-            return self._round_visible(store, row, scope)
-        if resource == ROUND_CANDIDATE:
-            exam_round = store.get(EXAM_ROUND, row["exam_round_id"])
-            return exam_round is not None and self._round_visible(store, exam_round, scope)
+        if resource in {
+            EXAM_ROUND,
+            ROUND_CANDIDATE,
+            CANDIDATE_COMMITTEE_ASSIGNMENT,
+            PLANNING_SETTINGS,
+            CANDIDATE_EXAM_DAY,
+        }:
+            return self._round_resource_visible(store, resource, row, scope)
         if resource == CANDIDATE:
-            return any(
-                assignment["ended_at"] is None
-                and self._round_visible(
-                    store,
-                    store.get(EXAM_ROUND, round_candidate["exam_round_id"]),
-                    scope,
-                )
-                for round_candidate in store.where(ROUND_CANDIDATE, candidate_id=row["id"])
-                for assignment in store.where(
-                    CANDIDATE_COMMITTEE_ASSIGNMENT,
-                    round_candidate_id=round_candidate["id"],
-                )
-            )
-        if resource == CANDIDATE_COMMITTEE_ASSIGNMENT:
-            exam_round = store.get(EXAM_ROUND, row["exam_round_id"])
-            return exam_round is not None and self._round_visible(store, exam_round, scope)
-        if resource in {PLANNING_SETTINGS, CANDIDATE_EXAM_DAY}:
-            exam_round = store.get(EXAM_ROUND, row["exam_round_id"])
-            return exam_round is not None and self._round_visible(store, exam_round, scope)
+            return self._candidate_visible(store, row, scope)
         if resource == MEMBER_AVAILABILITY:
-            exam_round = store.get(EXAM_ROUND, row["exam_round_id"])
-            member = store.get(COMMITTEE_MEMBER, row["committee_member_id"])
-            return (
-                exam_round is not None
-                and member is not None
-                and self._round_visible(store, exam_round, scope)
-                and member["committee_id"] in scope.committee_ids
+            return self._member_availability_visible(store, row, scope)
+        return self._exam_execution_resource_visible(store, resource, row, scope)
+
+    @staticmethod
+    def _direct_resource_visible(
+        resource: Resource,
+        row: dict[str, Any],
+        scope: AuthorizationScope,
+    ) -> bool:
+        if resource == COMMITTEE:
+            return row["id"] in scope.committee_ids
+        if resource == PERSON:
+            return row["id"] in scope.person_ids
+        return row["committee_id"] in scope.committee_ids
+
+    def _round_resource_visible(
+        self,
+        store: Store,
+        resource: Resource,
+        row: dict[str, Any],
+        scope: AuthorizationScope,
+    ) -> bool:
+        exam_round = row if resource == EXAM_ROUND else store.get(EXAM_ROUND, row["exam_round_id"])
+        return self._round_visible(store, exam_round, scope)
+
+    def _candidate_visible(
+        self,
+        store: Store,
+        row: dict[str, Any],
+        scope: AuthorizationScope,
+    ) -> bool:
+        return any(
+            assignment["ended_at"] is None
+            and self._round_visible(
+                store,
+                store.get(EXAM_ROUND, round_candidate["exam_round_id"]),
+                scope,
             )
+            for round_candidate in store.where(ROUND_CANDIDATE, candidate_id=row["id"])
+            for assignment in store.where(
+                CANDIDATE_COMMITTEE_ASSIGNMENT,
+                round_candidate_id=round_candidate["id"],
+            )
+        )
+
+    def _member_availability_visible(
+        self,
+        store: Store,
+        row: dict[str, Any],
+        scope: AuthorizationScope,
+    ) -> bool:
+        exam_round = store.get(EXAM_ROUND, row["exam_round_id"])
+        member = store.get(COMMITTEE_MEMBER, row["committee_member_id"])
+        return (
+            exam_round is not None
+            and member is not None
+            and self._round_visible(store, exam_round, scope)
+            and member["committee_id"] in scope.committee_ids
+        )
+
+    def _exam_execution_resource_visible(
+        self,
+        store: Store,
+        resource: Resource,
+        row: dict[str, Any],
+        scope: AuthorizationScope,
+    ) -> bool:
+        exam_day = None
         if resource == EXAM_DAY:
-            exam_round = store.get(EXAM_ROUND, row["exam_round_id"])
-            return exam_round is not None and self._round_visible(store, exam_round, scope)
-        if resource == EXAM_SLOT:
+            exam_day = row
+        elif resource in {EXAM_SLOT, EXAM_DAY_ASSIGNMENT, MEMBER_EXAM_ATTENDANCE}:
             exam_day = store.get(EXAM_DAY, row["exam_day_id"])
-            exam_round = store.get(EXAM_ROUND, exam_day["exam_round_id"]) if exam_day else None
-            return exam_round is not None and self._round_visible(store, exam_round, scope)
-        if resource == EXAM_DAY_ASSIGNMENT:
-            exam_day = store.get(EXAM_DAY, row["exam_day_id"])
-            exam_round = store.get(EXAM_ROUND, exam_day["exam_round_id"]) if exam_day else None
-            return exam_round is not None and self._round_visible(store, exam_round, scope)
-        if resource == CANDIDATE_EXAM_ATTENDANCE:
+        elif resource == CANDIDATE_EXAM_ATTENDANCE:
             exam_slot = store.get(EXAM_SLOT, row["exam_slot_id"])
             exam_day = store.get(EXAM_DAY, exam_slot["exam_day_id"]) if exam_slot else None
-            exam_round = store.get(EXAM_ROUND, exam_day["exam_round_id"]) if exam_day else None
-            return exam_round is not None and self._round_visible(store, exam_round, scope)
-        if resource == MEMBER_EXAM_ATTENDANCE:
-            exam_day = store.get(EXAM_DAY, row["exam_day_id"])
-            exam_round = store.get(EXAM_ROUND, exam_day["exam_round_id"]) if exam_day else None
-            return exam_round is not None and self._round_visible(store, exam_round, scope)
-        return False
+        exam_round = store.get(EXAM_ROUND, exam_day["exam_round_id"]) if exam_day else None
+        return self._round_visible(store, exam_round, scope)
 
     @staticmethod
     def _round_visible(
@@ -1617,7 +1817,6 @@ REST_RESOURCES = {
     "persons": PERSON,
     "members": COMMITTEE_MEMBER,
     "memberships": COMMITTEE_MEMBER,
-    "locations": LOCATION,
     "exam-half-years": EXAM_HALF_YEAR,
     "exam-rounds": EXAM_ROUND,
     "round-candidates": ROUND_CANDIDATE,

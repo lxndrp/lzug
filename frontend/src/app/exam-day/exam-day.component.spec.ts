@@ -1,8 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
+import { vi } from 'vitest';
 
 import { ConfirmedPlanDayView, ExecutionStatus } from '../api/api.models';
 import { AuthService } from '../auth/auth.service';
@@ -28,7 +29,10 @@ describe('ExamDayComponent', () => {
     http = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    http.verify();
+    vi.restoreAllMocks();
+  });
 
   it('renders the selected confirmed day with attendance and start controls', () => {
     fixture.detectChanges();
@@ -140,6 +144,35 @@ describe('ExamDayComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Ausfallmeldung gespeichert.',
     );
+  });
+
+  it('returns the demo examiner to derived scenario guidance after reporting an absence', () => {
+    TestBed.inject(AuthService).session.set({
+      authenticated: true,
+      account_id: 2,
+      person_id: 3,
+      committee_member_id: 1,
+      is_operator: false,
+      demo_role: 'examiner',
+      capabilities: ['absence:write-own'],
+    });
+    fixture.componentRef.setInput('canCoordinateAttendance', false);
+    fixture.componentRef.setInput('canWriteOwnAttendance', false);
+    fixture.componentRef.setInput('canReportOwnAbsence', true);
+    fixture.componentRef.setInput('ownMemberId', 1);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    fixture.detectChanges();
+    http.expectOne('/api/confirmed-plan-days/7').flush(dayView());
+    fixture.detectChanges();
+
+    const report = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+    ).find((button) => button.textContent?.includes('Ausfall melden'));
+    expect(report).toBeDefined();
+    report?.click();
+    http.expectOne('/api/absence-reports').flush({ id: 1 });
+
+    expect(navigate).toHaveBeenCalledWith('/demo-scenarios');
   });
 
   it('shows only capability-backed own actions in the demo', () => {

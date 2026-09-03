@@ -10,6 +10,7 @@ import {
   ExamDayAssignment,
   ExamRound,
   ExamSlot,
+  ExamVenue,
   Location,
   MasterData,
   MemberAvailability,
@@ -86,7 +87,7 @@ export const athenDeputyMembershipFixture = fixtureById(
 );
 export const athenCourtLocationFixture = fixtureById(
   locationsFixture,
-  fixtureId('locations', 'name.papaspyrou.repertoire.lzug.fixture.location.synthetic.court'),
+  fixtureId('rooms', 'name.papaspyrou.repertoire.lzug.fixture.room.zappeion.theseus'),
 );
 export const planchangeCandidateFixture = fixtureById(
   candidatesFixture,
@@ -98,7 +99,7 @@ export const absenceCandidateFixture = fixtureById(
 );
 export const feenwaldLocationFixture = fixtureById(
   locationsFixture,
-  fixtureId('locations', 'name.papaspyrou.repertoire.lzug.fixture.location.synthetic.feenwald'),
+  fixtureId('rooms', 'name.papaspyrou.repertoire.lzug.fixture.room.nationalgarden.oberon'),
 );
 
 export const roundCandidatesFixture: RoundCandidate[] = [
@@ -293,6 +294,20 @@ export const masterDataFixture: MasterData = {
   examRounds: examRoundsFixture,
   candidateAssignments: candidateAssignmentsFixture,
   locations: locationsFixture,
+  examVenues: [
+    {
+      ...syntheticFixtures.examVenues[0],
+      scope: 'committee',
+      committee_id: 1,
+      revision: 2,
+      rooms: syntheticFixtures.examVenues[0].rooms.slice(0, 1).map((room) => ({ ...room })),
+      contacts: syntheticFixtures.examVenues[0].contacts.map((contact) => ({
+        ...contact,
+        room_ids: [...contact.room_ids],
+      })),
+      capabilities: { manage: true, request_promotion: true, decide_promotion: false },
+    },
+  ] satisfies ExamVenue[],
 };
 
 export const planningBoardFixture: PlanningBoard = {

@@ -51,6 +51,51 @@ OpenAPI entsteht direkt aus der FastAPI-Assembly.
 Beides ergänzt die Komponentenorientierung, ersetzt aber nicht Service- und
 Vertragstests.
 
+## Optionale Kartenanbieter
+
+Die Kartenintegration ist ausschließlich geschützte Deployment-Konfiguration
+des Betreibers, nicht Teil der Produktoberfläche.
+`LZUG_MAP_PROVIDER` ist standardmäßig `off` und erlaubt nur `off`, `osm` oder
+`google`.
+Aktive Modi verlangen `LZUG_NOMINATIM_USER_AGENT`; ein abweichender
+`LZUG_NOMINATIM_URL` muss ein HTTPS-Endpunkt sein.
+Der Google-Modus prüft zusätzlich einen passend eingeschränkten
+`LZUG_GOOGLE_MAPS_API_KEY`.
+Ein Google Maps Embed API Browser-Key ist technisch kein Geheimnis, weil Google
+ihn im Iframe-URL erhält.
+Er wird daher ausschließlich als nicht sichtbares Attribut der ohnehin
+geladenen HTML-Shell an den Browser gegeben und muss auf die produktiven
+Referrer sowie die Maps Embed API beschränkt sein.
+Er erscheint weder in JSON-/OpenAPI-Antworten, Diagnosen, Logs noch als
+Produktoberflächentext; andere Zugangswerte werden nicht ausgeliefert.
+`lzug-admin system config` prüft nur die geheimnisfreie Gültigkeit.
+
+Nur die Ortsdetailansicht lädt eine Karte und zeigt die providerseitige
+Attribution.
+Ein bewusster externer Wechsel übergibt ausschließlich bestätigte
+Zielkoordinaten.
+Die öffentliche Demo ist für eine spätere freigegebene Auslieferung fest auf
+OpenStreetMap konfiguriert.
+Das Iframe lädt Kacheln erst beim Öffnen eines Ortsdetails; Übersichts-,
+Vorab- und Offline-Downloads finden nicht statt.
+Browser-Caching und ein gültiger Referrer bleiben entsprechend der
+OpenStreetMap-Tile-Policy erhalten.
+Vor dem Iframe erklärt die Oberfläche, dass Browser- und Anfragedaten direkt an
+OpenStreetMap-Infrastruktur übertragen werden können.
+Schlägt der Provider fehl, bleiben alle Ortsdaten und der bewusst auslösbare
+externe Ziellink nutzbar.
+Nominatim wird ohne Autocomplete und ohne Wiederholung nur für eine
+ausdrücklich ausgelöste Positionsprüfung aufgerufen.
+Die Antwort wird auf Koordinaten und Herkunft reduziert, bevor ein
+berechtigtes Ausschussmitglied oder ein Betreiber sie bestätigt.
+
+Koordinaten bleiben anbieterneutral gespeichert.
+Eine Adressänderung erhält die bisherige Position, markiert sie aber als
+`needs_review`.
+Bei aktivem Anbieter sind neue Planungen bis zur Bestätigung gesperrt.
+Provider-, Quoten- und Timeoutfehler verändern keine Fachdaten und enthalten
+in der Diagnose nur Anbieter und Fehlerklasse.
+
 ## Frontend
 
 Das Angular-Frontend verwendet TypeScript, Angular Router und Taiga UI.
@@ -101,7 +146,9 @@ Service Locator, Reflection oder versteckte Registrierung.
 
 Der Transport validiert den expliziten Containernamen und ruft den
 Python-Adminprozess ohne Shell-Stringverkettung auf.
-Auftrag und Backendantwort sind jeweils genau ein UTF-8-JSON-Objekt.
+Kleine Aufträge und Antworten sind genau ein UTF-8-JSON-Objekt;
+Artefaktoperationen trennen den potenziell großen Binärstrom von der
+strukturierten Kontrollantwort.
 Command-Handler greifen weder direkt auf Persistenz zu noch kennen sie
 Engine-spezifische Details; Docker und Podman verwenden denselben versionierten
 Backendauftrag.
@@ -116,9 +163,12 @@ Die Befehlsgruppen umfassen:
 - releasegebundenes Upgrade und nicht mutierende Rollback-Freigabe in einem
   ausdrücklich vorbereiteten Wartungscontainer.
 
-Private Empfängerschlüssel und Einmaltoken werden ausschließlich über `stdin`
-gelesen, am TTY ohne Echo erfasst und nicht als Argument, Konfiguration oder
-Umgebungswert akzeptiert.
+Private age-Identitäten werden ausschließlich lokal aus einer geschützten
+Datei, ausdrücklich gewähltem `stdin` oder am TTY ohne Echo gelesen.
+Sie erreichen den Backendtransport nicht.
+Einmaltoken werden über den bisherigen sicheren stdin-Kanal übertragen.
+Beide Geheimnistypen sind als Argument, Konfiguration oder Umgebungswert
+ausgeschlossen.
 Gewöhnlich destruktive Commands benötigen am Terminal eine konkrete Rückfrage;
 ohne TTY ist vor jedem mutierenden Transportaufruf `--force` erforderlich.
 Ein Restore auf nicht leerem Ziel und irreversible Migrationen behalten ihre
@@ -135,11 +185,30 @@ Umgebungsvariable, optionale JSON-Datei und Standardwert konfiguriert werden.
 `lzug-admin config inspect` zeigt diese effektiven Werte und ihre Herkunft,
 ohne Konfiguration zu verändern.
 
+`lzug-admin cli` ist ein zeilenorientierter Adapter auf dieselbe Registry.
+Er erzeugt Objekt- und Aktionsnavigation, Suche, Eingabeschritte und Hilfe aus
+den Command-Metadaten und ruft danach denselben `Application.Execute`-Pfad wie
+die direkte Syntax auf.
+Damit bleiben Argumentschema, vollständige Validierung, Request Builder,
+Transport, Secret-Eingabe und Ergebnisrenderer eine gemeinsame
+Implementierung.
+Der Dialog prüft sein Sitzungsziel vor dem ersten backendabhängigen Command;
+lokale Commands bleiben auch ohne erreichbares Ziel nutzbar.
+
+Die Dialogoberfläche benötigt interaktive Ein- und Ausgabe-Terminals und
+verwendet linearen Text ohne Vollbild-Neuzeichnung.
+Sie speichert weder Dialogzustand noch Eingaben, Geheimnisse oder
+Bestätigungen.
+Geheimnisse werden für jeden Versuch über den bestehenden echo-freien
+Eingabekanal neu erfasst.
+`--json` und sitzungsweites `--force` sind im Dialog unzulässig; Automation
+verwendet weiterhin direkte Subcommands.
+
 CLI und Backend geben technische Identität, Zustände, Phasen, Zähler und
 geheimnisfreie Fehlercodes aus, aber keine privaten Schlüssel, internen
 Engine-Ausgaben oder ungefilterten Fehlertexte.
 Die aufgabenorientierte Bedienung bleibt im
-[Administrationshandbuch](https://github.com/lxndrp/lzug/wiki/Administration).
+[Administrationshandbuch](../portal/betreiben.md).
 
 ## OCI-Runtime und Infrastruktur
 
@@ -163,8 +232,16 @@ Lifecycle, Health-Waiting und Build-Identitätsprüfung in
 Die öffentliche Demo verwendet ein separates Produkt-/Seed-Imagepaar mit
 gemeinsamer Produktrevision, Runtimevertrag, Schemafingerprint und
 Seed-Revision.
-Der Seed ist synthetisch, das Datenvolume flüchtig und der tägliche Reset kein
-Self-Hosting-Verfahren.
+Beim Einstieg erzeugt die Demo aus dem synthetischen Basisseed eine eigene
+SQLite-Arbeitskopie pro Besuch.
+Nur die drei Rollen dieses Besuchs teilen sie; Sitzung und Arbeitskopie laufen
+ab Erzeugung nach höchstens 60 Minuten ab und werden bei Abmeldung oder Reset
+verworfen.
+Die Demo-Policy erlaubt ausschließlich die in ihrer Matrix gebundenen
+Fachaktionen, unterdrückt externe Benachrichtigungszustellung und lässt die
+produktive Autorisierung zusätzlich unverändert prüfen.
+Das Datenvolume bleibt flüchtig und der tägliche Reset ist eine zusätzliche
+Absicherung, kein Self-Hosting-Verfahren.
 `infra/demo/` beschreibt die Azure-Ressourcen deklarativ; GitHub OIDC und das
 geschützte Environment `demo` begrenzen echte Mutationen.
 

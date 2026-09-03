@@ -8,6 +8,8 @@ import unittest
 from pathlib import Path
 
 from backend.auth import AuthenticationRepository
+from backend.authorization import AuthorizationScope
+from backend.exam_venue_api import ExamVenueApi
 from backend.models import CANDIDATE
 from backend.repositories import ResourceRepository
 from demo.artifacts import (
@@ -28,6 +30,41 @@ from demo.contract import demo_identity
 class DemoArtifactTests(unittest.TestCase):
     product_tag = "v0.1.1"
     product_commit = "948cab736131894950dbad57533e80f7238dd545"
+
+    @staticmethod
+    def _scope(committee_id: int) -> AuthorizationScope:
+        return AuthorizationScope(
+            person_id=committee_id,
+            person_ids=frozenset({committee_id}),
+            committee_ids=frozenset({committee_id}),
+            member_ids=frozenset({committee_id}),
+            management_committee_ids=frozenset(),
+            member_by_committee={committee_id: committee_id},
+        )
+
+    def test_seeded_athens_venues_follow_global_and_committee_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "seed.sqlite"
+            manifest = Path(directory) / "seed.json"
+            build_seed(
+                Path("."),
+                database,
+                manifest,
+                product_tag=self.product_tag,
+                product_commit=self.product_commit,
+            )
+            api = ExamVenueApi(database)
+            athens = api.list_venues(self._scope(1))
+            feenwald = api.list_venues(self._scope(2))
+
+            self.assertEqual([1, 2], sorted(venue["id"] for venue in athens))
+            self.assertEqual([1, 3], sorted(venue["id"] for venue in feenwald))
+            self.assertIsNone(api.get_venue(3, self._scope(1)))
+            self.assertIsNone(api.get_venue(2, self._scope(2)))
+            self.assertEqual(
+                [1, 2, 4, 5],
+                sorted(room["id"] for venue in athens for room in venue["rooms"]),
+            )
 
     def test_seed_and_manifest_are_reproducible_and_bound(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -66,7 +103,7 @@ class DemoArtifactTests(unittest.TestCase):
             self.assertEqual(first["snapshot_sha256"], sha256_file(first_db))
             self.assertEqual(RUNTIME_CONTRACT, first["runtime_contract"])
             self.assertRegex(first["seed_revision"], r"^[0-9a-f]{64}$")
-            self.assertEqual(3, self._scalar(first_db, "SELECT COUNT(*) FROM user_account"))
+            self.assertEqual(4, self._scalar(first_db, "SELECT COUNT(*) FROM user_account"))
             self.assertEqual(
                 ("running", "in_progress", 3),
                 self._row(
@@ -210,6 +247,8 @@ class DemoArtifactTests(unittest.TestCase):
             ResourceRepository(database).update(
                 CANDIDATE, candidate["id"], {"last_name": "Geändert"}
             )
+            with sqlite3.connect(database) as connection:
+                connection.execute("UPDATE exam_venue SET name = 'Geänderter Ort' WHERE id = 1")
             (data_dir / "documents" / "temporary.txt").write_text("demo", encoding="utf-8")
 
             initialize_workdir(seed_db, seed_manifest, data_dir)
@@ -223,6 +262,10 @@ class DemoArtifactTests(unittest.TestCase):
                 ),
             )
             self.assertFalse((data_dir / "documents" / "temporary.txt").exists())
+            self.assertEqual(
+                "Prüfungszentrum am Zappeion (Demo)",
+                self._scalar(database, "SELECT name FROM exam_venue WHERE id = 1"),
+            )
             self.assertIsNone(AuthenticationRepository(database).authenticate(credentials.token))
             self.assertEqual(sha256_file(seed_db), sha256_file(database))
 

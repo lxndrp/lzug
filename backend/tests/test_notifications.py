@@ -122,7 +122,7 @@ class NotificationServiceTests(unittest.TestCase):
         with session_scope(self.db_path) as session:
             day = ExamDay(
                 exam_round_id=1,
-                location_id=1,
+                room_id=1,
                 date="2026-11-23",
                 status="confirmed",
             )
@@ -152,7 +152,7 @@ class NotificationServiceTests(unittest.TestCase):
         self.assertEqual([(1,), (3,), (5,)], recipients)
         own = self.service.list_own(self.scope(1))[0]
         self.assertIn("2026-11-23", own["message"])
-        self.assertIn(DISPLAY_NAMES[f"{FIXTURE_ROOT}.location.synthetic.court"], own["message"])
+        self.assertIn(DISPLAY_NAMES[f"{FIXTURE_ROOT}.location.global.zappeion"], own["message"])
 
     def test_web_push_registration_confirmation_and_timeout_fallback_are_separate(self) -> None:
         private_key = vapid_private_key()
@@ -236,7 +236,7 @@ class NotificationServiceTests(unittest.TestCase):
         smtp.assert_called_once_with("smtp.example.invalid", 25, timeout=10)
         sent = smtp.send_message.call_args.args[0]
         self.assertEqual(DEMO_ROLES["chair"]["person_email"], sent["To"])
-        self.assertNotIn(DEMO_ROLES["deputy"]["display_name"], sent.get_content())
+        self.assertNotIn(DEMO_ROLES["replacement"]["display_name"], sent.get_content())
         with sqlite3.connect(self.db_path) as connection:
             invalidated_at = connection.execute(
                 "SELECT invalidated_at FROM push_subscription WHERE id = ?",

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -13,6 +13,7 @@ from sqlalchemy import select as sql_select
 from sqlalchemy import update as sql_update
 
 from .database import DEFAULT_DB_PATH, session_scope
+from .exam_venues import room_is_usable_for_committee
 from .models import (
     CANDIDATE,
     CANDIDATE_COMMITTEE_ASSIGNMENT,
@@ -22,7 +23,6 @@ from .models import (
     EXAM_DAY_ASSIGNMENT,
     EXAM_ROUND,
     EXAM_SLOT,
-    LOCATION,
     MEMBER_AVAILABILITY,
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
@@ -72,7 +72,7 @@ class PlanDay:
     """One candidate exam day and all slots and assignments planned for it."""
 
     candidate_exam_day_id: int
-    location_id: int
+    room_id: int
     slots: tuple[PlanSlot, ...]
     assignments: tuple[PlanAssignment, ...]
     id: int | None = None
@@ -106,6 +106,22 @@ class PlanValidationIssue:
     day_id: int | None = None
     slot_id: int | None = None
     member_id: int | None = None
+
+
+@dataclass
+class _ProposalValidationContext:
+    """Loaded reference data and accumulated counts for proposal validation."""
+
+    exam_round: dict[str, Any]
+    settings: dict[str, Any]
+    active_candidates: dict[int, dict[str, Any]]
+    candidate_days: dict[int, dict[str, Any]]
+    members: dict[int, dict[str, Any]]
+    availability: dict[tuple[int, int], str]
+    blocked: dict[tuple[str, str], dict[int, str]]
+    slot_counts: dict[tuple[int, str], int] = field(default_factory=lambda: defaultdict(int))
+    used_candidate_days: set[int] = field(default_factory=set)
+    days_by_week: dict[str, int] = field(default_factory=lambda: defaultdict(int))
 
 
 class PlanValidationError(ValueError):
@@ -450,7 +466,7 @@ class PlanningService:
         settings = context["settings"]
         days = []
         for planned_day in generated["days"]:
-            assignments = []
+            assignments: list[PlanAssignment] = []
             for part in ("morning", "afternoon"):
                 crew = planned_day[part]
                 if crew is None:
@@ -470,7 +486,7 @@ class PlanningService:
             days.append(
                 PlanDay(
                     candidate_exam_day_id=planned_day["candidate_exam_day_id"],
-                    location_id=settings["default_location_id"],
+                    room_id=settings["default_room_id"],
                     slots=tuple(slots),
                     assignments=tuple(assignments),
                 )
@@ -577,7 +593,7 @@ class PlanningService:
             days.append(
                 PlanDay(
                     candidate_exam_day_id=candidate_day["id"] if candidate_day else -1,
-                    location_id=row["location_id"],
+                    room_id=row["room_id"],
                     slots=slots,
                     assignments=assignments,
                     id=row["id"],
@@ -600,7 +616,7 @@ class PlanningService:
                 EXAM_DAY,
                 {
                     "exam_round_id": proposal.round_id,
-                    "location_id": day.location_id,
+                    "room_id": day.room_id,
                     "date": day.date,
                     "status": "proposed",
                     "lunch_break_enabled": int(bool(settings["lunch_break_enabled"])),
@@ -661,7 +677,7 @@ class PlanningService:
                 EXAM_DAY,
                 day.id,
                 {
-                    "location_id": day.location_id,
+                    "room_id": day.room_id,
                     "date": day.date,
                     "status": "confirmed",
                 },
@@ -728,7 +744,7 @@ class PlanningService:
                 "id": day.id,
                 "candidate_exam_day_id": day.candidate_exam_day_id,
                 "date": day.date,
-                "location_id": day.location_id,
+                "room_id": day.room_id,
                 "status": day.status,
                 "slots": [
                     {
@@ -930,28 +946,30 @@ class PlanningService:
     ) -> list[PlanValidationIssue]:
         """Apply every mandatory proposal invariant through one validation path."""
         issues: list[PlanValidationIssue] = []
-
-        def reject(
-            code: str,
-            message: str,
-            *,
-            day_id: int | None = None,
-            slot_id: int | None = None,
-            member_id: int | None = None,
-        ) -> None:
-            issues.append(PlanValidationIssue(code, message, day_id, slot_id, member_id))
-
         exam_round = store.get(EXAM_ROUND, proposal.round_id)
         settings = store.first(PLANNING_SETTINGS, exam_round_id=proposal.round_id)
         if exam_round is None:
-            reject("round_not_found", "Exam round not found")
-            return issues
+            return [PlanValidationIssue("round_not_found", "Exam round not found")]
         if settings is None:
-            reject("settings_missing", "Planning settings not found")
-            return issues
+            return [PlanValidationIssue("settings_missing", "Planning settings not found")]
         if not proposal.days:
-            reject("plan_empty", "A planning proposal needs at least one exam day")
+            issues.append(
+                PlanValidationIssue("plan_empty", "A planning proposal needs at least one exam day")
+            )
+        context = self._proposal_validation_context(store, proposal, exam_round, settings)
+        for day in proposal.days:
+            self._validate_proposal_day(store, day, context, issues, status=status)
+        self._validate_weekly_day_limits(context, issues)
+        self._validate_candidate_requirements(store, proposal, context, issues)
+        return issues
 
+    def _proposal_validation_context(
+        self,
+        store: Store,
+        proposal: PlanningProposal,
+        exam_round: dict[str, Any],
+        settings: dict[str, Any],
+    ) -> _ProposalValidationContext:
         active_candidates = {
             row["id"]: row
             for row in store.where(
@@ -964,237 +982,405 @@ class PlanningService:
             row["id"]: row
             for row in store.where(CANDIDATE_EXAM_DAY, exam_round_id=proposal.round_id)
         }
-        members = {row["id"]: row for row in store.all(COMMITTEE_MEMBER)}
         availability = self._availability_index(
             store.where(MEMBER_AVAILABILITY, exam_round_id=proposal.round_id)
         )
-        blocked = self._blocked_person_ids(store, exam_round)
-        slot_counts: dict[tuple[int, str], int] = defaultdict(int)
-        used_candidate_days: set[int] = set()
-        days_by_week: dict[str, int] = defaultdict(int)
+        return _ProposalValidationContext(
+            exam_round=exam_round,
+            settings=settings,
+            active_candidates=active_candidates,
+            candidate_days=candidate_days,
+            members={row["id"]: row for row in store.all(COMMITTEE_MEMBER)},
+            availability=availability,
+            blocked=self._blocked_person_ids(store, exam_round),
+        )
 
-        for day in proposal.days:
-            candidate_day = candidate_days.get(day.candidate_exam_day_id)
-            if day.candidate_exam_day_id in used_candidate_days:
-                reject(
+    def _validate_proposal_day(
+        self,
+        store: Store,
+        day: PlanDay,
+        context: _ProposalValidationContext,
+        issues: list[PlanValidationIssue],
+        *,
+        status: str,
+    ) -> None:
+        candidate_day = self._validated_candidate_day(day, context, issues)
+        if candidate_day is None:
+            return
+        self._validate_exam_day_state(store, day, candidate_day, context, issues, status=status)
+        self._validate_day_slots(day, candidate_day, context, issues, status=status)
+        self._validate_day_assignments(day, candidate_day, context, issues)
+
+    @staticmethod
+    def _validated_candidate_day(
+        day: PlanDay,
+        context: _ProposalValidationContext,
+        issues: list[PlanValidationIssue],
+    ) -> dict[str, Any] | None:
+        candidate_day = context.candidate_days.get(day.candidate_exam_day_id)
+        if day.candidate_exam_day_id in context.used_candidate_days:
+            issues.append(
+                PlanValidationIssue(
                     "candidate_day_duplicate",
                     "A candidate exam day may only occur once in a proposal",
                     day_id=day.id,
                 )
-            used_candidate_days.add(day.candidate_exam_day_id)
-            if candidate_day is None or not candidate_day["is_active"]:
-                reject(
+            )
+        context.used_candidate_days.add(day.candidate_exam_day_id)
+        if candidate_day is None or not candidate_day["is_active"]:
+            issues.append(
+                PlanValidationIssue(
                     "candidate_day_inactive",
                     "Exam days must use an active candidate exam day of the round",
                     day_id=day.id,
                 )
-                continue
-            if day.date != candidate_day["date"] or day.status != status:
-                reject(
+            )
+            return None
+        return candidate_day
+
+    @staticmethod
+    def _week_key(date: str) -> str:
+        week = datetime.strptime(date, "%Y-%m-%d").isocalendar()
+        return f"{week.year}-W{week.week:02d}"
+
+    def _validate_exam_day_state(
+        self,
+        store: Store,
+        day: PlanDay,
+        candidate_day: dict[str, Any],
+        context: _ProposalValidationContext,
+        issues: list[PlanValidationIssue],
+        *,
+        status: str,
+    ) -> None:
+        if day.date != candidate_day["date"] or day.status != status:
+            issues.append(
+                PlanValidationIssue(
                     "exam_day_state_invalid",
                     "Exam-day date and status must match the active proposal day",
                     day_id=day.id,
                 )
-            location = store.get(LOCATION, day.location_id)
-            if (
-                location is None
-                or not location["is_active"]
-                or location["committee_id"] != exam_round["committee_id"]
-            ):
-                reject(
-                    "location_invalid",
-                    "Exam-day location must be active and belong to the round committee",
+            )
+        if not room_is_usable_for_committee(
+            store.session, day.room_id, context.exam_round["committee_id"]
+        ):
+            issues.append(
+                PlanValidationIssue(
+                    "room_invalid",
+                    "Exam-day room must be active and usable by the round committee",
                     day_id=day.id,
                 )
-            if not day.slots:
-                reject("exam_day_empty", "A proposal day needs at least one slot", day_id=day.id)
-            if len(day.slots) > settings["exams_per_day"]:
-                reject(
+            )
+        if not day.slots:
+            issues.append(
+                PlanValidationIssue(
+                    "exam_day_empty", "A proposal day needs at least one slot", day_id=day.id
+                )
+            )
+        if len(day.slots) > context.settings["exams_per_day"]:
+            issues.append(
+                PlanValidationIssue(
                     "daily_capacity_exceeded",
                     "Exam-day capacity is exceeded",
                     day_id=day.id,
                 )
-            week = datetime.strptime(candidate_day["date"], "%Y-%m-%d").isocalendar()
-            week_key = f"{week.year}-W{week.week:02d}"
-            days_by_week[week_key] += 1
+            )
+        context.days_by_week[self._week_key(candidate_day["date"])] += 1
 
-            expected_times = self._slot_times(len(day.slots), bool(settings["lunch_break_enabled"]))
-            seen_mep = False
-            has_regular = False
-            for index, (slot, (start, end)) in enumerate(
-                zip(day.slots, expected_times, strict=True), start=1
-            ):
-                if slot.round_candidate_id not in active_candidates:
-                    reject(
-                        "round_candidate_invalid",
-                        "Slots may only use active candidates of the round",
-                        day_id=day.id,
-                        slot_id=slot.id,
-                    )
-                if slot.slot_type not in {"regular", "mep"}:
-                    reject(
-                        "slot_type_invalid",
-                        "Unknown exam slot type",
-                        day_id=day.id,
-                        slot_id=slot.id,
-                    )
-                else:
-                    slot_counts[(slot.round_candidate_id, slot.slot_type)] += 1
-                if slot.slot_type == "mep":
-                    seen_mep = True
-                elif seen_mep:
-                    reject(
-                        "mep_not_last",
-                        "MEP slots must be at the end of their exam day",
-                        day_id=day.id,
-                        slot_id=slot.id,
-                    )
-                if slot.slot_type == "regular":
-                    has_regular = True
-                if (
-                    slot.sequence_number != index
-                    or slot.starts_at != f"{candidate_day['date']} {start}:00"
-                    or slot.ends_at != f"{candidate_day['date']} {end}:00"
-                    or slot.status != status
-                ):
-                    reject(
-                        "slot_schedule_invalid",
-                        "Slot sequence and times must use the server-derived 60-minute schedule",
-                        day_id=day.id,
-                        slot_id=slot.id,
-                    )
-            if day.slots and not has_regular:
-                reject("mep_only_day", "An exam day cannot contain only MEP slots", day_id=day.id)
+    def _validate_day_slots(
+        self,
+        day: PlanDay,
+        candidate_day: dict[str, Any],
+        context: _ProposalValidationContext,
+        issues: list[PlanValidationIssue],
+        *,
+        status: str,
+    ) -> None:
+        expected_times = self._slot_times(
+            len(day.slots), bool(context.settings["lunch_break_enabled"])
+        )
+        seen_mep = False
+        has_regular = False
+        for index, (slot, (start, end)) in enumerate(
+            zip(day.slots, expected_times, strict=True), start=1
+        ):
+            seen_mep, slot_is_regular = self._validate_slot(
+                day, slot, candidate_day, context, issues, index, start, end, seen_mep, status
+            )
+            has_regular = has_regular or slot_is_regular
+        if day.slots and not has_regular:
+            issues.append(
+                PlanValidationIssue(
+                    "mep_only_day", "An exam day cannot contain only MEP slots", day_id=day.id
+                )
+            )
 
-            used_parts = ("morning", "afternoon") if len(day.slots) > 4 else ("morning",)
-            for assignment in day.assignments:
-                if assignment.assignment_role not in {"examiner", "fallback"}:
-                    reject(
-                        "assignment_role_invalid",
-                        "Assignments must be examiners or fallbacks",
-                        day_id=day.id,
-                        member_id=assignment.committee_member_id,
-                    )
-                if assignment.day_part not in {"morning", "afternoon", "full_day"}:
-                    reject(
-                        "assignment_day_part_invalid",
-                        "Assignments need a valid day part",
-                        day_id=day.id,
-                        member_id=assignment.committee_member_id,
-                    )
-                if assignment.day_part not in {*used_parts, "full_day"}:
-                    reject(
-                        "assignment_day_part_unused",
-                        "Assignments may only target a used day part",
-                        day_id=day.id,
-                        member_id=assignment.committee_member_id,
-                    )
-            for part in used_parts:
-                applicable = [
-                    assignment
-                    for assignment in day.assignments
-                    if assignment.day_part in {part, "full_day"}
-                ]
-                examiners = [
-                    assignment
-                    for assignment in applicable
-                    if assignment.assignment_role == "examiner"
-                ]
-                fallbacks = [
-                    assignment
-                    for assignment in applicable
-                    if assignment.assignment_role == "fallback"
-                ]
-                examiner_sides = []
-                applicable_member_ids = [item.committee_member_id for item in applicable]
-                for assignment in applicable:
-                    member = members.get(assignment.committee_member_id)
-                    if (
-                        member is None
-                        or not member["is_active"]
-                        or member["committee_id"] != exam_round["committee_id"]
-                    ):
-                        reject(
-                            "member_invalid",
-                            "Assignments require active members of the round committee",
-                            day_id=day.id,
-                            member_id=assignment.committee_member_id,
-                        )
-                        continue
-                    if assignment.assignment_role == "examiner":
-                        examiner_sides.append(member["representing_side"])
-                    member_availability = availability.get(
-                        (assignment.committee_member_id, day.candidate_exam_day_id), "pending"
-                    )
-                    if not self._available_for(member_availability, part):
-                        reject(
-                            "member_unavailable",
-                            "Assigned members must be available for the day part",
-                            day_id=day.id,
-                            member_id=assignment.committee_member_id,
-                        )
-                    reservation = blocked.get((candidate_day["date"], part), {}).get(
-                        member["person_id"]
-                    )
-                    if reservation:
-                        reject(
-                            "member_reserved",
-                            f"Assigned member is already reserved by another {reservation}",
-                            day_id=day.id,
-                            member_id=assignment.committee_member_id,
-                        )
-                if len(examiners) != 3 or set(examiner_sides) != set(SIDES):
-                    reject(
-                        "examiner_crew_incomplete",
-                        "Each used day part needs one examiner from every representing side",
-                        day_id=day.id,
-                    )
-                if len(fallbacks) != 1:
-                    reject(
-                        "fallback_missing",
-                        "Each used day part needs exactly one fallback",
-                        day_id=day.id,
-                    )
-                if len(set(applicable_member_ids)) != len(applicable_member_ids):
-                    reject(
-                        "assignment_member_duplicate",
-                        "Examiner and fallback members must be distinct within a day part",
-                        day_id=day.id,
-                    )
+    @staticmethod
+    def _validate_slot(
+        day: PlanDay,
+        slot: PlanSlot,
+        candidate_day: dict[str, Any],
+        context: _ProposalValidationContext,
+        issues: list[PlanValidationIssue],
+        index: int,
+        start: str,
+        end: str,
+        seen_mep: bool,
+        status: str,
+    ) -> tuple[bool, bool]:
+        if slot.round_candidate_id not in context.active_candidates:
+            issues.append(
+                PlanValidationIssue(
+                    "round_candidate_invalid",
+                    "Slots may only use active candidates of the round",
+                    day_id=day.id,
+                    slot_id=slot.id,
+                )
+            )
+        if slot.slot_type not in {"regular", "mep"}:
+            issues.append(
+                PlanValidationIssue(
+                    "slot_type_invalid",
+                    "Unknown exam slot type",
+                    day_id=day.id,
+                    slot_id=slot.id,
+                )
+            )
+        else:
+            context.slot_counts[(slot.round_candidate_id, slot.slot_type)] += 1
+        if slot.slot_type == "mep":
+            seen_mep = True
+        elif seen_mep:
+            issues.append(
+                PlanValidationIssue(
+                    "mep_not_last",
+                    "MEP slots must be at the end of their exam day",
+                    day_id=day.id,
+                    slot_id=slot.id,
+                )
+            )
+        if (
+            slot.sequence_number != index
+            or slot.starts_at != f"{candidate_day['date']} {start}:00"
+            or slot.ends_at != f"{candidate_day['date']} {end}:00"
+            or slot.status != status
+        ):
+            issues.append(
+                PlanValidationIssue(
+                    "slot_schedule_invalid",
+                    "Slot sequence and times must use the server-derived 60-minute schedule",
+                    day_id=day.id,
+                    slot_id=slot.id,
+                )
+            )
+        return seen_mep, slot.slot_type == "regular"
 
-        for week_key, count in days_by_week.items():
-            if count > settings["max_exam_days_per_week"]:
-                reject(
-                    "weekly_day_limit_exceeded",
-                    f"Maximum exam days exceeded for {week_key}",
+    def _validate_day_assignments(
+        self,
+        day: PlanDay,
+        candidate_day: dict[str, Any],
+        context: _ProposalValidationContext,
+        issues: list[PlanValidationIssue],
+    ) -> None:
+        used_parts = ("morning", "afternoon") if len(day.slots) > 4 else ("morning",)
+        for assignment in day.assignments:
+            self._validate_assignment_shape(assignment, day, used_parts, issues)
+        for part in used_parts:
+            self._validate_crew(day, candidate_day, part, context, issues)
+
+    @staticmethod
+    def _validate_assignment_shape(
+        assignment: PlanAssignment,
+        day: PlanDay,
+        used_parts: tuple[str, ...],
+        issues: list[PlanValidationIssue],
+    ) -> None:
+        if assignment.assignment_role not in {"examiner", "fallback"}:
+            issues.append(
+                PlanValidationIssue(
+                    "assignment_role_invalid",
+                    "Assignments must be examiners or fallbacks",
+                    day_id=day.id,
+                    member_id=assignment.committee_member_id,
+                )
+            )
+        if assignment.day_part not in {"morning", "afternoon", "full_day"}:
+            issues.append(
+                PlanValidationIssue(
+                    "assignment_day_part_invalid",
+                    "Assignments need a valid day part",
+                    day_id=day.id,
+                    member_id=assignment.committee_member_id,
+                )
+            )
+        if assignment.day_part not in {*used_parts, "full_day"}:
+            issues.append(
+                PlanValidationIssue(
+                    "assignment_day_part_unused",
+                    "Assignments may only target a used day part",
+                    day_id=day.id,
+                    member_id=assignment.committee_member_id,
+                )
+            )
+
+    def _validate_crew(
+        self,
+        day: PlanDay,
+        candidate_day: dict[str, Any],
+        part: str,
+        context: _ProposalValidationContext,
+        issues: list[PlanValidationIssue],
+    ) -> None:
+        applicable = [
+            assignment
+            for assignment in day.assignments
+            if assignment.day_part in {part, "full_day"}
+        ]
+        examiners = [item for item in applicable if item.assignment_role == "examiner"]
+        fallbacks = [item for item in applicable if item.assignment_role == "fallback"]
+        examiner_sides = []
+        for assignment in applicable:
+            side = self._validate_assigned_member(
+                assignment, day, candidate_day, part, context, issues
+            )
+            if side is not None:
+                examiner_sides.append(side)
+        if len(examiners) != 3 or set(examiner_sides) != set(SIDES):
+            issues.append(
+                PlanValidationIssue(
+                    "examiner_crew_incomplete",
+                    "Each used day part needs one examiner from every representing side",
+                    day_id=day.id,
+                )
+            )
+        if len(fallbacks) != 1:
+            issues.append(
+                PlanValidationIssue(
+                    "fallback_missing",
+                    "Each used day part needs exactly one fallback",
+                    day_id=day.id,
+                )
+            )
+        member_ids = [item.committee_member_id for item in applicable]
+        if len(set(member_ids)) != len(member_ids):
+            issues.append(
+                PlanValidationIssue(
+                    "assignment_member_duplicate",
+                    "Examiner and fallback members must be distinct within a day part",
+                    day_id=day.id,
+                )
+            )
+
+    def _validate_assigned_member(
+        self,
+        assignment: PlanAssignment,
+        day: PlanDay,
+        candidate_day: dict[str, Any],
+        part: str,
+        context: _ProposalValidationContext,
+        issues: list[PlanValidationIssue],
+    ) -> str | None:
+        member = context.members.get(assignment.committee_member_id)
+        if (
+            member is None
+            or not member["is_active"]
+            or member["committee_id"] != context.exam_round["committee_id"]
+        ):
+            issues.append(
+                PlanValidationIssue(
+                    "member_invalid",
+                    "Assignments require active members of the round committee",
+                    day_id=day.id,
+                    member_id=assignment.committee_member_id,
+                )
+            )
+            return None
+        member_availability = context.availability.get(
+            (assignment.committee_member_id, day.candidate_exam_day_id), "pending"
+        )
+        if not self._available_for(member_availability, part):
+            issues.append(
+                PlanValidationIssue(
+                    "member_unavailable",
+                    "Assigned members must be available for the day part",
+                    day_id=day.id,
+                    member_id=assignment.committee_member_id,
+                )
+            )
+        reservation = context.blocked.get((candidate_day["date"], part), {}).get(
+            member["person_id"]
+        )
+        if reservation:
+            issues.append(
+                PlanValidationIssue(
+                    "member_reserved",
+                    f"Assigned member is already reserved by another {reservation}",
+                    day_id=day.id,
+                    member_id=assignment.committee_member_id,
+                )
+            )
+        return member["representing_side"] if assignment.assignment_role == "examiner" else None
+
+    @staticmethod
+    def _validate_weekly_day_limits(
+        context: _ProposalValidationContext,
+        issues: list[PlanValidationIssue],
+    ) -> None:
+        for week_key, count in context.days_by_week.items():
+            if count > context.settings["max_exam_days_per_week"]:
+                issues.append(
+                    PlanValidationIssue(
+                        "weekly_day_limit_exceeded",
+                        f"Maximum exam days exceeded for {week_key}",
+                    )
                 )
 
-        for candidate_id, candidate in active_candidates.items():
-            if slot_counts[(candidate_id, "regular")] != 1:
-                reject(
-                    "regular_slot_count_invalid",
-                    "Every active candidate needs exactly one regular slot",
-                    slot_id=None,
-                )
-            expected_mep = 1 if candidate["requires_mep"] else 0
-            if slot_counts[(candidate_id, "mep")] != expected_mep:
-                reject(
-                    "mep_slot_count_invalid",
-                    "MEP slot count must match the active candidate assignment",
-                    slot_id=None,
-                )
+    def _validate_candidate_requirements(
+        self,
+        store: Store,
+        proposal: PlanningProposal,
+        context: _ProposalValidationContext,
+        issues: list[PlanValidationIssue],
+    ) -> None:
+        for candidate_id, candidate in context.active_candidates.items():
+            self._validate_candidate_slot_counts(candidate_id, candidate, context, issues)
             active_assignment = store.first(
                 CANDIDATE_COMMITTEE_ASSIGNMENT,
                 round_candidate_id=candidate_id,
                 ended_at=None,
             )
             if active_assignment is None or active_assignment["exam_round_id"] != proposal.round_id:
-                reject(
-                    "candidate_assignment_inactive",
-                    "Candidates need an active responsibility assignment for this round",
+                issues.append(
+                    PlanValidationIssue(
+                        "candidate_assignment_inactive",
+                        "Candidates need an active responsibility assignment for this round",
+                    )
                 )
 
-        return issues
+    @staticmethod
+    def _validate_candidate_slot_counts(
+        candidate_id: int,
+        candidate: dict[str, Any],
+        context: _ProposalValidationContext,
+        issues: list[PlanValidationIssue],
+    ) -> None:
+        if context.slot_counts[(candidate_id, "regular")] != 1:
+            issues.append(
+                PlanValidationIssue(
+                    "regular_slot_count_invalid",
+                    "Every active candidate needs exactly one regular slot",
+                    slot_id=None,
+                )
+            )
+        expected_mep = 1 if candidate["requires_mep"] else 0
+        if context.slot_counts[(candidate_id, "mep")] != expected_mep:
+            issues.append(
+                PlanValidationIssue(
+                    "mep_slot_count_invalid",
+                    "MEP slot count must match the active candidate assignment",
+                    slot_id=None,
+                )
+            )
 
     def _load_context(self, store: Store, round_id: int) -> dict[str, Any]:
         exam_round = store.get(EXAM_ROUND, round_id)
@@ -1278,8 +1464,8 @@ class PlanningService:
 
     def _build_proposal(self, context: dict[str, Any]) -> dict[str, Any]:
         settings = context["settings"]
-        if settings["default_location_id"] is None:
-            raise ValueError("Planning settings need a default location")
+        if settings["default_room_id"] is None:
+            raise ValueError("Planning settings need a default room")
         round_candidates = sorted(context["round_candidates"], key=lambda row: row["id"])
         regular_queue = list(round_candidates)
         mep_queue = [row for row in round_candidates if row["requires_mep"]]
@@ -1289,99 +1475,122 @@ class PlanningService:
         days_by_week = self._days_by_week(context["candidate_days"])
         availability = self._availability_index(context["availability"])
         validation = {"passed": True, "messages": []}
-        planned_days = []
+        planned_days: list[dict[str, Any]] = []
 
         for week_key in sorted(days_by_week):
-            used_days = 0
-            week_days = sorted(days_by_week[week_key], key=lambda row: row["date"])
-            options = []
-            for day in week_days:
-                morning = self._choose_shift_crew(
-                    context,
-                    availability,
-                    day["id"],
-                    "morning",
-                    load,
-                )
-                if morning is None:
-                    validation["messages"].append(
-                        f"{day['date']}: keine vollstaendige Vormittagsbesetzung"
-                    )
-                    conflict = self._reservation_message(context, day["date"], "morning")
-                    if conflict:
-                        validation["messages"].append(conflict)
-                    continue
-                afternoon = self._choose_shift_crew(
-                    context,
-                    availability,
-                    day["id"],
-                    "afternoon",
-                    load,
-                )
-                capacity = settings["exams_per_day"]
-                if capacity > 4 and afternoon is None:
-                    capacity = 4
-                options.append(
-                    {
-                        "day": day,
-                        "capacity": capacity,
-                        "morning": morning,
-                        "afternoon": afternoon,
-                    }
-                )
+            options = self._planning_options_for_week(
+                context, days_by_week[week_key], availability, load, validation
+            )
+            remaining_slots = self._plan_week(
+                context,
+                options,
+                availability,
+                load,
+                validation,
+                planned_days,
+                remaining_slots,
+            )
+        return self._proposal_build_result(
+            planned_days, regular_queue, mep_queue, required_slots, remaining_slots, validation
+        )
 
-            options.sort(key=lambda option: (-option["capacity"], option["day"]["date"]))
-            for option in options:
-                if remaining_slots <= 0:
-                    break
-                if used_days >= settings["max_exam_days_per_week"]:
-                    break
-                exams = min(option["capacity"], remaining_slots)
-                needs_afternoon = exams > 4
-                morning = self._choose_shift_crew(
-                    context,
-                    availability,
-                    option["day"]["id"],
-                    "morning",
-                    load,
+    def _planning_options_for_week(
+        self,
+        context: dict[str, Any],
+        week_days: list[dict[str, Any]],
+        availability: dict[tuple[int, int], str],
+        load: dict[int, float],
+        validation: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        options = []
+        for day in sorted(week_days, key=lambda row: row["date"]):
+            morning = self._choose_shift_crew(context, availability, day["id"], "morning", load)
+            if morning is None:
+                validation["messages"].append(
+                    f"{day['date']}: keine vollstaendige Vormittagsbesetzung"
                 )
-                afternoon = (
-                    self._choose_shift_crew(
-                        context,
-                        availability,
-                        option["day"]["id"],
-                        "afternoon",
-                        load,
-                    )
-                    if needs_afternoon
-                    else None
-                )
-                if morning is None or (needs_afternoon and afternoon is None):
-                    missing_part = "morning" if morning is None else "afternoon"
-                    conflict = self._reservation_message(
-                        context, option["day"]["date"], missing_part
-                    )
-                    if conflict:
-                        validation["messages"].append(conflict)
-                    continue
+                conflict = self._reservation_message(context, day["date"], "morning")
+                if conflict:
+                    validation["messages"].append(conflict)
+                continue
+            afternoon = self._choose_shift_crew(context, availability, day["id"], "afternoon", load)
+            capacity = context["settings"]["exams_per_day"]
+            if capacity > 4 and afternoon is None:
+                capacity = 4
+            options.append({"day": day, "capacity": capacity})
+        return sorted(options, key=lambda option: (-option["capacity"], option["day"]["date"]))
 
-                self._apply_load(load, morning)
-                if afternoon:
-                    self._apply_load(load, afternoon)
-                planned_days.append(
-                    {
-                        "date": option["day"]["date"],
-                        "candidate_exam_day_id": option["day"]["id"],
-                        "exams": exams,
-                        "morning": morning,
-                        "afternoon": afternoon,
-                        "regular_candidate_ids": [],
-                        "mep_candidate_ids": [],
-                    }
-                )
-                remaining_slots -= exams
-                used_days += 1
+    def _plan_week(
+        self,
+        context: dict[str, Any],
+        options: list[dict[str, Any]],
+        availability: dict[tuple[int, int], str],
+        load: dict[int, float],
+        validation: dict[str, Any],
+        planned_days: list[dict[str, Any]],
+        remaining_slots: int,
+    ) -> int:
+        used_days = 0
+        for option in options:
+            if remaining_slots <= 0 or used_days >= context["settings"]["max_exam_days_per_week"]:
+                break
+            planned_day = self._plan_day_option(
+                context, option, availability, load, validation, remaining_slots
+            )
+            if planned_day is None:
+                continue
+            self._apply_load(load, planned_day["morning"])
+            if planned_day["afternoon"]:
+                self._apply_load(load, planned_day["afternoon"])
+            planned_days.append(planned_day)
+            remaining_slots -= planned_day["exams"]
+            used_days += 1
+        return remaining_slots
 
+    def _plan_day_option(
+        self,
+        context: dict[str, Any],
+        option: dict[str, Any],
+        availability: dict[tuple[int, int], str],
+        load: dict[int, float],
+        validation: dict[str, Any],
+        remaining_slots: int,
+    ) -> dict[str, Any] | None:
+        exams = min(option["capacity"], remaining_slots)
+        needs_afternoon = exams > 4
+        morning = self._choose_shift_crew(
+            context, availability, option["day"]["id"], "morning", load
+        )
+        afternoon = (
+            self._choose_shift_crew(context, availability, option["day"]["id"], "afternoon", load)
+            if needs_afternoon
+            else None
+        )
+        if morning is None or (needs_afternoon and afternoon is None):
+            missing_part = "morning" if morning is None else "afternoon"
+            conflict = self._reservation_message(context, option["day"]["date"], missing_part)
+            if conflict:
+                validation["messages"].append(conflict)
+            return None
+        return {
+            "date": option["day"]["date"],
+            "candidate_exam_day_id": option["day"]["id"],
+            "exams": exams,
+            "morning": morning,
+            "afternoon": afternoon,
+            "regular_candidate_ids": [],
+            "mep_candidate_ids": [],
+        }
+
+    def _proposal_build_result(
+        self,
+        planned_days: list[dict[str, Any]],
+        regular_queue: list[dict[str, Any]],
+        mep_queue: list[dict[str, Any]],
+        required_slots: int,
+        remaining_slots: int,
+        validation: dict[str, Any],
+    ) -> dict[str, Any]:
         self._assign_candidates(planned_days, regular_queue, mep_queue)
         validation["passed"] = remaining_slots == 0 and not regular_queue and not mep_queue
         if remaining_slots:

@@ -25,9 +25,10 @@
         aria-label="Prüfungsverwaltung"
       >
         <div class="app-sidebar-header">
-          <a class="app-brand" href="/dashboard" (click)="navigateFromShell('dashboard', $event)"
-            >LZUG</a
-          >
+          <a class="app-brand" href="/dashboard" (click)="navigateFromShell('dashboard', $event)">
+            <img src="brand/logo-mark-dark.svg" alt="" />
+            <span>lzug</span>
+          </a>
           <button
             #sidebarClose
             tuiButton
@@ -37,11 +38,23 @@
             aria-label="Navigation schließen"
             (click)="closeSidebar()"
           >
-            <span class="app-menu-icon is-close" aria-hidden="true"></span>
+            <svg [cIcon]="icons.cancel" class="app-icon-only" aria-hidden="true"></svg>
           </button>
         </div>
 
         <nav class="app-navigation" aria-label="Hauptnavigation">
+          @if (demoSession()) {
+            <p class="app-nav-title">Öffentliche Demo</p>
+            <a
+              class="app-nav-link"
+              href="/demo-scenarios"
+              [class.is-active]="activeView() === 'demo-scenarios'"
+              (click)="navigateFromShell('demo-scenarios', $event)"
+            >
+              <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
+              Szenarien und Rollen
+            </a>
+          }
           <p class="app-nav-title">Prüfungskontext</p>
           @if (canAccessView('exam-half-years')) {
             <a
@@ -150,6 +163,16 @@
               Prüfungsorte
             </a>
           }
+          <p class="app-nav-title">Information</p>
+          <a
+            class="app-nav-link"
+            href="/about"
+            [class.is-active]="activeView() === 'about'"
+            (click)="navigateFromShell('about', $event)"
+          >
+            <svg [cIcon]="icons.documentation" class="app-nav-icon" aria-hidden="true"></svg>
+            Über lzug
+          </a>
         </nav>
         @if (applicationVersion(); as version) {
           <p class="app-version">Version {{ version }}</p>
@@ -180,7 +203,11 @@
               [class.is-open]="sidebarVisible()"
               (click)="toggleSidebar()"
             >
-              <span class="app-menu-icon header-toggler-icon" aria-hidden="true"></span>
+              <svg
+                [cIcon]="sidebarVisible() ? icons.cancel : icons.menu"
+                class="app-icon-only"
+                aria-hidden="true"
+              ></svg>
             </button>
             <a
               class="app-header-title"
@@ -238,6 +265,15 @@
                 <span>{{ breadcrumb() }}</span>
               </nav>
               <h1>{{ pageTitle() }}</h1>
+              @if (demoSession() && activeView() !== 'demo-scenarios') {
+                <a
+                  tuiButton
+                  appearance="secondary"
+                  href="/demo-scenarios"
+                  (click)="navigateFromShell('demo-scenarios', $event)"
+                  >Zu Szenarien, Rollen und Neustart</a
+                >
+              }
             </header>
 
             @if (isContextualView()) {
@@ -320,6 +356,16 @@
                     [loading]="loading()"
                     [actionBusy]="actionBusy()"
                     (openView)="showView($event)"
+                  />
+                }
+                @case ('demo-scenarios') {
+                  <app-demo-scenarios />
+                }
+                @case ('about') {
+                  <app-about
+                    [version]="applicationVersion()"
+                    [demo]="demoSession() !== null"
+                    [demoMatrixVersion]="demoSession()?.demo_matrix_version ?? null"
                   />
                 }
                 @case ('scheduling-overview') {
@@ -405,12 +451,28 @@
                   <app-locations
                     [masterData]="masterData()"
                     [actionBusy]="actionBusy()"
-                    (createLocation)="createLocation($event)"
-                    (updateLocation)="updateLocation($event)"
-                    (toggleLocation)="toggleLocation($event)"
-                    (deleteLocation)="
-                      requestLocationDeletion($event.id, $event.name + ' · ' + $event.room)
-                    "
+                    [isOperator]="auth.session()?.is_operator ?? false"
+                    [readOnly]="demoSession() !== null"
+                    [loading]="loading()"
+                    [loadError]="masterDataError()"
+                    [detailVenueId]="contextualVenueId()"
+                    [canCreateVenue]="canManageVenueCreation()"
+                    [geocodeCandidate]="geocodeCandidate()"
+                    (openVenue)="openVenue($event)"
+                    (closeDetail)="closeVenueDetail()"
+                    (createVenue)="createVenue($event)"
+                    (updateVenue)="updateVenue($event)"
+                    (geocodeVenue)="geocodeVenue($event)"
+                    (retryConsequences)="retryVenueConsequences($event)"
+                    (deleteVenue)="requestVenueDeletion($event)"
+                    (createRoom)="createRoom($event)"
+                    (updateRoom)="updateRoom($event)"
+                    (deleteRoom)="deleteRoom($event)"
+                    (createContact)="createContact($event)"
+                    (updateContact)="updateContact($event)"
+                    (deleteContact)="deleteContact($event)"
+                    (requestPromotion)="requestPromotion($event)"
+                    (decidePromotion)="decidePromotion($event)"
                   />
                 }
                 @case ('notifications') {

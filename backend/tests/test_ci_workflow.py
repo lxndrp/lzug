@@ -94,6 +94,21 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("needs: changes", job_block(self.pull_request, "e2e"))
         self.assertIn("needs: changes", job_block(self.pull_request, "a11y"))
 
+    def test_browser_jobs_prepare_and_keep_the_chromium_sandbox(self) -> None:
+        sysctl = "sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0"
+        assertion = 'test "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns)" = 0'
+        for workflow in (self.pull_request, self.quality):
+            for job_id in ("e2e", "a11y"):
+                with self.subTest(workflow=workflow_name(workflow), job=job_id):
+                    browser_job = job_block(workflow, job_id)
+                    self.assertIn(sysctl, browser_job)
+                    self.assertIn(assertion, browser_job)
+
+        playwright = Path("frontend/playwright.config.ts").read_text(encoding="utf-8")
+        self.assertIn("chromiumSandbox: true", playwright)
+        self.assertNotIn("chromiumSandbox: false", playwright)
+        self.assertNotIn("--no-sandbox", playwright)
+
     def test_master_schedule_and_manual_runs_are_unconditionally_complete(self) -> None:
         triggers = trigger_block(self.quality)
         self.assertIn("push:", triggers)

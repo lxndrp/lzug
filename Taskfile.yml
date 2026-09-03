@@ -1,4 +1,4 @@
-version: '3.52'
+version: "3.52"
 
 vars:
   UV: uv run --locked --extra dev
@@ -44,13 +44,13 @@ tasks:
       DRAFT: '{{default "false" .DRAFT}}'
       LINK_MODE: '{{default "closes" .LINK_MODE}}'
     env:
-      PR_ISSUE: '{{.ISSUE}}'
-      PR_TITLE: '{{.TITLE}}'
-      PR_BODY_FILE: '{{.BODY_FILE}}'
-      PR_ASSIGNEES: '{{.ASSIGNEES}}'
-      PR_MILESTONE: '{{.MILESTONE}}'
-      PR_DRAFT: '{{.DRAFT}}'
-      PR_LINK_MODE: '{{.LINK_MODE}}'
+      PR_ISSUE: "{{.ISSUE}}"
+      PR_TITLE: "{{.TITLE}}"
+      PR_BODY_FILE: "{{.BODY_FILE}}"
+      PR_ASSIGNEES: "{{.ASSIGNEES}}"
+      PR_MILESTONE: "{{.MILESTONE}}"
+      PR_DRAFT: "{{.DRAFT}}"
+      PR_LINK_MODE: "{{.LINK_MODE}}"
     cmds:
       - |
         set -eu
@@ -90,7 +90,7 @@ tasks:
   test:backend:
     desc: Run backend unit tests
     cmds:
-      - '{{.UV}} python -m unittest'
+      - "{{.UV}} python -m unittest"
 
   test:frontend:
     desc: Run frontend unit tests
@@ -126,9 +126,6 @@ tasks:
     desc: Build the complete static GitHub Pages artifact without deploying it
     deps:
       - docs:check
-    requires:
-      vars:
-        - WIKI_ROOT
     vars:
       OUTPUT: '{{default "build/publication" .OUTPUT}}'
       DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
@@ -136,7 +133,6 @@ tasks:
     cmds:
       - >-
         {{.UV}} python -m scripts.publication build
-        --wiki-root "{{.WIKI_ROOT}}"
         --typedoc frontend/node_modules/.bin/typedoc
         --base-url "{{.BASE_URL}}"
         --demo-url "{{.DEMO_URL}}"
@@ -146,16 +142,12 @@ tasks:
     desc: Verify that the configured public site builds byte-identically
     deps:
       - docs:check
-    requires:
-      vars:
-        - WIKI_ROOT
     vars:
       DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
       BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
       - >-
         {{.UV}} python -m scripts.publication check
-        --wiki-root "{{.WIKI_ROOT}}"
         --typedoc frontend/node_modules/.bin/typedoc
         --base-url "{{.BASE_URL}}"
         --demo-url "{{.DEMO_URL}}"
@@ -174,20 +166,20 @@ tasks:
     cmds:
       - npm --prefix frontend run test:publication:a11y
 
-  wiki:check:
-    desc: Check a local Wiki checkout before manually publishing it
+  docs:media:capture:
+    desc: Recreate the reviewed synthetic demo screenshots from their canonical scenario
+    dir: frontend
+    env:
+      LZUG_CAPTURE_DEMO_MEDIA: "true"
+      LZUG_E2E_RUN_ID: demo-media-v8
     cmds:
-      - test -n "${WIKI_ROOT:-}" || { echo "set WIKI_ROOT to a local Wiki checkout"; exit 1; }
-      - python3 -m scripts.check_wiki "$WIKI_ROOT"
-      - >-
-        docker run --rm --user "$(id -u):$(id -g)"
-        -v "$WIKI_ROOT:/wiki:ro" -w /wiki lycheeverse/lychee:0.24.2
-        --fallback-extensions md --no-progress '*.md'
+      - node e2e/run-playwright.mjs quality.spec.ts --grep "keeps isolated demo scenarios"
 
   quality:
     desc: Run the complete local quality assurance suite in parallel
     deps:
       - fixtures:check
+      - brand:check
       - quality:backend
       - quality:frontend
       - quality:security
@@ -200,10 +192,33 @@ tasks:
       - quality:demo
       - docs
 
+  brand:check:
+    desc: Verify canonical brand sources, derivatives, font, and icon contracts
+    cmds:
+      - node scripts/check_brand_assets.mjs
+
+  brand:generate:
+    desc: Generate reproducible brand derivatives from canonical vector sources
+    cmds:
+      - node scripts/generate_brand_assets.mjs
+
+  brand:references:
+    desc: Generate final product, publication, state, reflow, and asset reference views
+    deps:
+      - brand:check
+      - docs:publication
+    cmds:
+      - LZUG_BRAND_REFERENCES=true node frontend/e2e/run-playwright.mjs brand-reference.spec.ts
+      - >-
+        LZUG_BRAND_REFERENCES=true LZUG_PUBLICATION_SUITE=reference
+        node frontend/e2e/run-playwright.mjs --config playwright.publication.config.ts
+      - node scripts/check_brand_references.mjs --write-report
+
   fixtures:check:
     desc: Verify synthetic fixture adapters match their canonical source
     cmds:
       - python3 scripts/generate_synthetic_fixtures.py --check
+      - python3 scripts/check_demo_media.py
 
   quality:infra:
     desc: Format, validate, and mock-plan the public demo infrastructure without cloud access
@@ -377,7 +392,7 @@ tasks:
   quality:demo-matrix:
     desc: Verify demo roles, capabilities, mutation allowlist, and default-deny paths
     cmds:
-      - '{{.UV}} python -m unittest backend.tests.test_demo_runtime'
+      - "{{.UV}} python -m unittest backend.tests.test_demo_runtime"
 
   quality:overall:
     desc: Run all local cross-domain integration contracts in parallel
@@ -392,6 +407,7 @@ tasks:
     cmds:
       - task: quality:e2e
       - task: quality:a11y
+      - task: quality:ui-review
 
   quality:image:
     internal: true
@@ -421,6 +437,7 @@ tasks:
       - quality:image
     cmds:
       - scripts/operator-container-smoke.sh lzug:0.0.0-dev.local
+      - scripts/v060-age-migration-smoke.sh lzug:0.0.0-dev.local
 
   quality:compose:
     desc: Run the Compose runtime and persistence contract
@@ -439,7 +456,7 @@ tasks:
       - >-
         LZUG_IMAGE=ghcr.io/lxndrp/lzug:0.0.0-dev.local
         scripts/validate-compose.sh
-      - '{{.UV}} python -m unittest backend.tests.test_compose_policy'
+      - "{{.UV}} python -m unittest backend.tests.test_compose_policy"
 
   quality:e2e:
     desc: Run browser end-to-end tests
@@ -453,6 +470,12 @@ tasks:
     cmds:
       - npm run test:a11y
 
+  quality:ui-review:
+    desc: Run the focused Chromium, Firefox, and WebKit UI review matrix
+    dir: frontend
+    cmds:
+      - npm run test:ui-review
+
   dev:
     desc: Start backend and frontend development servers in parallel
     deps:
@@ -462,7 +485,7 @@ tasks:
   backend:lint:
     internal: true
     cmds:
-      - '{{.UV}} python -m ruff check .'
+      - "{{.UV}} python -m ruff check ."
 
   backend:complexity:
     desc: Report cyclomatic complexity of productive backend modules
@@ -477,28 +500,28 @@ tasks:
   backend:typecheck:
     desc: Statically check API, transport, and persistence contract models
     cmds:
-      - '{{.UV}} python -m mypy'
+      - "{{.UV}} python -m mypy"
 
   backend:format:
     internal: true
     cmds:
-      - '{{.UV}} python -m black --check .'
+      - "{{.UV}} python -m black --check ."
 
   backend:audit:
     internal: true
     cmds:
-      - '{{.UV}} python -m pip_audit --skip-editable --cache-dir /tmp/lzug-pip-audit'
+      - "{{.UV}} python -m pip_audit --skip-editable --cache-dir /tmp/lzug-pip-audit"
 
   backend:coverage:
     internal: true
     cmds:
-      - '{{.UV}} python -m coverage run -m unittest'
-      - '{{.UV}} python -m coverage report'
+      - "{{.UV}} python -m coverage run -m unittest"
+      - "{{.UV}} python -m coverage report"
 
   docs:handbook:
     internal: true
     cmds:
-      - '{{.UV}} mkdocs build --strict --site-dir site'
+      - "{{.UV}} mkdocs build --strict --site-dir site"
 
   docs:frontend:
     internal: true
@@ -516,7 +539,7 @@ tasks:
     internal: true
     dir: frontend
     cmds:
-      - npx playwright install chromium
+      - npx playwright install chromium firefox webkit
 
   sbom:
     desc: Generate the canonical dependency and license-review CycloneDX SBOM
@@ -575,7 +598,7 @@ tasks:
   dev:backend:
     desc: Start the backend development server
     cmds:
-      - '{{.UV}} python -m backend.server --init'
+      - "{{.UV}} python -m backend.server --init"
 
   dev:frontend:
     desc: Start the frontend development server

@@ -169,7 +169,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             )
             session.execute(
                 text(
-                    "INSERT INTO exam_day (id, exam_round_id, location_id, date, status) "
+                    "INSERT INTO exam_day (id, exam_round_id, room_id, date, status) "
                     "VALUES (50, 1, 1, '2027-05-01', 'confirmed')"
                 )
             )
@@ -211,7 +211,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             )
             session.execute(
                 text(
-                    "INSERT INTO exam_day (id, exam_round_id, location_id, date, status) "
+                    "INSERT INTO exam_day (id, exam_round_id, room_id, date, status) "
                     "VALUES (50, 1, 1, '2027-05-01', 'confirmed')"
                 )
             )
@@ -355,7 +355,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             )
             session.execute(
                 text(
-                    "INSERT INTO exam_day (id, exam_round_id, location_id, date, status, "
+                    "INSERT INTO exam_day (id, exam_round_id, room_id, date, status, "
                     "revision, closure_status) VALUES "
                     "(50, 1, 1, '2027-05-01', 'completed', 2, 'closed')"
                 )

@@ -56,6 +56,14 @@ Rohe Engine-Ausgabe, interne Backendtexte und nicht deklarierte Ergebnisfelder w
 Gewöhnlich destruktive Commands fragen an einem TTY konkret nach und benötigen ohne TTY `--force`.
 Als Danger Zone markierte semantische Flags bleiben davon unabhängig und werden durch `--force`, `--json` oder `--verbose` nie gesetzt.
 
+## Geführter Modus
+
+`lzug-admin cli` erzeugt einen zeilenorientierten Dialog vollständig aus derselben Registry und verwendet dieselben Parser, Handler, Validierungen, Renderer und Transportaufträge wie direkte Subcommands.
+Ein- und Ausgabe müssen interaktive Terminals sein; `--json`, `--force`, Pipes und skriptgesteuerte Eingaben werden vor jedem Auftrag abgewiesen.
+Das Sitzungsziel und seine Quelle bleiben sichtbar, werden vor dem ersten Backendauftrag geprüft und können nur für die laufende Sitzung geändert werden.
+Geheimnisse werden ohne Echo für genau einen Versuch erfasst; Bestätigungen und Danger-Zone-Freigaben gelten ebenfalls nur für den dargestellten Auftrag.
+Reguläres Beenden liefert Exit Code 0, `Ctrl+C` im Hauptmenü 130. Behandelte Commandfehler behalten im Dialog ihre eigene Fehlerklasse und ihren Exit Code, bestimmen aber nicht den Exit Code einer anschließend regulär beendeten Sitzung.
+
 ## Commands
 
 ### `lzug-admin account bootstrap`
@@ -67,6 +75,10 @@ Bootstrap an empty installation and issue its one-time invitation token.
 | `--email EMAIL` | Account email address. | Pflicht |
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
 
 Ausgabe: Prints the issued one-time token; JSON includes the validated backend result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
@@ -83,6 +95,10 @@ Sichere Eingabe: One-time token read only from standard input.
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
 
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
 Ausgabe: Successful human output is silent; JSON includes the account result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
@@ -97,6 +113,10 @@ Read one recovery token from standard input and consume it through the local adm
 Sichere Eingabe: One-time token read only from standard input.
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
 
 Ausgabe: Successful human output is silent; JSON includes the account result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
@@ -117,6 +137,10 @@ Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Fl
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
 
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
 Ausgabe: Successful human output is silent; JSON includes account and revocation details.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
@@ -133,6 +157,10 @@ Create or reuse an eligible account invitation and print its one-time token.
 | `--email EMAIL` | Account email address. | Pflicht |
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
 
 Ausgabe: Prints the issued one-time token; JSON includes the validated backend result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
@@ -152,6 +180,10 @@ Select exactly one account by identifier or email and issue a one-time recovery 
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
 
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
 Ausgabe: Prints the issued one-time token; JSON includes the validated backend result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
@@ -160,68 +192,157 @@ lzug-admin --container lzug account recover --account-id 7
 lzug-admin --container lzug account recover --email member@example.invalid
 ```
 
-### `lzug-admin backup create`
+### `lzug-admin artifact inspect`
 
-Create a consistent protected backup through the versioned local administration boundary.
+Show format, protection method, and required fingerprint without an identity or business data.
 
-Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--artifact PATH` | Regular protected artifact file. | Pflicht |
 
-Ausgabe: Prints the created artifact name; JSON includes the validated artifact result.
-`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+Transport: lokale Ausführung ohne Container-Auftrag.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
+
+Ausgabe: Shows only the public preamble.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug backup create
+lzug-admin artifact inspect --artifact backup.lzug
+```
+
+### `lzug-admin backup create`
+
+Stream a backend-validated clear package directly into a local age-encrypted atomic target.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--output PATH` | New protected target artifact file. | Pflicht |
+
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
+Ausgabe: Prints the activated local artifact path; JSON includes secret-free metadata.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug backup create --output backup.lzug
+```
+
+### `lzug-admin backup recipient replace`
+
+Manage only the persistent public age recipient after local possession proof; private identities never reach the backend.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--identity-file PATH` | Protected local age identity file. | optional |
+| `--identity-stdin` | Read the age identity from redirected standard input. | optional; Standard: false |
+| `--identity-prompt` | Read the age identity from a hidden terminal prompt. | optional; Standard: false |
+
+Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
+
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
+Ausgabe: Shows the canonical public recipient and complete fingerprint.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug backup recipient replace --identity-file backup.agekey
+```
+
+### `lzug-admin backup recipient set`
+
+Manage only the persistent public age recipient after local possession proof; private identities never reach the backend.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--identity-file PATH` | Protected local age identity file. | optional |
+| `--identity-stdin` | Read the age identity from redirected standard input. | optional; Standard: false |
+| `--identity-prompt` | Read the age identity from a hidden terminal prompt. | optional; Standard: false |
+
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
+Ausgabe: Shows the canonical public recipient and complete fingerprint.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug backup recipient set --identity-file backup.agekey
+```
+
+### `lzug-admin backup recipient show`
+
+Manage only the persistent public age recipient after local possession proof; private identities never reach the backend.
+
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
+
+Ausgabe: Shows the canonical public recipient and complete fingerprint.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --container lzug backup recipient show
 ```
 
 ### `lzug-admin backup restore`
 
-Restore a complete protected backup after validation. Replacing non-empty state also requires --replace.
+Decrypt locally, validate and stage in the backend, then activate only after every precheck succeeds.
 
 | Option | Bedeutung | Pflicht/Standard |
 | --- | --- | --- |
-| `--artifact NAME` | Protected artifact name inside the application data area. | Pflicht |
-| `--replace` | Confirm replacement of a non-empty installation. | optional; Standard: false; separate Danger-Zone-Bestätigung |
-
-Sichere Eingabe: Private recipient key read only from standard input.
+| `--artifact PATH` | Regular protected artifact file. | Pflicht |
+| `--replace` | Replace a non-empty installation after creating a safety artifact. | optional; Standard: false; separate Danger-Zone-Bestätigung |
+| `--identity-file PATH` | Protected local age identity file. | optional |
+| `--identity-stdin` | Read the age identity from redirected standard input. | optional; Standard: false |
+| `--identity-prompt` | Read the age identity from a hidden terminal prompt. | optional; Standard: false |
 
 Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
 
-Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
 
-Ausgabe: Successful human output is silent; JSON includes the validated restore result.
-`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
+Ausgabe: Human success is silent; JSON includes restore phases and safety evidence.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-printf 'PRIVATE_KEY' | lzug-admin --container lzug backup restore --artifact backup.lzug --force
-printf 'PRIVATE_KEY' | lzug-admin --container lzug backup restore --artifact backup.lzug --replace --force
+lzug-admin --container lzug backup restore --artifact backup.lzug --identity-file backup.agekey --force
 ```
 
 ### `lzug-admin backup verify`
 
-Verify integrity, decryptability, and backup structure without changing the installation.
+Decrypt locally and stream the clear package to the backend for complete validation.
 
 | Option | Bedeutung | Pflicht/Standard |
 | --- | --- | --- |
-| `--artifact NAME` | Protected artifact name inside the application data area. | Pflicht |
+| `--artifact PATH` | Regular protected artifact file. | Pflicht |
+| `--identity-file PATH` | Protected local age identity file. | optional |
+| `--identity-stdin` | Read the age identity from redirected standard input. | optional; Standard: false |
+| `--identity-prompt` | Read the age identity from a hidden terminal prompt. | optional; Standard: false |
 
-Sichere Eingabe: Private recipient key read only from standard input.
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
 
-Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
-Ausgabe: Successful human output is silent; JSON includes the validated verification result.
-`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+Ausgabe: Human success is silent; JSON contains the validated backend report.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-printf 'PRIVATE_KEY' | lzug-admin --container lzug backup verify --artifact backup.lzug
+lzug-admin --container lzug backup verify --artifact backup.lzug --identity-file backup.agekey
 ```
 
 ### `lzug-admin cli`
 
-The registry entry reserves the shared interactive entry point for issue #570; this release does not implement an interactive user interface.
+Start the line-oriented terminal dialog generated from this command registry. Interactive input and output terminals are required; --json and --force are invalid. Direct subcommands remain the interface for automation.
 
 Transport: lokale Ausführung ohne Container-Auftrag.
 
-Ausgabe: Returns a stable unavailable-command error until the interactive mode is implemented.
+Ausgabe: Runs the guided terminal session until the operator exits or interrupts it.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
@@ -255,6 +376,12 @@ Create one committee, select its initial chair and optional deputy, and issue an
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
 
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
+
 Ausgabe: Prints newly issued one-time invitation tokens; JSON includes the technical bootstrap result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
@@ -287,6 +414,12 @@ Complete one imported committee with its chair and optional deputy using an idem
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
 
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
+
 Ausgabe: Prints newly issued one-time invitation tokens; JSON includes the technical completion result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
@@ -308,6 +441,12 @@ Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Fl
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
 
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
+
 Ausgabe: Successful human output is silent; JSON includes the technical lifecycle result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
@@ -326,6 +465,12 @@ Reactivate one committee with an idempotent, reasoned administration request.
 | `--reason TEXT` | Required lifecycle reason. | Pflicht |
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
 Ausgabe: Successful human output is silent; JSON includes the technical lifecycle result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
@@ -346,6 +491,12 @@ Reissue an invitation for one committee account through an idempotent administra
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
 
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
+
 Ausgabe: Prints the newly issued one-time invitation token; JSON includes the technical result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
@@ -358,6 +509,8 @@ lzug-admin --container lzug committee reinvite --idempotency-key reinvite-001 --
 Print an installable bash completion script derived only from static registry metadata.
 
 Transport: lokale Ausführung ohne Container-Auftrag.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
 Ausgabe: Prints the generated script; JSON returns the script as a string.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
@@ -372,6 +525,8 @@ Print an installable fish completion script derived only from static registry me
 
 Transport: lokale Ausführung ohne Container-Auftrag.
 
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
+
 Ausgabe: Prints the generated script; JSON returns the script as a string.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
@@ -384,6 +539,8 @@ lzug-admin completion fish > lzug-admin.fish
 Print an installable powershell completion script derived only from static registry metadata.
 
 Transport: lokale Ausführung ohne Container-Auftrag.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
 Ausgabe: Prints the generated script; JSON returns the script as a string.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
@@ -398,6 +555,8 @@ Print an installable zsh completion script derived only from static registry met
 
 Transport: lokale Ausführung ohne Container-Auftrag.
 
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
+
 Ausgabe: Prints the generated script; JSON returns the script as a string.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
@@ -409,7 +568,9 @@ lzug-admin completion zsh > lzug-admin.zsh
 
 Show the effective engine and container together with their flag, environment, file, or default source. No configuration is changed.
 
-Transport: lokale Ausführung ohne Container-Auftrag.
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
 Ausgabe: Prints effective non-secret values and their source; JSON exposes the same fields.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
@@ -421,38 +582,46 @@ lzug-admin --no-config --engine podman --container lzug config inspect --json
 
 ### `lzug-admin export create`
 
-Create a protected full export for an explicitly supplied public recipient key.
+Stream a backend-validated clear package directly into a local age-encrypted atomic target.
 
 | Option | Bedeutung | Pflicht/Standard |
 | --- | --- | --- |
-| `--recipient-public-key KEY` | Public recipient key for the protected export. | Pflicht |
+| `--output PATH` | New protected target artifact file. | Pflicht |
+| `--recipient AGE_RECIPIENT` | Explicit public X25519 age recipient. | Pflicht |
 
-Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
 
-Ausgabe: Prints the created artifact name; JSON includes the validated artifact result.
-`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
+Ausgabe: Prints the activated local artifact path; JSON includes secret-free metadata.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug export create --recipient-public-key PUBLIC_KEY
+lzug-admin --container lzug export create --recipient age1... --output export.lzug --force
 ```
 
 ### `lzug-admin export verify`
 
-Verify integrity, decryptability, and full-export structure without changing the installation.
+Decrypt locally and stream the clear package to the backend for complete validation.
 
 | Option | Bedeutung | Pflicht/Standard |
 | --- | --- | --- |
-| `--artifact NAME` | Protected artifact name inside the application data area. | Pflicht |
+| `--artifact PATH` | Regular protected artifact file. | Pflicht |
+| `--identity-file PATH` | Protected local age identity file. | optional |
+| `--identity-stdin` | Read the age identity from redirected standard input. | optional; Standard: false |
+| `--identity-prompt` | Read the age identity from a hidden terminal prompt. | optional; Standard: false |
 
-Sichere Eingabe: Private recipient key read only from standard input.
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
 
-Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
-Ausgabe: Successful human output is silent; JSON includes the validated verification result.
-`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+Ausgabe: Human success is silent; JSON contains the validated backend report.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-printf 'PRIVATE_KEY' | lzug-admin --container lzug export verify --artifact export.lzug
+lzug-admin --container lzug export verify --artifact export.lzug --identity-file backup.agekey
 ```
 
 ### `lzug-admin notification process`
@@ -460,6 +629,10 @@ printf 'PRIVATE_KEY' | lzug-admin --container lzug export verify --artifact expo
 Process due notification deliveries and confirmed-plan consequences without returning message content.
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Zeitlimit: `10m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
 
 Ausgabe: Successful human output is silent; JSON includes technical counters only.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
@@ -479,6 +652,10 @@ Run a technical synthetic delivery for one committee member without returning me
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
 
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
 Ausgabe: Successful human output is silent; JSON includes synthetic technical delivery details.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
@@ -495,6 +672,10 @@ Retry eligible technical follow-up work for one confirmed plan revision without 
 | `--revision-id ID` | Positive confirmed plan revision identifier. | Pflicht |
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Zeitlimit: `10m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
 
 Ausgabe: Successful human output is silent; JSON includes technical counters only.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
@@ -513,6 +694,10 @@ Inspect technical follow-up states for one confirmed plan revision without expos
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
 
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
+
 Ausgabe: Prints a technical status summary; JSON includes the validated technical result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
@@ -520,11 +705,50 @@ Ausgabe: Prints a technical status summary; JSON includes the validated technica
 lzug-admin --container lzug plan-consequence status --revision-id 17
 ```
 
+### `lzug-admin recipient-key generate`
+
+Create a protected private identity and a shareable public recipient atomically without overwriting files.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--identity-file PATH` | New private identity file. | Pflicht |
+| `--recipient-file PATH` | New public recipient file. | Pflicht |
+
+Transport: lokale Ausführung ohne Container-Auftrag.
+
+Ausgabe: Human output reminds about independent key backup; JSON excludes the private identity.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin recipient-key generate --identity-file backup.agekey --recipient-file backup.agepub
+```
+
+### `lzug-admin recipient-key inspect`
+
+Show only the canonical public recipient, method, and complete fingerprint.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--key-file PATH` | Private identity or public recipient file. | Pflicht |
+
+Transport: lokale Ausführung ohne Container-Auftrag.
+
+Ausgabe: Shows no private identity value.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin recipient-key inspect --key-file backup.agekey
+```
+
 ### `lzug-admin system config`
 
 Validate the runtime's secret-free configuration contract. The backend receives no operator secrets or business data.
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
 Ausgabe: Prints a secret-free status and check summary; JSON includes the validated diagnostic result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
@@ -539,6 +763,10 @@ Run runtime, schema, persistence, storage, and readiness diagnostics. The backen
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
 
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
+
 Ausgabe: Prints a secret-free status and check summary; JSON includes the validated diagnostic result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
@@ -552,6 +780,10 @@ Inspect runtime identity and application readiness. The backend receives no oper
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
 
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
+
 Ausgabe: Prints a secret-free status and check summary; JSON includes the validated diagnostic result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
@@ -561,24 +793,25 @@ lzug-admin --container lzug system status
 
 ### `lzug-admin upgrade apply`
 
-Verify CLI and container release identity, create and verify a safety backup, and apply supported migrations in a maintenance container.
+Create and locally decrypt a protected safety backup before applying supported migrations in a maintenance container.
 
 | Option | Bedeutung | Pflicht/Standard |
 | --- | --- | --- |
+| `--backup-output PATH` | New local protected pre-upgrade backup. | Pflicht |
+| `--identity-file PATH` | Protected local age identity file. | optional |
+| `--identity-stdin` | Read the age identity from redirected standard input. | optional; Standard: false |
+| `--identity-prompt` | Read the age identity from a hidden terminal prompt. | optional; Standard: false |
 | `--confirm-irreversible` | Confirm pending irreversible migrations when the backend requires it. | optional; Standard: false; separate Danger-Zone-Bestätigung |
-
-Sichere Eingabe: Private recipient key read only from standard input.
 
 Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
 
-Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Ausgabe: Successful human output is silent; JSON includes the validated lifecycle result.
-`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-printf 'PRIVATE_KEY' | lzug-admin --container lzug-maintenance upgrade apply --force
-printf 'PRIVATE_KEY' | lzug-admin --container lzug-maintenance upgrade apply --confirm-irreversible --force
+lzug-admin --container lzug-maintenance upgrade apply --backup-output pre-upgrade.lzug --identity-file backup.agekey --force
 ```
 
 ### `lzug-admin upgrade rollback`
@@ -586,6 +819,10 @@ printf 'PRIVATE_KEY' | lzug-admin --container lzug-maintenance upgrade apply --c
 Verify CLI and container release identity and evaluate rollback eligibility without mutating the installation.
 
 Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.
+
+Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
 Ausgabe: Successful human output is silent; JSON includes the validated rollback result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.

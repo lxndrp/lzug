@@ -16,11 +16,12 @@ from backend.models import (
     EXAM_DAY_ASSIGNMENT,
     EXAM_ROUND,
     EXAM_SLOT,
-    LOCATION,
     MEMBER_AVAILABILITY,
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
     Committee,
+    ExamRoom,
+    ExamVenue,
 )
 from backend.planning import (
     ConfirmedPlanChange,
@@ -30,6 +31,7 @@ from backend.planning import (
     PlanValidationError,
 )
 from backend.repositories import ResourceRepository
+from backend.store import Store
 from backend.tests.helpers import TempDatabase
 
 
@@ -57,6 +59,15 @@ class PlanningTests(unittest.TestCase):
                 connection.commit()
 
             with self.assertRaisesRegex(ValueError, "Planning settings not found"):
+                PlanningService(db_path).generate_proposal(1)
+
+    def test_missing_default_room_is_rejected_before_proposal_building(self) -> None:
+        with TempDatabase() as db_path:
+            repository = ResourceRepository(db_path)
+            settings = repository.list_filtered(PLANNING_SETTINGS, {"exam_round_id": 1})[0]
+            repository.update(PLANNING_SETTINGS, settings["id"], {"default_room_id": None})
+
+            with self.assertRaisesRegex(ValueError, "Planning settings need a default room"):
                 PlanningService(db_path).generate_proposal(1)
 
     def test_no_active_candidate_days_are_rejected(self) -> None:
@@ -478,12 +489,12 @@ class PlanningTests(unittest.TestCase):
             proposal = service.get_proposal(1)
             repository = ResourceRepository(db_path)
 
-            invalid_location = replace(
+            invalid_room = replace(
                 proposal,
-                days=(replace(proposal.days[0], location_id=999999), *proposal.days[1:]),
+                days=(replace(proposal.days[0], room_id=999999), *proposal.days[1:]),
             )
-            with self.assertRaises(PlanValidationError) as location_error:
-                service.save_proposal(invalid_location)
+            with self.assertRaises(PlanValidationError) as room_error:
+                service.save_proposal(invalid_room)
 
             without_fallback = replace(
                 proposal,
@@ -550,7 +561,7 @@ class PlanningTests(unittest.TestCase):
             with self.assertRaises(PlanValidationError) as day_error:
                 service.save_proposal(proposal)
 
-        self.assertIn("location_invalid", {issue.code for issue in location_error.exception.issues})
+        self.assertIn("room_invalid", {issue.code for issue in room_error.exception.issues})
         self.assertIn("fallback_missing", {issue.code for issue in crew_error.exception.issues})
         self.assertIn("mep_not_last", {issue.code for issue in mep_error.exception.issues})
         self.assertIn(
@@ -565,6 +576,81 @@ class PlanningTests(unittest.TestCase):
             "candidate_day_inactive",
             {issue.code for issue in day_error.exception.issues},
         )
+
+    def test_validator_covers_assignment_week_and_candidate_contracts(self) -> None:
+        with TempDatabase() as db_path:
+            service = PlanningService(db_path)
+            service.generate_proposal(1)
+            proposal = service.get_proposal(1)
+            repository = ResourceRepository(db_path)
+            settings = repository.list_filtered(PLANNING_SETTINGS, {"exam_round_id": 1})[0]
+            repository.update(PLANNING_SETTINGS, settings["id"], {"max_exam_days_per_week": 1})
+            round_candidate_id = proposal.days[0].slots[0].round_candidate_id
+            with connect(db_path) as connection:
+                connection.execute(
+                    text(
+                        "UPDATE candidate_committee_assignment "
+                        "SET ended_at = '2099-01-02 00:00:00' "
+                        "WHERE round_candidate_id = :round_candidate_id"
+                    ),
+                    {"round_candidate_id": round_candidate_id},
+                )
+                connection.commit()
+            first_day = proposal.days[0]
+            invalid_assignment = replace(
+                first_day.assignments[0], assignment_role="observer", day_part="overnight"
+            )
+            changed = replace(
+                proposal,
+                days=(
+                    replace(
+                        first_day,
+                        assignments=(invalid_assignment, *first_day.assignments[1:]),
+                    ),
+                    *proposal.days[1:],
+                ),
+            )
+
+            with self.assertRaises(PlanValidationError) as error:
+                service.save_proposal(changed)
+
+        codes = {issue.code for issue in error.exception.issues}
+        self.assertTrue(
+            {
+                "assignment_role_invalid",
+                "assignment_day_part_invalid",
+                "assignment_day_part_unused",
+                "weekly_day_limit_exceeded",
+                "candidate_assignment_inactive",
+            }.issubset(codes)
+        )
+
+    def test_proposal_builder_preserves_stepwise_capacity_messages(self) -> None:
+        with TempDatabase() as db_path:
+            service = PlanningService(db_path)
+            with session_scope(db_path) as session:
+                context = service._load_context(Store(session), 1)
+                context["members"] = []
+                candidate_days = sorted(context["candidate_days"], key=lambda row: row["date"])
+                regular_count = len(context["round_candidates"])
+                mep_count = sum(row["requires_mep"] for row in context["round_candidates"])
+                result = service._build_proposal(context)
+
+        self.assertFalse(result["validation"]["passed"])
+        self.assertEqual(
+            [
+                *[
+                    f"{day['date']}: keine vollstaendige Vormittagsbesetzung"
+                    for day in candidate_days
+                ],
+                f"Fuer {regular_count + mep_count} Pruefungstermine fehlt Kapazitaet",
+                f"{regular_count} regulaere Pruefungen konnten nicht platziert werden",
+                f"{mep_count} MEP-Termine konnten nicht regelkonform platziert werden",
+                "Es konnte kein Pruefungstag geplant werden",
+            ],
+            result["validation"]["messages"],
+        )
+        self.assertEqual([], result["days"])
 
     def test_confirm_plan_updates_statuses_and_blocks_replacement(self) -> None:
         with TempDatabase() as db_path:
@@ -653,18 +739,33 @@ class PlanningTests(unittest.TestCase):
             committee_model = session.get(Committee, committee["id"])
             assert committee_model is not None
             committee_model.bootstrap_state = "ready"
-        location = repository.create(
-            LOCATION,
-            {
-                "committee_id": committee["id"],
-                "name": "Raum 2",
-                "street": "Testweg 1",
-                "postal_code": "00000",
-                "city": "Teststadt",
-                "room": "2.01",
-                "is_active": 1,
-            },
-        )
+        with session_scope(repository.db_path) as session:
+            venue = ExamVenue(
+                scope="committee",
+                committee_id=committee["id"],
+                name="Prüfungszentrum 2",
+                normalized_name="prüfungszentrum 2",
+                street="Testweg 1",
+                postal_code="00000",
+                city="Teststadt",
+                country="Deutschland",
+                is_accessible=1,
+                accessibility_status="confirmed",
+                is_active=0,
+            )
+            session.add(venue)
+            session.flush()
+            room = ExamRoom(
+                venue_id=venue.id,
+                name="2.01",
+                normalized_name="2.01",
+                is_active=1,
+            )
+            session.add(room)
+            session.flush()
+            venue.is_active = 1
+            session.flush()
+            room_id = room.id
         exam_round = repository.create(
             EXAM_ROUND,
             {
@@ -707,7 +808,7 @@ class PlanningTests(unittest.TestCase):
                 "lunch_break_enabled": 1,
                 "exclude_public_holidays": 0,
                 "holiday_subdivision_code": None,
-                "default_location_id": location["id"],
+                "default_room_id": room_id,
                 "updated_by_member_id": members[0]["id"],
             },
         )

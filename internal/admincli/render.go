@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
+
+	"golang.org/x/term"
 )
 
 var publicErrorTokenPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
@@ -30,12 +33,26 @@ type outputEnvelope struct {
 }
 
 type OutputRenderer struct {
-	stdout io.Writer
-	stderr io.Writer
+	stdout         io.Writer
+	stderr         io.Writer
+	outputTerminal bool
 }
 
 func NewOutputRenderer(stdout, stderr io.Writer) *OutputRenderer {
-	return &OutputRenderer{stdout: stdout, stderr: stderr}
+	terminal := false
+	if file, ok := stdout.(*os.File); ok {
+		terminal = term.IsTerminal(int(file.Fd()))
+	}
+	return &OutputRenderer{stdout: stdout, stderr: stderr, outputTerminal: terminal}
+}
+
+func (renderer *OutputRenderer) IsTerminal() bool {
+	return renderer.outputTerminal
+}
+
+func (renderer *OutputRenderer) Dialog(text string) error {
+	_, err := io.WriteString(renderer.stdout, text)
+	return err
 }
 
 func (renderer *OutputRenderer) Error(global GlobalOptions, command string, failure *CLIError) {

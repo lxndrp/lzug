@@ -99,6 +99,17 @@ Frontendroute.
 Die anonyme OpenAPI-Anfrage muss HTTP 401 mit
 `{"error": "Authentication required."}` liefern.
 
+Vor der ersten öffentlichen Auslieferung der Athener Ortsreferenzen und bei
+jeder späteren Änderung ihrer Quellen oder des Kartenproviders muss die
+Freigabe den sichtbaren Delta-Stand erneut prüfen.
+Dazu gehören Quellen und Abrufdaten, synthetische Kennzeichnung,
+OpenStreetMap-Tile-Policy, OSMF-Datenschutzhinweis sowie das Verhalten bei
+Providerfehlern.
+Die organisatorisch-rechtliche Freigabe #584 bleibt ein eigenständiges Gate;
+Merge, Release oder vorhandene technische Qualität ersetzen sie nicht.
+Ohne diese Freigabe darf kein Demo-Deployment mit dem geänderten
+Deployment-Digest aktiviert werden.
+
 Ein manueller Snapshot benötigt einen neuen annotierten, revisionsgebundenen
 Tag nach erfolgreicher vollständiger Qualität.
 Ein manueller Deploy oder Rollback benötigt ein ausdrücklich freigegebenes,
@@ -124,17 +135,17 @@ Betriebsnachweis.
 mit `--strict` und erzeugt die TypeDoc-Referenz.
 Der Pull-Request- und der vollständige Quality-Workflow laden `site/` als
 geschütztes Artefakt `lzug-documentation` hoch.
-Das ist eine revisionsgebundene technische Referenz und keine öffentliche
-Kopie des Wiki-Handbuchs.
+Das ist eine revisionsgebundene technische Referenz und Teil der
+repository-zentrierten öffentlichen Dokumentation.
 
-`task docs:publication` baut die vollständige statische Site aus drei
-getrennten Quellen:
+`task docs:publication` baut die vollständige statische Site ausschließlich
+aus dem Hauptrepository:
 
-- Produkt- und Landingpage-Quellen im Hauptrepository;
-- den konkret ausgecheckten kanonischen Wiki-Commit;
+- Produkt- und Landingpage-Quellen;
+- Nutzer-, Betreiber- und Fachhandbuch unter `docs/handbook/` und `docs/portal/`;
 - technische Referenzen aus Docstrings/TSDoc, OpenAPI und `db/schema.sql`.
 
-Der Build schreibt Repository-, Wiki- und Theme-Revision in `quellen.json`.
+Der Build schreibt Repository- und Theme-Revision in `quellen.json`.
 `task docs:publication:check` erzeugt das Artefakt zweimal und verlangt
 Byte-Identität.
 Browser- und Accessibility-Prüfung laufen getrennt.
@@ -143,21 +154,15 @@ Browser- und Accessibility-Prüfung laufen getrennt.
 nach manuellem Dispatch auf `master` und dem geschützten Environment
 `github-pages`.
 
-## Wiki-Publikation
+## Dokumentationsmigration
 
-Das GitHub Wiki ist ein separates Git-Repository und die einzige Quelle für
-Fach-, Nutzungs- und Betreiberanleitungen.
-`_Sidebar.md` ist seine vollständige Liste öffentlicher Inhaltsseiten.
-Vor einer Veröffentlichung prüft `WIKI_ROOT=/path/to/lzug.wiki task wiki:check`
-Sidebar-Struktur und Links des konkret ausgecheckten Stands.
-
-Ein Maintainer prüft den Wiki-Diff und veröffentlicht exakt den freigegebenen
-Commit ohne automatischen oder erzwungenen Push aus dem Hauptrepository.
-Der wöchentliche beziehungsweise manuell gestartete Workflow
-`wiki-post-publish.yml` prüft danach nur die erwarteten öffentlichen Routen
-ohne Weiterleitungen.
-Technische Verträge bleiben im Hauptrepository; Wiki-Seiten verlinken sie und
-pflegen keine zweite Fassung.
+Der inventarisierte frühere Wiki-Bestand ist einmalig nach `docs/handbook/`
+übernommen.
+`scripts.check_documentation` prüft die vollständige Seitenmenge und den
+[Migrationsnachweis](../migrations/wiki-2026-09-03.md).
+Nach positivem Nachweis wird das Deaktivieren des Wikis als separater
+Maintainer-Setting-Schritt durchgeführt.
+Es gibt keinen dauerhaften Wiki-Qualitätscheck und keine Parallelveröffentlichung.
 
 ## Fehlerdiagnose und sichere Wiederholung
 
@@ -168,8 +173,8 @@ pflegen keine zweite Fassung.
    dokumentieren und nicht durch Produktänderungen verdecken.
 3. Nach einer inhaltlichen Korrektur alle betroffenen fokussierten Prüfungen
    erneut ausführen und die CI des neuen Commits vollständig abwarten.
-4. Release-, Demo-, Pages- und Wiki-Publikation nur in ihrem jeweiligen
-   freigegebenen Workflow beziehungsweise Repository wiederholen.
+4. Release-, Demo- und Pages-Publikation nur in ihrem jeweiligen
+   freigegebenen Workflow wiederholen.
    Ein erfolgreicher Teilstand ist kein Nachweis für eine andere Stufe.
 5. Keine Secrets, Environmentwerte, private Schlüssel, vollständigen
    Ressourcenantworten oder Fachdaten in Logs, Kommentare oder Artefakte

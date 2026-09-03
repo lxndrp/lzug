@@ -1,0 +1,145 @@
+:host {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.demo-scenario-intro,
+.demo-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.demo-scenario-intro h2,
+.demo-section-heading h2,
+.demo-scenario-card h3,
+.demo-boundaries h2 {
+  margin: 0;
+}
+
+.demo-scenario-intro p,
+.demo-section-heading p {
+  max-width: 46rem;
+  margin: 0.5rem 0 0;
+}
+
+.demo-session-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(9rem, 1fr));
+  gap: 1px;
+  min-width: min(100%, 21rem);
+  margin: 0;
+  border: 1px solid var(--app-color-border);
+  background: var(--app-color-border);
+}
+
+.demo-session-facts div {
+  padding: 0.75rem 1rem;
+  background: var(--app-color-surface);
+}
+
+.demo-session-facts dt,
+.demo-scenario-card dt {
+  color: var(--app-color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.demo-session-facts dd,
+.demo-scenario-card dd {
+  margin: 0.2rem 0 0;
+}
+
+.demo-session-facts dd {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.demo-role-section,
+.demo-scenario-section {
+  display: grid;
+  gap: 1rem;
+  padding-block: 1.25rem;
+  border-block: 1px solid var(--app-color-border);
+}
+
+.demo-role-actions,
+.demo-workspace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.demo-scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.demo-scenario-card {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: 0.4rem;
+  background: var(--app-color-surface);
+}
+
+.demo-scenario-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.demo-scenario-status {
+  margin: 0 0 0.25rem;
+  color: var(--app-color-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.demo-scenario-card progress {
+  width: 100%;
+  height: 0.65rem;
+  accent-color: #19733c;
+}
+
+.demo-scenario-card dl {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.demo-boundaries ul {
+  padding-left: 1.25rem;
+}
+
+.demo-workspace-actions {
+  margin-top: 1rem;
+}
+
+@media (max-width: 52rem) {
+  .demo-scenario-intro,
+  .demo-section-heading {
+    display: grid;
+  }
+
+  .demo-scenario-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 32rem) {
+  .demo-session-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .demo-role-actions,
+  .demo-workspace-actions {
+    display: grid;
+  }
+}

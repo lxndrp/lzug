@@ -51,7 +51,7 @@ flowchart LR
   member -->|"bedient"| spa
   spa -->|"same-origin JSON/HTTPS"| app
   operator -->|"lokaler CLI-Aufruf"| admin
-  admin -->|"versioniertes JSON via Engine exec"| app
+  admin -->|"JSON-Kontrolle und Klartext-Paketstrom via Engine exec"| app
   app -->|"SQLAlchemy und Dateizugriff"| data
   app -.->|"best effort"| channels
 ```
@@ -79,7 +79,8 @@ flowchart LR
   http --> core
   core --> repo
   repo --> store
-  cli --> admin
+  cli -->|"öffentliche Konfiguration; Klartext-Paketstrom"| admin
+  cli -->|"age-Hülle; private Identität bleibt lokal"| artifact["Geschütztes Artefakt"]
   admin --> core
   admin --> store
 ```
@@ -117,13 +118,25 @@ flowchart TB
   app -->|"einziger dauerhafter Schreibbereich"| data
 ```
 
+Der direkte Einstieg `lzug-admin <objekt> <aktion>` und der geführte Einstieg
+`lzug-admin cli` enden in derselben statischen Registry und demselben
+Ausführungspfad.
+Der Dialog ergänzt ausschließlich Navigation, Eingabe, Zusammenfassung und
+Statusrückmeldung.
+Er enthält weder eigene Commandparameter noch Backendaufträge oder
+Fachlogik und kann deshalb künftige Transportadapter verwenden, ohne die
+Bedien- oder Commandverträge zu duplizieren.
+
 Die unterstützte Referenz ist eine einzelne Self-Hosting-Instanz mit
 persistenter `/data`-Grenze.
 TLS-Terminierung, Host-Härtung, Schlüsselverwahrung, Sicherung und
 Aufbewahrung liegen in Betreiberverantwortung und sind im
-[Wiki](https://github.com/lxndrp/lzug/wiki/Administration) beschrieben.
+[Betreiberanleitung](../portal/betreiben.md) beschrieben.
 Die öffentliche Demo ist eine getrennte flüchtige Azure-Assembly mit
-synthetischem Seed und kein Self-Hosting-Muster.
+synthetischem Basisseed und kein Self-Hosting-Muster.
+Ihre Runtime-Policy erzeugt je Besuch eine isolierte SQLite-Arbeitskopie,
+bindet Rollenwechsel an dieselbe absolute 60-Minuten-Frist und entfernt den
+Arbeitsstand bei Ablauf, Reset oder Abmeldung.
 
 ## Kritischer Ablauf: Plan bestätigen
 
@@ -213,6 +226,8 @@ Verträge; Secrets und Token erscheinen weder in URLs noch in Logs.
 Snapshot-Sperre besitzen eine gemeinsame kontrollierte Grenze.
 Migrationen laufen vorwärts, und Restore aktiviert Datenbank, Dokumente und
 Authentifizierungsschlüssel erst nach vollständiger Vor- und Nachprüfung.
+Die CLI legt die age-Hülle um den Backend-Paketstrom; private Identitäten
+verlassen den Bedienrechner nicht.
 
 **Betrieb und Observability:** Health ist nur Liveness, Ready prüft
 Anwendungsbereitschaft, und `lzug-admin system doctor` ergänzt lokale Schema-,
@@ -223,6 +238,11 @@ Betriebszustand.
 
 **Öffentliche Demo:** Die Demo verwendet ein unveränderliches App-/Seed-Paar,
 flüchtigen Zustand und synthetische Daten.
+Die fachlichen Demo-Szenarien laufen in regulären Produktansichten gegen einen
+besucherspezifischen Arbeitsstand; produktive Autorisierung und eine enge
+rollen- und zustandsgebundene Demo-Allowlist müssen gemeinsam erfüllt sein.
+Benachrichtigungen bleiben intern, persönliche Kalenderereignisse sind nur als
+eigene Einzeltermine abrufbar und externe Zustellung ist deaktiviert.
 OIDC, Environment-Gates, Readiness und Smoke grenzen die technische Promotion
 ab; sie begründen keine Produktivitätszusage.
 

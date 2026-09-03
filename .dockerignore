@@ -27,6 +27,12 @@
 !fixtures/
 !fixtures/synthetic-fixtures.json
 
+!brand/
+!brand/tokens.css
+!brand/taiga-adapter.css
+!brand/derived/
+!brand/derived/**
+
 !frontend/
 !frontend/package.json
 !frontend/package-lock.json

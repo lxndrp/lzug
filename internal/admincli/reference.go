@@ -59,6 +59,12 @@ func GenerateReference(registry *Registry) string {
 	output.WriteString("| `130` | Abbruch durch `Ctrl+C` |\n\n")
 	output.WriteString("Gewöhnlich destruktive Commands fragen an einem TTY konkret nach und benötigen ohne TTY `--force`.\n")
 	output.WriteString("Als Danger Zone markierte semantische Flags bleiben davon unabhängig und werden durch `--force`, `--json` oder `--verbose` nie gesetzt.\n\n")
+	output.WriteString("## Geführter Modus\n\n")
+	output.WriteString("`lzug-admin cli` erzeugt einen zeilenorientierten Dialog vollständig aus derselben Registry und verwendet dieselben Parser, Handler, Validierungen, Renderer und Transportaufträge wie direkte Subcommands.\n")
+	output.WriteString("Ein- und Ausgabe müssen interaktive Terminals sein; `--json`, `--force`, Pipes und skriptgesteuerte Eingaben werden vor jedem Auftrag abgewiesen.\n")
+	output.WriteString("Das Sitzungsziel und seine Quelle bleiben sichtbar, werden vor dem ersten Backendauftrag geprüft und können nur für die laufende Sitzung geändert werden.\n")
+	output.WriteString("Geheimnisse werden ohne Echo für genau einen Versuch erfasst; Bestätigungen und Danger-Zone-Freigaben gelten ebenfalls nur für den dargestellten Auftrag.\n")
+	output.WriteString("Reguläres Beenden liefert Exit Code 0, `Ctrl+C` im Hauptmenü 130. Behandelte Commandfehler behalten im Dialog ihre eigene Fehlerklasse und ihren Exit Code, bestimmen aber nicht den Exit Code einer anschließend regulär beendeten Sitzung.\n\n")
 	output.WriteString("## Commands\n\n")
 	for _, command := range registry.Commands() {
 		fmt.Fprintf(&output, "### `lzug-admin %s`\n\n", command.Name())
@@ -106,9 +112,20 @@ func GenerateReference(registry *Registry) string {
 			output.WriteString("Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.\n\n")
 		}
 		if command.Transport == LocalTransport {
-			output.WriteString("Transport: lokale Ausführung ohne Container-Auftrag.\n\n")
+			if command.UsesConfig {
+				output.WriteString("Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.\n\n")
+			} else {
+				output.WriteString("Transport: lokale Ausführung ohne Container-Auftrag.\n\n")
+			}
 		} else {
 			output.WriteString("Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.\n\n")
+			fmt.Fprintf(&output, "Zeitlimit: `%s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.\n\n", command.Timeout)
+		}
+		if command.Mutating {
+			output.WriteString("Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.\n\n")
+		}
+		if command.RetrySafe {
+			output.WriteString("Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.\n\n")
 		}
 		output.WriteString("Ausgabe: " + command.Output.Summary + "\n")
 		output.WriteString("`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `" + string(command.Output.JSON) + "`-Ergebnisvertrag auf `stdout`.\n\n")

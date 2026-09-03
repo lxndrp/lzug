@@ -2,8 +2,7 @@
 
 Danke für Beiträge zu `lzug`. Dieses Dokument beschreibt die verbindlichen
 Beitragsregeln. Einrichtung, tägliche Entwicklung und die Auswahl passender
-lokaler Prüfungen stehen im Bereich
-[Entwicklung](https://github.com/lxndrp/lzug/wiki/Entwicklung) des GitHub Wiki.
+lokaler Prüfungen stehen im [Entwicklerhandbuch](docs/developers/index.md).
 Fachliche Prioritäten und Akzeptanzkriterien bleiben in den
 [GitHub Issues](https://github.com/lxndrp/lzug/issues); die Maintainer pflegen
 die operative Reihenfolge zusätzlich im GitHub Project `lzug Roadmap`.
@@ -15,20 +14,17 @@ Beiträge dürfen daher keine Produktionsreife, IHK-Zugehörigkeit oder produkti
 ## Einstieg
 
 Folgen Sie vor der ersten Änderung dem
-[Entwickler-Setup](https://github.com/lxndrp/lzug/wiki/Entwicklung-Einrichtung).
-Der [Arbeitsprozess](https://github.com/lxndrp/lzug/wiki/Entwicklung-Arbeitsprozess)
-beschreibt Issue-Planung, Branches, Verifikation und Abschluss; die
-[Qualitätssicherung](https://github.com/lxndrp/lzug/wiki/Entwicklung-Qualitaet-und-Sicherheit)
-legt die risikobasierte Auswahl lokaler Prüfungen fest. Architektur, API-Vertrag
-und technische Dokumentationsstandards stehen im
+lokalen [Entwicklung](docs/developers/development.md).
+Der Arbeitsprozess beschreibt Issue-Planung, Branches, Verifikation und Abschluss;
+die risikobasierte Auswahl lokaler Prüfungen steht dort ebenfalls.
+Architektur, API-Vertrag und technische Dokumentationsstandards stehen im
 [Entwicklerhandbuch](docs/developers/index.md).
 
-Das [GitHub Wiki](https://github.com/lxndrp/lzug/wiki) enthält die
-redaktionellen Entwicklungsanleitungen. Die Zuordnung aller Dokumentarten und
-kanonischen Quellen steht unter
-[Entwicklung](docs/developers/development.md#dokumentation-bearbeiten); der
-konkrete Wiki-Review- und Veröffentlichungsablauf unter
-[Delivery und Veröffentlichung](docs/developers/delivery.md#wiki-publikation).
+Das Repository ist die einzige kanonische Dokumentationsquelle.
+Die Zuordnung aller Dokumentarten und Quellen steht unter
+[Entwicklung](docs/developers/development.md#dokumentation-bearbeiten);
+der öffentliche Buildvertrag unter
+[Delivery und Veröffentlichung](docs/developers/delivery.md#technische-referenz-und-oeffentliche-site).
 
 Eigene gepflegte Markdown-Prosa wird mit Semantic Line Breaks geschrieben: Sätze und sinnvolle Gedankeneinheiten beginnen in neuen Quellzeilen.
 Tabellen, Listenstruktur, Codeblöcke, Front Matter, URLs und technische Zeichenketten bleiben unverändert; Drittmaterial, Lizenztexte und generierte Inhalte werden nicht rein redaktionell umgebrochen.

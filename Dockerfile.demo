@@ -29,6 +29,8 @@ WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/angular.json frontend/tsconfig.app.json frontend/tsconfig.json ./
+COPY brand/tokens.css brand/taiga-adapter.css /src/brand/
+COPY brand/derived /src/brand/derived
 COPY frontend/public ./public
 COPY --from=build-metadata /build-metadata.json ./public/build-metadata.json
 COPY frontend/src ./src
@@ -62,8 +64,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED="1" \
     LZUG_DATA_DIR="/data" \
     LZUG_STATIC_DIR="/app/frontend" \
-    LZUG_DEMO_APP_MANIFEST="/app/demo-app-manifest.json" \
-    LZUG_NOTIFICATION_SINK="operator"
+    LZUG_DEMO_APP_MANIFEST="/app/demo-app-manifest.json"
 
 WORKDIR /app
 
@@ -79,11 +80,11 @@ COPY --from=build-metadata --chown=10001:10001 /demo-app-manifest.json ./demo-ap
 COPY --chown=10001:10001 \
     backend/__init__.py backend/admin.py backend/admin_service.py backend/application.py backend/absence.py backend/auth.py backend/authorization.py backend/committee_admin.py \
     backend/build_metadata.py backend/calendar.py backend/candidate_days.py backend/contract.py backend/database.py backend/diagnostics.py \
-    backend/document_storage.py backend/documents.py backend/exam_day_closures.py backend/exam_protocols.py backend/exam_results.py backend/exam_round_lifecycle.py backend/hateoas.py \
-    backend/healthcheck.py backend/holiday_provider.py backend/local_auth.py backend/models.py \
-    backend/api_contracts.py backend/fastapi_app.py backend/notifications.py backend/observability.py backend/plan_consequences.py backend/planning.py backend/repositories.py backend/runtime_policy.py backend/security.py backend/server.py backend/store.py backend/transport.py backend/version.py \
+    backend/document_storage.py backend/documents.py backend/exam_day_closures.py backend/exam_protocols.py backend/exam_results.py backend/exam_round_lifecycle.py backend/exam_venue_api.py backend/exam_venue_migration.py backend/exam_venues.py backend/hateoas.py \
+    backend/healthcheck.py backend/holiday_provider.py backend/local_auth.py backend/map_provider.py backend/models.py \
+    backend/api_contracts.py backend/fastapi_app.py backend/notifications.py backend/observability.py backend/plan_consequences.py backend/planning.py backend/repositories.py backend/runtime_policy.py backend/security.py backend/server.py backend/store.py backend/transport.py backend/venue_consequences.py backend/version.py \
     ./backend/
-COPY --chown=10001:10001 demo/__init__.py demo/app.py demo/artifacts.py demo/contract.py demo/identity.py demo/runtime_policy.py demo/synthetic_fixtures_generated.py ./demo/
+COPY --chown=10001:10001 demo/__init__.py demo/app.py demo/artifacts.py demo/contract.py demo/identity.py demo/runtime_policy.py demo/scenarios.py demo/synthetic_fixtures_generated.py demo/workspaces.py ./demo/
 COPY --chown=10001:10001 db/schema.sql ./db/schema.sql
 COPY --chown=10001:10001 db/migrations ./db/migrations
 COPY --from=frontend-build --chown=10001:10001 /src/frontend/dist/frontend/browser ./frontend

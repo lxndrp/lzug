@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import ForeignKey, Index, Integer, String
+from sqlalchemy import Float, ForeignKey, Index, Integer, String
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -35,6 +35,31 @@ class ArtifactOperation(Base):
     recipient_key_fingerprint: Mapped[str | None] = mapped_column(String, nullable=True)
     result: Mapped[str] = mapped_column(String)
     error_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    technical_actor: Mapped[str] = mapped_column(String, server_default=sql_text("'operator-cli'"))
+    occurred_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class BackupRecipient(Base):
+    """Active, public age recipient configuration for this instance."""
+
+    __tablename__ = "backup_recipient"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recipient: Mapped[str] = mapped_column(String)
+    fingerprint: Mapped[str] = mapped_column(String)
+    activated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class BackupRecipientAudit(Base):
+    """Immutable, secret-free evidence for recipient activation and replacement."""
+
+    __tablename__ = "backup_recipient_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    action: Mapped[str] = mapped_column(String)
+    previous_fingerprint: Mapped[str | None] = mapped_column(String, nullable=True)
+    fingerprint: Mapped[str] = mapped_column(String)
     technical_actor: Mapped[str] = mapped_column(String, server_default=sql_text("'operator-cli'"))
     occurred_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
 
@@ -204,25 +229,148 @@ class AuthRecoveryCode(Base):
     __table_args__ = (Index("auth_recovery_code_account_active", "account_id", "consumed_at"),)
 
 
-class Location(Base):
-    __tablename__ = "location"
+class ExamVenue(Base):
+    """Reusable venue master data independent from individual exam rooms."""
+
+    __tablename__ = "exam_venue"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    committee_id: Mapped[int] = mapped_column(ForeignKey("committee.id"))
+    scope: Mapped[str] = mapped_column(String)
+    committee_id: Mapped[int | None] = mapped_column(
+        ForeignKey("committee.id", ondelete="RESTRICT"), nullable=True
+    )
     name: Mapped[str] = mapped_column(String)
+    normalized_name: Mapped[str] = mapped_column(String)
     street: Mapped[str] = mapped_column(String)
     postal_code: Mapped[str] = mapped_column(String)
     city: Mapped[str] = mapped_column(String)
-    room: Mapped[str] = mapped_column(String)
+    country: Mapped[str] = mapped_column(String, server_default=sql_text("'Deutschland'"))
+    site_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    entrance: Mapped[str | None] = mapped_column(String, nullable=True)
+    travel_directions: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_accessible: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    accessibility_status: Mapped[str] = mapped_column(
+        String, server_default=sql_text("'needs_clarification'")
+    )
+    accessibility_notes: Mapped[str | None] = mapped_column(String, nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    coordinate_status: Mapped[str] = mapped_column(String, server_default=sql_text("'missing'"))
+    coordinate_source: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_active: Mapped[int] = mapped_column(Integer, server_default=sql_text("0"))
+    revision: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class ExamRoom(Base):
+    """One concrete room or exam area at an :class:`ExamVenue`."""
+
+    __tablename__ = "exam_room"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    venue_id: Mapped[int] = mapped_column(ForeignKey("exam_venue.id", ondelete="RESTRICT"))
+    name: Mapped[str] = mapped_column(String)
+    normalized_name: Mapped[str] = mapped_column(String)
+    building: Mapped[str | None] = mapped_column(String, nullable=True)
+    wing: Mapped[str | None] = mapped_column(String, nullable=True)
+    floor: Mapped[str | None] = mapped_column(String, nullable=True)
+    room_number: Mapped[str | None] = mapped_column(String, nullable=True)
+    access_notes: Mapped[str | None] = mapped_column(String, nullable=True)
+    capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
-    created_at: Mapped[str] = mapped_column(
-        String,
-        server_default=sql_text("CURRENT_TIMESTAMP"),
+    revision: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class ExamVenueContact(Base):
+    """A non-authentication contact associated with one exam venue."""
+
+    __tablename__ = "exam_venue_contact"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    venue_id: Mapped[int] = mapped_column(ForeignKey("exam_venue.id", ondelete="RESTRICT"))
+    label: Mapped[str] = mapped_column(String)
+    role: Mapped[str | None] = mapped_column(String, nullable=True)
+    phone: Mapped[str | None] = mapped_column(String, nullable=True)
+    email: Mapped[str | None] = mapped_column(String, nullable=True)
+    availability_notes: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_active: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    revision: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class ExamVenueContactRoom(Base):
+    """Optional room-specific visibility for an otherwise venue-wide contact."""
+
+    __tablename__ = "exam_venue_contact_room"
+
+    contact_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_venue_contact.id", ondelete="CASCADE"), primary_key=True
     )
-    updated_at: Mapped[str] = mapped_column(
-        String,
-        server_default=sql_text("CURRENT_TIMESTAMP"),
+    room_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_room.id", ondelete="RESTRICT"), primary_key=True
     )
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class ExamVenueAuditEvent(Base):
+    """Append-only trace for venue, room, and contact master-data mutations."""
+
+    __tablename__ = "exam_venue_audit_event"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    venue_id: Mapped[int] = mapped_column(Integer)
+    entity_type: Mapped[str] = mapped_column(String)
+    entity_id: Mapped[int] = mapped_column(Integer)
+    entity_revision: Mapped[int] = mapped_column(Integer)
+    change_type: Mapped[str] = mapped_column(String)
+    actor_kind: Mapped[str] = mapped_column(String)
+    actor_member_id: Mapped[int | None] = mapped_column(
+        ForeignKey("committee_member.id", ondelete="RESTRICT"), nullable=True
+    )
+    technical_actor: Mapped[str | None] = mapped_column(String, nullable=True)
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    details_json: Mapped[str] = mapped_column(String, server_default=sql_text("'{}'"))
+    created_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class ExamVenueMigrationReport(Base):
+    """Immutable evidence produced by the legacy location migration."""
+
+    __tablename__ = "exam_venue_migration_report"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    migration_name: Mapped[str] = mapped_column(String, unique=True)
+    backup_reference: Mapped[str] = mapped_column(String)
+    backup_verified: Mapped[int] = mapped_column(Integer)
+    source_location_count: Mapped[int] = mapped_column(Integer)
+    venue_count: Mapped[int] = mapped_column(Integer)
+    room_count: Mapped[int] = mapped_column(Integer)
+    grouped_location_count: Mapped[int] = mapped_column(Integer)
+    conflict_count: Mapped[int] = mapped_column(Integer)
+    clarification_count: Mapped[int] = mapped_column(Integer)
+    machine_report_json: Mapped[str] = mapped_column(String)
+    human_report: Mapped[str] = mapped_column(String)
+    migrated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
+
+
+class LegacyLocationRoomMapping(Base):
+    """Permanent mapping from every legacy location identity to its new room."""
+
+    __tablename__ = "legacy_location_room_mapping"
+
+    legacy_location_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    venue_id: Mapped[int] = mapped_column(ForeignKey("exam_venue.id", ondelete="RESTRICT"))
+    room_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_room.id", ondelete="RESTRICT"), unique=True
+    )
+    migration_report_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_venue_migration_report.id", ondelete="RESTRICT")
+    )
+    migrated_at: Mapped[str] = mapped_column(String, server_default=sql_text("CURRENT_TIMESTAMP"))
 
 
 class Candidate(Base):
@@ -637,8 +785,8 @@ class PlanningSettings(Base):
         server_default=sql_text("0"),
     )
     holiday_subdivision_code: Mapped[str | None] = mapped_column(String, nullable=True)
-    default_location_id: Mapped[int | None] = mapped_column(
-        ForeignKey("location.id"),
+    default_room_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_room.id"),
         nullable=True,
     )
     updated_by_member_id: Mapped[int] = mapped_column(ForeignKey("committee_member.id"))
@@ -696,7 +844,7 @@ class ExamDay(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     exam_round_id: Mapped[int] = mapped_column(ForeignKey("exam_round.id"))
-    location_id: Mapped[int] = mapped_column(ForeignKey("location.id"))
+    room_id: Mapped[int] = mapped_column(ForeignKey("exam_room.id"))
     date: Mapped[str] = mapped_column(String)
     status: Mapped[str] = mapped_column(String, server_default=sql_text("'proposed'"))
     lunch_break_enabled: Mapped[int] = mapped_column(
@@ -1810,27 +1958,106 @@ PERSON = Resource(
     writable_fields=("first_name", "last_name", "email", "mobile"),
 )
 
-LOCATION = Resource(
-    model=Location,
+EXAM_VENUE = Resource(
+    model=ExamVenue,
     fields=(
+        "scope",
         "committee_id",
         "name",
         "street",
         "postal_code",
         "city",
-        "room",
+        "country",
+        "site_name",
+        "entrance",
+        "travel_directions",
+        "is_accessible",
+        "accessibility_status",
+        "accessibility_notes",
+        "latitude",
+        "longitude",
+        "coordinate_status",
+        "coordinate_source",
         "is_active",
+        "revision",
         "created_at",
         "updated_at",
     ),
-    order_by=("-is_active", "name"),
+    order_by=("-is_active", "name", "id"),
     writable_fields=(
+        "scope",
         "committee_id",
         "name",
         "street",
         "postal_code",
         "city",
-        "room",
+        "country",
+        "site_name",
+        "entrance",
+        "travel_directions",
+        "is_accessible",
+        "accessibility_status",
+        "accessibility_notes",
+        "latitude",
+        "longitude",
+        "coordinate_status",
+        "coordinate_source",
+        "is_active",
+    ),
+)
+
+EXAM_ROOM = Resource(
+    model=ExamRoom,
+    fields=(
+        "venue_id",
+        "name",
+        "building",
+        "wing",
+        "floor",
+        "room_number",
+        "access_notes",
+        "capacity",
+        "is_active",
+        "revision",
+        "created_at",
+        "updated_at",
+    ),
+    order_by=("-is_active", "name", "id"),
+    writable_fields=(
+        "venue_id",
+        "name",
+        "building",
+        "wing",
+        "floor",
+        "room_number",
+        "access_notes",
+        "capacity",
+        "is_active",
+    ),
+)
+
+EXAM_VENUE_CONTACT = Resource(
+    model=ExamVenueContact,
+    fields=(
+        "venue_id",
+        "label",
+        "role",
+        "phone",
+        "email",
+        "availability_notes",
+        "is_active",
+        "revision",
+        "created_at",
+        "updated_at",
+    ),
+    order_by=("-is_active", "label", "id"),
+    writable_fields=(
+        "venue_id",
+        "label",
+        "role",
+        "phone",
+        "email",
+        "availability_notes",
         "is_active",
     ),
 )
@@ -1960,7 +2187,7 @@ PLANNING_SETTINGS = Resource(
         "lunch_break_enabled",
         "exclude_public_holidays",
         "holiday_subdivision_code",
-        "default_location_id",
+        "default_room_id",
         "updated_by_member_id",
         "created_at",
         "updated_at",
@@ -1974,7 +2201,7 @@ PLANNING_SETTINGS = Resource(
         "lunch_break_enabled",
         "exclude_public_holidays",
         "holiday_subdivision_code",
-        "default_location_id",
+        "default_room_id",
         "updated_by_member_id",
     ),
 )
@@ -2020,7 +2247,7 @@ EXAM_DAY = Resource(
     model=ExamDay,
     fields=(
         "exam_round_id",
-        "location_id",
+        "room_id",
         "date",
         "status",
         "revision",
@@ -2033,7 +2260,7 @@ EXAM_DAY = Resource(
     order_by=("date",),
     writable_fields=(
         "exam_round_id",
-        "location_id",
+        "room_id",
         "date",
         "status",
         "lunch_break_enabled",

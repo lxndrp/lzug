@@ -8,32 +8,32 @@ locked distribution metadata. After `task setup`, run
 `task sbom OUTPUT=/tmp/lzug.dependencies.sbom.cdx.json` for the standardized
 CycloneDX snapshot. The upstream license texts remain authoritative.
 
-## CoreUI Icons Free
+## Inter
 
-The selected SVG path definitions in
-[`frontend/src/app/app-icons.ts`](frontend/src/app/app-icons.ts) are derived
-from CoreUI Icons Free 3.1.0.
+The production frontend and public publication use Inter v20 through the
+exactly locked `@fontsource-variable/inter` 5.3.0 package.
 
-- Icon artwork packaged as SVG or JavaScript: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
-- Non-icon CoreUI code: [MIT](https://opensource.org/license/mit/).
-- Attribution: CoreUI Icons Free, creativeLabs Łukasz Holeczek.
-- Upstream license and scope: [CoreUI Icons Free licensing](https://github.com/coreui/coreui-icons#license).
+- License: [SIL Open Font License 1.1](https://openfontlicense.org/).
+- Upstream family and authorship metadata: [Inter](https://github.com/rsms/inter).
+- Package metadata: [`@fontsource-variable/inter`](https://www.npmjs.com/package/@fontsource-variable/inter).
 
-The copied material here is icon artwork, so it is recorded as CC BY 4.0;
-the MIT terms for non-icon code do not change that classification.
+The locally retained license text is [`brand/licenses/Inter-OFL.txt`](brand/licenses/Inter-OFL.txt).
+The production bundles contain only the required Latin, Greek, and Greek Extended WOFF2 subsets.
 
-## Source Sans 3
+## Lucide
 
-The frontend imports Source Sans 3 5.2.9 through
-`@fontsource/source-sans-3`.
+The product's functional icons use the exactly locked `lucide` 0.468.0 package.
+The stable semantic mapping is documented in [`brand/icon-contract.json`](brand/icon-contract.json).
 
-- License: [SIL Open Font License 1.1](https://scripts.sil.org/OFL).
-- Upstream family and authorship metadata:
-  [Adobe Source Sans](https://github.com/adobe-fonts/source-sans).
-- Package metadata: [`@fontsource/source-sans-3`](https://www.npmjs.com/package/@fontsource/source-sans-3).
+- License: [ISC](https://github.com/lucide-icons/lucide/blob/main/LICENSE).
+- Upstream: [Lucide](https://lucide.dev/).
 
-The package's `OFL.txt` and upstream authorship file are authoritative for
-font-specific copyright and reserved-name terms.
+## resvg-js
+
+`@resvg/resvg-js` 2.6.2 renders reproducible SVG-derived raster assets during development and CI.
+
+- License: [MPL-2.0](https://www.mozilla.org/MPL/2.0/).
+- Upstream: [resvg-js](https://github.com/thx/resvg-js).
 
 ## Production JavaScript dependencies
 
@@ -41,14 +41,15 @@ These are direct runtime dependencies from the lockfile. Their package
 licenses must remain separately acknowledged when a bundled frontend is
 distributed.
 
-| Package family | Locked license |
-| --- | --- |
-| Angular (`@angular/*`) | MIT |
-| Taiga UI (`@taiga-ui/*`) | Apache-2.0 |
-| `rxjs` | Apache-2.0 |
-| `tslib` | 0BSD |
-| `zone.js` | MIT |
-| `@fontsource/source-sans-3` | OFL-1.1 |
+| Package family               | Locked license |
+| ---------------------------- | -------------- |
+| Angular (`@angular/*`)       | MIT            |
+| Taiga UI (`@taiga-ui/*`)     | Apache-2.0     |
+| `rxjs`                       | Apache-2.0     |
+| `tslib`                      | 0BSD           |
+| `zone.js`                    | MIT            |
+| `@fontsource-variable/inter` | OFL-1.1        |
+| `lucide`                     | ISC            |
 
 The transitive production closure and all development packages are not
 duplicated here because they change with the lockfile. The canonical dependency
@@ -77,12 +78,12 @@ Copyright 2009 The Go Authors.
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
 
-* Redistributions of source code must retain the above copyright notice, this
+- Redistributions of source code must retain the above copyright notice, this
   list of conditions and the following disclaimer.
-* Redistributions in binary form must reproduce the above copyright notice,
+- Redistributions in binary form must reproduce the above copyright notice,
   this list of conditions and the following disclaimer in the documentation
   and/or other materials provided with the distribution.
-* Neither the name of Google LLC nor the names of its contributors may be used
+- Neither the name of Google LLC nor the names of its contributors may be used
   to endorse or promote products derived from this software without specific
   prior written permission.
 
@@ -104,8 +105,8 @@ licensed separately under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), as defined in
 [`docs/LICENSE.md`](docs/LICENSE.md). Source code, executable examples, and
 generated code references remain under the project software license.
-Third-party material, including CoreUI icon artwork, remains under its own
-license and is not relicensed by this documentation grant.
+Third-party material remains under its own license and is not relicensed by
+this documentation grant.
 
 ## Project license boundary
 

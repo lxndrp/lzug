@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from backend.auth import AuthenticationRepository, SessionCredentials
 from backend.database import initialize, is_ready
 from backend.fastapi_app import FastAPIConfig, create_app
+from backend.map_provider import MapProviderConfig
 from backend.runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from backend.security import RequestRateLimiter
 
@@ -56,6 +57,7 @@ class TestLzugHandler:
     max_request_bytes = 1024 * 1024
     runtime_policy: RuntimePolicy = ProductRuntimePolicy()
     auth_rate_limiter = RequestRateLimiter(20, timedelta(minutes=1))
+    map_provider = MapProviderConfig()
 
 
 class TempDatabase(AbstractContextManager):
@@ -101,6 +103,7 @@ class FastAPIAdapter(AbstractContextManager):
             static_dir=self.handler_type.static_dir,
             runtime_policy=self.handler_type.runtime_policy,
             auth_rate_limiter=self.handler_type.auth_rate_limiter,
+            map_provider=self.handler_type.map_provider,
         )
         self.client = TestClient(create_app(config), base_url="http://127.0.0.1")
         if is_ready(self.db_path):

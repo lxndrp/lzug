@@ -2,10 +2,8 @@
 
 [`CONTRIBUTING.md`](https://github.com/lxndrp/lzug/blob/master/CONTRIBUTING.md)
 enthält die verbindlichen Beitragsregeln.
-Das [GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung) führt Menschen
-durch Einrichtung und täglichen Arbeitsprozess.
-Diese Seite bündelt die revisionsgebundenen technischen Einstiege und kopiert
-weder Issue-Prozess noch Wiki-Anleitungen vollständig.
+Diese Seite bündelt die revisionsgebundenen technischen Einstiege,
+Einrichtung, Arbeitsprozess und passende lokale Prüfungen.
 
 ## Toolchain und Einrichtung
 
@@ -105,15 +103,21 @@ Demo- und Testidentitäten.
 Der versionierte Katalog verwendet Figuren und Motive aus William Shakespeares
 „Ein Sommernachtstraum“ und trennt den Hauptausschuss Athen vom Fremdausschuss
 Feenwald.
-Beide Kammern, sämtliche Personen, Kontakte, Orte und Prüfungsvorgänge sind
+Beide Kammern, sämtliche Personen, Kontakte und Prüfungsvorgänge sind
 ausdrücklich fiktiv.
-Reale Athener Orts- und Kartendaten bleiben bis zur getrennten Umsetzung von
-#572 ausgeschlossen.
+Die drei Athener Demo-Orte verwenden ausschließlich die im Katalog bezeichneten
+realen Anschriften, Orientierungen und Referenzkoordinaten.
+Prüfungsstätten, Räume, Kapazitäten, Barrierefreiheitsbewertungen, Kontakte und
+fachliche Zuordnungen bleiben sichtbar synthetisch und behaupten keine
+Kooperation mit den realen Orten.
 
 Jede sichtbare Entität besitzt einen stabilen Schlüssel unter
 `name.papaspyrou.repertoire.lzug.fixture`.
 Personen, Mitgliedschaften und fachliche Datenbank-IDs bleiben getrennt;
 Lookup und Szenariozuordnung erfolgen über den semantischen Schlüssel.
+Orte, Räume und Ortskontakte besitzen eigene Schlüssel und technische IDs.
+Die `legacy_mapping` erhält vorhandene technische IDs bei der Umstellung;
+Anzeigenamen dienen nie als Identität oder Verknüpfung.
 Die Abdeckungsmatrix im Katalog weist Vorsitz, Stellvertretung, alle
 Vertreterseiten, reguläre und stellvertretende Mitglieder, Fallback,
 Ersatzperson, Mehrfachmitgliedschaft, Prüflinge, Fremdausschuss sowie positive
@@ -121,6 +125,8 @@ und negative Autorisierungspfade einschließlich der beiden #487-Szenarien aus.
 
 Synthetische E-Mail-Adressen verwenden ausschließlich
 `@demo.lzug.invalid`; Telefonnummern sind nicht belegt.
+Jede reale Ortsreferenz enthält eine kanonische HTTPS-Quelle und das feste
+Abrufdatum `2026-09-01`.
 `scripts/generate_synthetic_fixtures.py` erzeugt daraus SQL-, Angular- und
 Prototypadapter sowie den Python-Adapter für Demo-Rollen und semantische IDs.
 Generierte Dateien werden nicht direkt bearbeitet.
@@ -132,6 +138,11 @@ task fixtures:check
 
 Der Demo-Artefaktbau ergänzt fachlich gezielte synthetische Zustände für
 Protokoll, Bewertung, Abschluss, Wiederöffnung und Reset.
+Die isolierten Szenarien aus #487 werden dagegen beim Start eines
+Besucher-Arbeitsstands relativ zur aktuellen Instanzzeit erzeugt.
+`backend.tests.test_demo_runtime` prüft beide Reihenfolgen, Rollen- und
+Allowlist-Grenzen, Benachrichtigungs- und Kalenderfolgen, Isolation, Ablauf und
+Reset.
 Katalogversion, Katalogrevision und Demo-Matrixversion sind an das
 inhaltsadressierte Seed-Manifest gebunden; eine unpassende Kombination
 verhindert den Demo-Start.
@@ -147,8 +158,8 @@ an.
 
 Jede Information hat eine primäre Zielgruppe, genau eine Dokumentart und eine
 kanonische Quelle.
-Fachliche, Nutzungs- und Betreiberanleitungen liegen im Wiki; aktuelle
-technische Orientierung in Einstieg plus fünf Kernbereichen; langfristige
+Fachliche, Nutzungs- und Betreiberanleitungen liegen unter `docs/handbook/`
+und `docs/portal/`; aktuelle technische Orientierung in Einstieg plus fünf Kernbereichen; langfristige
 Entscheidungen in ADRs; ausführbare API-, Daten-, Qualitäts- und
 Releaseverträge in Code und deklarativen Quellen.
 
@@ -181,7 +192,7 @@ nicht triviale Typangaben oder eine zweite OpenAPI-Fassung.
 ADR-Register und Ersetzungssemantik, das Verbot eines Ersatzarchivs sowie den
 Ausschluss offensichtlicher Planungs-, Routen- und Schema-Zweitlisten.
 `task docs` ergänzt den strikten MkDocs- und TypeDoc-Build.
-Der öffentliche Referenzaufbau und das Wiki bleiben getrennte Verträge unter
+Der öffentliche Referenzaufbau folgt dem Repository-Vertrag unter
 [Delivery und Veröffentlichung](delivery.md).
 
 ## Review

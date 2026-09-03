@@ -52,5 +52,5 @@ die Messwerte ohne nachgewiesene fachliche Lücke.
 ## Referenzen
 
 - [Angular: Migration von Karma zu Vitest](https://angular.dev/guide/testing/migrating-to-vitest)
-- [Entwickler-Setup im GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung-Einrichtung)
+- [Entwicklung](../development.md)
 - [HTTP-Vertrag](0006-openapi-http-vertrag.md)

@@ -32,6 +32,14 @@ func NewApplication(
 	}
 }
 
+// InteractiveRequested reports whether args select the guided CLI entrypoint.
+// It lets the executable leave terminal interrupts to the dialog while direct
+// commands keep the process-wide cancellation contract.
+func InteractiveRequested(args []string) bool {
+	_, remaining, failure := parseGlobalOptions(args)
+	return failure == nil && len(remaining) == 1 && remaining[0] == "cli"
+}
+
 func (application *Application) Run(ctx context.Context, args []string) int {
 	if failure := application.validate(); failure != nil {
 		if application.Renderer != nil {
@@ -70,6 +78,21 @@ func (application *Application) Run(ctx context.Context, args []string) int {
 	if failure != nil {
 		application.Renderer.Error(global, "", failure)
 		return failure.ExitCode
+	}
+	if len(remaining) > 0 && remaining[0] == "cli" {
+		if global.JSON {
+			failure = invalidInvocation("cli cannot be combined with --json")
+			application.Renderer.Error(global, "cli", failure)
+			return failure.ExitCode
+		}
+		if global.ForceSet {
+			failure = invalidInvocation("cli cannot be combined with --force")
+			application.Renderer.Error(global, "cli", failure)
+			return failure.ExitCode
+		}
+		if len(remaining) == 1 {
+			return application.RunInteractive(ctx, global)
+		}
 	}
 	if len(remaining) == 1 && remaining[0] == "--version" {
 		if global.ForceSet || global.ConfigSet || global.NoConfig || global.EngineSet || global.ContainerSet {
@@ -171,7 +194,7 @@ func (application *Application) Execute(
 		return failure.ExitCode
 	}
 
-	if command.Confirmation.Required && !global.Force {
+	if command.Confirmation.Required && !command.Confirmation.Deferred && !global.Force {
 		if !application.Input.IsTerminal() {
 			failure = &CLIError{
 				Class:    "confirmation_required",
@@ -189,6 +212,11 @@ func (application *Application) Execute(
 			return failure.ExitCode
 		}
 		confirmed, err := application.Input.Confirm(prompt)
+		if errors.Is(err, errInputInterrupted) {
+			failure = interruptedError()
+			application.Renderer.Error(global, command.Name(), failure)
+			return failure.ExitCode
+		}
 		if err != nil || !confirmed {
 			failure = &CLIError{
 				Class:    "confirmation_declined",
@@ -204,6 +232,11 @@ func (application *Application) Execute(
 	secrets := Values{}
 	for _, secret := range command.Secrets {
 		value, err := application.Input.ReadSecret(secret.Prompt)
+		if errors.Is(err, errInputInterrupted) {
+			failure = interruptedError()
+			application.Renderer.Error(global, command.Name(), failure)
+			return failure.ExitCode
+		}
 		if err != nil {
 			failure = invalidInvocation("%s requires %s", command.Name(), secret.Description)
 			application.Renderer.Error(global, command.Name(), failure)
@@ -213,8 +246,20 @@ func (application *Application) Execute(
 	}
 
 	application.Renderer.Progress(global, command, "executing", 0)
+	if command.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, command.Timeout)
+		defer cancel()
+	}
 	if command.IsLocal() {
-		result, localFailure := command.Local(ctx, LocalContext{Registry: application.Registry, Config: config}, values)
+		result, localFailure := command.Local(ctx, LocalContext{
+			Registry: application.Registry,
+			Config:   config,
+			Runtime:  application.Runtime,
+			Input:    application.Input,
+			Global:   global,
+			Build:    application.Build,
+		}, values)
 		if localFailure != nil {
 			application.Renderer.Error(global, command.Name(), localFailure)
 			return localFailure.ExitCode
@@ -275,6 +320,14 @@ func BuildMetadata(build BuildInfo) buildMetadata {
 func runtimeFailure(err error) *CLIError {
 	if errors.Is(err, context.Canceled) {
 		return interruptedError()
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return &CLIError{
+			Class:    "timeout",
+			Message:  "The administration command exceeded its declared time limit.",
+			NextStep: "Inspect the operation state before deciding whether a retry is safe.",
+			ExitCode: ExitEngineFailed,
+		}
 	}
 	var runtimeError *RuntimeError
 	if errors.As(err, &runtimeError) {

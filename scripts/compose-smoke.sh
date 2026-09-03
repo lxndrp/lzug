@@ -53,9 +53,11 @@ resolve_url() {
 
 resolve_url
 
-health_status() {
+compose_status() {
+    field=$1
+    fallback=$2
     raw_status=$(compose ps --all --format json 2>/dev/null) || {
-        echo "unavailable"
+        echo "$fallback"
         return
     }
     printf '%s' "$raw_status" | python3 -c '
@@ -63,6 +65,8 @@ import json
 import sys
 
 raw = sys.stdin.read().strip()
+field = sys.argv[1]
+fallback = sys.argv[2]
 try:
     parsed = json.loads(raw)
 except json.JSONDecodeError:
@@ -73,9 +77,17 @@ except json.JSONDecodeError:
         raise SystemExit
 if isinstance(parsed, dict):
     parsed = [parsed]
-status = parsed[0].get("Health", "") if parsed else ""
-print(status or "none")
-'
+status = parsed[0].get(field, "") if parsed else ""
+print(status or fallback)
+' "$field" "$fallback"
+}
+
+health_status() {
+    compose_status Health unavailable
+}
+
+lifecycle_status() {
+    compose_status State unknown
 }
 
 http_status() {
@@ -123,6 +135,30 @@ wait_ready() {
     return 1
 }
 
+wait_stopped() {
+    deadline=$(($(date +%s) + ready_timeout_seconds))
+    last_lifecycle_status="unknown"
+
+    echo "Waiting for Compose stop to complete."
+    while :; do
+        last_lifecycle_status=$(lifecycle_status)
+        if [ "$last_lifecycle_status" = "exited" ]; then
+            return 0
+        fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            break
+        fi
+        sleep "$ready_interval_seconds"
+    done
+
+    echo "Compose stop timed out: timeout=${ready_timeout_seconds}s lifecycle_status=$last_lifecycle_status" >&2
+    echo "Compose service state:" >&2
+    compose ps --all >&2 || true
+    echo "Compose logs:" >&2
+    compose logs >&2 || true
+    return 1
+}
+
 wait_ready "start"
 container_id=$(compose ps -q lzug)
 test -n "$container_id"
@@ -133,6 +169,7 @@ resolve_url
 wait_ready "restart"
 test "$(compose exec -T lzug python -c 'from pathlib import Path; print(Path("/data/compose-smoke-marker").read_text(encoding="utf-8"))')" = "persisted"
 compose stop lzug >/dev/null
+wait_stopped
 compose start lzug >/dev/null
 resolve_url
 wait_ready "stop/start"

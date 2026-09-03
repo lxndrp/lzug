@@ -1,8 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
+import { resolve } from 'node:path';
 import type { ExamResult } from '../src/app/api/api.models';
 import { syntheticFixtures } from '../src/app/testing/synthetic-fixtures.generated';
 import { expect, test } from './fixtures';
+import { expectFinalStyleState } from './style-stability';
 
 const athenCommittee = syntheticFixtures.committees.find(
   (committee) =>
@@ -13,9 +15,7 @@ if (!athenCommittee) throw new Error('Canonical Athen committee fixture is missi
 const athenCourtLocation = syntheticFixtures.locations.find(
   (location) =>
     location.id ===
-    syntheticFixtures.keys.locations[
-      'name.papaspyrou.repertoire.lzug.fixture.location.synthetic.court'
-    ],
+    syntheticFixtures.keys.rooms['name.papaspyrou.repertoire.lzug.fixture.room.zappeion.theseus'],
 );
 if (!athenCourtLocation) throw new Error('Canonical Athen location fixture is missing');
 const planchangeCandidate = syntheticFixtures.candidates.find(
@@ -27,6 +27,78 @@ const planchangeCandidate = syntheticFixtures.candidates.find(
 );
 if (!planchangeCandidate) throw new Error('Canonical plan-change candidate fixture is missing');
 const demoRoles = syntheticFixtures.demoRoles;
+const athenDeputyMember = syntheticFixtures.members.find((member) => member.id === 2);
+if (!athenDeputyMember) throw new Error('Canonical Athen deputy fixture is missing');
+
+function demoCapabilities(role: 'chair' | 'examiner' | 'replacement'): string[] {
+  const ownReads = ['calendar:read-own', 'notifications:read-own'];
+  if (role === 'chair') return ['absence:coordinate', 'confirmed-plan:revise', ...ownReads];
+  if (role === 'examiner') return ['absence:write-own', ...ownReads];
+  return ['absence:respond-own', ...ownReads];
+}
+
+function demoWorkspaceExpiry(): string {
+  return new Date(Date.now() + 60 * 60 * 1000).toISOString();
+}
+
+function demoScenarioOverview(role: 'chair' | 'examiner' | 'replacement') {
+  return {
+    mode: 'demo',
+    demo_matrix_version: 'demo-paths-v8',
+    current_role: role,
+    created_at: new Date().toISOString(),
+    expires_at: demoWorkspaceExpiry(),
+    remaining_seconds: 3600,
+    roles: (['chair', 'examiner', 'replacement'] as const).map((name) => ({
+      name,
+      display_name: demoRoles[name].display_name,
+      task:
+        name === 'chair'
+          ? 'Koordination und Planrevision'
+          : name === 'examiner'
+            ? 'Eigenen Ausfall melden'
+            : 'Eigene Ersatzanfrage beantworten',
+    })),
+    scenarios: [
+      {
+        id: 'absence',
+        title: 'Dringlicher Ausfall und Ersatz',
+        status: 'ready',
+        completed_steps: 0,
+        total_steps: 3,
+        next_role: 'examiner',
+        next_action: 'Eigenen Ausfall am vorbereiteten Prüfungstag melden',
+        path: '/confirmed-plans/1/days/1',
+      },
+      {
+        id: 'plan-change',
+        title: 'Bestätigte Planänderung',
+        status: 'ready',
+        completed_steps: 0,
+        total_steps: 1,
+        next_role: 'chair',
+        next_action: 'Vorbereitete Ortsänderung und Personentausch bestätigen',
+        path: '/confirmed-plans/1/edit',
+      },
+    ],
+    prepared_plan_change: {
+      round_id: 1,
+      day_id: 2,
+      source_location_id: 1,
+      target_location_id: 2,
+      assignment_id: 6,
+      replacement_member_id: demoRoles.replacement.committee_member_id,
+      reason: 'Synthetischer Ortswechsel mit gleichseitiger Ersatzbesetzung',
+    },
+    notices: [
+      'Der Arbeitsstand wird 60 Minuten nach seinem Start verworfen.',
+      'Keine realen personenbezogenen Daten eingeben.',
+      'Externe Zustellung ist in der öffentlichen Demo deaktiviert.',
+    ],
+    location_contract:
+      'Reale Athener Anschriften und Referenzpunkte verorten ausschließlich synthetische Prüfungsstätten. In Ortsdetails lädt OpenStreetMap automatisch externe Kartenkacheln; ein Routenlink öffnet den Zielpunkt erst nach bewusster Auswahl.',
+  };
+}
 
 const productiveViews = [
   { name: 'Übersicht', path: '/dashboard' },
@@ -980,17 +1052,14 @@ test.describe('lzug browser workflows', () => {
     ).toHaveCount(0);
   });
 
-  test('keeps demo roles visible and role-safe on desktop and mobile', async ({ page }) => {
+  test('keeps isolated demo scenarios and roles safe on desktop and mobile', async ({ page }) => {
     test.setTimeout(180_000);
-    let role: 'chair' | 'examiner' | 'deputy' = 'chair';
+    let role: 'chair' | 'examiner' | 'replacement' = 'chair';
     await page.route('**/api/session', async (route) => {
       if (route.request().method() === 'POST') {
         await route.fulfill({ status: 204 });
         return;
       }
-      const isChair = role === 'chair';
-      const isDeputy = role === 'deputy';
-      const isManager = isChair || isDeputy;
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
@@ -1001,52 +1070,57 @@ test.describe('lzug browser workflows', () => {
           is_operator: false,
           demo_role: role,
           display_name: demoRoles[role].display_name,
-          capabilities: isManager
-            ? [
-                'absence:read-own',
-                'attendance:coordinate',
-                'availability:coordinate',
-                'calendar:read-own',
-                'candidate-days:generate',
-                'exam-half-years:read',
-                'exam-status:write',
-                'notifications:read-own',
-                'planning-proposal:confirm',
-                'planning-proposal:generate',
-                'planning-proposal:replace',
-                'planning-settings:write',
-                'round:write',
-              ]
-            : [
-                'absence:read-own',
-                'attendance:write-own',
-                'availability:write-own',
-                'calendar:read-own',
-                'exam-half-years:read',
-                'notifications:read-own',
-              ],
+          capabilities: demoCapabilities(role),
+          demo_matrix_version: 'demo-paths-v8',
+          demo_workspace_expires_at: demoWorkspaceExpiry(),
         }),
       });
     });
+    await page.route('**/api/demo/scenarios', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(demoScenarioOverview(role)),
+      }),
+    );
+    await page.route('**/api/demo/session', async (route) => {
+      const payload = route.request().postDataJSON() as { role: typeof role };
+      role = payload.role;
+      await route.fulfill({ status: 201, body: JSON.stringify({ authenticated: true }) });
+    });
 
-    for (const currentRole of ['chair', 'deputy', 'examiner'] as const) {
+    for (const currentRole of ['chair', 'examiner', 'replacement'] as const) {
       role = currentRole;
       for (const viewport of viewports) {
         await test.step(`${currentRole} · ${viewport.name}`, async () => {
           await page.setViewportSize(viewport);
-          await page.goto('/dashboard');
+          await page.goto('/demo-scenarios');
           await expect(page.getByLabel('Aktive Demo-Identität')).toContainText(
             demoRoles[currentRole].display_name,
           );
           await expect(
-            page.getByText(
-              currentRole === 'chair'
-                ? 'Vorsitz'
-                : currentRole === 'deputy'
-                  ? 'Stellvertretung'
-                  : 'Prüfperson',
-            ),
+            page.getByRole('heading', { name: 'Zwei unabhängige Fachabläufe' }),
           ).toBeVisible();
+          await expect(page.getByText('Dringlicher Ausfall und Ersatz')).toBeVisible();
+          await expect(page.getByText('Bestätigte Planänderung')).toBeVisible();
+          await expect(page.getByText('60 Minuten ab Start')).toBeVisible();
+          await expect(
+            page.getByText('Keine realen personenbezogenen Daten eingeben.'),
+          ).toBeVisible();
+          if (process.env['LZUG_CAPTURE_DEMO_MEDIA'] === 'true' && currentRole === 'chair') {
+            await page.screenshot({
+              path: resolve(
+                process.cwd(),
+                '..',
+                'docs',
+                'media',
+                `demo-scenarios-${viewport.name}.png`,
+              ),
+              fullPage: false,
+              animations: 'disabled',
+              mask: [page.locator('.demo-session-facts dd').first()],
+              maskColor: '#e7e9ec',
+            });
+          }
           await expect(page.getByRole('button', { name: 'Rolle wechseln' })).toBeVisible();
           if (viewport.name === 'mobile') {
             await page.getByRole('button', { name: 'Navigation öffnen' }).click();
@@ -1060,14 +1134,14 @@ test.describe('lzug browser workflows', () => {
           ).toHaveCount(0);
           await expect(
             page.getByRole('link', { name: 'Terminorganisationen', exact: true }),
-          ).toBeVisible();
-          await expect(
-            page.getByRole('link', { name: 'Prüfungspläne', exact: true }),
-          ).toBeVisible();
+          ).toHaveCount(0);
+          await expect(page.getByRole('link', { name: 'Prüfungspläne', exact: true })).toHaveCount(
+            currentRole === 'replacement' ? 0 : 1,
+          );
           const mainNavigation = page.getByLabel('Hauptnavigation');
           await expect(
             mainNavigation.getByRole('link', { name: 'Prüfungskontext auswählen', exact: true }),
-          ).toBeVisible();
+          ).toHaveCount(0);
           await expect(
             mainNavigation.getByRole('link', { name: 'Benachrichtigungen', exact: true }),
           ).toBeVisible();
@@ -1083,13 +1157,8 @@ test.describe('lzug browser workflows', () => {
 
           await page.goto('/exam-half-years');
           await expect(
-            page.getByText('Prüfungshalbjahre sind in der öffentlichen Demo schreibgeschützt.'),
+            page.getByText('Dieser Demo-Bereich ist für Ihre Rolle nicht freigegeben.'),
           ).toBeVisible();
-          await expect(page.getByRole('button', { name: 'Prüfungshalbjahr anlegen' })).toHaveCount(
-            0,
-          );
-          await expect(page.getByRole('button', { name: /bearbeiten$/i })).toHaveCount(0);
-          await expect(page.getByRole('button', { name: /abschließen$/i })).toHaveCount(0);
 
           await page.goto('/notifications');
           await expect(
@@ -1101,12 +1170,6 @@ test.describe('lzug browser workflows', () => {
           await expect(
             page.getByRole('button', { name: 'Persönlichen Feed aktivieren' }),
           ).toHaveCount(0);
-
-          await page.goto('/absence-reports');
-          await expect(
-            page.getByText('Ausfall- und Ersatzaktionen sind für diese Demo-Rolle read-only.'),
-          ).toBeVisible();
-          await expect(page.getByRole('button', { name: /übernehmen/i })).toHaveCount(0);
         });
       }
     }
@@ -1118,10 +1181,17 @@ test.describe('lzug browser workflows', () => {
     await switchButton.focus();
     await expect(switchButton).toBeFocused();
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('heading', { name: 'Anmelden' })).toBeVisible();
+    await expect(page).toHaveURL('/demo-scenarios');
+    const chairButton = page.getByRole('button', { name: 'Vorsitz', exact: true });
+    await chairButton.focus();
+    await expect(chairButton).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.getByText('Vorsitz · ' + demoRoles.chair.display_name)).toBeVisible();
   });
 
-  test('keeps demo read-only paths screen-reader accessible @a11y', async ({ page }) => {
+  test('keeps demo scenarios and regular own-data paths screen-reader accessible @a11y', async ({
+    page,
+  }) => {
     await page.route('**/api/session', (route) =>
       route.fulfill({
         contentType: 'application/json',
@@ -1133,19 +1203,18 @@ test.describe('lzug browser workflows', () => {
           is_operator: false,
           demo_role: 'examiner',
           display_name: demoRoles.examiner.display_name,
-          capabilities: [
-            'absence:read-own',
-            'attendance:write-own',
-            'availability:write-own',
-            'calendar:read-own',
-            'exam-half-years:read',
-            'notifications:read-own',
-          ],
+          capabilities: demoCapabilities('examiner'),
         }),
       }),
     );
+    await page.route('**/api/demo/scenarios', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(demoScenarioOverview('examiner')),
+      }),
+    );
 
-    for (const path of ['/exam-half-years', '/notifications', '/absence-reports']) {
+    for (const path of ['/demo-scenarios', '/notifications', '/absence-reports']) {
       await page.goto(path);
       await expect(page.locator('main')).toBeVisible();
       const accessibility = await new AxeBuilder({ page }).include('main').analyze();
@@ -1185,7 +1254,7 @@ test.describe('lzug browser workflows', () => {
     await expect(sidebar).toHaveAttribute('aria-hidden', 'true');
     await expect(accessibleSidebar).toHaveCount(0);
     const iconWidth = await sidebarToggle
-      .locator('.header-toggler-icon')
+      .locator('svg')
       .evaluate((element) => element.getBoundingClientRect().width);
     expect(iconWidth).toBeGreaterThan(0);
 
@@ -1534,7 +1603,8 @@ test.describe('lzug browser workflows', () => {
     await page.route('**/api/round-summary*', (route) => route.fulfill({ status: 500 }));
 
     await page.getByRole('button', { name: 'Aktualisieren' }).click();
-    await expect(page.getByText('Synchronisierung nicht möglich')).toBeVisible();
+    const alert = page.getByRole('alert');
+    await expect(alert.getByText('Synchronisierung nicht möglich')).toBeVisible();
   });
 
   test('renders an empty candidate list without breaking the view', async ({ page }) => {
@@ -1574,21 +1644,71 @@ test.describe('lzug browser workflows', () => {
     }
   });
 
-  test('keeps table actions scrollable instead of covering mobile data', async ({ page }) => {
+  test('keeps venue card information and actions within the mobile viewport', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/locations');
 
-    const scrollRegion = page.locator('.app-table-scroll');
-    const locationHeader = page.getByRole('columnheader', { name: 'Ort' });
-    const actionHeader = page.getByRole('columnheader', { name: 'Aktion' });
-    await expect(locationHeader).toBeInViewport();
-    await expect(actionHeader).not.toBeInViewport();
-    await expect
-      .poll(() => scrollRegion.evaluate((element) => element.scrollWidth > element.clientWidth))
-      .toBe(true);
-    await expect
-      .poll(() => scrollRegion.evaluate((element) => getComputedStyle(element, '::before').content))
-      .toContain('Tabelle seitlich scrollen');
+    const card = page.getByRole('article', { name: athenCourtLocation.name });
+    await expect(card).toBeVisible();
+    await expect(card.getByText(athenCourtLocation.city, { exact: false })).toBeVisible();
+    await expect(card.locator(':scope > .app-row-actions')).toBeVisible();
+
+    const layout = await card.evaluate((element) => ({
+      cardFits: element.scrollWidth <= element.clientWidth,
+      actionsFit: Array.from(element.querySelectorAll('button')).every((button) => {
+        const bounds = button.getBoundingClientRect();
+        return bounds.left >= 0 && bounds.right <= document.documentElement.clientWidth;
+      }),
+    }));
+    expect(layout.cardFits).toBe(true);
+    expect(layout.actionsFit).toBe(true);
+  });
+
+  test('searches and filters venues before opening an accessible detail view', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const providerRequests: string[] = [];
+    page.on('request', (request) => {
+      if (/tile|nominatim|googleapis|maps/.test(request.url()))
+        providerRequests.push(request.url());
+    });
+
+    await page.goto('/locations');
+    const venueCard = page.getByRole('article', { name: athenCourtLocation.name });
+    await expect(venueCard).toBeVisible();
+    const search = page.getByRole('searchbox', { name: 'Suche' });
+    await search.fill(athenCourtLocation.name);
+    await expect(
+      page.getByRole('status').filter({ hasText: /von .* sichtbaren Orten/ }),
+    ).toContainText('1 von');
+    await page.getByRole('combobox', { name: 'Scope' }).selectOption('global');
+    await expect(venueCard).toBeVisible();
+
+    await page.getByRole('button', { name: 'Details ansehen' }).click();
+    await expect(page).toHaveURL(/\/locations\/\d+$/);
+    await expect(page.getByRole('heading', { name: 'Ort und Anreise' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Räume' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Zulässige Kontakte' })).toBeVisible();
+    expect(providerRequests).toEqual([]);
+  });
+
+  test('keeps the browser map boundary closed when the provider is off', async ({ page }) => {
+    const providerRequests: string[] = [];
+    page.on('request', (request) => {
+      if (/openstreetmap|google\.com\/maps|nominatim/.test(request.url())) {
+        providerRequests.push(request.url());
+      }
+    });
+
+    const response = await page.goto('/locations');
+    expect(response).not.toBeNull();
+    if (process.env.LZUG_E2E_PRODUCTION_BUILD === 'true') {
+      expect(response?.headers()['content-security-policy']).toContain("frame-src 'none'");
+      expect(response?.headers()['referrer-policy']).toBe('no-referrer');
+    }
+    await page.getByRole('button', { name: 'Details ansehen' }).first().click();
+
+    await expect(page.locator('iframe.locations-map-frame')).toHaveCount(0);
+    expect(providerRequests).toEqual([]);
   });
 
   test('opens the candidate form with the keyboard', async ({ page }) => {
@@ -1613,8 +1733,14 @@ test.describe('lzug browser workflows', () => {
   test('keeps contextual create editors associated, cancellable and accessible', async ({
     page,
   }) => {
-    test.setTimeout(180_000);
+    test.setTimeout(300_000);
     const editors = [
+      {
+        path: '/locations',
+        action: 'Prüfungsort anlegen',
+        editor: '#location-create-editor',
+        input: '#locationName',
+      },
       {
         path: '/candidates',
         action: 'Neuen Prüfling anlegen',
@@ -1626,12 +1752,6 @@ test.describe('lzug browser workflows', () => {
         action: 'Prüfer hinzufügen',
         editor: '#member-create-editor',
         input: '#memberFirstName',
-      },
-      {
-        path: '/locations',
-        action: 'Neuen Prüfungsort anlegen',
-        editor: '#location-create-editor',
-        input: '#locationName',
       },
     ] as const;
 
@@ -1670,6 +1790,7 @@ test.describe('lzug browser workflows', () => {
           }));
           expect(dimensions.scrollWidth).toBe(dimensions.clientWidth);
 
+          await expectFinalStyleState(page);
           const results = await new AxeBuilder({ page }).analyze();
           expect(results.violations, `${viewport.name} ${item.action}`).toEqual([]);
 
@@ -1780,9 +1901,9 @@ test.describe('lzug theme and accessibility matrix', () => {
             }
 
             if (viewport.name === 'mobile') {
-              const menuIcon = page.locator('.app-sidebar-toggle .app-menu-icon');
+              const menuIcon = page.locator('.app-sidebar-toggle svg');
               await expect(menuIcon).toBeVisible();
-              await expectReadableContrast(menuIcon, '::before', 'background-color');
+              await expectReadableContrast(menuIcon);
 
               const scrollRegion = page.locator('.app-table-scroll').first();
               if (await scrollRegion.count()) {
@@ -1905,8 +2026,8 @@ function confirmedPlan(
             attendance: { status: 'open', arrived_at: null },
             member: {
               id: id * 10 + 2,
-              first_name: demoRoles.deputy.first_name,
-              last_name: demoRoles.deputy.last_name,
+              first_name: athenDeputyMember.first_name,
+              last_name: athenDeputyMember.last_name,
               representing_side: 'school',
             },
           },

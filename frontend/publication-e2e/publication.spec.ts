@@ -101,6 +101,70 @@ test.describe('public site browser contract', () => {
         expect(structure.demoStart).toBe(1);
         expect(structure.overflow).toBeLessThanOrEqual(0);
         expect(structure.themeVariant).toBe(candidate.themeVariant);
+
+        const palette = await page.evaluate(() => {
+          const resolveColor = (property: string) => {
+            const probe = document.createElement('span');
+            probe.style.color = `var(${property})`;
+            document.body.append(probe);
+            const color = getComputedStyle(probe).color;
+            probe.remove();
+            return color;
+          };
+
+          return {
+            primary: resolveColor('--PRIMARY-color'),
+            brandInk: resolveColor('--lzug-color-brand-ink'),
+            mainBackground: resolveColor('--MAIN-BG-color'),
+            canvas: resolveColor('--lzug-color-neutral-canvas'),
+            menuBackground: resolveColor('--MENU-SECTIONS-BG-color'),
+            surface: resolveColor('--lzug-color-neutral-surface'),
+            menuText: resolveColor('--MENU-SECTIONS-LINK-color'),
+            text: resolveColor('--lzug-color-text'),
+          };
+        });
+        expect(palette.primary).toBe(palette.brandInk);
+        expect(palette.mainBackground).toBe(palette.canvas);
+        expect(palette.menuBackground).toBe(palette.surface);
+        expect(palette.menuText).toBe(palette.text);
+        expect(palette.primary).not.toBe('rgb(125, 201, 3)');
+
+        await page.evaluate(() => document.fonts.ready);
+        const typography = await page.evaluate(() => {
+          const fontFamily = (selector: string) => {
+            const element = document.querySelector(selector);
+            if (!(element instanceof HTMLElement)) {
+              throw new Error(`missing typography contract element: ${selector}`);
+            }
+            return getComputedStyle(element).fontFamily;
+          };
+          const code = document.createElement('code');
+          const pre = document.createElement('pre');
+          code.textContent = 'const lzug = true;';
+          pre.textContent = 'task quality';
+          document.body.append(code, pre);
+          const codeFont = getComputedStyle(code).fontFamily;
+          const preFont = getComputedStyle(pre).fontFamily;
+          code.remove();
+          pre.remove();
+
+          return {
+            interLoaded: document.fonts.check('16px "Inter Variable"', 'Prüfungsplanung'),
+            body: fontFamily('.publication-lead'),
+            heading: fontFamily('.publication-hero h1'),
+            navigation: fontFamily('#R-sidebar a'),
+            button: fontFamily('.publication-button'),
+            formControl: fontFamily('#R-search-by'),
+            code: codeFont,
+            pre: preFont,
+          };
+        });
+        expect(typography.interLoaded).toBe(true);
+        for (const role of ['body', 'heading', 'navigation', 'button', 'formControl'] as const) {
+          expect(typography[role]).toContain('Inter Variable');
+        }
+        expect(typography.code.toLowerCase()).toContain('monospace');
+        expect(typography.pre.toLowerCase()).toContain('monospace');
         expect(consoleErrors).toEqual([]);
         expect(failedResponses).toEqual([]);
 

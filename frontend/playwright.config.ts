@@ -27,8 +27,26 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    ...devices['Desktop Chrome'],
   },
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: { chromiumSandbox: true },
+      },
+    },
+    {
+      name: 'firefox-ui-review',
+      testMatch: /ui-review\.spec\.ts/,
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit-ui-review',
+      testMatch: /ui-review\.spec\.ts/,
+      use: { ...devices['Desktop Safari'] },
+    },
+  ],
   webServer: productionBuild
     ? [
         {

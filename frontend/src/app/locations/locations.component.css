@@ -1,0 +1,345 @@
+:host {
+  display: block;
+}
+
+.locations-view,
+.locations-view * {
+  min-inline-size: 0;
+}
+
+.locations-filter-bar {
+  margin-block: 1rem;
+}
+
+.locations-filter-bar h2 {
+  margin-block: 0 0.75rem;
+  font-size: 1rem;
+}
+
+.locations-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(14rem, 2fr) repeat(3, minmax(9rem, 1fr)) minmax(10rem, auto);
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.locations-filter-grid label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--app-color-text);
+  font-weight: 600;
+}
+
+.locations-filter-grid input,
+.locations-filter-grid select {
+  min-block-size: 2.75rem;
+  inline-size: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-color-surface);
+  color: var(--app-color-text);
+  font: inherit;
+}
+
+.locations-filter-result {
+  margin-block: 0.75rem 0;
+  color: var(--app-color-text-muted);
+  font-size: 0.875rem;
+}
+
+.locations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr));
+  gap: 1rem;
+}
+
+.locations-card {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  min-inline-size: 0;
+  padding: 1.25rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-color-surface);
+  box-shadow: var(--app-shadow-subtle);
+}
+
+.locations-card-header,
+.locations-item-heading,
+.locations-detail-header > div:first-child {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.locations-card-header {
+  justify-content: space-between;
+}
+
+.locations-card h2,
+.locations-detail-section h2 {
+  overflow-wrap: anywhere;
+}
+
+.locations-card h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.locations-card-header p {
+  margin: 0.25rem 0 0;
+  color: var(--app-color-text-muted);
+  font-size: 0.875rem;
+}
+
+.locations-card-status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.locations-card-facts,
+.locations-definition-list,
+.locations-inline-definition-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.locations-card-facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.locations-card-facts > div:first-child {
+  grid-column: 1 / -1;
+}
+
+.locations-card-facts dt,
+.locations-definition-list dt,
+.locations-inline-definition-list dt {
+  color: var(--app-color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.locations-card-facts dd,
+.locations-definition-list dd,
+.locations-inline-definition-list dd {
+  margin: 0.15rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.locations-card-rooms {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+}
+
+.locations-card-rooms span,
+.locations-preserved-text {
+  white-space: pre-line;
+}
+
+.locations-card-actions,
+.locations-management-actions,
+.locations-item-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.locations-state {
+  display: grid;
+  gap: 0.35rem;
+  margin-block: 1rem;
+  padding: 1.25rem;
+  border: 1px dashed var(--app-color-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-color-canvas);
+}
+
+.locations-state-error {
+  border-style: solid;
+  border-color: var(--app-color-danger-text);
+}
+
+.locations-empty-state {
+  grid-column: 1 / -1;
+}
+
+.locations-detail-header {
+  align-items: flex-start;
+}
+
+.locations-back-button {
+  min-block-size: 2.25rem;
+  margin-block-end: 0.75rem;
+  padding-inline: 0;
+}
+
+.locations-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-block: 1.25rem;
+}
+
+.locations-reality-notice {
+  border-inline-start: 0.25rem solid var(--app-color-focus);
+  padding: 0.85rem 1rem;
+  background: var(--app-color-surface-subtle);
+}
+
+.locations-reality-notice p,
+.locations-map-privacy {
+  margin: 0.35rem 0 0;
+  line-height: 1.55;
+}
+
+.locations-detail-section {
+  min-inline-size: 0;
+  margin-block-start: 1.25rem;
+  padding-block-start: 1.25rem;
+  border-block-start: 1px solid var(--app-color-border);
+}
+
+.locations-detail-grid .locations-detail-section {
+  margin-block-start: 0;
+  padding: 1rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-color-canvas);
+}
+
+.locations-detail-section h2 {
+  margin-block: 0 1rem;
+  font-size: 1.1rem;
+}
+
+.locations-item-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.locations-item-list > li {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-color-canvas);
+}
+
+.locations-item-heading {
+  justify-content: space-between;
+}
+
+.locations-inline-definition-list {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.locations-inline-definition-list > div:last-child {
+  grid-column: 1 / -1;
+}
+
+.locations-management-actions {
+  margin-block: 1rem;
+}
+
+.locations-consequence-problems {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-inline-start: 0.25rem solid var(--app-color-danger-text);
+  background: var(--app-color-canvas);
+}
+
+.locations-consequence-problems h2,
+.locations-consequence-problems p {
+  margin: 0;
+}
+
+.locations-consequence-problems h2 {
+  font-size: 1rem;
+}
+
+.locations-map {
+  display: grid;
+  gap: 1rem;
+}
+
+.locations-map-frame {
+  inline-size: 100%;
+  block-size: 20rem;
+  border: 1px solid var(--app-color-border);
+}
+
+.locations-map-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 0;
+}
+
+.locations-geocode-candidate {
+  margin-block: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-color-canvas);
+}
+
+.locations-geocode-candidate h2,
+.locations-geocode-candidate p {
+  margin-block: 0 0.75rem;
+}
+
+@media (max-width: 1100px) {
+  .locations-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767.98px) {
+  .locations-filter-grid,
+  .locations-detail-grid,
+  .locations-inline-definition-list {
+    grid-template-columns: 1fr;
+  }
+
+  .locations-card-facts {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .locations-inline-definition-list > div:last-child,
+  .locations-card-facts > div:first-child {
+    grid-column: auto;
+  }
+
+  .locations-detail-header {
+    flex-direction: column;
+  }
+
+  .locations-detail-header > .app-row-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 420px) {
+  .locations-card,
+  .locations-detail-grid .locations-detail-section,
+  .locations-item-list > li {
+    padding: 0.9rem;
+  }
+
+  .locations-card-facts {
+    grid-template-columns: 1fr;
+  }
+}

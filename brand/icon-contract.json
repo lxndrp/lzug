@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "library": "Lucide",
+  "package": "lucide",
+  "version": "0.468.0",
+  "license": "ISC",
+  "grid": "24x24",
+  "stroke": 2,
+  "semanticIcons": {
+    "activate": "CircleCheck",
+    "add": "Plus",
+    "archive": "Archive",
+    "arrowRight": "ArrowRight",
+    "cancel": "X",
+    "calendar": "CalendarDays",
+    "candidates": "GraduationCap",
+    "committee": "UsersRound",
+    "confirm": "Check",
+    "deactivate": "Ban",
+    "delete": "Trash2",
+    "documentation": "Code2",
+    "edit": "Pencil",
+    "locations": "MapPin",
+    "menu": "Menu",
+    "overview": "LayoutDashboard",
+    "planning": "CalendarDays",
+    "proposal": "CalendarCheck",
+    "reload": "RefreshCw",
+    "save": "Save"
+  }
+}

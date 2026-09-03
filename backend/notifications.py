@@ -28,8 +28,9 @@ from .models import (
     ConfirmedPlanRevision,
     ExamDay,
     ExamDayAssignment,
+    ExamRoom,
     ExamRound,
-    Location,
+    ExamVenue,
     MemberAvailability,
     Notification,
     NotificationDelivery,
@@ -109,10 +110,18 @@ def _base64url(value: bytes) -> str:
 class NotificationService:
     """Persist domain notices once and process optional channels independently."""
 
-    def __init__(self, db_path: Path = DEFAULT_DB_PATH):
+    def __init__(
+        self,
+        db_path: Path = DEFAULT_DB_PATH,
+        *,
+        external_delivery_enabled: bool = True,
+    ):
         self.db_path = db_path
+        self.external_delivery_enabled = external_delivery_enabled
 
     def channels(self) -> NotificationChannels:
+        if not self.external_delivery_enabled:
+            return NotificationChannels(None, False, False)
         subject = self._vapid_subject()
         return NotificationChannels(
             push_public_key=self._push_public_key() if subject else None,
@@ -461,6 +470,8 @@ class NotificationService:
             }
 
     def process_deliveries(self, *, now: datetime | None = None) -> int:
+        if not self.external_delivery_enabled:
+            return 0
         current = _now(now)
         processed = 0
         for _index in range(DELIVERY_BATCH_SIZE):
@@ -649,19 +660,18 @@ class NotificationService:
     @staticmethod
     def _confirmed_schedule_message(session, round_id: int, member_id: int) -> str:
         rows = session.execute(
-            select(ExamDay, Location)
+            select(ExamDay, ExamVenue, ExamRoom)
             .join(ExamDayAssignment, ExamDayAssignment.exam_day_id == ExamDay.id)
-            .join(Location, Location.id == ExamDay.location_id)
+            .join(ExamRoom, ExamRoom.id == ExamDay.room_id)
+            .join(ExamVenue, ExamVenue.id == ExamRoom.venue_id)
             .where(
                 ExamDay.exam_round_id == round_id,
                 ExamDayAssignment.committee_member_id == member_id,
             )
-            .order_by(ExamDay.date, Location.name)
+            .order_by(ExamDay.date, ExamVenue.name, ExamRoom.name)
         ).all()
         appointments = list(
-            dict.fromkeys(
-                f"{day.date} – {location.name}, {location.room}" for day, location in rows
-            )
+            dict.fromkeys(f"{day.date} – {venue.name}, {room.name}" for day, venue, room in rows)
         )
         return "Ihre Einsätze: " + "; ".join(appointments)
 
@@ -673,6 +683,8 @@ class NotificationService:
         only_channel: str | None = None,
         urgent_email: bool = False,
     ) -> None:
+        if not self.external_delivery_enabled:
+            return
         channels = self.channels()
         if channels.sink_enabled:
             session.add(

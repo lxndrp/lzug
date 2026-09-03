@@ -17,14 +17,16 @@ func TestDefaultRegistryContainsTheCompletePublicCommandTree(t *testing.T) {
 	}
 	want := []string{
 		"account bootstrap", "account consume-invitation", "account consume-recovery",
-		"account disable", "account invite", "account recover",
-		"backup create", "backup restore", "backup verify", "cli",
+		"account disable", "account invite", "account recover", "artifact inspect",
+		"backup create", "backup recipient replace", "backup recipient set",
+		"backup recipient show", "backup restore", "backup verify", "cli",
 		"committee bootstrap", "committee complete", "committee deactivate",
 		"committee reactivate", "committee reinvite",
 		"completion bash", "completion fish", "completion powershell", "completion zsh",
 		"config inspect", "export create", "export verify",
 		"notification process", "notification test",
 		"plan-consequence retry", "plan-consequence status",
+		"recipient-key generate", "recipient-key inspect",
 		"system config", "system doctor", "system status",
 		"upgrade apply", "upgrade rollback",
 	}
@@ -54,6 +56,21 @@ func TestEveryLegacyFormHasExactlyOneMigrationTarget(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected legacy mapping:\n got: %#v\nwant: %#v", got, want)
+	}
+}
+
+func TestEveryBackendCommandDeclaresABoundedTimeout(t *testing.T) {
+	registry, err := DefaultRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range registry.Commands() {
+		if command.Transport == ContainerExecTransport && command.Timeout <= 0 {
+			t.Fatalf("backend command %q has no bounded timeout", command.Name())
+		}
+	}
+	if restore, _ := registry.Find([]string{"backup", "restore"}); restore.Timeout <= commandTimeout("system status") {
+		t.Fatal("long-running restore did not receive its explicit extended timeout")
 	}
 }
 

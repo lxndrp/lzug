@@ -6,6 +6,7 @@ Usage:
 
 Objects:
   account            Manage operator accounts and one-time credentials.
+  artifact           Inspect protected artifact metadata.
   backup             Create, verify, and restore protected backups.
   committee          Bootstrap and maintain examination committees.
   completion         Generate shell completion scripts.
@@ -13,9 +14,10 @@ Objects:
   export             Create and verify protected full exports.
   notification       Process and test technical notifications.
   plan-consequence   Inspect and retry confirmed-plan consequences.
+  recipient-key      Manage local age recipient keys.
   system             Inspect the local runtime and its readiness.
   upgrade            Apply upgrades and inspect rollback eligibility.
-  cli                Start the guided interactive mode (reserved).
+  cli                Start the guided interactive operator dialog.
 
 Global options:
   --engine ENGINE          Container engine: auto, docker, or podman. Values: auto, docker, podman. Default: auto.

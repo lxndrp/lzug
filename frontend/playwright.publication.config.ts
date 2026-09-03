@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const frontendDirectory = dirname(fileURLToPath(import.meta.url));
 const suite = process.env.LZUG_PUBLICATION_SUITE ?? 'browser';
-if (!['browser', 'a11y'].includes(suite)) {
+if (!['browser', 'a11y', 'reference'].includes(suite)) {
   throw new Error(`Unsupported publication suite: ${suite}`);
 }
 
@@ -28,7 +28,12 @@ if (browserChannel !== undefined && browserChannel !== 'chrome') {
 
 export default defineConfig({
   testDir: './publication-e2e',
-  testMatch: suite === 'a11y' ? 'publication.a11y.spec.ts' : 'publication.spec.ts',
+  testMatch:
+    suite === 'a11y'
+      ? 'publication.a11y.spec.ts'
+      : suite === 'reference'
+        ? 'brand-reference.spec.ts'
+        : 'publication.spec.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
