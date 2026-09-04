@@ -5,9 +5,11 @@ import unittest
 from pathlib import Path
 
 from scripts.check_documentation import (
+    HANDBOOK_FILES,
     check,
     check_adrs,
     check_developer_structure,
+    check_handbook,
     check_navigation,
     check_redundant_inventories,
 )
@@ -90,6 +92,18 @@ class DocumentationContractTests(unittest.TestCase):
             violations = check_developer_structure(root)
 
         self.assertTrue(any("DOC-STRUCT-003" in violation for violation in violations))
+
+    def test_handbook_check_only_requires_the_current_documentation_set(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            handbook = root / "docs/handbook"
+            handbook.mkdir(parents=True)
+            for filename in HANDBOOK_FILES:
+                (handbook / filename).write_text(f"# {filename}\n", encoding="utf-8")
+
+            violations = check_handbook(root)
+
+        self.assertEqual([], violations)
 
     def test_adr_requires_status_and_keeps_supersession_in_status(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

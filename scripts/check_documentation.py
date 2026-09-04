@@ -20,7 +20,6 @@ ROOT_DOCUMENT_MARKERS = {
         "lzug Roadmap",
         "CONTRIBUTING.md",
         "Produkt- und Dokumentationsportal",
-        "Migrationsnachweis",
     ),
     "CONTRIBUTING.md": (
         "nicht produktionsreifer",
@@ -269,8 +268,8 @@ def check_documentation_paths(root: Path) -> list[str]:
     return violations
 
 
-def check_handbook_migration(root: Path) -> list[str]:
-    """Require the complete, repository-owned replacement for the old Wiki."""
+def check_handbook(root: Path) -> list[str]:
+    """Require the complete, repository-owned handbook."""
 
     handbook = root / "docs" / "handbook"
     actual = {path.name for path in handbook.glob("*.md")} if handbook.is_dir() else set()
@@ -279,19 +278,13 @@ def check_handbook_migration(root: Path) -> list[str]:
     violations: list[str] = []
     if missing:
         violations.append(
-            "[DOC-HANDBOOK-001] docs/handbook: migrated Wiki pages are missing; "
+            "[DOC-HANDBOOK-001] docs/handbook: required handbook pages are missing; "
             f"restore {missing!r}."
         )
     if unexpected:
         violations.append(
-            "[DOC-HANDBOOK-002] docs/handbook: unexpected parallel handbook pages; "
+            "[DOC-HANDBOOK-002] docs/handbook: unexpected handbook pages; "
             f"move new material to its target documentation type instead: {unexpected!r}."
-        )
-    evidence = root / "docs" / "migrations" / "wiki-2026-09-03.md"
-    if not evidence.is_file():
-        violations.append(
-            "[DOC-HANDBOOK-003] docs/migrations/wiki-2026-09-03.md: "
-            "the Wiki migration evidence is missing."
         )
     return violations
 
@@ -455,7 +448,7 @@ def check(root: Path) -> list[str]:
 
     return [
         *check_documentation_paths(root),
-        *check_handbook_migration(root),
+        *check_handbook(root),
         *check_developer_structure(root),
         *check_navigation(root),
         *check_redundant_inventories(root),
