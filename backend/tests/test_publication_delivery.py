@@ -86,7 +86,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
 
         self.assertTrue((ROOT / "brand/derived/favicon.svg").is_file())
         self.assertIn(
-            'favicon.svg logo-mark-dark.svg',
+            "favicon.svg logo-mark-dark.svg",
             (ROOT / "scripts/build-frontend.sh").read_text(),
         )
         self.assertIn('rel="icon"', favicon_partial)
