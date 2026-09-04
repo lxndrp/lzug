@@ -43,7 +43,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
             publication_base_url("https://stage.papaspyrou.name/lzug/")
 
     def test_warm_up_is_bounded_and_sends_no_credentials_or_referrer(self) -> None:
-        script = (ROOT / "prototypes/publication/relearn/static/js/demo-warmup.js").read_text(
+        script = (ROOT / "docs/publication/relearn/static/js/demo-warmup.js").read_text(
             encoding="utf-8"
         )
         browser_check = (ROOT / "frontend/publication-e2e/publication.spec.ts").read_text(
@@ -52,7 +52,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         playwright_config = (ROOT / "frontend/playwright.publication.config.ts").read_text(
             encoding="utf-8"
         )
-        template = (ROOT / "prototypes/publication/relearn/layouts/home/article.html").read_text(
+        template = (ROOT / "docs/publication/relearn/layouts/home/article.html").read_text(
             encoding="utf-8"
         )
 
@@ -81,13 +81,26 @@ class PublicationDeliveryContractTests(unittest.TestCase):
 
     def test_favicon_uses_the_publication_base_path_and_existing_product_asset(self) -> None:
         favicon_partial = (
-            ROOT / "prototypes/publication/relearn/layouts/partials/favicon.html"
+            ROOT / "docs/publication/relearn/layouts/partials/favicon.html"
         ).read_text(encoding="utf-8")
 
         self.assertTrue((ROOT / "frontend/public/favicon.svg").is_file())
         self.assertIn('rel="icon"', favicon_partial)
         self.assertIn('{{ "images/favicon.svg" | relURL }}', favicon_partial)
         self.assertIn('"images/favicon.svg"', (ROOT / "scripts/publication.py").read_text())
+
+    def test_productive_sources_have_a_documentation_owner(self) -> None:
+        self.assertFalse((ROOT / "prototypes/publication").exists())
+        for relative in (
+            "content/index.md",
+            "public-font.css",
+            "relearn/assets/css/custom.css",
+            "relearn/layouts/home/article.html",
+            "relearn/layouts/partials/favicon.html",
+            "relearn/static/js/demo-warmup.js",
+        ):
+            with self.subTest(relative=relative):
+                self.assertTrue((ROOT / "docs/publication" / relative).is_file())
 
     def test_repository_handbook_routes_are_rendered_without_a_wiki_checkout(self) -> None:
         self.assertEqual("/handbuch/", handbook_route(Path("Home.md")))
@@ -151,7 +164,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("if: github.event_name != 'schedule'", build)
         self.assertIn('cron: "29 4 * * 1"', triggers)
         self.assertIn("paths: &publication-paths", triggers)
-        self.assertIn('"prototypes/publication/**"', triggers)
+        self.assertIn('"docs/publication/**"', triggers)
         self.assertIn('"frontend/src/**"', triggers)
         self.assertIn('"frontend/tsconfig*.json"', triggers)
         self.assertIn("PLAYWRIGHT_BROWSER_CHANNEL: chrome", build)
