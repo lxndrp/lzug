@@ -12,7 +12,7 @@ Komponenten nachimplementiert.
 | --- | --- | --- | --- |
 | Backend | HTTP, Authentifizierung, Fachservices, Persistenz, Dokumente und Integrationsadapter | OpenAPI/JSON, Admin-JSON, SQLite und kontrollierte Provideradapter | `backend/`, `db/` |
 | Frontend | aufgabenorientierte Ausschussoberfläche, Routing, Formulare und sichtbare Zustände | same-origin API über zentrale Modelle und Services | `frontend/src/app/` |
-| Betreiber-CLI | lokale portable Orchestrierung von Administration, Diagnose und Lifecycle | einzelne Docker-/Podman-`exec`-Argumente und Admin-Protokollversion 1 | `cmd/lzug-admin/`, `.goreleaser.yml` |
+| Betreiber-CLI | lokale portable Orchestrierung von Administration, Diagnose und Lifecycle | einzelne Docker-/Podman-`exec`-Argumente und Admin-Protokollversion 1 | `operator-cli/cmd/lzug-admin/`, `operator-cli/internal/admincli/`, `operator-cli/internal/tools/cli-reference/`, `operator-cli/.goreleaser.yml` |
 | OCI und Self-Hosting | gemeinsames Produktimage, gehärtete Laufzeit und persistentes `/data` | `Dockerfile`, `compose.yaml` und Containerverträge | Dockerfiles, Compose und `scripts/*container*` |
 | Öffentliche Demo | flüchtige App-/Seed-Assembly, Reset, Promotion und Azure-Deployment | digestgebundene Manifeste, OIDC und Demo-Runtime-Policy | `demo/`, `Dockerfile.demo*`, `infra/demo/`, Demo-Workflows |
 
@@ -253,7 +253,7 @@ geschützte Environment `demo` begrenzen echte Mutationen.
 | HTTP- oder OpenAPI-Vertrag | `backend.tests.test_fastapi_app`, `test_openapi_contract` und betroffener API-Test |
 | Angular-Komponente oder Service | zugehöriger Vitest-Test unter `frontend/src/` |
 | sichtbarer Hauptablauf | `task quality:e2e` und bei UI-Änderung `task quality:a11y` getrennt |
-| Go-CLI | `go test ./cmd/lzug-admin` beziehungsweise `task quality:operator` |
+| Go-CLI | `cd operator-cli && go test ./...` beziehungsweise `task quality:operator` |
 | OCI oder Compose | `task quality:container`, `task quality:compose` oder `task quality:operator-container` |
 | Demo-Vertrag | `task quality:demo-deployment`, `task quality:demo` und bei Infrastruktur `task quality:infra` |
 

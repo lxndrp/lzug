@@ -179,7 +179,7 @@ func TestGeneratedReferenceContainsEveryCommandAndMigration(t *testing.T) {
 			}
 		}
 	}
-	if strings.Count(reference, "<!-- Generated from internal/admincli registry metadata.") != 1 {
+	if strings.Count(reference, "<!-- Generated from operator-cli/internal/admincli registry metadata.") != 1 {
 		t.Fatal("reference lacks generated marker")
 	}
 }
@@ -193,7 +193,7 @@ func TestCheckedInReferenceAndReleaseMigrationMatchRegistry(t *testing.T) {
 	if !ok {
 		t.Fatal("test source path is unavailable")
 	}
-	root := filepath.Clean(filepath.Join(filepath.Dir(source), "..", ".."))
+	root := filepath.Clean(filepath.Join(filepath.Dir(source), "..", "..", ".."))
 	reference, err := os.ReadFile(filepath.Join(root, "docs", "developers", "reference", "cli.md"))
 	if err != nil {
 		t.Fatal(err)

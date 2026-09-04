@@ -48,7 +48,7 @@ def payload(*components: dict, source_name: str = DEPENDENCY_SOURCE_NAME) -> dic
 
 class SbomContractTests(unittest.TestCase):
     def test_release_inventory_includes_the_official_age_module(self) -> None:
-        main, required = go_module_contract(Path("go.mod").read_text(encoding="utf-8"))
+        main, required = go_module_contract(Path("operator-cli/go.mod").read_text(encoding="utf-8"))
 
         self.assertEqual("github.com/lxndrp/lzug/operator-cli", main)
         self.assertIn("filippo.io/age", required)

@@ -100,8 +100,9 @@ tasks:
 
   test:operator:
     desc: Run Go operator CLI contract tests
+    dir: operator-cli
     cmds:
-      - go test ./cmd/... ./internal/...
+      - go test ./...
 
   docs:
     desc: Build the local handbook and generated code references
@@ -119,8 +120,9 @@ tasks:
   docs:cli:
     desc: Verify the generated operator CLI reference
     internal: true
+    dir: operator-cli
     cmds:
-      - go run ./cmd/lzug-admin-reference --check docs/developers/reference/cli.md
+      - go run ./internal/tools/cli-reference --check ../docs/developers/reference/cli.md
 
   docs:publication:
     desc: Build the complete static GitHub Pages artifact without deploying it
@@ -254,7 +256,7 @@ tasks:
         backend.tests.test_sbom
         backend.tests.test_build_metadata
         backend.tests.test_build_identity_contract
-      - goreleaser check
+      - cd operator-cli && goreleaser check
 
   quality:backend:
     desc: Run backend lint, audit, tests, and coverage
@@ -283,22 +285,23 @@ tasks:
 
   quality:operator:
     desc: Run Go operator CLI tests and verify reproducible GoReleaser archives
+    dir: operator-cli
     cmds:
       - task: test:operator
-      - go vet ./cmd/... ./internal/...
+      - go vet ./...
       - goreleaser check
       - |
         set -eu
-        test ! -e dist || { echo "root dist directory must not exist before CLI verification" >&2; exit 1; }
+        test ! -e dist || { echo "operator-cli dist directory must not exist before CLI verification" >&2; exit 1; }
         temporary_directory="$(mktemp -d)"
-        trap 'rm -rf dist "$temporary_directory"; rm -f .goreleaser-build-metadata.json' EXIT
+        trap 'rm -rf dist "$temporary_directory"; rm -f .goreleaser-build-metadata.json .goreleaser-license .goreleaser-third-party-notices.md' EXIT
         revision="$(git rev-parse HEAD)"
-        application_version="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
+        application_version="$(python3 ../scripts/build_metadata.py --revision "$revision" --field identity)"
         for run in first second; do
           goreleaser release --snapshot --clean
           mv dist "$temporary_directory/$run"
         done
-        python3 scripts/verify_cli_release.py \
+        python3 ../scripts/verify_cli_release.py \
           --first "$temporary_directory/first" \
           --second "$temporary_directory/second" \
           --version "$application_version" \
