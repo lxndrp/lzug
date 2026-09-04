@@ -288,17 +288,6 @@ ADAPTER_COUNTS = json.loads(r"""{
     "persons": 0,
     "rooms": 6
   },
-  "prototype": {
-    "accounts": 0,
-    "candidates": 12,
-    "committees": 1,
-    "location_contacts": 0,
-    "locations": 2,
-    "memberships": 8,
-    "organizations": 0,
-    "persons": 0,
-    "rooms": 4
-  },
   "seed": {
     "accounts": 0,
     "candidates": 12,
