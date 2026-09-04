@@ -23,7 +23,7 @@ on:
       - "frontend/src/**"
       - "frontend/tsconfig*.json"
       - "mkdocs.yml"
-      - "prototypes/publication/**"
+      - "docs/publication/**"
       - "pyproject.toml"
       - "scripts/publication.py"
       - "scripts/validate_demo_url_contract.py"

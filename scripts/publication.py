@@ -239,19 +239,19 @@ def configure_relearn(root: Path, site: Path, base_url: str, demo_url: str) -> N
     (site / "static" / "css").mkdir(parents=True)
     (site / "static" / "js").mkdir(parents=True)
     shutil.copyfile(
-        root / "prototypes" / "publication" / "relearn" / "layouts" / "home" / "article.html",
+        root / "docs" / "publication" / "relearn" / "layouts" / "home" / "article.html",
         site / "layouts" / "home" / "article.html",
     )
     shutil.copyfile(
-        root / "prototypes" / "publication" / "relearn" / "layouts" / "partials" / "favicon.html",
+        root / "docs" / "publication" / "relearn" / "layouts" / "partials" / "favicon.html",
         site / "layouts" / "partials" / "favicon.html",
     )
     shutil.copyfile(
-        root / "prototypes" / "publication" / "relearn" / "assets" / "css" / "custom.css",
+        root / "docs" / "publication" / "relearn" / "assets" / "css" / "custom.css",
         site / "assets" / "css" / "custom.css",
     )
     shutil.copyfile(
-        root / "prototypes" / "publication" / "relearn" / "static" / "js" / "demo-warmup.js",
+        root / "docs" / "publication" / "relearn" / "static" / "js" / "demo-warmup.js",
         site / "static" / "js" / "demo-warmup.js",
     )
     shutil.copyfile(
@@ -270,7 +270,7 @@ def configure_relearn(root: Path, site: Path, base_url: str, demo_url: str) -> N
         site / "static" / "css" / "brand-tokens.css",
     )
     shutil.copyfile(
-        root / "brand" / "public-font.css",
+        root / "docs" / "publication" / "public-font.css",
         site / "static" / "css" / "brand-font.css",
     )
     for subset in ("latin", "greek", "greek-ext"):
@@ -333,9 +333,7 @@ def write_content(root: Path, site: Path, repository_revision: str) -> None:
     (content / "quellen").mkdir(parents=True)
     (site / "static" / "referenz" / "api").mkdir(parents=True, exist_ok=True)
 
-    landing = (root / "prototypes" / "publication" / "content" / "index.md").read_text(
-        encoding="utf-8"
-    )
+    landing = (root / "docs" / "publication" / "content" / "index.md").read_text(encoding="utf-8")
     (content / "_index.md").write_text(
         hugo_page("lzug", "Prüfungen gemeinsam verlässlich planen", landing, "home"),
         encoding="utf-8",
