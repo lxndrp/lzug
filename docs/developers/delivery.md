@@ -154,16 +154,6 @@ Browser- und Accessibility-Prüfung laufen getrennt.
 nach manuellem Dispatch auf `master` und dem geschützten Environment
 `github-pages`.
 
-## Dokumentationsmigration
-
-Der inventarisierte frühere Wiki-Bestand ist einmalig nach `docs/handbook/`
-übernommen.
-`scripts.check_documentation` prüft die vollständige Seitenmenge und den
-[Migrationsnachweis](../migrations/wiki-2026-09-03.md).
-Nach positivem Nachweis wird das Deaktivieren des Wikis als separater
-Maintainer-Setting-Schritt durchgeführt.
-Es gibt keinen dauerhaften Wiki-Qualitätscheck und keine Parallelveröffentlichung.
-
 ## Fehlerdiagnose und sichere Wiederholung
 
 1. Zuerst die Workflow-Zusammenfassung, ausgecheckte Revision, ausgewählte

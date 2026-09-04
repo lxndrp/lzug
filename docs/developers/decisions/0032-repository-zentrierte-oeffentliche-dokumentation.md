@@ -26,9 +26,9 @@ die Build-Revision sichtbar machen und ohne Kopien oder eine zusätzliche Publis
    Inhalte dürfen daraus zielgruppengerecht mehrfach verlinkt werden,
    erhalten aber keine zweite redaktionelle Quelle.
 4. Jede gerenderte Seite zeigt die Build-Revision und verlinkt ihre kanonische Markdown-Quelle im Repository.
-5. Die bisher gültigen Wiki-Seiten liegen versioniert unter `docs/handbook/`.
-   Ein deterministischer Migrationsvertrag prüft Vollständigkeit und Navigation.
-6. Das Wiki wird nach dem positiven Migrationsnachweis als separater GitHub-Setting-Schritt deaktiviert.
+5. Die redaktionellen Handbuchseiten liegen versioniert unter `docs/handbook/`.
+   Struktur- und Navigationsprüfungen sichern den aktuellen Repository-Bestand.
+6. Das GitHub Wiki ist keine Quelle für die öffentliche Dokumentation.
    Es entsteht weder ein dauerhafter Wiki-Checker noch ein Parallelarchiv.
 7. Hugo/Relearn bleibt die schlanke Hülle für Navigation, Suche, Responsive-Verhalten und Corporate Design.
    MkDocs, TypeDoc und OpenAPI bleiben unabhängige Generatoren und werden nur in das Zielartefakt montiert.
@@ -56,6 +56,5 @@ nicht ein impliziter Rückfall.
 
 ## Referenzen
 
-- [Wiki-Migrationsnachweis](../../migrations/wiki-2026-09-03.md)
 - [Publications-Skript](https://github.com/lxndrp/lzug/blob/master/scripts/publication.py)
 - [ADR-0007: MkDocs und Code-Referenzen](0007-dokumentation-und-code-referenz.md)

@@ -44,8 +44,6 @@ technische Verträge, Runbooks, Referenzen und Entscheidungen.
 Das Repository ist die einzige kanonische Quelle.
 Pages rendert diese Inhalte aus derselben Revision;
 jede Seite verlinkt ihre Quelle und Build-Revision.
-Der ehemalige Wiki-Bestand ist mit prüfbarem [Migrationsnachweis](docs/migrations/wiki-2026-09-03.md)
-in das Repository übernommen.
 `task docs` baut die versionierte technische Referenz lokal; CI stellt sie als geschütztes Artefakt bereit.
 
 ## Lizenz
