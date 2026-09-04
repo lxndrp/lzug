@@ -1,7 +1,7 @@
 site_name: lzug technische Referenz
 site_description: Versionierte technische Orientierung, Referenzen und Entscheidungen für lzug.
-site_dir: site
-docs_dir: docs
+site_dir: ../site
+docs_dir: .
 strict: true
 not_in_nav: |
   developers/decisions/*.md
@@ -15,7 +15,7 @@ plugins:
       handlers:
         python:
           paths:
-            - .
+            - ..
           options:
             docstring_style: google
             show_source: false

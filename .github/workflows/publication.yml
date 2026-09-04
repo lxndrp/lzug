@@ -7,7 +7,7 @@ on:
     paths: &publication-paths
       - ".github/workflows/publication.yml"
       - ".mise.toml"
-      - ".node-version"
+      - "frontend/.node-version"
       - ".python-version"
       - "Taskfile.yml"
       - "backend/**"
@@ -22,7 +22,7 @@ on:
       - "frontend/public/**"
       - "frontend/src/**"
       - "frontend/tsconfig*.json"
-      - "mkdocs.yml"
+      - "docs/mkdocs.yml"
       - "docs/publication/**"
       - "pyproject.toml"
       - "scripts/publication.py"
@@ -81,7 +81,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version-file: .node-version
+          node-version-file: frontend/.node-version
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0

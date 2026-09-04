@@ -12,8 +12,8 @@ class DemoDeliveryContractTests(unittest.TestCase):
 
     def test_product_image_excludes_demo_provider_and_demo_images_are_separate(self) -> None:
         product = Path("Dockerfile").read_text(encoding="utf-8")
-        demo_app = Path("Dockerfile.demo").read_text(encoding="utf-8")
-        demo_seed = Path("Dockerfile.demo-seed").read_text(encoding="utf-8")
+        demo_app = Path("demo/Dockerfile.demo").read_text(encoding="utf-8")
+        demo_seed = Path("demo/Dockerfile.demo-seed").read_text(encoding="utf-8")
 
         self.assertNotIn("demo/app.py", product)
         self.assertNotIn("frontend/demo-overlays", product)
@@ -94,7 +94,7 @@ class DemoDeliveryContractTests(unittest.TestCase):
 
     def test_publish_builds_inspects_and_pushes_the_same_seed_image(self) -> None:
         workflow = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")
-        dockerfile = Path("Dockerfile.demo-seed").read_text(encoding="utf-8")
+        dockerfile = Path("demo/Dockerfile.demo-seed").read_text(encoding="utf-8")
 
         self.assertIn("load: true", workflow)
         self.assertIn('docker create "$SEED_CANDIDATE"', workflow)

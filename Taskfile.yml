@@ -342,7 +342,7 @@ tasks:
             --tag "$product_tag" --commit "$revision" --channel "$channel" --field identity)
           seed_image="lzug-demo-seed:$channel-local"
           app_image="lzug-demo-app:$channel-local"
-          "$engine" build -f Dockerfile.demo-seed \
+          "$engine" build -f demo/Dockerfile.demo-seed \
             --build-arg "PRODUCT_TAG=$product_tag" \
             --build-arg "VCS_REF=$revision" \
             -t "$seed_image" .
@@ -367,7 +367,7 @@ tasks:
             --manifest "$temporary_directory/manifest.json" --kind seed \
             --expected-product-tag "$product_tag" --expected-product-commit "$revision" \
             --field seed_revision)
-          "$engine" build -f Dockerfile.demo \
+          "$engine" build -f demo/Dockerfile.demo \
             --build-arg "BUILD_IDENTITY=$build_identity" \
             --build-arg "PRODUCT_TAG=$product_tag" \
             --build-arg "VCS_REF=$revision" \
@@ -512,7 +512,7 @@ tasks:
   docs:handbook:
     internal: true
     cmds:
-      - "{{.UV}} mkdocs build --strict --site-dir site"
+      - "{{.UV}} mkdocs build --strict --config-file docs/mkdocs.yml"
 
   docs:frontend:
     internal: true

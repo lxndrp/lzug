@@ -46,7 +46,7 @@ jobs:
               - 'frontend/src/app/testing/synthetic-fixtures.generated.ts'
             docs:
               - 'docs/**'
-              - 'mkdocs.yml'
+              - 'docs/mkdocs.yml'
               - 'README.md'
               - 'CHANGELOG.md'
               - 'THIRD_PARTY_NOTICES.md'
@@ -74,8 +74,8 @@ jobs:
               - '.dockerignore'
               - '.env.example'
               - 'Dockerfile'
-              - 'Dockerfile.demo'
-              - 'Dockerfile.demo-seed'
+              - 'demo/Dockerfile.demo'
+              - 'demo/Dockerfile.demo-seed'
               - 'compose.yaml'
               - 'demo/**'
               - 'db/**'
@@ -96,7 +96,7 @@ jobs:
             full:
               - '.github/**'
               - '.mise.toml'
-              - '.node-version'
+              - 'frontend/.node-version'
               - '.python-version'
               - 'Taskfile.yml'
               - 'pyproject.toml'
@@ -127,7 +127,7 @@ jobs:
               - '**/*.mjs'
               - '**/*.ts'
               - '**/*.tsx'
-              - '.node-version'
+              - 'frontend/.node-version'
               - 'frontend/angular.json'
               - 'frontend/package.json'
               - 'frontend/package-lock.json'
@@ -165,7 +165,7 @@ jobs:
               - '!.env.example'
               - '!.gitignore'
               - '!.mise.toml'
-              - '!.node-version'
+              - '!frontend/.node-version'
               - '!.python-version'
               - '!AGENTS.md'
               - '!CHANGELOG.md'
@@ -179,7 +179,6 @@ jobs:
               - '!THIRD_PARTY_NOTICES.md'
               - '!Taskfile.yml'
               - '!compose.yaml'
-              - '!mkdocs.yml'
               - '!pyproject.toml'
               - '!uv.lock'
 
@@ -213,7 +212,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version-file: .node-version
+          node-version-file: frontend/.node-version
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
@@ -266,7 +265,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version-file: .node-version
+          node-version-file: frontend/.node-version
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
@@ -405,7 +404,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version-file: .node-version
+          node-version-file: frontend/.node-version
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Resolve Playwright version
@@ -451,7 +450,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version-file: .node-version
+          node-version-file: frontend/.node-version
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Resolve Playwright version

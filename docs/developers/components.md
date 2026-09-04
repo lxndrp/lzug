@@ -14,13 +14,38 @@ Komponenten nachimplementiert.
 | Frontend | aufgabenorientierte Ausschussoberfläche, Routing, Formulare und sichtbare Zustände | same-origin API über zentrale Modelle und Services | `frontend/src/app/` |
 | Betreiber-CLI | lokale portable Orchestrierung von Administration, Diagnose und Lifecycle | einzelne Docker-/Podman-`exec`-Argumente und Admin-Protokollversion 1 | `operator-cli/cmd/lzug-admin/`, `operator-cli/internal/admincli/`, `operator-cli/internal/tools/cli-reference/`, `operator-cli/.goreleaser.yml` |
 | OCI und Self-Hosting | gemeinsames Produktimage, gehärtete Laufzeit und persistentes `/data` | `Dockerfile`, `compose.yaml` und Containerverträge | Dockerfiles, Compose und `scripts/*container*` |
-| Öffentliche Demo | flüchtige App-/Seed-Assembly, Reset, Promotion und Azure-Deployment | digestgebundene Manifeste, OIDC und Demo-Runtime-Policy | `demo/`, `Dockerfile.demo*`, `infra/demo/`, Demo-Workflows |
+| Öffentliche Demo | flüchtige App-/Seed-Assembly, Reset, Promotion und Azure-Deployment | digestgebundene Manifeste, OIDC und Demo-Runtime-Policy | `demo/`, `demo/Dockerfile.demo*`, `infra/demo/`, Demo-Workflows |
 
 Das Frontend greift nicht direkt auf Persistenz zu.
 Die Go-CLI kennt weder Datenbankpfad noch SQL und enthält keine Fach-,
 Migrations-, Backup-, Restore- oder Kryptologik.
 Demo-Policy und Deploymentautomation dürfen Produktregeln nur einschränken oder
 synthetische Erweiterungen aktivieren, aber keinen zweiten Produktkern bilden.
+
+## Eigentümermatrix der Root-Konfiguration
+
+Die Matrix hält die Entscheidung für den Root-Bestand fest.
+Ein Pfad bleibt nur dann am Root, wenn er mehrere Komponenten versorgt,
+als kanonischer Standard-Einstieg erwartet wird oder den unveränderten
+Buildkontext voraussetzt.
+
+| Datei | Eigentümer | Entscheidung und Begründung |
+| --- | --- | --- |
+| `.mise.toml` | Repository | Am Root behalten: ein gemeinsamer Toolchain-Pin für Python, Node.js, Go, Hugo, uv, Task, Syft, GoReleaser und OpenTofu. |
+| `Taskfile.yml` | Repository | Am Root behalten: kanonischer Einstieg für Setup, Tests, Dokumentation, Qualität, SBOM und Entwicklung. |
+| `pyproject.toml` | Python-/Dokumentations-Toolchain | Am Root behalten: Backend, Demo, Skripte, Tests und MkDocs teilen ein uv-Projekt und einen Tooling-Vertrag. |
+| `uv.lock` | Python-/Dokumentations-Toolchain | Am Root behalten: einziger Lockfile für das gemeinsame uv-Projekt; kein zweites Python-Toolingprojekt. |
+| `.python-version` | Python-/Dokumentations-Toolchain | Am Root behalten: alle Python-Verbraucher verwenden dieselbe Version. |
+| `.node-version` | Frontend | Nach `frontend/.node-version` verschoben: die Versionsdatei gehört ausschließlich zum npm-/Angular-Verbraucher. |
+| `mkdocs.yml` | Dokumentation | Nach `docs/mkdocs.yml` verschoben: MkDocs-Konfiguration und Dokumentationsquellen liegen zusammen. |
+| `.env.example` | OCI-/Self-Hosting | Am Root behalten: Beispielkonfiguration und kanonischer Einstieg direkt neben `compose.yaml`. |
+| `Dockerfile` | OCI-/Self-Hosting | Am Root behalten: standardgebundener Produkt-Build für den unveränderten Root-Kontext. |
+| `Dockerfile.demo` | Öffentliche Demo | Nach `demo/Dockerfile.demo` verschoben: ausschließlich Demo-App-Assembly; der Root bleibt Buildkontext. |
+| `Dockerfile.demo-seed` | Öffentliche Demo | Nach `demo/Dockerfile.demo-seed` verschoben: ausschließlich Demo-Seed-Assembly; der Root bleibt Buildkontext. |
+| `compose.yaml` | OCI-/Self-Hosting | Am Root behalten: kanonischer Compose-Einstieg für die dokumentierte Installation. |
+| `.dockerignore` | OCI-/Self-Hosting | Am Root behalten: technisch an den unveränderten Root-Buildkontext gebunden. |
+| `.github/` | Repository | Am Root behalten: GitHub erwartet Workflows, Vorlagen und Dependabot-Konfiguration dort. |
+| Community-, Lizenz- und Support-Dateien | Repository | Am Root behalten: GitHub- und Community-Standards sowie rechtliche Hinweise erwarten diese Einstiege dort. |
 
 ## Backend
 

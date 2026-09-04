@@ -160,7 +160,7 @@ def numbered_adrs(root: Path) -> list[Path]:
 def check_navigation(root: Path) -> list[str]:
     """Check active navigation for forbidden targets and missing source files."""
 
-    path = root / "mkdocs.yml"
+    path = root / "docs" / "mkdocs.yml"
     if not path.is_file():
         return [
             "[DOC-NAV-001] mkdocs.yml: the active navigation source is missing; "
