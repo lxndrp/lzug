@@ -341,6 +341,9 @@ class QualityWorkflowContractTests(unittest.TestCase):
             self.quality,
         )
 
+    def test_codeql_go_cache_uses_component_lockfile(self) -> None:
+        self.assertIn("cache-dependency-path: operator-cli/go.sum", self.codeql)
+
 
 if __name__ == "__main__":
     unittest.main()

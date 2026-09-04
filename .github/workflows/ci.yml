@@ -46,6 +46,7 @@ jobs:
         if: (contains(fromJSON(inputs.languages), matrix.language) || contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)) && matrix.language == 'go'
         with:
           go-version: "1.26.5"
+          cache-dependency-path: operator-cli/go.sum
       - uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         if: contains(fromJSON(inputs.languages), matrix.language) || contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)
         with:
