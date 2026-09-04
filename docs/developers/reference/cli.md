@@ -1,6 +1,6 @@
 # `lzug-admin`-Befehlsreferenz
 
-<!-- Generated from internal/admincli registry metadata. Do not edit directly. -->
+<!-- Generated from operator-cli/internal/admincli registry metadata. Do not edit directly. -->
 
 Diese technische Referenz wird aus derselben statischen Registry wie Hilfe und Completion erzeugt.
 Die handgeschriebenen Betriebsabläufe bleiben im Administrationshandbuch.

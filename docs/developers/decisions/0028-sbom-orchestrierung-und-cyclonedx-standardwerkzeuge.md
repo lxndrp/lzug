@@ -27,7 +27,7 @@ Für Zusammenführung, Normalisierung und Vertragsvalidierung wird kein zusätzl
 
 | Operation | Verantwortung | Begründung |
 | --- | --- | --- |
-| Abhängigkeits-SBOM aus installierter Python-Umgebung, npm-Lockfile und `go.mod` erzeugen | Syft, durch lzug orchestriert | Syft katalogisiert die drei Ökosysteme im Standardformat; lzug legt Cataloger, Ausschlüsse, Quellidentität, Version und Offline-Konfiguration fest. |
+| Abhängigkeits-SBOM aus installierter Python-Umgebung, npm-Lockfile und `operator-cli/go.mod` erzeugen | Syft, durch lzug orchestriert | Syft katalogisiert die drei Ökosysteme im Standardformat; lzug legt Cataloger, Ausschlüsse, Quellidentität, Version und Offline-Konfiguration fest. |
 | OCI-SBOM für das exakte finale Image erzeugen | Syft, durch lzug orchestriert | Der Scanner ist generisch; die Bindung an dasselbe gebaute Image und der Ausschluss von Build-only-Ökosystemen sind Projektverträge. |
 | Je eine SBOM für sechs bereits gebaute CLI-Binärdateien erzeugen | Syft, durch lzug orchestriert | Der Dateiscan ist generisch; Anzahl, Zielmatrix, Quellnamen und erwartete eingebettete Go-Module gehören zum Releasevertrag. |
 | JSON lesen und kanonisch schreiben | Python-Standardbibliothek | Eine weitere Formatkonvertierung ist nicht erforderlich; sortierte Schlüssel und ein abschließender Zeilenumbruch sind deterministisch. |

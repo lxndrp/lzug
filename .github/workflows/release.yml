@@ -176,6 +176,7 @@ jobs:
         with:
           go-version: "1.26.5"
           cache: true
+          cache-dependency-path: operator-cli/go.sum
 
       - name: Set up GoReleaser
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
@@ -242,8 +243,8 @@ jobs:
           detailed_sboms="$RUNNER_TEMP/lzug-release-sboms"
           subject_checksums="$RUNNER_TEMP/lzug-release-subjects.checksums.txt"
           mkdir -p release-assets/cli "$detailed_sboms/cli"
-          goreleaser release --clean
-          cp dist/lzug-admin-"$VERSION"-*.tar.gz dist/lzug-admin-"$VERSION"-*.zip \
+          (cd operator-cli && goreleaser release --clean)
+          cp operator-cli/dist/lzug-admin-"$VERSION"-*.tar.gz operator-cli/dist/lzug-admin-"$VERSION"-*.zip \
             release-assets/cli/
           python3 scripts/sbom.py generate-dependencies \
             --source-version "$VERSION" --output "$detailed_sboms/dependencies.cdx.json"
@@ -259,7 +260,8 @@ jobs:
             goarch="${target#*-}"
             binary=$(jq -er --arg goos "$goos" --arg goarch "$goarch" \
               '.[] | select(.type == "Binary" and .goos == $goos and .goarch == $goarch) | .path' \
-              dist/artifacts.json)
+              operator-cli/dist/artifacts.json)
+            binary="operator-cli/$binary"
             python3 scripts/sbom.py generate-cli \
               --source-version "$VERSION" --source-name "$archive_stem" \
               --artifact "$binary" --output "$detailed_sboms/cli/$archive_stem.cdx.json"

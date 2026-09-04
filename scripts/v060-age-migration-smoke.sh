@@ -25,7 +25,7 @@ application_version=$(
         --revision "$revision" --field identity
 )
 (
-    cd "$root_dir"
+    cd "$root_dir/operator-cli"
     GOCACHE="${LZUG_GO_CACHE:-${TMPDIR:-/tmp}/lzug-go-build-cache}" go build -trimpath \
         -ldflags="-s -w -X main.applicationVersion=$application_version -X main.applicationRevision=$revision" \
         -o "$admin_binary" ./cmd/lzug-admin

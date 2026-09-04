@@ -79,12 +79,13 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("- '.github/**'", self.pull_request)
         self.assertIn("- 'uv.lock'", self.pull_request)
         self.assertIn("- 'frontend/package-lock.json'", self.pull_request)
-        self.assertIn("- 'go.sum'", self.pull_request)
+        self.assertIn("- 'operator-cli/go.sum'", self.pull_request)
 
     def test_locked_go_modules_receive_grouped_dependabot_updates(self) -> None:
         self.assertIn("package-ecosystem: gomod", self.dependabot_config)
         self.assertIn("golang-x:", self.dependabot_config)
         self.assertIn("golang-x-security:", self.dependabot_config)
+        self.assertIn("directory: /operator-cli", self.dependabot_config)
 
     def test_productive_web_changes_select_separate_browser_contracts(self) -> None:
         self.assertIn("browser:\n              - 'backend/**'", self.pull_request)
@@ -327,7 +328,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "'frontend/package.json'",
             "'frontend/package-lock.json'",
             "'**/*.go'",
-            "'go.mod'",
+            "'operator-cli/go.mod'",
             "'.github/workflows/ci.yml'",
         ):
             with self.subTest(path=path):

@@ -50,8 +50,12 @@ jobs:
         if: contains(fromJSON(inputs.languages), matrix.language) || contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)
         with:
           languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.language == 'go' && 'autobuild' || 'none' }}
+          build-mode: ${{ matrix.language == 'go' && 'manual' || 'none' }}
           queries: security-extended
+      - name: Build Go sources for CodeQL
+        if: (contains(fromJSON(inputs.languages), matrix.language) || contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)) && matrix.language == 'go'
+        run: go build ./...
+        working-directory: operator-cli
       - uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         if: contains(fromJSON(inputs.languages), matrix.language) || contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)
         with:

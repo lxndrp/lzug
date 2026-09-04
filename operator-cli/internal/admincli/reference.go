@@ -9,7 +9,7 @@ import (
 func GenerateReference(registry *Registry) string {
 	var output strings.Builder
 	output.WriteString("# `lzug-admin`-Befehlsreferenz\n\n")
-	output.WriteString("<!-- Generated from internal/admincli registry metadata. Do not edit directly. -->\n\n")
+	output.WriteString("<!-- Generated from operator-cli/internal/admincli registry metadata. Do not edit directly. -->\n\n")
 	output.WriteString("Diese technische Referenz wird aus derselben statischen Registry wie Hilfe und Completion erzeugt.\n")
 	output.WriteString("Die handgeschriebenen Betriebsabläufe bleiben im Administrationshandbuch.\n\n")
 	output.WriteString("## Globale Optionen\n\n")

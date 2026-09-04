@@ -29,7 +29,8 @@ Die standardmäßig erzeugte GoReleaser-Checksummendatei wäre ein achtes sichtb
 
 GoReleaser `2.17.1` ersetzt den projektspezifischen CLI-Builder.
 Die Version ist lokal in `.mise.toml` und in CI gemeinsam mit der auf einen Commit gepinnten offiziellen GoReleaser-Action festgelegt.
-`.goreleaser.yml` beschreibt ausschließlich die sechs Builds und Archive.
+`operator-cli/.goreleaser.yml` beschreibt ausschließlich die sechs Builds und
+Archive.
 
 `scripts/build_metadata.py` bleibt die gemeinsame fail-closed Metadatengrenze.
 Bei einem Release prüft sie, dass der SemVer-Tag annotiert ist und exakt auf die gebaute vollständige Revision zeigt.

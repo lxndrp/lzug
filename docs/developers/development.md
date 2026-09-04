@@ -12,7 +12,7 @@ Der aktuelle Stand verwendet Python 3.14.6, Node.js 26.5.0, Go 1.26.5,
 Task 3.52.0, GoReleaser 2.17.1, Syft 1.51.0, OpenTofu 1.12.5 und
 Hugo Extended 0.165.0; `.mise.toml` und die jeweiligen Versionsdateien bleiben
 maßgeblich.
-`uv.lock`, `frontend/package-lock.json` und `go.sum` binden die
+`uv.lock`, `frontend/package-lock.json` und `operator-cli/go.sum` binden die
 Abhängigkeiten.
 
 ```sh
@@ -74,7 +74,8 @@ auch in der Backend-CI ausgegeben.
 Python-Abhängigkeiten werden mit `uv add` und anschließendem gelocktem Sync
 geändert; Frontend-Abhängigkeiten verwenden npm und
 `frontend/package-lock.json`.
-Go-Module bleiben über `go.mod` und `go.sum` reproduzierbar.
+Das Go-Modul bleibt über `operator-cli/go.mod` und `operator-cli/go.sum`
+reproduzierbar.
 Eine Änderung an Runtime, Lockfile, Toolchain oder Workflow benötigt die
 betroffenen Audits, Builds und Vertragstests und in der Regel den breiten
 Qualitätspfad.

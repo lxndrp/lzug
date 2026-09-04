@@ -1,6 +1,6 @@
 package main
 
-//go:generate go run ../lzug-admin-reference --write ../../docs/developers/reference/cli.md
+//go:generate go run ../../internal/tools/cli-reference --write ../../../docs/developers/reference/cli.md
 
 import (
 	"context"

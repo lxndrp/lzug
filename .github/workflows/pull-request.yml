@@ -63,12 +63,12 @@ jobs:
               - '!frontend/**/*.md'
               - '!frontend/THIRD_PARTY_NOTICES.md'
             cli:
-              - 'cmd/lzug-admin/**'
-              - 'cmd/lzug-admin-reference/**'
-              - 'internal/admincli/**'
-              - '.goreleaser.yml'
-              - 'go.mod'
-              - 'go.sum'
+              - 'operator-cli/cmd/lzug-admin/**'
+              - 'operator-cli/internal/tools/cli-reference/**'
+              - 'operator-cli/internal/admincli/**'
+              - 'operator-cli/.goreleaser.yml'
+              - 'operator-cli/go.mod'
+              - 'operator-cli/go.sum'
               - 'THIRD_PARTY_NOTICES.md'
             infra:
               - 'infra/**'
@@ -105,8 +105,8 @@ jobs:
               - 'uv.lock'
               - 'frontend/package.json'
               - 'frontend/package-lock.json'
-              - 'go.mod'
-              - 'go.sum'
+              - 'operator-cli/go.mod'
+              - 'operator-cli/go.sum'
               - 'scripts/**'
 
       - name: Select CodeQL languages
@@ -139,10 +139,8 @@ jobs:
               - '.github/workflows/quality.yml'
             go:
               - '**/*.go'
-              - 'go.mod'
-              - 'go.sum'
-              - 'go.work'
-              - 'go.work.sum'
+              - 'operator-cli/go.mod'
+              - 'operator-cli/go.sum'
               - '.github/workflows/ci.yml'
               - '.github/workflows/pull-request.yml'
               - '.github/workflows/quality.yml'
@@ -156,13 +154,12 @@ jobs:
             unknown:
               - '**'
               - '!backend/**'
-              - '!cmd/**'
               - '!db/**'
               - '!docs/**'
               - '!fixtures/**'
               - '!frontend/**'
               - '!infra/**'
-              - '!internal/admincli/**'
+              - '!operator-cli/**'
               - '!prototypes/**'
               - '!scripts/**'
               - '!.github/**'
@@ -170,7 +167,6 @@ jobs:
               - '!.dockerignore'
               - '!.env.example'
               - '!.gitignore'
-              - '!.goreleaser.yml'
               - '!.mise.toml'
               - '!.node-version'
               - '!.python-version'
@@ -186,8 +182,6 @@ jobs:
               - '!THIRD_PARTY_NOTICES.md'
               - '!Taskfile.yml'
               - '!compose.yaml'
-              - '!go.mod'
-              - '!go.sum'
               - '!mkdocs.yml'
               - '!pyproject.toml'
               - '!uv.lock'
@@ -303,6 +297,7 @@ jobs:
         with:
           go-version: "1.26.5"
           cache: true
+          cache-dependency-path: operator-cli/go.sum
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           distribution: goreleaser
@@ -331,6 +326,7 @@ jobs:
         with:
           go-version: "1.26.5"
           cache: true
+          cache-dependency-path: operator-cli/go.sum
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
         with:
           version: 3.52.0

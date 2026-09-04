@@ -99,7 +99,7 @@ def dependency_command(output: Path, source_version: str, executable: str = "syf
         "--exclude",
         "./site/**",
         "--exclude",
-        "./lzug-admin",
+        "./operator-cli/lzug-admin",
         "--output",
         f"cyclonedx-json@{CYCLONEDX_SPEC_VERSION}={output}",
     ]
@@ -513,9 +513,11 @@ def validate(args: argparse.Namespace) -> None:
 
     payload = json.loads(Path(args.input).read_text(encoding="utf-8"))
     if args.kind == "dependencies":
-        summary = validate_dependencies(payload, (ROOT / "go.mod").read_text(encoding="utf-8"))
+        summary = validate_dependencies(
+            payload, (ROOT / "operator-cli/go.mod").read_text(encoding="utf-8")
+        )
     elif args.kind == "cli":
-        summary = validate_cli(payload, (ROOT / "go.mod").read_text(encoding="utf-8"))
+        summary = validate_cli(payload, (ROOT / "operator-cli/go.mod").read_text(encoding="utf-8"))
     elif args.kind == "image":
         summary = validate_image(payload)
     else:

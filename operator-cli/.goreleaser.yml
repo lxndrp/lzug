@@ -5,8 +5,10 @@ project_name: lzug-admin
 
 before:
   hooks:
+    - cp ../LICENSE .goreleaser-license
+    - cp ../THIRD_PARTY_NOTICES.md .goreleaser-third-party-notices.md
     - >-
-      python3 scripts/build_metadata.py
+      python3 ../scripts/build_metadata.py
       --revision {{ .FullCommit }}
       {{ if not .IsSnapshot }}--tag {{ .Tag }}{{ end }}
       --output .goreleaser-build-metadata.json
@@ -59,13 +61,15 @@ archives:
           group: root
           mode: 0644
           mtime: "1970-01-01T00:00:00Z"
-      - src: LICENSE
+      - src: .goreleaser-license
+        dst: LICENSE
         info:
           owner: root
           group: root
           mode: 0644
           mtime: "1970-01-01T00:00:00Z"
-      - src: THIRD_PARTY_NOTICES.md
+      - src: .goreleaser-third-party-notices.md
+        dst: THIRD_PARTY_NOTICES.md
         info:
           owner: root
           group: root

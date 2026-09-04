@@ -20,7 +20,7 @@ if [ -z "$admin_binary" ]; then
             --revision "$revision" --field identity
     )
     (
-        cd "$root_dir"
+        cd "$root_dir/operator-cli"
         go build -trimpath \
             -ldflags="-s -w -X main.applicationVersion=$application_version -X main.applicationRevision=$revision" \
             -o "$admin_binary" ./cmd/lzug-admin
