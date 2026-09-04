@@ -129,7 +129,7 @@ Synthetische E-Mail-Adressen verwenden ausschließlich
 Jede reale Ortsreferenz enthält eine kanonische HTTPS-Quelle und das feste
 Abrufdatum `2026-09-01`.
 `scripts/generate_synthetic_fixtures.py` erzeugt daraus SQL-, Angular- und
-Prototypadapter sowie den Python-Adapter für Demo-Rollen und semantische IDs.
+den Python-Adapter für Demo-Rollen und semantische IDs.
 Generierte Dateien werden nicht direkt bearbeitet.
 
 ```sh
