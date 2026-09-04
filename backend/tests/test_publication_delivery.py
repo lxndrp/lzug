@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from backend.tests.workflow_contract import job_block, trigger_block, workflow_text
-from scripts.publication import (
+from docs.publication import (
     PUBLICATION_BASE_URL,
     convert_handbook_links,
     handbook_route,
@@ -91,7 +91,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         )
         self.assertIn('rel="icon"', favicon_partial)
         self.assertIn('{{ "images/favicon.svg" | relURL }}', favicon_partial)
-        self.assertIn('"images/favicon.svg"', (ROOT / "scripts/publication.py").read_text())
+        self.assertIn('"images/favicon.svg"', (ROOT / "docs/publication.py").read_text())
 
     def test_productive_sources_have_a_documentation_owner(self) -> None:
         self.assertFalse((ROOT / "prototypes/publication").exists())

@@ -8,7 +8,7 @@ ARG VCS_REF
 ARG SEED_REVISION
 WORKDIR /src
 COPY backend/__init__.py backend/build_metadata.py ./backend/
-COPY scripts/__init__.py scripts/build_metadata.py ./scripts/
+COPY scripts/build_metadata.py ./scripts/
 COPY demo/__init__.py demo/artifacts.py demo/contract.py demo/identity.py demo/synthetic_fixtures_generated.py ./demo/
 COPY db ./db
 RUN set -eu; \

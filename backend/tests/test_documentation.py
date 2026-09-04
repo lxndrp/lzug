@@ -11,7 +11,6 @@ from scripts.check_documentation import (
     check_developer_structure,
     check_handbook,
     check_navigation,
-    check_redundant_inventories,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -44,27 +43,6 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertTrue(any("DOC-NAV-003" in violation for violation in violations))
         self.assertTrue(any("DOC-NAV-004" in violation for violation in violations))
 
-    def test_inventory_and_duplicate_contracts_reject_negative_examples(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            docs = root / "docs"
-            docs.mkdir()
-            (docs / "bad.md").write_text(
-                "# Bad\n\n"
-                "## Issue-Inventar\n\n- #481\n- #482\n\n"
-                "## API-Routen\n\n"
-                "| Route |\n| --- |\n| GET /api/one |\n| GET /api/two |\n| GET /api/three |\n\n"
-                "## Schema-Feldliste\n\n"
-                "| Name | Typ |\n| --- | --- |\n| one | text |\n| two | text |\n| three | text |\n",
-                encoding="utf-8",
-            )
-
-            violations = check_redundant_inventories(root)
-
-        self.assertTrue(any("DOC-CONTENT-001" in violation for violation in violations))
-        self.assertTrue(any("DOC-CONTENT-002" in violation for violation in violations))
-        self.assertTrue(any("DOC-CONTENT-003" in violation for violation in violations))
-
     def test_developer_structure_rejects_legacy_pages(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -80,6 +58,7 @@ class DocumentationContractTests(unittest.TestCase):
                 "delivery.md",
                 "development.md",
                 "index.md",
+                "script-inventory.md",
             ):
                 (developers / filename).write_text(f"# {filename}\n", encoding="utf-8")
             (decisions / "index.md").write_text("# Decisions\n", encoding="utf-8")

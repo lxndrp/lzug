@@ -603,7 +603,7 @@ def build_seed(
             "demo_matrix_version": DEMO_MATRIX_VERSION,
         },
         "fixture_sha256": sha256_file(source_root / "fixtures/synthetic-fixtures.json"),
-        "generator_sha256": sha256_file(source_root / "scripts/generate_synthetic_fixtures.py"),
+        "generator_sha256": sha256_file(source_root / "fixtures/generate.py"),
         "seed_sql_sha256": sha256_file(source_root / "db/seed_demo.sql"),
         "init_logic_sha256": sha256_file(source_root / "demo/artifacts.py"),
         "snapshot_sha256": sha256_file(database),

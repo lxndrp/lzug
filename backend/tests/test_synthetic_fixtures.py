@@ -6,7 +6,7 @@ from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts import generate_synthetic_fixtures as generator
+from fixtures import generate as generator
 
 
 class SyntheticFixtureGeneratorTests(unittest.TestCase):

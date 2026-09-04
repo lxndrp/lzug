@@ -7,7 +7,7 @@ ARG RELEASE_TAG=""
 ARG VCS_REF
 WORKDIR /src
 COPY backend/__init__.py backend/build_metadata.py ./backend/
-COPY scripts/__init__.py scripts/build_metadata.py ./scripts/
+COPY scripts/build_metadata.py ./scripts/
 RUN set -eu; \
     test -n "$BUILD_IDENTITY"; \
     test -n "$VCS_REF"; \

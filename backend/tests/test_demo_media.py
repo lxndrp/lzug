@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.check_demo_media import check
+from docs.media.check import check
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -31,3 +31,7 @@ class DemoMediaContractTests(unittest.TestCase):
 
         self.assertTrue(any("fixture_catalog_version" in item for item in violations))
         self.assertTrue(any("id, path, file" in item for item in violations))
+
+
+if __name__ == "__main__":
+    unittest.main()

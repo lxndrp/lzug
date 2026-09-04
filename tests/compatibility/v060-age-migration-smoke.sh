@@ -2,7 +2,7 @@
 
 set -eu
 
-root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 . "$root_dir/scripts/container-contract.sh"
 current_image="${1:-lzug:smoke}"
 v060_image="${LZUG_V060_IMAGE:-ghcr.io/lxndrp/lzug@sha256:00e467d8acd6602ba8b4259b3f2a4e51ec98273e0be551f367e5979d5c780fe6}"
