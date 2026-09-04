@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import unittest
+from contextlib import closing
 from http import HTTPStatus
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -103,7 +104,7 @@ class ApiTests(unittest.TestCase):
 
     def test_health_reports_required_migration_without_exposing_data(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            with sqlite3.connect(db_path) as connection:
+            with closing(sqlite3.connect(db_path)) as connection, connection:
                 connection.execute("DROP TABLE schema_migration_checksum")
                 connection.execute("DROP TABLE auth_token")
                 connection.execute("DROP TABLE auth_recovery_code")
@@ -515,7 +516,7 @@ class ApiTests(unittest.TestCase):
                 assert_status(status, HTTPStatus.CREATED)
                 round_ids[name] = (created_round["id"], round_status)
 
-            with sqlite3.connect(db_path) as connection:
+            with closing(sqlite3.connect(db_path)) as connection, connection:
                 for round_id, round_status in round_ids.values():
                     connection.execute(
                         "UPDATE exam_round SET status = ? WHERE id = ?",

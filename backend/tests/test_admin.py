@@ -8,7 +8,7 @@ import sqlite3
 import subprocess
 import sys
 import unittest
-from contextlib import redirect_stdout
+from contextlib import closing, redirect_stdout
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -58,7 +58,7 @@ class AdminAuthenticationTests(unittest.TestCase):
             self.assertEqual(
                 created_at + timedelta(hours=24), datetime.fromisoformat(issued.expires_at)
             )
-            with sqlite3.connect(db_path) as connection:
+            with closing(sqlite3.connect(db_path)) as connection, connection:
                 token_hash = connection.execute(
                     "SELECT token_hash FROM auth_token WHERE id = 1"
                 ).fetchone()[0]

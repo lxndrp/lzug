@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -44,7 +45,7 @@ class LocalAuthTests(unittest.TestCase):
             self.assertEqual(10, len(recovery_codes))
             self.assertEqual(10, len(set(recovery_codes)))
 
-            with sqlite3.connect(db_path) as connection:
+            with closing(sqlite3.connect(db_path)) as connection, connection:
                 row = connection.execute(
                     "SELECT password_hash, totp_secret_encrypted FROM user_account WHERE id = ?",
                     (account_id,),
