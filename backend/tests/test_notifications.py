@@ -4,6 +4,7 @@ import os
 import sqlite3
 import unittest
 import urllib.error
+from contextlib import closing
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
@@ -52,7 +53,7 @@ class NotificationServiceTests(unittest.TestCase):
         return AuthorizationService(self.db_path).scope(context)
 
     def create_pending_sink(self) -> int:
-        with sqlite3.connect(self.db_path) as connection:
+        with closing(sqlite3.connect(self.db_path)) as connection, connection:
             cursor = connection.execute(
                 "INSERT INTO notification "
                 "(committee_id, recipient_member_id, event_type, origin_key, "
@@ -74,7 +75,7 @@ class NotificationServiceTests(unittest.TestCase):
     def assert_claim_is_committed_without_open_write_transaction(
         self, notification_id: int
     ) -> None:
-        with sqlite3.connect(self.db_path, timeout=0.2) as connection:
+        with closing(sqlite3.connect(self.db_path, timeout=0.2)) as connection, connection:
             connection.execute("BEGIN IMMEDIATE")
             claim = connection.execute(
                 "SELECT claim_token FROM notification_delivery WHERE notification_id = ?",
@@ -106,7 +107,7 @@ class NotificationServiceTests(unittest.TestCase):
 
         self.assertEqual(2, reminder["created"])
         self.assertEqual(4, deadline["created"])
-        with sqlite3.connect(self.db_path) as connection:
+        with closing(sqlite3.connect(self.db_path)) as connection, connection:
             reminder_members = connection.execute(
                 "SELECT recipient_member_id FROM notification "
                 "WHERE event_type = 'availability_reminder' ORDER BY recipient_member_id"
@@ -144,7 +145,7 @@ class NotificationServiceTests(unittest.TestCase):
         result = self.service.create_for_event("plan_confirmed", 1)
 
         self.assertEqual(3, result["created"])
-        with sqlite3.connect(self.db_path) as connection:
+        with closing(sqlite3.connect(self.db_path)) as connection, connection:
             recipients = connection.execute(
                 "SELECT recipient_member_id FROM notification "
                 "WHERE event_type = 'plan_confirmed' ORDER BY recipient_member_id"
@@ -237,7 +238,7 @@ class NotificationServiceTests(unittest.TestCase):
         sent = smtp.send_message.call_args.args[0]
         self.assertEqual(DEMO_ROLES["chair"]["person_email"], sent["To"])
         self.assertNotIn(DEMO_ROLES["replacement"]["display_name"], sent.get_content())
-        with sqlite3.connect(self.db_path) as connection:
+        with closing(sqlite3.connect(self.db_path)) as connection, connection:
             invalidated_at = connection.execute(
                 "SELECT invalidated_at FROM push_subscription WHERE id = ?",
                 (registration["id"],),
@@ -270,7 +271,7 @@ class NotificationServiceTests(unittest.TestCase):
                     self.service.process_deliveries(now=datetime.now(UTC) + timedelta(days=days))
 
         self.assertEqual(8, first["created"])
-        with sqlite3.connect(self.db_path) as connection:
+        with closing(sqlite3.connect(self.db_path)) as connection, connection:
             count = connection.execute(
                 "SELECT COUNT(*) FROM notification "
                 "WHERE recipient_member_id = 1 AND event_type = 'availability_requested'"
@@ -416,7 +417,7 @@ class NotificationServiceTests(unittest.TestCase):
             )
         )
 
-        with sqlite3.connect(self.db_path) as connection:
+        with closing(sqlite3.connect(self.db_path)) as connection, connection:
             delivery = connection.execute(
                 "SELECT status, attempt_count, claim_token, claimed_at, claim_expires_at "
                 "FROM notification_delivery WHERE notification_id = ?",
@@ -426,7 +427,7 @@ class NotificationServiceTests(unittest.TestCase):
 
     def test_processing_batch_is_bounded(self) -> None:
         notification_id = self.create_pending_sink()
-        with sqlite3.connect(self.db_path) as connection:
+        with closing(sqlite3.connect(self.db_path)) as connection, connection:
             connection.executemany(
                 "INSERT INTO notification_delivery "
                 "(notification_id, channel, target_key, status) "
@@ -449,7 +450,7 @@ class NotificationServiceTests(unittest.TestCase):
 
         self.assertEqual(6, processed["created"])
         self.assertEqual(0, repeated["created"])
-        with sqlite3.connect(self.db_path) as connection:
+        with closing(sqlite3.connect(self.db_path)) as connection, connection:
             connection.execute("PRAGMA foreign_keys = ON")
             connection.executescript("""
                 INSERT INTO committee (id, name) VALUES (99, 'Retention committee');
@@ -465,7 +466,7 @@ class NotificationServiceTests(unittest.TestCase):
                 """)
             connection.commit()
         self.service.create_for_event("availability_requested", 99)
-        with sqlite3.connect(self.db_path) as connection:
+        with closing(sqlite3.connect(self.db_path)) as connection, connection:
             connection.execute("PRAGMA foreign_keys = ON")
             connection.execute("DELETE FROM exam_round WHERE id = 99")
             connection.commit()
@@ -489,7 +490,7 @@ class NotificationServiceTests(unittest.TestCase):
             result = self.service.create_for_event("availability_requested", 1)
 
         self.assertEqual(8, result["created"])
-        with sqlite3.connect(self.db_path) as connection:
+        with closing(sqlite3.connect(self.db_path)) as connection, connection:
             channels = connection.execute(
                 "SELECT DISTINCT channel, status FROM notification_delivery"
             ).fetchall()

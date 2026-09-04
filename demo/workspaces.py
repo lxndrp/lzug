@@ -6,6 +6,7 @@ import hashlib
 import os
 import sqlite3
 from collections.abc import Callable
+from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -193,8 +194,11 @@ class DemoWorkspaceManager:
     @staticmethod
     def _clone(source: Path, target: Path) -> None:
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        with sqlite3.connect(f"file:{source}?mode=ro", uri=True) as source_connection:
-            with sqlite3.connect(target) as target_connection:
+        with (
+            closing(sqlite3.connect(f"file:{source}?mode=ro", uri=True)) as source_connection,
+            source_connection,
+        ):
+            with closing(sqlite3.connect(target)) as target_connection, target_connection:
                 source_connection.backup(target_connection)
         target.chmod(0o600)
 

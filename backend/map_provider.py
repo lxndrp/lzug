@@ -118,6 +118,7 @@ class NominatimGeocoder:
             self._raise_unavailable("timeout", error)
         except HTTPError as error:
             category = "quota" if error.code in {429, 503} else "provider_error"
+            error.close()
             self._raise_unavailable(category, error)
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
             self._raise_unavailable("provider_error", error)

@@ -791,6 +791,7 @@ class NotificationService:
                 error_code=None,
             )
         except urllib.error.HTTPError as error:
+            error.close()
             if error.code in {404, 410}:
                 return self._permanent_result(
                     delivery,
