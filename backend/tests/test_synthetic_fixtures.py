@@ -18,6 +18,15 @@ class SyntheticFixtureGeneratorTests(unittest.TestCase):
 
         self.assertEqual(generator.FIXTURE_ROOT, data["fixture_root"])
         self.assertEqual(generator.REQUIRED_COVERAGE, set(data["coverage_matrix"]))
+        self.assertEqual(
+            generator.ACTIVE_ADAPTERS,
+            {
+                adapter
+                for group in generator.ENTITY_GROUPS
+                for row in data[group]
+                for adapter in row.get("adapters", ())
+            },
+        )
         self.assertTrue(all(key.startswith(f"{generator.FIXTURE_ROOT}.") for key in index))
         self.assertEqual(
             {"chair", "examiner", "replacement"},
@@ -152,6 +161,11 @@ class SyntheticFixtureGeneratorTests(unittest.TestCase):
         incomplete["coverage_matrix"].pop("demo_487_absence")
         with self.assertRaisesRegex(ValueError, "coverage matrix is incomplete"):
             generator.outputs(incomplete)
+
+        obsolete_adapter = deepcopy(data)
+        obsolete_adapter["candidates"][0]["adapters"].append("prototype")
+        with self.assertRaisesRegex(ValueError, "unknown adapters: prototype"):
+            generator.outputs(obsolete_adapter)
 
     def test_catalog_rejects_invalid_role_links_and_scenario_references(self) -> None:
         data = generator.load_source()

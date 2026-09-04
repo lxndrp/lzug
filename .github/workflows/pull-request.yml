@@ -44,7 +44,6 @@ jobs:
               - 'db/seed_demo.sql'
               - 'demo/synthetic_fixtures_generated.py'
               - 'frontend/src/app/testing/synthetic-fixtures.generated.ts'
-              - 'prototypes/pruefungsrunde-prototyp/synthetic-fixtures.generated.js'
             docs:
               - 'docs/**'
               - 'docs/mkdocs.yml'
@@ -57,7 +56,6 @@ jobs:
               - 'backend/**'
               - 'db/**'
               - 'fixtures/**'
-              - 'prototypes/**'
             frontend:
               - 'frontend/**'
               - '!frontend/**/*.md'
@@ -160,7 +158,6 @@ jobs:
               - '!frontend/**'
               - '!infra/**'
               - '!operator-cli/**'
-              - '!prototypes/**'
               - '!scripts/**'
               - '!.github/**'
               - '!.vscode/**'

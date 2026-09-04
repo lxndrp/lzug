@@ -43,7 +43,7 @@
       "occupation": "Fachinformatiker/in",
       "data_role": "primary_committee",
       "scenarios": ["authorization.positive.athen", "demo.487.absence", "demo.487.planchange"],
-      "adapters": ["seed", "frontend", "prototype"]
+      "adapters": ["seed", "frontend"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.committee.feenwald",
@@ -202,7 +202,7 @@
       "availability": "available",
       "response": true,
       "scenarios": ["authorization.positive.athen", "demo.487.absence", "demo.487.planchange"],
-      "adapters": ["seed", "frontend", "prototype"]
+      "adapters": ["seed", "frontend"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.deputy.athen",
@@ -217,7 +217,7 @@
       "availability": "available",
       "response": true,
       "scenarios": ["authorization.positive.athen", "demo.487.absence"],
-      "adapters": ["seed", "frontend", "prototype"]
+      "adapters": ["seed", "frontend"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.absent",
@@ -232,7 +232,7 @@
       "availability": "available",
       "response": true,
       "scenarios": ["demo.487.absence"],
-      "adapters": ["seed", "prototype"]
+      "adapters": ["seed"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.crosscommittee.athen",
@@ -247,7 +247,7 @@
       "availability": "available",
       "response": true,
       "scenarios": ["membership.crosscommittee"],
-      "adapters": ["seed", "prototype"]
+      "adapters": ["seed"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.fallback",
@@ -262,7 +262,7 @@
       "availability": "pending",
       "response": false,
       "scenarios": ["staffing.fallback"],
-      "adapters": ["seed", "prototype"]
+      "adapters": ["seed"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.replacement",
@@ -277,7 +277,7 @@
       "availability": "available",
       "response": true,
       "scenarios": ["demo.487.absence", "demo.487.planchange", "staffing.suitable"],
-      "adapters": ["seed", "prototype"]
+      "adapters": ["seed"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.unsuitable",
@@ -292,7 +292,7 @@
       "availability": "pending",
       "response": false,
       "scenarios": ["staffing.unsuitable", "authorization.negative.wrong-side"],
-      "adapters": ["seed", "prototype"]
+      "adapters": ["seed"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.reserve",
@@ -307,7 +307,7 @@
       "availability": "available",
       "response": true,
       "scenarios": ["staffing.fallback", "demo.487.planchange"],
-      "adapters": ["seed", "prototype"]
+      "adapters": ["seed"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.chair.feenwald",
@@ -420,7 +420,7 @@
       "reality_notice": "Nur Anschrift, allgemeine Orientierung und Referenzpunkt sind real. Prüfungsstätte, Räume, Kontakte und Fachangaben sind synthetisch; es besteht keine Kooperation.",
       "is_active": 1,
       "scenarios": ["authorization.positive.athen", "authorization.negative.foreign-committee", "demo.487.absence", "demo.487.planchange"],
-      "adapters": ["seed", "frontend", "prototype"]
+      "adapters": ["seed", "frontend"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi",
@@ -448,7 +448,7 @@
       "reality_notice": "Nur Anschrift, allgemeine Orientierung und Referenzpunkt sind real. Prüfungsstätte, Räume, Kontakte und Fachangaben sind synthetisch; es besteht keine Kooperation.",
       "is_active": 1,
       "scenarios": ["authorization.positive.athen", "demo.487.planchange"],
-      "adapters": ["seed", "frontend", "prototype"]
+      "adapters": ["seed", "frontend"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.feenwald.nationalgarden",
@@ -480,11 +480,11 @@
     }
   ],
   "rooms": [
-    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.zappeion.theseus", "id": 1, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion", "name": "Theseussaal", "capacity": 24, "access_notes": "Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.", "is_active": 1, "scenarios": ["demo.487.absence", "demo.487.planchange"], "adapters": ["seed", "frontend", "prototype"]},
-    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.gazi.handwerkerensemble", "id": 2, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi", "name": "Werkstatt Handwerkerensemble", "capacity": 18, "access_notes": "Synthetische Auffindung: ab Demo-Tor dem Treffpunkt Handwerkerensemble folgen.", "is_active": 1, "scenarios": ["demo.487.planchange"], "adapters": ["seed", "frontend", "prototype"]},
+    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.zappeion.theseus", "id": 1, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion", "name": "Theseussaal", "capacity": 24, "access_notes": "Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.", "is_active": 1, "scenarios": ["demo.487.absence", "demo.487.planchange"], "adapters": ["seed", "frontend"]},
+    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.gazi.handwerkerensemble", "id": 2, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi", "name": "Werkstatt Handwerkerensemble", "capacity": 18, "access_notes": "Synthetische Auffindung: ab Demo-Tor dem Treffpunkt Handwerkerensemble folgen.", "is_active": 1, "scenarios": ["demo.487.planchange"], "adapters": ["seed", "frontend"]},
     {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.nationalgarden.oberon", "id": 3, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.feenwald.nationalgarden", "name": "Lichtung Oberon", "capacity": 15, "access_notes": "Synthetische Auffindung: ab Treffpunkt Feenwald der Demo-Beschilderung Oberon folgen.", "is_active": 1, "scenarios": ["authorization.negative.foreign-committee"], "adapters": ["seed", "frontend"]},
-    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.zappeion.hippolyta", "id": 4, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion", "name": "Hippolytasaal", "capacity": 12, "access_notes": "Synthetische Auffindung: ab Demo-Eingang dem Hinweis Hippolyta folgen.", "is_active": 1, "scenarios": ["authorization.positive.athen"], "adapters": ["seed", "frontend", "prototype"]},
-    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.gazi.pyramus", "id": 5, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi", "name": "Prüfhalle Pyramus", "capacity": 30, "access_notes": "Synthetische Auffindung: ab Demo-Tor dem Hinweis Pyramus folgen.", "is_active": 1, "scenarios": ["authorization.positive.athen"], "adapters": ["seed", "frontend", "prototype"]},
+    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.zappeion.hippolyta", "id": 4, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion", "name": "Hippolytasaal", "capacity": 12, "access_notes": "Synthetische Auffindung: ab Demo-Eingang dem Hinweis Hippolyta folgen.", "is_active": 1, "scenarios": ["authorization.positive.athen"], "adapters": ["seed", "frontend"]},
+    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.gazi.pyramus", "id": 5, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi", "name": "Prüfhalle Pyramus", "capacity": 30, "access_notes": "Synthetische Auffindung: ab Demo-Tor dem Hinweis Pyramus folgen.", "is_active": 1, "scenarios": ["authorization.positive.athen"], "adapters": ["seed", "frontend"]},
     {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.nationalgarden.titania", "id": 6, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.feenwald.nationalgarden", "name": "Lichtung Titania", "capacity": 15, "access_notes": "Synthetische Auffindung: ab Treffpunkt Feenwald der Demo-Beschilderung Titania folgen.", "is_active": 1, "scenarios": ["authorization.negative.foreign-committee"], "adapters": ["seed", "frontend"]}
   ],
   "location_contacts": [
@@ -506,7 +506,7 @@
       "attempt_number": 1,
       "requires_mep": false,
       "scenarios": ["demo.487.planchange"],
-      "adapters": ["seed", "frontend", "prototype"]
+      "adapters": ["seed", "frontend"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.absence",
@@ -522,7 +522,7 @@
       "attempt_number": 2,
       "requires_mep": true,
       "scenarios": ["demo.487.absence"],
-      "adapters": ["seed", "frontend", "prototype"]
+      "adapters": ["seed", "frontend"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.lysander",
@@ -538,7 +538,7 @@
       "attempt_number": 1,
       "requires_mep": false,
       "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed", "prototype"]
+      "adapters": ["seed"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.demetrius",
@@ -554,7 +554,7 @@
       "attempt_number": 3,
       "requires_mep": false,
       "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed", "prototype"]
+      "adapters": ["seed"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.egeus",
@@ -570,7 +570,7 @@
       "attempt_number": 2,
       "requires_mep": false,
       "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed", "prototype"]
+      "adapters": ["seed"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.philostrate",
@@ -586,7 +586,7 @@
       "attempt_number": 1,
       "requires_mep": true,
       "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed", "prototype"]
+      "adapters": ["seed"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.peaseblossom",
@@ -602,7 +602,7 @@
       "attempt_number": 3,
       "requires_mep": true,
       "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed", "prototype"]
+      "adapters": ["seed"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.cobweb",
@@ -618,7 +618,7 @@
       "attempt_number": 1,
       "requires_mep": false,
       "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed", "prototype"]
+      "adapters": ["seed"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.moth",
@@ -634,7 +634,7 @@
       "attempt_number": 2,
       "requires_mep": true,
       "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed", "prototype"]
+      "adapters": ["seed"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.mustardseed",
@@ -650,7 +650,7 @@
       "attempt_number": 1,
       "requires_mep": false,
       "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed", "prototype"]
+      "adapters": ["seed"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.moonshine",
@@ -666,7 +666,7 @@
       "attempt_number": 1,
       "requires_mep": false,
       "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed", "prototype"]
+      "adapters": ["seed"]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.lion",
@@ -682,7 +682,7 @@
       "attempt_number": 2,
       "requires_mep": false,
       "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed", "prototype"]
+      "adapters": ["seed"]
     }
   ],
   "scenarios": [
