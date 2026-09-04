@@ -5,6 +5,7 @@ import shutil
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from backend.auth import AuthenticationRepository
@@ -186,7 +187,7 @@ class DemoArtifactTests(unittest.TestCase):
             )
             drift_database = root / "drift.sqlite"
             shutil.copyfile(expected_database, drift_database)
-            with sqlite3.connect(drift_database) as connection:
+            with closing(sqlite3.connect(drift_database)) as connection, connection:
                 self.assertEqual(
                     ("delete",), connection.execute("PRAGMA journal_mode = DELETE").fetchone()
                 )
@@ -247,7 +248,7 @@ class DemoArtifactTests(unittest.TestCase):
             ResourceRepository(database).update(
                 CANDIDATE, candidate["id"], {"last_name": "Geändert"}
             )
-            with sqlite3.connect(database) as connection:
+            with closing(sqlite3.connect(database)) as connection, connection:
                 connection.execute("UPDATE exam_venue SET name = 'Geänderter Ort' WHERE id = 1")
             (data_dir / "documents" / "temporary.txt").write_text("demo", encoding="utf-8")
 
@@ -427,17 +428,17 @@ class DemoArtifactTests(unittest.TestCase):
     def _scalar(database: Path, query: str, parameters: tuple = ()):
         import sqlite3
 
-        with sqlite3.connect(database) as connection:
+        with closing(sqlite3.connect(database)) as connection, connection:
             return connection.execute(query, parameters).fetchone()[0]
 
     @staticmethod
     def _row(database: Path, query: str):
-        with sqlite3.connect(database) as connection:
+        with closing(sqlite3.connect(database)) as connection, connection:
             return connection.execute(query).fetchone()
 
     @staticmethod
     def _rows(database: Path, query: str):
-        with sqlite3.connect(database) as connection:
+        with closing(sqlite3.connect(database)) as connection, connection:
             return connection.execute(query).fetchall()
 
 

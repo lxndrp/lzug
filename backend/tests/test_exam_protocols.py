@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import unittest
+from contextlib import closing
 from http import HTTPStatus
 
 from sqlalchemy import select
@@ -459,7 +460,7 @@ class ExamProtocolTests(unittest.TestCase):
             session.flush()
             completed_id = completed.id
 
-        with sqlite3.connect(self.db_path) as connection:
+        with closing(sqlite3.connect(self.db_path)) as connection, connection:
             connection.execute("PRAGMA foreign_keys = ON")
             rewind_exam_protocol_migration(connection, remove_history=True)
             connection.commit()

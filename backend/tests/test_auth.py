@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import sqlite3
 import unittest
+from contextlib import closing
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
@@ -23,7 +24,7 @@ class AuthenticationTests(unittest.TestCase):
             credentials = repository.create_session(account["id"])
             context = repository.authenticate(credentials.token)
 
-            with sqlite3.connect(db_path) as connection:
+            with closing(sqlite3.connect(db_path)) as connection, connection:
                 row = connection.execute(
                     "SELECT token_hash, csrf_token_hash FROM auth_session WHERE id = ?",
                     (credentials.session_id,),

@@ -4,6 +4,7 @@ import json
 import sqlite3
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from datetime import UTC, datetime, timedelta
 
 import pyotp
@@ -78,7 +79,7 @@ class CommitteeAdminTests(unittest.TestCase):
             self.assertEqual(2, result["invitations_issued"])
             self.assertEqual(2, len(result["invitations"]))
             tokens = [invitation["token"] for invitation in result["invitations"]]
-            with sqlite3.connect(db_path) as connection:
+            with closing(sqlite3.connect(db_path)) as connection, connection:
                 committee = connection.execute(
                     "SELECT name, ihk, occupation, is_active, bootstrap_state FROM committee"
                 ).fetchone()
@@ -119,7 +120,7 @@ class CommitteeAdminTests(unittest.TestCase):
             self.assertEqual(result["person_ids"], json.loads(evidence[2]))
             self.assertEqual(result["membership_ids"], json.loads(evidence[3]))
 
-            with sqlite3.connect(db_path) as connection:
+            with closing(sqlite3.connect(db_path)) as connection, connection:
                 with self.assertRaisesRegex(sqlite3.IntegrityError, "immutable"):
                     connection.execute(
                         "UPDATE committee_admin_operation SET result = 'ready' WHERE id = 1"
@@ -150,7 +151,7 @@ class CommitteeAdminTests(unittest.TestCase):
             self.assertEqual([account["id"]], result["account_ids"])
             self.assertEqual([], result["invitations"])
             self.assertEqual(0, result["invitations_issued"])
-            with sqlite3.connect(db_path) as connection:
+            with closing(sqlite3.connect(db_path)) as connection, connection:
                 self.assertEqual(1, connection.execute("SELECT count(*) FROM person").fetchone()[0])
                 self.assertEqual(
                     "existing@example.invalid",
@@ -213,7 +214,7 @@ class CommitteeAdminTests(unittest.TestCase):
                 CommitteeAdminService(db_path).bootstrap(arguments, now=self.now)
 
             self.assertEqual("person_conflict", raised.exception.code)
-            with sqlite3.connect(db_path) as connection:
+            with closing(sqlite3.connect(db_path)) as connection, connection:
                 self.assertEqual(
                     0, connection.execute("SELECT count(*) FROM committee").fetchone()[0]
                 )
@@ -237,7 +238,7 @@ class CommitteeAdminTests(unittest.TestCase):
                 CommitteeAdminService(db_path).bootstrap(arguments, now=self.now)
 
             self.assertEqual("account_conflict", raised.exception.code)
-            with sqlite3.connect(db_path) as connection:
+            with closing(sqlite3.connect(db_path)) as connection, connection:
                 self.assertEqual(
                     0, connection.execute("SELECT count(*) FROM committee").fetchone()[0]
                 )
@@ -309,7 +310,7 @@ class CommitteeAdminTests(unittest.TestCase):
                     CommitteeAdminService(db_path).bootstrap(arguments, now=self.now)
 
                 self.assertEqual("account_conflict", raised.exception.code)
-                with sqlite3.connect(db_path) as connection:
+                with closing(sqlite3.connect(db_path)) as connection, connection:
                     self.assertEqual(
                         0,
                         connection.execute("SELECT count(*) FROM committee").fetchone()[0],
@@ -334,7 +335,7 @@ class CommitteeAdminTests(unittest.TestCase):
                 service.bootstrap(changed, now=self.now)
             self.assertEqual("idempotency_conflict", raised.exception.code)
 
-            with sqlite3.connect(db_path) as connection:
+            with closing(sqlite3.connect(db_path)) as connection, connection:
                 self.assertEqual(
                     1, connection.execute("SELECT count(*) FROM committee").fetchone()[0]
                 )
@@ -357,7 +358,7 @@ class CommitteeAdminTests(unittest.TestCase):
 
             self.assertEqual(1, sum(not result["replayed"] for result in results))
             self.assertEqual(1, sum(bool(result["invitations"]) for result in results))
-            with sqlite3.connect(db_path) as connection:
+            with closing(sqlite3.connect(db_path)) as connection, connection:
                 self.assertEqual(
                     1, connection.execute("SELECT count(*) FROM committee").fetchone()[0]
                 )
@@ -374,7 +375,7 @@ class CommitteeAdminTests(unittest.TestCase):
             with self.assertRaises(AdminOperationError):
                 CommitteeAdminService(db_path).bootstrap(arguments, now=self.now)
 
-            with sqlite3.connect(db_path) as connection:
+            with closing(sqlite3.connect(db_path)) as connection, connection:
                 for table in (
                     "committee",
                     "person",
@@ -408,7 +409,7 @@ class CommitteeAdminTests(unittest.TestCase):
             result = CommitteeAdminService(db_path).complete(arguments, now=self.now)
 
             self.assertEqual("ready", result["bootstrap_state"])
-            with sqlite3.connect(db_path) as connection:
+            with closing(sqlite3.connect(db_path)) as connection, connection:
                 unchanged = connection.execute(
                     "SELECT name, ihk, occupation FROM committee WHERE id = ?",
                     (committee["id"],),
