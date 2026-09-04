@@ -56,5 +56,5 @@ nicht ein impliziter Rückfall.
 
 ## Referenzen
 
-- [Publications-Skript](https://github.com/lxndrp/lzug/blob/master/scripts/publication.py)
+- [Publications-Skript](https://github.com/lxndrp/lzug/blob/master/docs/publication.py)
 - [ADR-0007: MkDocs und Code-Referenzen](0007-dokumentation-und-code-referenz.md)

@@ -24,6 +24,8 @@ Fachliche, Nutzungs- und Betreiberanleitungen liegen im Repository unter
   vollständige Qualität, Release, SBOM, Demo-Promotion sowie Site-Publikation.
 - [Entwicklung](development.md) bündelt lokale Toolchain, Tasks, Testauswahl,
   Dependencies, Fixtures, Dokumentationspflege, Reviews und Closeout.
+- Das [Werkzeuginventar](script-inventory.md) begründet Eigentümer,
+  Aufrufer und Ersetzbarkeit jedes verbleibenden Einstiegspunkts.
 
 ## Maßgebliche Quellen
 

@@ -128,12 +128,12 @@ Synthetische E-Mail-Adressen verwenden ausschließlich
 `@demo.lzug.invalid`; Telefonnummern sind nicht belegt.
 Jede reale Ortsreferenz enthält eine kanonische HTTPS-Quelle und das feste
 Abrufdatum `2026-09-01`.
-`scripts/generate_synthetic_fixtures.py` erzeugt daraus SQL-, Angular- und
+`fixtures/generate.py` erzeugt daraus SQL-, Angular- und
 den Python-Adapter für Demo-Rollen und semantische IDs.
 Generierte Dateien werden nicht direkt bearbeitet.
 
 ```sh
-python3 scripts/generate_synthetic_fixtures.py
+python3 fixtures/generate.py
 task fixtures:check
 ```
 

@@ -14,7 +14,7 @@ class OciWorkflowContractTests(unittest.TestCase):
             with self.subTest(workflow=path.name):
                 self.assertIn(
                     "task quality:oci quality:container quality:compose "
-                    "quality:operator-container quality:demo quality:sbom",
+                    "quality:operator-container quality:demo",
                     workflow,
                 )
                 self.assertIn("anchore/sbom-action/download-syft@", workflow)
@@ -41,10 +41,10 @@ class OciWorkflowContractTests(unittest.TestCase):
 
     def test_compose_standard_validation_and_policy_are_separate(self) -> None:
         taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
-        validator = Path("scripts/validate-compose.sh").read_text(encoding="utf-8")
-        self.assertIn("scripts/compose-command.sh config --quiet", taskfile)
-        self.assertIn("scripts/compose_policy.py", validator)
-        self.assertNotIn("config --quiet", validator)
+        self.assertIn("compose -f compose.yaml config --quiet", taskfile)
+        self.assertIn('python3 scripts/compose_policy.py "$config_file"', taskfile)
+        self.assertFalse(Path("scripts/compose-command.sh").exists())
+        self.assertFalse(Path("scripts/validate-compose.sh").exists())
 
 
 if __name__ == "__main__":

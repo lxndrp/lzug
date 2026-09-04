@@ -40,7 +40,7 @@ jobs:
           filters: |
             fixtures:
               - 'fixtures/synthetic-fixtures.json'
-              - 'scripts/generate_synthetic_fixtures.py'
+              - 'fixtures/generate.py'
               - 'db/seed_demo.sql'
               - 'demo/synthetic_fixtures_generated.py'
               - 'frontend/src/app/testing/synthetic-fixtures.generated.ts'
@@ -83,7 +83,7 @@ jobs:
               - 'frontend/demo-overlays/**'
               - 'scripts/build-frontend.sh'
               - 'scripts/demo-container-smoke.sh'
-              - 'scripts/generate_synthetic_fixtures.py'
+              - 'fixtures/generate.py'
             browser:
               - 'backend/**'
               - 'db/**'
@@ -336,7 +336,7 @@ jobs:
       - name: Build once and verify all packaged runtime contracts
         env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
-        run: task quality:oci quality:container quality:compose quality:operator-container quality:demo quality:sbom
+        run: task quality:oci quality:container quality:compose quality:operator-container quality:demo
       - name: Generate and validate the image SBOM
         env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}

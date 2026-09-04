@@ -11,9 +11,7 @@
 !backend/*.py
 
 !scripts/
-!scripts/__init__.py
 !scripts/build_metadata.py
-!scripts/generate_synthetic_fixtures.py
 
 !db/
 !db/schema.sql
@@ -26,6 +24,7 @@
 
 !fixtures/
 !fixtures/synthetic-fixtures.json
+!fixtures/generate.py
 
 !brand/
 !brand/tokens.css

@@ -30,4 +30,5 @@ nav:
       - Komponenten: developers/components.md
       - Delivery und Veröffentlichung: developers/delivery.md
       - Entwicklung: developers/development.md
+      - Werkzeuginventar: developers/script-inventory.md
       - ADR-Register: developers/decisions/index.md

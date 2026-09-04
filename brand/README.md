@@ -18,7 +18,7 @@ Referenzen.
 
 ## Ausgelieferte Derivate
 
-`node scripts/generate_brand_assets.mjs` erzeugt ausschließlich die im
+`node brand/generate-assets.mjs` erzeugt ausschließlich die im
 Assetvertrag aufgeführten Dateien unter `brand/derived/`.
 
 Das Frontend übernimmt explizit `favicon.svg`, `favicon.ico` und

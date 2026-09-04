@@ -23,7 +23,7 @@ PR_GATES = {
 
 SYNTHETIC_FIXTURE_PATHS = {
     "fixtures/synthetic-fixtures.json",
-    "scripts/generate_synthetic_fixtures.py",
+    "fixtures/generate.py",
     "db/seed_demo.sql",
     "demo/synthetic_fixtures_generated.py",
     "frontend/src/app/testing/synthetic-fixtures.generated.ts",
@@ -171,7 +171,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "task quality:operator",
             "task quality:infra",
             "task quality:oci quality:container quality:compose "
-            "quality:operator-container quality:demo quality:sbom",
+            "quality:operator-container quality:demo",
             "task docs",
         ):
             with self.subTest(task=task):
@@ -212,7 +212,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
         )
 
         self.assertIn("fixtures:check:", taskfile)
-        self.assertIn("python3 scripts/generate_synthetic_fixtures.py --check", taskfile)
+        self.assertIn("python3 fixtures/generate.py --check", taskfile)
         self.assertIn("- fixtures:check", taskfile)
         self.assertIn("fixtures: ${{", changes)
         self.assertIsNotNone(fixture_filter)

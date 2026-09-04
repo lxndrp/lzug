@@ -108,6 +108,7 @@ tasks:
     desc: Build the local handbook and generated code references
     cmds:
       - task: docs:check
+      - task: docs:media:check
       - task: docs:cli
       - task: docs:handbook
       - task: docs:frontend
@@ -116,6 +117,11 @@ tasks:
     desc: Check project-specific documentation structure contracts
     cmds:
       - python3 -m scripts.check_documentation
+
+  docs:media:check:
+    desc: Check Playwright-captured demo media metadata and image dimensions
+    cmds:
+      - python3 -m docs.media.check
 
   docs:cli:
     desc: Verify the generated operator CLI reference
@@ -134,7 +140,7 @@ tasks:
       BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
       - >-
-        {{.UV}} python -m scripts.publication build
+        {{.UV}} python -m docs.publication build
         --typedoc frontend/node_modules/.bin/typedoc
         --base-url "{{.BASE_URL}}"
         --demo-url "{{.DEMO_URL}}"
@@ -149,7 +155,7 @@ tasks:
       BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
       - >-
-        {{.UV}} python -m scripts.publication check
+        {{.UV}} python -m docs.publication check
         --typedoc frontend/node_modules/.bin/typedoc
         --base-url "{{.BASE_URL}}"
         --demo-url "{{.DEMO_URL}}"
@@ -197,18 +203,17 @@ tasks:
   brand:check:
     desc: Verify canonical brand sources, consumer derivatives, fonts, and icons
     cmds:
-      - node scripts/check_brand_assets.mjs
+      - node brand/generate-assets.mjs --check
 
   brand:generate:
     desc: Generate reproducible brand derivatives from canonical vector sources
     cmds:
-      - node scripts/generate_brand_assets.mjs
+      - node brand/generate-assets.mjs
 
   fixtures:check:
     desc: Verify synthetic fixture adapters match their canonical source
     cmds:
-      - python3 scripts/generate_synthetic_fixtures.py --check
-      - python3 scripts/check_demo_media.py
+      - python3 fixtures/generate.py --check
 
   quality:infra:
     desc: Format, validate, and mock-plan the public demo infrastructure without cloud access
@@ -428,7 +433,7 @@ tasks:
       - quality:image
     cmds:
       - scripts/operator-container-smoke.sh lzug:0.0.0-dev.local
-      - scripts/v060-age-migration-smoke.sh lzug:0.0.0-dev.local
+      - tests/compatibility/v060-age-migration-smoke.sh lzug:0.0.0-dev.local
 
   quality:compose:
     desc: Run the Compose runtime and persistence contract
@@ -441,12 +446,21 @@ tasks:
   quality:compose-config:
     desc: Validate Compose with standard tooling and the separate lzug policy
     cmds:
-      - >-
-        LZUG_IMAGE=ghcr.io/lxndrp/lzug:0.0.0-dev.local
-        scripts/compose-command.sh config --quiet
-      - >-
-        LZUG_IMAGE=ghcr.io/lxndrp/lzug:0.0.0-dev.local
-        scripts/validate-compose.sh
+      - |
+        set -eu
+        . scripts/container-contract.sh
+        lzug_select_container_engine
+        LZUG_IMAGE=ghcr.io/lxndrp/lzug:0.0.0-dev.local \
+          "$engine" compose -f compose.yaml config --quiet
+      - |
+        set -eu
+        . scripts/container-contract.sh
+        lzug_select_container_engine
+        config_file="$(mktemp "${TMPDIR:-/tmp}/lzug-compose-config.XXXXXX")"
+        trap 'rm -f "$config_file"' EXIT
+        LZUG_IMAGE=ghcr.io/lxndrp/lzug:0.0.0-dev.local \
+          "$engine" compose -f compose.yaml config --format json >"$config_file"
+        python3 scripts/compose_policy.py "$config_file"
       - "{{.UV}} python -m unittest backend.tests.test_compose_policy"
 
   quality:e2e:
