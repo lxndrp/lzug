@@ -20,7 +20,7 @@ import {
   X as LucideX,
 } from 'lucide';
 
-// The semantic names are stable; the mapping is documented in brand/icon-contract.json.
+// Keep semantic icon names stable across product and future UI adapters.
 export const appIcons = {
   activate: LucideCircleCheck,
   add: LucidePlus,

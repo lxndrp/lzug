@@ -1,6 +1,6 @@
 /* Taiga UI adapter. Product code consumes the toolkit-neutral lzug roles above. */
 :root,
-body[tuiTheme="dark"] {
+body[tuiTheme='dark'] {
   --tui-background-base: var(--lzug-color-neutral-surface);
   --tui-background-neutral-1: var(--lzug-color-neutral-canvas);
   --tui-background-neutral-2: var(--lzug-color-neutral-surface-raised);

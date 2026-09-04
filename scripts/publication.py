@@ -254,14 +254,20 @@ def configure_relearn(root: Path, site: Path, base_url: str, demo_url: str) -> N
         root / "docs" / "publication" / "relearn" / "static" / "js" / "demo-warmup.js",
         site / "static" / "js" / "demo-warmup.js",
     )
+    for name in (
+        "favicon.svg",
+        "key-visual-dark.svg",
+        "key-visual-light.svg",
+        "logo-horizontal-dark.svg",
+        "logo-horizontal-light.svg",
+    ):
+        shutil.copyfile(
+            root / "brand" / "derived" / name,
+            site / "static" / "images" / "brand" / name,
+        )
     shutil.copyfile(
         root / "brand" / "derived" / "favicon.svg",
         site / "static" / "images" / "favicon.svg",
-    )
-    shutil.copytree(
-        root / "brand" / "derived",
-        site / "static" / "images" / "brand",
-        dirs_exist_ok=True,
     )
     for screenshot in (root / "docs" / "media").glob("*.png"):
         shutil.copyfile(screenshot, site / "static" / "images" / "screenshots" / screenshot.name)

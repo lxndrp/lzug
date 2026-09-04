@@ -23,7 +23,8 @@ The production bundles contain only the required Latin, Greek, and Greek Extende
 ## Lucide
 
 The product's functional icons use the exactly locked `lucide` 0.468.0 package.
-The stable semantic mapping is documented in [`brand/icon-contract.json`](brand/icon-contract.json).
+The product mapping keeps stable semantic names in
+[`frontend/src/app/app-icons.ts`](frontend/src/app/app-icons.ts).
 
 - License: [ISC](https://github.com/lucide-icons/lucide/blob/main/LICENSE).
 - Upstream: [Lucide](https://lucide.dev/).

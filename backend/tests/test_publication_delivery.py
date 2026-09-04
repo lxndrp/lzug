@@ -84,7 +84,11 @@ class PublicationDeliveryContractTests(unittest.TestCase):
             ROOT / "docs/publication/relearn/layouts/partials/favicon.html"
         ).read_text(encoding="utf-8")
 
-        self.assertTrue((ROOT / "frontend/public/favicon.svg").is_file())
+        self.assertTrue((ROOT / "brand/derived/favicon.svg").is_file())
+        self.assertIn(
+            "favicon.svg logo-mark-dark.svg",
+            (ROOT / "scripts/build-frontend.sh").read_text(),
+        )
         self.assertIn('rel="icon"', favicon_partial)
         self.assertIn('{{ "images/favicon.svg" | relURL }}', favicon_partial)
         self.assertIn('"images/favicon.svg"', (ROOT / "scripts/publication.py").read_text())
