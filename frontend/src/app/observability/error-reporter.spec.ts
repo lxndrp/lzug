@@ -1,6 +1,17 @@
 import { PrivacyPreservingErrorHandler, reportFrontendError } from './error-reporter';
 
 describe('privacy-preserving frontend error reporting', () => {
+  it('ignores ResizeObserver-loop warnings', () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    new PrivacyPreservingErrorHandler().handleError(
+      new Error('ResizeObserver loop completed with undelivered notifications.'),
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('sends only a coarse runtime classification', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
     vi.stubGlobal('fetch', fetchMock);

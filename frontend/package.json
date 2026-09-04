@@ -41,6 +41,9 @@
     ]
   },
   "private": true,
+  "overrides": {
+    "fast-uri": "3.1.6"
+  },
   "dependencies": {
     "@angular/aria": "^22.1.4",
     "@angular/cdk": "^22.0.3",
