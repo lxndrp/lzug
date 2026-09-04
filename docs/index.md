@@ -9,6 +9,4 @@ rendert diese Quellen aus derselben Revision und bietet Suche sowie vier Einstie
 - [Self-Hosting und Betrieb](portal/betreiben.md)
 - [Entwicklerhandbuch](developers/index.md)
 
-Der frühere Wiki-Bestand ist mit [Migrationsnachweis](migrations/wiki-2026-09-03.md)
-versioniert nach `docs/handbook/` übernommen.
 Die technische Referenz entsteht lokal mit `task docs`; CI stellt den Build als geschütztes Artefakt `lzug-documentation` bereit.
