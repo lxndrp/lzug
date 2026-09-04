@@ -29,9 +29,10 @@
 
 !brand/
 !brand/tokens.css
-!brand/taiga-adapter.css
 !brand/derived/
-!brand/derived/**
+!brand/derived/favicon.ico
+!brand/derived/favicon.svg
+!brand/derived/logo-mark-dark.svg
 
 !frontend/
 !frontend/package.json

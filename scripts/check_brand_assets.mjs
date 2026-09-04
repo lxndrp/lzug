@@ -9,35 +9,12 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const contract = JSON.parse(
   readFileSync(resolve(root, "brand/asset-contract.json"), "utf8"),
 );
-const font = JSON.parse(
-  readFileSync(resolve(root, "brand/font-contract.json"), "utf8"),
-);
-const icons = JSON.parse(
-  readFileSync(resolve(root, "brand/icon-contract.json"), "utf8"),
-);
 
 function fail(message) {
   throw new Error(`Brand asset contract: ${message}`);
 }
 
-if (contract.schema !== 2) fail("unsupported asset schema");
-if (contract.approval?.logo?.variant !== "B2b: Urkunde rechts oben") {
-  fail("approved logo variant must be B2b: Urkunde rechts oben");
-}
-if (
-  contract.approval?.logo?.issueComment !==
-  "https://github.com/lxndrp/lzug/issues/568#issuecomment-5512076189"
-) {
-  fail("canonical logo approval link changed");
-}
-if (contract.approval?.font?.family !== "Inter")
-  fail("approved font must be Inter");
-if (
-  contract.approval?.font?.issueComment !==
-  "https://github.com/lxndrp/lzug/issues/568#issuecomment-5514030813"
-) {
-  fail("canonical font approval link changed");
-}
+if (contract.schema !== 3) fail("unsupported asset schema");
 
 const expectedSources = new Set();
 for (const source of contract.sources ?? []) {
@@ -79,29 +56,18 @@ if (
 ) {
   fail("brand/proposals must not contain superseded logo sources");
 }
-
-for (const variant of ["light", "dark", "black", "white"]) {
-  if (!contract.variants?.[variant]) fail(`missing ${variant} variant`);
-  for (const family of ["logo-mark", "logo-horizontal"]) {
-    const asset = resolve(root, `brand/derived/${family}-${variant}.svg`);
-    if (!existsSync(asset)) fail(`missing ${family} ${variant} derivative`);
-  }
+const expectedDerivatives = new Set(contract.derivatives ?? []);
+const derivativeDirectory = resolve(root, "brand/derived");
+const actualDerivatives = new Set(readdirSync(derivativeDirectory));
+if (
+  expectedDerivatives.size !== actualDerivatives.size ||
+  [...expectedDerivatives].some((name) => !actualDerivatives.has(name))
+) {
+  fail("brand/derived contains assets outside the current consumer contract");
 }
-for (const monochrome of ["black", "white"]) {
-  for (const family of ["logo-mark", "logo-horizontal"]) {
-    const svg = readFileSync(
-      resolve(root, `brand/derived/${family}-${monochrome}.svg`),
-      "utf8",
-    );
-    if (!svg.includes(contract.variants[monochrome].ink))
-      fail(`${monochrome} ${family} is not truly monochrome`);
-    if (
-      svg.includes(contract.variants.light.accent) ||
-      svg.includes(contract.variants.dark.accent)
-    ) {
-      fail(`${monochrome} ${family} contains a themed accent color`);
-    }
-  }
+for (const name of expectedDerivatives) {
+  if (!existsSync(resolve(derivativeDirectory, name)))
+    fail(`missing derivative ${name}`);
 }
 
 const packageJson = JSON.parse(
@@ -110,24 +76,24 @@ const packageJson = JSON.parse(
 const lock = JSON.parse(
   readFileSync(resolve(root, "frontend/package-lock.json"), "utf8"),
 );
-if (packageJson.dependencies?.[font.package] !== font.packageVersion)
+if (packageJson.dependencies?.["@fontsource-variable/inter"] !== "5.3.0")
   fail("Inter dependency is not exact");
 if (
-  lock.packages?.[`node_modules/${font.package}`]?.version !==
-  font.packageVersion
+  lock.packages?.["node_modules/@fontsource-variable/inter"]?.version !==
+  "5.3.0"
 )
   fail("Inter lock version differs");
 if (
-  !existsSync(resolve(root, font.licenseFile)) ||
-  !readFileSync(resolve(root, font.licenseFile), "utf8").includes(
+  !existsSync(resolve(root, "brand/licenses/Inter-OFL.txt")) ||
+  !readFileSync(resolve(root, "brand/licenses/Inter-OFL.txt"), "utf8").includes(
     "SIL OPEN FONT LICENSE",
   )
 ) {
   fail("Inter OFL license text is missing");
 }
-if (packageJson.dependencies?.[icons.package] !== icons.version)
+if (packageJson.dependencies?.lucide !== "0.468.0")
   fail("Lucide dependency is not exact");
-if (lock.packages?.[`node_modules/${icons.package}`]?.version !== icons.version)
+if (lock.packages?.["node_modules/lucide"]?.version !== "0.468.0")
   fail("Lucide lock version differs");
 
 for (const token of [
@@ -142,7 +108,7 @@ for (const token of [
     fail(`missing canonical token ${token}`);
 }
 if (
-  !readFileSync(resolve(root, "brand/taiga-adapter.css"), "utf8").includes(
+  !readFileSync(resolve(root, "frontend/src/taiga-adapter.css"), "utf8").includes(
     "--tui-background-accent-1",
   )
 ) {
@@ -159,18 +125,7 @@ const generation = spawnSync(
 );
 if (generation.status !== 0)
   fail(generation.stderr || generation.stdout || "derivative check failed");
-if (existsSync(resolve(root, "brand/review/final"))) {
-  const references = spawnSync(
-    process.execPath,
-    [resolve(root, "scripts/check_brand_references.mjs")],
-    {
-      cwd: root,
-      encoding: "utf8",
-    },
-  );
-  if (references.status !== 0)
-    fail(references.stderr || references.stdout || "reference check failed");
-}
+
 console.log(
-  `Brand asset contract valid: ${contract.sources.length} sources, Inter ${font.packageVersion}, Lucide ${icons.version}`,
+  `Brand asset contract valid: ${contract.sources.length} sources, ${expectedDerivatives.size} derivatives`,
 );

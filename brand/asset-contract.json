@@ -1,15 +1,5 @@
 {
-  "schema": 2,
-  "approval": {
-    "logo": {
-      "variant": "B2b: Urkunde rechts oben",
-      "issueComment": "https://github.com/lxndrp/lzug/issues/568#issuecomment-5512076189"
-    },
-    "font": {
-      "family": "Inter",
-      "issueComment": "https://github.com/lxndrp/lzug/issues/568#issuecomment-5514030813"
-    }
-  },
+  "schema": 3,
   "sources": [
     {
       "id": "logo-mark",
@@ -36,27 +26,15 @@
       "accent": "#ffd27a",
       "wordmark": "#f5f2ff",
       "background": "#151225"
-    },
-    "black": {
-      "ink": "#000000",
-      "accent": "#000000",
-      "wordmark": "#000000",
-      "background": "#ffffff"
-    },
-    "white": {
-      "ink": "#ffffff",
-      "accent": "#ffffff",
-      "wordmark": "#ffffff",
-      "background": "#000000"
     }
   },
-  "derivatives": {
-    "standalone": ["light", "dark", "black", "white"],
-    "horizontal": ["light", "dark", "black", "white"],
-    "compact": ["light", "dark"],
-    "favicon": [16, 32, 48],
-    "appIcon": [192, 512],
-    "keyVisual": [1200, 1600],
-    "socialPreview": [1200]
-  }
+  "derivatives": [
+    "favicon.ico",
+    "favicon.svg",
+    "key-visual-dark.svg",
+    "key-visual-light.svg",
+    "logo-horizontal-dark.svg",
+    "logo-horizontal-light.svg",
+    "logo-mark-dark.svg"
+  ]
 }

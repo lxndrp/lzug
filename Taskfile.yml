@@ -193,7 +193,7 @@ tasks:
       - docs
 
   brand:check:
-    desc: Verify canonical brand sources, derivatives, font, and icon contracts
+    desc: Verify canonical brand sources, consumer derivatives, fonts, and icons
     cmds:
       - node scripts/check_brand_assets.mjs
 
@@ -201,18 +201,6 @@ tasks:
     desc: Generate reproducible brand derivatives from canonical vector sources
     cmds:
       - node scripts/generate_brand_assets.mjs
-
-  brand:references:
-    desc: Generate final product, publication, state, reflow, and asset reference views
-    deps:
-      - brand:check
-      - docs:publication
-    cmds:
-      - LZUG_BRAND_REFERENCES=true node frontend/e2e/run-playwright.mjs brand-reference.spec.ts
-      - >-
-        LZUG_BRAND_REFERENCES=true LZUG_PUBLICATION_SUITE=reference
-        node frontend/e2e/run-playwright.mjs --config playwright.publication.config.ts
-      - node scripts/check_brand_references.mjs --write-report
 
   fixtures:check:
     desc: Verify synthetic fixture adapters match their canonical source
