@@ -78,6 +78,8 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("codeql_languages: ${{ steps.codeql.outputs.changes }}", self.pull_request)
         self.assertIn("- '.github/**'", self.pull_request)
         self.assertIn("- 'uv.lock'", self.pull_request)
+        self.assertIn("- 'frontend/.node-version'", self.pull_request)
+        self.assertIn("- 'docs/mkdocs.yml'", self.pull_request)
         self.assertIn("- 'frontend/package-lock.json'", self.pull_request)
         self.assertIn("- 'operator-cli/go.sum'", self.pull_request)
 
@@ -325,6 +327,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "'pyproject.toml'",
             "'uv.lock'",
             "'**/*.ts'",
+            "'frontend/.node-version'",
             "'frontend/package.json'",
             "'frontend/package-lock.json'",
             "'**/*.go'",

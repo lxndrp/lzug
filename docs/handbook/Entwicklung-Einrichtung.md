@@ -19,7 +19,7 @@ mise install
 task setup
 ```
 
-Damit werden Python 3.14.6 aus `.python-version`, Node.js 26.5.0 aus `.node-version`, uv und Task 3.52.0 bereitgestellt. `task setup` erzeugt `.venv`, synchronisiert Python aus `uv.lock`, installiert das Frontend reproduzierbar mit npm und lädt den von Playwright verwendeten Chromium-Browser. Das Projekt verwendet `frontend/package-lock.json`; pnpm wird nicht verwendet.
+Damit werden Python 3.14.6 aus `.python-version`, Node.js 26.5.0 aus `frontend/.node-version`, uv und Task 3.52.0 bereitgestellt. `task setup` erzeugt `.venv`, synchronisiert Python aus `uv.lock`, installiert das Frontend reproduzierbar mit npm und lädt den von Playwright verwendeten Chromium-Browser. Das Projekt verwendet `frontend/package-lock.json`; pnpm wird nicht verwendet.
 
 `task doctor` prüft ohne Qualitätslauf uv, dessen gemeinsamen Cache unter
 `~/.cache/uv`, `.venv` und Python sowie Node.js, npm und die tatsächlich von
@@ -61,4 +61,4 @@ Bedarf gezielt einen der beiden Browserteiltests in einer lokal freigegebenen
 Umgebung aus. Die CI bleibt die finale Abnahme und führt dieselben getrennten
 Browserprüfungen unverändert aus.
 
-`task test` startet Backend- und Frontend-Tests, `task dev` beide Entwicklungsserver. Neue Python-Abhängigkeiten werden mit `uv add` und anschließend `uv sync --extra dev` ergänzt. Die Versionsdateien `.python-version`, `.node-version`, `.mise.toml`, `Taskfile.yml` und `uv.lock` bleiben versioniert.
+`task test` startet Backend- und Frontend-Tests, `task dev` beide Entwicklungsserver. Neue Python-Abhängigkeiten werden mit `uv add` und anschließend `uv sync --extra dev` ergänzt. Die Versionsdateien `.python-version` und `frontend/.node-version` sowie `.mise.toml`, `Taskfile.yml` und `uv.lock` bleiben versioniert.

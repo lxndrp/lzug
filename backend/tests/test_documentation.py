@@ -30,7 +30,8 @@ class DocumentationContractTests(unittest.TestCase):
             (root / "docs/developers/decisions/0001-test.md").write_text(
                 "# ADR-0001: Test\n", encoding="utf-8"
             )
-            (root / "mkdocs.yml").write_text(
+            (root / "docs/mkdocs.yml").parent.mkdir(parents=True, exist_ok=True)
+            (root / "docs/mkdocs.yml").write_text(
                 "nav:\n"
                 "  - Start: index.md\n"
                 "  - History: history/release-evidence.md\n"
