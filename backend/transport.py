@@ -52,6 +52,7 @@ from .planning import (
 from .repositories import REST_RESOURCES, ResourceRepository
 from .runtime_policy import RuntimePolicy
 from .security import RequestRateLimiter
+from .settings import RuntimeSettings
 
 
 class RequestTooLargeError(ValueError):
@@ -176,6 +177,7 @@ class RequestContext:
     auth_rate_limiter: RequestRateLimiter
     observability_rate_limiter: RequestRateLimiter
     observability_global_rate_limiter: RequestRateLimiter
+    runtime_settings: RuntimeSettings | None = None
     _body: bytes = b""
     auth_context: AuthContext | None = None
     authorization_scope: AuthorizationScope = field(
@@ -208,18 +210,23 @@ class RequestContext:
 
     @property
     def local_auth_service(self) -> LocalAuthService:
-        return LocalAuthService(self.db_path, session_ttl=self.session_ttl)
+        return LocalAuthService(
+            self.db_path,
+            session_ttl=self.session_ttl,
+            settings=self.runtime_settings,
+        )
 
     @property
     def notification_service(self) -> NotificationService:
         return NotificationService(
             self.db_path,
             external_delivery_enabled=self.runtime_policy.external_notifications_enabled(),
+            settings=self.runtime_settings,
         )
 
     @property
     def calendar_service(self) -> CalendarService:
-        return CalendarService(self.db_path)
+        return CalendarService(self.db_path, settings=self.runtime_settings)
 
     @property
     def plan_consequence_service(self) -> PlanConsequenceService:

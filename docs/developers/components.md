@@ -70,6 +70,11 @@ Dateien, Kalender oder Zustellkanäle.
 Eine neue Speicher- oder Transporttechnik darf die Invarianten weder kopieren
 noch umgehen.
 
+Die kanonische Runtime-Konfigurationsassembly liegt in `backend/settings.py`.
+Die Betreiberreferenz beschreibt ausschließlich die von außen sichtbaren
+Variablennamen, Defaults und Betriebsfolgen und dupliziert keine
+Validierungslogik.
+
 Die [Python-Referenz](reference/backend.md) wird aus den öffentlichen
 Google-Style-Docstrings erzeugt.
 OpenAPI entsteht direkt aus der FastAPI-Assembly.

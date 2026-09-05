@@ -29,6 +29,7 @@ from sqlalchemy import or_, select, update
 from .auth import SESSION_TTL, AuthenticationRepository, SessionCredentials
 from .database import DEFAULT_DB_PATH, mutation_scope, session_scope
 from .models import AuthRecoveryCode, AuthToken, UserAccount
+from .settings import LocalAuthSettings, RuntimeSettings
 
 PASSWORD_TIME_COST = 3
 PASSWORD_MEMORY_COST = 65_536
@@ -127,7 +128,11 @@ def authentication_key_path(db_path: Path = DEFAULT_DB_PATH) -> Path:
     return Path(db_path).with_name(".lzug-auth.key")
 
 
-def authentication_key(db_path: Path = DEFAULT_DB_PATH) -> bytes:
+def authentication_key(
+    db_path: Path = DEFAULT_DB_PATH,
+    *,
+    settings: LocalAuthSettings | None = None,
+) -> bytes:
     """Load or atomically create the persistent local-authentication key.
 
     A configured key initializes a new instance once. Afterwards the persistent
@@ -141,8 +146,9 @@ def authentication_key(db_path: Path = DEFAULT_DB_PATH) -> bytes:
             if key_path.exists():
                 key = key_path.read_bytes()
             else:
-                configured = os.environ.get("LZUG_AUTH_ENCRYPTION_KEY")
-                key = configured.encode("ascii") if configured else Fernet.generate_key()
+                configured = settings or RuntimeSettings.from_environment().local_auth
+                configured_key = configured.encryption_key_value
+                key = configured_key.encode("ascii") if configured_key else Fernet.generate_key()
                 try:
                     descriptor = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
                 except FileExistsError:
@@ -241,11 +247,13 @@ class LocalAuthService:
         db_path: Path = DEFAULT_DB_PATH,
         *,
         session_ttl: timedelta = SESSION_TTL,
+        settings: RuntimeSettings | None = None,
     ):
         if session_ttl <= timedelta(0):
             raise ValueError("Session lifetime must be positive")
         self.db_path = Path(db_path)
         self.session_ttl = session_ttl
+        self.settings = settings
         self.authentication = AuthenticationRepository(self.db_path)
 
     def prepare_invitation(self, token: str, *, now: datetime | None = None) -> AuthPreparation:
@@ -515,7 +523,8 @@ class LocalAuthService:
         return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
     def _key(self) -> bytes:
-        return authentication_key(self.db_path)
+        local_auth = self.settings.local_auth if self.settings else None
+        return authentication_key(self.db_path, settings=local_auth)
 
     def _encrypt_secret(self, secret: str) -> str:
         return Fernet(self._key()).encrypt(secret.encode("ascii")).decode("ascii")

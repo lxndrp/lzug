@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from typing import Any
+
+from .settings import RuntimeSettings
 
 DEPLOYMENT_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 SAFE_API_SEGMENTS = frozenset(
@@ -70,7 +71,12 @@ SAFE_API_SEGMENTS = frozenset(
 
 def deployment_digest(environment: dict[str, str] | None = None) -> str:
     """Return only a validated immutable deployment digest or ``unknown``."""
-    value = (environment or os.environ).get("LZUG_DEPLOYMENT_DIGEST", "")
+    values = (
+        environment
+        if environment is not None
+        else RuntimeSettings.from_environment().environment_values()
+    )
+    value = values.get("LZUG_DEPLOYMENT_DIGEST", "")
     return value if DEPLOYMENT_DIGEST.fullmatch(value) else "unknown"
 
 

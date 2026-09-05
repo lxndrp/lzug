@@ -37,6 +37,7 @@ from .database import (
     snapshot_scope,
 )
 from .local_auth import authentication_key, authentication_key_path
+from .settings import RuntimeSettings
 from .version import application_version
 
 ARTIFACT_FORMAT_VERSION = 1
@@ -371,10 +372,19 @@ class ArtifactService:
         paths: PersistencePaths | None = None,
         *,
         environment: Mapping[str, str] | None = None,
+        settings: RuntimeSettings | None = None,
         fault_injector: Callable[[str], None] | None = None,
     ) -> None:
-        self.paths = paths or persistence_paths()
-        self.environment = environment if environment is not None else os.environ
+        self.settings = settings
+        self.paths = paths or persistence_paths(
+            settings=settings.persistence if settings else None,
+            environment=environment,
+        )
+        self.environment = (
+            environment
+            if environment is not None
+            else (settings or RuntimeSettings.from_environment()).environment_values()
+        )
         self.fault_injector = fault_injector
 
     @contextmanager

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 from collections.abc import Collection, Mapping
 from pathlib import Path
@@ -16,6 +15,7 @@ from .document_storage import (
     validate_document_filename,
 )
 from .models import DOCUMENT
+from .settings import DocumentSettings, RuntimeSettings
 from .store import Store
 
 
@@ -61,22 +61,12 @@ class _LimitedReader:
 
 def document_upload_policy(
     environment: Mapping[str, str] | None = None,
+    *,
+    settings: DocumentSettings | None = None,
 ) -> tuple[int, frozenset[str]]:
-    values = os.environ if environment is None else environment
-    raw_maximum = values.get("LZUG_MAX_UPLOAD_BYTES", str(DEFAULT_MAX_DOCUMENT_BYTES))
-    try:
-        maximum = int(raw_maximum)
-    except ValueError as error:
-        raise ValueError("LZUG_MAX_UPLOAD_BYTES must be an integer") from error
-    if not 1024 <= maximum <= 100 * 1024 * 1024:
-        raise ValueError("LZUG_MAX_UPLOAD_BYTES must be between 1024 and 104857600")
-
-    configured_types = values.get("LZUG_ALLOWED_UPLOAD_MEDIA_TYPES")
-    allowed_types = (
-        frozenset(value.strip().lower() for value in configured_types.split(",") if value.strip())
-        if configured_types is not None
-        else DEFAULT_ALLOWED_DOCUMENT_MEDIA_TYPES
-    )
+    configured = settings or RuntimeSettings.from_environment(environment).documents
+    maximum = configured.max_upload_bytes
+    allowed_types = configured.allowed_upload_media_types
     if not allowed_types or any(
         MEDIA_TYPE_PATTERN.fullmatch(value) is None for value in allowed_types
     ):
@@ -94,10 +84,11 @@ class DocumentService:
         storage: DocumentStorage,
         db_path: Path = DEFAULT_DB_PATH,
         *,
+        settings: DocumentSettings | None = None,
         max_size_bytes: int | None = None,
         allowed_media_types: Collection[str] | None = None,
     ):
-        configured_maximum, configured_types = document_upload_policy()
+        configured_maximum, configured_types = document_upload_policy(settings=settings)
         self.storage = storage
         self.db_path = db_path
         self.max_size_bytes = configured_maximum if max_size_bytes is None else max_size_bytes

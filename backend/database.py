@@ -7,7 +7,7 @@ import os
 import shutil
 import sqlite3
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -32,6 +32,7 @@ from .exam_venue_migration import (
     prepare_exam_venue_migration,
 )
 from .models import Base
+from .settings import PersistenceSettings, RuntimeSettings
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_DATA_DIR = Path("/data")
@@ -84,7 +85,12 @@ class PersistencePaths:
         return (self.data_dir, self.documents, self.backups)
 
 
-def database_path(value: str | Path | None = None) -> Path:
+def database_path(
+    value: str | Path | None = None,
+    *,
+    settings: PersistenceSettings | None = None,
+    environment: Mapping[str, str] | None = None,
+) -> Path:
     """Resolve a SQLite file path from a CLI value or environment setting.
 
     ``sqlite:///`` URLs are accepted so deployment environments can expose one
@@ -92,8 +98,9 @@ def database_path(value: str | Path | None = None) -> Path:
     through its repository and service boundaries.
     """
     if value is None:
-        database_url_value = os.environ.get("LZUG_DATABASE_URL")
-        database_path_value = os.environ.get("LZUG_DATABASE_PATH")
+        configured = settings or RuntimeSettings.from_environment(environment).persistence
+        database_url_value = configured.database_url
+        database_path_value = configured.database_path_value
         if database_url_value and database_path_value:
             raise ValueError("Set only one of LZUG_DATABASE_URL and LZUG_DATABASE_PATH")
         value = database_url_value or database_path_value
@@ -118,24 +125,27 @@ def database_url(db_path: Path = DEFAULT_DB_PATH) -> str:
 
 def persistence_paths(
     *,
+    settings: PersistenceSettings | None = None,
+    environment: Mapping[str, str] | None = None,
     data_dir: str | Path | None = None,
     database: str | Path | None = None,
     documents: str | Path | None = None,
     backups: str | Path | None = None,
 ) -> PersistencePaths:
     """Resolve runtime paths; defaults follow ADR-0014 below ``/data``."""
-    configured_data_dir = data_dir or os.environ.get("LZUG_DATA_DIR")
+    configured = settings or RuntimeSettings.from_environment(environment).persistence
+    configured_data_dir = data_dir if data_dir is not None else configured.data_dir
     root = Path(configured_data_dir).expanduser() if configured_data_dir else DEFAULT_DATA_DIR
     if database is None:
-        configured_database = os.environ.get("LZUG_DATABASE_PATH")
-        configured_url = os.environ.get("LZUG_DATABASE_URL")
+        configured_database = configured.database_path_value
+        configured_url = configured.database_url
         if configured_database and configured_url:
             raise ValueError("Set only one of LZUG_DATABASE_URL and LZUG_DATABASE_PATH")
         database_value = configured_url or configured_database or root / "lzug.sqlite"
     else:
         database_value = database
-    documents_value = documents if documents is not None else os.environ.get("LZUG_DOCUMENTS_PATH")
-    backups_value = backups if backups is not None else os.environ.get("LZUG_BACKUPS_PATH")
+    documents_value = documents if documents is not None else configured.documents_path
+    backups_value = backups if backups is not None else configured.backups_path
     return PersistencePaths(
         data_dir=root,
         database=database_path(database_value),

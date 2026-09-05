@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import base64
 import json
-import os
 import smtplib
 import urllib.error
 import urllib.request
@@ -37,6 +36,7 @@ from .models import (
     Person,
     PushSubscription,
 )
+from .settings import NotificationSettings, RuntimeSettings
 
 DELIVERY_STATUSES = frozenset(
     {
@@ -115,19 +115,27 @@ class NotificationService:
         db_path: Path = DEFAULT_DB_PATH,
         *,
         external_delivery_enabled: bool = True,
+        settings: RuntimeSettings | None = None,
     ):
         self.db_path = db_path
         self.external_delivery_enabled = external_delivery_enabled
+        self.settings = settings
+
+    def _runtime_settings(self) -> RuntimeSettings:
+        return self.settings or RuntimeSettings.from_environment()
+
+    def _notification_settings(self) -> NotificationSettings:
+        return self._runtime_settings().notifications
 
     def channels(self) -> NotificationChannels:
         if not self.external_delivery_enabled:
             return NotificationChannels(None, False, False)
+        settings = self._notification_settings()
         subject = self._vapid_subject()
         return NotificationChannels(
             push_public_key=self._push_public_key() if subject else None,
-            email_configured=bool(os.environ.get("LZUG_SMTP_HOST")),
-            sink_enabled=os.environ.get("LZUG_NOTIFICATION_SINK", "").lower()
-            in {"1", "true", "operator"},
+            email_configured=settings.smtp_host is not None,
+            sink_enabled=settings.sink_enabled,
         )
 
     def create_for_event(self, event_type: str, round_id: int) -> dict[str, int]:
@@ -956,25 +964,26 @@ class NotificationService:
     def _send_email(self, delivery: ClaimedDelivery) -> None:
         if delivery.recipient_email is None:
             raise OSError("Recipient is unavailable")
+        settings = self._notification_settings()
         message = EmailMessage()
         message["Subject"] = delivery.title
-        message["From"] = os.environ.get("LZUG_SMTP_FROM", "lzug@localhost")
+        message["From"] = settings.smtp_from
         message["To"] = delivery.recipient_email
-        base_url = os.environ.get("LZUG_EXTERNAL_URL", "").rstrip("/")
+        base_url = (self._runtime_settings().integrations.external_url or "").rstrip("/")
         message.set_content(f"{delivery.message}\n\n{base_url}{delivery.action_path}")
-        host = os.environ["LZUG_SMTP_HOST"]
-        port = int(os.environ.get("LZUG_SMTP_PORT", "25"))
-        with smtplib.SMTP(host, port, timeout=10) as client:
-            if os.environ.get("LZUG_SMTP_STARTTLS", "").lower() in {"1", "true"}:
+        if settings.smtp_host is None:
+            raise OSError("SMTP is not configured")
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as client:
+            if settings.smtp_starttls:
                 client.starttls()
-            username = os.environ.get("LZUG_SMTP_USERNAME")
-            password = os.environ.get("LZUG_SMTP_PASSWORD")
+            username = settings.smtp_username
+            password = settings.smtp_password_value
             if username and password:
                 client.login(username, password)
             client.send_message(message)
 
     def _vapid_private_key(self):
-        value = os.environ.get("LZUG_WEB_PUSH_VAPID_PRIVATE_KEY")
+        value = self._notification_settings().push_private_key
         if not value:
             return None
         try:
@@ -998,9 +1007,8 @@ class NotificationService:
             )
         )
 
-    @staticmethod
-    def _vapid_subject() -> str | None:
-        value = os.environ.get("LZUG_WEB_PUSH_SUBJECT", "").strip()
+    def _vapid_subject(self) -> str | None:
+        value = self._notification_settings().web_push_subject
         if not value:
             return None
         parsed = urlsplit(value)

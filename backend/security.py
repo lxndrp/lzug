@@ -2,76 +2,14 @@
 
 from __future__ import annotations
 
-import os
 import threading
 import time
 from collections import defaultdict, deque
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import timedelta
-from urllib.parse import urlparse
 
-
-def _bounded_integer(
-    environment: Mapping[str, str],
-    name: str,
-    default: int,
-    minimum: int,
-    maximum: int,
-) -> int:
-    raw_value = environment.get(name, str(default))
-    try:
-        value = int(raw_value)
-    except ValueError as error:
-        raise ValueError(f"{name} must be an integer") from error
-    if not minimum <= value <= maximum:
-        raise ValueError(f"{name} must be between {minimum} and {maximum}")
-    return value
-
-
-def _boolean(environment: Mapping[str, str], name: str, default: bool) -> bool:
-    raw_value = environment.get(name)
-    if raw_value is None:
-        return default
-    normalized = raw_value.strip().lower()
-    if normalized in {"1", "true", "yes", "on"}:
-        return True
-    if normalized in {"0", "false", "no", "off"}:
-        return False
-    raise ValueError(f"{name} must be true or false")
-
-
-def _origins(environment: Mapping[str, str]) -> frozenset[str]:
-    configured = environment.get("LZUG_CORS_ALLOWED_ORIGINS", "")
-    origins = frozenset(origin.strip() for origin in configured.split(",") if origin.strip())
-    for origin in origins:
-        try:
-            parsed = urlparse(origin)
-            parsed_port = parsed.port
-        except ValueError as error:
-            raise ValueError(
-                "LZUG_CORS_ALLOWED_ORIGINS must contain comma-separated exact HTTP origins"
-            ) from error
-        if (
-            origin == "*"
-            or any(ord(character) < 32 or ord(character) == 127 for character in origin)
-            or parsed.scheme not in {"http", "https"}
-            or not parsed.netloc
-            or parsed.hostname is None
-            or parsed_port is None
-            and ":" in parsed.netloc.rsplit("]", 1)[-1]
-            or parsed.username is not None
-            or parsed.password is not None
-            or parsed.path not in {"", "/"}
-            or parsed.params
-            or parsed.query
-            or parsed.fragment
-            or origin.endswith("/")
-        ):
-            raise ValueError(
-                "LZUG_CORS_ALLOWED_ORIGINS must contain comma-separated exact HTTP origins"
-            )
-    return origins
+from .settings import RuntimeSettings, SecuritySettings
 
 
 @dataclass(frozen=True)
@@ -89,42 +27,17 @@ class RuntimeSecurityConfig:
     def from_environment(
         cls, environment: Mapping[str, str] | None = None
     ) -> RuntimeSecurityConfig:
-        values = os.environ if environment is None else environment
+        return cls.from_settings(RuntimeSettings.from_environment(environment).security)
+
+    @classmethod
+    def from_settings(cls, settings: SecuritySettings) -> RuntimeSecurityConfig:
         return cls(
-            https_only=_boolean(values, "LZUG_HTTPS_ONLY", True),
-            cors_allowed_origins=_origins(values),
-            session_ttl=timedelta(
-                seconds=_bounded_integer(
-                    values,
-                    "LZUG_SESSION_TTL_SECONDS",
-                    8 * 60 * 60,
-                    5 * 60,
-                    24 * 60 * 60,
-                )
-            ),
-            max_request_bytes=_bounded_integer(
-                values,
-                "LZUG_MAX_REQUEST_BYTES",
-                1024 * 1024,
-                1024,
-                10 * 1024 * 1024,
-            ),
-            auth_rate_limit=_bounded_integer(
-                values,
-                "LZUG_AUTH_RATE_LIMIT",
-                20,
-                1,
-                1000,
-            ),
-            auth_rate_window=timedelta(
-                seconds=_bounded_integer(
-                    values,
-                    "LZUG_AUTH_RATE_WINDOW_SECONDS",
-                    60,
-                    1,
-                    60 * 60,
-                )
-            ),
+            https_only=settings.https_only,
+            cors_allowed_origins=settings.cors_allowed_origins,
+            session_ttl=timedelta(seconds=settings.session_ttl_seconds),
+            max_request_bytes=settings.max_request_bytes,
+            auth_rate_limit=settings.auth_rate_limit,
+            auth_rate_window=timedelta(seconds=settings.auth_rate_window_seconds),
         )
 
 

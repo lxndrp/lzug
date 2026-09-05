@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 from threading import Lock
 
 import uvicorn
@@ -12,10 +13,9 @@ from fastapi.responses import JSONResponse
 from .auth import AuthenticationRepository
 from .database import initialize
 from .fastapi_app import FastAPIConfig, create_app
-from .map_provider import MapProviderConfig
 from .runtime_policy import ProductRuntimePolicy
-from .security import RuntimeSecurityConfig
 from .server import parse_args
+from .settings import RuntimeSettings
 
 
 def _development_seed_sql() -> str:
@@ -61,23 +61,16 @@ def create_e2e_app(config: FastAPIConfig) -> FastAPI:
 
 
 def main() -> None:
-    args = parse_args()
-    security = RuntimeSecurityConfig.from_environment()
+    settings = RuntimeSettings.from_environment()
+    args = parse_args(settings)
     initialize(args.db, seed_sql=_development_seed_sql(), reset=True)
-    config = FastAPIConfig(
-        db_path=args.db,
+    config = replace(
+        FastAPIConfig.from_settings(settings, db_path=args.db, static_dir=args.static_dir),
         session_cookie_name="lzug_e2e_session",
         csrf_cookie_name="lzug_csrf",
         cookie_secure=False,
         https_only=False,
-        cors_allowed_origins=security.cors_allowed_origins,
-        max_request_bytes=security.max_request_bytes,
-        session_ttl=security.session_ttl,
-        static_dir=args.static_dir,
         runtime_policy=ProductRuntimePolicy(),
-        auth_rate_limit=security.auth_rate_limit,
-        auth_rate_window=security.auth_rate_window,
-        map_provider=MapProviderConfig.from_environment(),
     )
     print(f"lzug E2E backend listening on http://{args.host}:{args.port}")
     print(f"database: {args.db}")
