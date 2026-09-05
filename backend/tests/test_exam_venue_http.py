@@ -5,8 +5,8 @@ from http import HTTPStatus
 
 from backend.auth import AuthenticationRepository
 from backend.contract import validate_response
-from backend.tests.helpers import ApiServer, TempDatabase
 from backend.tests.fixture_data import FIXTURE_IDS, FIXTURE_ROOT
+from backend.tests.helpers import ApiServer, TempDatabase
 
 
 class ExamVenueHttpTests(unittest.TestCase):
