@@ -134,8 +134,10 @@ Synthetische E-Mail-Adressen verwenden ausschließlich
 `@demo.lzug.invalid`; Telefonnummern sind nicht belegt.
 Jede reale Ortsreferenz enthält eine kanonische HTTPS-Quelle und das feste
 Abrufdatum `2026-09-01`.
-`fixtures/generate.py` erzeugt daraus SQL-, Angular- und
-den Python-Adapter für Demo-Rollen und semantische IDs.
+`fixtures/generate.py` ist der einzige Fixture-Compiler.
+Er erzeugt den Entwicklungsseed und den vollständigen Public-Demo-Seed als
+disposable SQL-Buildartefakte sowie den Angular-Testadapter.
+Die Profile `development` und `public-demo` stehen deklarativ im Katalog.
 Generierte Dateien werden nicht direkt bearbeitet.
 
 ```sh
@@ -143,10 +145,12 @@ python3 fixtures/generate.py
 task fixtures:check
 ```
 
-Der Demo-Artefaktbau ergänzt fachlich gezielte synthetische Zustände für
-Protokoll, Bewertung, Abschluss, Wiederöffnung und Reset.
-Die isolierten Szenarien aus #487 werden dagegen beim Start eines
-Besucher-Arbeitsstands relativ zur aktuellen Instanzzeit erzeugt.
+Der Demo-Artefaktbau kompiliert den Public-Demo-Seed aus Katalog und Profil
+und schreibt nur die daraus erzeugte Datenbank in das Seed-Image.
+Die vollständigen Zustände einschließlich der beiden #487-Szenarien liegen
+deklarativ im Katalog.
+Ein Besucher-Arbeitsstand wird zur Laufzeit ausschließlich aus diesem Seed
+kopiert und beim Reset erneut daraus hergestellt.
 `tests.demo.test_demo_runtime` prüft beide Reihenfolgen, Rollen- und
 Allowlist-Grenzen, Benachrichtigungs- und Kalenderfolgen, Isolation, Ablauf und
 Reset.

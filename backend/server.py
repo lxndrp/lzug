@@ -35,7 +35,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--backups")
     parser.add_argument("--database-url")
     parser.add_argument("--init", action="store_true")
-    parser.add_argument("--seed", action="store_true")
     parser.add_argument("--reset", action="store_true")
     args = parser.parse_args()
     if args.db_value and args.database_url:
@@ -61,7 +60,9 @@ def prepare_database(args: argparse.Namespace) -> None:
         validate_persistence(args.paths)
         if args.init:
             initialize(
-                args.db, with_seed=args.seed, reset=args.reset, backup_dir=args.paths.backups
+                args.db,
+                reset=args.reset,
+                backup_dir=args.paths.backups,
             )
     except MigrationError as error:
         raise SystemExit(f"Database migration failed: {error}") from error

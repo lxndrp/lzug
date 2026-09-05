@@ -76,7 +76,6 @@ COPY --chown=10001:10001 \
     backend/api_contracts.py backend/fastapi_app.py backend/notifications.py backend/observability.py backend/plan_consequences.py backend/planning.py backend/repositories.py backend/runtime_policy.py backend/security.py backend/server.py backend/store.py backend/transport.py backend/venue_consequences.py backend/version.py \
     ./backend/
 COPY --chown=10001:10001 db/schema.sql ./db/schema.sql
-COPY --chown=10001:10001 db/seed_demo.sql ./db/seed_demo.sql
 COPY --chown=10001:10001 db/migrations ./db/migrations
 COPY --from=frontend-build --chown=10001:10001 /src/frontend/dist/frontend/browser ./frontend
 

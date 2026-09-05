@@ -24,7 +24,8 @@ from backend.document_storage import FilesystemDocumentStorage
 from backend.documents import DocumentService
 from backend.exam_venues import ExamVenueService
 from backend.local_auth import PASSWORD_HASHER, LocalAuthService, authentication_key
-from demo.synthetic_fixtures_generated import DEMO_ROLES
+from backend.tests.fixture_data import DEMO_ROLES
+from backend.tests.helpers import development_seed_sql
 
 PASSWORD = "correct horse battery staple"
 TOTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
@@ -69,7 +70,12 @@ class BackupRestoreTests(unittest.TestCase):
         )
         paths.documents.mkdir(parents=True)
         paths.backups.mkdir(parents=True)
-        initialize(paths.database, with_seed=seed, reset=True, backup_dir=paths.backups)
+        initialize(
+            paths.database,
+            seed_sql=development_seed_sql() if seed else None,
+            reset=True,
+            backup_dir=paths.backups,
+        )
         return paths, ClearArtifactService(
             paths,
             environment=environment or {},

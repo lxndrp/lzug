@@ -17,6 +17,7 @@ class DemoDeliveryContractTests(unittest.TestCase):
 
         self.assertNotIn("demo/app.py", product)
         self.assertNotIn("frontend/demo-overlays", product)
+        self.assertNotIn("db/seed_", product)
         self.assertIn("demo/app.py", demo_app)
         self.assertEqual(2, demo_app.count("demo/contract.py"))
         self.assertIn("demo/contract.py", demo_seed)

@@ -16,7 +16,13 @@ Die Anwendung benötigt ein ausführbares, lokal testbares Datenmodell.
 ## Entscheidung
 
 SQLite ist die lokale Entwicklungsdatenbank.
-`db/schema.sql` und `db/seed_demo.sql` bleiben die ausführbaren Quellen; versionierte Änderungen liegen unter `db/migrations/` und werden in `schema_migration` festgehalten.
+`db/schema.sql` und die versionierten Migrationen sind die einzige getrackte
+SQL-Quelle.
+`fixtures/synthetic-fixtures.json` und `fixtures/generate.py` kompilieren bei
+Bedarf disposable Entwicklungs- und Public-Demo-Seeds in ein Build- oder
+Testverzeichnis.
+Versionierte Änderungen liegen unter `db/migrations/` und werden in
+`schema_migration` festgehalten.
 
 Primärschlüssel sind zunächst `INTEGER PRIMARY KEY`, Enums `TEXT` mit `CHECK`, Zeitstempel `TEXT` und Booleans `INTEGER` mit Check-Constraint.
 Mehrzeilige Fachregeln validiert die Anwendung.

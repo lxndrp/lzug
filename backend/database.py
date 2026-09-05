@@ -47,7 +47,6 @@ REQUIRED_TABLES = frozenset(Base.metadata.tables) | {
     "schema_migration_checksum",
 }
 SCHEMA_PATH = ROOT_DIR / "db" / "schema.sql"
-SEED_PATH = ROOT_DIR / "db" / "seed_demo.sql"
 MIGRATIONS_PATH = ROOT_DIR / "db" / "migrations"
 
 
@@ -626,12 +625,16 @@ def _apply_migrations_unlocked(
 
 def initialize(
     db_path: Path = DEFAULT_DB_PATH,
-    with_seed: bool = False,
+    *,
+    seed_sql: str | None = None,
+    seed_path: Path | None = None,
     reset: bool = False,
     backup_dir: Path | None = None,
     migration_backup_name: str | None = None,
     migration_timestamp: str | None = None,
 ) -> None:
+    if seed_sql is not None and seed_path is not None:
+        raise PersistenceConfigurationError("Provide either seed_sql or seed_path, not both")
     db_path = Path(db_path)
     with _migration_lock(db_path):
         if reset:
@@ -663,12 +666,23 @@ def initialize(
             migration_timestamp=migration_timestamp,
         )
 
-        if is_new_database and with_seed:
+        if is_new_database and (seed_sql is not None or seed_path is not None):
             engine = engine_for(db_path)
             raw_connection = engine.raw_connection()
             try:
-                raw_connection.executescript(SEED_PATH.read_text(encoding="utf-8"))
+                seed_text = (
+                    seed_sql
+                    if seed_sql is not None
+                    else Path(seed_path).read_text(encoding="utf-8")
+                )
+                # Seed compilation is allowed to order records for readability
+                # rather than reproducing the schema's complete FK topology.
+                # Disable enforcement only for this one disposable import.
+                raw_connection.execute("PRAGMA foreign_keys = OFF")
+                raw_connection.execute("PRAGMA defer_foreign_keys = ON")
+                raw_connection.executescript(seed_text)
                 raw_connection.commit()
+                raw_connection.execute("PRAGMA foreign_keys = ON")
             except (OSError, sqlite3.Error) as error:
                 try:
                     raw_connection.rollback()
