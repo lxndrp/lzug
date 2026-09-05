@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import secrets
 from datetime import UTC, date, datetime, time
 from pathlib import Path
@@ -26,6 +25,7 @@ from .models import (
     ExamSlot,
     ExamVenue,
 )
+from .settings import RuntimeSettings
 
 DEFAULT_TIME_ZONE = "Europe/Berlin"
 
@@ -68,18 +68,20 @@ class CalendarService:
         *,
         time_zone: str | None = None,
         external_url: str | None = None,
+        settings: RuntimeSettings | None = None,
     ):
         self.db_path = Path(db_path)
+        configured = settings or RuntimeSettings.from_environment()
         configured_zone = (
-            time_zone
-            or os.environ.get("LZUG_CALENDAR_TIMEZONE")
-            or os.environ.get("LZUG_TIMEZONE", DEFAULT_TIME_ZONE)
+            time_zone or configured.calendar.time_zone or configured.calendar.fallback_time_zone
         )
         try:
             self.time_zone = ZoneInfo(configured_zone)
         except ZoneInfoNotFoundError as error:
             raise ValueError(f"Unknown calendar time zone: {configured_zone}") from error
-        self.external_url = (external_url or os.environ.get("LZUG_EXTERNAL_URL", "")).rstrip("/")
+        self.external_url = (
+            external_url if external_url is not None else configured.integrations.external_url or ""
+        ).rstrip("/")
 
     def status(self, scope: AuthorizationScope) -> dict[str, Any]:
         """Return only non-secret state for the authenticated person's feed."""

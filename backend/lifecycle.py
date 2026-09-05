@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -16,6 +15,7 @@ from .database import (
     migration_status,
     persistence_paths,
 )
+from .settings import RuntimeSettings
 from .version import build_metadata
 
 MAINTENANCE_ENV = "LZUG_LIFECYCLE_MAINTENANCE"
@@ -60,12 +60,21 @@ class LifecycleService:
         paths: PersistencePaths | None = None,
         *,
         environment: Mapping[str, str] | None = None,
+        settings: RuntimeSettings | None = None,
         metadata: BuildMetadata | None = None,
         migration_runner: Callable[[Path, Path | None], None] = apply_migrations,
         maintenance_probe: Callable[[], bool] = _dedicated_maintenance_process,
     ) -> None:
-        self.paths = paths or persistence_paths()
-        self.environment = environment if environment is not None else os.environ
+        self.settings = settings
+        self.paths = paths or persistence_paths(
+            settings=settings.persistence if settings else None,
+            environment=environment,
+        )
+        self.environment = (
+            environment
+            if environment is not None
+            else (settings or RuntimeSettings.from_environment()).environment_values()
+        )
         self.metadata = metadata or build_metadata()
         self.migration_runner = migration_runner
         self.maintenance_probe = maintenance_probe

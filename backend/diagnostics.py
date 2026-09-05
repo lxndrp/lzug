@@ -22,6 +22,7 @@ from .healthcheck import public_health_ready
 from .map_provider import MapProviderConfig
 from .notifications import NotificationError, NotificationService
 from .security import RuntimeSecurityConfig
+from .settings import RuntimeSettings
 from .version import build_metadata
 
 EXIT_DIAGNOSTIC_WARNING = 30
@@ -102,9 +103,11 @@ def _runtime_check(client: Mapping[str, str]) -> dict[str, Any]:
     )
 
 
-def _persistence_configuration() -> tuple[dict[str, Any], PersistencePaths | None]:
+def _persistence_configuration(
+    environment: Mapping[str, str] | None = None,
+) -> tuple[dict[str, Any], PersistencePaths | None]:
     try:
-        paths = persistence_paths()
+        paths = persistence_paths(environment=environment)
     except ValueError as error:
         return (
             _check(
@@ -285,8 +288,11 @@ def _map_provider_configuration(environment: Mapping[str, str]) -> dict[str, Any
 
 
 def _configuration_checks() -> tuple[list[dict[str, Any]], PersistencePaths | None]:
-    persistence, paths = _persistence_configuration()
-    environment = os.environ
+    try:
+        environment = RuntimeSettings.from_environment().environment_values()
+    except ValueError:
+        environment = RuntimeSettings.environment_snapshot()
+    persistence, paths = _persistence_configuration(environment)
     return (
         [
             persistence,
@@ -444,9 +450,10 @@ def _free_space_check(paths: PersistencePaths | None) -> dict[str, Any]:
     )
 
 
-def _health_check() -> dict[str, Any]:
+def _health_check(environment: Mapping[str, str] | None = None) -> dict[str, Any]:
     try:
-        health_url = _loopback_health_url(os.environ)
+        values = environment if environment is not None else RuntimeSettings.environment_snapshot()
+        health_url = _loopback_health_url(values)
     except ValueError as error:
         return _check(
             "health",

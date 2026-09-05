@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import os
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 
@@ -18,17 +18,17 @@ from .database import (
     validate_persistence,
 )
 from .fastapi_app import FastAPIConfig, create_app
-from .map_provider import MapProviderConfig
 from .observability import emit_event
 from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
-from .security import RuntimeSecurityConfig
+from .settings import RuntimeSettings
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(settings: RuntimeSettings | None = None) -> argparse.Namespace:
+    settings = settings or RuntimeSettings.from_environment()
     parser = argparse.ArgumentParser(description="Run the lzug FastAPI backend.")
-    parser.add_argument("--host", default=os.environ.get("LZUG_HOST", "127.0.0.1"))
-    parser.add_argument("--port", type=int, default=int(os.environ.get("LZUG_PORT", "8000")))
-    parser.add_argument("--static-dir", default=os.environ.get("LZUG_STATIC_DIR"))
+    parser.add_argument("--host", default=settings.server.host)
+    parser.add_argument("--port", type=int, default=settings.server.port)
+    parser.add_argument("--static-dir", default=settings.server.static_dir)
     parser.add_argument("--db", dest="db_value")
     parser.add_argument("--data-dir")
     parser.add_argument("--documents")
@@ -41,6 +41,7 @@ def parse_args() -> argparse.Namespace:
         parser.error("Use only one of --db and --database-url")
     try:
         args.paths = persistence_paths(
+            settings=settings.persistence,
             data_dir=args.data_dir,
             database=args.database_url or args.db_value,
             documents=args.documents,
@@ -84,23 +85,16 @@ def main(
     *,
     runtime_policy: RuntimePolicy | None = None,
     session_ttl: timedelta | None = None,
+    settings: RuntimeSettings | None = None,
 ) -> None:
-    args = parse_args()
+    settings = settings or RuntimeSettings.from_environment()
+    args = parse_args(settings)
     prepare_database(args)
-    security = RuntimeSecurityConfig.from_environment()
-    config = FastAPIConfig(
-        db_path=args.db,
-        session_cookie_name="__Host-lzug_session" if security.https_only else "lzug_session",
-        cookie_secure=security.https_only,
-        https_only=security.https_only,
-        cors_allowed_origins=security.cors_allowed_origins,
-        max_request_bytes=security.max_request_bytes,
-        session_ttl=session_ttl or security.session_ttl,
-        static_dir=args.static_dir,
+    config = FastAPIConfig.from_settings(settings, db_path=args.db, static_dir=args.static_dir)
+    config = replace(
+        config,
+        session_ttl=session_ttl or config.session_ttl,
         runtime_policy=runtime_policy or ProductRuntimePolicy(),
-        auth_rate_limit=security.auth_rate_limit,
-        auth_rate_window=security.auth_rate_window,
-        map_provider=MapProviderConfig.from_environment(),
     )
     emit_event("runtime", severity="info", signal="started")
     uvicorn.run(

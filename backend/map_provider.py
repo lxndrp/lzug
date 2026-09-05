@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
+
+from .settings import IntegrationSettings, RuntimeSettings
 
 LOGGER = logging.getLogger(__name__)
 MAP_PROVIDER_MODES = frozenset({"off", "osm", "google"})
@@ -43,11 +44,18 @@ class MapProviderConfig:
 
     @classmethod
     def from_environment(cls, environment: dict[str, str] | None = None) -> MapProviderConfig:
-        values = os.environ if environment is None else environment
-        mode = values.get("LZUG_MAP_PROVIDER", "off").strip().lower()
-        nominatim_url = values.get("LZUG_NOMINATIM_URL", DEFAULT_NOMINATIM_URL).strip()
-        user_agent = values.get("LZUG_NOMINATIM_USER_AGENT", "").strip() or None
-        google_key = values.get("LZUG_GOOGLE_MAPS_API_KEY", "").strip() or None
+        try:
+            settings = RuntimeSettings.from_environment(environment).integrations
+        except ValueError as error:
+            raise MapProviderConfigurationError(str(error)) from error
+        return cls.from_settings(settings)
+
+    @classmethod
+    def from_settings(cls, settings: IntegrationSettings) -> MapProviderConfig:
+        mode = settings.map_provider
+        nominatim_url = settings.nominatim_url
+        user_agent = settings.nominatim_user_agent
+        google_key = settings.google_key
         if mode not in MAP_PROVIDER_MODES:
             raise MapProviderConfigurationError("LZUG_MAP_PROVIDER must be off, osm, or google")
         if mode == "off":

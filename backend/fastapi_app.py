@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 from functools import lru_cache
@@ -59,7 +59,7 @@ from .application import (
     ReadApplication,
     database_error_result,
 )
-from .database import database_path
+from .database import persistence_paths
 from .exam_day_closures import ExamDayConflictError, ExamDayValidationError
 from .exam_protocols import ExamProtocolConflictError
 from .exam_results import ExamResultConflictError
@@ -89,6 +89,7 @@ from .planning import ConfirmedPlanConflictError, PlanConflictError, PlanValidat
 from .repositories import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES
 from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from .security import RequestRateLimiter, RuntimeSecurityConfig
+from .settings import RuntimeSettings
 from .transport import (
     RequestContext,
     RequestTooLargeError,
@@ -171,24 +172,36 @@ class FastAPIConfig:
     auth_rate_window: timedelta = timedelta(minutes=1)
     auth_rate_limiter: RequestRateLimiter | None = None
     map_provider: MapProviderConfig = MapProviderConfig()
+    runtime_settings: RuntimeSettings | None = None
 
     @classmethod
-    def from_environment(cls) -> FastAPIConfig:
-        security = RuntimeSecurityConfig.from_environment()
+    def from_environment(cls, environment: Mapping[str, str] | None = None) -> FastAPIConfig:
+        return cls.from_settings(RuntimeSettings.from_environment(environment))
+
+    @classmethod
+    def from_settings(
+        cls,
+        settings: RuntimeSettings,
+        *,
+        db_path: Path | None = None,
+        static_dir: Path | None = None,
+    ) -> FastAPIConfig:
+        security = RuntimeSecurityConfig.from_settings(settings.security)
+        paths = persistence_paths(settings=settings.persistence)
+        configured_static_dir = static_dir if static_dir is not None else settings.server.static_dir
         return cls(
-            db_path=database_path(),
+            db_path=db_path or paths.database,
             session_cookie_name="__Host-lzug_session" if security.https_only else "lzug_session",
             cookie_secure=security.https_only,
             https_only=security.https_only,
             cors_allowed_origins=security.cors_allowed_origins,
             max_request_bytes=security.max_request_bytes,
             session_ttl=security.session_ttl,
-            static_dir=(
-                Path(os.environ["LZUG_STATIC_DIR"]) if os.environ.get("LZUG_STATIC_DIR") else None
-            ),
+            static_dir=configured_static_dir,
             auth_rate_limit=security.auth_rate_limit,
             auth_rate_window=security.auth_rate_window,
-            map_provider=MapProviderConfig.from_environment(),
+            map_provider=MapProviderConfig.from_settings(settings.integrations),
+            runtime_settings=settings,
         )
 
 
@@ -223,6 +236,7 @@ def _context(request: Request, config: FastAPIConfig, body: bytes = b"") -> Requ
         session_ttl=config.session_ttl,
         max_request_bytes=config.max_request_bytes,
         runtime_policy=config.runtime_policy,
+        runtime_settings=config.runtime_settings,
         auth_rate_limiter=request.app.state.auth_rate_limiter,
         observability_rate_limiter=request.app.state.observability_rate_limiter,
         observability_global_rate_limiter=request.app.state.observability_global_rate_limiter,

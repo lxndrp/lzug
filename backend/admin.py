@@ -24,6 +24,7 @@ from .diagnostics import run_diagnostics
 from .lifecycle import LifecycleError, LifecycleService
 from .notifications import NotificationService
 from .plan_consequences import PlanConsequenceService
+from .settings import RuntimeSettings
 
 PROTOCOL_VERSION = 1
 MAX_REQUEST_BYTES = 64 * 1024
@@ -410,22 +411,29 @@ def _prepare_dependencies(
     consequences: PlanConsequenceService | None,
     artifacts: ArtifactService | None,
     lifecycle: LifecycleService | None,
+    settings: RuntimeSettings,
 ) -> _CommandDependencies:
     active_artifacts = artifacts
     if command in _ARTIFACT_COMMANDS and active_artifacts is None:
-        active_artifacts = ArtifactService(persistence_paths())
+        active_artifacts = ArtifactService(
+            persistence_paths(settings=settings.persistence), settings=settings
+        )
     active_lifecycle = lifecycle
     if command in _LIFECYCLE_COMMANDS and active_lifecycle is None:
-        active_lifecycle = LifecycleService(persistence_paths())
+        active_lifecycle = LifecycleService(
+            persistence_paths(settings=settings.persistence), settings=settings
+        )
     active_service = service
     if active_service is None and command not in (_ARTIFACT_COMMANDS | _LIFECYCLE_COMMANDS):
-        readiness = database_readiness(database_path())
+        configured_database = database_path(settings=settings.persistence)
+        readiness = database_readiness(configured_database)
         if not readiness["ready"]:
             raise AdminOperationError("database_not_ready", "Database is not ready")
-        active_service = OperatorAuthService(database_path())
+        active_service = OperatorAuthService(configured_database)
+    active_notifications = notifications or NotificationService(settings=settings)
     return _CommandDependencies(
         active_service,
-        notifications,
+        active_notifications,
         committee_service,
         consequences,
         active_artifacts,
@@ -442,6 +450,7 @@ def _run_command(
     consequences: PlanConsequenceService | None,
     artifacts: ArtifactService | None,
     lifecycle: LifecycleService | None,
+    settings: RuntimeSettings | None = None,
 ) -> tuple[dict[str, Any], int]:
     if command in _DIAGNOSTIC_COMMANDS:
         client = _diagnostic_client(command, arguments)
@@ -454,6 +463,7 @@ def _run_command(
         consequences,
         artifacts,
         lifecycle,
+        settings or RuntimeSettings.from_environment(),
     )
     return (
         _execute(
@@ -489,6 +499,7 @@ def run(
     consequences: PlanConsequenceService | None = None,
     artifacts: ArtifactService | None = None,
     lifecycle: LifecycleService | None = None,
+    settings: RuntimeSettings | None = None,
 ) -> int:
     """Process exactly one protocol request and return its stable exit code."""
     try:
@@ -506,6 +517,11 @@ def run(
             consequences,
             artifacts,
             lifecycle,
+            (
+                settings
+                if command in _DIAGNOSTIC_COMMANDS
+                else settings or RuntimeSettings.from_environment()
+            ),
         )
         _write(_response(ok=True, result=result))
         return exit_code
@@ -531,7 +547,7 @@ def main() -> int:
     if sys.argv[1:] != ["--protocol", str(PROTOCOL_VERSION)]:
         return _error("invalid_request", "Unsupported admin protocol")
     payload = sys.stdin.buffer.read(MAX_REQUEST_BYTES + 1)
-    return run(payload)
+    return run(payload, settings=RuntimeSettings.from_environment())
 
 
 if __name__ == "__main__":

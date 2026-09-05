@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -16,6 +15,7 @@ from backend.application import ForbiddenRequestError
 from backend.auth import AuthContext, AuthenticationError
 from backend.database import session_scope
 from backend.models import AbsenceReport, ConfirmedPlanRevision, ExamDay, ReplacementResponse
+from backend.settings import RuntimeSettings
 from backend.transport import RequestContext
 
 from .artifacts import load_runtime_manifests, load_runtime_status
@@ -170,6 +170,7 @@ class DemoRuntimePolicy:
         *,
         workspace_dir: Path | None = None,
         capacity: int | None = None,
+        settings: RuntimeSettings | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ):
         self.app_manifest, self.seed_manifest = load_runtime_manifests(
@@ -181,14 +182,12 @@ class DemoRuntimePolicy:
         self.demo_matrix_version = self.seed_manifest["fixture_catalog"]["demo_matrix_version"]
         self.runtime_status = load_runtime_status(seed_manifest_path.parent, self.seed_manifest)
         self.clock = clock
+        configured = settings or RuntimeSettings.from_environment()
         configured_capacity = (
-            capacity
-            if capacity is not None
-            else int(os.environ.get("LZUG_DEMO_WORKSPACE_CAPACITY", "32"))
+            capacity if capacity is not None else configured.demo.workspace_capacity
         )
         self.workspaces = DemoWorkspaceManager(
-            workspace_dir
-            or Path(os.environ.get("LZUG_DEMO_WORKSPACE_DIR", "/tmp/lzug-demo-workspaces")),
+            workspace_dir or configured.demo.workspace_dir,
             ttl=timedelta(minutes=60),
             capacity=configured_capacity,
             clock=clock,
