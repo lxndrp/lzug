@@ -29,7 +29,7 @@ from backend.models import (
 )
 from backend.planning import PlanningService
 
-from .synthetic_fixtures_generated import DEMO_MATRIX_VERSION, DISPLAY_NAMES, FIXTURE_IDS
+from .runtime_contract import DEMO_MATRIX_VERSION, DISPLAY_NAMES, FIXTURE_IDS
 
 TIME_ZONE = ZoneInfo("Europe/Berlin")
 ROUND_ID = 1

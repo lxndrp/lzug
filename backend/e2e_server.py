@@ -24,7 +24,7 @@ def create_e2e_app(config: FastAPIConfig) -> FastAPI:
     @app.post("/__e2e/reset", include_in_schema=False)
     def reset():
         with reset_lock:
-            initialize(config.db_path, with_seed=True, reset=True)
+            initialize(config.db_path, seed_profile="development", reset=True)
             credentials = AuthenticationRepository(config.db_path).create_session(1)
         response = JSONResponse({"status": "reset"})
         response.set_cookie(
@@ -51,7 +51,7 @@ def create_e2e_app(config: FastAPIConfig) -> FastAPI:
 def main() -> None:
     args = parse_args()
     security = RuntimeSecurityConfig.from_environment()
-    initialize(args.db, with_seed=True, reset=True)
+    initialize(args.db, seed_profile="development", reset=True)
     config = FastAPIConfig(
         db_path=args.db,
         session_cookie_name="lzug_e2e_session",

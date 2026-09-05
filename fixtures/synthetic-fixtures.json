@@ -730,6 +730,38 @@
       "name.papaspyrou.repertoire.lzug.fixture.person.examiner.reserve"
     ]
   },
+  "profiles": {
+    "development": {
+      "name": "development",
+      "description": "Vollständiger synthetischer Entwicklungsseed ohne öffentliche Besucherszenarien.",
+      "reference_time": "2026-01-01T00:00:00+00:00",
+      "scenarios": [
+        "authorization.positive.athen",
+        "authorization.negative.foreign-committee",
+        "authorization.negative.wrong-side",
+        "membership.crosscommittee",
+        "staffing.fallback",
+        "staffing.suitable",
+        "staffing.unsuitable"
+      ]
+    },
+    "public-demo": {
+      "name": "public-demo",
+      "description": "Kuratiertes Besucherszenario mit relativem Referenzzeitpunkt und isolierten Demo-Fällen.",
+      "reference_time": "2026-01-01T00:00:00+00:00",
+      "scenarios": [
+        "demo.487.absence",
+        "demo.487.planchange",
+        "authorization.positive.athen",
+        "authorization.negative.foreign-committee",
+        "authorization.negative.wrong-side",
+        "membership.crosscommittee",
+        "staffing.fallback",
+        "staffing.suitable",
+        "staffing.unsuitable"
+      ]
+    }
+  },
   "legacy_mapping": [
     {"legacy": "Prüfungsausschuss Teststadt 1", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.committee.athen", "technical_id": 1},
     {"legacy": "Prüfungsausschuss Teststadt 2", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.committee.feenwald", "technical_id": 2},

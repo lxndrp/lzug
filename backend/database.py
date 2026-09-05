@@ -47,7 +47,13 @@ REQUIRED_TABLES = frozenset(Base.metadata.tables) | {
     "schema_migration_checksum",
 }
 SCHEMA_PATH = ROOT_DIR / "db" / "schema.sql"
-SEED_PATH = ROOT_DIR / "db" / "seed_demo.sql"
+SEED_PATHS = {
+    "development": ROOT_DIR / "db" / "seed_development.sql",
+    "public-demo": ROOT_DIR / "db" / "seed_public_demo.sql",
+}
+# Kept as a narrow compatibility alias for callers that only need the default
+# development seed path. New initialization code must select a profile.
+SEED_PATH = SEED_PATHS["development"]
 MIGRATIONS_PATH = ROOT_DIR / "db" / "migrations"
 
 
@@ -627,11 +633,17 @@ def _apply_migrations_unlocked(
 def initialize(
     db_path: Path = DEFAULT_DB_PATH,
     with_seed: bool = False,
+    *,
+    seed_profile: str | None = None,
     reset: bool = False,
     backup_dir: Path | None = None,
     migration_backup_name: str | None = None,
     migration_timestamp: str | None = None,
 ) -> None:
+    if seed_profile is not None and seed_profile not in SEED_PATHS:
+        raise PersistenceConfigurationError(f"Unknown synthetic seed profile: {seed_profile}")
+    if with_seed and seed_profile is None:
+        seed_profile = "development"
     db_path = Path(db_path)
     with _migration_lock(db_path):
         if reset:
@@ -663,11 +675,12 @@ def initialize(
             migration_timestamp=migration_timestamp,
         )
 
-        if is_new_database and with_seed:
+        if is_new_database and seed_profile is not None:
             engine = engine_for(db_path)
             raw_connection = engine.raw_connection()
             try:
-                raw_connection.executescript(SEED_PATH.read_text(encoding="utf-8"))
+                seed_path = SEED_PATHS[seed_profile]
+                raw_connection.executescript(seed_path.read_text(encoding="utf-8"))
                 raw_connection.commit()
             except (OSError, sqlite3.Error) as error:
                 try:

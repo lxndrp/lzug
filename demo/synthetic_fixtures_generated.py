@@ -9,6 +9,39 @@ FIXTURE_CATALOG_REVISION = "athens-theater-venues-v3"
 FIXTURE_ROOT = "name.papaspyrou.repertoire.lzug.fixture"
 DEMO_MATRIX_VERSION = "demo-paths-v8"
 
+FIXTURE_PROFILES = json.loads(r"""{
+  "development": {
+    "description": "Vollständiger synthetischer Entwicklungsseed ohne öffentliche Besucherszenarien.",
+    "name": "development",
+    "reference_time": "2026-01-01T00:00:00+00:00",
+    "scenarios": [
+      "authorization.positive.athen",
+      "authorization.negative.foreign-committee",
+      "authorization.negative.wrong-side",
+      "membership.crosscommittee",
+      "staffing.fallback",
+      "staffing.suitable",
+      "staffing.unsuitable"
+    ]
+  },
+  "public-demo": {
+    "description": "Kuratiertes Besucherszenario mit relativem Referenzzeitpunkt und isolierten Demo-Fällen.",
+    "name": "public-demo",
+    "reference_time": "2026-01-01T00:00:00+00:00",
+    "scenarios": [
+      "demo.487.absence",
+      "demo.487.planchange",
+      "authorization.positive.athen",
+      "authorization.negative.foreign-committee",
+      "authorization.negative.wrong-side",
+      "membership.crosscommittee",
+      "staffing.fallback",
+      "staffing.suitable",
+      "staffing.unsuitable"
+    ]
+  }
+}""")
+
 FIXTURE_IDS = json.loads(r"""{
   "name.papaspyrou.repertoire.lzug.fixture.account.chair": {
     "entity_type": "accounts",

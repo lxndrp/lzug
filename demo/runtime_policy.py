@@ -19,6 +19,7 @@ from backend.models import AbsenceReport, ConfirmedPlanRevision, ExamDay, Replac
 from backend.transport import RequestContext
 
 from .artifacts import load_runtime_manifests, load_runtime_status
+from .runtime_contract import DEMO_MATRIX_VERSION, DEMO_ROLES
 from .scenarios import (
     ABSENCE_ASSIGNMENT_ID,
     ABSENCE_DAY_ID,
@@ -28,7 +29,6 @@ from .scenarios import (
     scenario_overview,
     seed_demo_scenarios,
 )
-from .synthetic_fixtures_generated import DEMO_MATRIX_VERSION, DEMO_ROLES
 from .workspaces import DemoWorkspace, DemoWorkspaceCapacityError, DemoWorkspaceManager
 
 
@@ -318,7 +318,7 @@ class DemoRuntimePolicy:
         workspace_created = workspace is None
         if workspace is None:
             try:
-                workspace = self.workspaces.create(base_db_path, seed_demo_scenarios)
+                workspace = self.workspaces.create(base_db_path, self._profile_seed(base_db_path))
             except DemoWorkspaceCapacityError:
                 handler.respond(
                     {"error": "Die Demo ist derzeit ausgelastet. Bitte später erneut versuchen."},
@@ -361,7 +361,7 @@ class DemoRuntimePolicy:
         role_name = self._role_name(context)
         previous_token = handler.session_token
         workspace = self._workspace(previous_token)
-        self.workspaces.reset(self._base_path(), workspace, seed_demo_scenarios)
+        self.workspaces.reset(self._base_path(), workspace, self._profile_seed(self._base_path()))
         handler.db_path = workspace.path
         remaining = self.workspaces.remaining(workspace)
         credentials = handler.authentication_repository.create_session(
@@ -498,6 +498,14 @@ class DemoRuntimePolicy:
         if workspace is None:
             raise ForbiddenRequestError("Demo workspace is unavailable or expired.")
         return workspace
+
+    @staticmethod
+    def _profile_seed(db_path: Path):
+        """Use only a legacy test fallback when the complete profile is absent."""
+        with session_scope(db_path) as session:
+            if session.get(ExamDay, ABSENCE_DAY_ID) is not None:
+                return None
+        return seed_demo_scenarios
 
     def _base_path(self) -> Path:
         if self.base_db_path is None:
