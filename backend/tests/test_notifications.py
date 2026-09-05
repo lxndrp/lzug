@@ -21,7 +21,7 @@ from backend.database import session_scope
 from backend.models import ExamDay, ExamDayAssignment, NotificationDelivery
 from backend.notifications import DELIVERY_CLAIM_TTL, NotificationService
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
-from demo.synthetic_fixtures_generated import DEMO_ROLES, DISPLAY_NAMES, FIXTURE_ROOT
+from backend.tests.fixture_data import DEMO_ROLES, DISPLAY_NAMES, FIXTURE_ROOT
 
 
 def vapid_private_key() -> str:

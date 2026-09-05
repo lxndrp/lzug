@@ -11,7 +11,7 @@ from unittest.mock import patch
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler, assert_status
-from demo.synthetic_fixtures_generated import DISPLAY_NAMES, FIXTURE_IDS, FIXTURE_ROOT
+from backend.tests.fixture_data import DISPLAY_NAMES, FIXTURE_IDS, FIXTURE_ROOT
 
 
 class StaticTestHandler(TestLzugHandler):

@@ -6,7 +6,7 @@ from http import HTTPStatus
 from backend.auth import AuthenticationRepository
 from backend.contract import validate_response
 from backend.tests.helpers import ApiServer, TempDatabase
-from demo.synthetic_fixtures_generated import FIXTURE_IDS, FIXTURE_ROOT
+from backend.tests.fixture_data import FIXTURE_IDS, FIXTURE_ROOT
 
 
 class ExamVenueHttpTests(unittest.TestCase):

@@ -16,10 +16,11 @@ Die Anwendung benötigt ein ausführbares, lokal testbares Datenmodell.
 ## Entscheidung
 
 SQLite ist die lokale Entwicklungsdatenbank.
-`db/schema.sql` und die durch `fixtures/generate.py` erzeugten Profilseeds
-`db/seed_development.sql` und `db/seed_public_demo.sql` bleiben die
-ausführbaren Quellen.
-`db/seed_demo.sql` bleibt als Entwicklungsalias erhalten.
+`db/schema.sql` und die versionierten Migrationen sind die einzige getrackte
+SQL-Quelle.
+`fixtures/synthetic-fixtures.json` und `fixtures/generate.py` kompilieren bei
+Bedarf disposable Entwicklungs- und Public-Demo-Seeds in ein Build- oder
+Testverzeichnis.
 Versionierte Änderungen liegen unter `db/migrations/` und werden in
 `schema_migration` festgehalten.
 

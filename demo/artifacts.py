@@ -24,13 +24,6 @@ from demo.contract import (
     validate_runtime_manifest_pair,
 )
 from demo.identity import DemoIdentity
-from demo.runtime_contract import (
-    DEMO_MATRIX_VERSION,
-    DEMO_ROLES,
-    FIXTURE_CATALOG_REVISION,
-    FIXTURE_CATALOG_VERSION,
-    FIXTURE_PROFILES,
-)
 
 FIXED_TIMESTAMP = "2026-01-01T00:00:00+00:00"
 TIMESTAMP_COLUMNS = {
@@ -122,8 +115,10 @@ def _normalize_timestamps(database: Path) -> None:
             raise DemoArtifactError(f"Seed integrity check failed: {integrity!r}")
 
 
-def _validate_synthetic_content(database: Path) -> None:
-    demo_account_ids = ", ".join(str(role["account_id"]) for role in DEMO_ROLES.values())
+def _validate_synthetic_content(database: Path, runtime_profile: dict[str, Any]) -> None:
+    demo_account_ids = ", ".join(
+        str(role["account_id"]) for role in runtime_profile.get("roles", {}).values()
+    )
     checks = {
         "person names": (
             "SELECT COUNT(*) FROM person WHERE trim(first_name) = '' OR trim(last_name) = ''",
@@ -166,20 +161,6 @@ def _validate_synthetic_content(database: Path) -> None:
         connection.commit()
 
 
-def _add_exam_protocol_scenario(database: Path) -> None:
-    """Compatibility entry point for focused backend scenario tests."""
-    from .legacy_fixtures import _add_exam_protocol_scenario as add_scenario
-
-    add_scenario(database)
-
-
-def _add_exam_round_lifecycle_scenarios(database: Path) -> None:
-    """Compatibility entry point for focused backend scenario tests."""
-    from .legacy_fixtures import _add_exam_round_lifecycle_scenarios as add_scenarios
-
-    add_scenarios(database)
-
-
 def build_seed(
     source_root: Path,
     database: Path,
@@ -189,6 +170,17 @@ def build_seed(
     product_commit: str,
 ) -> dict[str, Any]:
     from backend.database import database_readiness, initialize
+    from fixtures.generate import load_source, render_profile_sql, runtime_profile
+
+    fixture_data = load_source()
+    fixture_runtime = runtime_profile(fixture_data, "public-demo")
+    fixture_catalog = {
+        "version": fixture_data["version"],
+        "revision": fixture_data["revision"],
+        "demo_matrix_version": fixture_data["demo_matrix_version"],
+    }
+    profile = fixture_data["profiles"]["public-demo"]
+    seed_sql = render_profile_sql(fixture_data, "public-demo")
 
     if not product_tag or not product_commit:
         raise DemoArtifactError("Product tag and commit are required")
@@ -196,14 +188,14 @@ def build_seed(
     database.parent.mkdir(parents=True, exist_ok=True)
     initialize(
         database,
-        seed_profile="public-demo",
+        seed_sql=seed_sql,
         reset=True,
         backup_dir=database.parent / "backups",
         migration_backup_name="demo-seed.migration-safety.sqlite",
         migration_timestamp=FIXED_TIMESTAMP,
     )
     _normalize_timestamps(database)
-    _validate_synthetic_content(database)
+    _validate_synthetic_content(database, fixture_runtime)
     readiness = database_readiness(database)
     if not readiness["ready"]:
         raise DemoArtifactError(f"Prepared seed is not ready: {readiness['reason']}")
@@ -215,18 +207,17 @@ def build_seed(
         "runtime_contract": RUNTIME_CONTRACT,
         "schema": schema,
         "fixture_catalog": {
-            "version": FIXTURE_CATALOG_VERSION,
-            "revision": FIXTURE_CATALOG_REVISION,
-            "demo_matrix_version": DEMO_MATRIX_VERSION,
+            **fixture_catalog,
         },
         "fixture_profile": {
             "name": "public-demo",
-            "reference_time": FIXTURE_PROFILES["public-demo"]["reference_time"],
-            "scenarios": FIXTURE_PROFILES["public-demo"]["scenarios"],
+            "reference_time": profile["reference_time"],
+            "scenarios": profile["scenarios"],
+            **fixture_runtime,
         },
         "fixture_sha256": sha256_file(source_root / "fixtures/synthetic-fixtures.json"),
         "generator_sha256": sha256_file(source_root / "fixtures/generate.py"),
-        "seed_sql_sha256": sha256_file(source_root / "db/seed_public_demo.sql"),
+        "seed_sql_sha256": hashlib.sha256(seed_sql.encode("utf-8")).hexdigest(),
         "snapshot_sha256": sha256_file(database),
         "reset": {"time": "03:00", "timezone": "Europe/Berlin"},
     }
@@ -306,13 +297,17 @@ def load_runtime_manifests(
 
 
 def _validate_fixture_contract(manifest: dict[str, Any]) -> None:
-    expected = {
-        "version": FIXTURE_CATALOG_VERSION,
-        "revision": FIXTURE_CATALOG_REVISION,
-        "demo_matrix_version": DEMO_MATRIX_VERSION,
-    }
-    if manifest.get("fixture_catalog") != expected:
-        raise DemoArtifactError("Seed fixture catalog does not match the demo matrix")
+    catalog = manifest.get("fixture_catalog")
+    if (
+        not isinstance(catalog, dict)
+        or not isinstance(catalog.get("version"), int)
+        or not isinstance(catalog.get("revision"), str)
+        or not isinstance(catalog.get("demo_matrix_version"), str)
+    ):
+        raise DemoArtifactError("Seed fixture catalog is incomplete")
+    profile = manifest.get("fixture_profile")
+    if not isinstance(profile, dict) or profile.get("name") != "public-demo":
+        raise DemoArtifactError("Seed fixture profile is not public-demo")
 
 
 def _validate_seed_manifest(manifest: dict[str, Any]) -> None:

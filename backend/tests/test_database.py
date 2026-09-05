@@ -29,8 +29,8 @@ from backend.database import (
     sqlite_settings,
 )
 from backend.planning import ConfirmedPlanChange, PlanningService
-from backend.tests.helpers import TempDatabase
-from demo.synthetic_fixtures_generated import (
+from backend.tests.helpers import TempDatabase, development_seed_sql
+from backend.tests.fixture_data import (
     ADAPTER_COUNTS,
     CANDIDATE_EXAM_NUMBERS,
     FIXTURE_IDS,
@@ -802,7 +802,7 @@ class DatabaseTests(unittest.TestCase):
                     text("INSERT INTO committee (id, name, occupation) VALUES (99, 'Alt', 'FI')")
                 )
 
-            initialize(db_path, with_seed=True, reset=True)
+            initialize(db_path, seed_sql=development_seed_sql(), reset=True)
 
             with connect(db_path) as connection:
                 ids = [
@@ -876,7 +876,7 @@ class DatabaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             db_path = Path(directory) / "seeded.sqlite3"
 
-            initialize(db_path, with_seed=True)
+            initialize(db_path, seed_sql=development_seed_sql())
 
             with closing(sqlite3.connect(db_path)) as connection:
                 committee = connection.execute(
@@ -1519,7 +1519,7 @@ class DatabaseTests(unittest.TestCase):
                 "BEGIN; ALTER TABLE missing_table ADD COLUMN broken TEXT; COMMIT;",
                 encoding="utf-8",
             )
-            initialize(db_path, with_seed=False, reset=True)
+            initialize(db_path, reset=True)
             with closing(sqlite3.connect(db_path)) as connection:
                 connection.execute("DROP TABLE schema_migration_checksum")
                 rewind_exam_protocol_migration(connection)

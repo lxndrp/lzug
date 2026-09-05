@@ -23,7 +23,9 @@
       "country": "Griechenland",
       "is_fictional": true,
       "contact": null,
-      "scenarios": ["authorization.positive.athen"]
+      "scenarios": [
+        "authorization.positive.athen"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.organization.feenwald",
@@ -31,7 +33,9 @@
       "country": "Griechenland",
       "is_fictional": true,
       "contact": null,
-      "scenarios": ["authorization.negative.foreign-committee"]
+      "scenarios": [
+        "authorization.negative.foreign-committee"
+      ]
     }
   ],
   "committees": [
@@ -42,8 +46,15 @@
       "organization_key": "name.papaspyrou.repertoire.lzug.fixture.organization.athen",
       "occupation": "Fachinformatiker/in",
       "data_role": "primary_committee",
-      "scenarios": ["authorization.positive.athen", "demo.487.absence", "demo.487.planchange"],
-      "adapters": ["seed", "frontend"]
+      "scenarios": [
+        "authorization.positive.athen",
+        "demo.487.absence",
+        "demo.487.planchange"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.committee.feenwald",
@@ -52,8 +63,13 @@
       "organization_key": "name.papaspyrou.repertoire.lzug.fixture.organization.feenwald",
       "occupation": "Fachinformatiker/in",
       "data_role": "foreign_committee",
-      "scenarios": ["authorization.negative.foreign-committee"],
-      "adapters": ["seed", "frontend"]
+      "scenarios": [
+        "authorization.negative.foreign-committee"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
     }
   ],
   "persons": [
@@ -68,7 +84,11 @@
       "ensemble": "Athener Hof",
       "data_role": "chair",
       "demo_role": "chair",
-      "scenarios": ["authorization.positive.athen", "demo.487.absence", "demo.487.planchange"]
+      "scenarios": [
+        "authorization.positive.athen",
+        "demo.487.absence",
+        "demo.487.planchange"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.deputy.athen",
@@ -81,7 +101,10 @@
       "ensemble": "Athener Hof",
       "data_role": "deputy_chair",
       "demo_role": null,
-      "scenarios": ["authorization.positive.athen", "demo.487.absence"]
+      "scenarios": [
+        "authorization.positive.athen",
+        "demo.487.absence"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.absent",
@@ -94,7 +117,10 @@
       "ensemble": "Handwerkerensemble",
       "data_role": "scheduled_examiner_absent",
       "demo_role": "examiner",
-      "scenarios": ["demo.487.absence", "authorization.positive.athen"]
+      "scenarios": [
+        "demo.487.absence",
+        "authorization.positive.athen"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.crosscommittee",
@@ -107,7 +133,10 @@
       "ensemble": "Feenwelt",
       "data_role": "cross_committee_member",
       "demo_role": null,
-      "scenarios": ["membership.crosscommittee", "authorization.negative.foreign-committee"]
+      "scenarios": [
+        "membership.crosscommittee",
+        "authorization.negative.foreign-committee"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.fallback",
@@ -120,7 +149,9 @@
       "ensemble": "Handwerkerensemble",
       "data_role": "fallback",
       "demo_role": null,
-      "scenarios": ["staffing.fallback"]
+      "scenarios": [
+        "staffing.fallback"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.replacement",
@@ -133,7 +164,11 @@
       "ensemble": "Handwerkerensemble",
       "data_role": "suitable_replacement",
       "demo_role": "replacement",
-      "scenarios": ["demo.487.absence", "demo.487.planchange", "staffing.suitable"]
+      "scenarios": [
+        "demo.487.absence",
+        "demo.487.planchange",
+        "staffing.suitable"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.unsuitable",
@@ -146,7 +181,10 @@
       "ensemble": "Handwerkerensemble",
       "data_role": "wrong_representing_side",
       "demo_role": null,
-      "scenarios": ["staffing.unsuitable", "authorization.negative.wrong-side"]
+      "scenarios": [
+        "staffing.unsuitable",
+        "authorization.negative.wrong-side"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.reserve",
@@ -159,7 +197,10 @@
       "ensemble": "Handwerkerensemble",
       "data_role": "reserve_and_fallback",
       "demo_role": null,
-      "scenarios": ["staffing.fallback", "demo.487.planchange"]
+      "scenarios": [
+        "staffing.fallback",
+        "demo.487.planchange"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.chair.feenwald",
@@ -172,7 +213,9 @@
       "ensemble": "Feenwelt",
       "data_role": "foreign_committee_chair",
       "demo_role": null,
-      "scenarios": ["authorization.negative.foreign-committee"]
+      "scenarios": [
+        "authorization.negative.foreign-committee"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.deputy.feenwald",
@@ -185,7 +228,9 @@
       "ensemble": "Feenwelt",
       "data_role": "foreign_committee_deputy_chair",
       "demo_role": null,
-      "scenarios": ["authorization.negative.foreign-committee"]
+      "scenarios": [
+        "authorization.negative.foreign-committee"
+      ]
     }
   ],
   "memberships": [
@@ -201,8 +246,15 @@
       "suitability": "suitable",
       "availability": "available",
       "response": true,
-      "scenarios": ["authorization.positive.athen", "demo.487.absence", "demo.487.planchange"],
-      "adapters": ["seed", "frontend"]
+      "scenarios": [
+        "authorization.positive.athen",
+        "demo.487.absence",
+        "demo.487.planchange"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.deputy.athen",
@@ -216,8 +268,14 @@
       "suitability": "suitable",
       "availability": "available",
       "response": true,
-      "scenarios": ["authorization.positive.athen", "demo.487.absence"],
-      "adapters": ["seed", "frontend"]
+      "scenarios": [
+        "authorization.positive.athen",
+        "demo.487.absence"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.absent",
@@ -231,8 +289,12 @@
       "suitability": "suitable",
       "availability": "available",
       "response": true,
-      "scenarios": ["demo.487.absence"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "demo.487.absence"
+      ],
+      "adapters": [
+        "seed"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.crosscommittee.athen",
@@ -246,8 +308,12 @@
       "suitability": "suitable",
       "availability": "available",
       "response": true,
-      "scenarios": ["membership.crosscommittee"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "membership.crosscommittee"
+      ],
+      "adapters": [
+        "seed"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.fallback",
@@ -261,8 +327,12 @@
       "suitability": "suitable",
       "availability": "pending",
       "response": false,
-      "scenarios": ["staffing.fallback"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "staffing.fallback"
+      ],
+      "adapters": [
+        "seed"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.replacement",
@@ -276,8 +346,14 @@
       "suitability": "suitable",
       "availability": "available",
       "response": true,
-      "scenarios": ["demo.487.absence", "demo.487.planchange", "staffing.suitable"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "demo.487.absence",
+        "demo.487.planchange",
+        "staffing.suitable"
+      ],
+      "adapters": [
+        "seed"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.unsuitable",
@@ -291,8 +367,13 @@
       "suitability": "wrong_representing_side",
       "availability": "pending",
       "response": false,
-      "scenarios": ["staffing.unsuitable", "authorization.negative.wrong-side"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "staffing.unsuitable",
+        "authorization.negative.wrong-side"
+      ],
+      "adapters": [
+        "seed"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.reserve",
@@ -306,8 +387,13 @@
       "suitability": "suitable",
       "availability": "available",
       "response": true,
-      "scenarios": ["staffing.fallback", "demo.487.planchange"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "staffing.fallback",
+        "demo.487.planchange"
+      ],
+      "adapters": [
+        "seed"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.chair.feenwald",
@@ -321,8 +407,13 @@
       "suitability": "suitable",
       "availability": "available",
       "response": true,
-      "scenarios": ["authorization.negative.foreign-committee"],
-      "adapters": ["seed", "frontend"]
+      "scenarios": [
+        "authorization.negative.foreign-committee"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.deputy.feenwald",
@@ -336,8 +427,12 @@
       "suitability": "suitable",
       "availability": "available",
       "response": true,
-      "scenarios": ["authorization.negative.foreign-committee"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "authorization.negative.foreign-committee"
+      ],
+      "adapters": [
+        "seed"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.membership.crosscommittee.feenwald",
@@ -351,8 +446,13 @@
       "suitability": "suitable",
       "availability": "available",
       "response": true,
-      "scenarios": ["membership.crosscommittee", "authorization.negative.foreign-committee"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "membership.crosscommittee",
+        "authorization.negative.foreign-committee"
+      ],
+      "adapters": [
+        "seed"
+      ]
     }
   ],
   "accounts": [
@@ -410,8 +510,8 @@
       "is_accessible": 1,
       "accessibility_status": "confirmed",
       "accessibility_notes": "Nur im synthetischen Prüfungsszenario als barrierefrei bewertet; keine Aussage über das reale Zappeion.",
-      "latitude": 37.971620,
-      "longitude": 23.736520,
+      "latitude": 37.97162,
+      "longitude": 23.73652,
       "coordinate_status": "confirmed",
       "coordinate_source": "Zappeion-Kontaktseite und OpenStreetMap-Referenz; https://www.zappeion.gr/en/contact.html; Abrufdatum: 2026-09-01",
       "source_name": "Offizielle Zappeion-Kontaktseite und OpenStreetMap-Referenz",
@@ -419,8 +519,16 @@
       "source_retrieved_at": "2026-09-01",
       "reality_notice": "Nur Anschrift, allgemeine Orientierung und Referenzpunkt sind real. Prüfungsstätte, Räume, Kontakte und Fachangaben sind synthetisch; es besteht keine Kooperation.",
       "is_active": 1,
-      "scenarios": ["authorization.positive.athen", "authorization.negative.foreign-committee", "demo.487.absence", "demo.487.planchange"],
-      "adapters": ["seed", "frontend"]
+      "scenarios": [
+        "authorization.positive.athen",
+        "authorization.negative.foreign-committee",
+        "demo.487.absence",
+        "demo.487.planchange"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi",
@@ -447,8 +555,14 @@
       "source_retrieved_at": "2026-09-01",
       "reality_notice": "Nur Anschrift, allgemeine Orientierung und Referenzpunkt sind real. Prüfungsstätte, Räume, Kontakte und Fachangaben sind synthetisch; es besteht keine Kooperation.",
       "is_active": 1,
-      "scenarios": ["authorization.positive.athen", "demo.487.planchange"],
-      "adapters": ["seed", "frontend"]
+      "scenarios": [
+        "authorization.positive.athen",
+        "demo.487.planchange"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.feenwald.nationalgarden",
@@ -467,7 +581,7 @@
       "accessibility_status": "confirmed",
       "accessibility_notes": "Der für das Demo-Szenario angenommene Außenbereich besitzt unebene Wege und wird nicht als barrierefrei bewertet. Dies ist keine Aussage über den realen Nationalgarten.",
       "latitude": 37.973365,
-      "longitude": 23.737690,
+      "longitude": 23.73769,
       "coordinate_status": "confirmed",
       "coordinate_source": "Stadt Athen, Nationalgarten; https://old.cityofathens.gr/episkeptes/aksiotheata/diadromes-stin-istoria-tis-athinas/o-kipos-tis-athinas; Abrufdatum: 2026-09-01",
       "source_name": "Institutioneller Ortsnachweis der Stadt Athen",
@@ -475,21 +589,158 @@
       "source_retrieved_at": "2026-09-01",
       "reality_notice": "Nur Anschrift, allgemeine Orientierung und Referenzpunkt sind real. Prüfungsbereich, Räume und Fachangaben sind synthetisch; es besteht keine Kooperation.",
       "is_active": 1,
-      "scenarios": ["authorization.negative.foreign-committee"],
-      "adapters": ["seed", "frontend"]
+      "scenarios": [
+        "authorization.negative.foreign-committee"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
     }
   ],
   "rooms": [
-    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.zappeion.theseus", "id": 1, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion", "name": "Theseussaal", "capacity": 24, "access_notes": "Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.", "is_active": 1, "scenarios": ["demo.487.absence", "demo.487.planchange"], "adapters": ["seed", "frontend"]},
-    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.gazi.handwerkerensemble", "id": 2, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi", "name": "Werkstatt Handwerkerensemble", "capacity": 18, "access_notes": "Synthetische Auffindung: ab Demo-Tor dem Treffpunkt Handwerkerensemble folgen.", "is_active": 1, "scenarios": ["demo.487.planchange"], "adapters": ["seed", "frontend"]},
-    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.nationalgarden.oberon", "id": 3, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.feenwald.nationalgarden", "name": "Lichtung Oberon", "capacity": 15, "access_notes": "Synthetische Auffindung: ab Treffpunkt Feenwald der Demo-Beschilderung Oberon folgen.", "is_active": 1, "scenarios": ["authorization.negative.foreign-committee"], "adapters": ["seed", "frontend"]},
-    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.zappeion.hippolyta", "id": 4, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion", "name": "Hippolytasaal", "capacity": 12, "access_notes": "Synthetische Auffindung: ab Demo-Eingang dem Hinweis Hippolyta folgen.", "is_active": 1, "scenarios": ["authorization.positive.athen"], "adapters": ["seed", "frontend"]},
-    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.gazi.pyramus", "id": 5, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi", "name": "Prüfhalle Pyramus", "capacity": 30, "access_notes": "Synthetische Auffindung: ab Demo-Tor dem Hinweis Pyramus folgen.", "is_active": 1, "scenarios": ["authorization.positive.athen"], "adapters": ["seed", "frontend"]},
-    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.nationalgarden.titania", "id": 6, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.feenwald.nationalgarden", "name": "Lichtung Titania", "capacity": 15, "access_notes": "Synthetische Auffindung: ab Treffpunkt Feenwald der Demo-Beschilderung Titania folgen.", "is_active": 1, "scenarios": ["authorization.negative.foreign-committee"], "adapters": ["seed", "frontend"]}
+    {
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.zappeion.theseus",
+      "id": 1,
+      "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion",
+      "name": "Theseussaal",
+      "capacity": 24,
+      "access_notes": "Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.",
+      "is_active": 1,
+      "scenarios": [
+        "demo.487.absence",
+        "demo.487.planchange"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
+    },
+    {
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.gazi.handwerkerensemble",
+      "id": 2,
+      "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi",
+      "name": "Werkstatt Handwerkerensemble",
+      "capacity": 18,
+      "access_notes": "Synthetische Auffindung: ab Demo-Tor dem Treffpunkt Handwerkerensemble folgen.",
+      "is_active": 1,
+      "scenarios": [
+        "demo.487.planchange"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
+    },
+    {
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.nationalgarden.oberon",
+      "id": 3,
+      "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.feenwald.nationalgarden",
+      "name": "Lichtung Oberon",
+      "capacity": 15,
+      "access_notes": "Synthetische Auffindung: ab Treffpunkt Feenwald der Demo-Beschilderung Oberon folgen.",
+      "is_active": 1,
+      "scenarios": [
+        "authorization.negative.foreign-committee"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
+    },
+    {
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.zappeion.hippolyta",
+      "id": 4,
+      "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion",
+      "name": "Hippolytasaal",
+      "capacity": 12,
+      "access_notes": "Synthetische Auffindung: ab Demo-Eingang dem Hinweis Hippolyta folgen.",
+      "is_active": 1,
+      "scenarios": [
+        "authorization.positive.athen"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
+    },
+    {
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.gazi.pyramus",
+      "id": 5,
+      "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi",
+      "name": "Prüfhalle Pyramus",
+      "capacity": 30,
+      "access_notes": "Synthetische Auffindung: ab Demo-Tor dem Hinweis Pyramus folgen.",
+      "is_active": 1,
+      "scenarios": [
+        "authorization.positive.athen"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
+    },
+    {
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.room.nationalgarden.titania",
+      "id": 6,
+      "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.feenwald.nationalgarden",
+      "name": "Lichtung Titania",
+      "capacity": 15,
+      "access_notes": "Synthetische Auffindung: ab Treffpunkt Feenwald der Demo-Beschilderung Titania folgen.",
+      "is_active": 1,
+      "scenarios": [
+        "authorization.negative.foreign-committee"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
+    }
   ],
   "location_contacts": [
-    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location-contact.zappeion.hippolyta", "id": 1, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion", "person_key": "name.papaspyrou.repertoire.lzug.fixture.person.deputy.athen", "label": "Hippolyta von Athen", "role": "Synthetische Ortskoordination", "email": "hippolyta.athen@demo.lzug.invalid", "phone": null, "availability_notes": "Synthetischer Demo-Kontakt für den gesamten Prüfungsort.", "room_keys": [], "is_active": 1, "scenarios": ["authorization.positive.athen", "demo.487.absence"], "adapters": ["seed", "frontend"]},
-    {"fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location-contact.gazi.quince", "id": 2, "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi", "person_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.absent", "label": "Peter Quince", "role": "Synthetische Raumkoordination", "email": "peter.quince@demo.lzug.invalid", "phone": null, "availability_notes": "Synthetischer Demo-Kontakt ausschließlich für die Werkstatt Handwerkerensemble.", "room_keys": ["name.papaspyrou.repertoire.lzug.fixture.room.gazi.handwerkerensemble"], "is_active": 1, "scenarios": ["demo.487.planchange"], "adapters": ["seed", "frontend"]}
+    {
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location-contact.zappeion.hippolyta",
+      "id": 1,
+      "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion",
+      "person_key": "name.papaspyrou.repertoire.lzug.fixture.person.deputy.athen",
+      "label": "Hippolyta von Athen",
+      "role": "Synthetische Ortskoordination",
+      "email": "hippolyta.athen@demo.lzug.invalid",
+      "phone": null,
+      "availability_notes": "Synthetischer Demo-Kontakt für den gesamten Prüfungsort.",
+      "room_keys": [],
+      "is_active": 1,
+      "scenarios": [
+        "authorization.positive.athen",
+        "demo.487.absence"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
+    },
+    {
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location-contact.gazi.quince",
+      "id": 2,
+      "venue_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi",
+      "person_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.absent",
+      "label": "Peter Quince",
+      "role": "Synthetische Raumkoordination",
+      "email": "peter.quince@demo.lzug.invalid",
+      "phone": null,
+      "availability_notes": "Synthetischer Demo-Kontakt ausschließlich für die Werkstatt Handwerkerensemble.",
+      "room_keys": [
+        "name.papaspyrou.repertoire.lzug.fixture.room.gazi.handwerkerensemble"
+      ],
+      "is_active": 1,
+      "scenarios": [
+        "demo.487.planchange"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
+    }
   ],
   "candidates": [
     {
@@ -505,8 +756,13 @@
       "training_company": "Atelier Athen (Demo)",
       "attempt_number": 1,
       "requires_mep": false,
-      "scenarios": ["demo.487.planchange"],
-      "adapters": ["seed", "frontend"]
+      "scenarios": [
+        "demo.487.planchange"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.absence",
@@ -521,8 +777,13 @@
       "training_company": "Werkstatt Athen (Demo)",
       "attempt_number": 2,
       "requires_mep": true,
-      "scenarios": ["demo.487.absence"],
-      "adapters": ["seed", "frontend"]
+      "scenarios": [
+        "demo.487.absence"
+      ],
+      "adapters": [
+        "seed",
+        "frontend"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.lysander",
@@ -537,8 +798,12 @@
       "training_company": "Kontor Athen (Demo)",
       "attempt_number": 1,
       "requires_mep": false,
-      "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "authorization.positive.athen"
+      ],
+      "adapters": [
+        "seed"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.demetrius",
@@ -553,8 +818,12 @@
       "training_company": "Netzwerk Athen (Demo)",
       "attempt_number": 3,
       "requires_mep": false,
-      "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "authorization.positive.athen"
+      ],
+      "adapters": [
+        "seed"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.egeus",
@@ -569,8 +838,12 @@
       "training_company": "Hofatelier Athen (Demo)",
       "attempt_number": 2,
       "requires_mep": false,
-      "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "authorization.positive.athen"
+      ],
+      "adapters": [
+        "seed"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.philostrate",
@@ -585,8 +858,12 @@
       "training_company": "Hoforganisation Athen (Demo)",
       "attempt_number": 1,
       "requires_mep": true,
-      "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "authorization.positive.athen"
+      ],
+      "adapters": [
+        "seed"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.peaseblossom",
@@ -601,8 +878,12 @@
       "training_company": "Feenwerkstatt (Demo)",
       "attempt_number": 3,
       "requires_mep": true,
-      "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "authorization.positive.athen"
+      ],
+      "adapters": [
+        "seed"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.cobweb",
@@ -617,8 +898,12 @@
       "training_company": "Feennetzwerk (Demo)",
       "attempt_number": 1,
       "requires_mep": false,
-      "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "authorization.positive.athen"
+      ],
+      "adapters": [
+        "seed"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.moth",
@@ -633,8 +918,12 @@
       "training_company": "Feenanalyse (Demo)",
       "attempt_number": 2,
       "requires_mep": true,
-      "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "authorization.positive.athen"
+      ],
+      "adapters": [
+        "seed"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.mustardseed",
@@ -649,8 +938,12 @@
       "training_company": "Feenverbindung (Demo)",
       "attempt_number": 1,
       "requires_mep": false,
-      "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "authorization.positive.athen"
+      ],
+      "adapters": [
+        "seed"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.moonshine",
@@ -665,8 +958,12 @@
       "training_company": "Theaterwerkstatt (Demo)",
       "attempt_number": 1,
       "requires_mep": false,
-      "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "authorization.positive.athen"
+      ],
+      "adapters": [
+        "seed"
+      ]
     },
     {
       "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.lion",
@@ -681,31 +978,89 @@
       "training_company": "Bühnenbau Athen (Demo)",
       "attempt_number": 2,
       "requires_mep": false,
-      "scenarios": ["authorization.positive.athen"],
-      "adapters": ["seed"]
+      "scenarios": [
+        "authorization.positive.athen"
+      ],
+      "adapters": [
+        "seed"
+      ]
     }
   ],
   "scenarios": [
-    {"key": "authorization.positive.athen", "kind": "positive", "description": "Erlaubte Demo- und Integrationspfade im Hauptausschuss Athen"},
-    {"key": "authorization.negative.foreign-committee", "kind": "negative", "description": "Fremder Ausschuss Feenwald bleibt außerhalb des aktiven Scopes"},
-    {"key": "authorization.negative.wrong-side", "kind": "negative", "description": "Ungeeignete Vertreterseite wird abgewiesen"},
-    {"key": "demo.487.absence", "kind": "positive_and_negative", "description": "Isolierter Ausfall- und Ersatzfall aus #487"},
-    {"key": "demo.487.planchange", "kind": "positive_and_negative", "description": "Isolierte bestätigte Planänderung aus #487"},
-    {"key": "membership.crosscommittee", "kind": "edge_case", "description": "Zulässige Mehrfachmitgliedschaft von Robin Goodfellow"},
-    {"key": "staffing.fallback", "kind": "edge_case", "description": "Fallback- und Reservemitglieder"},
-    {"key": "staffing.suitable", "kind": "positive", "description": "Geeignete Ersatzperson derselben Vertreterseite"},
-    {"key": "staffing.unsuitable", "kind": "negative", "description": "Ungeeignete Ersatzperson der falschen Vertreterseite"}
+    {
+      "key": "authorization.positive.athen",
+      "kind": "positive",
+      "description": "Erlaubte Demo- und Integrationspfade im Hauptausschuss Athen"
+    },
+    {
+      "key": "authorization.negative.foreign-committee",
+      "kind": "negative",
+      "description": "Fremder Ausschuss Feenwald bleibt außerhalb des aktiven Scopes"
+    },
+    {
+      "key": "authorization.negative.wrong-side",
+      "kind": "negative",
+      "description": "Ungeeignete Vertreterseite wird abgewiesen"
+    },
+    {
+      "key": "demo.487.absence",
+      "kind": "positive_and_negative",
+      "description": "Isolierter Ausfall- und Ersatzfall aus #487"
+    },
+    {
+      "key": "demo.487.planchange",
+      "kind": "positive_and_negative",
+      "description": "Isolierte bestätigte Planänderung aus #487"
+    },
+    {
+      "key": "membership.crosscommittee",
+      "kind": "edge_case",
+      "description": "Zulässige Mehrfachmitgliedschaft von Robin Goodfellow"
+    },
+    {
+      "key": "staffing.fallback",
+      "kind": "edge_case",
+      "description": "Fallback- und Reservemitglieder"
+    },
+    {
+      "key": "staffing.suitable",
+      "kind": "positive",
+      "description": "Geeignete Ersatzperson derselben Vertreterseite"
+    },
+    {
+      "key": "staffing.unsuitable",
+      "kind": "negative",
+      "description": "Ungeeignete Ersatzperson der falschen Vertreterseite"
+    }
   ],
   "coverage_matrix": {
-    "chair": ["name.papaspyrou.repertoire.lzug.fixture.membership.chair.athen"],
-    "deputy_chair": ["name.papaspyrou.repertoire.lzug.fixture.membership.deputy.athen"],
-    "representing_side_employer": ["name.papaspyrou.repertoire.lzug.fixture.membership.chair.athen"],
-    "representing_side_employee": ["name.papaspyrou.repertoire.lzug.fixture.membership.examiner.absent"],
-    "representing_side_school": ["name.papaspyrou.repertoire.lzug.fixture.membership.deputy.athen"],
-    "ordinary_member": ["name.papaspyrou.repertoire.lzug.fixture.membership.examiner.absent"],
-    "deputy_member": ["name.papaspyrou.repertoire.lzug.fixture.membership.examiner.replacement"],
-    "fallback": ["name.papaspyrou.repertoire.lzug.fixture.membership.examiner.fallback"],
-    "replacement": ["name.papaspyrou.repertoire.lzug.fixture.membership.examiner.replacement"],
+    "chair": [
+      "name.papaspyrou.repertoire.lzug.fixture.membership.chair.athen"
+    ],
+    "deputy_chair": [
+      "name.papaspyrou.repertoire.lzug.fixture.membership.deputy.athen"
+    ],
+    "representing_side_employer": [
+      "name.papaspyrou.repertoire.lzug.fixture.membership.chair.athen"
+    ],
+    "representing_side_employee": [
+      "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.absent"
+    ],
+    "representing_side_school": [
+      "name.papaspyrou.repertoire.lzug.fixture.membership.deputy.athen"
+    ],
+    "ordinary_member": [
+      "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.absent"
+    ],
+    "deputy_member": [
+      "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.replacement"
+    ],
+    "fallback": [
+      "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.fallback"
+    ],
+    "replacement": [
+      "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.replacement"
+    ],
     "cross_committee": [
       "name.papaspyrou.repertoire.lzug.fixture.membership.crosscommittee.athen",
       "name.papaspyrou.repertoire.lzug.fixture.membership.crosscommittee.feenwald"
@@ -714,11 +1069,21 @@
       "name.papaspyrou.repertoire.lzug.fixture.candidate.planchange",
       "name.papaspyrou.repertoire.lzug.fixture.candidate.absence"
     ],
-    "foreign_committee": ["name.papaspyrou.repertoire.lzug.fixture.committee.feenwald"],
-    "suitable_staffing": ["name.papaspyrou.repertoire.lzug.fixture.membership.examiner.replacement"],
-    "unsuitable_staffing": ["name.papaspyrou.repertoire.lzug.fixture.membership.examiner.unsuitable"],
-    "positive_authorization": ["name.papaspyrou.repertoire.lzug.fixture.committee.athen"],
-    "negative_authorization": ["name.papaspyrou.repertoire.lzug.fixture.committee.feenwald"],
+    "foreign_committee": [
+      "name.papaspyrou.repertoire.lzug.fixture.committee.feenwald"
+    ],
+    "suitable_staffing": [
+      "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.replacement"
+    ],
+    "unsuitable_staffing": [
+      "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.unsuitable"
+    ],
+    "positive_authorization": [
+      "name.papaspyrou.repertoire.lzug.fixture.committee.athen"
+    ],
+    "negative_authorization": [
+      "name.papaspyrou.repertoire.lzug.fixture.committee.feenwald"
+    ],
     "demo_487_absence": [
       "name.papaspyrou.repertoire.lzug.fixture.person.chair.athen",
       "name.papaspyrou.repertoire.lzug.fixture.person.examiner.absent",
@@ -743,7 +1108,1462 @@
         "staffing.fallback",
         "staffing.suitable",
         "staffing.unsuitable"
-      ]
+      ],
+      "seed_records": [
+        {
+          "table": "assessment_model_version",
+          "columns": [
+            "id",
+            "model_key",
+            "version",
+            "ihk",
+            "occupation",
+            "specialization",
+            "training_regulation",
+            "exam_regulation",
+            "ihk_guidelines",
+            "valid_from",
+            "valid_until",
+            "official_scale_min",
+            "official_scale_max",
+            "rules_json",
+            "retention_rule_reference",
+            "retention_years",
+            "created_by_member_id",
+            "created_at"
+          ],
+          "rows": [
+            [
+              1,
+              "demo-fisi-2027",
+              1,
+              "Industrie- und Handelskammer Athen (Demo)",
+              "Fachinformatiker/in",
+              null,
+              "Synthetische Ausbildungsordnung Athen 2020",
+              "Synthetische Prüfungsordnung Athen 2027",
+              "Verbindliche Demo-Richtlinie Athen 2027",
+              "2027-01-01",
+              "2027-12-31",
+              "0",
+              "100",
+              "{\"components\": [{\"additional_assessor_on_deviation\": true, \"criteria\": [{\"key\": \"professional_quality\", \"label\": \"Fachliche Qualität\", \"raw_max\": \"10\", \"raw_min\": \"0\", \"weight\": \"100\"}], \"day_scoped\": true, \"key\": \"documentation\", \"label\": \"Dokumentation\", \"max_deviation\": \"15\", \"mode\": \"independent\", \"required_assessors\": 2, \"weight\": \"20\"}, {\"additional_assessor_on_deviation\": false, \"criteria\": [{\"key\": \"delivery\", \"label\": \"Darstellung\", \"raw_max\": \"10\", \"raw_min\": \"0\", \"weight\": \"100\"}], \"day_scoped\": true, \"key\": \"presentation\", \"label\": \"Präsentation\", \"max_deviation\": \"15\", \"mode\": \"committee\", \"required_assessors\": 3, \"weight\": \"15\"}, {\"additional_assessor_on_deviation\": false, \"criteria\": [{\"key\": \"professional_depth\", \"label\": \"Fachliche Tiefe\", \"raw_max\": \"10\", \"raw_min\": \"0\", \"weight\": \"100\"}], \"day_scoped\": true, \"key\": \"technical_discussion\", \"label\": \"Fachgespräch\", \"max_deviation\": \"15\", \"mode\": \"committee\", \"required_assessors\": 3, \"weight\": \"15\"}], \"external_areas\": [{\"key\": \"written_exam\", \"label\": \"Schriftliches Eingangsergebnis\", \"required\": true, \"weight\": \"50\"}], \"grades\": [{\"label\": \"sehr gut\", \"min_points\": \"92\"}, {\"label\": \"gut\", \"min_points\": \"81\"}, {\"label\": \"befriedigend\", \"min_points\": \"67\"}, {\"label\": \"ausreichend\", \"min_points\": \"50\"}, {\"label\": \"mangelhaft\", \"min_points\": \"30\"}, {\"label\": \"ungenügend\", \"min_points\": \"0\"}], \"passing\": {\"component_minima\": {}, \"external_minima\": {}, \"overall_min\": \"50\"}, \"quorum\": {\"majority\": \"simple\", \"minimum_members\": 3}, \"rounding\": {\"intermediate\": {\"digits\": null, \"mode\": \"none\"}, \"overall\": {\"digits\": 0, \"mode\": \"half_up\"}, \"threshold_basis\": \"unrounded\"}}",
+              "Demo-PrüfO Athen § 31",
+              15,
+              1,
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "candidate_committee_assignment",
+          "columns": [
+            "id",
+            "candidate_id",
+            "exam_half_year_id",
+            "exam_round_id",
+            "round_candidate_id",
+            "assigned_at",
+            "ended_at",
+            "change_reason",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              13,
+              1,
+              2,
+              2,
+              13,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              14,
+              2,
+              2,
+              2,
+              14,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              15,
+              3,
+              2,
+              2,
+              15,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              90,
+              1,
+              91,
+              91,
+              90,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              91,
+              2,
+              92,
+              92,
+              91,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              92,
+              3,
+              93,
+              93,
+              92,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "candidate_exam_attendance",
+          "columns": [
+            "id",
+            "exam_slot_id",
+            "status",
+            "arrived_at",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "present",
+              "2027-05-18 08:55:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              3,
+              "present",
+              "2027-05-20 08:55:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "committee_assessment",
+          "columns": [
+            "id",
+            "exam_result_id",
+            "component_key",
+            "revision",
+            "points",
+            "rationale",
+            "participant_member_ids_json",
+            "vote_json",
+            "dissent_json",
+            "status",
+            "previous_assessment_id",
+            "determined_by_member_id",
+            "determined_at"
+          ],
+          "rows": [
+            [
+              1,
+              2,
+              "presentation",
+              1,
+              "80",
+              null,
+              "[1,2,3]",
+              "{\"yes\":[1,2,3],\"no\":[],\"abstain\":[]}",
+              "[]",
+              "current",
+              null,
+              1,
+              "2027-05-20 09:57:00"
+            ],
+            [
+              2,
+              2,
+              "technical_discussion",
+              1,
+              "80",
+              null,
+              "[1,2,3]",
+              "{\"yes\":[1,2,3],\"no\":[],\"abstain\":[]}",
+              "[]",
+              "current",
+              null,
+              1,
+              "2027-05-20 09:58:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_day",
+          "columns": [
+            "id",
+            "exam_round_id",
+            "room_id",
+            "date",
+            "status",
+            "revision",
+            "closure_status",
+            "lunch_break_enabled",
+            "created_from_proposal",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              2,
+              1,
+              "2027-05-18",
+              "confirmed",
+              1,
+              "open",
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              2,
+              1,
+              "2027-05-19",
+              "confirmed",
+              1,
+              "open",
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              3,
+              2,
+              1,
+              "2027-05-20",
+              "confirmed",
+              1,
+              "open",
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              90,
+              92,
+              1,
+              "2029-05-15",
+              "completed",
+              2,
+              "closed",
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              91,
+              93,
+              1,
+              "2029-11-15",
+              "completed",
+              2,
+              "closed",
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_day_assignment",
+          "columns": [
+            "id",
+            "exam_day_id",
+            "committee_member_id",
+            "assignment_role",
+            "day_part",
+            "fallback_status",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "examiner",
+              "full_day",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              1,
+              2,
+              "examiner",
+              "full_day",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              3,
+              1,
+              3,
+              "examiner",
+              "full_day",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              4,
+              3,
+              1,
+              "examiner",
+              "full_day",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              5,
+              3,
+              2,
+              "examiner",
+              "full_day",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              6,
+              3,
+              3,
+              "examiner",
+              "full_day",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_day_closure",
+          "columns": [
+            "id",
+            "exam_day_id",
+            "requested_revision",
+            "resulting_revision",
+            "closure_type",
+            "actor_member_id",
+            "reason",
+            "clarification_attempts",
+            "checklist_json",
+            "warnings_json",
+            "protocol_references_json",
+            "result_references_json",
+            "previous_closure_id",
+            "status",
+            "command_fingerprint",
+            "closed_at"
+          ],
+          "rows": [
+            [
+              90,
+              90,
+              1,
+              2,
+              "regular",
+              1,
+              null,
+              null,
+              "[]",
+              "[]",
+              "[]",
+              "[]",
+              null,
+              "current",
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              91,
+              91,
+              1,
+              2,
+              "regular",
+              1,
+              null,
+              null,
+              "[]",
+              "[]",
+              "[]",
+              "[]",
+              null,
+              "current",
+              "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_half_year",
+          "columns": [
+            "id",
+            "season",
+            "year",
+            "status",
+            "created_at",
+            "updated_at",
+            "legacy_status"
+          ],
+          "rows": [
+            [
+              2,
+              "summer",
+              2027,
+              "active",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null
+            ],
+            [
+              90,
+              "summer",
+              2028,
+              "active",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null
+            ],
+            [
+              91,
+              "winter",
+              2028,
+              "active",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null
+            ],
+            [
+              92,
+              "summer",
+              2029,
+              "active",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null
+            ],
+            [
+              93,
+              "winter",
+              2029,
+              "active",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null
+            ]
+          ]
+        },
+        {
+          "table": "exam_protocol",
+          "columns": [
+            "id",
+            "exam_slot_id",
+            "current_version",
+            "created_by_member_id",
+            "source",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              1,
+              "application",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              3,
+              1,
+              1,
+              "application",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_protocol_participant",
+          "columns": [
+            "id",
+            "exam_protocol_id",
+            "committee_member_id",
+            "created_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              1,
+              2,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              3,
+              1,
+              3,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              4,
+              2,
+              1,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              5,
+              2,
+              2,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              6,
+              2,
+              3,
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_protocol_response",
+          "columns": [
+            "id",
+            "exam_protocol_revision_id",
+            "committee_member_id",
+            "response",
+            "exam_protocol_entry_id",
+            "statement",
+            "responded_at"
+          ],
+          "rows": [
+            [
+              1,
+              2,
+              1,
+              "confirmed",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              2,
+              2,
+              "confirmed",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_protocol_revision",
+          "columns": [
+            "id",
+            "exam_protocol_id",
+            "version",
+            "declaration",
+            "workflow_state",
+            "previous_revision_id",
+            "correction_request_id",
+            "changed_by_member_id",
+            "change_reason",
+            "submitted_by_member_id",
+            "submitted_at",
+            "created_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "draft",
+              null,
+              null,
+              1,
+              "exam_started",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              2,
+              1,
+              "without_special_occurrences",
+              "submitted",
+              null,
+              null,
+              1,
+              null,
+              1,
+              "2027-05-20 10:02:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_result",
+          "columns": [
+            "id",
+            "round_candidate_id",
+            "current_state",
+            "correction_open",
+            "version",
+            "source",
+            "legacy_status",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              13,
+              "incomplete",
+              0,
+              1,
+              "application",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              15,
+              "incomplete",
+              0,
+              1,
+              "application",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_round",
+          "columns": [
+            "id",
+            "exam_half_year_id",
+            "committee_id",
+            "name",
+            "status",
+            "plan_revision",
+            "availability_deadline",
+            "availability_reminder_at",
+            "created_by_member_id",
+            "created_at",
+            "updated_at",
+            "revision",
+            "lifecycle_status",
+            "legacy_status"
+          ],
+          "rows": [
+            [
+              2,
+              2,
+              1,
+              "Sommer 2027 – Protokolldemo",
+              "plan_confirmed",
+              0,
+              null,
+              null,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              1,
+              "open",
+              null
+            ],
+            [
+              90,
+              90,
+              1,
+              "Sommer 2028 · leere Entwurfsrunde",
+              "draft",
+              0,
+              null,
+              null,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              1,
+              "open",
+              null
+            ],
+            [
+              91,
+              91,
+              1,
+              "Winter 2028 · absagbare Runde",
+              "draft",
+              0,
+              null,
+              null,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              1,
+              "open",
+              null
+            ],
+            [
+              92,
+              92,
+              1,
+              "Sommer 2029 · abschließbare Runde",
+              "plan_confirmed",
+              1,
+              null,
+              null,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              1,
+              "open",
+              null
+            ],
+            [
+              93,
+              93,
+              1,
+              "Winter 2029 · abgeschlossene Runde",
+              "plan_confirmed",
+              1,
+              null,
+              null,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              2,
+              "closed",
+              null
+            ],
+            [
+              94,
+              92,
+              2,
+              "Sommer 2029 · Fremdrunde Feenwald",
+              "draft",
+              0,
+              null,
+              null,
+              9,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              1,
+              "open",
+              null
+            ]
+          ]
+        },
+        {
+          "table": "exam_round_assessment_binding",
+          "columns": [
+            "id",
+            "exam_round_id",
+            "assessment_model_version_id",
+            "version",
+            "bound_by_member_id",
+            "binding_reason",
+            "bound_at"
+          ],
+          "rows": [
+            [
+              1,
+              2,
+              1,
+              1,
+              1,
+              "Synthetischer Demo-Ergebnisprozess",
+              "2027-05-18 08:00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_round_audit_event",
+          "columns": [
+            "id",
+            "exam_round_id",
+            "round_revision",
+            "event_type",
+            "actor_member_id",
+            "decision_id",
+            "reopening_id",
+            "reason",
+            "scope_json",
+            "created_at"
+          ],
+          "rows": [
+            [
+              90,
+              93,
+              2,
+              "closed",
+              1,
+              90,
+              null,
+              null,
+              "[]",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_round_decision",
+          "columns": [
+            "id",
+            "exam_round_id",
+            "decision_type",
+            "requested_revision",
+            "resulting_revision",
+            "actor_member_id",
+            "reason",
+            "checklist_json",
+            "snapshot_json",
+            "previous_decision_id",
+            "status",
+            "command_fingerprint",
+            "decided_at"
+          ],
+          "rows": [
+            [
+              90,
+              93,
+              "close",
+              1,
+              2,
+              1,
+              null,
+              "[]",
+              "{\"demo\":\"synthetic closed round\"}",
+              null,
+              "current",
+              "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_round_export",
+          "columns": [
+            "id",
+            "exam_round_id",
+            "decision_id",
+            "round_revision",
+            "export_kind",
+            "lifecycle_status",
+            "generated_by_member_id",
+            "generated_at",
+            "superseded_at",
+            "superseded_by_revision"
+          ],
+          "rows": [
+            [
+              90,
+              93,
+              90,
+              2,
+              "machine",
+              "closed",
+              1,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null
+            ]
+          ]
+        },
+        {
+          "table": "exam_slot",
+          "columns": [
+            "id",
+            "exam_day_id",
+            "round_candidate_id",
+            "slot_type",
+            "starts_at",
+            "ends_at",
+            "sequence_number",
+            "status",
+            "actual_started_at",
+            "execution_status",
+            "status_changed_at",
+            "actual_completed_at",
+            "status_reason",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              13,
+              "regular",
+              "2027-05-18 09:00:00",
+              "2027-05-18 10:00:00",
+              1,
+              "confirmed",
+              "2026-01-01T00:00:00+00:00",
+              "running",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              2,
+              14,
+              "regular",
+              "2027-05-19 09:00:00",
+              "2027-05-19 10:00:00",
+              1,
+              "confirmed",
+              null,
+              "cancelled",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              "Synthetischer begründeter Prüfungsausfall",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              3,
+              3,
+              15,
+              "regular",
+              "2027-05-20 09:00:00",
+              "2027-05-20 10:00:00",
+              1,
+              "confirmed",
+              "2026-01-01T00:00:00+00:00",
+              "completed",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "individual_assessment",
+          "columns": [
+            "id",
+            "exam_result_id",
+            "component_key",
+            "criterion_key",
+            "assessor_member_id",
+            "revision",
+            "raw_points",
+            "normalized_points",
+            "rationale",
+            "status",
+            "previous_assessment_id",
+            "change_reason",
+            "submitted_at",
+            "created_at"
+          ],
+          "rows": [
+            [
+              1,
+              2,
+              "documentation",
+              "professional_quality",
+              1,
+              1,
+              "8",
+              "80",
+              null,
+              "submitted",
+              null,
+              null,
+              "2027-05-20 09:55:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              2,
+              "documentation",
+              "professional_quality",
+              2,
+              1,
+              "8",
+              "80",
+              null,
+              "submitted",
+              null,
+              null,
+              "2027-05-20 09:56:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "member_exam_attendance",
+          "columns": [
+            "id",
+            "exam_day_id",
+            "committee_member_id",
+            "status",
+            "arrived_at",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "present",
+              "2027-05-18 08:45:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              1,
+              2,
+              "present",
+              "2027-05-18 08:47:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              3,
+              1,
+              3,
+              "present",
+              "2027-05-18 08:50:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              4,
+              3,
+              1,
+              "present",
+              "2027-05-20 08:45:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              5,
+              3,
+              2,
+              "present",
+              "2027-05-20 08:47:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              6,
+              3,
+              3,
+              "present",
+              "2027-05-20 08:50:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "round_candidate",
+          "columns": [
+            "id",
+            "exam_round_id",
+            "candidate_id",
+            "attempt_number",
+            "requires_mep",
+            "is_active",
+            "created_at",
+            "updated_at",
+            "terminal_status",
+            "terminal_reason",
+            "effective_new_round_id",
+            "postponed_until",
+            "ihk_decision_reference",
+            "terminal_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              1,
+              0,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              2,
+              1,
+              2,
+              2,
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              3,
+              1,
+              3,
+              1,
+              0,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              4,
+              1,
+              4,
+              3,
+              0,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              5,
+              1,
+              5,
+              2,
+              0,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              6,
+              1,
+              6,
+              1,
+              0,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              7,
+              1,
+              7,
+              3,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              8,
+              1,
+              8,
+              1,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              9,
+              1,
+              9,
+              2,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              10,
+              1,
+              10,
+              1,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              11,
+              1,
+              11,
+              1,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              12,
+              1,
+              12,
+              2,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              13,
+              2,
+              1,
+              1,
+              0,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              14,
+              2,
+              2,
+              1,
+              0,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              15,
+              2,
+              3,
+              1,
+              0,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              90,
+              91,
+              1,
+              1,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "postponed",
+              "Synthetische Neuplanung",
+              null,
+              "2029-05-01",
+              null,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              91,
+              92,
+              2,
+              1,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "postponed",
+              "Synthetische Neuplanung",
+              null,
+              "2030-05-01",
+              null,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              92,
+              93,
+              3,
+              1,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "postponed",
+              "Synthetische Neuplanung",
+              null,
+              "2030-11-01",
+              null,
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        }
+      ],
+      "runtime": {
+        "round_id": 1,
+        "roles": {
+          "chair": {
+            "account_key": "name.papaspyrou.repertoire.lzug.fixture.account.chair",
+            "person_key": "name.papaspyrou.repertoire.lzug.fixture.person.chair.athen",
+            "membership_key": "name.papaspyrou.repertoire.lzug.fixture.membership.chair.athen"
+          },
+          "examiner": {
+            "account_key": "name.papaspyrou.repertoire.lzug.fixture.account.examiner",
+            "person_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.absent",
+            "membership_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.absent"
+          },
+          "replacement": {
+            "account_key": "name.papaspyrou.repertoire.lzug.fixture.account.replacement",
+            "person_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.replacement",
+            "membership_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.replacement"
+          }
+        },
+        "absence": {
+          "day_id": 487001,
+          "assignment_id": 487202
+        },
+        "plan_change": {
+          "day_id": 487002,
+          "assignment_id": 487206,
+          "replacement_member_id": 6,
+          "source_location_id": 1,
+          "target_location_id": 2,
+          "reason": "Synthetischer Ortswechsel mit gleichseitiger Ersatzbesetzung"
+        }
+      }
     },
     "public-demo": {
       "name": "public-demo",
@@ -759,34 +2579,3611 @@
         "staffing.fallback",
         "staffing.suitable",
         "staffing.unsuitable"
-      ]
+      ],
+      "replace_tables": [
+        "assessment_model_version",
+        "calendar_event",
+        "candidate_committee_assignment",
+        "candidate_exam_attendance",
+        "candidate_exam_day",
+        "committee_assessment",
+        "exam_day",
+        "exam_day_assignment",
+        "exam_day_closure",
+        "exam_half_year",
+        "exam_protocol",
+        "exam_protocol_participant",
+        "exam_protocol_response",
+        "exam_protocol_revision",
+        "exam_result",
+        "exam_round",
+        "exam_round_assessment_binding",
+        "exam_round_audit_event",
+        "exam_round_decision",
+        "exam_round_export",
+        "exam_slot",
+        "individual_assessment",
+        "member_availability",
+        "member_exam_attendance",
+        "round_candidate"
+      ],
+      "seed_records": [
+        {
+          "table": "assessment_model_version",
+          "columns": [
+            "id",
+            "model_key",
+            "version",
+            "ihk",
+            "occupation",
+            "specialization",
+            "training_regulation",
+            "exam_regulation",
+            "ihk_guidelines",
+            "valid_from",
+            "valid_until",
+            "official_scale_min",
+            "official_scale_max",
+            "rules_json",
+            "retention_rule_reference",
+            "retention_years",
+            "created_by_member_id",
+            "created_at"
+          ],
+          "rows": [
+            [
+              1,
+              "demo-fisi-2027",
+              1,
+              "Industrie- und Handelskammer Athen (Demo)",
+              "Fachinformatiker/in",
+              null,
+              "Synthetische Ausbildungsordnung Athen 2020",
+              "Synthetische Prüfungsordnung Athen 2027",
+              "Verbindliche Demo-Richtlinie Athen 2027",
+              "2027-01-01",
+              "2027-12-31",
+              "0",
+              "100",
+              "{\"components\": [{\"additional_assessor_on_deviation\": true, \"criteria\": [{\"key\": \"professional_quality\", \"label\": \"Fachliche Qualität\", \"raw_max\": \"10\", \"raw_min\": \"0\", \"weight\": \"100\"}], \"day_scoped\": true, \"key\": \"documentation\", \"label\": \"Dokumentation\", \"max_deviation\": \"15\", \"mode\": \"independent\", \"required_assessors\": 2, \"weight\": \"20\"}, {\"additional_assessor_on_deviation\": false, \"criteria\": [{\"key\": \"delivery\", \"label\": \"Darstellung\", \"raw_max\": \"10\", \"raw_min\": \"0\", \"weight\": \"100\"}], \"day_scoped\": true, \"key\": \"presentation\", \"label\": \"Präsentation\", \"max_deviation\": \"15\", \"mode\": \"committee\", \"required_assessors\": 3, \"weight\": \"15\"}, {\"additional_assessor_on_deviation\": false, \"criteria\": [{\"key\": \"professional_depth\", \"label\": \"Fachliche Tiefe\", \"raw_max\": \"10\", \"raw_min\": \"0\", \"weight\": \"100\"}], \"day_scoped\": true, \"key\": \"technical_discussion\", \"label\": \"Fachgespräch\", \"max_deviation\": \"15\", \"mode\": \"committee\", \"required_assessors\": 3, \"weight\": \"15\"}], \"external_areas\": [{\"key\": \"written_exam\", \"label\": \"Schriftliches Eingangsergebnis\", \"required\": true, \"weight\": \"50\"}], \"grades\": [{\"label\": \"sehr gut\", \"min_points\": \"92\"}, {\"label\": \"gut\", \"min_points\": \"81\"}, {\"label\": \"befriedigend\", \"min_points\": \"67\"}, {\"label\": \"ausreichend\", \"min_points\": \"50\"}, {\"label\": \"mangelhaft\", \"min_points\": \"30\"}, {\"label\": \"ungenügend\", \"min_points\": \"0\"}], \"passing\": {\"component_minima\": {}, \"external_minima\": {}, \"overall_min\": \"50\"}, \"quorum\": {\"majority\": \"simple\", \"minimum_members\": 3}, \"rounding\": {\"intermediate\": {\"digits\": null, \"mode\": \"none\"}, \"overall\": {\"digits\": 0, \"mode\": \"half_up\"}, \"threshold_basis\": \"unrounded\"}}",
+              "Demo-PrüfO Athen § 31",
+              15,
+              1,
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "calendar_event",
+          "columns": [
+            "id",
+            "external_event_id",
+            "exam_half_year_id",
+            "exam_round_id",
+            "exam_day_id",
+            "exam_day_assignment_id",
+            "recipient_member_id",
+            "date",
+            "starts_at",
+            "ends_at",
+            "time_zone",
+            "location",
+            "role",
+            "round_name",
+            "secure_reference",
+            "source_key",
+            "version",
+            "status",
+            "content_hash",
+            "sent_at",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "lzug-487201-1",
+              1,
+              1,
+              487001,
+              487201,
+              1,
+              "2026-01-02",
+              "2026-01-02 08:30:00",
+              "2026-01-02 10:30:00",
+              "Europe/Berlin",
+              "Prüfungszentrum am Zappeion (Demo), Reale geografische Referenz: Zappeion Megaron, Athen, Theseussaal, Vasilissis Olgas Avenue, 10557 Athens, Greece, Synthetischer Demo-Eingang und Treffpunkt Theseus, Reale Orientierung: Bereich Zappeion, fußläufig von Syntagma. Der bezeichnete Eingang und Treffpunkt gehören ausschließlich zum synthetischen Prüfungsszenario., Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.",
+              "Regulärer Prüfer",
+              "Demo-Prüfungsrunde 2026",
+              "/api/confirmed-plan-days/487001",
+              "assignment:487201:1",
+              1,
+              "sent",
+              "ff787664890e6934b7e9bc38d79119a185da3290ef0901fd509183fd0e98a6b2",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              "lzug-487202-1",
+              1,
+              1,
+              487001,
+              487202,
+              3,
+              "2026-01-02",
+              "2026-01-02 08:30:00",
+              "2026-01-02 10:30:00",
+              "Europe/Berlin",
+              "Prüfungszentrum am Zappeion (Demo), Reale geografische Referenz: Zappeion Megaron, Athen, Theseussaal, Vasilissis Olgas Avenue, 10557 Athens, Greece, Synthetischer Demo-Eingang und Treffpunkt Theseus, Reale Orientierung: Bereich Zappeion, fußläufig von Syntagma. Der bezeichnete Eingang und Treffpunkt gehören ausschließlich zum synthetischen Prüfungsszenario., Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.",
+              "Regulärer Prüfer",
+              "Demo-Prüfungsrunde 2026",
+              "/api/confirmed-plan-days/487001",
+              "assignment:487202:1",
+              1,
+              "sent",
+              "9544e18ce6045fa284ae2a697db97a6090fb10a3dbfe5f694c31495b0f02db69",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              3,
+              "lzug-487203-1",
+              1,
+              1,
+              487001,
+              487203,
+              2,
+              "2026-01-02",
+              "2026-01-02 08:30:00",
+              "2026-01-02 10:30:00",
+              "Europe/Berlin",
+              "Prüfungszentrum am Zappeion (Demo), Reale geografische Referenz: Zappeion Megaron, Athen, Theseussaal, Vasilissis Olgas Avenue, 10557 Athens, Greece, Synthetischer Demo-Eingang und Treffpunkt Theseus, Reale Orientierung: Bereich Zappeion, fußläufig von Syntagma. Der bezeichnete Eingang und Treffpunkt gehören ausschließlich zum synthetischen Prüfungsszenario., Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.",
+              "Regulärer Prüfer",
+              "Demo-Prüfungsrunde 2026",
+              "/api/confirmed-plan-days/487001",
+              "assignment:487203:1",
+              1,
+              "sent",
+              "feeab5a46b82d4fff938d6008d3692812fce0aa5eadeb069741cd0c3d9b058ee",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              4,
+              "lzug-487204-1",
+              1,
+              1,
+              487001,
+              487204,
+              5,
+              "2026-01-02",
+              "2026-01-02 08:30:00",
+              "2026-01-02 10:30:00",
+              "Europe/Berlin",
+              "Prüfungszentrum am Zappeion (Demo), Reale geografische Referenz: Zappeion Megaron, Athen, Theseussaal, Vasilissis Olgas Avenue, 10557 Athens, Greece, Synthetischer Demo-Eingang und Treffpunkt Theseus, Reale Orientierung: Bereich Zappeion, fußläufig von Syntagma. Der bezeichnete Eingang und Treffpunkt gehören ausschließlich zum synthetischen Prüfungsszenario., Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.",
+              "Fallback",
+              "Demo-Prüfungsrunde 2026",
+              "/api/confirmed-plan-days/487001",
+              "assignment:487204:1",
+              1,
+              "sent",
+              "f8744fe594c8ebcab5fe2df3f600579b5ed969f316fbb06a97331416e9510a4a",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              5,
+              "lzug-487209-1",
+              1,
+              1,
+              487002,
+              487209,
+              4,
+              "2026-01-10",
+              "2026-01-10 13:30:00",
+              "2026-01-10 14:30:00",
+              "Europe/Berlin",
+              "Prüfungszentrum am Zappeion (Demo), Reale geografische Referenz: Zappeion Megaron, Athen, Theseussaal, Vasilissis Olgas Avenue, 10557 Athens, Greece, Synthetischer Demo-Eingang und Treffpunkt Theseus, Reale Orientierung: Bereich Zappeion, fußläufig von Syntagma. Der bezeichnete Eingang und Treffpunkt gehören ausschließlich zum synthetischen Prüfungsszenario., Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.",
+              "Regulärer Prüfer",
+              "Demo-Prüfungsrunde 2026",
+              "/api/confirmed-plan-days/487002",
+              "assignment:487209:1",
+              1,
+              "sent",
+              "f61dfc7cdccaef8cfdd84dadeab49a294b879c35dcc402a7e387a29ea340acc0",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              6,
+              "lzug-487210-1",
+              1,
+              1,
+              487002,
+              487210,
+              6,
+              "2026-01-10",
+              "2026-01-10 13:30:00",
+              "2026-01-10 14:30:00",
+              "Europe/Berlin",
+              "Prüfungszentrum am Zappeion (Demo), Reale geografische Referenz: Zappeion Megaron, Athen, Theseussaal, Vasilissis Olgas Avenue, 10557 Athens, Greece, Synthetischer Demo-Eingang und Treffpunkt Theseus, Reale Orientierung: Bereich Zappeion, fußläufig von Syntagma. Der bezeichnete Eingang und Treffpunkt gehören ausschließlich zum synthetischen Prüfungsszenario., Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.",
+              "Regulärer Prüfer",
+              "Demo-Prüfungsrunde 2026",
+              "/api/confirmed-plan-days/487002",
+              "assignment:487210:1",
+              1,
+              "sent",
+              "c19f7638f82386b29bfe7b74cf0d002bee18e169731af5b4192c1038bb82c231",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              7,
+              "lzug-487211-1",
+              1,
+              1,
+              487002,
+              487211,
+              8,
+              "2026-01-10",
+              "2026-01-10 13:30:00",
+              "2026-01-10 14:30:00",
+              "Europe/Berlin",
+              "Prüfungszentrum am Zappeion (Demo), Reale geografische Referenz: Zappeion Megaron, Athen, Theseussaal, Vasilissis Olgas Avenue, 10557 Athens, Greece, Synthetischer Demo-Eingang und Treffpunkt Theseus, Reale Orientierung: Bereich Zappeion, fußläufig von Syntagma. Der bezeichnete Eingang und Treffpunkt gehören ausschließlich zum synthetischen Prüfungsszenario., Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.",
+              "Regulärer Prüfer",
+              "Demo-Prüfungsrunde 2026",
+              "/api/confirmed-plan-days/487002",
+              "assignment:487211:1",
+              1,
+              "sent",
+              "a99c5d831818afddb17140cd5ec2ab85372c0f4bdc0913cd4745fb9d68b3ebc6",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              8,
+              "lzug-487212-1",
+              1,
+              1,
+              487002,
+              487212,
+              7,
+              "2026-01-10",
+              "2026-01-10 13:30:00",
+              "2026-01-10 14:30:00",
+              "Europe/Berlin",
+              "Prüfungszentrum am Zappeion (Demo), Reale geografische Referenz: Zappeion Megaron, Athen, Theseussaal, Vasilissis Olgas Avenue, 10557 Athens, Greece, Synthetischer Demo-Eingang und Treffpunkt Theseus, Reale Orientierung: Bereich Zappeion, fußläufig von Syntagma. Der bezeichnete Eingang und Treffpunkt gehören ausschließlich zum synthetischen Prüfungsszenario., Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.",
+              "Fallback",
+              "Demo-Prüfungsrunde 2026",
+              "/api/confirmed-plan-days/487002",
+              "assignment:487212:1",
+              1,
+              "sent",
+              "171edcc91a21c58478bb51698eb287c5792879e7182e1b9da2d9b4c823396aea",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              9,
+              "lzug-487205-1",
+              1,
+              1,
+              487002,
+              487205,
+              1,
+              "2026-01-10",
+              "2026-01-10 08:30:00",
+              "2026-01-10 12:30:00",
+              "Europe/Berlin",
+              "Prüfungszentrum am Zappeion (Demo), Reale geografische Referenz: Zappeion Megaron, Athen, Theseussaal, Vasilissis Olgas Avenue, 10557 Athens, Greece, Synthetischer Demo-Eingang und Treffpunkt Theseus, Reale Orientierung: Bereich Zappeion, fußläufig von Syntagma. Der bezeichnete Eingang und Treffpunkt gehören ausschließlich zum synthetischen Prüfungsszenario., Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.",
+              "Regulärer Prüfer",
+              "Demo-Prüfungsrunde 2026",
+              "/api/confirmed-plan-days/487002",
+              "assignment:487205:1",
+              1,
+              "sent",
+              "7bfd59a47a778dc6b71af3c643b4d09c00fb8bd371cf9758b4dc6224b243e431",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              10,
+              "lzug-487206-1",
+              1,
+              1,
+              487002,
+              487206,
+              3,
+              "2026-01-10",
+              "2026-01-10 08:30:00",
+              "2026-01-10 12:30:00",
+              "Europe/Berlin",
+              "Prüfungszentrum am Zappeion (Demo), Reale geografische Referenz: Zappeion Megaron, Athen, Theseussaal, Vasilissis Olgas Avenue, 10557 Athens, Greece, Synthetischer Demo-Eingang und Treffpunkt Theseus, Reale Orientierung: Bereich Zappeion, fußläufig von Syntagma. Der bezeichnete Eingang und Treffpunkt gehören ausschließlich zum synthetischen Prüfungsszenario., Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.",
+              "Regulärer Prüfer",
+              "Demo-Prüfungsrunde 2026",
+              "/api/confirmed-plan-days/487002",
+              "assignment:487206:1",
+              1,
+              "sent",
+              "c1ac68f52f71ce04d1bef24489e3606be34819cee2f78e2d1d6561bab8a243ff",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              11,
+              "lzug-487207-1",
+              1,
+              1,
+              487002,
+              487207,
+              2,
+              "2026-01-10",
+              "2026-01-10 08:30:00",
+              "2026-01-10 12:30:00",
+              "Europe/Berlin",
+              "Prüfungszentrum am Zappeion (Demo), Reale geografische Referenz: Zappeion Megaron, Athen, Theseussaal, Vasilissis Olgas Avenue, 10557 Athens, Greece, Synthetischer Demo-Eingang und Treffpunkt Theseus, Reale Orientierung: Bereich Zappeion, fußläufig von Syntagma. Der bezeichnete Eingang und Treffpunkt gehören ausschließlich zum synthetischen Prüfungsszenario., Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.",
+              "Regulärer Prüfer",
+              "Demo-Prüfungsrunde 2026",
+              "/api/confirmed-plan-days/487002",
+              "assignment:487207:1",
+              1,
+              "sent",
+              "c83d3dcfd81bd409ec2bc99d819685075446c9befcde1716519d2054029b8d65",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              12,
+              "lzug-487208-1",
+              1,
+              1,
+              487002,
+              487208,
+              5,
+              "2026-01-10",
+              "2026-01-10 08:30:00",
+              "2026-01-10 12:30:00",
+              "Europe/Berlin",
+              "Prüfungszentrum am Zappeion (Demo), Reale geografische Referenz: Zappeion Megaron, Athen, Theseussaal, Vasilissis Olgas Avenue, 10557 Athens, Greece, Synthetischer Demo-Eingang und Treffpunkt Theseus, Reale Orientierung: Bereich Zappeion, fußläufig von Syntagma. Der bezeichnete Eingang und Treffpunkt gehören ausschließlich zum synthetischen Prüfungsszenario., Synthetische Auffindung: ab Demo-Eingang dem Treffpunkt Theseus folgen.",
+              "Fallback",
+              "Demo-Prüfungsrunde 2026",
+              "/api/confirmed-plan-days/487002",
+              "assignment:487208:1",
+              1,
+              "sent",
+              "7e1df233a8d11c4cde965cdd3b639bf2f18e1fa5af3069774f48b123a5b1a247",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "candidate_committee_assignment",
+          "columns": [
+            "id",
+            "candidate_id",
+            "exam_half_year_id",
+            "exam_round_id",
+            "round_candidate_id",
+            "assigned_at",
+            "ended_at",
+            "change_reason",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              2,
+              1,
+              1,
+              2,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              3,
+              3,
+              1,
+              1,
+              3,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              4,
+              4,
+              1,
+              1,
+              4,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              5,
+              5,
+              1,
+              1,
+              5,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              6,
+              6,
+              1,
+              1,
+              6,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              7,
+              7,
+              1,
+              1,
+              7,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              8,
+              8,
+              1,
+              1,
+              8,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              9,
+              9,
+              1,
+              1,
+              9,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              10,
+              10,
+              1,
+              1,
+              10,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              11,
+              11,
+              1,
+              1,
+              11,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              12,
+              12,
+              1,
+              1,
+              12,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              13,
+              1,
+              2,
+              2,
+              13,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              14,
+              2,
+              2,
+              2,
+              14,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              15,
+              3,
+              2,
+              2,
+              15,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              90,
+              1,
+              91,
+              91,
+              90,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              91,
+              2,
+              92,
+              92,
+              91,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              92,
+              3,
+              93,
+              93,
+              92,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "candidate_exam_attendance",
+          "columns": [
+            "id",
+            "exam_slot_id",
+            "status",
+            "arrived_at",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "present",
+              "2027-05-18 08:55:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              3,
+              "present",
+              "2027-05-20 08:55:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "candidate_exam_day",
+          "columns": [
+            "id",
+            "exam_round_id",
+            "date",
+            "is_active",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "2026-01-02",
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              1,
+              "2026-01-10",
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              3,
+              1,
+              "2026-11-18",
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              4,
+              1,
+              "2026-11-19",
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              5,
+              1,
+              "2026-11-20",
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "committee_assessment",
+          "columns": [
+            "id",
+            "exam_result_id",
+            "component_key",
+            "revision",
+            "points",
+            "rationale",
+            "participant_member_ids_json",
+            "vote_json",
+            "dissent_json",
+            "status",
+            "previous_assessment_id",
+            "determined_by_member_id",
+            "determined_at"
+          ],
+          "rows": [
+            [
+              1,
+              2,
+              "presentation",
+              1,
+              "80",
+              null,
+              "[1,2,3]",
+              "{\"yes\":[1,2,3],\"no\":[],\"abstain\":[]}",
+              "[]",
+              "current",
+              null,
+              1,
+              "2027-05-20 09:57:00"
+            ],
+            [
+              2,
+              2,
+              "technical_discussion",
+              1,
+              "80",
+              null,
+              "[1,2,3]",
+              "{\"yes\":[1,2,3],\"no\":[],\"abstain\":[]}",
+              "[]",
+              "current",
+              null,
+              1,
+              "2027-05-20 09:58:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_day",
+          "columns": [
+            "id",
+            "exam_round_id",
+            "room_id",
+            "date",
+            "status",
+            "revision",
+            "closure_status",
+            "lunch_break_enabled",
+            "created_from_proposal",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              2,
+              1,
+              "2027-05-18",
+              "confirmed",
+              1,
+              "open",
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              2,
+              1,
+              "2027-05-19",
+              "confirmed",
+              1,
+              "open",
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              3,
+              2,
+              1,
+              "2027-05-20",
+              "confirmed",
+              1,
+              "open",
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              90,
+              92,
+              1,
+              "2029-05-15",
+              "completed",
+              2,
+              "closed",
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              91,
+              93,
+              1,
+              "2029-11-15",
+              "completed",
+              2,
+              "closed",
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487001,
+              1,
+              1,
+              "2026-01-02",
+              "confirmed",
+              1,
+              "open",
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487002,
+              1,
+              1,
+              "2026-01-10",
+              "confirmed",
+              1,
+              "open",
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_day_assignment",
+          "columns": [
+            "id",
+            "exam_day_id",
+            "committee_member_id",
+            "assignment_role",
+            "day_part",
+            "fallback_status",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "examiner",
+              "full_day",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              1,
+              2,
+              "examiner",
+              "full_day",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              3,
+              1,
+              3,
+              "examiner",
+              "full_day",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              4,
+              3,
+              1,
+              "examiner",
+              "full_day",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              5,
+              3,
+              2,
+              "examiner",
+              "full_day",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              6,
+              3,
+              3,
+              "examiner",
+              "full_day",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487201,
+              487001,
+              1,
+              "examiner",
+              "morning",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487202,
+              487001,
+              3,
+              "examiner",
+              "morning",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487203,
+              487001,
+              2,
+              "examiner",
+              "morning",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487204,
+              487001,
+              5,
+              "fallback",
+              "morning",
+              "confirmed",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487205,
+              487002,
+              1,
+              "examiner",
+              "morning",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487206,
+              487002,
+              3,
+              "examiner",
+              "morning",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487207,
+              487002,
+              2,
+              "examiner",
+              "morning",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487208,
+              487002,
+              5,
+              "fallback",
+              "morning",
+              "confirmed",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487209,
+              487002,
+              4,
+              "examiner",
+              "afternoon",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487210,
+              487002,
+              6,
+              "examiner",
+              "afternoon",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487211,
+              487002,
+              8,
+              "examiner",
+              "afternoon",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487212,
+              487002,
+              7,
+              "fallback",
+              "afternoon",
+              "confirmed",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_day_closure",
+          "columns": [
+            "id",
+            "exam_day_id",
+            "requested_revision",
+            "resulting_revision",
+            "closure_type",
+            "actor_member_id",
+            "reason",
+            "clarification_attempts",
+            "checklist_json",
+            "warnings_json",
+            "protocol_references_json",
+            "result_references_json",
+            "previous_closure_id",
+            "status",
+            "command_fingerprint",
+            "closed_at"
+          ],
+          "rows": [
+            [
+              90,
+              90,
+              1,
+              2,
+              "regular",
+              1,
+              null,
+              null,
+              "[]",
+              "[]",
+              "[]",
+              "[]",
+              null,
+              "current",
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              91,
+              91,
+              1,
+              2,
+              "regular",
+              1,
+              null,
+              null,
+              "[]",
+              "[]",
+              "[]",
+              "[]",
+              null,
+              "current",
+              "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_half_year",
+          "columns": [
+            "id",
+            "season",
+            "year",
+            "status",
+            "created_at",
+            "updated_at",
+            "legacy_status"
+          ],
+          "rows": [
+            [
+              1,
+              "summer",
+              2026,
+              "active",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null
+            ],
+            [
+              2,
+              "summer",
+              2027,
+              "active",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null
+            ],
+            [
+              90,
+              "summer",
+              2028,
+              "active",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null
+            ],
+            [
+              91,
+              "winter",
+              2028,
+              "active",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null
+            ],
+            [
+              92,
+              "summer",
+              2029,
+              "active",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null
+            ],
+            [
+              93,
+              "winter",
+              2029,
+              "active",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null
+            ]
+          ]
+        },
+        {
+          "table": "exam_protocol",
+          "columns": [
+            "id",
+            "exam_slot_id",
+            "current_version",
+            "created_by_member_id",
+            "source",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              1,
+              "application",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              3,
+              1,
+              1,
+              "application",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_protocol_participant",
+          "columns": [
+            "id",
+            "exam_protocol_id",
+            "committee_member_id",
+            "created_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              1,
+              2,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              3,
+              1,
+              3,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              4,
+              2,
+              1,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              5,
+              2,
+              2,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              6,
+              2,
+              3,
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_protocol_response",
+          "columns": [
+            "id",
+            "exam_protocol_revision_id",
+            "committee_member_id",
+            "response",
+            "exam_protocol_entry_id",
+            "statement",
+            "responded_at"
+          ],
+          "rows": [
+            [
+              1,
+              2,
+              1,
+              "confirmed",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              2,
+              2,
+              "confirmed",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_protocol_revision",
+          "columns": [
+            "id",
+            "exam_protocol_id",
+            "version",
+            "declaration",
+            "workflow_state",
+            "previous_revision_id",
+            "correction_request_id",
+            "changed_by_member_id",
+            "change_reason",
+            "submitted_by_member_id",
+            "submitted_at",
+            "created_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "draft",
+              null,
+              null,
+              1,
+              "exam_started",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              2,
+              1,
+              "without_special_occurrences",
+              "submitted",
+              null,
+              null,
+              1,
+              null,
+              1,
+              "2027-05-20 10:02:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_result",
+          "columns": [
+            "id",
+            "round_candidate_id",
+            "current_state",
+            "correction_open",
+            "version",
+            "source",
+            "legacy_status",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              13,
+              "incomplete",
+              0,
+              1,
+              "application",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              15,
+              "incomplete",
+              0,
+              1,
+              "application",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_round",
+          "columns": [
+            "id",
+            "exam_half_year_id",
+            "committee_id",
+            "name",
+            "status",
+            "plan_revision",
+            "availability_deadline",
+            "availability_reminder_at",
+            "created_by_member_id",
+            "created_at",
+            "updated_at",
+            "revision",
+            "lifecycle_status",
+            "legacy_status"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "Demo-Prüfungsrunde 2026",
+              "plan_confirmed",
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              1,
+              "open",
+              null
+            ],
+            [
+              2,
+              2,
+              1,
+              "Sommer 2027 – Protokolldemo",
+              "plan_confirmed",
+              0,
+              null,
+              null,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              1,
+              "open",
+              null
+            ],
+            [
+              90,
+              90,
+              1,
+              "Sommer 2028 · leere Entwurfsrunde",
+              "draft",
+              0,
+              null,
+              null,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              1,
+              "open",
+              null
+            ],
+            [
+              91,
+              91,
+              1,
+              "Winter 2028 · absagbare Runde",
+              "draft",
+              0,
+              null,
+              null,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              1,
+              "open",
+              null
+            ],
+            [
+              92,
+              92,
+              1,
+              "Sommer 2029 · abschließbare Runde",
+              "plan_confirmed",
+              1,
+              null,
+              null,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              1,
+              "open",
+              null
+            ],
+            [
+              93,
+              93,
+              1,
+              "Winter 2029 · abgeschlossene Runde",
+              "plan_confirmed",
+              1,
+              null,
+              null,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              2,
+              "closed",
+              null
+            ],
+            [
+              94,
+              92,
+              2,
+              "Sommer 2029 · Fremdrunde Feenwald",
+              "draft",
+              0,
+              null,
+              null,
+              9,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              1,
+              "open",
+              null
+            ]
+          ]
+        },
+        {
+          "table": "exam_round_assessment_binding",
+          "columns": [
+            "id",
+            "exam_round_id",
+            "assessment_model_version_id",
+            "version",
+            "bound_by_member_id",
+            "binding_reason",
+            "bound_at"
+          ],
+          "rows": [
+            [
+              1,
+              2,
+              1,
+              1,
+              1,
+              "Synthetischer Demo-Ergebnisprozess",
+              "2027-05-18 08:00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_round_audit_event",
+          "columns": [
+            "id",
+            "exam_round_id",
+            "round_revision",
+            "event_type",
+            "actor_member_id",
+            "decision_id",
+            "reopening_id",
+            "reason",
+            "scope_json",
+            "created_at"
+          ],
+          "rows": [
+            [
+              90,
+              93,
+              2,
+              "closed",
+              1,
+              90,
+              null,
+              null,
+              "[]",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_round_decision",
+          "columns": [
+            "id",
+            "exam_round_id",
+            "decision_type",
+            "requested_revision",
+            "resulting_revision",
+            "actor_member_id",
+            "reason",
+            "checklist_json",
+            "snapshot_json",
+            "previous_decision_id",
+            "status",
+            "command_fingerprint",
+            "decided_at"
+          ],
+          "rows": [
+            [
+              90,
+              93,
+              "close",
+              1,
+              2,
+              1,
+              null,
+              "[]",
+              "{\"demo\":\"synthetic closed round\"}",
+              null,
+              "current",
+              "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "exam_round_export",
+          "columns": [
+            "id",
+            "exam_round_id",
+            "decision_id",
+            "round_revision",
+            "export_kind",
+            "lifecycle_status",
+            "generated_by_member_id",
+            "generated_at",
+            "superseded_at",
+            "superseded_by_revision"
+          ],
+          "rows": [
+            [
+              90,
+              93,
+              90,
+              2,
+              "machine",
+              "closed",
+              1,
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null
+            ]
+          ]
+        },
+        {
+          "table": "exam_slot",
+          "columns": [
+            "id",
+            "exam_day_id",
+            "round_candidate_id",
+            "slot_type",
+            "starts_at",
+            "ends_at",
+            "sequence_number",
+            "status",
+            "actual_started_at",
+            "execution_status",
+            "status_changed_at",
+            "actual_completed_at",
+            "status_reason",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              13,
+              "regular",
+              "2027-05-18 09:00:00",
+              "2027-05-18 10:00:00",
+              1,
+              "confirmed",
+              "2026-01-01T00:00:00+00:00",
+              "running",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              2,
+              14,
+              "regular",
+              "2027-05-19 09:00:00",
+              "2027-05-19 10:00:00",
+              1,
+              "confirmed",
+              null,
+              "cancelled",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              "Synthetischer begründeter Prüfungsausfall",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              3,
+              3,
+              15,
+              "regular",
+              "2027-05-20 09:00:00",
+              "2027-05-20 10:00:00",
+              1,
+              "confirmed",
+              "2026-01-01T00:00:00+00:00",
+              "completed",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487101,
+              487001,
+              2,
+              "regular",
+              "2026-01-02 08:30:00",
+              "2026-01-02 09:30:00",
+              1,
+              "confirmed",
+              null,
+              "open",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487102,
+              487001,
+              2,
+              "mep",
+              "2026-01-02 09:30:00",
+              "2026-01-02 10:30:00",
+              2,
+              "confirmed",
+              null,
+              "open",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487103,
+              487002,
+              1,
+              "regular",
+              "2026-01-10 08:30:00",
+              "2026-01-10 09:30:00",
+              1,
+              "confirmed",
+              null,
+              "open",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487104,
+              487002,
+              3,
+              "regular",
+              "2026-01-10 09:30:00",
+              "2026-01-10 10:30:00",
+              2,
+              "confirmed",
+              null,
+              "open",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487105,
+              487002,
+              4,
+              "regular",
+              "2026-01-10 10:30:00",
+              "2026-01-10 11:30:00",
+              3,
+              "confirmed",
+              null,
+              "open",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487106,
+              487002,
+              5,
+              "regular",
+              "2026-01-10 11:30:00",
+              "2026-01-10 12:30:00",
+              4,
+              "confirmed",
+              null,
+              "open",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              487107,
+              487002,
+              6,
+              "regular",
+              "2026-01-10 13:30:00",
+              "2026-01-10 14:30:00",
+              5,
+              "confirmed",
+              null,
+              "open",
+              "2026-01-01T00:00:00+00:00",
+              null,
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "individual_assessment",
+          "columns": [
+            "id",
+            "exam_result_id",
+            "component_key",
+            "criterion_key",
+            "assessor_member_id",
+            "revision",
+            "raw_points",
+            "normalized_points",
+            "rationale",
+            "status",
+            "previous_assessment_id",
+            "change_reason",
+            "submitted_at",
+            "created_at"
+          ],
+          "rows": [
+            [
+              1,
+              2,
+              "documentation",
+              "professional_quality",
+              1,
+              1,
+              "8",
+              "80",
+              null,
+              "submitted",
+              null,
+              null,
+              "2027-05-20 09:55:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              2,
+              "documentation",
+              "professional_quality",
+              2,
+              1,
+              "8",
+              "80",
+              null,
+              "submitted",
+              null,
+              null,
+              "2027-05-20 09:56:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "member_availability",
+          "columns": [
+            "id",
+            "exam_round_id",
+            "committee_member_id",
+            "candidate_exam_day_id",
+            "availability",
+            "responded_at",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              1,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              1,
+              1,
+              2,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              3,
+              1,
+              1,
+              3,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              4,
+              1,
+              1,
+              4,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              5,
+              1,
+              1,
+              5,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              6,
+              1,
+              2,
+              1,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              7,
+              1,
+              2,
+              2,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              8,
+              1,
+              2,
+              3,
+              "afternoon",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              9,
+              1,
+              2,
+              4,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              10,
+              1,
+              2,
+              5,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              11,
+              1,
+              3,
+              1,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              12,
+              1,
+              3,
+              2,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              13,
+              1,
+              3,
+              3,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              14,
+              1,
+              3,
+              4,
+              "morning",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              15,
+              1,
+              3,
+              5,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              16,
+              1,
+              4,
+              1,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              17,
+              1,
+              4,
+              2,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              18,
+              1,
+              4,
+              3,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              19,
+              1,
+              4,
+              4,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              20,
+              1,
+              4,
+              5,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              21,
+              1,
+              5,
+              1,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              22,
+              1,
+              5,
+              2,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              23,
+              1,
+              5,
+              3,
+              "pending",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              24,
+              1,
+              5,
+              4,
+              "pending",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              25,
+              1,
+              5,
+              5,
+              "pending",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              26,
+              1,
+              6,
+              1,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              27,
+              1,
+              6,
+              2,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              28,
+              1,
+              6,
+              3,
+              "afternoon",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              29,
+              1,
+              6,
+              4,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              30,
+              1,
+              6,
+              5,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              31,
+              1,
+              7,
+              1,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              32,
+              1,
+              7,
+              2,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              33,
+              1,
+              7,
+              3,
+              "pending",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              34,
+              1,
+              7,
+              4,
+              "pending",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              35,
+              1,
+              7,
+              5,
+              "pending",
+              null,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              36,
+              1,
+              8,
+              1,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              37,
+              1,
+              8,
+              2,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              38,
+              1,
+              8,
+              3,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              39,
+              1,
+              8,
+              4,
+              "morning",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              40,
+              1,
+              8,
+              5,
+              "full_day",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "member_exam_attendance",
+          "columns": [
+            "id",
+            "exam_day_id",
+            "committee_member_id",
+            "status",
+            "arrived_at",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "present",
+              "2027-05-18 08:45:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              2,
+              1,
+              2,
+              "present",
+              "2027-05-18 08:47:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              3,
+              1,
+              3,
+              "present",
+              "2027-05-18 08:50:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              4,
+              3,
+              1,
+              "present",
+              "2027-05-20 08:45:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              5,
+              3,
+              2,
+              "present",
+              "2027-05-20 08:47:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              6,
+              3,
+              3,
+              "present",
+              "2027-05-20 08:50:00",
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        },
+        {
+          "table": "round_candidate",
+          "columns": [
+            "id",
+            "exam_round_id",
+            "candidate_id",
+            "attempt_number",
+            "requires_mep",
+            "is_active",
+            "created_at",
+            "updated_at",
+            "terminal_status",
+            "terminal_reason",
+            "effective_new_round_id",
+            "postponed_until",
+            "ihk_decision_reference",
+            "terminal_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              1,
+              0,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              2,
+              1,
+              2,
+              2,
+              1,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              3,
+              1,
+              3,
+              1,
+              0,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              4,
+              1,
+              4,
+              3,
+              0,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              5,
+              1,
+              5,
+              2,
+              0,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              6,
+              1,
+              6,
+              1,
+              0,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              7,
+              1,
+              7,
+              3,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              8,
+              1,
+              8,
+              1,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              9,
+              1,
+              9,
+              2,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              10,
+              1,
+              10,
+              1,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              11,
+              1,
+              11,
+              1,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              12,
+              1,
+              12,
+              2,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              13,
+              2,
+              1,
+              1,
+              0,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              14,
+              2,
+              2,
+              1,
+              0,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              15,
+              2,
+              3,
+              1,
+              0,
+              1,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "open",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              90,
+              91,
+              1,
+              1,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "postponed",
+              "Synthetische Neuplanung",
+              null,
+              "2029-05-01",
+              null,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              91,
+              92,
+              2,
+              1,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "postponed",
+              "Synthetische Neuplanung",
+              null,
+              "2030-05-01",
+              null,
+              "2026-01-01T00:00:00+00:00"
+            ],
+            [
+              92,
+              93,
+              3,
+              1,
+              0,
+              0,
+              "2026-01-01T00:00:00+00:00",
+              "2026-01-01T00:00:00+00:00",
+              "postponed",
+              "Synthetische Neuplanung",
+              null,
+              "2030-11-01",
+              null,
+              "2026-01-01T00:00:00+00:00"
+            ]
+          ]
+        }
+      ],
+      "runtime": {
+        "round_id": 1,
+        "roles": {
+          "chair": {
+            "account_key": "name.papaspyrou.repertoire.lzug.fixture.account.chair",
+            "person_key": "name.papaspyrou.repertoire.lzug.fixture.person.chair.athen",
+            "membership_key": "name.papaspyrou.repertoire.lzug.fixture.membership.chair.athen"
+          },
+          "examiner": {
+            "account_key": "name.papaspyrou.repertoire.lzug.fixture.account.examiner",
+            "person_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.absent",
+            "membership_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.absent"
+          },
+          "replacement": {
+            "account_key": "name.papaspyrou.repertoire.lzug.fixture.account.replacement",
+            "person_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.replacement",
+            "membership_key": "name.papaspyrou.repertoire.lzug.fixture.membership.examiner.replacement"
+          }
+        },
+        "absence": {
+          "day_id": 487001,
+          "assignment_id": 487202
+        },
+        "plan_change": {
+          "day_id": 487002,
+          "assignment_id": 487206,
+          "replacement_member_id": 6,
+          "source_location_id": 1,
+          "target_location_id": 2,
+          "reason": "Synthetischer Ortswechsel mit gleichseitiger Ersatzbesetzung"
+        }
+      }
     }
   },
   "legacy_mapping": [
-    {"legacy": "Prüfungsausschuss Teststadt 1", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.committee.athen", "technical_id": 1},
-    {"legacy": "Prüfungsausschuss Teststadt 2", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.committee.feenwald", "technical_id": 2},
-    {"legacy": "Testperson Alpha", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.chair.athen", "technical_id": 1},
-    {"legacy": "Testperson Beta", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.deputy.athen", "technical_id": 2},
-    {"legacy": "Testperson Gamma", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.absent", "technical_id": 3},
-    {"legacy": "Testperson Delta", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.crosscommittee", "technical_id": 4},
-    {"legacy": "Testperson Epsilon", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.fallback", "technical_id": 5},
-    {"legacy": "Testperson Zeta", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.replacement", "technical_id": 6},
-    {"legacy": "Testperson Eta", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.unsuitable", "technical_id": 7},
-    {"legacy": "Testperson Theta", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.reserve", "technical_id": 8},
-    {"legacy": "Testperson Iota", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.chair.feenwald", "technical_id": 9},
-    {"legacy": "Prüfungszentrum Alpha (Test)", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion", "technical_id": 1},
-    {"legacy": "Prüfungszentrum Beta (Test)", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi", "technical_id": 2},
-    {"legacy": "Prüfling Alpha", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.planchange", "technical_id": 1},
-    {"legacy": "Prüfling Beta", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.absence", "technical_id": 2},
-    {"legacy": "Prüfling Gamma", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.lysander", "technical_id": 3},
-    {"legacy": "Prüfling Delta", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.demetrius", "technical_id": 4},
-    {"legacy": "Prüfling Epsilon", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.egeus", "technical_id": 5},
-    {"legacy": "Prüfling Zeta", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.philostrate", "technical_id": 6},
-    {"legacy": "Prüfling Eta", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.peaseblossom", "technical_id": 7},
-    {"legacy": "Prüfling Theta", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.cobweb", "technical_id": 8},
-    {"legacy": "Prüfling Iota", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.moth", "technical_id": 9},
-    {"legacy": "Prüfling Kappa", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.mustardseed", "technical_id": 10},
-    {"legacy": "Prüfling Lambda", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.moonshine", "technical_id": 11},
-    {"legacy": "Prüfling My", "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.lion", "technical_id": 12}
+    {
+      "legacy": "Prüfungsausschuss Teststadt 1",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.committee.athen",
+      "technical_id": 1
+    },
+    {
+      "legacy": "Prüfungsausschuss Teststadt 2",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.committee.feenwald",
+      "technical_id": 2
+    },
+    {
+      "legacy": "Testperson Alpha",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.chair.athen",
+      "technical_id": 1
+    },
+    {
+      "legacy": "Testperson Beta",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.deputy.athen",
+      "technical_id": 2
+    },
+    {
+      "legacy": "Testperson Gamma",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.absent",
+      "technical_id": 3
+    },
+    {
+      "legacy": "Testperson Delta",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.crosscommittee",
+      "technical_id": 4
+    },
+    {
+      "legacy": "Testperson Epsilon",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.fallback",
+      "technical_id": 5
+    },
+    {
+      "legacy": "Testperson Zeta",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.replacement",
+      "technical_id": 6
+    },
+    {
+      "legacy": "Testperson Eta",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.unsuitable",
+      "technical_id": 7
+    },
+    {
+      "legacy": "Testperson Theta",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.examiner.reserve",
+      "technical_id": 8
+    },
+    {
+      "legacy": "Testperson Iota",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.person.chair.feenwald",
+      "technical_id": 9
+    },
+    {
+      "legacy": "Prüfungszentrum Alpha (Test)",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.global.zappeion",
+      "technical_id": 1
+    },
+    {
+      "legacy": "Prüfungszentrum Beta (Test)",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.location.committee.athen.gazi",
+      "technical_id": 2
+    },
+    {
+      "legacy": "Prüfling Alpha",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.planchange",
+      "technical_id": 1
+    },
+    {
+      "legacy": "Prüfling Beta",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.absence",
+      "technical_id": 2
+    },
+    {
+      "legacy": "Prüfling Gamma",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.lysander",
+      "technical_id": 3
+    },
+    {
+      "legacy": "Prüfling Delta",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.demetrius",
+      "technical_id": 4
+    },
+    {
+      "legacy": "Prüfling Epsilon",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.egeus",
+      "technical_id": 5
+    },
+    {
+      "legacy": "Prüfling Zeta",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.philostrate",
+      "technical_id": 6
+    },
+    {
+      "legacy": "Prüfling Eta",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.peaseblossom",
+      "technical_id": 7
+    },
+    {
+      "legacy": "Prüfling Theta",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.cobweb",
+      "technical_id": 8
+    },
+    {
+      "legacy": "Prüfling Iota",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.moth",
+      "technical_id": 9
+    },
+    {
+      "legacy": "Prüfling Kappa",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.mustardseed",
+      "technical_id": 10
+    },
+    {
+      "legacy": "Prüfling Lambda",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.moonshine",
+      "technical_id": 11
+    },
+    {
+      "legacy": "Prüfling My",
+      "fixture_key": "name.papaspyrou.repertoire.lzug.fixture.candidate.lion",
+      "technical_id": 12
+    }
+  ],
+  "seed_records": [
+    {
+      "table": "exam_half_year",
+      "columns": [
+        "id",
+        "season",
+        "year",
+        "status",
+        "created_at",
+        "updated_at",
+        "legacy_status"
+      ],
+      "rows": [
+        [
+          1,
+          "winter",
+          2026,
+          "active",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          null
+        ]
+      ]
+    },
+    {
+      "table": "exam_round",
+      "columns": [
+        "id",
+        "exam_half_year_id",
+        "committee_id",
+        "name",
+        "status",
+        "plan_revision",
+        "availability_deadline",
+        "availability_reminder_at",
+        "created_by_member_id",
+        "created_at",
+        "updated_at",
+        "revision",
+        "lifecycle_status",
+        "legacy_status"
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          1,
+          "Winter 2026/27",
+          "availability_requested",
+          0,
+          "2026-10-02 18:00:00",
+          "2026-09-29 18:00:00",
+          1,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          1,
+          "open",
+          null
+        ]
+      ]
+    },
+    {
+      "table": "planning_settings",
+      "columns": [
+        "id",
+        "exam_round_id",
+        "calendar_week_from",
+        "calendar_week_to",
+        "exams_per_day",
+        "max_exam_days_per_week",
+        "lunch_break_enabled",
+        "exclude_public_holidays",
+        "holiday_subdivision_code",
+        "default_room_id",
+        "updated_by_member_id",
+        "created_at",
+        "updated_at"
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          "2026-W47",
+          "2026-W49",
+          6,
+          3,
+          1,
+          0,
+          null,
+          1,
+          1,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ]
+      ]
+    },
+    {
+      "table": "candidate_exam_day",
+      "columns": [
+        "id",
+        "exam_round_id",
+        "date",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          "2026-11-16",
+          1,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          2,
+          1,
+          "2026-11-17",
+          1,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          3,
+          1,
+          "2026-11-18",
+          1,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          4,
+          1,
+          "2026-11-19",
+          1,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          5,
+          1,
+          "2026-11-20",
+          1,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ]
+      ]
+    },
+    {
+      "table": "member_availability",
+      "columns": [
+        "id",
+        "exam_round_id",
+        "committee_member_id",
+        "candidate_exam_day_id",
+        "availability",
+        "responded_at",
+        "created_at",
+        "updated_at"
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          1,
+          1,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          2,
+          1,
+          1,
+          2,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          3,
+          1,
+          1,
+          3,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          4,
+          1,
+          1,
+          4,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          5,
+          1,
+          1,
+          5,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          6,
+          1,
+          2,
+          1,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          7,
+          1,
+          2,
+          2,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          8,
+          1,
+          2,
+          3,
+          "afternoon",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          9,
+          1,
+          2,
+          4,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          10,
+          1,
+          2,
+          5,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          11,
+          1,
+          3,
+          1,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          12,
+          1,
+          3,
+          2,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          13,
+          1,
+          3,
+          3,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          14,
+          1,
+          3,
+          4,
+          "morning",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          15,
+          1,
+          3,
+          5,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          16,
+          1,
+          4,
+          1,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          17,
+          1,
+          4,
+          2,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          18,
+          1,
+          4,
+          3,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          19,
+          1,
+          4,
+          4,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          20,
+          1,
+          4,
+          5,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          21,
+          1,
+          5,
+          1,
+          "pending",
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          22,
+          1,
+          5,
+          2,
+          "pending",
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          23,
+          1,
+          5,
+          3,
+          "pending",
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          24,
+          1,
+          5,
+          4,
+          "pending",
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          25,
+          1,
+          5,
+          5,
+          "pending",
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          26,
+          1,
+          6,
+          1,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          27,
+          1,
+          6,
+          2,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          28,
+          1,
+          6,
+          3,
+          "afternoon",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          29,
+          1,
+          6,
+          4,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          30,
+          1,
+          6,
+          5,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          31,
+          1,
+          7,
+          1,
+          "pending",
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          32,
+          1,
+          7,
+          2,
+          "pending",
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          33,
+          1,
+          7,
+          3,
+          "pending",
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          34,
+          1,
+          7,
+          4,
+          "pending",
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          35,
+          1,
+          7,
+          5,
+          "pending",
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          36,
+          1,
+          8,
+          1,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          37,
+          1,
+          8,
+          2,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          38,
+          1,
+          8,
+          3,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          39,
+          1,
+          8,
+          4,
+          "morning",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          40,
+          1,
+          8,
+          5,
+          "full_day",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ]
+      ]
+    },
+    {
+      "table": "candidate_committee_assignment",
+      "columns": [
+        "id",
+        "candidate_id",
+        "exam_half_year_id",
+        "exam_round_id",
+        "round_candidate_id",
+        "assigned_at",
+        "ended_at",
+        "change_reason",
+        "created_at",
+        "updated_at"
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          "2026-01-01T00:00:00+00:00",
+          null,
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          2,
+          2,
+          1,
+          1,
+          2,
+          "2026-01-01T00:00:00+00:00",
+          null,
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          3,
+          3,
+          1,
+          1,
+          3,
+          "2026-01-01T00:00:00+00:00",
+          null,
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          4,
+          4,
+          1,
+          1,
+          4,
+          "2026-01-01T00:00:00+00:00",
+          null,
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          5,
+          5,
+          1,
+          1,
+          5,
+          "2026-01-01T00:00:00+00:00",
+          null,
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          6,
+          6,
+          1,
+          1,
+          6,
+          "2026-01-01T00:00:00+00:00",
+          null,
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          7,
+          7,
+          1,
+          1,
+          7,
+          "2026-01-01T00:00:00+00:00",
+          null,
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          8,
+          8,
+          1,
+          1,
+          8,
+          "2026-01-01T00:00:00+00:00",
+          null,
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          9,
+          9,
+          1,
+          1,
+          9,
+          "2026-01-01T00:00:00+00:00",
+          null,
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          10,
+          10,
+          1,
+          1,
+          10,
+          "2026-01-01T00:00:00+00:00",
+          null,
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          11,
+          11,
+          1,
+          1,
+          11,
+          "2026-01-01T00:00:00+00:00",
+          null,
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ],
+        [
+          12,
+          12,
+          1,
+          1,
+          12,
+          "2026-01-01T00:00:00+00:00",
+          null,
+          null,
+          "2026-01-01T00:00:00+00:00",
+          "2026-01-01T00:00:00+00:00"
+        ]
+      ]
+    },
+    {
+      "table": "committee_admin_operation",
+      "columns": [
+        "id",
+        "operation_type",
+        "committee_id",
+        "person_ids_json",
+        "membership_ids_json",
+        "account_ids_json",
+        "result",
+        "occurred_at",
+        "technical_source",
+        "idempotency_key",
+        "request_hash",
+        "reason",
+        "response_json"
+      ],
+      "rows": [
+        [
+          1,
+          "legacy_assessment",
+          1,
+          "[1,2,3,4,5,6,7,8]",
+          "[1,2,3,4,5,6,7,8]",
+          "[1,3,2,4]",
+          "ready",
+          "2026-01-01T00:00:00+00:00",
+          "migration",
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          2,
+          "legacy_assessment",
+          2,
+          "[4,9,10]",
+          "[9,10,11]",
+          "[]",
+          "ready",
+          "2026-01-01T00:00:00+00:00",
+          "migration",
+          null,
+          null,
+          null,
+          null
+        ]
+      ]
+    }
   ]
 }

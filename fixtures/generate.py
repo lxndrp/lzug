@@ -1,26 +1,24 @@
 #!/usr/bin/env python3
-"""Generate layer-specific fixture adapters from the canonical synthetic data."""
+"""Compile disposable fixture seeds and tracked adapters from canonical data."""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import unicodedata
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "fixtures" / "synthetic-fixtures.json"
-SQL_TARGET = ROOT / "db" / "seed_demo.sql"
-DEVELOPMENT_SQL_TARGET = ROOT / "db" / "seed_development.sql"
-PUBLIC_DEMO_SQL_TARGET = ROOT / "db" / "seed_public_demo.sql"
-PUBLIC_DEMO_PROFILE_SQL = ROOT / "fixtures" / "profiles" / "public-demo.sql"
 TYPESCRIPT_TARGET = (
     ROOT / "frontend" / "src" / "app" / "testing" / "synthetic-fixtures.generated.ts"
 )
-PYTHON_TARGET = ROOT / "demo" / "synthetic_fixtures_generated.py"
 
 FIXTURE_ROOT = "name.papaspyrou.repertoire.lzug.fixture"
 ENTITY_GROUPS = (
@@ -98,6 +96,9 @@ def profiles(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
             raise ValueError(f"Fixture profile has no reference time: {name}")
         if not isinstance(profile.get("scenarios"), list):
             raise ValueError(f"Fixture profile has no scenario declaration: {name}")
+        records = profile.get("seed_records", [])
+        if not isinstance(records, list):
+            raise ValueError(f"Fixture profile has invalid seed records: {name}")
     return declared
 
 
@@ -368,7 +369,178 @@ def normalized_seed_text(value: object) -> str:
     return " ".join(unicodedata.normalize("NFKC", str(value)).split()).casefold()
 
 
-def render_sql(data: dict[str, Any], profile: str = "development") -> str:
+def _shift_reference_value(value: Any, reference_time: str) -> Any:
+    if not isinstance(value, str):
+        return value
+    if value == "@reference_time":
+        return reference_time
+    target = datetime.fromisoformat(reference_time)
+    canonical = datetime(2026, 1, 1, tzinfo=UTC)
+    local_zone = ZoneInfo("Europe/Berlin")
+    try:
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+            shifted = date.fromisoformat(value) + (
+                target.astimezone(local_zone).date() - canonical.astimezone(local_zone).date()
+            )
+            return shifted.isoformat()
+        if "T" in value or re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", value):
+            parsed = datetime.fromisoformat(value)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=UTC)
+            shifted = parsed.astimezone(UTC) + (target.astimezone(UTC) - canonical)
+            if "T" in value:
+                return shifted.isoformat(timespec="seconds")
+            return shifted.strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        pass
+    return value
+
+
+def _seed_records(
+    data: dict[str, Any],
+    profile: str,
+    *,
+    excluded_ids: dict[str, set[Any]] | None = None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    declared = profiles(data)[profile]
+    common_records = list(data.get("seed_records", []))
+    profile_records = list(declared.get("seed_records", []))
+    # The public profile deliberately overrides the generic development base
+    # for shared technical ids (for example the prepared demo round).
+    source_records = (
+        profile_records + common_records
+        if profile == "public-demo"
+        else common_records + profile_records
+    )
+    seen_ids: dict[str, set[Any]] = {}
+    records = []
+    excluded_ids = excluded_ids or {}
+    for record in source_records:
+        table = record["table"]
+        columns = record["columns"]
+        id_index = columns.index("id") if "id" in columns else None
+        filtered_rows = []
+        for row in record["rows"]:
+            row_id = row[id_index] if id_index is not None else None
+            if row_id is not None and row_id in excluded_ids.get(table, set()):
+                continue
+            if row_id is not None and row_id in seen_ids.setdefault(table, set()):
+                continue
+            if row_id is not None:
+                seen_ids.setdefault(table, set()).add(row_id)
+            filtered_rows.append(row)
+        if filtered_rows:
+            records.append({**record, "rows": filtered_rows})
+    replace_tables = list(declared.get("replace_tables", []))
+    return records, replace_tables
+
+
+def _render_record_set(record: dict[str, Any], reference_time: str) -> str:
+    table = record.get("table")
+    columns = record.get("columns")
+    rows = record.get("rows")
+    if (
+        not isinstance(table, str)
+        or re.fullmatch(r"[a-z_]+", table) is None
+        or not isinstance(columns, list)
+        or not columns
+        or not all(
+            isinstance(column, str) and re.fullmatch(r"[a-z_]+", column) for column in columns
+        )
+        or not isinstance(rows, list)
+    ):
+        raise ValueError(f"Invalid declarative seed record: {table!r}")
+    if any(len(row) != len(columns) for row in rows):
+        raise ValueError(f"Seed record row does not match columns: {table}")
+    resolved_rows = [
+        [_shift_reference_value(value, reference_time) for value in row] for row in rows
+    ]
+    if table == "calendar_event" and "content_hash" in columns:
+        content_index = columns.index("content_hash")
+        payload_columns = {
+            "exam_half_year_id",
+            "exam_round_id",
+            "exam_day_id",
+            "exam_day_assignment_id",
+            "recipient_member_id",
+            "date",
+            "starts_at",
+            "ends_at",
+            "time_zone",
+            "location",
+            "role",
+            "round_name",
+            "secure_reference",
+            "source_key",
+            "status",
+            "sent_at",
+        }
+        for row in resolved_rows:
+            payload = {
+                column: value
+                for column, value in zip(columns, row, strict=True)
+                if column in payload_columns and column != "sent_at"
+            }
+            row[content_index] = hashlib.sha256(
+                repr(sorted(payload.items())).encode("utf-8")
+            ).hexdigest()
+    return f'INSERT INTO "{table}" ({", ".join(columns)}) VALUES\n' f"{sql_rows(resolved_rows)};"
+
+
+def render_seed_records(
+    data: dict[str, Any],
+    profile: str,
+    *,
+    excluded_ids: dict[str, set[Any]] | None = None,
+    reference_time: str | None = None,
+) -> str:
+    records, replace_tables = _seed_records(data, profile, excluded_ids=excluded_ids)
+    reference_time = reference_time or profiles(data)[profile]["reference_time"]
+    statements = ["PRAGMA foreign_keys = OFF;", "PRAGMA defer_foreign_keys = ON;"]
+    statements.extend(f'DELETE FROM "{table}";' for table in replace_tables)
+    statements.extend(_render_record_set(record, reference_time) for record in records)
+    statements.append("PRAGMA foreign_keys = ON;")
+    return "\n\n".join(statements)
+
+
+def runtime_profile(data: dict[str, Any], profile: str) -> dict[str, Any]:
+    declared = profiles(data)[profile]
+    runtime = declared.get("runtime", {})
+    if not isinstance(runtime, dict):
+        raise ValueError(f"Fixture profile has invalid runtime contract: {profile}")
+    index = catalog_index(data)
+
+    def resolve(key: str, group: str) -> dict[str, Any]:
+        indexed_group, row = index.get(key, (None, None))
+        if indexed_group != group or row is None:
+            raise ValueError(f"Runtime profile references unknown {group} fixture: {key}")
+        return row
+
+    resolved = json.loads(json.dumps(runtime))
+    resolved["demo_matrix_version"] = data["demo_matrix_version"]
+    for role in resolved.get("roles", {}).values():
+        account = resolve(role.pop("account_key"), "accounts")
+        person = resolve(role.pop("person_key"), "persons")
+        membership = resolve(role.pop("membership_key"), "memberships")
+        role.update(
+            {
+                "account_id": account["id"],
+                "person_id": person["id"],
+                "committee_member_id": membership["id"],
+                "display_name": f"{person['first_name']} {person['last_name']}",
+                "account_email": account["email"],
+                "person_email": person["email"],
+            }
+        )
+    return resolved
+
+
+def render_sql(
+    data: dict[str, Any],
+    profile: str = "development",
+    *,
+    reference_time: str | None = None,
+) -> str:
     committees = adapter_rows(data, "committees", "seed")
     members = resolved_memberships(data, "seed")
     locations = adapter_rows(data, "locations", "seed")
@@ -392,13 +564,7 @@ def render_sql(data: dict[str, Any], profile: str = "development") -> str:
         for row in committees
     ]
     person_rows = [
-        [
-            row["id"],
-            row["first_name"],
-            row["last_name"],
-            row["email"],
-            row["mobile"],
-        ]
+        [row["id"], row["first_name"], row["last_name"], row["email"], row["mobile"]]
         for row in sorted(people.values(), key=lambda item: item["id"])
     ]
     member_rows = [
@@ -492,36 +658,16 @@ def render_sql(data: dict[str, Any], profile: str = "development") -> str:
         for row in candidates
     ]
     round_candidate_rows = [
-        [
-            row["id"],
-            1,
-            row["id"],
-            row["attempt_number"],
-            row["requires_mep"],
-        ]
-        for row in candidates
+        [row["id"], 1, row["id"], row["attempt_number"], row["requires_mep"]] for row in candidates
     ]
-
-    def membership_id(suffix: str) -> int:
-        return item_by_key(data, f"{FIXTURE_ROOT}.membership.{suffix}", "memberships")["id"]
-
-    pending_member_ids = ", ".join(
-        str(membership_id(suffix)) for suffix in ("examiner.fallback", "examiner.unsuitable")
-    )
-    afternoon_member_ids = ", ".join(
-        str(membership_id(suffix)) for suffix in ("deputy.athen", "examiner.replacement")
-    )
-    morning_member_ids = ", ".join(
-        str(membership_id(suffix)) for suffix in ("examiner.absent", "examiner.reserve")
-    )
     contact_room_sql = ""
     if contact_room_rows:
         contact_room_sql = (
-            "INSERT INTO exam_venue_contact_room (contact_id, room_id)\nVALUES\n"
+            'INSERT INTO "exam_venue_contact_room" (contact_id, room_id) VALUES\n'
             + sql_rows(contact_room_rows)
-            + ";\n\n"
+            + ";"
         )
-    return f"""-- Generated by fixtures/generate.py. Do not edit directly.
+    core = f"""-- Generated by fixtures/generate.py. Do not edit directly.
 -- Fixture profile: {profile}
 INSERT INTO committee (id, name, occupation, ihk, is_active, bootstrap_state)
 VALUES
@@ -539,37 +685,6 @@ VALUES
 INSERT INTO user_account (id, person_id, email, password_hash)
 VALUES
 {sql_rows(account_rows)};
-
-INSERT INTO committee_admin_operation (
-  operation_type, committee_id, person_ids_json, membership_ids_json,
-  account_ids_json, result, occurred_at, technical_source
-)
-SELECT
-  'legacy_assessment',
-  committee.id,
-  '[' || COALESCE((
-    SELECT group_concat(committee_member.person_id, ',')
-    FROM committee_member
-    WHERE committee_member.committee_id = committee.id
-  ), '') || ']',
-  '[' || COALESCE((
-    SELECT group_concat(committee_member.id, ',')
-    FROM committee_member
-    WHERE committee_member.committee_id = committee.id
-  ), '') || ']',
-  '[' || COALESCE((
-    SELECT group_concat(user_account.id, ',')
-    FROM user_account
-    WHERE user_account.person_id IN (
-      SELECT committee_member.person_id
-      FROM committee_member
-      WHERE committee_member.committee_id = committee.id
-    )
-  ), '') || ']',
-  'ready',
-  '2026-01-01T00:00:00+00:00',
-  'migration'
-FROM committee;
 
 INSERT INTO exam_venue
   (id, scope, committee_id, name, normalized_name, street, postal_code, city,
@@ -594,79 +709,36 @@ VALUES
 {sql_rows(contact_rows)};
 
 {contact_room_sql}
+
 INSERT INTO candidate
   (id, first_name, last_name, ihk_exam_number, specialization, training_company)
 VALUES
 {sql_rows(candidate_rows)};
 
-INSERT INTO exam_half_year (id, season, year, status)
-VALUES (1, 'winter', 2026, 'active');
-
-INSERT INTO exam_round
-  (id, exam_half_year_id, committee_id, name, status,
-   availability_deadline, availability_reminder_at, created_by_member_id)
-VALUES
-  (1, 1, 1, 'Winter 2026/27', 'availability_requested',
-   '2026-10-02 18:00:00', '2026-09-29 18:00:00', 1);
-
 INSERT INTO round_candidate
   (id, exam_round_id, candidate_id, attempt_number, requires_mep)
 VALUES
-{sql_rows(round_candidate_rows)};
-
-INSERT INTO candidate_committee_assignment
-  (candidate_id, exam_half_year_id, exam_round_id, round_candidate_id)
-SELECT candidate_id, 1, exam_round_id, id
-FROM round_candidate;
-
-INSERT INTO planning_settings
-  (id, exam_round_id, calendar_week_from, calendar_week_to, exams_per_day,
-   max_exam_days_per_week, lunch_break_enabled, default_room_id,
-   updated_by_member_id)
-VALUES
-  (1, 1, '2026-W47', '2026-W49', 6, 3, 1, 1, 1);
-
-INSERT INTO candidate_exam_day (id, exam_round_id, date)
-VALUES
-  (1, 1, '2026-11-16'),
-  (2, 1, '2026-11-17'),
-  (3, 1, '2026-11-18'),
-  (4, 1, '2026-11-19'),
-  (5, 1, '2026-11-20');
-
-INSERT INTO member_availability
-  (exam_round_id, committee_member_id, candidate_exam_day_id, availability, responded_at)
-SELECT
-  1,
-  committee_member.id,
-  candidate_exam_day.id,
-  CASE
-    WHEN committee_member.id IN ({pending_member_ids}) THEN 'pending'
-    WHEN candidate_exam_day.id = 3
-      AND committee_member.id IN ({afternoon_member_ids}) THEN 'afternoon'
-    WHEN candidate_exam_day.id = 4
-      AND committee_member.id IN ({morning_member_ids}) THEN 'morning'
-    ELSE 'full_day'
-  END,
-  CASE WHEN committee_member.id IN ({pending_member_ids}) THEN NULL ELSE CURRENT_TIMESTAMP END
-FROM committee_member
-CROSS JOIN candidate_exam_day
-WHERE committee_member.committee_id = 1
-  AND candidate_exam_day.exam_round_id = 1;
-    """.rstrip() + "\n"
+{sql_rows(round_candidate_rows)};""".strip()
+    records = render_seed_records(
+        data,
+        profile,
+        excluded_ids=(
+            {}
+            if profile == "public-demo"
+            else {"round_candidate": {row[0] for row in round_candidate_rows}}
+        ),
+        reference_time=reference_time,
+    )
+    return f"{core}\n\n{records}\n"
 
 
-def render_profile_sql(data: dict[str, Any], profile: str) -> str:
+def render_profile_sql(
+    data: dict[str, Any], profile: str, *, reference_time: str | None = None
+) -> str:
     """Compile one complete SQL seed from the catalog and profile declaration."""
     if profile not in PROFILE_NAMES:
         raise ValueError(f"Unknown fixture profile: {profile}")
-    content = render_sql(data, profile)
-    if profile == "public-demo":
-        if not PUBLIC_DEMO_PROFILE_SQL.is_file():
-            raise ValueError("Public-demo profile SQL source is missing")
-        profile_sql = PUBLIC_DEMO_PROFILE_SQL.read_text(encoding="utf-8").strip()
-        content = f"{content.rstrip()}\n\n{profile_sql}\n"
-    return content
+    return render_sql(data, profile, reference_time=reference_time)
 
 
 def render_typescript(data: dict[str, Any]) -> str:
@@ -864,80 +936,40 @@ def demo_roles(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return roles
 
 
-def render_python(data: dict[str, Any]) -> str:
-    fixture_ids = {
-        row["fixture_key"]: {
-            "entity_type": group,
-            **({"id": row["id"]} if "id" in row else {}),
-        }
-        for group in ENTITY_GROUPS
-        for row in data[group]
-    }
-
-    def json_assignment(name: str, value: Any) -> str:
-        payload = json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True)
-        return f'{name} = json.loads(r"""{payload}""")\n'
-
-    organizations = {row["fixture_key"]: row["name"] for row in data["organizations"]}
-    display_names = {
-        row["fixture_key"]: (
-            row["name"] if "name" in row else f"{row['first_name']} {row['last_name']}"
-        )
-        for group in ENTITY_GROUPS
-        for row in data[group]
-        if "name" in row or ("first_name" in row and "last_name" in row)
-    }
-    candidate_exam_numbers = {
-        row["fixture_key"]: row["ihk_exam_number"] for row in data["candidates"]
-    }
-    adapter_names = sorted(ACTIVE_ADAPTERS)
-    adapter_counts = {
-        adapter: {group: len(adapter_rows(data, group, adapter)) for group in ENTITY_GROUPS}
-        for adapter in adapter_names
-    }
-    return (
-        '"""Generated semantic identities for the public demo. Do not edit directly."""\n\n'
-        "# ruff: noqa: E501\n\n"
-        "import json\n\n"
-        f"FIXTURE_CATALOG_VERSION = {data['version']}\n"
-        f"FIXTURE_CATALOG_REVISION = {json.dumps(data['revision'])}\n"
-        f"FIXTURE_ROOT = {json.dumps(data['fixture_root'])}\n"
-        f"DEMO_MATRIX_VERSION = {json.dumps(data['demo_matrix_version'])}\n\n"
-        + json_assignment("FIXTURE_PROFILES", profiles(data))
-        + "\n"
-        + json_assignment("FIXTURE_IDS", fixture_ids)
-        + "\n"
-        + json_assignment("ORGANIZATION_NAMES", organizations)
-        + "\n"
-        + json_assignment("DISPLAY_NAMES", display_names)
-        + "\n"
-        + json_assignment("CANDIDATE_EXAM_NUMBERS", candidate_exam_numbers)
-        + "\n"
-        + json_assignment("ADAPTER_COUNTS", adapter_counts)
-        + "\n"
-        + json_assignment("DEMO_ROLES", demo_roles(data))
-    )
-
-
-def outputs(data: dict[str, Any], profile: str | None = None) -> dict[Path, str]:
+def outputs(
+    data: dict[str, Any],
+    profile: str | None = None,
+    *,
+    output_dir: Path | None = None,
+) -> dict[Path, str]:
     validate_catalog(data)
     if profile is not None and profile not in PROFILE_NAMES:
         raise ValueError(f"Unknown fixture profile: {profile}")
+    sql_dir = output_dir or ROOT / "db"
     generated = {
-        SQL_TARGET: render_sql(data, "development"),
-        DEVELOPMENT_SQL_TARGET: render_sql(data, "development"),
+        sql_dir / "seed_development.sql": render_sql(data, "development"),
         TYPESCRIPT_TARGET: render_typescript(data),
-        PYTHON_TARGET: render_python(data),
     }
     if profile is None or profile == "public-demo":
-        generated[PUBLIC_DEMO_SQL_TARGET] = render_profile_sql(data, "public-demo")
+        generated[sql_dir / "seed_public_demo.sql"] = render_profile_sql(data, "public-demo")
     return generated
 
 
-def generate(check: bool = False, profile: str | None = None) -> list[Path]:
+def generate(
+    check: bool = False,
+    profile: str | None = None,
+    *,
+    output_dir: Path | None = None,
+) -> list[Path]:
     mismatches = []
-    for path, content in outputs(load_source(), profile).items():
+    generated = outputs(load_source(), profile, output_dir=output_dir)
+    for path, content in generated.items():
         if check:
+            # SQL is deliberately a disposable build artifact.  --check still
+            # compiles every profile, while only tracked generated adapters are
+            # compared with the working tree.
+            if path.name.startswith("seed_"):
+                continue
             if not path.exists() or path.read_text(encoding="utf-8") != content:
                 mismatches.append(path)
             continue
@@ -954,8 +986,13 @@ def main() -> int:
         help="fail when generated adapters do not match the canonical source",
     )
     parser.add_argument("--profile", choices=PROFILE_NAMES)
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        help="directory for disposable generated SQL artifacts (default: db)",
+    )
     args = parser.parse_args()
-    mismatches = generate(check=args.check, profile=args.profile)
+    mismatches = generate(check=args.check, profile=args.profile, output_dir=args.output_dir)
     if mismatches:
         for path in mismatches:
             print(f"outdated synthetic fixture adapter: {path.relative_to(ROOT)}")
