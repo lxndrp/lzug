@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from threading import Lock
 
 import uvicorn
@@ -20,7 +21,12 @@ from .server import parse_args
 def _development_seed_sql() -> str:
     from fixtures.generate import load_source, render_profile_sql
 
-    return render_profile_sql(load_source(), "development")
+    data = deepcopy(load_source())
+    # Browser tests use the historical single-round baseline so their
+    # interaction and accessibility assertions remain independent of the
+    # additional protocol/lifecycle records in the complete development seed.
+    data["profiles"]["development"]["seed_records"] = []
+    return render_profile_sql(data, "development")
 
 
 def create_e2e_app(config: FastAPIConfig) -> FastAPI:
