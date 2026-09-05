@@ -784,8 +784,10 @@ class DemoRuntimeTests(unittest.TestCase):
                 account = session.get(UserAccount, 4)
                 assert account is not None
                 session.delete(account)
-            with self.assertRaisesRegex(RuntimeError, "replacement account is unavailable"):
-                seed_demo_scenarios(db_path, self.clock())
+            with ApiServer(db_path, DemoTestHandler) as api:
+                response = self._client(api).post("/api/demo/session", json={"role": "replacement"})
+            self.assertEqual(HTTPStatus.SERVICE_UNAVAILABLE, response.status_code)
+            self.assertEqual({"error": "Demo role is unavailable."}, response.json())
 
     def test_matrix_contracts_are_unique_and_capability_aligned(self) -> None:
         contracts = (*DEMO_READ_MATRIX, *DEMO_MUTATION_MATRIX)
