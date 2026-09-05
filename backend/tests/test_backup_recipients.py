@@ -31,7 +31,7 @@ class BackupRecipientTests(unittest.TestCase):
         )
         self.paths.documents.mkdir()
         self.paths.backups.mkdir()
-        initialize(self.paths.database, with_seed=False, reset=True)
+        initialize(self.paths.database, reset=True)
 
     def tearDown(self) -> None:
         self.temporary.cleanup()

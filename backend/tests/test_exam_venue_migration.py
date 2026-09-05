@@ -23,7 +23,7 @@ class ExamVenueMigrationTests(unittest.TestCase):
                 shutil.copy(migration, migration_directory / migration.name)
 
         with patch("backend.database.MIGRATIONS_PATH", migration_directory):
-            initialize(db_path, with_seed=False, reset=True)
+            initialize(db_path, reset=True)
 
         with closing(sqlite3.connect(db_path)) as connection:
             connection.execute("PRAGMA foreign_keys = ON")

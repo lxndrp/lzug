@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 from contextlib import AbstractContextManager
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import timedelta
 from http import HTTPStatus
@@ -17,6 +18,19 @@ from backend.fastapi_app import FastAPIConfig, create_app
 from backend.map_provider import MapProviderConfig
 from backend.runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from backend.security import RequestRateLimiter
+
+
+def development_seed_sql() -> str:
+    """Compile the development seed only for tests that explicitly request it."""
+    from fixtures.generate import load_source, render_profile_sql
+
+    data = load_source()
+    # Keep the unit-test baseline focused on the core development round. The
+    # complete development profile remains covered by the compiler tests and
+    # is used by build consumers explicitly.
+    data = deepcopy(data)
+    data["profiles"]["development"]["seed_records"] = []
+    return render_profile_sql(data, "development")
 
 
 @dataclass(frozen=True)
@@ -61,15 +75,20 @@ class TestLzugHandler:
 
 
 class TempDatabase(AbstractContextManager):
-    def __init__(self, with_seed: bool = True):
+    def __init__(self, with_seed: bool = True, seed_sql: str | None = None):
         self.with_seed = with_seed
+        self.seed_sql = seed_sql
         self._directory: tempfile.TemporaryDirectory[str] | None = None
         self.path: Path | None = None
 
     def __enter__(self) -> Path:
         self._directory = tempfile.TemporaryDirectory()
         self.path = Path(self._directory.name) / "lzug-test.sqlite3"
-        initialize(self.path, with_seed=self.with_seed, reset=True)
+        initialize(
+            self.path,
+            seed_sql=(self.seed_sql or development_seed_sql()) if self.with_seed else None,
+            reset=True,
+        )
         return self.path
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:

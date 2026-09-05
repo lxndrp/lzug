@@ -9,15 +9,15 @@ from sqlalchemy import text
 from backend.auth import AuthenticationRepository
 from backend.database import session_scope
 from backend.models import ExamDay, ExamDayClosure, ExamDayExport, ExamDayTask, Notification
+from backend.tests.fixture_data import prepare_exam_protocol_scenario
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
-from demo.artifacts import _add_exam_protocol_scenario
 
 
 class ExamDayClosureTests(unittest.TestCase):
     def setUp(self) -> None:
         self.database = TempDatabase()
         self.db_path = self.database.__enter__()
-        _add_exam_protocol_scenario(self.db_path)
+        prepare_exam_protocol_scenario(self.db_path)
         authentication = AuthenticationRepository(self.db_path)
         self.chair = authentication.create_session(1)
         self.examiner = authentication.create_session(2)
@@ -496,7 +496,7 @@ class ExamDayClosureTests(unittest.TestCase):
         )
         for name, finding_code, statement in scenarios:
             with self.subTest(prerequisite=name), TempDatabase() as db_path:
-                _add_exam_protocol_scenario(db_path)
+                prepare_exam_protocol_scenario(db_path)
                 authentication = AuthenticationRepository(db_path)
                 chair = authentication.create_session(1)
                 with session_scope(db_path) as session:

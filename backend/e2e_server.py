@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from threading import Lock
 
 import uvicorn
@@ -17,6 +18,17 @@ from .security import RuntimeSecurityConfig
 from .server import parse_args
 
 
+def _development_seed_sql() -> str:
+    from fixtures.generate import load_source, render_profile_sql
+
+    data = deepcopy(load_source())
+    # Browser tests use the historical single-round baseline so their
+    # interaction and accessibility assertions remain independent of the
+    # additional protocol/lifecycle records in the complete development seed.
+    data["profiles"]["development"]["seed_records"] = []
+    return render_profile_sql(data, "development")
+
+
 def create_e2e_app(config: FastAPIConfig) -> FastAPI:
     app = create_app(config)
     reset_lock = Lock()
@@ -24,7 +36,7 @@ def create_e2e_app(config: FastAPIConfig) -> FastAPI:
     @app.post("/__e2e/reset", include_in_schema=False)
     def reset():
         with reset_lock:
-            initialize(config.db_path, with_seed=True, reset=True)
+            initialize(config.db_path, seed_sql=_development_seed_sql(), reset=True)
             credentials = AuthenticationRepository(config.db_path).create_session(1)
         response = JSONResponse({"status": "reset"})
         response.set_cookie(
@@ -51,7 +63,7 @@ def create_e2e_app(config: FastAPIConfig) -> FastAPI:
 def main() -> None:
     args = parse_args()
     security = RuntimeSecurityConfig.from_environment()
-    initialize(args.db, with_seed=True, reset=True)
+    initialize(args.db, seed_sql=_development_seed_sql(), reset=True)
     config = FastAPIConfig(
         db_path=args.db,
         session_cookie_name="lzug_e2e_session",

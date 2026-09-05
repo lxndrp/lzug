@@ -23,8 +23,6 @@ PR_GATES = {
 SYNTHETIC_FIXTURE_PATHS = {
     "fixtures/synthetic-fixtures.json",
     "fixtures/generate.py",
-    "db/seed_demo.sql",
-    "demo/synthetic_fixtures_generated.py",
     "frontend/src/app/testing/synthetic-fixtures.generated.ts",
 }
 

@@ -27,6 +27,19 @@ class SyntheticFixtureGeneratorTests(unittest.TestCase):
                 for adapter in row.get("adapters", ())
             },
         )
+        self.assertEqual({"development", "public-demo"}, set(data["profiles"]))
+        self.assertIn("demo.487.absence", data["profiles"]["public-demo"]["scenarios"])
+        self.assertIn("demo.487.planchange", data["profiles"]["public-demo"]["scenarios"])
+        half_years = next(
+            record
+            for record in data["profiles"]["public-demo"]["seed_records"]
+            if record["table"] == "exam_half_year"
+        )
+        statuses = {row[0]: row[3] for row in half_years["rows"]}
+        self.assertEqual(
+            {1}, {identifier for identifier, status in statuses.items() if status == "active"}
+        )
+        self.assertTrue(all(statuses[identifier] == "draft" for identifier in (2, 90, 91, 92, 93)))
         self.assertTrue(all(key.startswith(f"{generator.FIXTURE_ROOT}.") for key in index))
         self.assertEqual(
             {"chair", "examiner", "replacement"},

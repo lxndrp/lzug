@@ -22,6 +22,27 @@ from backend.models import (
     UserAccount,
 )
 from backend.security import RequestRateLimiter
+from backend.tests.fixture_data import (
+    ABSENCE_ASSIGNMENT_ID,
+    ABSENCE_ASSIGNMENT_START_ID,
+    ABSENCE_DAY_ID,
+    DEMO_MATRIX_VERSION,
+    DEMO_ROLES,
+    FIXTURE_CATALOG_REVISION,
+    FIXTURE_CATALOG_VERSION,
+    PLAN_CHANGE_ASSIGNMENT_ID,
+    PLAN_CHANGE_ASSIGNMENT_START_ID,
+    PLAN_CHANGE_DAY_ID,
+    PLAN_REPLACEMENT_MEMBER_ID,
+    PUBLIC_DEMO_RUNTIME,
+    REPLACEMENT_MEMBER_ID,
+    ROUND_ID,
+    TARGET_LOCATION_ID,
+    TIME_ZONE,
+    _closest_relative_exam_date,
+    public_demo_seed_sql,
+    seed_demo_scenarios,
+)
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
 from demo.artifacts import (
     DemoArtifactError,
@@ -31,31 +52,10 @@ from demo.artifacts import (
 )
 from demo.contract import RUNTIME_CONTRACT, canonical_digest, demo_identity
 from demo.runtime_policy import (
-    DEMO_MATRIX_VERSION,
     DEMO_MUTATION_MATRIX,
     DEMO_READ_MATRIX,
-    DEMO_ROLES,
     ROLE_CAPABILITIES,
     DemoRuntimePolicy,
-)
-from demo.scenarios import (
-    ABSENCE_ASSIGNMENT_ID,
-    ABSENCE_ASSIGNMENT_START_ID,
-    ABSENCE_DAY_ID,
-    PLAN_CHANGE_ASSIGNMENT_ID,
-    PLAN_CHANGE_ASSIGNMENT_START_ID,
-    PLAN_CHANGE_DAY_ID,
-    PLAN_REPLACEMENT_MEMBER_ID,
-    REPLACEMENT_MEMBER_ID,
-    ROUND_ID,
-    TARGET_LOCATION_ID,
-    TIME_ZONE,
-    _closest_relative_exam_date,
-    seed_demo_scenarios,
-)
-from demo.synthetic_fixtures_generated import (
-    FIXTURE_CATALOG_REVISION,
-    FIXTURE_CATALOG_VERSION,
 )
 
 
@@ -102,6 +102,12 @@ class DemoRuntimeTests(unittest.TestCase):
                 "version": FIXTURE_CATALOG_VERSION,
                 "revision": FIXTURE_CATALOG_REVISION,
                 "demo_matrix_version": DEMO_MATRIX_VERSION,
+            },
+            "fixture_profile": {
+                "name": "public-demo",
+                "reference_time": "2026-01-01T00:00:00+00:00",
+                "scenarios": ["demo.487.absence", "demo.487.planchange"],
+                **PUBLIC_DEMO_RUNTIME,
             },
         }
         seed_revision = canonical_digest(seed_binding)
@@ -254,7 +260,10 @@ class DemoRuntimeTests(unittest.TestCase):
         self.assertEqual("succeeded", saved.json()["consequence_status"]["derivation_status"])
 
     def test_public_status_roles_capabilities_and_fixed_lifetime(self) -> None:
-        with TempDatabase() as db_path, ApiServer(db_path, DemoTestHandler) as api:
+        with (
+            TempDatabase(seed_sql=public_demo_seed_sql()) as db_path,
+            ApiServer(db_path, DemoTestHandler) as api,
+        ):
             client = self._client(api)
             status = client.get("/api/demo/status")
             self.assertEqual(HTTPStatus.OK, status.status_code)
@@ -330,7 +339,10 @@ class DemoRuntimeTests(unittest.TestCase):
         self.assertEqual(HTTPStatus.CREATED, response.status_code, response.text)
 
     def test_role_switch_and_reset_require_csrf(self) -> None:
-        with TempDatabase() as db_path, ApiServer(db_path, DemoTestHandler) as api:
+        with (
+            TempDatabase(seed_sql=public_demo_seed_sql()) as db_path,
+            ApiServer(db_path, DemoTestHandler) as api,
+        ):
             client = self._client(api)
             self._role(client, "examiner")
             self.assertEqual(
@@ -342,7 +354,10 @@ class DemoRuntimeTests(unittest.TestCase):
             )
 
     def test_failed_session_creation_releases_the_unbound_workspace(self) -> None:
-        with TempDatabase() as db_path, ApiServer(db_path, DemoTestHandler) as api:
+        with (
+            TempDatabase(seed_sql=public_demo_seed_sql()) as db_path,
+            ApiServer(db_path, DemoTestHandler) as api,
+        ):
             with session_scope(db_path) as session:
                 account = session.get(UserAccount, 1)
                 assert account is not None
@@ -358,7 +373,10 @@ class DemoRuntimeTests(unittest.TestCase):
 
     def test_isolation_capacity_reset_logout_expiry_and_system_reset(self) -> None:
         self.policy = self._policy(capacity=2, suffix="isolation")
-        with TempDatabase() as db_path, ApiServer(db_path, DemoTestHandler) as api:
+        with (
+            TempDatabase(seed_sql=public_demo_seed_sql()) as db_path,
+            ApiServer(db_path, DemoTestHandler) as api,
+        ):
             first = self._client(api)
             with TestClient(first.app, base_url="http://127.0.0.1") as second:
                 self._role(first, "examiner")
@@ -418,7 +436,10 @@ class DemoRuntimeTests(unittest.TestCase):
                 self.assertEqual([], list(expired_path.parent.glob(f"{expired_path.name}*")))
 
         self.policy = self._policy(capacity=1, suffix="capacity")
-        with TempDatabase() as db_path, ApiServer(db_path, DemoTestHandler) as api:
+        with (
+            TempDatabase(seed_sql=public_demo_seed_sql()) as db_path,
+            ApiServer(db_path, DemoTestHandler) as api,
+        ):
             first = self._client(api)
             with TestClient(first.app, base_url="http://127.0.0.1") as second:
                 self._role(first, "chair")
@@ -428,7 +449,10 @@ class DemoRuntimeTests(unittest.TestCase):
                 self.assertEqual(1, self.policy.workspaces.active_count(db_path))
 
     def test_both_scenarios_work_in_either_order_and_reset_together(self) -> None:
-        with TempDatabase() as db_path, ApiServer(db_path, DemoTestHandler) as api:
+        with (
+            TempDatabase(seed_sql=public_demo_seed_sql()) as db_path,
+            ApiServer(db_path, DemoTestHandler) as api,
+        ):
             client = self._client(api)
             self._role(client, "chair")
             workspace_path = self._workspace_path(db_path, client)
@@ -560,7 +584,10 @@ class DemoRuntimeTests(unittest.TestCase):
         return self._workspace_path(self.policy.base_db_path, client)
 
     def test_allowlist_negative_paths_idempotency_and_plan_conflict(self) -> None:
-        with TempDatabase() as db_path, ApiServer(db_path, DemoTestHandler) as api:
+        with (
+            TempDatabase(seed_sql=public_demo_seed_sql()) as db_path,
+            ApiServer(db_path, DemoTestHandler) as api,
+        ):
             client = self._client(api)
             self._role(client, "examiner")
             day = client.get(f"/api/confirmed-plan-days/{ABSENCE_DAY_ID}").json()["day"]
@@ -689,7 +716,10 @@ class DemoRuntimeTests(unittest.TestCase):
                 self.assertEqual(1, len(session.scalars(select(ConfirmedPlanRevision)).all()))
 
     def test_started_assignment_is_rejected_by_product_guard(self) -> None:
-        with TempDatabase() as db_path, ApiServer(db_path, DemoTestHandler) as api:
+        with (
+            TempDatabase(seed_sql=public_demo_seed_sql()) as db_path,
+            ApiServer(db_path, DemoTestHandler) as api,
+        ):
             client = self._client(api)
             self._role(client, "examiner")
             workspace_path = self._workspace_path(db_path, client)
@@ -721,7 +751,10 @@ class DemoRuntimeTests(unittest.TestCase):
             datetime(2026, 12, 31, 10, 0, tzinfo=UTC),
         )
         for instant in instants:
-            with self.subTest(instant=instant.isoformat()), TempDatabase() as db_path:
+            with (
+                self.subTest(instant=instant.isoformat()),
+                TempDatabase(seed_sql=public_demo_seed_sql()) as db_path,
+            ):
                 seed_demo_scenarios(db_path, instant)
                 with session_scope(db_path) as session:
                     absence = session.get(ExamDay, ABSENCE_DAY_ID)
@@ -746,13 +779,15 @@ class DemoRuntimeTests(unittest.TestCase):
         ):
             DemoRuntimePolicy(self.app_manifest, self.seed_manifest)
 
-        with TempDatabase() as db_path:
+        with TempDatabase(seed_sql=public_demo_seed_sql()) as db_path:
             with session_scope(db_path) as session:
                 account = session.get(UserAccount, 4)
                 assert account is not None
                 session.delete(account)
-            with self.assertRaisesRegex(RuntimeError, "replacement account is unavailable"):
-                seed_demo_scenarios(db_path, self.clock())
+            with ApiServer(db_path, DemoTestHandler) as api:
+                response = self._client(api).post("/api/demo/session", json={"role": "replacement"})
+            self.assertEqual(HTTPStatus.SERVICE_UNAVAILABLE, response.status_code)
+            self.assertEqual({"error": "Demo role is unavailable."}, response.json())
 
     def test_matrix_contracts_are_unique_and_capability_aligned(self) -> None:
         contracts = (*DEMO_READ_MATRIX, *DEMO_MUTATION_MATRIX)
@@ -778,7 +813,10 @@ class DemoRuntimeTests(unittest.TestCase):
                     self.assertIn(contract.capability, ROLE_CAPABILITIES[role])
 
     def test_exam_venue_mutations_remain_fail_closed_in_the_demo(self) -> None:
-        with TempDatabase() as db_path, ApiServer(db_path, DemoTestHandler) as api:
+        with (
+            TempDatabase(seed_sql=public_demo_seed_sql()) as db_path,
+            ApiServer(db_path, DemoTestHandler) as api,
+        ):
             client = self._client(api)
             self._role(client, "chair")
             requests = (

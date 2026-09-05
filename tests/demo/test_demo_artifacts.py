@@ -128,7 +128,7 @@ class DemoArtifactTests(unittest.TestCase):
                     """,
                 ),
             )
-            self.assertEqual(5, self._scalar(first_db, "SELECT COUNT(*) FROM exam_day"))
+            self.assertEqual(7, self._scalar(first_db, "SELECT COUNT(*) FROM exam_day"))
             self.assertEqual(
                 [
                     (90, "open"),

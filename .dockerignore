@@ -15,7 +15,6 @@
 
 !db/
 !db/schema.sql
-!db/seed_demo.sql
 !db/migrations/
 !db/migrations/**
 
