@@ -383,14 +383,18 @@ def _shift_reference_value(value: Any, reference_time: str) -> Any:
                 target.astimezone(local_zone).date() - canonical.astimezone(local_zone).date()
             )
             return shifted.isoformat()
-        if "T" in value or re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", value):
+        if "T" in value:
             parsed = datetime.fromisoformat(value)
             if parsed.tzinfo is None:
                 parsed = parsed.replace(tzinfo=UTC)
             shifted = parsed.astimezone(UTC) + (target.astimezone(UTC) - canonical)
-            if "T" in value:
-                return shifted.isoformat(timespec="seconds")
-            return shifted.strftime("%Y-%m-%d %H:%M:%S")
+            return shifted.isoformat(timespec="seconds")
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", value):
+            parsed = datetime.fromisoformat(value)
+            shifted_date = parsed.date() + (
+                target.astimezone(local_zone).date() - canonical.astimezone(local_zone).date()
+            )
+            return datetime.combine(shifted_date, parsed.time()).strftime("%Y-%m-%d %H:%M:%S")
     except ValueError:
         pass
     return value

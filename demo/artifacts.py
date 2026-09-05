@@ -308,6 +308,8 @@ def _validate_fixture_contract(manifest: dict[str, Any]) -> None:
     profile = manifest.get("fixture_profile")
     if not isinstance(profile, dict) or profile.get("name") != "public-demo":
         raise DemoArtifactError("Seed fixture profile is not public-demo")
+    if profile.get("demo_matrix_version") != catalog["demo_matrix_version"]:
+        raise DemoArtifactError("Seed fixture catalog does not match the demo matrix")
 
 
 def _validate_seed_manifest(manifest: dict[str, Any]) -> None:
