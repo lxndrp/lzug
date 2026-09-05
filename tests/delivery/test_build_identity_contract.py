@@ -41,6 +41,7 @@ class BuildIdentityContractTests(unittest.TestCase):
         self.assertIn("frontend-metadata.json", runtime_contract)
         self.assertIn("org.opencontainers.image.version", runtime_contract)
         self.assertIn("org.opencontainers.image.revision", runtime_contract)
+        self.assertNotIn("--init --seed", container_contract)
         self.assertIn("--build-metadata", runtime_contract)
         self.assertIn('cmp "$temporary_directory/container-metadata.json"', runtime_contract)
 

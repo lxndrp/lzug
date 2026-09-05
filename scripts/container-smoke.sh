@@ -51,6 +51,34 @@ assert_status() {
     fi
 }
 
+echo "Verifying operator bootstrap on an empty product database."
+"$engine" exec "$container" python -c '
+from backend.committee_admin import CommitteeAdminService
+from backend.models import EXAM_HALF_YEAR
+from backend.repositories import ResourceRepository
+
+CommitteeAdminService().bootstrap({
+    "idempotency_key": "container-smoke-initial-committee",
+    "committee": {
+        "name": "Initial smoke committee",
+        "ihk": "IHK Container Smoke",
+        "occupation": "Test occupation",
+    },
+    "chair": {
+        "mode": "new",
+        "first_name": "Initial",
+        "last_name": "Chair",
+        "email": "initial.chair@example.invalid",
+        "member_status": "ordinary",
+        "representing_side": "employer",
+    },
+})
+ResourceRepository().create(
+    EXAM_HALF_YEAR,
+    {"season": "summer", "year": 2030, "status": "active"},
+)
+'
+
 echo "Verifying container readiness and public HTTP boundary."
 wait_for_health
 
