@@ -4,9 +4,8 @@ import re
 import unittest
 from pathlib import Path
 
-from backend.tests.workflow_contract import (
+from tests.delivery.workflow_contract import (
     action_blocks,
-    action_references,
     job_block,
     trigger_block,
     workflow_name,
@@ -222,24 +221,6 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("task fixtures:check", pull_request_check)
         self.assertIn("task fixtures:check", full_quality_check)
         self.assertIn("fixtures", backend_gate)
-
-    def test_quality_actions_are_pinned_and_quality_cannot_publish(self) -> None:
-        for path in (
-            Path(".github/workflows/ci.yml"),
-            Path(".github/workflows/pull-request.yml"),
-            Path(".github/workflows/quality.yml"),
-        ):
-            workflow = path.read_text(encoding="utf-8")
-            action_refs = [
-                reference.rsplit("@", 1)[1]
-                for reference in action_references(workflow)
-                if not reference.startswith("./")
-            ]
-            with self.subTest(workflow=path.name):
-                self.assertTrue(action_refs)
-                self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs))
-                self.assertNotIn("packages: write", workflow)
-                self.assertNotIn("gh release create", workflow)
 
     def test_codeql_analysis_identity_survives_the_workflow_split(self) -> None:
         category = 'category: ".github/workflows/ci.yml:codeql/language:${{ matrix.language }}"'

@@ -95,6 +95,7 @@ jobs:
               - '!frontend/**/*.spec.ts'
             full:
               - '.github/**'
+              - 'tests/**'
               - '.mise.toml'
               - 'frontend/.node-version'
               - '.python-version'

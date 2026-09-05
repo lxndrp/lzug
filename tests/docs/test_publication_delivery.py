@@ -5,7 +5,6 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from backend.tests.workflow_contract import job_block, trigger_block, workflow_text
 from docs.publication import (
     PUBLICATION_BASE_URL,
     convert_handbook_links,
@@ -13,6 +12,7 @@ from docs.publication import (
     public_url,
     publication_base_url,
 )
+from tests.delivery.workflow_contract import job_block, trigger_block, workflow_text
 
 ROOT = Path(__file__).resolve().parents[2]
 

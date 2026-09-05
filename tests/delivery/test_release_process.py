@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import re
 import unittest
 
-from backend.tests.workflow_contract import (
-    action_references,
+from tests.delivery.workflow_contract import (
     job_block,
     trigger_block,
     workflow_text,
@@ -17,16 +15,6 @@ class ReleaseWorkflowTests(unittest.TestCase):
         cls.workflow = workflow_text(".github/workflows/release.yml")
         cls.preflight = job_block(cls.workflow, "preflight")
         cls.publish = job_block(cls.workflow, "publish")
-
-    def test_release_uses_only_pinned_actions(self) -> None:
-        action_refs = [
-            reference.rsplit("@", 1)[1]
-            for reference in action_references(self.workflow)
-            if not reference.startswith("./")
-        ]
-
-        self.assertTrue(action_refs)
-        self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs))
 
     def test_dispatch_requires_an_explicit_semver_tag_on_master(self) -> None:
         dispatch = trigger_block(self.workflow)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from backend.tests.workflow_contract import job_block, mapping_block, workflow_text
+from tests.delivery.workflow_contract import job_block, mapping_block, workflow_text
 
 
 class DemoDeliveryContractTests(unittest.TestCase):

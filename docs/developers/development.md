@@ -38,7 +38,13 @@ Seiteneffekt des normalen Servers.
 
 | Risiko | Geeigneter Einstieg |
 | --- | --- |
-| schmale Python-Regel | betroffener `unittest` unter `backend/tests/` |
+| schmale Backend-Regel | betroffener `unittest` unter `backend/tests/` |
+| Demo-Vertrag oder -Runtime | betroffener `unittest` unter `tests/demo/` |
+| Delivery- oder Workflow-Vertrag | betroffener `unittest` unter `tests/delivery/` |
+| Dokumentation und Publikation | betroffener `unittest` unter `tests/docs/` |
+| Synthetische Fixtures | `task test:fixtures` oder `task fixtures:check` |
+| Repository-Tooling | betroffener `unittest` unter `tests/tooling/` |
+| OCI- oder Compose-Regel | betroffener `unittest` unter `tests/oci/` |
 | Backend insgesamt | `task quality:backend` |
 | API-, Transport- und Persistenzmodelle | `task backend:typecheck` |
 | Backend-Komplexität | `task backend:complexity` |
@@ -141,7 +147,7 @@ Der Demo-Artefaktbau ergänzt fachlich gezielte synthetische Zustände für
 Protokoll, Bewertung, Abschluss, Wiederöffnung und Reset.
 Die isolierten Szenarien aus #487 werden dagegen beim Start eines
 Besucher-Arbeitsstands relativ zur aktuellen Instanzzeit erzeugt.
-`backend.tests.test_demo_runtime` prüft beide Reihenfolgen, Rollen- und
+`tests.demo.test_demo_runtime` prüft beide Reihenfolgen, Rollen- und
 Allowlist-Grenzen, Benachrichtigungs- und Kalenderfolgen, Isolation, Ablauf und
 Reset.
 Katalogversion, Katalogrevision und Demo-Matrixversion sind an das
