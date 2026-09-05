@@ -80,8 +80,8 @@ Ein Fehler nach einer sichtbaren Veröffentlichung wird als eigener Vorfall bewe
 | Abfrage der sieben einzelnen Quality-Check-Namen | Nach #344 durch den erfolgreichen vollständigen Master-Workflow für exakt dieselbe SHA ersetzen |
 | `scripts/release_assets.py` | Entfernen; keine generationsabhängige Bestandsvalidierung veröffentlichter Releases mehr |
 | `v0.1.0`-Sonderpfade für vorhandene Releases und OCI-Images | Entfernen; `v0.1.0` bleibt außerhalb des neuen Ablaufs unverändert |
-| `backend/tests/test_release_process.py` | Verdrahtungs- und Sonderfalltests entfernen; nur wenige Verhaltensinvarianten des Zielvertrags prüfen |
-| Release-Anteile in `backend/tests/test_sbom.py` | Auf den verbleibenden sichtbaren SBOM-Vertrag begrenzen; keine Workflow- oder Retry-Steuerung testen |
+| `tests/delivery/test_release_process.py` | Verdrahtungs- und Sonderfalltests entfernen; nur wenige Verhaltensinvarianten des Zielvertrags prüfen |
+| Release-Anteile in `tests/delivery/test_sbom.py` | Auf den verbleibenden sichtbaren SBOM-Vertrag begrenzen; keine Workflow- oder Retry-Steuerung testen |
 | `scripts/sbom.py` | Lokale/CI-SBOM-Verträge und eine nötige deterministische Zusammenführung zur einzigen sichtbaren CycloneDX-SBOM behalten, release-spezifische Subject- und Attestation-Orchestrierung zugunsten von Syft/Anchore und GitHub Attestations entfernen |
 | `scripts/build_metadata.py` | Behalten; der gemeinsame Tag-, Versions- und Revisionsvertrag ist Produktmetadatenlogik |
 | CLI-Verpackung | Nach der positiven Entscheidung in [ADR-0021](0021-goreleaser-fuer-die-betreiber-cli.md) mit GoReleaser bauen; Release, Attestations und aggregierte SBOM bleiben bei #347 |

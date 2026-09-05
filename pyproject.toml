@@ -28,7 +28,7 @@ dev = [
 ]
 
 [tool.unittest]
-start-dir = "backend/tests"
+start-dir = "."
 
 [tool.coverage.run]
 branch = true

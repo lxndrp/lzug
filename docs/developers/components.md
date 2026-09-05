@@ -276,11 +276,16 @@ geschützte Environment `demo` begrenzen echte Mutationen.
 | --- | --- |
 | Fachservice oder Repository | passendes Modul unter `backend/tests/` |
 | HTTP- oder OpenAPI-Vertrag | `backend.tests.test_fastapi_app`, `test_openapi_contract` und betroffener API-Test |
+| Demo-Runtime oder Demo-Artefakt | passendes Modul unter `tests/demo/` |
+| Release-, SBOM- oder Workflowvertrag | passendes Modul unter `tests/delivery/` |
+| Dokumentations- oder Publikationsvertrag | passendes Modul unter `tests/docs/` |
+| Synthetische Fixture-Quelle | passendes Modul unter `tests/fixtures/` und `task fixtures:check` |
 | Angular-Komponente oder Service | zugehöriger Vitest-Test unter `frontend/src/` |
 | sichtbarer Hauptablauf | `task quality:e2e` und bei UI-Änderung `task quality:a11y` getrennt |
 | Go-CLI | `cd operator-cli && go test ./...` beziehungsweise `task quality:operator` |
-| OCI oder Compose | `task quality:container`, `task quality:compose` oder `task quality:operator-container` |
-| Demo-Vertrag | `task quality:demo-deployment`, `task quality:demo` und bei Infrastruktur `task quality:infra` |
+| OCI oder Compose | passendes Modul unter `tests/oci/` sowie `task quality:container`, `quality:compose` oder `quality:operator-container` |
+| Repository-Tooling | passendes Modul unter `tests/tooling/` |
+| Demo-Lieferung | `task quality:demo-deployment`, `task quality:demo` und bei Infrastruktur `task quality:infra` |
 
 Die breite Auswahl und die lokalen Voraussetzungen stehen unter
 [Entwicklung](development.md).
