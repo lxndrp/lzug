@@ -51,6 +51,8 @@ assert_status() {
     fi
 }
 
+wait_for_health
+
 echo "Verifying operator bootstrap on an empty product database."
 "$engine" exec "$container" python -c '
 from backend.committee_admin import CommitteeAdminService
@@ -80,8 +82,6 @@ ResourceRepository().create(
 '
 
 echo "Verifying container readiness and public HTTP boundary."
-wait_for_health
-
 curl --silent --show-error --fail "$url/" | grep -F '<app-root' >/dev/null
 curl --silent --show-error --fail "$url/dashboard" | grep -F '<app-root' >/dev/null
 assert_status "Missing static asset" 404 \
