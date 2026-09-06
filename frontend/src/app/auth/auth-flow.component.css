@@ -6,17 +6,17 @@
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 2rem 1rem;
-  background: var(--app-color-canvas);
+  padding: var(--lzug-space-6) var(--lzug-space-4);
+  background: var(--lzug-role-page-canvas);
 }
 
 .auth-card {
-  width: min(100%, 34rem);
+  width: min(100%, var(--lzug-role-reading-max));
   padding: clamp(1.5rem, 5vw, 3rem);
-  border: 1px solid var(--app-color-border);
-  border-radius: 1rem;
-  background: var(--app-color-surface);
-  box-shadow: var(--app-shadow-floating);
+  border: 1px solid var(--lzug-role-border);
+  border-radius: var(--lzug-role-card-radius);
+  background: var(--lzug-role-card-surface);
+  box-shadow: var(--lzug-shadow-floating);
 }
 
 .auth-kicker,
@@ -56,33 +56,26 @@
 
 .auth-card input {
   width: 100%;
-  min-height: 2.75rem;
+  min-height: var(--lzug-role-control-min);
   box-sizing: border-box;
   padding: 0.65rem 0.75rem;
-  border: 1px solid var(--app-color-border);
-  border-radius: 0.4rem;
+  border: 1px solid var(--lzug-role-border);
+  border-radius: var(--lzug-radius-md);
   color: inherit;
   background: transparent;
   font: inherit;
 }
 
-.auth-card input:focus-visible,
-.auth-card button:focus-visible,
-.auth-card a:focus-visible {
-  outline: 3px solid var(--app-color-focus);
-  outline-offset: 2px;
-}
-
 .auth-card button {
-  min-height: 2.75rem;
+  min-height: var(--lzug-role-control-min);
   margin-top: 1rem;
   padding: 0.65rem 1rem;
   border: 0;
-  border-radius: 0.4rem;
-  color: var(--app-color-on-primary);
-  background: var(--app-color-primary);
+  border-radius: var(--lzug-radius-md);
+  color: var(--lzug-role-action-on-primary);
+  background: var(--lzug-role-action-primary);
   font: inherit;
-  font-weight: 700;
+  font-weight: var(--lzug-font-weight-strong);
   cursor: pointer;
 }
 
@@ -111,9 +104,12 @@
 }
 
 .auth-success {
-  padding: 0.75rem;
-  border-radius: 0.4rem;
+  padding: var(--lzug-space-3);
+  border: 1px solid var(--lzug-color-status-success);
+  border-inline-start-width: 0.25rem;
+  border-radius: var(--lzug-radius-md);
   background: var(--app-color-success-soft);
+  color: var(--lzug-color-status-success);
 }
 
 .auth-secret {

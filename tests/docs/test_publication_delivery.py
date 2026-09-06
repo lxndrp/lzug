@@ -107,6 +107,38 @@ class PublicationDeliveryContractTests(unittest.TestCase):
             with self.subTest(relative=relative):
                 self.assertTrue((ROOT / "docs/publication" / relative).is_file())
 
+    def test_product_and_portal_adapters_use_one_shared_visual_grammar(self) -> None:
+        tokens = (ROOT / "brand/tokens.css").read_text(encoding="utf-8")
+        portal_css = (
+            ROOT / "docs/publication/relearn/assets/css/custom.css"
+        ).read_text(encoding="utf-8")
+        frontend_css = "\n".join(
+            (
+                (ROOT / "frontend/src/styles.scss").read_text(encoding="utf-8"),
+                (ROOT / "frontend/src/app/app.css").read_text(encoding="utf-8"),
+                (ROOT / "frontend/src/app/auth/auth-flow.component.css").read_text(
+                    encoding="utf-8"
+                ),
+            )
+        )
+
+        for role in (
+            "--lzug-role-action-primary",
+            "--lzug-role-card-surface",
+            "--lzug-role-content-max",
+            "--lzug-role-focus",
+        ):
+            with self.subTest(role=role):
+                self.assertIn(role, tokens)
+                self.assertIn(role, portal_css)
+                self.assertIn(role, frontend_css)
+
+        self.assertNotIn("INTERNAL-", portal_css)
+        self.assertEqual(1, portal_css.count(".publication-button {"))
+        self.assertEqual(1, portal_css.count(".publication-features article {"))
+        self.assertIn("--lzug-role-content-max", frontend_css)
+        self.assertIn("--lzug-role-card-radius", frontend_css)
+
     def test_readme_uses_public_portal_entrypoints_for_reader_audiences(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         for route in ("/", "/nutzen/", "/betreiben/", "/entwickeln/"):

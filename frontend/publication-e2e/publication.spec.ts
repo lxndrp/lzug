@@ -187,6 +187,40 @@ test.describe('public site browser contract', () => {
     await expect(page.locator('input[type="search"]')).toHaveCount(1);
   });
 
+  test('attaches portal content evidence for the shared visual grammar', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/handbuch/', { waitUntil: 'networkidle' });
+    await expect(page.locator('main')).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+
+    const evidence = await page.screenshot({ fullPage: true });
+    await testInfo.attach('portal-content-desktop-light', {
+      body: evidence,
+      contentType: 'image/png',
+    });
+  });
+
+  test('keeps the shared focus and reflow grammar at 200 percent', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/', { waitUntil: 'networkidle' });
+    const primary = page.getByRole('button', { name: 'Demo starten' });
+    await primary.focus();
+    await expect(primary).toBeFocused();
+    await expect
+      .poll(() => primary.evaluate((element) => getComputedStyle(element).outlineWidth))
+      .toBe('3px');
+
+    await page.evaluate(() => document.documentElement.style.setProperty('font-size', '200%'));
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+        ),
+      )
+      .toBe(true);
+  });
+
   test('warms up the configured demo origin before navigation', async ({ page }) => {
     await page.goto('/', { waitUntil: 'networkidle' });
     const warmupDemoOrigin = await readDemoOrigin(page);

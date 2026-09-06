@@ -1,20 +1,20 @@
 /* Taiga UI adapter. Product code consumes the toolkit-neutral lzug roles above. */
 :root,
 body[tuiTheme='dark'] {
-  --tui-background-base: var(--lzug-color-neutral-surface);
-  --tui-background-neutral-1: var(--lzug-color-neutral-canvas);
-  --tui-background-neutral-2: var(--lzug-color-neutral-surface-raised);
-  --tui-background-accent-1: var(--lzug-color-brand-ink);
-  --tui-background-accent-1-hover: var(--lzug-color-brand-ink-hover);
-  --tui-background-accent-1-pressed: var(--lzug-color-brand-ink-active);
-  --tui-text-primary: var(--lzug-color-text);
-  --tui-text-secondary: var(--lzug-color-text-muted);
-  --tui-text-primary-on-accent-1: var(--lzug-color-text-on-interaction);
-  --tui-text-action: var(--lzug-color-brand-ink);
-  --tui-text-action-hover: var(--lzug-color-brand-ink-hover);
+  --tui-background-base: var(--lzug-role-card-surface);
+  --tui-background-neutral-1: var(--lzug-role-page-canvas);
+  --tui-background-neutral-2: var(--lzug-role-raised-surface);
+  --tui-background-accent-1: var(--lzug-role-action-primary);
+  --tui-background-accent-1-hover: var(--lzug-role-action-primary-hover);
+  --tui-background-accent-1-pressed: var(--lzug-role-action-primary-active);
+  --tui-text-primary: var(--lzug-role-text);
+  --tui-text-secondary: var(--lzug-role-text-muted);
+  --tui-text-primary-on-accent-1: var(--lzug-role-action-on-primary);
+  --tui-text-action: var(--lzug-role-action-primary);
+  --tui-text-action-hover: var(--lzug-role-action-primary-hover);
   --tui-text-negative: var(--lzug-color-status-danger);
   --tui-text-negative-hover: var(--lzug-color-status-danger);
   --tui-status-negative: var(--lzug-color-status-danger);
-  --tui-border-normal: var(--lzug-color-neutral-border);
-  --tui-service-focus: var(--lzug-color-focus);
+  --tui-border-normal: var(--lzug-role-border);
+  --tui-service-focus: var(--lzug-role-focus);
 }
