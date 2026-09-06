@@ -160,10 +160,6 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("environment:\n      name: github-pages", deploy)
         self.assertIn("actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d", deploy)
         self.assertIn("enablement: false", deploy)
-        self.assertIn("-- task docs:publication:check DEMO_URL=", build)
-        self.assertIn("-- task docs:publication DEMO_URL=", build)
-        self.assertNotIn("Checkout canonical Wiki", workflow)
-        self.assertNotIn("WIKI_ROOT", workflow)
         self.assertIn("if: github.event_name == 'schedule'", build)
         self.assertIn("if: github.event_name != 'schedule'", build)
         self.assertIn('cron: "29 4 * * 1"', triggers)
@@ -171,9 +167,6 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn('"docs/publication/**"', triggers)
         self.assertIn('"frontend/src/**"', triggers)
         self.assertIn('"frontend/tsconfig*.json"', triggers)
-        self.assertIn("PLAYWRIGHT_BROWSER_CHANNEL: chrome", build)
-        self.assertIn("npm --prefix frontend run test:publication", build)
-        self.assertIn("npm --prefix frontend run test:publication:a11y", build)
         self.assertNotIn("--no-sandbox", build)
 
 

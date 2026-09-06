@@ -1,28 +1,13 @@
 name: Quality
 
 on:
-  push:
-    branches:
-      - main
-      - master
-  # Dependabot merges through GITHUB_TOKEN do not emit a follow-up push event.
-  # The dynamic update workflow completes after the merge and carries the
-  # exact resulting master SHA in workflow_run.head_sha.
-  workflow_run:
-    workflows:
-      - Dependabot auto-merge
-    types:
-      - completed
-    branches:
-      - master
   schedule:
-    - cron: "17 3 * * 1"
+    - cron: "17 3 * * *"
   workflow_dispatch:
-  workflow_call:
     inputs:
-      revision:
-        description: Immutable commit revision to check out for a caller.
-        required: false
+      expected_sha:
+        description: Exact current master SHA to verify for the next release
+        required: true
         type: string
 
 permissions:
@@ -30,35 +15,54 @@ permissions:
 
 env:
   IMAGE_REF: lzug:0.0.0-dev.local
-  QUALITY_REVISION: ${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}
+  QUALITY_REVISION: ${{ github.sha }}
 
 concurrency:
-  group: quality-${{ github.ref }}-${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}
+  group: quality-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
+  revision:
+    name: Bind complete evidence to master
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/master
+          if test "$GITHUB_EVENT_NAME" = workflow_dispatch; then
+            test "$EXPECTED_SHA" = "$GITHUB_SHA" || {
+              echo "Master changed or expected_sha is missing; dispatch the intended master SHA again." >&2
+              exit 1
+            }
+          fi
+
   fixtures:
     name: Synthetic fixture adapters
+    needs: revision
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - run: uv sync --locked --extra dev
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
         with:
           version: 3.52.0
-      - run: task fixtures:check
+      - run: task fixtures:check test:fixtures test:tooling
 
   backend:
     name: Backend
+    needs: revision
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
@@ -79,11 +83,12 @@ jobs:
 
   frontend:
     name: Frontend
+    needs: revision
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: frontend/.node-version
@@ -93,7 +98,7 @@ jobs:
         with:
           version: 3.52.0
       - run: npm ci --prefix frontend
-      - run: task quality:frontend quality:security
+      - run: task brand:check quality:frontend quality:security
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: frontend-coverage
@@ -103,11 +108,12 @@ jobs:
 
   docs:
     name: Documentation
+    needs: revision
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
@@ -133,11 +139,12 @@ jobs:
 
   cli:
     name: CLI
+    needs: revision
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.26.5"
@@ -151,15 +158,27 @@ jobs:
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
         with:
           version: 3.52.0
-      - run: task quality:operator
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14.6"
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - run: uv sync --locked --extra dev
+      - id: syft
+        uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          syft-version: v1.51.0
+      - env:
+          SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
+        run: task quality:operator quality:operator-packaging
 
   infra:
     name: Infrastructure
+    needs: revision
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
@@ -173,15 +192,16 @@ jobs:
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
         with:
           version: 3.52.0
-      - run: task quality:infra quality:demo-deployment
+      - run: task quality:infra
 
   container:
     name: Container
+    needs: revision
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
@@ -203,22 +223,17 @@ jobs:
           syft-version: v1.51.0
       - env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
-        run: task quality:oci quality:container quality:compose quality:operator-container quality:demo
-      - name: Generate and validate the image SBOM
+        run: task quality:oci quality:container quality:compose quality:operator-container quality:demo test:oci test:demo test:delivery
+      - name: Generate and validate the dependency SBOM
         env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
-        run: |
-          source_version=$(python3 scripts/build_metadata.py --revision "$QUALITY_REVISION" --field identity)
-          python3 scripts/sbom.py generate-dependencies --source-version "$source_version" --output lzug.dependencies.sbom.cdx.json
-          python3 scripts/sbom.py validate --kind dependencies --input lzug.dependencies.sbom.cdx.json
-          python3 scripts/sbom.py generate-image --image "$IMAGE_REF" --output lzug.image.sbom.cdx.json
-          python3 scripts/sbom.py validate --kind image --input lzug.image.sbom.cdx.json
+        run: task quality:sbom
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: lzug-sboms
           path: |
-            lzug.dependencies.sbom.cdx.json
-            lzug.image.sbom.cdx.json
+            build/quality/lzug.dependencies.sbom.cdx.json
+            build/quality/lzug.image.sbom.cdx.json
           if-no-files-found: error
           retention-days: 30
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
@@ -234,11 +249,12 @@ jobs:
 
   e2e:
     name: Browser E2E
+    needs: revision
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
@@ -276,11 +292,12 @@ jobs:
 
   a11y:
     name: Accessibility
+    needs: revision
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
@@ -316,21 +333,23 @@ jobs:
           retention-days: 7
 
   codeql:
+    needs: revision
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
       security-events: write
     with:
       languages: '["python","javascript-typescript","go"]'
-      revision: ${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}
+      revision: ${{ github.sha }}
 
   source-scan:
     name: Source secrets and misconfiguration
+    needs: revision
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
         with:
           version: v0.69.3

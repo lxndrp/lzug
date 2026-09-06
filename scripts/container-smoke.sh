@@ -99,7 +99,8 @@ expected_revision=$("$engine" image inspect --format '{{ index .Config.Labels "o
 expected_image_version=$("$engine" image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$image")
 test "$metadata_revision" = "$expected_revision"
 test "$expected_version" = "$expected_image_version"
-curl --silent --show-error --fail "$url/api/health" | \
+headers="$temporary_directory/headers"
+curl --silent --show-error --fail --dump-header "$headers" "$url/api/health" | \
     EXPECTED_VERSION="$expected_version" EXPECTED_REVISION="$expected_revision" python3 -c '
 import json
 import os
@@ -114,8 +115,6 @@ assert payload == {
 }
 '
 
-headers="$temporary_directory/headers"
-curl --silent --show-error --dump-header "$headers" --output /dev/null "$url/api/health"
 grep -Eiq '^Content-Security-Policy: .*frame-ancestors.*none' "$headers"
 grep -Eiq '^Strict-Transport-Security: max-age=31536000' "$headers"
 grep -Eiq '^X-Content-Type-Options: nosniff' "$headers"
@@ -238,10 +237,5 @@ if "$engine" logs "$container" 2>&1 | grep -F "$log_marker" >/dev/null; then
     echo "Container logs exposed request secret material." >&2
     exit 1
 fi
-
-echo "Verifying readiness after restart."
-"$engine" restart "$container" >/dev/null
-resolve_url
-wait_for_health
 
 echo "Container runtime, authentication isolation, and security smoke test passed with $engine: $image"

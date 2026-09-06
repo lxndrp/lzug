@@ -186,6 +186,10 @@ def generate_cli(args: argparse.Namespace) -> None:
     output = Path(args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     run_syft(cli_command(output, artifact, args.source_version, args.source_name, executable))
+    go_mod = (ROOT / "operator-cli/go.mod").read_text(encoding="utf-8")
+    validate_cli(
+        json.loads(output.read_text(encoding="utf-8")), go_mod, cli_modules(artifact, go_mod)
+    )
 
 
 def _component_key(component: dict[str, Any]) -> str:
@@ -411,6 +415,32 @@ def go_module_graph(
     return main_module, (graph_modules & go_sum_module_names(go_sum)) - {main_module}
 
 
+def cli_modules(artifact: Path, go_mod: str) -> dict[str, str]:
+    """Read the modules embedded in this exact binary, excluding upstream test fixtures."""
+
+    result = subprocess.run(
+        ["go", "version", "-m", "-json", str(artifact.resolve())],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    info = json.loads(result.stdout)
+    main_module, _ = go_module_contract(go_mod)
+    if not isinstance(info, dict) or info.get("Main", {}).get("Path") != main_module:
+        raise ValueError("CLI build information does not identify the declared main module")
+    if not isinstance(info.get("Deps"), list):
+        raise ValueError("CLI build information has no dependency inventory")
+    modules = {}
+    for dependency in info["Deps"]:
+        if not isinstance(dependency, dict) or not dependency.get("Path"):
+            raise ValueError("CLI build information contains an invalid module")
+        version = dependency.get("Version")
+        if not isinstance(version, str) or not version or dependency.get("Replace"):
+            raise ValueError("CLI build information must identify an immutable module version")
+        modules[dependency["Path"]] = version
+    return modules
+
+
 def go_component_names(components: list[dict[str, Any]]) -> set[str]:
     """Return normalized Go package names represented by CycloneDX components."""
 
@@ -454,16 +484,15 @@ def validate_dependencies(
     if len(project_components) != 1 or not component_has_license(project_components[0]):
         raise ValueError("dependency SBOM must contain one licensed lzug Python distribution")
 
-    main_module, _ = go_module_contract(go_mod)
+    main_module, declared_modules = go_module_contract(go_mod)
     if go_modules is None:
         _, go_modules = go_module_graph(go_mod)
     represented_go_modules = go_component_names(components)
     external_go_modules = represented_go_modules - {main_module, "stdlib"}
-    missing_go_modules = sorted(go_modules - represented_go_modules)
+    missing_go_modules = sorted(declared_modules - represented_go_modules)
     if missing_go_modules:
         raise ValueError(
-            "Go module graph modules missing from the dependency SBOM: "
-            + ", ".join(missing_go_modules)
+            "Declared Go modules missing from the dependency SBOM: " + ", ".join(missing_go_modules)
         )
     unexpected_go_modules = sorted(external_go_modules - go_modules)
     if unexpected_go_modules:
@@ -483,7 +512,7 @@ def validate_dependencies(
         "purl_types": dict(sorted(counts.items())),
         "python_missing_license_metadata": python_missing_licenses,
         "go_boundary": (
-            f"{len(go_modules)} resolved third-party module components"
+            f"{len(external_go_modules)} resolved third-party module components"
             if go_modules
             else "Go resolves no third-party modules"
         ),
@@ -491,7 +520,7 @@ def validate_dependencies(
 
 
 def validate_cli(
-    payload: dict[str, Any], go_mod: str, go_modules: set[str] | None = None
+    payload: dict[str, Any], go_mod: str, go_modules: dict[str, str]
 ) -> dict[str, Any]:
     """Validate a CycloneDX SBOM for one already built native CLI artifact."""
 
@@ -501,17 +530,24 @@ def validate_cli(
         raise ValueError("CLI SBOM source must identify the scanned file")
 
     main_module, _ = go_module_contract(go_mod)
-    if go_modules is None:
-        _, go_modules = go_module_graph(go_mod)
     represented_go_modules = go_component_names(components)
     for required in (main_module, "stdlib"):
         if required not in represented_go_modules:
             raise ValueError(f"CLI SBOM is missing Go component {required}")
-    missing_go_modules = sorted(go_modules - represented_go_modules)
+    missing_go_modules = sorted(go_modules.keys() - represented_go_modules)
     if missing_go_modules:
         raise ValueError(
-            "CLI SBOM is missing Go module graph modules: " + ", ".join(missing_go_modules)
+            "CLI SBOM is missing embedded Go modules: " + ", ".join(missing_go_modules)
         )
+    unexpected = represented_go_modules - go_modules.keys() - {main_module, "stdlib"}
+    if unexpected:
+        raise ValueError(
+            "CLI SBOM contains modules absent from the binary: " + ", ".join(sorted(unexpected))
+        )
+    for item in components:
+        if component_purl_type(item) == "golang" and item.get("name") in go_modules:
+            if item.get("version") != go_modules[item["name"]]:
+                raise ValueError(f"CLI SBOM version differs from the binary for {item['name']}")
     return {
         "artifact": source["name"],
         "components": len(components),
@@ -575,11 +611,12 @@ def validate(args: argparse.Namespace) -> None:
 
     payload = json.loads(Path(args.input).read_text(encoding="utf-8"))
     go_mod = (ROOT / "operator-cli/go.mod").read_text(encoding="utf-8")
-    go_modules = go_module_graph(go_mod)[1] if args.kind in ("dependencies", "cli") else None
     if args.kind == "dependencies":
-        summary = validate_dependencies(payload, go_mod, go_modules)
+        summary = validate_dependencies(payload, go_mod)
     elif args.kind == "cli":
-        summary = validate_cli(payload, go_mod, go_modules)
+        if not args.artifact:
+            raise ValueError("--artifact is required to validate a CLI SBOM against its binary")
+        summary = validate_cli(payload, go_mod, cli_modules(Path(args.artifact), go_mod))
     elif args.kind == "image":
         summary = validate_image(payload)
     else:
@@ -621,6 +658,7 @@ def parser() -> argparse.ArgumentParser:
     check = commands.add_parser("validate")
     check.add_argument("--kind", choices=("dependencies", "image", "cli", "release"), required=True)
     check.add_argument("--input", required=True)
+    check.add_argument("--artifact", help="Exact binary for a CLI SBOM validation")
     check.set_defaults(handler=validate)
     return root
 
