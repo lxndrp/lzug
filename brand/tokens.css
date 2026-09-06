@@ -62,6 +62,27 @@
   --lzug-motion-fast: 160ms;
   --lzug-motion-normal: 200ms;
   --lzug-breakpoint-compact: 48rem;
+
+  /* Shared visual grammar. Adapters map their toolkit-specific roles here. */
+  --lzug-role-action-primary: var(--lzug-color-brand-ink);
+  --lzug-role-action-primary-hover: var(--lzug-color-brand-ink-hover);
+  --lzug-role-action-primary-active: var(--lzug-color-brand-ink-active);
+  --lzug-role-action-on-primary: var(--lzug-color-text-on-interaction);
+  --lzug-role-page-canvas: var(--lzug-color-neutral-canvas);
+  --lzug-role-card-surface: var(--lzug-color-neutral-surface);
+  --lzug-role-raised-surface: var(--lzug-color-neutral-surface-raised);
+  --lzug-role-border: var(--lzug-color-neutral-border);
+  --lzug-role-text: var(--lzug-color-text);
+  --lzug-role-text-muted: var(--lzug-color-text-muted);
+  --lzug-role-focus: var(--lzug-color-focus);
+  --lzug-role-font-family: var(--lzug-font-family);
+  --lzug-role-font-size: var(--lzug-font-size-body);
+  --lzug-role-line-height: var(--lzug-line-height-body);
+  --lzug-role-content-max: var(--lzug-content-max);
+  --lzug-role-reading-max: 48rem;
+  --lzug-role-page-gap: var(--lzug-space-5);
+  --lzug-role-card-radius: var(--lzug-radius-lg);
+  --lzug-role-control-min: var(--lzug-touch-target-min);
 }
 
 body[tuiTheme="dark"],

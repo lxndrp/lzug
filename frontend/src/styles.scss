@@ -10,19 +10,19 @@
 
 :root,
 body[tuiTheme='dark'] {
-  --app-color-primary: var(--lzug-color-brand-ink);
-  --app-color-primary-hover: var(--lzug-color-brand-ink-hover);
-  --app-color-primary-active: var(--lzug-color-brand-ink-active);
+  --app-color-primary: var(--lzug-role-action-primary);
+  --app-color-primary-hover: var(--lzug-role-action-primary-hover);
+  --app-color-primary-active: var(--lzug-role-action-primary-active);
   --app-color-primary-soft: var(--lzug-color-status-info-soft);
-  --app-color-on-primary: var(--lzug-color-text-on-interaction);
+  --app-color-on-primary: var(--lzug-role-action-on-primary);
   --app-color-accent: var(--lzug-color-brand-accent);
-  --app-color-surface: var(--lzug-color-neutral-surface);
+  --app-color-surface: var(--lzug-role-card-surface);
   --app-color-surface-translucent: var(--lzug-color-neutral-surface-translucent);
-  --app-color-canvas: var(--lzug-color-neutral-canvas);
-  --app-color-border: var(--lzug-color-neutral-border);
-  --app-color-text: var(--lzug-color-text);
-  --app-color-text-muted: var(--lzug-color-text-muted);
-  --app-color-focus: var(--lzug-color-focus);
+  --app-color-canvas: var(--lzug-role-page-canvas);
+  --app-color-border: var(--lzug-role-border);
+  --app-color-text: var(--lzug-role-text);
+  --app-color-text-muted: var(--lzug-role-text-muted);
+  --app-color-focus: var(--lzug-role-focus);
   --app-color-danger: var(--lzug-color-status-danger);
   --app-color-danger-hover: var(--lzug-color-status-danger);
   --app-color-danger-soft: var(--lzug-color-status-danger-soft);
@@ -707,12 +707,12 @@ form.app-form-grid[tuiForm] {
 
 body {
   margin: 0;
-  background: var(--app-color-canvas);
-  color: var(--app-color-text);
-  font-family: var(--lzug-font-family);
-  font-size: 1rem;
-  font-weight: 400;
-  line-height: 1.5;
+  background: var(--lzug-role-page-canvas);
+  color: var(--lzug-role-text);
+  font-family: var(--lzug-role-font-family);
+  font-size: var(--lzug-role-font-size);
+  font-weight: var(--lzug-font-weight-regular);
+  line-height: var(--lzug-role-line-height);
 }
 
 h1,
@@ -721,14 +721,15 @@ h3,
 h4,
 h5,
 h6 {
-  color: var(--app-color-text);
-  font-weight: 600;
+  color: var(--lzug-role-text);
+  font-weight: var(--lzug-font-weight-medium);
   letter-spacing: 0;
+  line-height: var(--lzug-line-height-tight);
 }
 
-:where(a, button, input, select, summary, [tabindex]):focus-visible {
-  outline: 3px solid var(--app-color-focus);
-  outline-offset: 2px;
+:where(a, button, input, select, summary, textarea, [tabindex]):focus-visible {
+  outline: var(--lzug-focus-width) solid var(--lzug-role-focus);
+  outline-offset: var(--lzug-focus-offset);
 }
 
 h3,

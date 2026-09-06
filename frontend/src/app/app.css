@@ -54,7 +54,7 @@
 .app-brand,
 .app-header-title {
   color: inherit;
-  font-weight: 700;
+  font-weight: var(--lzug-font-weight-strong);
   text-decoration: none;
 }
 
@@ -62,7 +62,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.625rem;
-  font-size: 1.25rem;
+  font-size: var(--lzug-font-size-heading);
   letter-spacing: 0;
 }
 
@@ -238,7 +238,7 @@
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
-  border-radius: 0.55rem;
+  border-radius: var(--lzug-radius-md);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -294,8 +294,8 @@
 .app-brand:focus-visible,
 .app-header-title:focus-visible,
 .app-nav-link:focus-visible {
-  outline: 3px solid var(--app-color-focus);
-  outline-offset: 2px;
+  outline: var(--lzug-focus-width) solid var(--lzug-role-focus);
+  outline-offset: var(--lzug-focus-offset);
 }
 
 .app-progress {
@@ -326,12 +326,12 @@
 }
 
 .app-content-inner {
-  inline-size: min(100%, 96rem);
+  inline-size: min(100%, var(--lzug-role-content-max));
   margin-inline: auto;
 }
 
 .app-page-header {
-  margin-block-end: 1.5rem;
+  margin-block-end: var(--lzug-role-page-gap);
 }
 
 .app-page-header h1 {

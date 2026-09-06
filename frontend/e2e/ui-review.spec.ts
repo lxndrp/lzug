@@ -82,7 +82,7 @@ test.describe('@ui-review cross-browser UI review', () => {
 
   test('renders login, activation, and recovery without authenticated shell leakage', async ({
     page,
-  }) => {
+  }, testInfo) => {
     await page.context().clearCookies();
     await page.route('**/api/session', (route) =>
       route.fulfill({
@@ -102,6 +102,45 @@ test.describe('@ui-review cross-browser UI review', () => {
         expect(result.violations, path).toEqual([]);
       });
     }
+
+    await page.goto('/login');
+    await expectStableLayout(page);
+    await testInfo.attach('application-login', {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: 'image/png',
+    });
+  });
+
+  test('attaches representative application evidence for the shared visual grammar', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/dashboard');
+    await expectStableLayout(page);
+    const grammar = await page.evaluate(() => {
+      const panel = document.querySelector('.app-panel');
+      if (!panel) throw new Error('missing representative application panel');
+      const resolve = (property: string, cssProperty: string) => {
+        const probe = document.createElement('span');
+        probe.style.setProperty(cssProperty, `var(${property})`);
+        document.body.append(probe);
+        const value = getComputedStyle(probe).getPropertyValue(cssProperty);
+        probe.remove();
+        return value;
+      };
+      const panelStyle = getComputedStyle(panel);
+      return {
+        panelRadius: panelStyle.borderRadius,
+        roleRadius: resolve('--lzug-role-card-radius', 'border-radius'),
+        panelSurface: panelStyle.backgroundColor,
+        roleSurface: resolve('--lzug-role-card-surface', 'background-color'),
+      };
+    });
+    expect(grammar.panelRadius).toBe(grammar.roleRadius);
+    expect(grammar.panelSurface).toBe(grammar.roleSurface);
+    await testInfo.attach('application-dashboard', {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: 'image/png',
+    });
   });
 
   test('supports mobile, touch, keyboard, reduced motion, and 200-percent reflow', async ({

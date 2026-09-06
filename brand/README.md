@@ -37,6 +37,28 @@ Die Publikation verwendet dieselben Tokens sowie die für ihre Seiten
 notwendigen Brand-Derivate.
 Fonts, Icons und Logos werden lokal ausgeliefert.
 
+## Gemeinsame visuelle Grammatik
+
+Produkt und Portal teilen eine kleine Grammatik, ohne ein gemeinsames
+Komponentenframework zu benötigen:
+
+| Rolle | Gemeinsame Regel |
+| --- | --- |
+| Typografie | Inter Variable, `1rem` Grundschrift, `1.5` Zeilenhöhe, abgestufte Überschriften und semantische Nebeninformation |
+| Seitengitter | Inhaltsbreite bis `--lzug-role-content-max`, lesbare Textbreite bis `--lzug-role-reading-max`, `--lzug-role-page-gap` als größere Rasterlücke |
+| Aktion | Primäre Aktion mit `--lzug-role-action-primary`, Hover/Pressed-Rollen und mindestens `--lzug-role-control-min` Höhe; sekundäre Aktionen bleiben konturiert |
+| Karte | `--lzug-role-card-surface`, `--lzug-role-border`, `--lzug-role-card-radius` und der dezente gemeinsame Schatten |
+| Hinweis | Statusfarbe und weiche Statusfläche aus den bestehenden Status-Tokens, mit sichtbarer Seitenkante und verständlichem Text |
+| Fokus | `--lzug-role-focus` als sichtbarer Ring mit `--lzug-focus-width` und `--lzug-focus-offset` |
+| Kopfbereich und Marke | Dunkle Markenfläche mit weißer Wort-/Bildmarke; Portalnavigation und Anwendungsshell dürfen funktional verschieden bleiben |
+
+`frontend/src/styles.scss` und
+`docs/publication/relearn/assets/css/custom.css` sind die jeweiligen Adapter.
+Sie verwenden diese Rollen und dürfen nur Taiga- beziehungsweise Relearn-
+Variablen ergänzen.
+Navigation, Seitenaufbau und fachliche Komponenten bleiben wegen ihres
+unterschiedlichen Nutzungskontexts bewusst eigenständig.
+
 ```sh
 task brand:generate
 task brand:check
