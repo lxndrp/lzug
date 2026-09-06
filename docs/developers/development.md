@@ -46,7 +46,8 @@ Seiteneffekt des normalen Servers.
 | Synthetische Fixtures | `task test:fixtures` oder `task fixtures:check` |
 | Repository-Tooling | betroffener `unittest` unter `tests/tooling/` |
 | OCI- oder Compose-Regel | betroffener `unittest` unter `tests/oci/` |
-| Backend insgesamt | `task quality:backend` |
+| Backend im Pull Request | `task quality:backend:pr` |
+| Backend vollständig mit Coverage | `task quality:backend` |
 | API-, Transport- und Persistenzmodelle | `task backend:typecheck` |
 | Backend-Komplexität | `task backend:complexity` |
 | Angular-Code | betroffener Vitest-Test, danach `task quality:frontend` |
