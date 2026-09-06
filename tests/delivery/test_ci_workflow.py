@@ -97,13 +97,10 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 "SOURCE_SCAN": "success",
                 "SELECTED": "true",
                 "DETAIL": "success",
-                "BROWSER": "true",
-                "E2E": "success",
-                "A11Y": "success",
-                "FIXTURES_SELECTED": "true",
-                "FIXTURES": "success",
                 "INFRA_SELECTED": "true",
                 "INFRA_DETAIL": "success",
+                "DELIVERY_SELECTED": "true",
+                "DELIVERY": "success",
             }
 
             def check(values: dict[str, str], script: str = command) -> int:
@@ -121,10 +118,8 @@ class QualityWorkflowContractTests(unittest.TestCase):
                     "CODEQL",
                     "SOURCE_SCAN",
                     "DETAIL",
-                    "E2E",
-                    "A11Y",
-                    "FIXTURES",
                     "INFRA_DETAIL",
+                    "DELIVERY",
                 ):
                     if f"${key}" not in command and f"{key}:" not in command:
                         continue
@@ -150,13 +145,30 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "scripts/build-frontend.sh": "frontend",
             "scripts/verify_cli_release.py": "cli",
             "scripts/compose-smoke.sh": "container",
-            "scripts/demo_deployment.py": "infra",
+            "scripts/demo_deployment.py": "delivery",
             "scripts/sbom.py": "full",
         }.items():
             with self.subTest(path=path):
                 self.assertIn(f"'{path}'", mapping_block(changes, owner, indent=12))
         self.assertIn("steps.unknown.outputs.unknown == 'true'", changes)
         self.assertIn("steps.domains.outputs.full == 'true'", changes)
+
+    def test_documentation_contract_sources_do_not_select_all_domains(self) -> None:
+        changes = job_block(self.pull_request, "changes")
+        docs = mapping_block(changes, "docs", indent=12)
+        full = mapping_block(changes, "full", indent=12)
+        unknown = mapping_block(changes, "unknown", indent=12)
+        for path, unknown_exclusion in {
+            ".github/workflows/publication.yml": ".github/**",
+            ".lychee.toml": ".lychee.toml",
+            "tests/docs/**": "tests/**",
+        }.items():
+            with self.subTest(path=path):
+                self.assertIn(f"'{path}'", docs)
+                self.assertNotIn(f"'{path}'", full)
+                self.assertIn(f"'!{unknown_exclusion}'", unknown)
+        self.assertIn("'Taskfile.yml'", full)
+        self.assertIn("'.mise.toml'", full)
 
     def test_nightly_and_dispatch_evidence_are_bound_to_the_recorded_run_sha(self) -> None:
         triggers = trigger_block(self.quality)
@@ -169,20 +181,19 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("inputs.revision", self.quality)
         self.assertIn("QUALITY_REVISION: ${{ github.sha }}", self.quality)
 
-    def test_visual_matrix_is_selected_only_by_visual_sources(self) -> None:
-        visual = mapping_block(job_block(self.pull_request, "changes"), "visual", indent=12)
-        self.assertIn("'frontend/src/**/*.component.ts'", visual)
-        self.assertIn("'frontend/src/**/*.scss'", visual)
-        self.assertNotIn("backend/", visual)
-        self.assertNotIn(
-            "steps.domains.outputs.full",
-            next(
-                line for line in self.pull_request.splitlines() if line.startswith("      visual:")
-            ),
-        )
-        browser = mapping_block(job_block(self.pull_request, "changes"), "browser", indent=12)
-        self.assertIn("'frontend/e2e/**'", browser)
-        self.assertNotIn("'!frontend/**/*.spec.ts'", browser)
+    def test_pr_defers_product_browser_packaging_and_demo_checks_to_quality(self) -> None:
+        self.assertNotIn("\n  fixtures:\n", self.pull_request)
+        self.assertNotIn("\n  e2e:\n", self.pull_request)
+        self.assertNotIn("\n  a11y:\n", self.pull_request)
+        self.assertNotIn("quality:oci", job_block(self.pull_request, "container"))
+        self.assertNotIn("quality:container", job_block(self.pull_request, "container"))
+        self.assertNotIn("task test:demo", job_block(self.pull_request, "delivery"))
+        self.assertIn("task test:oci", job_block(self.pull_request, "container"))
+        self.assertIn("task fixtures:check test:fixtures", self.quality)
+        self.assertIn("quality:oci quality:container quality:compose", self.quality)
+        self.assertIn("npm --prefix frontend run test:e2e", self.quality)
+        self.assertIn("npm --prefix frontend run test:a11y", self.quality)
+        self.assertIn("npm --prefix frontend run test:ui-review", self.quality)
 
     def test_release_and_both_promotion_channels_reject_wrong_quality_evidence(self) -> None:
         sha = "a" * 40

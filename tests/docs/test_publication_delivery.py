@@ -216,6 +216,22 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn('"frontend/tsconfig*.json"', triggers)
         self.assertNotIn("--no-sandbox", build)
 
+    def test_browser_checks_run_only_before_manual_publication(self) -> None:
+        workflow = workflow_text(".github/workflows/publication.yml")
+        build = job_block(workflow, "build")
+        self.assertNotIn("paths-filter", workflow)
+        self.assertIn(
+            "Check responsive themes and warm-up flow with Playwright\n"
+            "        if: github.event_name == 'workflow_dispatch'",
+            build,
+        )
+        self.assertIn(
+            "Check public-site accessibility with Playwright and axe\n"
+            "        if: github.event_name == 'workflow_dispatch'",
+            build,
+        )
+        self.assertNotIn("steps.changes", build)
+
 
 if __name__ == "__main__":
     unittest.main()
