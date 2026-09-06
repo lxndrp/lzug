@@ -249,7 +249,7 @@
   border: 0;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 48rem) {
   .app-exam-day-header {
     flex-direction: column;
   }
@@ -267,7 +267,7 @@
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 30rem) {
   .app-exam-day-facts {
     grid-template-columns: minmax(0, 1fr);
   }

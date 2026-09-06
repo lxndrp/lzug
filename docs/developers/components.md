@@ -155,6 +155,14 @@ Für sichtbare Änderungen gelten diese Komponentenregeln:
 - Taiga UI bleibt Komponenten- und Tokenbasis; zusätzliche Frameworks oder ein
   paralleles lokales Designsystem benötigen eine eigene begründete Entscheidung.
 
+Der globale Frontend-Stylebestand in `frontend/src/styles.scss` enthält nur
+Tokens, Reset/Basisregeln und wenige gemeinsame Layout-, Formular- und
+Tabellenprimitive.
+Fach- und seitenspezifische Regeln gehören in das Stylesheet der zuständigen
+Angular-Komponente.
+Responsive Regeln verwenden grundsätzlich `30rem` für schmale Inhalte,
+`48rem` für kompakte Layouts und `75rem` für breite Grids.
+
 [WCAG 2.2](https://www.w3.org/TR/WCAG22/) ist der Maßstab für
 Zugänglichkeit.
 Automatisierte Accessibility-Prüfungen decken nur messbare Teile ab;

@@ -31,7 +31,7 @@
   position: fixed;
   z-index: 1100;
   inset: 0;
-  background: rgb(15 23 42 / 54%);
+  background: color-mix(in srgb, var(--app-color-text) 54%, transparent);
 }
 
 .demo-tour-dialog {

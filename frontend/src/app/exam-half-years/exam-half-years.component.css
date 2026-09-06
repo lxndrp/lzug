@@ -1,0 +1,133 @@
+:host {
+  display: block;
+}
+
+.app-half-year-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.app-half-year-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-color-surface);
+  box-shadow: var(--app-shadow-subtle);
+}
+
+.app-half-year-card.is-selected {
+  border-color: var(--app-color-primary);
+  box-shadow: 0 0 0 1px var(--app-color-primary);
+}
+
+.app-half-year-card-header,
+.app-half-year-card-actions,
+.app-half-year-round,
+.app-half-year-round-status {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.app-half-year-card-header,
+.app-half-year-card-actions {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.app-half-year-card-header h2 {
+  margin: 0 0 0.375rem;
+  font-size: 1.125rem;
+}
+
+.app-half-year-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.app-half-year-metrics > div {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-color-canvas);
+}
+
+.app-half-year-metrics dt {
+  color: var(--app-color-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.app-half-year-metrics dd {
+  margin: 0.25rem 0 0;
+  font-weight: 700;
+}
+
+.app-half-year-card-actions {
+  padding-block-start: 0.75rem;
+  border-block-start: 1px solid var(--app-color-border);
+}
+
+.app-half-year-card-actions .app-form-action-hint {
+  max-width: 42rem;
+}
+
+.app-half-year-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.app-detail-section {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-color-canvas);
+}
+
+.app-detail-section .app-section-heading {
+  margin-block-end: 1rem;
+}
+
+.app-half-year-round {
+  justify-content: space-between;
+  text-align: start;
+}
+
+.app-half-year-round > span:first-child {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.app-half-year-round small {
+  overflow: hidden;
+  color: var(--app-color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 48rem) {
+  .app-half-year-metrics,
+  .app-half-year-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-half-year-card-actions {
+    align-items: stretch;
+  }
+
+  .app-half-year-card-actions .app-form-action-buttons {
+    width: 100%;
+  }
+
+  .app-half-year-card-actions .app-form-action-hint {
+    max-width: none;
+  }
+}

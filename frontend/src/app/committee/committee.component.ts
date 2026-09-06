@@ -41,6 +41,7 @@ export type CommitteeMemberPayload = Pick<
     TuiTextfield,
   ],
   templateUrl: './committee.component.html',
+  styleUrl: './committee.component.css',
 })
 export class CommitteeComponent {
   protected readonly memberStatusSelectOptions: readonly SelectOption<string>[] = [

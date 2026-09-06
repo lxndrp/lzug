@@ -4,7 +4,7 @@
 }
 
 .absence-report-card {
-  border: 1px solid var(--app-border, #d9e0e7);
+  border: 1px solid var(--app-color-border);
   border-radius: 0.75rem;
   padding: 1rem;
 }
@@ -25,7 +25,7 @@
 }
 
 .absence-report-card dt {
-  color: var(--app-muted, #5f6b76);
+  color: var(--app-color-text-muted);
 }
 
 .absence-report-card dd {
@@ -34,7 +34,7 @@
 
 .absence-response {
   flex-wrap: wrap;
-  border-top: 1px solid var(--app-border, #d9e0e7);
+  border-top: 1px solid var(--app-color-border);
   padding-top: 1rem;
 }
 

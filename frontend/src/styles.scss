@@ -2,6 +2,12 @@
 @import './taiga-adapter.css';
 @import '@fontsource-variable/inter/wght.css';
 
+/*
+ * Global contract: tokens, reset, and small layout/form/table primitives only.
+ * Page-specific selectors belong to the owning Angular component stylesheet.
+ * Responsive thresholds are 30rem (narrow), 48rem (compact), and 75rem (wide).
+ */
+
 :root,
 body[tuiTheme='dark'] {
   --app-color-primary: var(--lzug-color-brand-ink);
@@ -46,26 +52,6 @@ body {
   border-radius: var(--app-radius-lg);
   background: var(--app-color-surface);
   box-shadow: var(--app-shadow-subtle);
-}
-
-.app-context-help {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.25rem;
-  border-inline-start: 0.25rem solid var(--app-color-info-border);
-  background: var(--app-color-info-soft);
-  flex-wrap: wrap;
-}
-
-.app-context-help h2,
-.app-context-help p {
-  margin: 0;
-}
-
-.app-context-help p {
-  margin-block-start: 0.25rem;
 }
 
 .app-panel + .app-panel {
@@ -143,117 +129,6 @@ header.app-panel-header[tuiHeader] {
   font-weight: 600;
 }
 
-.app-half-year-list {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.app-half-year-card {
-  display: grid;
-  gap: 1rem;
-  padding: 1rem;
-  border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius-md);
-  background: var(--app-color-surface);
-  box-shadow: var(--app-shadow-subtle);
-}
-
-.app-half-year-card.is-selected {
-  border-color: var(--app-color-primary);
-  box-shadow: 0 0 0 1px var(--app-color-primary);
-}
-
-.app-half-year-card-header,
-.app-half-year-card-actions,
-.app-half-year-round,
-.app-half-year-round-status {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.app-half-year-card-header,
-.app-half-year-card-actions {
-  justify-content: space-between;
-  flex-wrap: wrap;
-}
-
-.app-half-year-card-header h2 {
-  margin: 0 0 0.375rem;
-  font-size: 1.125rem;
-}
-
-.app-half-year-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-  margin: 0;
-}
-
-.app-half-year-metrics > div {
-  min-width: 0;
-  padding: 0.75rem;
-  border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius-sm);
-  background: var(--app-color-canvas);
-}
-
-.app-half-year-metrics dt {
-  color: var(--app-color-text-muted);
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-
-.app-half-year-metrics dd {
-  margin: 0.25rem 0 0;
-  font-weight: 700;
-}
-
-.app-half-year-card-actions {
-  padding-block-start: 0.75rem;
-  border-block-start: 1px solid var(--app-color-border);
-}
-
-.app-half-year-card-actions .app-form-action-hint {
-  max-width: 42rem;
-}
-
-.app-half-year-detail-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.app-detail-section {
-  min-width: 0;
-  padding: 1rem;
-  border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius-md);
-  background: var(--app-color-canvas);
-}
-
-.app-detail-section .app-section-heading {
-  margin-block-end: 1rem;
-}
-
-.app-half-year-round {
-  justify-content: space-between;
-  text-align: start;
-}
-
-.app-half-year-round > span:first-child {
-  display: grid;
-  gap: 0.125rem;
-  min-width: 0;
-}
-
-.app-half-year-round small {
-  overflow: hidden;
-  color: var(--app-color-text-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .app-context-editor-header {
   display: flex;
   align-items: baseline;
@@ -263,15 +138,6 @@ header.app-panel-header[tuiHeader] {
   padding-block-end: 0.75rem;
   border-block-end: 1px solid var(--app-color-border);
   flex-wrap: wrap;
-}
-
-.app-panel-nested {
-  box-shadow: none;
-  background: var(--app-color-canvas);
-}
-
-.app-panel-nested .app-panel-body {
-  padding: 1rem;
 }
 
 /* Native controls retained only where Taiga has no equivalent (for example ISO weeks). */
@@ -288,7 +154,7 @@ input[type='week'] {
 select:focus,
 input:focus {
   border-color: var(--app-color-primary);
-  box-shadow: 0 0 0 0.2rem rgb(21 94 99 / 16%);
+  box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--app-color-focus) 16%, transparent);
   outline: 0;
 }
 
@@ -328,51 +194,6 @@ input:focus {
 .app-page-grid > *,
 .app-form-grid > * {
   min-width: 0;
-}
-
-.app-wizard-steps {
-  display: flex;
-  gap: 0.5rem;
-  overflow-x: auto;
-  padding: 0.25rem;
-  border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius-md);
-  background: var(--app-color-canvas);
-}
-
-.app-workflow-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.app-workflow-heading h2 {
-  margin: 0.25rem 0 0;
-  font-size: clamp(1.125rem, 2vw, 1.5rem);
-}
-
-.app-wizard-steps button {
-  flex: 1 0 max-content;
-}
-
-.app-wizard-steps button.is-active {
-  background: var(--app-color-primary);
-  color: var(--app-color-on-primary);
-}
-
-.app-wizard-actions {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.app-wizard-error {
-  margin-block-end: 1rem;
-}
-
-.app-wizard-summary {
-  grid-template-columns: minmax(10rem, 1fr) minmax(0, 2fr);
 }
 
 .app-page-full,
@@ -456,22 +277,6 @@ form.app-form-grid[tuiForm] {
   gap: 0.25rem;
 }
 
-.app-stack {
-  display: grid;
-  gap: 1rem;
-}
-
-.app-day-heading {
-  display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.app-day-slots {
-  margin-inline-start: auto;
-}
-
 .app-table-scroll {
   position: relative;
   max-width: 100%;
@@ -486,15 +291,13 @@ form.app-form-grid[tuiForm] {
 }
 
 .app-data-table > :not(caption) > * > *,
-.app-compact-table > :not(caption) > * > *,
-.app-availability-table > :not(caption) > * > * {
+.app-compact-table > :not(caption) > * > * {
   padding: 0.625rem 0.75rem;
   vertical-align: middle;
 }
 
 .app-data-table thead th,
-.app-compact-table thead th,
-.app-availability-table thead th {
+.app-compact-table thead th {
   color: var(--app-color-text-muted);
   font-size: 0.75rem;
   font-weight: 700;
@@ -525,28 +328,6 @@ form.app-form-grid[tuiForm] {
   box-shadow: -1px 0 0 var(--app-color-border);
 }
 
-.app-contact span,
-.app-contact a {
-  display: block;
-  white-space: nowrap;
-}
-
-.app-committee-choice {
-  display: grid;
-  justify-items: start;
-  gap: 0.125rem;
-  text-align: start;
-}
-
-.app-committee-choice span {
-  color: var(--app-color-text-muted);
-  font-size: 0.875rem;
-}
-
-.app-committee-choice.active span {
-  color: var(--app-color-on-primary);
-}
-
 .app-actions {
   white-space: nowrap;
 }
@@ -571,29 +352,7 @@ form.app-form-grid[tuiForm] {
   flex-wrap: wrap;
 }
 
-.app-filter-bar {
-  margin-block-end: 1rem;
-  padding: 0.875rem;
-  border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius-md);
-  background: var(--app-color-canvas);
-}
-
-.app-list-toolbar {
-  align-items: end;
-}
-
-.app-toolbar-action {
-  display: flex;
-  align-items: end;
-}
-
-.app-toolbar-action [tuiButton] {
-  inline-size: 100%;
-}
-
-.app-form-grid label,
-.app-filter-bar label {
+.app-form-grid label {
   margin-block-end: 0.375rem;
   color: var(--app-color-text);
   font-weight: 600;
@@ -601,7 +360,7 @@ form.app-form-grid[tuiForm] {
 
 .app-form-grid label span[aria-hidden='true'],
 .app-required-hint span[aria-hidden='true'] {
-  color: #dc3545;
+  color: var(--app-color-danger);
 }
 
 .app-required-hint {
@@ -701,79 +460,7 @@ form.app-form-grid[tuiForm] {
   background: var(--app-color-canvas);
 }
 
-.app-availability-scroll {
-  max-height: min(65vh, 44rem);
-}
-
-.app-availability-table {
-  width: max-content;
-  min-width: 100%;
-  margin-block-end: 0;
-}
-
-.app-availability-table thead th {
-  position: sticky;
-  z-index: 2;
-  inset-block-start: 0;
-  background: var(--app-color-surface);
-  box-shadow: 0 1px 0 var(--app-color-border);
-}
-
-.app-availability-table th:first-child {
-  position: sticky;
-  z-index: 3;
-  inset-inline-start: 0;
-  min-width: 12rem;
-  background: var(--app-color-surface);
-  box-shadow: 1px 0 0 var(--app-color-border);
-}
-
-.app-availability-control,
-.app-availability-table select {
-  min-width: 9rem;
-}
-
-.app-availability-control {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.app-cell-status {
-  min-height: 1rem;
-  font-size: 0.75rem;
-  line-height: 1.2;
-}
-
-.app-cell-status-saving {
-  color: var(--app-color-text-muted);
-}
-
-.app-cell-status-saved {
-  color: var(--app-color-success-text);
-}
-
-.app-cell-status-error {
-  color: var(--app-color-danger-text);
-}
-
-@media (max-width: 767.98px) {
-  .app-workflow-heading {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .app-wizard-steps {
-    margin-inline: -0.25rem;
-  }
-
-  .app-wizard-summary {
-    grid-template-columns: 1fr;
-  }
-
-  .app-wizard-summary dd {
-    margin-inline-start: 0;
-  }
-
+@media (max-width: 48rem) {
   .app-table-scroll::before {
     position: sticky;
     z-index: 4;
@@ -840,76 +527,14 @@ form.app-form-grid[tuiForm] {
   .app-panel-header-actions [tuiButton] {
     width: 100%;
   }
-
-  .app-half-year-metrics,
-  .app-half-year-detail-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .app-half-year-card-actions {
-    align-items: stretch;
-  }
-
-  .app-half-year-card-actions .app-form-action-buttons {
-    width: 100%;
-  }
-
-  .app-half-year-card-actions .app-form-action-hint {
-    max-width: none;
-  }
 }
 
-.app-task-list {
-  display: grid;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.app-dashboard-hero {
-  border-inline-start: 0.25rem solid var(--app-color-primary);
-}
-
-.app-dashboard-hero-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 1.5rem 2rem;
-}
-
-.app-dashboard-hero-copy {
-  max-width: 48rem;
-}
-
-.app-dashboard-hero-copy h2 {
-  margin: 0.5rem 0 0.375rem;
-  font-size: clamp(1.375rem, 2vw, 1.75rem);
-}
-
-.app-dashboard-hero-copy p {
-  margin: 0;
-  color: var(--app-color-text-muted);
-}
-
-.app-dashboard-status-line,
 .app-section-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem 1rem;
   flex-wrap: wrap;
-}
-
-.app-dashboard-status-line {
-  justify-content: flex-start;
-}
-
-.app-dashboard-actions {
-  display: grid;
-  grid-template-columns: max-content;
-  justify-content: end;
-  gap: 0.5rem;
 }
 
 .app-panel-header h2 {
@@ -981,134 +606,6 @@ form.app-form-grid[tuiForm] {
   line-height: 1.25;
 }
 
-.app-task-row {
-  display: grid;
-  grid-template-columns: minmax(8rem, 1fr) auto auto;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius-sm);
-  background: var(--app-color-surface);
-}
-
-.app-task-row:focus-within {
-  border-color: var(--app-color-primary);
-  background: var(--app-color-primary-soft);
-}
-
-.app-task-copy {
-  display: grid;
-  gap: 0.125rem;
-}
-
-.app-task-copy small {
-  color: var(--app-color-text-muted);
-  font-size: 0.8125rem;
-}
-
-.app-task-action,
-.app-agenda-link {
-  justify-self: end;
-  min-height: 2.25rem;
-  padding-inline: 0.5rem;
-  text-align: end;
-  white-space: normal;
-}
-
-.app-task-action .app-icon-only,
-.app-agenda-link .app-icon-only {
-  flex: 0 0 auto;
-  margin-inline-start: 0.375rem;
-}
-
-.app-agenda-list {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.app-agenda-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.5rem 0.75rem;
-  padding-block: 0.75rem;
-  border-block-end: 1px solid var(--app-color-border);
-}
-
-.app-agenda-item:first-child {
-  padding-block-start: 0;
-}
-
-.app-agenda-item:last-child {
-  padding-block-end: 0;
-  border-block-end: 0;
-}
-
-.app-agenda-date,
-.app-agenda-details {
-  display: grid;
-  gap: 0.125rem;
-  min-width: 0;
-}
-
-.app-agenda-date strong {
-  font-size: 0.95rem;
-}
-
-.app-agenda-date span,
-.app-agenda-details span {
-  overflow-wrap: anywhere;
-}
-
-.app-agenda-date span,
-.app-agenda-details {
-  color: var(--app-color-text-muted);
-  font-size: 0.8125rem;
-}
-
-.app-agenda-details {
-  grid-column: 1 / -1;
-}
-
-.app-agenda-link {
-  grid-column: 1 / -1;
-  justify-self: start;
-}
-
-.app-context-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.875rem 1.25rem;
-  margin: 0;
-}
-
-.app-context-list div {
-  min-width: 0;
-}
-
-.app-context-list dt {
-  color: var(--app-color-text-muted);
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-
-.app-context-list dd {
-  margin: 0.125rem 0 0;
-  font-weight: 600;
-}
-
-.app-context-section {
-  margin-block-start: 1.25rem;
-  padding-block-start: 1rem;
-  border-block-start: 1px solid var(--app-color-border);
-}
-
-.app-context-section h3 {
-  margin: 0 0 0.625rem;
-  font-size: 1rem;
-}
-
 .app-empty-state {
   display: grid;
   justify-items: start;
@@ -1150,63 +647,19 @@ form.app-form-grid[tuiForm] {
   text-align: end;
 }
 
-@media (max-width: 1199.98px) {
+@media (max-width: 75rem) {
   .app-metric-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 767.98px) {
-  .app-dashboard-hero-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .app-dashboard-actions {
-    grid-template-columns: 1fr;
-    justify-content: stretch;
-  }
-
-  .app-dashboard-actions [tuiButton] {
-    width: 100%;
-  }
-
-  .app-dashboard-actions .app-action-hint {
-    grid-column: 1;
-    max-width: none;
-    text-align: start;
-  }
-
+@media (max-width: 48rem) {
   .app-metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .app-task-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .app-task-row .badge {
-    grid-column: 1;
-    justify-self: start;
-  }
-
-  .app-task-action {
-    grid-column: 1 / -1;
-    justify-self: start;
-    padding-inline: 0;
-    text-align: start;
-  }
-
-  .app-agenda-item {
-    grid-template-columns: 1fr;
-  }
-
-  .app-agenda-details,
-  .app-agenda-link {
-    grid-column: 1;
-  }
 }
 
-@media (min-width: 768px) {
+@media (min-width: 48rem) {
   .app-field-half {
     grid-column: span 6;
   }
@@ -1228,7 +681,7 @@ form.app-form-grid[tuiForm] {
   }
 }
 
-@media (min-width: 1200px) {
+@media (min-width: 75rem) {
   .app-page-span-4 {
     grid-column: span 4;
   }
@@ -1246,9 +699,8 @@ form.app-form-grid[tuiForm] {
   }
 }
 
-@media (max-width: 419.98px) {
-  .app-metric-grid,
-  .app-context-list {
+@media (max-width: 30rem) {
+  .app-metric-grid {
     grid-template-columns: 1fr;
   }
 }

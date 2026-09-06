@@ -53,6 +53,7 @@ export type CandidateUpdate = {
     TuiTextfield,
   ],
   templateUrl: './candidates.component.html',
+  styleUrl: './candidates.component.css',
 })
 export class CandidatesComponent {
   private readonly changeDetector = inject(ChangeDetectorRef);

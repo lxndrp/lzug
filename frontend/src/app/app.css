@@ -31,7 +31,7 @@
   overflow-y: auto;
   background: var(--lzug-color-brand-surface);
   color: var(--lzug-color-text-on-brand);
-  box-shadow: 8px 0 30px rgb(30 26 46 / 22%);
+  box-shadow: 8px 0 30px color-mix(in srgb, var(--lzug-color-brand-surface) 22%, transparent);
   transition: transform var(--lzug-motion-fast) ease;
 }
 
@@ -48,7 +48,7 @@
   min-block-size: 4.25rem;
   align-items: center;
   padding: 1rem 1.25rem;
-  border-block-end: 1px solid rgb(255 255 255 / 9%);
+  border-block-end: 1px solid color-mix(in srgb, var(--lzug-color-text-on-brand) 9%, transparent);
 }
 
 .app-brand,
@@ -97,9 +97,9 @@
   gap: 0.2rem;
   margin: 0 0.75rem;
   padding: 0.7rem 0.8rem;
-  border: 1px solid rgb(255 255 255 / 12%);
+  border: 1px solid color-mix(in srgb, var(--lzug-color-text-on-brand) 12%, transparent);
   border-radius: 0.65rem;
-  background: rgb(255 255 255 / 6%);
+  background: color-mix(in srgb, var(--lzug-color-text-on-brand) 6%, transparent);
   color: color-mix(in srgb, var(--lzug-color-text-on-brand) 90%, transparent);
   font-size: 0.8125rem;
 }
@@ -130,13 +130,13 @@
 
 .app-nav-link:hover,
 .app-nav-link:focus-visible {
-  border-color: rgb(255 255 255 / 14%);
-  background: rgb(255 255 255 / 8%);
+  border-color: color-mix(in srgb, var(--lzug-color-text-on-brand) 14%, transparent);
+  background: color-mix(in srgb, var(--lzug-color-text-on-brand) 8%, transparent);
   color: var(--lzug-color-text-on-brand);
 }
 
 .app-nav-link.is-active {
-  border-color: rgb(255 255 255 / 8%);
+  border-color: color-mix(in srgb, var(--lzug-color-text-on-brand) 8%, transparent);
   background: color-mix(in srgb, var(--lzug-color-text-on-brand) 12%, transparent);
   color: var(--lzug-color-text-on-brand);
   box-shadow: inset 3px 0 var(--app-color-focus);
@@ -474,7 +474,7 @@
   line-height: 1;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 48rem) {
   .app-header-inner {
     flex-wrap: wrap;
   }
@@ -500,7 +500,7 @@
     inline-size: 100%;
     block-size: 100vh;
     border: 0;
-    background: rgb(15 23 42 / 48%);
+    background: color-mix(in srgb, var(--app-color-text) 48%, transparent);
     grid-column: 1;
     grid-row: 2;
   }
@@ -569,7 +569,7 @@
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 30rem) {
   .app-header-inner {
     padding-inline: 0.75rem;
   }

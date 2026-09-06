@@ -95,7 +95,7 @@
   margin: 0.75rem 0;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 48rem) {
   .app-protocol-entries article {
     grid-template-columns: minmax(0, 1fr);
   }

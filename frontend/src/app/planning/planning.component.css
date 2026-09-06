@@ -1,0 +1,139 @@
+:host {
+  display: block;
+}
+
+.app-workflow-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.app-workflow-heading h2 {
+  margin: 0.25rem 0 0;
+  font-size: clamp(1.125rem, 2vw, 1.5rem);
+}
+
+.app-wizard-steps {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.25rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-color-canvas);
+}
+
+.app-wizard-steps button {
+  flex: 1 0 max-content;
+}
+
+.app-wizard-steps button.is-active {
+  background: var(--app-color-primary);
+  color: var(--app-color-on-primary);
+}
+
+.app-wizard-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.app-wizard-error {
+  margin-block-end: 1rem;
+}
+
+.app-wizard-summary {
+  grid-template-columns: minmax(10rem, 1fr) minmax(0, 2fr);
+}
+
+.app-availability-scroll {
+  max-height: min(65vh, 44rem);
+}
+
+.app-availability-table {
+  width: max-content;
+  min-width: 100%;
+  margin-block-end: 0;
+}
+
+.app-availability-table > :not(caption) > * > * {
+  padding: 0.625rem 0.75rem;
+  vertical-align: middle;
+}
+
+.app-availability-table thead th {
+  color: var(--app-color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.app-availability-table thead th {
+  position: sticky;
+  z-index: 2;
+  inset-block-start: 0;
+  background: var(--app-color-surface);
+  box-shadow: 0 1px 0 var(--app-color-border);
+}
+
+.app-availability-table th:first-child {
+  position: sticky;
+  z-index: 3;
+  inset-inline-start: 0;
+  min-width: 12rem;
+  background: var(--app-color-surface);
+  box-shadow: 1px 0 0 var(--app-color-border);
+}
+
+.app-availability-control,
+.app-availability-table select {
+  min-width: 9rem;
+}
+
+.app-availability-control {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.app-cell-status {
+  min-height: 1rem;
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+.app-cell-status-saving {
+  color: var(--app-color-text-muted);
+}
+
+.app-cell-status-saved {
+  color: var(--app-color-success-text);
+}
+
+.app-cell-status-error {
+  color: var(--app-color-danger-text);
+}
+
+@media (max-width: 48rem) {
+  .app-workflow-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-wizard-steps {
+    margin-inline: -0.25rem;
+  }
+
+  .app-wizard-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .app-wizard-summary dd {
+    margin-inline-start: 0;
+  }
+
+  .app-form-grid .app-compact-form-action [tuiButton] {
+    width: 100%;
+  }
+}

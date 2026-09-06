@@ -120,7 +120,7 @@
   background: var(--app-color-canvas);
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 48rem) {
   .app-proposal-day {
     padding: 0.75rem;
   }

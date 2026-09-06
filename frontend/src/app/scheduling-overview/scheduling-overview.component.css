@@ -40,7 +40,7 @@
   align-items: flex-start;
   flex-direction: column;
 }
-@media (max-width: 600px) {
+@media (max-width: 48rem) {
   .app-overview-card {
     align-items: stretch;
     flex-direction: column;
