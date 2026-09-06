@@ -100,11 +100,14 @@ Umgebungswerte nicht zuverlässig.
 | `LZUG_ALLOWED_UPLOAD_MEDIA_TYPES` | PDF, JPEG, PNG und Text, optional | nein | ersetzt die erlaubte exakte Medientyp-Liste |
 | `LZUG_NOTIFICATION_SINK` | `false`, optional | nein | aktiviert internen beziehungsweise Operator-Sink |
 | `LZUG_EXTERNAL_URL` | leer, für Links und Push-Betrieb erforderlich | nein | setzt die exakte öffentliche HTTP(S)-Origin |
-| `LZUG_WEB_PUSH_VAPID_PRIVATE_KEY` | leer, optional; nur gemeinsam mit `LZUG_WEB_PUSH_SUBJECT` | **ja** | aktiviert Web Push |
+| `LZUG_WEB_PUSH_VAPID_PRIVATE_KEY` | leer, optional; nur gemeinsam mit `LZUG_WEB_PUSH_SUBJECT` | **ja** | aktiviert Web Push mit dem bestehenden VAPID-Schlüssel |
 | `LZUG_WEB_PUSH_SUBJECT` | leer, optional; nur gemeinsam mit VAPID-Schlüssel | nein | setzt den Web-Push-Kontakt |
 | `LZUG_SMTP_HOST` / `LZUG_SMTP_PORT` | leer / `25`, optional | Host nein | aktiviert E-Mail-Zustellung und wählt den Port |
 | `LZUG_SMTP_FROM` / `LZUG_SMTP_STARTTLS` | leer / `false`, optional | Absender nein | setzt Absender und Transportmodus |
 | `LZUG_SMTP_USERNAME` / `LZUG_SMTP_PASSWORD` | leer, optional | **ja** | setzt SMTP-Zugangsdaten |
+
+VAPID und der Web-Push-Versand werden durch `pywebpush` umgesetzt.
+Bestehende P-256-PEM-Schlüssel und registrierte Push-Endpunkte bleiben unverändert verwendbar.
 
 Bewahren Sie Secrets nicht im Repository, in Shell-Historien oder in
 weltlesbaren `.env`-Dateien auf.
