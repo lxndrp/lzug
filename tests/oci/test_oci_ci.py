@@ -1,0 +1,51 @@
+from __future__ import annotations
+
+import unittest
+from pathlib import Path
+
+
+class OciWorkflowContractTests(unittest.TestCase):
+    def test_pr_and_full_workflows_keep_the_packaged_runtime_contract(self) -> None:
+        for path in (
+            Path(".github/workflows/pull-request.yml"),
+            Path(".github/workflows/quality.yml"),
+        ):
+            workflow = path.read_text(encoding="utf-8")
+            with self.subTest(workflow=path.name):
+                self.assertIn(
+                    "task quality:oci quality:container quality:compose "
+                    "quality:operator-container quality:demo",
+                    workflow,
+                )
+                self.assertIn("anchore/sbom-action/download-syft@", workflow)
+                self.assertIn("scripts/sbom.py generate-image", workflow)
+                self.assertIn("scripts/sbom.py validate --kind image", workflow)
+                self.assertIn("scanners: vuln,secret,misconfig", workflow)
+                self.assertIn('exit-code: "1"', workflow)
+
+    def test_local_image_build_supports_docker_and_podman(self) -> None:
+        taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
+        contract = Path("scripts/container-contract.sh").read_text(encoding="utf-8")
+        self.assertIn("lzug_require_container_engine", taskfile)
+        self.assertIn("engine=${CONTAINER_ENGINE:-}", contract)
+        self.assertIn("command -v docker", contract)
+        self.assertIn("command -v podman", contract)
+        self.assertIn("CONTAINER_ENGINE must be docker or podman.", contract)
+        self.assertIn('build_identity="$(python3 scripts/build_metadata.py', taskfile)
+        self.assertIn('--build-arg "BUILD_IDENTITY=$build_identity"', taskfile)
+        self.assertIn('--build-arg "VCS_REF=$revision"', taskfile)
+
+    def test_compose_health_probe_tolerates_an_empty_process_list(self) -> None:
+        smoke = Path("scripts/compose-smoke.sh").read_text(encoding="utf-8")
+        self.assertIn('if parsed else ""', smoke)
+
+    def test_compose_standard_validation_and_policy_are_separate(self) -> None:
+        taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
+        self.assertIn("compose -f compose.yaml config --quiet", taskfile)
+        self.assertIn('python3 scripts/compose_policy.py "$config_file"', taskfile)
+        self.assertFalse(Path("scripts/compose-command.sh").exists())
+        self.assertFalse(Path("scripts/validate-compose.sh").exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

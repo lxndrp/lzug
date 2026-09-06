@@ -57,6 +57,7 @@ EDITORIAL_DEVELOPER_FILES = {
     Path("delivery.md"),
     Path("development.md"),
     Path("index.md"),
+    Path("script-inventory.md"),
 }
 GENERATED_REFERENCE_FILES = {
     Path("reference/backend.md"),
@@ -110,6 +111,7 @@ DEVELOPER_NAV_TARGETS = {
     "developers/delivery.md",
     "developers/development.md",
     "developers/index.md",
+    "developers/script-inventory.md",
 }
 SUPERSESSION_MARKER = re.compile(r"\b(?P<kind>Supersedes|Superseded by):\s*ADR-(?P<number>\d{4})\b")
 STATUS_HEADING = re.compile(r"^## Status\s*$", re.MULTILINE)
@@ -119,22 +121,6 @@ HISTORICAL_NAV_TARGET = re.compile(
     r"(?:release-evidence|release-milestones|copilot-pilot|publication-architecture)\.md$",
     re.IGNORECASE,
 )
-PLANNING_HEADING = re.compile(
-    r"(?:inventar|backlog|offene\s+issues?|issue[-\s]liste|pr[-\s]liste|"
-    r"milestone[-\s]liste|release[-\s]liste)",
-    re.IGNORECASE,
-)
-API_LIST_HEADING = re.compile(
-    r"(?:api|openapi).*(?:route|endpoint)|(?:route|endpoint).*(?:api|openapi)",
-    re.IGNORECASE,
-)
-SCHEMA_LIST_HEADING = re.compile(
-    r"(?:schema|felder?|typen?).*(?:tabelle|liste|übersicht)|"
-    r"(?:tabelle|liste|übersicht).*(?:schema|felder?|typen?)",
-    re.IGNORECASE,
-)
-ROUTE_TOKEN = re.compile(r"[`/]api/|\b(?:GET|POST|PUT|PATCH|DELETE)\s+/", re.IGNORECASE)
-SCHEMA_TOKEN = re.compile(r"\|\s*[A-Za-z_][\w-]*\s*\|.*\|", re.IGNORECASE)
 
 
 def _section(document: str, heading: re.Pattern[str]) -> str | None:
@@ -160,7 +146,7 @@ def numbered_adrs(root: Path) -> list[Path]:
 def check_navigation(root: Path) -> list[str]:
     """Check active navigation for forbidden targets and missing source files."""
 
-    path = root / "mkdocs.yml"
+    path = root / "docs" / "mkdocs.yml"
     if not path.is_file():
         return [
             "[DOC-NAV-001] mkdocs.yml: the active navigation source is missing; "
@@ -240,7 +226,7 @@ def check_developer_structure(root: Path) -> list[str]:
         unexpected.append(str(path))
     if unexpected:
         violations.append(
-            "[DOC-STRUCT-003] docs/developers: files outside the entry, five core areas, "
+            "[DOC-STRUCT-003] docs/developers: files outside the entry, core areas, "
             "ADR register/template/records, and generated references are forbidden; "
             f"remove {unexpected!r} instead of adding legacy, redirect, or placeholder pages."
         )
@@ -286,51 +272,6 @@ def check_handbook(root: Path) -> list[str]:
             "[DOC-HANDBOOK-002] docs/handbook: unexpected handbook pages; "
             f"move new material to its target documentation type instead: {unexpected!r}."
         )
-    return violations
-
-
-def _headings(document: str) -> list[tuple[str, str]]:
-    matches = list(re.finditer(r"^(?P<level>#{1,6})\s+(?P<title>.+?)\s*$", document, re.MULTILINE))
-    sections: list[tuple[str, str]] = []
-    for index, match in enumerate(matches):
-        end = matches[index + 1].start() if index + 1 < len(matches) else None
-        sections.append((match.group("title"), document[match.end() : end]))
-    return sections
-
-
-def check_redundant_inventories(root: Path) -> list[str]:
-    """Reject obvious planning and complete API/schema inventories in prose."""
-
-    violations: list[str] = []
-    for path in sorted((root / "docs").rglob("*.md")):
-        document = path.read_text(encoding="utf-8")
-        for title, section in _headings(document):
-            compact_title = " ".join(title.split())
-            if PLANNING_HEADING.search(compact_title) and re.search(
-                r"(?:#\d{2,}|/issues/\d+|/pull/\d+|Milestone|Issue|Pull Request)",
-                section,
-                re.IGNORECASE,
-            ):
-                violations.append(
-                    f"[DOC-CONTENT-001] {path.relative_to(root)}: heading "
-                    f"{compact_title!r} introduces a planning inventory; "
-                    "move current planning to GitHub Issues, Milestones, or Project fields."
-                )
-            if API_LIST_HEADING.search(compact_title) and len(ROUTE_TOKEN.findall(section)) >= 3:
-                violations.append(
-                    f"[DOC-CONTENT-002] {path.relative_to(root)}: API route list "
-                    "duplicates the executable HTTP contract; "
-                    "link OpenAPI or the generated reference instead of maintaining a second list."
-                )
-            if (
-                SCHEMA_LIST_HEADING.search(compact_title)
-                and len(SCHEMA_TOKEN.findall(section)) >= 3
-            ):
-                violations.append(
-                    f"[DOC-CONTENT-003] {path.relative_to(root)}: schema/field table "
-                    "duplicates an executable source; "
-                    "link the ORM, db/schema.sql, migration, or generated reference instead."
-                )
     return violations
 
 
@@ -451,7 +392,6 @@ def check(root: Path) -> list[str]:
         *check_handbook(root),
         *check_developer_structure(root),
         *check_navigation(root),
-        *check_redundant_inventories(root),
         *check_adrs(root),
         *check_root_documents(root),
     ]

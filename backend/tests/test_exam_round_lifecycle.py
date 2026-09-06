@@ -16,8 +16,8 @@ from backend.models import (
     ExamSlot,
     Notification,
 )
+from backend.tests.fixture_data import prepare_exam_protocol_scenario
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
-from demo.artifacts import _add_exam_protocol_scenario
 
 
 class ExamRoundLifecycleTests(unittest.TestCase):
@@ -303,7 +303,8 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             self.assertEqual(methods, set(document["paths"][path]))
 
     def test_later_ihk_document_status_remains_allowed_on_a_closed_round(self) -> None:
-        _add_exam_protocol_scenario(self.db_path)
+        prepare_exam_protocol_scenario(self.db_path)
+        self.deputy = AuthenticationRepository(self.db_path).create_session(3)
         with session_scope(self.db_path) as session:
             session.execute(
                 text(

@@ -7,11 +7,11 @@ on:
     paths: &publication-paths
       - ".github/workflows/publication.yml"
       - ".mise.toml"
-      - ".node-version"
+      - "frontend/.node-version"
       - ".python-version"
       - "Taskfile.yml"
       - "backend/**"
-      - "db/schema.sql"
+      - "backend/db/schema.sql"
       - "docs/**"
       - "frontend/e2e/run-playwright.mjs"
       - "frontend/e2e/serve-publication.mjs"
@@ -22,10 +22,10 @@ on:
       - "frontend/public/**"
       - "frontend/src/**"
       - "frontend/tsconfig*.json"
-      - "mkdocs.yml"
+      - "docs/mkdocs.yml"
       - "docs/publication/**"
       - "pyproject.toml"
-      - "scripts/publication.py"
+      - "docs/publication.py"
       - "scripts/validate_demo_url_contract.py"
       - "uv.lock"
   push:
@@ -81,7 +81,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version-file: .node-version
+          node-version-file: frontend/.node-version
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
@@ -166,4 +166,4 @@ jobs:
 
       - name: Deploy the checked artifact
         id: deployment
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

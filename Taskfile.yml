@@ -81,16 +81,22 @@ tasks:
           "$@"
 
   test:
-    desc: Run all backend, frontend, and operator unit tests
+    desc: Run all component unit and contract tests
     cmds:
       - task: test:backend
       - task: test:frontend
       - task: test:operator
+      - task: test:demo
+      - task: test:delivery
+      - task: test:docs
+      - task: test:fixtures
+      - task: test:oci
+      - task: test:tooling
 
   test:backend:
     desc: Run backend unit tests
     cmds:
-      - "{{.UV}} python -m unittest"
+      - "{{.UV}} python -m unittest discover -s backend/tests"
 
   test:frontend:
     desc: Run frontend unit tests
@@ -104,10 +110,42 @@ tasks:
     cmds:
       - go test ./...
 
+  test:demo:
+    desc: Run public demo component tests
+    cmds:
+      - "{{.UV}} python -m unittest discover -s tests/demo"
+
+  test:delivery:
+    desc: Run delivery and workflow contract tests
+    cmds:
+      - "{{.UV}} python -m unittest discover -s tests/delivery"
+
+  test:docs:
+    desc: Run documentation and publication tests
+    cmds:
+      - "{{.UV}} python -m unittest discover -s tests/docs"
+
+  test:fixtures:
+    desc: Run synthetic fixture tests
+    cmds:
+      - "{{.UV}} python -m unittest discover -s tests/fixtures"
+
+  test:oci:
+    desc: Run OCI and Compose tests
+    cmds:
+      - "{{.UV}} python -m unittest discover -s tests/oci"
+
+  test:tooling:
+    desc: Run repository tooling tests
+    cmds:
+      - "{{.UV}} python -m unittest discover -s tests/tooling"
+
   docs:
     desc: Build the local handbook and generated code references
     cmds:
+      - task: test:docs
       - task: docs:check
+      - task: docs:media:check
       - task: docs:cli
       - task: docs:handbook
       - task: docs:frontend
@@ -116,6 +154,11 @@ tasks:
     desc: Check project-specific documentation structure contracts
     cmds:
       - python3 -m scripts.check_documentation
+
+  docs:media:check:
+    desc: Check Playwright-captured demo media metadata and image dimensions
+    cmds:
+      - python3 -m docs.media.check
 
   docs:cli:
     desc: Verify the generated operator CLI reference
@@ -134,7 +177,7 @@ tasks:
       BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
       - >-
-        {{.UV}} python -m scripts.publication build
+        {{.UV}} python -m docs.publication build
         --typedoc frontend/node_modules/.bin/typedoc
         --base-url "{{.BASE_URL}}"
         --demo-url "{{.DEMO_URL}}"
@@ -149,7 +192,7 @@ tasks:
       BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
       - >-
-        {{.UV}} python -m scripts.publication check
+        {{.UV}} python -m docs.publication check
         --typedoc frontend/node_modules/.bin/typedoc
         --base-url "{{.BASE_URL}}"
         --demo-url "{{.DEMO_URL}}"
@@ -197,18 +240,17 @@ tasks:
   brand:check:
     desc: Verify canonical brand sources, consumer derivatives, fonts, and icons
     cmds:
-      - node scripts/check_brand_assets.mjs
+      - node brand/generate-assets.mjs --check
 
   brand:generate:
     desc: Generate reproducible brand derivatives from canonical vector sources
     cmds:
-      - node scripts/generate_brand_assets.mjs
+      - node brand/generate-assets.mjs
 
   fixtures:check:
-    desc: Verify synthetic fixture adapters match their canonical source
+    desc: Compile synthetic fixture profiles and verify tracked adapters
     cmds:
-      - python3 scripts/generate_synthetic_fixtures.py --check
-      - python3 scripts/check_demo_media.py
+      - python3 fixtures/generate.py --check
 
   quality:infra:
     desc: Format, validate, and mock-plan the public demo infrastructure without cloud access
@@ -224,11 +266,11 @@ tasks:
     cmds:
       - >-
         {{.UV}} python -m unittest
-        backend.tests.test_demo_contract
-        backend.tests.test_demo_deployment
-        backend.tests.test_demo_snapshot
-        backend.tests.test_demo_delivery_contract
-        backend.tests.test_demo_url_contract
+        tests.demo.test_demo_contract
+        tests.demo.test_demo_deployment
+        tests.demo.test_demo_snapshot
+        tests.demo.test_demo_delivery_contract
+        tests.demo.test_demo_url_contract
 
   quality:sbom:
     desc: Generate and validate the canonical dependency SBOM
@@ -252,10 +294,10 @@ tasks:
     cmds:
       - >-
         {{.UV}} python -m unittest
-        backend.tests.test_release_process
-        backend.tests.test_sbom
-        backend.tests.test_build_metadata
-        backend.tests.test_build_identity_contract
+        tests.delivery.test_release_process
+        tests.delivery.test_sbom
+        tests.delivery.test_build_metadata
+        tests.delivery.test_build_identity_contract
       - cd operator-cli && goreleaser check
 
   quality:backend:
@@ -342,7 +384,7 @@ tasks:
             --tag "$product_tag" --commit "$revision" --channel "$channel" --field identity)
           seed_image="lzug-demo-seed:$channel-local"
           app_image="lzug-demo-app:$channel-local"
-          "$engine" build -f Dockerfile.demo-seed \
+          "$engine" build -f demo/Dockerfile.demo-seed \
             --build-arg "PRODUCT_TAG=$product_tag" \
             --build-arg "VCS_REF=$revision" \
             -t "$seed_image" .
@@ -367,7 +409,7 @@ tasks:
             --manifest "$temporary_directory/manifest.json" --kind seed \
             --expected-product-tag "$product_tag" --expected-product-commit "$revision" \
             --field seed_revision)
-          "$engine" build -f Dockerfile.demo \
+          "$engine" build -f demo/Dockerfile.demo \
             --build-arg "BUILD_IDENTITY=$build_identity" \
             --build-arg "PRODUCT_TAG=$product_tag" \
             --build-arg "VCS_REF=$revision" \
@@ -383,7 +425,7 @@ tasks:
   quality:demo-matrix:
     desc: Verify demo roles, capabilities, mutation allowlist, and default-deny paths
     cmds:
-      - "{{.UV}} python -m unittest backend.tests.test_demo_runtime"
+      - "{{.UV}} python -m unittest tests.demo.test_demo_runtime"
 
   quality:overall:
     desc: Run all local cross-domain integration contracts in parallel
@@ -428,7 +470,7 @@ tasks:
       - quality:image
     cmds:
       - scripts/operator-container-smoke.sh lzug:0.0.0-dev.local
-      - scripts/v060-age-migration-smoke.sh lzug:0.0.0-dev.local
+      - tests/compatibility/v060-age-migration-smoke.sh lzug:0.0.0-dev.local
 
   quality:compose:
     desc: Run the Compose runtime and persistence contract
@@ -441,13 +483,22 @@ tasks:
   quality:compose-config:
     desc: Validate Compose with standard tooling and the separate lzug policy
     cmds:
-      - >-
-        LZUG_IMAGE=ghcr.io/lxndrp/lzug:0.0.0-dev.local
-        scripts/compose-command.sh config --quiet
-      - >-
-        LZUG_IMAGE=ghcr.io/lxndrp/lzug:0.0.0-dev.local
-        scripts/validate-compose.sh
-      - "{{.UV}} python -m unittest backend.tests.test_compose_policy"
+      - |
+        set -eu
+        . scripts/container-contract.sh
+        lzug_select_container_engine
+        LZUG_IMAGE=ghcr.io/lxndrp/lzug:0.0.0-dev.local \
+          "$engine" compose -f compose.yaml config --quiet
+      - |
+        set -eu
+        . scripts/container-contract.sh
+        lzug_select_container_engine
+        config_file="$(mktemp "${TMPDIR:-/tmp}/lzug-compose-config.XXXXXX")"
+        trap 'rm -f "$config_file"' EXIT
+        LZUG_IMAGE=ghcr.io/lxndrp/lzug:0.0.0-dev.local \
+          "$engine" compose -f compose.yaml config --format json >"$config_file"
+        python3 scripts/compose_policy.py "$config_file"
+      - "{{.UV}} python -m unittest tests.oci.test_compose_policy"
 
   quality:e2e:
     desc: Run browser end-to-end tests
@@ -506,13 +557,13 @@ tasks:
   backend:coverage:
     internal: true
     cmds:
-      - "{{.UV}} python -m coverage run -m unittest"
+      - "{{.UV}} python -m coverage run -m unittest discover -s backend/tests"
       - "{{.UV}} python -m coverage report"
 
   docs:handbook:
     internal: true
     cmds:
-      - "{{.UV}} mkdocs build --strict --site-dir site"
+      - "{{.UV}} mkdocs build --strict --config-file docs/mkdocs.yml"
 
   docs:frontend:
     internal: true

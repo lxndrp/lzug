@@ -16,8 +16,8 @@ from backend.models import (
     ExamSlot,
     MemberExamAttendance,
 )
+from backend.tests.fixture_data import FIXTURE_ROOT, ORGANIZATION_NAMES
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
-from demo.synthetic_fixtures_generated import FIXTURE_ROOT, ORGANIZATION_NAMES
 
 
 def assessment_rules() -> dict:

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -16,20 +15,17 @@ from backend.application import ForbiddenRequestError
 from backend.auth import AuthContext, AuthenticationError
 from backend.database import session_scope
 from backend.models import AbsenceReport, ConfirmedPlanRevision, ExamDay, ReplacementResponse
+from backend.settings import RuntimeSettings
 from backend.transport import RequestContext
 
 from .artifacts import load_runtime_manifests, load_runtime_status
 from .scenarios import (
-    ABSENCE_ASSIGNMENT_ID,
-    ABSENCE_DAY_ID,
-    REPLACEMENT_MEMBER_ID,
-    ROUND_ID,
     expected_plan_change,
     scenario_overview,
-    seed_demo_scenarios,
 )
-from .synthetic_fixtures_generated import DEMO_MATRIX_VERSION, DEMO_ROLES
 from .workspaces import DemoWorkspace, DemoWorkspaceCapacityError, DemoWorkspaceManager
+
+ROLE_NAMES = frozenset({"chair", "examiner", "replacement"})
 
 
 @dataclass(frozen=True)
@@ -67,7 +63,7 @@ class DemoPathContract:
 DEMO_READ_MATRIX = (
     DemoPathContract(
         "notifications-read-own",
-        frozenset(DEMO_ROLES),
+        ROLE_NAMES,
         "Persönliche Hinweise",
         "isolated-own-notifications",
         "Eigene Benachrichtigungen lesen",
@@ -80,7 +76,7 @@ DEMO_READ_MATRIX = (
     ),
     DemoPathContract(
         "calendar-read-own",
-        frozenset(DEMO_ROLES),
+        ROLE_NAMES,
         "Persönlicher Kalender",
         "isolated-own-calendar-events",
         "Eigene Kalenderereignisse lesen und einzeln laden",
@@ -174,21 +170,24 @@ class DemoRuntimePolicy:
         *,
         workspace_dir: Path | None = None,
         capacity: int | None = None,
+        settings: RuntimeSettings | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ):
         self.app_manifest, self.seed_manifest = load_runtime_manifests(
             app_manifest_path, seed_manifest_path
         )
+        profile = self.seed_manifest["fixture_profile"]
+        self.demo_roles = {name: profile["roles"][name] for name in ROLE_NAMES}
+        self.runtime_profile = profile
+        self.demo_matrix_version = self.seed_manifest["fixture_catalog"]["demo_matrix_version"]
         self.runtime_status = load_runtime_status(seed_manifest_path.parent, self.seed_manifest)
         self.clock = clock
+        configured = settings or RuntimeSettings.from_environment()
         configured_capacity = (
-            capacity
-            if capacity is not None
-            else int(os.environ.get("LZUG_DEMO_WORKSPACE_CAPACITY", "32"))
+            capacity if capacity is not None else configured.demo.workspace_capacity
         )
         self.workspaces = DemoWorkspaceManager(
-            workspace_dir
-            or Path(os.environ.get("LZUG_DEMO_WORKSPACE_DIR", "/tmp/lzug-demo-workspaces")),
+            workspace_dir or configured.demo.workspace_dir,
             ttl=timedelta(minutes=60),
             capacity=configured_capacity,
             clock=clock,
@@ -204,7 +203,7 @@ class DemoRuntimePolicy:
                     "product_version": self.app_manifest["product"]["version"],
                     "product_commit": self.app_manifest["product"]["commit"],
                     "runtime_contract": self.app_manifest["runtime_contract"],
-                    "demo_matrix_version": DEMO_MATRIX_VERSION,
+                    "demo_matrix_version": self.demo_matrix_version,
                     "fixture_catalog_version": self.seed_manifest["fixture_catalog"]["version"],
                     "fixture_catalog_revision": self.seed_manifest["fixture_catalog"]["revision"],
                     "seed_revision": self.seed_manifest["seed_revision"],
@@ -235,6 +234,7 @@ class DemoRuntimePolicy:
                     created_at=workspace.created_at,
                     expires_at=workspace.expires_at,
                     now=self.clock(),
+                    runtime_profile=self.runtime_profile,
                 )
             )
             return True
@@ -262,13 +262,13 @@ class DemoRuntimePolicy:
 
     def session_view(self, handler: RequestContext, context: AuthContext) -> dict:
         role_name = self._role_name(context)
-        role = DEMO_ROLES[role_name]
+        role = self.demo_roles[role_name]
         workspace = self._workspace(handler.session_token)
         return {
             "demo_role": role_name,
             "display_name": role["display_name"],
             "capabilities": sorted(ROLE_CAPABILITIES[role_name]),
-            "demo_matrix_version": DEMO_MATRIX_VERSION,
+            "demo_matrix_version": self.demo_matrix_version,
             "demo_workspace_expires_at": workspace.expires_at.isoformat(),
         }
 
@@ -308,7 +308,7 @@ class DemoRuntimePolicy:
             return
         payload = handler.read_json()
         role_name = payload.get("role")
-        role = DEMO_ROLES.get(role_name) if isinstance(role_name, str) else None
+        role = self.demo_roles.get(role_name) if isinstance(role_name, str) else None
         if role is None or set(payload) != {"role"}:
             handler.respond({"error": "Unknown demo role."}, HTTPStatus.BAD_REQUEST)
             return
@@ -318,7 +318,7 @@ class DemoRuntimePolicy:
         workspace_created = workspace is None
         if workspace is None:
             try:
-                workspace = self.workspaces.create(base_db_path, seed_demo_scenarios)
+                workspace = self.workspaces.create(base_db_path)
             except DemoWorkspaceCapacityError:
                 handler.respond(
                     {"error": "Die Demo ist derzeit ausgelastet. Bitte später erneut versuchen."},
@@ -361,11 +361,11 @@ class DemoRuntimePolicy:
         role_name = self._role_name(context)
         previous_token = handler.session_token
         workspace = self._workspace(previous_token)
-        self.workspaces.reset(self._base_path(), workspace, seed_demo_scenarios)
+        self.workspaces.reset(self._base_path(), workspace)
         handler.db_path = workspace.path
         remaining = self.workspaces.remaining(workspace)
         credentials = handler.authentication_repository.create_session(
-            DEMO_ROLES[role_name]["account_id"], now=self.clock(), ttl=remaining
+            self.demo_roles[role_name]["account_id"], now=self.clock(), ttl=remaining
         )
         self.workspaces.bind(workspace, credentials.token, previous_token=previous_token)
         handler.issue_session_cookies(
@@ -386,9 +386,11 @@ class DemoRuntimePolicy:
         if set(payload) != {"exam_day_id", "exam_day_assignment_id", "day_revision"}:
             return False
         return (
-            payload["exam_day_id"] == ABSENCE_DAY_ID
-            and payload["exam_day_assignment_id"] == ABSENCE_ASSIGNMENT_ID
-            and self._day_revision(handler.db_path, ABSENCE_DAY_ID) == payload["day_revision"]
+            payload["exam_day_id"] == self.runtime_profile["absence"]["day_id"]
+            and payload["exam_day_assignment_id"]
+            == self.runtime_profile["absence"]["assignment_id"]
+            and self._day_revision(handler.db_path, self.runtime_profile["absence"]["day_id"])
+            == payload["day_revision"]
             and not self._absence_exists(handler.db_path)
         )
 
@@ -406,7 +408,8 @@ class DemoRuntimePolicy:
             response = session.get(ReplacementResponse, int(parts[1]))
             return bool(
                 response
-                and response.committee_member_id == REPLACEMENT_MEMBER_ID
+                and response.committee_member_id
+                == self.runtime_profile["roles"]["replacement"]["committee_member_id"]
                 and response.response == "pending"
             )
 
@@ -419,7 +422,8 @@ class DemoRuntimePolicy:
             or parts[2] != "select-replacement"
             or not parts[1].isdigit()
             or set(payload) != {"committee_member_id", "version"}
-            or payload["committee_member_id"] != REPLACEMENT_MEMBER_ID
+            or payload["committee_member_id"]
+            != self.runtime_profile["roles"]["replacement"]["committee_member_id"]
         ):
             return False
         with session_scope(handler.db_path) as session:
@@ -428,7 +432,8 @@ class DemoRuntimePolicy:
                 session.scalar(
                     select(ReplacementResponse).where(
                         ReplacementResponse.absence_report_id == report.id,
-                        ReplacementResponse.committee_member_id == REPLACEMENT_MEMBER_ID,
+                        ReplacementResponse.committee_member_id
+                        == self.runtime_profile["roles"]["replacement"]["committee_member_id"],
                     )
                 )
                 if report is not None
@@ -436,7 +441,7 @@ class DemoRuntimePolicy:
             )
             return bool(
                 report
-                and report.exam_day_id == ABSENCE_DAY_ID
+                and report.exam_day_id == self.runtime_profile["absence"]["day_id"]
                 and report.version == payload["version"]
                 and report.status == "replacement_requested"
                 and response
@@ -447,10 +452,10 @@ class DemoRuntimePolicy:
         if (
             role != "chair"
             or method != "PUT"
-            or parts != ["exam-rounds", str(ROUND_ID), "confirmed-plan"]
+            or parts != ["exam-rounds", str(self.runtime_profile["round_id"]), "confirmed-plan"]
         ):
             return False
-        expected = expected_plan_change(handler.db_path)
+        expected = expected_plan_change(handler.db_path, self.runtime_profile)
         actual_revision = payload.get("revision")
         expected_revision = expected["revision"]
         payload_without_revision = {
@@ -471,23 +476,23 @@ class DemoRuntimePolicy:
             day = session.get(ExamDay, day_id)
             return day.revision if day is not None else None
 
-    @staticmethod
-    def _absence_exists(db_path: Path) -> bool:
+    def _absence_exists(self, db_path: Path) -> bool:
         with session_scope(db_path) as session:
             return (
                 session.scalar(
-                    select(AbsenceReport.id).where(AbsenceReport.exam_day_id == ABSENCE_DAY_ID)
+                    select(AbsenceReport.id).where(
+                        AbsenceReport.exam_day_id == self.runtime_profile["absence"]["day_id"]
+                    )
                 )
                 is not None
             )
 
-    @staticmethod
-    def _plan_change_exists(db_path: Path) -> bool:
+    def _plan_change_exists(self, db_path: Path) -> bool:
         with session_scope(db_path) as session:
             return (
                 session.scalar(
                     select(ConfirmedPlanRevision.id).where(
-                        ConfirmedPlanRevision.exam_round_id == ROUND_ID
+                        ConfirmedPlanRevision.exam_round_id == self.runtime_profile["round_id"]
                     )
                 )
                 is not None
@@ -504,9 +509,8 @@ class DemoRuntimePolicy:
             raise RuntimeError("Demo database boundary is not initialized")
         return self.base_db_path
 
-    @staticmethod
-    def _role_name(context: AuthContext) -> str:
-        for name, role in DEMO_ROLES.items():
+    def _role_name(self, context: AuthContext) -> str:
+        for name, role in self.demo_roles.items():
             if context.person_id == role["person_id"] and context.account_id == role["account_id"]:
                 return name
         raise ForbiddenRequestError("This account is not available in the demo.")

@@ -1,31 +1,28 @@
 **
 
 !Dockerfile
-!Dockerfile.demo
-!Dockerfile.demo-seed
+!demo/Dockerfile.demo
+!demo/Dockerfile.demo-seed
 !.dockerignore
 !pyproject.toml
 !uv.lock
+!LICENSE
 
 !backend/
-!backend/*.py
+!backend/src/
+!backend/src/**
+!backend/db/
+!backend/db/**
 
 !scripts/
-!scripts/__init__.py
-!scripts/build_metadata.py
-!scripts/generate_synthetic_fixtures.py
-
-!db/
-!db/schema.sql
-!db/seed_demo.sql
-!db/migrations/
-!db/migrations/**
+!scripts/**
 
 !demo/
 !demo/*.py
 
 !fixtures/
 !fixtures/synthetic-fixtures.json
+!fixtures/generate.py
 
 !brand/
 !brand/tokens.css

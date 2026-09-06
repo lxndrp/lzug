@@ -22,9 +22,9 @@ from backend.models import (
     PlanConsequenceBatch,
 )
 from backend.planning import PlanningService
+from backend.tests.fixture_data import FIXTURE_IDS, FIXTURE_ROOT
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 from backend.venue_consequences import VenueConsequenceService
-from demo.synthetic_fixtures_generated import FIXTURE_IDS, FIXTURE_ROOT
 
 
 class VenueConsequenceTests(unittest.TestCase):

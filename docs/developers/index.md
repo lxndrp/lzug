@@ -24,6 +24,8 @@ Fachliche, Nutzungs- und Betreiberanleitungen liegen im Repository unter
   vollständige Qualität, Release, SBOM, Demo-Promotion sowie Site-Publikation.
 - [Entwicklung](development.md) bündelt lokale Toolchain, Tasks, Testauswahl,
   Dependencies, Fixtures, Dokumentationspflege, Reviews und Closeout.
+- Das [Werkzeuginventar](script-inventory.md) begründet Eigentümer,
+  Aufrufer und Ersetzbarkeit jedes verbleibenden Einstiegspunkts.
 
 ## Maßgebliche Quellen
 
@@ -34,7 +36,7 @@ Fachliche, Nutzungs- und Betreiberanleitungen liegen im Repository unter
 | Fachlichkeit, Nutzung und Betreiberverfahren | `docs/handbook/` und `docs/portal/` |
 | Planung, Umfang und Fortschritt | GitHub Issues, native Beziehungen, Milestones und Project-Felder |
 | HTTP-Vertrag | FastAPI-Routen und daraus erzeugte OpenAPI-Beschreibung |
-| Datenstruktur | SQLAlchemy-Modelle, `db/schema.sql` und `db/migrations/` |
+| Datenstruktur | SQLAlchemy-Modelle, `backend/db/schema.sql` und `backend/db/migrations/` |
 | Qualitäts- und Releaseautomation | `Taskfile.yml` und `.github/workflows/` |
 | Veröffentlichungshistorie | Tags, GitHub Releases und `CHANGELOG.md` |
 | Allgemeine Historie | Git-Revisionsgeschichte |

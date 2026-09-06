@@ -10,17 +10,42 @@ Komponenten nachimplementiert.
 
 | Bereich | Verantwortung | Zulässige Außengrenze | Maßgebliche Quellen |
 | --- | --- | --- | --- |
-| Backend | HTTP, Authentifizierung, Fachservices, Persistenz, Dokumente und Integrationsadapter | OpenAPI/JSON, Admin-JSON, SQLite und kontrollierte Provideradapter | `backend/`, `db/` |
+| Backend | HTTP, Authentifizierung, Fachservices, Persistenz, Dokumente und Integrationsadapter | OpenAPI/JSON, Admin-JSON, SQLite und kontrollierte Provideradapter | `backend/src/backend/`, `backend/db/` |
 | Frontend | aufgabenorientierte Ausschussoberfläche, Routing, Formulare und sichtbare Zustände | same-origin API über zentrale Modelle und Services | `frontend/src/app/` |
 | Betreiber-CLI | lokale portable Orchestrierung von Administration, Diagnose und Lifecycle | einzelne Docker-/Podman-`exec`-Argumente und Admin-Protokollversion 1 | `operator-cli/cmd/lzug-admin/`, `operator-cli/internal/admincli/`, `operator-cli/internal/tools/cli-reference/`, `operator-cli/.goreleaser.yml` |
 | OCI und Self-Hosting | gemeinsames Produktimage, gehärtete Laufzeit und persistentes `/data` | `Dockerfile`, `compose.yaml` und Containerverträge | Dockerfiles, Compose und `scripts/*container*` |
-| Öffentliche Demo | flüchtige App-/Seed-Assembly, Reset, Promotion und Azure-Deployment | digestgebundene Manifeste, OIDC und Demo-Runtime-Policy | `demo/`, `Dockerfile.demo*`, `infra/demo/`, Demo-Workflows |
+| Öffentliche Demo | flüchtige App-/Seed-Assembly, Reset, Promotion und Azure-Deployment | digestgebundene Manifeste, OIDC und Demo-Runtime-Policy | `demo/`, `demo/Dockerfile.demo*`, `infra/demo/`, Demo-Workflows |
 
 Das Frontend greift nicht direkt auf Persistenz zu.
 Die Go-CLI kennt weder Datenbankpfad noch SQL und enthält keine Fach-,
 Migrations-, Backup-, Restore- oder Kryptologik.
 Demo-Policy und Deploymentautomation dürfen Produktregeln nur einschränken oder
 synthetische Erweiterungen aktivieren, aber keinen zweiten Produktkern bilden.
+
+## Eigentümermatrix der Root-Konfiguration
+
+Die Matrix hält die Entscheidung für den Root-Bestand fest.
+Ein Pfad bleibt nur dann am Root, wenn er mehrere Komponenten versorgt,
+als kanonischer Standard-Einstieg erwartet wird oder den unveränderten
+Buildkontext voraussetzt.
+
+| Datei | Eigentümer | Entscheidung und Begründung |
+| --- | --- | --- |
+| `.mise.toml` | Repository | Am Root behalten: ein gemeinsamer Toolchain-Pin für Python, Node.js, Go, Hugo, uv, Task, Syft, GoReleaser und OpenTofu. |
+| `Taskfile.yml` | Repository | Am Root behalten: kanonischer Einstieg für Setup, Tests, Dokumentation, Qualität, SBOM und Entwicklung. |
+| `pyproject.toml` | Python-/Dokumentations-Toolchain | Am Root behalten: Backend, Demo, Skripte, Tests und MkDocs teilen ein uv-Projekt und einen Tooling-Vertrag. |
+| `uv.lock` | Python-/Dokumentations-Toolchain | Am Root behalten: einziger Lockfile für das gemeinsame uv-Projekt; kein zweites Python-Toolingprojekt. |
+| `.python-version` | Python-/Dokumentations-Toolchain | Am Root behalten: alle Python-Verbraucher verwenden dieselbe Version. |
+| `.node-version` | Frontend | Nach `frontend/.node-version` verschoben: die Versionsdatei gehört ausschließlich zum npm-/Angular-Verbraucher. |
+| `mkdocs.yml` | Dokumentation | Nach `docs/mkdocs.yml` verschoben: MkDocs-Konfiguration und Dokumentationsquellen liegen zusammen. |
+| `.env.example` | OCI-/Self-Hosting | Am Root behalten: Beispielkonfiguration und kanonischer Einstieg direkt neben `compose.yaml`. |
+| `Dockerfile` | OCI-/Self-Hosting | Am Root behalten: standardgebundener Produkt-Build für den unveränderten Root-Kontext. |
+| `Dockerfile.demo` | Öffentliche Demo | Nach `demo/Dockerfile.demo` verschoben: ausschließlich Demo-App-Assembly; der Root bleibt Buildkontext. |
+| `Dockerfile.demo-seed` | Öffentliche Demo | Nach `demo/Dockerfile.demo-seed` verschoben: ausschließlich Demo-Seed-Assembly; der Root bleibt Buildkontext. |
+| `compose.yaml` | OCI-/Self-Hosting | Am Root behalten: kanonischer Compose-Einstieg für die dokumentierte Installation. |
+| `.dockerignore` | OCI-/Self-Hosting | Am Root behalten: technisch an den unveränderten Root-Buildkontext gebunden. |
+| `.github/` | Repository | Am Root behalten: GitHub erwartet Workflows, Vorlagen und Dependabot-Konfiguration dort. |
+| Community-, Lizenz- und Support-Dateien | Repository | Am Root behalten: GitHub- und Community-Standards sowie rechtliche Hinweise erwarten diese Einstiege dort. |
 
 ## Backend
 
@@ -44,6 +69,12 @@ Repositories kapseln fachnahe Persistenzzugriffe; Adapter übersetzen HTTP,
 Dateien, Kalender oder Zustellkanäle.
 Eine neue Speicher- oder Transporttechnik darf die Invarianten weder kopieren
 noch umgehen.
+
+Die kanonische Runtime-Konfigurationsassembly liegt in
+`backend/src/backend/settings.py`.
+Die Betreiberreferenz beschreibt ausschließlich die von außen sichtbaren
+Variablennamen, Defaults und Betriebsfolgen und dupliziert keine
+Validierungslogik.
 
 Die [Python-Referenz](reference/backend.md) wird aus den öffentlichen
 Google-Style-Docstrings erzeugt.
@@ -212,8 +243,9 @@ Die aufgabenorientierte Bedienung bleibt im
 
 ## OCI-Runtime und Infrastruktur
 
-Das Produktimage enthält das kompilierte Angular-Bundle, Python-Backend,
-Migrationen und produktive Python-Abhängigkeiten.
+Das Produktimage enthält das kompilierte Angular-Bundle, das aus dem
+Backend-Wheel installierte Python-Backend, die Backend-Migrationen und
+produktive Python-Abhängigkeiten.
 Tests, Demo-Seed, Dokumentation, Node.js/npm, uv und Lockfiles gelangen nicht
 in das Runtime-Image.
 Der Prozess läuft standardmäßig als UID/GID `10001:10001`, unterstützt ein
@@ -251,11 +283,16 @@ geschützte Environment `demo` begrenzen echte Mutationen.
 | --- | --- |
 | Fachservice oder Repository | passendes Modul unter `backend/tests/` |
 | HTTP- oder OpenAPI-Vertrag | `backend.tests.test_fastapi_app`, `test_openapi_contract` und betroffener API-Test |
+| Demo-Runtime oder Demo-Artefakt | passendes Modul unter `tests/demo/` |
+| Release-, SBOM- oder Workflowvertrag | passendes Modul unter `tests/delivery/` |
+| Dokumentations- oder Publikationsvertrag | passendes Modul unter `tests/docs/` |
+| Synthetische Fixture-Quelle | passendes Modul unter `tests/fixtures/` und `task fixtures:check` |
 | Angular-Komponente oder Service | zugehöriger Vitest-Test unter `frontend/src/` |
 | sichtbarer Hauptablauf | `task quality:e2e` und bei UI-Änderung `task quality:a11y` getrennt |
 | Go-CLI | `cd operator-cli && go test ./...` beziehungsweise `task quality:operator` |
-| OCI oder Compose | `task quality:container`, `task quality:compose` oder `task quality:operator-container` |
-| Demo-Vertrag | `task quality:demo-deployment`, `task quality:demo` und bei Infrastruktur `task quality:infra` |
+| OCI oder Compose | passendes Modul unter `tests/oci/` sowie `task quality:container`, `quality:compose` oder `quality:operator-container` |
+| Repository-Tooling | passendes Modul unter `tests/tooling/` |
+| Demo-Lieferung | `task quality:demo-deployment`, `task quality:demo` und bei Infrastruktur `task quality:infra` |
 
 Die breite Auswahl und die lokalen Voraussetzungen stehen unter
 [Entwicklung](development.md).

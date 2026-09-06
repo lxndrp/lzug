@@ -15,7 +15,9 @@ Die Planung möglicher Prüfungstage muss bundesweite und landesweit geltende ge
 
 ## Entscheidung
 
-Dafür verwendet das Backend die kuratierte Python-Bibliothek `holidays` hinter der eigenen `HolidayProvider`-Schnittstelle in `backend/holiday_provider.py`.
+Dafür verwendet das Backend die kuratierte Python-Bibliothek `holidays` hinter
+der eigenen `HolidayProvider`-Schnittstelle in
+`backend/src/backend/holiday_provider.py`.
 
 ## Konsequenzen
 

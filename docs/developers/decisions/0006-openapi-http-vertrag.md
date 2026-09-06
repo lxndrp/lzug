@@ -15,7 +15,9 @@ Die Anwendung benötigt einen verbindlichen und testbaren HTTP-Vertrag zwischen 
 
 ## Entscheidung
 
-Die von FastAPI aus `backend/fastapi_app.py` erzeugte und über `/api/openapi.json` ausgelieferte OpenAPI-Spezifikation ist der verbindliche HTTP-Vertrag.
+Die von FastAPI aus `backend/src/backend/fastapi_app.py` erzeugte und über
+`/api/openapi.json` ausgelieferte OpenAPI-Spezifikation ist der verbindliche
+HTTP-Vertrag.
 Die JSON-API bietet Einstiegspunkt, Healthcheck, OpenAPI JSON und Dokumentation; Ressourcen verwenden REST-nahe Methoden und HAL-nahe Links.
 
 Der Vertragstest ruft die echte HTTP-Schicht mit isolierter SQLite-Datenbank auf und validiert dokumentierte Responses gegen die ausgelieferte Spezifikation.

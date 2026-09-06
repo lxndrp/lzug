@@ -48,7 +48,7 @@ lzug_start_contract_container() {
         --read-only --tmpfs /tmp \
         "$@" \
         --mount "type=volume,source=$volume,target=/data" \
-        "$image" --host 0.0.0.0 --port 8000 --init --seed >/dev/null
+        "$image" --host 0.0.0.0 --port 8000 --init >/dev/null
 }
 
 lzug_cleanup_contract_container() {
@@ -98,5 +98,5 @@ lzug_assert_runtime_user() {
 lzug_copy_build_metadata() {
     container=$1
     destination=$2
-    "$engine" exec "$container" cat /app/build-metadata.json > "$destination"
+    "$engine" exec "$container" cat /app/backend/src/build-metadata.json > "$destination"
 }

@@ -13,6 +13,7 @@ dependencies = [
   "fastapi==0.141.1",
   "holidays>=0.102,<1.0",
   "pyotp>=2.9,<3.0",
+  "pydantic-settings>=2.10,<3.0",
   "SQLAlchemy>=2.0,<3.0",
   "uvicorn==0.52.4",
 ]
@@ -28,7 +29,7 @@ dev = [
 ]
 
 [tool.unittest]
-start-dir = "backend/tests"
+start-dir = "."
 
 [tool.coverage.run]
 branch = true
@@ -60,7 +61,10 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["backend"]
+package-dir = {"" = "backend/src"}
+
+[tool.setuptools.packages.find]
+where = ["backend/src"]
 
 [tool.ruff]
 line-length = 100
@@ -69,6 +73,9 @@ exclude = [".venv", "dist", "build", ".git", "__pycache__"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend", "demo", "fixtures", "scripts", "tests"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
@@ -87,7 +94,11 @@ extend-exclude = '''
 '''
 
 [tool.mypy]
-files = ["backend/api_contracts.py", "backend/transport.py", "backend/models.py"]
+files = [
+  "backend/src/backend/api_contracts.py",
+  "backend/src/backend/transport.py",
+  "backend/src/backend/models.py",
+]
 python_version = "3.14"
 follow_imports = "skip"
 warn_unused_configs = true

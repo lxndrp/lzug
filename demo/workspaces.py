@@ -62,9 +62,8 @@ class DemoWorkspaceManager:
     def create(
         self,
         base_db_path: Path,
-        seed: Callable[[Path, datetime], None],
     ) -> DemoWorkspace:
-        """Allocate, clone, and seed a workspace or fail without sharing state."""
+        """Allocate a workspace from the complete immutable profile seed."""
         with self._lock:
             now = _utc(self.clock())
             self._cleanup(now, base_db_path)
@@ -79,7 +78,6 @@ class DemoWorkspaceManager:
             )
             try:
                 self._clone(base_db_path, workspace_path)
-                seed(workspace_path, now)
             except Exception:
                 workspace_path.unlink(missing_ok=True)
                 raise
@@ -122,7 +120,6 @@ class DemoWorkspaceManager:
         self,
         base_db_path: Path,
         workspace: DemoWorkspace,
-        seed: Callable[[Path, datetime], None],
     ) -> None:
         """Atomically replace domain state while preserving the absolute expiry."""
         with self._lock:
@@ -136,7 +133,6 @@ class DemoWorkspaceManager:
             temporary = workspace.path.with_suffix(f".{uuid4().hex}.tmp")
             try:
                 self._clone(base_db_path, temporary)
-                seed(temporary, now)
                 self._delete_sidecars(workspace.path)
                 os.replace(temporary, workspace.path)
                 workspace.path.chmod(0o600)
