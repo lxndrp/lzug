@@ -1,7 +1,7 @@
 # Self-Hosting und Betrieb
 
 Diese Anleitung ist der lineare Nachweis für eine einzelne selbst betriebene lzug-Instanz.
-Sie ergänzt die ausführlichen kanonischen Betriebsseiten im [Handbuch](/betreiben/ueberblick/),
+Sie ergänzt die ausführlichen kanonischen Betriebsseiten im [Handbuch](/betreiben/administration/),
 ohne einen technischen Produkt-Wizard zu erzeugen.
 
 ## Vor dem Start

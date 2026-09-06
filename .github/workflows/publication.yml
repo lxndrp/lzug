@@ -7,6 +7,7 @@ on:
     paths: &publication-paths
       - ".github/workflows/publication.yml"
       - ".mise.toml"
+      - ".lychee.toml"
       - "frontend/.node-version"
       - ".python-version"
       - "Taskfile.yml"
@@ -94,7 +95,7 @@ jobs:
 
       - name: Install locked build dependencies
         run: |
-          mise install hugo-extended@0.165.0
+          mise install hugo-extended@0.165.0 aqua:lycheeverse/lychee@0.24.2
           uv sync --locked --extra dev
           npm ci --prefix frontend
 
@@ -102,9 +103,13 @@ jobs:
         if: github.event_name == 'schedule'
         run: mise x hugo-extended@0.165.0 -- task docs:publication:check DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
+      - name: Check generated public-site links
+        if: github.event_name == 'schedule'
+        run: mise x hugo-extended@0.165.0 -- task docs:publication:linkcheck DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+
       - name: Build public artifact
         if: github.event_name != 'schedule'
-        run: mise x hugo-extended@0.165.0 -- task docs:publication DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+        run: mise x hugo-extended@0.165.0 -- task docs:publication:linkcheck DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
       - name: Check responsive themes and warm-up flow with Playwright
         if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'

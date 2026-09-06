@@ -1,0 +1,14 @@
+# Stable link policy for the generated public publication.
+no_progress = true
+format = "detailed"
+timeout = 20
+max_retries = 2
+retry_wait_time = 2
+accept = ["200..=399", "429"]
+include_fragments = "full"
+index_files = ["index.html"]
+exclude_path = ["\\.xml$"]
+
+# The default local demo value is intentionally non-resolvable; a configured
+# publication uses the real demo origin and remains part of the checked output.
+exclude = ["^https://demo\\.example\\.invalid(?:/|$)"]

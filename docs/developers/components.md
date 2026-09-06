@@ -31,7 +31,7 @@ Buildkontext voraussetzt.
 
 | Datei | Eigentümer | Entscheidung und Begründung |
 | --- | --- | --- |
-| `.mise.toml` | Repository | Am Root behalten: ein gemeinsamer Toolchain-Pin für Python, Node.js, Go, Hugo, uv, Task, Syft, GoReleaser und OpenTofu. |
+| `.mise.toml` | Repository | Am Root behalten: ein gemeinsamer Toolchain-Pin für Python, Node.js, Go, Hugo, Lychee, uv, Task, Syft, GoReleaser und OpenTofu. |
 | `Taskfile.yml` | Repository | Am Root behalten: kanonischer Einstieg für Setup, Tests, Dokumentation, Qualität, SBOM und Entwicklung. |
 | `pyproject.toml` | Python-/Dokumentations-Toolchain | Am Root behalten: Backend, Demo, Skripte, Tests und MkDocs teilen ein uv-Projekt und einen Tooling-Vertrag. |
 | `uv.lock` | Python-/Dokumentations-Toolchain | Am Root behalten: einziger Lockfile für das gemeinsame uv-Projekt; kein zweites Python-Toolingprojekt. |

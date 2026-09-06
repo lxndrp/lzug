@@ -31,14 +31,16 @@ operative Reihenfolge im GitHub Project `lzug Roadmap`.
 
 Wähle den Einstieg nach Aufgabe:
 
-- Das öffentliche [Produkt- und Dokumentationsportal](https://lzug.repertoire.papaspyrou.name)
+- Das öffentliche [Produkt- und Dokumentationsportal](https://lzug.repertoire.papaspyrou.name/)
 führt zu Produktinformation und Demo sowie zu Nutzer-, Betreiber- und Entwicklerdokumentation.
-- Die [Betreiberanleitung](docs/portal/betreiben.md) führt durch Installation,
-Bootstrap, Diagnose und das erste verifizierte Backup.
-- Das [Nutzerhandbuch](docs/handbook/Nutzung.md) erklärt die fachliche Arbeit nach Anmeldung.
+- Die öffentliche [Nutzungsdokumentation](https://lzug.repertoire.papaspyrou.name/nutzen/)
+erklärt die fachliche Arbeit nach Anmeldung.
+- Die öffentliche [Betreiberanleitung](https://lzug.repertoire.papaspyrou.name/betreiben/)
+führt durch Installation, Bootstrap, Diagnose und das erste verifizierte Backup.
 - [CONTRIBUTING.md](CONTRIBUTING.md) ist der Einstieg für Beiträge und lokale
 Entwicklung.
-- Das [Entwicklerhandbuch](docs/developers/index.md) enthält aktuelle
+- Das öffentliche [Entwicklerhandbuch](https://lzug.repertoire.papaspyrou.name/entwickeln/)
+enthält aktuelle
 technische Verträge, Runbooks, Referenzen und Entscheidungen.
 
 Das Repository ist die einzige kanonische Quelle.
