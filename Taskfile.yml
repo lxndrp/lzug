@@ -316,12 +316,14 @@ tasks:
   quality:backend:
     desc: Run backend lint, audit, tests, and coverage
     cmds:
-      - task: backend:complexity
-      - task: backend:typecheck
-      - task: backend:lint
-      - task: backend:format
-      - task: backend:audit
+      - task: backend:static
       - task: backend:coverage
+
+  quality:backend:pr:
+    desc: Run pull-request backend quality without coverage
+    cmds:
+      - task: backend:static
+      - task: test:backend
 
   quality:frontend:
     desc: Run frontend lint, build, and unit tests
@@ -549,6 +551,15 @@ tasks:
     cmds:
       - "{{.UV}} python -m ruff check ."
 
+  backend:static:
+    internal: true
+    cmds:
+      - task: backend:complexity
+      - task: backend:typecheck
+      - task: backend:lint
+      - task: backend:format
+      - task: backend:audit
+
   backend:complexity:
     desc: Report cyclomatic complexity of productive backend modules
     cmds:
@@ -579,6 +590,7 @@ tasks:
     cmds:
       - "{{.UV}} python -m coverage run -m unittest discover -s backend/tests"
       - "{{.UV}} python -m coverage report"
+      - "{{.UV}} python -m coverage xml"
 
   docs:handbook:
     internal: true
