@@ -1513,7 +1513,7 @@ class DatabaseTests(unittest.TestCase):
             db_path = Path(directory) / "retry.sqlite3"
             migration_directory = Path(directory) / "migrations"
             migration_directory.mkdir()
-            for migration in Path("db/migrations").glob("*.sql"):
+            for migration in Path("backend/db/migrations").glob("*.sql"):
                 shutil.copy(migration, migration_directory / migration.name)
             (migration_directory / "009_harden_migration_history.sql").write_text(
                 "BEGIN; ALTER TABLE missing_table ADD COLUMN broken TEXT; COMMIT;",
@@ -1561,7 +1561,7 @@ class DatabaseTests(unittest.TestCase):
                 )
 
             shutil.copy(
-                Path("db/migrations/009_harden_migration_history.sql"),
+                Path("backend/db/migrations/009_harden_migration_history.sql"),
                 migration_directory / "009_harden_migration_history.sql",
             )
             with patch("backend.database.MIGRATIONS_PATH", migration_directory):

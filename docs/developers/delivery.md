@@ -143,7 +143,8 @@ aus dem Hauptrepository:
 
 - Produkt- und Landingpage-Quellen;
 - Nutzer-, Betreiber- und Fachhandbuch unter `docs/handbook/` und `docs/portal/`;
-- technische Referenzen aus Docstrings/TSDoc, OpenAPI und `db/schema.sql`.
+- technische Referenzen aus Docstrings/TSDoc, OpenAPI und
+  `backend/db/schema.sql`.
 
 Der Build schreibt Repository- und Theme-Revision in `quellen.json`.
 `task docs:publication:check` erzeugt das Artefakt zweimal und verlangt

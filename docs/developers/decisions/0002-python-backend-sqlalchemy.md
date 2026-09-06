@@ -17,7 +17,9 @@ Der erste Backend-Prototyp entschied sich für Python, SQLite und SQLAlchemy 2.x
 
 HTTP- und Fachcode arbeiten über SQLAlchemy-Modelle, Repositories und einen kleinen Store-Adapter statt über handgeschriebene fachliche SQL-Abfragen.
 
-`backend/database.py` kapselt Engine, Sessions und Initialisierung; `models.py`, `repositories.py`, `store.py` und `planning.py` trennen Persistenz, Ressourcen und Planungslogik.
+`backend/src/backend/database.py` kapselt Engine, Sessions und Initialisierung;
+`models.py`, `repositories.py`, `store.py` und `planning.py` trennen Persistenz,
+Ressourcen und Planungslogik.
 
 ## Konsequenzen
 

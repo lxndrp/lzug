@@ -129,17 +129,18 @@ erDiagram
   Fach- oder Geheimnisdaten.
 
 Die fachliche Bedeutung liegt in den Services und ihren Tests, insbesondere
-unter `backend/planning.py`, `backend/exam_protocols.py`,
-`backend/exam_results.py`, `backend/exam_day_closures.py` und
-`backend/exam_round_lifecycle.py` sowie `backend/venue_consequences.py`.
+unter `backend/src/backend/planning.py`, `backend/src/backend/exam_protocols.py`,
+`backend/src/backend/exam_results.py`, `backend/src/backend/exam_day_closures.py`
+und `backend/src/backend/exam_round_lifecycle.py` sowie
+`backend/src/backend/venue_consequences.py`.
 Ändert sich eine Invariante, müssen Service, Persistenz, HTTP-Vertrag,
 Frontendverhalten und betroffene Tests gemeinsam geprüft werden.
 
 ## Persistenz und Migrationen
 
-`backend/models.py` bildet die Produktstruktur mit SQLAlchemy ab.
-`db/schema.sql` ist die ausführbare Referenz für eine neue Datenbank;
-`db/migrations/` entwickelt vorhandene Bestände geordnet vorwärts.
+`backend/src/backend/models.py` bildet die Produktstruktur mit SQLAlchemy ab.
+`backend/db/schema.sql` ist die ausführbare Referenz für eine neue Datenbank;
+`backend/db/migrations/` entwickelt vorhandene Bestände geordnet vorwärts.
 Die Laufzeit prüft Reihenfolge, Prüfsummen und Integrität der
 Migrationshistorie fail-closed.
 
@@ -188,7 +189,7 @@ Sein maschinenlesbarer Datenvertrag liegt unter
 Sie erzeugt OpenAPI direkt aus Routen, Request- und Responsemodellen sowie
 Sicherheitsdeklarationen; eine parallel gepflegte Spezifikation existiert
 nicht.
-`backend/server.py` startet dieselbe Anwendung, und die Demo ergänzt sie nur
+`backend/src/backend/server.py` startet dieselbe Anwendung, und die Demo ergänzt sie nur
 über ihre Runtime-Policy.
 
 `/api/health` ist ein öffentliches, fachinhaltsfreies Liveness-Signal.
@@ -239,7 +240,7 @@ Fehler und alle vom Angular-Client verwendeten Operationen mit der erzeugten
 Beschreibung.
 Der öffentliche Publikationsaufbau exportiert dieselbe Beschreibung
 revisionsgebunden als OpenAPI-JSON und erzeugt daneben eine deterministische
-Ansicht von `db/schema.sql`.
+Ansicht von `backend/db/schema.sql`.
 
 ## Lokaler Admin- und Artefaktvertrag
 

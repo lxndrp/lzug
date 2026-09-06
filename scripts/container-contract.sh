@@ -98,5 +98,5 @@ lzug_assert_runtime_user() {
 lzug_copy_build_metadata() {
     container=$1
     destination=$2
-    "$engine" exec "$container" cat /app/build-metadata.json > "$destination"
+    "$engine" exec "$container" cat /app/backend/src/build-metadata.json > "$destination"
 }

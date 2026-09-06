@@ -18,7 +18,7 @@ class ExamVenueMigrationTests(unittest.TestCase):
         db_path = directory / "legacy.sqlite3"
         migration_directory = directory / "migrations"
         migration_directory.mkdir()
-        for migration in Path("db/migrations").glob("*.sql"):
+        for migration in Path("backend/db/migrations").glob("*.sql"):
             if migration.name < "025_model_exam_venues.sql":
                 shutil.copy(migration, migration_directory / migration.name)
 

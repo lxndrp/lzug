@@ -11,7 +11,7 @@ on:
       - ".python-version"
       - "Taskfile.yml"
       - "backend/**"
-      - "db/schema.sql"
+      - "backend/db/schema.sql"
       - "docs/**"
       - "frontend/e2e/run-playwright.mjs"
       - "frontend/e2e/serve-publication.mjs"

@@ -36,7 +36,7 @@ Fachliche, Nutzungs- und Betreiberanleitungen liegen im Repository unter
 | Fachlichkeit, Nutzung und Betreiberverfahren | `docs/handbook/` und `docs/portal/` |
 | Planung, Umfang und Fortschritt | GitHub Issues, native Beziehungen, Milestones und Project-Felder |
 | HTTP-Vertrag | FastAPI-Routen und daraus erzeugte OpenAPI-Beschreibung |
-| Datenstruktur | SQLAlchemy-Modelle, `db/schema.sql` und `db/migrations/` |
+| Datenstruktur | SQLAlchemy-Modelle, `backend/db/schema.sql` und `backend/db/migrations/` |
 | Qualitäts- und Releaseautomation | `Taskfile.yml` und `.github/workflows/` |
 | Veröffentlichungshistorie | Tags, GitHub Releases und `CHANGELOG.md` |
 | Allgemeine Historie | Git-Revisionsgeschichte |

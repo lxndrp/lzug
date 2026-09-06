@@ -34,7 +34,7 @@ from .exam_venue_migration import (
 from .models import Base
 from .settings import PersistenceSettings, RuntimeSettings
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
+COMPONENT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATA_DIR = Path("/data")
 DEFAULT_DB_PATH = Path("/data/lzug.sqlite")
 DEFAULT_DOCUMENTS_PATH = Path("/data/documents")
@@ -47,8 +47,8 @@ REQUIRED_TABLES = frozenset(Base.metadata.tables) | {
     "schema_migration",
     "schema_migration_checksum",
 }
-SCHEMA_PATH = ROOT_DIR / "db" / "schema.sql"
-MIGRATIONS_PATH = ROOT_DIR / "db" / "migrations"
+SCHEMA_PATH = COMPONENT_ROOT / "db" / "schema.sql"
+MIGRATIONS_PATH = COMPONENT_ROOT / "db" / "migrations"
 
 
 class PersistenceConfigurationError(RuntimeError):

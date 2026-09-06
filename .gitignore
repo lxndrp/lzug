@@ -40,4 +40,4 @@ var/
 *.tfstate
 *.tfstate.*
 # Fixture SQL is generated for a build or test run and is never source data.
-/db/seed_*.sql
+/backend/db/seed_*.sql
