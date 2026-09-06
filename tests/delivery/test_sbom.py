@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import copy
+import json
+import subprocess
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts.sbom import (
     CYCLONEDX_SPEC_VERSION,
@@ -12,6 +15,7 @@ from scripts.sbom import (
     configured_syft_version,
     dependency_command,
     go_module_contract,
+    go_module_graph,
     validate_cli,
     validate_dependencies,
     validate_image,
@@ -83,11 +87,11 @@ class SbomContractTests(unittest.TestCase):
             component("rxjs", "7.8.2", "pkg:npm/rxjs@7.8.2", "Apache-2.0"),
         )
 
-        summary = validate_dependencies(report, "module example.invalid/lzug\n\ngo 1.26\n")
+        summary = validate_dependencies(report, "module example.invalid/lzug\n\ngo 1.26\n", set())
 
         self.assertEqual({"npm": 1, "pypi": 2}, summary["purl_types"])
         self.assertEqual(["Jinja2@3.1.6"], summary["python_missing_license_metadata"])
-        self.assertEqual("go.mod declares no third-party modules", summary["go_boundary"])
+        self.assertEqual("Go resolves no third-party modules", summary["go_boundary"])
 
     def test_missing_npm_license_fails_closed(self) -> None:
         report = payload(
@@ -96,7 +100,82 @@ class SbomContractTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(ValueError, "npm components without license metadata"):
-            validate_dependencies(report, "module example.invalid/lzug\n\ngo 1.26\n")
+            validate_dependencies(report, "module example.invalid/lzug\n\ngo 1.26\n", set())
+
+    def test_go_module_graph_uses_all_modules_resolved_by_go(self) -> None:
+        graph = "\n".join(
+            json.dumps(module)
+            for module in (
+                {"Path": "github.com/lxndrp/lzug/operator-cli", "Main": True},
+                {"Path": "filippo.io/age", "Version": "v1.3.2"},
+                {"Path": "c2sp.org/CCTV/age", "Version": "v0.0.0-test"},
+            )
+        )
+        with patch(
+            "scripts.sbom.subprocess.run",
+            return_value=subprocess.CompletedProcess(["go"], 0, graph, ""),
+        ) as run:
+            main, modules = go_module_graph(
+                "module github.com/lxndrp/lzug/operator-cli\n\ngo 1.26\n",
+                go_sum=("filippo.io/age v1.3.2 h1:test\nc2sp.org/CCTV/age v0.0.0-test h1:test\n"),
+            )
+
+        self.assertEqual("github.com/lxndrp/lzug/operator-cli", main)
+        self.assertEqual({"filippo.io/age", "c2sp.org/CCTV/age"}, modules)
+        run.assert_called_once_with(
+            ["go", "list", "-mod=readonly", "-m", "-json", "all"],
+            cwd=Path("operator-cli").resolve(),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    def test_transitive_go_modules_from_the_resolved_graph_are_accepted(self) -> None:
+        report = payload(
+            component("lzug", "0.1.0", "pkg:pypi/lzug@0.1.0", "AGPL-3.0-or-later"),
+            component("rxjs", "7.8.2", "pkg:npm/rxjs@7.8.2", "Apache-2.0"),
+            component(
+                "example.invalid/direct",
+                "v1.0.0",
+                "pkg:golang/example.invalid/direct@v1.0.0",
+            ),
+            component(
+                "example.invalid/transitive",
+                "v1.0.0",
+                "pkg:golang/example.invalid/transitive@v1.0.0",
+            ),
+        )
+
+        summary = validate_dependencies(
+            report,
+            "module example.invalid/lzug\n\ngo 1.26\n\nrequire example.invalid/direct v1.0.0\n",
+            {"example.invalid/direct", "example.invalid/transitive"},
+        )
+
+        self.assertEqual("2 resolved third-party module components", summary["go_boundary"])
+
+    def test_go_module_outside_the_resolved_graph_is_rejected(self) -> None:
+        report = payload(
+            component("lzug", "0.1.0", "pkg:pypi/lzug@0.1.0", "AGPL-3.0-or-later"),
+            component("rxjs", "7.8.2", "pkg:npm/rxjs@7.8.2", "Apache-2.0"),
+            component(
+                "example.invalid/direct",
+                "v1.0.0",
+                "pkg:golang/example.invalid/direct@v1.0.0",
+            ),
+            component(
+                "example.invalid/foreign",
+                "v1.0.0",
+                "pkg:golang/example.invalid/foreign@v1.0.0",
+            ),
+        )
+
+        with self.assertRaisesRegex(ValueError, "undeclared Go modules: example.invalid/foreign"):
+            validate_dependencies(
+                report,
+                "module example.invalid/lzug\n\ngo 1.26\n",
+                {"example.invalid/direct"},
+            )
 
     def test_declared_go_modules_must_be_present(self) -> None:
         report = payload(
@@ -104,10 +183,11 @@ class SbomContractTests(unittest.TestCase):
             component("rxjs", "7.8.2", "pkg:npm/rxjs@7.8.2", "Apache-2.0"),
         )
 
-        with self.assertRaisesRegex(ValueError, "go.mod modules missing"):
+        with self.assertRaisesRegex(ValueError, "Go module graph modules missing"):
             validate_dependencies(
                 report,
                 "module example.invalid/lzug\n\ngo 1.26\n\nrequire example.invalid/lib v1.0.0\n",
+                {"example.invalid/lib"},
             )
 
     def test_dependency_sbom_tolerates_main_module_from_concurrent_cli_build(self) -> None:
@@ -123,10 +203,10 @@ class SbomContractTests(unittest.TestCase):
         )
 
         summary = validate_dependencies(
-            report, "module github.com/lxndrp/lzug/operator-cli\n\ngo 1.26\n"
+            report, "module github.com/lxndrp/lzug/operator-cli\n\ngo 1.26\n", set()
         )
 
-        self.assertEqual("go.mod declares no third-party modules", summary["go_boundary"])
+        self.assertEqual("Go resolves no third-party modules", summary["go_boundary"])
 
     def test_cli_sbom_requires_main_module_runtime_and_declared_dependencies(self) -> None:
         report = payload(
@@ -140,7 +220,9 @@ class SbomContractTests(unittest.TestCase):
         )
         report["metadata"]["component"]["type"] = "file"
 
-        summary = validate_cli(report, "module github.com/lxndrp/lzug/operator-cli\n\ngo 1.26\n")
+        summary = validate_cli(
+            report, "module github.com/lxndrp/lzug/operator-cli\n\ngo 1.26\n", set()
+        )
 
         self.assertEqual("lzug-admin-linux-amd64", summary["artifact"])
         self.assertEqual(2, summary["go_components"])
