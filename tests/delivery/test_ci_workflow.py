@@ -195,6 +195,16 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("npm --prefix frontend run test:a11y", self.quality)
         self.assertIn("npm --prefix frontend run test:ui-review", self.quality)
 
+    def test_backend_pr_quality_omits_coverage_but_complete_quality_retains_it(self) -> None:
+        pull_request_backend = job_block(self.pull_request, "backend")
+        quality_backend = job_block(self.quality, "backend")
+
+        self.assertIn("task quality:backend:pr", pull_request_backend)
+        self.assertNotIn("coverage", pull_request_backend)
+        self.assertIn("task quality:backend", quality_backend)
+        self.assertNotIn("coverage xml", quality_backend)
+        self.assertIn("name: backend-coverage", quality_backend)
+
     def test_release_and_both_promotion_channels_reject_wrong_quality_evidence(self) -> None:
         sha = "a" * 40
         valid = {
