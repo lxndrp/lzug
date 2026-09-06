@@ -31,8 +31,9 @@ vollständigen Quality-Lauf.
 Vor einem Release ist dieser Lauf manuell für die exakte aktuelle Master-SHA
 zu erzeugen; der Release konsumiert ausschließlich diese Evidenz.
 Source-Scan und CodeQL ergänzen die fachlichen Gates.
-CodeQL analysiert nur betroffene Sprachen; globale und unbekannte Änderungen
-wählen alle drei Sprachen.
+CodeQL ist bewusst nicht pfadselektiv und analysiert in jedem Pull Request
+alle auf `master` konfigurierten Sprachen (`python`, `javascript-typescript`
+und `go`).
 Unveränderte SARIF-Baselines werden nicht auf den PR übertragen.
 Source-Scan überspringt reine Dokumentationsprosa; ausführbare Quellen,
 Konfiguration und unbekannte Änderungen bleiben prüfpflichtig.

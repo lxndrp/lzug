@@ -53,29 +53,21 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("golang-x-security:", self.dependabot_config)
         self.assertIn("directory: /operator-cli", self.dependabot_config)
 
-    def test_pull_request_codeql_matrix_uses_selected_languages(self) -> None:
+    def test_pull_request_codeql_matrix_covers_all_configured_languages(self) -> None:
         self.assertIn(
             "language: ${{ fromJSON(inputs.languages) }}",
             self.codeql,
         )
         self.assertIn(
+            'codeql_languages: \'["python","javascript-typescript","go"]\'',
+            job_block(self.pull_request, "changes"),
+        )
+        self.assertIn(
             "languages: ${{ needs.changes.outputs.codeql_languages }}",
             self.pull_request,
         )
-        for path in (
-            "'**/*.py'",
-            "'pyproject.toml'",
-            "'uv.lock'",
-            "'**/*.ts'",
-            "'frontend/.node-version'",
-            "'frontend/package.json'",
-            "'frontend/package-lock.json'",
-            "'**/*.go'",
-            "'operator-cli/go.mod'",
-            "'.github/workflows/ci.yml'",
-        ):
-            with self.subTest(path=path):
-                self.assertIn(f"- {path}", self.pull_request)
+        self.assertNotIn("name: Select CodeQL languages", self.pull_request)
+        self.assertNotIn("steps.codeql.outputs.changes", self.pull_request)
         self.assertIn(
             'languages: \'["python","javascript-typescript","go"]\'',
             self.quality,

@@ -27,7 +27,7 @@ jobs:
       infra: ${{ steps.domains.outputs.infra == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       delivery: ${{ steps.domains.outputs.delivery == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       source_scan: ${{ steps.domains.outputs.source_scan == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
-      codeql_languages: ${{ (steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true') && '["python","javascript-typescript","go"]' || steps.codeql.outputs.changes }}
+      codeql_languages: '["python","javascript-typescript","go"]'
     steps:
       - name: Select known domains
         id: domains
@@ -115,42 +115,6 @@ jobs:
               - 'operator-cli/go.sum'
               - 'scripts/build_metadata.py'
               - 'scripts/sbom.py'
-
-      - name: Select CodeQL languages
-        id: codeql
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        with:
-          filters: |
-            python:
-              - '**/*.py'
-              - '.python-version'
-              - 'pyproject.toml'
-              - 'uv.lock'
-              - '.github/workflows/ci.yml'
-              - '.github/workflows/pull-request.yml'
-              - '.github/workflows/quality.yml'
-            javascript-typescript:
-              - '**/*.cjs'
-              - '**/*.js'
-              - '**/*.jsx'
-              - '**/*.mjs'
-              - '**/*.ts'
-              - '**/*.tsx'
-              - 'frontend/.node-version'
-              - 'frontend/angular.json'
-              - 'frontend/package.json'
-              - 'frontend/package-lock.json'
-              - 'frontend/tsconfig*.json'
-              - '.github/workflows/ci.yml'
-              - '.github/workflows/pull-request.yml'
-              - '.github/workflows/quality.yml'
-            go:
-              - '**/*.go'
-              - 'operator-cli/go.mod'
-              - 'operator-cli/go.sum'
-              - '.github/workflows/ci.yml'
-              - '.github/workflows/pull-request.yml'
-              - '.github/workflows/quality.yml'
 
       - name: Detect unknown paths
         id: unknown
