@@ -13,7 +13,7 @@ from docs.publication import (
     public_url,
     publication_base_url,
 )
-from tests.delivery.workflow_contract import job_block, mapping_block, trigger_block, workflow_text
+from tests.delivery.workflow_contract import job_block, trigger_block, workflow_text
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -216,13 +216,21 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn('"frontend/tsconfig*.json"', triggers)
         self.assertNotIn("--no-sandbox", build)
 
-    def test_browser_selection_targets_site_sources_not_generated_api_references(self) -> None:
+    def test_browser_checks_run_only_before_manual_publication(self) -> None:
         workflow = workflow_text(".github/workflows/publication.yml")
-        browser = mapping_block(workflow, "browser", indent=12)
-        self.assertIn("'docs/publication/**'", browser)
-        self.assertIn("'frontend/publication-e2e/**'", browser)
-        self.assertNotIn("'backend/**'", browser)
-        self.assertNotIn("'frontend/src/**'", browser)
+        build = job_block(workflow, "build")
+        self.assertNotIn("paths-filter", workflow)
+        self.assertIn(
+            "Check responsive themes and warm-up flow with Playwright\n"
+            "        if: github.event_name == 'workflow_dispatch'",
+            build,
+        )
+        self.assertIn(
+            "Check public-site accessibility with Playwright and axe\n"
+            "        if: github.event_name == 'workflow_dispatch'",
+            build,
+        )
+        self.assertNotIn("steps.changes", build)
 
 
 if __name__ == "__main__":

@@ -10,9 +10,6 @@ permissions:
   contents: read
   pull-requests: read
 
-env:
-  IMAGE_REF: lzug:0.0.0-dev.local
-
 concurrency:
   group: pr-${{ github.ref }}
   cancel-in-progress: true
@@ -22,16 +19,13 @@ jobs:
     name: Select quality domains
     runs-on: ubuntu-latest
     outputs:
-      fixtures: ${{ steps.domains.outputs.fixtures == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       docs: ${{ steps.domains.outputs.docs == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       backend: ${{ steps.domains.outputs.backend == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       frontend: ${{ steps.domains.outputs.frontend == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       cli: ${{ steps.domains.outputs.cli == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       container: ${{ steps.domains.outputs.container == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
-      browser: ${{ steps.domains.outputs.browser == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       infra: ${{ steps.domains.outputs.infra == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       delivery: ${{ steps.domains.outputs.delivery == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
-      visual: ${{ steps.domains.outputs.visual == 'true' }}
       source_scan: ${{ steps.domains.outputs.source_scan == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       codeql_languages: ${{ (steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true') && '["python","javascript-typescript","go"]' || steps.codeql.outputs.changes }}
     steps:
@@ -41,10 +35,6 @@ jobs:
         with:
           predicate-quantifier: some-with-excludes
           filters: |
-            fixtures:
-              - 'fixtures/synthetic-fixtures.json'
-              - 'fixtures/generate.py'
-              - 'frontend/src/app/testing/synthetic-fixtures.generated.ts'
             docs:
               - '.github/workflows/publication.yml'
               - '.lychee.toml'
@@ -105,30 +95,6 @@ jobs:
               - 'scripts/build-frontend.sh'
               - 'scripts/demo-container-smoke.sh'
               - 'fixtures/generate.py'
-            browser:
-              - 'brand/**'
-              - 'demo/**'
-              - 'scripts/build-frontend.sh'
-              - 'backend/**'
-              - 'db/**'
-              - 'fixtures/**'
-              - 'frontend/src/**'
-              - 'frontend/e2e/**'
-              - 'frontend/playwright*.ts'
-              - 'frontend/demo-overlays/**'
-              - 'frontend/public/**'
-              - '!backend/tests/**'
-              - '!frontend/src/**/*.spec.ts'
-            visual:
-              - 'brand/**'
-              - 'frontend/src/**/*.html'
-              - 'frontend/src/**/*.scss'
-              - 'frontend/src/**/*.css'
-              - 'frontend/src/**/*.component.ts'
-              - 'frontend/public/**'
-              - 'frontend/demo-overlays/**'
-              - 'frontend/e2e/ui-review.spec.ts'
-              - 'frontend/playwright.ui-review.config.ts'
             source_scan:
               - '**'
               - '!**/*.md'
@@ -243,23 +209,6 @@ jobs:
               - '!pyproject.toml'
               - '!uv.lock'
 
-  fixtures:
-    name: Synthetic fixture adapters
-    needs: changes
-    if: needs.changes.outputs.fixtures == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: "3.14.6"
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-      - run: uv sync --locked --extra dev
-      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
-        with:
-          version: 3.52.0
-      - run: task fixtures:check test:fixtures
-
   docs:
     name: Documentation details
     needs: changes
@@ -369,7 +318,7 @@ jobs:
         run: task quality:operator
 
   delivery:
-    name: Delivery and demo contracts
+    name: Delivery and tooling contracts
     needs: changes
     if: needs.changes.outputs.delivery == 'true'
     runs-on: ubuntu-latest
@@ -385,7 +334,7 @@ jobs:
         with:
           version: 3.52.0
       - run: uv sync --locked --extra dev
-      - run: task test:delivery test:demo test:tooling
+      - run: task test:delivery test:tooling
 
   container:
     name: Container details
@@ -400,48 +349,13 @@ jobs:
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version: "1.26.5"
-          cache: true
-          cache-dependency-path: operator-cli/go.sum
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
         with:
           version: 3.52.0
       - name: Install locked backend dependencies
         run: uv sync --locked --extra dev
-      - name: Download the pinned Syft binary
-        id: syft
-        uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
-        with:
-          syft-version: v1.51.0
-      - name: Build once and verify product packaging
-        env:
-          SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
-        run: task quality:oci quality:container quality:compose-config test:oci
-      - name: Generate and validate the dependency SBOM
-        env:
-          SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
-        run: task quality:sbom
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: lzug-sboms
-          path: |
-            build/quality/lzug.dependencies.sbom.cdx.json
-            build/quality/lzug.image.sbom.cdx.json
-          if-no-files-found: error
-          retention-days: 30
-      - name: Block high and critical image findings
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
-        with:
-          version: v0.69.3
-          image-ref: ${{ env.IMAGE_REF }}
-          scanners: vuln,secret,misconfig
-          vuln-type: os,library
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
-          hide-progress: true
+      - name: Validate lzug container contracts without building an image
+        run: task test:oci
 
   infra:
     name: Infrastructure details
@@ -465,100 +379,6 @@ jobs:
           version: 3.52.0
       - name: Validate and mock-plan the demo infrastructure
         run: task quality:infra
-
-  e2e:
-    name: Browser E2E details
-    needs: changes
-    if: needs.changes.outputs.browser == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: "3.14.6"
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          enable-cache: true
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version-file: frontend/.node-version
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Resolve Playwright version
-        id: playwright-version
-        run: node -e "console.log('version=' + require('./frontend/package-lock.json').packages['node_modules/@playwright/test'].version)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-browsers-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
-      - name: Install locked dependencies and browser engines
-        run: |
-          uv sync --locked --extra dev
-          npm ci --prefix frontend
-          cd frontend && npx playwright install --with-deps chromium
-      - name: Install visual matrix engines
-        if: needs.changes.outputs.visual == 'true'
-        run: cd frontend && npx playwright install --with-deps firefox webkit
-      - name: Enable the Chromium user-namespace sandbox
-        run: |
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          test "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns)" = 0
-      - name: Run browser end-to-end tests
-        run: npm --prefix frontend run test:e2e
-      - name: Run focused cross-browser UI review
-        if: needs.changes.outputs.visual == 'true'
-        run: npm --prefix frontend run test:ui-review
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        if: failure()
-        with:
-          name: playwright-e2e-report
-          path: frontend/playwright-report
-          if-no-files-found: warn
-          retention-days: 7
-
-  a11y:
-    name: Accessibility details
-    needs: changes
-    if: needs.changes.outputs.browser == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: "3.14.6"
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          enable-cache: true
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version-file: frontend/.node-version
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Resolve Playwright version
-        id: playwright-version
-        run: node -e "console.log('version=' + require('./frontend/package-lock.json').packages['node_modules/@playwright/test'].version)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
-      - name: Install locked dependencies and Chromium
-        run: |
-          uv sync --locked --extra dev
-          npm ci --prefix frontend
-          cd frontend && npx playwright install --with-deps chromium
-      - name: Enable the Chromium user-namespace sandbox
-        run: |
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          test "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns)" = 0
-      - name: Run accessibility tests
-        run: npm --prefix frontend run test:a11y
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        if: failure()
-        with:
-          name: playwright-a11y-report
-          path: frontend/playwright-report
-          if-no-files-found: warn
-          retention-days: 7
 
   codeql:
     needs: changes
@@ -610,19 +430,14 @@ jobs:
 
   backend-gate:
     name: Pull Request / Backend
-    needs: [changes, fixtures, backend, e2e, a11y, codeql, source-scan]
+    needs: [changes, backend, codeql, source-scan]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - env:
           CHANGES: ${{ needs.changes.result }}
-          FIXTURES_SELECTED: ${{ needs.changes.outputs.fixtures }}
-          FIXTURES: ${{ needs.fixtures.result }}
           SELECTED: ${{ needs.changes.outputs.backend }}
           DETAIL: ${{ needs.backend.result }}
-          BROWSER: ${{ needs.changes.outputs.browser }}
-          E2E: ${{ needs.e2e.result }}
-          A11Y: ${{ needs.a11y.result }}
           CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_languages != '[]' }}
           SCAN_SELECTED: ${{ needs.changes.outputs.source_scan }}
           CODEQL: ${{ needs.codeql.result }}
@@ -631,13 +446,11 @@ jobs:
           test "$CHANGES" = success
           test "$CODEQL_SELECTED:$CODEQL" = true:success || test "$CODEQL_SELECTED:$CODEQL" = false:skipped
           test "$SCAN_SELECTED:$SOURCE_SCAN" = true:success || test "$SCAN_SELECTED:$SOURCE_SCAN" = false:skipped
-          test "$FIXTURES_SELECTED:$FIXTURES" = true:success || test "$FIXTURES_SELECTED:$FIXTURES" = false:skipped
           test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
-          test "$BROWSER:$E2E:$A11Y" = true:success:success || test "$BROWSER:$E2E:$A11Y" = false:skipped:skipped
 
   frontend-gate:
     name: Pull Request / Frontend
-    needs: [changes, frontend, e2e, a11y, codeql, source-scan]
+    needs: [changes, frontend, codeql, source-scan]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -645,9 +458,6 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           SELECTED: ${{ needs.changes.outputs.frontend }}
           DETAIL: ${{ needs.frontend.result }}
-          BROWSER: ${{ needs.changes.outputs.browser }}
-          E2E: ${{ needs.e2e.result }}
-          A11Y: ${{ needs.a11y.result }}
           CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_languages != '[]' }}
           SCAN_SELECTED: ${{ needs.changes.outputs.source_scan }}
           CODEQL: ${{ needs.codeql.result }}
@@ -657,7 +467,6 @@ jobs:
           test "$CODEQL_SELECTED:$CODEQL" = true:success || test "$CODEQL_SELECTED:$CODEQL" = false:skipped
           test "$SCAN_SELECTED:$SOURCE_SCAN" = true:success || test "$SCAN_SELECTED:$SOURCE_SCAN" = false:skipped
           test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
-          test "$BROWSER:$E2E:$A11Y" = true:success:success || test "$BROWSER:$E2E:$A11Y" = false:skipped:skipped
 
   cli-gate:
     name: Pull Request / CLI

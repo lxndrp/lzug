@@ -20,7 +20,16 @@ Neue Skripte fallen ohne explizite Zuordnung in die vollständige Domänenauswah
 Ein nicht ausgewählter Bereich wird in seinem sichtbaren Gate ausdrücklich als
 `skipped` behandelt.
 
-Produktive Webänderungen wählen Browser-E2E und Accessibility getrennt.
+Produktive Webänderungen erhalten im PR Komponenten-, Build- und Security-Nachweise.
+Browser-E2E, Accessibility und die Cross-Browser-Matrix laufen ausschließlich
+im vollständigen Quality-Lauf.
+Der PR-Containerjob führt nur die lzug-eigenen statischen Verträge mit einer
+Fake-Engine aus; er baut kein Image und prüft weder Docker noch einen Scanner.
+Der tatsächliche OCI-Build, Image- und Runtime-Scan sowie Compose-, Upgrade- und
+Restore-Smokes gehören ebenso wie Fixture- und Demo-Komponententests zum
+vollständigen Quality-Lauf.
+Vor einem Release ist dieser Lauf manuell für die exakte aktuelle Master-SHA
+zu erzeugen; der Release konsumiert ausschließlich diese Evidenz.
 Source-Scan und CodeQL ergänzen die fachlichen Gates.
 CodeQL analysiert nur betroffene Sprachen; globale und unbekannte Änderungen
 wählen alle drei Sprachen.
@@ -194,7 +203,6 @@ Browser- und Accessibility-Prüfung laufen getrennt.
 nach manuellem Dispatch auf `master` und dem geschützten Environment
 `github-pages`.
 Master-Pushes erzeugen nur das Folgeartefakt; Browser- und A11y-Nachweise werden
-im PR bei Änderungen ihrer eigenen Site-, Browser- oder Toolchainquellen und
 vor manueller Veröffentlichung erbracht.
 Der geplante Site-Lauf prüft die Byte-Reproduzierbarkeit.
 

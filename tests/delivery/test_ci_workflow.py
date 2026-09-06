@@ -97,11 +97,6 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 "SOURCE_SCAN": "success",
                 "SELECTED": "true",
                 "DETAIL": "success",
-                "BROWSER": "true",
-                "E2E": "success",
-                "A11Y": "success",
-                "FIXTURES_SELECTED": "true",
-                "FIXTURES": "success",
                 "INFRA_SELECTED": "true",
                 "INFRA_DETAIL": "success",
                 "DELIVERY_SELECTED": "true",
@@ -123,9 +118,6 @@ class QualityWorkflowContractTests(unittest.TestCase):
                     "CODEQL",
                     "SOURCE_SCAN",
                     "DETAIL",
-                    "E2E",
-                    "A11Y",
-                    "FIXTURES",
                     "INFRA_DETAIL",
                     "DELIVERY",
                 ):
@@ -189,20 +181,19 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("inputs.revision", self.quality)
         self.assertIn("QUALITY_REVISION: ${{ github.sha }}", self.quality)
 
-    def test_visual_matrix_is_selected_only_by_visual_sources(self) -> None:
-        visual = mapping_block(job_block(self.pull_request, "changes"), "visual", indent=12)
-        self.assertIn("'frontend/src/**/*.component.ts'", visual)
-        self.assertIn("'frontend/src/**/*.scss'", visual)
-        self.assertNotIn("backend/", visual)
-        self.assertNotIn(
-            "steps.domains.outputs.full",
-            next(
-                line for line in self.pull_request.splitlines() if line.startswith("      visual:")
-            ),
-        )
-        browser = mapping_block(job_block(self.pull_request, "changes"), "browser", indent=12)
-        self.assertIn("'frontend/e2e/**'", browser)
-        self.assertNotIn("'!frontend/**/*.spec.ts'", browser)
+    def test_pr_defers_product_browser_packaging_and_demo_checks_to_quality(self) -> None:
+        self.assertNotIn("\n  fixtures:\n", self.pull_request)
+        self.assertNotIn("\n  e2e:\n", self.pull_request)
+        self.assertNotIn("\n  a11y:\n", self.pull_request)
+        self.assertNotIn("quality:oci", job_block(self.pull_request, "container"))
+        self.assertNotIn("quality:container", job_block(self.pull_request, "container"))
+        self.assertNotIn("task test:demo", job_block(self.pull_request, "delivery"))
+        self.assertIn("task test:oci", job_block(self.pull_request, "container"))
+        self.assertIn("task fixtures:check test:fixtures", self.quality)
+        self.assertIn("quality:oci quality:container quality:compose", self.quality)
+        self.assertIn("npm --prefix frontend run test:e2e", self.quality)
+        self.assertIn("npm --prefix frontend run test:a11y", self.quality)
+        self.assertIn("npm --prefix frontend run test:ui-review", self.quality)
 
     def test_release_and_both_promotion_channels_reject_wrong_quality_evidence(self) -> None:
         sha = "a" * 40
