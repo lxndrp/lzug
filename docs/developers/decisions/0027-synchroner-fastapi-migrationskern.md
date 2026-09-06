@@ -58,4 +58,4 @@ Dieses Risiko ist für eine schrittweise, rückfallfähige Migration unnötig.
 - [ADR-0006: HTTP-API als OpenAPI-Vertrag](0006-openapi-http-vertrag.md)
 - [Backend](../components.md#backend)
 - [FastAPI: Nebenläufigkeit und `def`-Funktionen](https://fastapi.tiangolo.com/async/)
-- [Starlette: Thread Pool](https://www.starlette.io/threadpool/)
+- [Starlette: Thread Pool](https://github.com/Kludex/starlette/blob/main/starlette/concurrency.py)

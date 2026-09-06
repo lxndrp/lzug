@@ -8,6 +8,7 @@ from pathlib import Path
 from docs.publication import (
     PUBLICATION_BASE_URL,
     convert_handbook_links,
+    convert_repository_links,
     handbook_route,
     public_url,
     publication_base_url,
@@ -106,6 +107,38 @@ class PublicationDeliveryContractTests(unittest.TestCase):
             with self.subTest(relative=relative):
                 self.assertTrue((ROOT / "docs/publication" / relative).is_file())
 
+    def test_readme_uses_public_portal_entrypoints_for_reader_audiences(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        for route in ("/", "/nutzen/", "/betreiben/", "/entwickeln/"):
+            with self.subTest(route=route):
+                self.assertIn(
+                    f"https://lzug.repertoire.papaspyrou.name{route}",
+                    readme,
+                )
+        for repository_link in (
+            "docs/portal/betreiben.md",
+            "docs/handbook/Nutzung.md",
+            "docs/developers/index.md",
+            "docs/migrations/wiki-2026-09-03.md",
+        ):
+            with self.subTest(repository_link=repository_link):
+                self.assertNotIn(repository_link, readme)
+
+    def test_generated_public_site_has_one_canonical_linkcheck_entry(self) -> None:
+        config = (ROOT / ".lychee.toml").read_text(encoding="utf-8")
+        taskfile = (ROOT / "Taskfile.yml").read_text(encoding="utf-8")
+        workflow = workflow_text(".github/workflows/publication.yml")
+
+        self.assertIn("timeout = 20", config)
+        self.assertIn("max_retries = 2", config)
+        self.assertIn("retry_wait_time = 2", config)
+        self.assertIn('include_fragments = "full"', config)
+        self.assertIn(r"^https://demo\\.example\\.invalid(?:/|$)", config)
+        self.assertIn("docs:publication:linkcheck:", taskfile)
+        self.assertIn("lychee --config .lychee.toml", taskfile)
+        self.assertIn("task docs:publication:linkcheck", workflow)
+        self.assertIn('".lychee.toml"', workflow)
+
     def test_repository_handbook_routes_are_rendered_without_a_wiki_checkout(self) -> None:
         self.assertEqual("/handbuch/", handbook_route(Path("Home.md")))
         self.assertEqual("/nutzen/grundbegriffe/", handbook_route(Path("Nutzung-Grundbegriffe.md")))
@@ -118,6 +151,16 @@ class PublicationDeliveryContractTests(unittest.TestCase):
             convert_handbook_links(
                 "[Nutzung](Nutzung#details)",
                 {"Home": "/handbuch/", "Nutzung": "/nutzen/"},
+            ),
+        )
+
+    def test_publication_remaps_source_fragments_to_rendered_relearn_anchors(self) -> None:
+        self.assertEqual(
+            "[Qualität](/entwickeln/delivery/#vollständige-qualität)",
+            convert_repository_links(
+                "[Qualität](../delivery.md#vollstandige-qualitat)",
+                Path("docs/developers/decisions/example.md"),
+                {"docs/developers/delivery.md": "/entwickeln/delivery/"},
             ),
         )
 
@@ -161,7 +204,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d", deploy)
         self.assertIn("enablement: false", deploy)
         self.assertIn("-- task docs:publication:check DEMO_URL=", build)
-        self.assertIn("-- task docs:publication DEMO_URL=", build)
+        self.assertIn("-- task docs:publication:linkcheck DEMO_URL=", build)
         self.assertNotIn("Checkout canonical Wiki", workflow)
         self.assertNotIn("WIKI_ROOT", workflow)
         self.assertIn("if: github.event_name == 'schedule'", build)

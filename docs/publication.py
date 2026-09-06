@@ -26,6 +26,10 @@ RELEARN_REVISION = "8bb66fa674351f3a0b0917a7552caac686eca920"
 PUBLICATION_BASE_URL = "https://lzug.repertoire.papaspyrou.name"
 INHERITED_PUBLIC_HOSTS = frozenset({"lxndrp.github.io", "stage.papaspyrou.name"})
 MARKDOWN_LINK = re.compile(r"(?P<prefix>\[[^\]]+\]\()(?P<target>[^)]+)(?P<suffix>\))")
+PUBLICATION_FRAGMENT_REMAP = {
+    "vollstandige-qualitat": "vollständige-qualität",
+    "lokaler-admin-und-artefaktvertrag": "lokaler-admin--und-artefaktvertrag",
+}
 EXPECTED_OUTPUTS = (
     "index.html",
     "images/favicon.svg",
@@ -43,6 +47,7 @@ EXPECTED_OUTPUTS = (
     "referenz/backend/index.html",
     "referenz/frontend/index.html",
     "referenz/datenbank/index.html",
+    "entwickeln/reference/full-export-v1.schema.json",
     "quellen/index.html",
     "quellen.json",
     "searchindex.de.js",
@@ -111,7 +116,7 @@ def convert_repository_links(markdown: str, source: Path, source_routes: dict[st
         if route is None:
             return match.group(0)
         if separator:
-            route += f"#{fragment}"
+            route += f"#{PUBLICATION_FRAGMENT_REMAP.get(fragment, fragment)}"
         return f"{match.group('prefix')}{route}{match.group('suffix')}"
 
     return MARKDOWN_LINK.sub(replace, markdown)
@@ -265,6 +270,10 @@ def configure_relearn(root: Path, site: Path, base_url: str, demo_url: str) -> N
             root / "brand" / "derived" / name,
             site / "static" / "images" / "brand" / name,
         )
+    schema_source = root / "docs" / "developers" / "reference" / "full-export-v1.schema.json"
+    schema_target = site / "static" / "entwickeln" / "reference" / schema_source.name
+    schema_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(schema_source, schema_target)
     shutil.copyfile(
         root / "brand" / "derived" / "favicon.svg",
         site / "static" / "images" / "favicon.svg",
@@ -323,6 +332,9 @@ def write_content(root: Path, site: Path, repository_revision: str) -> None:
         "docs/developers/reference/backend.md": "/referenz/backend/",
         "docs/developers/reference/frontend.md": "/referenz/frontend/",
         "docs/developers/reference/cli.md": "/referenz/cli/",
+        "docs/developers/reference/full-export-v1.schema.json": (
+            "/entwickeln/reference/full-export-v1.schema.json"
+        ),
     }
     source_routes["docs/developers/index.md"] = "/entwickeln/"
     source_routes["docs/developers/decisions/index.md"] = "/entwickeln/entscheidungen/"

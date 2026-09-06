@@ -21,5 +21,5 @@ Sobald der Zustand erreicht ist,
 verschwindet der Hinweis wieder.
 Es gibt keinen allgemeinen Fortschritts- oder Tourzustand in einer produktiven Instanz.
 
-Für die Begriffe und vollständigen Abläufe nutzen Sie das [Nutzerhandbuch](/nutzen/ueberblick/)
+Für die Begriffe und vollständigen Abläufe nutzen Sie das [Nutzerhandbuch](/nutzen/nutzung/)
 und die fachlichen Grundlagen im [Handbuch](/fachlichkeit/fachlichkeit/).

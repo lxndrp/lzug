@@ -149,6 +149,11 @@ aus dem Hauptrepository:
 Der Build schreibt Repository- und Theme-Revision in `quellen.json`.
 `task docs:publication:check` erzeugt das Artefakt zweimal und verlangt
 Byte-Identität.
+`task docs:publication:linkcheck` baut dasselbe vollständige Artefakt und prüft
+HTML-Routen, Assets und Fragmente mit Lychee.
+Die Sitemap-XML bleibt ausgenommen, weil ihre von Hugo erzeugten
+`index.html`-Referenzen nicht die kanonischen öffentlichen Seitenrouten sind;
+die eigentlichen HTML-Routen werden vollständig geprüft.
 Browser- und Accessibility-Prüfung laufen getrennt.
 `.github/workflows/publication.yml` baut bei relevanten Pull Requests und
 `master`-Pushes nur ein Artefakt; ein Pages-Deployment erfolgt ausschließlich
