@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from icalendar import Calendar, Event
 from sqlalchemy import select
 
 from .authorization import AuthorizationScope
@@ -47,16 +48,6 @@ def _parse_local(value: str, time_zone: ZoneInfo) -> datetime:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=time_zone)
     return parsed.astimezone(time_zone)
-
-
-def _ics_escape(value: str) -> str:
-    return (
-        value.replace("\\", "\\\\")
-        .replace(";", "\\;")
-        .replace(",", "\\,")
-        .replace("\r\n", "\\n")
-        .replace("\n", "\\n")
-    )
 
 
 class CalendarService:
@@ -525,33 +516,26 @@ class CalendarService:
         return f"{self.external_url}{path}" if self.external_url else path
 
     def _calendar(self, events: list[CalendarEvent], name: str) -> str:
-        lines = [
-            "BEGIN:VCALENDAR",
-            "VERSION:2.0",
-            "PRODID:-//lzug//Personal Calendar//EN",
-            "CALSCALE:GREGORIAN",
-            "METHOD:PUBLISH",
-            f"X-WR-CALNAME:{_ics_escape(name)}",
-        ]
+        calendar = Calendar()
+        calendar.add("VERSION", "2.0")
+        calendar.add("PRODID", "-//lzug//Personal Calendar//EN")
+        calendar.add("CALSCALE", "GREGORIAN")
+        calendar.add("METHOD", "PUBLISH")
+        calendar.add("X-WR-CALNAME", name)
         for event in events:
             zone = ZoneInfo(event.time_zone)
             start = _parse_local(event.starts_at, zone)
             end = _parse_local(event.ends_at, zone)
             description = f"Rolle: {event.role}\nDetails: {event.secure_reference}"
-            lines.extend(
-                [
-                    "BEGIN:VEVENT",
-                    f"UID:{_ics_escape(event.external_event_id)}@lzug",
-                    f"SEQUENCE:{event.version}",
-                    f"DTSTAMP:{_now().strftime('%Y%m%dT%H%M%SZ')}",
-                    f"DTSTART;TZID={event.time_zone}:{start.strftime('%Y%m%dT%H%M%S')}",
-                    f"DTEND;TZID={event.time_zone}:{end.strftime('%Y%m%dT%H%M%S')}",
-                    f"SUMMARY:{_ics_escape(event.round_name + ' – ' + event.role)}",
-                    f"LOCATION:{_ics_escape(event.location)}",
-                    f"DESCRIPTION:{_ics_escape(description)}",
-                    f"STATUS:{'CANCELLED' if event.status == 'cancelled' else 'CONFIRMED'}",
-                    "END:VEVENT",
-                ]
-            )
-        lines.append("END:VCALENDAR")
-        return "\r\n".join(lines) + "\r\n"
+            component = Event()
+            component.add("UID", f"{event.external_event_id}@lzug")
+            component.add("SEQUENCE", event.version)
+            component.add("DTSTAMP", _now())
+            component.add("DTSTART", start)
+            component.add("DTEND", end)
+            component.add("SUMMARY", event.round_name + " – " + event.role)
+            component.add("LOCATION", event.location)
+            component.add("DESCRIPTION", description)
+            component.add("STATUS", "CANCELLED" if event.status == "cancelled" else "CONFIRMED")
+            calendar.add_component(component)
+        return calendar.to_ical().decode("utf-8")
