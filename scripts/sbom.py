@@ -81,11 +81,7 @@ def dependency_command(output: Path, source_version: str, executable: str = "syf
         "--source-version",
         source_version,
         "--override-default-catalogers",
-        (
-            "python-installed-package-cataloger,"
-            "javascript-lock-cataloger,"
-            "go-module-file-cataloger"
-        ),
+        ("python-installed-package-cataloger,javascript-lock-cataloger,go-module-file-cataloger"),
         "--exclude",
         "./.git/**",
         "--exclude",
@@ -360,6 +356,61 @@ def go_module_contract(go_mod: str) -> tuple[str, set[str]]:
     return module_match.group(1), required
 
 
+def go_sum_module_names(go_sum: str) -> set[str]:
+    """Return module paths anchored by entries in go.sum."""
+
+    modules: set[str] = set()
+    for raw_line in go_sum.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        fields = line.split()
+        if len(fields) != 3 or not fields[0] or not fields[1] or not fields[2]:
+            raise ValueError("go.sum contains an invalid module checksum entry")
+        modules.add(fields[0].removesuffix("/go.mod"))
+    return modules
+
+
+def go_module_graph(
+    go_mod: str,
+    module_dir: Path = ROOT / "operator-cli",
+    go_sum: str | None = None,
+) -> tuple[str, set[str]]:
+    """Return the main module and lockfile-backed modules from Go's full graph."""
+
+    main_module, _ = go_module_contract(go_mod)
+    result = subprocess.run(
+        ["go", "list", "-mod=readonly", "-m", "-json", "all"],
+        cwd=module_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    decoder = json.JSONDecoder()
+    modules: list[dict[str, Any]] = []
+    position = 0
+    while position < len(result.stdout):
+        while position < len(result.stdout) and result.stdout[position].isspace():
+            position += 1
+        if position == len(result.stdout):
+            break
+        try:
+            module, position = decoder.raw_decode(result.stdout, position)
+        except json.JSONDecodeError as error:
+            raise ValueError("go list returned an invalid module graph") from error
+        if not isinstance(module, dict) or not isinstance(module.get("Path"), str):
+            raise ValueError("go list returned an invalid module entry")
+        modules.append(module)
+
+    graph_modules = {module["Path"] for module in modules}
+    main_modules = {module["Path"] for module in modules if module.get("Main") is True}
+    if main_modules != {main_module} or main_module not in graph_modules:
+        raise ValueError("go list module graph does not identify the declared main module")
+    if go_sum is None:
+        go_sum = (module_dir / "go.sum").read_text(encoding="utf-8")
+    return main_module, (graph_modules & go_sum_module_names(go_sum)) - {main_module}
+
+
 def go_component_names(components: list[dict[str, Any]]) -> set[str]:
     """Return normalized Go package names represented by CycloneDX components."""
 
@@ -370,7 +421,9 @@ def go_component_names(components: list[dict[str, Any]]) -> set[str]:
     }
 
 
-def validate_dependencies(payload: dict[str, Any], go_mod: str) -> dict[str, Any]:
+def validate_dependencies(
+    payload: dict[str, Any], go_mod: str, go_modules: set[str] | None = None
+) -> dict[str, Any]:
     """Validate the dependency-review SBOM and return its visible review summary."""
 
     components = validate_common(payload)
@@ -401,15 +454,18 @@ def validate_dependencies(payload: dict[str, Any], go_mod: str) -> dict[str, Any
     if len(project_components) != 1 or not component_has_license(project_components[0]):
         raise ValueError("dependency SBOM must contain one licensed lzug Python distribution")
 
-    main_module, required_go_modules = go_module_contract(go_mod)
+    main_module, _ = go_module_contract(go_mod)
+    if go_modules is None:
+        _, go_modules = go_module_graph(go_mod)
     represented_go_modules = go_component_names(components)
     external_go_modules = represented_go_modules - {main_module, "stdlib"}
-    missing_go_modules = sorted(required_go_modules - represented_go_modules)
+    missing_go_modules = sorted(go_modules - represented_go_modules)
     if missing_go_modules:
         raise ValueError(
-            "go.mod modules missing from the dependency SBOM: " + ", ".join(missing_go_modules)
+            "Go module graph modules missing from the dependency SBOM: "
+            + ", ".join(missing_go_modules)
         )
-    unexpected_go_modules = sorted(external_go_modules - required_go_modules)
+    unexpected_go_modules = sorted(external_go_modules - go_modules)
     if unexpected_go_modules:
         raise ValueError(
             "dependency SBOM contains undeclared Go modules: " + ", ".join(unexpected_go_modules)
@@ -427,14 +483,16 @@ def validate_dependencies(payload: dict[str, Any], go_mod: str) -> dict[str, Any
         "purl_types": dict(sorted(counts.items())),
         "python_missing_license_metadata": python_missing_licenses,
         "go_boundary": (
-            f"{len(required_go_modules)} declared third-party module components"
-            if required_go_modules
-            else "go.mod declares no third-party modules"
+            f"{len(go_modules)} resolved third-party module components"
+            if go_modules
+            else "Go resolves no third-party modules"
         ),
     }
 
 
-def validate_cli(payload: dict[str, Any], go_mod: str) -> dict[str, Any]:
+def validate_cli(
+    payload: dict[str, Any], go_mod: str, go_modules: set[str] | None = None
+) -> dict[str, Any]:
     """Validate a CycloneDX SBOM for one already built native CLI artifact."""
 
     components = validate_common(payload)
@@ -442,15 +500,17 @@ def validate_cli(payload: dict[str, Any], go_mod: str) -> dict[str, Any]:
     if source.get("type") != "file" or not source.get("name"):
         raise ValueError("CLI SBOM source must identify the scanned file")
 
-    main_module, required_go_modules = go_module_contract(go_mod)
+    main_module, _ = go_module_contract(go_mod)
+    if go_modules is None:
+        _, go_modules = go_module_graph(go_mod)
     represented_go_modules = go_component_names(components)
     for required in (main_module, "stdlib"):
         if required not in represented_go_modules:
             raise ValueError(f"CLI SBOM is missing Go component {required}")
-    missing_go_modules = sorted(required_go_modules - represented_go_modules)
+    missing_go_modules = sorted(go_modules - represented_go_modules)
     if missing_go_modules:
         raise ValueError(
-            "CLI SBOM is missing declared Go modules: " + ", ".join(missing_go_modules)
+            "CLI SBOM is missing Go module graph modules: " + ", ".join(missing_go_modules)
         )
     return {
         "artifact": source["name"],
@@ -514,12 +574,12 @@ def validate(args: argparse.Namespace) -> None:
     """Validate and summarize one canonical CycloneDX artifact."""
 
     payload = json.loads(Path(args.input).read_text(encoding="utf-8"))
+    go_mod = (ROOT / "operator-cli/go.mod").read_text(encoding="utf-8")
+    go_modules = go_module_graph(go_mod)[1] if args.kind in ("dependencies", "cli") else None
     if args.kind == "dependencies":
-        summary = validate_dependencies(
-            payload, (ROOT / "operator-cli/go.mod").read_text(encoding="utf-8")
-        )
+        summary = validate_dependencies(payload, go_mod, go_modules)
     elif args.kind == "cli":
-        summary = validate_cli(payload, (ROOT / "operator-cli/go.mod").read_text(encoding="utf-8"))
+        summary = validate_cli(payload, go_mod, go_modules)
     elif args.kind == "image":
         summary = validate_image(payload)
     else:
