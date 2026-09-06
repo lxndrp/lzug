@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 
+from icalendar import Calendar
 from sqlalchemy import select, text
 
 from backend.auth import AuthenticationRepository
@@ -52,6 +53,46 @@ class CalendarServiceTests(unittest.TestCase):
             self.assertEqual(
                 {event_id: event["version"] for event_id, event in before.items()},
                 {event_id: event["version"] for event_id, event in after.items()},
+            )
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_ics_uses_rfc5545_serialization_for_text_and_timezones(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            service = CalendarService(db_path)
+            service.sync_round(1)
+            with session_scope(db_path) as session:
+                event = session.scalars(select(CalendarEvent).order_by(CalendarEvent.id)).first()
+                assert event is not None
+                event.round_name = "Prüfung,;\\ " + ("Lange Runde " * 12)
+                event.role = "Regulärer Prüfer\nmit Zusatz"
+                event.location = "Ort,;\\\n" + ("Zusatzinformation " * 12)
+                expected_uid = f"{event.external_event_id}@lzug"
+                expected_summary = event.round_name + " – " + event.role
+                expected_location = event.location
+                expected_description = f"Rolle: {event.role}\nDetails: {event.secure_reference}"
+                expected_version = event.version
+                ics = service._calendar([event], "Persönlicher Prüfungskalender")
+
+            encoded = ics.encode("utf-8")
+            self.assertTrue(ics.endswith("\r\n"))
+            self.assertNotIn(b"\n", encoded.replace(b"\r\n", b""))
+            self.assertTrue(all(len(line) <= 75 for line in encoded.split(b"\r\n") if line))
+
+            calendar = Calendar.from_ical(encoded)
+            parsed = calendar.walk("VEVENT")[0]
+            self.assertEqual(expected_uid, str(parsed["UID"]))
+            self.assertEqual(expected_version, int(parsed["SEQUENCE"]))
+            self.assertEqual("CONFIRMED", str(parsed["STATUS"]))
+            self.assertEqual(expected_summary, str(parsed["SUMMARY"]))
+            self.assertEqual(expected_location, str(parsed["LOCATION"]))
+            self.assertEqual(expected_description, str(parsed["DESCRIPTION"]))
+            self.assertEqual("Europe/Berlin", parsed["DTSTART"].params["TZID"])
+            self.assertEqual("Europe/Berlin", parsed["DTEND"].params["TZID"])
+            self.assertEqual(
+                service.time_zone,
+                parsed.decoded("DTSTART").tzinfo,
             )
         finally:
             database.__exit__(None, None, None)
