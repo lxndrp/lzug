@@ -19,11 +19,7 @@ export class AppIconDirective {
     this.element.setAttribute('stroke-linejoin', 'round');
     if (!icon) return;
 
-    const [, attributes, children = []] = icon;
-    for (const [name, value] of Object.entries(attributes)) {
-      this.element.setAttribute(name, String(value));
-    }
-    for (const [tag, attributes] of children) {
+    for (const [tag, attributes] of icon) {
       const child = document.createElementNS('http://www.w3.org/2000/svg', tag);
       for (const [name, value] of Object.entries(attributes)) {
         child.setAttribute(name, String(value));
