@@ -24,7 +24,7 @@ Die Liste ist keine zweite Test- oder API-Dokumentation.
 | `scripts/sbom.py` | Delivery/OCI; Quality-, PR- und Release-Workflows | Bindet Syft an die lzug-eigene CycloneDX-Identität, CLI-/Image-/Dependency-Quellen und die deterministische Release-Aggregation. Behalten, weil diese Lieferartefaktgrenze über Standard-SBOM-Erzeugung hinausgeht. |
 | `scripts/validate_demo_url_contract.py` | Öffentliche Publikation; Publication-Workflow und Vertragstests | Erzwingt die erlaubte kanonische HTTPS-Origin ohne Credentials, Pfad oder fremde Demo-/Stage-Hosts. Behalten als Sicherheitsgrenze der konfigurierten Publikation. |
 | `scripts/verify-demo-image-pair.sh` | Demo-Delivery; Promotion- und Snapshot-Workflows | Verifiziert vor einer Azure-Änderung die gemeinsame digest-, Tag-, Commit-, Schema- und Seed-Identität von App und Seed. Behalten als atomare Promotion-Grenze. |
-| `scripts/verify_cli_release.py` | Betreiber-CLI; `task quality:operator` | Vergleicht zwei GoReleaser-Läufe einschließlich Archive, Metadaten und Lizenzen. Behalten als reproduzierbare Lieferprüfung, die GoReleaser allein nicht garantiert. |
+| `scripts/verify_cli_release.py` | Betreiber-CLI; `task quality:operator-packaging` | Vergleicht zwei GoReleaser-Läufe einschließlich Archive, Metadaten und Lizenzen. Behalten als reproduzierbare Lieferprüfung, die GoReleaser allein nicht garantiert. |
 
 ## Komponentenbezogene Werkzeuge außerhalb von `scripts/`
 

@@ -73,7 +73,7 @@ lzug_wait_for_http_health() {
 }
 
 lzug_http_health_is_ready() {
-    curl --silent --show-error --fail "$1/api/health" >/dev/null 2>&1
+    curl --silent --show-error --fail "$1/api/ready" >/dev/null 2>&1
 }
 
 lzug_wait_for_container_health() {

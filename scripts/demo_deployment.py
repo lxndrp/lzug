@@ -198,13 +198,6 @@ def readiness_observation(
     return is_ready, observation
 
 
-def validate_health(payload: Any, pair: ArtifactPair) -> None:
-    if not isinstance(payload, dict) or payload.get("status") != "ok":
-        raise DeploymentError("Health endpoint did not report status=ok")
-    if payload.get("revision") != pair.product_commit:
-        raise DeploymentError("Health endpoint reported an unexpected product commit")
-
-
 def validate_application_readiness(payload: Any, pair: ArtifactPair) -> None:
     if not isinstance(payload, dict) or payload.get("status") != "ready":
         raise DeploymentError("Readiness endpoint did not report status=ready")
@@ -365,21 +358,6 @@ def wait_for_readiness(
     )
 
 
-def wait_for_health(demo_url: str, pair: ArtifactPair, timeout_seconds: int) -> None:
-    root = validate_demo_url(demo_url)
-    deadline = time.monotonic() + timeout_seconds
-    last_error = "health endpoint was not requested"
-    while time.monotonic() < deadline:
-        try:
-            payload, _content_type = _http_get(urljoin(root, "api/health"), expect_json=True)
-            validate_health(payload, pair)
-            return
-        except DeploymentError as error:
-            last_error = str(error)
-            time.sleep(10)
-    raise DeploymentError(f"Health wait timed out: {last_error}")
-
-
 def wait_for_application_readiness(demo_url: str, pair: ArtifactPair, timeout_seconds: int) -> None:
     root = validate_demo_url(demo_url)
     deadline = time.monotonic() + timeout_seconds
@@ -395,12 +373,9 @@ def wait_for_application_readiness(demo_url: str, pair: ArtifactPair, timeout_se
     raise DeploymentError(f"Application readiness wait timed out: {last_error}")
 
 
-def smoke(demo_url: str, pair: ArtifactPair) -> None:
+def smoke(demo_url: str, pair: ArtifactPair, timeout_seconds: int = 600) -> None:
     root = validate_demo_url(demo_url)
-    health, _ = _http_get(urljoin(root, "api/health"), expect_json=True)
-    validate_health(health, pair)
-    readiness, _ = _http_get(urljoin(root, "api/ready"), expect_json=True)
-    validate_application_readiness(readiness, pair)
+    wait_for_application_readiness(demo_url, pair, timeout_seconds)
     status, _ = _http_get(urljoin(root, "api/demo/status"), expect_json=True)
     validate_demo_status(status, pair)
     authentication_error, content_type = _http_get(
@@ -484,19 +459,10 @@ def parse_args() -> argparse.Namespace:
     readiness.add_argument("--revision-suffix", required=True)
     readiness.add_argument("--timeout-seconds", type=int, default=600)
 
-    health = commands.add_parser("wait-health")
-    _add_pair(health)
-    health.add_argument("--demo-url", required=True)
-    health.add_argument("--timeout-seconds", type=int, default=600)
-
-    application_readiness = commands.add_parser("wait-application-readiness")
-    _add_pair(application_readiness)
-    application_readiness.add_argument("--demo-url", required=True)
-    application_readiness.add_argument("--timeout-seconds", type=int, default=600)
-
     smoke_parser = commands.add_parser("smoke")
     _add_pair(smoke_parser)
     smoke_parser.add_argument("--demo-url", required=True)
+    smoke_parser.add_argument("--timeout-seconds", type=int, default=600)
 
     diagnostic = commands.add_parser("diagnostics")
     _add_target(diagnostic)
@@ -524,14 +490,8 @@ def main() -> None:
                 args.timeout_seconds,
             )
             print(json.dumps(observation, indent=2, sort_keys=True))
-        elif args.command == "wait-health":
-            wait_for_health(args.demo_url, _pair_from_args(args), args.timeout_seconds)
-        elif args.command == "wait-application-readiness":
-            wait_for_application_readiness(
-                args.demo_url, _pair_from_args(args), args.timeout_seconds
-            )
         elif args.command == "smoke":
-            smoke(args.demo_url, _pair_from_args(args))
+            smoke(args.demo_url, _pair_from_args(args), args.timeout_seconds)
         else:
             diagnostics(_target_from_args(args))
     except DeploymentError as error:

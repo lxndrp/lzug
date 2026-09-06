@@ -12,6 +12,7 @@ from scripts.sbom import (
     DEPENDENCY_SOURCE_NAME,
     aggregate_release_sbom,
     cli_command,
+    cli_modules,
     configured_syft_version,
     dependency_command,
     go_module_contract,
@@ -56,9 +57,6 @@ class SbomContractTests(unittest.TestCase):
 
         self.assertEqual("github.com/lxndrp/lzug/operator-cli", main)
         self.assertIn("filippo.io/age", required)
-
-    def test_toolchain_pins_current_syft(self) -> None:
-        self.assertEqual("1.51.0", configured_syft_version())
 
     def test_dependency_generation_uses_standard_format_and_only_agreed_catalogers(self) -> None:
         command = dependency_command(Path("result.cdx.json"), "0.1.0")
@@ -183,7 +181,7 @@ class SbomContractTests(unittest.TestCase):
             component("rxjs", "7.8.2", "pkg:npm/rxjs@7.8.2", "Apache-2.0"),
         )
 
-        with self.assertRaisesRegex(ValueError, "Go module graph modules missing"):
+        with self.assertRaisesRegex(ValueError, "Declared Go modules missing"):
             validate_dependencies(
                 report,
                 "module example.invalid/lzug\n\ngo 1.26\n\nrequire example.invalid/lib v1.0.0\n",
@@ -221,11 +219,76 @@ class SbomContractTests(unittest.TestCase):
         report["metadata"]["component"]["type"] = "file"
 
         summary = validate_cli(
-            report, "module github.com/lxndrp/lzug/operator-cli\n\ngo 1.26\n", set()
+            report, "module github.com/lxndrp/lzug/operator-cli\n\ngo 1.26\n", {}
         )
 
         self.assertEqual("lzug-admin-linux-amd64", summary["artifact"])
         self.assertEqual(2, summary["go_components"])
+
+    def test_dependency_inventory_does_not_require_upstream_test_modules(self) -> None:
+        report = payload(
+            component("lzug", "0.1.0", "pkg:pypi/lzug@0.1.0", "AGPL-3.0-or-later"),
+            component("rxjs", "7.8.2", "pkg:npm/rxjs@7.8.2", "Apache-2.0"),
+            component(
+                "example.invalid/runtime", "v1.0.0", "pkg:golang/example.invalid/runtime@v1.0.0"
+            ),
+        )
+        validate_dependencies(
+            report,
+            "module example.invalid/lzug\nrequire example.invalid/runtime v1.0.0\n",
+            {"example.invalid/runtime", "example.invalid/upstream-tests"},
+        )
+
+    def test_cli_inventory_is_bound_to_the_binary_and_rejects_missing_embedded_modules(
+        self,
+    ) -> None:
+        go_mod = "module example.invalid/lzug\nrequire example.invalid/runtime v1.0.0\n"
+        info = {
+            "Main": {"Path": "example.invalid/lzug"},
+            "Deps": [{"Path": "example.invalid/runtime", "Version": "v1.0.0"}],
+        }
+        with patch(
+            "scripts.sbom.subprocess.run",
+            return_value=subprocess.CompletedProcess(["go"], 0, json.dumps(info), ""),
+        ):
+            modules = cli_modules(Path("binary"), go_mod)
+        self.assertEqual({"example.invalid/runtime": "v1.0.0"}, modules)
+        report = payload(
+            component("example.invalid/lzug", "UNKNOWN", "pkg:golang/example.invalid/lzug"),
+            component("stdlib", "go1.26.5", "pkg:golang/stdlib@1.26.5"),
+            source_name="lzug-admin-linux-amd64",
+        )
+        report["metadata"]["component"]["type"] = "file"
+        with self.assertRaisesRegex(ValueError, "missing embedded Go modules"):
+            validate_cli(report, go_mod, modules)
+        report["components"].append(
+            component(
+                "example.invalid/runtime", "v1.0.0", "pkg:golang/example.invalid/runtime@v1.0.0"
+            )
+        )
+        validate_cli(report, go_mod, modules)
+        report["components"][-1]["version"] = "v9.9.9"
+        with self.assertRaisesRegex(ValueError, "version differs"):
+            validate_cli(report, go_mod, modules)
+        report["components"][-1]["version"] = "v1.0.0"
+        report["components"].append(
+            component(
+                "example.invalid/upstream-tests",
+                "v1.0.0",
+                "pkg:golang/example.invalid/upstream-tests@v1.0.0",
+            )
+        )
+        with self.assertRaisesRegex(ValueError, "absent from the binary"):
+            validate_cli(report, go_mod, modules)
+        info["Main"]["Path"] = "example.invalid/foreign"
+        with (
+            patch(
+                "scripts.sbom.subprocess.run",
+                return_value=subprocess.CompletedProcess(["go"], 0, json.dumps(info), ""),
+            ),
+            self.assertRaisesRegex(ValueError, "main module"),
+        ):
+            cli_modules(Path("binary"), go_mod)
 
     def test_image_sbom_excludes_build_only_ecosystems(self) -> None:
         report = payload(

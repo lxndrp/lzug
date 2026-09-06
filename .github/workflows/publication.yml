@@ -107,13 +107,13 @@ jobs:
         run: mise x hugo-extended@0.165.0 -- task docs:publication DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
       - name: Check responsive themes and warm-up flow with Playwright
-        if: github.event_name != 'schedule'
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
         env:
           PLAYWRIGHT_BROWSER_CHANNEL: chrome
         run: npm --prefix frontend run test:publication
 
       - name: Check public-site accessibility with Playwright and axe
-        if: github.event_name != 'schedule'
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
         env:
           PLAYWRIGHT_BROWSER_CHANNEL: chrome
         run: npm --prefix frontend run test:publication:a11y

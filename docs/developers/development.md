@@ -50,7 +50,7 @@ Seiteneffekt des normalen Servers.
 | Backend-Komplexität | `task backend:complexity` |
 | Angular-Code | betroffener Vitest-Test, danach `task quality:frontend` |
 | produktive npm-Abhängigkeiten | `task quality:security` |
-| Go-CLI | `task test:operator` oder `task quality:operator` |
+| Go-CLI | `task test:operator` oder `task quality:operator`; für native Archive zusätzlich `task quality:operator-packaging` |
 | sichtbarer Browserablauf | `task quality:e2e` |
 | Accessibility | `task quality:a11y` getrennt vom E2E-Lauf |
 | OCI, Compose oder CLI-Container | der passende `task quality:container`, `quality:compose` oder `quality:operator-container` |
@@ -247,7 +247,7 @@ geprüft und sinnvolle Befunde vor dem Auflösen umgesetzt.
 
 Merge, Release, Workflow-Dispatch und externe Aktivierung bleiben getrennte
 Maintainerentscheidungen.
-Nach einem freigegebenen Merge werden Post-Merge-Qualität, Issue- und
+Nach einem freigegebenen Merge werden relevante Folgebuilds, Issue- und
 Project-Status live geprüft.
 Vor dem Entfernen des issuebezogenen Worktrees muss er sauber sein; nur der
 zugehörige lokale und Remote-Feature-Branch wird entfernt.
