@@ -88,6 +88,7 @@ export type WizardStepDefinition = {
     PlanningProposalEditorComponent,
   ],
   templateUrl: './planning.component.html',
+  styleUrl: './planning.component.css',
 })
 export class PlanningComponent implements OnChanges, OnDestroy {
   protected readonly icons = appIcons;

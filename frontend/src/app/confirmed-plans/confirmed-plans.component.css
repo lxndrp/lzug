@@ -111,7 +111,7 @@
   margin-inline-end: 0.4rem;
   content: '·';
 }
-@media (max-width: 480px) {
+@media (max-width: 30rem) {
   .app-confirmed-location,
   .app-confirmed-assignment {
     display: grid;

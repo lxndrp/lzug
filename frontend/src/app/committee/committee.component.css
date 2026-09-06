@@ -1,0 +1,25 @@
+:host {
+  display: block;
+}
+
+.app-contact span,
+.app-contact a {
+  display: block;
+  white-space: nowrap;
+}
+
+.app-committee-choice {
+  display: grid;
+  justify-items: start;
+  gap: 0.125rem;
+  text-align: start;
+}
+
+.app-committee-choice span {
+  color: var(--app-color-text-muted);
+  font-size: 0.875rem;
+}
+
+.app-committee-choice.active span {
+  color: var(--app-color-on-primary);
+}

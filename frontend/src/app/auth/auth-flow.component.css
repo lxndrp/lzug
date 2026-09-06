@@ -7,22 +7,22 @@
   display: grid;
   place-items: center;
   padding: 2rem 1rem;
-  background: var(--app-surface, #f4f5f7);
+  background: var(--app-color-canvas);
 }
 
 .auth-card {
   width: min(100%, 34rem);
   padding: clamp(1.5rem, 5vw, 3rem);
-  border: 1px solid var(--app-border, #d5d9df);
+  border: 1px solid var(--app-color-border);
   border-radius: 1rem;
-  background: var(--app-card, #fff);
-  box-shadow: 0 1rem 3rem rgb(32 37 45 / 10%);
+  background: var(--app-color-surface);
+  box-shadow: var(--app-shadow-floating);
 }
 
 .auth-kicker,
 .auth-hint,
 .auth-secret small {
-  color: var(--app-muted, #5e6773);
+  color: var(--app-color-text-muted);
 }
 
 .auth-kicker {
@@ -59,7 +59,7 @@
   min-height: 2.75rem;
   box-sizing: border-box;
   padding: 0.65rem 0.75rem;
-  border: 1px solid var(--app-border, #9da5b0);
+  border: 1px solid var(--app-color-border);
   border-radius: 0.4rem;
   color: inherit;
   background: transparent;
@@ -69,7 +69,7 @@
 .auth-card input:focus-visible,
 .auth-card button:focus-visible,
 .auth-card a:focus-visible {
-  outline: 3px solid var(--app-focus, #005fcc);
+  outline: 3px solid var(--app-color-focus);
   outline-offset: 2px;
 }
 
@@ -79,8 +79,8 @@
   padding: 0.65rem 1rem;
   border: 0;
   border-radius: 0.4rem;
-  color: #fff;
-  background: #005fcc;
+  color: var(--app-color-on-primary);
+  background: var(--app-color-primary);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -106,14 +106,14 @@
 
 .auth-error {
   margin: 0.75rem 0 0;
-  color: #a52828;
+  color: var(--app-color-danger-text);
   font-weight: 650;
 }
 
 .auth-success {
   padding: 0.75rem;
   border-radius: 0.4rem;
-  background: #e8f5ed;
+  background: var(--app-color-success-soft);
 }
 
 .auth-secret {
@@ -121,8 +121,8 @@
   gap: 0.5rem;
   margin: 1rem 0;
   padding: 1rem;
-  border-left: 0.25rem solid #005fcc;
-  background: #eef5ff;
+  border-inline-start: 0.25rem solid var(--app-color-primary);
+  background: var(--app-color-info-soft);
 }
 
 .auth-secret code {
@@ -143,11 +143,11 @@
 
 .auth-recovery-codes li {
   padding: 0.65rem;
-  border: 1px dashed var(--app-border, #9da5b0);
+  border: 1px dashed var(--app-color-border);
   text-align: center;
 }
 
-@media (max-width: 35rem) {
+@media (max-width: 30rem) {
   .auth-recovery-codes {
     grid-template-columns: 1fr;
   }

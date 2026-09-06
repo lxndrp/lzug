@@ -33,6 +33,7 @@ export type HalfYearDraft = Pick<ExamHalfYear, 'season' | 'year'>;
     TuiTextfield,
   ],
   templateUrl: './exam-half-years.component.html',
+  styleUrl: './exam-half-years.component.css',
 })
 export class ExamHalfYearsComponent implements OnInit {
   private readonly api = inject(PlanningApiService);

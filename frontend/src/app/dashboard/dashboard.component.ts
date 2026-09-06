@@ -38,6 +38,7 @@ export type ContextualHelp = {
   selector: 'app-dashboard',
   imports: [AppIconDirective, TuiBadge, TuiButton, TuiHeader, TuiNotification],
   templateUrl: './dashboard.component.html',
+  styleUrl: './dashboard.component.css',
 })
 export class DashboardComponent {
   protected readonly icons = appIcons;
