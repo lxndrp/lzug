@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       languages:
-        description: JSON array of languages whose code changed in the caller.
+        description: JSON array of languages configured for the caller's security boundary.
         required: true
         type: string
       revision:
