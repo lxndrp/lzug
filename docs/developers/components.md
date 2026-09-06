@@ -10,7 +10,7 @@ Komponenten nachimplementiert.
 
 | Bereich | Verantwortung | Zulässige Außengrenze | Maßgebliche Quellen |
 | --- | --- | --- | --- |
-| Backend | HTTP, Authentifizierung, Fachservices, Persistenz, Dokumente und Integrationsadapter | OpenAPI/JSON, Admin-JSON, SQLite und kontrollierte Provideradapter | `backend/`, `db/` |
+| Backend | HTTP, Authentifizierung, Fachservices, Persistenz, Dokumente und Integrationsadapter | OpenAPI/JSON, Admin-JSON, SQLite und kontrollierte Provideradapter | `backend/src/backend/`, `backend/db/` |
 | Frontend | aufgabenorientierte Ausschussoberfläche, Routing, Formulare und sichtbare Zustände | same-origin API über zentrale Modelle und Services | `frontend/src/app/` |
 | Betreiber-CLI | lokale portable Orchestrierung von Administration, Diagnose und Lifecycle | einzelne Docker-/Podman-`exec`-Argumente und Admin-Protokollversion 1 | `operator-cli/cmd/lzug-admin/`, `operator-cli/internal/admincli/`, `operator-cli/internal/tools/cli-reference/`, `operator-cli/.goreleaser.yml` |
 | OCI und Self-Hosting | gemeinsames Produktimage, gehärtete Laufzeit und persistentes `/data` | `Dockerfile`, `compose.yaml` und Containerverträge | Dockerfiles, Compose und `scripts/*container*` |
@@ -70,7 +70,8 @@ Dateien, Kalender oder Zustellkanäle.
 Eine neue Speicher- oder Transporttechnik darf die Invarianten weder kopieren
 noch umgehen.
 
-Die kanonische Runtime-Konfigurationsassembly liegt in `backend/settings.py`.
+Die kanonische Runtime-Konfigurationsassembly liegt in
+`backend/src/backend/settings.py`.
 Die Betreiberreferenz beschreibt ausschließlich die von außen sichtbaren
 Variablennamen, Defaults und Betriebsfolgen und dupliziert keine
 Validierungslogik.
@@ -242,8 +243,9 @@ Die aufgabenorientierte Bedienung bleibt im
 
 ## OCI-Runtime und Infrastruktur
 
-Das Produktimage enthält das kompilierte Angular-Bundle, Python-Backend,
-Migrationen und produktive Python-Abhängigkeiten.
+Das Produktimage enthält das kompilierte Angular-Bundle, das aus dem
+Backend-Wheel installierte Python-Backend, die Backend-Migrationen und
+produktive Python-Abhängigkeiten.
 Tests, Demo-Seed, Dokumentation, Node.js/npm, uv und Lockfiles gelangen nicht
 in das Runtime-Image.
 Der Prozess läuft standardmäßig als UID/GID `10001:10001`, unterstützt ein

@@ -1,12 +1,21 @@
 # syntax=docker/dockerfile:1
 
+FROM python:3.14.6-slim-bookworm AS backend-build
+
+COPY --from=ghcr.io/astral-sh/uv:0.11.28 /uv /uvx /bin/
+WORKDIR /src
+COPY LICENSE pyproject.toml ./
+COPY backend/src ./backend/src
+RUN uv build --wheel --out-dir /dist
+
 FROM python:3.14.6-slim-bookworm AS build-metadata
 
 ARG BUILD_IDENTITY
 ARG RELEASE_TAG=""
 ARG VCS_REF
+ENV PYTHONPATH="/src/backend/src"
 WORKDIR /src
-COPY backend/__init__.py backend/build_metadata.py ./backend/
+COPY backend/src ./backend/src
 COPY scripts/build_metadata.py ./scripts/
 RUN set -eu; \
     test -n "$BUILD_IDENTITY"; \
@@ -39,7 +48,11 @@ FROM python:3.14.6-slim-bookworm AS python-dependencies
 COPY --from=ghcr.io/astral-sh/uv:0.11.28 /uv /uvx /bin/
 WORKDIR /src
 COPY pyproject.toml uv.lock ./
+COPY --from=backend-build /dist/*.whl /dist/
 RUN uv sync --locked --no-dev --no-install-project --no-editable --compile-bytecode --no-cache
+RUN mkdir -p /src/backend/src \
+    && uv pip install --python /src/.venv/bin/python --target /src/backend/src \
+       --no-deps /dist/*.whl
 
 FROM python:3.14.6-slim-bookworm AS runtime
 
@@ -52,7 +65,7 @@ LABEL org.opencontainers.image.title="lzug" \
       org.opencontainers.image.revision="$VCS_REF"
 
 ENV PATH="/opt/venv/bin:$PATH" \
-    PYTHONPATH="/app" \
+    PYTHONPATH="/app/backend/src" \
     PYTHONDONTWRITEBYTECODE="1" \
     PYTHONUNBUFFERED="1" \
     LZUG_DATA_DIR="/data" \
@@ -63,20 +76,13 @@ WORKDIR /app
 RUN groupadd --system --gid 10001 lzug \
     && useradd --system --uid 10001 --gid 10001 --home-dir /nonexistent \
        --shell /usr/sbin/nologin lzug \
-    && mkdir -p /app/backend /app/db/migrations /app/frontend /data/documents /data/backups \
+    && mkdir -p /app/backend/src /app/backend/db/migrations /app/frontend /data/documents /data/backups \
     && chown -R 10001:10001 /app /data
 
 COPY --from=python-dependencies --chown=10001:10001 /src/.venv /opt/venv
-COPY --from=build-metadata --chown=10001:10001 /build-metadata.json ./build-metadata.json
-COPY --chown=10001:10001 \
-    backend/__init__.py backend/admin.py backend/admin_service.py backend/application.py backend/artifact_packages.py backend/artifact_stream.py backend/auth.py backend/authorization.py backend/backup_recipients.py backend/backup_restore.py backend/committee_admin.py \
-    backend/absence.py backend/build_metadata.py backend/calendar.py backend/candidate_days.py backend/contract.py backend/database.py backend/diagnostics.py backend/settings.py \
-    backend/document_storage.py backend/documents.py backend/exam_day_closures.py backend/exam_protocols.py backend/exam_results.py backend/exam_round_lifecycle.py backend/exam_venue_api.py backend/exam_venue_migration.py backend/exam_venues.py backend/hateoas.py \
-    backend/healthcheck.py backend/holiday_provider.py backend/lifecycle.py backend/local_auth.py backend/map_provider.py backend/models.py \
-    backend/api_contracts.py backend/fastapi_app.py backend/notifications.py backend/observability.py backend/plan_consequences.py backend/planning.py backend/repositories.py backend/runtime_policy.py backend/security.py backend/server.py backend/store.py backend/transport.py backend/venue_consequences.py backend/version.py \
-    ./backend/
-COPY --chown=10001:10001 db/schema.sql ./db/schema.sql
-COPY --chown=10001:10001 db/migrations ./db/migrations
+COPY --from=python-dependencies --chown=10001:10001 /src/backend/src ./backend/src
+COPY --from=build-metadata --chown=10001:10001 /build-metadata.json ./backend/src/build-metadata.json
+COPY --chown=10001:10001 backend/db ./backend/db
 COPY --from=frontend-build --chown=10001:10001 /src/frontend/dist/frontend/browser ./frontend
 
 USER 10001:10001

@@ -6,17 +6,16 @@
 !.dockerignore
 !pyproject.toml
 !uv.lock
+!LICENSE
 
 !backend/
-!backend/*.py
+!backend/src/
+!backend/src/**
+!backend/db/
+!backend/db/**
 
 !scripts/
-!scripts/build_metadata.py
-
-!db/
-!db/schema.sql
-!db/migrations/
-!db/migrations/**
+!scripts/**
 
 !demo/
 !demo/*.py

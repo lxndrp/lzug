@@ -97,6 +97,8 @@ def dependency_command(output: Path, source_version: str, executable: str = "syf
         "--exclude",
         "./lzug.egg-info/**",
         "--exclude",
+        "./backend/src/lzug.egg-info/**",
+        "--exclude",
         "./site/**",
         "--exclude",
         "./operator-cli/lzug-admin",

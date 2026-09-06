@@ -26,7 +26,7 @@ class BuildIdentityContractTests(unittest.TestCase):
     def test_oci_embeds_one_metadata_file_for_backend_and_frontend(self) -> None:
         dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
 
-        self.assertIn("/build-metadata.json ./build-metadata.json", dockerfile)
+        self.assertIn("/build-metadata.json ./backend/src/build-metadata.json", dockerfile)
         self.assertIn("/build-metadata.json ./public/build-metadata.json", dockerfile)
         self.assertIn('org.opencontainers.image.version="$BUILD_IDENTITY"', dockerfile)
         self.assertIn('org.opencontainers.image.revision="$VCS_REF"', dockerfile)

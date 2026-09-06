@@ -71,8 +71,8 @@ def sha256_file(path: Path) -> str:
 
 def schema_binding(source_root: Path) -> dict[str, Any]:
     paths = [
-        source_root / "db" / "schema.sql",
-        *sorted((source_root / "db/migrations").glob("*.sql")),
+        source_root / "backend/db" / "schema.sql",
+        *sorted((source_root / "backend/db/migrations").glob("*.sql")),
     ]
     files = [
         {"path": path.relative_to(source_root).as_posix(), "sha256": sha256_file(path)}
