@@ -104,6 +104,8 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 "FIXTURES": "success",
                 "INFRA_SELECTED": "true",
                 "INFRA_DETAIL": "success",
+                "DELIVERY_SELECTED": "true",
+                "DELIVERY": "success",
             }
 
             def check(values: dict[str, str], script: str = command) -> int:
@@ -125,6 +127,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
                     "A11Y",
                     "FIXTURES",
                     "INFRA_DETAIL",
+                    "DELIVERY",
                 ):
                     if f"${key}" not in command and f"{key}:" not in command:
                         continue
@@ -150,13 +153,30 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "scripts/build-frontend.sh": "frontend",
             "scripts/verify_cli_release.py": "cli",
             "scripts/compose-smoke.sh": "container",
-            "scripts/demo_deployment.py": "infra",
+            "scripts/demo_deployment.py": "delivery",
             "scripts/sbom.py": "full",
         }.items():
             with self.subTest(path=path):
                 self.assertIn(f"'{path}'", mapping_block(changes, owner, indent=12))
         self.assertIn("steps.unknown.outputs.unknown == 'true'", changes)
         self.assertIn("steps.domains.outputs.full == 'true'", changes)
+
+    def test_documentation_contract_sources_do_not_select_all_domains(self) -> None:
+        changes = job_block(self.pull_request, "changes")
+        docs = mapping_block(changes, "docs", indent=12)
+        full = mapping_block(changes, "full", indent=12)
+        unknown = mapping_block(changes, "unknown", indent=12)
+        for path, unknown_exclusion in {
+            ".github/workflows/publication.yml": ".github/**",
+            ".lychee.toml": ".lychee.toml",
+            "tests/docs/**": "tests/**",
+        }.items():
+            with self.subTest(path=path):
+                self.assertIn(f"'{path}'", docs)
+                self.assertNotIn(f"'{path}'", full)
+                self.assertIn(f"'!{unknown_exclusion}'", unknown)
+        self.assertIn("'Taskfile.yml'", full)
+        self.assertIn("'.mise.toml'", full)
 
     def test_nightly_and_dispatch_evidence_are_bound_to_the_recorded_run_sha(self) -> None:
         triggers = trigger_block(self.quality)

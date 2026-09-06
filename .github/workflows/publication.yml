@@ -39,6 +39,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: public-site-${{ github.ref }}
@@ -57,6 +58,31 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+
+      - name: Select public-site browser sources
+        id: changes
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            browser:
+              - 'docs/publication/**'
+              - 'docs/publication.py'
+              - 'docs/media/**'
+              - 'frontend/publication-e2e/**'
+              - 'frontend/playwright.publication*.ts'
+              - 'frontend/e2e/run-playwright.mjs'
+              - 'frontend/e2e/serve-publication.mjs'
+              - 'scripts/validate_demo_url_contract.py'
+              - '.github/workflows/publication.yml'
+              - '.mise.toml'
+              - '.python-version'
+              - 'frontend/.node-version'
+              - 'frontend/package.json'
+              - 'frontend/package-lock.json'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'Taskfile.yml'
 
       - name: Validate the manual publication gate
         if: github.event_name == 'workflow_dispatch'
@@ -112,13 +138,13 @@ jobs:
         run: mise x hugo-extended@0.165.0 -- task docs:publication:linkcheck DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
       - name: Check responsive themes and warm-up flow with Playwright
-        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && steps.changes.outputs.browser == 'true')
         env:
           PLAYWRIGHT_BROWSER_CHANNEL: chrome
         run: npm --prefix frontend run test:publication
 
       - name: Check public-site accessibility with Playwright and axe
-        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && steps.changes.outputs.browser == 'true')
         env:
           PLAYWRIGHT_BROWSER_CHANNEL: chrome
         run: npm --prefix frontend run test:publication:a11y

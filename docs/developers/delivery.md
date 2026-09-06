@@ -11,8 +11,10 @@ Wiederholung sicher ist.
 `.github/workflows/pull-request.yml` ordnet geänderte Pfade konservativ den
 Domänen Fixtures, Dokumentation, Backend, Frontend, CLI, Container, Browser und
 Infrastruktur zu.
-Workflow-, Toolchain-, Abhängigkeitsänderungen und `Taskfile.yml` wählen alle
-Domänen; unbekannte Pfade ebenfalls.
+Änderungen an der PR-/Quality-/Releaseauswahl, Toolchain, Abhängigkeiten und
+`Taskfile.yml` wählen alle Domänen; unbekannte Pfade ebenfalls.
+Der Public-Site-Workflow, die Linkcheck-Konfiguration und ihre Vertragstests
+wählen dagegen ausschließlich die Dokumentationsgrenze.
 Bekannte Skripte wählen ihren Verantwortungsbereich gemäß Werkzeuginventar.
 Neue Skripte fallen ohne explizite Zuordnung in die vollständige Domänenauswahl.
 Ein nicht ausgewählter Bereich wird in seinem sichtbaren Gate ausdrücklich als
@@ -192,7 +194,8 @@ Browser- und Accessibility-Prüfung laufen getrennt.
 nach manuellem Dispatch auf `master` und dem geschützten Environment
 `github-pages`.
 Master-Pushes erzeugen nur das Folgeartefakt; Browser- und A11y-Nachweise werden
-im PR und vor manueller Veröffentlichung erbracht.
+im PR bei Änderungen ihrer eigenen Site-, Browser- oder Toolchainquellen und
+vor manueller Veröffentlichung erbracht.
 Der geplante Site-Lauf prüft die Byte-Reproduzierbarkeit.
 
 ## Eigenständige Fehlergrenzen und kleinste Prüfebenen
@@ -217,6 +220,8 @@ Prüfungen von GitHub-, Docker- oder GoReleaser-Implementierungsdetails sind
 kein lzug-Produktnachweis.
 Reine Aufruf- und Schrittzähltests, Baseline-Übertragungen und Tests auf
 historisch entfernte Wrapper entfallen.
+Delivery-, Demo- und Tooling-Verträge laufen als schneller eigener Detailjob,
+unabhängig von Container-Builds und OpenTofu-Plänen.
 Die verbleibenden Workflow-Verträge sichern eigene Regeln wie
 Freigabegrenzen, unveränderliche Artefaktbindung und die Auswahlentscheidung;
 Shell-/jq-Entscheidungen werden mit falschen und fehlenden Nachweisen geprüft.

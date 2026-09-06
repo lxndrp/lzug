@@ -30,6 +30,7 @@ jobs:
       container: ${{ steps.domains.outputs.container == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       browser: ${{ steps.domains.outputs.browser == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       infra: ${{ steps.domains.outputs.infra == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
+      delivery: ${{ steps.domains.outputs.delivery == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       visual: ${{ steps.domains.outputs.visual == 'true' }}
       source_scan: ${{ steps.domains.outputs.source_scan == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       codeql_languages: ${{ (steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true') && '["python","javascript-typescript","go"]' || steps.codeql.outputs.changes }}
@@ -45,6 +46,8 @@ jobs:
               - 'fixtures/generate.py'
               - 'frontend/src/app/testing/synthetic-fixtures.generated.ts'
             docs:
+              - '.github/workflows/publication.yml'
+              - '.lychee.toml'
               - 'docs/**'
               - 'docs/mkdocs.yml'
               - 'README.md'
@@ -54,6 +57,7 @@ jobs:
               - 'frontend/THIRD_PARTY_NOTICES.md'
               - 'scripts/check_documentation.py'
               - 'scripts/validate_demo_url_contract.py'
+              - 'tests/docs/**'
             backend:
               - 'backend/**'
               - 'db/**'
@@ -72,10 +76,14 @@ jobs:
               - 'operator-cli/go.mod'
               - 'operator-cli/go.sum'
               - 'THIRD_PARTY_NOTICES.md'
-            infra:
+            delivery:
+              - 'backend/**'
+              - 'demo/**'
+              - 'fixtures/**'
               - 'scripts/demo_deployment.py'
               - 'scripts/demo_snapshot.py'
               - 'scripts/verify-demo-image-pair.sh'
+            infra:
               - 'infra/**'
             container:
               - 'scripts/compose-smoke.sh'
@@ -126,7 +134,9 @@ jobs:
               - '!**/*.md'
             full:
               - '.github/**'
+              - '!.github/workflows/publication.yml'
               - 'tests/**'
+              - '!tests/docs/**'
               - '.mise.toml'
               - 'frontend/.node-version'
               - '.python-version'
@@ -209,6 +219,7 @@ jobs:
               - '!scripts/verify-demo-image-pair.sh'
               - '!scripts/verify_cli_release.py'
               - '!.github/**'
+              - '!.lychee.toml'
               - '!.vscode/**'
               - '!.dockerignore'
               - '!.env.example'
@@ -227,6 +238,7 @@ jobs:
               - '!SUPPORT.md'
               - '!THIRD_PARTY_NOTICES.md'
               - '!Taskfile.yml'
+              - '!tests/**'
               - '!compose.yaml'
               - '!pyproject.toml'
               - '!uv.lock'
@@ -356,6 +368,25 @@ jobs:
       - name: Test the CLI and validate its packaging configuration
         run: task quality:operator
 
+  delivery:
+    name: Delivery and demo contracts
+    needs: changes
+    if: needs.changes.outputs.delivery == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14.6"
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+      - run: uv sync --locked --extra dev
+      - run: task test:delivery test:demo test:tooling
+
   container:
     name: Container details
     needs: changes
@@ -384,10 +415,10 @@ jobs:
         uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           syft-version: v1.51.0
-      - name: Build once and verify product packaging and fast delivery contracts
+      - name: Build once and verify product packaging
         env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
-        run: task quality:oci quality:container quality:compose-config test:oci test:demo test:delivery test:tooling
+        run: task quality:oci quality:container quality:compose-config test:oci
       - name: Generate and validate the dependency SBOM
         env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
@@ -433,7 +464,7 @@ jobs:
         with:
           version: 3.52.0
       - name: Validate and mock-plan the demo infrastructure
-        run: task quality:infra quality:demo-deployment
+        run: task quality:infra
 
   e2e:
     name: Browser E2E details
@@ -650,7 +681,7 @@ jobs:
 
   container-gate:
     name: Pull Request / Container
-    needs: [changes, container, infra, codeql, source-scan]
+    needs: [changes, container, infra, delivery, codeql, source-scan]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -658,6 +689,8 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           SELECTED: ${{ needs.changes.outputs.container }}
           DETAIL: ${{ needs.container.result }}
+          DELIVERY_SELECTED: ${{ needs.changes.outputs.delivery }}
+          DELIVERY: ${{ needs.delivery.result }}
           INFRA_SELECTED: ${{ needs.changes.outputs.infra }}
           INFRA_DETAIL: ${{ needs.infra.result }}
           CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_languages != '[]' }}
@@ -670,3 +703,4 @@ jobs:
           test "$SCAN_SELECTED:$SOURCE_SCAN" = true:success || test "$SCAN_SELECTED:$SOURCE_SCAN" = false:skipped
           test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
           test "$INFRA_SELECTED:$INFRA_DETAIL" = true:success || test "$INFRA_SELECTED:$INFRA_DETAIL" = false:skipped
+          test "$DELIVERY_SELECTED:$DELIVERY" = true:success || test "$DELIVERY_SELECTED:$DELIVERY" = false:skipped
