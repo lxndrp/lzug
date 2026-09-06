@@ -459,7 +459,7 @@ def write_content(root: Path, site: Path, repository_revision: str) -> None:
         encoding="utf-8",
     )
 
-    schema = (root / "db" / "schema.sql").read_text(encoding="utf-8")
+    schema = (root / "backend" / "db" / "schema.sql").read_text(encoding="utf-8")
     (content / "referenz" / "datenbank" / "_index.md").write_text(
         hugo_page(
             "Datenbankschema",
