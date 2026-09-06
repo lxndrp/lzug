@@ -11,6 +11,6 @@ describe('AppIconDirective', () => {
     directive.cIcon = Plus;
 
     expect(svg.getAttribute('viewBox')).toBe('0 0 24 24');
-    expect(svg.querySelector('path')).toBeTruthy();
+    expect(svg.querySelectorAll('path')).toHaveLength(2);
   });
 });
