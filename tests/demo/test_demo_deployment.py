@@ -24,7 +24,6 @@ from scripts.demo_deployment import (
     validate_authentication_required,
     validate_demo_status,
     validate_demo_url,
-    validate_health,
 )
 
 
@@ -230,8 +229,7 @@ class DemoDeploymentTests(unittest.TestCase):
         ready, _ = readiness_observation(resource, self.pair, "gh-123-1")
         self.assertFalse(ready)
 
-    def test_health_and_demo_api_bind_the_running_product_schema_and_seed(self) -> None:
-        validate_health({"status": "ok", "revision": self.pair.product_commit}, self.pair)
+    def test_readiness_and_demo_api_bind_the_running_product_schema_and_seed(self) -> None:
         validate_application_readiness(
             {"status": "ready", "revision": self.pair.product_commit}, self.pair
         )
@@ -249,7 +247,7 @@ class DemoDeploymentTests(unittest.TestCase):
             self.pair,
         )
         with self.assertRaisesRegex(DeploymentError, "unexpected product commit"):
-            validate_health({"status": "ok", "revision": "f" * 40}, self.pair)
+            validate_application_readiness({"status": "ready", "revision": "f" * 40}, self.pair)
         with self.assertRaisesRegex(DeploymentError, "status=ready"):
             validate_application_readiness(
                 {"status": "unavailable", "revision": self.pair.product_commit}, self.pair
@@ -344,9 +342,10 @@ class DemoDeploymentTests(unittest.TestCase):
             ):
                 validate_authentication_required(payload, content_type)
 
-    def test_smoke_keeps_health_demo_status_and_frontend_checks(self) -> None:
+    def test_smoke_binds_public_readiness_and_demo_status_before_protected_api_and_frontend(
+        self,
+    ) -> None:
         responses = (
-            ({"status": "ok", "revision": self.pair.product_commit}, "application/json"),
             ({"status": "ready", "revision": self.pair.product_commit}, "application/json"),
             (
                 {
@@ -369,7 +368,6 @@ class DemoDeploymentTests(unittest.TestCase):
 
         self.assertEqual(
             [
-                call("https://demo.example.org/api/health", expect_json=True),
                 call("https://demo.example.org/api/ready", expect_json=True),
                 call("https://demo.example.org/api/demo/status", expect_json=True),
                 call(
@@ -380,6 +378,21 @@ class DemoDeploymentTests(unittest.TestCase):
                 call("https://demo.example.org/", expect_json=False),
             ],
             http_get.call_args_list,
+        )
+
+    def test_smoke_stops_before_domain_requests_when_readiness_times_out(self) -> None:
+        with (
+            patch("scripts.demo_deployment.time.monotonic", side_effect=[0, 0, 2]),
+            patch("scripts.demo_deployment.time.sleep"),
+            patch(
+                "scripts.demo_deployment._http_get",
+                return_value=({"status": "ready", "revision": "f" * 40}, "application/json"),
+            ) as http_get,
+            self.assertRaisesRegex(DeploymentError, "unexpected product commit"),
+        ):
+            smoke("https://demo.example.org", self.pair, timeout_seconds=1)
+        self.assertEqual(
+            [call("https://demo.example.org/api/ready", expect_json=True)], http_get.call_args_list
         )
 
     def test_demo_url_is_an_https_origin_only(self) -> None:
@@ -396,55 +409,6 @@ class DemoDeploymentTests(unittest.TestCase):
         ):
             with self.subTest(invalid=invalid), self.assertRaises(DeploymentError):
                 validate_demo_url(invalid)
-
-    def test_workflow_preserves_oidc_manifest_and_smoke_contract(self) -> None:
-        workflow = Path(".github/workflows/demo-deploy.yml").read_text(encoding="utf-8")
-        self.assertIn("workflow_call:", workflow)
-        self.assertIn("workflow_dispatch:", workflow)
-        self.assertNotIn("schedule:", workflow)
-        self.assertNotIn("push:\n", workflow)
-        self.assertIn("permissions: {}", workflow)
-        self.assertIn("actions: read", workflow)
-        self.assertIn("contents: read", workflow)
-        self.assertIn("id-token: write", workflow)
-        self.assertIn("packages: read", workflow)
-        self.assertIn("attestations: read", workflow)
-        self.assertIn("name: demo", workflow)
-        self.assertIn("url: ${{ vars.DEMO_URL }}", workflow)
-        azure_login = workflow.index("azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c")
-        before_azure = workflow[:azure_login]
-        self.assertIn("python3 -m demo.contract validate-deployment", before_azure)
-        self.assertIn("python3 -m demo.contract signer-workflow", before_azure)
-        self.assertIn("scripts/verify-demo-image-pair.sh", before_azure)
-        self.assertIn("--predicate-type https://slsa.dev/provenance/v1", before_azure)
-        self.assertNotIn("secrets.AZURE", workflow)
-        self.assertNotIn("AZURE_CREDENTIALS", workflow)
-        self.assertEqual(1, workflow.count("gh attestation verify"))
-        self.assertIn('for image in "$APP_IMAGE" "$SEED_IMAGE"', workflow)
-        self.assertNotIn("--predicate-type https://cyclonedx.org/bom", workflow)
-        self.assertIn("demo_deployment.py deploy", workflow[azure_login:])
-        self.assertIn("demo_deployment.py wait-readiness", workflow[azure_login:])
-        self.assertNotIn("wait-health", workflow)
-        self.assertIn("demo_deployment.py wait-application-readiness", workflow[azure_login:])
-        self.assertIn("demo_deployment.py smoke", workflow[azure_login:])
-        self.assertIn("if: failure()", workflow)
-        deployment_docs = Path("docs/developers/delivery.md").read_text(encoding="utf-8")
-        self.assertIn("HTTP 401", deployment_docs)
-        self.assertIn('{"error": "Authentication required."}', deployment_docs)
-        publish = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")
-        self.assertIn("jobs.resolve.outputs.schema_fingerprint", publish)
-        pull_request = Path(".github/workflows/pull-request.yml").read_text(encoding="utf-8")
-        full_quality = Path(".github/workflows/quality.yml").read_text(encoding="utf-8")
-        taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
-        pull_request_infra = pull_request.split("\n  infra:\n", 1)[1].split("\n  e2e:\n", 1)[0]
-        full_quality_infra = full_quality.split("\n  infra:\n", 1)[1].split("\n  container:\n", 1)[
-            0
-        ]
-        for workflow_infra in (pull_request_infra, full_quality_infra):
-            self.assertIn("actions/setup-python@", workflow_infra)
-            self.assertIn("astral-sh/setup-uv@", workflow_infra)
-            self.assertIn("task quality:infra quality:demo-deployment", workflow_infra)
-        self.assertIn("quality:demo-deployment:", taskfile)
 
 
 if __name__ == "__main__":

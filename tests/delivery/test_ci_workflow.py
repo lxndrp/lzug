@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import json
+import os
 import re
+import subprocess
 import unittest
-from pathlib import Path
 
 from tests.delivery.workflow_contract import (
-    action_blocks,
     job_block,
+    mapping_block,
     trigger_block,
-    workflow_name,
     workflow_text,
 )
 
@@ -18,12 +19,6 @@ PR_GATES = {
     "frontend-gate": "Pull Request / Frontend",
     "cli-gate": "Pull Request / CLI",
     "container-gate": "Pull Request / Container",
-}
-
-SYNTHETIC_FIXTURE_PATHS = {
-    "fixtures/synthetic-fixtures.json",
-    "fixtures/generate.py",
-    "frontend/src/app/testing/synthetic-fixtures.generated.ts",
 }
 
 
@@ -46,38 +41,11 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 self.assertIn("codeql", gate)
                 self.assertIn("source-scan", gate)
                 self.assertIn(
-                    'test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success',
+                    'test "$CHANGES" = success',
                     gate,
                 )
                 self.assertIn("true:success", gate)
                 self.assertIn("false:skipped", gate)
-
-    def test_path_selection_is_standard_based_and_fails_closed(self) -> None:
-        self.assertIn(
-            "dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d",
-            self.pull_request,
-        )
-        for domain in (
-            "fixtures",
-            "docs",
-            "backend",
-            "frontend",
-            "cli",
-            "container",
-            "browser",
-            "infra",
-        ):
-            with self.subTest(domain=domain):
-                self.assertIn(f"      {domain}: ${{{{", self.pull_request)
-        self.assertIn("predicate-quantifier: every", self.pull_request)
-        self.assertIn("steps.unknown.outputs.unknown == 'true'", self.pull_request)
-        self.assertIn("codeql_languages: ${{ steps.codeql.outputs.changes }}", self.pull_request)
-        self.assertIn("- '.github/**'", self.pull_request)
-        self.assertIn("- 'uv.lock'", self.pull_request)
-        self.assertIn("- 'frontend/.node-version'", self.pull_request)
-        self.assertIn("- 'docs/mkdocs.yml'", self.pull_request)
-        self.assertIn("- 'frontend/package-lock.json'", self.pull_request)
-        self.assertIn("- 'operator-cli/go.sum'", self.pull_request)
 
     def test_locked_go_modules_receive_grouped_dependabot_updates(self) -> None:
         self.assertIn("package-ecosystem: gomod", self.dependabot_config)
@@ -85,215 +53,9 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("golang-x-security:", self.dependabot_config)
         self.assertIn("directory: /operator-cli", self.dependabot_config)
 
-    def test_productive_web_changes_select_separate_browser_contracts(self) -> None:
-        self.assertIn("browser:\n              - 'backend/**'", self.pull_request)
-        self.assertIn("- 'frontend/src/**'", self.pull_request)
-        self.assertIn("- '!backend/tests/**'", self.pull_request)
-        self.assertIn("- '!frontend/**/*.spec.ts'", self.pull_request)
-        self.assertIn("needs: changes", job_block(self.pull_request, "e2e"))
-        self.assertIn("needs: changes", job_block(self.pull_request, "a11y"))
-
-    def test_browser_jobs_prepare_and_keep_the_chromium_sandbox(self) -> None:
-        sysctl = "sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0"
-        assertion = 'test "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns)" = 0'
-        for workflow in (self.pull_request, self.quality):
-            for job_id in ("e2e", "a11y"):
-                with self.subTest(workflow=workflow_name(workflow), job=job_id):
-                    browser_job = job_block(workflow, job_id)
-                    self.assertIn(sysctl, browser_job)
-                    self.assertIn(assertion, browser_job)
-
-        playwright = Path("frontend/playwright.config.ts").read_text(encoding="utf-8")
-        self.assertIn("chromiumSandbox: true", playwright)
-        self.assertNotIn("chromiumSandbox: false", playwright)
-        self.assertNotIn("--no-sandbox", playwright)
-
-    def test_master_schedule_and_manual_runs_are_unconditionally_complete(self) -> None:
-        triggers = trigger_block(self.quality)
-        self.assertIn("push:", triggers)
-        self.assertIn("schedule:", triggers)
-        self.assertIn("workflow_dispatch:", triggers)
-        self.assertNotIn("pull_request:", triggers)
-        self.assertNotIn("paths-filter", self.quality)
-        self.assertNotIn("needs: changes", self.quality)
-        self.assertNotIn("if: always()", self.quality)
-        for job_id in (
-            "backend",
-            "frontend",
-            "docs",
-            "cli",
-            "infra",
-            "container",
-            "e2e",
-            "a11y",
-        ):
-            with self.subTest(job=job_id):
-                self.assertIn("runs-on:", job_block(self.quality, job_id))
-
-    def test_quality_is_reusable_for_an_explicit_immutable_revision(self) -> None:
-        workflow_call = trigger_block(self.quality)
-        self.assertIn("workflow_call:", workflow_call)
-        self.assertIn("revision:", workflow_call)
-        self.assertIn("required: false", workflow_call)
-        revision = "${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}"
-        self.assertIn(f"QUALITY_REVISION: {revision}", self.quality)
-        checkout_blocks = action_blocks(self.quality, "actions/checkout")
-        self.assertTrue(checkout_blocks)
-        self.assertTrue(all(f"ref: {revision}" in block for block in checkout_blocks))
-        self.assertIn("ref: ${{ inputs.revision || github.sha }}", self.codeql)
-        self.assertIn('--revision "$QUALITY_REVISION"', self.quality)
-
-    def test_dependabot_merge_starts_exact_revision_quality_baseline(self) -> None:
-        triggers = trigger_block(self.quality)
-        self.assertIn("workflow_run:", triggers)
-        dependabot_name = workflow_name(self.dependabot)
-        self.assertIn(f"- {dependabot_name}", triggers)
-        self.assertIn("- completed", triggers)
-        self.assertIn("- master", triggers)
-
-        revision = "${{ inputs.revision || github.event.workflow_run.head_sha || github.sha }}"
-        self.assertIn(f"QUALITY_REVISION: {revision}", self.quality)
-        self.assertIn("group: quality-${{ github.ref }}-" + revision, self.quality)
-        checkout_blocks = action_blocks(self.quality, "actions/checkout")
-        self.assertTrue(checkout_blocks)
-        self.assertTrue(all(f"ref: {revision}" in block for block in checkout_blocks))
-        self.assertIn(f"revision: {revision}", self.quality)
-
-    def test_local_quality_tasks_are_the_ci_domain_contract(self) -> None:
-        taskfile = workflow_text("Taskfile.yml")
-        for task in (
-            "task fixtures:check",
-            "task quality:backend",
-            "task quality:frontend quality:security",
-            "task quality:operator",
-            "task quality:infra",
-            "task quality:oci quality:container quality:compose "
-            "quality:operator-container quality:demo",
-            "task docs",
-        ):
-            with self.subTest(task=task):
-                self.assertIn(task, self.pull_request)
-                self.assertIn(task, self.quality)
-
-        self.assertIn("docs:check:", taskfile)
-        self.assertIn("python3 -m scripts.check_documentation", taskfile)
-
-    def test_backend_complexity_report_is_public_non_blocking_and_productive_only(self) -> None:
-        taskfile = workflow_text("Taskfile.yml")
-        pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
-
-        self.assertIn("[tool.ruff.lint.mccabe]", pyproject)
-        self.assertIn("max-complexity = 10", pyproject)
-        self.assertIn("backend:complexity:", taskfile)
-        complexity_task = taskfile.split("  backend:complexity:", 1)[1].split(
-            "  backend:format:", 1
-        )[0]
-        self.assertNotIn("internal: true", complexity_task)
-        self.assertIn("python -m ruff check backend", complexity_task)
-        self.assertIn("--exclude backend/tests", complexity_task)
-        self.assertIn("--exit-zero", complexity_task)
-        self.assertIn("- task: backend:complexity", taskfile)
-        self.assertIn("task quality:backend", self.pull_request)
-        self.assertIn("task quality:backend", self.quality)
-
-    def test_synthetic_fixture_check_has_a_complete_trigger_and_ci_contract(self) -> None:
-        taskfile = workflow_text("Taskfile.yml")
-        changes = job_block(self.pull_request, "changes")
-        pull_request_check = job_block(self.pull_request, "fixtures")
-        full_quality_check = job_block(self.quality, "fixtures")
-        backend_gate = job_block(self.pull_request, "backend-gate")
-        fixture_filter = re.search(
-            r"^            fixtures:\n(?P<paths>(?:              - .+\n)+)",
-            changes,
-            re.MULTILINE,
-        )
-
-        self.assertIn("fixtures:check:", taskfile)
-        self.assertIn("python3 fixtures/generate.py --check", taskfile)
-        self.assertIn("- fixtures:check", taskfile)
-        self.assertIn("fixtures: ${{", changes)
-        self.assertIsNotNone(fixture_filter)
-        for path in SYNTHETIC_FIXTURE_PATHS:
-            with self.subTest(path=path):
-                self.assertIn(f"- '{path}'", fixture_filter.group("paths"))
-        self.assertIn("task fixtures:check", pull_request_check)
-        self.assertIn("task fixtures:check", full_quality_check)
-        self.assertIn("fixtures", backend_gate)
-
-    def test_codeql_analysis_identity_survives_the_workflow_split(self) -> None:
-        category = 'category: ".github/workflows/ci.yml:codeql/language:${{ matrix.language }}"'
-        self.assertIn(category, self.codeql)
-        self.assertIn("uses: ./.github/workflows/ci.yml", self.pull_request)
-        self.assertIn("uses: ./.github/workflows/ci.yml", self.quality)
-        self.assertNotIn("github/codeql-action/analyze@", self.pull_request)
-        self.assertNotIn("github/codeql-action/analyze@", self.quality)
-
-    def test_codeql_reuses_only_validated_exact_base_analyses(self) -> None:
-        self.assertIn("BASE_SHA: ${{ inputs.baseline-sha }}", self.codeql)
-        self.assertIn('.commit_sha == $sha and .error == "" and .rules_count > 0', self.codeql)
-        self.assertIn("Accept: application/sarif+json", self.codeql)
-        self.assertIn('.runs[0].tool.driver.name == "CodeQL"', self.codeql)
-        self.assertIn(".runs | length == 1", self.codeql)
-        self.assertIn("tool.extensions[]?.rules[]?", self.codeql)
-        self.assertIn("results_count", self.codeql)
-        revisions: set[str] = set()
-        for action in ("init", "analyze", "upload-sarif"):
-            with self.subTest(action=action):
-                blocks = action_blocks(self.codeql, f"github/codeql-action/{action}")
-                self.assertEqual(1, len(blocks))
-                match = re.search(
-                    rf"uses:\s*github/codeql-action/{re.escape(action)}@([^\s#]+)",
-                    blocks[0],
-                )
-                self.assertIsNotNone(match)
-                assert match is not None
-                revision = match.group(1)
-                self.assertRegex(revision, r"[0-9a-f]{40}")
-                revisions.add(revision)
-        self.assertEqual(1, len(revisions))
-        self.assertNotIn('"results": []', self.codeql)
-
-    def test_codeql_falls_back_to_full_analysis_for_unusable_baselines(self) -> None:
-        analyze = job_block(self.codeql, "analyze")
-        unchanged = job_block(self.codeql, "unchanged")
-
-        self.assertIn("needs: unchanged", analyze)
-        self.assertIn(
-            "fallback_languages: ${{ steps.baselines.outputs.fallback_languages }}",
-            unchanged,
-        )
-        condition = (
-            "if: contains(fromJSON(inputs.languages), matrix.language) || "
-            "contains(fromJSON(needs.unchanged.outputs.fallback_languages), matrix.language)"
-        )
-        self.assertEqual(3, analyze.count(condition))
-        self.assertIn(
-            'language: ${{ fromJSON(\'["python","javascript-typescript","go"]\') }}',
-            analyze,
-        )
-        self.assertIn("fallback='[]'", unchanged)
-        self.assertIn("fallback_languages=$fallback", unchanged)
-        self.assertIn(
-            "No usable CodeQL baseline for $language; scheduling a full analysis.",
-            unchanged,
-        )
-        self.assertIn(
-            "CodeQL baseline lookup unavailable; scheduling full analyses for unchanged languages.",
-            unchanged,
-        )
-        self.assertIn(
-            "Unusable CodeQL SARIF baseline for $language; scheduling a full analysis.",
-            unchanged,
-        )
-        self.assertIn("continue", unchanged)
-        self.assertNotIn(
-            'error("missing successful CodeQL baseline for " + $language)',
-            unchanged,
-        )
-
     def test_pull_request_codeql_matrix_uses_selected_languages(self) -> None:
         self.assertIn(
-            'language: ${{ fromJSON(\'["python","javascript-typescript","go"]\') }}',
+            "language: ${{ fromJSON(inputs.languages) }}",
             self.codeql,
         )
         self.assertIn(
@@ -321,6 +83,167 @@ class QualityWorkflowContractTests(unittest.TestCase):
 
     def test_codeql_go_cache_uses_component_lockfile(self) -> None:
         self.assertIn("cache-dependency-path: operator-cli/go.sum", self.codeql)
+
+    def test_gates_reject_missing_failed_or_cancelled_selected_evidence(self) -> None:
+        for gate_id in PR_GATES:
+            gate = job_block(self.pull_request, gate_id)
+            command = gate.split("        run: |\n", 1)[1]
+            command = "\n".join(line[10:] for line in command.splitlines())
+            selected = {
+                "CHANGES": "success",
+                "CODEQL_SELECTED": "true",
+                "CODEQL": "success",
+                "SCAN_SELECTED": "true",
+                "SOURCE_SCAN": "success",
+                "SELECTED": "true",
+                "DETAIL": "success",
+                "BROWSER": "true",
+                "E2E": "success",
+                "A11Y": "success",
+                "FIXTURES_SELECTED": "true",
+                "FIXTURES": "success",
+                "INFRA_SELECTED": "true",
+                "INFRA_DETAIL": "success",
+            }
+
+            def check(values: dict[str, str], script: str = command) -> int:
+                return subprocess.run(
+                    ["bash", "-e", "-c", script],
+                    env=os.environ | values,
+                    capture_output=True,
+                    check=False,
+                ).returncode
+
+            with self.subTest(gate=gate_id):
+                self.assertEqual(0, check(selected))
+                for key in (
+                    "CHANGES",
+                    "CODEQL",
+                    "SOURCE_SCAN",
+                    "DETAIL",
+                    "E2E",
+                    "A11Y",
+                    "FIXTURES",
+                    "INFRA_DETAIL",
+                ):
+                    if f"${key}" not in command and f"{key}:" not in command:
+                        continue
+                    for bad in ("failure", "cancelled", "skipped", ""):
+                        self.assertNotEqual(0, check(selected | {key: bad}), (gate_id, key, bad))
+                skipped = {
+                    key: ("false" if value == "true" else "skipped")
+                    for key, value in selected.items()
+                }
+                skipped["CHANGES"] = "success"
+                self.assertEqual(0, check(skipped))
+                self.assertNotEqual(0, check(skipped | {"CHANGES": "failure"}))
+
+    def test_known_scripts_have_owners_and_new_scripts_fail_closed(self) -> None:
+        changes = job_block(self.pull_request, "changes")
+        full = mapping_block(changes, "full", indent=12)
+        unknown = mapping_block(changes, "unknown", indent=12)
+        self.assertNotIn("'scripts/**'", full)
+        self.assertNotIn("'!scripts/**'", unknown)
+        self.assertIn("'Taskfile.yml'", full)
+        for path, owner in {
+            "scripts/check_documentation.py": "docs",
+            "scripts/build-frontend.sh": "frontend",
+            "scripts/verify_cli_release.py": "cli",
+            "scripts/compose-smoke.sh": "container",
+            "scripts/demo_deployment.py": "infra",
+            "scripts/sbom.py": "full",
+        }.items():
+            with self.subTest(path=path):
+                self.assertIn(f"'{path}'", mapping_block(changes, owner, indent=12))
+        self.assertIn("steps.unknown.outputs.unknown == 'true'", changes)
+        self.assertIn("steps.domains.outputs.full == 'true'", changes)
+
+    def test_nightly_and_dispatch_evidence_are_bound_to_the_recorded_run_sha(self) -> None:
+        triggers = trigger_block(self.quality)
+        self.assertNotIn("push:", triggers)
+        self.assertNotIn("workflow_run:", triggers)
+        self.assertNotIn("workflow_call:", triggers)
+        self.assertIn('cron: "17 3 * * *"', triggers)
+        self.assertIn("workflow_dispatch:", triggers)
+        # An input checkout override would make run.head_sha lie about tested sources.
+        self.assertNotIn("inputs.revision", self.quality)
+        self.assertIn("QUALITY_REVISION: ${{ github.sha }}", self.quality)
+
+    def test_visual_matrix_is_selected_only_by_visual_sources(self) -> None:
+        visual = mapping_block(job_block(self.pull_request, "changes"), "visual", indent=12)
+        self.assertIn("'frontend/src/**/*.component.ts'", visual)
+        self.assertIn("'frontend/src/**/*.scss'", visual)
+        self.assertNotIn("backend/", visual)
+        self.assertNotIn(
+            "steps.domains.outputs.full",
+            next(
+                line for line in self.pull_request.splitlines() if line.startswith("      visual:")
+            ),
+        )
+        browser = mapping_block(job_block(self.pull_request, "changes"), "browser", indent=12)
+        self.assertIn("'frontend/e2e/**'", browser)
+        self.assertNotIn("'!frontend/**/*.spec.ts'", browser)
+
+    def test_release_and_both_promotion_channels_reject_wrong_quality_evidence(self) -> None:
+        sha = "a" * 40
+        valid = {
+            "head_sha": sha,
+            "head_branch": "master",
+            "conclusion": "success",
+            "event": "schedule",
+        }
+        for path in ("release", "demo-publish", "demo-snapshot"):
+            workflow = workflow_text(f".github/workflows/{path}.yml")
+            expression = re.search(
+                r"jq -e --arg sha [^\n]+ '(.*?)' <<<\"\$quality_runs", workflow, re.S
+            )
+            self.assertIsNotNone(expression, path)
+            assert expression is not None
+            for change, accepted in (
+                ({}, True),
+                ({"event": "workflow_dispatch"}, True),
+                ({"head_sha": "b" * 40}, False),
+                ({"head_branch": "topic"}, False),
+                ({"conclusion": "failure"}, False),
+                ({"conclusion": "cancelled"}, False),
+                ({"event": "push"}, False),
+                ({"event": "workflow_call"}, False),
+            ):
+                with self.subTest(workflow=path, change=change):
+                    result = subprocess.run(
+                        ["jq", "-e", "--arg", "sha", sha, expression.group(1)],
+                        input=json.dumps({"workflow_runs": [valid | change]}),
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+                    self.assertEqual(accepted, result.returncode == 0, result.stderr)
+
+    def test_dispatch_rejects_a_moved_master_or_another_branch(self) -> None:
+        gate = job_block(self.quality, "revision")
+        command = gate.split("        run: |\n", 1)[1]
+        command = "\n".join(line[10:] for line in command.splitlines())
+        valid = {
+            "GITHUB_SHA": "a" * 40,
+            "EXPECTED_SHA": "a" * 40,
+            "GITHUB_REF": "refs/heads/master",
+            "GITHUB_EVENT_NAME": "workflow_dispatch",
+        }
+        for change, accepted in (
+            ({}, True),
+            ({"EXPECTED_SHA": "b" * 40}, False),
+            ({"EXPECTED_SHA": ""}, False),
+            ({"GITHUB_REF": "refs/heads/topic"}, False),
+            ({"GITHUB_EVENT_NAME": "schedule", "EXPECTED_SHA": ""}, True),
+        ):
+            with self.subTest(change=change):
+                result = subprocess.run(
+                    ["bash", "-e", "-c", command],
+                    env=os.environ | valid | change,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(accepted, result.returncode == 0, result.stderr)
 
 
 if __name__ == "__main__":

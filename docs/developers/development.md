@@ -10,7 +10,8 @@ Einrichtung, Arbeitsprozess und passende lokale Prüfungen.
 `mise` stellt die projektweit gepinnten Werkzeuge bereit.
 Der aktuelle Stand verwendet Python 3.14.6, Node.js 26.5.0, Go 1.26.5,
 Task 3.52.0, GoReleaser 2.17.1, Syft 1.51.0, OpenTofu 1.12.5 und
-Hugo Extended 0.165.0; `.mise.toml` und die jeweiligen Versionsdateien bleiben
+Hugo Extended 0.165.0 sowie Lychee 0.24.2; `.mise.toml` und die jeweiligen
+Versionsdateien bleiben
 maßgeblich.
 `uv.lock`, `frontend/package-lock.json` und `operator-cli/go.sum` binden die
 Abhängigkeiten.
@@ -50,12 +51,13 @@ Seiteneffekt des normalen Servers.
 | Backend-Komplexität | `task backend:complexity` |
 | Angular-Code | betroffener Vitest-Test, danach `task quality:frontend` |
 | produktive npm-Abhängigkeiten | `task quality:security` |
-| Go-CLI | `task test:operator` oder `task quality:operator` |
+| Go-CLI | `task test:operator` oder `task quality:operator`; für native Archive zusätzlich `task quality:operator-packaging` |
 | sichtbarer Browserablauf | `task quality:e2e` |
 | Accessibility | `task quality:a11y` getrennt vom E2E-Lauf |
 | OCI, Compose oder CLI-Container | der passende `task quality:container`, `quality:compose` oder `quality:operator-container` |
 | Demo-Liefervertrag | `task quality:demo-deployment` und je nach Änderung `quality:demo` oder `quality:infra` |
 | Dokumentation | `task docs:check`, danach `task docs` |
+| Erzeugte öffentliche Site und Portal-Links | `task docs:publication:linkcheck` |
 | querschnittliche Änderung | `task quality` |
 
 Vor Browserprüfungen läuft `task doctor`.
@@ -247,7 +249,7 @@ geprüft und sinnvolle Befunde vor dem Auflösen umgesetzt.
 
 Merge, Release, Workflow-Dispatch und externe Aktivierung bleiben getrennte
 Maintainerentscheidungen.
-Nach einem freigegebenen Merge werden Post-Merge-Qualität, Issue- und
+Nach einem freigegebenen Merge werden relevante Folgebuilds, Issue- und
 Project-Status live geprüft.
 Vor dem Entfernen des issuebezogenen Worktrees muss er sauber sein; nur der
 zugehörige lokale und Remote-Feature-Branch wird entfernt.

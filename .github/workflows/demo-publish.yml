@@ -89,9 +89,10 @@ jobs:
             any(.workflow_runs[];
               .head_sha == $sha and
               .head_branch == "master" and
+              (.event == "schedule" or .event == "workflow_dispatch") and
               .conclusion == "success")
           ' <<<"$quality_runs" >/dev/null || {
-            echo "No successful complete Quality workflow exists for $target_sha." >&2
+            echo "Run Quality on master with expected_sha before continuing. No successful complete Quality workflow exists for $target_sha." >&2
             exit 1
           }
 

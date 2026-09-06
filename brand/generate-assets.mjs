@@ -98,7 +98,7 @@ function validateContract() {
   );
   for (const [name, version] of [
     ["@fontsource-variable/inter", "5.3.0"],
-    ["lucide", "0.468.0"],
+    ["lucide", "1.39.0"],
   ]) {
     if (packageJson.dependencies?.[name] !== version)
       fail(`${name} dependency is not exact`);

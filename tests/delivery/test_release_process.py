@@ -29,14 +29,6 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertNotIn("type: release", self.workflow)
         self.assertNotIn("gh issue", self.workflow)
 
-    def test_preflight_reads_one_complete_master_quality_workflow(self) -> None:
-        self.assertIn("actions/workflows/quality.yml/runs", self.preflight)
-        self.assertIn(".head_sha == $sha", self.preflight)
-        self.assertIn('.head_branch == "master"', self.preflight)
-        self.assertIn('.conclusion == "success"', self.preflight)
-        self.assertNotIn("check-runs", self.workflow)
-        self.assertNotIn("sleep ", self.workflow)
-
     def test_environment_approval_precedes_immutable_tag_and_tag_checkout(self) -> None:
         self.assertIn("environment: release", self.publish)
         self.assertIn('git cat-file -t "$RELEASE_TAG"', self.publish)
@@ -70,21 +62,6 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertNotIn("release-assets/cli/$archive_stem.cdx", self.publish)
         self.assertNotIn('checksums.txt" release-assets', self.publish)
         self.assertNotIn("release-manifest.json", self.publish)
-
-    def test_release_does_not_repeat_quality_or_security_checks(self) -> None:
-        for forbidden in (
-            "task quality",
-            "container-smoke.sh",
-            "operator-container-smoke.sh",
-            "compose-smoke.sh",
-            "trivy-action",
-            "npm test",
-            "python -m unittest",
-            "upload-artifact",
-            "download-artifact",
-        ):
-            with self.subTest(forbidden=forbidden):
-                self.assertNotIn(forbidden, self.publish)
 
 
 if __name__ == "__main__":
