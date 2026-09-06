@@ -29,9 +29,6 @@ case "$*" in
     compose*" port lzug "*)
         echo "127.0.0.1:49152"
         ;;
-    compose*" exec -T lzug python -m backend.healthcheck")
-        test "${FAKE_DIRECT_HEALTH:-passed}" = "passed"
-        ;;
     compose*" exec -T lzug python -c "*"read_text"*)
         echo "persisted"
         ;;
@@ -88,7 +85,6 @@ class ComposeSmokeTests(unittest.TestCase):
 
     def test_lifecycle_uses_functional_health_while_scheduler_is_starting(self) -> None:
         result, commands = self.run_smoke(
-            FAKE_DIRECT_HEALTH="passed",
             FAKE_DOCKER_HEALTH="starting",
             FAKE_HTTP_STATUS="200",
         )
@@ -98,7 +94,7 @@ class ComposeSmokeTests(unittest.TestCase):
         self.assertIn("Waiting for Compose readiness after restart.", result.stdout)
         self.assertIn("Waiting for Compose stop to complete.", result.stdout)
         self.assertIn("Waiting for Compose readiness after stop/start.", result.stdout)
-        self.assertEqual(commands.count("python -m backend.healthcheck"), 3)
+        self.assertNotIn("python -m backend.healthcheck", commands)
         self.assertIn(" restart lzug", commands)
         self.assertIn(" stop lzug", commands)
         self.assertIn(" start lzug", commands)
@@ -111,7 +107,6 @@ class ComposeSmokeTests(unittest.TestCase):
 
     def test_stop_timeout_does_not_start_a_container_that_is_still_stopping(self) -> None:
         result, commands = self.run_smoke(
-            FAKE_DIRECT_HEALTH="passed",
             FAKE_DOCKER_HEALTH="healthy",
             FAKE_DOCKER_STATE="stopping",
             FAKE_HTTP_STATUS="200",
@@ -122,26 +117,8 @@ class ComposeSmokeTests(unittest.TestCase):
         self.assertIn("lifecycle_status=stopping", result.stderr)
         self.assertNotIn(" start lzug", commands)
 
-    def test_timeout_reports_direct_health_failure_with_runtime_diagnostics(self) -> None:
-        result, _commands = self.run_smoke(
-            FAKE_DIRECT_HEALTH="failed",
-            FAKE_DOCKER_HEALTH="unhealthy",
-            FAKE_HTTP_STATUS="200",
-        )
-
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("Compose readiness timed out after start", result.stderr)
-        self.assertIn("http_status=200", result.stderr)
-        self.assertIn("direct_healthcheck=failed", result.stderr)
-        self.assertIn("docker_health=unhealthy", result.stderr)
-        self.assertIn("Compose service state:", result.stderr)
-        self.assertIn("fake-container running (unhealthy)", result.stderr)
-        self.assertIn("Compose logs:", result.stderr)
-        self.assertIn("fake compose logs", result.stderr)
-
     def test_timeout_reports_public_http_failure(self) -> None:
         result, _commands = self.run_smoke(
-            FAKE_DIRECT_HEALTH="passed",
             FAKE_DOCKER_HEALTH="healthy",
             FAKE_HTTP_STATUS="503",
         )
@@ -149,8 +126,10 @@ class ComposeSmokeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("Compose readiness timed out after start", result.stderr)
         self.assertIn("http_status=503", result.stderr)
-        self.assertIn("direct_healthcheck=passed", result.stderr)
         self.assertIn("docker_health=healthy", result.stderr)
+        self.assertIn("Compose service state:", result.stderr)
+        self.assertIn("Compose logs:", result.stderr)
+        self.assertIn("fake compose logs", result.stderr)
 
 
 if __name__ == "__main__":

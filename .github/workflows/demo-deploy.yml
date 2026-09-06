@@ -210,19 +210,7 @@ jobs:
             --seed-revision "$SEED_REVISION" \
             --revision-suffix "${{ steps.deployment.outputs.revision_suffix }}"
 
-      - name: Wait separately for application readiness
-        run: |
-          python3 scripts/demo_deployment.py wait-application-readiness \
-            --demo-url "$DEMO_URL" \
-            --app-image "$APP_IMAGE" \
-            --seed-image "$SEED_IMAGE" \
-            --product-tag "$PRODUCT_TAG" \
-            --product-commit "$PRODUCT_COMMIT" \
-            --runtime-contract "$RUNTIME_CONTRACT" \
-            --schema-fingerprint "$SCHEMA_FINGERPRINT" \
-            --seed-revision "$SEED_REVISION"
-
-      - name: Smoke-test health, readiness, demo API, protected OpenAPI, and the central frontend route
+      - name: Verify application readiness, bound demo API, protected OpenAPI, and frontend
         run: |
           python3 scripts/demo_deployment.py smoke \
             --demo-url "$DEMO_URL" \

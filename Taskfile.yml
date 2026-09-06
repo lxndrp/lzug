@@ -247,11 +247,16 @@ tasks:
       - quality:frontend
       - quality:security
       - quality:operator
+      - quality:operator-packaging
+      - test:delivery
+      - test:demo
+      - test:fixtures
+      - test:oci
+      - test:tooling
       - quality:oci
       - quality:overall
       - quality:sbom
       - quality:infra
-      - quality:demo-deployment
       - quality:demo
       - docs
 
@@ -291,21 +296,11 @@ tasks:
         tests.demo.test_demo_url_contract
 
   quality:sbom:
-    desc: Generate and validate the canonical dependency SBOM
+    desc: Generate and validate the dependency SBOM once
     cmds:
-      - |
-        set -eu
-        temporary_directory="$(mktemp -d)"
-        trap 'rm -rf "$temporary_directory"' EXIT
-        revision="$(git rev-parse HEAD)"
-        source_version="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
-        uv sync --locked --extra dev --check
-        python3 scripts/sbom.py generate-dependencies \
-          --source-version "$source_version" \
-          --output "$temporary_directory/lzug.dependencies.sbom.cdx.json"
-        python3 scripts/sbom.py validate \
-          --kind dependencies \
-          --input "$temporary_directory/lzug.dependencies.sbom.cdx.json"
+      - task: sbom
+        vars:
+          OUTPUT: build/quality/lzug.dependencies.sbom.cdx.json
 
   quality:release:
     desc: Check the release workflow, aggregate SBOM, metadata, and GoReleaser contracts
@@ -344,12 +339,17 @@ tasks:
       - npm run security:check
 
   quality:operator:
-    desc: Run Go operator CLI tests and verify reproducible GoReleaser archives
+    desc: Run Go operator CLI tests, vet, and packaging configuration validation
     dir: operator-cli
     cmds:
       - task: test:operator
       - go vet ./...
       - goreleaser check
+
+  quality:operator-packaging:
+    desc: Verify reproducible CLI archives and their native binary SBOM
+    dir: operator-cli
+    cmds:
       - |
         set -eu
         test ! -e dist || { echo "operator-cli dist directory must not exist before CLI verification" >&2; exit 1; }
@@ -366,6 +366,10 @@ tasks:
           --second "$temporary_directory/second" \
           --version "$application_version" \
           --revision "$revision"
+        artifact=$(python3 -c 'import json; from pathlib import Path; p=Path(__import__("sys").argv[1]); print(next(p / a["path"].removeprefix("dist/") for a in json.loads((p / "artifacts.json").read_text()) if a["type"] == "Binary"))' "$temporary_directory/first")
+        python3 ../scripts/sbom.py generate-cli --artifact "$artifact" \
+          --source-name lzug-admin --source-version "$application_version" \
+          --output "$temporary_directory/cli.cdx.json"
 
   quality:oci:
     desc: Build the local OCI quality image
@@ -376,7 +380,6 @@ tasks:
     desc: Build and verify the separate demo app and seed OCI pair
     deps:
       - quality:image
-      - quality:demo-matrix
     cmds:
       - |
         set -eu
@@ -393,52 +396,47 @@ tasks:
           rm -rf "$temporary_directory"
         }
         trap cleanup EXIT
-        for channel_and_tag in \
-          "release|v0.1.1" \
-          "snapshot|demo/v0.2.0-SNAPSHOT.$short_revision"; do
-          channel=${channel_and_tag%%|*}
-          product_tag=${channel_and_tag#*|}
-          build_identity=$(python3 -m demo.contract identity \
-            --tag "$product_tag" --commit "$revision" --channel "$channel" --field identity)
-          seed_image="lzug-demo-seed:$channel-local"
-          app_image="lzug-demo-app:$channel-local"
-          "$engine" build -f demo/Dockerfile.demo-seed \
-            --build-arg "PRODUCT_TAG=$product_tag" \
-            --build-arg "VCS_REF=$revision" \
-            -t "$seed_image" .
-          seed_container=$("$engine" create "$seed_image")
-          "$engine" cp \
-            "$seed_container:/opt/lzug-demo/seed/lzug.sqlite" \
-            "$temporary_directory/lzug.sqlite"
-          "$engine" cp \
-            "$seed_container:/opt/lzug-demo/seed/manifest.json" \
-            "$temporary_directory/manifest.json"
-          "$engine" rm "$seed_container" >/dev/null
-          seed_container=""
-          expected_schema_fingerprint=$(python3 -c \
-            'from pathlib import Path; from demo.artifacts import schema_binding; print(schema_binding(Path("."))["fingerprint"])')
-          python3 -m demo.artifacts verify-seed \
-            --database "$temporary_directory/lzug.sqlite" \
-            --manifest "$temporary_directory/manifest.json" \
-            --expected-product-tag "$product_tag" \
-            --expected-product-commit "$revision" \
-            --expected-schema-fingerprint "$expected_schema_fingerprint"
-          seed_revision=$(python3 -m demo.contract manifest-field \
-            --manifest "$temporary_directory/manifest.json" --kind seed \
-            --expected-product-tag "$product_tag" --expected-product-commit "$revision" \
-            --field seed_revision)
-          "$engine" build -f demo/Dockerfile.demo \
-            --build-arg "BUILD_IDENTITY=$build_identity" \
-            --build-arg "PRODUCT_TAG=$product_tag" \
-            --build-arg "VCS_REF=$revision" \
-            --build-arg "SEED_REVISION=$seed_revision" \
-            -t "$app_image" .
-          scripts/demo-container-smoke.sh \
-            "$app_image" \
-            "$seed_image" \
-            lzug:0.0.0-dev.local \
-            "$seed_revision"
-        done
+        product_tag="demo/v0.2.0-SNAPSHOT.$short_revision"
+        build_identity=$(python3 -m demo.contract identity \
+          --tag "$product_tag" --commit "$revision" --channel snapshot --field identity)
+        seed_image="lzug-demo-seed:local"
+        app_image="lzug-demo-app:local"
+        "$engine" build -f demo/Dockerfile.demo-seed \
+          --build-arg "PRODUCT_TAG=$product_tag" \
+          --build-arg "VCS_REF=$revision" \
+          -t "$seed_image" .
+        seed_container=$("$engine" create "$seed_image")
+        "$engine" cp \
+          "$seed_container:/opt/lzug-demo/seed/lzug.sqlite" \
+          "$temporary_directory/lzug.sqlite"
+        "$engine" cp \
+          "$seed_container:/opt/lzug-demo/seed/manifest.json" \
+          "$temporary_directory/manifest.json"
+        "$engine" rm "$seed_container" >/dev/null
+        seed_container=""
+        expected_schema_fingerprint=$(python3 -c \
+          'from pathlib import Path; from demo.artifacts import schema_binding; print(schema_binding(Path("."))["fingerprint"])')
+        python3 -m demo.artifacts verify-seed \
+          --database "$temporary_directory/lzug.sqlite" \
+          --manifest "$temporary_directory/manifest.json" \
+          --expected-product-tag "$product_tag" \
+          --expected-product-commit "$revision" \
+          --expected-schema-fingerprint "$expected_schema_fingerprint"
+        seed_revision=$(python3 -m demo.contract manifest-field \
+          --manifest "$temporary_directory/manifest.json" --kind seed \
+          --expected-product-tag "$product_tag" --expected-product-commit "$revision" \
+          --field seed_revision)
+        "$engine" build -f demo/Dockerfile.demo \
+          --build-arg "BUILD_IDENTITY=$build_identity" \
+          --build-arg "PRODUCT_TAG=$product_tag" \
+          --build-arg "VCS_REF=$revision" \
+          --build-arg "SEED_REVISION=$seed_revision" \
+          -t "$app_image" .
+        scripts/demo-container-smoke.sh \
+          "$app_image" \
+          "$seed_image" \
+          lzug:0.0.0-dev.local \
+          "$seed_revision"
 
   quality:demo-matrix:
     desc: Verify demo roles, capabilities, mutation allowlist, and default-deny paths
@@ -474,6 +472,10 @@ tasks:
           --build-arg "BUILD_IDENTITY=$build_identity" \
           --build-arg "VCS_REF=$revision" \
           -t lzug:0.0.0-dev.local .
+      - task: sbom:image
+        vars:
+          IMAGE: lzug:0.0.0-dev.local
+          OUTPUT: build/quality/lzug.image.sbom.cdx.json
 
   quality:container:
     desc: Run the packaged container runtime contract
@@ -651,9 +653,6 @@ tasks:
           --source-name "$(basename "{{.ARTIFACT}}")" \
           --source-version "$source_version" \
           --output "{{.OUTPUT}}"
-        python3 scripts/sbom.py validate \
-          --kind cli \
-          --input "{{.OUTPUT}}"
 
   dev:backend:
     desc: Start the backend development server

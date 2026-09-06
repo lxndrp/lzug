@@ -92,7 +92,7 @@ lifecycle_status() {
 
 http_status() {
     status=$(curl --silent --show-error --output /dev/null \
-        --write-out '%{http_code}' --max-time 5 "$url/api/health" 2>/dev/null) \
+        --write-out '%{http_code}' --max-time 5 "$url/api/ready" 2>/dev/null) \
         || status="unreachable"
     if [ -z "$status" ]; then
         status="unreachable"
@@ -104,21 +104,12 @@ wait_ready() {
     lifecycle_step=$1
     deadline=$(($(date +%s) + ready_timeout_seconds))
     last_http_status="not-checked"
-    last_direct_healthcheck="not-checked"
     last_docker_health="unknown"
 
     echo "Waiting for Compose readiness after $lifecycle_step."
     while :; do
         last_http_status=$(http_status)
-        if compose exec -T lzug python -m backend.healthcheck >/dev/null 2>&1; then
-            last_direct_healthcheck="passed"
-        else
-            last_direct_healthcheck="failed"
-        fi
-        last_docker_health=$(health_status)
-
-        if [ "$last_http_status" = "200" ] \
-            && [ "$last_direct_healthcheck" = "passed" ]; then
+        if [ "$last_http_status" = "200" ]; then
             return 0
         fi
         if [ "$(date +%s)" -ge "$deadline" ]; then
@@ -127,7 +118,8 @@ wait_ready() {
         sleep "$ready_interval_seconds"
     done
 
-    echo "Compose readiness timed out after $lifecycle_step: timeout=${ready_timeout_seconds}s http_status=$last_http_status direct_healthcheck=$last_direct_healthcheck docker_health=$last_docker_health" >&2
+    last_docker_health=$(health_status)
+    echo "Compose readiness timed out after $lifecycle_step: timeout=${ready_timeout_seconds}s http_status=$last_http_status docker_health=$last_docker_health" >&2
     echo "Compose service state:" >&2
     compose ps --all >&2 || true
     echo "Compose logs:" >&2

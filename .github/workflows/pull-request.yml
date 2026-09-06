@@ -30,7 +30,9 @@ jobs:
       container: ${{ steps.domains.outputs.container == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       browser: ${{ steps.domains.outputs.browser == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       infra: ${{ steps.domains.outputs.infra == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
-      codeql_languages: ${{ steps.codeql.outputs.changes }}
+      visual: ${{ steps.domains.outputs.visual == 'true' }}
+      source_scan: ${{ steps.domains.outputs.source_scan == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
+      codeql_languages: ${{ (steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true') && '["python","javascript-typescript","go"]' || steps.codeql.outputs.changes }}
     steps:
       - name: Select known domains
         id: domains
@@ -50,25 +52,38 @@ jobs:
               - 'THIRD_PARTY_NOTICES.md'
               - 'frontend/**/*.md'
               - 'frontend/THIRD_PARTY_NOTICES.md'
+              - 'scripts/check_documentation.py'
+              - 'scripts/validate_demo_url_contract.py'
             backend:
               - 'backend/**'
               - 'db/**'
               - 'fixtures/**'
             frontend:
+              - 'brand/**'
+              - 'scripts/build-frontend.sh'
               - 'frontend/**'
               - '!frontend/**/*.md'
               - '!frontend/THIRD_PARTY_NOTICES.md'
             cli:
-              - 'operator-cli/cmd/lzug-admin/**'
-              - 'operator-cli/internal/tools/cli-reference/**'
-              - 'operator-cli/internal/admincli/**'
+              - 'scripts/verify_cli_release.py'
+              - 'scripts/operator-container-smoke.sh'
+              - 'operator-cli/**'
               - 'operator-cli/.goreleaser.yml'
               - 'operator-cli/go.mod'
               - 'operator-cli/go.sum'
               - 'THIRD_PARTY_NOTICES.md'
             infra:
+              - 'scripts/demo_deployment.py'
+              - 'scripts/demo_snapshot.py'
+              - 'scripts/verify-demo-image-pair.sh'
               - 'infra/**'
             container:
+              - 'scripts/compose-smoke.sh'
+              - 'scripts/compose_policy.py'
+              - 'scripts/container-contract.sh'
+              - 'scripts/container-smoke.sh'
+              - 'scripts/operator-container-smoke.sh'
+              - 'scripts/verify-demo-image-pair.sh'
               - '.dockerignore'
               - '.env.example'
               - 'Dockerfile'
@@ -83,14 +98,32 @@ jobs:
               - 'scripts/demo-container-smoke.sh'
               - 'fixtures/generate.py'
             browser:
+              - 'brand/**'
+              - 'demo/**'
+              - 'scripts/build-frontend.sh'
               - 'backend/**'
               - 'db/**'
               - 'fixtures/**'
               - 'frontend/src/**'
               - 'frontend/e2e/**'
-              - 'frontend/playwright.config.ts'
+              - 'frontend/playwright*.ts'
+              - 'frontend/demo-overlays/**'
+              - 'frontend/public/**'
               - '!backend/tests/**'
-              - '!frontend/**/*.spec.ts'
+              - '!frontend/src/**/*.spec.ts'
+            visual:
+              - 'brand/**'
+              - 'frontend/src/**/*.html'
+              - 'frontend/src/**/*.scss'
+              - 'frontend/src/**/*.css'
+              - 'frontend/src/**/*.component.ts'
+              - 'frontend/public/**'
+              - 'frontend/demo-overlays/**'
+              - 'frontend/e2e/ui-review.spec.ts'
+              - 'frontend/playwright.ui-review.config.ts'
+            source_scan:
+              - '**'
+              - '!**/*.md'
             full:
               - '.github/**'
               - 'tests/**'
@@ -104,7 +137,8 @@ jobs:
               - 'frontend/package-lock.json'
               - 'operator-cli/go.mod'
               - 'operator-cli/go.sum'
-              - 'scripts/**'
+              - 'scripts/build_metadata.py'
+              - 'scripts/sbom.py'
 
       - name: Select CodeQL languages
         id: codeql
@@ -152,12 +186,28 @@ jobs:
               - '**'
               - '!backend/**'
               - '!db/**'
+              - '!demo/**'
+              - '!brand/**'
               - '!docs/**'
               - '!fixtures/**'
               - '!frontend/**'
               - '!infra/**'
               - '!operator-cli/**'
-              - '!scripts/**'
+              - '!scripts/build-frontend.sh'
+              - '!scripts/build_metadata.py'
+              - '!scripts/check_documentation.py'
+              - '!scripts/compose-smoke.sh'
+              - '!scripts/compose_policy.py'
+              - '!scripts/container-contract.sh'
+              - '!scripts/container-smoke.sh'
+              - '!scripts/demo-container-smoke.sh'
+              - '!scripts/demo_deployment.py'
+              - '!scripts/demo_snapshot.py'
+              - '!scripts/operator-container-smoke.sh'
+              - '!scripts/sbom.py'
+              - '!scripts/validate_demo_url_contract.py'
+              - '!scripts/verify-demo-image-pair.sh'
+              - '!scripts/verify_cli_release.py'
               - '!.github/**'
               - '!.vscode/**'
               - '!.dockerignore'
@@ -191,10 +241,12 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14.6"
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - run: uv sync --locked --extra dev
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
         with:
           version: 3.52.0
-      - run: task fixtures:check
+      - run: task fixtures:check test:fixtures
 
   docs:
     name: Documentation details
@@ -273,7 +325,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --prefix frontend
       - name: Run frontend quality and production dependency audit
-        run: task quality:frontend quality:security
+        run: task brand:check quality:frontend quality:security
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: frontend-coverage
@@ -301,7 +353,7 @@ jobs:
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
         with:
           version: 3.52.0
-      - name: Test and reproducibly build the CLI
+      - name: Test the CLI and validate its packaging configuration
         run: task quality:operator
 
   container:
@@ -332,25 +384,20 @@ jobs:
         uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           syft-version: v1.51.0
-      - name: Build once and verify all packaged runtime contracts
+      - name: Build once and verify product packaging and fast delivery contracts
         env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
-        run: task quality:oci quality:container quality:compose quality:operator-container quality:demo
-      - name: Generate and validate the image SBOM
+        run: task quality:oci quality:container quality:compose-config test:oci test:demo test:delivery test:tooling
+      - name: Generate and validate the dependency SBOM
         env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
-        run: |
-          source_version=$(python3 scripts/build_metadata.py --revision "$GITHUB_SHA" --field identity)
-          python3 scripts/sbom.py generate-dependencies --source-version "$source_version" --output lzug.dependencies.sbom.cdx.json
-          python3 scripts/sbom.py validate --kind dependencies --input lzug.dependencies.sbom.cdx.json
-          python3 scripts/sbom.py generate-image --image "$IMAGE_REF" --output lzug.image.sbom.cdx.json
-          python3 scripts/sbom.py validate --kind image --input lzug.image.sbom.cdx.json
+        run: task quality:sbom
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: lzug-sboms
           path: |
-            lzug.dependencies.sbom.cdx.json
-            lzug.image.sbom.cdx.json
+            build/quality/lzug.dependencies.sbom.cdx.json
+            build/quality/lzug.image.sbom.cdx.json
           if-no-files-found: error
           retention-days: 30
       - name: Block high and critical image findings
@@ -417,7 +464,10 @@ jobs:
         run: |
           uv sync --locked --extra dev
           npm ci --prefix frontend
-          cd frontend && npx playwright install --with-deps chromium firefox webkit
+          cd frontend && npx playwright install --with-deps chromium
+      - name: Install visual matrix engines
+        if: needs.changes.outputs.visual == 'true'
+        run: cd frontend && npx playwright install --with-deps firefox webkit
       - name: Enable the Chromium user-namespace sandbox
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
@@ -425,6 +475,7 @@ jobs:
       - name: Run browser end-to-end tests
         run: npm --prefix frontend run test:e2e
       - name: Run focused cross-browser UI review
+        if: needs.changes.outputs.visual == 'true'
         run: npm --prefix frontend run test:ui-review
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: failure()
@@ -480,17 +531,18 @@ jobs:
 
   codeql:
     needs: changes
+    if: needs.changes.outputs.codeql_languages != '[]'
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
       security-events: write
     with:
       languages: ${{ needs.changes.outputs.codeql_languages }}
-      baseline-ref: ${{ github.event.pull_request.base.ref }}
-      baseline-sha: ${{ github.event.pull_request.base.sha }}
 
   source-scan:
     name: Source secrets and misconfiguration
+    needs: changes
+    if: needs.changes.outputs.source_scan == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -515,9 +567,15 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           SELECTED: ${{ needs.changes.outputs.docs }}
           DETAIL: ${{ needs.docs.result }}
+          CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_languages != '[]' }}
+          SCAN_SELECTED: ${{ needs.changes.outputs.source_scan }}
           CODEQL: ${{ needs.codeql.result }}
           SOURCE_SCAN: ${{ needs.source-scan.result }}
-        run: test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success && { test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped; }
+        run: |
+          test "$CHANGES" = success
+          test "$CODEQL_SELECTED:$CODEQL" = true:success || test "$CODEQL_SELECTED:$CODEQL" = false:skipped
+          test "$SCAN_SELECTED:$SOURCE_SCAN" = true:success || test "$SCAN_SELECTED:$SOURCE_SCAN" = false:skipped
+          test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
 
   backend-gate:
     name: Pull Request / Backend
@@ -534,10 +592,14 @@ jobs:
           BROWSER: ${{ needs.changes.outputs.browser }}
           E2E: ${{ needs.e2e.result }}
           A11Y: ${{ needs.a11y.result }}
+          CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_languages != '[]' }}
+          SCAN_SELECTED: ${{ needs.changes.outputs.source_scan }}
           CODEQL: ${{ needs.codeql.result }}
           SOURCE_SCAN: ${{ needs.source-scan.result }}
         run: |
-          test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success
+          test "$CHANGES" = success
+          test "$CODEQL_SELECTED:$CODEQL" = true:success || test "$CODEQL_SELECTED:$CODEQL" = false:skipped
+          test "$SCAN_SELECTED:$SOURCE_SCAN" = true:success || test "$SCAN_SELECTED:$SOURCE_SCAN" = false:skipped
           test "$FIXTURES_SELECTED:$FIXTURES" = true:success || test "$FIXTURES_SELECTED:$FIXTURES" = false:skipped
           test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
           test "$BROWSER:$E2E:$A11Y" = true:success:success || test "$BROWSER:$E2E:$A11Y" = false:skipped:skipped
@@ -555,10 +617,14 @@ jobs:
           BROWSER: ${{ needs.changes.outputs.browser }}
           E2E: ${{ needs.e2e.result }}
           A11Y: ${{ needs.a11y.result }}
+          CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_languages != '[]' }}
+          SCAN_SELECTED: ${{ needs.changes.outputs.source_scan }}
           CODEQL: ${{ needs.codeql.result }}
           SOURCE_SCAN: ${{ needs.source-scan.result }}
         run: |
-          test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success
+          test "$CHANGES" = success
+          test "$CODEQL_SELECTED:$CODEQL" = true:success || test "$CODEQL_SELECTED:$CODEQL" = false:skipped
+          test "$SCAN_SELECTED:$SOURCE_SCAN" = true:success || test "$SCAN_SELECTED:$SOURCE_SCAN" = false:skipped
           test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
           test "$BROWSER:$E2E:$A11Y" = true:success:success || test "$BROWSER:$E2E:$A11Y" = false:skipped:skipped
 
@@ -572,9 +638,15 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           SELECTED: ${{ needs.changes.outputs.cli }}
           DETAIL: ${{ needs.cli.result }}
+          CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_languages != '[]' }}
+          SCAN_SELECTED: ${{ needs.changes.outputs.source_scan }}
           CODEQL: ${{ needs.codeql.result }}
           SOURCE_SCAN: ${{ needs.source-scan.result }}
-        run: test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success && { test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped; }
+        run: |
+          test "$CHANGES" = success
+          test "$CODEQL_SELECTED:$CODEQL" = true:success || test "$CODEQL_SELECTED:$CODEQL" = false:skipped
+          test "$SCAN_SELECTED:$SOURCE_SCAN" = true:success || test "$SCAN_SELECTED:$SOURCE_SCAN" = false:skipped
+          test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
 
   container-gate:
     name: Pull Request / Container
@@ -588,9 +660,13 @@ jobs:
           DETAIL: ${{ needs.container.result }}
           INFRA_SELECTED: ${{ needs.changes.outputs.infra }}
           INFRA_DETAIL: ${{ needs.infra.result }}
+          CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_languages != '[]' }}
+          SCAN_SELECTED: ${{ needs.changes.outputs.source_scan }}
           CODEQL: ${{ needs.codeql.result }}
           SOURCE_SCAN: ${{ needs.source-scan.result }}
         run: |
-          test "$CHANGES:$CODEQL:$SOURCE_SCAN" = success:success:success
+          test "$CHANGES" = success
+          test "$CODEQL_SELECTED:$CODEQL" = true:success || test "$CODEQL_SELECTED:$CODEQL" = false:skipped
+          test "$SCAN_SELECTED:$SOURCE_SCAN" = true:success || test "$SCAN_SELECTED:$SOURCE_SCAN" = false:skipped
           test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
           test "$INFRA_SELECTED:$INFRA_DETAIL" = true:success || test "$INFRA_SELECTED:$INFRA_DETAIL" = false:skipped

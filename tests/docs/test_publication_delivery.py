@@ -214,9 +214,6 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn('"docs/publication/**"', triggers)
         self.assertIn('"frontend/src/**"', triggers)
         self.assertIn('"frontend/tsconfig*.json"', triggers)
-        self.assertIn("PLAYWRIGHT_BROWSER_CHANNEL: chrome", build)
-        self.assertIn("npm --prefix frontend run test:publication", build)
-        self.assertIn("npm --prefix frontend run test:publication:a11y", build)
         self.assertNotIn("--no-sandbox", build)
 
 

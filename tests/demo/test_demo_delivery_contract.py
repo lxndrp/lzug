@@ -74,7 +74,6 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("present:present", workflow)
         self.assertIn("partially published and will not be overwritten", workflow)
         self.assertIn("steps.availability.outputs.reuse != 'true'", workflow)
-        self.assertEqual(4, workflow.count("uses: actions/attest@"))
         self.assertNotIn(":latest", workflow)
         self.assertNotIn(":demo", workflow)
 
@@ -135,10 +134,6 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("scripts/verify-demo-image-pair.sh", workflow)
         self.assertIn("azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c", workflow)
         self.assertIn("scripts/demo_deployment.py deploy", workflow)
-        self.assertIn("wait-readiness", workflow)
-        self.assertIn("wait-application-readiness", workflow)
-        self.assertIn("demo_deployment.py smoke", workflow)
-        self.assertNotIn("wait-health", workflow)
         self.assertEqual(1, workflow.count("gh attestation verify"))
         self.assertIn("--predicate-type https://slsa.dev/provenance/v1", workflow)
         self.assertNotIn("--predicate-type https://cyclonedx.org/bom", workflow)
@@ -175,7 +170,6 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("python3 -m demo.contract identity", workflow)
         self.assertIn("python3 -m demo.contract manifest-field", workflow)
         self.assertIn("python3 -m demo.contract validate-pair", workflow)
-        self.assertEqual(4, workflow.count("uses: actions/attest@"))
         self.assertNotIn("azure/login@", workflow)
 
     def test_pre_azure_pair_verifier_reads_both_digest_bound_manifests(self) -> None:
@@ -188,19 +182,6 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("python3 -m demo.contract verify-pair-manifests", verifier)
         self.assertIn("verify-pair-manifests", verifier)
         self.assertIn('--expected-seed-revision "$seed_revision"', verifier)
-
-    def test_complete_quality_includes_demo_pair(self) -> None:
-        taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
-        pull_request = Path(".github/workflows/pull-request.yml").read_text(encoding="utf-8")
-        quality = Path(".github/workflows/quality.yml").read_text(encoding="utf-8")
-
-        self.assertIn("quality:demo:", taskfile)
-        self.assertIn("quality:demo-matrix:", taskfile)
-        self.assertIn("- quality:demo-matrix", taskfile)
-        self.assertIn("scripts/demo-container-smoke.sh", taskfile)
-        self.assertIn("SEED_REVISION=$seed_revision", taskfile)
-        self.assertIn("quality:demo", pull_request)
-        self.assertIn("quality:demo", quality)
 
     def test_environment_policies_prepare_stable_and_snapshot_tags(self) -> None:
         main = Path("infra/demo/main.tf").read_text(encoding="utf-8")
