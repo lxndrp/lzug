@@ -61,6 +61,7 @@ class SbomContractTests(unittest.TestCase):
 
         self.assertEqual("syft", command[0])
         self.assertIn("cyclonedx-json@1.6=result.cdx.json", command)
+        self.assertIn("./backend/src/lzug.egg-info/**", command)
         catalogers = command[command.index("--override-default-catalogers") + 1]
         self.assertEqual(
             "python-installed-package-cataloger,javascript-lock-cataloger,go-module-file-cataloger",
