@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import sqlite3
 import unittest
-import urllib.error
 from contextlib import closing
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -14,12 +13,14 @@ from uuid import uuid4
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
+from pywebpush import WebPushException
+from requests.exceptions import Timeout
 
 from backend.auth import AuthenticationRepository
 from backend.authorization import AuthorizationService
 from backend.database import session_scope
 from backend.models import ExamDay, ExamDayAssignment, NotificationDelivery
-from backend.notifications import DELIVERY_CLAIM_TTL, NotificationService
+from backend.notifications import DELIVERY_CLAIM_TTL, ClaimedDelivery, NotificationService
 from backend.tests.fixture_data import DEMO_ROLES, DISPLAY_NAMES, FIXTURE_ROOT
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
@@ -188,8 +189,7 @@ class NotificationServiceTests(unittest.TestCase):
             self.assertTrue(self.service.unregister_push(self.scope(1), int(registration["id"])))
 
     def test_web_push_uses_vapid_without_exposing_notification_content(self) -> None:
-        response = MagicMock()
-        response.__enter__.return_value.status = 201
+        response = MagicMock(status_code=201)
         with (
             patch.dict(
                 os.environ,
@@ -199,15 +199,19 @@ class NotificationServiceTests(unittest.TestCase):
                 },
                 clear=False,
             ),
-            patch("urllib.request.urlopen", return_value=response) as urlopen,
+            patch("pywebpush.requests.post", return_value=response) as send,
         ):
             self.service._send_web_push("https://push.example.invalid/subscription", 17)
 
-        request = urlopen.call_args.args[0]
-        self.assertEqual(b"", request.data)
-        self.assertEqual("POST", request.method)
-        self.assertTrue(request.get_header("Authorization").startswith("vapid t="))
-        self.assertEqual("300", request.get_header("Ttl"))
+        endpoint = send.call_args.args[0]
+        request = send.call_args.kwargs
+        self.assertEqual("https://push.example.invalid/subscription", endpoint)
+        self.assertIsNone(request["data"])
+        self.assertEqual(10, request["timeout"])
+        self.assertEqual("300", request["headers"]["ttl"])
+        self.assertEqual("normal", request["headers"]["urgency"])
+        self.assertEqual("bHp1Zy0xNw", request["headers"]["topic"])
+        self.assertTrue(request["headers"]["authorization"].startswith("vapid t="))
 
     def test_invalid_push_is_disabled_and_configured_email_fallback_is_sent(self) -> None:
         private_key = vapid_private_key()
@@ -226,9 +230,7 @@ class NotificationServiceTests(unittest.TestCase):
             registration = self.service.register_push(
                 self.scope(1), "https://push.example.invalid/expired"
             )
-            rejected = urllib.error.HTTPError(
-                "https://push.example.invalid/expired", 410, "Gone", {}, None
-            )
+            rejected = WebPushException("Gone", MagicMock(status_code=410))
             with patch.object(self.service, "_send_web_push", side_effect=rejected):
                 self.service.create_for_event("availability_requested", 1)
             with patch("smtplib.SMTP", smtp):
@@ -265,7 +267,7 @@ class NotificationServiceTests(unittest.TestCase):
             clear=False,
         ):
             self.service.register_push(self.scope(1), "https://push.example.invalid/temporary")
-            with patch.object(self.service, "_send_web_push", side_effect=OSError("offline")):
+            with patch.object(self.service, "_send_web_push", side_effect=Timeout("offline")):
                 first = self.service.create_for_event("availability_requested", 1)
                 for days in (1, 2, 3):
                     self.service.process_deliveries(now=datetime.now(UTC) + timedelta(days=days))
@@ -282,6 +284,63 @@ class NotificationServiceTests(unittest.TestCase):
             ).fetchone()
         self.assertEqual(1, count)
         self.assertEqual(("permanently_failed", 4, None), delivery)
+
+    def test_rate_limited_push_is_retried(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "LZUG_WEB_PUSH_VAPID_PRIVATE_KEY": vapid_private_key(),
+                "LZUG_WEB_PUSH_SUBJECT": "mailto:operator@example.invalid",
+            },
+            clear=False,
+        ):
+            self.service.register_push(self.scope(1), "https://push.example.invalid/rate-limited")
+            limited = WebPushException("Too Many Requests", MagicMock(status_code=429))
+            with patch.object(self.service, "_send_web_push", side_effect=limited):
+                self.service.create_for_event("availability_requested", 1)
+
+        with closing(sqlite3.connect(self.db_path)) as connection:
+            delivery = connection.execute(
+                "SELECT status, attempt_count, error_code FROM notification_delivery "
+                "WHERE channel = 'web_push' AND target_key != 'none'"
+            ).fetchone()
+        self.assertEqual(("temporarily_failed", 1, "push_unavailable"), delivery)
+
+    def test_other_push_provider_errors_are_classified(self) -> None:
+        delivery = ClaimedDelivery(
+            id=1,
+            claim_token="claim",
+            notification_id=1,
+            channel="web_push",
+            status="pending",
+            attempt_count=0,
+            push_subscription_id=7,
+            push_endpoint="https://push.example.invalid/subscription",
+            recipient_email=None,
+            title="Ignored",
+            message="Ignored",
+            action_path="/notifications",
+        )
+        current = datetime.now(UTC)
+        cases = (
+            (404, "permanently_failed", "invalid_subscription"),
+            (400, "permanently_failed", "push_rejected"),
+            (503, "temporarily_failed", "push_unavailable"),
+        )
+        for status_code, status, error_code in cases:
+            with (
+                self.subTest(status_code=status_code),
+                patch.object(
+                    self.service,
+                    "_send_web_push",
+                    side_effect=WebPushException(
+                        "provider response", MagicMock(status_code=status_code)
+                    ),
+                ),
+            ):
+                result = self.service._dispatch_claimed(delivery, current)
+            self.assertEqual(status, result.status)
+            self.assertEqual(error_code, result.error_code)
 
     def test_channel_access_runs_after_the_claim_transaction_commits(self) -> None:
         private_key = vapid_private_key()

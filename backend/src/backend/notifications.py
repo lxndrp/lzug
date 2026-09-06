@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import base64
-import json
 import smtplib
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
@@ -14,9 +11,9 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
+from pywebpush import Vapid, WebPushException, webpush
 from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
 
@@ -798,15 +795,16 @@ class NotificationService:
                 ),
                 error_code=None,
             )
-        except urllib.error.HTTPError as error:
-            error.close()
-            if error.code in {404, 410}:
+        except WebPushException as error:
+            if error.status_code in {404, 410}:
                 return self._permanent_result(
                     delivery,
                     "invalid_subscription",
                     invalidate_subscription_id=delivery.push_subscription_id,
                 )
-            if 400 <= error.code < 500:
+            if error.status_code is not None and 400 <= error.status_code < 500:
+                if error.status_code == 429:
+                    return self._temporary_result(delivery, "push_unavailable", current)
                 return self._permanent_result(delivery, "push_rejected")
             return self._temporary_result(delivery, "push_unavailable", current)
         except OSError, smtplib.SMTPException:
@@ -930,36 +928,20 @@ class NotificationService:
 
     def _send_web_push(self, endpoint: str, notification_id: int) -> None:
         private_key = self._vapid_private_key()
-        if private_key is None:
+        subject = self._vapid_subject()
+        if private_key is None or subject is None:
             raise OSError("Web Push is not configured")
-        audience_parts = urlsplit(endpoint)
-        audience = f"{audience_parts.scheme}://{audience_parts.netloc}"
-        now = int(_now().timestamp())
-        header = _base64url(json.dumps({"typ": "JWT", "alg": "ES256"}).encode())
-        claims = _base64url(
-            json.dumps(
-                {
-                    "aud": audience,
-                    "exp": now + 12 * 60 * 60,
-                    "sub": self._vapid_subject() or "",
-                },
-                separators=(",", ":"),
-            ).encode()
+        webpush(
+            subscription_info={"endpoint": endpoint},
+            vapid_private_key=Vapid(private_key),
+            vapid_claims={"sub": subject},
+            ttl=300,
+            timeout=10,
+            headers={
+                "Urgency": "normal",
+                "Topic": _base64url(f"lzug-{notification_id}".encode())[:32],
+            },
         )
-        signed = f"{header}.{claims}".encode("ascii")
-        der_signature = private_key.sign(signed, ec.ECDSA(hashes.SHA256()))
-        r, s = decode_dss_signature(der_signature)
-        signature = r.to_bytes(32, "big") + s.to_bytes(32, "big")
-        token = f"{header}.{claims}.{_base64url(signature)}"
-        public_key = self._push_public_key()
-        request = urllib.request.Request(endpoint, method="POST", data=b"")
-        request.add_header("Authorization", f"vapid t={token}, k={public_key}")
-        request.add_header("TTL", "300")
-        request.add_header("Urgency", "normal")
-        request.add_header("Topic", _base64url(f"lzug-{notification_id}".encode())[:32])
-        with urllib.request.urlopen(request, timeout=10) as response:
-            if response.status not in {201, 202}:
-                raise OSError("Web Push endpoint rejected request")
 
     def _send_email(self, delivery: ClaimedDelivery) -> None:
         if delivery.recipient_email is None:
