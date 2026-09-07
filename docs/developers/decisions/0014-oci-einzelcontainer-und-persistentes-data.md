@@ -19,6 +19,9 @@ Dafür braucht die Runtime eine eindeutige Grenze zwischen flüchtigem Container
 Das kanonische Auslieferungsformat ist ein OCI-Image.
 Die Referenzruntime liefert gebrauchsfertiges Angular-Frontend, Python-Backend und REST-API in einem einzelnen Anwendungscontainer aus.
 Self-Hosting verwendet SQLite.
+Die Betreiberkonfiguration wählt das Produktimage gemäß
+[ADR-0034](0034-versionsbindung-und-unveraenderliche-referenzen.md) über eine exakte veröffentlichte Version;
+Digest- und Herkunftsnachweise bleiben davon getrennt.
 
 Der dauerhafte Anwendungszustand liegt ausschließlich unter dem einen persistent eingebundenen Verzeichnis `/data` mit der folgenden Zielstruktur:
 
@@ -62,4 +65,5 @@ Neustarts datenverlustgefährdet machen.
 - [Persistenz und Migrationen](../data-and-contracts.md#persistenz-und-migrationen)
 - [ADR-0001: Lokale relationale Persistenz](0001-lokale-relationale-persistenz.md)
 - [ADR-0013: Dezentrale Instanzen je Ausschuss](0013-dezentrale-instanzen-je-ausschuss.md)
+- [ADR-0034: Versionsbindung und unveränderliche Referenzen an Risikogrenzen](0034-versionsbindung-und-unveraenderliche-referenzen.md)
 - Issues [#116](https://github.com/lxndrp/lzug/issues/116), [#117](https://github.com/lxndrp/lzug/issues/117) und [#118](https://github.com/lxndrp/lzug/issues/118)

@@ -48,3 +48,4 @@ die Formatentscheidung steht im Registereintrag für ADR-0029.
 | [0030](0030-x25519-aes-gcm-fuer-geschuetzte-artefakte.md) | X25519 und AES-GCM für geschützte Artefakte | Abgelöst durch ADR-0031 |
 | [0031](0031-age-huelle-in-der-betreiber-cli.md) | age-Hülle in der Betreiber-CLI | Akzeptiert |
 | [0032](0032-repository-zentrierte-oeffentliche-dokumentation.md) | Repository-zentrierte öffentliche Dokumentation | Akzeptiert |
+| [0034](0034-versionsbindung-und-unveraenderliche-referenzen.md) | Versionsbindung und unveränderliche Referenzen an Risikogrenzen | Akzeptiert |
