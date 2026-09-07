@@ -17,7 +17,7 @@ from .database import (
     persistence_paths,
     validate_persistence,
 )
-from .fastapi_app import FastAPIConfig, create_app
+from .fastapi_assembly import FastAPIConfig, create_app
 from .observability import emit_event
 from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from .settings import RuntimeSettings

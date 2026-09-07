@@ -53,8 +53,12 @@ Buildkontext voraussetzt.
 
 ## Backend
 
-`backend.fastapi_app.create_app` ist die produktive HTTP-Assembly innerhalb des
-einen autoritativen Backendprozesses.
+`backend.fastapi_assembly.create_app` ist die produktive HTTP-Assembly innerhalb
+des einen autoritativen Backendprozesses.
+Sie ordnet Konfiguration, Transportgrenze, Fehlerabbildung, fachliche
+Routerregistrierung und OpenAPI-Assembly zu, während
+`backend.fastapi_app` die bestehenden HTTP-Handler und ihre
+Registrierungsgrenzen enthält.
 `backend.server` startet den Prozess über Uvicorn; `backend.transport` bildet
 den gemeinsamen Anwendungsvertrag für HTTP- und Adminadapter ab.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am
@@ -314,7 +318,7 @@ geschützte Environment `demo` begrenzen echte Mutationen.
 | Änderung | Erster fokussierter Nachweis |
 | --- | --- |
 | Fachservice oder Repository | passendes Modul unter `backend/tests/` |
-| HTTP- oder OpenAPI-Vertrag | `backend.tests.test_fastapi_app`, `test_openapi_contract` und betroffener API-Test |
+| HTTP-Assembly, Routerregistrierung oder OpenAPI-Vertrag | `backend.tests.test_fastapi_assembly`, `test_fastapi_app`, `test_openapi_contract` und betroffener API-Test |
 | Demo-Runtime oder Demo-Artefakt | passendes Modul unter `tests/demo/` |
 | Release-, SBOM- oder Workflowvertrag | passendes Modul unter `tests/delivery/` |
 | Dokumentations- oder Publikationsvertrag | passendes Modul unter `tests/docs/` |

@@ -185,7 +185,7 @@ Sein maschinenlesbarer Datenvertrag liegt unter
 
 ## HTTP und OpenAPI
 
-`backend.fastapi_app.create_app` ist die produktive Application Factory.
+`backend.fastapi_assembly.create_app` ist die produktive Application Factory.
 Sie erzeugt OpenAPI direkt aus Routen, Request- und Responsemodellen sowie
 Sicherheitsdeklarationen; eine parallel gepflegte Spezifikation existiert
 nicht.

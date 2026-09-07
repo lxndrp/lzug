@@ -1,4 +1,4 @@
-"""The canonical FastAPI application for the lzug product and demo runtimes."""
+"""FastAPI route handlers and shared transport registrations."""
 
 from __future__ import annotations
 
@@ -56,7 +56,6 @@ from .application import (
     ApplicationServices,
     AuthenticationRequiredError,
     ForbiddenRequestError,
-    ReadApplication,
     database_error_result,
 )
 from .database import persistence_paths
@@ -3498,15 +3497,52 @@ def _register_openapi_schema(
     app.openapi = generated_openapi
 
 
-def _register_assignment_and_schema_routes(
+def register_transport_and_errors(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
-    _register_assignment_routes(
+    """Register the shared HTTP guard and exception translation boundary."""
+    _register_transport_and_errors(
         app, resolved, application, read_security, write_security, venue_write_openapi
     )
-    _register_static_route(
-        app, resolved, application, read_security, write_security, venue_write_openapi
+
+
+def register_application_routes(
+    app, resolved, application, read_security, write_security, venue_write_openapi
+):
+    """Register all product and runtime routes with the assembled application."""
+    registrars = (
+        _register_runtime_routes,
+        _register_auth_routes,
+        _register_observability_routes,
+        _register_calendar_routes,
+        _register_notification_routes,
+        _register_absence_routes,
+        _register_round_routes,
+        _register_planning_routes,
+        _register_planning_resource_routes,
+        _register_exam_execution_routes,
+        _register_result_routes,
+        _register_attendance_routes,
+        _register_venue_routes,
+        _register_resource_routes,
+        _register_assignment_routes,
+        _register_static_route,
     )
+    for registrar in registrars:
+        registrar(
+            app,
+            resolved,
+            application,
+            read_security,
+            write_security,
+            venue_write_openapi,
+        )
+
+
+def register_openapi_schema(
+    app, resolved, application, read_security, write_security, venue_write_openapi
+):
+    """Install the shared OpenAPI security and response schema assembly."""
     _register_openapi_schema(
         app, resolved, application, read_security, write_security, venue_write_openapi
     )
@@ -3515,77 +3551,7 @@ def _register_assignment_and_schema_routes(
 def create_app(
     config: FastAPIConfig | None = None, services: ApplicationServices | None = None
 ) -> FastAPI:
-    """Create the single FastAPI application used by product and demo images."""
-    resolved = config or FastAPIConfig.from_environment()
-    application = ReadApplication(resolved.db_path, services)
-    app = FastAPI(title="lzug API", docs_url=None, redoc_url=None, openapi_url=None)
-    app.state.lzug_config = resolved
-    app.state.auth_rate_limiter = resolved.auth_rate_limiter or RequestRateLimiter(
-        resolved.auth_rate_limit, resolved.auth_rate_window
-    )
-    app.state.observability_rate_limiter = RequestRateLimiter(30, timedelta(minutes=1))
-    app.state.observability_global_rate_limiter = RequestRateLimiter(120, timedelta(minutes=1))
-    read_security = {"security": [{"sessionCookie": []}]}
-    write_security = {"security": [{"sessionCookie": [], "csrfHeader": []}]}
+    """Compatibility entry point for the canonical application factory."""
+    from .fastapi_assembly import create_app as assemble_app
 
-    def venue_write_openapi(model_name: str) -> dict[str, object]:
-        return {
-            **write_security,
-            "requestBody": {
-                "required": True,
-                "content": {
-                    "application/json": {"schema": {"$ref": f"#/components/schemas/{model_name}"}}
-                },
-            },
-        }
-
-    _register_transport_and_errors(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_runtime_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_auth_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_observability_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_calendar_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_notification_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_absence_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_round_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_planning_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_planning_resource_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_exam_execution_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_result_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_attendance_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_venue_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_resource_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_assignment_and_schema_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-
-    return app
+    return assemble_app(config, services)

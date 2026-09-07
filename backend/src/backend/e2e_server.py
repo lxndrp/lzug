@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 
 from .auth import AuthenticationRepository
 from .database import initialize
-from .fastapi_app import FastAPIConfig, create_app
+from .fastapi_assembly import FastAPIConfig, create_app
 from .runtime_policy import ProductRuntimePolicy
 from .server import parse_args
 from .settings import RuntimeSettings
