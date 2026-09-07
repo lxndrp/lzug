@@ -30,7 +30,7 @@ Die verantwortliche Organisation muss insbesondere selbst klären und umsetzen:
   gegebenenfalls Auftragsverarbeitung;
 - zulässigen Personen- und Ausschusskreis sowie Vergabe, regelmäßige Prüfung
   und Entzug fachlicher und technischer Rechte;
-- TLS, Reverse Proxy, Host-Härtung, Engine-Zugriff, Sicherheitsupdates und
+- TLS, Reverse Proxy, Host-Härtung, Docker-Zugriff, Sicherheitsupdates und
   Schutz des persistenten Volumes;
 - Aufbewahrungs-, Lösch- und Auskunftsverfahren für Fachdaten, Dokumente,
   Benachrichtigungen, Exporte und technische Nachweise;
@@ -144,7 +144,7 @@ Er wird weder dem Container noch dem Python-Backend zugeführt.
 Wenn der technische Betreiber nicht zum fachlichen Empfängerkreis gehört, muss
 der Schlüsselinhaber die Prüfung selbst oder über einen gesondert autorisierten
 geschützten Betriebsweg ausführen.
-Die bloße technische Kontrolle über Host, Engine oder Volume begründet kein
+Die bloße technische Kontrolle über Host, Docker oder Volume begründet kein
 fachliches Leserecht.
 
 Die öffentliche Demo und das Repository verwenden ausschließlich synthetische
@@ -187,14 +187,14 @@ Supportsysteme.
 Führen Sie vor einer Meldung aus:
 
 ```sh
-./lzug-admin --engine "$ENGINE" --container "$CONTAINER" status
-./lzug-admin --engine "$ENGINE" --container "$CONTAINER" config
-./lzug-admin --engine "$ENGINE" --container "$CONTAINER" doctor
-"$ENGINE" compose -f compose.yaml ps
+./lzug-admin --container "$CONTAINER" status
+./lzug-admin --container "$CONTAINER" config
+./lzug-admin --container "$CONTAINER" doctor
+docker compose -f compose.yaml ps
 ```
 
-Eine Fehlermeldung sollte Release-Version, CLI-Build-Metadaten, Engine und
-Version, Betriebssystem/Architektur, betroffenen Schritt, Exit-Code und die
+Eine Fehlermeldung sollte Release-Version, CLI-Build-Metadaten, Docker-Version,
+Betriebssystem/Architektur, betroffenen Schritt, Exit-Code und die
 geheimnisfreie JSON-Fehlerklasse enthalten.
 Fügen Sie nur die zur Reproduktion nötigen, bereinigten Logzeilen bei.
 Senden Sie keine Datenbank, Dokumente, Artefakte, Schlüssel, Tokens,

@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  IMAGE_REF: lzug:0.0.0-dev.local
+  IMAGE_REF: lzug-app:0.0.0-dev.local
   QUALITY_REVISION: ${{ github.sha }}
 
 concurrency:

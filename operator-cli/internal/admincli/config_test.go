@@ -10,26 +10,31 @@ import (
 func TestConfigurationPriorityIsFlagEnvironmentFileDefault(t *testing.T) {
 	resolver := &SystemConfigResolver{
 		Environment: func() []string {
-			return []string{"LZUG_ADMIN_ENGINE=podman", "LZUG_ADMIN_CONTAINER=from-environment"}
+			return []string{"LZUG_ADMIN_CONTAINER=from-environment"}
 		},
 		UserConfigDir: func() (string, error) { return "/configuration", nil },
 		ReadFile: func(path string) ([]byte, error) {
 			if path != "/configuration/lzug/admin.json" {
 				t.Fatalf("unexpected config path %q", path)
 			}
-			return []byte(`{"engine":"docker","container":"from-file"}`), nil
+			return []byte(`{"container":"from-file"}`), nil
 		},
 	}
-	config, failure := resolver.Resolve(GlobalOptions{Engine: "docker", EngineSet: true})
+	config, failure := resolver.Resolve(GlobalOptions{})
 	if failure != nil {
 		t.Fatal(failure)
 	}
-	want := EffectiveConfig{
-		Engine:    EffectiveValue{Value: "docker", Source: "flag"},
-		Container: EffectiveValue{Value: "from-environment", Source: "LZUG_ADMIN_CONTAINER"},
-	}
+	want := EffectiveConfig{Container: EffectiveValue{Value: "from-environment", Source: "LZUG_ADMIN_CONTAINER"}}
 	if !reflect.DeepEqual(config, want) {
 		t.Fatalf("unexpected effective config: %#v", config)
+	}
+	config, failure = resolver.Resolve(GlobalOptions{Container: "from-flag", ContainerSet: true})
+	if failure != nil {
+		t.Fatal(failure)
+	}
+	want = EffectiveConfig{Container: EffectiveValue{Value: "from-flag", Source: "flag"}}
+	if !reflect.DeepEqual(config, want) {
+		t.Fatalf("unexpected flag config: %#v", config)
 	}
 }
 
@@ -43,7 +48,7 @@ func TestMissingDefaultConfigIsAllowedButExplicitConfigFails(t *testing.T) {
 	if failure != nil {
 		t.Fatal(failure)
 	}
-	if config.Engine.Value != "auto" || config.Engine.Source != "default" || config.Container.Value != "" {
+	if config.Container.Value != "" || config.Container.Source != "default" {
 		t.Fatalf("unexpected defaults: %#v", config)
 	}
 	_, failure = resolver.Resolve(GlobalOptions{ConfigPath: "/missing.json", ConfigSet: true})
@@ -91,10 +96,10 @@ func TestConfigurationRejectsSecretsConfirmationsAndInvalidFiles(t *testing.T) {
 		`{"token":"secret-marker"}`,
 		`{"force":true}`,
 		`{"json":true}`,
-		`{"engine":"invalid"}`,
+		`{"engine":"docker"}`,
 		`{"container":"../lzug"}`,
 		`[]`,
-		`{"engine":"docker"} {"container":"lzug"}`,
+		`{"container":"lzug"} {"container":"other"}`,
 	} {
 		resolver := &SystemConfigResolver{
 			Environment:   func() []string { return nil },

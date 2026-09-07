@@ -50,7 +50,7 @@ Ein späterer Dokumentenspeicher kann über die in #118 vorgesehene Abstraktion 
 - Das Image wird in der qualifizierten Referenz unter Docker auf Linux als eine
   Anwendung gestartet; ein separater Datenbankcontainer ist nicht erforderlich.
 - Die OCI-Portabilität begründet kein Supportversprechen für weitere
-  Laufzeiten; Podman gehört nicht zum unterstützten oder geprüften Umfang.
+  Laufzeiten; weitere Runtimes gehören nicht zum unterstützten oder geprüften Umfang.
 - Ein Container-Neustart oder ein neues Image darf den Inhalt von `/data`
 nicht ersetzen.
 - #116 muss SQLite auf den vereinbarten Pfad unter `/data` beziehen und darf

@@ -2,7 +2,6 @@ package admincli
 
 import (
 	"context"
-	"reflect"
 	"strings"
 	"testing"
 )
@@ -104,30 +103,6 @@ func assertReleaseTarget(t *testing.T, request BackendRequest) {
 	target := request.Arguments["target"].(map[string]any)
 	if target["identity"] != "1.2.3" || target["release"] != true {
 		t.Fatalf("unexpected release target: %#v", target)
-	}
-}
-
-func TestDockerAndPodmanShareIdenticalBackendRequests(t *testing.T) {
-	registry, err := DefaultRegistry()
-	if err != nil {
-		t.Fatal(err)
-	}
-	command, _ := registry.Find([]string{"system", "status"})
-	values, failure := parseCommandOptions(command, nil)
-	if failure != nil {
-		t.Fatal(failure)
-	}
-	prepare := PrepareContext{Build: BuildInfo{Version: "development", Revision: "unknown"}}
-	requests := []BackendRequest{}
-	for range []string{"docker", "podman"} {
-		request, buildErr := command.BuildRequest(context.Background(), prepare, values, Values{})
-		if buildErr != nil {
-			t.Fatal(buildErr)
-		}
-		requests = append(requests, request)
-	}
-	if !reflect.DeepEqual(requests[0], requests[1]) {
-		t.Fatalf("engine selection changed the backend request: %#v", requests)
 	}
 }
 

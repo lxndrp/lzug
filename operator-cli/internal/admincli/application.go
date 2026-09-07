@@ -95,7 +95,7 @@ func (application *Application) Run(ctx context.Context, args []string) int {
 		}
 	}
 	if len(remaining) == 1 && remaining[0] == "--version" {
-		if global.ForceSet || global.ConfigSet || global.NoConfig || global.EngineSet || global.ContainerSet {
+		if global.ForceSet || global.ConfigSet || global.NoConfig || global.ContainerSet {
 			failure = invalidInvocation("--version cannot be combined with operational options")
 			application.Renderer.Error(global, "", failure)
 			return failure.ExitCode
@@ -107,7 +107,7 @@ func (application *Application) Run(ctx context.Context, args []string) int {
 		return ExitOK
 	}
 	if len(remaining) == 1 && remaining[0] == "--build-metadata" {
-		if global.ForceSet || global.ConfigSet || global.NoConfig || global.EngineSet || global.ContainerSet {
+		if global.ForceSet || global.ConfigSet || global.NoConfig || global.ContainerSet {
 			failure = invalidInvocation("--build-metadata cannot be combined with operational options")
 			application.Renderer.Error(global, "", failure)
 			return failure.ExitCode
@@ -333,9 +333,9 @@ func runtimeFailure(err error) *CLIError {
 	if errors.As(err, &runtimeError) {
 		switch runtimeError.Kind {
 		case RuntimeEngineUnavailable:
-			return &CLIError{Class: string(runtimeError.Kind), Message: "No supported container engine is available.", NextStep: "Install Docker or Podman, or select the available engine explicitly.", ExitCode: ExitEngineUnavailable}
+			return &CLIError{Class: string(runtimeError.Kind), Message: "Docker is unavailable.", NextStep: "Install Docker Engine and verify that the Docker daemon is reachable.", ExitCode: ExitEngineUnavailable}
 		case RuntimeEngineFailed:
-			return &CLIError{Class: string(runtimeError.Kind), Message: "The local container engine could not execute the administration request.", NextStep: "Verify the engine, exact container name, and local permissions.", ExitCode: ExitEngineFailed}
+			return &CLIError{Class: string(runtimeError.Kind), Message: "Docker could not execute the administration request.", NextStep: "Verify the exact container name, Docker daemon, and local permissions.", ExitCode: ExitEngineFailed}
 		case RuntimeProtocol:
 			return protocolFailure()
 		case RuntimeRelease:

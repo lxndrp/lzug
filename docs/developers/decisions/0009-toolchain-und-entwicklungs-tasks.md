@@ -49,10 +49,10 @@ Die Teilaufgaben entsprechen den Qualitätsbereichen aus #230:
 | OCI- oder Compose-Konfiguration | `task quality:oci` und die betroffenen Untertasks von `task quality:overall` |
 | Unklar, querschnittlich oder Toolchain | `task quality` |
 
-`task quality:oci` baut einmal das lokale Image `lzug:0.0.0-dev.local`.
+`task quality:oci` baut einmal das lokale Image `lzug-app:0.0.0-dev.local`.
 Container-, Compose- und Betreiber-CLI-Vertrag verwenden dieses Image gemeinsam im Overall-Lauf.
 `task quality:compose-config` trennt dabei die generische Standardprüfung über `compose config --quiet` von der kleinen getesteten lzug-Runtime-Policy.
-Die Laufzeitprüfungen benötigen eine Docker-kompatible Engine; ihre gemeinsame Orchestrierung unterstützt weiterhin Docker oder Podman und meldet eine fehlende Engine verständlich.
+Die Laufzeitprüfungen verwenden Docker Engine auf Linux als qualifizierte Referenz und melden einen fehlenden oder nicht erreichbaren Docker-Daemon verständlich.
 Trivy Config oder Conftest werden mangels zusätzlichem Nachweis gegenüber Compose plus exakter Projektpolicy nicht eingeführt.
 Gehostete Trivy-Image- und CodeQL-Scans bleiben bewusst CI-spezifisch.
 

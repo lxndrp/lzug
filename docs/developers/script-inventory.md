@@ -15,7 +15,7 @@ Die Liste ist keine zweite Test- oder API-Dokumentation.
 | `scripts/check_documentation.py` | Dokumentation; `task docs:check` | Prüft nur den aktuellen Dokumentationsbaum, MkDocs-Navigation, ADR-Status, Handbuchbestand und Root-Grenzen. Link-, Markdown- und Buildprüfung verbleiben bei MkDocs/Hugo. |
 | `scripts/compose-smoke.sh` | OCI/Self-Hosting; `task quality:compose` | Beweist den tatsächlich gestarteten Compose-Container, Restart, Stop/Start und `/data`-Persistenz. Behalten, weil `compose config` keinen Laufzeit- oder Wiederanlaufvertrag beweist. |
 | `scripts/compose_policy.py` | OCI/Self-Hosting; `task quality:compose-config` und sein Vertragstest | Prüft lzug-spezifische Image-, Port-, Volume- und Secret-Grenzen nach der generischen Compose-Auswertung. Behalten; die Policy ist kein Standard-Compose-Schema. |
-| `scripts/container-contract.sh` | OCI/Self-Hosting; Container-Smokes und lokale Image-Tasks | Kapselt ausschließlich die Docker/Podman-Auswahl, den gemeinsamen Health-/User-/Metadatenzugriff und die Bereinigung. Behalten, um dieselbe portable Lifecycle-Grenze nicht zu kopieren. |
+| `scripts/container-contract.sh` | OCI/Self-Hosting; Container-Smokes und lokale Image-Tasks | Kapselt ausschließlich den gemeinsamen Docker-Health-/User-/Metadatenzugriff und die Bereinigung. Behalten, um dieselbe Lifecycle-Grenze nicht zu kopieren. |
 | `scripts/container-smoke.sh` | OCI/Self-Hosting; `task quality:container` | Beweist HTTP-, Sicherheitsheader-, Authentifizierungs-, Scope- und Buildidentitätsgrenzen des Produktimages. Behalten als einziger vollständiger Produktimage-Smoke. |
 | `scripts/demo-container-smoke.sh` | Öffentliche Demo; `task quality:demo` | Beweist den separaten App-/Seed-Containervertrag einschließlich Seed-Revision, Runtime-Policy und Wiederanlaufgrenzen. Behalten, weil der allgemeine Produktimage-Smoke diese Demo-Paarung nicht abdeckt. |
 | `scripts/demo_deployment.py` | Demo-Delivery; Demo-Deploy-Workflow | Orchestriert die konfigurierte Azure-Revision, readiness, Smoke und Diagnostik mit fail-closed Identitätsprüfung. Behalten; OpenTofu und Azure CLI bilden diesen gebundenen Ablauf nicht als einen Vertrag ab. |
@@ -43,6 +43,6 @@ Brand-Nachweise wurden mit #637 entfernt.
 Der abgelöste Prototyp und sein Adapter wurden mit #638 entfernt.
 Die einmalige Wiki-Migration und ihre Dauerverträge wurden mit #640 entfernt.
 `compose-command.sh` und `validate-compose.sh` waren dünne Wrapper und sind
-durch direkte, im Taskfile sichtbare Docker-/Podman-Aufrufe ersetzt.
+durch direkte, im Taskfile sichtbare Docker-Aufrufe ersetzt.
 `check_demo_media.py` wurde nach `docs/media/check.py` verlagert und auf den
 kleinen Metadatenvertrag mit dem Standardwerkzeug `file` reduziert.

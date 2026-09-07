@@ -80,7 +80,7 @@ jobs:
             exit 1
           }
 
-          product_image="ghcr.io/${GH_REPO,,}:$product_version"
+          product_image="ghcr.io/${GH_REPO,,}-app:$product_version"
           gh attestation verify "oci://$product_image" --repo "$GH_REPO" >/dev/null
 
           quality_runs=$(gh api \

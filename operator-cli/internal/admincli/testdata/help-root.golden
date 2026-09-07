@@ -20,7 +20,6 @@ Objects:
   cli                Start the guided interactive operator dialog.
 
 Global options:
-  --engine ENGINE          Container engine: auto, docker, or podman. Values: auto, docker, podman. Default: auto.
   --container NAME         Exact running container name.
   --config FILE            Read this explicit non-secret JSON configuration file.
   --no-config              Do not read a configuration file.

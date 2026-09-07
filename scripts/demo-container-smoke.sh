@@ -6,39 +6,39 @@ root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$root_dir/scripts/container-contract.sh"
 app_image=${1:-lzug-demo-app:local}
 seed_image=${2:-lzug-demo-seed:local}
-product_image=${3:-lzug:0.0.0-dev.local}
+product_image=${3:-lzug-app:0.0.0-dev.local}
 expected_seed_revision=${4:-}
-lzug_require_container_engine
+lzug_require_docker
 
 suffix="lzug-demo-smoke-$$"
 volume="$suffix-data"
 container="$suffix-app"
 temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/lzug-demo-smoke.XXXXXX")
 cleanup() {
-    "$engine" rm --force "$container" >/dev/null 2>&1 || true
-    "$engine" volume rm "$volume" >/dev/null 2>&1 || true
+    docker rm --force "$container" >/dev/null 2>&1 || true
+    docker volume rm "$volume" >/dev/null 2>&1 || true
     rm -rf "$temporary_directory"
 }
 trap cleanup EXIT INT TERM
 
-"$engine" volume create "$volume" >/dev/null
+docker volume create "$volume" >/dev/null
 
 run_seed() {
-    "$engine" run --rm --read-only --tmpfs /tmp \
+    docker run --rm --read-only --tmpfs /tmp \
         --mount "type=volume,source=$volume,target=/data" \
         "$seed_image"
 }
 
 start_app() {
-    "$engine" run --detach --name "$container" --read-only --tmpfs /tmp \
+    docker run --detach --name "$container" --read-only --tmpfs /tmp \
         --publish 127.0.0.1::8000 \
         --env LZUG_HTTPS_ONLY=false \
         --mount "type=volume,source=$volume,target=/data" \
         "$app_image" >/dev/null
-    port=$("$engine" port "$container" 8000/tcp | sed 's/.*://')
+    port=$(docker port "$container" 8000/tcp | sed 's/.*://')
     url="http://127.0.0.1:$port"
     if ! lzug_wait_for_http_health "$url" 30; then
-        "$engine" logs "$container" >&2 || true
+        docker logs "$container" >&2 || true
         return 1
     fi
 }
@@ -54,7 +54,7 @@ assert_status() {
 }
 
 echo "Verifying product/demo physical assembly separation."
-"$engine" run --rm --entrypoint sh "$product_image" -c \
+docker run --rm --entrypoint sh "$product_image" -c \
     'test ! -e /app/demo && ! grep -R -F "/api/demo" /app/backend /app/frontend >/dev/null 2>&1'
 
 echo "Initializing and starting the bound demo image pair."
@@ -80,7 +80,7 @@ if sys.argv[2]:
     assert payload["seed_revision"] == sys.argv[2]
 ' "$status_file" "$expected_seed_revision"
 curl --silent --show-error --fail "$url/" | grep -F '<app-root' >/dev/null
-"$engine" exec "$container" grep -R -F "/api/demo/session" /app/frontend >/dev/null
+docker exec "$container" grep -R -F "/api/demo/session" /app/frontend >/dev/null
 
 headers="$temporary_directory/session.headers"
 body="$temporary_directory/session.json"
@@ -147,18 +147,18 @@ reset_status=$(curl --silent --show-error --output /dev/null --write-out '%{http
     --header "X-CSRF-Token: $csrf_token" \
     --data '{}' "$url/api/demo/reset")
 assert_status "Reset isolated demo workspace" 200 "$reset_status"
-"$engine" exec "$container" sh -c 'printf demo > /data/documents/temporary.txt'
+docker exec "$container" sh -c 'printf demo > /data/documents/temporary.txt'
 
 echo "Reinitializing the same volume and verifying reset semantics."
-"$engine" rm --force "$container" >/dev/null
+docker rm --force "$container" >/dev/null
 run_seed
 start_app
 old_session_status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
     --header "Cookie: lzug_session=$session_token; lzug_csrf=$csrf_token" \
     "$url/api/session")
 assert_status "Old session after reset" 401 "$old_session_status"
-"$engine" exec "$container" test ! -e /data/documents/temporary.txt
+docker exec "$container" test ! -e /data/documents/temporary.txt
 curl --silent --show-error --fail "$url/api/demo/status" | \
     python3 -c 'import json,sys; assert json.load(sys.stdin)["initialized"] is True'
 
-echo "Demo assembly, policy, seed, and reset smoke test passed with $engine."
+echo "Demo assembly, policy, seed, and reset smoke test passed with Docker."

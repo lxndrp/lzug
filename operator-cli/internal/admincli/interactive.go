@@ -190,7 +190,7 @@ func (session *interactiveSession) home(ctx context.Context) (string, dialogActi
 		normalized := normalizeAction(value)
 		switch normalized {
 		case "hilfe":
-			session.write("Wählen Sie eine Nummer oder einen Objektnamen. Suche findet Name, Hilfe und Suchbegriffe. Ziel ändert Engine und Container nur für diese Sitzung.\n")
+			session.write("Wählen Sie eine Nummer oder einen Objektnamen. Suche findet Name, Hilfe und Suchbegriffe. Ziel ändert den Container nur für diese Sitzung.\n")
 			continue
 		case "beenden":
 			return "", dialogExit, nil
@@ -526,7 +526,7 @@ func (session *interactiveSession) summary(command *Command, args []string) {
 		return
 	}
 	session.write("\nZusammenfassung vor der Ausführung:\n")
-	session.write(fmt.Sprintf("  Ziel: engine=%s, container=%s\n", session.config.Engine.Value, session.config.Container.Value))
+	session.write(fmt.Sprintf("  Ziel: container=%s\n", session.config.Container.Value))
 	session.write("  Wirkung: " + command.Description + "\n")
 	for _, argument := range command.Arguments {
 		if value, ok := values[argument.Name]; ok {
@@ -560,13 +560,6 @@ func (session *interactiveSession) result(name string, code int, failure *CLIErr
 }
 
 func (session *interactiveSession) changeTarget(ctx context.Context) int {
-	engine, action, err := session.field(ctx, "engine", "Container engine for this session.", true, []string{"auto", "docker", "podman"}, session.config.Engine.Value, false, Values{})
-	if err != nil {
-		return session.readFailure(ctx, err, false)
-	}
-	if action != dialogValue {
-		return ExitOK
-	}
 	container, action, err := session.field(ctx, "container", "Exact application container name for this session.", true, nil, session.config.Container.Value, false, Values{})
 	if err != nil {
 		return session.readFailure(ctx, err, false)
@@ -575,7 +568,6 @@ func (session *interactiveSession) changeTarget(ctx context.Context) int {
 		return ExitOK
 	}
 	global := session.global
-	global.Engine, global.EngineSet = engine, true
 	global.Container, global.ContainerSet = container, true
 	config, failure := session.application.Config.Resolve(global)
 	if failure != nil {
@@ -583,7 +575,6 @@ func (session *interactiveSession) changeTarget(ctx context.Context) int {
 		return ExitOK
 	}
 	session.global, session.config, session.checked = global, config, false
-	session.config.Engine.Source = "session"
 	session.config.Container.Source = "session"
 	session.showTarget()
 	return ExitOK
@@ -594,7 +585,7 @@ func (session *interactiveSession) showTarget() {
 	if container == "" {
 		container = "<nicht gesetzt>"
 	}
-	session.write(fmt.Sprintf("Sitzungsziel: engine=%s (%s), container=%s (%s)\n", session.config.Engine.Value, session.config.Engine.Source, container, session.config.Container.Source))
+	session.write(fmt.Sprintf("Sitzungsziel: container=%s (%s)\n", container, session.config.Container.Source))
 }
 
 func (session *interactiveSession) availability(command *Command) string {

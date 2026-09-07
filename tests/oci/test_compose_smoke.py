@@ -63,11 +63,10 @@ class ComposeSmokeTests(unittest.TestCase):
             environment = os.environ.copy()
             environment.update(
                 {
-                    "CONTAINER_ENGINE": "docker",
                     "FAKE_ENGINE_LOG": str(engine_log),
                     "LZUG_COMPOSE_READY_INTERVAL_SECONDS": "1",
                     "LZUG_COMPOSE_READY_TIMEOUT_SECONDS": "1",
-                    "LZUG_IMAGE": "lzug:0.0.0-test.local",
+                    "LZUG_IMAGE": "lzug-app:0.0.0-test.local",
                     "PATH": f"{binary_directory}{os.pathsep}{environment['PATH']}",
                 }
             )

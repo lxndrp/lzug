@@ -4,10 +4,10 @@ set -eu
 
 root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$root_dir/scripts/container-contract.sh"
-image="${1:-lzug:smoke}"
+image="${1:-lzug-app:smoke}"
 admin_binary="${LZUG_ADMIN_BINARY:-}"
 
-lzug_require_container_engine
+lzug_require_docker
 
 temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/lzug-operator-container.XXXXXX")
 container="lzug-operator-smoke-$$"
@@ -40,8 +40,8 @@ trap cleanup EXIT INT TERM
     --recipient-file "$temporary_directory/wrong.agepub" >/dev/null
 recipient_public_key=$(cat "$temporary_directory/backup.agepub")
 
-"$engine" volume create "$volume" >/dev/null
-"$engine" run --detach --name "$container" \
+docker volume create "$volume" >/dev/null
+docker run --detach --name "$container" \
     --read-only --tmpfs /tmp \
     --env "LZUG_SMTP_USERNAME=diagnostic-operator" \
     --env "LZUG_SMTP_PASSWORD=diagnostic-secret-marker" \
@@ -49,7 +49,7 @@ recipient_public_key=$(cat "$temporary_directory/backup.agepub")
     "$image" --host 0.0.0.0 --port 8000 --init >/dev/null
 if ! lzug_wait_for_container_health "$container" 30; then
     echo "Container did not become ready for the operator contract." >&2
-    "$engine" logs "$container" >&2 || true
+    docker logs "$container" >&2 || true
     exit 1
 fi
 
@@ -59,7 +59,7 @@ lzug_copy_build_metadata "$container" "$temporary_directory/container-metadata.j
 cmp "$temporary_directory/container-metadata.json" "$temporary_directory/cli-metadata.json"
 
 lifecycle_status=0
-"$admin_binary" --engine "$engine" --container "$container" --json \
+"$admin_binary" --container "$container" --json \
         upgrade apply --backup-output "$temporary_directory/pre-upgrade.lzug" \
         --identity-file "$temporary_directory/backup.agekey" \
         --confirm-irreversible --force \
@@ -79,7 +79,7 @@ assert payload["error"]["class"] == "release_artifact_unverified"
 
 maintenance_status=0
 printf '%s\n' '{"version":1,"command":"rollback","arguments":{"target":{"identity":"0.6.0","image":"ghcr.io/lxndrp/lzug@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","release":true,"revision":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","tag":"v0.6.0"}}}' | \
-    "$engine" exec --interactive "$container" python -m backend.admin --protocol 1 \
+    docker exec --interactive "$container" python -m backend.admin --protocol 1 \
         >"$temporary_directory/live-server-lifecycle.json" \
         2>"$temporary_directory/live-server-lifecycle.stderr" || maintenance_status=$?
 test "$maintenance_status" -eq 33
@@ -94,7 +94,7 @@ assert payload["error"]["class"] == "maintenance_required"
 ' "$temporary_directory/live-server-lifecycle.json"
 
 invitation=$(
-    "$admin_binary" --engine "$engine" --container "$container" --json \
+    "$admin_binary" --container "$container" --json \
         account invite --email cli-contract@example.invalid
 )
 token=$(printf '%s' "$invitation" | python3 -c '
@@ -109,7 +109,7 @@ assert payload["result"]["kind"] == "invitation"
 print(payload["result"]["token"])
 ')
 consumed=$(
-    printf '%s' "$token" | "$admin_binary" --engine "$engine" --container "$container" --json \
+    printf '%s' "$token" | "$admin_binary" --container "$container" --json \
         account consume-invitation
 )
 printf '%s' "$consumed" | python3 -c '
@@ -123,7 +123,7 @@ assert payload["result"]["account"]["email"] == "cli-contract@example.invalid"
 ' >/dev/null
 
 committee=$(
-    "$admin_binary" --engine "$engine" --container "$container" --json \
+    "$admin_binary" --container "$container" --json \
         committee bootstrap \
         --idempotency-key cli-contract-committee \
         --name "CLI-Vertragsausschuss" \
@@ -153,7 +153,7 @@ assert payload["result"]["invitations"][0]["token"]
 
 for diagnostic in status config doctor; do
     diagnostic_output=$(
-        "$admin_binary" --engine "$engine" --container "$container" --json \
+        "$admin_binary" --container "$container" --json \
             system "$diagnostic"
     )
     printf '%s' "$diagnostic_output" | python3 -c '
@@ -178,12 +178,12 @@ for forbidden in (
 ' "$diagnostic" "$token" >/dev/null
 done
 
-"$admin_binary" --engine "$engine" --container "$container" --json \
+"$admin_binary" --container "$container" --json \
     backup recipient set --identity-file "$temporary_directory/backup.agekey" \
     >"$temporary_directory/recipient.json"
 
 backup=$(
-    "$admin_binary" --engine "$engine" --container "$container" --json \
+    "$admin_binary" --container "$container" --json \
         backup create --output "$temporary_directory/backup.lzug"
 )
 backup_artifact=$(printf '%s' "$backup" | python3 -c '
@@ -200,7 +200,7 @@ print(result["artifact"])
 ')
 
 verified_backup=$(
-    "$admin_binary" --engine "$engine" --container "$container" --json \
+    "$admin_binary" --container "$container" --json \
         backup verify --artifact "$backup_artifact" \
         --identity-file "$temporary_directory/backup.agekey"
 )
@@ -216,7 +216,7 @@ assert payload["result"]["documents"] >= 0
 ' >/dev/null
 
 wrong_key_status=0
-"$admin_binary" --engine "$engine" --container "$container" --json \
+"$admin_binary" --container "$container" --json \
         backup verify --artifact "$backup_artifact" \
         --identity-file "$temporary_directory/wrong.agekey" \
         >"$temporary_directory/wrong-key.json" \
@@ -235,7 +235,7 @@ assert payload["error"]["phase"] == "local-artifact"
 ' "$temporary_directory/wrong-key.json"
 
 full_export=$(
-    "$admin_binary" --engine "$engine" --container "$container" --json \
+    "$admin_binary" --container "$container" --json \
         export create --recipient "$recipient_public_key" \
         --output "$temporary_directory/export.lzug" --force
 )
@@ -252,7 +252,7 @@ assert result["artifact_id"] and result["snapshot_at"]
 print(result["artifact"])
 ')
 verified_export=$(
-    "$admin_binary" --engine "$engine" --container "$container" --json \
+    "$admin_binary" --container "$container" --json \
         export verify --artifact "$export_artifact" \
         --identity-file "$temporary_directory/backup.agekey"
 )
@@ -267,7 +267,7 @@ assert payload["result"]["artifact_type"] == "full_export"
 ' >/dev/null
 
 replace_required_status=0
-"$admin_binary" --engine "$engine" --container "$container" --json \
+"$admin_binary" --container "$container" --json \
         backup restore --artifact "$backup_artifact" \
         --identity-file "$temporary_directory/backup.agekey" --force \
         >"$temporary_directory/replace-required.json" \
@@ -286,7 +286,7 @@ assert payload["error"]["phase"] == "precheck"
 ' "$temporary_directory/replace-required.json"
 
 restored=$(
-    "$admin_binary" --engine "$engine" --container "$container" --json \
+    "$admin_binary" --container "$container" --json \
         backup restore --artifact "$backup_artifact" \
         --identity-file "$temporary_directory/backup.agekey" --replace --force
 )
@@ -322,10 +322,10 @@ if grep -F -f "$temporary_directory/backup.agekey" \
     echo "Artifact command error output exposed the private recipient key." >&2
     exit 1
 fi
-if "$engine" logs "$container" 2>&1 | \
+if docker logs "$container" 2>&1 | \
     grep -F -f "$temporary_directory/backup.agekey" >/dev/null; then
     echo "Container logs exposed the private recipient key." >&2
     exit 1
 fi
 
-echo "Operator CLI-to-container administration, diagnostic, and artifact contracts passed with $engine: $image"
+echo "Operator CLI-to-container administration, diagnostic, and artifact contracts passed with Docker: $image"

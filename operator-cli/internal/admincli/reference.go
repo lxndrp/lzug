@@ -32,14 +32,14 @@ func GenerateReference(registry *Registry) string {
 	output.WriteString("| `--help` | Globale oder kontextbezogene Hilfe ausgeben. | - |\n")
 	output.WriteString("| `--version` | CLI-Version ausgeben. | - |\n")
 	output.WriteString("| `--build-metadata` | Kanonische Build-Metadaten als JSON ausgeben. | - |\n\n")
-	output.WriteString("Konfigurierbar sind nur Engine und Containername.\n")
+	output.WriteString("Konfigurierbar ist nur der Containername.\n")
 	output.WriteString("Die Priorität lautet Flag vor Umgebungsvariable vor optionaler JSON-Datei vor Standardwert.\n\n")
 	output.WriteString("## Konfiguration und sichere Eingabe\n\n")
-	output.WriteString("Die Umgebungsvariablen `LZUG_ADMIN_ENGINE` und `LZUG_ADMIN_CONTAINER` sind die einzigen von der CLI ausgewerteten Konfigurationswerte.\n")
+	output.WriteString("`LZUG_ADMIN_CONTAINER` ist der einzige von der CLI ausgewertete Konfigurationswert.\n")
 	output.WriteString("Ohne `--config` sucht die CLI plattformgerecht unter dem durch `os.UserConfigDir` bestimmten Verzeichnis nach `lzug/admin.json`; eine fehlende Standarddatei ist zulässig.\n")
 	output.WriteString("Eine explizite fehlende oder ungültige Datei ist ein Konfigurationsfehler, und `--no-config` unterbindet jeden Dateizugriff.\n\n")
 	output.WriteString("```json\n")
-	output.WriteString("{\"engine\":\"podman\",\"container\":\"lzug\"}\n")
+	output.WriteString("{\"container\":\"lzug\"}\n")
 	output.WriteString("```\n\n")
 	output.WriteString("Andere Dateischlüssel sowie Umgebungsvariablen für Secrets, Bestätigungen oder Ausgabepräferenzen werden abgewiesen.\n")
 	output.WriteString("Einmaltoken und private Empfängerschlüssel besitzen keine CLI-Option und werden ausschließlich als einzelne Eingabe über `stdin` gelesen; am TTY bleibt die Eingabe ohne Echo.\n\n")
@@ -47,7 +47,7 @@ func GenerateReference(registry *Registry) string {
 	output.WriteString("Human-Ausgabe ist der Standard und bleibt bei einem vollständig spezifizierten erfolgreichen Vorgang grundsätzlich leer.\n")
 	output.WriteString("Erforderliche Einmalwerte und ausdrücklich abgefragte Diagnose erscheinen auf `stdout`; Fehler, Warnungen, Rückfragen und `--verbose`-Diagnose erscheinen auf `stderr`.\n")
 	output.WriteString("`--json` liefert bei Erfolg und Fehler genau ein Objekt mit `schema_version`, `protocol_version`, `ok`, `exit_code`, `command` und einem zulässigen `result` oder `error`.\n")
-	output.WriteString("Rohe Engine-Ausgabe, interne Backendtexte und nicht deklarierte Ergebnisfelder werden nicht weitergereicht.\n\n")
+	output.WriteString("Rohe Docker-Ausgabe, interne Backendtexte und nicht deklarierte Ergebnisfelder werden nicht weitergereicht.\n\n")
 	output.WriteString("| Exit Code | Bedeutung |\n")
 	output.WriteString("| --- | --- |\n")
 	output.WriteString("| `0` | Erfolg |\n")
@@ -113,12 +113,12 @@ func GenerateReference(registry *Registry) string {
 		}
 		if command.Transport == LocalTransport {
 			if command.UsesConfig {
-				output.WriteString("Transport: lokale Orchestrierung über den gemeinsamen Docker-/Podman-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.\n\n")
+				output.WriteString("Transport: lokale Orchestrierung über den Docker-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.\n\n")
 			} else {
 				output.WriteString("Transport: lokale Ausführung ohne Container-Auftrag.\n\n")
 			}
 		} else {
-			output.WriteString("Transport: versionierter Auftrag über den gemeinsamen Docker-/Podman-Containertransport.\n\n")
+			output.WriteString("Transport: versionierter Auftrag über den Docker-Containertransport.\n\n")
 			fmt.Fprintf(&output, "Zeitlimit: `%s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.\n\n", command.Timeout)
 		}
 		if command.Mutating {

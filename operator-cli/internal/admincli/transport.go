@@ -14,7 +14,7 @@ import (
 
 const maxBackendOutput = 1024 * 1024
 
-var canonicalReleaseImagePattern = regexp.MustCompile(`^ghcr\.io/lxndrp/lzug@sha256:[0-9a-f]{64}$`)
+var canonicalReleaseImagePattern = regexp.MustCompile(`^ghcr\.io/lxndrp/lzug-app@sha256:[0-9a-f]{64}$`)
 
 type RuntimeErrorKind string
 
@@ -33,30 +33,22 @@ func (e *RuntimeError) Error() string {
 	return string(e.Kind)
 }
 
-type EngineResolver interface {
-	Resolve(string) (string, error)
+type DockerResolver interface {
+	Resolve() (string, error)
 }
 
-type PATHEngineResolver struct{}
+type PATHDockerResolver struct{}
 
-func (PATHEngineResolver) Resolve(preferred string) (string, error) {
-	if preferred != "" && preferred != "auto" {
-		return exec.LookPath(preferred)
-	}
-	for _, candidate := range []string{"docker", "podman"} {
-		if path, err := exec.LookPath(candidate); err == nil {
-			return path, nil
-		}
-	}
-	return "", exec.ErrNotFound
+func (PATHDockerResolver) Resolve() (string, error) {
+	return exec.LookPath("docker")
 }
 
 type ContainerRuntimeFactory struct {
-	Resolver EngineResolver
+	Resolver DockerResolver
 }
 
 func NewContainerRuntimeFactory() *ContainerRuntimeFactory {
-	return &ContainerRuntimeFactory{Resolver: PATHEngineResolver{}}
+	return &ContainerRuntimeFactory{Resolver: PATHDockerResolver{}}
 }
 
 func (factory *ContainerRuntimeFactory) Transport(config EffectiveConfig) Transport {
@@ -73,7 +65,7 @@ func (factory *ContainerRuntimeFactory) ReleaseInspector(config EffectiveConfig)
 
 type ContainerTransport struct {
 	Config   EffectiveConfig
-	Resolver EngineResolver
+	Resolver DockerResolver
 }
 
 func (transport *ContainerTransport) Execute(
@@ -83,7 +75,7 @@ func (transport *ContainerTransport) Execute(
 	if err := ctx.Err(); err != nil {
 		return BackendResponse{}, ExitInterrupted, err
 	}
-	engine, err := transport.Resolver.Resolve(transport.Config.Engine.Value)
+	docker, err := transport.Resolver.Resolve()
 	if err != nil {
 		return BackendResponse{}, ExitEngineUnavailable, &RuntimeError{Kind: RuntimeEngineUnavailable}
 	}
@@ -96,7 +88,7 @@ func (transport *ContainerTransport) Execute(
 	var stderr bytes.Buffer
 	command := exec.CommandContext(
 		ctx,
-		engine,
+		docker,
 		"exec",
 		"--interactive",
 		transport.Config.Container.Value,
@@ -175,23 +167,23 @@ func (writer *limitedWriter) Write(payload []byte) (int, error) {
 
 type ContainerReleaseInspector struct {
 	Config   EffectiveConfig
-	Resolver EngineResolver
+	Resolver DockerResolver
 }
 
 func (inspector *ContainerReleaseInspector) Target(ctx context.Context, build BuildInfo) (map[string]any, error) {
 	if build.Tag == "" || build.Version != strings.TrimPrefix(build.Tag, "v") {
 		return nil, &RuntimeError{Kind: RuntimeRelease}
 	}
-	engine, err := inspector.Resolver.Resolve(inspector.Config.Engine.Value)
+	docker, err := inspector.Resolver.Resolve()
 	if err != nil {
 		return nil, &RuntimeError{Kind: RuntimeEngineUnavailable}
 	}
 	container := inspector.Config.Container.Value
-	imageID, err := commandOutput(ctx, engine, "container", "inspect", "--format", "{{.Image}}", container)
+	imageID, err := commandOutput(ctx, docker, "container", "inspect", "--format", "{{.Image}}", container)
 	if err != nil || strings.TrimSpace(imageID) == "" {
 		return nil, &RuntimeError{Kind: RuntimeRelease}
 	}
-	repoDigestsJSON, err := commandOutput(ctx, engine, "image", "inspect", "--format", "{{json .RepoDigests}}", strings.TrimSpace(imageID))
+	repoDigestsJSON, err := commandOutput(ctx, docker, "image", "inspect", "--format", "{{json .RepoDigests}}", strings.TrimSpace(imageID))
 	if err != nil {
 		return nil, &RuntimeError{Kind: RuntimeRelease}
 	}
@@ -209,7 +201,7 @@ func (inspector *ContainerReleaseInspector) Target(ctx context.Context, build Bu
 	if canonicalImage == "" {
 		return nil, &RuntimeError{Kind: RuntimeRelease}
 	}
-	labelsJSON, err := commandOutput(ctx, engine, "image", "inspect", "--format", "{{json .Config.Labels}}", strings.TrimSpace(imageID))
+	labelsJSON, err := commandOutput(ctx, docker, "image", "inspect", "--format", "{{json .Config.Labels}}", strings.TrimSpace(imageID))
 	if err != nil {
 		return nil, &RuntimeError{Kind: RuntimeRelease}
 	}

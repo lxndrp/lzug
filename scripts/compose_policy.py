@@ -12,7 +12,6 @@ from typing import Any
 SEMVER_IDENTIFIER_CHARACTERS = frozenset(
     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-"
 )
-HEXADECIMAL_CHARACTERS = frozenset("0123456789abcdefABCDEF")
 
 
 def _valid_identifiers(value: str, *, reject_numeric_leading_zero: bool) -> bool:
@@ -51,14 +50,6 @@ def _has_semver_tag(image: str) -> bool:
     )
 
 
-def _has_sha256_digest(image: str) -> bool:
-    marker = "@sha256:"
-    if marker not in image:
-        return False
-    digest = image.rsplit(marker, 1)[1]
-    return len(digest) == 64 and all(character in HEXADECIMAL_CHARACTERS for character in digest)
-
-
 def image_reference_errors(image: object) -> list[str]:
     if not isinstance(image, str) or not image:
         return ["services.lzug.image must resolve to a non-empty string"]
@@ -66,8 +57,12 @@ def image_reference_errors(image: object) -> list[str]:
         return ["services.lzug.image must not use the mutable latest tag"]
     if "REPLACE" in image or "<" in image or ">" in image:
         return ["services.lzug.image must not contain a placeholder"]
-    if not (_has_semver_tag(image) or _has_sha256_digest(image)):
-        return ["services.lzug.image must end in an immutable SemVer tag or sha256 digest"]
+    image_parts = image.split("/", 2)
+    repository = image.rsplit(":", 1)[0]
+    if image_parts[0] == "ghcr.io" and repository != "ghcr.io/lxndrp/lzug-app":
+        return ["services.lzug.image must use the canonical ghcr.io/lxndrp/lzug-app package"]
+    if not _has_semver_tag(image):
+        return ["services.lzug.image must end in an exact SemVer version"]
     return []
 
 

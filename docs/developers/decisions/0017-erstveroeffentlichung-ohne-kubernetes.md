@@ -24,7 +24,7 @@ Datenvertrag.
 Docker Engine auf Linux ist die qualifizierte Self-Hosting-Referenz.
 Compose bleibt ein optionaler, knapper Docker-Referenzweg für den einen
 `lzug-app`-Service und keine plattformneutrale Produktbeschreibung.
-Podman gehört nicht zum unterstützten oder geprüften Umfang.
+Weitere konkrete Runtimes gehören nicht zum unterstützten oder geprüften Umfang.
 Die Prozess-, Transport- und Lifecyclegrenzen beschreibt
 [ADR-0033](0033-aio-betrieb-admintransport-und-lifecycle.md).
 
