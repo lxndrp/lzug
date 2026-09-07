@@ -36,6 +36,8 @@ Diese Referenz entsteht beim Dokumentationsbuild aus Google-Style-Docstrings. Si
 
 ::: backend.application
 
+::: backend.fastapi_assembly
+
 ::: backend.fastapi_app
 
 ::: backend.server

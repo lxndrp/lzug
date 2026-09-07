@@ -11,7 +11,7 @@ from sqlalchemy import text
 
 from backend.contract import ContractValidationError, validate_response
 from backend.database import connect
-from backend.fastapi_app import FastAPIConfig, create_app
+from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.repositories import REST_RESOURCES
 from backend.tests.helpers import ApiServer, TempDatabase
 

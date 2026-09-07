@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from backend.auth import AuthenticationRepository, SessionCredentials
 from backend.database import initialize, is_ready
-from backend.fastapi_app import FastAPIConfig, create_app
+from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.map_provider import MapProviderConfig
 from backend.runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from backend.security import RequestRateLimiter

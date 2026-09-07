@@ -19,7 +19,7 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
-from backend.fastapi_app import FastAPIConfig, create_app
+from backend.fastapi_assembly import FastAPIConfig, create_app
 
 RELEARN_REPOSITORY = "https://github.com/McShelby/hugo-theme-relearn.git"
 RELEARN_REVISION = "8bb66fa674351f3a0b0917a7552caac686eca920"

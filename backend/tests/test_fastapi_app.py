@@ -41,12 +41,8 @@ from backend.api_contracts import (
 )
 from backend.application import ApplicationServices
 from backend.auth import AuthenticationRepository, SessionCredentials
-from backend.fastapi_app import (
-    MIGRATED_DOMAIN_RESOURCES,
-    MIGRATED_PLANNING_RESOURCES,
-    FastAPIConfig,
-    create_app,
-)
+from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES, MIGRATED_PLANNING_RESOURCES
+from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
 
 
