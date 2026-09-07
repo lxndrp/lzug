@@ -63,6 +63,18 @@ Registrierungsgrenzen enthält.
 den gemeinsamen Anwendungsvertrag für HTTP- und Adminadapter ab.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am
 HTTP-Rand, während der synchrone Anwendungskern frameworkunabhängig bleibt.
+`backend.fastapi_dependencies` stellt dafür gemeinsame FastAPI-Dependencies
+für Request-Kontext, Session, CSRF, aktive Mitgliedschaft, Betreiberzugriff
+auf Prüfungsorte und Rundenzugriff bereit.
+Die Handler deklarieren ihren bisherigen Sicherheitsvertrag über die
+Kontext-Dependencies; fachliche Entscheidungen verbleiben in den vorhandenen
+Autorisierungs-, Lifecycle- und Fachservices.
+Ein Request teilt einen Kontext einschließlich der von der Runtime-Policy
+gewählten Datenbank.
+Die Transport-Middleware verwendet dieselbe Body-Dependency vor der
+Routerauswahl; JSON-, Medien- und tatsächliche Payloadgrößenprüfung bleiben
+am bisherigen Aufruf von `RequestContext.read_json`, damit die Reihenfolge
+von Sicherheits- und Eingabefehlern erhalten bleibt.
 Der lokale Unix-Socket-Adapter besitzt eine getrennte
 Betreiberautorisierungsgrenze, verwendet aber dieselben Services,
 Transaktionen und Repositories wie HTTP.
