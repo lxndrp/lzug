@@ -1344,7 +1344,7 @@ test.describe('lzug browser workflows', () => {
         await expect(notice).toBeFocused();
         await expect(notice).toBeInViewport();
 
-        if (viewport.width < 768) {
+        if (viewport.width <= 768) {
           await page.locator('.app-sidebar-close').click();
         } else {
           await page.getByRole('button', { name: 'Navigation schließen' }).click();

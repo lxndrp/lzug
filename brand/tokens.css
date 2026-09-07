@@ -85,7 +85,7 @@
   --lzug-role-control-min: var(--lzug-touch-target-min);
 }
 
-body[tuiTheme="dark"],
+body[tuitheme="dark"],
 [data-r-theme-variant="relearn-dark"] {
   color-scheme: dark;
   --lzug-color-brand-ink: #c8bbff;
@@ -118,6 +118,19 @@ body[tuiTheme="dark"],
   --lzug-color-data-4: #ffafcb;
   --lzug-shadow-subtle: 0 1px 2px rgb(0 0 0 / 30%);
   --lzug-shadow-floating: 0 10px 28px rgb(0 0 0 / 45%);
+
+  /* Rebind aliases after the dark primitives so inherited consumers receive dark values. */
+  --lzug-role-action-primary: var(--lzug-color-brand-ink);
+  --lzug-role-action-primary-hover: var(--lzug-color-brand-ink-hover);
+  --lzug-role-action-primary-active: var(--lzug-color-brand-ink-active);
+  --lzug-role-action-on-primary: var(--lzug-color-text-on-interaction);
+  --lzug-role-page-canvas: var(--lzug-color-neutral-canvas);
+  --lzug-role-card-surface: var(--lzug-color-neutral-surface);
+  --lzug-role-raised-surface: var(--lzug-color-neutral-surface-raised);
+  --lzug-role-border: var(--lzug-color-neutral-border);
+  --lzug-role-text: var(--lzug-color-text);
+  --lzug-role-text-muted: var(--lzug-color-text-muted);
+  --lzug-role-focus: var(--lzug-color-focus);
 }
 
 @media (prefers-reduced-motion: reduce) {
