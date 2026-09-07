@@ -109,9 +109,9 @@ class PublicationDeliveryContractTests(unittest.TestCase):
 
     def test_product_and_portal_adapters_use_one_shared_visual_grammar(self) -> None:
         tokens = (ROOT / "brand/tokens.css").read_text(encoding="utf-8")
-        portal_css = (
-            ROOT / "docs/publication/relearn/assets/css/custom.css"
-        ).read_text(encoding="utf-8")
+        portal_css = (ROOT / "docs/publication/relearn/assets/css/custom.css").read_text(
+            encoding="utf-8"
+        )
         frontend_css = "\n".join(
             (
                 (ROOT / "frontend/src/styles.scss").read_text(encoding="utf-8"),
