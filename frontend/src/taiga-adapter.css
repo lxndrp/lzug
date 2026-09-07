@@ -1,6 +1,6 @@
 /* Taiga UI adapter. Product code consumes the toolkit-neutral lzug roles above. */
 :root,
-body[tuiTheme='dark'] {
+body[tuitheme='dark'] {
   --tui-background-base: var(--lzug-role-card-surface);
   --tui-background-neutral-1: var(--lzug-role-page-canvas);
   --tui-background-neutral-2: var(--lzug-role-raised-surface);
