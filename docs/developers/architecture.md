@@ -34,32 +34,37 @@ zum aktuellen System.
 
 Im C4-Sinn bezeichnet ein Container eine laufende Anwendung oder einen
 Datenspeicher, nicht nur einen OCI-Container.
+Die kanonische Prozess-, Transport- und Lifecyclegrenze steht in
+[ADR-0033](decisions/0033-aio-betrieb-admintransport-und-lifecycle.md).
 
 ```mermaid
 flowchart LR
   member["Person: Ausschussmitglied"]
-  operator["Person: Betreiber:in"]
+  operator["Person: Betreiber:in<br/>lokal oder via System-OpenSSH"]
   channels["Externe Systeme:<br/>Push-Dienst und SMTP-Relay"]
 
   subgraph system["Software System: lzug"]
     spa["Container: Angular SPA<br/>Browser-Oberfläche"]
-    app["Container: Python/FastAPI-Anwendung<br/>HTTP, Sicherheit, Anwendungskern<br/>und Integrationsadapter"]
+    app["Container: autoritativer Backendprozess<br/>HTTP- und Unix-Socket-Adapter,<br/>Anwendungskern und Lifecycle"]
     admin["Container: lzug-admin<br/>portable Go-CLI"]
-    data[("Container: SQLite und /data<br/>Fachdaten, Dokumente,<br/>Schlüssel und Backups")]
+    data[("Container: SQLite und /data<br/>Fachdaten, Dokumente<br/>und Backups")]
   end
 
   member -->|"bedient"| spa
   spa -->|"same-origin JSON/HTTPS"| app
-  operator -->|"lokaler CLI-Aufruf"| admin
-  admin -->|"JSON-Kontrolle und Klartext-Paketstrom via Engine exec"| app
+  operator -->|"direkter oder SSH-weitergeleiteter CLI-Aufruf"| admin
+  admin -->|"versionierter Auftrag über Unix-Domain-Socket"| app
   app -->|"SQLAlchemy und Dateizugriff"| data
   app -.->|"best effort"| channels
 ```
 
-Browser-Bundle und Python-Anwendung werden gemeinsam im OCI-Image
-ausgeliefert, bleiben aber getrennte C4-Container mit einer HTTP-Grenze.
-`lzug-admin` ruft den lokalen Adminprozess im laufenden oder ausdrücklich
-vorbereiteten Wartungscontainer auf und öffnet keinen Netzwerk-Adminendpunkt.
+Browser-Bundle, Python-Anwendung und CLI werden gemeinsam im OCI-Image
+`lzug-app` ausgeliefert, bleiben aber getrennte C4-Container mit expliziten
+Transportgrenzen.
+Genau ein Backendprozess führt die Persistenz und bedient HTTP sowie den
+lokalen Admin-Socket als Adapter desselben Anwendungskerns.
+`lzug-admin` erreicht lokal oder über System-OpenSSH denselben Socketvertrag;
+ein Netzwerk-Adminendpunkt und ein zweiter Adminprozess existieren nicht.
 
 ## Komponenten-Sicht
 
@@ -67,30 +72,40 @@ vorbereiteten Wartungscontainer auf und öffnet keinen Netzwerk-Adminendpunkt.
 flowchart LR
   spa["Angular-Komponenten<br/>Routing, Formulare, Zustände"]
   client["API-Service und Modelle<br/>OpenAPI-Grenze"]
-  http["FastAPI-Adapter<br/>Transport, Session, CSRF, Scope"]
-  core["Anwendungsservices<br/>Fachlogik und Transaktionen"]
-  repo["Repositories und Integrationsadapter<br/>Persistenz, Dokumente, Kalender, Zustellung"]
+  cli["Go-CLI<br/>Registry, Renderer und Transportwahl"]
+
+  subgraph process["Ein autoritativer Backendprozess"]
+    http["FastAPI-Adapter<br/>Session, CSRF und Fach-Scope"]
+    socket["Unix-Socket-Adapter<br/>Betreiberautorisierung und Adminvertrag"]
+    lifecycle["Lifecyclekoordination<br/>Live, Ready, Wartung und Migration"]
+    core["Anwendungsservices<br/>Fachlogik und Transaktionen"]
+    repo["Repositories und Integrationsadapter<br/>Persistenz, Dokumente, Kalender, Zustellung"]
+  end
+
   store[("SQLAlchemy, SQLite und /data")]
-  admin["Python-Adminservice<br/>Diagnose und Lifecycle"]
-  cli["Go-CLI<br/>Registry, Renderer und lokale Orchestrierung"]
 
   spa --> client
   client --> http
   http --> core
+  http --> lifecycle
+  cli -->|"direkt oder via System-OpenSSH"| socket
+  socket --> core
+  socket --> lifecycle
   core --> repo
+  lifecycle --> repo
   repo --> store
-  cli -->|"öffentliche Konfiguration; Klartext-Paketstrom"| admin
   cli -->|"age-Hülle; private Identität bleibt lokal"| artifact["Geschütztes Artefakt"]
-  admin --> core
-  admin --> store
 ```
 
 Die statische Go-Registry trennt Command-Metadaten, Validierung,
 Backendauftrag, Transport und Darstellung und wird in einer sichtbaren
 Composition Root explizit verdrahtet.
 Transport- und Adapterdetails dürfen keine Fachlogik duplizieren.
-Services und Repositories bleiben frameworkunabhängig; HTTP und Adminprozess
-verwenden dieselben fachlichen und betrieblichen Kernverträge.
+Services und Repositories bleiben frameworkunabhängig; HTTP- und
+Unix-Socket-Adapter verwenden im selben Prozess dieselben fachlichen und
+betrieblichen Kernverträge.
+Betreiberautorisierung am Socket und fachliche Webautorisierung bleiben
+getrennt; keine der beiden Grenzen ersetzt die andere.
 Die Verantwortungen und Testeinstiege sind unter
 [Komponenten](components.md) zusammengefasst.
 
@@ -99,22 +114,32 @@ Die Verantwortungen und Testeinstiege sind unter
 ```mermaid
 flowchart TB
   member["Person: Ausschussmitglied"]
-  operator["Person: Betreiber:in"]
+  local["Person: lokale Betreiber:in"]
+  remote["Person: entfernte Betreiber:in<br/>mit lzug-admin"]
 
   subgraph host["Deployment Node: Self-Hosting-Host"]
     tls["Deployment Node: betreiberseitiger TLS-Endpunkt<br/>nicht Teil des Images"]
-    admin["Executable: lzug-admin"]
+    ssh["Executable: System-OpenSSH<br/>Authentisierung und Socket-Forwarding"]
+    admin["Executable: lzug-admin<br/>direkter Socketzugriff"]
 
-    subgraph engine["Deployment Node: Docker oder Podman"]
-      app["Container-Instanz: lzug OCI-Image<br/>UID/GID 10001, Port 8000,<br/>read-only Root-Dateisystem"]
+    subgraph engine["Deployment Node: Docker auf Linux"]
+      subgraph image["Container-Instanz: lzug-app<br/>UID/GID 10001, read-only Root-Dateisystem"]
+        app["Prozess: autoritatives Backend<br/>HTTP, Anwendungskern und Lifecycle"]
+        socket["Unix-Domain-Socket<br/>lokaler Adminadapter"]
+        container_cli["Executable: lzug-admin<br/>bei Bedarf kurzlebig gestartet"]
+      end
       data[("Volume: /data<br/>SQLite, Dokumente,<br/>Schlüssel und Backups")]
     end
   end
 
   member -->|"HTTPS"| tls
   tls -->|"HTTP an Port 8000"| app
-  operator -->|"lokaler Aufruf"| admin
-  admin -->|"engine exec"| app
+  local -->|"lokaler Aufruf"| admin
+  remote -->|"System-SSH"| ssh
+  admin -->|"direkt"| socket
+  ssh -->|"Socket-Forwarding"| socket
+  container_cli -->|"direkt"| socket
+  socket --> app
   app -->|"einziger dauerhafter Schreibbereich"| data
 ```
 
@@ -124,19 +149,68 @@ Ausführungspfad.
 Der Dialog ergänzt ausschließlich Navigation, Eingabe, Zusammenfassung und
 Statusrückmeldung.
 Er enthält weder eigene Commandparameter noch Backendaufträge oder
-Fachlogik und kann deshalb künftige Transportadapter verwenden, ohne die
-Bedien- oder Commandverträge zu duplizieren.
+Fachlogik.
+Lokaler Zugriff, ein im Container gestartetes CLI-Binary und
+SSH-Socket-Forwarding verändern weder Bedien- noch Commandvertrag.
+Die Containerplattform startet Image, Container und bei Bedarf die CLI; sie ist
+nicht der fachliche Backendtransport.
 
 Die unterstützte Referenz ist eine einzelne Self-Hosting-Instanz mit
-persistenter `/data`-Grenze.
+`lzug-app`, Docker auf Linux und persistenter `/data`-Grenze.
+Compose ist ein optionaler knapper Docker-Referenzweg für genau diesen einen
+Service.
+Die OCI-Liefergrenze bleibt portabel; Podman und weitere konkrete Laufzeiten
+gehören dadurch nicht zum unterstützten oder geprüften Umfang.
 TLS-Terminierung, Host-Härtung, Schlüsselverwahrung, Sicherung und
 Aufbewahrung liegen in Betreiberverantwortung und sind im
 [Betreiberanleitung](../portal/betreiben.md) beschrieben.
-Die öffentliche Demo ist eine getrennte flüchtige Azure-Assembly mit
-synthetischem Basisseed und kein Self-Hosting-Muster.
+Die öffentliche Demo verwendet das getrennte Image `lzug-demo`, eine flüchtige
+Azure-Assembly mit synthetischem Basisseed und kein Self-Hosting-Muster.
 Ihre Runtime-Policy erzeugt je Besuch eine isolierte SQLite-Arbeitskopie,
 bindet Rollenwechsel an dieselbe absolute 60-Minuten-Frist und entfernt den
 Arbeitsstand bei Ablauf, Reset oder Abmeldung.
+
+## Kritischer Ablauf: Start und Datenmigration
+
+```mermaid
+sequenceDiagram
+  actor operator as Betreiber:in
+  participant platform as Containerplattform
+  participant app as Autoritativer Backendprozess
+  participant socket as Admin-Socket
+  participant http as HTTP und Frontend
+  participant data as SQLite und /data
+
+  operator->>platform: freigegebenes lzug-app wählen und Container ersetzen
+  platform->>app: Prozess starten
+  app->>data: Konfiguration, Schema und Upgradepfad prüfen
+  alt normaler kompatibler Start
+    app->>http: live und ready
+    app->>socket: Adminaufträge bereitstellen
+  else Migration oder Wartung erforderlich
+    app->>http: live, not ready und Wartungszustand
+    app->>socket: Status, Diagnose und Freigabe bereitstellen
+    operator->>socket: Zustand und vollständige Sicherung prüfen
+    operator->>socket: Datenmigration ausdrücklich freigeben
+    socket->>app: versionierten Auftrag übergeben
+    app->>data: Migration unter zentraler Sperre und Transaktion ausführen
+    alt Migration erfolgreich
+      app->>http: ready schalten
+      app-->>socket: Erfolg und Auftrags-ID
+    else Migration fehlgeschlagen
+      app->>http: live und not ready halten
+      app-->>socket: diagnostizierbarer Fehler und Auftrags-ID
+    end
+  end
+```
+
+Die Containerplattform verantwortet Imagewechsel und Prozessstart, nicht die
+lzug-Datenmigration.
+Der bereits laufende Backendprozess erkennt den Migrationsbedarf, bleibt für
+zulässige Adminaufträge erreichbar und führt die vom Betreiber freigegebene
+Migration selbst aus.
+Ein CLI-Verbindungsabbruch wiederholt keinen verändernden Auftrag; Zustand und
+Auftrags-ID ermöglichen nach Wiederanlauf die eindeutige Diagnose.
 
 ## Kritischer Ablauf: Plan bestätigen
 

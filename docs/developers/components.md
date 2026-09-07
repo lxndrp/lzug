@@ -5,20 +5,24 @@ Verantwortungsbereichen: Backend, Frontend, lokale Betreiber-CLI und
 Auslieferungsinfrastruktur.
 Gemeinsame Verträge werden an den Grenzen genutzt, nicht in mehreren
 Komponenten nachimplementiert.
+Die gemeinsame AIO-, Admintransport- und Lifecyclegrenze legt
+[ADR-0033](decisions/0033-aio-betrieb-admintransport-und-lifecycle.md) fest.
 
 ## Verantwortungen und Abhängigkeiten
 
 | Bereich | Verantwortung | Zulässige Außengrenze | Maßgebliche Quellen |
 | --- | --- | --- | --- |
-| Backend | HTTP, Authentifizierung, Fachservices, Persistenz, Dokumente und Integrationsadapter | OpenAPI/JSON, Admin-JSON, SQLite und kontrollierte Provideradapter | `backend/src/backend/`, `backend/db/` |
+| Backend | ein autoritativer Prozess für HTTP, Admin-Socket, Lifecycle, Fachservices, Persistenz, Dokumente und Integrationsadapter | OpenAPI/JSON, versionierter Unix-Socket-Vertrag, SQLite und kontrollierte Provideradapter | `backend/src/backend/`, `backend/db/` |
 | Frontend | aufgabenorientierte Ausschussoberfläche, Routing, Formulare und sichtbare Zustände | same-origin API über zentrale Modelle und Services | `frontend/src/app/` |
-| Betreiber-CLI | lokale portable Orchestrierung von Administration, Diagnose und Lifecycle | einzelne Docker-/Podman-`exec`-Argumente und Admin-Protokollversion 1 | `operator-cli/cmd/lzug-admin/`, `operator-cli/internal/admincli/`, `operator-cli/internal/tools/cli-reference/`, `operator-cli/.goreleaser.yml` |
-| OCI und Self-Hosting | gemeinsames Produktimage, gehärtete Laufzeit und persistentes `/data` | `Dockerfile`, `compose.yaml` und Containerverträge | Dockerfiles, Compose und `scripts/*container*` |
-| Öffentliche Demo | flüchtige App-/Seed-Assembly, Reset, Promotion und Azure-Deployment | digestgebundene Manifeste, OIDC und Demo-Runtime-Policy | `demo/`, `demo/Dockerfile.demo*`, `infra/demo/`, Demo-Workflows |
+| Betreiber-CLI | portable Orchestrierung von Administration, Diagnose und Lifecycle | direkter Unix-Socket oder System-OpenSSH-Forwarding desselben Adminvertrags | `operator-cli/cmd/lzug-admin/`, `operator-cli/internal/admincli/`, `operator-cli/internal/tools/cli-reference/`, `operator-cli/.goreleaser.yml` |
+| OCI und Self-Hosting | Produktimage `lzug-app`, gehärtete Docker-Referenz und persistentes `/data` | `Dockerfile`, optionaler Docker-Compose-Weg und Containerverträge | Dockerfile, Compose und `scripts/*container*` |
+| Öffentliche Demo | getrenntes Image `lzug-demo`, flüchtige App-/Seed-Assembly, Reset, Promotion und Azure-Deployment | digestgebundene Manifeste, OIDC und Demo-Runtime-Policy | `demo/`, `demo/Dockerfile.demo*`, `infra/demo/`, Demo-Workflows |
 
 Das Frontend greift nicht direkt auf Persistenz zu.
 Die Go-CLI kennt weder Datenbankpfad noch SQL und enthält keine Fach-,
-Migrations-, Backup-, Restore- oder Kryptologik.
+Migrations-, Backup- oder Restorelogik.
+Die age-Hülle bleibt ihre einzige kryptographische Verantwortung; private
+Schlüssel verlassen den Bedienrechner nicht.
 Demo-Policy und Deploymentautomation dürfen Produktregeln nur einschränken oder
 synthetische Erweiterungen aktivieren, aber keinen zweiten Produktkern bilden.
 
@@ -49,26 +53,35 @@ Buildkontext voraussetzt.
 
 ## Backend
 
-`backend.fastapi_app.create_app` ist die produktive HTTP-Assembly.
-`backend.server` startet sie über Uvicorn; `backend.transport` bildet den
-gemeinsamen Transportvertrag ab.
+`backend.fastapi_app.create_app` ist die produktive HTTP-Assembly innerhalb des
+einen autoritativen Backendprozesses.
+`backend.server` startet den Prozess über Uvicorn; `backend.transport` bildet
+den gemeinsamen Anwendungsvertrag für HTTP- und Adminadapter ab.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am
 HTTP-Rand, während der synchrone Anwendungskern frameworkunabhängig bleibt.
+Der lokale Unix-Socket-Adapter besitzt eine getrennte
+Betreiberautorisierungsgrenze, verwendet aber dieselben Services,
+Transaktionen und Repositories wie HTTP.
 
 | Schicht | Verantwortung und Erweiterungspunkt |
 | --- | --- |
-| HTTP und Sicherheit | FastAPI-Routen, Request-/Responsemodelle, Session, CSRF, Autorisierung, Upload- und Konfigurationsgrenzen; keine Fachentscheidung im Handler |
+| HTTP und Sicherheit | FastAPI-Routen, Request-/Responsemodelle, Session, CSRF, fachliche Autorisierung, Upload- und Konfigurationsgrenzen; keine Fachentscheidung im Handler |
+| Admintransport | gehärteter Unix-Domain-Socket, Betriebssystemautorisierung, versionierte Aufträge, Streaming und geheimnisfreie Ergebnisse; kein Netzwerk-Listener und kein eigener Prozess |
 | Anwendung | `backend.application` und fachliche Services; Use Cases, Invarianten und Transaktionsgrenzen ohne Webframework |
 | Planung und Durchführung | Planung, Verfügbarkeit, Ausfall/Ersatz, Protokolle, Ergebnisse, Tages- und Rundenlebenszyklus |
 | Integrationen | Benachrichtigung, persönliche Kalender und Dokumentablage; externe Zustellung bleibt best effort |
 | Persistenz | Modelle, Repositories, Store und Datenbank; Schema und Migrationen sind ausführbare Quellen |
-| Betrieb | Runtime-Policy, Observability, Build-Metadaten, Adminservice, Artefakte und Lifecycle |
+| Betrieb | Runtime-Policy, Observability, Build-Metadaten, Adminadapter, Artefakte und zentraler Lifecycle |
 
 Neue Fachregeln beginnen in einem Service und seinen fokussierten Tests.
 Repositories kapseln fachnahe Persistenzzugriffe; Adapter übersetzen HTTP,
 Dateien, Kalender oder Zustellkanäle.
 Eine neue Speicher- oder Transporttechnik darf die Invarianten weder kopieren
 noch umgehen.
+Nur der autoritative Backendprozess greift schreibend auf SQLite und `/data` zu.
+Er hält während Initialisierung, Wartung und Migration den Admin-Socket für
+zulässige Status-, Diagnose- und Freigabeaufträge erreichbar, bleibt live und
+meldet erst nach vollständiger Betriebsbereitschaft ready.
 
 Die kanonische Runtime-Konfigurationsassembly liegt in
 `backend/src/backend/settings.py`.
@@ -180,17 +193,22 @@ Eine statische Registry ordnet jeden Command nach dem Muster
 Hilfe, Completion und die
 [generierte Befehlsreferenz](reference/cli.md).
 Explizite Konstruktorverdrahtung verbindet Registry, Konfiguration, sichere
-Eingabe, Renderer sowie Docker-/Podman-Transport ohne IoC-Framework,
+Eingabe, Renderer sowie direkten Unix-Socket- und System-OpenSSH-Transport ohne
+IoC-Framework,
 Service Locator, Reflection oder versteckte Registrierung.
 
-Der Transport validiert den expliziten Containernamen und ruft den
-Python-Adminprozess ohne Shell-Stringverkettung auf.
+Der lokale Transport verbindet sich direkt mit dem gehärteten Unix-Domain-Socket.
+Der entfernte Transport übergibt strukturierte Argumente an System-OpenSSH und
+leitet denselben Socketvertrag weiter, ohne Shell-Stringverkettung,
+abgeschwächte Hostprüfung oder SSH-Agent-Weiterleitung.
 Kleine Aufträge und Antworten sind genau ein UTF-8-JSON-Objekt;
 Artefaktoperationen trennen den potenziell großen Binärstrom von der
 strukturierten Kontrollantwort.
 Command-Handler greifen weder direkt auf Persistenz zu noch kennen sie
-Engine-spezifische Details; Docker und Podman verwenden denselben versionierten
-Backendauftrag.
+Container-Engine-spezifische Details; direkter und SSH-weitergeleiteter Zugriff
+verwenden denselben versionierten Backendauftrag.
+Ein im `lzug-app`-Container gestartetes CLI-Binary verwendet ebenfalls direkt
+den Socket.
 
 Die Befehlsgruppen umfassen:
 
@@ -200,7 +218,7 @@ Die Befehlsgruppen umfassen:
 - geschützte Backups, nicht mutierende Prüfung, vollständigen Restore und
   geschützten Vollexport;
 - releasegebundenes Upgrade und nicht mutierende Rollback-Freigabe in einem
-  ausdrücklich vorbereiteten Wartungscontainer.
+  live, aber nicht ready befindlichen Backendprozess.
 
 Private age-Identitäten werden ausschließlich lokal aus einer geschützten
 Datei, ausdrücklich gewähltem `stdin` oder am TTY ohne Echo gelesen.
@@ -219,10 +237,12 @@ Werte oder ausdrücklich abgefragte Diagnose aus.
 `--json` liefert bei Erfolg und Fehler genau ein Objekt mit Schema- und
 Protokollversion, Fehlerklasse und Exit Code auf `stdout`; ungeprüfte
 Backendtexte und Engine-Diagnose werden nicht durchgereicht.
-Nur Engine und Containername dürfen mit der Priorität Flag,
-Umgebungsvariable, optionale JSON-Datei und Standardwert konfiguriert werden.
-`lzug-admin config inspect` zeigt diese effektiven Werte und ihre Herkunft,
-ohne Konfiguration zu verändern.
+Nicht geheime Zielprofile wählen direkten Socket oder System-OpenSSH und dürfen
+Hostalias, entfernten Socketpfad und lokale Weiterleitungsart referenzieren.
+Explizite Parameter, Umgebung, optionale JSON-Datei und Standardwerte behalten
+ihre dokumentierte Priorität.
+`lzug-admin config inspect` zeigt effektive geheimnisfreie Werte und ihre
+Herkunft, ohne Konfiguration zu verändern.
 
 `lzug-admin cli` ist ein zeilenorientierter Adapter auf dieselbe Registry.
 Er erzeugt Objekt- und Aktionsnavigation, Suche, Eingabeschritte und Hilfe aus
@@ -245,33 +265,37 @@ verwendet weiterhin direkte Subcommands.
 
 CLI und Backend geben technische Identität, Zustände, Phasen, Zähler und
 geheimnisfreie Fehlercodes aus, aber keine privaten Schlüssel, internen
-Engine-Ausgaben oder ungefilterten Fehlertexte.
+SSH-Ausgaben oder ungefilterten Fehlertexte.
 Die aufgabenorientierte Bedienung bleibt im
 [Administrationshandbuch](../portal/betreiben.md).
 
 ## OCI-Runtime und Infrastruktur
 
-Das Produktimage enthält das kompilierte Angular-Bundle, das aus dem
-Backend-Wheel installierte Python-Backend, die Backend-Migrationen und
-produktive Python-Abhängigkeiten.
+Das Produktimage `lzug-app` enthält das kompilierte Angular-Bundle, das aus dem
+Backend-Wheel installierte Python-Backend, das portable CLI-Binary, die
+Backend-Migrationen und produktive Python-Abhängigkeiten.
 Tests, Demo-Seed, Dokumentation, Node.js/npm, uv und Lockfiles gelangen nicht
 in das Runtime-Image.
 Der Prozess läuft standardmäßig als UID/GID `10001:10001`, unterstützt ein
 read-only Root-Dateisystem und verwendet nur `/data` dauerhaft sowie `/tmp`
 flüchtig.
 
-`compose.yaml` ist die Self-Hosting-Referenz für genau einen Produktcontainer
-und ein persistentes Volume.
+Docker Engine auf Linux ist die qualifizierte Referenz für Build, Release, CI
+und Self-Hosting.
+Das OCI-Image bleibt portabel; Podman und weitere konkrete Laufzeiten gehören
+nicht zum unterstützten oder geprüften Umfang.
+`compose.yaml` ist ein optionaler knapper Docker-Referenzweg für genau einen
+`lzug-app`-Container und ein persistentes Volume.
 Standardtooling prüft die Compose-Struktur; die kleine lzug-Policy prüft nur
 projektspezifische Invarianten wie unveränderliche Images und den
 Runtimevertrag.
-Container-, Compose- und CLI-zu-Container-Smokes teilen Engine-Auswahl,
-Lifecycle, Health-Waiting und Build-Identitätsprüfung in
+Container-, Compose- und CLI-zu-Container-Smokes teilen Docker-Lifecycle,
+Health-Waiting und Build-Identitätsprüfung in
 `scripts/container-contract.sh`.
 
-Die öffentliche Demo verwendet ein separates Produkt-/Seed-Imagepaar mit
-gemeinsamer Produktrevision, Runtimevertrag, Schemafingerprint und
-Seed-Revision.
+Die öffentliche Demo verwendet das getrennte Image `lzug-demo` und ein
+zugehöriges Seed-Image mit gemeinsamer Produktrevision, Runtimevertrag,
+Schemafingerprint und Seed-Revision.
 Beim Einstieg erzeugt die Demo aus dem synthetischen Basisseed eine eigene
 SQLite-Arbeitskopie pro Besuch.
 Nur die drei Rollen dieses Besuchs teilen sie; Sitzung und Arbeitskopie laufen
