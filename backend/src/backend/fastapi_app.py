@@ -69,6 +69,27 @@ from .exam_venues import (
     ExamVenueConflictError,
     ExamVenueInUseError,
 )
+from .fastapi_dependencies import (
+    BodyContext,
+    BodyMutationContext,
+    Context,
+    EmptyWriteContext,
+    ManageBodyRoundContext,
+    ManageRoundContext,
+    ManageRoundEmptyWriteContext,
+    ManageRoundWriteContext,
+    MutationContext,
+    ReadContext,
+    SessionContext,
+    SessionWriteContext,
+    VenueAuditWriteContext,
+    VenueItemReadContext,
+    VenueItemWriteContext,
+    VenueReadContext,
+    VenueWriteContext,
+    WriteContext,
+    buffered_body,
+)
 from .local_auth import LocalAuthError
 from .map_provider import (
     MapProviderConfig,
@@ -224,34 +245,6 @@ def _not_found() -> Response:
     return _json_response(ApplicationResult({"error": "Not found"}, HTTPStatus.NOT_FOUND))
 
 
-def _context(request: Request, config: FastAPIConfig, body: bytes = b"") -> RequestContext:
-    session_token = request.cookies.get(config.session_cookie_name)
-    context = RequestContext(
-        request=request,
-        db_path=config.runtime_policy.database_for_request(config.db_path, session_token),
-        session_cookie_name=config.session_cookie_name,
-        csrf_cookie_name=config.csrf_cookie_name,
-        cookie_secure=config.cookie_secure,
-        session_ttl=config.session_ttl,
-        max_request_bytes=config.max_request_bytes,
-        runtime_policy=config.runtime_policy,
-        runtime_settings=config.runtime_settings,
-        auth_rate_limiter=request.app.state.auth_rate_limiter,
-        observability_rate_limiter=request.app.state.observability_rate_limiter,
-        observability_global_rate_limiter=request.app.state.observability_global_rate_limiter,
-    )
-    context.set_body(body)
-    return context
-
-
-def _body(request: Request) -> bytes:
-    return getattr(request.state, "raw_body", b"")
-
-
-def _require_read(context: RequestContext) -> None:
-    context.require_authenticated()
-
-
 def _protocol_action(context: RequestContext, protocol_id: int, action: str, payload: dict) -> dict:
     service = context.exam_protocol_service
     actions = {
@@ -277,34 +270,12 @@ def _protocol_action(context: RequestContext, protocol_id: int, action: str, pay
 
 
 def _protocol_write(
-    request: Request,
-    resolved: FastAPIConfig,
+    context: RequestContext,
     protocol_id: str,
     action: str,
-    method: str,
 ) -> Response:
-    context = _context(request, resolved, _body(request))
-    auth = context.require_authenticated(require_csrf=True)
-    path_parts = ["exam-protocols", protocol_id]
-    if action != "content":
-        path_parts.append(action)
-    context.authorize_mutation(method, path_parts, auth)
     result = _protocol_action(context, int(protocol_id), action, context.read_json())
     return _finish(context, context.respond(result))
-
-
-def _result_path(action: str, nested_id: str | None) -> list[str]:
-    parts = ["exam-results", action]
-    if nested_id is None:
-        return parts
-    parts.append(nested_id)
-    suffixes = {
-        "external-results": "confirm",
-        "individual-assessments": "withdraw",
-    }
-    if suffix := suffixes.get(action):
-        parts.append(suffix)
-    return parts
 
 
 def _result_action(
@@ -357,26 +328,18 @@ def _result_action(
 
 
 def _result_write(
-    request: Request,
-    resolved: FastAPIConfig,
+    context: RequestContext,
     result_id: str,
     action: str,
     *,
     nested_id: str | None = None,
-    method: str = "POST",
 ) -> Response:
-    context = _context(request, resolved, _body(request))
-    auth = context.require_authenticated(require_csrf=True)
-    path_parts = ["exam-results", result_id, *_result_path(action, nested_id)[1:]]
-    context.authorize_mutation(method, path_parts, auth)
     result = _result_action(context, int(result_id), action, nested_id, context.read_json())
     return _finish(context, context.respond(result))
 
 
 def _resource_collection_route(resolved: FastAPIConfig, resource_name: str, resource):
-    def get_collection(request: Request):
-        context = _context(request, resolved)
-        _require_read(context)
+    def get_collection(request: Request, context: ReadContext):
         params = request.query_params
         if resource_name in {"members", "memberships"}:
             rows = context.repository.member_list(
@@ -410,9 +373,7 @@ def _resource_collection_route(resolved: FastAPIConfig, resource_name: str, reso
 
 
 def _resource_item_route(resolved: FastAPIConfig, resource_name: str, resource):
-    def get_item(request: Request, id: str):
-        context = _context(request, resolved)
-        _require_read(context)
+    def get_item(context: ReadContext, id: str):
         row = (
             context.repository.member_get(int(id), context.authorization_scope)
             if resource_name in {"members", "memberships"}
@@ -438,10 +399,7 @@ def _resource_item_route(resolved: FastAPIConfig, resource_name: str, resource):
 
 
 def _resource_create_route(resolved: FastAPIConfig, resource_name: str, resource):
-    def create(request: Request):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("POST", [resource_name], auth)
+    def create(context: WriteContext):
         payload = context.authorize_resource_action(
             resource_name, None, context.read_json(), "create"
         )
@@ -467,10 +425,7 @@ def _resource_create_route(resolved: FastAPIConfig, resource_name: str, resource
 
 
 def _resource_update_route(resolved: FastAPIConfig, resource_name: str, resource):
-    def update(request: Request, id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("PATCH", [resource_name, id], auth)
+    def update(context: WriteContext, id: str):
         ident = int(id)
         payload = context.authorize_resource_action(
             resource_name, ident, context.read_json(), "update"
@@ -499,10 +454,7 @@ def _resource_update_route(resolved: FastAPIConfig, resource_name: str, resource
 
 
 def _resource_delete_route(resolved: FastAPIConfig, resource_name: str, resource):
-    def delete(request: Request, id: str):
-        context = _context(request, resolved)
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("DELETE", [resource_name, id], auth)
+    def delete(context: EmptyWriteContext, id: str):
         ident = int(id)
         context.authorize_resource_action(resource_name, ident, {}, "delete")
         if resource_name == "candidates":
@@ -531,22 +483,6 @@ def _resource_routes(resolved: FastAPIConfig, resource_name: str):
         _resource_update_route(resolved, resource_name, resource),
         _resource_delete_route(resolved, resource_name, resource),
     )
-
-
-def _venue_context(
-    request: Request,
-    resolved: FastAPIConfig,
-    path_parts: list[str],
-    *,
-    mutation: bool = False,
-) -> RequestContext:
-    context = _context(request, resolved, _body(request) if mutation else b"")
-    auth = context.require_authenticated(require_actor=False, require_csrf=mutation)
-    if not auth.is_operator and not context.authorization_scope.has_active_membership:
-        raise ForbiddenRequestError("Forbidden.")
-    if mutation:
-        context.authorize_mutation(request.method, path_parts, auth)
-    return context
 
 
 def _add_openapi_models(schemas: dict) -> None:
@@ -757,31 +693,18 @@ async def _transport_guard(request: Request, call_next, config: FastAPIConfig) -
                     "Access-Control-Max-Age": "600",
                 }
             )
-    elif request.headers.get("Transfer-Encoding"):
-        response = _json_response(
-            ApplicationResult(
-                {"error": "Transfer-Encoding is not supported"}, HTTPStatus.BAD_REQUEST
-            )
-        )
     else:
-        raw_length = request.headers.get("Content-Length")
         try:
-            length = int(raw_length) if raw_length is not None else 0
-        except ValueError:
-            length = -1
-        if length < 0:
+            await buffered_body(request)
+        except RequestTooLargeError as error:
             response = _json_response(
-                ApplicationResult({"error": "Invalid Content-Length"}, HTTPStatus.BAD_REQUEST)
+                ApplicationResult({"error": str(error)}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
             )
-        elif length > config.max_request_bytes:
+        except ValueError as error:
             response = _json_response(
-                ApplicationResult(
-                    {"error": f"Request body exceeds {config.max_request_bytes} bytes."},
-                    HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
-                )
+                ApplicationResult({"error": str(error)}, HTTPStatus.BAD_REQUEST)
             )
         else:
-            request.state.raw_body = await request.body()
             response = await call_next(request)
     for name, value in _security_headers(config, request).items():
         if name.lower() not in response.headers:
@@ -1146,9 +1069,7 @@ def _register_runtime_routes(
     @app.get(
         "/api", response_model=ApiRootResponse, openapi_extra={"security": [{"sessionCookie": []}]}
     )
-    def api_root(request: Request):
-        context = _context(request, resolved)
-        context.require_authenticated(require_actor=False)
+    def api_root(context: SessionContext):
         return _finish(context, context.respond(hateoas.api_root()))
 
     @app.get(
@@ -1156,15 +1077,11 @@ def _register_runtime_routes(
         response_model=dict[str, object],
         openapi_extra={"security": [{"sessionCookie": []}]},
     )
-    def openapi_document(request: Request):
-        context = _context(request, resolved)
-        context.require_authenticated(require_actor=False)
+    def openapi_document(context: SessionContext):
         return _finish(context, context.respond(app.openapi()))
 
     @app.get("/api/docs", include_in_schema=False)
-    def api_docs(request: Request):
-        context = _context(request, resolved)
-        context.require_authenticated(require_actor=False)
+    def api_docs(context: SessionContext):
         return Response(
             "<!doctype html><html lang='de'><head><meta charset='utf-8'>"
             "<title>lzug API Docs</title></head><body><main><h1>lzug API</h1>"
@@ -1174,16 +1091,14 @@ def _register_runtime_routes(
             media_type="text/html",
         )
 
-    def runtime_get(request: Request, parts: list[str]):
-        context = _context(request, resolved)
+    def runtime_get(context: RequestContext, parts: list[str]):
         return (
             _finish(context)
             if resolved.runtime_policy.handle_public_get(context, parts)
             else _not_found()
         )
 
-    def runtime_post(request: Request, parts: list[str]):
-        context = _context(request, resolved, _body(request))
+    def runtime_post(context: RequestContext, parts: list[str]):
         return (
             _finish(context)
             if resolved.runtime_policy.handle_public_post(context, parts)
@@ -1193,20 +1108,20 @@ def _register_runtime_routes(
     demo_api_prefix = "/api/" + "demo"
 
     @app.get(f"{demo_api_prefix}/status", include_in_schema=False)
-    def demo_status(request: Request):
-        return runtime_get(request, ["demo", "status"])
+    def demo_status(context: Context):
+        return runtime_get(context, ["demo", "status"])
 
     @app.post(f"{demo_api_prefix}/session", include_in_schema=False)
-    def demo_session(request: Request):
-        return runtime_post(request, ["demo", "session"])
+    def demo_session(context: BodyContext):
+        return runtime_post(context, ["demo", "session"])
 
     @app.get(
         f"{demo_api_prefix}/scenarios",
         response_model=DemoScenarioOverviewResponse,
         openapi_extra=read_security,
     )
-    def demo_scenarios(request: Request):
-        return runtime_get(request, ["demo", "scenarios"])
+    def demo_scenarios(context: Context):
+        return runtime_get(context, ["demo", "scenarios"])
 
     @app.post(
         f"{demo_api_prefix}/reset",
@@ -1223,16 +1138,15 @@ def _register_runtime_routes(
             },
         },
     )
-    def demo_reset(request: Request):
-        return runtime_post(request, ["demo", "reset"])
+    def demo_reset(context: BodyContext):
+        return runtime_post(context, ["demo", "reset"])
 
 
 def _register_login_route(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     @app.post("/api/auth/login", response_model=dict[str, object])
-    def login(request: Request):
-        context = _context(request, resolved, _body(request))
+    def login(context: BodyContext):
         if not resolved.runtime_policy.allow_product_auth():
             raise ForbiddenRequestError("Forbidden.")
         if not context.allow_public_auth_request(["auth", "login"]):
@@ -1265,8 +1179,7 @@ def _register_token_auth_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     def auth_route(name: str, action: str):
-        def endpoint(request: Request):
-            context = _context(request, resolved, _body(request))
+        def endpoint(context: BodyContext):
             if not resolved.runtime_policy.allow_product_auth():
                 raise ForbiddenRequestError("Forbidden.")
             if not context.allow_public_auth_request(["auth", name, action]):
@@ -1330,9 +1243,8 @@ def _register_session_routes(
         response_model=SessionResponse,
         openapi_extra={"security": [{"sessionCookie": []}]},
     )
-    def session(request: Request):
-        context = _context(request, resolved)
-        auth = context.require_authenticated(require_actor=False)
+    def session(context: SessionContext):
+        auth = context.auth_context
         return _finish(
             context,
             context.respond(
@@ -1352,10 +1264,7 @@ def _register_session_routes(
         response_model=SessionRotationResponse,
         openapi_extra={"security": [{"sessionCookie": [], "csrfHeader": []}]},
     )
-    def rotate_session(request: Request):
-        context = _context(request, resolved)
-        auth = context.require_authenticated(require_actor=False, require_csrf=True)
-        context.authorize_mutation("POST", ["session", "rotate"], auth)
+    def rotate_session(context: SessionWriteContext):
         credentials = context.authentication_repository.rotate_session(
             context.session_token, ttl=context.session_ttl
         )
@@ -1371,10 +1280,7 @@ def _register_session_routes(
         status_code=204,
         openapi_extra={"security": [{"sessionCookie": [], "csrfHeader": []}]},
     )
-    def logout_session(request: Request):
-        context = _context(request, resolved)
-        auth = context.require_authenticated(require_actor=False, require_csrf=True)
-        context.authorize_mutation("POST", ["session", "logout"], auth)
+    def logout_session(context: SessionWriteContext):
         session_token = context.session_token
         context.authentication_repository.revoke_session(session_token, reason="logout")
         context.clear_session_cookies()
@@ -1403,8 +1309,7 @@ def _register_observability_routes(
         "/api/observability/frontend-errors",
         status_code=202,
     )
-    def frontend_error(request: Request):
-        context = _context(request, resolved, _body(request))
+    def frontend_error(request: Request, context: BodyContext):
         origin = request.headers.get("Origin")
         if (
             origin is None
@@ -1422,7 +1327,7 @@ def _register_observability_routes(
                 context,
                 context.respond({"error": "Too many requests."}, HTTPStatus.TOO_MANY_REQUESTS),
             )
-        if len(_body(request)) > 256:
+        if len(request.state.raw_body) > 256:
             raise RequestTooLargeError("Observability event exceeds 256 bytes.")
         payload = context.read_json()
         if payload.get("kind") not in {"bootstrap", "http", "runtime"}:
@@ -1445,9 +1350,7 @@ def _register_round_summary_route(
         response_model=dict[str, object],
         openapi_extra={"security": [{"sessionCookie": []}]},
     )
-    def round_summary(request: Request, round_id: str | None = Query(default=None)):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def round_summary(context: ReadContext, round_id: str | None = Query(default=None)):
         try:
             parsed_round_id = int(round_id or "1")
         except ValueError:
@@ -1464,8 +1367,7 @@ def _register_public_calendar_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     @app.get("/api/calendar/feed/{token}.ics", include_in_schema=False)
-    def personal_feed(request: Request, token: str):
-        context = _context(request, resolved)
+    def personal_feed(context: Context, token: str):
         if not token or any(
             c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
             for c in token
@@ -1475,9 +1377,7 @@ def _register_public_calendar_routes(
         return _not_found() if calendar is None else _text(context, calendar)
 
     @app.get("/api/calendar/events/{id}.ics", include_in_schema=False)
-    def event_feed(request: Request, id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def event_feed(context: ReadContext, id: str):
         if not id.isdigit():
             return _not_found()
         calendar = context.calendar_service.event_ics(int(id), context.authorization_scope)
@@ -1489,9 +1389,7 @@ def _register_calendar_management_routes(
 ):
     @app.get("/api/calendar")
     @app.get("/api/calendar/feed")
-    def calendar_status(request: Request):
-        context = _context(request, resolved)
-        _require_read(context)
+    def calendar_status(context: ReadContext):
         result = {
             **context.calendar_service.status(context.authorization_scope),
             "_links": {
@@ -1502,9 +1400,7 @@ def _register_calendar_management_routes(
         return _finish(context, context.respond(result))
 
     @app.get("/api/calendar/events")
-    def calendar_events(request: Request):
-        context = _context(request, resolved)
-        _require_read(context)
+    def calendar_events(context: ReadContext):
         return _finish(
             context,
             context.respond(
@@ -1516,10 +1412,7 @@ def _register_calendar_management_routes(
         )
 
     @app.post("/api/calendar/feed", status_code=201)
-    def activate_feed(request: Request):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated()
-        context.authorize_mutation("POST", ["calendar", "feed"], auth)
+    def activate_feed(context: BodyMutationContext):
         payload = context.read_json()
         result = context.calendar_service.activate(
             context.authorization_scope,
@@ -1541,10 +1434,7 @@ def _register_calendar_management_routes(
         return _finish(context, context.respond(result, HTTPStatus.CREATED))
 
     @app.delete("/api/calendar/feed")
-    def revoke_feed(request: Request):
-        context = _context(request, resolved)
-        auth = context.require_authenticated()
-        context.authorize_mutation("DELETE", ["calendar", "feed"], auth)
+    def revoke_feed(context: MutationContext):
         context.calendar_service.revoke(context.authorization_scope)
         result = {
             **context.calendar_service.status(context.authorization_scope),
@@ -1579,9 +1469,7 @@ def _register_notification_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     @app.get("/api/notifications")
-    def notifications(request: Request):
-        context = _context(request, resolved)
-        _require_read(context)
+    def notifications(context: ReadContext):
         return _finish(
             context,
             context.respond(
@@ -1597,9 +1485,7 @@ def _register_notification_routes(
         )
 
     @app.get("/api/notification-problems")
-    def notification_problems(request: Request):
-        context = _context(request, resolved)
-        _require_read(context)
+    def notification_problems(context: ReadContext):
         return _finish(
             context,
             context.respond(
@@ -1611,9 +1497,7 @@ def _register_notification_routes(
         )
 
     @app.get("/api/notification-overview")
-    def notification_overview(request: Request):
-        context = _context(request, resolved)
-        _require_read(context)
+    def notification_overview(context: ReadContext):
         return _finish(
             context,
             context.respond(
@@ -1627,9 +1511,7 @@ def _register_notification_routes(
         )
 
     @app.get("/api/notification-channels")
-    def notification_channels(request: Request):
-        context = _context(request, resolved)
-        _require_read(context)
+    def notification_channels(context: ReadContext):
         channels = context.notification_service.channels()
         return _finish(
             context,
@@ -1646,10 +1528,7 @@ def _register_notification_routes(
         )
 
     @app.post("/api/push-subscriptions", status_code=201)
-    def register_push(request: Request):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated()
-        context.authorize_mutation("POST", ["push-subscriptions"], auth)
+    def register_push(context: BodyMutationContext):
         endpoint = context.read_json().get("endpoint")
         if not isinstance(endpoint, str):
             raise ValueError("Push endpoint is required")
@@ -1662,10 +1541,7 @@ def _register_notification_routes(
         )
 
     @app.delete("/api/push-subscriptions/{id}", status_code=204)
-    def unregister_push(request: Request, id: str):
-        context = _context(request, resolved)
-        auth = context.require_authenticated()
-        context.authorize_mutation("DELETE", ["push-subscriptions", id], auth)
+    def unregister_push(context: MutationContext, id: str):
         return (
             _not_found()
             if not context.notification_service.unregister_push(
@@ -1675,10 +1551,7 @@ def _register_notification_routes(
         )
 
     @app.post("/api/notifications/{id}/push-confirmation")
-    def confirm_push(request: Request, id: str):
-        context = _context(request, resolved)
-        auth = context.require_authenticated()
-        context.authorize_mutation("POST", ["notifications", id, "push-confirmation"], auth)
+    def confirm_push(context: MutationContext, id: str):
         return (
             _not_found()
             if not context.notification_service.confirm_push(context.authorization_scope, int(id))
@@ -1690,9 +1563,7 @@ def _register_absence_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     @app.get("/api/absence-reports")
-    def absence_reports(request: Request):
-        context = _context(request, resolved)
-        _require_read(context)
+    def absence_reports(context: ReadContext):
         return _finish(
             context,
             context.respond(
@@ -1704,17 +1575,12 @@ def _register_absence_routes(
         )
 
     @app.get("/api/absence-reports/{id}")
-    def absence_report(request: Request, id: str):
-        context = _context(request, resolved)
-        _require_read(context)
+    def absence_report(context: ReadContext, id: str):
         report = context.absence_service.get(context.authorization_scope, int(id))
         return _not_found() if report is None else _finish(context, context.respond(report))
 
     @app.post("/api/absence-reports", status_code=201)
-    def create_absence(request: Request):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated()
-        context.authorize_mutation("POST", ["absence-reports"], auth)
+    def create_absence(context: BodyMutationContext):
         return _finish(
             context,
             context.respond(
@@ -1724,10 +1590,7 @@ def _register_absence_routes(
         )
 
     def absence_action(action: str):
-        def endpoint(request: Request, report_id: str):
-            context = _context(request, resolved, _body(request))
-            auth = context.require_authenticated()
-            context.authorize_mutation("POST", ["absence-reports", report_id, action], auth)
+        def endpoint(context: BodyMutationContext, report_id: str):
             payload = context.read_json()
             ident = int(report_id)
             service = context.absence_service
@@ -1752,10 +1615,7 @@ def _register_absence_routes(
         )
 
     @app.patch("/api/replacement-responses/{response_id}")
-    def patch_response(request: Request, response_id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated()
-        context.authorize_mutation("PATCH", ["replacement-responses", response_id], auth)
+    def patch_response(context: BodyMutationContext, response_id: str):
         return _finish(
             context,
             context.respond(
@@ -1766,10 +1626,7 @@ def _register_absence_routes(
         )
 
     @app.post("/api/replacement-responses/{response_id}/respond")
-    def post_response(request: Request, response_id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated()
-        context.authorize_mutation("POST", ["replacement-responses", response_id, "respond"], auth)
+    def post_response(context: BodyMutationContext, response_id: str):
         return _finish(
             context,
             context.respond(
@@ -1784,9 +1641,7 @@ def _register_schedule_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     @app.get("/api/scheduling-overview")
-    def scheduling(request: Request):
-        context = _context(request, resolved)
-        _require_read(context)
+    def scheduling(context: ReadContext):
         return _finish(
             context,
             context.respond(
@@ -1797,9 +1652,7 @@ def _register_schedule_routes(
         )
 
     @app.get("/api/confirmed-plans")
-    def confirmed_plans(request: Request):
-        context = _context(request, resolved)
-        _require_read(context)
+    def confirmed_plans(context: ReadContext):
         return _finish(
             context,
             context.respond(
@@ -1810,9 +1663,7 @@ def _register_schedule_routes(
         )
 
     @app.get("/api/confirmed-plan-days/{id}")
-    def confirmed_day(request: Request, id: str):
-        context = _context(request, resolved)
-        _require_read(context)
+    def confirmed_day(context: ReadContext, id: str):
         day = context.repository.confirmed_plan_day(int(id), context.authorization_scope)
         if day is not None:
             day["day"]["closure"] = context.exam_day_closure_service.get(
@@ -1829,47 +1680,33 @@ def _register_exam_round_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     @app.get("/api/exam-rounds/{id}/lifecycle", openapi_extra=read_security)
-    def exam_round_lifecycle(request: Request, id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def exam_round_lifecycle(context: ReadContext, id: str):
         result = context.exam_round_lifecycle_service.get(context.authorization_scope, int(id))
         return _not_found() if result is None else _finish(context, context.respond(result))
 
     @app.post("/api/exam-rounds/{id}/closure", openapi_extra=write_security)
-    def close_exam_round(request: Request, id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("POST", ["exam-rounds", id, "closure"], auth)
+    def close_exam_round(context: WriteContext, id: str):
         result = context.exam_round_lifecycle_service.close(
             context.authorization_scope, int(id), context.read_json()
         )
         return _finish(context, context.respond(result))
 
     @app.post("/api/exam-rounds/{id}/cancellation", openapi_extra=write_security)
-    def cancel_exam_round(request: Request, id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("POST", ["exam-rounds", id, "cancellation"], auth)
+    def cancel_exam_round(context: WriteContext, id: str):
         result = context.exam_round_lifecycle_service.cancel(
             context.authorization_scope, int(id), context.read_json()
         )
         return _finish(context, context.respond(result))
 
     @app.post("/api/exam-rounds/{id}/reopening-impact", openapi_extra=write_security)
-    def exam_round_reopening_impact(request: Request, id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("POST", ["exam-rounds", id, "reopening-impact"], auth)
+    def exam_round_reopening_impact(context: WriteContext, id: str):
         result = context.exam_round_lifecycle_service.reopening_impact(
             context.authorization_scope, int(id), context.read_json()
         )
         return _finish(context, context.respond(result))
 
     @app.post("/api/exam-rounds/{id}/reopenings", openapi_extra=write_security)
-    def reopen_exam_round(request: Request, id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("POST", ["exam-rounds", id, "reopenings"], auth)
+    def reopen_exam_round(context: WriteContext, id: str):
         result = context.exam_round_lifecycle_service.reopen(
             context.authorization_scope, int(id), context.read_json()
         )
@@ -1879,12 +1716,7 @@ def _register_exam_round_routes(
         "/api/exam-rounds/{id}/candidates/{candidate_id}/terminal-status",
         openapi_extra=write_security,
     )
-    def set_exam_round_candidate_terminal_status(request: Request, id: str, candidate_id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation(
-            "PUT", ["exam-rounds", id, "candidates", candidate_id, "terminal-status"], auth
-        )
+    def set_exam_round_candidate_terminal_status(context: WriteContext, id: str, candidate_id: str):
         result = context.exam_round_lifecycle_service.set_candidate_terminal_status(
             context.authorization_scope,
             int(id),
@@ -1897,12 +1729,7 @@ def _register_exam_round_routes(
         "/api/exam-rounds/{id}/results/{result_id}/ihk-status",
         openapi_extra=write_security,
     )
-    def document_exam_round_ihk_status(request: Request, id: str, result_id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation(
-            "PUT", ["exam-rounds", id, "results", result_id, "ihk-status"], auth
-        )
+    def document_exam_round_ihk_status(context: WriteContext, id: str, result_id: str):
         result = context.exam_round_lifecycle_service.document_ihk_status(
             context.authorization_scope,
             int(id),
@@ -1915,9 +1742,7 @@ def _register_exam_round_routes(
         "/api/exam-rounds/{id}/lifecycle/export.json",
         openapi_extra=read_security,
     )
-    def export_exam_round_json(request: Request, id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def export_exam_round_json(context: ReadContext, id: str):
         result = context.exam_round_lifecycle_service.machine_export(
             context.authorization_scope, int(id)
         )
@@ -1928,9 +1753,7 @@ def _register_exam_round_routes(
         response_class=Response,
         openapi_extra=read_security,
     )
-    def export_exam_round_text(request: Request, id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def export_exam_round_text(context: ReadContext, id: str):
         result = context.exam_round_lifecycle_service.human_export(
             context.authorization_scope, int(id)
         )
@@ -1944,9 +1767,7 @@ def _register_exam_day_routes(
         "/api/confirmed-plan-days/{id}/closure",
         openapi_extra=read_security,
     )
-    def exam_day_closure(request: Request, id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def exam_day_closure(context: ReadContext, id: str):
         result = context.exam_day_closure_service.get(context.authorization_scope, int(id))
         return _not_found() if result is None else _finish(context, context.respond(result))
 
@@ -1954,10 +1775,7 @@ def _register_exam_day_routes(
         "/api/confirmed-plan-days/{id}/closure",
         openapi_extra=write_security,
     )
-    def close_exam_day(request: Request, id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("POST", ["confirmed-plan-days", id, "closure"], auth)
+    def close_exam_day(context: WriteContext, id: str):
         result = context.exam_day_closure_service.close(
             context.authorization_scope, int(id), context.read_json()
         )
@@ -1967,10 +1785,7 @@ def _register_exam_day_routes(
         "/api/confirmed-plan-days/{id}/reopening-impact",
         openapi_extra=write_security,
     )
-    def exam_day_reopening_impact(request: Request, id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("POST", ["confirmed-plan-days", id, "reopening-impact"], auth)
+    def exam_day_reopening_impact(context: WriteContext, id: str):
         result = context.exam_day_closure_service.reopening_impact(
             context.authorization_scope, int(id), context.read_json()
         )
@@ -1980,10 +1795,7 @@ def _register_exam_day_routes(
         "/api/confirmed-plan-days/{id}/reopenings",
         openapi_extra=write_security,
     )
-    def reopen_exam_day(request: Request, id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("POST", ["confirmed-plan-days", id, "reopenings"], auth)
+    def reopen_exam_day(context: WriteContext, id: str):
         result = context.exam_day_closure_service.reopen(
             context.authorization_scope, int(id), context.read_json()
         )
@@ -1993,9 +1805,7 @@ def _register_exam_day_routes(
         "/api/confirmed-plan-days/{id}/closure/export.json",
         openapi_extra=read_security,
     )
-    def export_exam_day_json(request: Request, id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def export_exam_day_json(context: ReadContext, id: str):
         result = context.exam_day_closure_service.machine_export(
             context.authorization_scope, int(id)
         )
@@ -2006,9 +1816,7 @@ def _register_exam_day_routes(
         response_class=Response,
         openapi_extra=read_security,
     )
-    def export_exam_day_text(request: Request, id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def export_exam_day_text(context: ReadContext, id: str):
         result = context.exam_day_closure_service.human_export(context.authorization_scope, int(id))
         return _plain_text(context, result, f"pruefungstag-{int(id)}-abschluss.txt")
 
@@ -2031,12 +1839,8 @@ def _register_proposal_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     @app.post("/api/planning-proposals", status_code=201)
-    def generate_proposal(request: Request):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("POST", ["planning-proposals"], auth)
+    def generate_proposal(context: ManageBodyRoundContext):
         round_id = int(context.read_json().get("round_id", 1))
-        context.require_round_access(round_id, manage=True)
         return _finish(
             context,
             context.respond(
@@ -2046,10 +1850,7 @@ def _register_proposal_routes(
         )
 
     @app.get("/api/exam-rounds/{id}/planning-proposal")
-    def get_proposal(request: Request, id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
-        context.require_round_access(int(id), manage=True)
+    def get_proposal(context: ManageRoundContext, id: str):
         proposal = context.planning_service.get_proposal(int(id))
         return _finish(
             context,
@@ -2061,12 +1862,8 @@ def _register_proposal_routes(
         )
 
     @app.put("/api/exam-rounds/{id}/planning-proposal")
-    def save_proposal(request: Request, id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("PUT", ["exam-rounds", id, "planning-proposal"], auth)
+    def save_proposal(context: ManageRoundWriteContext, id: str):
         round_id = int(id)
-        context.require_round_access(round_id, manage=True)
         saved = context.planning_service.save_proposal(
             planning_proposal_from_payload(round_id, context.read_json())
         )
@@ -2078,12 +1875,8 @@ def _register_proposal_routes(
         )
 
     @app.post("/api/exam-rounds/{id}/confirm-plan")
-    def confirm_plan(request: Request, id: str):
-        context = _context(request, resolved)
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("POST", ["exam-rounds", id, "confirm-plan"], auth)
+    def confirm_plan(context: ManageRoundEmptyWriteContext, id: str):
         round_id = int(id)
-        context.require_round_access(round_id, manage=True)
         confirmed = context.planning_service.confirm_plan(round_id)
         try:
             context.calendar_service.sync_round(round_id)
@@ -2103,11 +1896,8 @@ def _register_confirmed_plan_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     @app.get("/api/exam-rounds/{id}/confirmed-plan", openapi_extra=read_security)
-    def get_confirmed_plan(request: Request, id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def get_confirmed_plan(context: ManageRoundContext, id: str):
         round_id = int(id)
-        context.require_round_access(round_id, manage=True)
         plan = context.planning_service.get_confirmed_plan(round_id)
         return _finish(
             context,
@@ -2119,12 +1909,8 @@ def _register_confirmed_plan_routes(
         )
 
     @app.put("/api/exam-rounds/{id}/confirmed-plan", openapi_extra=write_security)
-    def save_confirmed_plan(request: Request, id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("PUT", ["exam-rounds", id, "confirmed-plan"], auth)
+    def save_confirmed_plan(context: ManageRoundWriteContext, id: str):
         round_id = int(id)
-        context.require_round_access(round_id, manage=True)
         committee_id = context.repository.committee_id_for_resource(EXAM_ROUND, round_id)
         actor_member_id = context.authorization_scope.member_for_committee(committee_id)
         if actor_member_id is None:
@@ -2161,11 +1947,8 @@ def _register_confirmed_plan_routes(
         )
 
     @app.get("/api/exam-rounds/{id}/confirmed-plan/revisions", openapi_extra=read_security)
-    def confirmed_plan_revisions(request: Request, id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def confirmed_plan_revisions(context: ManageRoundContext, id: str):
         round_id = int(id)
-        context.require_round_access(round_id, manage=True)
         return _finish(
             context,
             context.respond(
@@ -2184,11 +1967,8 @@ def _register_plan_consequence_routes(
         "/api/exam-rounds/{id}/confirmed-plan/consequences",
         openapi_extra=read_security,
     )
-    def confirmed_plan_consequences(request: Request, id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def confirmed_plan_consequences(context: ManageRoundContext, id: str):
         round_id = int(id)
-        context.require_round_access(round_id, manage=True)
         return _finish(
             context,
             context.respond(
@@ -2203,22 +1983,7 @@ def _register_plan_consequence_routes(
         "/api/exam-rounds/{id}/confirmed-plan/revisions/{revision_id}/consequences/retry",
         openapi_extra=write_security,
     )
-    def retry_confirmed_plan_consequences(request: Request, id: str, revision_id: str):
-        context = _context(request, resolved)
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation(
-            "POST",
-            [
-                "exam-rounds",
-                id,
-                "confirmed-plan",
-                "revisions",
-                revision_id,
-                "consequences",
-                "retry",
-            ],
-            auth,
-        )
+    def retry_confirmed_plan_consequences(context: EmptyWriteContext, id: str, revision_id: str):
         round_id = int(id)
         parsed_revision_id = int(revision_id)
         context.require_round_access(round_id, manage=True)
@@ -2237,12 +2002,8 @@ def _register_availability_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     @app.post("/api/candidate-exam-days/generate")
-    def generate_days(request: Request):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("POST", ["candidate-exam-days", "generate"], auth)
+    def generate_days(context: ManageBodyRoundContext):
         round_id = int(context.read_json().get("round_id", 1))
-        context.require_round_access(round_id, manage=True)
         return _finish(
             context,
             context.respond(
@@ -2252,12 +2013,8 @@ def _register_availability_routes(
         )
 
     @app.post("/api/exam-rounds/{id}/request-availabilities")
-    def request_availabilities(request: Request, id: str):
-        context = _context(request, resolved)
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("POST", ["exam-rounds", id, "request-availabilities"], auth)
+    def request_availabilities(context: ManageRoundEmptyWriteContext, id: str):
         round_id = int(id)
-        context.require_round_access(round_id, manage=True)
         exam_round = context.planning_service.request_availabilities(round_id)
         warning = context.create_notifications_best_effort("availability_requested", round_id)
         if warning:
@@ -2293,9 +2050,7 @@ def _register_planning_resource_routes(
     def planning_resource_routes(resource_name: str):
         resource = REST_RESOURCES[resource_name]
 
-        def get_collection(request: Request):
-            context = _context(request, resolved)
-            _require_read(context)
+        def get_collection(request: Request, context: ReadContext):
             rows = context.repository.list_visible(
                 resource,
                 context.authorization_scope,
@@ -2315,9 +2070,7 @@ def _register_planning_resource_routes(
                 ),
             )
 
-        def get_item(request: Request, id: str):
-            context = _context(request, resolved)
-            _require_read(context)
+        def get_item(context: ReadContext, id: str):
             row = context.repository.get_visible(resource, int(id), context.authorization_scope)
             return (
                 _not_found()
@@ -2351,11 +2104,7 @@ def _register_planning_resource_routes(
             openapi_extra=read_security,
         )
 
-    def aggregate_write(request: Request, id: str | None = None):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        path_parts = request.url.path.removeprefix("/api/").strip("/").split("/")
-        context.authorize_mutation(request.method, path_parts, auth)
+    def aggregate_write(context: WriteContext, id: str | None = None):
         raise ValueError(
             "Exam days, slots, and assignments must be changed through the planning aggregate"
         )
@@ -2381,12 +2130,7 @@ def _register_slot_start_route(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     @app.post("/api/confirmed-plan-days/{day_id}/slots/{slot_id}/start")
-    def start_slot(request: Request, day_id: str, slot_id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation(
-            "POST", ["confirmed-plan-days", day_id, "slots", slot_id, "start"], auth
-        )
+    def start_slot(context: WriteContext, day_id: str, slot_id: str):
         day_int = int(day_id)
         context.require_day_access(day_int, manage=True)
         committee_id = context.repository.committee_id_for_resource(EXAM_DAY, day_int)
@@ -2418,9 +2162,7 @@ def _register_protocol_read_routes(
         "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/protocol",
         openapi_extra=read_security,
     )
-    def slot_protocol(request: Request, day_id: str, slot_id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def slot_protocol(context: ReadContext, day_id: str, slot_id: str):
         slot = context.repository.get(EXAM_SLOT, int(slot_id))
         if slot is None or slot["exam_day_id"] != int(day_id):
             return _not_found()
@@ -2430,9 +2172,7 @@ def _register_protocol_read_routes(
         return _not_found() if protocol is None else _finish(context, context.respond(protocol))
 
     @app.get("/api/exam-protocols/{protocol_id}", openapi_extra=read_security)
-    def exam_protocol(request: Request, protocol_id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def exam_protocol(context: ReadContext, protocol_id: str):
         protocol = context.exam_protocol_service.get(context.authorization_scope, int(protocol_id))
         return _not_found() if protocol is None else _finish(context, context.respond(protocol))
 
@@ -2441,45 +2181,43 @@ def _register_protocol_write_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     @app.patch("/api/exam-protocols/{protocol_id}", openapi_extra=write_security)
-    def update_exam_protocol(request: Request, protocol_id: str):
-        return _protocol_write(request, resolved, protocol_id, "content", "PATCH")
+    def update_exam_protocol(context: WriteContext, protocol_id: str):
+        return _protocol_write(context, protocol_id, "content")
 
     @app.post("/api/exam-protocols/{protocol_id}/submit", openapi_extra=write_security)
-    def submit_exam_protocol(request: Request, protocol_id: str):
-        return _protocol_write(request, resolved, protocol_id, "submit", "POST")
+    def submit_exam_protocol(context: WriteContext, protocol_id: str):
+        return _protocol_write(context, protocol_id, "submit")
 
     @app.post("/api/exam-protocols/{protocol_id}/responses", openapi_extra=write_security)
-    def respond_to_exam_protocol(request: Request, protocol_id: str):
-        return _protocol_write(request, resolved, protocol_id, "responses", "POST")
+    def respond_to_exam_protocol(context: WriteContext, protocol_id: str):
+        return _protocol_write(context, protocol_id, "responses")
 
     @app.post(
         "/api/exam-protocols/{protocol_id}/correction-requests",
         openapi_extra=write_security,
     )
-    def request_exam_protocol_correction(request: Request, protocol_id: str):
-        return _protocol_write(request, resolved, protocol_id, "correction-requests", "POST")
+    def request_exam_protocol_correction(context: WriteContext, protocol_id: str):
+        return _protocol_write(context, protocol_id, "correction-requests")
 
     @app.post(
         "/api/exam-protocols/{protocol_id}/open-correction",
         openapi_extra=write_security,
     )
-    def open_exam_protocol_correction(request: Request, protocol_id: str):
-        return _protocol_write(request, resolved, protocol_id, "open-correction", "POST")
+    def open_exam_protocol_correction(context: WriteContext, protocol_id: str):
+        return _protocol_write(context, protocol_id, "open-correction")
 
     @app.put(
         "/api/exam-protocols/{protocol_id}/retention",
         openapi_extra=write_security,
     )
-    def set_exam_protocol_retention(request: Request, protocol_id: str):
-        return _protocol_write(request, resolved, protocol_id, "retention", "PUT")
+    def set_exam_protocol_retention(context: WriteContext, protocol_id: str):
+        return _protocol_write(context, protocol_id, "retention")
 
     @app.get(
         "/api/exam-protocols/{protocol_id}/export.json",
         openapi_extra=read_security,
     )
-    def export_exam_protocol_json(request: Request, protocol_id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def export_exam_protocol_json(context: ReadContext, protocol_id: str):
         result = context.exam_protocol_service.machine_export(
             context.authorization_scope, int(protocol_id)
         )
@@ -2490,9 +2228,7 @@ def _register_protocol_write_routes(
         response_class=Response,
         openapi_extra=read_security,
     )
-    def export_exam_protocol_text(request: Request, protocol_id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def export_exam_protocol_text(context: ReadContext, protocol_id: str):
         result = context.exam_protocol_service.human_export(
             context.authorization_scope, int(protocol_id)
         )
@@ -2506,9 +2242,7 @@ def _register_protocol_completion_routes(
         "/api/confirmed-plan-days/{day_id}/protocol-completion",
         openapi_extra=read_security,
     )
-    def protocol_completion(request: Request, day_id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def protocol_completion(context: ReadContext, day_id: str):
         result = context.exam_protocol_service.completion_for_day(
             context.authorization_scope, int(day_id)
         )
@@ -2536,19 +2270,14 @@ def _register_assessment_model_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     @app.get("/api/assessment-model-versions", openapi_extra=read_security)
-    def assessment_model_versions(request: Request):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def assessment_model_versions(context: ReadContext):
         return _finish(
             context,
             context.respond(context.exam_result_service.list_models(context.authorization_scope)),
         )
 
     @app.post("/api/assessment-model-versions", openapi_extra=write_security)
-    def create_assessment_model_version(request: Request):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation("POST", ["assessment-model-versions"], auth)
+    def create_assessment_model_version(context: WriteContext):
         result = context.exam_result_service.create_model(
             context.authorization_scope, context.read_json()
         )
@@ -2558,9 +2287,7 @@ def _register_assessment_model_routes(
         "/api/exam-rounds/{round_id}/assessment-model-binding",
         openapi_extra=read_security,
     )
-    def assessment_model_binding(request: Request, round_id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def assessment_model_binding(context: ReadContext, round_id: str):
         binding = context.exam_result_service.get_round_binding(
             context.authorization_scope, int(round_id)
         )
@@ -2570,12 +2297,7 @@ def _register_assessment_model_routes(
         "/api/exam-rounds/{round_id}/assessment-model-binding",
         openapi_extra=write_security,
     )
-    def bind_assessment_model(request: Request, round_id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation(
-            "POST", ["exam-rounds", round_id, "assessment-model-binding"], auth
-        )
+    def bind_assessment_model(context: WriteContext, round_id: str):
         result = context.exam_result_service.bind_round(
             context.authorization_scope, int(round_id), context.read_json()
         )
@@ -2589,9 +2311,7 @@ def _register_result_read_routes(
         "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/result",
         openapi_extra=read_security,
     )
-    def slot_result(request: Request, day_id: str, slot_id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def slot_result(context: ReadContext, day_id: str, slot_id: str):
         slot = context.repository.get(EXAM_SLOT, int(slot_id))
         if slot is None or slot["exam_day_id"] != int(day_id):
             return _not_found()
@@ -2599,9 +2319,7 @@ def _register_result_read_routes(
         return _not_found() if result is None else _finish(context, context.respond(result))
 
     @app.get("/api/exam-results/{result_id}", openapi_extra=read_security)
-    def exam_result(request: Request, result_id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def exam_result(context: ReadContext, result_id: str):
         result = context.exam_result_service.get(context.authorization_scope, int(result_id))
         return _not_found() if result is None else _finish(context, context.respond(result))
 
@@ -2613,28 +2331,26 @@ def _register_individual_result_write_routes(
         "/api/exam-results/{result_id}/individual-assessments",
         openapi_extra=write_security,
     )
-    def save_individual_assessment(request: Request, result_id: str):
-        return _result_write(request, resolved, result_id, "individual-assessments")
+    def save_individual_assessment(context: WriteContext, result_id: str):
+        return _result_write(context, result_id, "individual-assessments")
 
     @app.post(
         "/api/exam-results/{result_id}/individual-assessments/{assessment_id}/withdraw",
         openapi_extra=write_security,
     )
-    def withdraw_individual_assessment(request: Request, result_id: str, assessment_id: str):
-        return _result_write(
-            request, resolved, result_id, "individual-assessments", nested_id=assessment_id
-        )
+    def withdraw_individual_assessment(context: WriteContext, result_id: str, assessment_id: str):
+        return _result_write(context, result_id, "individual-assessments", nested_id=assessment_id)
 
     @app.post("/api/exam-results/{result_id}/disclosures", openapi_extra=write_security)
-    def disclose_individual_assessments(request: Request, result_id: str):
-        return _result_write(request, resolved, result_id, "disclosures")
+    def disclose_individual_assessments(context: WriteContext, result_id: str):
+        return _result_write(context, result_id, "disclosures")
 
     @app.post(
         "/api/exam-results/{result_id}/committee-assessments",
         openapi_extra=write_security,
     )
-    def determine_committee_assessment(request: Request, result_id: str):
-        return _result_write(request, resolved, result_id, "committee-assessments")
+    def determine_committee_assessment(context: WriteContext, result_id: str):
+        return _result_write(context, result_id, "committee-assessments")
 
 
 def _register_final_result_write_routes(
@@ -2644,52 +2360,48 @@ def _register_final_result_write_routes(
         "/api/exam-results/{result_id}/external-results",
         openapi_extra=write_security,
     )
-    def record_external_result(request: Request, result_id: str):
-        return _result_write(request, resolved, result_id, "external-results")
+    def record_external_result(context: WriteContext, result_id: str):
+        return _result_write(context, result_id, "external-results")
 
     @app.post(
         "/api/exam-results/{result_id}/external-results/{external_result_id}/confirm",
         openapi_extra=write_security,
     )
-    def confirm_external_result(request: Request, result_id: str, external_result_id: str):
-        return _result_write(
-            request, resolved, result_id, "external-results", nested_id=external_result_id
-        )
+    def confirm_external_result(context: WriteContext, result_id: str, external_result_id: str):
+        return _result_write(context, result_id, "external-results", nested_id=external_result_id)
 
     @app.post("/api/exam-results/{result_id}/determine", openapi_extra=write_security)
-    def determine_exam_result(request: Request, result_id: str):
-        return _result_write(request, resolved, result_id, "determine")
+    def determine_exam_result(context: WriteContext, result_id: str):
+        return _result_write(context, result_id, "determine")
 
     @app.post(
         "/api/exam-results/{result_id}/record-confirmations",
         openapi_extra=write_security,
     )
-    def confirm_result_record(request: Request, result_id: str):
-        return _result_write(request, resolved, result_id, "record-confirmations")
+    def confirm_result_record(context: WriteContext, result_id: str):
+        return _result_write(context, result_id, "record-confirmations")
 
     @app.post("/api/exam-results/{result_id}/corrections", openapi_extra=write_security)
-    def open_result_correction(request: Request, result_id: str):
-        return _result_write(request, resolved, result_id, "corrections")
+    def open_result_correction(context: WriteContext, result_id: str):
+        return _result_write(context, result_id, "corrections")
 
     @app.post(
         "/api/exam-results/{result_id}/communications",
         openapi_extra=write_security,
     )
-    def communicate_exam_result(request: Request, result_id: str):
-        return _result_write(request, resolved, result_id, "communications")
+    def communicate_exam_result(context: WriteContext, result_id: str):
+        return _result_write(context, result_id, "communications")
 
     @app.put("/api/exam-results/{result_id}/retention", openapi_extra=write_security)
-    def set_result_retention(request: Request, result_id: str):
-        return _result_write(request, resolved, result_id, "retention", method="PUT")
+    def set_result_retention(context: WriteContext, result_id: str):
+        return _result_write(context, result_id, "retention")
 
 
 def _register_result_export_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     @app.get("/api/exam-results/{result_id}/export.json", openapi_extra=read_security)
-    def export_exam_result_json(request: Request, result_id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def export_exam_result_json(context: ReadContext, result_id: str):
         result = context.exam_result_service.machine_export(
             context.authorization_scope, int(result_id)
         )
@@ -2700,9 +2412,7 @@ def _register_result_export_routes(
         response_class=Response,
         openapi_extra=read_security,
     )
-    def export_exam_result_text(request: Request, result_id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def export_exam_result_text(context: ReadContext, result_id: str):
         result = context.exam_result_service.human_export(
             context.authorization_scope, int(result_id)
         )
@@ -2730,9 +2440,7 @@ def _register_result_completion_routes(
         "/api/confirmed-plan-days/{day_id}/result-completion",
         openapi_extra=read_security,
     )
-    def result_completion(request: Request, day_id: str):
-        context = _context(request, resolved)
-        context.require_authenticated()
+    def result_completion(context: ReadContext, day_id: str):
         result = context.exam_result_service.completion_for_day(
             context.authorization_scope, int(day_id)
         )
@@ -2759,12 +2467,7 @@ def _register_result_routes(
 def _register_attendance_update_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
-    def attendance(request: Request, day_id: str, entity_id: str, kind: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation(
-            "PATCH", ["confirmed-plan-days", day_id, kind, entity_id, "attendance"], auth
-        )
+    def attendance(context: RequestContext, day_id: str, entity_id: str, kind: str):
         day_int = int(day_id)
         entity_int = int(entity_id)
         member_id = None
@@ -2797,24 +2500,19 @@ def _register_attendance_update_routes(
         )
 
     @app.patch("/api/confirmed-plan-days/{day_id}/slots/{slot_id}/attendance")
-    def slot_attendance(request: Request, day_id: str, slot_id: str):
-        return attendance(request, day_id, slot_id, "slots")
+    def slot_attendance(context: WriteContext, day_id: str, slot_id: str):
+        return attendance(context, day_id, slot_id, "slots")
 
     @app.patch("/api/confirmed-plan-days/{day_id}/assignments/{assignment_id}/attendance")
-    def assignment_attendance(request: Request, day_id: str, assignment_id: str):
-        return attendance(request, day_id, assignment_id, "assignments")
+    def assignment_attendance(context: WriteContext, day_id: str, assignment_id: str):
+        return attendance(context, day_id, assignment_id, "assignments")
 
 
 def _register_slot_status_route(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     @app.patch("/api/confirmed-plan-days/{day_id}/slots/{slot_id}/status")
-    def slot_status(request: Request, day_id: str, slot_id: str):
-        context = _context(request, resolved, _body(request))
-        auth = context.require_authenticated(require_csrf=True)
-        context.authorize_mutation(
-            "PATCH", ["confirmed-plan-days", day_id, "slots", slot_id, "status"], auth
-        )
+    def slot_status(context: WriteContext, day_id: str, slot_id: str):
         day_int = int(day_id)
         context.require_day_access(day_int, manage=True)
         payload = context.read_json()
@@ -2867,8 +2565,7 @@ def _register_exam_venue_routes(
         response_model=ExamVenueCollectionResponse,
         openapi_extra=read_security,
     )
-    def exam_venue_collection(request: Request):
-        context = _venue_context(request, resolved, ["exam-venues"])
+    def exam_venue_collection(context: VenueReadContext):
         return _finish(
             context,
             context.respond(
@@ -2887,10 +2584,7 @@ def _register_exam_venue_routes(
         "/api/exam-venues/duplicate-check",
         openapi_extra=venue_write_openapi("ExamVenueDuplicateCheckRequest"),
     )
-    def exam_venue_duplicate_check(request: Request):
-        context = _venue_context(
-            request, resolved, ["exam-venues", "duplicate-check"], mutation=True
-        )
+    def exam_venue_duplicate_check(context: VenueWriteContext):
         payload = context.read_json()
         excluded_id = payload.pop("excluded_id", None)
         matches = venue_api.find_duplicates(
@@ -2902,16 +2596,15 @@ def _register_exam_venue_routes(
         return _finish(context, context.respond({"items": matches}))
 
     @app.get("/api/exam-venue-promotion-requests", openapi_extra=read_security)
-    def exam_venue_promotion_requests(request: Request):
-        context = _venue_context(request, resolved, ["exam-venue-promotion-requests"])
+    def exam_venue_promotion_requests(context: VenueReadContext):
         return _finish(
             context,
             context.respond({"items": venue_api.list_pending_promotions(context.auth_context)}),
         )
 
     @app.get("/api/exam-venues/{id}/change-impact", openapi_extra=read_security)
-    def exam_venue_change_impact(request: Request, id: int):
-        context = _venue_context(request, resolved, ["exam-venues", str(id), "change-impact"])
+    def exam_venue_change_impact(context: VenueItemReadContext):
+        id = int(context.request.path_params["id"])
         impact = venue_api.future_impact(id, context.authorization_scope, context.auth_context)
         return _not_found() if impact is None else _finish(context, context.respond(impact))
 
@@ -2919,10 +2612,8 @@ def _register_exam_venue_routes(
         "/api/exam-venues/{id}/change-impact",
         openapi_extra=venue_write_openapi("ExamVenueUpdateRequest"),
     )
-    def preview_exam_venue_change(request: Request, id: int):
-        context = _venue_context(
-            request, resolved, ["exam-venues", str(id), "change-impact"], mutation=True
-        )
+    def preview_exam_venue_change(context: VenueItemWriteContext):
+        id = int(context.request.path_params["id"])
         impact = venue_api.future_impact(
             id,
             context.authorization_scope,
@@ -2932,8 +2623,8 @@ def _register_exam_venue_routes(
         return _not_found() if impact is None else _finish(context, context.respond(impact))
 
     @app.get("/api/exam-rooms/{id}/change-impact", openapi_extra=read_security)
-    def exam_room_change_impact(request: Request, id: int):
-        context = _venue_context(request, resolved, ["exam-rooms", str(id), "change-impact"])
+    def exam_room_change_impact(context: VenueItemReadContext):
+        id = int(context.request.path_params["id"])
         room = venue_api.get_room(id, context.authorization_scope, context.auth_context)
         impact = (
             None
@@ -2951,10 +2642,8 @@ def _register_exam_venue_routes(
         "/api/exam-rooms/{id}/change-impact",
         openapi_extra=venue_write_openapi("ExamRoomUpdateRequest"),
     )
-    def preview_exam_room_change(request: Request, id: int):
-        context = _venue_context(
-            request, resolved, ["exam-rooms", str(id), "change-impact"], mutation=True
-        )
+    def preview_exam_room_change(context: VenueItemWriteContext):
+        id = int(context.request.path_params["id"])
         room = venue_api.get_room(id, context.authorization_scope, context.auth_context)
         impact = (
             None
@@ -2973,13 +2662,8 @@ def _register_exam_venue_routes(
         "/api/exam-venue-changes/{audit_id}/consequences/retry",
         openapi_extra=write_security,
     )
-    def retry_exam_venue_change_consequences(request: Request, audit_id: int):
-        context = _venue_context(
-            request,
-            resolved,
-            ["exam-venue-changes", str(audit_id), "consequences", "retry"],
-            mutation=True,
-        )
+    def retry_exam_venue_change_consequences(context: VenueAuditWriteContext):
+        audit_id = int(context.request.path_params["audit_id"])
         result = venue_api.retry_consequences(
             audit_id, context.authorization_scope, context.auth_context
         )
@@ -2989,13 +2673,8 @@ def _register_exam_venue_routes(
         "/api/exam-venues/{id}/promotion-requests",
         openapi_extra=venue_write_openapi("ExamVenuePromotionRequest"),
     )
-    def request_exam_venue_promotion(request: Request, id: int):
-        context = _venue_context(
-            request,
-            resolved,
-            ["exam-venues", str(id), "promotion-requests"],
-            mutation=True,
-        )
+    def request_exam_venue_promotion(context: VenueItemWriteContext):
+        id = int(context.request.path_params["id"])
         result = venue_api.request_promotion(id, context.read_json(), context.authorization_scope)
         return (
             _not_found()
@@ -3007,13 +2686,8 @@ def _register_exam_venue_routes(
         "/api/exam-venue-promotion-requests/{id}/decision",
         openapi_extra=venue_write_openapi("ExamVenuePromotionDecisionRequest"),
     )
-    def decide_exam_venue_promotion(request: Request, id: int):
-        context = _venue_context(
-            request,
-            resolved,
-            ["exam-venue-promotion-requests", str(id), "decision"],
-            mutation=True,
-        )
+    def decide_exam_venue_promotion(context: VenueItemWriteContext):
+        id = int(context.request.path_params["id"])
         result = venue_api.decide_promotion(id, context.read_json(), context.auth_context)
         return _finish(context, context.respond(hateoas.exam_venue(result)))
 
@@ -3022,8 +2696,8 @@ def _register_exam_venue_routes(
         response_model=ExamVenueResponse,
         openapi_extra=read_security,
     )
-    def exam_venue_item(request: Request, id: int):
-        context = _venue_context(request, resolved, ["exam-venues", str(id)])
+    def exam_venue_item(context: VenueItemReadContext):
+        id = int(context.request.path_params["id"])
         venue = venue_api.get_venue(id, context.authorization_scope, context.auth_context)
         return (
             _not_found()
@@ -3037,8 +2711,7 @@ def _register_exam_venue_routes(
         status_code=201,
         openapi_extra=venue_write_openapi("ExamVenueCreateRequest"),
     )
-    def create_exam_venue(request: Request):
-        context = _venue_context(request, resolved, ["exam-venues"], mutation=True)
+    def create_exam_venue(context: VenueWriteContext):
         venue = venue_api.create_venue(
             context.read_json(), context.authorization_scope, context.auth_context
         )
@@ -3049,8 +2722,8 @@ def _register_exam_venue_routes(
         response_model=ExamVenueResponse,
         openapi_extra=venue_write_openapi("ExamVenueUpdateRequest"),
     )
-    def update_exam_venue(request: Request, id: int):
-        context = _venue_context(request, resolved, ["exam-venues", str(id)], mutation=True)
+    def update_exam_venue(context: VenueItemWriteContext):
+        id = int(context.request.path_params["id"])
         venue = venue_api.update_venue(
             id, context.read_json(), context.authorization_scope, context.auth_context
         )
@@ -3065,10 +2738,8 @@ def _register_exam_venue_routes(
         response_model=ExamVenueGeocodeResponse,
         openapi_extra=venue_write_openapi("ExamVenueGeocodeRequest"),
     )
-    def geocode_exam_venue(request: Request, id: int):
-        context = _venue_context(
-            request, resolved, ["exam-venues", str(id), "geocode"], mutation=True
-        )
+    def geocode_exam_venue(context: VenueItemWriteContext):
+        id = int(context.request.path_params["id"])
         candidate = venue_api.geocode_venue(
             id, context.read_json(), context.authorization_scope, context.auth_context
         )
@@ -3079,8 +2750,8 @@ def _register_exam_venue_routes(
         status_code=204,
         openapi_extra=venue_write_openapi("RevisionDeleteRequest"),
     )
-    def delete_exam_venue(request: Request, id: int):
-        context = _venue_context(request, resolved, ["exam-venues", str(id)], mutation=True)
+    def delete_exam_venue(context: VenueItemWriteContext):
+        id = int(context.request.path_params["id"])
         deleted = venue_api.delete_venue(
             id, context.read_json(), context.authorization_scope, context.auth_context
         )
@@ -3102,10 +2773,8 @@ def _register_exam_room_routes(
         status_code=201,
         openapi_extra=venue_write_openapi("ExamRoomCreateRequest"),
     )
-    def create_exam_room(request: Request, id: int):
-        context = _venue_context(
-            request, resolved, ["exam-venues", str(id), "rooms"], mutation=True
-        )
+    def create_exam_room(context: VenueItemWriteContext):
+        id = int(context.request.path_params["id"])
         room = venue_api.create_room(
             id, context.read_json(), context.authorization_scope, context.auth_context
         )
@@ -3120,8 +2789,8 @@ def _register_exam_room_routes(
         response_model=ExamRoomResponse,
         openapi_extra=read_security,
     )
-    def exam_room_item(request: Request, id: int):
-        context = _venue_context(request, resolved, ["exam-rooms", str(id)])
+    def exam_room_item(context: VenueItemReadContext):
+        id = int(context.request.path_params["id"])
         room = venue_api.get_room(id, context.authorization_scope, context.auth_context)
         return (
             _not_found()
@@ -3134,8 +2803,8 @@ def _register_exam_room_routes(
         response_model=ExamRoomResponse,
         openapi_extra=venue_write_openapi("ExamRoomUpdateRequest"),
     )
-    def update_exam_room(request: Request, id: int):
-        context = _venue_context(request, resolved, ["exam-rooms", str(id)], mutation=True)
+    def update_exam_room(context: VenueItemWriteContext):
+        id = int(context.request.path_params["id"])
         room = venue_api.update_room(
             id, context.read_json(), context.authorization_scope, context.auth_context
         )
@@ -3150,8 +2819,8 @@ def _register_exam_room_routes(
         status_code=204,
         openapi_extra=venue_write_openapi("RevisionDeleteRequest"),
     )
-    def delete_exam_room(request: Request, id: int):
-        context = _venue_context(request, resolved, ["exam-rooms", str(id)], mutation=True)
+    def delete_exam_room(context: VenueItemWriteContext):
+        id = int(context.request.path_params["id"])
         deleted = venue_api.delete_room(
             id, context.read_json(), context.authorization_scope, context.auth_context
         )
@@ -3173,10 +2842,8 @@ def _register_exam_venue_contact_routes(
         status_code=201,
         openapi_extra=venue_write_openapi("ExamVenueContactCreateRequest"),
     )
-    def create_exam_venue_contact(request: Request, id: int):
-        context = _venue_context(
-            request, resolved, ["exam-venues", str(id), "contacts"], mutation=True
-        )
+    def create_exam_venue_contact(context: VenueItemWriteContext):
+        id = int(context.request.path_params["id"])
         contact = venue_api.create_contact(
             id, context.read_json(), context.authorization_scope, context.auth_context
         )
@@ -3193,8 +2860,8 @@ def _register_exam_venue_contact_routes(
         response_model=ExamVenueContactResponse,
         openapi_extra=read_security,
     )
-    def exam_venue_contact_item(request: Request, id: int):
-        context = _venue_context(request, resolved, ["exam-venue-contacts", str(id)])
+    def exam_venue_contact_item(context: VenueItemReadContext):
+        id = int(context.request.path_params["id"])
         contact = venue_api.get_contact(id, context.authorization_scope, context.auth_context)
         return (
             _not_found()
@@ -3207,8 +2874,8 @@ def _register_exam_venue_contact_routes(
         response_model=ExamVenueContactResponse,
         openapi_extra=venue_write_openapi("ExamVenueContactUpdateRequest"),
     )
-    def update_exam_venue_contact(request: Request, id: int):
-        context = _venue_context(request, resolved, ["exam-venue-contacts", str(id)], mutation=True)
+    def update_exam_venue_contact(context: VenueItemWriteContext):
+        id = int(context.request.path_params["id"])
         contact = venue_api.update_contact(
             id, context.read_json(), context.authorization_scope, context.auth_context
         )
@@ -3223,8 +2890,8 @@ def _register_exam_venue_contact_routes(
         status_code=204,
         openapi_extra=venue_write_openapi("RevisionDeleteRequest"),
     )
-    def delete_exam_venue_contact(request: Request, id: int):
-        context = _venue_context(request, resolved, ["exam-venue-contacts", str(id)], mutation=True)
+    def delete_exam_venue_contact(context: VenueItemWriteContext):
+        id = int(context.request.path_params["id"])
         deleted = venue_api.delete_contact(
             id, context.read_json(), context.authorization_scope, context.auth_context
         )
@@ -3246,8 +2913,7 @@ def _register_legacy_location_routes(
         deprecated=True,
         openapi_extra=read_security,
     )
-    def legacy_location_collection(request: Request):
-        context = _venue_context(request, resolved, ["locations"])
+    def legacy_location_collection(context: VenueReadContext):
         return _finish(
             context,
             context.respond(
@@ -3265,8 +2931,8 @@ def _register_legacy_location_routes(
         deprecated=True,
         openapi_extra=read_security,
     )
-    def legacy_location_item(request: Request, id: int):
-        context = _venue_context(request, resolved, ["locations", str(id)])
+    def legacy_location_item(context: VenueItemReadContext):
+        id = int(context.request.path_params["id"])
         location = venue_api.get_legacy_location(
             id, context.authorization_scope, context.auth_context
         )
@@ -3276,8 +2942,7 @@ def _register_legacy_location_routes(
             else _finish(context, context.respond(hateoas.legacy_location(location)))
         )
 
-    def legacy_location_write(request: Request, path_parts: list[str]):
-        context = _venue_context(request, resolved, path_parts, mutation=True)
+    def legacy_location_write(context: RequestContext, path_parts: list[str]):
         return _finish(
             context,
             context.respond(
@@ -3298,8 +2963,8 @@ def _register_legacy_location_routes(
         deprecated=True,
         openapi_extra=write_security,
     )
-    def create_legacy_location(request: Request):
-        return legacy_location_write(request, ["locations"])
+    def create_legacy_location(context: VenueWriteContext):
+        return legacy_location_write(context, ["locations"])
 
     @app.patch(
         "/api/locations/{id}",
@@ -3308,8 +2973,9 @@ def _register_legacy_location_routes(
         deprecated=True,
         openapi_extra=write_security,
     )
-    def update_legacy_location(request: Request, id: int):
-        return legacy_location_write(request, ["locations", str(id)])
+    def update_legacy_location(context: VenueItemWriteContext):
+        id = int(context.request.path_params["id"])
+        return legacy_location_write(context, ["locations", str(id)])
 
     @app.delete(
         "/api/locations/{id}",
@@ -3318,8 +2984,9 @@ def _register_legacy_location_routes(
         deprecated=True,
         openapi_extra=write_security,
     )
-    def delete_legacy_location(request: Request, id: int):
-        return legacy_location_write(request, ["locations", str(id)])
+    def delete_legacy_location(context: VenueItemWriteContext):
+        id = int(context.request.path_params["id"])
+        return legacy_location_write(context, ["locations", str(id)])
 
 
 def _register_venue_routes(
@@ -3413,9 +3080,7 @@ def _register_assignment_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     @app.get("/api/candidate-committee-assignments")
-    def assignment_collection(request: Request):
-        context = _context(request, resolved)
-        _require_read(context)
+    def assignment_collection(request: Request, context: ReadContext):
         value = request.query_params.get("candidate_id")
         rows = context.repository.candidate_committee_assignments(
             int(value) if value is not None else None, context.authorization_scope
@@ -3435,9 +3100,7 @@ def _register_assignment_routes(
         )
 
     @app.get("/api/candidate-committee-assignments/{id}")
-    def assignment_item(request: Request, id: str):
-        context = _context(request, resolved)
-        _require_read(context)
+    def assignment_item(context: ReadContext, id: str):
         row = context.repository.get_visible(
             CANDIDATE_COMMITTEE_ASSIGNMENT, int(id), context.authorization_scope
         )

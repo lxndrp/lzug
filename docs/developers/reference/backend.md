@@ -40,6 +40,8 @@ Diese Referenz entsteht beim Dokumentationsbuild aus Google-Style-Docstrings. Si
 
 ::: backend.fastapi_app
 
+::: backend.fastapi_dependencies
+
 ::: backend.server
 
 ::: backend.transport
