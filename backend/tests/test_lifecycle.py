@@ -29,7 +29,7 @@ class LifecycleTests(unittest.TestCase):
         self.metadata = BuildMetadata.create("a" * 40, "v0.7.0")
         self.target = {
             "identity": "0.7.0",
-            "image": "ghcr.io/lxndrp/lzug@sha256:" + "c" * 64,
+            "image": "ghcr.io/lxndrp/lzug-app@sha256:" + "c" * 64,
             "release": True,
             "revision": "a" * 40,
             "tag": "v0.7.0",
@@ -163,7 +163,16 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual("maintenance_required", raised.exception.code)
 
         with self.assertRaises(LifecycleError) as raised:
-            self.service().rollback({**self.target, "image": "lzug:latest"})
+            self.service().rollback({**self.target, "image": "lzug-app:latest"})
+        self.assertEqual("release_artifact_unverified", raised.exception.code)
+
+        with self.assertRaises(LifecycleError) as raised:
+            self.service().rollback(
+                {
+                    **self.target,
+                    "image": "ghcr.io/lxndrp/lzug@sha256:" + "c" * 64,
+                }
+            )
         self.assertEqual("release_artifact_unverified", raised.exception.code)
 
     def test_compatible_rollback_is_non_mutating(self) -> None:

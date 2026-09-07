@@ -12,7 +12,7 @@ from scripts.compose_policy import image_reference_errors, policy_errors
 VALID_MODEL = {
     "services": {
         "lzug": {
-            "image": "ghcr.io/lxndrp/lzug:1.2.3",
+            "image": "ghcr.io/lxndrp/lzug-app:1.2.3",
             "user": "10001:10001",
             "read_only": True,
             "restart": "unless-stopped",
@@ -39,18 +39,21 @@ VALID_MODEL = {
 
 
 class ComposePolicyTests(unittest.TestCase):
-    def test_accepts_semver_and_digest_image_references(self) -> None:
-        self.assertEqual(image_reference_errors("lzug:1.2.3-rc.1+build.4"), [])
-        self.assertEqual(image_reference_errors(f"lzug@sha256:{'a' * 64}"), [])
+    def test_accepts_exact_semver_image_references(self) -> None:
+        self.assertEqual(image_reference_errors("lzug-app:1.2.3-rc.1+build.4"), [])
+        self.assertEqual(image_reference_errors("ghcr.io/lxndrp/lzug-app:1.2.3"), [])
 
     def test_rejects_mutable_placeholder_and_unversioned_images(self) -> None:
         for image in (
-            "lzug:latest",
+            "lzug-app:latest",
             "REPLACE_IMAGE",
-            "lzug:dev",
-            "lzug:01.2.3",
-            "lzug:1.2.3-01",
-            "lzug:1.2.3-0." + "--." * 10_000,
+            "lzug-app@sha256:" + "a" * 64,
+            "ghcr.io/lxndrp/lzug:1.2.3",
+            "ghcr.io/lxndrp/lzug-app.evil:1.2.3",
+            "lzug-app:dev",
+            "lzug-app:01.2.3",
+            "lzug-app:1.2.3-01",
+            "lzug-app:1.2.3-0." + "--." * 10_000,
         ):
             with self.subTest(image=image):
                 self.assertTrue(image_reference_errors(image))
@@ -75,7 +78,7 @@ class ComposePolicyTests(unittest.TestCase):
 
     def test_cli_returns_a_nonzero_status_with_actionable_output(self) -> None:
         model = copy.deepcopy(VALID_MODEL)
-        model["services"]["lzug"]["image"] = "lzug:latest"
+        model["services"]["lzug"]["image"] = "lzug-app:latest"
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "compose.json"
             config.write_text(json.dumps(model), encoding="utf-8")

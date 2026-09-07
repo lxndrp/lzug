@@ -17,22 +17,21 @@ Ein Rollback ist keine Datenbank-Rückmigration.
    Reverse Proxy.
 3. Prüfen Sie, dass das konfigurierte Backup-Empfängerschlüsselpaar verfügbar
    ist und ein aktuelles vollständiges Backup nicht mutierend verifiziert wurde.
-4. Wählen Sie den unveränderlichen GHCR-Digest des veröffentlichten Zielreleases
-   und prüfen Sie dessen Herkunft.
+4. Wählen Sie die exakte SemVer-Version des veröffentlichten Zielreleases und
+   prüfen Sie deren Herkunft.
 5. Verwenden Sie `lzug-admin` aus demselben Release wie das Zielimage.
 
 ```sh
-ENGINE=docker
-TARGET_IMAGE='ghcr.io/lxndrp/lzug@sha256:<digest>'
+TARGET_VERSION=0.8.0
+TARGET_IMAGE="ghcr.io/lxndrp/lzug-app:${TARGET_VERSION}"
 
 gh attestation verify "oci://$TARGET_IMAGE" --repo lxndrp/lzug
-"$ENGINE" pull "$TARGET_IMAGE"
+docker pull "$TARGET_IMAGE"
 ./lzug-admin --version
 ./lzug-admin --build-metadata
 ```
 
-Für Podman setzen Sie `ENGINE=podman`.
-Die CLI prüft zusätzlich selbst den kanonischen Repo-Digest sowie die
+Die CLI prüft zusätzlich selbst den durch Docker aufgelösten kanonischen Repo-Digest sowie die
 OCI-Labels für Quelle, Version und Commit.
 Entwicklungsbuilds, bewegliche Tags, fremde Repositories und eine von der CLI
 abweichende Release-Identität werden vor dem Backendaufruf abgewiesen.
@@ -52,8 +51,8 @@ demselben persistenten Volume:
 DATA_VOLUME="${LZUG_DATA_VOLUME:-lzug_data}"
 MAINTENANCE_ENV_FILE=/geschuetzter/pfad/lzug-maintenance.env
 
-"$ENGINE" compose -f compose.yaml stop lzug
-"$ENGINE" run --detach --name lzug-maintenance \
+docker compose -f compose.yaml stop lzug
+docker run --detach --name lzug-maintenance \
   --read-only \
   --tmpfs /tmp:rw,noexec,nosuid,nodev \
   --env-file "$MAINTENANCE_ENV_FILE" \
@@ -78,7 +77,7 @@ Bei ausstehenden Migrationen ist die ausdrückliche Bestätigung zwingend:
 
 ```sh
 PRIVATE_KEY_FILE=/geschuetzter/pfad/lzug-backup.agekey
-./lzug-admin --engine "$ENGINE" --container lzug-maintenance \
+./lzug-admin --container lzug-maintenance \
   upgrade apply \
   --backup-output ./lzug-pre-upgrade.lzug \
   --identity-file "$PRIVATE_KEY_FILE" \
@@ -102,14 +101,14 @@ Aktivieren Sie das Zielimage erst nach `ok: true` und vollständig
 abgeschlossenen Phasen:
 
 ```sh
-"$ENGINE" rm --force lzug-maintenance
+docker rm --force lzug-maintenance
 export LZUG_IMAGE="$TARGET_IMAGE"
-"$ENGINE" compose -f compose.yaml up -d
+docker compose -f compose.yaml up -d
 
-CONTAINER_ID="$("$ENGINE" compose -f compose.yaml ps -q lzug)"
-CONTAINER="$("$ENGINE" inspect --format '{{.Name}}' "$CONTAINER_ID")"
+CONTAINER_ID="$(docker compose -f compose.yaml ps -q lzug)"
+CONTAINER="$(docker inspect --format '{{.Name}}' "$CONTAINER_ID")"
 CONTAINER="${CONTAINER#/}"
-./lzug-admin --engine "$ENGINE" --container "$CONTAINER" system doctor
+./lzug-admin --container "$CONTAINER" system doctor
 curl -fsS http://127.0.0.1:8000/api/ready
 ```
 
@@ -125,8 +124,8 @@ Entfernen Sie den Wartungscontainer und starten Sie den unveränderten bisherige
 Anwendungscontainer nur dann erneut:
 
 ```sh
-"$ENGINE" rm --force lzug-maintenance
-"$ENGINE" compose -f compose.yaml start lzug
+docker rm --force lzug-maintenance
+docker compose -f compose.yaml start lzug
 ```
 
 Nach einem Migrations- oder Nachprüfungsfehler bleibt die Instanz gestoppt.
@@ -147,8 +146,8 @@ SQLite oder Migrationstabellen manuell zu verändern.
 
 ## Rollback ohne Datenänderung prüfen
 
-Ein Rollback verwendet einen Wartungscontainer des gewünschten älteren
-Release-Digests und `lzug-admin` aus exakt demselben älteren Release.
+Ein Rollback verwendet einen Wartungscontainer der gewünschten älteren
+Release-Version und `lzug-admin` aus exakt demselben älteren Release.
 Vorbereitung, Attestation, gestoppter Anwendungscontainer, Volume und
 Wartungsgrenze entsprechen dem Upgrade-Ablauf.
 Das Zielrelease muss diesen Lifecycle-Vertrag selbst enthalten;
@@ -156,14 +155,14 @@ Das Zielrelease muss diesen Lifecycle-Vertrag selbst enthalten;
 freigegeben werden.
 
 ```sh
-./lzug-admin --engine "$ENGINE" --container lzug-maintenance upgrade rollback
+./lzug-admin --container lzug-maintenance upgrade rollback
 ```
 
 `rollback` verändert weder Datenbank noch Dokumente.
-Der Befehl gibt den älteren Release-Digest nur frei, wenn diese Runtime die
+Der Befehl gibt die ältere Release-Version nur frei, wenn diese Runtime die
 vollständige vorhandene Migrationshistorie kennt und keine Migration aussteht.
 Nach `ok: true` darf der Wartungscontainer entfernt, `LZUG_IMAGE` auf genau
-diesen geprüften Digest gesetzt und die Referenzinstallation wieder mit
+diese geprüfte SemVer-Version gesetzt und die Referenzinstallation wieder mit
 `compose up -d` gestartet werden.
 
 Ein unbekannter neuerer Schemastand oder ein nur vorwärts migrierbarer Stand

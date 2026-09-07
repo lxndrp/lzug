@@ -286,8 +286,8 @@ flüchtig.
 
 Docker Engine auf Linux ist die qualifizierte Referenz für Build, Release, CI
 und Self-Hosting.
-Das OCI-Image bleibt portabel; Podman und weitere konkrete Laufzeiten gehören
-nicht zum unterstützten oder geprüften Umfang.
+Das OCI-Image bleibt portabel; weitere konkrete Laufzeiten gehören nicht zum
+unterstützten oder geprüften Umfang.
 `compose.yaml` ist ein optionaler knapper Docker-Referenzweg für genau einen
 `lzug-app`-Container und ein persistentes Volume.
 Standardtooling prüft die Compose-Struktur; die kleine lzug-Policy prüft nur

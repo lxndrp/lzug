@@ -1,38 +1,16 @@
 #!/usr/bin/env sh
 
-# Shared orchestration for the packaged container contracts. Callers keep the
-# contract-specific assertions while using one engine, lifecycle, readiness,
+# Shared Docker orchestration for the packaged container contracts. Callers keep
+# the contract-specific assertions while using one lifecycle, readiness,
 # runtime-user, and build-metadata implementation.
 
-lzug_select_container_engine() {
-    engine=${CONTAINER_ENGINE:-}
-    if [ -z "$engine" ]; then
-        if command -v docker >/dev/null 2>&1; then
-            engine=docker
-        elif command -v podman >/dev/null 2>&1; then
-            engine=podman
-        else
-            echo "No Docker or Podman executable found." >&2
-            exit 77
-        fi
-    fi
-    case "$engine" in
-        docker|podman) ;;
-        *)
-            echo "CONTAINER_ENGINE must be docker or podman." >&2
-            exit 64
-            ;;
-    esac
-    if ! command -v "$engine" >/dev/null 2>&1; then
-        echo "${engine} executable is unavailable." >&2
+lzug_require_docker() {
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "Docker is unavailable." >&2
         exit 77
     fi
-}
-
-lzug_require_container_engine() {
-    lzug_select_container_engine
-    if ! "$engine" info >/dev/null 2>&1; then
-        echo "${engine} is installed but its engine is unavailable." >&2
+    if ! docker info >/dev/null 2>&1; then
+        echo "Docker is installed but its engine is unavailable." >&2
         exit 77
     fi
 }
@@ -43,8 +21,8 @@ lzug_start_contract_container() {
     image=$3
     shift 3
 
-    "$engine" volume create "$volume" >/dev/null
-    "$engine" run --detach --name "$container" \
+    docker volume create "$volume" >/dev/null
+    docker run --detach --name "$container" \
         --read-only --tmpfs /tmp \
         "$@" \
         --mount "type=volume,source=$volume,target=/data" \
@@ -54,8 +32,8 @@ lzug_start_contract_container() {
 lzug_cleanup_contract_container() {
     container=$1
     volume=$2
-    "$engine" rm --force "$container" >/dev/null 2>&1 || true
-    "$engine" volume rm "$volume" >/dev/null 2>&1 || true
+    docker rm --force "$container" >/dev/null 2>&1 || true
+    docker volume rm "$volume" >/dev/null 2>&1 || true
 }
 
 lzug_wait_for_http_health() {
@@ -81,7 +59,7 @@ lzug_wait_for_container_health() {
     attempts=${2:-30}
     attempt=0
     while [ "$attempt" -lt "$attempts" ]; do
-        if "$engine" exec "$container" python -m backend.healthcheck >/dev/null 2>&1; then
+        if docker exec "$container" python -m backend.healthcheck >/dev/null 2>&1; then
             return 0
         fi
         attempt=$((attempt + 1))
@@ -92,11 +70,11 @@ lzug_wait_for_container_health() {
 
 lzug_assert_runtime_user() {
     container=$1
-    test "$("$engine" exec "$container" id -u)" = "10001"
+    test "$(docker exec "$container" id -u)" = "10001"
 }
 
 lzug_copy_build_metadata() {
     container=$1
     destination=$2
-    "$engine" exec "$container" cat /app/backend/src/build-metadata.json > "$destination"
+    docker exec "$container" cat /app/backend/src/build-metadata.json > "$destination"
 }

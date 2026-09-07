@@ -4,8 +4,8 @@ set -eu
 
 root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$root_dir/scripts/container-contract.sh"
-image="${1:-lzug:smoke}"
-lzug_require_container_engine
+image="${1:-lzug-app:smoke}"
+lzug_require_docker
 
 suffix="lzug-smoke-$$"
 volume="$suffix-data"
@@ -21,7 +21,7 @@ lzug_start_contract_container "$container" "$volume" "$image" \
     --publish 127.0.0.1::8000
 
 resolve_url() {
-    port="$("$engine" port "$container" 8000/tcp | sed 's/.*://')"
+    port="$(docker port "$container" 8000/tcp | sed 's/.*://')"
     url="http://127.0.0.1:$port"
 }
 
@@ -30,7 +30,7 @@ resolve_url
 wait_for_health() {
     if ! lzug_wait_for_http_health "$url" 30; then
         echo "Container did not become ready." >&2
-        "$engine" logs "$container" >&2 || true
+        docker logs "$container" >&2 || true
         return 1
     fi
 }
@@ -54,7 +54,7 @@ assert_status() {
 wait_for_health
 
 echo "Verifying operator bootstrap on an empty product database."
-"$engine" exec "$container" python -c '
+docker exec "$container" python -c '
 from backend.committee_admin import CommitteeAdminService
 from backend.models import EXAM_HALF_YEAR
 from backend.repositories import ResourceRepository
@@ -89,14 +89,14 @@ assert_status "Missing static asset" 404 \
 
 lzug_assert_runtime_user "$container"
 lzug_copy_build_metadata "$container" "$temporary_directory/backend-metadata.json"
-"$engine" exec "$container" cat /app/frontend/build-metadata.json > "$temporary_directory/frontend-metadata.json"
+docker exec "$container" cat /app/frontend/build-metadata.json > "$temporary_directory/frontend-metadata.json"
 cmp "$temporary_directory/backend-metadata.json" "$temporary_directory/frontend-metadata.json"
 expected_version=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["identity"])' \
     < "$temporary_directory/backend-metadata.json")
 metadata_revision=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["revision"])' \
     < "$temporary_directory/backend-metadata.json")
-expected_revision=$("$engine" image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image")
-expected_image_version=$("$engine" image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$image")
+expected_revision=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image")
+expected_image_version=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$image")
 test "$metadata_revision" = "$expected_revision"
 test "$expected_version" = "$expected_image_version"
 headers="$temporary_directory/headers"
@@ -128,7 +128,7 @@ assert_status "Disallowed Origin" 403 \
         --header 'Origin: https://blocked.example.invalid' "$url/api/health")"
 
 echo "Verifying operator, actor, and committee isolation."
-operator_credentials=$("$engine" exec "$container" python -c '
+operator_credentials=$(docker exec "$container" python -c '
 import json
 from backend.auth import AuthenticationRepository
 
@@ -143,7 +143,7 @@ assert_status "Operator without domain role" 403 \
         --header "Cookie: __Host-lzug_session=$operator_token" "$url/api/candidates")"
 echo "Operator/domain-role separation passed."
 
-actor_credentials=$("$engine" exec "$container" python -c '
+actor_credentials=$(docker exec "$container" python -c '
 import json
 from backend.auth import AuthenticationRepository
 
@@ -154,7 +154,7 @@ actor_token=$(printf '%s' "$actor_credentials" | python3 -c 'import json,sys; pr
 actor_csrf=$(printf '%s' "$actor_credentials" | python3 -c 'import json,sys; print(json.load(sys.stdin)["csrf"])')
 echo "Actor session created."
 
-isolated_round=$("$engine" exec "$container" python -c '
+isolated_round=$(docker exec "$container" python -c '
 import json
 from backend.committee_admin import CommitteeAdminService
 from backend.models import EXAM_ROUND
@@ -233,9 +233,9 @@ invalid_login_status=$(curl --silent --output "$invalid_login_body" --write-out 
     --data "{\"email\":\"$log_marker@example.invalid\",\"password\":\"$log_marker\",\"second_factor\":\"000000\"}" \
     "$url/api/auth/login")
 assert_status "Invalid login" 401 "$invalid_login_status" "$invalid_login_body"
-if "$engine" logs "$container" 2>&1 | grep -F "$log_marker" >/dev/null; then
+if docker logs "$container" 2>&1 | grep -F "$log_marker" >/dev/null; then
     echo "Container logs exposed request secret material." >&2
     exit 1
 fi
 
-echo "Container runtime, authentication isolation, and security smoke test passed with $engine: $image"
+echo "Container runtime, authentication isolation, and security smoke test passed with Docker: $image"

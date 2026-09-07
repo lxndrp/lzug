@@ -52,8 +52,8 @@ func TestContainerTransportHonorsCancellationContext(t *testing.T) {
 	t.Setenv("LZUG_ADMINCLI_HELPER", "1")
 	t.Setenv("LZUG_ADMINCLI_DELAY", "5s")
 	transport := &ContainerTransport{
-		Config:   EffectiveConfig{Engine: EffectiveValue{Value: "docker"}, Container: EffectiveValue{Value: "lzug"}},
-		Resolver: &fixedEngineResolver{path: os.Args[0]},
+		Config:   EffectiveConfig{Container: EffectiveValue{Value: "lzug"}},
+		Resolver: &fixedDockerResolver{path: os.Args[0]},
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -67,32 +67,25 @@ func TestContainerTransportHonorsCancellationContext(t *testing.T) {
 	}
 }
 
-type fixedEngineResolver struct {
-	path      string
-	preferred []string
-}
+type fixedDockerResolver struct{ path string }
 
-func (resolver *fixedEngineResolver) Resolve(preferred string) (string, error) {
-	resolver.preferred = append(resolver.preferred, preferred)
+func (resolver *fixedDockerResolver) Resolve() (string, error) {
 	return resolver.path, nil
 }
 
 func TestContainerTransportUsesOneStdinRequestAndNoShell(t *testing.T) {
 	t.Setenv("LZUG_ADMINCLI_HELPER", "1")
 	t.Setenv("LZUG_ADMINCLI_RESPONSE", `{"version":1,"ok":false,"error":{"class":"recipient_key_mismatch","message":"safe"}}`+"\n")
-	t.Setenv("LZUG_ADMINCLI_STDERR", "untrusted engine diagnostic secret-marker")
+	t.Setenv("LZUG_ADMINCLI_STDERR", "untrusted Docker diagnostic secret-marker")
 	t.Setenv("LZUG_ADMINCLI_EXIT", "27")
 	directory := t.TempDir()
 	argsFile := filepath.Join(directory, "args")
 	inputFile := filepath.Join(directory, "input")
 	t.Setenv("LZUG_ADMINCLI_ARGS_FILE", argsFile)
 	t.Setenv("LZUG_ADMINCLI_INPUT_FILE", inputFile)
-	resolver := &fixedEngineResolver{path: os.Args[0]}
+	resolver := &fixedDockerResolver{path: os.Args[0]}
 	transport := &ContainerTransport{
-		Config: EffectiveConfig{
-			Engine:    EffectiveValue{Value: "docker"},
-			Container: EffectiveValue{Value: "lzug"},
-		},
+		Config:   EffectiveConfig{Container: EffectiveValue{Value: "lzug"}},
 		Resolver: resolver,
 	}
 	request := BackendRequest{
@@ -115,10 +108,10 @@ func TestContainerTransportUsesOneStdinRequestAndNoShell(t *testing.T) {
 	}
 	wantArgs := []string{"exec", "--interactive", "lzug", "python", "-m", "backend.admin", "--protocol", "1"}
 	if got := strings.Split(string(args), "\x00"); !equalStrings(got, wantArgs) {
-		t.Fatalf("unexpected engine argv: %#v", got)
+		t.Fatalf("unexpected Docker argv: %#v", got)
 	}
 	if strings.Contains(string(args), "secret-marker") || strings.Contains(string(args), "consume-invitation") {
-		t.Fatalf("request data reached engine argv: %q", args)
+		t.Fatalf("request data reached Docker argv: %q", args)
 	}
 	payload, err := os.ReadFile(inputFile)
 	if err != nil {
@@ -144,8 +137,8 @@ func TestContainerTransportRejectsMalformedOrMultipleBackendObjects(t *testing.T
 		t.Setenv("LZUG_ADMINCLI_RESPONSE", payload)
 		t.Setenv("LZUG_ADMINCLI_EXIT", "0")
 		transport := &ContainerTransport{
-			Config:   EffectiveConfig{Engine: EffectiveValue{Value: "docker"}, Container: EffectiveValue{Value: "lzug"}},
-			Resolver: &fixedEngineResolver{path: os.Args[0]},
+			Config:   EffectiveConfig{Container: EffectiveValue{Value: "lzug"}},
+			Resolver: &fixedDockerResolver{path: os.Args[0]},
 		}
 		_, code, err := transport.Execute(context.Background(), BackendRequest{Version: 1, Command: "status", Arguments: map[string]any{}})
 		if code != ExitProtocolIncompatible {
@@ -159,10 +152,10 @@ func TestContainerTransportRejectsMalformedOrMultipleBackendObjects(t *testing.T
 }
 
 func TestReleaseInspectionRequiresCanonicalMatchingArtifacts(t *testing.T) {
-	build := BuildInfo{Version: "0.7.0", Revision: strings.Repeat("a", 40), Tag: "v0.7.0"}
-	resolver := &fixedEngineResolver{path: os.Args[0]}
+	build := BuildInfo{Version: "0.8.0", Revision: strings.Repeat("a", 40), Tag: "v0.8.0"}
+	resolver := &fixedDockerResolver{path: os.Args[0]}
 	inspector := &ContainerReleaseInspector{
-		Config:   EffectiveConfig{Engine: EffectiveValue{Value: "podman"}, Container: EffectiveValue{Value: "lzug-maintenance"}},
+		Config:   EffectiveConfig{Container: EffectiveValue{Value: "lzug-maintenance"}},
 		Resolver: resolver,
 	}
 	if _, err := inspector.Target(context.Background(), BuildInfo{Version: "development", Revision: "unknown"}); err == nil {
@@ -170,7 +163,7 @@ func TestReleaseInspectionRequiresCanonicalMatchingArtifacts(t *testing.T) {
 	}
 	t.Setenv("LZUG_ADMINCLI_HELPER", "1")
 	t.Setenv("LZUG_ADMINCLI_INSPECT", "1")
-	t.Setenv("LZUG_ADMINCLI_REPO_DIGESTS", `["ghcr.io/lxndrp/lzug@sha256:`+strings.Repeat("c", 64)+`"]`)
+	t.Setenv("LZUG_ADMINCLI_REPO_DIGESTS", `["ghcr.io/lxndrp/lzug-app@sha256:`+strings.Repeat("c", 64)+`"]`)
 	labels, err := json.Marshal(map[string]string{
 		"org.opencontainers.image.source":   "https://github.com/lxndrp/lzug",
 		"org.opencontainers.image.version":  build.Version,
@@ -184,7 +177,7 @@ func TestReleaseInspectionRequiresCanonicalMatchingArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if target["image"] != "ghcr.io/lxndrp/lzug@sha256:"+strings.Repeat("c", 64) || target["tag"] != "v0.7.0" {
+	if target["image"] != "ghcr.io/lxndrp/lzug-app@sha256:"+strings.Repeat("c", 64) || target["tag"] != "v0.8.0" {
 		t.Fatalf("unexpected release target: %#v", target)
 	}
 

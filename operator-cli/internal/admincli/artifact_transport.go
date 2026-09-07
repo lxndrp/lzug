@@ -14,7 +14,7 @@ const artifactStreamProtocol = 2
 
 type ContainerArtifactTransport struct {
 	Config   EffectiveConfig
-	Resolver EngineResolver
+	Resolver DockerResolver
 }
 
 func (transport *ContainerArtifactTransport) Produce(
@@ -71,13 +71,13 @@ func (transport *ContainerArtifactTransport) command(
 	ctx context.Context,
 	mode string,
 ) (*exec.Cmd, error) {
-	engine, err := transport.Resolver.Resolve(transport.Config.Engine.Value)
+	docker, err := transport.Resolver.Resolve()
 	if err != nil {
 		return nil, &RuntimeError{Kind: RuntimeEngineUnavailable}
 	}
 	return exec.CommandContext(
 		ctx,
-		engine,
+		docker,
 		"exec",
 		"--interactive",
 		transport.Config.Container.Value,

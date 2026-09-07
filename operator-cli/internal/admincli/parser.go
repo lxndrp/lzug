@@ -23,7 +23,7 @@ func parseGlobalOptions(args []string) (GlobalOptions, []string, *CLIError) {
 		}
 		name, inline, hasInline := splitLongOption(token)
 		switch name {
-		case "engine", "container", "config":
+		case "container", "config":
 			if seen[name] {
 				return options, nil, invalidInvocation("--%s may be specified only once", name)
 			}
@@ -40,8 +40,6 @@ func parseGlobalOptions(args []string) (GlobalOptions, []string, *CLIError) {
 			}
 			seen[name] = true
 			switch name {
-			case "engine":
-				options.Engine, options.EngineSet = value, true
 			case "container":
 				options.Container, options.ContainerSet = value, true
 			case "config":

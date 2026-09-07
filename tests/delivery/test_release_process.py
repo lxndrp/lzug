@@ -47,6 +47,9 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("--clobber", self.publish)
 
     def test_release_builds_only_the_seven_visible_tag_bound_assets(self) -> None:
+        self.assertIn('image="ghcr.io/${GH_REPO,,}-app"', self.publish)
+        self.assertIn("platforms: linux/amd64,linux/arm64", self.publish)
+        self.assertNotIn('image="ghcr.io/${GH_REPO,,}"', self.publish)
         self.assertIn("goreleaser release --clean", self.publish)
         self.assertIn("goreleaser/goreleaser-action@", self.publish)
         self.assertIn("linux-amd64 linux-arm64 darwin-amd64 darwin-arm64", self.publish)

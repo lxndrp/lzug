@@ -132,7 +132,7 @@ jobs:
           set -euo pipefail
           version=$(python3 scripts/build_metadata.py \
             --tag "$RELEASE_TAG" --revision "$TARGET_SHA" --field identity)
-          image="ghcr.io/${GH_REPO,,}"
+          image="ghcr.io/${GH_REPO,,}-app"
           {
             echo "version=$version"
             echo "image=$image"
@@ -222,6 +222,7 @@ jobs:
           context: .
           file: Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.release.outputs.image_refs }}
           build-args: |
             BUILD_IDENTITY=${{ steps.release.outputs.version }}

@@ -75,15 +75,11 @@ type dialogRuntimeFactory struct {
 type sessionConfigResolver struct{}
 
 func (*sessionConfigResolver) Resolve(global GlobalOptions) (EffectiveConfig, *CLIError) {
-	engine := EffectiveValue{Value: "docker", Source: "default"}
 	container := EffectiveValue{Value: "lzug", Source: "file"}
-	if global.EngineSet {
-		engine = EffectiveValue{Value: global.Engine, Source: "flag"}
-	}
 	if global.ContainerSet {
 		container = EffectiveValue{Value: global.Container, Source: "flag"}
 	}
-	return EffectiveConfig{Engine: engine, Container: container}, nil
+	return EffectiveConfig{Container: container}, nil
 }
 
 func (factory *dialogRuntimeFactory) Transport(EffectiveConfig) Transport {
@@ -149,7 +145,6 @@ func interactiveApplication(t *testing.T, lines []string, responses ...BackendRe
 		BuildInfo{Version: "1.2.3", Revision: strings.Repeat("a", 40), Tag: "v1.2.3"},
 		&dialogRuntimeFactory{transport: transport, artifact: artifact, inspector: &fakeInspector{target: map[string]any{"identity": "1.2.3", "release": true}}},
 		&fakeConfigResolver{config: EffectiveConfig{
-			Engine:    EffectiveValue{Value: "docker", Source: "default"},
 			Container: EffectiveValue{Value: "lzug", Source: "file"},
 		}},
 		input,
@@ -251,7 +246,6 @@ func TestInteractiveAndDirectInvocationProduceTheSameBackendRequest(t *testing.T
 func TestLocalCommandWorksWithoutContainerAndUnavailableCommandsStayVisible(t *testing.T) {
 	application, _, transport, stdout, _ := interactiveApplication(t, []string{"account", "zurueck", "config", "inspect", "beenden"})
 	application.Config = &fakeConfigResolver{config: EffectiveConfig{
-		Engine:    EffectiveValue{Value: "auto", Source: "default"},
 		Container: EffectiveValue{Value: "", Source: "default"},
 	}}
 	if code := application.Run(context.Background(), []string{"cli"}); code != ExitOK {
@@ -377,7 +371,7 @@ func TestTargetChangeRequiresANewHandshake(t *testing.T) {
 	invite := successResponse(`{"account":{"id":7},"kind":"invitation","expires_at":"soon","token":"one-time"}`)
 	application, _, transport, stdout, _ := interactiveApplication(t, []string{
 		"account", "invite", "first@example.invalid",
-		"ziel", "", "lzug-next",
+		"ziel", "lzug-next",
 		"account", "invite", "second@example.invalid",
 		"beenden",
 	}, status, invite, status, invite)

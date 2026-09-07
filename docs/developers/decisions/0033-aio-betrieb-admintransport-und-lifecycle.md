@@ -134,7 +134,7 @@ Docker Engine auf Linux ist die qualifizierte Referenz für Build, Release, CI
 und Self-Hosting.
 Andere OCI-Laufzeiten können das Image ausführen, gehören daraus aber nicht
 automatisch zum unterstützten oder geprüften Umfang.
-Podman wird nicht unterstützt oder geprüft.
+Weitere konkrete Runtimes werden nicht unterstützt oder geprüft.
 
 Compose bleibt ein optionaler, knapper Docker-Referenzweg für genau den einen
 `lzug-app`-Service mit persistentem `/data`.

@@ -110,7 +110,7 @@ func applyInteractiveMetadata(command *Command) {
 		"cli":              {"dialog", "interaktiv", "geführt"},
 		"committee":        {"ausschuss", "prüfungsausschuss", "mitglied"},
 		"completion":       {"shell", "vervollstaendigung"},
-		"config":           {"konfiguration", "ziel", "engine", "container"},
+		"config":           {"konfiguration", "ziel", "container"},
 		"export":           {"export", "archiv"},
 		"notification":     {"benachrichtigung", "zustellung"},
 		"plan-consequence": {"planfolge", "termin", "status"},

@@ -4,10 +4,10 @@ set -eu
 
 root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 . "$root_dir/scripts/container-contract.sh"
-current_image="${1:-lzug:smoke}"
+current_image="${1:-lzug-app:smoke}"
 v060_image="${LZUG_V060_IMAGE:-ghcr.io/lxndrp/lzug@sha256:00e467d8acd6602ba8b4259b3f2a4e51ec98273e0be551f367e5979d5c780fe6}"
 
-lzug_require_container_engine
+lzug_require_docker
 
 temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/lzug-v060-migration.XXXXXX")
 container="lzug-v060-migration-$$"
@@ -31,8 +31,8 @@ application_version=$(
         -o "$admin_binary" ./cmd/lzug-admin
 )
 
-"$engine" pull "$v060_image" >/dev/null
-legacy_keys=$("$engine" run --rm --entrypoint python "$v060_image" -c '
+docker pull "$v060_image" >/dev/null
+legacy_keys=$(docker run --rm --entrypoint python "$v060_image" -c '
 import json
 from backend.backup_restore import generate_recipient_keypair
 
@@ -42,21 +42,21 @@ print(json.dumps({"public": public_key, "private": private_key}))
 legacy_public=$(printf '%s' "$legacy_keys" | python3 -c 'import json,sys; print(json.load(sys.stdin)["public"])')
 legacy_private=$(printf '%s' "$legacy_keys" | python3 -c 'import json,sys; print(json.load(sys.stdin)["private"])')
 
-"$engine" volume create "$volume" >/dev/null
-"$engine" run --detach --name "$container" \
+docker volume create "$volume" >/dev/null
+docker run --detach --name "$container" \
     --read-only --tmpfs /tmp \
     --env "LZUG_BACKUP_RECIPIENT_PUBLIC_KEY=$legacy_public" \
     --mount "type=volume,source=$volume,target=/data" \
     "$v060_image" --host 0.0.0.0 --port 8000 --init >/dev/null
 if ! lzug_wait_for_container_health "$container" 30; then
     echo "The pinned v0.6.0 container did not become ready." >&2
-    "$engine" logs "$container" >&2 || true
+    docker logs "$container" >&2 || true
     exit 1
 fi
 
 legacy_backup=$(
     printf '%s\n' '{"version":1,"command":"backup-create","arguments":{}}' | \
-        "$engine" exec --interactive "$container" python -m backend.admin --protocol 1
+        docker exec --interactive "$container" python -m backend.admin --protocol 1
 )
 legacy_artifact=$(printf '%s' "$legacy_backup" | python3 -c '
 import json
@@ -82,7 +82,7 @@ print(json.dumps({
         "recipient_private_key": private_key,
     },
 }))
-' | "$engine" exec --interactive "$container" python -m backend.admin --protocol 1
+' | docker exec --interactive "$container" python -m backend.admin --protocol 1
 )
 printf '%s' "$legacy_verified" | python3 -c '
 import json
@@ -111,7 +111,7 @@ print(json.dumps({
         "replace": True,
     },
 }))
-' | "$engine" exec --interactive "$container" python -m backend.admin --protocol 1
+' | docker exec --interactive "$container" python -m backend.admin --protocol 1
 )
 printf '%s' "$legacy_restored" | python3 -c '
 import json
@@ -124,7 +124,7 @@ assert payload["result"]["phases"] == [
     "precheck", "prepared_restore", "migration", "postcheck", "activation"
 ]
 ' >/dev/null
-"$engine" cp "$container:/data/backups/$legacy_artifact" "$temporary_directory/legacy.lzug"
+docker cp "$container:/data/backups/$legacy_artifact" "$temporary_directory/legacy.lzug"
 
 legacy_status=0
 "$admin_binary" --json artifact inspect \
@@ -143,18 +143,18 @@ assert payload["error"]["class"] == "artifact_legacy_v1"
 assert "v0.6.0" in payload["error"]["message"]
 ' "$temporary_directory/legacy-inspect.json"
 
-"$engine" rm --force "$container" >/dev/null
-"$engine" run --detach --name "$container" \
+docker rm --force "$container" >/dev/null
+docker run --detach --name "$container" \
     --read-only --tmpfs /tmp \
     --mount "type=volume,source=$volume,target=/data" \
     "$current_image" --host 0.0.0.0 --port 8000 --init >/dev/null
 if ! lzug_wait_for_container_health "$container" 30; then
     echo "The upgraded current container did not become ready." >&2
-    "$engine" logs "$container" >&2 || true
+    docker logs "$container" >&2 || true
     exit 1
 fi
 
-"$engine" exec "$container" python -c '
+docker exec "$container" python -c '
 from backend.database import database_path, migration_status
 
 status = migration_status(database_path())
@@ -165,13 +165,13 @@ assert status["current"] == "028_add_exam_venue_change_notifications.sql"
 "$admin_binary" recipient-key generate \
     --identity-file "$temporary_directory/current.agekey" \
     --recipient-file "$temporary_directory/current.agepub" >/dev/null
-"$admin_binary" --engine "$engine" --container "$container" --json \
+"$admin_binary" --container "$container" --json \
     backup recipient set --identity-file "$temporary_directory/current.agekey" \
     >"$temporary_directory/recipient.json"
-"$admin_binary" --engine "$engine" --container "$container" --json \
+"$admin_binary" --container "$container" --json \
     backup create --output "$temporary_directory/current.lzug" \
     >"$temporary_directory/current-backup.json"
-"$admin_binary" --engine "$engine" --container "$container" --json \
+"$admin_binary" --container "$container" --json \
     backup verify --artifact "$temporary_directory/current.lzug" \
     --identity-file "$temporary_directory/current.agekey" \
     >"$temporary_directory/current-verify.json"
@@ -194,4 +194,4 @@ assert inspected["ok"] is True and inspected["result"]["protection"] == "age-x25
 assert created["result"]["recipient_key_fingerprint"] == inspected["result"]["recipient_key_fingerprint"]
 ' "$temporary_directory/current-backup.json" "$temporary_directory/current-verify.json" "$temporary_directory/current-inspect.json"
 
-echo "v0.6.0 restore, current schema upgrade, and new age backup path passed with $engine"
+echo "v0.6.0 restore, current schema upgrade, and new age backup path passed with Docker"

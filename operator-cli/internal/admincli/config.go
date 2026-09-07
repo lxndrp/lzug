@@ -30,10 +30,7 @@ func NewSystemConfigResolver() *SystemConfigResolver {
 }
 
 func (r *SystemConfigResolver) Resolve(global GlobalOptions) (EffectiveConfig, *CLIError) {
-	config := EffectiveConfig{
-		Engine:    EffectiveValue{Value: "auto", Source: "default"},
-		Container: EffectiveValue{Value: "", Source: "default"},
-	}
+	config := EffectiveConfig{Container: EffectiveValue{Value: "", Source: "default"}}
 	environment, environmentError := allowedEnvironment(r.Environment())
 	if environmentError != nil {
 		return EffectiveConfig{}, environmentError
@@ -59,31 +56,19 @@ func (r *SystemConfigResolver) Resolve(global GlobalOptions) (EffectiveConfig, *
 			if parseErr != nil {
 				return EffectiveConfig{}, configurationError(parseErr.Error())
 			}
-			if value, exists := parsed["engine"]; exists {
-				config.Engine = EffectiveValue{Value: value, Source: "file"}
-			}
 			if value, exists := parsed["container"]; exists {
 				config.Container = EffectiveValue{Value: value, Source: "file"}
 			}
 		}
 	}
 
-	if value, exists := environment["LZUG_ADMIN_ENGINE"]; exists {
-		config.Engine = EffectiveValue{Value: value, Source: "LZUG_ADMIN_ENGINE"}
-	}
 	if value, exists := environment["LZUG_ADMIN_CONTAINER"]; exists {
 		config.Container = EffectiveValue{Value: value, Source: "LZUG_ADMIN_CONTAINER"}
-	}
-	if global.EngineSet {
-		config.Engine = EffectiveValue{Value: global.Engine, Source: "flag"}
 	}
 	if global.ContainerSet {
 		config.Container = EffectiveValue{Value: global.Container, Source: "flag"}
 	}
 
-	if !contains([]string{"auto", "docker", "podman"}, config.Engine.Value) {
-		return EffectiveConfig{}, configurationError("The effective engine must be auto, docker, or podman.")
-	}
 	if config.Container.Value != "" && !containerNamePattern.MatchString(config.Container.Value) {
 		return EffectiveConfig{}, configurationError("The effective container must be a valid exact container name.")
 	}
@@ -106,8 +91,8 @@ func parseConfigFile(payload []byte) (map[string]string, error) {
 	sort.Strings(keys)
 	values := map[string]string{}
 	for _, key := range keys {
-		if key != "engine" && key != "container" {
-			return nil, fmt.Errorf("Configuration key %q is not allowed; only engine and container are supported.", key)
+		if key != "container" {
+			return nil, fmt.Errorf("Configuration key %q is not allowed; only container is supported.", key)
 		}
 		var value string
 		if err := json.Unmarshal(raw[key], &value); err != nil || strings.TrimSpace(value) == "" {
@@ -136,7 +121,7 @@ func allowedEnvironment(entries []string) (map[string]string, *CLIError) {
 		if !found || !strings.HasPrefix(name, "LZUG_ADMIN_") {
 			continue
 		}
-		if name == "LZUG_ADMIN_ENGINE" || name == "LZUG_ADMIN_CONTAINER" {
+		if name == "LZUG_ADMIN_CONTAINER" {
 			if strings.TrimSpace(value) == "" {
 				return nil, configurationError(fmt.Sprintf("Environment variable %s must not be empty.", name))
 			}
@@ -160,7 +145,7 @@ func configurationError(message string) *CLIError {
 	return &CLIError{
 		Class:    "configuration_error",
 		Message:  message,
-		NextStep: "Use only engine and container in the CLI configuration, or pass --no-config.",
+		NextStep: "Use only container in the CLI configuration, or pass --no-config.",
 		ExitCode: ExitConfiguration,
 	}
 }
