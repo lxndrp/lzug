@@ -11,17 +11,26 @@ Akzeptiert.
 ## Kontext
 
 Die bestehende Architektur besteht aus Angular-Frontend, Python-Backend, REST-API und SQLite.
-Die erste Veröffentlichung soll für einen einzelnen Ausschuss mit Docker oder Podman und ohne separaten Datenbankdienst self-hostbar sein.
+Die erste Veröffentlichung soll für einen einzelnen Ausschuss mit Docker auf
+Linux und ohne separaten Datenbankdienst self-hostbar sein.
 Dafür braucht die Runtime eine eindeutige Grenze zwischen flüchtigem Container-Dateisystem und dauerhaftem Anwendungszustand.
 
 ## Entscheidung
 
-Das kanonische Auslieferungsformat ist ein OCI-Image.
-Die Referenzruntime liefert gebrauchsfertiges Angular-Frontend, Python-Backend und REST-API in einem einzelnen Anwendungscontainer aus.
+Das kanonische Auslieferungsformat ist das OCI-Image `lzug-app`.
+Die Referenzruntime Docker auf Linux liefert gebrauchsfertiges
+Angular-Frontend, Python-Backend, Betreiber-CLI und REST-API in einem einzelnen
+Anwendungscontainer aus.
 Self-Hosting verwendet SQLite.
 Die Betreiberkonfiguration wählt das Produktimage gemäß
 [ADR-0034](0034-versionsbindung-und-unveraenderliche-referenzen.md) über eine exakte veröffentlichte Version;
 Digest- und Herkunftsnachweise bleiben davon getrennt.
+
+Im Produktcontainer koordiniert genau ein autoritativer Backendprozess die
+Persistenz.
+HTTP und der lokale Admintransport sind Adapter desselben Anwendungskerns;
+seine Prozess-, Lifecycle- und Vertrauensgrenzen legt
+[ADR-0033](0033-aio-betrieb-admintransport-und-lifecycle.md) fest.
 
 Der dauerhafte Anwendungszustand liegt ausschließlich unter dem einen persistent eingebundenen Verzeichnis `/data` mit der folgenden Zielstruktur:
 
@@ -38,8 +47,10 @@ Ein späterer Dokumentenspeicher kann über die in #118 vorgesehene Abstraktion 
 
 ## Konsequenzen
 
-- Das Image kann unter Docker und Podman als eine Anwendung gestartet werden;
-ein separater Datenbankcontainer ist für die Referenzinstallation nicht erforderlich.
+- Das Image wird in der qualifizierten Referenz unter Docker auf Linux als eine
+  Anwendung gestartet; ein separater Datenbankcontainer ist nicht erforderlich.
+- Die OCI-Portabilität begründet kein Supportversprechen für weitere
+  Laufzeiten; Podman gehört nicht zum unterstützten oder geprüften Umfang.
 - Ein Container-Neustart oder ein neues Image darf den Inhalt von `/data`
 nicht ersetzen.
 - #116 muss SQLite auf den vereinbarten Pfad unter `/data` beziehen und darf
@@ -65,5 +76,6 @@ Neustarts datenverlustgefährdet machen.
 - [Persistenz und Migrationen](../data-and-contracts.md#persistenz-und-migrationen)
 - [ADR-0001: Lokale relationale Persistenz](0001-lokale-relationale-persistenz.md)
 - [ADR-0013: Dezentrale Instanzen je Ausschuss](0013-dezentrale-instanzen-je-ausschuss.md)
+- [ADR-0033: AIO-Betrieb, Admintransport und Lifecycle gemeinsam begrenzen](0033-aio-betrieb-admintransport-und-lifecycle.md)
 - [ADR-0034: Versionsbindung und unveränderliche Referenzen an Risikogrenzen](0034-versionsbindung-und-unveraenderliche-referenzen.md)
 - Issues [#116](https://github.com/lxndrp/lzug/issues/116), [#117](https://github.com/lxndrp/lzug/issues/117) und [#118](https://github.com/lxndrp/lzug/issues/118)

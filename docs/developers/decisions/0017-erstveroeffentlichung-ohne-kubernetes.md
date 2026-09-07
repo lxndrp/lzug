@@ -11,13 +11,22 @@ Akzeptiert.
 ## Kontext
 
 Die erste Veröffentlichung soll für einzelne Ausschüsse mit überschaubarem Betriebsaufwand self-hostbar sein.
-Dafür sind ein OCI-Image, SQLite, ein persistent eingebundenes `/data` und eine Docker-Compose-Referenzinstallation ausreichend.
+Dafür sind das OCI-Image `lzug-app`, SQLite, ein persistent eingebundenes
+`/data` und ein knapper Docker-Compose-Referenzweg ausreichend.
 Kubernetes und Helm würden für diesen Zielpfad einen zusätzlichen Cluster- und Paketierungsrahmen voraussetzen.
 
 ## Entscheidung
 
 Kubernetes und Helm sind keine Voraussetzung, kein Pflichtbestandteil und kein Installationspfad der ersten Veröffentlichung.
-Die Referenz bleibt ein einzelnes OCI-Image mit dem in [ADR-0014](0014-oci-einzelcontainer-und-persistentes-data.md) beschriebenen Datenvertrag; die dokumentierte Self-Hosting-Installation wird über Docker Compose bereitgestellt und soll auch den äquivalenten Podman- Betrieb nicht ausschließen.
+Die Referenz bleibt ein einzelnes OCI-Image mit dem in
+[ADR-0014](0014-oci-einzelcontainer-und-persistentes-data.md) beschriebenen
+Datenvertrag.
+Docker Engine auf Linux ist die qualifizierte Self-Hosting-Referenz.
+Compose bleibt ein optionaler, knapper Docker-Referenzweg für den einen
+`lzug-app`-Service und keine plattformneutrale Produktbeschreibung.
+Podman gehört nicht zum unterstützten oder geprüften Umfang.
+Die Prozess-, Transport- und Lifecyclegrenzen beschreibt
+[ADR-0033](0033-aio-betrieb-admintransport-und-lifecycle.md).
 
 Diese Entscheidung verwirft Kubernetes und Helm nicht grundsätzlich.
 Ein späterer Bedarf an Clusterbetrieb wäre mit einer neuen, begründeten Architekturentscheidung zu prüfen.
@@ -40,12 +49,14 @@ machen: würde die Einstiegshürde und den Betriebsumfang ohne notwendige erste-
 - Eine eigene Orchestrierungsschicht entwickeln: würde zusätzliche
 Wartungs- und Sicherheitsverantwortung schaffen.
 - Nur eine manuelle Container-Installation dokumentieren: würde den
-reproduzierbaren Referenzpfad schwächen; Compose bleibt deshalb die Referenzinstallation.
+  reproduzierbaren Referenzpfad schwächen; Compose bleibt deshalb der optionale
+  Docker-Referenzweg.
 
 ## Referenzen
 
 - [Architekturübersicht](../architecture.md)
 - [ADR-0014: OCI-Einzelcontainer mit SQLite und persistentem `/data`](0014-oci-einzelcontainer-und-persistentes-data.md)
 - [ADR-0016: Spätere getrennte Mandantenflotte](0016-spaetere-mandantenflotte.md)
+- [ADR-0033: AIO-Betrieb, Admintransport und Lifecycle gemeinsam begrenzen](0033-aio-betrieb-admintransport-und-lifecycle.md)
 - Issue [#115](https://github.com/lxndrp/lzug/issues/115)
 - Issue [#119](https://github.com/lxndrp/lzug/issues/119)
