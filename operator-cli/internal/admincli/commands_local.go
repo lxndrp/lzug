@@ -10,28 +10,22 @@ func localCommands() []Command {
 		{
 			Path:        []string{"config", "inspect"},
 			Summary:     "Inspect effective non-secret CLI configuration.",
-			Description: "Show the effective engine and container together with their flag, environment, file, or default source. No configuration is changed.",
+			Description: "Show the effective container together with its flag, environment, file, or default source. No configuration is changed.",
 			Examples: []string{
 				"lzug-admin config inspect",
-				"lzug-admin --no-config --engine podman --container lzug config inspect --json",
+				"lzug-admin --no-config --container lzug config inspect --json",
 			},
 			UsesConfig: true,
 			Transport:  LocalTransport,
-			Output:     OutputSpec{Human: HumanLocal, Verbose: VerboseSummary, JSON: JSONLocal, Summary: "Prints effective non-secret values and their source; JSON exposes the same fields.", ResultKeys: []string{"engine", "container"}},
+			Output:     OutputSpec{Human: HumanLocal, Verbose: VerboseSummary, JSON: JSONLocal, Summary: "Prints the effective non-secret container and its source; JSON exposes the same field.", ResultKeys: []string{"container"}},
 			Local: func(_ context.Context, local LocalContext, _ Values) (LocalResult, *CLIError) {
 				container := local.Config.Container.Value
 				if container == "" {
 					container = "<unset>"
 				}
 				return LocalResult{
-					Result: local.Config,
-					HumanOutput: fmt.Sprintf(
-						"engine: %s (%s)\ncontainer: %s (%s)\n",
-						local.Config.Engine.Value,
-						local.Config.Engine.Source,
-						container,
-						local.Config.Container.Source,
-					),
+					Result:      local.Config,
+					HumanOutput: fmt.Sprintf("container: %s (%s)\n", container, local.Config.Container.Source),
 				}, nil
 			},
 		},

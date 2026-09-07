@@ -7,8 +7,7 @@ Sie verwendet das veröffentlichte OCI-Image, die zum selben Release gehörende
 
 ## Voraussetzungen
 
-- Docker mit Compose v2 oder Podman mit einem funktionsfähigen
-  `podman compose`-Provider;
+- Docker Engine auf Linux mit Compose v2;
 - ein dauerhaftes lokales Volume für `/data`;
 - ein betreiberseitiger HTTPS-Reverse-Proxy für jeden Zugriff außerhalb des
   Hosts;
@@ -71,13 +70,12 @@ geprüften Revision.
 ## Referenzkonfiguration
 
 `compose.yaml` liest die folgenden Werte beim Erzeugen des Containers.
-Jede Änderung wird erst durch erneutes `docker compose up -d` beziehungsweise
-`podman compose up -d` wirksam; ein bloßer Prozessneustart übernimmt geänderte
-Umgebungswerte nicht zuverlässig.
+Jede Änderung wird erst durch erneutes `docker compose up -d` wirksam;
+ein bloßer Prozessneustart übernimmt geänderte Umgebungswerte nicht zuverlässig.
 
 | Variable | Standard und Pflichtstatus | Geheimhaltungsbedarf | Wirkung beim erneuten `up -d` |
 | --- | --- | --- | --- |
-| `LZUG_IMAGE` | kein Standard, **Pflicht**; veröffentlichter SemVer-Tag oder Digest | nein | zieht und aktiviert das gewählte Image |
+| `LZUG_IMAGE` | kein Standard, **Pflicht**; exakte veröffentlichte SemVer-Version | nein | zieht und aktiviert das gewählte Image |
 | `LZUG_BIND_ADDRESS` | `127.0.0.1`, optional | nein | ändert die Host-Bindung; öffentlich nur hinter TLS-Proxy binden |
 | `LZUG_HOST_PORT` | `8000`, optional | nein | ändert den Host-Port |
 | `LZUG_DATA_VOLUME` | `lzug_data`, optional | nein | wählt ein anderes Volume; Daten werden nicht automatisch übertragen |
@@ -114,7 +112,7 @@ weltlesbaren `.env`-Dateien auf.
 Die Referenz-Compose-Datei übergibt Provider-Secrets als Umgebungsvariablen und
 enthält noch keine eigene Secret-Store-Integration.
 Nutzen Sie deshalb den geschützten Secret-Mechanismus des Hostbetriebs und
-beschränken Sie Zugriff auf Engine, Servicekonfiguration und Container-Metadaten.
+beschränken Sie Zugriff auf Docker, Servicekonfiguration und Container-Metadaten.
 
 Der anwendungseigene Authentifizierungsschlüssel entsteht beim ersten Start als
 `/data/.lzug-auth.key` mit Modus `0600` und gehört später in das geschützte
@@ -126,29 +124,27 @@ Setzen oder ersetzen Sie ihn nicht manuell in einer bestehenden Instanz.
 Setzen Sie mindestens das Image und starten Sie die Referenzinstallation:
 
 ```sh
-ENGINE=docker
-export LZUG_IMAGE="ghcr.io/lxndrp/lzug:${VERSION}"
+export LZUG_IMAGE="ghcr.io/lxndrp/lzug-app:${VERSION}"
 export LZUG_EXTERNAL_URL="https://lzug.example.org"
 
-"$ENGINE" compose -f compose.yaml pull
-"$ENGINE" compose -f compose.yaml up -d
-"$ENGINE" compose -f compose.yaml ps
+docker compose -f compose.yaml pull
+docker compose -f compose.yaml up -d
+docker compose -f compose.yaml ps
 curl -fsS http://127.0.0.1:8000/api/health
 curl -fsS http://127.0.0.1:8000/api/ready
 ```
 
-Für Podman setzen Sie `ENGINE=podman`.
 Ermitteln Sie den tatsächlichen Compose-Containernamen und führen Sie die
 geheimnisfreie lokale Diagnose aus:
 
 ```sh
-CONTAINER_ID="$("$ENGINE" compose -f compose.yaml ps -q lzug)"
-CONTAINER="$("$ENGINE" inspect --format '{{.Name}}' "$CONTAINER_ID")"
+CONTAINER_ID="$(docker compose -f compose.yaml ps -q lzug)"
+CONTAINER="$(docker inspect --format '{{.Name}}' "$CONTAINER_ID")"
 CONTAINER="${CONTAINER#/}"
 
-./lzug-admin --engine "$ENGINE" --container "$CONTAINER" status
-./lzug-admin --engine "$ENGINE" --container "$CONTAINER" config
-./lzug-admin --engine "$ENGINE" --container "$CONTAINER" doctor
+./lzug-admin --container "$CONTAINER" status
+./lzug-admin --container "$CONTAINER" config
+./lzug-admin --container "$CONTAINER" doctor
 ```
 
 Exit `0` bedeutet betriebsbereit, `30` eine vollständig ausgeführte Diagnose
@@ -162,7 +158,7 @@ Inbetriebnahme.
 Erzeugen Sie auf einer noch kontenlosen Instanz genau einmal eine Einladung:
 
 ```sh
-./lzug-admin --engine "$ENGINE" --container "$CONTAINER" \
+./lzug-admin --container "$CONTAINER" \
   bootstrap --email betreiber@example.org
 ```
 
@@ -184,5 +180,5 @@ Setzen Sie `LZUG_EXTERNAL_URL` auf die exakte öffentliche HTTPS-Origin.
 Bei reinem same-origin-Betrieb bleibt `LZUG_CORS_ALLOWED_ORIGINS` leer.
 
 Der Container stellt selbst kein TLS bereit.
-Engine-Socket, `/data`, Betreiber-CLI und der lokale Python-Adminprozess dürfen
+Docker-Socket, `/data`, Betreiber-CLI und der lokale Python-Adminprozess dürfen
 niemals über den Reverse Proxy erreichbar sein.

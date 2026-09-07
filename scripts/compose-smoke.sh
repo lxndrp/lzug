@@ -25,14 +25,14 @@ case "$ready_interval_seconds" in
         exit 2
         ;;
 esac
-lzug_require_container_engine
+lzug_require_docker
 
 project="lzug-compose-smoke-$$"
 volume="$project-data"
 container_port=${LZUG_PORT:-8000}
 compose() {
     LZUG_IMAGE="$image" LZUG_DATA_VOLUME="$volume" LZUG_HOST_PORT=0 \
-        "$engine" compose -p "$project" -f "$compose_file" "$@"
+        docker compose -p "$project" -f "$compose_file" "$@"
 }
 cleanup() {
     compose down --volumes --remove-orphans >/dev/null 2>&1 || true
@@ -167,4 +167,4 @@ resolve_url
 wait_ready "stop/start"
 test "$(compose exec -T lzug python -c 'from pathlib import Path; print(Path("/data/compose-smoke-marker").read_text(encoding="utf-8"))')" = "persisted"
 
-echo "Compose runtime, health, restart, stop/start, and /data persistence checks passed with $engine: $image"
+echo "Compose runtime, health, restart, stop/start, and /data persistence checks passed with Docker: $image"

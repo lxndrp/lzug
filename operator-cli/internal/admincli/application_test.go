@@ -130,7 +130,6 @@ func testApplication(t *testing.T, response string, exitCode int) (*Application,
 			inspector: &fakeInspector{target: map[string]any{"identity": "1.2.3", "release": true}},
 		},
 		&fakeConfigResolver{config: EffectiveConfig{
-			Engine:    EffectiveValue{Value: "docker", Source: "default"},
 			Container: EffectiveValue{Value: "lzug", Source: "default"},
 		}},
 		input,
@@ -275,7 +274,7 @@ func TestJSONModeCoversEarlyParserErrorsAndCancellation(t *testing.T) {
 		ctx  context.Context
 		code int
 	}{
-		{name: "missing value before json", args: []string{"--engine", "--json", "system", "status"}, ctx: context.Background(), code: ExitInvalidInvocation},
+		{name: "missing value before json", args: []string{"--container", "--json", "system", "status"}, ctx: context.Background(), code: ExitInvalidInvocation},
 		{name: "invalid json value", args: []string{"--json=invalid", "system", "status"}, ctx: context.Background(), code: ExitInvalidInvocation},
 		{name: "cancelled", args: []string{"--json", "system", "status"}, ctx: cancelledContext(), code: ExitInterrupted},
 	} {

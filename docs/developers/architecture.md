@@ -159,8 +159,8 @@ Die unterstützte Referenz ist eine einzelne Self-Hosting-Instanz mit
 `lzug-app`, Docker auf Linux und persistenter `/data`-Grenze.
 Compose ist ein optionaler knapper Docker-Referenzweg für genau diesen einen
 Service.
-Die OCI-Liefergrenze bleibt portabel; Podman und weitere konkrete Laufzeiten
-gehören dadurch nicht zum unterstützten oder geprüften Umfang.
+Die OCI-Liefergrenze bleibt portabel; weitere konkrete Laufzeiten gehören
+dadurch nicht zum unterstützten oder geprüften Umfang.
 TLS-Terminierung, Host-Härtung, Schlüsselverwahrung, Sicherung und
 Aufbewahrung liegen in Betreiberverantwortung und sind im
 [Betreiberanleitung](../portal/betreiben.md) beschrieben.

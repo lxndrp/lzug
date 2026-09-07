@@ -68,6 +68,7 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("select(.isDraft == false)", workflow)
         self.assertIn("branch=master&head_sha=$target_sha&status=success", workflow)
         self.assertIn('.head_branch == "master"', workflow)
+        self.assertIn('product_image="ghcr.io/${GH_REPO,,}-app:$product_version"', workflow)
         self.assertIn("ghcr.io/${GH_REPO,,}-demo-app", workflow)
         self.assertIn("ghcr.io/${GH_REPO,,}-demo-seed", workflow)
         self.assertIn("absent:absent", workflow)

@@ -340,7 +340,7 @@ def release_detail_payloads() -> list[dict]:
     )
     image = payload(
         component("lzug", "1.2.3", "pkg:pypi/lzug@1.2.3", "AGPL-3.0-or-later"),
-        source_name="ghcr.io/lxndrp/lzug:1.2.3",
+        source_name="ghcr.io/lxndrp/lzug-app:1.2.3",
     )
     cli_component = component(
         "github.com/lxndrp/lzug/operator-cli",

@@ -19,7 +19,7 @@ from .settings import RuntimeSettings
 from .version import build_metadata
 
 MAINTENANCE_ENV = "LZUG_LIFECYCLE_MAINTENANCE"
-_CANONICAL_IMAGE = re.compile(r"^ghcr\.io/lxndrp/lzug@sha256:[0-9a-f]{64}$")
+_CANONICAL_IMAGE = re.compile(r"^ghcr\.io/lxndrp/lzug-app@sha256:[0-9a-f]{64}$")
 
 
 def _dedicated_maintenance_process() -> bool:

@@ -255,8 +255,6 @@ func (c Command) IsLocal() bool {
 }
 
 type GlobalOptions struct {
-	Engine       string
-	EngineSet    bool
 	Container    string
 	ContainerSet bool
 	ConfigPath   string
@@ -274,7 +272,6 @@ type EffectiveValue struct {
 }
 
 type EffectiveConfig struct {
-	Engine    EffectiveValue `json:"engine"`
 	Container EffectiveValue `json:"container"`
 }
 

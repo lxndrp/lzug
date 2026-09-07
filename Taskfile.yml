@@ -386,14 +386,14 @@ tasks:
       - |
         set -eu
         . scripts/container-contract.sh
-        lzug_require_container_engine
+        lzug_require_docker
         revision="$(git rev-parse HEAD)"
         short_revision="$(echo "$revision" | cut -c1-7)"
         temporary_directory="$(mktemp -d)"
         seed_container=""
         cleanup() {
           if [ -n "$seed_container" ]; then
-            "$engine" rm --force "$seed_container" >/dev/null 2>&1 || true
+            docker rm --force "$seed_container" >/dev/null 2>&1 || true
           fi
           rm -rf "$temporary_directory"
         }
@@ -403,18 +403,18 @@ tasks:
           --tag "$product_tag" --commit "$revision" --channel snapshot --field identity)
         seed_image="lzug-demo-seed:local"
         app_image="lzug-demo-app:local"
-        "$engine" build -f demo/Dockerfile.demo-seed \
+        docker build -f demo/Dockerfile.demo-seed \
           --build-arg "PRODUCT_TAG=$product_tag" \
           --build-arg "VCS_REF=$revision" \
           -t "$seed_image" .
-        seed_container=$("$engine" create "$seed_image")
-        "$engine" cp \
+        seed_container=$(docker create "$seed_image")
+        docker cp \
           "$seed_container:/opt/lzug-demo/seed/lzug.sqlite" \
           "$temporary_directory/lzug.sqlite"
-        "$engine" cp \
+        docker cp \
           "$seed_container:/opt/lzug-demo/seed/manifest.json" \
           "$temporary_directory/manifest.json"
-        "$engine" rm "$seed_container" >/dev/null
+        docker rm "$seed_container" >/dev/null
         seed_container=""
         expected_schema_fingerprint=$(python3 -c \
           'from pathlib import Path; from demo.artifacts import schema_binding; print(schema_binding(Path("."))["fingerprint"])')
@@ -428,7 +428,7 @@ tasks:
           --manifest "$temporary_directory/manifest.json" --kind seed \
           --expected-product-tag "$product_tag" --expected-product-commit "$revision" \
           --field seed_revision)
-        "$engine" build -f demo/Dockerfile.demo \
+        docker build -f demo/Dockerfile.demo \
           --build-arg "BUILD_IDENTITY=$build_identity" \
           --build-arg "PRODUCT_TAG=$product_tag" \
           --build-arg "VCS_REF=$revision" \
@@ -437,7 +437,7 @@ tasks:
         scripts/demo-container-smoke.sh \
           "$app_image" \
           "$seed_image" \
-          lzug:0.0.0-dev.local \
+          lzug-app:0.0.0-dev.local \
           "$seed_revision"
 
   quality:demo-matrix:
@@ -467,16 +467,16 @@ tasks:
       - |
         set -eu
         . scripts/container-contract.sh
-        lzug_require_container_engine
+        lzug_require_docker
         revision="$(git rev-parse HEAD)"
         build_identity="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
-        "$engine" build \
+        docker build \
           --build-arg "BUILD_IDENTITY=$build_identity" \
           --build-arg "VCS_REF=$revision" \
-          -t lzug:0.0.0-dev.local .
+          -t lzug-app:0.0.0-dev.local .
       - task: sbom:image
         vars:
-          IMAGE: lzug:0.0.0-dev.local
+          IMAGE: lzug-app:0.0.0-dev.local
           OUTPUT: build/quality/lzug.image.sbom.cdx.json
 
   quality:container:
@@ -484,15 +484,15 @@ tasks:
     deps:
       - quality:image
     cmds:
-      - scripts/container-smoke.sh lzug:0.0.0-dev.local
+      - scripts/container-smoke.sh lzug-app:0.0.0-dev.local
 
   quality:operator-container:
     desc: Run the operator CLI against the packaged application container
     deps:
       - quality:image
     cmds:
-      - scripts/operator-container-smoke.sh lzug:0.0.0-dev.local
-      - tests/compatibility/v060-age-migration-smoke.sh lzug:0.0.0-dev.local
+      - scripts/operator-container-smoke.sh lzug-app:0.0.0-dev.local
+      - tests/compatibility/v060-age-migration-smoke.sh lzug-app:0.0.0-dev.local
 
   quality:compose:
     desc: Run the Compose runtime and persistence contract
@@ -500,7 +500,7 @@ tasks:
       - quality:image
       - quality:compose-config
     cmds:
-      - LZUG_IMAGE=lzug:0.0.0-dev.local scripts/compose-smoke.sh
+      - LZUG_IMAGE=lzug-app:0.0.0-dev.local scripts/compose-smoke.sh
 
   quality:compose-config:
     desc: Validate Compose with standard tooling and the separate lzug policy
@@ -508,17 +508,17 @@ tasks:
       - |
         set -eu
         . scripts/container-contract.sh
-        lzug_select_container_engine
-        LZUG_IMAGE=ghcr.io/lxndrp/lzug:0.0.0-dev.local \
-          "$engine" compose -f compose.yaml config --quiet
+        lzug_require_docker
+        LZUG_IMAGE=ghcr.io/lxndrp/lzug-app:0.0.0-dev.local \
+          docker compose -f compose.yaml config --quiet
       - |
         set -eu
         . scripts/container-contract.sh
-        lzug_select_container_engine
+        lzug_require_docker
         config_file="$(mktemp "${TMPDIR:-/tmp}/lzug-compose-config.XXXXXX")"
         trap 'rm -f "$config_file"' EXIT
-        LZUG_IMAGE=ghcr.io/lxndrp/lzug:0.0.0-dev.local \
-          "$engine" compose -f compose.yaml config --format json >"$config_file"
+        LZUG_IMAGE=ghcr.io/lxndrp/lzug-app:0.0.0-dev.local \
+          docker compose -f compose.yaml config --format json >"$config_file"
         python3 scripts/compose_policy.py "$config_file"
       - "{{.UV}} python -m unittest tests.oci.test_compose_policy"
 
