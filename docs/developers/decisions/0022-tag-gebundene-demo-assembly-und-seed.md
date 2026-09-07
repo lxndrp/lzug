@@ -46,6 +46,8 @@ Dokumentuploads werden erst mit einer entsprechenden Fachlichkeit entschieden; a
 Beide Images werden nur per Digest deployt und erhalten jeweils SBOM und Provenance.
 Ein Rückfall verwendet stets ein zuvor gemeinsam geprüftes App-/Seed-Digest-Paar.
 Bewegliche Demo- oder Latest-Tags sind kein Deploymentvertrag.
+Diese Digestbindung ist die in [ADR-0034](0034-versionsbindung-und-unveraenderliche-referenzen.md) benannte Ausnahme für ein atomar geprüftes Artefaktpaar
+und eine veränderungsfreie Referenz zwischen Prüfung, Deployment und Rollback.
 
 ## Konsequenzen
 
@@ -85,6 +87,7 @@ Die statische Landingpage aus #127 bleibt davon unabhängig.
 ## Referenzen
 
 - [Demo-Promotion und Deployment](../delivery.md#demo-promotion-und-deployment)
+- [ADR-0034: Versionsbindung und unveränderliche Referenzen an Risikogrenzen](0034-versionsbindung-und-unveraenderliche-referenzen.md)
 - [Azure Container Apps: Storage Mounts](https://learn.microsoft.com/azure/container-apps/storage-mounts)
 - [Issue #124](https://github.com/lxndrp/lzug/issues/124)
 - [Issues #125](https://github.com/lxndrp/lzug/issues/125) und

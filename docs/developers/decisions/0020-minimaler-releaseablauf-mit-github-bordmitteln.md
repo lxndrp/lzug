@@ -38,6 +38,8 @@ ein Maintainer den Release-Workflow ausdrücklich per `workflow_dispatch` auf `m
 - Der Commit des gestarteten Workflow-Laufs ist der einzige freizugebende
 Quellstand.
 Der Preflight akzeptiert ihn nur auf `master`, bei passendem SemVer-/Changelog-Vertrag und mit einem erfolgreichen vollständigen `master`-Qualitätslauf exakt für diese SHA.
+Die vollständige SHA ist dabei gemäß [ADR-0034](0034-versionsbindung-und-unveraenderliche-referenzen.md) der bytegenaue Nachweis des geprüften Quellstands,
+nicht eine parallele Produktversionsauswahl.
 - Der Preflight liest den einen vollständigen Workflow-Lauf. Er fragt weder
 einzelne interne Jobnamen ab noch pollt er und führt keine Quality-, Security-, Browser-, Container- oder Smoke-Prüfung erneut aus.
 
@@ -122,6 +124,7 @@ Asset-Generationen behalten: vergrößert den normalen Pfad für seltene histori
 
 - [ADR-0018](0018-semver-release-und-milestones.md)
 - [ADR-0019](0019-tag-zentrierter-releaseprozess.md)
+- [ADR-0034](0034-versionsbindung-und-unveraenderliche-referenzen.md)
 - [Release und Artefakte](../delivery.md#release-und-artefakte)
 - [Vollständige Qualität](../delivery.md#vollstandige-qualitat)
 - [Manuell gestartete Workflows](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)

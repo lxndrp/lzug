@@ -16,6 +16,8 @@ Das Skript führt außerdem die acht detaillierten Inventare zu genau einer sich
 
 Die eigene Logik soll nicht generische CycloneDX-Funktionen nachbilden, wenn ein gepflegtes Standardwerkzeug dieselbe Aufgabe mit weniger Code und Wartungsaufwand reproduzierbar erfüllt.
 Umgekehrt darf eine Standardfunktion weder Releaseidentität und Umfang noch Lizenz-, OCI- oder Go-Grenzen abschwächen.
+[ADR-0034](0034-versionsbindung-und-unveraenderliche-referenzen.md) ordnet die verwendeten Versionen der Auswahl und Lockfile-Auflösung zu;
+inhaltsadressierte Komponentenreferenzen, Digests und vollständige Revisionen bleiben Nachweise der tatsächlich inventarisierten Bytes.
 
 ## Entscheidung
 
@@ -85,4 +87,5 @@ Fremdwerkzeugs übertragen: verschiebt statt reduziert die Verantwortung und dec
 - [CycloneDX Tool Center](https://cyclonedx.org/tool-center/)
 - [ADR-0009: Toolchain und Entwicklungs-Tasks trennen](0009-toolchain-und-entwicklungs-tasks.md)
 - [ADR-0020: Minimaler Releaseablauf mit GitHub-Bordmitteln](0020-minimaler-releaseablauf-mit-github-bordmitteln.md)
+- [ADR-0034: Versionsbindung und unveränderliche Referenzen an Risikogrenzen](0034-versionsbindung-und-unveraenderliche-referenzen.md)
 - [Sicherheitsrichtlinie](https://github.com/lxndrp/lzug/blob/master/SECURITY.md)
