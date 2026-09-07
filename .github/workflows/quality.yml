@@ -24,7 +24,7 @@ concurrency:
 jobs:
   revision:
     name: Bind complete evidence to master
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - env:
           EXPECTED_SHA: ${{ inputs.expected_sha }}
@@ -40,7 +40,7 @@ jobs:
   fixtures:
     name: Synthetic fixture adapters
     needs: revision
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -58,7 +58,7 @@ jobs:
   backend:
     name: Backend
     needs: revision
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -84,7 +84,7 @@ jobs:
   frontend:
     name: Frontend
     needs: revision
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -109,7 +109,7 @@ jobs:
   docs:
     name: Documentation
     needs: revision
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -140,7 +140,7 @@ jobs:
   cli:
     name: CLI
     needs: revision
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -174,7 +174,7 @@ jobs:
   infra:
     name: Infrastructure
     needs: revision
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -197,7 +197,7 @@ jobs:
   delivery:
     name: Delivery and demo contracts
     needs: revision
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -217,7 +217,7 @@ jobs:
   container:
     name: Container
     needs: revision
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -270,7 +270,7 @@ jobs:
   e2e:
     name: Browser E2E
     needs: revision
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -313,7 +313,7 @@ jobs:
   a11y:
     name: Accessibility
     needs: revision
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -365,7 +365,7 @@ jobs:
   source-scan:
     name: Source secrets and misconfiguration
     needs: revision
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:

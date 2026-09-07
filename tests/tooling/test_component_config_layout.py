@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -34,6 +35,14 @@ class ComponentConfigLayoutTests(unittest.TestCase):
         ):
             with self.subTest(path=path):
                 self.assertTrue(Path(path).is_file())
+
+    def test_shared_tool_versions_are_explicit(self) -> None:
+        config = tomllib.loads(Path(".mise.toml").read_text(encoding="utf-8"))
+
+        for tool, version in config["tools"].items():
+            with self.subTest(tool=tool):
+                self.assertIsInstance(version, str)
+                self.assertNotIn(version.lower(), {"latest", "main", "master"})
 
     def test_backend_uses_component_local_src_and_database_resources(self) -> None:
         self.assertTrue(Path("backend/src/backend/__init__.py").is_file())

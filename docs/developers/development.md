@@ -8,11 +8,10 @@ Einrichtung, Arbeitsprozess und passende lokale Prüfungen.
 ## Toolchain und Einrichtung
 
 `mise` stellt die projektweit gepinnten Werkzeuge bereit.
-Der aktuelle Stand verwendet Python 3.14.6, Node.js 26.5.0, Go 1.26.5,
-Task 3.52.0, GoReleaser 2.17.1, Syft 1.51.0, OpenTofu 1.12.5 und
-Hugo Extended 0.165.0 sowie Lychee 0.24.2; `.mise.toml` und die jeweiligen
-Versionsdateien bleiben
-maßgeblich.
+Die ausgewählten Versionen stehen in `.mise.toml` und den jeweiligen
+Ökosystemdateien;
+ihre Rollen als Auswahl, Lockfile-Auflösung oder Nachweis folgen
+[ADR-0034](decisions/0034-versionsbindung-und-unveraenderliche-referenzen.md).
 `uv.lock`, `frontend/package-lock.json` und `operator-cli/go.sum` binden die
 Abhängigkeiten.
 
