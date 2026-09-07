@@ -49,8 +49,9 @@ planen`, `Codebasis reviewen`, `Weiterentwicklung koordinieren`, `Projektplan ak
 - `Implementiere Issue #<nummer>.` ist ein vollständiger Auftrag, wenn das Issue
 umsetzungsreif ist.
 Das Issue bleibt maßgeblich; eine Übergabe ergänzt nur noch nicht dort dokumentierte, entscheidungsrelevante Randbedingungen.
-- Vor Beginn Issue, Kommentare, verknüpfte Pull Requests, Abhängigkeiten,
-Blocker und erreichbare Project-Felder prüfen.
+- Vor Beginn Issue, Kommentare, Labels, Milestone, Parent-/Sub-Issues,
+verknüpfte Pull Requests, Abhängigkeiten, Blocker und erreichbare
+Project-Felder prüfen.
 - Nicht beginnen, solange das Issue ein `needs:*`-Label trägt. Dasselbe gilt bei
 fehlendem Ziel, Scope oder Akzeptanzkriterien, ungelösten Blockern, widersprüchlichen Angaben oder einer konkurrierenden Umsetzung.
 - Voraussetzungen nicht erfinden. Bei fehlender Reife stoppen und den konkreten
@@ -66,6 +67,43 @@ Der Umsetzungschat heißt `<issue> (<type>): <title>`, der Branch `codex/<issue>
 dürfen das Issue weder ersetzen noch abweichend erweitern.
 
 ## 4. Umsetzung und Prüfung
+
+- Vor der Umsetzung aus dem live gelesenen Project-Feld `Complexity` das
+Ausführungsprofil gemäß der folgenden zentralen Zuordnung ableiten.
+Die Optionsnamen und Optionsbeschreibungen im GitHub Project `lzug Roadmap`
+bleiben für die Einstufung maßgeblich und werden hier nicht neu definiert.
+
+| Complexity | Abstraktes Profil | Codex-Modell | Reasoning |
+| --- | --- | --- | --- |
+| `C1 - Mechanical` | `fast` | `gpt-5.3-codex-spark` | `low` |
+| `C2 - Localized` | `balanced` | `gpt-5.6-terra` | `medium` |
+| `C3 - Crosscutting` | `thorough` | `gpt-5.6-sol` | `high` |
+| `C4 - Systemic` | `critical` | `gpt-6-astra` | `xhigh` |
+
+- Die Zuordnung weder in Skills noch in GitHub-Artefakten duplizieren.
+- Bei fehlendem, unbekanntem oder technisch nicht abrufbarem Complexity-Wert
+keine Einstufung erfinden.
+Für die weitere Prüfung mindestens das C3-Profil verwenden, die Umsetzung
+stoppen und die Einplanung mit dem konkreten Klärungsbedarf zurückgeben.
+- Das Project-Feld ist die Basis, keine Obergrenze.
+Komponentenübergreifende Änderungen, öffentliche Verträge, CI/Delivery,
+Toolchain, Abhängigkeiten oder unklare Auswirkungen verlangen mindestens C3.
+Architektur-, Persistenz-, Migrations-, Sicherheits-, Datenschutz-,
+Autorisierungs-, irreversible, produktionsnahe oder externe
+Aktivierungsrisiken sowie hoher Abstimmungsbedarf verlangen C4.
+Das Project-Feld nicht automatisch ändern; Abweichung und Grund knapp im Pull
+Request festhalten.
+- Bei C4 vor der Umsetzung prüfen, ob das Issue in unabhängig liefer- und
+prüfbare Teilaufträge zerlegt werden muss.
+Eine entscheidungsrelevante Zerlegung zur Einplanung zurückgeben.
+Bleibt das Issue ungeteilt, nach erfolgreicher CI einen menschlichen Review als
+verbindlichen Punkt vor dem Merge einholen; automatisierte Reviews ersetzen ihn
+nicht.
+- Eine unplausible Complexity-Einstufung, ein neues wesentliches Risiko, ein
+nicht verfügbares zugeordnetes Profil oder spätestens der zweite ungeeignete
+Umsetzungsversuch lösen eine Eskalation aus.
+Bis zur Klärung nicht mit einem schwächeren Profil fortfahren und weder
+Project-Einstufung noch Scope stillschweigend verändern.
 
 - Ausschließlich im issuebezogenen Worktree arbeiten und niemals direkt auf
 `master` committen.
@@ -92,6 +130,11 @@ Unverändert fehlschlagende breite Prüfungen nicht wiederholen.
 `gh issue view` prüfen und mit `task pr:create` übernehmen; nicht gesetzte Felder bleiben leer.
 - Vollständige Umsetzungen enthalten eine eigene Zeile `Closes #<nummer>`.
 Danach Zuordnungen und schließende Verknüpfung mit `gh pr view` prüfen.
+- Pull Request und Abschluss nennen knapp den live gelesenen Complexity-Wert,
+das abstrakte Profil aus der zentralen Zuordnung, wesentliche Abweichungen oder
+Eskalationen, relevante Befunde und die ausgeführte Verifikation.
+Keine Secrets, personenbezogenen Daten, Prompts, internen Gedankengänge oder
+Reasoning-Protokolle aufnehmen.
 - Nach relevanten Änderungen die betroffenen lokalen Prüfungen wiederholen und
 CI sowie Review erneut abwarten.
 Review-Threads, allgemeine Kommentare, Security-Audits, Code-Scanning-Alerts und automatisierte Prüfhinweise mit Pull-Request-Bezug vollständig prüfen.

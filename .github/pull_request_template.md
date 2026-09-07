@@ -10,6 +10,14 @@
 - [ ] Keine vertraulichen oder personenbezogenen Daten ergänzt
 - [ ] Keine Produktions- oder IHK-Zusage eingeführt
 
+## Codex-Abschluss
+
+- Complexity:
+- Ausführungsprofil:
+- Abweichungen/Eskalationen:
+- Relevante Befunde:
+- Verifikation:
+
 ## Verknüpfung
 
 Closes #
