@@ -86,7 +86,7 @@ concurrency:
 jobs:
   deploy:
     name: ${{ inputs.operation == 'rollback' && 'Roll back public demo' || 'Deploy public demo' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment:
       name: demo

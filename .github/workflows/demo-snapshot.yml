@@ -14,7 +14,7 @@ concurrency:
 jobs:
   preflight:
     name: Verify promoted current master snapshot
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       actions: read
       contents: read
@@ -126,7 +126,7 @@ jobs:
   publish:
     name: Build, publish, and attest snapshot pair
     needs: preflight
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       attestations: write
       contents: read

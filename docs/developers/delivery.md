@@ -2,6 +2,8 @@
 
 Workflows und `Taskfile.yml` sind die ausführbaren Quellen für Auswahl, Gates
 und Befehle.
+Die Trennung von Versionsauswahl, Standardauflösung und unveränderlichem Nachweis
+folgt [ADR-0034](decisions/0034-versionsbindung-und-unveraenderliche-referenzen.md).
 Diese Seite verbindet die einzelnen Stufen und beschreibt, welche Evidenz ein
 erfolgreicher Lauf liefert, wie Fehler eingeordnet werden und welche
 Wiederholung sicher ist.

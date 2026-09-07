@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import unittest
+from pathlib import Path
 
 from tests.delivery.workflow_contract import (
     job_block,
@@ -52,6 +53,12 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("golang-x:", self.dependabot_config)
         self.assertIn("golang-x-security:", self.dependabot_config)
         self.assertIn("directory: /operator-cli", self.dependabot_config)
+
+    def test_hosted_runner_images_are_versioned(self) -> None:
+        for path in sorted(Path(".github/workflows").glob("*.yml")):
+            with self.subTest(path=path):
+                workflow = path.read_text(encoding="utf-8")
+                self.assertNotRegex(workflow, r"runs-on:\s*\S+-latest\b")
 
     def test_pull_request_codeql_matrix_covers_all_configured_languages(self) -> None:
         self.assertIn(

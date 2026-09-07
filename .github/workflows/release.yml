@@ -18,7 +18,7 @@ concurrency:
 jobs:
   preflight:
     name: Verify master release evidence
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       actions: read
       contents: read
@@ -81,7 +81,7 @@ jobs:
   publish:
     name: Tag and publish release artifacts
     needs: preflight
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: release
     permissions:
       attestations: write
