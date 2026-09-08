@@ -39,7 +39,9 @@ class Store:
         row = self.session.scalars(statement).first()
         return model_to_dict(row, resource) if row else None
 
-    def get(self, resource: Resource, resource_id: int) -> dict[str, Any] | None:
+    def get(self, resource: Resource, resource_id: int | None) -> dict[str, Any] | None:
+        if resource_id is None:
+            return None
         row = self.session.get(resource.model, resource_id)
         return model_to_dict(row, resource) if row else None
 

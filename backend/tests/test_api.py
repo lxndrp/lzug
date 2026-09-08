@@ -3,13 +3,14 @@ from __future__ import annotations
 import json
 import sqlite3
 import unittest
+import warnings
 from contextlib import closing
 from http import HTTPStatus
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SAWarning, SQLAlchemyError
 
 from backend.tests.fixture_data import DISPLAY_NAMES, FIXTURE_IDS, FIXTURE_ROOT
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler, assert_status
@@ -733,11 +734,13 @@ class ApiTests(unittest.TestCase):
             assert_status(status, HTTPStatus.NOT_FOUND)
             self.assertEqual("Not found", body["error"])
 
-            status, body = api.request(
-                "POST",
-                "/api/candidates",
-                {"first_name": "Ohne Pflichtfelder"},
-            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", SAWarning)
+                status, body = api.request(
+                    "POST",
+                    "/api/candidates",
+                    {"first_name": "Ohne Pflichtfelder"},
+                )
             assert_status(status, HTTPStatus.FORBIDDEN)
             self.assertEqual("Forbidden.", body["error"])
 
