@@ -1,33 +1,97 @@
-"""Shared FastAPI response and same-origin transport helpers."""
+"""Shared FastAPI contract, response, and same-origin transport helpers."""
 
 from __future__ import annotations
 
-import json
+from copy import deepcopy
 from http import HTTPStatus
+from typing import Any
 from urllib.parse import urlparse
 
 from fastapi import Request
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel
 
+from .api_contracts import ErrorResponse
 from .application import ApplicationResult
 from .transport import RequestContext
 
+APPLICATION_ERROR_RESPONSES: dict[int, dict[str, object]] = {
+    int(status): {"description": "Application error", "model": ErrorResponse}
+    for status in (
+        HTTPStatus.BAD_REQUEST,
+        HTTPStatus.UNAUTHORIZED,
+        HTTPStatus.FORBIDDEN,
+        HTTPStatus.NOT_FOUND,
+        HTTPStatus.CONFLICT,
+        HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+        HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
+        HTTPStatus.UNPROCESSABLE_ENTITY,
+        HTTPStatus.TOO_MANY_REQUESTS,
+        HTTPStatus.INTERNAL_SERVER_ERROR,
+    )
+}
+
 
 def json_response(result: ApplicationResult, context: RequestContext | None = None) -> Response:
-    """Serialize one framework-independent application result as JSON."""
+    """Render one framework-independent result with FastAPI's JSON response."""
     if result.status == HTTPStatus.NO_CONTENT:
         response: Response = Response(status_code=int(result.status))
     else:
-        response = Response(
-            content=json.dumps(result.payload, ensure_ascii=False),
+        response = JSONResponse(
+            content=result.payload,
             status_code=int(result.status),
-            media_type="application/json",
             headers={"Cache-Control": "no-store"},
         )
     if context is not None:
         for name, value in context.response_headers:
             response.raw_headers.append((name.lower().encode("latin-1"), value.encode("latin-1")))
     return response
+
+
+def validated_payload[PayloadModel: BaseModel](
+    context: RequestContext,
+    model: type[PayloadModel],
+    *,
+    exclude_unset: bool = True,
+) -> dict[str, Any]:
+    """Validate an already access-checked JSON object with its Pydantic contract.
+
+    RequestContext keeps ownership of decoding because authentication, CSRF, and
+    authorization deliberately precede media-type and JSON errors. Pydantic owns
+    the typed payload contract once those transport guards have succeeded.
+    """
+    return model.model_validate(context.read_json()).model_dump(exclude_unset=exclude_unset)
+
+
+def request_body(model: type[BaseModel]) -> dict[str, object]:
+    """Describe a guarded JSON body directly from its Pydantic model.
+
+    FastAPI cannot parse these bodies natively without moving malformed-JSON
+    errors ahead of the established access checks. The schema remains attached
+    to the path operation while Pydantic validates the same model at runtime.
+    """
+    schema = model.model_json_schema()
+    definitions = schema.pop("$defs", {})
+
+    def expand(value):
+        if isinstance(value, list):
+            return [expand(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        reference = value.get("$ref")
+        if isinstance(reference, str) and reference.startswith("#/$defs/"):
+            name = reference.removeprefix("#/$defs/")
+            resolved = deepcopy(definitions[name])
+            resolved.update({key: item for key, item in value.items() if key != "$ref"})
+            return expand(resolved)
+        return {key: expand(item) for key, item in value.items()}
+
+    return {
+        "requestBody": {
+            "required": True,
+            "content": {"application/json": {"schema": expand(schema)}},
+        }
+    }
 
 
 def not_found() -> Response:

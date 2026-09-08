@@ -129,7 +129,7 @@ class FastAPIPlanningRouterTests(unittest.TestCase):
                 schema = document["paths"][path][method]["requestBody"]["content"][
                     "application/json"
                 ]["schema"]
-                self.assertEqual(f"#/components/schemas/{model_name}", schema["$ref"])
+                self.assertEqual(model_name, schema["title"])
 
         responses = (
             (
@@ -160,12 +160,9 @@ class FastAPIPlanningRouterTests(unittest.TestCase):
 
         schemas = document["components"]["schemas"]
         for model_name in (
-            "PlanningRoundRequest",
             "PlanningProposalSlotPayload",
             "PlanningProposalAssignmentPayload",
             "PlanningProposalDayPayload",
-            "PlanningProposalWriteRequest",
-            "ConfirmedPlanChangeRequest",
             "PlanningProposalResponse",
             "PlanningProposalResultResponse",
         ):

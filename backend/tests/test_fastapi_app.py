@@ -444,8 +444,15 @@ class FastAPIApplicationTests(unittest.TestCase):
         self.assertTrue(migrated - undocumented_runtime_paths <= set(generated["paths"]))
         self.assertEqual("3.1.0", generated["openapi"])
         self.assertEqual(
-            [{"sessionCookie": [], "csrfHeader": []}],
+            [{"sessionCookie": []}],
             generated["paths"]["/api/candidates"]["post"]["security"],
+        )
+        self.assertIn(
+            "X-CSRF-Token",
+            {
+                parameter["name"]
+                for parameter in generated["paths"]["/api/candidates"]["post"]["parameters"]
+            },
         )
 
 

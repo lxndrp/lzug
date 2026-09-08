@@ -11,13 +11,24 @@ from . import hateoas
 from .api_contracts import (
     DomainCollectionResponse,
     DomainResourceResponse,
+    ExamRoomCreateRequest,
     ExamRoomResponse,
+    ExamRoomUpdateRequest,
     ExamVenueCollectionResponse,
+    ExamVenueContactCreateRequest,
     ExamVenueContactResponse,
+    ExamVenueContactUpdateRequest,
+    ExamVenueCreateRequest,
+    ExamVenueDuplicateCheckRequest,
+    ExamVenueGeocodeRequest,
     ExamVenueGeocodeResponse,
+    ExamVenuePromotionDecisionRequest,
+    ExamVenuePromotionRequest,
     ExamVenueResponse,
+    ExamVenueUpdateRequest,
     LegacyLocationCollectionResponse,
     LegacyLocationResponse,
+    RevisionDeleteRequest,
 )
 from .exam_venue_api import ExamVenueApi
 from .fastapi_dependencies import (
@@ -30,8 +41,9 @@ from .fastapi_dependencies import (
     VenueWriteContext,
     WriteContext,
 )
-from .fastapi_responses import finish as _finish
-from .fastapi_responses import not_found as _not_found
+from .fastapi_http import finish as _finish
+from .fastapi_http import not_found as _not_found
+from .fastapi_http import validated_payload
 from .models import CANDIDATE_COMMITTEE_ASSIGNMENT, COMMITTEE
 from .repositories import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES
 from .transport import RequestContext
@@ -236,7 +248,7 @@ def _register_exam_venue_routes(
         openapi_extra=venue_write_openapi("ExamVenueDuplicateCheckRequest"),
     )
     def exam_venue_duplicate_check(context: VenueWriteContext):
-        payload = context.read_json()
+        payload = validated_payload(context, ExamVenueDuplicateCheckRequest)
         excluded_id = payload.pop("excluded_id", None)
         matches = venue_api.find_duplicates(
             payload,
@@ -269,7 +281,7 @@ def _register_exam_venue_routes(
             id,
             context.authorization_scope,
             context.auth_context,
-            payload=context.read_json(),
+            payload=validated_payload(context, ExamVenueUpdateRequest),
         )
         return _not_found() if impact is None else _finish(context, context.respond(impact))
 
@@ -304,7 +316,7 @@ def _register_exam_venue_routes(
                 context.authorization_scope,
                 context.auth_context,
                 room_id=id,
-                payload=context.read_json(),
+                payload=validated_payload(context, ExamRoomUpdateRequest),
             )
         )
         return _not_found() if impact is None else _finish(context, context.respond(impact))
@@ -322,11 +334,16 @@ def _register_exam_venue_routes(
 
     @app.post(
         "/api/exam-venues/{id}/promotion-requests",
+        status_code=201,
         openapi_extra=venue_write_openapi("ExamVenuePromotionRequest"),
     )
     def request_exam_venue_promotion(context: VenueItemWriteContext):
         id = int(context.request.path_params["id"])
-        result = venue_api.request_promotion(id, context.read_json(), context.authorization_scope)
+        result = venue_api.request_promotion(
+            id,
+            validated_payload(context, ExamVenuePromotionRequest),
+            context.authorization_scope,
+        )
         return (
             _not_found()
             if result is None
@@ -339,7 +356,11 @@ def _register_exam_venue_routes(
     )
     def decide_exam_venue_promotion(context: VenueItemWriteContext):
         id = int(context.request.path_params["id"])
-        result = venue_api.decide_promotion(id, context.read_json(), context.auth_context)
+        result = venue_api.decide_promotion(
+            id,
+            validated_payload(context, ExamVenuePromotionDecisionRequest),
+            context.auth_context,
+        )
         return _finish(context, context.respond(hateoas.exam_venue(result)))
 
     @app.get(
@@ -364,7 +385,9 @@ def _register_exam_venue_routes(
     )
     def create_exam_venue(context: VenueWriteContext):
         venue = venue_api.create_venue(
-            context.read_json(), context.authorization_scope, context.auth_context
+            validated_payload(context, ExamVenueCreateRequest),
+            context.authorization_scope,
+            context.auth_context,
         )
         return _finish(context, context.respond(hateoas.exam_venue(venue), HTTPStatus.CREATED))
 
@@ -376,7 +399,10 @@ def _register_exam_venue_routes(
     def update_exam_venue(context: VenueItemWriteContext):
         id = int(context.request.path_params["id"])
         venue = venue_api.update_venue(
-            id, context.read_json(), context.authorization_scope, context.auth_context
+            id,
+            validated_payload(context, ExamVenueUpdateRequest),
+            context.authorization_scope,
+            context.auth_context,
         )
         return (
             _not_found()
@@ -392,7 +418,10 @@ def _register_exam_venue_routes(
     def geocode_exam_venue(context: VenueItemWriteContext):
         id = int(context.request.path_params["id"])
         candidate = venue_api.geocode_venue(
-            id, context.read_json(), context.authorization_scope, context.auth_context
+            id,
+            validated_payload(context, ExamVenueGeocodeRequest),
+            context.authorization_scope,
+            context.auth_context,
         )
         return _not_found() if candidate is None else _finish(context, context.respond(candidate))
 
@@ -404,7 +433,10 @@ def _register_exam_venue_routes(
     def delete_exam_venue(context: VenueItemWriteContext):
         id = int(context.request.path_params["id"])
         deleted = venue_api.delete_venue(
-            id, context.read_json(), context.authorization_scope, context.auth_context
+            id,
+            validated_payload(context, RevisionDeleteRequest),
+            context.authorization_scope,
+            context.auth_context,
         )
         return (
             _not_found()
@@ -427,7 +459,10 @@ def _register_exam_room_routes(
     def create_exam_room(context: VenueItemWriteContext):
         id = int(context.request.path_params["id"])
         room = venue_api.create_room(
-            id, context.read_json(), context.authorization_scope, context.auth_context
+            id,
+            validated_payload(context, ExamRoomCreateRequest),
+            context.authorization_scope,
+            context.auth_context,
         )
         return (
             _not_found()
@@ -457,7 +492,10 @@ def _register_exam_room_routes(
     def update_exam_room(context: VenueItemWriteContext):
         id = int(context.request.path_params["id"])
         room = venue_api.update_room(
-            id, context.read_json(), context.authorization_scope, context.auth_context
+            id,
+            validated_payload(context, ExamRoomUpdateRequest),
+            context.authorization_scope,
+            context.auth_context,
         )
         return (
             _not_found()
@@ -473,7 +511,10 @@ def _register_exam_room_routes(
     def delete_exam_room(context: VenueItemWriteContext):
         id = int(context.request.path_params["id"])
         deleted = venue_api.delete_room(
-            id, context.read_json(), context.authorization_scope, context.auth_context
+            id,
+            validated_payload(context, RevisionDeleteRequest),
+            context.authorization_scope,
+            context.auth_context,
         )
         return (
             _not_found()
@@ -496,7 +537,10 @@ def _register_exam_venue_contact_routes(
     def create_exam_venue_contact(context: VenueItemWriteContext):
         id = int(context.request.path_params["id"])
         contact = venue_api.create_contact(
-            id, context.read_json(), context.authorization_scope, context.auth_context
+            id,
+            validated_payload(context, ExamVenueContactCreateRequest),
+            context.authorization_scope,
+            context.auth_context,
         )
         return (
             _not_found()
@@ -528,7 +572,10 @@ def _register_exam_venue_contact_routes(
     def update_exam_venue_contact(context: VenueItemWriteContext):
         id = int(context.request.path_params["id"])
         contact = venue_api.update_contact(
-            id, context.read_json(), context.authorization_scope, context.auth_context
+            id,
+            validated_payload(context, ExamVenueContactUpdateRequest),
+            context.authorization_scope,
+            context.auth_context,
         )
         return (
             _not_found()
@@ -544,7 +591,10 @@ def _register_exam_venue_contact_routes(
     def delete_exam_venue_contact(context: VenueItemWriteContext):
         id = int(context.request.path_params["id"])
         deleted = venue_api.delete_contact(
-            id, context.read_json(), context.authorization_scope, context.auth_context
+            id,
+            validated_payload(context, RevisionDeleteRequest),
+            context.authorization_scope,
+            context.auth_context,
         )
         return (
             _not_found()
@@ -688,6 +738,7 @@ def _register_resource_routes(
                 create,
                 methods=["POST"],
                 name=f"create_{name}",
+                status_code=201,
                 response_model=DomainResourceResponse,
                 openapi_extra=venue_write_openapi("DomainResourceWrite"),
             )

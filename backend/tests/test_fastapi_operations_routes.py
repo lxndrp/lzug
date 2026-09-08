@@ -82,7 +82,7 @@ class FastAPIOperationsRouterTests(unittest.TestCase):
         self.assertEqual({("POST", "/api/observability/frontend-errors")}, observability)
         self.assertEqual(runtime | demo | authentication | observability, composed)
 
-    def test_operations_expose_existing_payload_models_without_changing_handlers(self) -> None:
+    def test_operations_generate_request_schemas_from_runtime_payload_models(self) -> None:
         document = create_app(self.config).openapi()
         expected = {
             ("/api/auth/login", "LoginRequest"),
@@ -97,8 +97,7 @@ class FastAPIOperationsRouterTests(unittest.TestCase):
                 schema = document["paths"][path]["post"]["requestBody"]["content"][
                     "application/json"
                 ]["schema"]
-                self.assertEqual(f"#/components/schemas/{model}", schema["$ref"])
-                self.assertIn(model, document["components"]["schemas"])
+                self.assertEqual(model, schema["title"])
 
 
 if __name__ == "__main__":

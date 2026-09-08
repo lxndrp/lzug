@@ -49,7 +49,6 @@ class OpenApiContractTests(unittest.TestCase):
             if api.client is None:
                 raise AssertionError("API client is not active")
             document = api.client.app.openapi()
-            schemas = document["components"]["schemas"]
             commands = (
                 ("post", "/api/exam-venues", "ExamVenueCreateRequest"),
                 ("patch", "/api/exam-venues/{id}", "ExamVenueUpdateRequest"),
@@ -94,10 +93,12 @@ class OpenApiContractTests(unittest.TestCase):
                 request_schema = document["paths"][path][method]["requestBody"]["content"][
                     "application/json"
                 ]["schema"]
-                self.assertEqual(f"#/components/schemas/{schema_name}", request_schema["$ref"])
-                self.assertIn(schema_name, schemas)
+                self.assertEqual(schema_name, request_schema["title"])
 
-        self.assertIn("expected_revision", schemas["RevisionDeleteRequest"]["required"])
+        revision_schema = document["paths"]["/api/exam-venues/{id}"]["delete"]["requestBody"][
+            "content"
+        ]["application/json"]["schema"]
+        self.assertIn("expected_revision", revision_schema["required"])
 
     def test_seeded_read_operations_match_the_openapi_responses(self) -> None:
         """Exercise each documented collection and item response through the HTTP adapter."""

@@ -15,7 +15,6 @@ from fastapi import FastAPI, Request
 from fastapi.responses import Response
 from sqlalchemy.exc import SQLAlchemyError
 
-from . import hateoas
 from .api_contracts import (
     ApiRootResponse,
     AssessmentModelBindingRequest,
@@ -94,11 +93,6 @@ from .exam_venues import (
 )
 from .fastapi_assessment import create_assessment_router
 from .fastapi_dependencies import (
-    EmptyWriteContext,
-    ManageBodyRoundContext,
-    ManageRoundContext,
-    ManageRoundEmptyWriteContext,
-    ManageRoundWriteContext,
     ReadContext,
     WriteContext,
     buffered_body,
@@ -111,25 +105,21 @@ from .fastapi_http import plain_text as _plain_text
 from .fastapi_http import same_origin as _same_origin
 from .fastapi_master_data import MIGRATED_DOMAIN_RESOURCES as MIGRATED_DOMAIN_RESOURCES
 from .fastapi_master_data import register_master_data_routes
-from .fastapi_planning_router import MIGRATED_PLANNING_RESOURCES, register_planning_router
+from .fastapi_planning_router import register_planning_router
 from .local_auth import LocalAuthError
 from .map_provider import (
     MapProviderConfig,
     MapProviderDisabledError,
     MapProviderUnavailableError,
 )
-from .models import EXAM_ROUND
 from .observability import emit_event, safe_http_path
 from .planning import ConfirmedPlanConflictError, PlanConflictError, PlanValidationError
-from .repositories import REST_RESOURCES
 from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from .security import RequestRateLimiter, RuntimeSecurityConfig
 from .settings import RuntimeSettings
 from .transport import (
     RequestTooLargeError,
     UnsupportedMediaTypeError,
-    confirmed_plan_change_from_payload,
-    planning_proposal_from_payload,
 )
 
 __all__ = [
@@ -242,109 +232,6 @@ class FastAPIConfig:
             map_provider=MapProviderConfig.from_settings(settings.integrations),
             runtime_settings=settings,
         )
-
-
-def _add_openapi_models(schemas: dict) -> None:
-    for model in (
-        DomainResourceWrite,
-        ExamSlotStartRequest,
-        ExamAttendanceUpdateRequest,
-        ExamSlotStatusUpdateRequest,
-        ExamProtocolContentRequest,
-        ExamProtocolResponseRequest,
-        AssessmentModelBindingRequest,
-        IndividualAssessmentRequest,
-        PlanningRoundRequest,
-        PlanningProposalSlotPayload,
-        PlanningProposalAssignmentPayload,
-        PlanningProposalDayPayload,
-        PlanningProposalWriteRequest,
-        ConfirmedPlanChangeRequest,
-        LoginRequest,
-        TokenRequest,
-        FactorActivationRequest,
-        FrontendErrorRequest,
-        CalendarFeedActivationRequest,
-        CalendarStatusResponse,
-        CalendarFeedActivationResponse,
-        CalendarFeedRevocationResponse,
-        CalendarEventCollectionResponse,
-        NotificationCollectionResponse,
-        NotificationChannelsResponse,
-        PushSubscriptionRequest,
-        PushSubscriptionResponse,
-        PushConfirmationResponse,
-        ExamVenueCreateRequest,
-        ExamVenueUpdateRequest,
-        ExamVenueDuplicateCheckRequest,
-        ExamVenueGeocodeRequest,
-        ExamVenuePromotionRequest,
-        ExamVenuePromotionDecisionRequest,
-        ExamRoomCreateRequest,
-        ExamRoomUpdateRequest,
-        ExamVenueContactCreateRequest,
-        ExamVenueContactUpdateRequest,
-        RevisionDeleteRequest,
-    ):
-        schema = model.model_json_schema(ref_template="#/components/schemas/{model}")
-        definitions = schema.pop("$defs", {})
-        schemas.setdefault(model.__name__, schema)
-        for name, definition in definitions.items():
-            schemas.setdefault(name, definition)
-    schemas.setdefault("JsonObject", {"type": "object", "additionalProperties": True})
-    schemas.setdefault(
-        "ErrorResponse",
-        {
-            "type": "object",
-            "properties": {"error": {}},
-            "required": ["error"],
-            "additionalProperties": True,
-        },
-    )
-
-
-def _secure_openapi_operations(document: dict, public_paths: set[str]) -> None:
-    for path, path_item in document.get("paths", {}).items():
-        if path in public_paths:
-            continue
-        for method, operation in path_item.items():
-            if method not in {"get", "post", "put", "patch", "delete"}:
-                continue
-            operation["security"] = [
-                (
-                    {"sessionCookie": [], "csrfHeader": []}
-                    if method in {"post", "put", "patch", "delete"}
-                    else {"sessionCookie": []}
-                )
-            ]
-            _add_openapi_responses(operation.setdefault("responses", {}))
-
-
-def _add_openapi_responses(responses: dict) -> None:
-    for status in ("400", "401", "403", "404", "409", "413", "415", "422", "429", "500"):
-        responses.setdefault(
-            status,
-            {
-                "description": "Application error",
-                "content": {
-                    "application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}
-                },
-            },
-        )
-    for status in ("200", "201", "202"):
-        response = responses.setdefault(
-            status,
-            {
-                "description": "Successful response",
-                "content": {
-                    "application/json": {"schema": {"$ref": "#/components/schemas/JsonObject"}}
-                },
-            },
-        )
-        if "content" not in response:
-            response["content"] = {
-                "application/json": {"schema": {"$ref": "#/components/schemas/JsonObject"}}
-            }
 
 
 def _security_headers(config: FastAPIConfig, request: Request) -> dict[str, str]:
@@ -791,45 +678,6 @@ def _register_integration_router(
     app.router.routes.extend(create_integration_router().routes)
 
 
-def _register_schedule_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.get("/api/scheduling-overview")
-    def scheduling(context: ReadContext):
-        return _finish(
-            context,
-            context.respond(
-                hateoas.scheduling_overview(
-                    context.repository.scheduling_overview(context.authorization_scope)
-                )
-            ),
-        )
-
-    @app.get("/api/confirmed-plans")
-    def confirmed_plans(context: ReadContext):
-        return _finish(
-            context,
-            context.respond(
-                hateoas.confirmed_plans(
-                    context.repository.confirmed_plans(context.authorization_scope)
-                )
-            ),
-        )
-
-    @app.get("/api/confirmed-plan-days/{id}")
-    def confirmed_day(context: ReadContext, id: str):
-        day = context.repository.confirmed_plan_day(int(id), context.authorization_scope)
-        if day is not None:
-            day["day"]["closure"] = context.exam_day_closure_service.get(
-                context.authorization_scope, int(id)
-            )
-        return (
-            _not_found()
-            if day is None
-            else _finish(context, context.respond(hateoas.confirmed_plan_day(day)))
-        )
-
-
 def _register_exam_round_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
@@ -998,297 +846,6 @@ def _register_planning_router(
     )
 
 
-def _legacy_register_proposal_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.post("/api/planning-proposals", status_code=201)
-    def generate_proposal(context: ManageBodyRoundContext):
-        round_id = int(context.read_json().get("round_id", 1))
-        return _finish(
-            context,
-            context.respond(
-                hateoas.planning_proposal(context.planning_service.generate_proposal(round_id)),
-                HTTPStatus.CREATED,
-            ),
-        )
-
-    @app.get("/api/exam-rounds/{id}/planning-proposal")
-    def get_proposal(context: ManageRoundContext, id: str):
-        proposal = context.planning_service.get_proposal(int(id))
-        return _finish(
-            context,
-            context.respond(
-                hateoas.editable_planning_proposal(
-                    context.planning_service.proposal_payload(proposal)
-                )
-            ),
-        )
-
-    @app.put("/api/exam-rounds/{id}/planning-proposal")
-    def save_proposal(context: ManageRoundWriteContext, id: str):
-        round_id = int(id)
-        saved = context.planning_service.save_proposal(
-            planning_proposal_from_payload(round_id, context.read_json())
-        )
-        return _finish(
-            context,
-            context.respond(
-                hateoas.editable_planning_proposal(context.planning_service.proposal_payload(saved))
-            ),
-        )
-
-    @app.post("/api/exam-rounds/{id}/confirm-plan")
-    def confirm_plan(context: ManageRoundEmptyWriteContext, id: str):
-        round_id = int(id)
-        confirmed = context.planning_service.confirm_plan(round_id)
-        try:
-            context.calendar_service.sync_round(round_id)
-        except Exception:
-            emit_event("backend_error", severity="error", category="calendar_processing")
-            confirmed["calendar_warning"] = (
-                "Der Plan wurde bestätigt, aber die persönlichen Kalender konnten nicht "
-                "vollständig vorbereitet werden."
-            )
-        warning = context.create_notifications_best_effort("plan_confirmed", round_id)
-        if warning:
-            confirmed["notification_warning"] = warning
-        return _finish(context, context.respond(hateoas.confirmed_plan(confirmed)))
-
-
-def _register_confirmed_plan_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.get("/api/exam-rounds/{id}/confirmed-plan", openapi_extra=read_security)
-    def get_confirmed_plan(context: ManageRoundContext, id: str):
-        round_id = int(id)
-        plan = context.planning_service.get_confirmed_plan(round_id)
-        return _finish(
-            context,
-            context.respond(
-                hateoas.editable_confirmed_plan(
-                    context.planning_service.confirmed_plan_payload(plan)
-                )
-            ),
-        )
-
-    @app.put("/api/exam-rounds/{id}/confirmed-plan", openapi_extra=write_security)
-    def save_confirmed_plan(context: ManageRoundWriteContext, id: str):
-        round_id = int(id)
-        committee_id = context.repository.committee_id_for_resource(EXAM_ROUND, round_id)
-        actor_member_id = context.authorization_scope.member_for_committee(committee_id)
-        if actor_member_id is None:
-            raise ForbiddenRequestError("Forbidden.")
-        saved, revision = context.planning_service.save_confirmed_plan(
-            confirmed_plan_change_from_payload(round_id, context.read_json()),
-            actor_member_id=actor_member_id,
-        )
-        try:
-            consequence_status = context.plan_consequence_service.process_revision(revision["id"])
-        except Exception:
-            emit_event("backend_error", severity="error", category="plan_consequence_processing")
-            consequence_status = {
-                "revision_id": revision["id"],
-                "derivation_status": "missing",
-                "processed": 0,
-                "problems": 1,
-                "pending": 0,
-                "superseded": 0,
-            }
-        response = hateoas.editable_confirmed_plan(
-            context.planning_service.confirmed_plan_payload(saved),
-            latest_revision=revision,
-        )
-        response["consequence_status"] = consequence_status
-        if consequence_status["problems"] or consequence_status["derivation_status"] != "succeeded":
-            response["consequence_warning"] = (
-                "Die Planänderung wurde bestätigt, aber mindestens eine Benachrichtigungs- "
-                "oder Kalenderfolge konnte nicht vollständig verarbeitet werden."
-            )
-        return _finish(
-            context,
-            context.respond(response),
-        )
-
-    @app.get("/api/exam-rounds/{id}/confirmed-plan/revisions", openapi_extra=read_security)
-    def confirmed_plan_revisions(context: ManageRoundContext, id: str):
-        round_id = int(id)
-        return _finish(
-            context,
-            context.respond(
-                hateoas.confirmed_plan_revisions(
-                    round_id,
-                    context.planning_service.confirmed_plan_revisions(round_id),
-                )
-            ),
-        )
-
-
-def _register_plan_consequence_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.get(
-        "/api/exam-rounds/{id}/confirmed-plan/consequences",
-        openapi_extra=read_security,
-    )
-    def confirmed_plan_consequences(context: ManageRoundContext, id: str):
-        round_id = int(id)
-        return _finish(
-            context,
-            context.respond(
-                hateoas.plan_consequences(
-                    round_id,
-                    context.plan_consequence_service.list_for_round(round_id),
-                )
-            ),
-        )
-
-    @app.post(
-        "/api/exam-rounds/{id}/confirmed-plan/revisions/{revision_id}/consequences/retry",
-        openapi_extra=write_security,
-    )
-    def retry_confirmed_plan_consequences(context: EmptyWriteContext, id: str, revision_id: str):
-        round_id = int(id)
-        parsed_revision_id = int(revision_id)
-        context.require_round_access(round_id, manage=True)
-        known_revision_ids = {
-            item["id"] for item in context.planning_service.confirmed_plan_revisions(round_id)
-        }
-        if parsed_revision_id not in known_revision_ids:
-            return _not_found()
-        return _finish(
-            context,
-            context.respond(context.plan_consequence_service.retry_revision(parsed_revision_id)),
-        )
-
-
-def _register_availability_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.post("/api/candidate-exam-days/generate")
-    def generate_days(context: ManageBodyRoundContext):
-        round_id = int(context.read_json().get("round_id", 1))
-        return _finish(
-            context,
-            context.respond(
-                hateoas.candidate_day_generation(context.candidate_day_service.generate(round_id)),
-                HTTPStatus.OK,
-            ),
-        )
-
-    @app.post("/api/exam-rounds/{id}/request-availabilities")
-    def request_availabilities(context: ManageRoundEmptyWriteContext, id: str):
-        round_id = int(id)
-        exam_round = context.planning_service.request_availabilities(round_id)
-        warning = context.create_notifications_best_effort("availability_requested", round_id)
-        if warning:
-            exam_round["notification_warning"] = warning
-        return _finish(
-            context,
-            context.respond(
-                hateoas.resource_item("exam-rounds", REST_RESOURCES["exam-rounds"], exam_round)
-            ),
-        )
-
-
-def _legacy_register_planning_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    _legacy_register_proposal_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_confirmed_plan_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_plan_consequence_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_availability_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-
-
-def _legacy_register_planning_resource_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    def planning_resource_routes(resource_name: str):
-        resource = REST_RESOURCES[resource_name]
-
-        def get_collection(request: Request, context: ReadContext):
-            rows = context.repository.list_visible(
-                resource,
-                context.authorization_scope,
-                context.resource_filters(resource, request.query_params),
-            )
-            return _finish(
-                context,
-                context.respond(
-                    hateoas.collection(
-                        resource_name,
-                        resource,
-                        rows,
-                        request.url.query,
-                        allow_create=False,
-                        allow_item_mutation=False,
-                    )
-                ),
-            )
-
-        def get_item(context: ReadContext, id: str):
-            row = context.repository.get_visible(resource, int(id), context.authorization_scope)
-            return (
-                _not_found()
-                if row is None
-                else _finish(
-                    context,
-                    context.respond(
-                        hateoas.resource_item(
-                            resource_name, resource, row, allow_item_mutation=False
-                        )
-                    ),
-                )
-            )
-
-        return get_collection, get_item
-
-    for name in MIGRATED_PLANNING_RESOURCES:
-        get_collection, get_item = planning_resource_routes(name)
-        app.add_api_route(
-            f"/api/{name}",
-            get_collection,
-            methods=["GET"],
-            name=f"get_planning_{name}",
-            openapi_extra=read_security,
-        )
-        app.add_api_route(
-            f"/api/{name}/{{id}}",
-            get_item,
-            methods=["GET"],
-            name=f"get_planning_{name}_item",
-            openapi_extra=read_security,
-        )
-
-    def aggregate_write(context: WriteContext, id: str | None = None):
-        raise ValueError(
-            "Exam days, slots, and assignments must be changed through the planning aggregate"
-        )
-
-    for name in ("exam-days", "exam-slots", "exam-day-assignments"):
-        app.add_api_route(
-            f"/api/{name}",
-            aggregate_write,
-            methods=["POST"],
-            name=f"reject_create_{name}",
-            include_in_schema=False,
-        )
-        app.add_api_route(
-            f"/api/{name}/{{id}}",
-            aggregate_write,
-            methods=["PATCH", "DELETE"],
-            name=f"reject_write_{name}",
-            include_in_schema=False,
-        )
-
-
 def _register_execution_assessment_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
@@ -1324,33 +881,6 @@ def _register_static_route(
         )
 
 
-def _register_openapi_schema(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    original_openapi = app.openapi
-    public_paths = {
-        "/api/health",
-        "/api/ready",
-        "/api/auth/login",
-        "/api/auth/invitation/prepare",
-        "/api/auth/invitation/activate",
-        "/api/auth/recovery/prepare",
-        "/api/auth/recovery/complete",
-        "/api/observability/frontend-errors",
-        "/api/calendar/feed/{token}.ics",
-        "/api/calendar/events/{id}.ics",
-    }
-
-    def generated_openapi() -> dict:
-        document = original_openapi()
-        schemas = document.setdefault("components", {}).setdefault("schemas", {})
-        _add_openapi_models(schemas)
-        _secure_openapi_operations(document, public_paths)
-        return document
-
-    app.openapi = generated_openapi
-
-
 def register_transport_and_errors(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
@@ -1382,15 +912,6 @@ def register_application_routes(
             write_security,
             venue_write_openapi,
         )
-
-
-def register_openapi_schema(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    """Install the shared OpenAPI security and response schema assembly."""
-    _register_openapi_schema(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
 
 
 def create_app(

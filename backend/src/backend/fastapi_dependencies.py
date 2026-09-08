@@ -3,10 +3,13 @@
 from collections.abc import Callable
 from typing import Annotated
 
-from fastapi import Depends, Request
+from fastapi import Depends, Header, Request, Security
+from fastapi.security import APIKeyCookie
 
 from .application import ForbiddenRequestError
 from .transport import RequestContext, RequestTooLargeError
+
+SESSION_COOKIE = APIKeyCookie(name="lzug_session", scheme_name="sessionCookie", auto_error=False)
 
 
 def validate_body_headers(request: Request) -> None:
@@ -88,9 +91,9 @@ def access_context(
     not require CSRF; callers must choose their established contract explicitly.
     """
 
-    def access(
-        context: Annotated[RequestContext, Depends(body_context if body else request_context)],
-    ) -> RequestContext:
+    dependency = body_context if body else request_context
+
+    def authorize(context: RequestContext) -> RequestContext:
         auth = context.require_authenticated(require_actor=actor, require_csrf=csrf)
         if (
             operator
@@ -104,7 +107,24 @@ def access_context(
             context.authorize_mutation(request.method, parts, auth)
         return context
 
-    return access
+    if csrf:
+
+        def write_access(
+            context: Annotated[RequestContext, Depends(dependency)],
+            _session: Annotated[str | None, Security(SESSION_COOKIE)] = None,
+            _csrf: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
+        ) -> RequestContext:
+            return authorize(context)
+
+        return write_access
+
+    def read_access(
+        context: Annotated[RequestContext, Depends(dependency)],
+        _session: Annotated[str | None, Security(SESSION_COOKIE)] = None,
+    ) -> RequestContext:
+        return authorize(context)
+
+    return read_access
 
 
 SessionContext = Annotated[RequestContext, Depends(access_context(actor=False))]
