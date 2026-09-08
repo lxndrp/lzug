@@ -9,6 +9,106 @@ Versionen folgen [Semantic Versioning](https://semver.org/lang/de/).
 Bei einer Release-Vorbereitung verschiebt ein Maintainer die freizugebenden Einträge in genau einen Abschnitt `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`.
 Der Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Notes und veröffentlicht nur aus dem nach der Environment-Freigabe erzeugten, annotierten SemVer-Tag.
 
+## [0.8.0] - 2026-09-08
+
+### Changed
+
+- Self-Hosting verwendet ab v0.8.0 ausschließlich das Produktimage
+  `ghcr.io/lxndrp/lzug-app:<version>` mit einer exakten veröffentlichten
+  SemVer-Version.
+  Docker Engine auf Linux mit Compose v2 ist der unterstützte und geprüfte
+  Referenzbetrieb; ein von Docker aufgelöster Digest bleibt automatischer
+  Herkunftsnachweis, ist aber keine regulär zu pflegende Betreibereingabe.
+- Die Betreiber-CLI ist als eigenständiges Go-Modul unter `operator-cli/`
+  gekapselt.
+  Binaryname, Befehle, Exit Codes, Adminprotokoll, Plattformmatrix und
+  Archivvertrag bleiben unverändert; CLI und Produktimage müssen weiterhin
+  aus demselben Release stammen.
+- Laufzeitkonfiguration wird einmalig über typisierte, fachlich getrennte
+  Settingsmodelle assembliert und vor der Annahme von Requests validiert.
+  Bestehende Umgebungsvariablen und Defaults bleiben erhalten; Produkt, Demo,
+  E2E und Administration verwenden denselben geheimnisfreien
+  Konfigurationsvertrag.
+- Das Python-Backend wird aus dem komponentenlokalen Paket
+  `backend/src/backend` als Wheel gebaut und identisch in Produkt- und
+  Demo-Image installiert.
+  FastAPI-Assembly, gemeinsame Sicherheits- und Zugriffsabhängigkeiten sowie
+  Router für Stammdaten, Planung, Durchführung, Bewertung, Integrationen und
+  Betrieb sind getrennt, ohne die bestehenden HTTP-, OpenAPI- oder
+  Berechtigungsverträge zu verändern.
+- Kalenderausgaben verwenden `icalendar`, Web-Push-Zustellungen `pywebpush`.
+  Bestehende Kalenderidentitäten, P-256-PEM-VAPID-Schlüssel und registrierte
+  Push-Endpunkte bleiben kompatibel.
+- Anwendung und Dokumentationsportal verwenden eine gemeinsame visuelle
+  Grammatik mit klarer Komponentenverantwortung.
+  Öffentliche Einstiege verweisen direkt auf die erzeugte Nutzungs-,
+  Betriebs- und Entwicklerdokumentation; abgelöste Prototypen,
+  Zwischenartefakte und einmalige Migrationsnachweise sind entfernt.
+- Pull Requests prüfen fünf stabile Domänengates selektiv und fail-closed.
+  Die vollständige Produktintegration läuft nächtlich auf `master` sowie
+  manuell für eine exakte Release-Ausgangs-SHA; Release und stabile
+  Demo-Promotion verwenden diesen erfolgreichen Nachweis, statt eine zweite
+  vollständige Quality-Kette auszuführen.
+
+### Fixed
+
+- Frontend-Updates beseitigen die bekannte
+  `ResizeObserver`-Schleifenwarnung, die verbleibende
+  `fast-uri`-High-Warnung und Darstellungsfehler nach der Einführung von
+  Lucide 1.
+- Backend-Jobs schließen SQLite- und HTTP-Ressourcen auch bei Fehlern und
+  wiederholter Ausführung zuverlässig.
+- Die SBOM-Prüfung unterscheidet deklarierte Go-Abhängigkeiten von den
+  tatsächlich in native CLI-Binaries eingebetteten Modulen und erfindet keine
+  transitive Testabhängigkeit als Releasebestandteil.
+- Pfadselektive Pull-Request-Prüfungen behalten die erforderlichen
+  CodeQL-Sprachkonfigurationen auch bei Workflow- und anderen
+  repositoryweiten Änderungen bei.
+
+### Security
+
+- Gemeinsame FastAPI-Dependencies erzwingen Authentifizierung,
+  Ausschuss-Scope, CSRF-Schutz und Betreibergrenzen konsistent an den
+  modularisierten Routen; Parserfehler und Berechtigungsfehler bleiben
+  unterscheidbar und geheimnisfrei.
+- Typisierte Settings schützen Secrets vor Repräsentation, Dumps, Diagnose
+  und Logs und lehnen ungültige URLs, Pfade, Zahlenbereiche und gekoppelte
+  Providerkonfiguration vor dem Anwendungsstart ab.
+- Web Push verwendet die etablierte Protokollbibliothek bei unverändertem
+  datensparsamen Payload- und Fehlervertrag.
+  Tool-, Action- und Basisimageversionen sind explizit gebunden;
+  Standard-Lockfiles, Attestierungen, Provenance und das geprüfte
+  Demo-Digestpaar bleiben die jeweiligen Integritätsnachweise.
+
+### Migration und Kompatibilität
+
+- Bestehende Installationen stellen `LZUG_IMAGE` von
+  `ghcr.io/lxndrp/lzug:<version>` oder einer Digestreferenz auf
+  `ghcr.io/lxndrp/lzug-app:0.8.0` um.
+  Für den alten Imagenamen wird kein Alias veröffentlicht; bereits
+  veröffentlichte Images und Releases bis v0.7.x bleiben unverändert.
+- Podman-Unterstützung und `--engine`-Auswahl der Betreiber-CLI entfallen.
+  Betriebsautomation muss Docker Engine auf Linux mit Compose v2 verwenden;
+  OCI-Kompatibilität des Images begründet kein Supportversprechen für weitere
+  Runtimes.
+- Die Backend-Paket-, Datenbankressourcen- und Routerstruktur ist eine interne
+  Neuordnung.
+  Sie erzeugt weder eine neue Datenbankmigration noch geänderte
+  Umgebungsvariablen, fachliche API-Pfade oder OpenAPI-Operationen.
+  Die 28 nummerierten, checksum-gesicherten SQL-Migrationen und der
+  bestehende Upgrade-only-, Backup-, Sperr- und Readiness-Vertrag bleiben
+  maßgeblich; Alembic wird nicht eingeführt.
+- `v0.8.0` bündelt administrative Verbesserungen, Sicherheits- und
+  Qualitätsstabilisierung sowie interne Architekturpflege seit `v0.7.0`.
+  Neue fachliche Prozesse, ein externer Admintransport, Änderungen an Release-
+  oder Demo-Verträgen und Inhalte späterer Milestones sind nicht enthalten.
+- Dieser Vorbereitungseintrag erzeugt weder einen Tag noch einen GitHub
+  Release, GHCR- oder CLI-Artefakte, Attestierungen, eine Demo-Promotion oder
+  eine Environment-Freigabe.
+  Diese Schritte dürfen erst nach dem Merge, einem erfolgreichen vollständigen
+  Quality-Lauf für die exakte aktuelle `master`-SHA und der getrennten
+  Maintainer-Freigabe im Release-Workflow erfolgen.
+
 ## [0.7.0] - 2026-09-03
 
 ### Added
