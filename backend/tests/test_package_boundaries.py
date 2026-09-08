@@ -78,6 +78,7 @@ TEST_OWNERS = {
             "test_fastapi_master_data.py",
             "test_fastapi_operations_routes.py",
             "test_fastapi_planning_router.py",
+            "test_fastapi_request_stream.py",
             "test_http_contract_parity.py",
             "test_openapi_contract.py",
         }
