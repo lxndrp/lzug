@@ -195,7 +195,7 @@ Der Proxy muss eigene Größen- und Zeitlimits setzen und gültiges
 HTTP-Framing an Uvicorn weitergeben.
 `Transfer-Encoding` wird von lzug weiterhin mit `400` abgewiesen;
 der Proxy muss Chunked-Requests entsprechend aufbereiten.
-Siehe [Uvicorn-Serververhalten](https://www.uvicorn.org/server-behavior/)
+Siehe [Uvicorn-Serververhalten](https://github.com/Kludex/uvicorn/blob/0.52.4/docs/server-behavior.md)
 und [ASGI-Requestereignisse](https://asgi.readthedocs.io/en/stable/specs/www.html#request-receive-event).
 
 Der Container stellt selbst kein TLS bereit.
