@@ -3,8 +3,8 @@ from __future__ import annotations
 import unittest
 from http import HTTPStatus
 
-from backend.auth import AuthenticationRepository
-from backend.contract import validate_response
+from backend.application.contract import validate_response
+from backend.identity.auth import AuthenticationRepository
 from backend.tests.fixture_data import FIXTURE_IDS, FIXTURE_ROOT
 from backend.tests.helpers import ApiServer, TempDatabase
 

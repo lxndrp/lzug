@@ -15,15 +15,21 @@ from typing import Any
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from .admin_service import AdminOperationError, OperatorAuthService
-from .backup_recipients import BackupRecipientRepository
-from .backup_restore import ArtifactError, ArtifactService
-from .committee_admin import CommitteeAdminService
-from .database import MigrationError, database_path, database_readiness, persistence_paths
-from .diagnostics import run_diagnostics
-from .lifecycle import LifecycleError, LifecycleService
-from .notifications import NotificationService
-from .plan_consequences import PlanConsequenceService
+from backend.identity.admin_service import AdminOperationError, OperatorAuthService
+from backend.identity.committee_admin import CommitteeAdminService
+from backend.integrations.notifications import NotificationService
+from backend.operations.backup_recipients import BackupRecipientRepository
+from backend.operations.backup_restore import ArtifactError, ArtifactService
+from backend.operations.diagnostics import run_diagnostics
+from backend.operations.lifecycle import LifecycleError, LifecycleService
+from backend.persistence.database import (
+    MigrationError,
+    database_path,
+    database_readiness,
+    persistence_paths,
+)
+from backend.planning.plan_consequences import PlanConsequenceService
+
 from .settings import RuntimeSettings
 
 PROTOCOL_VERSION = 1

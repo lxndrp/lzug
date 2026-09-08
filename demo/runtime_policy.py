@@ -12,11 +12,16 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 
 from backend.application import ForbiddenRequestError
-from backend.auth import AuthContext, AuthenticationError
-from backend.database import session_scope
-from backend.models import AbsenceReport, ConfirmedPlanRevision, ExamDay, ReplacementResponse
+from backend.application.transport import RequestContext
+from backend.identity.auth import AuthContext, AuthenticationError
+from backend.persistence.database import session_scope
+from backend.persistence.models import (
+    AbsenceReport,
+    ConfirmedPlanRevision,
+    ExamDay,
+    ReplacementResponse,
+)
 from backend.settings import RuntimeSettings
-from backend.transport import RequestContext
 
 from .artifacts import load_runtime_manifests, load_runtime_status
 from .scenarios import (

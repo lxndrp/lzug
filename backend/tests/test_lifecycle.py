@@ -10,8 +10,8 @@ from unittest.mock import patch
 
 from backend.admin import EXIT_INCOMPATIBLE, EXIT_OK, EXIT_REPLACE_REQUIRED, run
 from backend.build_metadata import BuildMetadata
-from backend.database import PersistencePaths
-from backend.lifecycle import MAINTENANCE_ENV, LifecycleError, LifecycleService
+from backend.operations.lifecycle import MAINTENANCE_ENV, LifecycleError, LifecycleService
+from backend.persistence.database import PersistencePaths
 
 
 class LifecycleTests(unittest.TestCase):
@@ -94,8 +94,8 @@ class LifecycleTests(unittest.TestCase):
 
     def test_supported_upgrade_requires_verified_evidence_before_migration(self) -> None:
         with (
-            patch("backend.lifecycle.migration_status", return_value=self.before()),
-            patch("backend.lifecycle.database_readiness", return_value=self.ready()),
+            patch("backend.operations.lifecycle.migration_status", return_value=self.before()),
+            patch("backend.operations.lifecycle.database_readiness", return_value=self.ready()),
         ):
             result = self.service().upgrade(
                 self.target,
@@ -108,7 +108,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertNotIn("private", json.dumps(result))
 
     def test_confirmation_precedes_migration(self) -> None:
-        with patch("backend.lifecycle.migration_status", return_value=self.before()):
+        with patch("backend.operations.lifecycle.migration_status", return_value=self.before()):
             with self.assertRaises(LifecycleError) as raised:
                 self.service().upgrade(
                     self.target,
@@ -127,7 +127,10 @@ class LifecycleTests(unittest.TestCase):
             {"readiness": "not_ready"},
         ):
             with self.subTest(changes=changes):
-                with patch("backend.lifecycle.migration_status", return_value=self.before()):
+                with patch(
+                    "backend.operations.lifecycle.migration_status",
+                    return_value=self.before(),
+                ):
                     with self.assertRaises(LifecycleError) as raised:
                         self.service().upgrade(
                             self.target,
@@ -141,7 +144,7 @@ class LifecycleTests(unittest.TestCase):
         def fail(_database: Path, _backups: Path | None) -> None:
             raise RuntimeError("secret database failure")
 
-        with patch("backend.lifecycle.migration_status", return_value=self.before()):
+        with patch("backend.operations.lifecycle.migration_status", return_value=self.before()):
             with self.assertRaises(LifecycleError) as raised:
                 self.service(fail).upgrade(
                     self.target,
@@ -184,7 +187,7 @@ class LifecycleTests(unittest.TestCase):
             key: value for key, value in self.target.items() if key != "digest"
         }
         with patch(
-            "backend.lifecycle.migration_status",
+            "backend.operations.lifecycle.migration_status",
             return_value={**self.before(pending=False), "state": "ready"},
         ):
             result = self.service().rollback(target_without_digest)
@@ -192,7 +195,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_compatible_rollback_is_non_mutating(self) -> None:
         with patch(
-            "backend.lifecycle.migration_status",
+            "backend.operations.lifecycle.migration_status",
             return_value={**self.before(pending=False), "state": "ready"},
         ):
             result = self.service().rollback(self.target)

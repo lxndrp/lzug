@@ -6,9 +6,15 @@ from unittest.mock import patch
 
 from sqlalchemy import text
 
-from backend.auth import AuthenticationRepository
-from backend.database import session_scope
-from backend.models import ExamDay, ExamDayClosure, ExamDayExport, ExamDayTask, Notification
+from backend.identity.auth import AuthenticationRepository
+from backend.persistence.database import session_scope
+from backend.persistence.models import (
+    ExamDay,
+    ExamDayClosure,
+    ExamDayExport,
+    ExamDayTask,
+    Notification,
+)
 from backend.tests.fixture_data import prepare_exam_protocol_scenario
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
@@ -387,7 +393,7 @@ class ExamDayClosureTests(unittest.TestCase):
 
     def test_notification_creation_failure_does_not_rollback_exception_close(self) -> None:
         with patch(
-            "backend.exam_day_closures.NotificationService.create_direct",
+            "backend.execution.exam_day_closures.NotificationService.create_direct",
             side_effect=RuntimeError("synthetic delivery creation failure"),
         ):
             with ApiServer(self.db_path) as api:

@@ -73,7 +73,7 @@ def _closest_relative_exam_date(current: datetime):
 
 def seed_demo_scenarios(db_path, created_at: datetime) -> None:
     """Rebuild a test database from the public profile at a chosen reference time."""
-    from backend.database import initialize
+    from backend.persistence.database import initialize
     from fixtures.generate import render_profile_sql
 
     initialize(
@@ -97,7 +97,7 @@ def public_demo_seed_sql() -> str:
 
 def prepare_exam_protocol_scenario(db_path) -> None:
     """Prepare the complete development profile for protocol/lifecycle tests."""
-    from backend.database import initialize
+    from backend.persistence.database import initialize
     from fixtures.generate import render_profile_sql
 
     initialize(db_path, seed_sql=render_profile_sql(DATA, "development"), reset=True)

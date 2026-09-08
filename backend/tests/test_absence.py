@@ -4,10 +4,10 @@ import unittest
 from datetime import UTC, datetime
 from http import HTTPStatus
 
-from backend.absence import AbsenceService
-from backend.authorization import AuthorizationScope
-from backend.database import session_scope
-from backend.models import (
+from backend.execution.absence import AbsenceService
+from backend.identity.authorization import AuthorizationScope
+from backend.persistence.database import session_scope
+from backend.persistence.models import (
     CalendarEvent,
     ExamDay,
     ExamDayAssignment,

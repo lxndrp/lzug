@@ -75,8 +75,9 @@ Sicherheitsprüfungen mit demselben Modell validiert.
 Dynamische generische Ressourcen behalten ihre fachlich aufgelösten
 Dictionary-Verträge, solange ein statisches Modell keinen gleichwertigen
 Vertragsgewinn bringt.
-`backend.server` startet den Prozess über Uvicorn; `backend.transport` bildet
-den gemeinsamen Anwendungsvertrag für HTTP- und Adminadapter ab.
+`backend.server` startet den Prozess über Uvicorn;
+`backend.application.transport` bildet den gemeinsamen Anwendungsvertrag für
+HTTP- und Adminadapter ab.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am
 HTTP-Rand, während der synchrone Anwendungskern frameworkunabhängig bleibt.
 `backend.fastapi_dependencies` stellt dafür gemeinsame FastAPI-Dependencies
@@ -95,18 +96,30 @@ Der lokale Unix-Socket-Adapter besitzt eine getrennte
 Betreiberautorisierungsgrenze, verwendet aber dieselben Services,
 Transaktionen und Repositories wie HTTP.
 
-| Schicht | Verantwortung und Erweiterungspunkt |
-| --- | --- |
-| HTTP und Sicherheit | Fachlich verantwortete FastAPI-Router, Request-/Responsemodelle, Session, CSRF, fachliche Autorisierung, Upload- und Konfigurationsgrenzen; keine Fachentscheidung im Handler |
-| Admintransport | gehärteter Unix-Domain-Socket, Betriebssystemautorisierung, versionierte Aufträge, Streaming und geheimnisfreie Ergebnisse; kein Netzwerk-Listener und kein eigener Prozess |
-| Anwendung | `backend.application` und fachliche Services; Use Cases, Invarianten und Transaktionsgrenzen ohne Webframework |
-| Planung und Durchführung | Planung, Verfügbarkeit, Ausfall/Ersatz, Protokolle, Ergebnisse, Tages- und Rundenlebenszyklus |
-| Integrationen | Benachrichtigung, persönliche Kalender und Dokumentablage; externe Zustellung bleibt best effort |
-| Persistenz | Modelle, Repositories, Store und Datenbank; Schema und Migrationen sind ausführbare Quellen |
-| Betrieb | Runtime-Policy, Observability, Build-Metadaten, Adminadapter, Artefakte und zentraler Lifecycle |
+Die folgende Tabelle ist die kanonische knappe Zuordnung der aktuellen
+Backend-Paketstruktur.
+Abhängigkeiten verlaufen nur in die genannten Zielpakete; der automatisierte
+Architekturtest verhindert nicht zugeordnete Module, unerlaubte Richtungen und
+Zyklen zwischen den acht Kernpaketen.
+
+| Paket | Verantwortung | Darf abhängen von |
+| --- | --- | --- |
+| `application/` | frameworkneutrale Use-Case-Orchestrierung, Ressourcenfassade, Transportobjekte und HATEOAS | `assessment`, `execution`, `identity`, `integrations`, `persistence`, `planning` |
+| `planning/` | Planaggregate, mögliche Prüfungstage, Prüfungsorte und Folgen bestätigter Änderungen | `integrations`, `persistence` |
+| `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `identity`, `integrations`, `persistence` |
+| `assessment/` | individuelle Bewertungen und festgestellte Ergebnisse | `execution`, `identity`, `persistence` |
+| `identity/` | Authentisierung, Autorisierung, Mitgliedschaften und lokale Betreiberidentität | `persistence` |
+| `integrations/` | Kalender, Benachrichtigungen, Dokumentablage, Feiertage und Kartenanbieter | `identity`, `persistence` |
+| `persistence/` | Modelle, Datenbank, Migrationen und niedrige Store-Primitive | keine anderen Kernpakete |
+| `operations/` | Backup und Export, Empfängerverwaltung, Diagnose und Lifecycle | `identity`, `integrations`, `persistence` |
+
+Der Paketroot enthält ausschließlich gemeinsame Runtime-Verträge und die
+stabilen äußeren Einstiege für FastAPI, Prozessstart, Healthcheck und
+Admintransport.
+Die weitere Gliederung der HTTP-Schicht unter `api/` bleibt #646 vorbehalten.
 
 Neue Fachregeln beginnen in einem Service und seinen fokussierten Tests.
-Repositories kapseln fachnahe Persistenzzugriffe; Adapter übersetzen HTTP,
+Die Ressourcenfassade kapselt fachnahe Persistenzzugriffe; Adapter übersetzen HTTP,
 Dateien, Kalender oder Zustellkanäle.
 Eine neue Speicher- oder Transporttechnik darf die Invarianten weder kopieren
 noch umgehen.

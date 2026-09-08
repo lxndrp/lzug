@@ -9,8 +9,8 @@ from unittest.mock import patch
 from fastapi import APIRouter, Depends
 from fastapi.testclient import TestClient
 
-from backend.auth import AuthenticationRepository
-from backend.database import session_scope
+from backend.application.repositories import ResourceRepository
+from backend.application.transport import RequestContext
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_dependencies import (
     BodyContext,
@@ -21,11 +21,11 @@ from backend.fastapi_dependencies import (
     request_context,
     round_access,
 )
-from backend.models import COMMITTEE, COMMITTEE_MEMBER, EXAM_ROUND, Committee
-from backend.repositories import ResourceRepository
+from backend.identity.auth import AuthenticationRepository
+from backend.persistence.database import session_scope
+from backend.persistence.models import COMMITTEE, COMMITTEE_MEMBER, EXAM_ROUND, Committee
 from backend.runtime_policy import ProductRuntimePolicy
 from backend.tests.helpers import TempDatabase
-from backend.transport import RequestContext
 
 
 class FastAPIDependencyTests(unittest.TestCase):

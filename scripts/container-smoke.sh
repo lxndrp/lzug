@@ -55,9 +55,9 @@ wait_for_health
 
 echo "Verifying operator bootstrap on an empty product database."
 docker exec "$container" python -c '
-from backend.committee_admin import CommitteeAdminService
-from backend.models import EXAM_HALF_YEAR
-from backend.repositories import ResourceRepository
+from backend.identity.committee_admin import CommitteeAdminService
+from backend.persistence.models import EXAM_HALF_YEAR
+from backend.application.repositories import ResourceRepository
 
 CommitteeAdminService().bootstrap({
     "idempotency_key": "container-smoke-initial-committee",
@@ -130,7 +130,7 @@ assert_status "Disallowed Origin" 403 \
 echo "Verifying operator, actor, and committee isolation."
 operator_credentials=$(docker exec "$container" python -c '
 import json
-from backend.auth import AuthenticationRepository
+from backend.identity.auth import AuthenticationRepository
 
 repository = AuthenticationRepository()
 account = repository.create_account("operator@example.invalid", is_operator=True)
@@ -145,7 +145,7 @@ echo "Operator/domain-role separation passed."
 
 actor_credentials=$(docker exec "$container" python -c '
 import json
-from backend.auth import AuthenticationRepository
+from backend.identity.auth import AuthenticationRepository
 
 credentials = AuthenticationRepository().create_session(1)
 print(json.dumps({"token": credentials.token, "csrf": credentials.csrf_token}))
@@ -156,9 +156,9 @@ echo "Actor session created."
 
 isolated_round=$(docker exec "$container" python -c '
 import json
-from backend.committee_admin import CommitteeAdminService
-from backend.models import EXAM_ROUND
-from backend.repositories import ResourceRepository
+from backend.identity.committee_admin import CommitteeAdminService
+from backend.persistence.models import EXAM_ROUND
+from backend.application.repositories import ResourceRepository
 
 repository = ResourceRepository()
 committee = CommitteeAdminService().bootstrap({

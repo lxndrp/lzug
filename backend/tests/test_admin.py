@@ -14,8 +14,8 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from backend.admin import EXIT_OK, EXIT_TOKEN_INVALID, _execute, _run_command, run
-from backend.admin_service import AdminOperationError, IssuedAuthToken, OperatorAuthService
-from backend.auth import AuthenticationRepository
+from backend.identity.admin_service import AdminOperationError, IssuedAuthToken, OperatorAuthService
+from backend.identity.auth import AuthenticationRepository
 from backend.tests.helpers import TempDatabase
 
 

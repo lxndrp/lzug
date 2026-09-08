@@ -7,10 +7,10 @@ from unittest.mock import patch
 
 from sqlalchemy import select
 
-from backend.auth import AuthenticationRepository
-from backend.calendar import CalendarService
-from backend.database import session_scope
-from backend.models import (
+from backend.identity.auth import AuthenticationRepository
+from backend.integrations.calendar import CalendarService
+from backend.persistence.database import session_scope
+from backend.persistence.models import (
     CalendarEvent,
     CommitteeMember,
     ExamRoom,
@@ -19,8 +19,8 @@ from backend.models import (
     Notification,
     PlanConsequence,
 )
-from backend.plan_consequences import PlanConsequenceService
 from backend.planning import ConfirmedPlanChange, PlanningService
+from backend.planning.plan_consequences import PlanConsequenceService
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
 

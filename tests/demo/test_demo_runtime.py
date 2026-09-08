@@ -11,8 +11,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from backend.database import session_scope
-from backend.models import (
+from backend.persistence.database import session_scope
+from backend.persistence.models import (
     CalendarEvent,
     ConfirmedPlanRevision,
     ExamDay,

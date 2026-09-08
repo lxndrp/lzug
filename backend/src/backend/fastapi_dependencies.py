@@ -6,8 +6,9 @@ from typing import Annotated
 from fastapi import Depends, Header, Request, Security
 from fastapi.security import APIKeyCookie
 
+from backend.application.transport import RequestContext, RequestTooLargeError
+
 from .application import ForbiddenRequestError
-from .transport import RequestContext, RequestTooLargeError
 
 SESSION_COOKIE = APIKeyCookie(name="lzug_session", scheme_name="sessionCookie", auto_error=False)
 

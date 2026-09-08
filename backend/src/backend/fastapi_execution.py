@@ -6,7 +6,10 @@ from fastapi import APIRouter
 from fastapi.responses import Response
 from pydantic import BaseModel, ValidationError
 
-from . import hateoas
+from backend.application import hateoas
+from backend.application.transport import RequestContext
+from backend.persistence.models import EXAM_DAY, EXAM_DAY_ASSIGNMENT, EXAM_SLOT
+
 from .api_contracts import (
     ExamAttendanceUpdateRequest,
     ExamProtocolContentRequest,
@@ -17,9 +20,7 @@ from .api_contracts import (
 from .application import ForbiddenRequestError
 from .fastapi_dependencies import ReadContext, WriteContext
 from .fastapi_http import request_body, validated_payload
-from .models import EXAM_DAY, EXAM_DAY_ASSIGNMENT, EXAM_SLOT
 from .observability import emit_event
-from .transport import RequestContext
 
 
 def _write_contract(write_security: dict[str, object], model: type[BaseModel]) -> dict[str, object]:

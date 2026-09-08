@@ -12,10 +12,10 @@ from typing import Any, Protocol
 
 from fastapi.testclient import TestClient
 
-from backend.auth import AuthenticationRepository, SessionCredentials
-from backend.database import initialize, is_ready
 from backend.fastapi_assembly import FastAPIConfig, create_app
-from backend.map_provider import MapProviderConfig
+from backend.identity.auth import AuthenticationRepository, SessionCredentials
+from backend.integrations.map_provider import MapProviderConfig
+from backend.persistence.database import initialize, is_ready
 from backend.runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from backend.security import RequestRateLimiter
 

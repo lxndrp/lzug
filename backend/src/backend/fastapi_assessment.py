@@ -8,11 +8,12 @@ from fastapi import APIRouter
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from backend.application.transport import RequestContext
+from backend.persistence.models import EXAM_SLOT
+
 from .api_contracts import AssessmentModelBindingRequest, IndividualAssessmentRequest
 from .fastapi_dependencies import ReadContext, WriteContext
 from .fastapi_http import request_body, validated_payload
-from .models import EXAM_SLOT
-from .transport import RequestContext
 
 
 def _write_contract(write_security: dict[str, object], model: type[BaseModel]) -> dict[str, object]:

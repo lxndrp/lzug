@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pyotp
 
-from backend.admin_service import OperatorAuthService
-from backend.local_auth import (
+from backend.identity.admin_service import OperatorAuthService
+from backend.identity.local_auth import (
     GENERIC_LOGIN_MESSAGE,
     LocalAuthError,
     LocalAuthService,

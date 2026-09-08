@@ -11,9 +11,10 @@ from fastapi import Request
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
+from backend.application.transport import RequestContext
+
 from .api_contracts import ErrorResponse
 from .application import ApplicationResult
-from .transport import RequestContext
 
 APPLICATION_ERROR_RESPONSES: dict[int, dict[str, object]] = {
     int(status): {"description": "Application error", "model": ErrorResponse}

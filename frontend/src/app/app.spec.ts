@@ -20,6 +20,7 @@ import {
 } from './locations/locations.component';
 import { RoundContextService } from './api/round-context.service';
 import { routes } from './app.routes';
+import { UiFeedbackService } from './shell/ui-feedback.service';
 import {
   apiRootFixture,
   assignmentsFixture,
@@ -227,11 +228,12 @@ describe('App', () => {
     const http = TestBed.inject(HttpTestingController);
     flushDashboardRequests(http);
 
-    const app = fixture.componentInstance as unknown as {
-      notify: (type: 'success' | 'error', title: string, message: string) => void;
-      dismissFeedback: () => void;
-    };
-    app.notify('error', 'Nicht gespeichert', 'Bitte Eingaben prüfen.');
+    const app = fixture.componentInstance as unknown as { dismissFeedback: () => void };
+    TestBed.inject(UiFeedbackService).notify(
+      'error',
+      'Nicht gespeichert',
+      'Bitte Eingaben prüfen.',
+    );
     fixture.detectChanges();
 
     const alert = (fixture.nativeElement as HTMLElement).querySelector('.app-feedback');

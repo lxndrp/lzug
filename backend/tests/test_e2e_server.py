@@ -6,9 +6,9 @@ from http import HTTPStatus
 
 from fastapi.testclient import TestClient
 
-from backend.auth import AuthenticationRepository
 from backend.e2e_server import create_e2e_app
 from backend.fastapi_assembly import FastAPIConfig
+from backend.identity.auth import AuthenticationRepository
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
 

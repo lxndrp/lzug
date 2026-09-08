@@ -1,4 +1,4 @@
-"""Small server package for the first persistent lzug backend."""
+"""lzug backend package with explicit domain and technical responsibilities."""
 
 from __future__ import annotations
 

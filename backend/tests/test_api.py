@@ -83,7 +83,7 @@ class ApiTests(unittest.TestCase):
     def test_database_errors_use_public_messages(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             with patch(
-                "backend.repositories.ResourceRepository.candidate_list",
+                "backend.application.repositories.ResourceRepository.candidate_list",
                 side_effect=SQLAlchemyError("private database details"),
             ):
                 status, body = api.request("GET", "/api/candidates")
@@ -473,7 +473,7 @@ class ApiTests(unittest.TestCase):
 
             with (
                 patch(
-                    "backend.calendar.CalendarService.sync_round",
+                    "backend.integrations.calendar.CalendarService.sync_round",
                     side_effect=RuntimeError("calendar unavailable"),
                 ) as sync_round,
                 patch("backend.fastapi_execution.emit_event") as emit_event,
@@ -704,8 +704,8 @@ class ApiTests(unittest.TestCase):
 
     def test_candidate_committee_change_is_visible_as_history_over_http(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
-            from backend.models import COMMITTEE
-            from backend.repositories import ResourceRepository
+            from backend.application.repositories import ResourceRepository
+            from backend.persistence.models import COMMITTEE
 
             ResourceRepository(db_path).create(
                 COMMITTEE,

@@ -10,8 +10,8 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
-from backend.database import session_scope
-from backend.models import AbsenceReport, ConfirmedPlanRevision, ReplacementResponse
+from backend.persistence.database import session_scope
+from backend.persistence.models import AbsenceReport, ConfirmedPlanRevision, ReplacementResponse
 from backend.planning import PlanningService
 
 TIME_ZONE = ZoneInfo("Europe/Berlin")
