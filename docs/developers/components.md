@@ -179,9 +179,22 @@ in der Diagnose nur Anbieter und Fehlerklasse.
 Das Angular-Frontend verwendet TypeScript, Angular Router und Taiga UI.
 Es ist ein ruhiges Arbeitswerkzeug für wiederkehrende Ausschussprozesse und
 keine Marketingoberfläche.
-API-Modelle und der zentrale API-Service bilden die Backendgrenze;
-fachliche Komponenten halten keine parallele Transport- oder
+Fachliche API-Modelle und API-Clients unter `frontend/src/app/api/` bilden die
+Backendgrenze.
+`ApiClient` besitzt den gemeinsamen HTTP- und Collection-Transport;
+Planung, Stammdaten, Prüfungsrunden, bestätigte Pläne, Prüfungstage,
+Prüfungsprotokolle, Ergebnisse, persönliche Daten und Prüfungsorte besitzen
+jeweils einen fachlichen Client.
+Der schmale `api.models.ts`-Export hält bestehende Importpfade stabil, ohne
+Transportmodelle erneut zu definieren.
+Fachliche Komponenten halten keine parallele Transport- oder
 Autorisierungslogik.
+
+`ApplicationWorkspaceService` hält ausschließlich den fachübergreifenden
+Lesezustand des gewählten Prüfungskontexts.
+Planungs-, Stammdaten- und Ortsbefehle liegen in den zuständigen
+Workflow-Services; `App` bleibt für Authentisierung, Navigation,
+Zugriffsansicht und die Anbindung der Feature-Ereignisse verantwortlich.
 
 `RoundContextService` hält den aktuellen Prüfungsrundenkontext.
 Dashboard, Stammdaten, Planung, Durchführung und Nachweise bleiben fachlich

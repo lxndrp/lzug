@@ -3,7 +3,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { TuiButton } from '@taiga-ui/core';
 
 import { AbsenceReport } from '../api/api.models';
-import { PlanningApiService } from '../api/planning-api.service';
+import { PersonalApiService } from '../api/personal-api.service';
 import { AuthService } from '../auth/auth.service';
 
 @Component({
@@ -13,7 +13,7 @@ import { AuthService } from '../auth/auth.service';
   styleUrl: './absence-reports.component.css',
 })
 export class AbsenceReportsComponent implements OnInit {
-  private readonly api = inject(PlanningApiService);
+  private readonly api = inject(PersonalApiService);
   private readonly auth = inject(AuthService);
 
   protected readonly reports = signal<AbsenceReport[]>([]);

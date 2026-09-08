@@ -11,7 +11,7 @@ import {
   NotificationItem,
   NotificationProblem,
 } from '../api/api.models';
-import { PlanningApiService } from '../api/planning-api.service';
+import { PersonalApiService } from '../api/personal-api.service';
 import { AuthService } from '../auth/auth.service';
 
 @Component({
@@ -21,7 +21,7 @@ import { AuthService } from '../auth/auth.service';
   styleUrl: './notifications.component.css',
 })
 export class NotificationsComponent implements OnInit {
-  private readonly api = inject(PlanningApiService);
+  private readonly api = inject(PersonalApiService);
   private readonly auth = inject(AuthService);
 
   protected readonly notifications = signal<NotificationItem[]>([]);

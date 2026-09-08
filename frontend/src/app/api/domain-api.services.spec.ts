@@ -3,6 +3,13 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 
 import { PlanningApiService } from './planning-api.service';
+import { ConfirmedPlanApiService } from './confirmed-plan-api.service';
+import { ExamProtocolApiService } from './exam-protocol-api.service';
+import { ExamRoundApiService } from './exam-round-api.service';
+import { MasterDataApiService } from './master-data-api.service';
+import { PersonalApiService } from './personal-api.service';
+import { VenueApiService } from './venue-api.service';
+import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
 import {
   absenceCandidateFixture,
   athenChairMembershipFixture,
@@ -23,8 +30,15 @@ import {
   roundCandidatesFixture,
 } from '../testing/fixtures';
 
-describe('PlanningApiService', () => {
-  let service: PlanningApiService;
+describe('domain API services', () => {
+  let planning: PlanningApiService;
+  let confirmedPlans: ConfirmedPlanApiService;
+  let protocols: ExamProtocolApiService;
+  let examRounds: ExamRoundApiService;
+  let masterData: MasterDataApiService;
+  let personal: PersonalApiService;
+  let venues: VenueApiService;
+  let runtimeExperience: RuntimeExperienceService;
   let http: HttpTestingController;
 
   beforeEach(() => {
@@ -32,7 +46,14 @@ describe('PlanningApiService', () => {
       providers: [provideHttpClient(), provideHttpClientTesting()],
     });
 
-    service = TestBed.inject(PlanningApiService);
+    planning = TestBed.inject(PlanningApiService);
+    confirmedPlans = TestBed.inject(ConfirmedPlanApiService);
+    protocols = TestBed.inject(ExamProtocolApiService);
+    examRounds = TestBed.inject(ExamRoundApiService);
+    masterData = TestBed.inject(MasterDataApiService);
+    personal = TestBed.inject(PersonalApiService);
+    venues = TestBed.inject(VenueApiService);
+    runtimeExperience = TestBed.inject(RuntimeExperienceService);
     http = TestBed.inject(HttpTestingController);
   });
 
@@ -44,7 +65,7 @@ describe('PlanningApiService', () => {
     let dayDates: string[] = [];
     let slotIds: number[] = [];
 
-    service.getPlanningBoard().subscribe((board) => {
+    planning.getPlanningBoard().subscribe((board) => {
       dayDates = board.days.map((item) => item.day.date);
       slotIds = board.days[0].slots.map((slot) => slot.id);
       expect(board.days[0].location?.name).toBe('Prüfungszentrum am Zappeion (Demo)');
@@ -77,7 +98,7 @@ describe('PlanningApiService', () => {
   });
 
   it('should use the backend write endpoints for planning actions', () => {
-    service.generateProposal().subscribe((result) => {
+    planning.generateProposal().subscribe((result) => {
       expect(result.status).toBe('plan_proposed');
       expect(result.counts['planned_slots']).toBe(16);
     });
@@ -97,18 +118,18 @@ describe('PlanningApiService', () => {
       exam_days: [],
       _links: {},
     };
-    service.getPlanningProposal().subscribe((result) => expect(result.revision).toBe(3));
+    planning.getPlanningProposal().subscribe((result) => expect(result.revision).toBe(3));
     const getEditable = http.expectOne('/api/exam-rounds/1/planning-proposal');
     expect(getEditable.request.method).toBe('GET');
     getEditable.flush(editable);
 
-    service.savePlanningProposal(editable).subscribe((result) => expect(result.revision).toBe(4));
+    planning.savePlanningProposal(editable).subscribe((result) => expect(result.revision).toBe(4));
     const saveEditable = http.expectOne('/api/exam-rounds/1/planning-proposal');
     expect(saveEditable.request.method).toBe('PUT');
     expect(saveEditable.request.body).toEqual(editable);
     saveEditable.flush({ ...editable, revision: 4 });
 
-    service.confirmPlan().subscribe((result) => {
+    planning.confirmPlan().subscribe((result) => {
       expect(result.status).toBe('plan_confirmed');
       expect(result.counts['confirmed_slots']).toBe(16);
     });
@@ -122,24 +143,24 @@ describe('PlanningApiService', () => {
   });
 
   it('should expose exam-half-year and committee-round operations', () => {
-    service.listExamHalfYears().subscribe();
+    examRounds.listExamHalfYears().subscribe();
     const halfYears = http.expectOne('/api/exam-half-years');
     expect(halfYears.request.method).toBe('GET');
     halfYears.flush({ items: [], _links: {} });
 
-    service.createExamHalfYear({ season: 'summer', year: 2027, status: 'draft' }).subscribe();
+    examRounds.createExamHalfYear({ season: 'summer', year: 2027, status: 'draft' }).subscribe();
     const createHalfYear = http.expectOne('/api/exam-half-years');
     expect(createHalfYear.request.method).toBe('POST');
     expect(createHalfYear.request.body).toEqual({ season: 'summer', year: 2027, status: 'draft' });
     createHalfYear.flush({ id: 2, season: 'summer', year: 2027, status: 'draft' });
 
-    service.updateExamHalfYear(2, { season: 'winter', year: 2028 }).subscribe();
+    examRounds.updateExamHalfYear(2, { season: 'winter', year: 2028 }).subscribe();
     const updateHalfYear = http.expectOne('/api/exam-half-years/2');
     expect(updateHalfYear.request.method).toBe('PATCH');
     expect(updateHalfYear.request.body).toEqual({ season: 'winter', year: 2028 });
     updateHalfYear.flush({ id: 2, season: 'winter', year: 2028, status: 'draft' });
 
-    service
+    examRounds
       .createExamRound({
         exam_half_year_id: 2,
         committee_id: 1,
@@ -153,7 +174,7 @@ describe('PlanningApiService', () => {
   });
 
   it('should load the scheduling overview collection', () => {
-    service.getSchedulingOverview().subscribe((items) => {
+    planning.getSchedulingOverview().subscribe((items) => {
       expect(items[0].status_group).toBe('coordination');
       expect(items[0].can_continue).toBe(true);
     });
@@ -179,19 +200,19 @@ describe('PlanningApiService', () => {
   });
 
   it('should load the confirmed-plan calendar collection', () => {
-    service.getConfirmedPlans().subscribe((plans) => expect(plans).toEqual([]));
+    confirmedPlans.getConfirmedPlans().subscribe((plans) => expect(plans).toEqual([]));
     const request = http.expectOne('/api/confirmed-plans');
     expect(request.request.method).toBe('GET');
     request.flush({ items: [], _links: {} });
   });
 
   it('should use the revisioned confirmed-plan endpoints', () => {
-    service.getEditableConfirmedPlan(2).subscribe((plan) => expect(plan.revision).toBe(4));
+    confirmedPlans.getEditableConfirmedPlan(2).subscribe((plan) => expect(plan.revision).toBe(4));
     const read = http.expectOne('/api/exam-rounds/2/confirmed-plan');
     expect(read.request.method).toBe('GET');
     read.flush({ round_id: 2, revision: 4, exam_days: [], _links: {} });
 
-    service
+    confirmedPlans
       .saveEditableConfirmedPlan(
         2,
         { round_id: 2, revision: 4, exam_days: [], _links: {} },
@@ -208,19 +229,25 @@ describe('PlanningApiService', () => {
     });
     save.flush({ round_id: 2, revision: 5, exam_days: [], _links: {} });
 
-    service.getConfirmedPlanRevisions(2).subscribe((revisions) => expect(revisions).toEqual([]));
+    confirmedPlans
+      .getConfirmedPlanRevisions(2)
+      .subscribe((revisions) => expect(revisions).toEqual([]));
     const history = http.expectOne('/api/exam-rounds/2/confirmed-plan/revisions');
     expect(history.request.method).toBe('GET');
     history.flush({ items: [], _links: {} });
   });
 
   it('should expose the isolated demo scenario and reset endpoints', () => {
-    service.getDemoScenarios().subscribe((overview) => expect(overview.current_role).toBe('chair'));
+    runtimeExperience
+      .getDemoScenarios()
+      .subscribe((overview) => expect(overview.current_role).toBe('chair'));
     const scenarios = http.expectOne('/api/demo/scenarios');
     expect(scenarios.request.method).toBe('GET');
     scenarios.flush({ current_role: 'chair' });
 
-    service.resetDemoScenarios().subscribe((result) => expect(result.status).toBe('reset'));
+    runtimeExperience
+      .resetDemoScenarios()
+      .subscribe((result) => expect(result.status).toBe('reset'));
     const reset = http.expectOne('/api/demo/reset');
     expect(reset.request.method).toBe('POST');
     expect(reset.request.body).toEqual({});
@@ -228,7 +255,7 @@ describe('PlanningApiService', () => {
   });
 
   it('should use the channel-neutral notification endpoints', () => {
-    service.getNotifications().subscribe((items) => expect(items[0].id).toBe(7));
+    personal.getNotifications().subscribe((items) => expect(items[0].id).toBe(7));
     const notifications = http.expectOne('/api/notifications');
     expect(notifications.request.method).toBe('GET');
     notifications.flush({
@@ -245,12 +272,12 @@ describe('PlanningApiService', () => {
       _links: {},
     });
 
-    service.getNotificationOverview().subscribe((items) => expect(items).toEqual([]));
+    personal.getNotificationOverview().subscribe((items) => expect(items).toEqual([]));
     const overview = http.expectOne('/api/notification-overview');
     expect(overview.request.method).toBe('GET');
     overview.flush({ items: [], _links: {} });
 
-    service.registerPushSubscription('https://push.example.invalid/one').subscribe();
+    personal.registerPushSubscription('https://push.example.invalid/one').subscribe();
     const registration = http.expectOne('/api/push-subscriptions');
     expect(registration.request.method).toBe('POST');
     expect(registration.request.body).toEqual({ endpoint: 'https://push.example.invalid/one' });
@@ -258,7 +285,7 @@ describe('PlanningApiService', () => {
   });
 
   it('should expose the personal calendar feed endpoints', () => {
-    service.getCalendarStatus().subscribe((status) => expect(status.active).toBe(true));
+    personal.getCalendarStatus().subscribe((status) => expect(status.active).toBe(true));
     const status = http.expectOne('/api/calendar');
     expect(status.request.method).toBe('GET');
     status.flush({
@@ -269,12 +296,12 @@ describe('PlanningApiService', () => {
       _links: {},
     });
 
-    service.getCalendarEvents().subscribe((events) => expect(events).toEqual([]));
+    personal.getCalendarEvents().subscribe((events) => expect(events).toEqual([]));
     const events = http.expectOne('/api/calendar/events');
     expect(events.request.method).toBe('GET');
     events.flush({ items: [], _links: {} });
 
-    service.activateCalendarFeed(true).subscribe((result) => expect(result.active).toBe(true));
+    personal.activateCalendarFeed(true).subscribe((result) => expect(result.active).toBe(true));
     const activate = http.expectOne('/api/calendar/feed');
     expect(activate.request.method).toBe('POST');
     expect(activate.request.body).toEqual({ rotate: true });
@@ -288,7 +315,7 @@ describe('PlanningApiService', () => {
       _links: {},
     });
 
-    service.revokeCalendarFeed().subscribe((result) => expect(result.active).toBe(false));
+    personal.revokeCalendarFeed().subscribe((result) => expect(result.active).toBe(false));
     const revoke = http.expectOne('/api/calendar/feed');
     expect(revoke.request.method).toBe('DELETE');
     revoke.flush({
@@ -302,7 +329,7 @@ describe('PlanningApiService', () => {
   });
 
   it('should expose committee member write operations', () => {
-    service.updateMember(1, { is_active: 0 }).subscribe();
+    masterData.updateMember(1, { is_active: 0 }).subscribe();
     const member = http.expectOne('/api/members/1');
     expect(member.request.method).toBe('PATCH');
     expect(member.request.body).toEqual({ is_active: 0 });
@@ -310,7 +337,7 @@ describe('PlanningApiService', () => {
   });
 
   it('should combine candidates with their round metadata', () => {
-    service.getCandidateViews().subscribe((items) => {
+    masterData.getCandidateViews().subscribe((items) => {
       expect(items.length).toBe(2);
       expect(items[1].candidate.id).toBe(absenceCandidateFixture.id);
       expect(items[1].roundCandidate?.attempt_number).toBe(2);
@@ -325,7 +352,7 @@ describe('PlanningApiService', () => {
   });
 
   it('should expose candidate write operations', () => {
-    service
+    masterData
       .createCandidate({
         first_name: 'Prüfling',
         last_name: 'Gamma',
@@ -351,7 +378,7 @@ describe('PlanningApiService', () => {
     });
     create.flush(planchangeCandidateFixture);
 
-    service
+    masterData
       .updateCandidate(1, {
         first_name: 'Prüfling',
         last_name: 'Alpha',
@@ -376,7 +403,7 @@ describe('PlanningApiService', () => {
     });
     update.flush(planchangeCandidateFixture);
 
-    service
+    masterData
       .updateCandidate(1, {
         first_name: 'Prüfling',
         last_name: 'Alpha',
@@ -394,14 +421,14 @@ describe('PlanningApiService', () => {
     expect(transfer.request.body.assignment_change_reason).toBe('Wechsel in den zweiten Ausschuss');
     transfer.flush(planchangeCandidateFixture);
 
-    service.deleteCandidate(1).subscribe();
+    masterData.deleteCandidate(1).subscribe();
     const remove = http.expectOne('/api/candidates/1');
     expect(remove.request.method).toBe('DELETE');
     remove.flush({});
   });
 
   it('should load assignment history with master data', () => {
-    service.getMasterData().subscribe((masterData) => {
+    masterData.getMasterData().subscribe((masterData) => {
       expect(masterData.examHalfYears).toEqual([
         { id: 1, season: 'winter', year: 2026, status: 'active' },
       ]);
@@ -431,7 +458,7 @@ describe('PlanningApiService', () => {
   });
 
   it('should expose revisioned exam venue management operations', () => {
-    service
+    venues
       .createExamVenue({
         scope: 'committee',
         committee_id: 1,
@@ -447,13 +474,13 @@ describe('PlanningApiService', () => {
     expect(request.request.method).toBe('POST');
     request.flush({});
 
-    service.updateExamVenue(1, { expected_revision: 2, is_active: 0 }).subscribe();
+    venues.updateExamVenue(1, { expected_revision: 2, is_active: 0 }).subscribe();
     const update = http.expectOne('/api/exam-venues/1');
     expect(update.request.method).toBe('PATCH');
     expect(update.request.body).toEqual({ expected_revision: 2, is_active: 0 });
     update.flush({});
 
-    service.deleteExamVenue(1, 2).subscribe();
+    venues.deleteExamVenue(1, 2).subscribe();
     const remove = http.expectOne('/api/exam-venues/1');
     expect(remove.request.method).toBe('DELETE');
     expect(remove.request.body).toEqual({ expected_revision: 2 });
@@ -461,7 +488,7 @@ describe('PlanningApiService', () => {
   });
 
   it('should save planning settings for the active round', () => {
-    service
+    planning
       .savePlanningSettings({
         calendar_week_from: '2026-W47',
         calendar_week_to: '2026-W49',
@@ -491,7 +518,7 @@ describe('PlanningApiService', () => {
   });
 
   it('should update exam round metadata for the active round', () => {
-    service
+    planning
       .updateExamRound({
         name: 'Sommer 2027',
         availability_deadline: '2027-04-15 18:00:00',
@@ -511,7 +538,7 @@ describe('PlanningApiService', () => {
       availability_deadline: '2026-10-15 18:00:00',
       availability_reminder_at: '2026-10-08 09:00:00',
     };
-    service.requestAvailabilities(payload).subscribe();
+    planning.requestAvailabilities(payload).subscribe();
 
     const update = http.expectOne('/api/exam-rounds/1');
     expect(update.request.method).toBe('PATCH');
@@ -525,7 +552,7 @@ describe('PlanningApiService', () => {
   });
 
   it('should expose possible day and availability write operations', () => {
-    service.generateCandidateExamDays().subscribe();
+    planning.generateCandidateExamDays().subscribe();
     const generateDays = http.expectOne('/api/candidate-exam-days/generate');
     expect(generateDays.request.method).toBe('POST');
     expect(generateDays.request.body).toEqual({ round_id: 1 });
@@ -541,7 +568,7 @@ describe('PlanningApiService', () => {
       counts: { calculated_weekdays: 15, created: 0, existing: 15, excluded_holidays: 0 },
     });
 
-    service.createCandidateExamDay({ date: '2026-11-18', is_active: 1 }).subscribe();
+    planning.createCandidateExamDay({ date: '2026-11-18', is_active: 1 }).subscribe();
     const createDay = http.expectOne('/api/candidate-exam-days');
     expect(createDay.request.method).toBe('POST');
     expect(createDay.request.body).toEqual({
@@ -551,13 +578,13 @@ describe('PlanningApiService', () => {
     });
     createDay.flush({ id: 3, exam_round_id: 1, date: '2026-11-18', is_active: 1 });
 
-    service.updateCandidateExamDay(2, { is_active: 1 }).subscribe();
+    planning.updateCandidateExamDay(2, { is_active: 1 }).subscribe();
     const candidateDay = http.expectOne('/api/candidate-exam-days/2');
     expect(candidateDay.request.method).toBe('PATCH');
     expect(candidateDay.request.body).toEqual({ is_active: 1 });
     candidateDay.flush({ ...inactiveCandidateDayFixture, is_active: 1 });
 
-    service
+    planning
       .saveMemberAvailability({
         committee_member_id: 1,
         candidate_exam_day_id: 2,
@@ -582,12 +609,12 @@ describe('PlanningApiService', () => {
   });
 
   it('should expose the versioned exam protocol workflow', () => {
-    service.getExamProtocol(7, 11).subscribe();
+    protocols.getExamProtocol(7, 11).subscribe();
     const protocol = http.expectOne('/api/confirmed-plan-days/7/slots/11/protocol');
     expect(protocol.request.method).toBe('GET');
     protocol.flush({});
 
-    service
+    protocols
       .updateExamProtocol(
         41,
         2,
@@ -620,13 +647,13 @@ describe('PlanningApiService', () => {
     });
     update.flush({});
 
-    service.submitExamProtocol(41, 3).subscribe();
+    protocols.submitExamProtocol(41, 3).subscribe();
     const submit = http.expectOne('/api/exam-protocols/41/submit');
     expect(submit.request.method).toBe('POST');
     expect(submit.request.body).toEqual({ version: 3 });
     submit.flush({});
 
-    service.respondToExamProtocol(41, 3, 'reservation', 72, '  Zeitangabe prüfen  ').subscribe();
+    protocols.respondToExamProtocol(41, 3, 'reservation', 72, '  Zeitangabe prüfen  ').subscribe();
     const response = http.expectOne('/api/exam-protocols/41/responses');
     expect(response.request.method).toBe('POST');
     expect(response.request.body).toEqual({
@@ -637,13 +664,13 @@ describe('PlanningApiService', () => {
     });
     response.flush({});
 
-    service.requestExamProtocolCorrection(41, 3, '  Eintrag ergänzen  ').subscribe();
+    protocols.requestExamProtocolCorrection(41, 3, '  Eintrag ergänzen  ').subscribe();
     const correctionRequest = http.expectOne('/api/exam-protocols/41/correction-requests');
     expect(correctionRequest.request.method).toBe('POST');
     expect(correctionRequest.request.body).toEqual({ version: 3, reason: 'Eintrag ergänzen' });
     correctionRequest.flush({});
 
-    service
+    protocols
       .openExamProtocolCorrection(41, 3, 9, '  Korrektur koordinieren  ', '  REOPEN-36  ')
       .subscribe();
     const openCorrection = http.expectOne('/api/exam-protocols/41/open-correction');

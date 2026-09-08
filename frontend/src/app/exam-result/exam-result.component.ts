@@ -6,7 +6,7 @@ import { TuiBadge } from '@taiga-ui/kit';
 import { Observable } from 'rxjs';
 
 import { AssessmentComponent, AssessmentCriterion, ExamResult } from '../api/api.models';
-import { PlanningApiService } from '../api/planning-api.service';
+import { ExamResultApiService } from '../api/exam-result-api.service';
 import { AuthService } from '../auth/auth.service';
 
 export type ResultViewState = 'loading' | 'ready' | 'error' | 'not-found';
@@ -24,7 +24,7 @@ export type CriterionDraft = {
   styleUrl: './exam-result.component.css',
 })
 export class ExamResultComponent implements OnChanges {
-  private readonly api = inject(PlanningApiService);
+  private readonly api = inject(ExamResultApiService);
   private readonly auth = inject(AuthService);
 
   @Input({ required: true }) dayId!: number;

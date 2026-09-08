@@ -17,6 +17,8 @@ import { TuiBadge } from '@taiga-ui/kit';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 
 import { ExamRoom, ExamVenue, ExamVenueContact, MasterData } from '../api/api.models';
+import { VenueContactsComponent } from './venue-contacts.component';
+import { VenueRoomsComponent } from './venue-rooms.component';
 
 export type VenueCreate = {
   scope: 'global' | 'committee';
@@ -113,7 +115,17 @@ export type ContactUpdate = {
 
 @Component({
   selector: 'app-locations',
-  imports: [FormsModule, TuiBadge, TuiButton, TuiForm, TuiHeader, TuiInput, TuiTextfield],
+  imports: [
+    FormsModule,
+    TuiBadge,
+    TuiButton,
+    TuiForm,
+    TuiHeader,
+    TuiInput,
+    TuiTextfield,
+    VenueContactsComponent,
+    VenueRoomsComponent,
+  ],
   templateUrl: './locations.component.html',
   styleUrl: './locations.component.css',
 })

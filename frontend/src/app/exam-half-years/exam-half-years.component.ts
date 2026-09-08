@@ -12,7 +12,7 @@ import {
   ExamRound,
   ExamRoundLifecycle,
 } from '../api/api.models';
-import { PlanningApiService } from '../api/planning-api.service';
+import { ExamRoundApiService } from '../api/exam-round-api.service';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
 
@@ -36,7 +36,7 @@ export type HalfYearDraft = Pick<ExamHalfYear, 'season' | 'year'>;
   styleUrl: './exam-half-years.component.css',
 })
 export class ExamHalfYearsComponent implements OnInit {
-  private readonly api = inject(PlanningApiService);
+  private readonly api = inject(ExamRoundApiService);
 
   protected readonly icons = appIcons;
   protected readonly halfYears = signal<ExamHalfYear[]>([]);

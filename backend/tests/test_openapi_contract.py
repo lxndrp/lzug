@@ -583,9 +583,17 @@ class OpenApiContractTests(unittest.TestCase):
             )
 
     def test_angular_client_operations_are_documented_in_openapi(self) -> None:
-        source = Path("frontend/src/app/api/planning-api.service.ts").read_text()
-        operations = _angular_operations(source)
-        self.assertGreater(len(operations), 0)
+        sources = sorted(Path("frontend/src/app/api").glob("*-api.service.ts"))
+        self.assertGreater(len(sources), 0)
+        operations: list[tuple[str, str]] = []
+        for source_path in sources:
+            source_operations = _angular_operations(source_path.read_text())
+            self.assertGreater(
+                len(source_operations),
+                0,
+                f"No API operations found in {source_path}",
+            )
+            operations.extend(source_operations)
         with TempDatabase() as db_path:
             documented_spec = create_app(
                 FastAPIConfig(
@@ -607,12 +615,12 @@ class OpenApiContractTests(unittest.TestCase):
 
 def _angular_operations(source: str) -> list[tuple[str, str]]:
     direct_calls = re.findall(
-        r"this\.http\.(get|post|put|patch|delete)<[^>]+>\(\s*([`'])(/api/.*?)\2",
+        r"this\.(?:http|client)\.(get|post|put|patch|delete)(?:<[^>]+>)?\(\s*([`'])(/api/.*?)\2",
         source,
         flags=re.DOTALL,
     )
     collection_calls = re.findall(
-        r"this\.list<[^>]+>\(\s*([`'])(/api/.*?)\1",
+        r"this\.(?:client\.)?list<[^>]+>\(\s*([`'])(/api/.*?)\1",
         source,
         flags=re.DOTALL,
     )

@@ -5,8 +5,8 @@ import { finalize, interval } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { DemoRole, DemoScenario, DemoScenarioOverview } from '../api/api.models';
-import { PlanningApiService } from '../api/planning-api.service';
 import { AuthService } from '../auth/auth.service';
+import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
 import { DemoTourComponent } from './demo-tour.component';
 
 @Component({
@@ -16,7 +16,7 @@ import { DemoTourComponent } from './demo-tour.component';
   styleUrl: './demo-scenarios.component.css',
 })
 export class DemoScenariosComponent implements OnInit {
-  private readonly api = inject(PlanningApiService);
+  private readonly api = inject(RuntimeExperienceService);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
