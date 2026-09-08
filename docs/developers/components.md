@@ -56,9 +56,12 @@ Buildkontext voraussetzt.
 `backend.fastapi_assembly.create_app` ist die produktive HTTP-Assembly innerhalb
 des einen autoritativen Backendprozesses.
 Sie ordnet Konfiguration, Transportgrenze, Fehlerabbildung, fachliche
-Routerregistrierung und OpenAPI-Assembly zu, während
-`backend.fastapi_app` die bestehenden HTTP-Handler und ihre
-Registrierungsgrenzen enthält.
+Routerregistrierung und OpenAPI-Assembly zu.
+`backend.fastapi_master_data` besitzt die Router für Stammdaten,
+Organisation und Prüfungsorte; `backend.fastapi_app` enthält die verbleibenden
+HTTP-Handler und die gemeinsamen Registrierungsgrenzen.
+`backend.fastapi_responses` übersetzt Anwendungsergebnisse einheitlich für alle
+Router in den bestehenden HTTP-Antwortvertrag.
 `backend.server` startet den Prozess über Uvicorn; `backend.transport` bildet
 den gemeinsamen Anwendungsvertrag für HTTP- und Adminadapter ab.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am

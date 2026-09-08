@@ -81,9 +81,7 @@ class FastAPIAssemblyTests(unittest.TestCase):
             "_register_planning_routes",
             "_register_planning_resource_routes",
             "_register_execution_assessment_routes",
-            "_register_venue_routes",
-            "_register_resource_routes",
-            "_register_assignment_routes",
+            "register_master_data_routes",
             "_register_static_route",
         )
         calls: list[str] = []
