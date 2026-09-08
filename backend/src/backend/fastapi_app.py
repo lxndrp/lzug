@@ -9,9 +9,9 @@ from functools import lru_cache
 from html import escape
 from http import HTTPStatus
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote
 
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import Response
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -19,6 +19,11 @@ from . import hateoas
 from .api_contracts import (
     ApiRootResponse,
     AssessmentModelBindingRequest,
+    CalendarEventCollectionResponse,
+    CalendarFeedActivationRequest,
+    CalendarFeedActivationResponse,
+    CalendarFeedRevocationResponse,
+    CalendarStatusResponse,
     DemoScenarioOverviewResponse,
     DemoScenarioResetResponse,
     DomainCollectionResponse,
@@ -52,6 +57,11 @@ from .api_contracts import (
     LegacyLocationCollectionResponse,
     LegacyLocationResponse,
     LoginRequest,
+    NotificationChannelsResponse,
+    NotificationCollectionResponse,
+    PushConfirmationResponse,
+    PushSubscriptionRequest,
+    PushSubscriptionResponse,
     RevisionDeleteRequest,
     SessionResponse,
     SessionRotationResponse,
@@ -76,27 +86,23 @@ from .exam_venues import (
 )
 from .fastapi_assessment import create_assessment_router
 from .fastapi_dependencies import (
-    BodyContext,
-    BodyMutationContext,
-    Context,
     EmptyWriteContext,
     ManageBodyRoundContext,
     ManageRoundContext,
     ManageRoundEmptyWriteContext,
     ManageRoundWriteContext,
-    MutationContext,
     ReadContext,
-    SessionContext,
-    SessionWriteContext,
     WriteContext,
     buffered_body,
 )
 from .fastapi_execution import create_execution_router
+from .fastapi_http import finish as _finish
+from .fastapi_http import json_response as _json_response
+from .fastapi_http import not_found as _not_found
+from .fastapi_http import plain_text as _plain_text
+from .fastapi_http import same_origin as _same_origin
 from .fastapi_master_data import MIGRATED_DOMAIN_RESOURCES as MIGRATED_DOMAIN_RESOURCES
 from .fastapi_master_data import register_master_data_routes
-from .fastapi_responses import finish as _finish
-from .fastapi_responses import json_response as _json_response
-from .fastapi_responses import not_found as _not_found
 from .local_auth import LocalAuthError
 from .map_provider import (
     MapProviderConfig,
@@ -111,7 +117,6 @@ from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from .security import RequestRateLimiter, RuntimeSecurityConfig
 from .settings import RuntimeSettings
 from .transport import (
-    RequestContext,
     RequestTooLargeError,
     UnsupportedMediaTypeError,
     confirmed_plan_change_from_payload,
@@ -121,6 +126,11 @@ from .transport import (
 __all__ = [
     "ApiRootResponse",
     "AssessmentModelBindingRequest",
+    "CalendarEventCollectionResponse",
+    "CalendarFeedActivationRequest",
+    "CalendarFeedActivationResponse",
+    "CalendarFeedRevocationResponse",
+    "CalendarStatusResponse",
     "DemoScenarioOverviewResponse",
     "DemoScenarioResetResponse",
     "DomainCollectionResponse",
@@ -133,8 +143,6 @@ __all__ = [
     "ExamRoomCreateRequest",
     "ExamRoomResponse",
     "ExamRoomUpdateRequest",
-    "ExamSlotStartRequest",
-    "ExamSlotStatusUpdateRequest",
     "ExamVenueCollectionResponse",
     "ExamVenueContactCreateRequest",
     "ExamVenueContactResponse",
@@ -154,9 +162,16 @@ __all__ = [
     "LegacyLocationCollectionResponse",
     "LegacyLocationResponse",
     "LoginRequest",
+    "NotificationChannelsResponse",
+    "NotificationCollectionResponse",
+    "PushConfirmationResponse",
+    "PushSubscriptionRequest",
+    "PushSubscriptionResponse",
     "RevisionDeleteRequest",
     "SessionResponse",
     "SessionRotationResponse",
+    "ExamSlotStartRequest",
+    "ExamSlotStatusUpdateRequest",
     "TokenRequest",
 ]
 
@@ -230,6 +245,20 @@ def _add_openapi_models(schemas: dict) -> None:
         ExamProtocolResponseRequest,
         AssessmentModelBindingRequest,
         IndividualAssessmentRequest,
+        LoginRequest,
+        TokenRequest,
+        FactorActivationRequest,
+        FrontendErrorRequest,
+        CalendarFeedActivationRequest,
+        CalendarStatusResponse,
+        CalendarFeedActivationResponse,
+        CalendarFeedRevocationResponse,
+        CalendarEventCollectionResponse,
+        NotificationCollectionResponse,
+        NotificationChannelsResponse,
+        PushSubscriptionRequest,
+        PushSubscriptionResponse,
+        PushConfirmationResponse,
         ExamVenueCreateRequest,
         ExamVenueUpdateRequest,
         ExamVenueDuplicateCheckRequest,
@@ -303,30 +332,6 @@ def _add_openapi_responses(responses: dict) -> None:
             }
 
 
-def _text(context: RequestContext, value: str) -> Response:
-    response = Response(
-        value, media_type="text/calendar; charset=utf-8", headers={"Cache-Control": "no-store"}
-    )
-    response.headers["Content-Disposition"] = "attachment; filename=pruefungstermine.ics"
-    for name, header_value in context.response_headers:
-        response.raw_headers.append(
-            (name.lower().encode("latin-1"), header_value.encode("latin-1"))
-        )
-    return response
-
-
-def _plain_text(context: RequestContext, value: str, filename: str) -> Response:
-    response = Response(
-        value, media_type="text/plain; charset=utf-8", headers={"Cache-Control": "no-store"}
-    )
-    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
-    for name, header_value in context.response_headers:
-        response.raw_headers.append(
-            (name.lower().encode("latin-1"), header_value.encode("latin-1"))
-        )
-    return response
-
-
 def _security_headers(config: FastAPIConfig, request: Request) -> dict[str, str]:
     frame_source = {
         "osm": "https://www.openstreetmap.org",
@@ -363,44 +368,6 @@ def _security_headers(config: FastAPIConfig, request: Request) -> dict[str, str]
             }
         )
     return headers
-
-
-def _normalized_authority(value: str, *, scheme: str | None = None) -> tuple[str, str, int] | None:
-    try:
-        parsed = urlparse(value if scheme is None else f"{scheme}://{value}")
-        port = parsed.port
-    except ValueError:
-        return None
-    expected_scheme = parsed.scheme if scheme is None else scheme
-    allowed_paths = {"", "/"} if scheme is not None else {""}
-    if (
-        expected_scheme not in {"http", "https"}
-        or parsed.hostname is None
-        or parsed.username is not None
-        or parsed.password is not None
-        or parsed.path not in allowed_paths
-        or parsed.params
-        or parsed.query
-        or parsed.fragment
-    ):
-        return None
-    return (
-        expected_scheme,
-        parsed.hostname.lower(),
-        port or (443 if expected_scheme == "https" else 80),
-    )
-
-
-def _same_origin(request: Request, origin: str) -> bool:
-    parsed = _normalized_authority(origin)
-    if parsed is None:
-        return False
-    scheme, hostname, port = parsed
-    return _normalized_authority(request.headers.get("Host", ""), scheme=scheme) == (
-        scheme,
-        hostname,
-        port,
-    )
 
 
 def _is_api_path(path: str) -> bool:
@@ -792,588 +759,21 @@ def _register_transport_and_errors(
     )
 
 
-def _register_runtime_routes(
+def _register_operations_router(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
-    @app.get("/api/health", response_model=HealthResponse)
-    def health():
-        return _json_response(application.health())
+    from .fastapi_operations_routes import create_operations_router
 
-    @app.get(
-        "/api/ready", response_model=HealthResponse, responses={503: {"model": HealthResponse}}
-    )
-    def ready():
-        return _json_response(application.readiness())
-
-    @app.get(
-        "/api", response_model=ApiRootResponse, openapi_extra={"security": [{"sessionCookie": []}]}
-    )
-    def api_root(context: SessionContext):
-        return _finish(context, context.respond(hateoas.api_root()))
-
-    @app.get(
-        "/api/openapi.json",
-        response_model=dict[str, object],
-        openapi_extra={"security": [{"sessionCookie": []}]},
-    )
-    def openapi_document(context: SessionContext):
-        return _finish(context, context.respond(app.openapi()))
-
-    @app.get("/api/docs", include_in_schema=False)
-    def api_docs(context: SessionContext):
-        return Response(
-            "<!doctype html><html lang='de'><head><meta charset='utf-8'>"
-            "<title>lzug API Docs</title></head><body><main><h1>lzug API</h1>"
-            "<p>Die maschinenlesbare Beschreibung ist als "
-            "<a href='/api/openapi.json'>OpenAPI-Dokument</a> verfügbar.</p>"
-            "</main></body></html>",
-            media_type="text/html",
-        )
-
-    def runtime_get(context: RequestContext, parts: list[str]):
-        return (
-            _finish(context)
-            if resolved.runtime_policy.handle_public_get(context, parts)
-            else _not_found()
-        )
-
-    def runtime_post(context: RequestContext, parts: list[str]):
-        return (
-            _finish(context)
-            if resolved.runtime_policy.handle_public_post(context, parts)
-            else _not_found()
-        )
-
-    demo_api_prefix = "/api/" + "demo"
-
-    @app.get(f"{demo_api_prefix}/status", include_in_schema=False)
-    def demo_status(context: Context):
-        return runtime_get(context, ["demo", "status"])
-
-    @app.post(f"{demo_api_prefix}/session", include_in_schema=False)
-    def demo_session(context: BodyContext):
-        return runtime_post(context, ["demo", "session"])
-
-    @app.get(
-        f"{demo_api_prefix}/scenarios",
-        response_model=DemoScenarioOverviewResponse,
-        openapi_extra=read_security,
-    )
-    def demo_scenarios(context: Context):
-        return runtime_get(context, ["demo", "scenarios"])
-
-    @app.post(
-        f"{demo_api_prefix}/reset",
-        response_model=DemoScenarioResetResponse,
-        openapi_extra={
-            **write_security,
-            "requestBody": {
-                "required": True,
-                "content": {
-                    "application/json": {
-                        "schema": {"type": "object", "additionalProperties": False}
-                    }
-                },
-            },
-        },
-    )
-    def demo_reset(context: BodyContext):
-        return runtime_post(context, ["demo", "reset"])
+    router = create_operations_router(resolved, application, read_security, write_security)
+    app.router.routes.extend(router.routes)
 
 
-def _register_login_route(
+def _register_integration_router(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
-    @app.post("/api/auth/login", response_model=dict[str, object])
-    def login(context: BodyContext):
-        if not resolved.runtime_policy.allow_product_auth():
-            raise ForbiddenRequestError("Forbidden.")
-        if not context.allow_public_auth_request(["auth", "login"]):
-            return _finish(context)
-        payload = context.read_json()
-        result = context.local_auth_service.login(
-            payload.get("email", "") if isinstance(payload.get("email", ""), str) else "",
-            payload.get("password", "") if isinstance(payload.get("password", ""), str) else "",
-            (
-                payload.get("second_factor", "")
-                if isinstance(payload.get("second_factor", ""), str)
-                else ""
-            ),
-            remote_key=context.client_key,
-        )
-        context.issue_session_cookies(result.credentials)
-        return _finish(
-            context,
-            context.respond(
-                {
-                    "authenticated": True,
-                    "account_id": result.account_id,
-                    "expires_at": result.credentials.expires_at,
-                }
-            ),
-        )
+    from .fastapi_integration_routes import create_integration_router
 
-
-def _register_token_auth_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    def auth_route(name: str, action: str):
-        def endpoint(context: BodyContext):
-            if not resolved.runtime_policy.allow_product_auth():
-                raise ForbiddenRequestError("Forbidden.")
-            if not context.allow_public_auth_request(["auth", name, action]):
-                return _finish(context)
-            payload = context.read_json()
-            service = context.local_auth_service
-            if name == "invitation" and action == "prepare":
-                item = service.prepare_invitation(payload.get("token", ""))
-                result = {
-                    "email": item.email,
-                    "expires_at": item.expires_at,
-                    "totp_secret": item.totp_secret,
-                }
-            elif name == "invitation":
-                account, codes = service.activate_invitation(
-                    payload.get("token", ""),
-                    payload.get("password", ""),
-                    payload.get("totp_secret", ""),
-                    payload.get("totp_code", ""),
-                )
-                result = {"activated": True, "account": account, "recovery_codes": codes}
-            elif action == "prepare":
-                item = service.prepare_recovery(payload.get("token", ""))
-                result = {
-                    "email": item.email,
-                    "expires_at": item.expires_at,
-                    "totp_secret": item.totp_secret,
-                }
-            else:
-                account, codes = service.complete_recovery(
-                    payload.get("token", ""),
-                    payload.get("password", ""),
-                    payload.get("totp_secret", ""),
-                    payload.get("totp_code", ""),
-                )
-                result = {"recovered": True, "account": account, "recovery_codes": codes}
-            return _finish(context, context.respond(result))
-
-        return endpoint
-
-    for path, name, action in (
-        ("/api/auth/invitation/prepare", "invitation", "prepare"),
-        ("/api/auth/invitation/activate", "invitation", "activate"),
-        ("/api/auth/recovery/prepare", "recovery", "prepare"),
-        ("/api/auth/recovery/complete", "recovery", "complete"),
-    ):
-        app.add_api_route(
-            path,
-            auth_route(name, action),
-            methods=["POST"],
-            response_model=dict[str, object],
-            name=f"auth_{name}_{action}",
-        )
-
-
-def _register_session_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.get(
-        "/api/session",
-        response_model=SessionResponse,
-        openapi_extra={"security": [{"sessionCookie": []}]},
-    )
-    def session(context: SessionContext):
-        auth = context.auth_context
-        return _finish(
-            context,
-            context.respond(
-                {
-                    "authenticated": True,
-                    "account_id": auth.account_id,
-                    "person_id": auth.person_id,
-                    "committee_member_id": auth.committee_member_id,
-                    "is_operator": auth.is_operator,
-                    **resolved.runtime_policy.session_view(context, auth),
-                }
-            ),
-        )
-
-    @app.post(
-        "/api/session/rotate",
-        response_model=SessionRotationResponse,
-        openapi_extra={"security": [{"sessionCookie": [], "csrfHeader": []}]},
-    )
-    def rotate_session(context: SessionWriteContext):
-        credentials = context.authentication_repository.rotate_session(
-            context.session_token, ttl=context.session_ttl
-        )
-        if credentials is None:
-            raise AuthenticationRequiredError
-        context.issue_session_cookies(credentials)
-        return _finish(
-            context, context.respond({"status": "rotated", "expires_at": credentials.expires_at})
-        )
-
-    @app.post(
-        "/api/session/logout",
-        status_code=204,
-        openapi_extra={"security": [{"sessionCookie": [], "csrfHeader": []}]},
-    )
-    def logout_session(context: SessionWriteContext):
-        session_token = context.session_token
-        context.authentication_repository.revoke_session(session_token, reason="logout")
-        context.clear_session_cookies()
-        resolved.runtime_policy.discard_session(context, session_token)
-        return _finish(context, context.respond({}, HTTPStatus.NO_CONTENT))
-
-
-def _register_auth_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    _register_login_route(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_token_auth_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_session_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-
-
-def _register_observability_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.post(
-        "/api/observability/frontend-errors",
-        status_code=202,
-    )
-    def frontend_error(request: Request, context: BodyContext):
-        origin = request.headers.get("Origin")
-        if (
-            origin is None
-            or not _same_origin(request, origin)
-            or request.headers.get("Sec-Fetch-Site") != "same-origin"
-        ):
-            raise ForbiddenRequestError("Forbidden.")
-        retry_after = max(
-            context.observability_global_rate_limiter.check("global") or 0,
-            context.observability_rate_limiter.check(context.client_key) or 0,
-        )
-        if retry_after:
-            context.add_header("Retry-After", str(retry_after))
-            return _finish(
-                context,
-                context.respond({"error": "Too many requests."}, HTTPStatus.TOO_MANY_REQUESTS),
-            )
-        if len(request.state.raw_body) > 256:
-            raise RequestTooLargeError("Observability event exceeds 256 bytes.")
-        payload = context.read_json()
-        if payload.get("kind") not in {"bootstrap", "http", "runtime"}:
-            raise ValueError("Invalid frontend error kind")
-        expected_fields = {"kind", "status"} if payload["kind"] == "http" else {"kind"}
-        if set(payload) != expected_fields:
-            raise ValueError("Invalid frontend error fields")
-        status = payload.get("status", 0)
-        if not isinstance(status, int) or isinstance(status, bool) or not 0 <= status <= 599:
-            raise ValueError("Invalid frontend error status")
-        emit_event("frontend_error", severity="error", kind=payload["kind"], status=status)
-        return _finish(context, context.respond({}, HTTPStatus.ACCEPTED))
-
-
-def _register_round_summary_route(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.get(
-        "/api/round-summary",
-        response_model=dict[str, object],
-        openapi_extra={"security": [{"sessionCookie": []}]},
-    )
-    def round_summary(context: ReadContext, round_id: str | None = Query(default=None)):
-        try:
-            parsed_round_id = int(round_id or "1")
-        except ValueError:
-            return _finish(
-                context, context.respond({"error": "Invalid request"}, HTTPStatus.BAD_REQUEST)
-            )
-        return _finish(
-            context,
-            context.read_application.round_summary(context.authorization_scope, parsed_round_id),
-        )
-
-
-def _register_public_calendar_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.get("/api/calendar/feed/{token}.ics", include_in_schema=False)
-    def personal_feed(context: Context, token: str):
-        if not token or any(
-            c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
-            for c in token
-        ):
-            return _not_found()
-        calendar = context.calendar_service.feed_ics(token)
-        return _not_found() if calendar is None else _text(context, calendar)
-
-    @app.get("/api/calendar/events/{id}.ics", include_in_schema=False)
-    def event_feed(context: ReadContext, id: str):
-        if not id.isdigit():
-            return _not_found()
-        calendar = context.calendar_service.event_ics(int(id), context.authorization_scope)
-        return _not_found() if calendar is None else _text(context, calendar)
-
-
-def _register_calendar_management_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.get("/api/calendar")
-    @app.get("/api/calendar/feed")
-    def calendar_status(context: ReadContext):
-        result = {
-            **context.calendar_service.status(context.authorization_scope),
-            "_links": {
-                "self": {"href": "/api/calendar"},
-                "feed": {"href": "/api/calendar/feed", "method": "POST"},
-            },
-        }
-        return _finish(context, context.respond(result))
-
-    @app.get("/api/calendar/events")
-    def calendar_events(context: ReadContext):
-        return _finish(
-            context,
-            context.respond(
-                {
-                    "items": context.calendar_service.list_events(context.authorization_scope),
-                    "_links": {"self": {"href": "/api/calendar/events"}},
-                }
-            ),
-        )
-
-    @app.post("/api/calendar/feed", status_code=201)
-    def activate_feed(context: BodyMutationContext):
-        payload = context.read_json()
-        result = context.calendar_service.activate(
-            context.authorization_scope,
-            rotate=bool(context.normalize_bool(payload.get("rotate", False))),
-        )
-        result.update(
-            {
-                "_links": {
-                    "self": {"href": "/api/calendar"},
-                    "feed": {"href": "/api/calendar/feed"},
-                    "events": {"href": "/api/calendar/events"},
-                },
-                "notice": (
-                    "Der Feed-Zugang ist persönlich. Bereits extern gespeicherte Termine können "
-                    "nach Widerruf oder Neuerzeugung nicht zuverlässig entfernt werden."
-                ),
-            }
-        )
-        return _finish(context, context.respond(result, HTTPStatus.CREATED))
-
-    @app.delete("/api/calendar/feed")
-    def revoke_feed(context: MutationContext):
-        context.calendar_service.revoke(context.authorization_scope)
-        result = {
-            **context.calendar_service.status(context.authorization_scope),
-            "_links": {
-                "self": {"href": "/api/calendar"},
-                "feed": {"href": "/api/calendar/feed"},
-                "events": {"href": "/api/calendar/events"},
-            },
-            "notice": (
-                "Der Feed wurde widerrufen. Bereits extern gespeicherte Termine können nicht "
-                "zuverlässig entfernt werden."
-            ),
-        }
-        return _finish(context, context.respond(result))
-
-
-def _register_calendar_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    _register_round_summary_route(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_public_calendar_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_calendar_management_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-
-
-def _register_notification_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.get("/api/notifications")
-    def notifications(context: ReadContext):
-        return _finish(
-            context,
-            context.respond(
-                {
-                    "items": context.notification_service.list_own(context.authorization_scope),
-                    "_links": {
-                        "self": {"href": "/api/notifications"},
-                        "channels": {"href": "/api/notification-channels"},
-                        "problems": {"href": "/api/notification-problems"},
-                    },
-                }
-            ),
-        )
-
-    @app.get("/api/notification-problems")
-    def notification_problems(context: ReadContext):
-        return _finish(
-            context,
-            context.respond(
-                {
-                    "items": context.notification_service.problems(context.authorization_scope),
-                    "_links": {"self": {"href": "/api/notification-problems"}},
-                }
-            ),
-        )
-
-    @app.get("/api/notification-overview")
-    def notification_overview(context: ReadContext):
-        return _finish(
-            context,
-            context.respond(
-                {
-                    "items": context.notification_service.management_overview(
-                        context.authorization_scope
-                    ),
-                    "_links": {"self": {"href": "/api/notification-overview"}},
-                }
-            ),
-        )
-
-    @app.get("/api/notification-channels")
-    def notification_channels(context: ReadContext):
-        channels = context.notification_service.channels()
-        return _finish(
-            context,
-            context.respond(
-                {
-                    "web_push": {
-                        "available": channels.push_public_key is not None,
-                        "public_key": channels.push_public_key,
-                    },
-                    "email_fallback_configured": channels.email_configured,
-                    "sink_enabled": channels.sink_enabled,
-                }
-            ),
-        )
-
-    @app.post("/api/push-subscriptions", status_code=201)
-    def register_push(context: BodyMutationContext):
-        endpoint = context.read_json().get("endpoint")
-        if not isinstance(endpoint, str):
-            raise ValueError("Push endpoint is required")
-        return _finish(
-            context,
-            context.respond(
-                context.notification_service.register_push(context.authorization_scope, endpoint),
-                HTTPStatus.CREATED,
-            ),
-        )
-
-    @app.delete("/api/push-subscriptions/{id}", status_code=204)
-    def unregister_push(context: MutationContext, id: str):
-        return (
-            _not_found()
-            if not context.notification_service.unregister_push(
-                context.authorization_scope, int(id)
-            )
-            else _finish(context, context.respond({}, HTTPStatus.NO_CONTENT))
-        )
-
-    @app.post("/api/notifications/{id}/push-confirmation")
-    def confirm_push(context: MutationContext, id: str):
-        return (
-            _not_found()
-            if not context.notification_service.confirm_push(context.authorization_scope, int(id))
-            else _finish(context, context.respond({"status": "technically_confirmed"}))
-        )
-
-
-def _register_absence_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.get("/api/absence-reports")
-    def absence_reports(context: ReadContext):
-        return _finish(
-            context,
-            context.respond(
-                {
-                    "items": context.absence_service.list(context.authorization_scope),
-                    "_links": {"self": {"href": "/api/absence-reports"}},
-                }
-            ),
-        )
-
-    @app.get("/api/absence-reports/{id}")
-    def absence_report(context: ReadContext, id: str):
-        report = context.absence_service.get(context.authorization_scope, int(id))
-        return _not_found() if report is None else _finish(context, context.respond(report))
-
-    @app.post("/api/absence-reports", status_code=201)
-    def create_absence(context: BodyMutationContext):
-        return _finish(
-            context,
-            context.respond(
-                context.absence_service.report(context.authorization_scope, context.read_json()),
-                HTTPStatus.CREATED,
-            ),
-        )
-
-    def absence_action(action: str):
-        def endpoint(context: BodyMutationContext, report_id: str):
-            payload = context.read_json()
-            ident = int(report_id)
-            service = context.absence_service
-            result = {
-                "select-replacement": lambda: service.select_replacement(
-                    context.authorization_scope, ident, payload
-                ),
-                "withdraw": lambda: service.withdraw(context.authorization_scope, ident),
-                "reopen": lambda: service.reopen(context.authorization_scope, ident, payload),
-                "cancel": lambda: service.cancel(context.authorization_scope, ident, payload),
-            }[action]()
-            return _finish(context, context.respond(result))
-
-        return endpoint
-
-    for action in ("select-replacement", "withdraw", "reopen", "cancel"):
-        app.add_api_route(
-            f"/api/absence-reports/{{report_id}}/{action}",
-            absence_action(action),
-            methods=["POST"],
-            name=f"absence_{action}",
-        )
-
-    @app.patch("/api/replacement-responses/{response_id}")
-    def patch_response(context: BodyMutationContext, response_id: str):
-        return _finish(
-            context,
-            context.respond(
-                context.absence_service.respond(
-                    context.authorization_scope, int(response_id), context.read_json()
-                )
-            ),
-        )
-
-    @app.post("/api/replacement-responses/{response_id}/respond")
-    def post_response(context: BodyMutationContext, response_id: str):
-        return _finish(
-            context,
-            context.respond(
-                context.absence_service.respond(
-                    context.authorization_scope, int(response_id), context.read_json()
-                )
-            ),
-        )
+    app.router.routes.extend(create_integration_router().routes)
 
 
 def _register_schedule_routes(
@@ -1941,12 +1341,8 @@ def register_application_routes(
 ):
     """Register all product and runtime routes with the assembled application."""
     registrars = (
-        _register_runtime_routes,
-        _register_auth_routes,
-        _register_observability_routes,
-        _register_calendar_routes,
-        _register_notification_routes,
-        _register_absence_routes,
+        _register_operations_router,
+        _register_integration_router,
         _register_round_routes,
         _register_planning_routes,
         _register_planning_resource_routes,

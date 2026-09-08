@@ -44,6 +44,12 @@ Diese Referenz entsteht beim Dokumentationsbuild aus Google-Style-Docstrings. Si
 
 ::: backend.fastapi_app
 
+::: backend.fastapi_http
+
+::: backend.fastapi_operations_routes
+
+::: backend.fastapi_integration_routes
+
 ::: backend.fastapi_dependencies
 
 ::: backend.server

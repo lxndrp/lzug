@@ -71,12 +71,8 @@ class FastAPIAssemblyTests(unittest.TestCase):
 
     def test_application_route_boundary_registers_each_route_group(self) -> None:
         expected = (
-            "_register_runtime_routes",
-            "_register_auth_routes",
-            "_register_observability_routes",
-            "_register_calendar_routes",
-            "_register_notification_routes",
-            "_register_absence_routes",
+            "_register_operations_router",
+            "_register_integration_router",
             "_register_round_routes",
             "_register_planning_routes",
             "_register_planning_resource_routes",
