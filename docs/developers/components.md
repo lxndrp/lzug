@@ -60,8 +60,12 @@ Routerregistrierung und OpenAPI-Assembly zu.
 `backend.fastapi_master_data` besitzt die Router für Stammdaten,
 Organisation und Prüfungsorte; `backend.fastapi_app` enthält die verbleibenden
 HTTP-Handler und die gemeinsamen Registrierungsgrenzen.
-`backend.fastapi_responses` übersetzt Anwendungsergebnisse einheitlich für alle
-Router in den bestehenden HTTP-Antwortvertrag.
+`backend.fastapi_operations_routes` besitzt die Router für Runtime,
+Authentisierung, Session und Observability.
+`backend.fastapi_integration_routes` besitzt die Router für Kalender,
+Benachrichtigungen sowie Abwesenheit und Vertretung.
+`backend.fastapi_http` stellt ihnen und der zentralen Transportgrenze die
+gemeinsame Response-, Attachment- und Same-Origin-Abbildung bereit.
 `backend.server` startet den Prozess über Uvicorn; `backend.transport` bildet
 den gemeinsamen Anwendungsvertrag für HTTP- und Adminadapter ab.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am
@@ -84,7 +88,7 @@ Transaktionen und Repositories wie HTTP.
 
 | Schicht | Verantwortung und Erweiterungspunkt |
 | --- | --- |
-| HTTP und Sicherheit | FastAPI-Routen, Request-/Responsemodelle, Session, CSRF, fachliche Autorisierung, Upload- und Konfigurationsgrenzen; keine Fachentscheidung im Handler |
+| HTTP und Sicherheit | Fachlich verantwortete FastAPI-Router, Request-/Responsemodelle, Session, CSRF, fachliche Autorisierung, Upload- und Konfigurationsgrenzen; keine Fachentscheidung im Handler |
 | Admintransport | gehärteter Unix-Domain-Socket, Betriebssystemautorisierung, versionierte Aufträge, Streaming und geheimnisfreie Ergebnisse; kein Netzwerk-Listener und kein eigener Prozess |
 | Anwendung | `backend.application` und fachliche Services; Use Cases, Invarianten und Transaktionsgrenzen ohne Webframework |
 | Planung und Durchführung | Planung, Verfügbarkeit, Ausfall/Ersatz, Protokolle, Ergebnisse, Tages- und Rundenlebenszyklus |

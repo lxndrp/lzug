@@ -189,6 +189,10 @@ Sein maschinenlesbarer Datenvertrag liegt unter
 Sie erzeugt OpenAPI direkt aus Routen, Request- und Responsemodellen sowie
 Sicherheitsdeklarationen; eine parallel gepflegte Spezifikation existiert
 nicht.
+Runtime-, Authentisierungs-, Session- und Observability-Endpunkte liegen in
+`backend.fastapi_operations_routes`.
+Kalender-, Benachrichtigungs-, Abwesenheits- und Vertretungsendpunkte liegen in
+`backend.fastapi_integration_routes`.
 `backend/src/backend/server.py` startet dieselbe Anwendung, und die Demo ergänzt sie nur
 über ihre Runtime-Policy.
 

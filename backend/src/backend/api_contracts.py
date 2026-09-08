@@ -44,6 +44,58 @@ class FrontendErrorRequest(BaseModel):
     status: int | None = None
 
 
+class CalendarFeedActivationRequest(BaseModel):
+    """Document the compatible boolean forms accepted when rotating a feed."""
+
+    rotate: bool | int | str = False
+
+
+class CalendarStatusResponse(BaseModel):
+    active: bool
+    activated_at: str | None
+    revoked_at: str | None
+    time_zone: str
+    links: dict[str, object] = Field(alias="_links")
+
+
+class CalendarFeedActivationResponse(CalendarStatusResponse):
+    feed_url: str
+    notice: str
+
+
+class CalendarFeedRevocationResponse(CalendarStatusResponse):
+    notice: str
+
+
+class CalendarEventCollectionResponse(BaseModel):
+    items: list[dict[str, object]]
+    links: dict[str, object] = Field(alias="_links")
+
+
+class NotificationCollectionResponse(BaseModel):
+    items: list[dict[str, object]]
+    links: dict[str, object] = Field(alias="_links")
+
+
+class NotificationChannelsResponse(BaseModel):
+    web_push: dict[str, object]
+    email_fallback_configured: bool
+    sink_enabled: bool
+
+
+class PushSubscriptionRequest(BaseModel):
+    endpoint: str
+
+
+class PushSubscriptionResponse(BaseModel):
+    id: int
+    active: bool
+
+
+class PushConfirmationResponse(BaseModel):
+    status: Literal["technically_confirmed"]
+
+
 class SessionResponse(BaseModel):
     authenticated: bool
     account_id: int
