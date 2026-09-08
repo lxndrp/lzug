@@ -19,15 +19,21 @@ from sqlalchemy.exc import SQLAlchemyError
 from . import hateoas
 from .api_contracts import (
     ApiRootResponse,
+    AssessmentModelBindingRequest,
     DemoScenarioOverviewResponse,
     DemoScenarioResetResponse,
     DomainCollectionResponse,
     DomainResourceResponse,
     DomainResourceWrite,
     ErrorResponse,
+    ExamAttendanceUpdateRequest,
+    ExamProtocolContentRequest,
+    ExamProtocolResponseRequest,
     ExamRoomCreateRequest,
     ExamRoomResponse,
     ExamRoomUpdateRequest,
+    ExamSlotStartRequest,
+    ExamSlotStatusUpdateRequest,
     ExamVenueCollectionResponse,
     ExamVenueContactCreateRequest,
     ExamVenueContactResponse,
@@ -43,6 +49,7 @@ from .api_contracts import (
     FactorActivationRequest,
     FrontendErrorRequest,
     HealthResponse,
+    IndividualAssessmentRequest,
     LegacyLocationCollectionResponse,
     LegacyLocationResponse,
     LoginRequest,
@@ -69,6 +76,7 @@ from .exam_venues import (
     ExamVenueConflictError,
     ExamVenueInUseError,
 )
+from .fastapi_assessment import create_assessment_router
 from .fastapi_dependencies import (
     BodyContext,
     BodyMutationContext,
@@ -90,6 +98,7 @@ from .fastapi_dependencies import (
     WriteContext,
     buffered_body,
 )
+from .fastapi_execution import create_execution_router
 from .local_auth import LocalAuthError
 from .map_provider import (
     MapProviderConfig,
@@ -99,10 +108,7 @@ from .map_provider import (
 from .models import (
     CANDIDATE_COMMITTEE_ASSIGNMENT,
     COMMITTEE,
-    EXAM_DAY,
-    EXAM_DAY_ASSIGNMENT,
     EXAM_ROUND,
-    EXAM_SLOT,
 )
 from .observability import emit_event, safe_http_path
 from .planning import ConfirmedPlanConflictError, PlanConflictError, PlanValidationError
@@ -120,15 +126,21 @@ from .transport import (
 
 __all__ = [
     "ApiRootResponse",
+    "AssessmentModelBindingRequest",
     "DemoScenarioOverviewResponse",
     "DemoScenarioResetResponse",
     "DomainCollectionResponse",
     "DomainResourceResponse",
     "DomainResourceWrite",
     "ErrorResponse",
+    "ExamAttendanceUpdateRequest",
+    "ExamProtocolContentRequest",
+    "ExamProtocolResponseRequest",
     "ExamRoomCreateRequest",
     "ExamRoomResponse",
     "ExamRoomUpdateRequest",
+    "ExamSlotStartRequest",
+    "ExamSlotStatusUpdateRequest",
     "ExamVenueCollectionResponse",
     "ExamVenueContactCreateRequest",
     "ExamVenueContactResponse",
@@ -144,6 +156,7 @@ __all__ = [
     "FactorActivationRequest",
     "FrontendErrorRequest",
     "HealthResponse",
+    "IndividualAssessmentRequest",
     "LegacyLocationCollectionResponse",
     "LegacyLocationResponse",
     "LoginRequest",
@@ -243,99 +256,6 @@ def _json_response(result: ApplicationResult, context: RequestContext | None = N
 
 def _not_found() -> Response:
     return _json_response(ApplicationResult({"error": "Not found"}, HTTPStatus.NOT_FOUND))
-
-
-def _protocol_action(context: RequestContext, protocol_id: int, action: str, payload: dict) -> dict:
-    service = context.exam_protocol_service
-    actions = {
-        "content": lambda: service.update_content(
-            context.authorization_scope, protocol_id, payload
-        ),
-        "submit": lambda: service.submit(context.authorization_scope, protocol_id, payload),
-        "responses": lambda: service.respond(context.authorization_scope, protocol_id, payload),
-        "correction-requests": lambda: service.request_correction(
-            context.authorization_scope, protocol_id, payload
-        ),
-        "open-correction": lambda: service.open_correction(
-            context.authorization_scope, protocol_id, payload
-        ),
-        "retention": lambda: service.set_retention(
-            context.authorization_scope, protocol_id, payload
-        ),
-    }
-    try:
-        return actions[action]()
-    except KeyError as error:  # pragma: no cover - explicit routes supply every action
-        raise ValueError("Unbekannte Protokollaktion") from error
-
-
-def _protocol_write(
-    context: RequestContext,
-    protocol_id: str,
-    action: str,
-) -> Response:
-    result = _protocol_action(context, int(protocol_id), action, context.read_json())
-    return _finish(context, context.respond(result))
-
-
-def _result_action(
-    context: RequestContext,
-    result_id: int,
-    action: str,
-    nested_id: str | None,
-    payload: dict,
-) -> dict:
-    service = context.exam_result_service
-    actions = {
-        ("individual-assessments", False): lambda: service.save_individual(
-            context.authorization_scope, result_id, payload
-        ),
-        ("individual-assessments", True): lambda: service.withdraw_individual(
-            context.authorization_scope, result_id, int(nested_id), payload
-        ),
-        ("disclosures", False): lambda: service.disclose(
-            context.authorization_scope, result_id, payload
-        ),
-        ("committee-assessments", False): lambda: service.determine_component(
-            context.authorization_scope, result_id, payload
-        ),
-        ("external-results", False): lambda: service.record_external(
-            context.authorization_scope, result_id, payload
-        ),
-        ("external-results", True): lambda: service.confirm_external(
-            context.authorization_scope, result_id, int(nested_id), payload
-        ),
-        ("determine", False): lambda: service.determine_result(
-            context.authorization_scope, result_id, payload
-        ),
-        ("record-confirmations", False): lambda: service.confirm_record(
-            context.authorization_scope, result_id, payload
-        ),
-        ("corrections", False): lambda: service.open_correction(
-            context.authorization_scope, result_id, payload
-        ),
-        ("communications", False): lambda: service.communicate(
-            context.authorization_scope, result_id, payload
-        ),
-        ("retention", False): lambda: service.set_retention(
-            context.authorization_scope, result_id, payload
-        ),
-    }
-    try:
-        return actions[(action, nested_id is not None)]()
-    except KeyError as error:  # pragma: no cover - explicit routes supply every action
-        raise ValueError("Unbekannte Ergebnisaktion") from error
-
-
-def _result_write(
-    context: RequestContext,
-    result_id: str,
-    action: str,
-    *,
-    nested_id: str | None = None,
-) -> Response:
-    result = _result_action(context, int(result_id), action, nested_id, context.read_json())
-    return _finish(context, context.respond(result))
 
 
 def _resource_collection_route(resolved: FastAPIConfig, resource_name: str, resource):
@@ -487,6 +407,13 @@ def _resource_routes(resolved: FastAPIConfig, resource_name: str):
 
 def _add_openapi_models(schemas: dict) -> None:
     for model in (
+        ExamSlotStartRequest,
+        ExamAttendanceUpdateRequest,
+        ExamSlotStatusUpdateRequest,
+        ExamProtocolContentRequest,
+        ExamProtocolResponseRequest,
+        AssessmentModelBindingRequest,
+        IndividualAssessmentRequest,
         ExamVenueCreateRequest,
         ExamVenueUpdateRequest,
         ExamVenueDuplicateCheckRequest,
@@ -499,7 +426,7 @@ def _add_openapi_models(schemas: dict) -> None:
         ExamVenueContactUpdateRequest,
         RevisionDeleteRequest,
     ):
-        schema = model.model_json_schema()
+        schema = model.model_json_schema(ref_template="#/components/schemas/{model}")
         definitions = schema.pop("$defs", {})
         schemas.setdefault(model.__name__, schema)
         for name, definition in definitions.items():
@@ -2126,432 +2053,26 @@ def _register_planning_resource_routes(
         )
 
 
-def _register_slot_start_route(
+def _register_execution_assessment_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
-    @app.post("/api/confirmed-plan-days/{day_id}/slots/{slot_id}/start")
-    def start_slot(context: WriteContext, day_id: str, slot_id: str):
-        day_int = int(day_id)
-        context.require_day_access(day_int, manage=True)
-        committee_id = context.repository.committee_id_for_resource(EXAM_DAY, day_int)
-        actor_member_id = context.authorization_scope.member_for_committee(committee_id)
-        if actor_member_id is None:
-            raise ForbiddenRequestError("Forbidden.")
-        context.repository.start_exam_slot(
-            day_int,
-            int(slot_id),
-            context.read_json(),
-            actor_member_id=actor_member_id,
+    app.include_router(
+        create_execution_router(
+            finish=_finish,
+            not_found=_not_found,
+            plain_text=_plain_text,
+            read_security=read_security,
+            write_security=write_security,
         )
-        day = context.repository.confirmed_plan_day(day_int, context.authorization_scope)
-        if day is not None:
-            day["day"]["closure"] = context.exam_day_closure_service.get(
-                context.authorization_scope, day_int
-            )
-        return (
-            _not_found()
-            if day is None
-            else _finish(context, context.respond(hateoas.confirmed_plan_day(day)))
+    )
+    app.include_router(
+        create_assessment_router(
+            finish=_finish,
+            not_found=_not_found,
+            plain_text=_plain_text,
+            read_security=read_security,
+            write_security=write_security,
         )
-
-
-def _register_protocol_read_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.get(
-        "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/protocol",
-        openapi_extra=read_security,
-    )
-    def slot_protocol(context: ReadContext, day_id: str, slot_id: str):
-        slot = context.repository.get(EXAM_SLOT, int(slot_id))
-        if slot is None or slot["exam_day_id"] != int(day_id):
-            return _not_found()
-        protocol = context.exam_protocol_service.get_by_slot(
-            context.authorization_scope, int(slot_id)
-        )
-        return _not_found() if protocol is None else _finish(context, context.respond(protocol))
-
-    @app.get("/api/exam-protocols/{protocol_id}", openapi_extra=read_security)
-    def exam_protocol(context: ReadContext, protocol_id: str):
-        protocol = context.exam_protocol_service.get(context.authorization_scope, int(protocol_id))
-        return _not_found() if protocol is None else _finish(context, context.respond(protocol))
-
-
-def _register_protocol_write_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.patch("/api/exam-protocols/{protocol_id}", openapi_extra=write_security)
-    def update_exam_protocol(context: WriteContext, protocol_id: str):
-        return _protocol_write(context, protocol_id, "content")
-
-    @app.post("/api/exam-protocols/{protocol_id}/submit", openapi_extra=write_security)
-    def submit_exam_protocol(context: WriteContext, protocol_id: str):
-        return _protocol_write(context, protocol_id, "submit")
-
-    @app.post("/api/exam-protocols/{protocol_id}/responses", openapi_extra=write_security)
-    def respond_to_exam_protocol(context: WriteContext, protocol_id: str):
-        return _protocol_write(context, protocol_id, "responses")
-
-    @app.post(
-        "/api/exam-protocols/{protocol_id}/correction-requests",
-        openapi_extra=write_security,
-    )
-    def request_exam_protocol_correction(context: WriteContext, protocol_id: str):
-        return _protocol_write(context, protocol_id, "correction-requests")
-
-    @app.post(
-        "/api/exam-protocols/{protocol_id}/open-correction",
-        openapi_extra=write_security,
-    )
-    def open_exam_protocol_correction(context: WriteContext, protocol_id: str):
-        return _protocol_write(context, protocol_id, "open-correction")
-
-    @app.put(
-        "/api/exam-protocols/{protocol_id}/retention",
-        openapi_extra=write_security,
-    )
-    def set_exam_protocol_retention(context: WriteContext, protocol_id: str):
-        return _protocol_write(context, protocol_id, "retention")
-
-    @app.get(
-        "/api/exam-protocols/{protocol_id}/export.json",
-        openapi_extra=read_security,
-    )
-    def export_exam_protocol_json(context: ReadContext, protocol_id: str):
-        result = context.exam_protocol_service.machine_export(
-            context.authorization_scope, int(protocol_id)
-        )
-        return _finish(context, context.respond(result))
-
-    @app.get(
-        "/api/exam-protocols/{protocol_id}/export.txt",
-        response_class=Response,
-        openapi_extra=read_security,
-    )
-    def export_exam_protocol_text(context: ReadContext, protocol_id: str):
-        result = context.exam_protocol_service.human_export(
-            context.authorization_scope, int(protocol_id)
-        )
-        return _plain_text(context, result, f"pruefungsprotokoll-{int(protocol_id)}.txt")
-
-
-def _register_protocol_completion_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.get(
-        "/api/confirmed-plan-days/{day_id}/protocol-completion",
-        openapi_extra=read_security,
-    )
-    def protocol_completion(context: ReadContext, day_id: str):
-        result = context.exam_protocol_service.completion_for_day(
-            context.authorization_scope, int(day_id)
-        )
-        return _not_found() if result is None else _finish(context, context.respond(result))
-
-
-def _register_exam_execution_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    _register_slot_start_route(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_protocol_read_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_protocol_write_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_protocol_completion_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-
-
-def _register_assessment_model_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.get("/api/assessment-model-versions", openapi_extra=read_security)
-    def assessment_model_versions(context: ReadContext):
-        return _finish(
-            context,
-            context.respond(context.exam_result_service.list_models(context.authorization_scope)),
-        )
-
-    @app.post("/api/assessment-model-versions", openapi_extra=write_security)
-    def create_assessment_model_version(context: WriteContext):
-        result = context.exam_result_service.create_model(
-            context.authorization_scope, context.read_json()
-        )
-        return _finish(context, context.respond(result, HTTPStatus.CREATED))
-
-    @app.get(
-        "/api/exam-rounds/{round_id}/assessment-model-binding",
-        openapi_extra=read_security,
-    )
-    def assessment_model_binding(context: ReadContext, round_id: str):
-        binding = context.exam_result_service.get_round_binding(
-            context.authorization_scope, int(round_id)
-        )
-        return _not_found() if binding is None else _finish(context, context.respond(binding))
-
-    @app.post(
-        "/api/exam-rounds/{round_id}/assessment-model-binding",
-        openapi_extra=write_security,
-    )
-    def bind_assessment_model(context: WriteContext, round_id: str):
-        result = context.exam_result_service.bind_round(
-            context.authorization_scope, int(round_id), context.read_json()
-        )
-        return _finish(context, context.respond(result))
-
-
-def _register_result_read_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.get(
-        "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/result",
-        openapi_extra=read_security,
-    )
-    def slot_result(context: ReadContext, day_id: str, slot_id: str):
-        slot = context.repository.get(EXAM_SLOT, int(slot_id))
-        if slot is None or slot["exam_day_id"] != int(day_id):
-            return _not_found()
-        result = context.exam_result_service.get_by_slot(context.authorization_scope, int(slot_id))
-        return _not_found() if result is None else _finish(context, context.respond(result))
-
-    @app.get("/api/exam-results/{result_id}", openapi_extra=read_security)
-    def exam_result(context: ReadContext, result_id: str):
-        result = context.exam_result_service.get(context.authorization_scope, int(result_id))
-        return _not_found() if result is None else _finish(context, context.respond(result))
-
-
-def _register_individual_result_write_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.post(
-        "/api/exam-results/{result_id}/individual-assessments",
-        openapi_extra=write_security,
-    )
-    def save_individual_assessment(context: WriteContext, result_id: str):
-        return _result_write(context, result_id, "individual-assessments")
-
-    @app.post(
-        "/api/exam-results/{result_id}/individual-assessments/{assessment_id}/withdraw",
-        openapi_extra=write_security,
-    )
-    def withdraw_individual_assessment(context: WriteContext, result_id: str, assessment_id: str):
-        return _result_write(context, result_id, "individual-assessments", nested_id=assessment_id)
-
-    @app.post("/api/exam-results/{result_id}/disclosures", openapi_extra=write_security)
-    def disclose_individual_assessments(context: WriteContext, result_id: str):
-        return _result_write(context, result_id, "disclosures")
-
-    @app.post(
-        "/api/exam-results/{result_id}/committee-assessments",
-        openapi_extra=write_security,
-    )
-    def determine_committee_assessment(context: WriteContext, result_id: str):
-        return _result_write(context, result_id, "committee-assessments")
-
-
-def _register_final_result_write_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.post(
-        "/api/exam-results/{result_id}/external-results",
-        openapi_extra=write_security,
-    )
-    def record_external_result(context: WriteContext, result_id: str):
-        return _result_write(context, result_id, "external-results")
-
-    @app.post(
-        "/api/exam-results/{result_id}/external-results/{external_result_id}/confirm",
-        openapi_extra=write_security,
-    )
-    def confirm_external_result(context: WriteContext, result_id: str, external_result_id: str):
-        return _result_write(context, result_id, "external-results", nested_id=external_result_id)
-
-    @app.post("/api/exam-results/{result_id}/determine", openapi_extra=write_security)
-    def determine_exam_result(context: WriteContext, result_id: str):
-        return _result_write(context, result_id, "determine")
-
-    @app.post(
-        "/api/exam-results/{result_id}/record-confirmations",
-        openapi_extra=write_security,
-    )
-    def confirm_result_record(context: WriteContext, result_id: str):
-        return _result_write(context, result_id, "record-confirmations")
-
-    @app.post("/api/exam-results/{result_id}/corrections", openapi_extra=write_security)
-    def open_result_correction(context: WriteContext, result_id: str):
-        return _result_write(context, result_id, "corrections")
-
-    @app.post(
-        "/api/exam-results/{result_id}/communications",
-        openapi_extra=write_security,
-    )
-    def communicate_exam_result(context: WriteContext, result_id: str):
-        return _result_write(context, result_id, "communications")
-
-    @app.put("/api/exam-results/{result_id}/retention", openapi_extra=write_security)
-    def set_result_retention(context: WriteContext, result_id: str):
-        return _result_write(context, result_id, "retention")
-
-
-def _register_result_export_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.get("/api/exam-results/{result_id}/export.json", openapi_extra=read_security)
-    def export_exam_result_json(context: ReadContext, result_id: str):
-        result = context.exam_result_service.machine_export(
-            context.authorization_scope, int(result_id)
-        )
-        return _finish(context, context.respond(result))
-
-    @app.get(
-        "/api/exam-results/{result_id}/export.txt",
-        response_class=Response,
-        openapi_extra=read_security,
-    )
-    def export_exam_result_text(context: ReadContext, result_id: str):
-        result = context.exam_result_service.human_export(
-            context.authorization_scope, int(result_id)
-        )
-        return _plain_text(context, result, f"ergebnisniederschrift-{int(result_id)}.txt")
-
-
-def _register_result_write_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    _register_individual_result_write_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_final_result_write_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_result_export_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-
-
-def _register_result_completion_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.get(
-        "/api/confirmed-plan-days/{day_id}/result-completion",
-        openapi_extra=read_security,
-    )
-    def result_completion(context: ReadContext, day_id: str):
-        result = context.exam_result_service.completion_for_day(
-            context.authorization_scope, int(day_id)
-        )
-        return _not_found() if result is None else _finish(context, context.respond(result))
-
-
-def _register_result_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    _register_assessment_model_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_result_read_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_result_write_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_result_completion_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-
-
-def _register_attendance_update_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    def attendance(context: RequestContext, day_id: str, entity_id: str, kind: str):
-        day_int = int(day_id)
-        entity_int = int(entity_id)
-        member_id = None
-        if kind == "assignments":
-            assignment = context.repository.get(EXAM_DAY_ASSIGNMENT, entity_int)
-            member_id = assignment.get("committee_member_id") if assignment else None
-        context.require_day_access(day_int, manage=kind == "slots", member_id=member_id)
-        payload = context.read_json()
-        committee_id = context.repository.committee_id_for_resource(EXAM_DAY, day_int)
-        actor_member_id = context.authorization_scope.member_for_committee(committee_id)
-        if actor_member_id is None:
-            raise ForbiddenRequestError("Forbidden.")
-        if kind == "slots":
-            context.repository.save_candidate_attendance(
-                day_int, entity_int, payload, actor_member_id=actor_member_id
-            )
-        else:
-            context.repository.save_member_attendance(
-                day_int, entity_int, payload, actor_member_id=actor_member_id
-            )
-        day = context.repository.confirmed_plan_day(day_int, context.authorization_scope)
-        if day is not None:
-            day["day"]["closure"] = context.exam_day_closure_service.get(
-                context.authorization_scope, day_int
-            )
-        return (
-            _not_found()
-            if day is None
-            else _finish(context, context.respond(hateoas.confirmed_plan_day(day)))
-        )
-
-    @app.patch("/api/confirmed-plan-days/{day_id}/slots/{slot_id}/attendance")
-    def slot_attendance(context: WriteContext, day_id: str, slot_id: str):
-        return attendance(context, day_id, slot_id, "slots")
-
-    @app.patch("/api/confirmed-plan-days/{day_id}/assignments/{assignment_id}/attendance")
-    def assignment_attendance(context: WriteContext, day_id: str, assignment_id: str):
-        return attendance(context, day_id, assignment_id, "assignments")
-
-
-def _register_slot_status_route(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    @app.patch("/api/confirmed-plan-days/{day_id}/slots/{slot_id}/status")
-    def slot_status(context: WriteContext, day_id: str, slot_id: str):
-        day_int = int(day_id)
-        context.require_day_access(day_int, manage=True)
-        payload = context.read_json()
-        committee_id = context.repository.committee_id_for_resource(EXAM_DAY, day_int)
-        actor_member_id = context.authorization_scope.member_for_committee(committee_id)
-        if actor_member_id is None:
-            raise ForbiddenRequestError("Forbidden.")
-        context.repository.update_exam_slot_status(
-            day_int,
-            int(slot_id),
-            payload,
-            actor_member_id=actor_member_id,
-        )
-        day_record = context.repository.get(EXAM_DAY, day_int)
-        if day_record and day_record.get("closure_status") == "open":
-            try:
-                context.calendar_service.sync_round(int(day_record["exam_round_id"]))
-            except Exception:
-                emit_event("backend_error", severity="error", category="calendar_processing")
-        day = context.repository.confirmed_plan_day(day_int, context.authorization_scope)
-        if day is not None:
-            day["day"]["closure"] = context.exam_day_closure_service.get(
-                context.authorization_scope, day_int
-            )
-        return (
-            _not_found()
-            if day is None
-            else _finish(context, context.respond(hateoas.confirmed_plan_day(day)))
-        )
-
-
-def _register_attendance_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    _register_attendance_update_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_slot_status_route(
-        app, resolved, application, read_security, write_security, venue_write_openapi
     )
 
 
@@ -3183,9 +2704,7 @@ def register_application_routes(
         _register_round_routes,
         _register_planning_routes,
         _register_planning_resource_routes,
-        _register_exam_execution_routes,
-        _register_result_routes,
-        _register_attendance_routes,
+        _register_execution_assessment_routes,
         _register_venue_routes,
         _register_resource_routes,
         _register_assignment_routes,

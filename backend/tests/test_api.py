@@ -464,7 +464,7 @@ class ApiTests(unittest.TestCase):
                     "backend.calendar.CalendarService.sync_round",
                     side_effect=RuntimeError("calendar unavailable"),
                 ) as sync_round,
-                patch("backend.fastapi_app.emit_event") as emit_event,
+                patch("backend.fastapi_execution.emit_event") as emit_event,
             ):
                 status, updated = api.request(
                     "PATCH",
