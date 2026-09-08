@@ -25,6 +25,8 @@ func TestMain(m *testing.M) {
 		args := strings.Join(os.Args[1:], " ")
 		if os.Getenv("LZUG_ADMINCLI_INSPECT") == "1" {
 			switch {
+			case strings.Contains(args, "container inspect") && strings.Contains(args, ".Config.Image"):
+				_, _ = os.Stdout.WriteString(os.Getenv("LZUG_ADMINCLI_CONFIG_IMAGE") + "\n")
 			case strings.Contains(args, "container inspect"):
 				_, _ = os.Stdout.WriteString("sha256:image-id\n")
 			case strings.Contains(args, ".RepoDigests"):
@@ -163,6 +165,7 @@ func TestReleaseInspectionRequiresCanonicalMatchingArtifacts(t *testing.T) {
 	}
 	t.Setenv("LZUG_ADMINCLI_HELPER", "1")
 	t.Setenv("LZUG_ADMINCLI_INSPECT", "1")
+	t.Setenv("LZUG_ADMINCLI_CONFIG_IMAGE", "ghcr.io/lxndrp/lzug-app:0.8.0")
 	t.Setenv("LZUG_ADMINCLI_REPO_DIGESTS", `["ghcr.io/lxndrp/lzug-app@sha256:`+strings.Repeat("c", 64)+`"]`)
 	labels, err := json.Marshal(map[string]string{
 		"org.opencontainers.image.source":   "https://github.com/lxndrp/lzug",
@@ -177,13 +180,30 @@ func TestReleaseInspectionRequiresCanonicalMatchingArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if target["image"] != "ghcr.io/lxndrp/lzug-app@sha256:"+strings.Repeat("c", 64) || target["tag"] != "v0.8.0" {
+	if target["image"] != "ghcr.io/lxndrp/lzug-app:0.8.0" ||
+		target["digest"] != "ghcr.io/lxndrp/lzug-app@sha256:"+strings.Repeat("c", 64) ||
+		target["tag"] != "v0.8.0" {
 		t.Fatalf("unexpected release target: %#v", target)
 	}
 
 	t.Setenv("LZUG_ADMINCLI_REPO_DIGESTS", `[]`)
-	if _, err := inspector.Target(context.Background(), build); err == nil {
-		t.Fatal("non-canonical image was accepted")
+	target, err = inspector.Target(context.Background(), build)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found := target["digest"]; found {
+		t.Fatalf("missing runtime digest was reported: %#v", target)
+	}
+
+	for _, image := range []string{
+		"ghcr.io/lxndrp/lzug-app:latest",
+		"ghcr.io/lxndrp/lzug-app:0.8.1",
+		"ghcr.io/lxndrp/lzug:0.8.0",
+	} {
+		t.Setenv("LZUG_ADMINCLI_CONFIG_IMAGE", image)
+		if _, err := inspector.Target(context.Background(), build); err == nil {
+			t.Fatalf("non-matching image reference was accepted: %s", image)
+		}
 	}
 }
 

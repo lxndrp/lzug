@@ -31,8 +31,11 @@ docker pull "$TARGET_IMAGE"
 ./lzug-admin --build-metadata
 ```
 
-Die CLI prüft zusätzlich selbst den durch Docker aufgelösten kanonischen Repo-Digest sowie die
-OCI-Labels für Quelle, Version und Commit.
+Die CLI prüft zusätzlich selbst den kanonischen Produktnamen und die exakte
+SemVer-Version der Docker-Image-Referenz sowie die OCI-Labels für Quelle,
+Version und Commit.
+Einen durch Docker aufgelösten Digest nimmt sie, sofern verfügbar, nur als
+Diagnose- und Herkunftsinformation in den technischen Nachweis auf.
 Entwicklungsbuilds, bewegliche Tags, fremde Repositories und eine von der CLI
 abweichende Release-Identität werden vor dem Backendaufruf abgewiesen.
 
@@ -180,8 +183,10 @@ heuristische SQLite-Bearbeitung.
 - Exit `33`: Release-Artefakt, Wartungsgrenze oder Lifecycle-Ausführung nicht
   verifiziert.
 
-Bewahren Sie vorübergehend Zielrelease, Digest, CLI-Build-Metadaten, Zeitfenster,
+Bewahren Sie vorübergehend Zielrelease, CLI-Build-Metadaten, Zeitfenster,
 Backup-Artefaktname und die geheimnisfreie JSON-Antwort auf.
+Enthält die Antwort einen durch Docker aufgelösten Digest, gehört auch dieser
+automatische Herkunftsnachweis dazu.
 Private Schlüssel, Env-Werte, Pfade und Fachdaten gehören nicht in den
 Nachweis.
 
