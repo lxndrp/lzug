@@ -8,31 +8,31 @@ Diese Referenz entsteht beim Dokumentationsbuild aus Google-Style-Docstrings. Si
 
 ## Mögliche Prüfungstage
 
-::: backend.candidate_days
+::: backend.planning.candidate_days
 
 ## Benachrichtigungen
 
-::: backend.notifications
+::: backend.integrations.notifications
 
 ## Folgen bestätigter Planänderungen
 
-::: backend.plan_consequences
+::: backend.planning.plan_consequences
 
 ## Folgen von Prüfungsortänderungen
 
-::: backend.venue_consequences
+::: backend.planning.venue_consequences
 
 ## Repository und Persistenz
 
-::: backend.repositories
+::: backend.application.repositories
 
-::: backend.store
+::: backend.persistence.store
 
-::: backend.database
+::: backend.persistence.database
 
 ## Feiertage und HTTP-Einstieg
 
-::: backend.holiday_provider
+::: backend.integrations.holiday_provider
 
 ::: backend.application
 
@@ -54,4 +54,4 @@ Diese Referenz entsteht beim Dokumentationsbuild aus Google-Style-Docstrings. Si
 
 ::: backend.server
 
-::: backend.transport
+::: backend.application.transport

@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
-    from .auth import AuthContext
-    from .transport import RequestContext
+    from backend.application.transport import RequestContext
+    from backend.identity.auth import AuthContext
 
 
 class RuntimePolicy(Protocol):

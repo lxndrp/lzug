@@ -9,7 +9,15 @@ from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from . import hateoas
+from backend.application import hateoas
+from backend.application.repositories import REST_RESOURCES
+from backend.application.transport import (
+    RequestContext,
+    confirmed_plan_change_from_payload,
+    planning_proposal_from_payload,
+)
+from backend.persistence.models import EXAM_ROUND
+
 from .api_contracts import (
     ConfirmedPlanChangeRequest,
     PlanningProposalResponse,
@@ -28,14 +36,7 @@ from .fastapi_dependencies import (
     WriteContext,
 )
 from .fastapi_http import request_body, validated_payload
-from .models import EXAM_ROUND
 from .observability import emit_event
-from .repositories import REST_RESOURCES
-from .transport import (
-    RequestContext,
-    confirmed_plan_change_from_payload,
-    planning_proposal_from_payload,
-)
 
 MIGRATED_PLANNING_RESOURCES = (
     "candidate-exam-days",

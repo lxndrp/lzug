@@ -10,13 +10,14 @@ from datetime import UTC, datetime, timedelta
 import pyotp
 from sqlalchemy import func, select
 
-from backend.admin_service import AdminOperationError
-from backend.auth import AuthenticationRepository
-from backend.authorization import AuthorizationService
-from backend.committee_admin import CommitteeAdminService
-from backend.database import session_scope
-from backend.local_auth import LocalAuthService
-from backend.models import (
+from backend.application.repositories import ResourceRepository
+from backend.identity.admin_service import AdminOperationError
+from backend.identity.auth import AuthenticationRepository
+from backend.identity.authorization import AuthorizationService
+from backend.identity.committee_admin import CommitteeAdminService
+from backend.identity.local_auth import LocalAuthService
+from backend.persistence.database import session_scope
+from backend.persistence.models import (
     COMMITTEE,
     PERSON,
     AuthToken,
@@ -25,7 +26,6 @@ from backend.models import (
     Person,
     UserAccount,
 )
-from backend.repositories import ResourceRepository
 from backend.tests.helpers import TempDatabase
 
 

@@ -11,9 +11,9 @@ from contextlib import closing, redirect_stdout
 from pathlib import Path
 
 from backend.admin import EXIT_CONFLICT, EXIT_OK, run
-from backend.backup_recipients import BackupRecipientRepository, recipient_fingerprint
-from backend.backup_restore import BACKUP_PUBLIC_KEY_ENV, ArtifactError, ArtifactService
-from backend.database import PersistencePaths, initialize
+from backend.operations.backup_recipients import BackupRecipientRepository, recipient_fingerprint
+from backend.operations.backup_restore import BACKUP_PUBLIC_KEY_ENV, ArtifactError, ArtifactService
+from backend.persistence.database import PersistencePaths, initialize
 
 RECIPIENT = "age1wkdx2jsjtg5wg2ts5ptcalmqvtdp9uwwplhl6yyraalr9g9l5gxqh4qu5t"
 SECOND_RECIPIENT = "age10cqdlzak8hxw3sz5nrrr7u6y6v2pt8n6pj3ultl98ety0fkw2pzqqzkst0"

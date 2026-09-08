@@ -9,8 +9,13 @@ from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
-from backend.database import MigrationError, apply_migrations, initialize, migration_status
-from backend.exam_venue_migration import HUMAN_REPORT_NAME, MACHINE_REPORT_NAME
+from backend.persistence.database import (
+    MigrationError,
+    apply_migrations,
+    initialize,
+    migration_status,
+)
+from backend.persistence.exam_venue_migration import HUMAN_REPORT_NAME, MACHINE_REPORT_NAME
 
 
 class ExamVenueMigrationTests(unittest.TestCase):
@@ -22,7 +27,7 @@ class ExamVenueMigrationTests(unittest.TestCase):
             if migration.name < "025_model_exam_venues.sql":
                 shutil.copy(migration, migration_directory / migration.name)
 
-        with patch("backend.database.MIGRATIONS_PATH", migration_directory):
+        with patch("backend.persistence.database.MIGRATIONS_PATH", migration_directory):
             initialize(db_path, reset=True)
 
         with closing(sqlite3.connect(db_path)) as connection:

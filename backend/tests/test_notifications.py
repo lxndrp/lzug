@@ -16,11 +16,15 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from pywebpush import WebPushException
 from requests.exceptions import Timeout
 
-from backend.auth import AuthenticationRepository
-from backend.authorization import AuthorizationService
-from backend.database import session_scope
-from backend.models import ExamDay, ExamDayAssignment, NotificationDelivery
-from backend.notifications import DELIVERY_CLAIM_TTL, ClaimedDelivery, NotificationService
+from backend.identity.auth import AuthenticationRepository
+from backend.identity.authorization import AuthorizationService
+from backend.integrations.notifications import (
+    DELIVERY_CLAIM_TTL,
+    ClaimedDelivery,
+    NotificationService,
+)
+from backend.persistence.database import session_scope
+from backend.persistence.models import ExamDay, ExamDayAssignment, NotificationDelivery
 from backend.tests.fixture_data import DEMO_ROLES, DISPLAY_NAMES, FIXTURE_ROOT
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
@@ -565,7 +569,7 @@ class NotificationApiTests(unittest.TestCase):
         with (
             TempDatabase() as db_path,
             patch(
-                "backend.notifications.NotificationService.create_for_event",
+                "backend.integrations.notifications.NotificationService.create_for_event",
                 BrokenNotifications().create_for_event,
             ),
             ApiServer(db_path) as api,

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-from backend import hateoas
-from backend.models import EXAM_DAY, PLANNING_SETTINGS
-from backend.transport import RequestContext, planning_proposal_from_payload
+from backend.application import hateoas
+from backend.application.transport import RequestContext, planning_proposal_from_payload
+from backend.persistence.models import EXAM_DAY, PLANNING_SETTINGS
 
 
 class VenueTransportTests(unittest.TestCase):

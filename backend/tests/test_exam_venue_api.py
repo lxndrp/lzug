@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import unittest
 
-from backend.auth import AuthContext
-from backend.authorization import AuthorizationScope
-from backend.exam_venue_api import ExamVenueApi
-from backend.exam_venues import ExamVenueService
+from backend.application.exam_venue_api import ExamVenueApi
+from backend.identity.auth import AuthContext
+from backend.identity.authorization import AuthorizationScope
+from backend.planning.exam_venues import ExamVenueService
 from backend.tests.helpers import TempDatabase
 
 

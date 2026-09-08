@@ -15,6 +15,28 @@ from fastapi import FastAPI, Request
 from fastapi.responses import Response
 from sqlalchemy.exc import SQLAlchemyError
 
+from backend.application.transport import (
+    RequestTooLargeError,
+    UnsupportedMediaTypeError,
+)
+from backend.assessment.exam_results import ExamResultConflictError
+from backend.execution.exam_day_closures import ExamDayConflictError, ExamDayValidationError
+from backend.execution.exam_protocols import ExamProtocolConflictError
+from backend.execution.exam_round_lifecycle import ExamRoundConflictError, ExamRoundValidationError
+from backend.identity.local_auth import LocalAuthError
+from backend.integrations.map_provider import (
+    MapProviderConfig,
+    MapProviderDisabledError,
+    MapProviderUnavailableError,
+)
+from backend.persistence.database import persistence_paths
+from backend.planning import ConfirmedPlanConflictError, PlanConflictError, PlanValidationError
+from backend.planning.exam_venues import (
+    ExamVenueConfirmationRequiredError,
+    ExamVenueConflictError,
+    ExamVenueInUseError,
+)
+
 from .api_contracts import (
     ApiRootResponse,
     AssessmentModelBindingRequest,
@@ -81,16 +103,6 @@ from .application import (
     ForbiddenRequestError,
     database_error_result,
 )
-from .database import persistence_paths
-from .exam_day_closures import ExamDayConflictError, ExamDayValidationError
-from .exam_protocols import ExamProtocolConflictError
-from .exam_results import ExamResultConflictError
-from .exam_round_lifecycle import ExamRoundConflictError, ExamRoundValidationError
-from .exam_venues import (
-    ExamVenueConfirmationRequiredError,
-    ExamVenueConflictError,
-    ExamVenueInUseError,
-)
 from .fastapi_assessment import create_assessment_router
 from .fastapi_dependencies import (
     ReadContext,
@@ -106,21 +118,10 @@ from .fastapi_http import same_origin as _same_origin
 from .fastapi_master_data import MIGRATED_DOMAIN_RESOURCES as MIGRATED_DOMAIN_RESOURCES
 from .fastapi_master_data import register_master_data_routes
 from .fastapi_planning_router import register_planning_router
-from .local_auth import LocalAuthError
-from .map_provider import (
-    MapProviderConfig,
-    MapProviderDisabledError,
-    MapProviderUnavailableError,
-)
 from .observability import emit_event, safe_http_path
-from .planning import ConfirmedPlanConflictError, PlanConflictError, PlanValidationError
 from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from .security import RequestRateLimiter, RuntimeSecurityConfig
 from .settings import RuntimeSettings
-from .transport import (
-    RequestTooLargeError,
-    UnsupportedMediaTypeError,
-)
 
 __all__ = [
     "ApiRootResponse",

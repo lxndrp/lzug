@@ -98,8 +98,8 @@ extend-exclude = '''
 [tool.mypy]
 files = [
   "backend/src/backend/api_contracts.py",
-  "backend/src/backend/transport.py",
-  "backend/src/backend/models.py",
+  "backend/src/backend/application/transport.py",
+  "backend/src/backend/persistence/models.py",
 ]
 python_version = "3.14"
 follow_imports = "skip"

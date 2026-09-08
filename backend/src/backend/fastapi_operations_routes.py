@@ -9,7 +9,9 @@ from fastapi import APIRouter, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, ValidationError
 
-from . import hateoas
+from backend.application import hateoas
+from backend.application.transport import RequestContext, RequestTooLargeError
+
 from .api_contracts import (
     ApiRootResponse,
     DemoScenarioOverviewResponse,
@@ -33,7 +35,6 @@ from .fastapi_http import (
     validated_payload,
 )
 from .observability import emit_event
-from .transport import RequestContext, RequestTooLargeError
 
 if TYPE_CHECKING:
     from .application import ReadApplication

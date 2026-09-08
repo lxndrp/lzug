@@ -7,10 +7,10 @@ from http import HTTPStatus
 
 from sqlalchemy import select
 
-from backend.auth import AuthenticationRepository
-from backend.database import initialize, session_scope
-from backend.exam_protocols import ENTRY_CATEGORIES, create_protocol_for_started_slot
-from backend.models import (
+from backend.execution.exam_protocols import ENTRY_CATEGORIES, create_protocol_for_started_slot
+from backend.identity.auth import AuthenticationRepository
+from backend.persistence.database import initialize, session_scope
+from backend.persistence.models import (
     CandidateExamAttendance,
     ExamDay,
     ExamDayAssignment,

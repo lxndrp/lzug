@@ -5,9 +5,9 @@ from http import HTTPStatus
 
 from sqlalchemy import select, text
 
-from backend.auth import AuthenticationRepository
-from backend.database import session_scope
-from backend.models import (
+from backend.identity.auth import AuthenticationRepository
+from backend.persistence.database import session_scope
+from backend.persistence.models import (
     CalendarEvent,
     ExamDay,
     ExamRoundDecision,

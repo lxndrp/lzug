@@ -4,11 +4,11 @@ import unittest
 from decimal import Decimal
 from http import HTTPStatus
 
-from backend.auth import AuthenticationRepository
-from backend.database import session_scope
-from backend.exam_protocols import create_protocol_for_started_slot
-from backend.exam_results import ExamResultService
-from backend.models import (
+from backend.assessment.exam_results import ExamResultService
+from backend.execution.exam_protocols import create_protocol_for_started_slot
+from backend.identity.auth import AuthenticationRepository
+from backend.persistence.database import session_scope
+from backend.persistence.models import (
     CandidateExamAttendance,
     ExamDay,
     ExamDayAssignment,

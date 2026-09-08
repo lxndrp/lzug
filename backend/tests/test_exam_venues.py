@@ -5,8 +5,9 @@ import unittest
 
 from sqlalchemy import func, select
 
-from backend.database import session_scope
-from backend.exam_venues import (
+from backend.persistence.database import session_scope
+from backend.persistence.models import ExamVenueAuditEvent
+from backend.planning.exam_venues import (
     ExamVenueConfirmationRequiredError,
     ExamVenueConflictError,
     ExamVenueError,
@@ -14,7 +15,6 @@ from backend.exam_venues import (
     ExamVenueService,
     room_is_usable_for_committee,
 )
-from backend.models import ExamVenueAuditEvent
 from backend.tests.helpers import TempDatabase
 
 
@@ -226,7 +226,7 @@ class ExamVenueServiceTests(unittest.TestCase):
             service = ExamVenueService(db_path)
             venue, room = self._create_active_venue_and_room(service)
             with session_scope(db_path) as session:
-                from backend.models import ExamDay, ExamDayAssignment
+                from backend.persistence.models import ExamDay, ExamDayAssignment
 
                 day = ExamDay(
                     exam_round_id=1,

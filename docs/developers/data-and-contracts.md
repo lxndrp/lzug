@@ -129,16 +129,16 @@ erDiagram
   Fach- oder Geheimnisdaten.
 
 Die fachliche Bedeutung liegt in den Services und ihren Tests, insbesondere
-unter `backend/src/backend/planning.py`, `backend/src/backend/exam_protocols.py`,
-`backend/src/backend/exam_results.py`, `backend/src/backend/exam_day_closures.py`
-und `backend/src/backend/exam_round_lifecycle.py` sowie
-`backend/src/backend/venue_consequences.py`.
+unter `backend/src/backend/planning/`, `backend/src/backend/execution/`,
+`backend/src/backend/assessment/` und
+`backend/src/backend/planning/venue_consequences.py`.
 Ändert sich eine Invariante, müssen Service, Persistenz, HTTP-Vertrag,
 Frontendverhalten und betroffene Tests gemeinsam geprüft werden.
 
 ## Persistenz und Migrationen
 
-`backend/src/backend/models.py` bildet die Produktstruktur mit SQLAlchemy ab.
+`backend/src/backend/persistence/models.py` bildet die Produktstruktur mit
+SQLAlchemy ab.
 `backend/db/schema.sql` ist die ausführbare Referenz für eine neue Datenbank;
 `backend/db/migrations/` entwickelt vorhandene Bestände geordnet vorwärts.
 Die Laufzeit prüft Reihenfolge, Prüfsummen und Integrität der

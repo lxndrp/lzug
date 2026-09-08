@@ -10,9 +10,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from backend.admin import run
-from backend.admin_service import OperatorAuthService
 from backend.build_metadata import BuildMetadata
-from backend.diagnostics import EXIT_DIAGNOSTIC_ERROR, EXIT_DIAGNOSTIC_WARNING
+from backend.identity.admin_service import OperatorAuthService
+from backend.operations.diagnostics import EXIT_DIAGNOSTIC_ERROR, EXIT_DIAGNOSTIC_WARNING
 from backend.tests.helpers import TempDatabase
 
 
@@ -47,8 +47,8 @@ class OperatorDiagnosticsTests(unittest.TestCase):
             self._prepare_paths(db_path)
             with (
                 patch.dict(os.environ, self._environment(db_path), clear=True),
-                patch("backend.diagnostics.build_metadata", return_value=self.metadata),
-                patch("backend.diagnostics.public_health_ready", return_value=True),
+                patch("backend.operations.diagnostics.build_metadata", return_value=self.metadata),
+                patch("backend.operations.diagnostics.public_health_ready", return_value=True),
             ):
                 status_code, status_output = self._invoke("status", {"client": self.client})
                 config_code, config_output = self._invoke("config", {})
@@ -75,15 +75,15 @@ class OperatorDiagnosticsTests(unittest.TestCase):
             environment = self._environment(db_path)
             with (
                 patch.dict(os.environ, environment, clear=True),
-                patch("backend.diagnostics.build_metadata", side_effect=OSError),
-                patch("backend.diagnostics.public_health_ready", return_value=True),
+                patch("backend.operations.diagnostics.build_metadata", side_effect=OSError),
+                patch("backend.operations.diagnostics.public_health_ready", return_value=True),
             ):
                 runtime_code, runtime_output = self._invoke("status", {"client": self.client})
             with (
                 patch.dict(os.environ, environment, clear=True),
-                patch("backend.diagnostics.build_metadata", return_value=self.metadata),
+                patch("backend.operations.diagnostics.build_metadata", return_value=self.metadata),
                 patch(
-                    "backend.diagnostics.database_readiness",
+                    "backend.operations.diagnostics.database_readiness",
                     return_value={
                         "ready": False,
                         "reason": "migration_error",
@@ -93,7 +93,7 @@ class OperatorDiagnosticsTests(unittest.TestCase):
                         },
                     },
                 ),
-                patch("backend.diagnostics.public_health_ready", return_value=True),
+                patch("backend.operations.diagnostics.public_health_ready", return_value=True),
             ):
                 schema_code, schema_output = self._invoke("status", {"client": self.client})
 
@@ -108,17 +108,17 @@ class OperatorDiagnosticsTests(unittest.TestCase):
             environment = self._environment(db_path)
             with (
                 patch.dict(os.environ, environment, clear=True),
-                patch("backend.diagnostics.build_metadata", return_value=self.metadata),
-                patch("backend.diagnostics.public_health_ready", return_value=True),
-                patch("backend.diagnostics._probe_directory", return_value=False),
+                patch("backend.operations.diagnostics.build_metadata", return_value=self.metadata),
+                patch("backend.operations.diagnostics.public_health_ready", return_value=True),
+                patch("backend.operations.diagnostics._probe_directory", return_value=False),
             ):
                 rights_code, rights_output = self._invoke("doctor", {"client": self.client})
             with (
                 patch.dict(os.environ, environment, clear=True),
-                patch("backend.diagnostics.build_metadata", return_value=self.metadata),
-                patch("backend.diagnostics.public_health_ready", return_value=True),
+                patch("backend.operations.diagnostics.build_metadata", return_value=self.metadata),
+                patch("backend.operations.diagnostics.public_health_ready", return_value=True),
                 patch(
-                    "backend.diagnostics.shutil.disk_usage",
+                    "backend.operations.diagnostics.shutil.disk_usage",
                     return_value=SimpleNamespace(free=1),
                 ),
             ):
@@ -162,8 +162,8 @@ class OperatorDiagnosticsTests(unittest.TestCase):
             }
             with (
                 patch.dict(os.environ, environment, clear=True),
-                patch("backend.diagnostics.build_metadata", return_value=self.metadata),
-                patch("backend.diagnostics.public_health_ready") as public_health_ready,
+                patch("backend.operations.diagnostics.build_metadata", return_value=self.metadata),
+                patch("backend.operations.diagnostics.public_health_ready") as public_health_ready,
             ):
                 code, output = self._invoke("status", {"client": self.client})
 

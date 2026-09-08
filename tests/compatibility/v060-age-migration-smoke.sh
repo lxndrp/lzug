@@ -155,7 +155,7 @@ if ! lzug_wait_for_container_health "$container" 30; then
 fi
 
 docker exec "$container" python -c '
-from backend.database import database_path, migration_status
+from backend.persistence.database import database_path, migration_status
 
 status = migration_status(database_path())
 assert status["state"] == "ready"

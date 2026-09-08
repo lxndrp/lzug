@@ -5,12 +5,12 @@ import unittest
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
-from backend.auth import AuthenticationRepository
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_planning_router import (
     MIGRATED_PLANNING_RESOURCES,
     PLANNING_DOMAIN_RESOURCES,
 )
+from backend.identity.auth import AuthenticationRepository
 from backend.tests.helpers import TempDatabase
 
 

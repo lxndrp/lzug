@@ -586,7 +586,10 @@ class HttpContractParityTests(unittest.TestCase):
             fastapi_feed_path = fastapi_activation.json["feed_url"].replace(
                 "https://app.example.invalid", ""
             )
-            with patch("backend.calendar._now", return_value=datetime(2026, 1, 1, tzinfo=UTC)):
+            with patch(
+                "backend.integrations.calendar._now",
+                return_value=datetime(2026, 1, 1, tzinfo=UTC),
+            ):
                 self.assert_parity(
                     legacy.request("GET", legacy_feed_path, authenticated=False),
                     fastapi.request("GET", fastapi_feed_path, authenticated=False),
@@ -626,7 +629,7 @@ class HttpContractParityTests(unittest.TestCase):
 
         with self.adapter_pair(include_legacy_routes=False) as (legacy, fastapi):
             with patch(
-                "backend.repositories.ResourceRepository.confirmed_plans",
+                "backend.application.repositories.ResourceRepository.confirmed_plans",
                 side_effect=SQLAlchemyError("private database details"),
             ):
                 self.assert_parity(

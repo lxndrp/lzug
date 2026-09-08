@@ -6,13 +6,12 @@ from unittest.mock import patch
 
 from sqlalchemy import func, select
 
-from backend.auth import AuthenticationRepository
-from backend.authorization import AuthorizationScope
-from backend.calendar import CalendarService
-from backend.database import session_scope
-from backend.exam_venue_api import ExamVenueApi
-from backend.exam_venues import ExamVenueConfirmationRequiredError, ExamVenueService
-from backend.models import (
+from backend.application.exam_venue_api import ExamVenueApi
+from backend.identity.auth import AuthenticationRepository
+from backend.identity.authorization import AuthorizationScope
+from backend.integrations.calendar import CalendarService
+from backend.persistence.database import session_scope
+from backend.persistence.models import (
     CalendarEvent,
     ConfirmedPlanRevision,
     ExamDay,
@@ -22,9 +21,10 @@ from backend.models import (
     PlanConsequenceBatch,
 )
 from backend.planning import PlanningService
+from backend.planning.exam_venues import ExamVenueConfirmationRequiredError, ExamVenueService
+from backend.planning.venue_consequences import VenueConsequenceService
 from backend.tests.fixture_data import FIXTURE_IDS, FIXTURE_ROOT
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
-from backend.venue_consequences import VenueConsequenceService
 
 
 class VenueConsequenceTests(unittest.TestCase):
@@ -248,7 +248,7 @@ class VenueConsequenceTests(unittest.TestCase):
             venue = venues.get_venue(1)
             assert venue is not None
             with patch(
-                "backend.venue_consequences.CalendarService.sync_assignment",
+                "backend.planning.venue_consequences.CalendarService.sync_assignment",
                 side_effect=RuntimeError("simulated calendar failure"),
             ):
                 result = venues.update_venue(
@@ -324,7 +324,7 @@ class VenueConsequenceTests(unittest.TestCase):
             venue = venues.get_venue(1)
             assert venue is not None
             with patch(
-                "backend.venue_consequences.CalendarService.sync_assignment",
+                "backend.planning.venue_consequences.CalendarService.sync_assignment",
                 side_effect=RuntimeError("simulated calendar failure"),
             ):
                 failed = venues.update_venue(
@@ -404,7 +404,7 @@ class VenueConsequenceApiTests(unittest.TestCase):
                 self.assertGreater(impact["notifications"]["recipient_count"], 0)
 
                 with patch(
-                    "backend.venue_consequences.CalendarService.sync_assignment",
+                    "backend.planning.venue_consequences.CalendarService.sync_assignment",
                     side_effect=RuntimeError("simulated calendar failure"),
                 ):
                     status, changed = api.request(

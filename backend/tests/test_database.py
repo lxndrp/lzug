@@ -13,8 +13,8 @@ from unittest.mock import patch
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
-from backend.calendar import CalendarService
-from backend.database import (
+from backend.integrations.calendar import CalendarService
+from backend.persistence.database import (
     BUSY_TIMEOUT_MS,
     SQLITE_JOURNAL_MODE,
     MigrationError,
@@ -1548,7 +1548,7 @@ class DatabaseTests(unittest.TestCase):
                 connection.execute("ALTER TABLE exam_round DROP COLUMN plan_revision")
                 connection.commit()
 
-            with patch("backend.database.MIGRATIONS_PATH", migration_directory):
+            with patch("backend.persistence.database.MIGRATIONS_PATH", migration_directory):
                 with self.assertRaisesRegex(MigrationError, "009_harden_migration_history"):
                     initialize(db_path)
 
@@ -1564,7 +1564,7 @@ class DatabaseTests(unittest.TestCase):
                 Path("backend/db/migrations/009_harden_migration_history.sql"),
                 migration_directory / "009_harden_migration_history.sql",
             )
-            with patch("backend.database.MIGRATIONS_PATH", migration_directory):
+            with patch("backend.persistence.database.MIGRATIONS_PATH", migration_directory):
                 initialize(db_path)
             self.assertEqual("ready", migration_status(db_path)["state"])
 

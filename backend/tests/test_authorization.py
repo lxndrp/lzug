@@ -3,9 +3,10 @@ from __future__ import annotations
 import unittest
 from http import HTTPStatus
 
-from backend.auth import AuthenticationRepository
-from backend.database import session_scope
-from backend.models import (
+from backend.application.repositories import ResourceRepository
+from backend.identity.auth import AuthenticationRepository
+from backend.persistence.database import session_scope
+from backend.persistence.models import (
     CANDIDATE_EXAM_DAY,
     COMMITTEE,
     COMMITTEE_MEMBER,
@@ -14,7 +15,6 @@ from backend.models import (
     Committee,
 )
 from backend.planning import PlanningService
-from backend.repositories import ResourceRepository
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
 

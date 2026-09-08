@@ -6,8 +6,9 @@ from unittest.mock import patch
 
 from sqlalchemy import text
 
-from backend.database import connect, session_scope
-from backend.models import (
+from backend.application.repositories import ResourceRepository
+from backend.persistence.database import connect, session_scope
+from backend.persistence.models import (
     CANDIDATE,
     CANDIDATE_EXAM_DAY,
     COMMITTEE,
@@ -23,6 +24,7 @@ from backend.models import (
     ExamRoom,
     ExamVenue,
 )
+from backend.persistence.store import Store
 from backend.planning import (
     ConfirmedPlanChange,
     ConfirmedPlanConflictError,
@@ -30,8 +32,6 @@ from backend.planning import (
     PlanningService,
     PlanValidationError,
 )
-from backend.repositories import ResourceRepository
-from backend.store import Store
 from backend.tests.helpers import TempDatabase
 
 
