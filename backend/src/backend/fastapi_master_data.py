@@ -39,6 +39,8 @@ from .fastapi_dependencies import (
     EmptyWriteContext,
     ReadContext,
     VenueAuditWriteContext,
+    VenueEmptyWriteContext,
+    VenueItemEmptyWriteContext,
     VenueItemReadContext,
     VenueItemWriteContext,
     VenueReadContext,
@@ -665,7 +667,7 @@ def _register_legacy_location_routes(
         deprecated=True,
         openapi_extra=write_security,
     )
-    def create_legacy_location(context: VenueWriteContext):
+    def create_legacy_location(context: VenueEmptyWriteContext):
         return legacy_location_write(context, ["locations"])
 
     @app.patch(
@@ -675,7 +677,7 @@ def _register_legacy_location_routes(
         deprecated=True,
         openapi_extra=write_security,
     )
-    def update_legacy_location(context: VenueItemWriteContext):
+    def update_legacy_location(context: VenueItemEmptyWriteContext):
         id = int(context.request.path_params["id"])
         return legacy_location_write(context, ["locations", str(id)])
 
@@ -686,7 +688,7 @@ def _register_legacy_location_routes(
         deprecated=True,
         openapi_extra=write_security,
     )
-    def delete_legacy_location(context: VenueItemWriteContext):
+    def delete_legacy_location(context: VenueItemEmptyWriteContext):
         id = int(context.request.path_params["id"])
         return legacy_location_write(context, ["locations", str(id)])
 

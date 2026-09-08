@@ -107,7 +107,7 @@ from .fastapi_assessment import create_assessment_router
 from .fastapi_dependencies import (
     ReadContext,
     WriteContext,
-    buffered_body,
+    validate_body_headers,
 )
 from .fastapi_execution import create_execution_router
 from .fastapi_http import finish as _finish
@@ -304,7 +304,7 @@ async def _transport_guard(request: Request, call_next, config: FastAPIConfig) -
             )
     else:
         try:
-            await buffered_body(request)
+            validate_body_headers(request)
         except RequestTooLargeError as error:
             response = _json_response(
                 ApplicationResult({"error": str(error)}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)

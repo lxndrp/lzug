@@ -179,6 +179,25 @@ abgleichen.
 Setzen Sie `LZUG_EXTERNAL_URL` auf die exakte öffentliche HTTPS-Origin.
 Bei reinem same-origin-Betrieb bleibt `LZUG_CORS_ALLOWED_ORIGINS` leer.
 
+`LZUG_MAX_REQUEST_BYTES` begrenzt die tatsächlich eingelesenen Requestdaten
+auch ohne verlässliches `Content-Length`.
+Zu große Längenangaben werden vor dem Lesen abgewiesen;
+beim Überschreiten während des Einlesens antwortet die Anwendung mit `413`
+und liest den restlichen Body nicht weiter.
+Bodylose Pfade puffern keine Requestdaten.
+Der Anwendungspuffer hält höchstens das konfigurierte Limit;
+der jeweils vom ASGI-Server gelieferte Chunk und dessen Transportpuffer
+kommen hinzu und werden nicht durch dieses Limit dimensioniert.
+Uvicorn begrenzt vorgelagertes Einlesen über seine Flusskontrolle und liest
+nach einer abgeschlossenen Antwort den restlichen Request nicht für die
+Anwendung ein.
+Der Proxy muss eigene Größen- und Zeitlimits setzen und gültiges
+HTTP-Framing an Uvicorn weitergeben.
+`Transfer-Encoding` wird von lzug weiterhin mit `400` abgewiesen;
+der Proxy muss Chunked-Requests entsprechend aufbereiten.
+Siehe [Uvicorn-Serververhalten](https://www.uvicorn.org/server-behavior/)
+und [ASGI-Requestereignisse](https://asgi.readthedocs.io/en/stable/specs/www.html#request-receive-event).
+
 Der Container stellt selbst kein TLS bereit.
 Docker-Socket, `/data`, Betreiber-CLI und der lokale Python-Adminprozess dürfen
 niemals über den Reverse Proxy erreichbar sein.

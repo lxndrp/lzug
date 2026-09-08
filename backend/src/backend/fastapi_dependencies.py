@@ -5,6 +5,7 @@ from typing import Annotated
 
 from fastapi import Depends, Header, Request, Security
 from fastapi.security import APIKeyCookie
+from starlette.requests import ClientDisconnect
 
 from backend.application.transport import RequestContext, RequestTooLargeError
 
@@ -30,15 +31,23 @@ def validate_body_headers(request: Request) -> None:
 
 
 async def buffered_body(request: Request) -> bytes:
-    """Reuse the transport buffer without moving JSON errors ahead of access checks.
+    """Buffer only a body-consuming route, bounded by actual received bytes.
 
-    The transport guard calls this before routing, including for unknown paths.
-    RequestContext.read_json remains responsible for the actual payload size and
-    media type at the existing application boundary.
+    Check each ASGI chunk before retaining it and stop receiving on overflow.
+    JSON and media errors stay at RequestContext.read_json after access checks.
     """
     if not hasattr(request.state, "raw_body"):
         validate_body_headers(request)
-        request.state.raw_body = await request.body()
+        maximum = request.app.state.lzug_config.max_request_bytes
+        body = bytearray()
+        try:
+            async for chunk in request.stream():
+                if len(chunk) > maximum - len(body):
+                    raise RequestTooLargeError(f"Request body exceeds {maximum} bytes.")
+                body.extend(chunk)
+        except ClientDisconnect as error:
+            raise ValueError("Incomplete request body.") from error
+        request.state.raw_body = bytes(body)
     return request.state.raw_body
 
 
@@ -141,16 +150,16 @@ MutationContext = Annotated[RequestContext, Depends(access_context(mutation=True
 BodyMutationContext = Annotated[RequestContext, Depends(access_context(body=True, mutation=True))]
 
 
-def venue_access(*, mutation: bool = False, identifier: str | None = None):
+def venue_access(*, mutation: bool = False, identifier: str | None = None, body: bool = True):
     """Keep venue path validation before authentication, with operator access.
 
     Typed identifiers live only in this dependency so FastAPI still emits one
     unchanged validation error, before running the access checks.
     """
     access = access_context(
-        actor=False, csrf=mutation, body=mutation, mutation=mutation, operator=True
+        actor=False, csrf=mutation, body=mutation and body, mutation=mutation, operator=True
     )
-    base = body_context if mutation else request_context
+    base = body_context if mutation and body else request_context
 
     def item(id: int, context: Annotated[RequestContext, Depends(base)]) -> RequestContext:
         return access(context)
@@ -167,12 +176,16 @@ def venue_access(*, mutation: bool = False, identifier: str | None = None):
 
 VenueReadContext = Annotated[RequestContext, Depends(venue_access())]
 VenueWriteContext = Annotated[RequestContext, Depends(venue_access(mutation=True))]
+VenueEmptyWriteContext = Annotated[RequestContext, Depends(venue_access(mutation=True, body=False))]
 VenueItemReadContext = Annotated[RequestContext, Depends(venue_access(identifier="id"))]
 VenueItemWriteContext = Annotated[
     RequestContext, Depends(venue_access(mutation=True, identifier="id"))
 ]
+VenueItemEmptyWriteContext = Annotated[
+    RequestContext, Depends(venue_access(mutation=True, identifier="id", body=False))
+]
 VenueAuditWriteContext = Annotated[
-    RequestContext, Depends(venue_access(mutation=True, identifier="audit_id"))
+    RequestContext, Depends(venue_access(mutation=True, identifier="audit_id", body=False))
 ]
 
 
