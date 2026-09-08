@@ -7,6 +7,7 @@
 ## Status
 
 Akzeptiert am 2026-09-03.
+Superseded by: ADR-0035.
 Supersedes: ADR-0011.
 Supersedes: ADR-0012.
 Supersedes: ADR-0023.
