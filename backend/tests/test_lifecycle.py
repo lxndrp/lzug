@@ -29,7 +29,8 @@ class LifecycleTests(unittest.TestCase):
         self.metadata = BuildMetadata.create("a" * 40, "v0.7.0")
         self.target = {
             "identity": "0.7.0",
-            "image": "ghcr.io/lxndrp/lzug-app@sha256:" + "c" * 64,
+            "image": "ghcr.io/lxndrp/lzug-app:0.7.0",
+            "digest": "ghcr.io/lxndrp/lzug-app@sha256:" + "c" * 64,
             "release": True,
             "revision": "a" * 40,
             "tag": "v0.7.0",
@@ -170,10 +171,24 @@ class LifecycleTests(unittest.TestCase):
             self.service().rollback(
                 {
                     **self.target,
-                    "image": "ghcr.io/lxndrp/lzug@sha256:" + "c" * 64,
+                    "image": "ghcr.io/lxndrp/lzug:0.7.0",
                 }
             )
         self.assertEqual("release_artifact_unverified", raised.exception.code)
+
+        with self.assertRaises(LifecycleError) as raised:
+            self.service().rollback({**self.target, "digest": "sha256:" + "c" * 64})
+        self.assertEqual("release_artifact_unverified", raised.exception.code)
+
+        target_without_digest = {
+            key: value for key, value in self.target.items() if key != "digest"
+        }
+        with patch(
+            "backend.lifecycle.migration_status",
+            return_value={**self.before(pending=False), "state": "ready"},
+        ):
+            result = self.service().rollback(target_without_digest)
+        self.assertNotIn("digest", result["target"])
 
     def test_compatible_rollback_is_non_mutating(self) -> None:
         with patch(

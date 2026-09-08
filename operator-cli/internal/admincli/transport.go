@@ -14,7 +14,12 @@ import (
 
 const maxBackendOutput = 1024 * 1024
 
-var canonicalReleaseImagePattern = regexp.MustCompile(`^ghcr\.io/lxndrp/lzug-app@sha256:[0-9a-f]{64}$`)
+const canonicalReleaseImage = "ghcr.io/lxndrp/lzug-app"
+
+var (
+	releaseTagPattern             = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-rc\.(0|[1-9][0-9]*))?$`)
+	canonicalReleaseDigestPattern = regexp.MustCompile(`^ghcr\.io/lxndrp/lzug-app@sha256:[0-9a-f]{64}$`)
+)
 
 type RuntimeErrorKind string
 
@@ -171,7 +176,7 @@ type ContainerReleaseInspector struct {
 }
 
 func (inspector *ContainerReleaseInspector) Target(ctx context.Context, build BuildInfo) (map[string]any, error) {
-	if build.Tag == "" || build.Version != strings.TrimPrefix(build.Tag, "v") {
+	if !releaseTagPattern.MatchString(build.Tag) || build.Version != strings.TrimPrefix(build.Tag, "v") {
 		return nil, &RuntimeError{Kind: RuntimeRelease}
 	}
 	docker, err := inspector.Resolver.Resolve()
@@ -183,22 +188,8 @@ func (inspector *ContainerReleaseInspector) Target(ctx context.Context, build Bu
 	if err != nil || strings.TrimSpace(imageID) == "" {
 		return nil, &RuntimeError{Kind: RuntimeRelease}
 	}
-	repoDigestsJSON, err := commandOutput(ctx, docker, "image", "inspect", "--format", "{{json .RepoDigests}}", strings.TrimSpace(imageID))
-	if err != nil {
-		return nil, &RuntimeError{Kind: RuntimeRelease}
-	}
-	var repoDigests []string
-	if json.Unmarshal([]byte(strings.TrimSpace(repoDigestsJSON)), &repoDigests) != nil {
-		return nil, &RuntimeError{Kind: RuntimeRelease}
-	}
-	canonicalImage := ""
-	for _, digest := range repoDigests {
-		if canonicalReleaseImagePattern.MatchString(digest) {
-			canonicalImage = digest
-			break
-		}
-	}
-	if canonicalImage == "" {
+	imageReference, err := commandOutput(ctx, docker, "container", "inspect", "--format", "{{.Config.Image}}", container)
+	if err != nil || strings.TrimSpace(imageReference) != canonicalReleaseImage+":"+build.Version {
 		return nil, &RuntimeError{Kind: RuntimeRelease}
 	}
 	labelsJSON, err := commandOutput(ctx, docker, "image", "inspect", "--format", "{{json .Config.Labels}}", strings.TrimSpace(imageID))
@@ -212,13 +203,26 @@ func (inspector *ContainerReleaseInspector) Target(ctx context.Context, build Bu
 		labels["org.opencontainers.image.revision"] != build.Revision {
 		return nil, &RuntimeError{Kind: RuntimeRelease}
 	}
-	return map[string]any{
+	target := map[string]any{
 		"identity": build.Version,
-		"image":    canonicalImage,
+		"image":    strings.TrimSpace(imageReference),
 		"release":  true,
 		"revision": build.Revision,
 		"tag":      build.Tag,
-	}, nil
+	}
+	repoDigestsJSON, err := commandOutput(ctx, docker, "image", "inspect", "--format", "{{json .RepoDigests}}", strings.TrimSpace(imageID))
+	if err == nil {
+		var repoDigests []string
+		if json.Unmarshal([]byte(strings.TrimSpace(repoDigestsJSON)), &repoDigests) == nil {
+			for _, digest := range repoDigests {
+				if canonicalReleaseDigestPattern.MatchString(digest) {
+					target["digest"] = digest
+					break
+				}
+			}
+		}
+	}
+	return target, nil
 }
 
 func commandOutput(ctx context.Context, command string, arguments ...string) (string, error) {

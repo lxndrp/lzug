@@ -19,7 +19,8 @@ from .settings import RuntimeSettings
 from .version import build_metadata
 
 MAINTENANCE_ENV = "LZUG_LIFECYCLE_MAINTENANCE"
-_CANONICAL_IMAGE = re.compile(r"^ghcr\.io/lxndrp/lzug-app@sha256:[0-9a-f]{64}$")
+_CANONICAL_IMAGE = "ghcr.io/lxndrp/lzug-app"
+_CANONICAL_DIGEST = re.compile(r"^ghcr\.io/lxndrp/lzug-app@sha256:[0-9a-f]{64}$")
 
 
 def _dedicated_maintenance_process() -> bool:
@@ -169,7 +170,8 @@ class LifecycleService:
                 "maintenance_required",
                 f"{MAINTENANCE_ENV} must be true in a dedicated maintenance container",
             )
-        if set(target) != {"identity", "image", "release", "revision", "tag"}:
+        required_fields = {"identity", "image", "release", "revision", "tag"}
+        if set(target) not in {frozenset(required_fields), frozenset(required_fields | {"digest"})}:
             raise LifecycleError(
                 "release_artifact_unverified", "Target release metadata is invalid"
             )
@@ -180,24 +182,32 @@ class LifecycleService:
                 "release_artifact_unverified", "Target release metadata is invalid"
             ) from error
         image = target.get("image")
+        digest = target.get("digest")
         if (
             not candidate.release
             or target.get("release") is not True
             or target.get("identity") != candidate.identity
             or not isinstance(image, str)
-            or _CANONICAL_IMAGE.fullmatch(image) is None
+            or image != f"{_CANONICAL_IMAGE}:{candidate.identity}"
+            or (
+                digest is not None
+                and (not isinstance(digest, str) or _CANONICAL_DIGEST.fullmatch(digest) is None)
+            )
             or candidate != self.metadata
         ):
             raise LifecycleError(
                 "release_artifact_unverified",
                 "Target container is not the matching canonical release artifact",
             )
-        return {
+        release = {
             "identity": candidate.identity,
             "image": image,
             "revision": candidate.revision,
             "tag": candidate.tag or "",
         }
+        if isinstance(digest, str):
+            release["digest"] = digest
+        return release
 
     @staticmethod
     def _verified_upgrade_backup(
