@@ -35,6 +35,7 @@ jobs:
         env:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
+          PYTHONPATH: backend/src
           RELEASE_TAG: ${{ inputs.release_tag }}
           TARGET_SHA: ${{ github.sha }}
         run: |

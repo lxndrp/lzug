@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+import os
+import re
+import subprocess
+import sys
+import textwrap
 import unittest
+from pathlib import Path
 
 from tests.delivery.workflow_contract import (
     job_block,
@@ -28,6 +34,35 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertNotIn("milestone", self.workflow.lower())
         self.assertNotIn("type: release", self.workflow)
         self.assertNotIn("gh issue", self.workflow)
+
+    def test_preflight_loads_build_metadata_from_checkout_src_layout(self) -> None:
+        python_path = re.search(r"^\s+PYTHONPATH:\s+(\S+)\s*$", self.preflight, re.MULTILINE)
+        self.assertIsNotNone(python_path)
+
+        _, heredoc, remainder = self.preflight.partition("python3 - <<'PY'\n")
+        self.assertTrue(heredoc)
+        python_source, terminator, _ = remainder.partition("\n          PY\n")
+        self.assertTrue(terminator)
+
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "PYTHONPATH": python_path.group(1),
+                "RELEASE_TAG": "v0.8.0",
+                "TARGET_SHA": "a" * 40,
+            }
+        )
+        result = subprocess.run(
+            [sys.executable, "-S", "-"],
+            cwd=Path(__file__).resolve().parents[2],
+            env=environment,
+            input=textwrap.dedent(python_source),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(result.stdout.strip(), "0.8.0")
 
     def test_environment_approval_precedes_immutable_tag_and_tag_checkout(self) -> None:
         self.assertIn("environment: release", self.publish)
