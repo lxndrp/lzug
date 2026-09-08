@@ -11,6 +11,7 @@ from backend.api_contracts import (
 )
 from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES, FastAPIConfig
 from backend.fastapi_master_data import create_master_data_router
+from backend.fastapi_planning_router import PLANNING_DOMAIN_RESOURCES
 
 
 class FastAPIMasterDataRouterTests(unittest.TestCase):
@@ -40,8 +41,9 @@ class FastAPIMasterDataRouterTests(unittest.TestCase):
 
     def test_router_owns_master_data_and_organization_endpoints(self) -> None:
         routes = self.routes()
-        expected = {("GET", f"/api/{resource}") for resource in MIGRATED_DOMAIN_RESOURCES} | {
-            ("GET", f"/api/{resource}/{{id}}") for resource in MIGRATED_DOMAIN_RESOURCES
+        master_data_resources = set(MIGRATED_DOMAIN_RESOURCES) - set(PLANNING_DOMAIN_RESOURCES)
+        expected = {("GET", f"/api/{resource}") for resource in master_data_resources} | {
+            ("GET", f"/api/{resource}/{{id}}") for resource in master_data_resources
         }
         expected.update(
             {

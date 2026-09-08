@@ -267,6 +267,85 @@ class IndividualAssessmentRequest(BaseModel):
     change_reason: str | None = None
 
 
+class PlanningRoundRequest(BaseModel):
+    """Select the exam round for a body-scoped planning operation."""
+
+    model_config = ConfigDict(extra="allow")
+
+    round_id: int = 1
+
+
+class PlanningProposalSlotPayload(BaseModel):
+    """One ordered candidate slot within a complete planning aggregate."""
+
+    model_config = ConfigDict(extra="allow")
+
+    id: int | None = None
+    round_candidate_id: int
+    slot_type: str
+    starts_at: str = ""
+    ends_at: str = ""
+    sequence_number: int = 0
+    status: str = "proposed"
+
+
+class PlanningProposalAssignmentPayload(BaseModel):
+    """One examiner or fallback assignment within a planning day part."""
+
+    model_config = ConfigDict(extra="allow")
+
+    id: int | None = None
+    committee_member_id: int
+    assignment_role: str
+    day_part: str
+    fallback_status: str | None = None
+
+
+class PlanningProposalDayPayload(BaseModel):
+    """One candidate exam day and its complete editable planning content."""
+
+    model_config = ConfigDict(extra="allow")
+
+    id: int | None = None
+    candidate_exam_day_id: int
+    room_id: int | None = None
+    location_id: int | None = None
+    date: str = ""
+    status: str = "proposed"
+    slots: list[PlanningProposalSlotPayload]
+    assignments: list[PlanningProposalAssignmentPayload]
+
+
+class PlanningProposalWriteRequest(BaseModel):
+    """Complete optimistic-lock command for replacing one planning proposal."""
+
+    model_config = ConfigDict(extra="allow")
+
+    round_id: int
+    revision: int
+    exam_days: list[PlanningProposalDayPayload]
+
+
+class ConfirmedPlanChangeRequest(PlanningProposalWriteRequest):
+    """Complete confirmed-plan replacement with its mandatory audit reason."""
+
+    reason: str
+
+
+class PlanningProposalResponse(PlanningProposalWriteRequest):
+    """Editable proposal or confirmed plan returned by the aggregate routes."""
+
+    links: dict[str, object] = Field(default_factory=dict, alias="_links")
+
+
+class PlanningProposalResultResponse(PlanningProposalResponse):
+    """Generated planning proposal including validation and count summaries."""
+
+    status: str
+    validation: dict[str, object]
+    counts: dict[str, int]
+
+
 class ExamRoomResponse(BaseModel):
     """One concrete room nested below its reusable exam venue."""
 

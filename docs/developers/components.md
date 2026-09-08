@@ -66,6 +66,12 @@ Authentisierung, Session und Observability.
 Benachrichtigungen sowie Abwesenheit und Vertretung.
 `backend.fastapi_http` stellt ihnen und der zentralen Transportgrenze die
 gemeinsame Response-, Attachment- und Same-Origin-Abbildung bereit.
+`backend.fastapi_planning_router` besitzt die Planungsübersichten,
+Vorschlags- und Bestätigungsaggregate, Planfolgen, Verfügbarkeitsübergänge und
+die zugehörigen Planungsressourcen.
+Die bedeutenden Vorschlags- und Änderungs-Payloads sind über
+`backend.api_contracts` als Pydantic-Modelle im OpenAPI-Vertrag beschrieben,
+ohne die bestehende Sicherheits- und Fehlerreihenfolge vorzuverlagern.
 `backend.server` startet den Prozess über Uvicorn; `backend.transport` bildet
 den gemeinsamen Anwendungsvertrag für HTTP- und Adminadapter ab.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am

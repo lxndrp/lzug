@@ -13,7 +13,8 @@ from unittest.mock import patch
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES, MIGRATED_PLANNING_RESOURCES
+from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES
+from backend.fastapi_planning_router import MIGRATED_PLANNING_RESOURCES
 from backend.tests.helpers import (
     AdapterResponse,
     FastAPIAdapter,

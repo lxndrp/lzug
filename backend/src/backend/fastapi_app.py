@@ -24,6 +24,7 @@ from .api_contracts import (
     CalendarFeedActivationResponse,
     CalendarFeedRevocationResponse,
     CalendarStatusResponse,
+    ConfirmedPlanChangeRequest,
     DemoScenarioOverviewResponse,
     DemoScenarioResetResponse,
     DomainCollectionResponse,
@@ -59,6 +60,13 @@ from .api_contracts import (
     LoginRequest,
     NotificationChannelsResponse,
     NotificationCollectionResponse,
+    PlanningProposalAssignmentPayload,
+    PlanningProposalDayPayload,
+    PlanningProposalResponse,
+    PlanningProposalResultResponse,
+    PlanningProposalSlotPayload,
+    PlanningProposalWriteRequest,
+    PlanningRoundRequest,
     PushConfirmationResponse,
     PushSubscriptionRequest,
     PushSubscriptionResponse,
@@ -103,6 +111,7 @@ from .fastapi_http import plain_text as _plain_text
 from .fastapi_http import same_origin as _same_origin
 from .fastapi_master_data import MIGRATED_DOMAIN_RESOURCES as MIGRATED_DOMAIN_RESOURCES
 from .fastapi_master_data import register_master_data_routes
+from .fastapi_planning_router import MIGRATED_PLANNING_RESOURCES, register_planning_router
 from .local_auth import LocalAuthError
 from .map_provider import (
     MapProviderConfig,
@@ -167,6 +176,14 @@ __all__ = [
     "PushConfirmationResponse",
     "PushSubscriptionRequest",
     "PushSubscriptionResponse",
+    "ConfirmedPlanChangeRequest",
+    "PlanningProposalAssignmentPayload",
+    "PlanningProposalDayPayload",
+    "PlanningProposalResponse",
+    "PlanningProposalResultResponse",
+    "PlanningProposalSlotPayload",
+    "PlanningProposalWriteRequest",
+    "PlanningRoundRequest",
     "RevisionDeleteRequest",
     "SessionResponse",
     "SessionRotationResponse",
@@ -174,14 +191,6 @@ __all__ = [
     "ExamSlotStatusUpdateRequest",
     "TokenRequest",
 ]
-
-
-MIGRATED_PLANNING_RESOURCES = (
-    "candidate-exam-days",
-    "exam-days",
-    "exam-slots",
-    "exam-day-assignments",
-)
 
 
 @dataclass(frozen=True)
@@ -245,6 +254,12 @@ def _add_openapi_models(schemas: dict) -> None:
         ExamProtocolResponseRequest,
         AssessmentModelBindingRequest,
         IndividualAssessmentRequest,
+        PlanningRoundRequest,
+        PlanningProposalSlotPayload,
+        PlanningProposalAssignmentPayload,
+        PlanningProposalDayPayload,
+        PlanningProposalWriteRequest,
+        ConfirmedPlanChangeRequest,
         LoginRequest,
         TokenRequest,
         FactorActivationRequest,
@@ -963,9 +978,6 @@ def _register_exam_day_routes(
 def _register_round_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
-    _register_schedule_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
     _register_exam_round_routes(
         app, resolved, application, read_security, write_security, venue_write_openapi
     )
@@ -974,7 +986,19 @@ def _register_round_routes(
     )
 
 
-def _register_proposal_routes(
+def _register_planning_router(
+    app, resolved, application, read_security, write_security, venue_write_openapi
+):
+    register_planning_router(
+        app,
+        read_security,
+        write_security,
+        finish=_finish,
+        not_found=_not_found,
+    )
+
+
+def _legacy_register_proposal_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     @app.post("/api/planning-proposals", status_code=201)
@@ -1166,10 +1190,10 @@ def _register_availability_routes(
         )
 
 
-def _register_planning_routes(
+def _legacy_register_planning_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
-    _register_proposal_routes(
+    _legacy_register_proposal_routes(
         app, resolved, application, read_security, write_security, venue_write_openapi
     )
     _register_confirmed_plan_routes(
@@ -1183,7 +1207,7 @@ def _register_planning_routes(
     )
 
 
-def _register_planning_resource_routes(
+def _legacy_register_planning_resource_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
     def planning_resource_routes(resource_name: str):
@@ -1344,8 +1368,7 @@ def register_application_routes(
         _register_operations_router,
         _register_integration_router,
         _register_round_routes,
-        _register_planning_routes,
-        _register_planning_resource_routes,
+        _register_planning_router,
         _register_execution_assessment_routes,
         register_master_data_routes,
         _register_static_route,

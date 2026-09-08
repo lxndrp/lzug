@@ -660,7 +660,11 @@ def _register_venue_routes(
 def _register_resource_routes(
     app, resolved, application, read_security, write_security, venue_write_openapi
 ):
-    for name in MIGRATED_DOMAIN_RESOURCES:
+    for name in (
+        resource_name
+        for resource_name in MIGRATED_DOMAIN_RESOURCES
+        if resource_name not in {"planning-settings", "member-availabilities"}
+    ):
         get_collection, get_item, create, update, delete = _resource_routes(resolved, name)
         app.add_api_route(
             f"/api/{name}",
@@ -703,32 +707,6 @@ def _register_resource_routes(
             name=f"delete_{name}",
             openapi_extra=write_security,
         )
-
-    _get, _item, candidate_create, candidate_update, candidate_delete = _resource_routes(
-        resolved, "candidate-exam-days"
-    )
-    app.add_api_route(
-        "/api/candidate-exam-days",
-        candidate_create,
-        methods=["POST"],
-        name="create_candidate_exam_days",
-        openapi_extra=write_security,
-    )
-    app.add_api_route(
-        "/api/candidate-exam-days/{id}",
-        candidate_update,
-        methods=["PATCH"],
-        name="update_candidate_exam_days",
-        openapi_extra=write_security,
-    )
-    app.add_api_route(
-        "/api/candidate-exam-days/{id}",
-        candidate_delete,
-        methods=["DELETE"],
-        status_code=204,
-        name="delete_candidate_exam_days",
-        openapi_extra=write_security,
-    )
 
 
 def _register_assignment_routes(

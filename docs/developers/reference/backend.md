@@ -52,6 +52,8 @@ Diese Referenz entsteht beim Dokumentationsbuild aus Google-Style-Docstrings. Si
 
 ::: backend.fastapi_dependencies
 
+::: backend.fastapi_planning_router
+
 ::: backend.server
 
 ::: backend.transport

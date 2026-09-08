@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from backend.api_contracts import (
     ApiRootResponse,
     AssessmentModelBindingRequest,
+    ConfirmedPlanChangeRequest,
     DomainCollectionResponse,
     DomainResourceResponse,
     DomainResourceWrite,
@@ -41,6 +42,13 @@ from backend.api_contracts import (
     LegacyLocationCollectionResponse,
     LegacyLocationResponse,
     LoginRequest,
+    PlanningProposalAssignmentPayload,
+    PlanningProposalDayPayload,
+    PlanningProposalResponse,
+    PlanningProposalResultResponse,
+    PlanningProposalSlotPayload,
+    PlanningProposalWriteRequest,
+    PlanningRoundRequest,
     RevisionDeleteRequest,
     SessionResponse,
     SessionRotationResponse,
@@ -48,22 +56,23 @@ from backend.api_contracts import (
 )
 from backend.application import ApplicationServices
 from backend.auth import AuthenticationRepository, SessionCredentials
-from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES, MIGRATED_PLANNING_RESOURCES
+from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES
 from backend.fastapi_assembly import FastAPIConfig, create_app
+from backend.fastapi_planning_router import MIGRATED_PLANNING_RESOURCES
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
 
 
-class FastAPIApplicationTests(unittest.TestCase):
-    @staticmethod
-    def api_routes(routes):
-        for route in routes:
-            if isinstance(route, APIRoute):
-                yield route
-                continue
-            included = getattr(route, "original_router", None)
-            if included is not None:
-                yield from FastAPIApplicationTests.api_routes(included.routes)
+def api_routes(routes):
+    """Yield FastAPI routes across explicit nested APIRouter ownership boundaries."""
+    for route in routes:
+        if isinstance(route, APIRoute):
+            yield route
+        original_router = getattr(route, "original_router", None)
+        if original_router is not None:
+            yield from api_routes(original_router.routes)
 
+
+class FastAPIApplicationTests(unittest.TestCase):
     def test_routes_use_the_extracted_api_contract_models(self) -> None:
         """Keep FastAPI's model identities stable while isolating their type-check scope."""
         from backend import fastapi_app
@@ -71,6 +80,7 @@ class FastAPIApplicationTests(unittest.TestCase):
         contract_models = (
             ApiRootResponse,
             AssessmentModelBindingRequest,
+            ConfirmedPlanChangeRequest,
             DomainCollectionResponse,
             DomainResourceResponse,
             DomainResourceWrite,
@@ -97,6 +107,13 @@ class FastAPIApplicationTests(unittest.TestCase):
             LegacyLocationCollectionResponse,
             LegacyLocationResponse,
             LoginRequest,
+            PlanningProposalAssignmentPayload,
+            PlanningProposalDayPayload,
+            PlanningProposalResponse,
+            PlanningProposalResultResponse,
+            PlanningProposalSlotPayload,
+            PlanningProposalWriteRequest,
+            PlanningRoundRequest,
             RevisionDeleteRequest,
             SessionResponse,
             SessionRotationResponse,
@@ -256,7 +273,7 @@ class FastAPIApplicationTests(unittest.TestCase):
         with TempDatabase() as db_path:
             app = create_app(self.config(db_path))
 
-        endpoints = {route.path: route.endpoint for route in self.api_routes(app.routes)}
+        endpoints = {route.path: route.endpoint for route in api_routes(app.routes)}
         expected = {
             "/api",
             "/api/auth/invitation/activate",
@@ -339,9 +356,7 @@ class FastAPIApplicationTests(unittest.TestCase):
             app = create_app(self.config(db_path))
 
         registrations = [
-            (method, route.path)
-            for route in self.api_routes(app.routes)
-            for method in route.methods
+            (method, route.path) for route in api_routes(app.routes) for method in route.methods
         ]
         self.assertEqual(len(registrations), len(set(registrations)))
 
