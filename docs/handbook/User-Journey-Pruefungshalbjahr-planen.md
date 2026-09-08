@@ -32,6 +32,10 @@ Ein neues Sommer- oder Winter-Prüfungshalbjahr ist vorzubereiten.
 Der bestätigte Plan ist nachvollziehbar; Prüfungstage, Slots und Besetzungen
 sind für die Durchführung verfügbar.
 
+Bei bestätigten Planänderungen ist ein kontrollierter Revisionsfluss der fachliche
+Standard: Bei veralteter Planbasis bricht die Anwendung den Änderungsversuch als
+Konflikt ab und verlangt die Aktualisierung auf den aktuellen Stand.
+
 ## Frontend-Abgleich
 
 - [ ] Prüfungshalbjahr und Prüfungsrunde sind eindeutig auswählbar oder
@@ -40,4 +44,6 @@ sind für die Durchführung verfügbar.
   erkennbar und bearbeitbar.
 - [ ] Vorschlag, manuelle Änderung und Bestätigung sind als unterschiedliche
   Schritte verständlich.
+- [ ] Bestätigte Planänderungen zeigen Konflikte bei veralteter Revision
+  und führen eine erneute Bestätigung auf aktuellem Stand durch.
 - [ ] Vorsitz und Stellvertretung erleben dieselben fachlichen Funktionen.

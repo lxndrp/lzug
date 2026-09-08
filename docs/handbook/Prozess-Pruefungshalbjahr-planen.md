@@ -38,6 +38,11 @@ Befugnisse; siehe [Rollen und Verantwortlichkeiten](Fachlichkeit-Rollen-und-Vera
 5. Prüfungstage, Slots und Besetzungen werden bestätigt; bestätigte Tage
    erzeugen Kalendereinladungen.
 
+Bestätigte Planungsschritte können anschließend kontrolliert mit neuer Revisionsbasis ersetzt
+werden. Wenn die zugrunde liegende Planversion veraltet ist, zeigt die
+Anwendung einen Konflikt und verlangt eine aktuelle Vorlage, bevor die Änderung
+fortgeführt werden kann.
+
 ## Fachregeln und Entscheidungen
 
 - Ein Sommer- oder Wintertermin eines Jahres existiert genau einmal; pro
@@ -59,6 +64,12 @@ Befugnisse; siehe [Rollen und Verantwortlichkeiten](Fachlichkeit-Rollen-und-Vera
 - Kalendereinladungen für bestätigte oder geänderte Termine.
 - Übergabe an die Organisation schriftlicher Prüfungen und die Durchführung
   der mündlichen Prüfung.
+
+## Übergangsverantwortung für bestätigte Änderungen
+
+- Die Fachgrenzen für bestätigte Planänderungen, inklusive Rollenprüfung,
+  Revisionsprüfung und Bestätigung, sind die operativen Sperren dieses
+  Schritts.  
 
 ## Offene fachliche Fragen
 

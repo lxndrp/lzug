@@ -8,4 +8,6 @@
 4. Erzeugen Sie den Planungsvorschlag. Hinweise zeigen unvollständige Voraussetzungen an.
 5. Prüfen Sie Tage, Termine und Besetzungen auf dem Dashboard und bestätigen Sie den Vorschlag bei Bedarf.
 
-Ein bestätigter Plan kann in der aktuellen Anwendung nicht durch einen neuen Vorschlag ersetzt werden. Prüfen Sie Hinweise und Daten daher vor der Bestätigung.
+Bestätigte Pläne können kontrolliert durch eine neue, revisionssichere Änderung ersetzt werden, wenn die Rolle dazu berechtigt ist.
+Bei veralteter Planbasis lehnt das System den Schritt als Konflikt ab und verweist auf den Revisionsstand.
+Prüfen Sie Hinweise und Daten daher vor der Bestätigung.
