@@ -10,23 +10,48 @@ class DemoDeliveryContractTests(unittest.TestCase):
     product_tag = "v0.1.1"
     product_commit = "948cab736131894950dbad57533e80f7238dd545"
 
+    def test_component_has_explicit_ownership_boundaries(self) -> None:
+        for path in (
+            "demo/contract.py",
+            "demo/runtime/app.py",
+            "demo/runtime/policy.py",
+            "demo/delivery/artifacts.py",
+            "demo/delivery/contract.py",
+            "demo/containers/Dockerfile.demo",
+            "demo/containers/Dockerfile.demo-seed",
+            "demo/infra/main.tf",
+            "demo/tests/test_demo_runtime.py",
+        ):
+            with self.subTest(path=path):
+                self.assertTrue(Path(path).is_file())
+
+        self.assertFalse(Path("demo/shared").exists())
+        self.assertFalse(any(Path("infra").rglob("*")))
+        self.assertFalse(any(Path("tests/demo").rglob("*")))
+
     def test_product_image_excludes_demo_provider_and_demo_images_are_separate(self) -> None:
         product = Path("Dockerfile").read_text(encoding="utf-8")
-        demo_app = Path("demo/Dockerfile.demo").read_text(encoding="utf-8")
-        demo_seed = Path("demo/Dockerfile.demo-seed").read_text(encoding="utf-8")
+        demo_app = Path("demo/containers/Dockerfile.demo").read_text(encoding="utf-8")
+        demo_seed = Path("demo/containers/Dockerfile.demo-seed").read_text(encoding="utf-8")
 
-        self.assertNotIn("demo/app.py", product)
+        self.assertNotIn("demo/runtime/app.py", product)
         self.assertNotIn("frontend/demo-overlays", product)
         self.assertNotIn("db/seed_", product)
-        self.assertIn("demo/app.py", demo_app)
+        self.assertIn("demo/runtime", demo_app)
         self.assertEqual(2, demo_app.count("demo/contract.py"))
         self.assertIn("demo/contract.py", demo_seed)
         self.assertIn("frontend/demo-overlays", demo_app)
         self.assertIn("LZUG_FRONTEND_CONFIGURATION=demo", demo_app)
-        self.assertIn("demo.artifacts build-seed", demo_seed)
+        self.assertIn("demo.delivery.artifacts build-seed", demo_seed)
         self.assertIn("SEED_REVISION", demo_app)
         self.assertNotIn("VOLUME", demo_app)
         self.assertNotIn("VOLUME", demo_seed)
+        app_runtime = demo_app.split("FROM python:3.14.6-slim-bookworm AS runtime", 1)[1]
+        seed_runtime = demo_seed.split("FROM python:3.14.6-slim-bookworm AS runtime", 1)[1]
+        self.assertNotIn("demo/delivery", app_runtime)
+        self.assertNotIn("demo/delivery", seed_runtime)
+        self.assertIn('ENTRYPOINT ["python", "-m", "demo.runtime.app"]', app_runtime)
+        self.assertIn('ENTRYPOINT ["python", "-m", "demo.runtime.seed"]', seed_runtime)
         for name, runtime_dockerfile in (("product", product), ("demo", demo_app)):
             with self.subTest(runtime=name):
                 self.assertIn("/src/backend/src ./backend/src", runtime_dockerfile)
@@ -81,12 +106,12 @@ class DemoDeliveryContractTests(unittest.TestCase):
         preflight = job_block(workflow, "preflight")
         publish = job_block(workflow, "publish")
         resolution = job_block(workflow, "resolve")
-        self.assertIn("python3 -m demo.contract identity", preflight)
+        self.assertIn("python3 -m demo.delivery.contract identity", preflight)
         self.assertIn("--channel stable", preflight)
-        self.assertIn("python3 -m demo.contract manifest-field", publish)
-        self.assertIn("python3 -m demo.contract validate-pair", publish)
-        self.assertIn("python3 -m demo.contract manifest-field", resolution)
-        self.assertIn("python3 -m demo.contract validate-pair", resolution)
+        self.assertIn("python3 -m demo.delivery.contract manifest-field", publish)
+        self.assertIn("python3 -m demo.delivery.contract validate-pair", publish)
+        self.assertIn("python3 -m demo.delivery.contract manifest-field", resolution)
+        self.assertIn("python3 -m demo.delivery.contract validate-pair", resolution)
         self.assertIn("scripts/verify-demo-image-pair.sh", resolution)
         self.assertNotIn(".product.tag ==", workflow)
         self.assertNotIn('test("^[0-9a-f]{64}$")', workflow)
@@ -95,7 +120,7 @@ class DemoDeliveryContractTests(unittest.TestCase):
 
     def test_publish_builds_inspects_and_pushes_the_same_seed_image(self) -> None:
         workflow = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")
-        dockerfile = Path("demo/Dockerfile.demo-seed").read_text(encoding="utf-8")
+        dockerfile = Path("demo/containers/Dockerfile.demo-seed").read_text(encoding="utf-8")
 
         self.assertIn("load: true", workflow)
         self.assertIn('docker create "$SEED_CANDIDATE"', workflow)
@@ -106,8 +131,8 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn('docker push "$SEED_REF"', workflow)
         self.assertIn('docker buildx imagetools inspect "$SEED_REF"', workflow)
         self.assertIn("SEED_REVISION=${{ steps.images.outputs.seed_revision }}", workflow)
-        self.assertNotIn("demo.artifacts build-seed", workflow)
-        self.assertEqual(1, dockerfile.count("demo.artifacts build-seed"))
+        self.assertNotIn("demo.delivery.artifacts build-seed", workflow)
+        self.assertEqual(1, dockerfile.count("demo.delivery.artifacts build-seed"))
 
     def test_publish_reads_manifest_fields_through_the_shared_contract(self) -> None:
         workflow = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")
@@ -130,8 +155,8 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("name: demo", workflow)
         self.assertIn("id-token: write", workflow)
         self.assertIn("attestations: read", workflow)
-        self.assertIn("python3 -m demo.contract validate-deployment", workflow)
-        self.assertIn("python3 -m demo.contract signer-workflow", workflow)
+        self.assertIn("python3 -m demo.delivery.contract validate-deployment", workflow)
+        self.assertIn("python3 -m demo.delivery.contract signer-workflow", workflow)
         self.assertIn("scripts/verify-demo-image-pair.sh", workflow)
         self.assertIn("azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c", workflow)
         self.assertIn("scripts/demo_deployment.py deploy", workflow)
@@ -168,9 +193,9 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("uses: ./.github/workflows/demo-deploy.yml", workflow)
         self.assertIn("app_image: ${{ needs.publish.outputs.app_image }}", workflow)
         self.assertIn("SEED_REVISION=${{ steps.pair.outputs.seed_revision }}", workflow)
-        self.assertIn("python3 -m demo.contract identity", workflow)
-        self.assertIn("python3 -m demo.contract manifest-field", workflow)
-        self.assertIn("python3 -m demo.contract validate-pair", workflow)
+        self.assertIn("python3 -m demo.delivery.contract identity", workflow)
+        self.assertIn("python3 -m demo.delivery.contract manifest-field", workflow)
+        self.assertIn("python3 -m demo.delivery.contract validate-pair", workflow)
         self.assertNotIn("azure/login@", workflow)
 
     def test_pre_azure_pair_verifier_reads_both_digest_bound_manifests(self) -> None:
@@ -180,18 +205,20 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn('docker pull "$seed_image"', verifier)
         self.assertIn("/app/demo-app-manifest.json", verifier)
         self.assertIn("/opt/lzug-demo/seed/manifest.json", verifier)
-        self.assertIn("python3 -m demo.contract verify-pair-manifests", verifier)
+        self.assertIn("python3 -m demo.delivery.contract verify-pair-manifests", verifier)
         self.assertIn("verify-pair-manifests", verifier)
         self.assertIn('--expected-seed-revision "$seed_revision"', verifier)
 
     def test_environment_policies_prepare_stable_and_snapshot_tags(self) -> None:
-        main = Path("infra/demo/main.tf").read_text(encoding="utf-8")
-        variables = Path("infra/demo/variables.tf").read_text(encoding="utf-8")
+        main = Path("demo/infra/main.tf").read_text(encoding="utf-8")
+        variables = Path("demo/infra/variables.tf").read_text(encoding="utf-8")
+        backend = Path("demo/infra/backend.hcl.example").read_text(encoding="utf-8")
 
         self.assertIn('pattern = "demo/v*-SNAPSHOT.*"', main)
         self.assertIn('pattern = "v*"', main)
         self.assertIn("for_each = var.github_environment_deployment_policy_ids", main)
         self.assertIn("length(var.github_environment_deployment_policy_ids) == 0", variables)
+        self.assertIn('key                  = "lzug-demo.tfstate"', backend)
 
 
 if __name__ == "__main__":

@@ -8,8 +8,8 @@ from backend.observability import emit_event
 from backend.server import main as product_main
 from backend.settings import RuntimeSettings
 
-from .artifacts import DemoArtifactError, validate_runtime_binding
-from .runtime_policy import DemoRuntimePolicy
+from .policy import DemoRuntimePolicy
+from .validation import DemoRuntimeError, validate_runtime_binding
 
 
 def main() -> None:
@@ -23,7 +23,7 @@ def main() -> None:
             data_dir / "demo-seed-manifest.json",
             settings=settings,
         )
-    except DemoArtifactError as error:
+    except DemoRuntimeError as error:
         raise SystemExit(f"Demo artifact validation failed: {error}") from error
     emit_event("runtime", severity="info", signal="demo_seed_validated")
     product_main(

@@ -28,13 +28,14 @@ WORKDIR /src
 COPY --from=python-dependencies /src/.venv /opt/venv
 COPY --from=python-dependencies /src/backend/src ./backend/src
 COPY backend/db ./backend/db
-COPY demo ./demo
+COPY demo/__init__.py demo/contract.py ./demo/
+COPY demo/delivery ./demo/delivery
 COPY fixtures ./fixtures
 COPY scripts ./scripts
 RUN set -eu; \
     test -n "$PRODUCT_TAG"; \
     test -n "$VCS_REF"; \
-    python -m demo.artifacts build-seed --source-root /src \
+    python -m demo.delivery.artifacts build-seed --source-root /src \
       --database /seed/lzug.sqlite --manifest /seed/manifest.json \
       --product-tag "$PRODUCT_TAG" --product-commit "$VCS_REF"; \
     test ! -e /seed/lzug.sqlite-wal; \
@@ -56,15 +57,16 @@ WORKDIR /app
 RUN groupadd --system --gid 10001 lzug \
     && useradd --system --uid 10001 --gid 10001 --home-dir /nonexistent \
        --shell /usr/sbin/nologin lzug \
-    && mkdir -p /app/backend/src /app/backend/db/migrations /app/demo /opt/lzug-demo/seed /data \
+    && mkdir -p /app/backend/src /app/backend/db/migrations /app/demo/runtime /opt/lzug-demo/seed /data \
     && chown -R 10001:10001 /app /opt/lzug-demo /data
 
 COPY --from=python-dependencies --chown=10001:10001 /src/backend/src ./backend/src
 COPY --chown=10001:10001 backend/db ./backend/db
-COPY --chown=10001:10001 demo/__init__.py demo/artifacts.py demo/contract.py demo/identity.py ./demo/
+COPY --chown=10001:10001 demo/__init__.py demo/contract.py ./demo/
+COPY --chown=10001:10001 demo/runtime/__init__.py demo/runtime/seed.py demo/runtime/validation.py ./demo/runtime/
 COPY --from=seed-build --chown=10001:10001 /seed/lzug.sqlite /opt/lzug-demo/seed/lzug.sqlite
 COPY --from=seed-build --chown=10001:10001 /seed/manifest.json /opt/lzug-demo/seed/manifest.json
 
 USER 10001:10001
-ENTRYPOINT ["python", "-m", "demo.artifacts", "init"]
+ENTRYPOINT ["python", "-m", "demo.runtime.seed"]
 CMD ["--seed-database", "/opt/lzug-demo/seed/lzug.sqlite", "--seed-manifest", "/opt/lzug-demo/seed/manifest.json", "--target", "/data"]

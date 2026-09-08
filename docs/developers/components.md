@@ -16,7 +16,7 @@ Die gemeinsame AIO-, Admintransport- und Lifecyclegrenze legt
 | Frontend | aufgabenorientierte Ausschussoberfläche, Routing, Formulare und sichtbare Zustände | same-origin API über zentrale Modelle und Services | `frontend/src/app/` |
 | Betreiber-CLI | portable Orchestrierung von Administration, Diagnose und Lifecycle | direkter Unix-Socket oder System-OpenSSH-Forwarding desselben Adminvertrags | `operator-cli/cmd/lzug-admin/`, `operator-cli/internal/admincli/`, `operator-cli/internal/tools/cli-reference/`, `operator-cli/.goreleaser.yml` |
 | OCI und Self-Hosting | Produktimage `lzug-app`, gehärtete Docker-Referenz und persistentes `/data` | `Dockerfile`, optionaler Docker-Compose-Weg und Containerverträge | Dockerfile, Compose und `scripts/*container*` |
-| Öffentliche Demo | getrenntes Image `lzug-demo`, flüchtige App-/Seed-Assembly, Reset, Promotion und Azure-Deployment | digestgebundene Manifeste, OIDC und Demo-Runtime-Policy | `demo/`, `demo/Dockerfile.demo*`, `infra/demo/`, Demo-Workflows |
+| Öffentliche Demo | getrenntes Image `lzug-demo`, flüchtige App-/Seed-Assembly, Reset, Promotion und Azure-Deployment | digestgebundene Manifeste, OIDC und Demo-Runtime-Policy | `demo/contract.py`, `demo/runtime/`, `demo/delivery/`, `demo/containers/`, `demo/infra/`, `demo/tests/`, Demo-Workflows |
 
 Das Frontend greift nicht direkt auf Persistenz zu.
 Die Go-CLI kennt weder Datenbankpfad noch SQL und enthält keine Fach-,
@@ -44,8 +44,8 @@ Buildkontext voraussetzt.
 | `mkdocs.yml` | Dokumentation | Nach `docs/mkdocs.yml` verschoben: MkDocs-Konfiguration und Dokumentationsquellen liegen zusammen. |
 | `.env.example` | OCI-/Self-Hosting | Am Root behalten: Beispielkonfiguration und kanonischer Einstieg direkt neben `compose.yaml`. |
 | `Dockerfile` | OCI-/Self-Hosting | Am Root behalten: standardgebundener Produkt-Build für den unveränderten Root-Kontext. |
-| `Dockerfile.demo` | Öffentliche Demo | Nach `demo/Dockerfile.demo` verschoben: ausschließlich Demo-App-Assembly; der Root bleibt Buildkontext. |
-| `Dockerfile.demo-seed` | Öffentliche Demo | Nach `demo/Dockerfile.demo-seed` verschoben: ausschließlich Demo-Seed-Assembly; der Root bleibt Buildkontext. |
+| `Dockerfile.demo` | Öffentliche Demo | Unter `demo/containers/Dockerfile.demo`: ausschließlich Demo-App-Assembly; der Root bleibt Buildkontext. |
+| `Dockerfile.demo-seed` | Öffentliche Demo | Unter `demo/containers/Dockerfile.demo-seed`: ausschließlich Demo-Seed-Assembly; der Root bleibt Buildkontext. |
 | `compose.yaml` | OCI-/Self-Hosting | Am Root behalten: kanonischer Compose-Einstieg für die dokumentierte Installation. |
 | `.dockerignore` | OCI-/Self-Hosting | Am Root behalten: technisch an den unveränderten Root-Buildkontext gebunden. |
 | `.github/` | Repository | Am Root behalten: GitHub erwartet Workflows, Vorlagen und Dependabot-Konfiguration dort. |
@@ -356,6 +356,23 @@ Health-Waiting und Build-Identitätsprüfung in
 Die öffentliche Demo verwendet das getrennte Image `lzug-demo` und ein
 zugehöriges Seed-Image mit gemeinsamer Produktrevision, Runtimevertrag,
 Schemafingerprint und Seed-Revision.
+Die Verantwortungen innerhalb der Demo-Komponente sind an genau diesen Pfaden
+festgelegt:
+
+| Pfad | Verantwortung |
+| --- | --- |
+| `demo/contract.py` | kleinster gemeinsamer Identitäts-, Manifest- und Laufzeitvertrag ohne ausführbare Delivery-Werkzeuge |
+| `demo/runtime/` | App-Einstieg, serverseitige Demo-Policy, Szenarioansicht, Arbeitskopien, Runtime-Verifikation und Seed-Initialisierung |
+| `demo/delivery/` | Artefaktbau, Veröffentlichungsprüfung und Kommandozeilenadapter des gemeinsamen Vertrags |
+| `demo/containers/` | Builddefinitionen für Demo-App und Seed-Artefakt bei unverändertem Root-Buildkontext |
+| `demo/infra/` | vollständige OpenTofu-Topologie der öffentlichen Azure-Demo einschließlich unveränderter OIDC-, Environment- und State-Verträge mit `lzug-demo.tfstate` |
+| `demo/tests/` | komponentenspezifische Runtime-, Delivery-, Container-, Infrastruktur- und Vertragsprüfungen der Demo |
+
+Echte repositoryweite Integrations- und Lieferwegprüfungen bleiben unter
+`tests/`.
+Runtime-Images kopieren nur `demo/contract.py` und die benötigten Module aus
+`demo/runtime/`; Build- und Veröffentlichungswerkzeuge aus `demo/delivery/`
+bleiben außerhalb der laufenden Images.
 Beim Einstieg erzeugt die Demo aus dem synthetischen Basisseed eine eigene
 SQLite-Arbeitskopie pro Besuch.
 Nur die drei Rollen dieses Besuchs teilen sie; Sitzung und Arbeitskopie laufen
@@ -366,7 +383,7 @@ Fachaktionen, unterdrückt externe Benachrichtigungszustellung und lässt die
 produktive Autorisierung zusätzlich unverändert prüfen.
 Das Datenvolume bleibt flüchtig und der tägliche Reset ist eine zusätzliche
 Absicherung, kein Self-Hosting-Verfahren.
-`infra/demo/` beschreibt die Azure-Ressourcen deklarativ; GitHub OIDC und das
+`demo/infra/` beschreibt die Azure-Ressourcen deklarativ; GitHub OIDC und das
 geschützte Environment `demo` begrenzen echte Mutationen.
 
 ## Testeinstiege
@@ -375,7 +392,7 @@ geschützte Environment `demo` begrenzen echte Mutationen.
 | --- | --- |
 | Fachservice oder Repository | passendes Modul unter `backend/tests/` |
 | HTTP-Assembly, Routerregistrierung oder OpenAPI-Vertrag | `backend.tests.test_fastapi_assembly`, `test_fastapi_app`, `test_openapi_contract` und betroffener API-Test |
-| Demo-Runtime oder Demo-Artefakt | passendes Modul unter `tests/demo/` |
+| Demo-Runtime oder Demo-Artefakt | passendes Modul unter `demo/tests/` |
 | Release-, SBOM- oder Workflowvertrag | passendes Modul unter `tests/delivery/` |
 | Dokumentations- oder Publikationsvertrag | passendes Modul unter `tests/docs/` |
 | Synthetische Fixture-Quelle | passendes Modul unter `tests/fixtures/` und `task fixtures:check` |

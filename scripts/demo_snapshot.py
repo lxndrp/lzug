@@ -10,8 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from demo.contract import DemoContractError, demo_identity  # noqa: E402
-from demo.identity import DemoIdentity  # noqa: E402
+from demo.contract import DemoContractError, DemoIdentity, demo_identity  # noqa: E402
 
 
 class SnapshotContractError(ValueError):

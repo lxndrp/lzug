@@ -71,7 +71,7 @@ jobs:
           }
           target_sha=$(git rev-parse "$PRODUCT_TAG^{}")
           test "$(git rev-parse HEAD)" = "$target_sha"
-          product_version=$(python3 -m demo.contract identity \
+          product_version=$(python3 -m demo.delivery.contract identity \
             --tag "$PRODUCT_TAG" --commit "$target_sha" \
             --channel stable --field identity)
           gh release view "$PRODUCT_TAG" --repo "$GH_REPO" \
@@ -129,7 +129,7 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
-          file: demo/Dockerfile.demo-seed
+          file: demo/containers/Dockerfile.demo-seed
           load: true
           tags: lzug-demo-seed:publish-candidate
           build-args: |
@@ -160,22 +160,22 @@ jobs:
             "$container:/opt/lzug-demo/seed/manifest.json" \
             "$temporary_directory/manifest.json"
           expected_schema_fingerprint=$(python3 -c \
-            'from pathlib import Path; from demo.artifacts import schema_binding; print(schema_binding(Path("."))["fingerprint"])')
-          python3 -m demo.artifacts verify-seed \
+            'from pathlib import Path; from demo.delivery.artifacts import schema_binding; print(schema_binding(Path("."))["fingerprint"])')
+          python3 -m demo.delivery.artifacts verify-seed \
             --database "$temporary_directory/lzug.sqlite" \
             --manifest "$temporary_directory/manifest.json" \
             --expected-product-tag "$PRODUCT_TAG" \
             --expected-product-commit "$TARGET_SHA" \
             --expected-schema-fingerprint "$expected_schema_fingerprint"
-          seed_revision=$(python3 -m demo.contract manifest-field \
+          seed_revision=$(python3 -m demo.delivery.contract manifest-field \
             --manifest "$temporary_directory/manifest.json" --kind seed \
             --expected-product-tag "$PRODUCT_TAG" --expected-product-commit "$TARGET_SHA" \
             --field seed_revision)
-          runtime_contract=$(python3 -m demo.contract manifest-field \
+          runtime_contract=$(python3 -m demo.delivery.contract manifest-field \
             --manifest "$temporary_directory/manifest.json" --kind seed \
             --expected-product-tag "$PRODUCT_TAG" --expected-product-commit "$TARGET_SHA" \
             --field runtime_contract)
-          schema_fingerprint=$(python3 -m demo.contract manifest-field \
+          schema_fingerprint=$(python3 -m demo.delivery.contract manifest-field \
             --manifest "$temporary_directory/manifest.json" --kind seed \
             --expected-product-tag "$PRODUCT_TAG" --expected-product-commit "$TARGET_SHA" \
             --field schema_fingerprint)
@@ -242,7 +242,7 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
-          file: demo/Dockerfile.demo
+          file: demo/containers/Dockerfile.demo
           push: true
           tags: ${{ steps.images.outputs.app_ref }}
           build-args: |
@@ -272,7 +272,7 @@ jobs:
       - name: Validate the newly published immutable pair
         if: steps.availability.outputs.reuse != 'true'
         run: >-
-          python3 -m demo.contract validate-pair
+          python3 -m demo.delivery.contract validate-pair
           --app-image "${{ steps.images.outputs.app_image }}@${{ steps.app.outputs.digest }}"
           --seed-image "${{ steps.images.outputs.seed_image }}@${{ steps.seed.outputs.digest }}"
           --product-tag "$PRODUCT_TAG"
@@ -414,15 +414,15 @@ jobs:
           docker rm "$container" >/dev/null
           container=""
 
-          seed_revision=$(python3 -m demo.contract manifest-field \
+          seed_revision=$(python3 -m demo.delivery.contract manifest-field \
             --manifest "$temporary_directory/app.json" --kind app \
             --expected-product-tag "$PRODUCT_TAG" --expected-product-commit "$TARGET_SHA" \
             --field seed_revision)
-          runtime_contract=$(python3 -m demo.contract manifest-field \
+          runtime_contract=$(python3 -m demo.delivery.contract manifest-field \
             --manifest "$temporary_directory/app.json" --kind app \
             --expected-product-tag "$PRODUCT_TAG" --expected-product-commit "$TARGET_SHA" \
             --field runtime_contract)
-          schema_fingerprint=$(python3 -m demo.contract manifest-field \
+          schema_fingerprint=$(python3 -m demo.delivery.contract manifest-field \
             --manifest "$temporary_directory/app.json" --kind app \
             --expected-product-tag "$PRODUCT_TAG" --expected-product-commit "$TARGET_SHA" \
             --field schema_fingerprint)
@@ -432,7 +432,7 @@ jobs:
             awk '$1 == "Digest:" { print $2; exit }')
           seed_image="$seed_name@$seed_digest"
 
-          python3 -m demo.contract validate-pair \
+          python3 -m demo.delivery.contract validate-pair \
             --app-image "$app_image" \
             --seed-image "$seed_image" \
             --product-tag "$PRODUCT_TAG" \

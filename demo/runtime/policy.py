@@ -23,11 +23,11 @@ from backend.persistence.models import (
 )
 from backend.settings import RuntimeSettings
 
-from .artifacts import load_runtime_manifests, load_runtime_status
 from .scenarios import (
     expected_plan_change,
     scenario_overview,
 )
+from .validation import load_runtime_manifests, load_runtime_status
 from .workspaces import DemoWorkspace, DemoWorkspaceCapacityError, DemoWorkspaceManager
 
 ROLE_NAMES = frozenset({"chair", "examiner", "replacement"})

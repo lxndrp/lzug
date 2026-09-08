@@ -3,5 +3,5 @@
 resource_group_name  = "lzug-tofu-state-rg"
 storage_account_name = "replacewithuniquestateaccount"
 container_name       = "tfstate"
-key                  = "lzug/demo.tfstate"
+key                  = "lzug-demo.tfstate"
 use_azuread_auth     = true

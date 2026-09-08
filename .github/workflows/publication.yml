@@ -71,7 +71,7 @@ jobs:
         env:
           EFFECTIVE_DEMO_URL: ${{ env.DEMO_URL }}
         run: >-
-          python3 -m demo.contract validate-url
+          python3 -m demo.delivery.contract validate-url
           --canonical --value "$EFFECTIVE_DEMO_URL"
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7

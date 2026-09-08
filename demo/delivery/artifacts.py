@@ -5,10 +5,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import shutil
 import sqlite3
 from contextlib import closing
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,13 +15,12 @@ from demo.contract import (
     MANIFEST_VERSION,
     RUNTIME_CONTRACT,
     DemoContractError,
+    DemoIdentity,
     canonical_digest,
     demo_identity,
     validate_manifest,
     validate_manifest_pair,
-    validate_runtime_manifest_pair,
 )
-from demo.identity import DemoIdentity
 
 FIXED_TIMESTAMP = "2026-01-01T00:00:00+00:00"
 TIMESTAMP_COLUMNS = {
@@ -267,35 +264,6 @@ def load_manifest(path: Path) -> dict[str, Any]:
         raise DemoArtifactError(str(error)) from error
 
 
-def load_runtime_manifests(
-    app_manifest_path: Path, seed_manifest_path: Path
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Load and validate one runtime-bound app/seed manifest pair."""
-
-    app_manifest = load_manifest(app_manifest_path)
-    seed_manifest = load_manifest(seed_manifest_path)
-    _validate_fixture_contract(seed_manifest)
-    try:
-        return validate_runtime_manifest_pair(app_manifest, seed_manifest)
-    except DemoContractError as error:
-        message = str(error)
-        replacements = {
-            "Seed manifest does not match the expected product": (
-                "Demo app and seed target different product identities"
-            ),
-            "Seed manifest does not match the expected runtime contract": (
-                "Demo app and seed target different runtime contracts"
-            ),
-            "Seed manifest does not match the expected schema fingerprint": (
-                "Demo app and seed target different schema fingerprints"
-            ),
-            "Seed manifest does not match the expected seed revision": (
-                "Demo app and seed target different seed revisions"
-            ),
-        }
-        raise DemoArtifactError(replacements.get(message, message)) from error
-
-
 def _validate_fixture_contract(manifest: dict[str, Any]) -> None:
     catalog = manifest.get("fixture_catalog")
     if (
@@ -388,78 +356,6 @@ def verify_pair_manifests(
         raise DemoArtifactError(str(error)) from error
 
 
-def initialize_workdir(seed_database: Path, seed_manifest: Path, target: Path) -> None:
-    manifest = verify_seed(seed_database, seed_manifest)
-    resolved = target.resolve()
-    if resolved == Path("/") or len(resolved.parts) < 2:
-        raise DemoArtifactError(f"Unsafe demo data target: {resolved}")
-    resolved.mkdir(parents=True, exist_ok=True)
-    for child in resolved.iterdir():
-        if child.is_dir() and not child.is_symlink():
-            shutil.rmtree(child)
-        else:
-            child.unlink()
-    temporary = resolved / ".lzug-demo-seed.sqlite"
-    shutil.copyfile(seed_database, temporary)
-    temporary.replace(resolved / "lzug.sqlite")
-    shutil.copyfile(seed_manifest, resolved / "demo-seed-manifest.json")
-    (resolved / "documents").mkdir()
-    (resolved / "backups").mkdir()
-    initialized_at = datetime.now(UTC).isoformat()
-    runtime_status = {
-        "initialized": True,
-        "initialization_status": "ready",
-        "initialized_at": initialized_at,
-        "last_reset_at": initialized_at,
-        "seed_revision": manifest["seed_revision"],
-    }
-    temporary_status = resolved / ".demo-runtime-status.json"
-    temporary_status.write_text(
-        json.dumps(runtime_status, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    temporary_status.replace(resolved / "demo-runtime-status.json")
-
-
-def load_runtime_status(data_dir: Path, seed_manifest: dict[str, Any]) -> dict[str, Any]:
-    status_path = data_dir / "demo-runtime-status.json"
-    try:
-        status = json.loads(status_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise DemoArtifactError(
-            f"Could not read demo runtime status {status_path}: {error}"
-        ) from error
-    if status.get("initialized") is not True or status.get("initialization_status") != "ready":
-        raise DemoArtifactError("Demo runtime initialization is not ready")
-    if status.get("seed_revision") != seed_manifest.get("seed_revision"):
-        raise DemoArtifactError("Demo runtime status targets a different seed revision")
-    for field in ("initialized_at", "last_reset_at"):
-        value = status.get(field)
-        if not isinstance(value, str):
-            raise DemoArtifactError(f"Demo runtime status is missing {field}")
-        try:
-            parsed = datetime.fromisoformat(value)
-        except ValueError as error:
-            raise DemoArtifactError(f"Demo runtime status has invalid {field}") from error
-        if parsed.tzinfo is None:
-            raise DemoArtifactError(f"Demo runtime status {field} must include a timezone")
-    return status
-
-
-def validate_runtime_binding(app_manifest_path: Path, data_dir: Path) -> tuple[dict, dict]:
-    from backend.persistence.database import database_readiness
-
-    app_manifest, seed_manifest = load_runtime_manifests(
-        app_manifest_path, data_dir / "demo-seed-manifest.json"
-    )
-    load_runtime_status(data_dir, seed_manifest)
-    database = data_dir / "lzug.sqlite"
-    readiness = database_readiness(database)
-    if not readiness["ready"]:
-        raise DemoArtifactError(f"Demo database is not ready: {readiness['reason']}")
-    return app_manifest, seed_manifest
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -496,10 +392,6 @@ def parse_args() -> argparse.Namespace:
     pair.add_argument("--expected-schema-fingerprint", required=True)
     pair.add_argument("--expected-seed-revision", required=True)
 
-    init = subparsers.add_parser("init")
-    init.add_argument("--seed-database", type=Path, required=True)
-    init.add_argument("--seed-manifest", type=Path, required=True)
-    init.add_argument("--target", type=Path, required=True)
     return parser.parse_args()
 
 
@@ -542,7 +434,7 @@ def main() -> None:
             expected_seed_revision=args.expected_seed_revision,
         )
     else:
-        initialize_workdir(args.seed_database, args.seed_manifest, args.target)
+        raise AssertionError(f"Unsupported demo delivery command: {args.command}")
 
 
 if __name__ == "__main__":
