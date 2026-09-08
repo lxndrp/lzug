@@ -13,7 +13,7 @@ import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 
 import { ConfirmedPlan, PlanningBoard } from '../api/api.models';
-import { PlanningApiService } from '../api/planning-api.service';
+import { ConfirmedPlanApiService } from '../api/confirmed-plan-api.service';
 import { ConfirmedPlanEditorComponent } from './confirmed-plan-editor.component';
 
 export type ViewState = 'loading' | 'ready' | 'error';
@@ -25,7 +25,7 @@ export type ViewState = 'loading' | 'ready' | 'error';
   styleUrl: './confirmed-plans.component.css',
 })
 export class ConfirmedPlansComponent implements OnInit, OnChanges {
-  private readonly api = inject(PlanningApiService);
+  private readonly api = inject(ConfirmedPlanApiService);
   private readonly router = inject(Router);
 
   @Input() roundId: number | null = null;

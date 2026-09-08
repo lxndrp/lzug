@@ -1,0 +1,116 @@
+<section class="locations-detail-section" aria-labelledby="venue-rooms-title">
+  <h2 id="venue-rooms-title">Räume</h2>
+  @if (venue.rooms.length) {
+    <ul class="locations-item-list">
+      @for (room of venue.rooms; track room.id) {
+        <li>
+          <div class="locations-item-heading">
+            <strong>{{ room.name }}</strong>
+            <span tuiBadge [appearance]="room.is_active ? 'positive' : 'neutral'">
+              {{ room.is_active ? 'Aktiv' : 'Inaktiv' }}
+            </span>
+          </div>
+          <dl class="locations-inline-definition-list">
+            <div>
+              <dt>Kapazität</dt>
+              <dd>{{ room.capacity ?? 'Nicht hinterlegt' }}{{ room.capacity ? ' Plätze' : '' }}</dd>
+            </div>
+            <div>
+              <dt>Gebäude und Lage</dt>
+              <dd>{{ roomLocation(room) }}</dd>
+            </div>
+            <div>
+              <dt>Zugangshinweise</dt>
+              <dd class="locations-preserved-text">{{ optional(room.access_notes) }}</dd>
+            </div>
+          </dl>
+          @if (!readOnly && venue.capabilities.manage) {
+            <div class="app-row-actions locations-item-actions">
+              <button
+                tuiButton
+                type="button"
+                appearance="secondary"
+                (click)="startEditing.emit(room)"
+              >
+                Bearbeiten
+              </button>
+              <button tuiButton type="button" appearance="secondary" (click)="toggle.emit(room)">
+                {{ room.is_active ? 'Deaktivieren' : 'Reaktivieren' }}
+              </button>
+              <button tuiButton type="button" appearance="negative" (click)="delete.emit(room)">
+                Löschen
+              </button>
+            </div>
+          }
+          @if (editingRoomId === room.id) {
+            <form
+              tuiForm="m"
+              class="app-inline-editor app-form-grid"
+              (ngSubmit)="update.emit(room)"
+            >
+              <tui-textfield class="app-field-third">
+                <label tuiLabel>Raumbezeichnung</label>
+                <input tuiInput name="editRoomName" [(ngModel)]="roomEditDraft.name" required />
+              </tui-textfield>
+              <tui-textfield class="app-field-quarter">
+                <label tuiLabel>Kapazität</label>
+                <input
+                  tuiInput
+                  type="number"
+                  name="editRoomCapacity"
+                  [(ngModel)]="roomEditDraft.capacity"
+                  min="1"
+                />
+              </tui-textfield>
+              <tui-textfield class="app-field-third">
+                <label tuiLabel>Gebäude</label>
+                <input tuiInput name="editRoomBuilding" [(ngModel)]="roomEditDraft.building" />
+              </tui-textfield>
+              <tui-textfield class="app-field-quarter">
+                <label tuiLabel>Trakt</label>
+                <input tuiInput name="editRoomWing" [(ngModel)]="roomEditDraft.wing" />
+              </tui-textfield>
+              <tui-textfield class="app-field-quarter">
+                <label tuiLabel>Etage</label>
+                <input tuiInput name="editRoomFloor" [(ngModel)]="roomEditDraft.floor" />
+              </tui-textfield>
+              <tui-textfield class="app-field-quarter">
+                <label tuiLabel>Raumnummer</label>
+                <input tuiInput name="editRoomNumber" [(ngModel)]="roomEditDraft.room_number" />
+              </tui-textfield>
+              <tui-textfield class="app-field-full">
+                <label tuiLabel>Zugangs- oder Auffindungshinweis</label>
+                <input
+                  tuiInput
+                  name="editRoomAccessNotes"
+                  [(ngModel)]="roomEditDraft.access_notes"
+                />
+              </tui-textfield>
+              <label class="app-field-full">
+                <input
+                  type="checkbox"
+                  name="editRoomMeaningfulChange"
+                  [(ngModel)]="roomEditDraft.meaningful_change"
+                />
+                Die Änderung ist inhaltlich relevant und soll betroffene Mitglieder benachrichtigen.
+              </label>
+              <div class="app-field-full app-form-actions">
+                <button tuiButton type="submit" [disabled]="actionBusy">Speichern</button>
+                <button
+                  tuiButton
+                  type="button"
+                  appearance="secondary"
+                  (click)="cancel.emit(venue.id)"
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </form>
+          }
+        </li>
+      }
+    </ul>
+  } @else {
+    <p class="app-muted">Keine Räume hinterlegt.</p>
+  }
+</section>

@@ -1,0 +1,106 @@
+<section class="locations-detail-section" aria-labelledby="venue-contacts-title">
+  <h2 id="venue-contacts-title">Zulässige Kontakte</h2>
+  @if (venue.contacts.length) {
+    <ul class="locations-item-list">
+      @for (contact of venue.contacts; track contact.id) {
+        <li>
+          <div class="locations-item-heading">
+            <strong>{{ contact.label }}</strong>
+            <span tuiBadge [appearance]="contact.is_active ? 'positive' : 'neutral'">
+              {{ contact.is_active ? 'Aktiv' : 'Inaktiv' }}
+            </span>
+          </div>
+          <dl class="locations-inline-definition-list">
+            <div>
+              <dt>Rolle</dt>
+              <dd>{{ optional(contact.role) }}</dd>
+            </div>
+            <div>
+              <dt>E-Mail</dt>
+              <dd>{{ optional(contact.email) }}</dd>
+            </div>
+            <div>
+              <dt>Telefon</dt>
+              <dd>{{ optional(contact.phone) }}</dd>
+            </div>
+            <div>
+              <dt>Erreichbarkeit</dt>
+              <dd class="locations-preserved-text">
+                {{ optional(contact.availability_notes) }}
+              </dd>
+            </div>
+          </dl>
+          @if (!readOnly && venue.capabilities.manage) {
+            <div class="app-row-actions locations-item-actions">
+              <button
+                tuiButton
+                type="button"
+                appearance="secondary"
+                (click)="startEditing.emit(contact)"
+              >
+                Bearbeiten
+              </button>
+              <button tuiButton type="button" appearance="secondary" (click)="toggle.emit(contact)">
+                {{ contact.is_active ? 'Deaktivieren' : 'Reaktivieren' }}
+              </button>
+              <button tuiButton type="button" appearance="negative" (click)="delete.emit(contact)">
+                Löschen
+              </button>
+            </div>
+          }
+          @if (editingContactId === contact.id) {
+            <form
+              tuiForm="m"
+              class="app-inline-editor app-form-grid"
+              (ngSubmit)="update.emit(contact)"
+            >
+              <tui-textfield class="app-field-third">
+                <label tuiLabel>Bezeichnung</label>
+                <input
+                  tuiInput
+                  name="editContactLabel"
+                  [(ngModel)]="contactEditDraft.label"
+                  required
+                />
+              </tui-textfield>
+              <tui-textfield class="app-field-third">
+                <label tuiLabel>E-Mail</label>
+                <input
+                  tuiInput
+                  type="email"
+                  name="editContactEmail"
+                  [(ngModel)]="contactEditDraft.email"
+                />
+              </tui-textfield>
+              <tui-textfield class="app-field-third">
+                <label tuiLabel>Telefon</label>
+                <input tuiInput name="editContactPhone" [(ngModel)]="contactEditDraft.phone" />
+              </tui-textfield>
+              <tui-textfield class="app-field-full">
+                <label tuiLabel>Erreichbarkeit</label>
+                <input
+                  tuiInput
+                  name="editContactAvailability"
+                  [(ngModel)]="contactEditDraft.availability_notes"
+                />
+              </tui-textfield>
+              <div class="app-field-full app-form-actions">
+                <button tuiButton type="submit" [disabled]="actionBusy">Speichern</button>
+                <button
+                  tuiButton
+                  type="button"
+                  appearance="secondary"
+                  (click)="cancel.emit(venue.id)"
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </form>
+          }
+        </li>
+      }
+    </ul>
+  } @else {
+    <p class="app-muted">Keine zulässigen Kontakte hinterlegt.</p>
+  }
+</section>

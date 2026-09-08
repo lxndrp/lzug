@@ -568,270 +568,30 @@
             </form>
           }
 
-          <section class="locations-detail-section" aria-labelledby="venue-rooms-title">
-            <h2 id="venue-rooms-title">Räume</h2>
-            @if (venue.rooms.length) {
-              <ul class="locations-item-list">
-                @for (room of venue.rooms; track room.id) {
-                  <li>
-                    <div class="locations-item-heading">
-                      <strong>{{ room.name }}</strong>
-                      <span tuiBadge [appearance]="room.is_active ? 'positive' : 'neutral'">
-                        {{ room.is_active ? 'Aktiv' : 'Inaktiv' }}
-                      </span>
-                    </div>
-                    <dl class="locations-inline-definition-list">
-                      <div>
-                        <dt>Kapazität</dt>
-                        <dd>
-                          {{ room.capacity ?? 'Nicht hinterlegt'
-                          }}{{ room.capacity ? ' Plätze' : '' }}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Gebäude und Lage</dt>
-                        <dd>{{ roomLocation(room) }}</dd>
-                      </div>
-                      <div>
-                        <dt>Zugangshinweise</dt>
-                        <dd class="locations-preserved-text">{{ optional(room.access_notes) }}</dd>
-                      </div>
-                    </dl>
-                    @if (!readOnly && venue.capabilities.manage) {
-                      <div class="app-row-actions locations-item-actions">
-                        <button
-                          tuiButton
-                          type="button"
-                          appearance="secondary"
-                          (click)="startEditingRoom(room)"
-                        >
-                          Bearbeiten
-                        </button>
-                        <button
-                          tuiButton
-                          type="button"
-                          appearance="secondary"
-                          (click)="toggleRoom(room)"
-                        >
-                          {{ room.is_active ? 'Deaktivieren' : 'Reaktivieren' }}
-                        </button>
-                        <button
-                          tuiButton
-                          type="button"
-                          appearance="negative"
-                          (click)="deleteRoom.emit(room)"
-                        >
-                          Löschen
-                        </button>
-                      </div>
-                    }
-                    @if (editingRoomId() === room.id) {
-                      <form
-                        tuiForm="m"
-                        class="app-inline-editor app-form-grid"
-                        (ngSubmit)="submitRoomUpdate(room)"
-                      >
-                        <tui-textfield class="app-field-third">
-                          <label tuiLabel>Raumbezeichnung</label>
-                          <input
-                            tuiInput
-                            name="editRoomName"
-                            [(ngModel)]="roomEditDraft.name"
-                            required
-                          />
-                        </tui-textfield>
-                        <tui-textfield class="app-field-quarter">
-                          <label tuiLabel>Kapazität</label>
-                          <input
-                            tuiInput
-                            type="number"
-                            name="editRoomCapacity"
-                            [(ngModel)]="roomEditDraft.capacity"
-                            min="1"
-                          />
-                        </tui-textfield>
-                        <tui-textfield class="app-field-third">
-                          <label tuiLabel>Gebäude</label>
-                          <input
-                            tuiInput
-                            name="editRoomBuilding"
-                            [(ngModel)]="roomEditDraft.building"
-                          />
-                        </tui-textfield>
-                        <tui-textfield class="app-field-quarter">
-                          <label tuiLabel>Trakt</label>
-                          <input tuiInput name="editRoomWing" [(ngModel)]="roomEditDraft.wing" />
-                        </tui-textfield>
-                        <tui-textfield class="app-field-quarter">
-                          <label tuiLabel>Etage</label>
-                          <input tuiInput name="editRoomFloor" [(ngModel)]="roomEditDraft.floor" />
-                        </tui-textfield>
-                        <tui-textfield class="app-field-quarter">
-                          <label tuiLabel>Raumnummer</label>
-                          <input
-                            tuiInput
-                            name="editRoomNumber"
-                            [(ngModel)]="roomEditDraft.room_number"
-                          />
-                        </tui-textfield>
-                        <tui-textfield class="app-field-full">
-                          <label tuiLabel>Zugangs- oder Auffindungshinweis</label>
-                          <input
-                            tuiInput
-                            name="editRoomAccessNotes"
-                            [(ngModel)]="roomEditDraft.access_notes"
-                          />
-                        </tui-textfield>
-                        <label class="app-field-full">
-                          <input
-                            type="checkbox"
-                            name="editRoomMeaningfulChange"
-                            [(ngModel)]="roomEditDraft.meaningful_change"
-                          />
-                          Die Änderung ist inhaltlich relevant und soll betroffene Mitglieder
-                          benachrichtigen.
-                        </label>
-                        <div class="app-field-full app-form-actions">
-                          <button tuiButton type="submit" [disabled]="actionBusy">Speichern</button>
-                          <button
-                            tuiButton
-                            type="button"
-                            appearance="secondary"
-                            (click)="finishEditing(venue.id)"
-                          >
-                            Abbrechen
-                          </button>
-                        </div>
-                      </form>
-                    }
-                  </li>
-                }
-              </ul>
-            } @else {
-              <p class="app-muted">Keine Räume hinterlegt.</p>
-            }
-          </section>
-
-          <section class="locations-detail-section" aria-labelledby="venue-contacts-title">
-            <h2 id="venue-contacts-title">Zulässige Kontakte</h2>
-            @if (venue.contacts.length) {
-              <ul class="locations-item-list">
-                @for (contact of venue.contacts; track contact.id) {
-                  <li>
-                    <div class="locations-item-heading">
-                      <strong>{{ contact.label }}</strong>
-                      <span tuiBadge [appearance]="contact.is_active ? 'positive' : 'neutral'">
-                        {{ contact.is_active ? 'Aktiv' : 'Inaktiv' }}
-                      </span>
-                    </div>
-                    <dl class="locations-inline-definition-list">
-                      <div>
-                        <dt>Rolle</dt>
-                        <dd>{{ optional(contact.role) }}</dd>
-                      </div>
-                      <div>
-                        <dt>E-Mail</dt>
-                        <dd>{{ optional(contact.email) }}</dd>
-                      </div>
-                      <div>
-                        <dt>Telefon</dt>
-                        <dd>{{ optional(contact.phone) }}</dd>
-                      </div>
-                      <div>
-                        <dt>Erreichbarkeit</dt>
-                        <dd class="locations-preserved-text">
-                          {{ optional(contact.availability_notes) }}
-                        </dd>
-                      </div>
-                    </dl>
-                    @if (!readOnly && venue.capabilities.manage) {
-                      <div class="app-row-actions locations-item-actions">
-                        <button
-                          tuiButton
-                          type="button"
-                          appearance="secondary"
-                          (click)="startEditingContact(contact)"
-                        >
-                          Bearbeiten
-                        </button>
-                        <button
-                          tuiButton
-                          type="button"
-                          appearance="secondary"
-                          (click)="toggleContact(contact)"
-                        >
-                          {{ contact.is_active ? 'Deaktivieren' : 'Reaktivieren' }}
-                        </button>
-                        <button
-                          tuiButton
-                          type="button"
-                          appearance="negative"
-                          (click)="deleteContact.emit(contact)"
-                        >
-                          Löschen
-                        </button>
-                      </div>
-                    }
-                    @if (editingContactId() === contact.id) {
-                      <form
-                        tuiForm="m"
-                        class="app-inline-editor app-form-grid"
-                        (ngSubmit)="submitContactUpdate(contact)"
-                      >
-                        <tui-textfield class="app-field-third">
-                          <label tuiLabel>Bezeichnung</label>
-                          <input
-                            tuiInput
-                            name="editContactLabel"
-                            [(ngModel)]="contactEditDraft.label"
-                            required
-                          />
-                        </tui-textfield>
-                        <tui-textfield class="app-field-third">
-                          <label tuiLabel>E-Mail</label>
-                          <input
-                            tuiInput
-                            type="email"
-                            name="editContactEmail"
-                            [(ngModel)]="contactEditDraft.email"
-                          />
-                        </tui-textfield>
-                        <tui-textfield class="app-field-third">
-                          <label tuiLabel>Telefon</label>
-                          <input
-                            tuiInput
-                            name="editContactPhone"
-                            [(ngModel)]="contactEditDraft.phone"
-                          />
-                        </tui-textfield>
-                        <tui-textfield class="app-field-full">
-                          <label tuiLabel>Erreichbarkeit</label>
-                          <input
-                            tuiInput
-                            name="editContactAvailability"
-                            [(ngModel)]="contactEditDraft.availability_notes"
-                          />
-                        </tui-textfield>
-                        <div class="app-field-full app-form-actions">
-                          <button tuiButton type="submit" [disabled]="actionBusy">Speichern</button>
-                          <button
-                            tuiButton
-                            type="button"
-                            appearance="secondary"
-                            (click)="finishEditing(venue.id)"
-                          >
-                            Abbrechen
-                          </button>
-                        </div>
-                      </form>
-                    }
-                  </li>
-                }
-              </ul>
-            } @else {
-              <p class="app-muted">Keine zulässigen Kontakte hinterlegt.</p>
-            }
-          </section>
+          <app-venue-rooms
+            [venue]="venue"
+            [readOnly]="readOnly"
+            [actionBusy]="actionBusy"
+            [editingRoomId]="editingRoomId()"
+            [roomEditDraft]="roomEditDraft"
+            (startEditing)="startEditingRoom($event)"
+            (toggle)="toggleRoom($event)"
+            (update)="submitRoomUpdate($event)"
+            (delete)="deleteRoom.emit($event)"
+            (cancel)="finishEditing($event)"
+          />
+          <app-venue-contacts
+            [venue]="venue"
+            [readOnly]="readOnly"
+            [actionBusy]="actionBusy"
+            [editingContactId]="editingContactId()"
+            [contactEditDraft]="contactEditDraft"
+            (startEditing)="startEditingContact($event)"
+            (toggle)="toggleContact($event)"
+            (update)="submitContactUpdate($event)"
+            (delete)="deleteContact.emit($event)"
+            (cancel)="finishEditing($event)"
+          />
         } @else {
           <div class="app-table-empty" role="status">
             <strong>Prüfungsort nicht hinterlegt</strong>

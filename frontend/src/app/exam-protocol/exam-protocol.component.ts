@@ -10,7 +10,7 @@ import {
   ExamProtocolDeclaration,
   ExamProtocolEntryCategory,
 } from '../api/api.models';
-import { PlanningApiService } from '../api/planning-api.service';
+import { ExamProtocolApiService } from '../api/exam-protocol-api.service';
 import { AuthService } from '../auth/auth.service';
 
 export type ProtocolState = 'loading' | 'ready' | 'error' | 'not-found';
@@ -29,7 +29,7 @@ export type EntryDraft = {
   styleUrl: './exam-protocol.component.css',
 })
 export class ExamProtocolComponent implements OnChanges {
-  private readonly api = inject(PlanningApiService);
+  private readonly api = inject(ExamProtocolApiService);
   private readonly auth = inject(AuthService);
 
   @Input({ required: true }) dayId!: number;

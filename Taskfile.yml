@@ -236,7 +236,7 @@ tasks:
       LZUG_CAPTURE_DEMO_MEDIA: "true"
       LZUG_E2E_RUN_ID: demo-media-v8
     cmds:
-      - node e2e/run-playwright.mjs quality.spec.ts --grep "keeps isolated demo scenarios"
+      - node e2e/run-playwright.mjs demo-workflows.spec.ts --grep "keeps isolated demo scenarios"
 
   quality:
     desc: Run the complete local quality assurance suite in parallel

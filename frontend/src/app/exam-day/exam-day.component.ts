@@ -15,7 +15,8 @@ import {
   ExamDayReopeningImpact,
   ExamDayReopeningScope,
 } from '../api/api.models';
-import { PlanningApiService } from '../api/planning-api.service';
+import { ExamDayApiService } from '../api/exam-day-api.service';
+import { PersonalApiService } from '../api/personal-api.service';
 import { AuthService } from '../auth/auth.service';
 import { ExamProtocolComponent } from '../exam-protocol/exam-protocol.component';
 import { ExamResultComponent } from '../exam-result/exam-result.component';
@@ -29,7 +30,8 @@ export type ExamDayViewState = 'loading' | 'ready' | 'error' | 'not-found';
   styleUrl: './exam-day.component.css',
 })
 export class ExamDayComponent implements OnInit, OnChanges {
-  private readonly api = inject(PlanningApiService);
+  private readonly api = inject(ExamDayApiService);
+  private readonly personalApi = inject(PersonalApiService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
@@ -214,7 +216,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
     this.savingKeys.set(new Set([`absence-${assignmentId}`]));
     this.actionMessage.set(null);
     this.actionError.set(null);
-    this.api
+    this.personalApi
       .createAbsenceReport(dayId, assignmentId, undefined, this.view()?.day.revision)
       .subscribe({
         next: () => {
@@ -527,7 +529,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
 
   private saveAction(
     key: string,
-    request: ReturnType<PlanningApiService['saveCandidateAttendance']>,
+    request: ReturnType<ExamDayApiService['saveCandidateAttendance']>,
   ): void {
     if (this.hasSavingAction()) return;
     const actionSequence = this.requestSequence;
@@ -561,7 +563,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
 
   private runClosureAction(
     key: string,
-    request: ReturnType<PlanningApiService['closeExamDay']>,
+    request: ReturnType<ExamDayApiService['closeExamDay']>,
     successMessage: string,
   ): void {
     if (this.hasSavingAction()) return;

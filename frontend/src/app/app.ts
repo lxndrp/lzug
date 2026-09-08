@@ -14,27 +14,18 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { TuiButton, TuiNotification, TuiRoot } from '@taiga-ui/core';
-import { TuiConfirmService } from '@taiga-ui/kit';
-import { Observable, filter, finalize, forkJoin, switchMap } from 'rxjs';
+import { filter } from 'rxjs';
 
 import {
   AvailabilityRequest,
-  CandidateDayGenerationResult,
   CandidateExamDay,
   CommitteeMember,
   EditablePlanningProposal,
-  ExamRound,
   ExamRoundUpdate,
   ExamRoom,
   ExamVenue,
   ExamVenueContact,
-  MasterData,
-  PlanningBoard,
-  PlanningResult,
-  PlanningValidationViolation,
-  RoundSummary,
 } from './api/api.models';
-import { PlanningApiService } from './api/planning-api.service';
 import { RoundContextService } from './api/round-context.service';
 import { AppView } from './app-view';
 import { appIcons } from './app-icons';
@@ -50,7 +41,6 @@ import { DashboardComponent } from './dashboard/dashboard.component';
 import {
   ContactCreate,
   ContactUpdate,
-  GeocodeCandidate,
   LocationsComponent,
   RoomCreate,
   RoomUpdate,
@@ -63,7 +53,7 @@ import {
   PlanningComponent,
   PlanningSettingsPayload,
 } from './planning/planning.component';
-import { ProposalEditorState } from './planning/planning-proposal-editor.component';
+import { PlanningWorkflowService } from './planning/planning-workflow.service';
 import {
   SchedulingOverviewAction,
   SchedulingOverviewComponent,
@@ -77,6 +67,10 @@ import { NotificationsComponent } from './notifications/notifications.component'
 import { AbsenceReportsComponent } from './absence-reports/absence-reports.component';
 import { DemoScenariosComponent } from './demo-scenarios/demo-scenarios.component';
 import { AboutComponent } from './about/about.component';
+import { VenueWorkflowService } from './locations/venue-workflow.service';
+import { MasterDataWorkflowService } from './master-data/master-data-workflow.service';
+import { ApplicationWorkspaceService } from './shell/application-workspace.service';
+import { UiFeedbackService } from './shell/ui-feedback.service';
 
 @Component({
   selector: 'app-root',
@@ -106,9 +100,12 @@ import { AboutComponent } from './about/about.component';
 })
 export class App {
   protected readonly auth = inject(AuthService);
-  private readonly api = inject(PlanningApiService);
+  private readonly workspace = inject(ApplicationWorkspaceService);
+  private readonly feedbackService = inject(UiFeedbackService);
+  private readonly masterDataWorkflow = inject(MasterDataWorkflowService);
+  private readonly planningWorkflow = inject(PlanningWorkflowService);
+  private readonly venueWorkflow = inject(VenueWorkflowService);
   private readonly roundContext = inject(RoundContextService);
-  private readonly confirm = inject(TuiConfirmService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
   private readonly router = inject(Router);
@@ -120,38 +117,32 @@ export class App {
   @ViewChild(PlanningComponent) private planningComponent?: PlanningComponent;
 
   protected readonly icons = appIcons;
-  protected readonly round = signal<ExamRound | null>(null);
-  protected readonly summary = signal<RoundSummary | null>(null);
-  protected readonly board = signal<PlanningBoard | null>(null);
-  protected readonly masterData = signal<MasterData | null>(null);
-  protected readonly lastPlanningResult = signal<PlanningResult | null>(null);
-  protected readonly planningProposal = signal<EditablePlanningProposal | null>(null);
-  protected readonly proposalEditorState = signal<ProposalEditorState>('idle');
-  protected readonly proposalEditorError = signal<string | null>(null);
-  protected readonly proposalEditorViolations = signal<PlanningValidationViolation[]>([]);
-  protected readonly candidateDayGenerationResult = signal<CandidateDayGenerationResult | null>(
-    null,
-  );
+  protected readonly round = this.workspace.round;
+  protected readonly summary = this.workspace.summary;
+  protected readonly board = this.workspace.board;
+  protected readonly masterData = this.workspace.masterData;
+  protected readonly lastPlanningResult = this.planningWorkflow.lastResult;
+  protected readonly planningProposal = this.planningWorkflow.proposal;
+  protected readonly proposalEditorState = this.planningWorkflow.editorState;
+  protected readonly proposalEditorError = this.planningWorkflow.editorError;
+  protected readonly proposalEditorViolations = this.planningWorkflow.editorViolations;
+  protected readonly candidateDayGenerationResult = this.planningWorkflow.candidateDayGeneration;
   protected readonly activeView = signal<AppView>('dashboard');
   protected readonly sidebarVisible = signal(
     typeof window === 'undefined' || window.innerWidth >= 768,
   );
-  protected readonly selectedCommitteeId = signal<number | null>(null);
-  protected readonly message = signal('Bereit');
-  protected readonly loading = signal(false);
-  protected readonly actionBusy = signal(false);
-  protected readonly geocodeCandidate = signal<GeocodeCandidate | null>(null);
+  protected readonly selectedCommitteeId = this.workspace.selectedCommitteeId;
+  protected readonly message = this.workspace.message;
+  protected readonly loading = this.workspace.loading;
+  protected readonly actionBusy = this.workspace.actionBusy;
+  protected readonly geocodeCandidate = this.venueWorkflow.geocodeCandidate;
   protected readonly contextualRoundId = signal<number | null>(null);
   protected readonly contextualDayId = signal<number | null>(null);
   protected readonly contextualVenueId = signal<number | null>(null);
   protected readonly confirmedPlanEditRoundId = signal<number | null>(null);
-  protected readonly applicationVersion = signal<string | null>(null);
-  protected readonly feedback = signal<{
-    type: 'success' | 'error';
-    title: string;
-    message: string;
-  } | null>(null);
-  protected readonly masterDataError = signal(false);
+  protected readonly applicationVersion = this.workspace.applicationVersion;
+  protected readonly feedback = this.feedbackService.feedback;
+  protected readonly masterDataError = this.workspace.masterDataError;
   protected readonly roleSwitchBusy = signal(false);
   protected readonly demoSession = computed(() => {
     const session = this.auth.session();
@@ -179,17 +170,9 @@ export class App {
       (this.auth.session()?.is_operator === true ||
         this.masterData()?.examVenuesCanCreate === true),
   );
-  protected readonly canGenerateCandidateDays = computed(
-    () =>
-      this.hasCapability('planning-settings:write') &&
-      this.hasCapability('candidate-days:generate'),
-  );
-  protected readonly canCreateCandidateDay = computed(() =>
-    this.hasCapability('candidate-days:create'),
-  );
-  protected readonly canToggleCandidateDay = computed(() =>
-    this.hasCapability('candidate-days:toggle'),
-  );
+  protected readonly canGenerateCandidateDays = this.planningWorkflow.canGenerateCandidateDays;
+  protected readonly canCreateCandidateDay = this.planningWorkflow.canCreateCandidateDay;
+  protected readonly canToggleCandidateDay = this.planningWorkflow.canToggleCandidateDay;
   protected readonly directAccessDenied = computed(() => !this.canAccessView(this.activeView()));
 
   protected readonly pageTitle = computed(() => {
@@ -273,48 +256,7 @@ export class App {
   }
 
   protected refresh(): void {
-    if (this.auth.state() !== 'authenticated') return;
-    this.loading.set(true);
-    this.api
-      .refreshDashboard()
-      .pipe(finalize(() => this.loading.set(false)))
-      .subscribe({
-        next: ({ root, round, summary, board, masterData }) => {
-          this.masterDataError.set(false);
-          this.applicationVersion.set(root.version);
-          this.round.set(round);
-          this.summary.set(summary);
-          this.board.set(board);
-          this.masterData.set(masterData);
-          if (round.status === 'plan_proposed') {
-            this.loadPlanningProposal();
-          } else {
-            this.resetPlanningProposal();
-          }
-          if (!this.selectedCommitteeId()) {
-            this.selectedCommitteeId.set(masterData.committees[0]?.id ?? null);
-          }
-          if (this.activeView() === 'planning' && round.status === 'plan_confirmed') {
-            void this.router.navigateByUrl(`/confirmed-plans/${round.id}`, {
-              replaceUrl: true,
-            });
-          }
-          this.message.set('Daten synchronisiert');
-        },
-        error: (error: { status?: number }) => {
-          this.masterDataError.set(true);
-          if (error.status === 401) {
-            this.auth.markAnonymous();
-            return;
-          }
-          this.message.set('Synchronisierung nicht möglich');
-          this.notify(
-            'error',
-            'Synchronisierung nicht möglich',
-            'Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',
-          );
-        },
-      });
+    this.workspace.refresh();
   }
 
   protected showView(view: AppView): void {
@@ -370,16 +312,12 @@ export class App {
   }
 
   protected selectCommittee(id: number | null): void {
-    this.selectedCommitteeId.set(id);
+    this.workspace.selectCommittee(id);
   }
 
   protected selectExamRound(id: number): void {
-    this.roundContext.select(id);
-    this.lastPlanningResult.set(null);
-    this.candidateDayGenerationResult.set(null);
-    this.resetPlanningProposal();
-    this.refresh();
-    this.showView('dashboard');
+    this.planningWorkflow.resetForRoundChange();
+    this.workspace.selectExamRound(id);
   }
 
   protected openSchedulingRound(action: SchedulingOverviewAction): void {
@@ -414,7 +352,7 @@ export class App {
   }
 
   protected dismissFeedback(): void {
-    this.feedback.set(null);
+    this.feedbackService.dismiss();
   }
 
   protected demoRoleLabel(): string {
@@ -475,765 +413,161 @@ export class App {
   }
 
   protected requestCandidateDeletion(id: number, label: string): void {
-    this.requestConfirmation(
-      `${label} löschen?`,
-      `${label} wird dauerhaft aus der Prüfungsverwaltung entfernt.`,
-      `${label} löschen`,
-      () => this.deleteCandidate(id, label),
-    );
+    this.masterDataWorkflow.requestCandidateDeletion(id, label);
   }
 
   protected requestVenueDeletion(venue: ExamVenue): void {
-    this.requestConfirmation(
-      `${venue.name} löschen?`,
-      'Nur ein vollständig ungenutzter Ort ohne Räume und Kontakte kann gelöscht werden.',
-      `${venue.name} löschen`,
-      () => this.deleteVenue(venue),
-    );
+    this.venueWorkflow.connect(this.locationsComponent);
+    this.venueWorkflow.requestVenueDeletion(venue);
   }
 
   protected requestPlanConfirmation(): void {
-    this.requestConfirmation(
-      'Terminplan bestätigen?',
-      'Der aktuelle Planungsvorschlag wird als verbindlicher Terminplan bestätigt.',
-      'Plan verbindlich bestätigen',
-      () => this.confirmPlan(),
-    );
-  }
-
-  private requestConfirmation(
-    title: string,
-    message: string,
-    confirmLabel: string,
-    action: () => void,
-  ): void {
-    this.confirm.markAsDirty();
-    this.confirm
-      .withConfirm({
-        label: title,
-        size: 'm',
-        data: { content: message, no: 'Abbrechen', yes: confirmLabel, appearance: 'negative' },
-      })
-      .pipe(finalize(() => this.confirm.markAsPristine()))
-      .subscribe((confirmed) => {
-        if (confirmed) {
-          action();
-        }
-      });
+    this.planningWorkflow.connect(this.planningComponent);
+    this.planningWorkflow.requestPlanConfirmation();
   }
 
   protected createMember(payload: CommitteeMemberPayload): void {
-    this.actionBusy.set(true);
-    this.api
-      .createMember(payload)
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: (member) => {
-          this.committeeComponent?.resetMemberForm();
-          this.selectedCommitteeId.set(member.committee_id);
-          this.notify('success', 'Prüfer angelegt', this.fullMemberName(member));
-          this.refresh();
-        },
-        error: () =>
-          this.notify(
-            'error',
-            'Prüfer nicht gespeichert',
-            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
-          ),
-      });
+    this.masterDataWorkflow.createMember(payload, this.committeeComponent);
   }
 
   protected createCandidate(payload: CandidatePayload): void {
-    this.actionBusy.set(true);
-    this.api
-      .createCandidate(payload)
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: (candidate) => {
-          this.candidatesComponent?.resetDraft();
-          this.notify(
-            'success',
-            'Prüfling angelegt',
-            `${candidate.first_name} ${candidate.last_name}`,
-          );
-          this.refresh();
-        },
-        error: () =>
-          this.notify(
-            'error',
-            'Prüfling nicht gespeichert',
-            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
-          ),
-      });
+    this.masterDataWorkflow.createCandidate(payload, this.candidatesComponent);
   }
 
   protected deleteCandidate(id: number, label: string): void {
-    this.actionBusy.set(true);
-    this.api
-      .deleteCandidate(id)
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: () => {
-          this.notify('success', 'Prüfling gelöscht', label);
-          this.refresh();
-        },
-        error: () => this.notify('error', 'Prüfling nicht gelöscht', 'Bitte erneut versuchen.'),
-      });
+    this.masterDataWorkflow.deleteCandidate(id, label);
   }
 
   protected updateCandidate(update: CandidateUpdate): void {
-    this.actionBusy.set(true);
-    this.api
-      .updateCandidate(update.id, update.payload)
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: (candidate) => {
-          this.candidatesComponent?.finishEditing(candidate.id);
-          this.notify(
-            'success',
-            'Prüfling gespeichert',
-            `${candidate.first_name} ${candidate.last_name}`,
-          );
-          this.refresh();
-        },
-        error: () =>
-          this.notify(
-            'error',
-            'Prüfling nicht gespeichert',
-            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
-          ),
-      });
+    this.masterDataWorkflow.updateCandidate(update, this.candidatesComponent);
   }
 
   protected createVenue(payload: VenueCreate): void {
-    this.actionBusy.set(true);
-    this.api
-      .checkExamVenueDuplicates(payload as unknown as Record<string, unknown>)
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: ({ items }) => {
-          const save = () => this.persistVenue(payload, items.length > 0);
-          if (!items.length) return save();
-          this.requestConfirmation(
-            'Ähnliche Prüfungsorte gefunden',
-            items.map((item) => `${item.name} · ${item.address}`).join('\n'),
-            'Trotzdem anlegen',
-            save,
-          );
-        },
-        error: () =>
-          this.notify('error', 'Dublettenprüfung fehlgeschlagen', 'Bitte erneut versuchen.'),
-      });
-  }
-
-  private persistVenue(payload: VenueCreate, duplicatesReviewed: boolean): void {
-    this.actionBusy.set(true);
-    this.api
-      .createExamVenue({ ...payload, duplicates_reviewed: duplicatesReviewed })
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: (venue) => {
-          this.locationsComponent?.resetDraft();
-          this.notify('success', 'Prüfungsort angelegt', venue.name);
-          this.refresh();
-        },
-        error: () =>
-          this.notify(
-            'error',
-            'Prüfungsort nicht gespeichert',
-            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
-          ),
-      });
+    this.venueWorkflow.connect(this.locationsComponent);
+    this.venueWorkflow.createVenue(payload);
   }
 
   protected updateVenue(update: VenueUpdate): void {
-    this.actionBusy.set(true);
-    forkJoin({
-      impact: this.api.getExamVenueChangeImpact(update.id, update.payload),
-      duplicates: this.api.checkExamVenueDuplicates(update.payload, update.id),
-    })
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: ({ impact, duplicates }) => {
-          const requiresConfirmation = impact.requires_confirmation ?? impact.count > 0;
-          const needsConfirmation = requiresConfirmation || duplicates.items.length > 0;
-          const save = () =>
-            this.persistVenueUpdate(update, requiresConfirmation, duplicates.items.length > 0);
-          if (!needsConfirmation) return save();
-          this.requestConfirmation(
-            duplicates.items.length
-              ? 'Ähnliche Prüfungsorte gefunden'
-              : 'Bestätigte Termine betroffen',
-            [
-              this.venueImpactMessage(impact),
-              ...duplicates.items.map((item) => `${item.name} · ${item.address}`),
-            ]
-              .filter(Boolean)
-              .join('\n'),
-            'Änderung bestätigen',
-            save,
-          );
-        },
-        error: () =>
-          this.notify('error', 'Auswirkungsprüfung fehlgeschlagen', 'Bitte erneut versuchen.'),
-      });
+    this.venueWorkflow.connect(this.locationsComponent);
+    this.venueWorkflow.updateVenue(update);
   }
 
   protected geocodeVenue(venue: ExamVenue): void {
-    this.actionBusy.set(true);
-    this.api
-      .geocodeExamVenue(venue.id, venue.revision)
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: (candidate) => {
-          this.geocodeCandidate.set({ venueId: venue.id, ...candidate });
-          this.notify(
-            'success',
-            'Position vorgeschlagen',
-            'Bitte die vorgeschlagene Position vor dem Speichern bestätigen.',
-          );
-        },
-        error: () =>
-          this.notify(
-            'error',
-            'Position nicht verfügbar',
-            'Die Ortsdaten wurden nicht verändert. Bitte später erneut versuchen.',
-          ),
-      });
-  }
-
-  private persistVenueUpdate(
-    update: VenueUpdate,
-    confirmed: boolean,
-    duplicatesReviewed: boolean,
-  ): void {
-    this.actionBusy.set(true);
-    this.api
-      .updateExamVenue(update.id, {
-        ...update.payload,
-        confirm_future_assignments: confirmed,
-        duplicates_reviewed: duplicatesReviewed,
-      })
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: (venue) => {
-          this.locationsComponent?.finishEditing(venue.id);
-          if (
-            update.payload.coordinate_status === 'confirmed' &&
-            this.geocodeCandidate()?.venueId === venue.id
-          ) {
-            this.geocodeCandidate.set(null);
-          }
-          this.notify(
-            venue.consequence_warning ? 'error' : 'success',
-            venue.consequence_warning
-              ? 'Prüfungsort gespeichert, Folgen unvollständig'
-              : 'Prüfungsort gespeichert',
-            venue.consequence_warning ?? venue.name,
-          );
-          this.refresh();
-        },
-        error: () =>
-          this.notify('error', 'Prüfungsort nicht gespeichert', 'Bitte erneut versuchen.'),
-      });
+    this.venueWorkflow.connect(this.locationsComponent);
+    this.venueWorkflow.geocodeVenue(venue);
   }
 
   protected deleteVenue(venue: ExamVenue): void {
-    this.runVenueAction(
-      this.api.deleteExamVenue(venue.id, venue.revision),
-      'Prüfungsort gelöscht',
-      venue.name,
-    );
+    this.venueWorkflow.connect(this.locationsComponent);
+    this.venueWorkflow.deleteVenue(venue);
   }
 
   protected createRoom(command: RoomCreate): void {
-    this.runVenueAction(
-      this.api.createExamRoom(command.venueId, command.payload),
-      'Raum angelegt',
-      String(command.payload.name ?? ''),
-    );
+    this.venueWorkflow.connect(this.locationsComponent);
+    this.venueWorkflow.createRoom(command);
   }
 
   protected updateRoom(command: RoomUpdate): void {
-    this.actionBusy.set(true);
-    this.api
-      .getExamRoomChangeImpact(command.id, command.payload)
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: (impact) => {
-          const requiresConfirmation = impact.requires_confirmation ?? impact.count > 0;
-          const save = () =>
-            this.runVenueAction(
-              this.api.updateExamRoom(command.id, {
-                ...command.payload,
-                confirm_future_assignments: requiresConfirmation,
-              }),
-              'Raum gespeichert',
-              '',
-            );
-          if (!requiresConfirmation) return save();
-          this.requestConfirmation(
-            'Bestätigte Termine betroffen',
-            this.venueImpactMessage(impact),
-            'Änderung bestätigen',
-            save,
-          );
-        },
-        error: () =>
-          this.notify('error', 'Auswirkungsprüfung fehlgeschlagen', 'Bitte erneut versuchen.'),
-      });
+    this.venueWorkflow.connect(this.locationsComponent);
+    this.venueWorkflow.updateRoom(command);
   }
 
   protected deleteRoom(room: ExamRoom): void {
-    this.runVenueAction(
-      this.api.deleteExamRoom(room.id, room.revision),
-      'Raum gelöscht',
-      room.name,
-    );
+    this.venueWorkflow.connect(this.locationsComponent);
+    this.venueWorkflow.deleteRoom(room);
   }
 
   protected retryVenueConsequences(auditId: number): void {
-    this.runVenueAction(
-      this.api.retryExamVenueConsequences(auditId),
-      'Folgen erneut verarbeitet',
-      'Der aktuelle Status wurde geprüft.',
-    );
+    this.venueWorkflow.connect(this.locationsComponent);
+    this.venueWorkflow.retryVenueConsequences(auditId);
   }
   protected createContact(command: ContactCreate): void {
-    this.runVenueAction(
-      this.api.createExamVenueContact(command.venueId, command.payload),
-      'Kontakt angelegt',
-      String(command.payload.label ?? ''),
-    );
+    this.venueWorkflow.connect(this.locationsComponent);
+    this.venueWorkflow.createContact(command);
   }
   protected updateContact(command: ContactUpdate): void {
-    this.runVenueAction(
-      this.api.updateExamVenueContact(command.id, command.payload),
-      'Kontakt gespeichert',
-      '',
-    );
+    this.venueWorkflow.connect(this.locationsComponent);
+    this.venueWorkflow.updateContact(command);
   }
   protected deleteContact(contact: ExamVenueContact): void {
-    this.runVenueAction(
-      this.api.deleteExamVenueContact(contact.id, contact.revision),
-      'Kontakt gelöscht',
-      contact.label,
-    );
+    this.venueWorkflow.connect(this.locationsComponent);
+    this.venueWorkflow.deleteContact(contact);
   }
   protected requestPromotion(command: { venue: ExamVenue; reason: string }): void {
-    this.runVenueAction(
-      this.api.requestExamVenuePromotion(command.venue.id, command.venue.revision, command.reason),
-      'Hochstufung beantragt',
-      command.venue.name,
-    );
+    this.venueWorkflow.connect(this.locationsComponent);
+    this.venueWorkflow.requestPromotion(command);
   }
   protected decidePromotion(command: {
     venue: ExamVenue;
     decision: 'approve' | 'reject';
     reason: string;
   }): void {
-    this.runVenueAction(
-      this.api.decideExamVenuePromotion(
-        command.venue.id,
-        command.venue.revision,
-        command.decision,
-        command.reason,
-      ),
-      command.decision === 'approve' ? 'Prüfungsort hochgestuft' : 'Hochstufung abgelehnt',
-      command.venue.name,
-    );
-  }
-
-  private runVenueAction(request: Observable<unknown>, title: string, detail: string): void {
-    this.actionBusy.set(true);
-    request.pipe(finalize(() => this.actionBusy.set(false))).subscribe({
-      next: (result) => {
-        this.locationsComponent?.finishEditing(-1);
-        const warning =
-          typeof result === 'object' && result !== null && 'consequence_warning' in result
-            ? String(result.consequence_warning)
-            : null;
-        this.notify(
-          warning ? 'error' : 'success',
-          warning ? `${title}, Folgen unvollständig` : title,
-          warning ?? detail,
-        );
-        this.refresh();
-      },
-      error: () =>
-        this.notify(
-          'error',
-          'Aktion fehlgeschlagen',
-          'Bitte prüfen Sie Status, Verwendung und Revision.',
-        ),
-    });
+    this.venueWorkflow.connect(this.locationsComponent);
+    this.venueWorkflow.decidePromotion(command);
   }
 
   protected savePlanningSettings(payload: PlanningSettingsPayload): void {
-    if (!this.hasCapability('planning-settings:write')) {
-      this.notifyRoleRestriction();
-      return;
-    }
-    this.actionBusy.set(true);
-    this.api
-      .savePlanningSettings(payload)
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: () => {
-          this.notify('success', 'Planungsrahmen gespeichert', 'Die Änderungen sind übernommen.');
-          this.refresh();
-        },
-        error: () =>
-          this.notify('error', 'Planungsrahmen nicht gespeichert', 'Bitte erneut versuchen.'),
-      });
+    this.planningWorkflow.connect(this.planningComponent);
+    this.planningWorkflow.savePlanningSettings(payload);
   }
 
   protected saveExamRound(payload: ExamRoundUpdate): void {
-    if (!this.hasCapability('round:write')) {
-      this.notifyRoleRestriction();
-      return;
-    }
-    this.actionBusy.set(true);
-    this.api
-      .updateExamRound(payload)
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: () => {
-          this.notify('success', 'Prüfungsrunde gespeichert', 'Die Änderungen sind übernommen.');
-          this.refresh();
-        },
-        error: () =>
-          this.notify('error', 'Prüfungsrunde nicht gespeichert', 'Bitte Eingaben prüfen.'),
-      });
+    this.planningWorkflow.connect(this.planningComponent);
+    this.planningWorkflow.saveExamRound(payload);
   }
 
   protected requestAvailabilities(payload: AvailabilityRequest): void {
-    if (!this.hasCapability('availability:coordinate')) {
-      this.notifyRoleRestriction();
-      return;
-    }
-    this.actionBusy.set(true);
-    this.api
-      .requestAvailabilities(payload)
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: (result) => {
-          this.notify(
-            result.notification_warning ? 'error' : 'success',
-            result.notification_warning
-              ? 'Terminorganisation gestartet, Benachrichtigungen unvollständig'
-              : 'Verfügbarkeiten angefragt',
-            result.notification_warning ?? 'Die Terminorganisation ist jetzt in Abstimmung.',
-          );
-          this.refresh();
-        },
-        error: () =>
-          this.notify(
-            'error',
-            'Verfügbarkeiten nicht angefragt',
-            'Gespeicherte Angaben bleiben erhalten. Bitte Voraussetzungen prüfen.',
-          ),
-      });
+    this.planningWorkflow.connect(this.planningComponent);
+    this.planningWorkflow.requestAvailabilities(payload);
   }
 
   protected createCandidateDay(payload: CandidateExamDayPayload): void {
-    if (!this.hasCapability('candidate-days:create')) {
-      this.notifyRoleRestriction();
-      return;
-    }
-    this.actionBusy.set(true);
-    this.api
-      .createCandidateExamDay(payload)
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: (day) => {
-          this.planningComponent?.resetCandidateDayDraft();
-          this.notify('success', 'Prüfungstag angelegt', day.date);
-          this.refresh();
-        },
-        error: () =>
-          this.notify(
-            'error',
-            'Prüfungstag nicht angelegt',
-            'Die Eingabe bleibt erhalten. Bitte erneut versuchen.',
-          ),
-      });
+    this.planningWorkflow.connect(this.planningComponent);
+    this.planningWorkflow.createCandidateDay(payload);
   }
 
   protected generateCandidateDays(payload: PlanningSettingsPayload): void {
-    if (!this.canGenerateCandidateDays()) {
-      this.notifyRoleRestriction();
-      return;
-    }
-    this.actionBusy.set(true);
-    this.api
-      .savePlanningSettings(payload)
-      .pipe(
-        switchMap(() => this.api.generateCandidateExamDays()),
-        finalize(() => this.actionBusy.set(false)),
-      )
-      .subscribe({
-        next: (result) => {
-          this.candidateDayGenerationResult.set(result);
-          this.notify(
-            'success',
-            'Mögliche Prüfungstage berechnet',
-            `${result.counts.created} angelegt, ${result.counts.existing} bereits vorhanden.`,
-          );
-          this.refresh();
-        },
-        error: () =>
-          this.notify(
-            'error',
-            'Prüfungstage nicht berechnet',
-            'Planungszeitraum und Bundesland konnten nicht verarbeitet werden.',
-          ),
-      });
+    this.planningWorkflow.connect(this.planningComponent);
+    this.planningWorkflow.generateCandidateDays(payload);
   }
 
   protected toggleCandidateDay(day: CandidateExamDay): void {
-    if (!this.hasCapability('candidate-days:toggle')) {
-      this.notifyRoleRestriction();
-      return;
-    }
-    const nextActive = day.is_active ? 0 : 1;
-    this.actionBusy.set(true);
-    this.api
-      .updateCandidateExamDay(day.id, { is_active: nextActive })
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: () => {
-          this.notify(
-            'success',
-            `Prüfungstag ${nextActive ? 'aktiviert' : 'deaktiviert'}`,
-            day.date,
-          );
-          this.refresh();
-        },
-        error: () => this.notify('error', 'Prüfungstag nicht geändert', 'Bitte erneut versuchen.'),
-      });
+    this.planningWorkflow.connect(this.planningComponent);
+    this.planningWorkflow.toggleCandidateDay(day);
   }
 
   protected saveAvailability(payload: AvailabilityPayload): void {
-    const session = this.demoSession();
-    const canSave =
-      this.hasCapability('availability:coordinate') || this.hasCapability('availability:write-own');
-    if (
-      !canSave ||
-      (session?.demo_role === 'examiner' &&
-        payload.committee_member_id !== session.committee_member_id)
-    ) {
-      this.notifyRoleRestriction();
-      this.planningComponent?.markAvailabilityError(payload);
-      return;
-    }
-    this.api.saveMemberAvailability(payload).subscribe({
-      next: (availability) => {
-        this.board.update((board) =>
-          board
-            ? {
-                ...board,
-                availabilities: [
-                  ...board.availabilities.filter(
-                    (item) =>
-                      item.committee_member_id !== availability.committee_member_id ||
-                      item.candidate_exam_day_id !== availability.candidate_exam_day_id,
-                  ),
-                  availability,
-                ],
-              }
-            : board,
-        );
-        this.planningComponent?.markAvailabilitySaved(payload);
-      },
-      error: () => {
-        this.planningComponent?.markAvailabilityError(payload);
-        this.notify(
-          'error',
-          'Verfügbarkeit nicht gespeichert',
-          'Die Auswahl wurde zurückgesetzt. Bitte erneut versuchen.',
-        );
-      },
-    });
+    this.planningWorkflow.connect(this.planningComponent);
+    this.planningWorkflow.saveAvailability(payload);
   }
 
   protected toggleMember(member: CommitteeMember): void {
-    const nextActive = member.is_active ? 0 : 1;
-    this.actionBusy.set(true);
-    this.api
-      .updateMember(member.id, { is_active: nextActive })
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: () => {
-          this.notify(
-            'success',
-            `Prüfer ${nextActive ? 'aktiviert' : 'deaktiviert'}`,
-            this.fullMemberName(member),
-          );
-          this.refresh();
-        },
-        error: () => this.notify('error', 'Status nicht geändert', 'Bitte erneut versuchen.'),
-      });
+    this.masterDataWorkflow.toggleMember(member);
   }
 
   protected generateProposal(): void {
-    if (!this.hasCapability('planning-proposal:generate')) {
-      this.notifyRoleRestriction();
-      return;
-    }
-    this.actionBusy.set(true);
-    this.api
-      .generateProposal()
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: (result) => {
-          this.lastPlanningResult.set(result);
-          const planned = result.counts['planned_slots'] ?? 0;
-          const suffix = result.validation?.passed === false ? ' mit Hinweisen' : '';
-          this.notify('success', 'Planungsvorschlag erzeugt', `${planned} Termine${suffix}`);
-          this.refresh();
-        },
-        error: () => this.notify('error', 'Planung nicht erzeugt', 'Bitte Planungsdaten prüfen.'),
-      });
+    this.planningWorkflow.connect(this.planningComponent);
+    this.planningWorkflow.generateProposal();
   }
 
   protected confirmPlan(): void {
-    if (!this.hasCapability('planning-proposal:confirm')) {
-      this.notifyRoleRestriction();
-      return;
-    }
-    this.actionBusy.set(true);
-    this.api
-      .confirmPlan()
-      .pipe(finalize(() => this.actionBusy.set(false)))
-      .subscribe({
-        next: (result) => {
-          this.lastPlanningResult.set(result);
-          const confirmed = result.counts['confirmed_slots'] ?? 0;
-          const warning = result.notification_warning ?? result.calendar_warning;
-          this.notify(
-            warning ? 'error' : 'success',
-            warning ? 'Plan bestätigt, Zusatzinformationen unvollständig' : 'Plan bestätigt',
-            warning ?? `${confirmed} Termine sind verbindlich.`,
-          );
-          this.refresh();
-          void this.router.navigateByUrl(`/confirmed-plans/${this.roundContext.roundId()}`);
-        },
-        error: () => this.notify('error', 'Plan nicht bestätigt', 'Bitte erneut versuchen.'),
-      });
+    this.planningWorkflow.connect(this.planningComponent);
+    this.planningWorkflow.confirmPlan();
   }
 
   protected loadPlanningProposal(): void {
-    if (this.round()?.status !== 'plan_proposed') return;
-    this.proposalEditorState.set('loading');
-    this.proposalEditorError.set(null);
-    this.proposalEditorViolations.set([]);
-    this.api.getPlanningProposal().subscribe({
-      next: (proposal) => {
-        this.planningProposal.set(proposal);
-        this.proposalEditorState.set('ready');
-      },
-      error: (error: { status?: number; error?: { error?: { message?: string } | string } }) => {
-        this.proposalEditorState.set('error');
-        this.proposalEditorError.set(this.proposalErrorMessage(error));
-      },
-    });
+    this.planningWorkflow.connect(this.planningComponent);
+    this.planningWorkflow.loadPlanningProposal();
   }
 
   protected reloadPlanningProposal(): void {
-    this.loadPlanningProposal();
+    this.planningWorkflow.connect(this.planningComponent);
+    this.planningWorkflow.reloadPlanningProposal();
   }
 
   protected savePlanningProposal(proposal: EditablePlanningProposal): void {
-    if (!this.hasCapability('planning-proposal:replace')) {
-      this.notifyRoleRestriction();
-      return;
-    }
-    this.proposalEditorState.set('saving');
-    this.proposalEditorError.set(null);
-    this.proposalEditorViolations.set([]);
-    this.api.savePlanningProposal(proposal).subscribe({
-      next: (saved) => {
-        this.planningProposal.set(saved);
-        this.proposalEditorState.set('ready');
-        this.notify('success', 'Änderungen gespeichert', 'Der Planungsvorschlag ist aktualisiert.');
-      },
-      error: (error: {
-        status?: number;
-        error?: {
-          error?:
-            | {
-                code?: string;
-                message?: string;
-                violations?: PlanningValidationViolation[];
-              }
-            | string;
-        };
-      }) => {
-        this.proposalEditorState.set('error');
-        const detail = typeof error.error?.error === 'object' ? error.error.error : undefined;
-        this.proposalEditorViolations.set(detail?.violations ?? []);
-        this.proposalEditorError.set(
-          error.status === 409
-            ? 'Der Vorschlag wurde zwischenzeitlich geändert. Laden Sie die aktuelle Fassung, bevor Sie erneut speichern.'
-            : this.proposalErrorMessage(error),
-        );
-      },
-    });
-  }
-
-  private resetPlanningProposal(): void {
-    this.planningProposal.set(null);
-    this.proposalEditorState.set('idle');
-    this.proposalEditorError.set(null);
-    this.proposalEditorViolations.set([]);
-  }
-
-  private proposalErrorMessage(error: {
-    status?: number;
-    error?: { error?: { message?: string } | string };
-  }): string {
-    if (error.status === 403) {
-      return 'Sie haben keine Berechtigung, diesen Planungsvorschlag zu bearbeiten.';
-    }
-    if (error.status === 404) return 'Der Planungsvorschlag ist nicht mehr verfügbar.';
-    if (typeof error.error?.error === 'object' && error.error.error.message) {
-      return error.error.error.message;
-    }
-    if (typeof error.error?.error === 'string') return error.error.error;
-    return 'Der Planungsvorschlag konnte nicht geladen werden. Bitte versuchen Sie es erneut.';
-  }
-
-  private notify(type: 'success' | 'error', title: string, message: string): void {
-    this.feedback.set({ type, title, message });
-  }
-
-  private venueImpactMessage(impact: {
-    count: number;
-    date_from: string | null;
-    date_to: string | null;
-    calendar?: { event_count: number; fields: string[] };
-    notifications?: { recipient_count: number; fields: string[] };
-  }): string {
-    if (!impact.count) return '';
-    const lines = [
-      `${impact.count} bestätigte Einplanungen vom ${impact.date_from} bis ${impact.date_to}.`,
-      impact.calendar?.event_count
-        ? `${impact.calendar.event_count} Kalenderereignisse werden aktualisiert (${impact.calendar.fields.join(', ')}).`
-        : 'Keine Kalenderaktualisierung erwartet.',
-      impact.notifications?.recipient_count
-        ? `${impact.notifications.recipient_count} Mitglieder werden benachrichtigt (${impact.notifications.fields.join(', ')}).`
-        : 'Keine Benachrichtigung erwartet.',
-    ];
-    return lines.join('\n');
-  }
-
-  private notifyRoleRestriction(): void {
-    this.notify(
-      'error',
-      'Aktion für diese Rolle nicht verfügbar',
-      'Bitte öffnen Sie den für Ihre Demo-Rolle vorgesehenen Aufgabenpfad.',
-    );
+    this.planningWorkflow.connect(this.planningComponent);
+    this.planningWorkflow.savePlanningProposal(proposal);
   }
 
   private pathForView(view: AppView): string {
@@ -1332,9 +666,5 @@ export class App {
 
   private urlSegments(url: string): string[] {
     return url.split('?')[0].split('#')[0].split('/').filter(Boolean);
-  }
-
-  private fullMemberName(member: CommitteeMember): string {
-    return `${member.first_name} ${member.last_name}`;
   }
 }

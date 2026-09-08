@@ -21,8 +21,9 @@ import {
   PlanningProposalDay,
   PlanningProposalSlot,
 } from '../api/api.models';
-import { PlanningApiService } from '../api/planning-api.service';
+import { ConfirmedPlanApiService } from '../api/confirmed-plan-api.service';
 import { AuthService } from '../auth/auth.service';
+import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
 
 /** Lifecycle states exposed by the confirmed-plan editor. */
 export type EditorState = 'loading' | 'ready' | 'saving' | 'error';
@@ -39,8 +40,9 @@ export type EditorState = 'loading' | 'ready' | 'saving' | 'error';
   styleUrl: './confirmed-plan-editor.component.css',
 })
 export class ConfirmedPlanEditorComponent implements OnChanges {
-  private readonly api = inject(PlanningApiService);
+  private readonly api = inject(ConfirmedPlanApiService);
   private readonly auth = inject(AuthService);
+  private readonly runtimeExperience = inject(RuntimeExperienceService);
 
   @Input({ required: true }) roundId!: number;
   @Input({ required: true }) plan!: ConfirmedPlan;
@@ -278,7 +280,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
       this.demoPreparedChange.set(null);
       return;
     }
-    this.api.getDemoScenarios().subscribe({
+    this.runtimeExperience.getDemoScenarios().subscribe({
       next: (overview) => this.demoPreparedChange.set(overview.prepared_plan_change),
       error: () => {
         this.demoPreparedChange.set(null);
