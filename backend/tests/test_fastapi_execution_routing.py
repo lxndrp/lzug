@@ -71,16 +71,14 @@ class FastAPIExecutionRoutingTests(unittest.TestCase):
                 ("POST", "/api/exam-results/{result_id}/individual-assessments"),
                 (
                     "POST",
-                    "/api/exam-results/{result_id}/individual-assessments/"
-                    "{assessment_id}/withdraw",
+                    "/api/exam-results/{result_id}/individual-assessments/{assessment_id}/withdraw",
                 ),
                 ("POST", "/api/exam-results/{result_id}/disclosures"),
                 ("POST", "/api/exam-results/{result_id}/committee-assessments"),
                 ("POST", "/api/exam-results/{result_id}/external-results"),
                 (
                     "POST",
-                    "/api/exam-results/{result_id}/external-results/"
-                    "{external_result_id}/confirm",
+                    "/api/exam-results/{result_id}/external-results/{external_result_id}/confirm",
                 ),
                 ("POST", "/api/exam-results/{result_id}/determine"),
                 ("POST", "/api/exam-results/{result_id}/record-confirmations"),
@@ -138,17 +136,17 @@ class FastAPIExecutionRoutingTests(unittest.TestCase):
                 "IndividualAssessmentRequest",
             ),
         )
-        schemas = document["components"]["schemas"]
         for method, path, schema_name in commands:
             with self.subTest(method=method, path=path):
                 request_schema = document["paths"][path][method]["requestBody"]["content"][
                     "application/json"
                 ]["schema"]
-                self.assertEqual(f"#/components/schemas/{schema_name}", request_schema["$ref"])
-                self.assertIn(schema_name, schemas)
+                self.assertEqual(schema_name, request_schema["title"])
 
-        entry_schema = schemas["ExamProtocolContentRequest"]["properties"]["entries"]["items"]
-        self.assertEqual("#/components/schemas/ExamProtocolEntryRequest", entry_schema["$ref"])
+        entry_schema = document["paths"]["/api/exam-protocols/{protocol_id}"]["patch"][
+            "requestBody"
+        ]["content"]["application/json"]["schema"]["properties"]["entries"]["items"]
+        self.assertEqual("ExamProtocolEntryRequest", entry_schema["title"])
 
     def test_execution_and_assessment_routes_keep_authentication_and_csrf_guards(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:

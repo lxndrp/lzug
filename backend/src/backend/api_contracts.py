@@ -3,11 +3,11 @@
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ErrorResponse(BaseModel):
-    error: str
+    error: object
 
 
 class HealthResponse(BaseModel):
@@ -40,14 +40,31 @@ class FactorActivationRequest(BaseModel):
 
 
 class FrontendErrorRequest(BaseModel):
-    kind: str
-    status: int | None = None
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["bootstrap", "http", "runtime"]
+    status: int | None = Field(default=None, ge=0, le=599)
 
 
 class CalendarFeedActivationRequest(BaseModel):
     """Document the compatible boolean forms accepted when rotating a feed."""
 
-    rotate: bool | int | str = False
+    rotate: bool = False
+
+    @field_validator("rotate", mode="before")
+    @classmethod
+    def normalize_compatible_boolean(cls, value: object) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int):
+            return value != 0
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "on"}:
+                return True
+            if normalized in {"0", "false", "no", "off"}:
+                return False
+        raise ValueError("Expected boolean value")
 
 
 class CalendarStatusResponse(BaseModel):

@@ -7,9 +7,16 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 from . import hateoas
-from .api_contracts import PlanningProposalResponse, PlanningProposalResultResponse
+from .api_contracts import (
+    ConfirmedPlanChangeRequest,
+    PlanningProposalResponse,
+    PlanningProposalResultResponse,
+    PlanningProposalWriteRequest,
+    PlanningRoundRequest,
+)
 from .application import ApplicationResult, ForbiddenRequestError
 from .fastapi_dependencies import (
     EmptyWriteContext,
@@ -20,6 +27,7 @@ from .fastapi_dependencies import (
     ReadContext,
     WriteContext,
 )
+from .fastapi_http import request_body, validated_payload
 from .models import EXAM_ROUND
 from .observability import emit_event
 from .repositories import REST_RESOURCES
@@ -41,16 +49,8 @@ type Finish = Callable[[RequestContext, ApplicationResult | None], Response]
 type NotFound = Callable[[], Response]
 
 
-def _body_openapi(security: dict[str, object], model_name: str) -> dict[str, object]:
-    return {
-        **security,
-        "requestBody": {
-            "required": True,
-            "content": {
-                "application/json": {"schema": {"$ref": f"#/components/schemas/{model_name}"}}
-            },
-        },
-    }
+def _body_openapi(security: dict[str, object], model: type[BaseModel]) -> dict[str, object]:
+    return {**security, **request_body(model)}
 
 
 def _register_schedule_routes(router: APIRouter, finish: Finish, not_found: NotFound) -> None:
@@ -99,10 +99,10 @@ def _register_proposal_routes(
         "/api/planning-proposals",
         response_model=PlanningProposalResultResponse,
         status_code=201,
-        openapi_extra=_body_openapi(write_security, "PlanningRoundRequest"),
+        openapi_extra=_body_openapi(write_security, PlanningRoundRequest),
     )
     def generate_proposal(context: ManageBodyRoundContext):
-        round_id = int(context.read_json().get("round_id", 1))
+        round_id = validated_payload(context, PlanningRoundRequest, exclude_unset=False)["round_id"]
         return finish(
             context,
             context.respond(
@@ -129,12 +129,13 @@ def _register_proposal_routes(
     @router.put(
         "/api/exam-rounds/{id}/planning-proposal",
         response_model=PlanningProposalResponse,
-        openapi_extra=_body_openapi(write_security, "PlanningProposalWriteRequest"),
+        openapi_extra=_body_openapi(write_security, PlanningProposalWriteRequest),
     )
     def save_proposal(context: ManageRoundWriteContext, id: str):
         round_id = int(id)
+        payload = validated_payload(context, PlanningProposalWriteRequest)
         saved = context.planning_service.save_proposal(
-            planning_proposal_from_payload(round_id, context.read_json())
+            planning_proposal_from_payload(round_id, payload)
         )
         return finish(
             context,
@@ -187,7 +188,7 @@ def _register_confirmed_plan_routes(
     @router.put(
         "/api/exam-rounds/{id}/confirmed-plan",
         response_model=PlanningProposalResponse,
-        openapi_extra=_body_openapi(write_security, "ConfirmedPlanChangeRequest"),
+        openapi_extra=_body_openapi(write_security, ConfirmedPlanChangeRequest),
     )
     def save_confirmed_plan(context: ManageRoundWriteContext, id: str):
         round_id = int(id)
@@ -195,8 +196,9 @@ def _register_confirmed_plan_routes(
         actor_member_id = context.authorization_scope.member_for_committee(committee_id)
         if actor_member_id is None:
             raise ForbiddenRequestError("Forbidden.")
+        payload = validated_payload(context, ConfirmedPlanChangeRequest)
         saved, revision = context.planning_service.save_confirmed_plan(
-            confirmed_plan_change_from_payload(round_id, context.read_json()),
+            confirmed_plan_change_from_payload(round_id, payload),
             actor_member_id=actor_member_id,
         )
         try:
@@ -289,10 +291,10 @@ def _register_availability_routes(
 ) -> None:
     @router.post(
         "/api/candidate-exam-days/generate",
-        openapi_extra=_body_openapi(write_security, "PlanningRoundRequest"),
+        openapi_extra=_body_openapi(write_security, PlanningRoundRequest),
     )
     def generate_days(context: ManageBodyRoundContext):
-        round_id = int(context.read_json().get("round_id", 1))
+        round_id = validated_payload(context, PlanningRoundRequest, exclude_unset=False)["round_id"]
         return finish(
             context,
             context.respond(
@@ -513,6 +515,7 @@ def _register_resource_routes(
         _planning_create(candidate_name, finish),
         methods=["POST"],
         name="create_candidate_exam_days",
+        status_code=201,
         openapi_extra=write_security,
     )
     router.add_api_route(

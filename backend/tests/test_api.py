@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 import unittest
 from contextlib import closing
@@ -51,7 +52,7 @@ class ApiTests(unittest.TestCase):
 
                 status, _headers, body = api.request_raw("GET", "/api/health")
                 assert_status(status, HTTPStatus.OK)
-                self.assertIn(b'"status": "ok"', body)
+                self.assertEqual("ok", json.loads(body)["status"])
 
                 status, _headers, body = api.request_raw("GET", "/%2e%2e/index.html")
                 assert_status(status, HTTPStatus.NOT_FOUND)
@@ -198,7 +199,7 @@ class ApiTests(unittest.TestCase):
                 spec["paths"]["/api/openapi.json"]["get"]["security"][0],
             )
             self.assertEqual(
-                {"sessionCookie": [], "csrfHeader": []},
+                {"sessionCookie": []},
                 spec["paths"]["/api/candidates"]["post"]["security"][0],
             )
             self.assertEqual(
@@ -206,8 +207,19 @@ class ApiTests(unittest.TestCase):
                 spec["paths"]["/api/exam-rounds/{id}/planning-proposal"]["get"]["security"][0],
             )
             self.assertEqual(
-                {"sessionCookie": [], "csrfHeader": []},
+                {"sessionCookie": []},
                 spec["paths"]["/api/exam-rounds/{id}/planning-proposal"]["put"]["security"][0],
+            )
+            self.assertIn(
+                "X-CSRF-Token",
+                {
+                    parameter["name"]
+                    for parameter in spec["paths"]["/api/candidates"]["post"]["parameters"]
+                },
+            )
+            self.assertEqual(
+                "cookie",
+                spec["components"]["securitySchemes"]["sessionCookie"]["in"],
             )
             self.assertIn("401", spec["paths"]["/api/candidates"]["get"]["responses"])
             self.assertIn("403", spec["paths"]["/api/candidates"]["post"]["responses"])

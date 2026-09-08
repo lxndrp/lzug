@@ -10,20 +10,13 @@ from pydantic import BaseModel
 
 from .api_contracts import AssessmentModelBindingRequest, IndividualAssessmentRequest
 from .fastapi_dependencies import ReadContext, WriteContext
+from .fastapi_http import request_body, validated_payload
 from .models import EXAM_SLOT
 from .transport import RequestContext
 
 
 def _write_contract(write_security: dict[str, object], model: type[BaseModel]) -> dict[str, object]:
-    return {
-        **write_security,
-        "requestBody": {
-            "required": True,
-            "content": {
-                "application/json": {"schema": {"$ref": f"#/components/schemas/{model.__name__}"}}
-            },
-        },
-    }
+    return {**write_security, **request_body(model)}
 
 
 def _result_action(
@@ -82,8 +75,10 @@ def _result_write(
     finish,
     *,
     nested_id: str | None = None,
+    model: type[BaseModel] | None = None,
 ):
-    result = _result_action(context, int(result_id), action, nested_id, context.read_json())
+    payload = context.read_json() if model is None else validated_payload(context, model)
+    result = _result_action(context, int(result_id), action, nested_id, payload)
     return finish(context, context.respond(result))
 
 
@@ -95,7 +90,11 @@ def _add_assessment_model_routes(router, *, finish, not_found, read_security, wr
             context.respond(context.exam_result_service.list_models(context.authorization_scope)),
         )
 
-    @router.post("/api/assessment-model-versions", openapi_extra=write_security)
+    @router.post(
+        "/api/assessment-model-versions",
+        status_code=201,
+        openapi_extra=write_security,
+    )
     def create_assessment_model_version(context: WriteContext):
         result = context.exam_result_service.create_model(
             context.authorization_scope, context.read_json()
@@ -118,7 +117,9 @@ def _add_assessment_model_routes(router, *, finish, not_found, read_security, wr
     )
     def bind_assessment_model(context: WriteContext, round_id: str):
         result = context.exam_result_service.bind_round(
-            context.authorization_scope, int(round_id), context.read_json()
+            context.authorization_scope,
+            int(round_id),
+            validated_payload(context, AssessmentModelBindingRequest),
         )
         return finish(context, context.respond(result))
 
@@ -147,7 +148,13 @@ def _add_individual_result_routes(router, *, finish, write_security):
         openapi_extra=_write_contract(write_security, IndividualAssessmentRequest),
     )
     def save_individual_assessment(context: WriteContext, result_id: str):
-        return _result_write(context, result_id, "individual-assessments", finish)
+        return _result_write(
+            context,
+            result_id,
+            "individual-assessments",
+            finish,
+            model=IndividualAssessmentRequest,
+        )
 
     @router.post(
         "/api/exam-results/{result_id}/individual-assessments/{assessment_id}/withdraw",

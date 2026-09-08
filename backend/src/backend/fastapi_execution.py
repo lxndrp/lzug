@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from . import hateoas
 from .api_contracts import (
@@ -16,21 +16,14 @@ from .api_contracts import (
 )
 from .application import ForbiddenRequestError
 from .fastapi_dependencies import ReadContext, WriteContext
+from .fastapi_http import request_body, validated_payload
 from .models import EXAM_DAY, EXAM_DAY_ASSIGNMENT, EXAM_SLOT
 from .observability import emit_event
 from .transport import RequestContext
 
 
 def _write_contract(write_security: dict[str, object], model: type[BaseModel]) -> dict[str, object]:
-    return {
-        **write_security,
-        "requestBody": {
-            "required": True,
-            "content": {
-                "application/json": {"schema": {"$ref": f"#/components/schemas/{model.__name__}"}}
-            },
-        },
-    }
+    return {**write_security, **request_body(model)}
 
 
 def _protocol_action(context: RequestContext, protocol_id: int, action: str, payload: dict) -> dict:
@@ -57,8 +50,22 @@ def _protocol_action(context: RequestContext, protocol_id: int, action: str, pay
         raise ValueError("Unbekannte Protokollaktion") from error
 
 
-def _protocol_write(context: RequestContext, protocol_id: str, action: str, finish):
-    result = _protocol_action(context, int(protocol_id), action, context.read_json())
+def _protocol_write(
+    context: RequestContext,
+    protocol_id: str,
+    action: str,
+    finish,
+    model: type[BaseModel] | None = None,
+):
+    try:
+        payload = context.read_json() if model is None else validated_payload(context, model)
+    except ValidationError as error:
+        if action == "content" and any(
+            item["type"] == "extra_forbidden" for item in error.errors()
+        ):
+            raise ValueError("Protokolleinträge enthalten unzulässige Felder") from error
+        raise
+    result = _protocol_action(context, int(protocol_id), action, payload)
     return finish(context, context.respond(result))
 
 
@@ -87,7 +94,7 @@ def _add_slot_start_route(router, *, finish, not_found, write_security):
         context.repository.start_exam_slot(
             day_int,
             int(slot_id),
-            context.read_json(),
+            validated_payload(context, ExamSlotStartRequest),
             actor_member_id=actor_member_id,
         )
         return _confirmed_day(context, day_int, finish=finish, not_found=not_found)
@@ -119,7 +126,7 @@ def _add_protocol_write_routes(router, *, finish, write_security):
         openapi_extra=_write_contract(write_security, ExamProtocolContentRequest),
     )
     def update_exam_protocol(context: WriteContext, protocol_id: str):
-        return _protocol_write(context, protocol_id, "content", finish)
+        return _protocol_write(context, protocol_id, "content", finish, ExamProtocolContentRequest)
 
     @router.post("/api/exam-protocols/{protocol_id}/submit", openapi_extra=write_security)
     def submit_exam_protocol(context: WriteContext, protocol_id: str):
@@ -130,7 +137,9 @@ def _add_protocol_write_routes(router, *, finish, write_security):
         openapi_extra=_write_contract(write_security, ExamProtocolResponseRequest),
     )
     def respond_to_exam_protocol(context: WriteContext, protocol_id: str):
-        return _protocol_write(context, protocol_id, "responses", finish)
+        return _protocol_write(
+            context, protocol_id, "responses", finish, ExamProtocolResponseRequest
+        )
 
     @router.post(
         "/api/exam-protocols/{protocol_id}/correction-requests",
@@ -192,7 +201,7 @@ def _add_attendance_routes(router, *, finish, not_found, write_security):
             assignment = context.repository.get(EXAM_DAY_ASSIGNMENT, entity_int)
             member_id = assignment.get("committee_member_id") if assignment else None
         context.require_day_access(day_int, manage=kind == "slots", member_id=member_id)
-        payload = context.read_json()
+        payload = validated_payload(context, ExamAttendanceUpdateRequest)
         committee_id = context.repository.committee_id_for_resource(EXAM_DAY, day_int)
         actor_member_id = context.authorization_scope.member_for_committee(committee_id)
         if actor_member_id is None:
@@ -230,7 +239,7 @@ def _add_slot_status_route(router, *, finish, not_found, write_security):
     def slot_status(context: WriteContext, day_id: str, slot_id: str):
         day_int = int(day_id)
         context.require_day_access(day_int, manage=True)
-        payload = context.read_json()
+        payload = validated_payload(context, ExamSlotStatusUpdateRequest)
         committee_id = context.repository.committee_id_for_resource(EXAM_DAY, day_int)
         actor_member_id = context.authorization_scope.member_for_committee(committee_id)
         if actor_member_id is None:

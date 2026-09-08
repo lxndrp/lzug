@@ -5,6 +5,8 @@ from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 
+from fastapi import FastAPI
+
 from backend.fastapi_app import register_application_routes
 from backend.fastapi_assembly import FastAPIConfig, create_app
 
@@ -26,25 +28,12 @@ class FastAPIAssemblyTests(unittest.TestCase):
             ) -> None:
                 self.assertIs(config, resolved)
                 self.assertIs(application, current_application)
-                self.assertEqual({"security": [{"sessionCookie": []}]}, read_security)
-                self.assertEqual(
-                    {"security": [{"sessionCookie": [], "csrfHeader": []}]},
-                    write_security,
-                )
-                self.assertEqual(
-                    {
-                        "security": [{"sessionCookie": [], "csrfHeader": []}],
-                        "requestBody": {
-                            "required": True,
-                            "content": {
-                                "application/json": {
-                                    "schema": {"$ref": "#/components/schemas/Command"}
-                                }
-                            },
-                        },
-                    },
-                    venue_write_openapi("Command"),
-                )
+                self.assertEqual({}, read_security)
+                self.assertEqual({}, write_security)
+                schema = venue_write_openapi("DomainResourceWrite")["requestBody"]["content"][
+                    "application/json"
+                ]["schema"]
+                self.assertEqual("DomainResourceWrite", schema["title"])
                 calls.append(name)
 
             return register
@@ -59,15 +48,32 @@ class FastAPIAssemblyTests(unittest.TestCase):
                 "backend.fastapi_assembly.register_application_routes",
                 side_effect=registrar("application-routes"),
             ),
-            patch(
-                "backend.fastapi_assembly.register_openapi_schema",
-                side_effect=registrar("openapi"),
-            ),
         ):
             app = create_app(config)
 
         self.assertIs(config, app.state.lzug_config)
-        self.assertEqual(["transport-and-errors", "application-routes", "openapi"], calls)
+        self.assertEqual(["transport-and-errors", "application-routes"], calls)
+
+    def test_fastapi_generates_the_complete_openapi_document_without_postprocessing(self) -> None:
+        app = create_app(FastAPIConfig(db_path=Path(":memory:"), session_cookie_name="session"))
+
+        self.assertIs(app.openapi.__func__, FastAPI.openapi)
+        document = app.openapi()
+        operation = document["paths"]["/api/candidates"]["post"]
+        self.assertEqual([{"sessionCookie": []}], operation["security"])
+        self.assertIn(
+            "X-CSRF-Token",
+            {parameter["name"] for parameter in operation["parameters"]},
+        )
+        self.assertEqual(
+            {"type": "apiKey", "in": "cookie", "name": "lzug_session"},
+            document["components"]["securitySchemes"]["sessionCookie"],
+        )
+        self.assertEqual(
+            "#/components/schemas/ErrorResponse",
+            operation["responses"]["403"]["content"]["application/json"]["schema"]["$ref"],
+        )
+        self.assertNotIn("201", document["paths"]["/api/scheduling-overview"]["get"]["responses"])
 
     def test_application_route_boundary_registers_each_route_group(self) -> None:
         expected = (

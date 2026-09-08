@@ -8,16 +8,18 @@ from fastapi import APIRouter, Query
 
 from .api_contracts import (
     CalendarEventCollectionResponse,
+    CalendarFeedActivationRequest,
     CalendarFeedActivationResponse,
     CalendarFeedRevocationResponse,
     CalendarStatusResponse,
     NotificationChannelsResponse,
     NotificationCollectionResponse,
     PushConfirmationResponse,
+    PushSubscriptionRequest,
     PushSubscriptionResponse,
 )
 from .fastapi_dependencies import BodyMutationContext, Context, MutationContext, ReadContext
-from .fastapi_http import calendar_text, finish, not_found
+from .fastapi_http import calendar_text, finish, not_found, request_body, validated_payload
 
 
 def create_round_summary_router() -> APIRouter:
@@ -27,7 +29,6 @@ def create_round_summary_router() -> APIRouter:
     @router.get(
         "/api/round-summary",
         response_model=dict[str, object],
-        openapi_extra={"security": [{"sessionCookie": []}]},
     )
     def round_summary(context: ReadContext, round_id: str | None = Query(default=None)):
         try:
@@ -100,22 +101,13 @@ def create_calendar_management_router() -> APIRouter:
         "/api/calendar/feed",
         status_code=201,
         response_model=CalendarFeedActivationResponse,
-        openapi_extra={
-            "requestBody": {
-                "required": True,
-                "content": {
-                    "application/json": {
-                        "schema": {"$ref": "#/components/schemas/CalendarFeedActivationRequest"}
-                    }
-                },
-            }
-        },
+        openapi_extra=request_body(CalendarFeedActivationRequest),
     )
     def activate_feed(context: BodyMutationContext):
-        payload = context.read_json()
+        payload = validated_payload(context, CalendarFeedActivationRequest, exclude_unset=False)
         result = context.calendar_service.activate(
             context.authorization_scope,
-            rotate=bool(context.normalize_bool(payload.get("rotate", False))),
+            rotate=payload["rotate"],
         )
         result.update(
             {
@@ -234,21 +226,10 @@ def create_notification_router() -> APIRouter:
         "/api/push-subscriptions",
         status_code=201,
         response_model=PushSubscriptionResponse,
-        openapi_extra={
-            "requestBody": {
-                "required": True,
-                "content": {
-                    "application/json": {
-                        "schema": {"$ref": "#/components/schemas/PushSubscriptionRequest"}
-                    }
-                },
-            }
-        },
+        openapi_extra=request_body(PushSubscriptionRequest),
     )
     def register_push(context: BodyMutationContext):
-        endpoint = context.read_json().get("endpoint")
-        if not isinstance(endpoint, str):
-            raise ValueError("Push endpoint is required")
+        endpoint = validated_payload(context, PushSubscriptionRequest)["endpoint"]
         return finish(
             context,
             context.respond(

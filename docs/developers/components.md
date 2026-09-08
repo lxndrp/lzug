@@ -69,9 +69,12 @@ gemeinsame Response-, Attachment- und Same-Origin-Abbildung bereit.
 `backend.fastapi_planning_router` besitzt die Planungsübersichten,
 Vorschlags- und Bestätigungsaggregate, Planfolgen, Verfügbarkeitsübergänge und
 die zugehörigen Planungsressourcen.
-Die bedeutenden Vorschlags- und Änderungs-Payloads sind über
-`backend.api_contracts` als Pydantic-Modelle im OpenAPI-Vertrag beschrieben,
-ohne die bestehende Sicherheits- und Fehlerreihenfolge vorzuverlagern.
+Statisch beschreibbare Request-Payloads sind über `backend.api_contracts` als
+Pydantic-Modelle im OpenAPI-Vertrag beschrieben und werden nach den
+Sicherheitsprüfungen mit demselben Modell validiert.
+Dynamische generische Ressourcen behalten ihre fachlich aufgelösten
+Dictionary-Verträge, solange ein statisches Modell keinen gleichwertigen
+Vertragsgewinn bringt.
 `backend.server` startet den Prozess über Uvicorn; `backend.transport` bildet
 den gemeinsamen Anwendungsvertrag für HTTP- und Adminadapter ab.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am
@@ -120,7 +123,9 @@ Validierungslogik.
 
 Die [Python-Referenz](reference/backend.md) wird aus den öffentlichen
 Google-Style-Docstrings erzeugt.
-OpenAPI entsteht direkt aus der FastAPI-Assembly.
+OpenAPI entsteht ausschließlich über die unveränderte FastAPI-Erzeugung aus
+Anwendung, Dependencies, Response-Modellen und den an den Operationen
+hinterlegten Pydantic-Schemata.
 Beides ergänzt die Komponentenorientierung, ersetzt aber nicht Service- und
 Vertragstests.
 

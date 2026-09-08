@@ -5,7 +5,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from fastapi.routing import APIRoute
+from pydantic import ValidationError
 
+from backend.api_contracts import CalendarFeedActivationRequest
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_integration_routes import (
     create_absence_router,
@@ -25,6 +27,20 @@ def _operations(router) -> set[tuple[str, str]]:
 
 
 class FastAPIIntegrationRouterTests(unittest.TestCase):
+    def test_calendar_feed_rotation_keeps_compatible_boolean_forms(self) -> None:
+        for value in (True, 1, 2, "true", "yes", "on", "1"):
+            with self.subTest(value=value):
+                self.assertTrue(
+                    CalendarFeedActivationRequest.model_validate({"rotate": value}).rotate
+                )
+        for value in (False, 0, "false", "no", "off", "0"):
+            with self.subTest(value=value):
+                self.assertFalse(
+                    CalendarFeedActivationRequest.model_validate({"rotate": value}).rotate
+                )
+        with self.assertRaises(ValidationError):
+            CalendarFeedActivationRequest.model_validate({"rotate": "sometimes"})
+
     def test_integration_router_composes_owned_route_groups(self) -> None:
         calendar = _operations(create_calendar_router())
         notifications = _operations(create_notification_router())
@@ -90,7 +106,7 @@ class FastAPIIntegrationRouterTests(unittest.TestCase):
                 schema = document["paths"][path]["post"]["requestBody"]["content"][
                     "application/json"
                 ]["schema"]
-                self.assertEqual(f"#/components/schemas/{model}", schema["$ref"])
+                self.assertEqual(model, schema["title"])
 
         responses = {
             ("get", "/api/calendar", "200", "CalendarStatusResponse"),

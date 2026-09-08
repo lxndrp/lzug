@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from . import hateoas
 from .api_contracts import (
@@ -24,27 +24,20 @@ from .api_contracts import (
 )
 from .application import AuthenticationRequiredError, ForbiddenRequestError
 from .fastapi_dependencies import BodyContext, Context, SessionContext, SessionWriteContext
-from .fastapi_http import finish, json_response, not_found, same_origin
+from .fastapi_http import (
+    finish,
+    json_response,
+    not_found,
+    request_body,
+    same_origin,
+    validated_payload,
+)
 from .observability import emit_event
 from .transport import RequestContext, RequestTooLargeError
 
 if TYPE_CHECKING:
     from .application import ReadApplication
     from .fastapi_app import FastAPIConfig
-
-
-def _request_body(
-    model: type[BaseModel], security: dict[str, object] | None = None
-) -> dict[str, object]:
-    return {
-        **(security or {}),
-        "requestBody": {
-            "required": True,
-            "content": {
-                "application/json": {"schema": {"$ref": f"#/components/schemas/{model.__name__}"}}
-            },
-        },
-    }
 
 
 def create_runtime_router(application: ReadApplication) -> APIRouter:
@@ -61,16 +54,13 @@ def create_runtime_router(application: ReadApplication) -> APIRouter:
     def ready():
         return json_response(application.readiness())
 
-    @router.get(
-        "/api", response_model=ApiRootResponse, openapi_extra={"security": [{"sessionCookie": []}]}
-    )
+    @router.get("/api", response_model=ApiRootResponse)
     def api_root(context: SessionContext):
         return finish(context, context.respond(hateoas.api_root()))
 
     @router.get(
         "/api/openapi.json",
         response_model=dict[str, object],
-        openapi_extra={"security": [{"sessionCookie": []}]},
     )
     def openapi_document(request: Request, context: SessionContext):
         return finish(context, context.respond(request.app.openapi()))
@@ -157,22 +147,18 @@ def create_login_router(resolved: FastAPIConfig) -> APIRouter:
     @router.post(
         "/api/auth/login",
         response_model=dict[str, object],
-        openapi_extra=_request_body(LoginRequest),
+        openapi_extra=request_body(LoginRequest),
     )
     def login(context: BodyContext):
         if not resolved.runtime_policy.allow_product_auth():
             raise ForbiddenRequestError("Forbidden.")
         if not context.allow_public_auth_request(["auth", "login"]):
             return finish(context)
-        payload = context.read_json()
+        payload = validated_payload(context, LoginRequest, exclude_unset=False)
         result = context.local_auth_service.login(
-            payload.get("email", "") if isinstance(payload.get("email", ""), str) else "",
-            (payload.get("password", "") if isinstance(payload.get("password", ""), str) else ""),
-            (
-                payload.get("second_factor", "")
-                if isinstance(payload.get("second_factor", ""), str)
-                else ""
-            ),
+            payload["email"],
+            payload["password"],
+            payload["second_factor"],
             remote_key=context.client_key,
         )
         context.issue_session_cookies(result.credentials)
@@ -194,13 +180,13 @@ def create_token_auth_router(resolved: FastAPIConfig) -> APIRouter:
     """Build invitation and recovery token routes."""
     router = APIRouter()
 
-    def auth_route(name: str, action: str):
+    def auth_route(name: str, action: str, model: type[BaseModel]):
         def endpoint(context: BodyContext):
             if not resolved.runtime_policy.allow_product_auth():
                 raise ForbiddenRequestError("Forbidden.")
             if not context.allow_public_auth_request(["auth", name, action]):
                 return finish(context)
-            payload = context.read_json()
+            payload = validated_payload(context, model, exclude_unset=False)
             service = context.local_auth_service
             if name == "invitation" and action == "prepare":
                 item = service.prepare_invitation(payload.get("token", ""))
@@ -244,10 +230,10 @@ def create_token_auth_router(resolved: FastAPIConfig) -> APIRouter:
     ):
         router.add_api_route(
             path,
-            auth_route(name, action),
+            auth_route(name, action, model),
             methods=["POST"],
             response_model=dict[str, object],
-            openapi_extra=_request_body(model),
+            openapi_extra=request_body(model),
             name=f"auth_{name}_{action}",
         )
 
@@ -261,7 +247,6 @@ def create_session_router(resolved: FastAPIConfig) -> APIRouter:
     @router.get(
         "/api/session",
         response_model=SessionResponse,
-        openapi_extra={"security": [{"sessionCookie": []}]},
     )
     def session(context: SessionContext):
         auth = context.auth_context
@@ -282,7 +267,6 @@ def create_session_router(resolved: FastAPIConfig) -> APIRouter:
     @router.post(
         "/api/session/rotate",
         response_model=SessionRotationResponse,
-        openapi_extra={"security": [{"sessionCookie": [], "csrfHeader": []}]},
     )
     def rotate_session(context: SessionWriteContext):
         credentials = context.authentication_repository.rotate_session(
@@ -298,7 +282,6 @@ def create_session_router(resolved: FastAPIConfig) -> APIRouter:
     @router.post(
         "/api/session/logout",
         status_code=204,
-        openapi_extra={"security": [{"sessionCookie": [], "csrfHeader": []}]},
     )
     def logout_session(context: SessionWriteContext):
         session_token = context.session_token
@@ -329,7 +312,7 @@ def create_observability_router() -> APIRouter:
     @router.post(
         "/api/observability/frontend-errors",
         status_code=202,
-        openapi_extra=_request_body(FrontendErrorRequest),
+        openapi_extra=request_body(FrontendErrorRequest),
     )
     def frontend_error(request: Request, context: BodyContext):
         origin = request.headers.get("Origin")
@@ -351,16 +334,18 @@ def create_observability_router() -> APIRouter:
             )
         if len(request.state.raw_body) > 256:
             raise RequestTooLargeError("Observability event exceeds 256 bytes.")
-        payload = context.read_json()
-        if payload.get("kind") not in {"bootstrap", "http", "runtime"}:
-            raise ValueError("Invalid frontend error kind")
-        expected_fields = {"kind", "status"} if payload["kind"] == "http" else {"kind"}
-        if set(payload) != expected_fields:
+        try:
+            payload = validated_payload(context, FrontendErrorRequest, exclude_unset=False)
+        except ValidationError as error:
+            raise ValueError("Invalid frontend error fields") from error
+        if (payload["kind"] == "http") != (payload["status"] is not None):
             raise ValueError("Invalid frontend error fields")
-        status = payload.get("status", 0)
-        if not isinstance(status, int) or isinstance(status, bool) or not 0 <= status <= 599:
-            raise ValueError("Invalid frontend error status")
-        emit_event("frontend_error", severity="error", kind=payload["kind"], status=status)
+        emit_event(
+            "frontend_error",
+            severity="error",
+            kind=payload["kind"],
+            status=payload["status"] or 0,
+        )
         return finish(context, context.respond({}, HTTPStatus.ACCEPTED))
 
     return router
