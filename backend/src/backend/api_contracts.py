@@ -1,5 +1,6 @@
 """Pydantic models used at the public FastAPI contract boundary."""
 
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -119,6 +120,99 @@ class DomainResourceResponse(BaseModel):
 class DomainCollectionResponse(BaseModel):
     items: list[DomainResourceResponse]
     links: dict[str, object] = Field(alias="_links")
+
+
+class ExamSlotStartRequest(BaseModel):
+    """Optional factual timestamp supplied when an exam actually starts."""
+
+    model_config = ConfigDict(extra="allow")
+
+    actual_started_at: str | None = None
+
+
+class ExamAttendanceUpdateRequest(BaseModel):
+    """Attendance fact recorded for a candidate or committee assignment."""
+
+    model_config = ConfigDict(extra="allow")
+
+    status: Literal["open", "present", "late", "absent"]
+    arrived_at: str | None = None
+
+
+class ExamSlotStatusUpdateRequest(BaseModel):
+    """Execution status transition, including facts accepted during correction."""
+
+    model_config = ConfigDict(extra="allow")
+
+    status: Literal["open", "running", "completed", "cancelled", "needs_follow_up"]
+    reason: str | None = None
+    actual_started_at: str | None = None
+    actual_completed_at: str | None = None
+
+
+class ExamProtocolEntryRequest(BaseModel):
+    """One factual occurrence in a versioned exam protocol."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    category: Literal[
+        "late_start",
+        "interruption",
+        "termination",
+        "different_staffing",
+        "procedural_deviation",
+        "objection_or_reservation",
+        "other",
+    ]
+    statement: str
+    occurred_from: str
+    occurred_to: str | None = None
+
+
+class ExamProtocolContentRequest(BaseModel):
+    """Version-guarded replacement of the protocol's factual content."""
+
+    model_config = ConfigDict(extra="allow")
+
+    version: int
+    declaration: Literal["without_special_occurrences", "with_special_occurrences"]
+    entries: list[ExamProtocolEntryRequest] = Field(default_factory=list)
+    change_reason: str | None = None
+
+
+class ExamProtocolResponseRequest(BaseModel):
+    """Participant confirmation or reservation for one protocol version."""
+
+    model_config = ConfigDict(extra="allow")
+
+    version: int
+    response: Literal["confirmed", "reservation"]
+    entry_id: int | None = None
+    statement: str | None = None
+
+
+class AssessmentModelBindingRequest(BaseModel):
+    """Version-aware binding of one assessment model to an exam round."""
+
+    model_config = ConfigDict(extra="allow")
+
+    assessment_model_version_id: int
+    reason: str
+    version: int | None = None
+
+
+class IndividualAssessmentRequest(BaseModel):
+    """One examiner's version-guarded criterion assessment."""
+
+    model_config = ConfigDict(extra="allow")
+
+    version: int
+    component_key: str
+    criterion_key: str
+    raw_points: Decimal
+    submitted: bool = False
+    rationale: str | None = None
+    change_reason: str | None = None
 
 
 class ExamRoomResponse(BaseModel):
