@@ -123,7 +123,7 @@ jobs:
               exit 1
             }
           done
-          python3 -m demo.contract validate-deployment \
+          python3 -m demo.delivery.contract validate-deployment \
             --app-image "$APP_IMAGE" \
             --seed-image "$SEED_IMAGE" \
             --product-tag "$PRODUCT_TAG" \
@@ -144,7 +144,7 @@ jobs:
       - name: Verify provenance attestations for both selected digests
         run: |
           set -euo pipefail
-          signer_workflow=$(python3 -m demo.contract signer-workflow \
+          signer_workflow=$(python3 -m demo.delivery.contract signer-workflow \
             --app-image "$APP_IMAGE" \
             --seed-image "$SEED_IMAGE" \
             --product-tag "$PRODUCT_TAG" \

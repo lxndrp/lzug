@@ -12,12 +12,12 @@ from demo.contract import (
     DemoContractError,
     canonical_digest,
     demo_identity,
-    main,
     validate_deployment_source,
     validate_manifest,
     validate_manifest_pair,
     validate_public_demo_url,
 )
+from demo.delivery.contract import main
 
 
 class DemoContractTests(unittest.TestCase):

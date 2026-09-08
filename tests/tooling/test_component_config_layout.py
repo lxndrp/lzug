@@ -15,8 +15,8 @@ class ComponentConfigLayoutTests(unittest.TestCase):
         for path in (
             "frontend/.node-version",
             "docs/mkdocs.yml",
-            "demo/Dockerfile.demo",
-            "demo/Dockerfile.demo-seed",
+            "demo/containers/Dockerfile.demo",
+            "demo/containers/Dockerfile.demo-seed",
         ):
             with self.subTest(path=path):
                 self.assertTrue(Path(path).is_file())
@@ -54,7 +54,11 @@ class ComponentConfigLayoutTests(unittest.TestCase):
         self.assertIn('package-dir = {"" = "backend/src"}', pyproject)
         self.assertIn('where = ["backend/src"]', pyproject)
 
-        for path in ("Dockerfile", "demo/Dockerfile.demo", "demo/Dockerfile.demo-seed"):
+        for path in (
+            "Dockerfile",
+            "demo/containers/Dockerfile.demo",
+            "demo/containers/Dockerfile.demo-seed",
+        ):
             dockerfile = Path(path).read_text(encoding="utf-8")
             with self.subTest(path=path):
                 self.assertIn("uv build --wheel --out-dir /dist", dockerfile)

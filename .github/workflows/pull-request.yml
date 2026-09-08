@@ -74,7 +74,7 @@ jobs:
               - 'scripts/demo_snapshot.py'
               - 'scripts/verify-demo-image-pair.sh'
             infra:
-              - 'infra/**'
+              - 'demo/infra/**'
             container:
               - 'scripts/compose-smoke.sh'
               - 'scripts/compose_policy.py'
@@ -85,8 +85,8 @@ jobs:
               - '.dockerignore'
               - '.env.example'
               - 'Dockerfile'
-              - 'demo/Dockerfile.demo'
-              - 'demo/Dockerfile.demo-seed'
+              - 'demo/containers/Dockerfile.demo'
+              - 'demo/containers/Dockerfile.demo-seed'
               - 'compose.yaml'
               - 'demo/**'
               - 'db/**'

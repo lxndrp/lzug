@@ -1,8 +1,9 @@
 **
 
 !Dockerfile
-!demo/Dockerfile.demo
-!demo/Dockerfile.demo-seed
+!demo/containers/
+!demo/containers/Dockerfile.demo
+!demo/containers/Dockerfile.demo-seed
 !.dockerignore
 !pyproject.toml
 !uv.lock
@@ -18,7 +19,12 @@
 !scripts/**
 
 !demo/
-!demo/*.py
+!demo/contract.py
+!demo/__init__.py
+!demo/runtime/
+!demo/runtime/**
+!demo/delivery/
+!demo/delivery/**
 
 !fixtures/
 !fixtures/synthetic-fixtures.json

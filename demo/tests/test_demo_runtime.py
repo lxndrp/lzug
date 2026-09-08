@@ -44,19 +44,19 @@ from backend.tests.fixture_data import (
     seed_demo_scenarios,
 )
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
-from demo.artifacts import (
-    DemoArtifactError,
+from demo.contract import RUNTIME_CONTRACT, canonical_digest, demo_identity
+from demo.delivery.artifacts import (
     build_app_manifest,
     build_seed,
-    initialize_workdir,
 )
-from demo.contract import RUNTIME_CONTRACT, canonical_digest, demo_identity
-from demo.runtime_policy import (
+from demo.runtime.policy import (
     DEMO_MUTATION_MATRIX,
     DEMO_READ_MATRIX,
     ROLE_CAPABILITIES,
     DemoRuntimePolicy,
 )
+from demo.runtime.seed import initialize_workdir
+from demo.runtime.validation import DemoRuntimeError
 
 
 class MutableClock:
@@ -775,7 +775,7 @@ class DemoRuntimeTests(unittest.TestCase):
         manifest["seed_revision"] = canonical_digest(binding)
         self.seed_manifest.write_text(json.dumps(manifest), encoding="utf-8")
         with self.assertRaisesRegex(
-            DemoArtifactError, "fixture catalog does not match the demo matrix"
+            DemoRuntimeError, "fixture catalog does not match the demo matrix"
         ):
             DemoRuntimePolicy(self.app_manifest, self.seed_manifest)
 

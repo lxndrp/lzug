@@ -39,7 +39,7 @@ Seiteneffekt des normalen Servers.
 | Risiko | Geeigneter Einstieg |
 | --- | --- |
 | schmale Backend-Regel | betroffener `unittest` unter `backend/tests/` |
-| Demo-Vertrag oder -Runtime | betroffener `unittest` unter `tests/demo/` |
+| Demo-Vertrag oder -Runtime | betroffener `unittest` unter `demo/tests/` |
 | Delivery- oder Workflow-Vertrag | betroffener `unittest` unter `tests/delivery/` |
 | Dokumentation und Publikation | betroffener `unittest` unter `tests/docs/` |
 | Synthetische Fixtures | `task test:fixtures` oder `task fixtures:check` |
@@ -153,7 +153,7 @@ Die vollständigen Zustände einschließlich der beiden #487-Szenarien liegen
 deklarativ im Katalog.
 Ein Besucher-Arbeitsstand wird zur Laufzeit ausschließlich aus diesem Seed
 kopiert und beim Reset erneut daraus hergestellt.
-`tests.demo.test_demo_runtime` prüft beide Reihenfolgen, Rollen- und
+`demo.tests.test_demo_runtime` prüft beide Reihenfolgen, Rollen- und
 Allowlist-Grenzen, Benachrichtigungs- und Kalenderfolgen, Isolation, Ablauf und
 Reset.
 Katalogversion, Katalogrevision und Demo-Matrixversion sind an das

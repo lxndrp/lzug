@@ -18,7 +18,8 @@ ENV PYTHONPATH="/src/backend/src"
 WORKDIR /src
 COPY backend/src ./backend/src
 COPY scripts/build_metadata.py ./scripts/
-COPY demo/__init__.py demo/artifacts.py demo/contract.py demo/identity.py ./demo/
+COPY demo/__init__.py demo/contract.py ./demo/
+COPY demo/delivery ./demo/delivery
 COPY backend/db ./backend/db
 RUN set -eu; \
     test -n "$BUILD_IDENTITY"; \
@@ -28,7 +29,7 @@ RUN set -eu; \
     BUILD_REVISION="$VCS_REF" BUILD_RELEASE_TAG="$PRODUCT_TAG" python -c \
       'import os; from pathlib import Path; from backend.build_metadata import BuildMetadata; BuildMetadata.create(os.environ["BUILD_REVISION"], os.environ["BUILD_RELEASE_TAG"], allow_demo_snapshot=True).write(Path("/build-metadata.json"))'; \
     test "$(python -c 'from pathlib import Path; from backend.build_metadata import BuildMetadata; print(BuildMetadata.read(Path("/build-metadata.json")).identity)')" = "$BUILD_IDENTITY"; \
-    python -m demo.artifacts build-app-manifest --source-root /src \
+    python -m demo.delivery.artifacts build-app-manifest --source-root /src \
       --output /demo-app-manifest.json --product-tag "$PRODUCT_TAG" \
       --product-commit "$VCS_REF" --seed-revision "$SEED_REVISION"
 
@@ -84,7 +85,7 @@ WORKDIR /app
 RUN groupadd --system --gid 10001 lzug \
     && useradd --system --uid 10001 --gid 10001 --home-dir /nonexistent \
        --shell /usr/sbin/nologin lzug \
-    && mkdir -p /app/backend/src /app/backend/db/migrations /app/demo /app/frontend /data/documents /data/backups \
+    && mkdir -p /app/backend/src /app/backend/db/migrations /app/demo/runtime /app/frontend /data/documents /data/backups \
     && chown -R 10001:10001 /app /data
 
 COPY --from=python-dependencies --chown=10001:10001 /src/.venv /opt/venv
@@ -92,7 +93,8 @@ COPY --from=build-metadata --chown=10001:10001 /build-metadata.json ./backend/sr
 COPY --from=build-metadata --chown=10001:10001 /demo-app-manifest.json ./demo-app-manifest.json
 COPY --from=python-dependencies --chown=10001:10001 /src/backend/src ./backend/src
 COPY --chown=10001:10001 backend/db ./backend/db
-COPY --chown=10001:10001 demo/__init__.py demo/app.py demo/artifacts.py demo/contract.py demo/identity.py demo/runtime_policy.py demo/scenarios.py demo/workspaces.py ./demo/
+COPY --chown=10001:10001 demo/__init__.py demo/contract.py ./demo/
+COPY --chown=10001:10001 demo/runtime ./demo/runtime
 COPY --from=frontend-build --chown=10001:10001 /src/frontend/dist/frontend/browser ./frontend
 
 USER 10001:10001
@@ -101,5 +103,5 @@ STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD ["python", "-m", "backend.healthcheck"]
 
-ENTRYPOINT ["python", "-m", "demo.app"]
+ENTRYPOINT ["python", "-m", "demo.runtime.app"]
 CMD ["--host", "0.0.0.0", "--port", "8000"]

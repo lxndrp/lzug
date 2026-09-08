@@ -115,7 +115,7 @@ tasks:
   test:demo:
     desc: Run public demo component tests
     cmds:
-      - "{{.UV}} python -m unittest discover -s tests/demo"
+      - "{{.UV}} python -m unittest discover -s demo/tests"
 
   test:delivery:
     desc: Run delivery and workflow contract tests
@@ -277,7 +277,7 @@ tasks:
 
   quality:infra:
     desc: Format, validate, and mock-plan the public demo infrastructure without cloud access
-    dir: infra/demo
+    dir: demo/infra
     cmds:
       - tofu fmt -check -recursive
       - tofu init -backend=false -lockfile=readonly
@@ -289,11 +289,11 @@ tasks:
     cmds:
       - >-
         {{.UV}} python -m unittest
-        tests.demo.test_demo_contract
-        tests.demo.test_demo_deployment
-        tests.demo.test_demo_snapshot
-        tests.demo.test_demo_delivery_contract
-        tests.demo.test_demo_url_contract
+        demo.tests.test_demo_contract
+        demo.tests.test_demo_deployment
+        demo.tests.test_demo_snapshot
+        demo.tests.test_demo_delivery_contract
+        demo.tests.test_demo_url_contract
 
   quality:sbom:
     desc: Generate and validate the dependency SBOM once
@@ -399,11 +399,11 @@ tasks:
         }
         trap cleanup EXIT
         product_tag="demo/v0.2.0-SNAPSHOT.$short_revision"
-        build_identity=$(python3 -m demo.contract identity \
+        build_identity=$(python3 -m demo.delivery.contract identity \
           --tag "$product_tag" --commit "$revision" --channel snapshot --field identity)
         seed_image="lzug-demo-seed:local"
         app_image="lzug-demo-app:local"
-        docker build -f demo/Dockerfile.demo-seed \
+        docker build -f demo/containers/Dockerfile.demo-seed \
           --build-arg "PRODUCT_TAG=$product_tag" \
           --build-arg "VCS_REF=$revision" \
           -t "$seed_image" .
@@ -417,18 +417,18 @@ tasks:
         docker rm "$seed_container" >/dev/null
         seed_container=""
         expected_schema_fingerprint=$(python3 -c \
-          'from pathlib import Path; from demo.artifacts import schema_binding; print(schema_binding(Path("."))["fingerprint"])')
-        python3 -m demo.artifacts verify-seed \
+          'from pathlib import Path; from demo.delivery.artifacts import schema_binding; print(schema_binding(Path("."))["fingerprint"])')
+        python3 -m demo.delivery.artifacts verify-seed \
           --database "$temporary_directory/lzug.sqlite" \
           --manifest "$temporary_directory/manifest.json" \
           --expected-product-tag "$product_tag" \
           --expected-product-commit "$revision" \
           --expected-schema-fingerprint "$expected_schema_fingerprint"
-        seed_revision=$(python3 -m demo.contract manifest-field \
+        seed_revision=$(python3 -m demo.delivery.contract manifest-field \
           --manifest "$temporary_directory/manifest.json" --kind seed \
           --expected-product-tag "$product_tag" --expected-product-commit "$revision" \
           --field seed_revision)
-        docker build -f demo/Dockerfile.demo \
+        docker build -f demo/containers/Dockerfile.demo \
           --build-arg "BUILD_IDENTITY=$build_identity" \
           --build-arg "PRODUCT_TAG=$product_tag" \
           --build-arg "VCS_REF=$revision" \
@@ -443,7 +443,7 @@ tasks:
   quality:demo-matrix:
     desc: Verify demo roles, capabilities, mutation allowlist, and default-deny paths
     cmds:
-      - "{{.UV}} python -m unittest tests.demo.test_demo_runtime"
+      - "{{.UV}} python -m unittest demo.tests.test_demo_runtime"
 
   quality:overall:
     desc: Run all local cross-domain integration contracts in parallel

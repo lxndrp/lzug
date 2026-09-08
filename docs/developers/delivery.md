@@ -169,7 +169,7 @@ eigener kontrollierter Deploy eines früher geprüften vollständigen Paars.
 Die Demo skaliert auf null und besitzt ein deklaratives monatliches
 Resource-Group-Budget von genau 1 EUR.
 Das Budget warnt verzögert und ist keine Kosten- oder Verbrauchsgrenze.
-Der technische Kostenvertrag liegt in `infra/demo/`; reale Aussagen benötigen
+Der technische Kostenvertrag liegt in `demo/infra/`; reale Aussagen benötigen
 vollständige, nach Resource und Meter aufgeschlüsselte Cost-Management-Daten
 für den abgeschlossenen Zeitraum.
 Preisannahmen oder ein unvollständiger Abrechnungsstand gelten nicht als

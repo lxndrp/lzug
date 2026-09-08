@@ -67,13 +67,13 @@ jobs:
           }
           test "$(git rev-parse HEAD)" = "$target_sha"
 
-          snapshot_identity=$(python3 -m demo.contract identity \
+          snapshot_identity=$(python3 -m demo.delivery.contract identity \
             --tag "$SNAPSHOT_TAG" --commit "$target_sha" \
             --channel snapshot --field identity)
-          oci_tag=$(python3 -m demo.contract identity \
+          oci_tag=$(python3 -m demo.delivery.contract identity \
             --tag "$SNAPSHOT_TAG" --commit "$target_sha" \
             --channel snapshot --field oci_tag)
-          target_version=$(python3 -m demo.contract identity \
+          target_version=$(python3 -m demo.delivery.contract identity \
             --tag "$SNAPSHOT_TAG" --commit "$target_sha" \
             --channel snapshot --field target_version)
 
@@ -163,7 +163,7 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
-          file: demo/Dockerfile.demo-seed
+          file: demo/containers/Dockerfile.demo-seed
           load: true
           tags: lzug-demo-seed:snapshot-candidate
           build-args: |
@@ -188,22 +188,22 @@ jobs:
           docker cp "$container:/opt/lzug-demo/seed/lzug.sqlite" "$temporary_directory/lzug.sqlite"
           docker cp "$container:/opt/lzug-demo/seed/manifest.json" "$temporary_directory/manifest.json"
           expected_schema_fingerprint=$(python3 -c \
-            'from pathlib import Path; from demo.artifacts import schema_binding; print(schema_binding(Path("."))["fingerprint"])')
-          python3 -m demo.artifacts verify-seed \
+            'from pathlib import Path; from demo.delivery.artifacts import schema_binding; print(schema_binding(Path("."))["fingerprint"])')
+          python3 -m demo.delivery.artifacts verify-seed \
             --database "$temporary_directory/lzug.sqlite" \
             --manifest "$temporary_directory/manifest.json" \
             --expected-product-tag "$SNAPSHOT_TAG" \
             --expected-product-commit "$TARGET_SHA" \
             --expected-schema-fingerprint "$expected_schema_fingerprint"
-          seed_revision=$(python3 -m demo.contract manifest-field \
+          seed_revision=$(python3 -m demo.delivery.contract manifest-field \
             --manifest "$temporary_directory/manifest.json" --kind seed \
             --expected-product-tag "$SNAPSHOT_TAG" --expected-product-commit "$TARGET_SHA" \
             --field seed_revision)
-          runtime_contract=$(python3 -m demo.contract manifest-field \
+          runtime_contract=$(python3 -m demo.delivery.contract manifest-field \
             --manifest "$temporary_directory/manifest.json" --kind seed \
             --expected-product-tag "$SNAPSHOT_TAG" --expected-product-commit "$TARGET_SHA" \
             --field runtime_contract)
-          schema_fingerprint=$(python3 -m demo.contract manifest-field \
+          schema_fingerprint=$(python3 -m demo.delivery.contract manifest-field \
             --manifest "$temporary_directory/manifest.json" --kind seed \
             --expected-product-tag "$SNAPSHOT_TAG" --expected-product-commit "$TARGET_SHA" \
             --field schema_fingerprint)
@@ -252,7 +252,7 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
-          file: demo/Dockerfile.demo
+          file: demo/containers/Dockerfile.demo
           push: true
           tags: ${{ steps.pair.outputs.app_ref }}
           build-args: |
@@ -279,7 +279,7 @@ jobs:
 
       - name: Validate the published immutable pair
         run: >-
-          python3 -m demo.contract validate-pair
+          python3 -m demo.delivery.contract validate-pair
           --app-image "${{ steps.pair.outputs.app_image }}@${{ steps.app.outputs.digest }}"
           --seed-image "${{ steps.pair.outputs.seed_image }}@${{ steps.seed.outputs.digest }}"
           --product-tag "$SNAPSHOT_TAG"

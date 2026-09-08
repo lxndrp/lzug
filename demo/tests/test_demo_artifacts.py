@@ -13,19 +13,19 @@ from backend.application.repositories import ResourceRepository
 from backend.identity.auth import AuthenticationRepository
 from backend.identity.authorization import AuthorizationScope
 from backend.persistence.models import CANDIDATE
-from demo.artifacts import (
+from demo.contract import demo_identity
+from demo.delivery.artifacts import (
     RUNTIME_CONTRACT,
     DemoArtifactError,
     build_app_manifest,
     build_seed,
     canonical_digest,
-    initialize_workdir,
     sha256_file,
-    validate_runtime_binding,
     verify_pair_manifests,
     verify_seed,
 )
-from demo.contract import demo_identity
+from demo.runtime.seed import initialize_workdir
+from demo.runtime.validation import DemoRuntimeError, validate_runtime_binding
 
 
 class DemoArtifactTests(unittest.TestCase):
@@ -296,7 +296,7 @@ class DemoArtifactTests(unittest.TestCase):
             value["product"] = demo_identity("v0.1.2", self.product_commit).product
             app_manifest.write_text(json.dumps(value), encoding="utf-8")
 
-            with self.assertRaisesRegex(DemoArtifactError, "different product identities"):
+            with self.assertRaisesRegex(DemoRuntimeError, "different product identities"):
                 validate_runtime_binding(app_manifest, data_dir)
 
     def test_pair_manifest_evidence_binds_the_readiness_contract(self) -> None:
@@ -415,13 +415,13 @@ class DemoArtifactTests(unittest.TestCase):
             runtime_status["seed_revision"] = "0" * 64
             runtime_status_path.write_text(json.dumps(runtime_status), encoding="utf-8")
 
-            with self.assertRaisesRegex(DemoArtifactError, "different seed revision"):
+            with self.assertRaisesRegex(DemoRuntimeError, "different seed revision"):
                 validate_runtime_binding(app_manifest, data_dir)
 
             runtime_status["seed_revision"] = manifest["seed_revision"]
             runtime_status_path.write_text(json.dumps(runtime_status), encoding="utf-8")
             runtime_status_path.unlink()
-            with self.assertRaisesRegex(DemoArtifactError, "Could not read demo runtime status"):
+            with self.assertRaisesRegex(DemoRuntimeError, "Could not read demo runtime status"):
                 validate_runtime_binding(app_manifest, data_dir)
 
     @staticmethod
