@@ -9,7 +9,7 @@ from pathlib import Path
 
 import uvicorn
 
-from .database import (
+from backend.persistence.database import (
     MigrationError,
     PersistenceConfigurationError,
     database_readiness,
@@ -17,6 +17,7 @@ from .database import (
     persistence_paths,
     validate_persistence,
 )
+
 from .fastapi_assembly import FastAPIConfig, create_app
 from .observability import emit_event
 from .runtime_policy import ProductRuntimePolicy, RuntimePolicy

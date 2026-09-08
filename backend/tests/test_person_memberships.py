@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-from backend.models import COMMITTEE, EXAM_DAY_ASSIGNMENT, PERSON
+from backend.application.repositories import ResourceRepository
+from backend.persistence.models import COMMITTEE, EXAM_DAY_ASSIGNMENT, PERSON
 from backend.planning import PlanningService
-from backend.repositories import ResourceRepository
 from backend.tests.helpers import TempDatabase
 
 

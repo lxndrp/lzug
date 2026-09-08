@@ -7,14 +7,14 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError
 
-from backend.database import session_scope
-from backend.exam_venues import ExamVenueService, room_is_usable_for_committee
-from backend.map_provider import (
+from backend.integrations.map_provider import (
     MapProviderConfig,
     MapProviderConfigurationError,
     MapProviderUnavailableError,
     NominatimGeocoder,
 )
+from backend.persistence.database import session_scope
+from backend.planning.exam_venues import ExamVenueService, room_is_usable_for_committee
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
 
 
@@ -120,7 +120,7 @@ class MapProviderTests(unittest.TestCase):
             {"LZUG_MAP_PROVIDER": "osm", "LZUG_NOMINATIM_USER_AGENT": "lzug-test"}
         )
         with patch(
-            "backend.map_provider.urlopen",
+            "backend.integrations.map_provider.urlopen",
             return_value=_Response(b'[{"lat":"53.55","lon":"9.99","display_name":"hidden"}]'),
         ) as request:
             candidate = NominatimGeocoder(config).geocode("Testweg 1, 20095 Hamburg")
@@ -134,7 +134,9 @@ class MapProviderTests(unittest.TestCase):
         config = MapProviderConfig.from_environment(
             {"LZUG_MAP_PROVIDER": "osm", "LZUG_NOMINATIM_USER_AGENT": "lzug-test"}
         )
-        with patch("backend.map_provider.urlopen", side_effect=TimeoutError) as request:
+        with patch(
+            "backend.integrations.map_provider.urlopen", side_effect=TimeoutError
+        ) as request:
             with self.assertRaises(MapProviderUnavailableError):
                 NominatimGeocoder(config).geocode("secret address")
         request.assert_called_once()
@@ -235,7 +237,7 @@ class MapProviderTests(unittest.TestCase):
             )
             self.assertEqual(201, status)
             with patch(
-                "backend.map_provider.urlopen",
+                "backend.integrations.map_provider.urlopen",
                 return_value=_Response(b'[{"lat":"53.55","lon":"9.99"}]'),
             ):
                 status, candidate = api.request(
@@ -338,7 +340,7 @@ class MapProviderTests(unittest.TestCase):
             )
             self.assertEqual(201, status)
             with patch(
-                "backend.map_provider.urlopen",
+                "backend.integrations.map_provider.urlopen",
                 side_effect=HTTPError("https://nominatim.invalid", 429, "quota", {}, None),
             ) as request:
                 status, error = api.request(
@@ -377,7 +379,7 @@ class MapProviderTests(unittest.TestCase):
                 },
             )
             self.assertEqual(201, status)
-            with patch("backend.map_provider.urlopen") as request:
+            with patch("backend.integrations.map_provider.urlopen") as request:
                 status, error = api.request(
                     "POST",
                     f"/api/exam-venues/{venue['id']}/geocode",

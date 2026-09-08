@@ -169,7 +169,7 @@ def build_seed(
     product_tag: str,
     product_commit: str,
 ) -> dict[str, Any]:
-    from backend.database import database_readiness, initialize
+    from backend.persistence.database import database_readiness, initialize
     from fixtures.generate import load_source, render_profile_sql, runtime_profile
 
     fixture_data = load_source()
@@ -447,7 +447,7 @@ def load_runtime_status(data_dir: Path, seed_manifest: dict[str, Any]) -> dict[s
 
 
 def validate_runtime_binding(app_manifest_path: Path, data_dir: Path) -> tuple[dict, dict]:
-    from backend.database import database_readiness
+    from backend.persistence.database import database_readiness
 
     app_manifest, seed_manifest = load_runtime_manifests(
         app_manifest_path, data_dir / "demo-seed-manifest.json"

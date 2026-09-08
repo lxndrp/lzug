@@ -4,8 +4,9 @@ import unittest
 
 from sqlalchemy.exc import IntegrityError
 
-from backend.database import session_scope
-from backend.models import (
+from backend.application.repositories import ResourceRepository
+from backend.persistence.database import session_scope
+from backend.persistence.models import (
     CANDIDATE,
     CANDIDATE_EXAM_DAY,
     COMMITTEE,
@@ -17,7 +18,6 @@ from backend.models import (
     ROUND_CANDIDATE,
     Committee,
 )
-from backend.repositories import ResourceRepository
 from backend.tests.helpers import TempDatabase
 
 

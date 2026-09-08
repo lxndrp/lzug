@@ -6,13 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from backend.database import (
-    PersistenceConfigurationError,
-    PersistencePaths,
-    persistence_paths,
-    validate_persistence,
-)
-from backend.document_storage import (
+from backend.integrations.document_storage import (
     DocumentStorageCollisionError,
     DocumentStorageError,
     FileSystemDocumentStorage,
@@ -20,11 +14,17 @@ from backend.document_storage import (
     InvalidStorageIdError,
     validate_document_filename,
 )
-from backend.documents import (
+from backend.integrations.documents import (
     DocumentService,
     DocumentSizeLimitError,
     UnsupportedDocumentMediaTypeError,
     document_upload_policy,
+)
+from backend.persistence.database import (
+    PersistenceConfigurationError,
+    PersistencePaths,
+    persistence_paths,
+    validate_persistence,
 )
 from backend.tests.helpers import TempDatabase
 
@@ -71,7 +71,7 @@ class PersistenceConfigurationTests(unittest.TestCase):
     def test_validation_reports_insufficient_space(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             paths = persistence_paths(data_dir=directory)
-            with patch("backend.database.shutil.disk_usage") as disk_usage:
+            with patch("backend.persistence.database.shutil.disk_usage") as disk_usage:
                 disk_usage.return_value.free = 1
                 with self.assertRaisesRegex(PersistenceConfigurationError, "free space"):
                     validate_persistence(paths, minimum_free_bytes=2)
@@ -88,7 +88,7 @@ class PersistenceConfigurationTests(unittest.TestCase):
             paths = persistence_paths(data_dir=directory)
             paths.database.touch()
             with patch(
-                "backend.database._ensure_writable_file",
+                "backend.persistence.database._ensure_writable_file",
                 side_effect=PersistenceConfigurationError("database is read-only"),
             ):
                 with self.assertRaisesRegex(PersistenceConfigurationError, "read-only"):
@@ -146,10 +146,10 @@ class FilesystemDocumentStorageTests(unittest.TestCase):
             storage = FileSystemDocumentStorage(Path(directory))
             storage.put("f" * 32, b"content")
             with patch(
-                "backend.document_storage.os.fdopen",
+                "backend.integrations.document_storage.os.fdopen",
                 side_effect=OSError("fdopen failed"),
             ):
-                with patch("backend.document_storage.os.close") as close:
+                with patch("backend.integrations.document_storage.os.close") as close:
                     with self.assertRaisesRegex(DocumentStorageError, "opened"):
                         storage.read("f" * 32)
 
@@ -188,9 +188,15 @@ class DocumentServiceTests(unittest.TestCase):
         with TempDatabase() as db_path, tempfile.TemporaryDirectory() as directory:
             storage = FileSystemDocumentStorage(Path(directory))
             service = DocumentService(storage, db_path)
-            with patch("backend.documents.Store.create", side_effect=RuntimeError("db failed")):
+            with patch(
+                "backend.integrations.documents.Store.create",
+                side_effect=RuntimeError("db failed"),
+            ):
                 with self.assertRaisesRegex(RuntimeError, "db failed"):
-                    with patch("backend.documents.new_storage_id", return_value="d" * 32):
+                    with patch(
+                        "backend.integrations.documents.new_storage_id",
+                        return_value="d" * 32,
+                    ):
                         service.create(
                             b"content",
                             original_filename="document.txt",
@@ -217,7 +223,10 @@ class DocumentServiceTests(unittest.TestCase):
             metadata = service.create(
                 b"content", original_filename="document.txt", media_type="text/plain"
             )
-            with patch("backend.documents.Store.delete", side_effect=RuntimeError("db failed")):
+            with patch(
+                "backend.integrations.documents.Store.delete",
+                side_effect=RuntimeError("db failed"),
+            ):
                 with self.assertRaisesRegex(RuntimeError, "db failed"):
                     service.delete(metadata["id"])
             self.assertEqual(b"content", storage.read(metadata["storage_id"]))

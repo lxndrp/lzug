@@ -25,7 +25,7 @@ Eine Async-Neuentwicklung ist eine spätere, getrennt zu entscheidende Optimieru
 
 `python -m backend.server` ist der produktive Startpfad; der Demo-Startpfad verwendet dieselbe Factory.
 Die OpenAPI-Spezifikation wird ausschließlich aus den FastAPI-Routen erzeugt.
-`backend.transport` hält die synchronen Transport-Hilfen frameworkarm, während `backend.application`, Services und Repositories keine HTTP-Abhängigkeit erhalten.
+`backend.application.transport` hält die synchronen Transport-Hilfen frameworkarm, während `backend.application`, Services und Repositories keine HTTP-Abhängigkeit erhalten.
 
 ## Konsequenzen
 

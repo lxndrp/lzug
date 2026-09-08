@@ -5,11 +5,17 @@ import unittest
 from icalendar import Calendar
 from sqlalchemy import select, text
 
-from backend.auth import AuthenticationRepository
-from backend.authorization import AuthorizationService
-from backend.calendar import CalendarService
-from backend.database import connect, session_scope
-from backend.models import CalendarEvent, CommitteeMember, ExamDay, ExamDayAssignment, ExamSlot
+from backend.identity.auth import AuthenticationRepository
+from backend.identity.authorization import AuthorizationService
+from backend.integrations.calendar import CalendarService
+from backend.persistence.database import connect, session_scope
+from backend.persistence.models import (
+    CalendarEvent,
+    CommitteeMember,
+    ExamDay,
+    ExamDayAssignment,
+    ExamSlot,
+)
 from backend.planning import PlanningService
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 

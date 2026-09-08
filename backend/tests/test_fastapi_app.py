@@ -55,10 +55,10 @@ from backend.api_contracts import (
     TokenRequest,
 )
 from backend.application import ApplicationServices
-from backend.auth import AuthenticationRepository, SessionCredentials
 from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_planning_router import MIGRATED_PLANNING_RESOURCES
+from backend.identity.auth import AuthenticationRepository, SessionCredentials
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
 
 

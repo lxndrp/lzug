@@ -15,15 +15,15 @@ from unittest.mock import patch
 import pyotp
 from cryptography.fernet import Fernet
 
-from backend.artifact_packages import ClearArtifactService
 from backend.artifact_stream import run as run_stream
-from backend.auth import AuthenticationRepository
-from backend.backup_restore import FULL_EXPORT_SCHEMA, ArtifactError
-from backend.database import PersistencePaths, initialize
-from backend.document_storage import FilesystemDocumentStorage
-from backend.documents import DocumentService
-from backend.exam_venues import ExamVenueService
-from backend.local_auth import PASSWORD_HASHER, LocalAuthService, authentication_key
+from backend.identity.auth import AuthenticationRepository
+from backend.identity.local_auth import PASSWORD_HASHER, LocalAuthService, authentication_key
+from backend.integrations.document_storage import FilesystemDocumentStorage
+from backend.integrations.documents import DocumentService
+from backend.operations.artifact_packages import ClearArtifactService
+from backend.operations.backup_restore import FULL_EXPORT_SCHEMA, ArtifactError
+from backend.persistence.database import PersistencePaths, initialize
+from backend.planning.exam_venues import ExamVenueService
 from backend.tests.fixture_data import DEMO_ROLES
 from backend.tests.helpers import development_seed_sql
 
@@ -355,7 +355,7 @@ class BackupRestoreTests(unittest.TestCase):
         paths, service, _token = self.prepare_source()
         usage = __import__("shutil").disk_usage(paths.backups)
         with patch(
-            "backend.backup_restore.shutil.disk_usage",
+            "backend.operations.backup_restore.shutil.disk_usage",
             return_value=usage._replace(free=0),
         ):
             with self.assertRaises(ArtifactError) as raised:

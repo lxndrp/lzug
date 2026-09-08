@@ -9,10 +9,10 @@ from unittest.mock import patch
 
 from sqlalchemy import text
 
-from backend.contract import ContractValidationError, validate_response
-from backend.database import connect
+from backend.application.contract import ContractValidationError, validate_response
+from backend.application.repositories import REST_RESOURCES
 from backend.fastapi_assembly import FastAPIConfig, create_app
-from backend.repositories import REST_RESOURCES
+from backend.persistence.database import connect
 from backend.tests.helpers import ApiServer, TempDatabase
 
 
@@ -269,7 +269,7 @@ class OpenApiContractTests(unittest.TestCase):
             change["reason"] = "Folgenfehler unabhängig behandeln"
 
             with patch(
-                "backend.plan_consequences.PlanConsequenceService.process_revision",
+                "backend.planning.plan_consequences.PlanConsequenceService.process_revision",
                 side_effect=RuntimeError("simulated consequence failure"),
             ):
                 status, saved = self.request(api, "PUT", path, change)

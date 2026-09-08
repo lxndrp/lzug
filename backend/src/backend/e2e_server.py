@@ -10,8 +10,9 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from .auth import AuthenticationRepository
-from .database import initialize
+from backend.identity.auth import AuthenticationRepository
+from backend.persistence.database import initialize
+
 from .fastapi_assembly import FastAPIConfig, create_app
 from .runtime_policy import ProductRuntimePolicy
 from .server import parse_args

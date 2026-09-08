@@ -8,9 +8,9 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 
-from backend.auth import AuthenticationRepository
-from backend.models import COMMITTEE
-from backend.repositories import ResourceRepository
+from backend.application.repositories import ResourceRepository
+from backend.identity.auth import AuthenticationRepository
+from backend.persistence.models import COMMITTEE
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
 

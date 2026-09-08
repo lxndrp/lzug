@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, FastAPI, Request
 
-from . import hateoas
+from backend.application import hateoas
+from backend.application.exam_venue_api import ExamVenueApi
+from backend.application.repositories import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES
+from backend.application.transport import RequestContext
+from backend.persistence.models import CANDIDATE_COMMITTEE_ASSIGNMENT, COMMITTEE
+
 from .api_contracts import (
     DomainCollectionResponse,
     DomainResourceResponse,
@@ -30,7 +35,6 @@ from .api_contracts import (
     LegacyLocationResponse,
     RevisionDeleteRequest,
 )
-from .exam_venue_api import ExamVenueApi
 from .fastapi_dependencies import (
     EmptyWriteContext,
     ReadContext,
@@ -44,9 +48,6 @@ from .fastapi_dependencies import (
 from .fastapi_http import finish as _finish
 from .fastapi_http import not_found as _not_found
 from .fastapi_http import validated_payload
-from .models import CANDIDATE_COMMITTEE_ASSIGNMENT, COMMITTEE
-from .repositories import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES
-from .transport import RequestContext
 
 if TYPE_CHECKING:
     from .fastapi_app import FastAPIConfig

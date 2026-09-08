@@ -8,11 +8,11 @@ import unittest
 from contextlib import closing
 from pathlib import Path
 
-from backend.auth import AuthenticationRepository
-from backend.authorization import AuthorizationScope
-from backend.exam_venue_api import ExamVenueApi
-from backend.models import CANDIDATE
-from backend.repositories import ResourceRepository
+from backend.application.exam_venue_api import ExamVenueApi
+from backend.application.repositories import ResourceRepository
+from backend.identity.auth import AuthenticationRepository
+from backend.identity.authorization import AuthorizationScope
+from backend.persistence.models import CANDIDATE
 from demo.artifacts import (
     RUNTIME_CONTRACT,
     DemoArtifactError,

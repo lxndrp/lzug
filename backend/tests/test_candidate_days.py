@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-from backend.candidate_days import CandidateDayService
-from backend.models import CANDIDATE_EXAM_DAY
-from backend.repositories import ResourceRepository
+from backend.application.repositories import ResourceRepository
+from backend.persistence.models import CANDIDATE_EXAM_DAY
+from backend.planning.candidate_days import CandidateDayService
 from backend.tests.helpers import TempDatabase
 
 
