@@ -78,6 +78,17 @@ Vertragsgewinn bringt.
 `backend.server` startet den Prozess über Uvicorn;
 `backend.application.transport` bildet den gemeinsamen Anwendungsvertrag für
 HTTP- und Adminadapter ab.
+`backend.application.planning_payloads` konvertiert Planungsbefehle ohne
+Persistenzzugriff; `resource_authorization` prüft Ressourcenaktionen und bindet
+serverseitige Akteurfelder.
+`resource_ownership` löst Ausschuss- und Rundenbesitz im übergebenen Store auf,
+ohne eine weitere Session zu öffnen.
+`resource_visibility` begrenzt Listen und Einzelabfragen bereits in SQL;
+historische Rundenzuordnungen und aktive Kandidatenzuständigkeit behalten ihre
+unterschiedlichen Sichtbarkeitsregeln.
+Zusammengehörige Autorisierungs- und Sichtbarkeitsabfragen verwenden über
+`read_session_scope` einen expliziten SQLite-Lese-Snapshot.
+Die Ausführung eines Fachbefehls bleibt eine eigene Servicetransaktion.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am
 HTTP-Rand, während der synchrone Anwendungskern frameworkunabhängig bleibt.
 `backend.fastapi_dependencies` stellt dafür gemeinsame FastAPI-Dependencies

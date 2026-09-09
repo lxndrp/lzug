@@ -72,6 +72,17 @@ def _validate(
         _validate(_resolve_ref(specification, schema["$ref"]), value, specification, location)
         return
 
+    _validate_type(schema, value, location)
+    if "enum" in schema and value not in schema["enum"]:
+        raise ContractValidationError(f"{location}: value {value!r} is not an allowed enum member")
+    if isinstance(value, dict):
+        _validate_object(schema, value, specification, location)
+    if isinstance(value, list) and "items" in schema:
+        for index, item in enumerate(value):
+            _validate(schema["items"], item, specification, f"{location}[{index}]")
+
+
+def _validate_type(schema: Mapping[str, Any], value: Any, location: str) -> None:
     allowed_types = schema.get("type")
     if allowed_types is not None:
         types = allowed_types if isinstance(allowed_types, list) else [allowed_types]
@@ -81,24 +92,23 @@ def _validate(
                 f"{location}: expected {expected}, got {_value_type(value)}"
             )
 
-    if "enum" in schema and value not in schema["enum"]:
-        raise ContractValidationError(f"{location}: value {value!r} is not an allowed enum member")
 
-    if isinstance(value, dict):
-        properties = schema.get("properties", {})
-        for field in schema.get("required", []):
-            if field not in value:
-                raise ContractValidationError(f"{location}: missing required field {field!r}")
-        for field, field_value in value.items():
-            field_schema = properties.get(field)
-            if field_schema is None and isinstance(schema.get("additionalProperties"), dict):
-                field_schema = schema["additionalProperties"]
-            if field_schema is not None:
-                _validate(field_schema, field_value, specification, f"{location}.{field}")
-
-    if isinstance(value, list) and "items" in schema:
-        for index, item in enumerate(value):
-            _validate(schema["items"], item, specification, f"{location}[{index}]")
+def _validate_object(
+    schema: Mapping[str, Any],
+    value: dict[str, Any],
+    specification: Mapping[str, Any],
+    location: str,
+) -> None:
+    properties = schema.get("properties", {})
+    for field in schema.get("required", []):
+        if field not in value:
+            raise ContractValidationError(f"{location}: missing required field {field!r}")
+    for field, field_value in value.items():
+        field_schema = properties.get(field)
+        if field_schema is None and isinstance(schema.get("additionalProperties"), dict):
+            field_schema = schema["additionalProperties"]
+        if field_schema is not None:
+            _validate(field_schema, field_value, specification, f"{location}.{field}")
 
 
 def _resolve_ref(specification: Mapping[str, Any], reference: str) -> Mapping[str, Any]:
