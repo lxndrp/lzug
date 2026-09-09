@@ -141,12 +141,16 @@ class FastAPIExecutionRoutingTests(unittest.TestCase):
                 request_schema = document["paths"][path][method]["requestBody"]["content"][
                     "application/json"
                 ]["schema"]
-                self.assertEqual(schema_name, request_schema["title"])
+                self.assertEqual(f"#/components/schemas/{schema_name}", request_schema["$ref"])
 
-        entry_schema = document["paths"]["/api/exam-protocols/{protocol_id}"]["patch"][
+        protocol_schema = document["paths"]["/api/exam-protocols/{protocol_id}"]["patch"][
             "requestBody"
-        ]["content"]["application/json"]["schema"]["properties"]["entries"]["items"]
-        self.assertEqual("ExamProtocolEntryRequest", entry_schema["title"])
+        ]["content"]["application/json"]["schema"]
+        self.assertEqual("#/components/schemas/ExamProtocolContentRequest", protocol_schema["$ref"])
+        entry_schema = document["components"]["schemas"]["ExamProtocolContentRequest"][
+            "properties"
+        ]["entries"]["items"]
+        self.assertEqual("#/components/schemas/ExamProtocolEntryRequest", entry_schema["$ref"])
 
     def test_execution_and_assessment_routes_keep_authentication_and_csrf_guards(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:

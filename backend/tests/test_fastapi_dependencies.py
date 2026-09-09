@@ -119,8 +119,18 @@ class FastAPIDependencyTests(unittest.TestCase):
                     "Authentication required.",
                 )
 
-    def test_csrf_precedes_membership_and_json_errors(self) -> None:
+    def test_native_json_decode_and_access_checks_have_an_explicit_order(self) -> None:
         path = "/api/persons"
+        self.assert_error(
+            self.client.post(path, content=b"{", headers={"Content-Type": "application/json"}),
+            400,
+            "Invalid JSON body",
+        )
+        self.assert_error(
+            self.client.post(path, content=b"[]", headers={"Content-Type": "application/json"}),
+            401,
+            "Authentication required.",
+        )
         self.assert_error(self.client.post(path, content=b"{"), 401, "Authentication required.")
         for credentials in (self.chair, self.operator):
             self.assert_error(

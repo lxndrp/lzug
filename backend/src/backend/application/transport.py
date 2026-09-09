@@ -169,6 +169,13 @@ class RequestContext:
         self._body = body
 
     def read_json(self) -> dict[str, Any]:
+        """Decode the bounded object for the remaining compatibility checks.
+
+        FastAPI owns request-model validation and OpenAPI generation. This
+        compatibility read remains for the stable JSON media/object envelope
+        and because runtime allowlists and lifecycle guards must inspect the
+        object before endpoint field validation.
+        """
         if len(self._body) > self.max_request_bytes:
             raise RequestTooLargeError(f"Request body exceeds {self.max_request_bytes} bytes.")
         if not self._body:

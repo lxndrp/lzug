@@ -69,12 +69,14 @@ gemeinsame Response-, Attachment- und Same-Origin-Abbildung bereit.
 `backend.fastapi_planning_router` besitzt die Planungsübersichten,
 Vorschlags- und Bestätigungsaggregate, Planfolgen, Verfügbarkeitsübergänge und
 die zugehörigen Planungsressourcen.
-Statisch beschreibbare Request-Payloads sind über `backend.api_contracts` als
-Pydantic-Modelle im OpenAPI-Vertrag beschrieben und werden nach den
-Sicherheitsprüfungen mit demselben Modell validiert.
-Dynamische generische Ressourcen behalten ihre fachlich aufgelösten
-Dictionary-Verträge, solange ein statisches Modell keinen gleichwertigen
-Vertragsgewinn bringt.
+Request-Payloads sind über `backend.api_contracts` als native FastAPI-Parameter
+mit Pydantic-Modellen deklariert.
+FastAPI verwendet damit dasselbe Modell für Laufzeitvalidierung und
+OpenAPI-Komponenten; eine manuell expandierte zweite Schemafassung existiert
+nicht.
+Fachlich variable generische Ressourcen teilen sich den offenen
+`DomainResourceWrite`-Vertrag, während eigenständige Befehle engere Modelle
+verwenden.
 `backend.server` startet den Prozess über Uvicorn;
 `backend.application.transport` bildet den gemeinsamen Anwendungsvertrag für
 HTTP- und Adminadapter ab.
@@ -101,7 +103,8 @@ Ein Request teilt einen Kontext einschließlich der von der Runtime-Policy
 gewählten Datenbank.
 Die Transport-Middleware prüft nach Origin und OPTIONS die Body-Header vor
 der Routerauswahl, ohne den Body einzulesen.
-Nur Handler mit einer Body-Dependency puffern die ASGI-Daten inkrementell;
+Nur Routen mit einem von FastAPI erkannten Request-Body puffern die ASGI-Daten
+über `BoundedBodyRoute` inkrementell;
 jeder Chunk wird vor dem Anhängen gegen die verbleibende Grenze geprüft.
 Bei Überschreitung folgen ein geheimnisfreier 413-Fehler und keine weiteren
 Receive-Aufrufe; ein Übertragungsabbruch verwirft den unvollständigen Body
@@ -111,8 +114,27 @@ und unabhängig vom Datenbank-Lifecycle.
 Headerfehler bleiben vor Routing und Authentisierung;
 die tatsächliche Größenprüfung folgt der Auswahl einer bodylesenden Route
 und steht vor deren Authentisierung und Payloadverarbeitung.
-JSON- und Medienprüfung bleiben bei `RequestContext.read_json` nach den
-Zugriffsprüfungen; dort wird die Größe zusätzlich defensiv geprüft.
+Für `application/json` dekodiert FastAPI syntaktisches JSON unmittelbar nach
+der Größenprüfung.
+Ein Syntaxfehler ergibt deshalb vor den Route-Dependencies den festen,
+geheimnisfreien Fehler `Invalid JSON body`.
+Bei syntaktisch gültigen Daten laufen Authentisierung, CSRF, Actor sowie die
+aus Route oder Rohvertrag bestimmbaren Scope-Prüfungen einschließlich Runtime-
+und Lifecycle-Policy vor der Feldvalidierung des Request-Modells.
+Muss der fachliche Scope erst aus einem typisierten Befehlsmodell abgeleitet
+werden, folgt diese Prüfung der geheimnisfreien Modellvalidierung.
+`RequestContext.read_json` bleibt als zentrale Kompatibilitätsgrenze für den
+bisherigen JSON-Medientyp und den Object-Envelope sowie für Policies bestehen,
+die den Rohvertrag vor der Pydantic-Feldvalidierung prüfen müssen.
+Diese Wiederholung erzeugt kein zweites Request-Schema.
+Normale Pfad- und Queryparameter sind typisiert an Route oder Dependency
+deklariert.
+Prüfungsort-IDs liegen ausschließlich in ihrer Access-Dependency, weil deren
+bestehender Vertrag genau einen 422-Fehler vor der Authentisierung verlangt;
+der Handler erhält den dort validierten Wert über `venue_identifier`.
+Die ID im persönlichen Kalenderpfad bleibt absichtlich ein undurchsichtiger
+String und bildet nicht numerische sowie unbekannte Werte einheitlich auf 404
+ab.
 GET, HEAD, unbekannte Routen und bodylose Aktionen lesen keinen Body.
 Der lokale Unix-Socket-Adapter besitzt eine getrennte
 Betreiberautorisierungsgrenze, verwendet aber dieselben Services,

@@ -11,7 +11,8 @@ from http import HTTPStatus
 from pathlib import Path
 from urllib.parse import unquote
 
-from fastapi import FastAPI, Request
+from fastapi import Body, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -113,6 +114,7 @@ from .fastapi_execution import create_execution_router
 from .fastapi_http import finish as _finish
 from .fastapi_http import json_response as _json_response
 from .fastapi_http import not_found as _not_found
+from .fastapi_http import payload_data
 from .fastapi_http import plain_text as _plain_text
 from .fastapi_http import same_origin as _same_origin
 from .fastapi_master_data import MIGRATED_DOMAIN_RESOURCES as MIGRATED_DOMAIN_RESOURCES
@@ -182,6 +184,8 @@ __all__ = [
     "ExamSlotStatusUpdateRequest",
     "TokenRequest",
 ]
+
+_OPTIONAL_OBJECT_BODY = Body(default_factory=DomainResourceWrite)
 
 
 @dataclass(frozen=True)
@@ -412,17 +416,13 @@ def _static_response(config: FastAPIConfig, request: Request) -> Response:
     )
 
 
-def _register_transport_guard(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _register_transport_guard(app, resolved, application, read_security, write_security):
     @app.middleware("http")
     async def transport_guard(request: Request, call_next):
         return await _transport_guard(request, call_next, resolved)
 
 
-def _register_authentication_errors(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _register_authentication_errors(app, resolved, application, read_security, write_security):
     @app.exception_handler(AuthenticationRequiredError)
     def auth_required(_request: Request, _error: AuthenticationRequiredError):
         return _json_response(
@@ -464,9 +464,7 @@ def _register_authentication_errors(
         return response
 
 
-def _register_planning_errors(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _register_planning_errors(app, resolved, application, read_security, write_security):
     @app.exception_handler(PlanValidationError)
     def plan_validation(_request: Request, error: PlanValidationError):
         payload = {
@@ -506,9 +504,7 @@ def _register_planning_errors(
         )
 
 
-def _register_execution_errors(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _register_execution_errors(app, resolved, application, read_security, write_security):
     @app.exception_handler(ExamRoundConflictError)
     def exam_round_conflict(_request: Request, error: ExamRoundConflictError):
         return _json_response(
@@ -576,9 +572,35 @@ def _register_execution_errors(
         )
 
 
-def _register_request_errors(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _request_validation_result(
+    request: Request, error: RequestValidationError
+) -> ApplicationResult:
+    errors = error.errors()
+    route = request.scope.get("route")
+    route_path = getattr(route, "path", "")
+    path_errors = [item for item in errors if tuple(item.get("loc", ()))[0:1] == ("path",)]
+    venue_path_contract = route_path.startswith(
+        ("/api/exam-venue", "/api/exam-room", "/api/locations/")
+    )
+    if path_errors and (len(path_errors) == len(errors) or venue_path_contract):
+        detail = [
+            {key: item[key] for key in ("type", "loc", "msg", "input") if key in item}
+            for item in path_errors
+        ]
+        return ApplicationResult({"detail": detail}, HTTPStatus.UNPROCESSABLE_ENTITY)
+    message = "Invalid request"
+    if any(item.get("type") == "json_invalid" for item in errors):
+        message = "Invalid JSON body"
+    elif route_path == "/api/observability/frontend-errors":
+        message = "Invalid frontend error fields"
+    elif route_path == "/api/exam-protocols/{protocol_id}" and any(
+        item.get("type") == "extra_forbidden" for item in errors
+    ):
+        message = "Protokolleinträge enthalten unzulässige Felder"
+    return ApplicationResult({"error": message}, HTTPStatus.BAD_REQUEST)
+
+
+def _register_request_errors(app, resolved, application, read_security, write_security):
     @app.exception_handler(ExamVenueConflictError)
     def exam_venue_conflict(_request: Request, error: ExamVenueConflictError):
         return _json_response(
@@ -641,77 +663,79 @@ def _register_request_errors(
             ApplicationResult({"error": str(error) or "Invalid request"}, HTTPStatus.BAD_REQUEST)
         )
 
-
-def _register_transport_and_errors(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    _register_transport_guard(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_authentication_errors(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_planning_errors(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_execution_errors(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_request_errors(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
+    @app.exception_handler(RequestValidationError)
+    def request_validation(request: Request, error: RequestValidationError):
+        return _json_response(_request_validation_result(request, error))
 
 
-def _register_operations_router(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _register_transport_and_errors(app, resolved, application, read_security, write_security):
+    _register_transport_guard(app, resolved, application, read_security, write_security)
+    _register_authentication_errors(app, resolved, application, read_security, write_security)
+    _register_planning_errors(app, resolved, application, read_security, write_security)
+    _register_execution_errors(app, resolved, application, read_security, write_security)
+    _register_request_errors(app, resolved, application, read_security, write_security)
+
+
+def _register_operations_router(app, resolved, application, read_security, write_security):
     from .fastapi_operations_routes import create_operations_router
 
     router = create_operations_router(resolved, application, read_security, write_security)
     app.router.routes.extend(router.routes)
 
 
-def _register_integration_router(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _register_integration_router(app, resolved, application, read_security, write_security):
     from .fastapi_integration_routes import create_integration_router
 
     app.router.routes.extend(create_integration_router().routes)
 
 
-def _register_exam_round_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _register_exam_round_routes(app, resolved, application, read_security, write_security):
     @app.get("/api/exam-rounds/{id}/lifecycle", openapi_extra=read_security)
-    def exam_round_lifecycle(context: ReadContext, id: str):
-        result = context.exam_round_lifecycle_service.get(context.authorization_scope, int(id))
+    def exam_round_lifecycle(context: ReadContext, id: int):
+        result = context.exam_round_lifecycle_service.get(context.authorization_scope, id)
         return _not_found() if result is None else _finish(context, context.respond(result))
 
     @app.post("/api/exam-rounds/{id}/closure", openapi_extra=write_security)
-    def close_exam_round(context: WriteContext, id: str):
+    def close_exam_round(
+        context: WriteContext,
+        id: int,
+        payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
+    ):
         result = context.exam_round_lifecycle_service.close(
-            context.authorization_scope, int(id), context.read_json()
+            context.authorization_scope, id, payload_data(context, payload)
         )
         return _finish(context, context.respond(result))
 
     @app.post("/api/exam-rounds/{id}/cancellation", openapi_extra=write_security)
-    def cancel_exam_round(context: WriteContext, id: str):
+    def cancel_exam_round(
+        context: WriteContext,
+        id: int,
+        payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
+    ):
         result = context.exam_round_lifecycle_service.cancel(
-            context.authorization_scope, int(id), context.read_json()
+            context.authorization_scope, id, payload_data(context, payload)
         )
         return _finish(context, context.respond(result))
 
     @app.post("/api/exam-rounds/{id}/reopening-impact", openapi_extra=write_security)
-    def exam_round_reopening_impact(context: WriteContext, id: str):
+    def exam_round_reopening_impact(
+        context: WriteContext,
+        id: int,
+        payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
+    ):
         result = context.exam_round_lifecycle_service.reopening_impact(
-            context.authorization_scope, int(id), context.read_json()
+            context.authorization_scope, id, payload_data(context, payload)
         )
         return _finish(context, context.respond(result))
 
     @app.post("/api/exam-rounds/{id}/reopenings", openapi_extra=write_security)
-    def reopen_exam_round(context: WriteContext, id: str):
+    def reopen_exam_round(
+        context: WriteContext,
+        id: int,
+        payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
+    ):
         result = context.exam_round_lifecycle_service.reopen(
-            context.authorization_scope, int(id), context.read_json()
+            context.authorization_scope, id, payload_data(context, payload)
         )
         return _finish(context, context.respond(result))
 
@@ -719,12 +743,17 @@ def _register_exam_round_routes(
         "/api/exam-rounds/{id}/candidates/{candidate_id}/terminal-status",
         openapi_extra=write_security,
     )
-    def set_exam_round_candidate_terminal_status(context: WriteContext, id: str, candidate_id: str):
+    def set_exam_round_candidate_terminal_status(
+        context: WriteContext,
+        id: int,
+        candidate_id: int,
+        payload: DomainResourceWrite,
+    ):
         result = context.exam_round_lifecycle_service.set_candidate_terminal_status(
             context.authorization_scope,
-            int(id),
-            int(candidate_id),
-            context.read_json(),
+            id,
+            candidate_id,
+            payload_data(context, payload),
         )
         return _finish(context, context.respond(result))
 
@@ -732,12 +761,17 @@ def _register_exam_round_routes(
         "/api/exam-rounds/{id}/results/{result_id}/ihk-status",
         openapi_extra=write_security,
     )
-    def document_exam_round_ihk_status(context: WriteContext, id: str, result_id: str):
+    def document_exam_round_ihk_status(
+        context: WriteContext,
+        id: int,
+        result_id: int,
+        payload: DomainResourceWrite,
+    ):
         result = context.exam_round_lifecycle_service.document_ihk_status(
             context.authorization_scope,
-            int(id),
-            int(result_id),
-            context.read_json(),
+            id,
+            result_id,
+            payload_data(context, payload),
         )
         return _finish(context, context.respond(result))
 
@@ -745,9 +779,9 @@ def _register_exam_round_routes(
         "/api/exam-rounds/{id}/lifecycle/export.json",
         openapi_extra=read_security,
     )
-    def export_exam_round_json(context: ReadContext, id: str):
+    def export_exam_round_json(context: ReadContext, id: int):
         result = context.exam_round_lifecycle_service.machine_export(
-            context.authorization_scope, int(id)
+            context.authorization_scope, id
         )
         return _finish(context, context.respond(result))
 
@@ -756,31 +790,31 @@ def _register_exam_round_routes(
         response_class=Response,
         openapi_extra=read_security,
     )
-    def export_exam_round_text(context: ReadContext, id: str):
-        result = context.exam_round_lifecycle_service.human_export(
-            context.authorization_scope, int(id)
-        )
-        return _plain_text(context, result, f"pruefungsrunde-{int(id)}-nachweis.txt")
+    def export_exam_round_text(context: ReadContext, id: int):
+        result = context.exam_round_lifecycle_service.human_export(context.authorization_scope, id)
+        return _plain_text(context, result, f"pruefungsrunde-{id}-nachweis.txt")
 
 
-def _register_exam_day_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _register_exam_day_routes(app, resolved, application, read_security, write_security):
     @app.get(
         "/api/confirmed-plan-days/{id}/closure",
         openapi_extra=read_security,
     )
-    def exam_day_closure(context: ReadContext, id: str):
-        result = context.exam_day_closure_service.get(context.authorization_scope, int(id))
+    def exam_day_closure(context: ReadContext, id: int):
+        result = context.exam_day_closure_service.get(context.authorization_scope, id)
         return _not_found() if result is None else _finish(context, context.respond(result))
 
     @app.post(
         "/api/confirmed-plan-days/{id}/closure",
         openapi_extra=write_security,
     )
-    def close_exam_day(context: WriteContext, id: str):
+    def close_exam_day(
+        context: WriteContext,
+        id: int,
+        payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
+    ):
         result = context.exam_day_closure_service.close(
-            context.authorization_scope, int(id), context.read_json()
+            context.authorization_scope, id, payload_data(context, payload)
         )
         return _finish(context, context.respond(result))
 
@@ -788,9 +822,13 @@ def _register_exam_day_routes(
         "/api/confirmed-plan-days/{id}/reopening-impact",
         openapi_extra=write_security,
     )
-    def exam_day_reopening_impact(context: WriteContext, id: str):
+    def exam_day_reopening_impact(
+        context: WriteContext,
+        id: int,
+        payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
+    ):
         result = context.exam_day_closure_service.reopening_impact(
-            context.authorization_scope, int(id), context.read_json()
+            context.authorization_scope, id, payload_data(context, payload)
         )
         return _finish(context, context.respond(result))
 
@@ -798,9 +836,13 @@ def _register_exam_day_routes(
         "/api/confirmed-plan-days/{id}/reopenings",
         openapi_extra=write_security,
     )
-    def reopen_exam_day(context: WriteContext, id: str):
+    def reopen_exam_day(
+        context: WriteContext,
+        id: int,
+        payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
+    ):
         result = context.exam_day_closure_service.reopen(
-            context.authorization_scope, int(id), context.read_json()
+            context.authorization_scope, id, payload_data(context, payload)
         )
         return _finish(context, context.respond(result))
 
@@ -808,10 +850,8 @@ def _register_exam_day_routes(
         "/api/confirmed-plan-days/{id}/closure/export.json",
         openapi_extra=read_security,
     )
-    def export_exam_day_json(context: ReadContext, id: str):
-        result = context.exam_day_closure_service.machine_export(
-            context.authorization_scope, int(id)
-        )
+    def export_exam_day_json(context: ReadContext, id: int):
+        result = context.exam_day_closure_service.machine_export(context.authorization_scope, id)
         return _finish(context, context.respond(result))
 
     @app.get(
@@ -819,25 +859,17 @@ def _register_exam_day_routes(
         response_class=Response,
         openapi_extra=read_security,
     )
-    def export_exam_day_text(context: ReadContext, id: str):
-        result = context.exam_day_closure_service.human_export(context.authorization_scope, int(id))
-        return _plain_text(context, result, f"pruefungstag-{int(id)}-abschluss.txt")
+    def export_exam_day_text(context: ReadContext, id: int):
+        result = context.exam_day_closure_service.human_export(context.authorization_scope, id)
+        return _plain_text(context, result, f"pruefungstag-{id}-abschluss.txt")
 
 
-def _register_round_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    _register_exam_round_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_exam_day_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
+def _register_round_routes(app, resolved, application, read_security, write_security):
+    _register_exam_round_routes(app, resolved, application, read_security, write_security)
+    _register_exam_day_routes(app, resolved, application, read_security, write_security)
 
 
-def _register_planning_router(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _register_planning_router(app, resolved, application, read_security, write_security):
     register_planning_router(
         app,
         read_security,
@@ -848,7 +880,7 @@ def _register_planning_router(
 
 
 def _register_execution_assessment_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
+    app, resolved, application, read_security, write_security
 ):
     app.include_router(
         create_execution_router(
@@ -870,9 +902,7 @@ def _register_execution_assessment_routes(
     )
 
 
-def _register_static_route(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _register_static_route(app, resolved, application, read_security, write_security):
     @app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     def static_or_not_found(request: Request, path: str):
         return (
@@ -882,18 +912,12 @@ def _register_static_route(
         )
 
 
-def register_transport_and_errors(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def register_transport_and_errors(app, resolved, application, read_security, write_security):
     """Register the shared HTTP guard and exception translation boundary."""
-    _register_transport_and_errors(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
+    _register_transport_and_errors(app, resolved, application, read_security, write_security)
 
 
-def register_application_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def register_application_routes(app, resolved, application, read_security, write_security):
     """Register all product and runtime routes with the assembled application."""
     registrars = (
         _register_operations_router,
@@ -911,7 +935,6 @@ def register_application_routes(
             application,
             read_security,
             write_security,
-            venue_write_openapi,
         )
 
 

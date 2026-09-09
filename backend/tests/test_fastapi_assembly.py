@@ -9,6 +9,7 @@ from fastapi import FastAPI
 
 from backend.fastapi_app import register_application_routes
 from backend.fastapi_assembly import FastAPIConfig, create_app
+from backend.fastapi_dependencies import BoundedBodyRoute
 
 
 class FastAPIAssemblyTests(unittest.TestCase):
@@ -24,16 +25,12 @@ class FastAPIAssemblyTests(unittest.TestCase):
                 current_application,
                 read_security,
                 write_security,
-                venue_write_openapi,
             ) -> None:
                 self.assertIs(config, resolved)
                 self.assertIs(application, current_application)
                 self.assertEqual({}, read_security)
                 self.assertEqual({}, write_security)
-                schema = venue_write_openapi("DomainResourceWrite")["requestBody"]["content"][
-                    "application/json"
-                ]["schema"]
-                self.assertEqual("DomainResourceWrite", schema["title"])
+                self.assertIs(app.router.route_class, BoundedBodyRoute)
                 calls.append(name)
 
             return register
@@ -86,7 +83,7 @@ class FastAPIAssemblyTests(unittest.TestCase):
             "_register_static_route",
         )
         calls: list[str] = []
-        arguments = tuple(object() for _ in range(6))
+        arguments = tuple(object() for _ in range(5))
 
         with ExitStack() as stack:
             for name in expected:

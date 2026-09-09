@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from http import HTTPStatus
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Body, Query
 
 from .api_contracts import (
     CalendarEventCollectionResponse,
@@ -12,31 +12,35 @@ from .api_contracts import (
     CalendarFeedActivationResponse,
     CalendarFeedRevocationResponse,
     CalendarStatusResponse,
+    DomainResourceWrite,
     NotificationChannelsResponse,
     NotificationCollectionResponse,
     PushConfirmationResponse,
     PushSubscriptionRequest,
     PushSubscriptionResponse,
 )
-from .fastapi_dependencies import BodyMutationContext, Context, MutationContext, ReadContext
-from .fastapi_http import calendar_text, finish, not_found, request_body, validated_payload
+from .fastapi_dependencies import (
+    BodyMutationContext,
+    BoundedBodyRoute,
+    Context,
+    MutationContext,
+    ReadContext,
+)
+from .fastapi_http import calendar_text, finish, not_found, payload_data
+
+_OPTIONAL_OBJECT_BODY = Body(default_factory=DomainResourceWrite)
 
 
 def create_round_summary_router() -> APIRouter:
     """Build the round summary used by the calendar integration."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
 
     @router.get(
         "/api/round-summary",
         response_model=dict[str, object],
     )
-    def round_summary(context: ReadContext, round_id: str | None = Query(default=None)):
-        try:
-            parsed_round_id = int(round_id or "1")
-        except ValueError:
-            return finish(
-                context, context.respond({"error": "Invalid request"}, HTTPStatus.BAD_REQUEST)
-            )
+    def round_summary(context: ReadContext, round_id: int | None = Query(default=None)):
+        parsed_round_id = round_id or 1
         return finish(
             context,
             context.read_application.round_summary(context.authorization_scope, parsed_round_id),
@@ -47,7 +51,7 @@ def create_round_summary_router() -> APIRouter:
 
 def create_public_calendar_router() -> APIRouter:
     """Build token and event based public iCalendar routes."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
 
     @router.get("/api/calendar/feed/{token}.ics", include_in_schema=False)
     def personal_feed(context: Context, token: str):
@@ -61,6 +65,7 @@ def create_public_calendar_router() -> APIRouter:
 
     @router.get("/api/calendar/events/{id}.ics", include_in_schema=False)
     def event_feed(context: ReadContext, id: str):
+        """Keep the private token-like URL indistinguishable from a missing feed."""
         if not id.isdigit():
             return not_found()
         calendar = context.calendar_service.event_ics(int(id), context.authorization_scope)
@@ -71,7 +76,7 @@ def create_public_calendar_router() -> APIRouter:
 
 def create_calendar_management_router() -> APIRouter:
     """Build personal calendar status, lifecycle, and event routes."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
 
     @router.get("/api/calendar", response_model=CalendarStatusResponse)
     @router.get("/api/calendar/feed", response_model=CalendarStatusResponse)
@@ -101,13 +106,12 @@ def create_calendar_management_router() -> APIRouter:
         "/api/calendar/feed",
         status_code=201,
         response_model=CalendarFeedActivationResponse,
-        openapi_extra=request_body(CalendarFeedActivationRequest),
     )
-    def activate_feed(context: BodyMutationContext):
-        payload = validated_payload(context, CalendarFeedActivationRequest, exclude_unset=False)
+    def activate_feed(context: BodyMutationContext, payload: CalendarFeedActivationRequest):
+        data = payload_data(context, payload, exclude_unset=False)
         result = context.calendar_service.activate(
             context.authorization_scope,
-            rotate=payload["rotate"],
+            rotate=data["rotate"],
         )
         result.update(
             {
@@ -149,7 +153,7 @@ def create_calendar_management_router() -> APIRouter:
 
 def create_calendar_router() -> APIRouter:
     """Compose the round summary and personal calendar integration routes."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
     for owned_router in (
         create_round_summary_router(),
         create_public_calendar_router(),
@@ -161,7 +165,7 @@ def create_calendar_router() -> APIRouter:
 
 def create_notification_router() -> APIRouter:
     """Build notification reads and push-subscription lifecycle routes."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
 
     @router.get("/api/notifications", response_model=NotificationCollectionResponse)
     def notifications(context: ReadContext):
@@ -226,10 +230,9 @@ def create_notification_router() -> APIRouter:
         "/api/push-subscriptions",
         status_code=201,
         response_model=PushSubscriptionResponse,
-        openapi_extra=request_body(PushSubscriptionRequest),
     )
-    def register_push(context: BodyMutationContext):
-        endpoint = validated_payload(context, PushSubscriptionRequest)["endpoint"]
+    def register_push(context: BodyMutationContext, payload: PushSubscriptionRequest):
+        endpoint = payload_data(context, payload)["endpoint"]
         return finish(
             context,
             context.respond(
@@ -239,12 +242,10 @@ def create_notification_router() -> APIRouter:
         )
 
     @router.delete("/api/push-subscriptions/{id}", status_code=204)
-    def unregister_push(context: MutationContext, id: str):
+    def unregister_push(context: MutationContext, id: int):
         return (
             not_found()
-            if not context.notification_service.unregister_push(
-                context.authorization_scope, int(id)
-            )
+            if not context.notification_service.unregister_push(context.authorization_scope, id)
             else finish(context, context.respond({}, HTTPStatus.NO_CONTENT))
         )
 
@@ -252,10 +253,10 @@ def create_notification_router() -> APIRouter:
         "/api/notifications/{id}/push-confirmation",
         response_model=PushConfirmationResponse,
     )
-    def confirm_push(context: MutationContext, id: str):
+    def confirm_push(context: MutationContext, id: int):
         return (
             not_found()
-            if not context.notification_service.confirm_push(context.authorization_scope, int(id))
+            if not context.notification_service.confirm_push(context.authorization_scope, id)
             else finish(context, context.respond({"status": "technically_confirmed"}))
         )
 
@@ -264,7 +265,7 @@ def create_notification_router() -> APIRouter:
 
 def create_absence_router() -> APIRouter:
     """Build the absence and replacement integration routes."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
 
     @router.get("/api/absence-reports")
     def absence_reports(context: ReadContext):
@@ -279,32 +280,37 @@ def create_absence_router() -> APIRouter:
         )
 
     @router.get("/api/absence-reports/{id}")
-    def absence_report(context: ReadContext, id: str):
-        report = context.absence_service.get(context.authorization_scope, int(id))
+    def absence_report(context: ReadContext, id: int):
+        report = context.absence_service.get(context.authorization_scope, id)
         return not_found() if report is None else finish(context, context.respond(report))
 
     @router.post("/api/absence-reports", status_code=201)
-    def create_absence(context: BodyMutationContext):
+    def create_absence(context: BodyMutationContext, payload: DomainResourceWrite):
         return finish(
             context,
             context.respond(
-                context.absence_service.report(context.authorization_scope, context.read_json()),
+                context.absence_service.report(
+                    context.authorization_scope, payload_data(context, payload)
+                ),
                 HTTPStatus.CREATED,
             ),
         )
 
     def absence_action(action: str):
-        def endpoint(context: BodyMutationContext, report_id: str):
-            payload = context.read_json()
-            ident = int(report_id)
+        def endpoint(
+            context: BodyMutationContext,
+            report_id: int,
+            payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
+        ):
+            data = payload_data(context, payload)
             service = context.absence_service
             result = {
                 "select-replacement": lambda: service.select_replacement(
-                    context.authorization_scope, ident, payload
+                    context.authorization_scope, report_id, data
                 ),
-                "withdraw": lambda: service.withdraw(context.authorization_scope, ident),
-                "reopen": lambda: service.reopen(context.authorization_scope, ident, payload),
-                "cancel": lambda: service.cancel(context.authorization_scope, ident, payload),
+                "withdraw": lambda: service.withdraw(context.authorization_scope, report_id),
+                "reopen": lambda: service.reopen(context.authorization_scope, report_id, data),
+                "cancel": lambda: service.cancel(context.authorization_scope, report_id, data),
             }[action]()
             return finish(context, context.respond(result))
 
@@ -319,23 +325,35 @@ def create_absence_router() -> APIRouter:
         )
 
     @router.patch("/api/replacement-responses/{response_id}")
-    def patch_response(context: BodyMutationContext, response_id: str):
+    def patch_response(
+        context: BodyMutationContext,
+        response_id: int,
+        payload: DomainResourceWrite,
+    ):
         return finish(
             context,
             context.respond(
                 context.absence_service.respond(
-                    context.authorization_scope, int(response_id), context.read_json()
+                    context.authorization_scope,
+                    response_id,
+                    payload_data(context, payload),
                 )
             ),
         )
 
     @router.post("/api/replacement-responses/{response_id}/respond")
-    def post_response(context: BodyMutationContext, response_id: str):
+    def post_response(
+        context: BodyMutationContext,
+        response_id: int,
+        payload: DomainResourceWrite,
+    ):
         return finish(
             context,
             context.respond(
                 context.absence_service.respond(
-                    context.authorization_scope, int(response_id), context.read_json()
+                    context.authorization_scope,
+                    response_id,
+                    payload_data(context, payload),
                 )
             ),
         )
@@ -345,7 +363,7 @@ def create_absence_router() -> APIRouter:
 
 def create_integration_router() -> APIRouter:
     """Compose the routers owned by the integration HTTP boundary."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
     for owned_router in (
         create_calendar_router(),
         create_notification_router(),

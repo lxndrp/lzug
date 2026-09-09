@@ -12,7 +12,8 @@ from .fastapi_app import (
     register_application_routes,
     register_transport_and_errors,
 )
-from .fastapi_http import APPLICATION_ERROR_RESPONSES, request_body
+from .fastapi_dependencies import BoundedBodyRoute
+from .fastapi_http import APPLICATION_ERROR_RESPONSES
 from .security import RequestRateLimiter
 
 __all__ = ["FastAPIConfig", "create_app"]
@@ -31,6 +32,7 @@ def create_app(
         openapi_url=None,
         responses=APPLICATION_ERROR_RESPONSES,
     )
+    app.router.route_class = BoundedBodyRoute
     app.state.lzug_config = resolved
     app.state.auth_rate_limiter = resolved.auth_rate_limiter or RequestRateLimiter(
         resolved.auth_rate_limit, resolved.auth_rate_window
@@ -39,14 +41,6 @@ def create_app(
     app.state.observability_global_rate_limiter = RequestRateLimiter(120, timedelta(minutes=1))
     read_security: dict[str, object] = {}
     write_security: dict[str, object] = {}
-
-    def venue_write_openapi(model_name: str) -> dict[str, object]:
-        from . import api_contracts
-
-        return {
-            **write_security,
-            **request_body(getattr(api_contracts, model_name)),
-        }
 
     registration = (
         register_transport_and_errors,
@@ -59,7 +53,6 @@ def create_app(
             application,
             read_security,
             write_security,
-            venue_write_openapi,
         )
 
     return app

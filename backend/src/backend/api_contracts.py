@@ -178,6 +178,20 @@ class DemoScenarioResetResponse(BaseModel):
     expires_at: str
 
 
+class DemoSessionRequest(BaseModel):
+    """Demo role selection; runtime policy retains the role allowlist."""
+
+    model_config = ConfigDict(extra="allow")
+
+    role: str | None = None
+
+
+class EmptyRequest(BaseModel):
+    """Explicitly empty JSON object used by commands without payload fields."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class DomainResourceWrite(BaseModel):
     model_config = ConfigDict(extra="allow")
 

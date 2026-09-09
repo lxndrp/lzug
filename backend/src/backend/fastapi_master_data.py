@@ -16,6 +16,7 @@ from backend.persistence.models import CANDIDATE_COMMITTEE_ASSIGNMENT, COMMITTEE
 from .api_contracts import (
     DomainCollectionResponse,
     DomainResourceResponse,
+    DomainResourceWrite,
     ExamRoomCreateRequest,
     ExamRoomResponse,
     ExamRoomUpdateRequest,
@@ -36,8 +37,11 @@ from .api_contracts import (
     RevisionDeleteRequest,
 )
 from .fastapi_dependencies import (
+    BoundedBodyRoute,
     EmptyWriteContext,
     ReadContext,
+    ResourceCreateContext,
+    ResourceItemWriteContext,
     VenueAuditWriteContext,
     VenueEmptyWriteContext,
     VenueItemEmptyWriteContext,
@@ -45,11 +49,12 @@ from .fastapi_dependencies import (
     VenueItemWriteContext,
     VenueReadContext,
     VenueWriteContext,
-    WriteContext,
+    resource_identifier,
+    venue_identifier,
 )
 from .fastapi_http import finish as _finish
 from .fastapi_http import not_found as _not_found
-from .fastapi_http import validated_payload
+from .fastapi_http import payload_data
 
 if TYPE_CHECKING:
     from .fastapi_app import FastAPIConfig
@@ -109,11 +114,11 @@ def _resource_collection_route(resolved: FastAPIConfig, resource_name: str, reso
 
 
 def _resource_item_route(resolved: FastAPIConfig, resource_name: str, resource):
-    def get_item(context: ReadContext, id: str):
+    def get_item(context: ReadContext, id: int):
         row = (
-            context.repository.member_get(int(id), context.authorization_scope)
+            context.repository.member_get(id, context.authorization_scope)
             if resource_name in {"members", "memberships"}
-            else context.repository.get_visible(resource, int(id), context.authorization_scope)
+            else context.repository.get_visible(resource, id, context.authorization_scope)
         )
         return (
             _not_found()
@@ -135,9 +140,9 @@ def _resource_item_route(resolved: FastAPIConfig, resource_name: str, resource):
 
 
 def _resource_create_route(resolved: FastAPIConfig, resource_name: str, resource):
-    def create(context: WriteContext):
+    def create(context: ResourceCreateContext, request: DomainResourceWrite):
         payload = context.authorize_resource_action(
-            resource_name, None, context.read_json(), "create"
+            resource_name, None, payload_data(context, request), "create"
         )
         status = HTTPStatus.CREATED
         if resource_name == "candidates":
@@ -161,23 +166,23 @@ def _resource_create_route(resolved: FastAPIConfig, resource_name: str, resource
 
 
 def _resource_update_route(resolved: FastAPIConfig, resource_name: str, resource):
-    def update(context: WriteContext, id: str):
-        ident = int(id)
+    def update(context: ResourceItemWriteContext, request: DomainResourceWrite):
+        identifier = resource_identifier(context)
         payload = context.authorize_resource_action(
-            resource_name, ident, context.read_json(), "update"
+            resource_name, identifier, payload_data(context, request), "update"
         )
         if resource_name == "planning-settings":
-            row = context.repository.update_planning_settings(ident, payload)
+            row = context.repository.update_planning_settings(identifier, payload)
         elif resource_name == "member-availabilities":
-            row = context.repository.update_member_availability(ident, payload)
+            row = context.repository.update_member_availability(identifier, payload)
         elif resource_name == "candidates":
-            row = context.repository.update_candidate(ident, payload)
+            row = context.repository.update_candidate(identifier, payload)
         elif resource_name == "exam-rounds":
-            row = context.repository.update_exam_round(ident, payload)
+            row = context.repository.update_exam_round(identifier, payload)
         elif resource_name in {"members", "memberships"}:
-            row = context.repository.update_membership(ident, payload)
+            row = context.repository.update_membership(identifier, payload)
         else:
-            row = context.repository.update(resource, ident, payload)
+            row = context.repository.update(resource, identifier, payload)
         return (
             _not_found()
             if row is None
@@ -190,17 +195,16 @@ def _resource_update_route(resolved: FastAPIConfig, resource_name: str, resource
 
 
 def _resource_delete_route(resolved: FastAPIConfig, resource_name: str, resource):
-    def delete(context: EmptyWriteContext, id: str):
-        ident = int(id)
-        context.authorize_resource_action(resource_name, ident, {}, "delete")
+    def delete(context: EmptyWriteContext, id: int):
+        context.authorize_resource_action(resource_name, id, {}, "delete")
         if resource_name == "candidates":
-            deleted = context.repository.delete_candidate(ident)
+            deleted = context.repository.delete_candidate(id)
         elif resource_name == "exam-rounds":
             deleted = context.exam_round_lifecycle_service.delete_empty_draft(
-                context.authorization_scope, ident
+                context.authorization_scope, id
             )
         else:
-            deleted = context.repository.delete(resource, ident)
+            deleted = context.repository.delete(resource, id)
         return (
             _not_found()
             if not deleted
@@ -221,9 +225,7 @@ def _resource_routes(resolved: FastAPIConfig, resource_name: str):
     )
 
 
-def _register_exam_venue_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _register_exam_venue_routes(app, resolved, application, read_security, write_security):
     venue_api = ExamVenueApi(resolved.db_path, resolved.map_provider)
 
     @app.get(
@@ -248,10 +250,13 @@ def _register_exam_venue_routes(
 
     @app.post(
         "/api/exam-venues/duplicate-check",
-        openapi_extra=venue_write_openapi("ExamVenueDuplicateCheckRequest"),
+        openapi_extra=write_security,
     )
-    def exam_venue_duplicate_check(context: VenueWriteContext):
-        payload = validated_payload(context, ExamVenueDuplicateCheckRequest)
+    def exam_venue_duplicate_check(
+        context: VenueWriteContext,
+        request: ExamVenueDuplicateCheckRequest,
+    ):
+        payload = payload_data(context, request)
         excluded_id = payload.pop("excluded_id", None)
         matches = venue_api.find_duplicates(
             payload,
@@ -270,27 +275,30 @@ def _register_exam_venue_routes(
 
     @app.get("/api/exam-venues/{id}/change-impact", openapi_extra=read_security)
     def exam_venue_change_impact(context: VenueItemReadContext):
-        id = int(context.request.path_params["id"])
+        id = venue_identifier(context)
         impact = venue_api.future_impact(id, context.authorization_scope, context.auth_context)
         return _not_found() if impact is None else _finish(context, context.respond(impact))
 
     @app.post(
         "/api/exam-venues/{id}/change-impact",
-        openapi_extra=venue_write_openapi("ExamVenueUpdateRequest"),
+        openapi_extra=write_security,
     )
-    def preview_exam_venue_change(context: VenueItemWriteContext):
-        id = int(context.request.path_params["id"])
+    def preview_exam_venue_change(
+        context: VenueItemWriteContext,
+        request: ExamVenueUpdateRequest,
+    ):
+        id = venue_identifier(context)
         impact = venue_api.future_impact(
             id,
             context.authorization_scope,
             context.auth_context,
-            payload=validated_payload(context, ExamVenueUpdateRequest),
+            payload=payload_data(context, request),
         )
         return _not_found() if impact is None else _finish(context, context.respond(impact))
 
     @app.get("/api/exam-rooms/{id}/change-impact", openapi_extra=read_security)
     def exam_room_change_impact(context: VenueItemReadContext):
-        id = int(context.request.path_params["id"])
+        id = venue_identifier(context)
         room = venue_api.get_room(id, context.authorization_scope, context.auth_context)
         impact = (
             None
@@ -306,10 +314,13 @@ def _register_exam_venue_routes(
 
     @app.post(
         "/api/exam-rooms/{id}/change-impact",
-        openapi_extra=venue_write_openapi("ExamRoomUpdateRequest"),
+        openapi_extra=write_security,
     )
-    def preview_exam_room_change(context: VenueItemWriteContext):
-        id = int(context.request.path_params["id"])
+    def preview_exam_room_change(
+        context: VenueItemWriteContext,
+        request: ExamRoomUpdateRequest,
+    ):
+        id = venue_identifier(context)
         room = venue_api.get_room(id, context.authorization_scope, context.auth_context)
         impact = (
             None
@@ -319,7 +330,7 @@ def _register_exam_venue_routes(
                 context.authorization_scope,
                 context.auth_context,
                 room_id=id,
-                payload=validated_payload(context, ExamRoomUpdateRequest),
+                payload=payload_data(context, request),
             )
         )
         return _not_found() if impact is None else _finish(context, context.respond(impact))
@@ -328,8 +339,10 @@ def _register_exam_venue_routes(
         "/api/exam-venue-changes/{audit_id}/consequences/retry",
         openapi_extra=write_security,
     )
-    def retry_exam_venue_change_consequences(context: VenueAuditWriteContext):
-        audit_id = int(context.request.path_params["audit_id"])
+    def retry_exam_venue_change_consequences(
+        context: VenueAuditWriteContext,
+    ):
+        audit_id = venue_identifier(context, "audit_id")
         result = venue_api.retry_consequences(
             audit_id, context.authorization_scope, context.auth_context
         )
@@ -338,13 +351,16 @@ def _register_exam_venue_routes(
     @app.post(
         "/api/exam-venues/{id}/promotion-requests",
         status_code=201,
-        openapi_extra=venue_write_openapi("ExamVenuePromotionRequest"),
+        openapi_extra=write_security,
     )
-    def request_exam_venue_promotion(context: VenueItemWriteContext):
-        id = int(context.request.path_params["id"])
+    def request_exam_venue_promotion(
+        context: VenueItemWriteContext,
+        request: ExamVenuePromotionRequest,
+    ):
+        id = venue_identifier(context)
         result = venue_api.request_promotion(
             id,
-            validated_payload(context, ExamVenuePromotionRequest),
+            payload_data(context, request),
             context.authorization_scope,
         )
         return (
@@ -355,13 +371,16 @@ def _register_exam_venue_routes(
 
     @app.post(
         "/api/exam-venue-promotion-requests/{id}/decision",
-        openapi_extra=venue_write_openapi("ExamVenuePromotionDecisionRequest"),
+        openapi_extra=write_security,
     )
-    def decide_exam_venue_promotion(context: VenueItemWriteContext):
-        id = int(context.request.path_params["id"])
+    def decide_exam_venue_promotion(
+        context: VenueItemWriteContext,
+        request: ExamVenuePromotionDecisionRequest,
+    ):
+        id = venue_identifier(context)
         result = venue_api.decide_promotion(
             id,
-            validated_payload(context, ExamVenuePromotionDecisionRequest),
+            payload_data(context, request),
             context.auth_context,
         )
         return _finish(context, context.respond(hateoas.exam_venue(result)))
@@ -372,7 +391,7 @@ def _register_exam_venue_routes(
         openapi_extra=read_security,
     )
     def exam_venue_item(context: VenueItemReadContext):
-        id = int(context.request.path_params["id"])
+        id = venue_identifier(context)
         venue = venue_api.get_venue(id, context.authorization_scope, context.auth_context)
         return (
             _not_found()
@@ -384,11 +403,11 @@ def _register_exam_venue_routes(
         "/api/exam-venues",
         response_model=ExamVenueResponse,
         status_code=201,
-        openapi_extra=venue_write_openapi("ExamVenueCreateRequest"),
+        openapi_extra=write_security,
     )
-    def create_exam_venue(context: VenueWriteContext):
+    def create_exam_venue(context: VenueWriteContext, request: ExamVenueCreateRequest):
         venue = venue_api.create_venue(
-            validated_payload(context, ExamVenueCreateRequest),
+            payload_data(context, request),
             context.authorization_scope,
             context.auth_context,
         )
@@ -397,13 +416,16 @@ def _register_exam_venue_routes(
     @app.patch(
         "/api/exam-venues/{id}",
         response_model=ExamVenueResponse,
-        openapi_extra=venue_write_openapi("ExamVenueUpdateRequest"),
+        openapi_extra=write_security,
     )
-    def update_exam_venue(context: VenueItemWriteContext):
-        id = int(context.request.path_params["id"])
+    def update_exam_venue(
+        context: VenueItemWriteContext,
+        request: ExamVenueUpdateRequest,
+    ):
+        id = venue_identifier(context)
         venue = venue_api.update_venue(
             id,
-            validated_payload(context, ExamVenueUpdateRequest),
+            payload_data(context, request),
             context.authorization_scope,
             context.auth_context,
         )
@@ -416,13 +438,16 @@ def _register_exam_venue_routes(
     @app.post(
         "/api/exam-venues/{id}/geocode",
         response_model=ExamVenueGeocodeResponse,
-        openapi_extra=venue_write_openapi("ExamVenueGeocodeRequest"),
+        openapi_extra=write_security,
     )
-    def geocode_exam_venue(context: VenueItemWriteContext):
-        id = int(context.request.path_params["id"])
+    def geocode_exam_venue(
+        context: VenueItemWriteContext,
+        request: ExamVenueGeocodeRequest,
+    ):
+        id = venue_identifier(context)
         candidate = venue_api.geocode_venue(
             id,
-            validated_payload(context, ExamVenueGeocodeRequest),
+            payload_data(context, request),
             context.authorization_scope,
             context.auth_context,
         )
@@ -431,13 +456,16 @@ def _register_exam_venue_routes(
     @app.delete(
         "/api/exam-venues/{id}",
         status_code=204,
-        openapi_extra=venue_write_openapi("RevisionDeleteRequest"),
+        openapi_extra=write_security,
     )
-    def delete_exam_venue(context: VenueItemWriteContext):
-        id = int(context.request.path_params["id"])
+    def delete_exam_venue(
+        context: VenueItemWriteContext,
+        request: RevisionDeleteRequest,
+    ):
+        id = venue_identifier(context)
         deleted = venue_api.delete_venue(
             id,
-            validated_payload(context, RevisionDeleteRequest),
+            payload_data(context, request),
             context.authorization_scope,
             context.auth_context,
         )
@@ -448,22 +476,23 @@ def _register_exam_venue_routes(
         )
 
 
-def _register_exam_room_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _register_exam_room_routes(app, resolved, application, read_security, write_security):
     venue_api = ExamVenueApi(resolved.db_path)
 
     @app.post(
         "/api/exam-venues/{id}/rooms",
         response_model=ExamRoomResponse,
         status_code=201,
-        openapi_extra=venue_write_openapi("ExamRoomCreateRequest"),
+        openapi_extra=write_security,
     )
-    def create_exam_room(context: VenueItemWriteContext):
-        id = int(context.request.path_params["id"])
+    def create_exam_room(
+        context: VenueItemWriteContext,
+        request: ExamRoomCreateRequest,
+    ):
+        id = venue_identifier(context)
         room = venue_api.create_room(
             id,
-            validated_payload(context, ExamRoomCreateRequest),
+            payload_data(context, request),
             context.authorization_scope,
             context.auth_context,
         )
@@ -479,7 +508,7 @@ def _register_exam_room_routes(
         openapi_extra=read_security,
     )
     def exam_room_item(context: VenueItemReadContext):
-        id = int(context.request.path_params["id"])
+        id = venue_identifier(context)
         room = venue_api.get_room(id, context.authorization_scope, context.auth_context)
         return (
             _not_found()
@@ -490,13 +519,16 @@ def _register_exam_room_routes(
     @app.patch(
         "/api/exam-rooms/{id}",
         response_model=ExamRoomResponse,
-        openapi_extra=venue_write_openapi("ExamRoomUpdateRequest"),
+        openapi_extra=write_security,
     )
-    def update_exam_room(context: VenueItemWriteContext):
-        id = int(context.request.path_params["id"])
+    def update_exam_room(
+        context: VenueItemWriteContext,
+        request: ExamRoomUpdateRequest,
+    ):
+        id = venue_identifier(context)
         room = venue_api.update_room(
             id,
-            validated_payload(context, ExamRoomUpdateRequest),
+            payload_data(context, request),
             context.authorization_scope,
             context.auth_context,
         )
@@ -509,13 +541,16 @@ def _register_exam_room_routes(
     @app.delete(
         "/api/exam-rooms/{id}",
         status_code=204,
-        openapi_extra=venue_write_openapi("RevisionDeleteRequest"),
+        openapi_extra=write_security,
     )
-    def delete_exam_room(context: VenueItemWriteContext):
-        id = int(context.request.path_params["id"])
+    def delete_exam_room(
+        context: VenueItemWriteContext,
+        request: RevisionDeleteRequest,
+    ):
+        id = venue_identifier(context)
         deleted = venue_api.delete_room(
             id,
-            validated_payload(context, RevisionDeleteRequest),
+            payload_data(context, request),
             context.authorization_scope,
             context.auth_context,
         )
@@ -526,22 +561,23 @@ def _register_exam_room_routes(
         )
 
 
-def _register_exam_venue_contact_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _register_exam_venue_contact_routes(app, resolved, application, read_security, write_security):
     venue_api = ExamVenueApi(resolved.db_path)
 
     @app.post(
         "/api/exam-venues/{id}/contacts",
         response_model=ExamVenueContactResponse,
         status_code=201,
-        openapi_extra=venue_write_openapi("ExamVenueContactCreateRequest"),
+        openapi_extra=write_security,
     )
-    def create_exam_venue_contact(context: VenueItemWriteContext):
-        id = int(context.request.path_params["id"])
+    def create_exam_venue_contact(
+        context: VenueItemWriteContext,
+        request: ExamVenueContactCreateRequest,
+    ):
+        id = venue_identifier(context)
         contact = venue_api.create_contact(
             id,
-            validated_payload(context, ExamVenueContactCreateRequest),
+            payload_data(context, request),
             context.authorization_scope,
             context.auth_context,
         )
@@ -559,7 +595,7 @@ def _register_exam_venue_contact_routes(
         openapi_extra=read_security,
     )
     def exam_venue_contact_item(context: VenueItemReadContext):
-        id = int(context.request.path_params["id"])
+        id = venue_identifier(context)
         contact = venue_api.get_contact(id, context.authorization_scope, context.auth_context)
         return (
             _not_found()
@@ -570,13 +606,16 @@ def _register_exam_venue_contact_routes(
     @app.patch(
         "/api/exam-venue-contacts/{id}",
         response_model=ExamVenueContactResponse,
-        openapi_extra=venue_write_openapi("ExamVenueContactUpdateRequest"),
+        openapi_extra=write_security,
     )
-    def update_exam_venue_contact(context: VenueItemWriteContext):
-        id = int(context.request.path_params["id"])
+    def update_exam_venue_contact(
+        context: VenueItemWriteContext,
+        request: ExamVenueContactUpdateRequest,
+    ):
+        id = venue_identifier(context)
         contact = venue_api.update_contact(
             id,
-            validated_payload(context, ExamVenueContactUpdateRequest),
+            payload_data(context, request),
             context.authorization_scope,
             context.auth_context,
         )
@@ -589,13 +628,16 @@ def _register_exam_venue_contact_routes(
     @app.delete(
         "/api/exam-venue-contacts/{id}",
         status_code=204,
-        openapi_extra=venue_write_openapi("RevisionDeleteRequest"),
+        openapi_extra=write_security,
     )
-    def delete_exam_venue_contact(context: VenueItemWriteContext):
-        id = int(context.request.path_params["id"])
+    def delete_exam_venue_contact(
+        context: VenueItemWriteContext,
+        request: RevisionDeleteRequest,
+    ):
+        id = venue_identifier(context)
         deleted = venue_api.delete_contact(
             id,
-            validated_payload(context, RevisionDeleteRequest),
+            payload_data(context, request),
             context.authorization_scope,
             context.auth_context,
         )
@@ -606,9 +648,7 @@ def _register_exam_venue_contact_routes(
         )
 
 
-def _register_legacy_location_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _register_legacy_location_routes(app, resolved, application, read_security, write_security):
     venue_api = ExamVenueApi(resolved.db_path)
 
     @app.get(
@@ -636,7 +676,7 @@ def _register_legacy_location_routes(
         openapi_extra=read_security,
     )
     def legacy_location_item(context: VenueItemReadContext):
-        id = int(context.request.path_params["id"])
+        id = venue_identifier(context)
         location = venue_api.get_legacy_location(
             id, context.authorization_scope, context.auth_context
         )
@@ -678,7 +718,7 @@ def _register_legacy_location_routes(
         openapi_extra=write_security,
     )
     def update_legacy_location(context: VenueItemEmptyWriteContext):
-        id = int(context.request.path_params["id"])
+        id = venue_identifier(context)
         return legacy_location_write(context, ["locations", str(id)])
 
     @app.delete(
@@ -689,30 +729,18 @@ def _register_legacy_location_routes(
         openapi_extra=write_security,
     )
     def delete_legacy_location(context: VenueItemEmptyWriteContext):
-        id = int(context.request.path_params["id"])
+        id = venue_identifier(context)
         return legacy_location_write(context, ["locations", str(id)])
 
 
-def _register_venue_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
-    _register_exam_venue_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_exam_room_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_exam_venue_contact_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
-    _register_legacy_location_routes(
-        app, resolved, application, read_security, write_security, venue_write_openapi
-    )
+def _register_venue_routes(app, resolved, application, read_security, write_security):
+    _register_exam_venue_routes(app, resolved, application, read_security, write_security)
+    _register_exam_room_routes(app, resolved, application, read_security, write_security)
+    _register_exam_venue_contact_routes(app, resolved, application, read_security, write_security)
+    _register_legacy_location_routes(app, resolved, application, read_security, write_security)
 
 
-def _register_resource_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _register_resource_routes(app, resolved, application, read_security, write_security):
     for name in (
         resource_name
         for resource_name in MIGRATED_DOMAIN_RESOURCES
@@ -743,7 +771,7 @@ def _register_resource_routes(
                 name=f"create_{name}",
                 status_code=201,
                 response_model=DomainResourceResponse,
-                openapi_extra=venue_write_openapi("DomainResourceWrite"),
+                openapi_extra=write_security,
             )
         app.add_api_route(
             f"/api/{name}/{{id}}",
@@ -751,7 +779,7 @@ def _register_resource_routes(
             methods=["PATCH"],
             name=f"update_{name}",
             response_model=DomainResourceResponse,
-            openapi_extra=venue_write_openapi("DomainResourceWrite"),
+            openapi_extra=write_security,
         )
         app.add_api_route(
             f"/api/{name}/{{id}}",
@@ -763,9 +791,7 @@ def _register_resource_routes(
         )
 
 
-def _register_assignment_routes(
-    app, resolved, application, read_security, write_security, venue_write_openapi
-):
+def _register_assignment_routes(app, resolved, application, read_security, write_security):
     @app.get(
         "/api/candidate-committee-assignments",
         response_model=DomainCollectionResponse,
@@ -795,9 +821,9 @@ def _register_assignment_routes(
         response_model=DomainResourceResponse,
         openapi_extra=read_security,
     )
-    def assignment_item(context: ReadContext, id: str):
+    def assignment_item(context: ReadContext, id: int):
         row = context.repository.get_visible(
-            CANDIDATE_COMMITTEE_ASSIGNMENT, int(id), context.authorization_scope
+            CANDIDATE_COMMITTEE_ASSIGNMENT, id, context.authorization_scope
         )
         return (
             _not_found()
@@ -820,16 +846,15 @@ def create_master_data_router(
     resolved: FastAPIConfig,
     read_security: dict[str, object],
     write_security: dict[str, object],
-    venue_write_openapi,
 ) -> APIRouter:
     """Build the router that owns master data and organizational endpoints."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
     for registrar in (
         _register_venue_routes,
         _register_resource_routes,
         _register_assignment_routes,
     ):
-        registrar(router, resolved, None, read_security, write_security, venue_write_openapi)
+        registrar(router, resolved, None, read_security, write_security)
     return router
 
 
@@ -839,7 +864,6 @@ def register_master_data_routes(
     application,
     read_security: dict[str, object],
     write_security: dict[str, object],
-    venue_write_openapi,
 ) -> None:
     """Attach the master-data router to the assembled application."""
     app.include_router(
@@ -847,6 +871,5 @@ def register_master_data_routes(
             resolved,
             read_security,
             write_security,
-            venue_write_openapi,
         )
     )
