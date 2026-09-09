@@ -5,13 +5,12 @@ from pathlib import Path
 
 from fastapi.routing import APIRoute
 
-from backend import api_contracts
 from backend.api_contracts import (
     DomainCollectionResponse,
     DomainResourceResponse,
+    DomainResourceWrite,
 )
 from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES, FastAPIConfig
-from backend.fastapi_http import request_body
 from backend.fastapi_master_data import create_master_data_router
 from backend.fastapi_planning_router import PLANNING_DOMAIN_RESOURCES
 
@@ -22,7 +21,6 @@ class FastAPIMasterDataRouterTests(unittest.TestCase):
             FastAPIConfig(db_path=Path("master-data.sqlite"), session_cookie_name="session"),
             {},
             {},
-            lambda model: request_body(getattr(api_contracts, model)),
         )
 
     def routes(self) -> dict[tuple[str, str], APIRoute]:
@@ -71,8 +69,8 @@ class FastAPIMasterDataRouterTests(unittest.TestCase):
         self.assertIs(create.response_model, DomainResourceResponse)
         self.assertIs(update.response_model, DomainResourceResponse)
         for route in (create, update):
-            schema = route.openapi_extra["requestBody"]["content"]["application/json"]["schema"]
-            self.assertEqual("DomainResourceWrite", schema["title"])
+            self.assertIsNotNone(route.body_field)
+            self.assertIs(route.body_field.field_info.annotation, DomainResourceWrite)
 
 
 if __name__ == "__main__":

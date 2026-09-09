@@ -97,7 +97,7 @@ class FastAPIOperationsRouterTests(unittest.TestCase):
                 schema = document["paths"][path]["post"]["requestBody"]["content"][
                     "application/json"
                 ]["schema"]
-                self.assertEqual(model, schema["title"])
+                self.assertEqual(f"#/components/schemas/{model}", schema["$ref"])
 
 
 if __name__ == "__main__":

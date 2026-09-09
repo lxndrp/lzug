@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from backend.application import hateoas
 from backend.application.transport import RequestContext, RequestTooLargeError
@@ -16,6 +16,8 @@ from .api_contracts import (
     ApiRootResponse,
     DemoScenarioOverviewResponse,
     DemoScenarioResetResponse,
+    DemoSessionRequest,
+    EmptyRequest,
     FactorActivationRequest,
     FrontendErrorRequest,
     HealthResponse,
@@ -25,14 +27,20 @@ from .api_contracts import (
     TokenRequest,
 )
 from .application import AuthenticationRequiredError, ForbiddenRequestError
-from .fastapi_dependencies import BodyContext, Context, SessionContext, SessionWriteContext
+from .fastapi_dependencies import (
+    BoundedBodyRoute,
+    Context,
+    ObjectBodyContext,
+    PublicAuthContext,
+    SessionContext,
+    SessionWriteContext,
+)
 from .fastapi_http import (
     finish,
     json_response,
     not_found,
-    request_body,
+    payload_data,
     same_origin,
-    validated_payload,
 )
 from .observability import emit_event
 
@@ -43,7 +51,7 @@ if TYPE_CHECKING:
 
 def create_runtime_router(application: ReadApplication) -> APIRouter:
     """Build public health and protected API discovery routes."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
 
     @router.get("/api/health", response_model=HealthResponse)
     def health():
@@ -86,7 +94,7 @@ def create_demo_router(
     write_security: dict[str, object],
 ) -> APIRouter:
     """Build the product-neutral routes delegated to the active runtime policy."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
 
     def runtime_get(context: RequestContext, parts: list[str]):
         return (
@@ -109,7 +117,8 @@ def create_demo_router(
         return runtime_get(context, ["demo", "status"])
 
     @router.post(f"{demo_api_prefix}/session", include_in_schema=False)
-    def demo_session(context: BodyContext):
+    def demo_session(context: ObjectBodyContext, payload: DemoSessionRequest):
+        del payload
         return runtime_post(context, ["demo", "session"])
 
     @router.get(
@@ -123,19 +132,10 @@ def create_demo_router(
     @router.post(
         f"{demo_api_prefix}/reset",
         response_model=DemoScenarioResetResponse,
-        openapi_extra={
-            **write_security,
-            "requestBody": {
-                "required": True,
-                "content": {
-                    "application/json": {
-                        "schema": {"type": "object", "additionalProperties": False}
-                    }
-                },
-            },
-        },
+        openapi_extra=write_security,
     )
-    def demo_reset(context: BodyContext):
+    def demo_reset(context: ObjectBodyContext, payload: EmptyRequest):
+        del payload
         return runtime_post(context, ["demo", "reset"])
 
     return router
@@ -143,19 +143,14 @@ def create_demo_router(
 
 def create_login_router(resolved: FastAPIConfig) -> APIRouter:
     """Build the local password and second-factor login route."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
 
     @router.post(
         "/api/auth/login",
         response_model=dict[str, object],
-        openapi_extra=request_body(LoginRequest),
     )
-    def login(context: BodyContext):
-        if not resolved.runtime_policy.allow_product_auth():
-            raise ForbiddenRequestError("Forbidden.")
-        if not context.allow_public_auth_request(["auth", "login"]):
-            return finish(context)
-        payload = validated_payload(context, LoginRequest, exclude_unset=False)
+    def login(context: PublicAuthContext, request: LoginRequest):
+        payload = payload_data(context, request, exclude_unset=False)
         result = context.local_auth_service.login(
             payload["email"],
             payload["password"],
@@ -179,15 +174,11 @@ def create_login_router(resolved: FastAPIConfig) -> APIRouter:
 
 def create_token_auth_router(resolved: FastAPIConfig) -> APIRouter:
     """Build invitation and recovery token routes."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
 
     def auth_route(name: str, action: str, model: type[BaseModel]):
-        def endpoint(context: BodyContext):
-            if not resolved.runtime_policy.allow_product_auth():
-                raise ForbiddenRequestError("Forbidden.")
-            if not context.allow_public_auth_request(["auth", name, action]):
-                return finish(context)
-            payload = validated_payload(context, model, exclude_unset=False)
+        def endpoint(context: PublicAuthContext, request: BaseModel):
+            payload = payload_data(context, request, exclude_unset=False)
             service = context.local_auth_service
             if name == "invitation" and action == "prepare":
                 item = service.prepare_invitation(payload.get("token", ""))
@@ -221,6 +212,7 @@ def create_token_auth_router(resolved: FastAPIConfig) -> APIRouter:
                 result = {"recovered": True, "account": account, "recovery_codes": codes}
             return finish(context, context.respond(result))
 
+        endpoint.__annotations__["request"] = model
         return endpoint
 
     for path, name, action, model in (
@@ -234,7 +226,6 @@ def create_token_auth_router(resolved: FastAPIConfig) -> APIRouter:
             auth_route(name, action, model),
             methods=["POST"],
             response_model=dict[str, object],
-            openapi_extra=request_body(model),
             name=f"auth_{name}_{action}",
         )
 
@@ -243,7 +234,7 @@ def create_token_auth_router(resolved: FastAPIConfig) -> APIRouter:
 
 def create_session_router(resolved: FastAPIConfig) -> APIRouter:
     """Build authenticated session inspection, rotation, and logout routes."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
 
     @router.get(
         "/api/session",
@@ -296,7 +287,7 @@ def create_session_router(resolved: FastAPIConfig) -> APIRouter:
 
 def create_auth_router(resolved: FastAPIConfig) -> APIRouter:
     """Compose the local authentication and session lifecycle routes."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
     for owned_router in (
         create_login_router(resolved),
         create_token_auth_router(resolved),
@@ -308,14 +299,17 @@ def create_auth_router(resolved: FastAPIConfig) -> APIRouter:
 
 def create_observability_router() -> APIRouter:
     """Build the same-origin, rate-limited frontend observability route."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
 
     @router.post(
         "/api/observability/frontend-errors",
         status_code=202,
-        openapi_extra=request_body(FrontendErrorRequest),
     )
-    def frontend_error(request: Request, context: BodyContext):
+    def frontend_error(
+        request: Request,
+        context: ObjectBodyContext,
+        payload: FrontendErrorRequest,
+    ):
         origin = request.headers.get("Origin")
         if (
             origin is None
@@ -335,17 +329,14 @@ def create_observability_router() -> APIRouter:
             )
         if len(request.state.raw_body) > 256:
             raise RequestTooLargeError("Observability event exceeds 256 bytes.")
-        try:
-            payload = validated_payload(context, FrontendErrorRequest, exclude_unset=False)
-        except ValidationError as error:
-            raise ValueError("Invalid frontend error fields") from error
-        if (payload["kind"] == "http") != (payload["status"] is not None):
+        data = payload_data(context, payload, exclude_unset=False)
+        if (data["kind"] == "http") != (data["status"] is not None):
             raise ValueError("Invalid frontend error fields")
         emit_event(
             "frontend_error",
             severity="error",
-            kind=payload["kind"],
-            status=payload["status"] or 0,
+            kind=data["kind"],
+            status=data["status"] or 0,
         )
         return finish(context, context.respond({}, HTTPStatus.ACCEPTED))
 
@@ -359,7 +350,7 @@ def create_operations_router(
     write_security: dict[str, object],
 ) -> APIRouter:
     """Compose the routers owned by the operational HTTP boundary."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
     for owned_router in (
         create_runtime_router(application),
         create_demo_router(resolved, read_security, write_security),

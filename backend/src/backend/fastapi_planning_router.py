@@ -7,7 +7,6 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import Response
-from pydantic import BaseModel
 
 from backend.application import hateoas
 from backend.application.repositories import REST_RESOURCES
@@ -20,6 +19,7 @@ from backend.persistence.models import EXAM_ROUND
 
 from .api_contracts import (
     ConfirmedPlanChangeRequest,
+    DomainResourceWrite,
     PlanningProposalResponse,
     PlanningProposalResultResponse,
     PlanningProposalWriteRequest,
@@ -27,15 +27,18 @@ from .api_contracts import (
 )
 from .application import ApplicationResult, ForbiddenRequestError
 from .fastapi_dependencies import (
+    BoundedBodyRoute,
     EmptyWriteContext,
-    ManageBodyRoundContext,
     ManageRoundContext,
     ManageRoundEmptyWriteContext,
     ManageRoundWriteContext,
     ReadContext,
+    ResourceCreateContext,
+    ResourceItemWriteContext,
     WriteContext,
+    resource_identifier,
 )
-from .fastapi_http import request_body, validated_payload
+from .fastapi_http import payload_data
 from .observability import emit_event
 
 MIGRATED_PLANNING_RESOURCES = (
@@ -48,10 +51,6 @@ PLANNING_DOMAIN_RESOURCES = ("planning-settings", "member-availabilities")
 
 type Finish = Callable[[RequestContext, ApplicationResult | None], Response]
 type NotFound = Callable[[], Response]
-
-
-def _body_openapi(security: dict[str, object], model: type[BaseModel]) -> dict[str, object]:
-    return {**security, **request_body(model)}
 
 
 def _register_schedule_routes(router: APIRouter, finish: Finish, not_found: NotFound) -> None:
@@ -78,11 +77,11 @@ def _register_schedule_routes(router: APIRouter, finish: Finish, not_found: NotF
         )
 
     @router.get("/api/confirmed-plan-days/{id}")
-    def confirmed_day(context: ReadContext, id: str):
-        day = context.repository.confirmed_plan_day(int(id), context.authorization_scope)
+    def confirmed_day(context: ReadContext, id: int):
+        day = context.repository.confirmed_plan_day(id, context.authorization_scope)
         if day is not None:
             day["day"]["closure"] = context.exam_day_closure_service.get(
-                context.authorization_scope, int(id)
+                context.authorization_scope, id
             )
         return (
             not_found()
@@ -100,10 +99,11 @@ def _register_proposal_routes(
         "/api/planning-proposals",
         response_model=PlanningProposalResultResponse,
         status_code=201,
-        openapi_extra=_body_openapi(write_security, PlanningRoundRequest),
+        openapi_extra=write_security,
     )
-    def generate_proposal(context: ManageBodyRoundContext):
-        round_id = validated_payload(context, PlanningRoundRequest, exclude_unset=False)["round_id"]
+    def generate_proposal(context: WriteContext, payload: PlanningRoundRequest):
+        round_id = payload_data(context, payload, exclude_unset=False)["round_id"]
+        context.require_round_access(round_id, manage=True)
         return finish(
             context,
             context.respond(
@@ -116,8 +116,8 @@ def _register_proposal_routes(
         "/api/exam-rounds/{id}/planning-proposal",
         response_model=PlanningProposalResponse,
     )
-    def get_proposal(context: ManageRoundContext, id: str):
-        proposal = context.planning_service.get_proposal(int(id))
+    def get_proposal(context: ManageRoundContext, id: int):
+        proposal = context.planning_service.get_proposal(id)
         return finish(
             context,
             context.respond(
@@ -130,14 +130,15 @@ def _register_proposal_routes(
     @router.put(
         "/api/exam-rounds/{id}/planning-proposal",
         response_model=PlanningProposalResponse,
-        openapi_extra=_body_openapi(write_security, PlanningProposalWriteRequest),
+        openapi_extra=write_security,
     )
-    def save_proposal(context: ManageRoundWriteContext, id: str):
-        round_id = int(id)
-        payload = validated_payload(context, PlanningProposalWriteRequest)
-        saved = context.planning_service.save_proposal(
-            planning_proposal_from_payload(round_id, payload)
-        )
+    def save_proposal(
+        context: ManageRoundWriteContext,
+        id: int,
+        payload: PlanningProposalWriteRequest,
+    ):
+        data = payload_data(context, payload)
+        saved = context.planning_service.save_proposal(planning_proposal_from_payload(id, data))
         return finish(
             context,
             context.respond(
@@ -146,18 +147,17 @@ def _register_proposal_routes(
         )
 
     @router.post("/api/exam-rounds/{id}/confirm-plan")
-    def confirm_plan(context: ManageRoundEmptyWriteContext, id: str):
-        round_id = int(id)
-        confirmed = context.planning_service.confirm_plan(round_id)
+    def confirm_plan(context: ManageRoundEmptyWriteContext, id: int):
+        confirmed = context.planning_service.confirm_plan(id)
         try:
-            context.calendar_service.sync_round(round_id)
+            context.calendar_service.sync_round(id)
         except Exception:
             emit_event("backend_error", severity="error", category="calendar_processing")
             confirmed["calendar_warning"] = (
                 "Der Plan wurde bestätigt, aber die persönlichen Kalender konnten nicht "
                 "vollständig vorbereitet werden."
             )
-        warning = context.create_notifications_best_effort("plan_confirmed", round_id)
+        warning = context.create_notifications_best_effort("plan_confirmed", id)
         if warning:
             confirmed["notification_warning"] = warning
         return finish(context, context.respond(hateoas.confirmed_plan(confirmed)))
@@ -174,9 +174,8 @@ def _register_confirmed_plan_routes(
         response_model=PlanningProposalResponse,
         openapi_extra=read_security,
     )
-    def get_confirmed_plan(context: ManageRoundContext, id: str):
-        round_id = int(id)
-        plan = context.planning_service.get_confirmed_plan(round_id)
+    def get_confirmed_plan(context: ManageRoundContext, id: int):
+        plan = context.planning_service.get_confirmed_plan(id)
         return finish(
             context,
             context.respond(
@@ -189,17 +188,20 @@ def _register_confirmed_plan_routes(
     @router.put(
         "/api/exam-rounds/{id}/confirmed-plan",
         response_model=PlanningProposalResponse,
-        openapi_extra=_body_openapi(write_security, ConfirmedPlanChangeRequest),
+        openapi_extra=write_security,
     )
-    def save_confirmed_plan(context: ManageRoundWriteContext, id: str):
-        round_id = int(id)
-        committee_id = context.repository.committee_id_for_resource(EXAM_ROUND, round_id)
+    def save_confirmed_plan(
+        context: ManageRoundWriteContext,
+        id: int,
+        payload: ConfirmedPlanChangeRequest,
+    ):
+        committee_id = context.repository.committee_id_for_resource(EXAM_ROUND, id)
         actor_member_id = context.authorization_scope.member_for_committee(committee_id)
         if actor_member_id is None:
             raise ForbiddenRequestError("Forbidden.")
-        payload = validated_payload(context, ConfirmedPlanChangeRequest)
+        data = payload_data(context, payload)
         saved, revision = context.planning_service.save_confirmed_plan(
-            confirmed_plan_change_from_payload(round_id, payload),
+            confirmed_plan_change_from_payload(id, data),
             actor_member_id=actor_member_id,
         )
         try:
@@ -230,14 +232,13 @@ def _register_confirmed_plan_routes(
         "/api/exam-rounds/{id}/confirmed-plan/revisions",
         openapi_extra=read_security,
     )
-    def confirmed_plan_revisions(context: ManageRoundContext, id: str):
-        round_id = int(id)
+    def confirmed_plan_revisions(context: ManageRoundContext, id: int):
         return finish(
             context,
             context.respond(
                 hateoas.confirmed_plan_revisions(
-                    round_id,
-                    context.planning_service.confirmed_plan_revisions(round_id),
+                    id,
+                    context.planning_service.confirmed_plan_revisions(id),
                 )
             ),
         )
@@ -254,14 +255,13 @@ def _register_plan_consequence_routes(
         "/api/exam-rounds/{id}/confirmed-plan/consequences",
         openapi_extra=read_security,
     )
-    def confirmed_plan_consequences(context: ManageRoundContext, id: str):
-        round_id = int(id)
+    def confirmed_plan_consequences(context: ManageRoundContext, id: int):
         return finish(
             context,
             context.respond(
                 hateoas.plan_consequences(
-                    round_id,
-                    context.plan_consequence_service.list_for_round(round_id),
+                    id,
+                    context.plan_consequence_service.list_for_round(id),
                 )
             ),
         )
@@ -270,18 +270,20 @@ def _register_plan_consequence_routes(
         "/api/exam-rounds/{id}/confirmed-plan/revisions/{revision_id}/consequences/retry",
         openapi_extra=write_security,
     )
-    def retry_confirmed_plan_consequences(context: EmptyWriteContext, id: str, revision_id: str):
-        round_id = int(id)
-        parsed_revision_id = int(revision_id)
-        context.require_round_access(round_id, manage=True)
+    def retry_confirmed_plan_consequences(
+        context: EmptyWriteContext,
+        id: int,
+        revision_id: int,
+    ):
+        context.require_round_access(id, manage=True)
         known_revision_ids = {
-            item["id"] for item in context.planning_service.confirmed_plan_revisions(round_id)
+            item["id"] for item in context.planning_service.confirmed_plan_revisions(id)
         }
-        if parsed_revision_id not in known_revision_ids:
+        if revision_id not in known_revision_ids:
             return not_found()
         return finish(
             context,
-            context.respond(context.plan_consequence_service.retry_revision(parsed_revision_id)),
+            context.respond(context.plan_consequence_service.retry_revision(revision_id)),
         )
 
 
@@ -292,10 +294,11 @@ def _register_availability_routes(
 ) -> None:
     @router.post(
         "/api/candidate-exam-days/generate",
-        openapi_extra=_body_openapi(write_security, PlanningRoundRequest),
+        openapi_extra=write_security,
     )
-    def generate_days(context: ManageBodyRoundContext):
-        round_id = validated_payload(context, PlanningRoundRequest, exclude_unset=False)["round_id"]
+    def generate_days(context: WriteContext, payload: PlanningRoundRequest):
+        round_id = payload_data(context, payload, exclude_unset=False)["round_id"]
+        context.require_round_access(round_id, manage=True)
         return finish(
             context,
             context.respond(
@@ -305,10 +308,9 @@ def _register_availability_routes(
         )
 
     @router.post("/api/exam-rounds/{id}/request-availabilities")
-    def request_availabilities(context: ManageRoundEmptyWriteContext, id: str):
-        round_id = int(id)
-        exam_round = context.planning_service.request_availabilities(round_id)
-        warning = context.create_notifications_best_effort("availability_requested", round_id)
+    def request_availabilities(context: ManageRoundEmptyWriteContext, id: int):
+        exam_round = context.planning_service.request_availabilities(id)
+        warning = context.create_notifications_best_effort("availability_requested", id)
         if warning:
             exam_round["notification_warning"] = warning
         return finish(
@@ -354,8 +356,8 @@ def _planning_collection(
 def _planning_item(resource_name: str, finish: Finish, not_found: NotFound, *, mutable: bool):
     resource = REST_RESOURCES[resource_name]
 
-    def get_item(context: ReadContext, id: str):
-        row = context.repository.get_visible(resource, int(id), context.authorization_scope)
+    def get_item(context: ReadContext, id: int):
+        row = context.repository.get_visible(resource, id, context.authorization_scope)
         return (
             not_found()
             if row is None
@@ -378,9 +380,9 @@ def _planning_item(resource_name: str, finish: Finish, not_found: NotFound, *, m
 def _planning_create(resource_name: str, finish: Finish):
     resource = REST_RESOURCES[resource_name]
 
-    def create(context: WriteContext):
+    def create(context: ResourceCreateContext, request: DomainResourceWrite):
         payload = context.authorize_resource_action(
-            resource_name, None, context.read_json(), "create"
+            resource_name, None, payload_data(context, request), "create"
         )
         status = HTTPStatus.CREATED
         if resource_name == "planning-settings":
@@ -406,17 +408,17 @@ def _planning_update(
 ):
     resource = REST_RESOURCES[resource_name]
 
-    def update(context: WriteContext, id: str):
-        ident = int(id)
+    def update(context: ResourceItemWriteContext, request: DomainResourceWrite):
+        identifier = resource_identifier(context)
         payload = context.authorize_resource_action(
-            resource_name, ident, context.read_json(), "update"
+            resource_name, identifier, payload_data(context, request), "update"
         )
         if resource_name == "planning-settings":
-            row = context.repository.update_planning_settings(ident, payload)
+            row = context.repository.update_planning_settings(identifier, payload)
         elif resource_name == "member-availabilities":
-            row = context.repository.update_member_availability(ident, payload)
+            row = context.repository.update_member_availability(identifier, payload)
         else:
-            row = context.repository.update(resource, ident, payload)
+            row = context.repository.update(resource, identifier, payload)
         return (
             not_found()
             if row is None
@@ -436,10 +438,9 @@ def _planning_delete(
 ):
     resource = REST_RESOURCES[resource_name]
 
-    def delete(context: EmptyWriteContext, id: str):
-        ident = int(id)
-        context.authorize_resource_action(resource_name, ident, {}, "delete")
-        deleted = context.repository.delete(resource, ident)
+    def delete(context: EmptyWriteContext, id: int):
+        context.authorize_resource_action(resource_name, id, {}, "delete")
+        deleted = context.repository.delete(resource, id)
         return (
             not_found()
             if not deleted
@@ -535,7 +536,7 @@ def _register_resource_routes(
         openapi_extra=write_security,
     )
 
-    def aggregate_write(context: WriteContext, id: str | None = None):
+    def aggregate_write(context: WriteContext, id: int | None = None):
         raise ValueError(
             "Exam days, slots, and assignments must be changed through the planning aggregate"
         )
@@ -566,7 +567,7 @@ def register_planning_router(
     not_found: NotFound,
 ) -> None:
     """Build and include the complete planning-owned FastAPI router."""
-    router = APIRouter()
+    router = APIRouter(route_class=BoundedBodyRoute)
     _register_schedule_routes(router, finish, not_found)
     _register_proposal_routes(router, finish, write_security)
     _register_confirmed_plan_routes(router, finish, read_security, write_security)

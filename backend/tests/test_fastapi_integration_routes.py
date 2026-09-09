@@ -106,7 +106,7 @@ class FastAPIIntegrationRouterTests(unittest.TestCase):
                 schema = document["paths"][path]["post"]["requestBody"]["content"][
                     "application/json"
                 ]["schema"]
-                self.assertEqual(model, schema["title"])
+                self.assertEqual(f"#/components/schemas/{model}", schema["$ref"])
 
         responses = {
             ("get", "/api/calendar", "200", "CalendarStatusResponse"),

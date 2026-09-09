@@ -93,12 +93,16 @@ class OpenApiContractTests(unittest.TestCase):
                 request_schema = document["paths"][path][method]["requestBody"]["content"][
                     "application/json"
                 ]["schema"]
-                self.assertEqual(schema_name, request_schema["title"])
+                self.assertEqual(f"#/components/schemas/{schema_name}", request_schema["$ref"])
 
         revision_schema = document["paths"]["/api/exam-venues/{id}"]["delete"]["requestBody"][
             "content"
         ]["application/json"]["schema"]
-        self.assertIn("expected_revision", revision_schema["required"])
+        self.assertEqual("#/components/schemas/RevisionDeleteRequest", revision_schema["$ref"])
+        self.assertIn(
+            "expected_revision",
+            document["components"]["schemas"]["RevisionDeleteRequest"]["required"],
+        )
 
     def test_seeded_read_operations_match_the_openapi_responses(self) -> None:
         """Exercise each documented collection and item response through the HTTP adapter."""

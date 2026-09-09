@@ -4,10 +4,12 @@ from collections.abc import Callable
 from typing import Annotated
 
 from fastapi import Depends, Header, Request, Security
+from fastapi.routing import APIRoute
 from fastapi.security import APIKeyCookie
 from starlette.requests import ClientDisconnect
 
 from backend.application.transport import RequestContext, RequestTooLargeError
+from backend.identity.local_auth import LocalAuthError
 
 from .application import ForbiddenRequestError
 
@@ -34,7 +36,8 @@ async def buffered_body(request: Request) -> bytes:
     """Buffer only a body-consuming route, bounded by actual received bytes.
 
     Check each ASGI chunk before retaining it and stop receiving on overflow.
-    JSON and media errors stay at RequestContext.read_json after access checks.
+    The cached bytes let FastAPI perform its native JSON and Pydantic handling
+    without reading the unbounded ASGI stream first.
     """
     if not hasattr(request.state, "raw_body"):
         validate_body_headers(request)
@@ -48,7 +51,28 @@ async def buffered_body(request: Request) -> bytes:
         except ClientDisconnect as error:
             raise ValueError("Incomplete request body.") from error
         request.state.raw_body = bytes(body)
+        request._body = request.state.raw_body  # type: ignore[attr-defined]
     return request.state.raw_body
+
+
+class BoundedBodyRoute(APIRoute):
+    """Enforce the transport limit before FastAPI decodes a declared body.
+
+    FastAPI normally reads a complete request body before resolving route
+    dependencies. This small compatibility boundary preserves the streaming
+    limit while leaving JSON decoding, Pydantic validation, and OpenAPI schema
+    generation to FastAPI itself. Routes without a declared body are not read.
+    """
+
+    def get_route_handler(self):
+        route_handler = super().get_route_handler()
+
+        async def bounded_handler(request: Request):
+            if self.body_field is not None:
+                await buffered_body(request)
+            return await route_handler(request)
+
+        return bounded_handler
 
 
 BufferedBody = Annotated[bytes, Depends(buffered_body)]
@@ -78,12 +102,37 @@ Context = Annotated[RequestContext, Depends(request_context)]
 
 
 def body_context(context: Context, body: BufferedBody) -> RequestContext:
-    """Attach the buffered body only to handlers whose existing contract reads it."""
+    """Attach bounded bytes for the pre-validation security compatibility check."""
     context.set_body(body)
     return context
 
 
 BodyContext = Annotated[RequestContext, Depends(body_context)]
+
+
+def object_body_context(context: BodyContext) -> RequestContext:
+    """Enforce the stable JSON media/object contract before model validation."""
+    context.read_json()
+    return context
+
+
+ObjectBodyContext = Annotated[RequestContext, Depends(object_body_context)]
+
+
+def public_auth_context(context: BodyContext) -> RequestContext:
+    """Apply product-policy and brute-force guards before field validation."""
+    if not context.runtime_policy.allow_product_auth():
+        raise ForbiddenRequestError("Forbidden.")
+    request = context.request
+    parts = request.url.path.removeprefix("/api/").strip("/").split("/")
+    retry_after = context.auth_rate_limiter.check(f"{context.client_key}:{'/'.join(parts)}")
+    if retry_after is not None:
+        raise LocalAuthError("rate_limited", "Too many requests.", retry_after=retry_after)
+    context.read_json()
+    return context
+
+
+PublicAuthContext = Annotated[RequestContext, Depends(public_auth_context)]
 
 
 def access_context(
@@ -99,6 +148,9 @@ def access_context(
     All decisions delegate to the existing context and services. The operator
     alternative is reserved for the venue boundary. Some existing mutations do
     not require CSRF; callers must choose their established contract explicitly.
+    Mutation policy deliberately inspects the decoded object before Pydantic
+    field validation so demo allowlists and lifecycle guards cannot be bypassed.
+    This is one of the remaining centralized body compatibility reasons.
     """
 
     dependency = body_context if body else request_context
@@ -150,6 +202,32 @@ MutationContext = Annotated[RequestContext, Depends(access_context(mutation=True
 BodyMutationContext = Annotated[RequestContext, Depends(access_context(body=True, mutation=True))]
 
 
+def resource_create_context(context: WriteContext) -> RequestContext:
+    """Preserve collection scope checks before native body field validation."""
+    resource_name = context.request.url.path.removeprefix("/api/").strip("/").split("/")[0]
+    context.authorize_resource_action(resource_name, None, context.read_json(), "create")
+    return context
+
+
+ResourceCreateContext = Annotated[RequestContext, Depends(resource_create_context)]
+
+
+def resource_item_write_context(id: int, context: WriteContext) -> RequestContext:
+    """Preserve item scope and typed-ID checks before body field validation."""
+    resource_name = context.request.url.path.removeprefix("/api/").strip("/").split("/")[0]
+    context.authorize_resource_action(resource_name, id, context.read_json(), "update")
+    context.request.state.resource_identifier = id
+    return context
+
+
+ResourceItemWriteContext = Annotated[RequestContext, Depends(resource_item_write_context)]
+
+
+def resource_identifier(context: RequestContext) -> int:
+    """Return an identifier validated by the resource access dependency."""
+    return context.request.state.resource_identifier
+
+
 def venue_access(*, mutation: bool = False, identifier: str | None = None, body: bool = True):
     """Keep venue path validation before authentication, with operator access.
 
@@ -161,17 +239,28 @@ def venue_access(*, mutation: bool = False, identifier: str | None = None, body:
     )
     base = body_context if mutation and body else request_context
 
-    def item(id: int, context: Annotated[RequestContext, Depends(base)]) -> RequestContext:
+    def validated(context: RequestContext, name: str, value: int) -> RequestContext:
+        identifiers = getattr(context.request.state, "validated_path_identifiers", {})
+        identifiers[name] = value
+        context.request.state.validated_path_identifiers = identifiers
         return access(context)
 
+    def item(id: int, context: Annotated[RequestContext, Depends(base)]) -> RequestContext:
+        return validated(context, "id", id)
+
     def audit(audit_id: int, context: Annotated[RequestContext, Depends(base)]) -> RequestContext:
-        return access(context)
+        return validated(context, "audit_id", audit_id)
 
     if identifier == "id":
         return item
     if identifier == "audit_id":
         return audit
     return access
+
+
+def venue_identifier(context: RequestContext, name: str = "id") -> int:
+    """Return an identifier validated by the venue access dependency."""
+    return context.request.state.validated_path_identifiers[name]
 
 
 VenueReadContext = Annotated[RequestContext, Depends(venue_access())]
@@ -189,16 +278,11 @@ VenueAuditWriteContext = Annotated[
 ]
 
 
-def round_access(
-    dependency: Callable[..., RequestContext], *, manage: bool = False, body: bool = False
-):
+def round_access(dependency: Callable[..., RequestContext], *, manage: bool = False):
     """Apply the existing round/committee guard after authentication and mutation policy."""
 
-    def access(context: Annotated[RequestContext, Depends(dependency)]) -> RequestContext:
-        round_id = int(
-            context.read_json().get("round_id", 1) if body else context.request.path_params["id"]
-        )
-        context.require_round_access(round_id, manage=manage)
+    def access(id: int, context: Annotated[RequestContext, Depends(dependency)]) -> RequestContext:
+        context.require_round_access(id, manage=manage)
         return context
 
     return access
@@ -212,10 +296,4 @@ ManageRoundWriteContext = Annotated[
 ManageRoundEmptyWriteContext = Annotated[
     RequestContext,
     Depends(round_access(access_context(csrf=True, mutation=True), manage=True)),
-]
-ManageBodyRoundContext = Annotated[
-    RequestContext,
-    Depends(
-        round_access(access_context(csrf=True, body=True, mutation=True), manage=True, body=True)
-    ),
 ]

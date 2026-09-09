@@ -129,7 +129,7 @@ class FastAPIPlanningRouterTests(unittest.TestCase):
                 schema = document["paths"][path][method]["requestBody"]["content"][
                     "application/json"
                 ]["schema"]
-                self.assertEqual(model_name, schema["title"])
+                self.assertEqual(f"#/components/schemas/{model_name}", schema["$ref"])
 
         responses = (
             (

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 from http import HTTPStatus
 from typing import Any
 from urllib.parse import urlparse
@@ -49,50 +48,19 @@ def json_response(result: ApplicationResult, context: RequestContext | None = No
     return response
 
 
-def validated_payload[PayloadModel: BaseModel](
+def payload_data[PayloadModel: BaseModel](
     context: RequestContext,
-    model: type[PayloadModel],
+    payload: PayloadModel,
     *,
     exclude_unset: bool = True,
 ) -> dict[str, Any]:
-    """Validate an already access-checked JSON object with its Pydantic contract.
+    """Convert FastAPI's validated model to the established application payload.
 
-    RequestContext keeps ownership of decoding because authentication, CSRF, and
-    authorization deliberately precede media-type and JSON errors. Pydantic owns
-    the typed payload contract once those transport guards have succeeded.
+    Pydantic already owns parsing and field validation. The remaining
+    normalization preserves public compatibility aliases and boolean forms at
+    the framework-neutral application boundary.
     """
-    return model.model_validate(context.read_json()).model_dump(exclude_unset=exclude_unset)
-
-
-def request_body(model: type[BaseModel]) -> dict[str, object]:
-    """Describe a guarded JSON body directly from its Pydantic model.
-
-    FastAPI cannot parse these bodies natively without moving malformed-JSON
-    errors ahead of the established access checks. The schema remains attached
-    to the path operation while Pydantic validates the same model at runtime.
-    """
-    schema = model.model_json_schema()
-    definitions = schema.pop("$defs", {})
-
-    def expand(value):
-        if isinstance(value, list):
-            return [expand(item) for item in value]
-        if not isinstance(value, dict):
-            return value
-        reference = value.get("$ref")
-        if isinstance(reference, str) and reference.startswith("#/$defs/"):
-            name = reference.removeprefix("#/$defs/")
-            resolved = deepcopy(definitions[name])
-            resolved.update({key: item for key, item in value.items() if key != "$ref"})
-            return expand(resolved)
-        return {key: expand(item) for key, item in value.items()}
-
-    return {
-        "requestBody": {
-            "required": True,
-            "content": {"application/json": {"schema": expand(schema)}},
-        }
-    }
+    return context.normalize_payload(payload.model_dump(exclude_unset=exclude_unset))
 
 
 def not_found() -> Response:
