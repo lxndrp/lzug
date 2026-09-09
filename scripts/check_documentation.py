@@ -260,7 +260,7 @@ def check_handbook(root: Path) -> list[str]:
     handbook = root / "docs" / "handbook"
     actual = {path.name for path in handbook.glob("*.md")} if handbook.is_dir() else set()
     missing = sorted(HANDBOOK_FILES - actual)
-    unexpected = sorted(actual - HANDBOOK_FILES - {"_Sidebar.md"})
+    unexpected = sorted(actual - HANDBOOK_FILES - {"_Sidebar.md", "Versionshinweise.md"})
     violations: list[str] = []
     if missing:
         violations.append(

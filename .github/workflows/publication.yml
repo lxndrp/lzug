@@ -36,6 +36,11 @@ on:
   schedule:
     - cron: "29 4 * * 1"
   workflow_dispatch:
+    inputs:
+      repository_revision:
+        description: "Optional full master commit SHA of a previous successful Pages artifact"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -57,6 +62,31 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && 0 || 1 }}
+
+      - name: Bind an optional rollback build to an immutable master revision
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          REQUESTED_REPOSITORY_REVISION: ${{ inputs.repository_revision }}
+        run: |
+          target="${REQUESTED_REPOSITORY_REVISION:-$GITHUB_SHA}"
+          test "${#target}" -eq 40 || {
+            echo "repository_revision must be a full lower-case 40-character Git SHA" >&2
+            exit 1
+          }
+          case "$target" in
+            *[!0-9a-f]*)
+              echo "repository_revision must be a full lower-case 40-character Git SHA" >&2
+              exit 1
+              ;;
+          esac
+          git cat-file -e "$target^{commit}"
+          git merge-base --is-ancestor "$target" origin/master || {
+            echo "repository_revision must be reachable from master" >&2
+            exit 1
+          }
+          git checkout --detach "$target"
+          test "$(git rev-parse HEAD)" = "$target"
 
       - name: Validate the manual publication gate
         if: github.event_name == 'workflow_dispatch'
@@ -99,6 +129,22 @@ jobs:
           uv sync --locked --extra dev
           npm ci --prefix frontend
 
+      - name: Reproduce Wiki and reduced Pages candidates
+        if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.repository_revision == '')
+        run: mise x hugo-extended@0.165.0 -- task docs:publication:candidate:check DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+
+      - name: Check the reduced Pages candidate in Chromium
+        if: github.event_name == 'pull_request'
+        env:
+          PLAYWRIGHT_BROWSER_CHANNEL: chrome
+        run: mise x hugo-extended@0.165.0 -- task docs:publication:candidate:browser
+
+      - name: Check reduced Pages candidate accessibility
+        if: github.event_name == 'pull_request'
+        env:
+          PLAYWRIGHT_BROWSER_CHANNEL: chrome
+        run: mise x hugo-extended@0.165.0 -- task docs:publication:candidate:a11y
+
       - name: Verify reproducible public artifact
         if: github.event_name == 'schedule'
         run: mise x hugo-extended@0.165.0 -- task docs:publication:check DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
@@ -129,8 +175,32 @@ jobs:
         with:
           name: lzug-public-site
           path: build/publication
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
+
+      - name: Upload unactivated migration candidates
+        if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.repository_revision == '')
+        id: migration-candidates
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: publication-migration-candidates
+          path: |
+            build/pages-candidate
+            build/wiki-candidate
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Record migration candidate artifact metadata
+        if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.repository_revision == '')
+        env:
+          ARTIFACT_ID: ${{ steps.migration-candidates.outputs.artifact-id }}
+          ARTIFACT_URL: ${{ steps.migration-candidates.outputs.artifact-url }}
+          ARTIFACT_DIGEST: ${{ steps.migration-candidates.outputs.artifact-digest }}
+        run: |
+          printf 'Migration candidate artifact ID: `%s`\n\n' "$ARTIFACT_ID" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Artifact URL: %s\n\n' "$ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
+          printf 'GitHub artifact digest: `%s`\n' "$ARTIFACT_DIGEST" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Prepare Pages deployment artifact after the manual gate
         if: github.event_name == 'workflow_dispatch'

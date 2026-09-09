@@ -83,14 +83,17 @@ Es ist öffentlich lesbar, aber nur durch berechtigte Repository-Mitwirkende bea
 
 Wiki-Seiten tragen global eindeutige, flache Namen.
 Interne Links verwenden keine Dateiendung und öffnen gerenderte Wiki-Seiten statt Rohdateien.
+Diese Regeln sind Autorenkonventionen und kein eigener maschineller Wiki-Vertrag.
 `Home` ist der verbindliche Einstieg;
 eine Seite `Versionshinweise` erklärt den Versionsbezug.
+`_Sidebar.md` bietet eine kuratierte Navigation und ist kein vollständiges Seitenregister.
 
 `Home` nennt klar, dass das Wiki grundsätzlich den aktuellen stabilen Stand beschreibt.
-`Versionshinweise` nennt den aktuellen stabilen Stand,
+`Versionshinweise` beschreibt diesen Versionsbezug verständlich,
 gegebenenfalls noch unterstützte ältere Stände,
 verweist auf Changelog und Releases
 und erklärt die verwendeten Versionshinweise.
+Eine mit Changelog oder Releases maschinell synchronisierte Versionsnummer ist nicht erforderlich.
 
 Redaktionelle Korrekturen, Erläuterungen und Ergänzungen ohne abweichendes Produktverhalten
 benötigen keine Versionsmarkierung.
@@ -111,7 +114,7 @@ Nicht verwendet werden Versions-Badges, eigenes CSS,
 `<kbd>` als optische Ersatzformatierung,
 ausschließlich durch Emoji vermittelte Bedeutung oder Fußnoten.
 Die gerenderte GitHub-Darstellung der verwendeten Textzeilen, Alerts und Tabellen
-wird vor ihrer öffentlichen Übernahme mit dem konkreten Wiki-Kandidaten geprüft.
+wird beim öffentlichen Cutover am tatsächlichen GitHub Wiki geprüft.
 
 Wiki-Tags oder festgehaltene Wiki-Commit-SHAs dürfen einen forensischen
 oder betrieblichen Schnappschuss bezeichnen.
@@ -150,8 +153,8 @@ solange sein Versionsvertrag den beschriebenen stabilen Produktstand eindeutig e
 - Ein organisch gepflegtes Wiki kann dem stabilen Produktstand vorauslaufen.
   `Home`, `Versionshinweise` und lokale Hinweise an tatsächlich abweichenden Stellen begrenzen dieses Risiko.
 - Getrennte Oberflächen können Links und Navigation driften lassen.
-  Kontrollierte Einstiege, extensionlose Wiki-Links, generische Linkprüfung
-  und ein lesender Post-Publish-Check sichern die Übergänge.
+  Kontrollierte Einstiege, kuratierte Navigation, generische Linkprüfung
+  und ein menschlicher Review beim öffentlichen Cutover sichern die Übergänge.
 - Ein ungeprüfter älterer Wiki-Bestand kann veraltete oder widersprüchliche Aussagen enthalten.
   Er wird vor der Umschaltung vollständig gegen den aktuellen Produkt-, Rollen-, Betriebs-
   und Architekturstand geprüft und nicht als kanonisch vorausgesetzt.
@@ -163,18 +166,22 @@ solange sein Versionsvertrag den beschriebenen stabilen Produktstand eindeutig e
 ## Migrationsrichtung und Rückfallgrenze
 
 Die eigentliche Inhaltsmigration, die Reaktivierung des Wikis
-und die Reduktion des Pages-Builds erfolgen in einem getrennten Umsetzungsschritt.
-Dieser inventarisiert jede heutige redaktionelle Seite,
-ordnet sie genau einer Zieloberfläche zu
-und prüft den Wiki-Kandidaten vor jeder öffentlichen Umschaltung.
+und die Reduktion des Pages-Builds erfolgen in getrennten Umsetzungsschritten.
+Ein einmaliges, reviewbares Issue-/Pull-Request-Inventar ordnet die heutigen Inhalte
+genau einer Zieloberfläche zu und wird nicht als generiertes Datenformat fortgeführt.
 
-Der schlanke Wiki-Publish-Vertrag umfasst einen lokalen Pre-Publish-Check des konkreten Kandidaten,
-flache eindeutige Seitennamen, Pflichtseiten, extensionlose interne Ziele,
-einen Gollum- beziehungsweise Rendering-Nachweis
-und einen rein lesenden Post-Publish-Check der aus der Sidebar erwarteten öffentlichen Routen.
-Generische Links werden mit Standardwerkzeugen geprüft.
+Der Wiki-Kandidat besteht aus zielfertigen Markdown-Dateien,
+die aus einer festen Repository-Revision unverändert in einen flachen Baum kopiert werden.
+Lychee prüft einmalig vorhandene Ziele und Fragmente.
+Ein lokaler Gollum-Nachbau, ein eigener Markdown- oder Sidebar-Parser,
+ein eigener HTTP-Client und dauerhaftes Post-Publish-Monitoring sind nicht Teil des Vertrags.
+GitHub selbst verantwortet Dateinamen und Rendering;
+der öffentliche Cutover mit anschließendem menschlichem Review ist die Abnahmegrenze.
 Ein Schreib-Token, eine GitHub App oder ein automatischer Push aus dem Hauptrepository
 sind keine Voraussetzung des Dauerbetriebs.
+
+ADR-0012 bleibt als abgelöste historische Entscheidung erhalten.
+Seine Forderung nach einer vollständig synchronisierten Sidebar wird nicht erneut übernommen.
 
 Vor der Umschaltung bleiben die bestehenden kanonischen Quellen und das letzte konsistente Pages-Artefakt erhalten.
 Erst nach erfolgreicher öffentlicher Wiki-Prüfung werden migrierte Vollfassungen
@@ -186,7 +193,8 @@ Scheitert die Umschaltung vor dieser Abnahme,
 bleibt der bisherige konsistente Publikationsstand maßgeblich.
 Scheitert sie danach,
 können Wiki-Zugriff und Pages-Auslieferung auf den letzten gemeinsam geprüften Stand zurückgeführt werden.
-Git-Historie bewahrt die früheren Inhalte;
+Konkrete Repository- und Wiki-SHAs, GitHub-Artifact-Metadaten und Git-Historie
+belegen und bewahren die früheren Stände;
 zusätzliche dauerhafte Arbeits-, Render- oder Archivkopien entstehen nicht.
 
 ## Alternativen

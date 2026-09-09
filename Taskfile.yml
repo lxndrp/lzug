@@ -229,6 +229,67 @@ tasks:
     cmds:
       - npm --prefix frontend run test:publication:a11y
 
+  docs:publication:candidate:
+    desc: Build the unactivated Wiki and reduced Pages candidates
+    deps:
+      - docs:check
+    vars:
+      DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
+      BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
+    cmds:
+      - >-
+        {{.UV}} python -m docs.publication build
+        --profile candidate
+        --typedoc frontend/node_modules/.bin/typedoc
+        --base-url "{{.BASE_URL}}"
+        --demo-url "{{.DEMO_URL}}"
+        --output build/pages-candidate
+      - rm -rf build/wiki-candidate
+      - mkdir -p build/wiki-candidate
+      - >-
+        find docs/handbook -maxdepth 1 -type f -name '*.md'
+        ! -name 'Entwicklung*.md'
+        -exec cp '{}' build/wiki-candidate/ ';'
+
+  docs:publication:candidate:check:
+    desc: Reproduce and validate the Wiki and reduced Pages candidates without publishing
+    deps:
+      - docs:publication:candidate
+    vars:
+      DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
+      BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
+    cmds:
+      - >-
+        {{.UV}} python -m docs.publication check
+        --profile candidate
+        --typedoc frontend/node_modules/.bin/typedoc
+        --base-url "{{.BASE_URL}}"
+        --demo-url "{{.DEMO_URL}}"
+      - >-
+        lychee --config .lychee.toml --root-dir "$PWD/build/pages-candidate"
+        build/pages-candidate
+      - lychee --config .lychee.toml --fallback-extensions md build/wiki-candidate
+
+  docs:publication:candidate:browser:
+    desc: Check the reduced Pages candidate on desktop and mobile with Playwright
+    deps:
+      - docs:publication:candidate
+    env:
+      LZUG_PUBLICATION_PROFILE: candidate
+      LZUG_PUBLICATION_ROOT: ../build/pages-candidate
+    cmds:
+      - npm --prefix frontend run test:publication
+
+  docs:publication:candidate:a11y:
+    desc: Check the reduced Pages candidate with Playwright and axe
+    deps:
+      - docs:publication:candidate
+    env:
+      LZUG_PUBLICATION_PROFILE: candidate
+      LZUG_PUBLICATION_ROOT: ../build/pages-candidate
+    cmds:
+      - npm --prefix frontend run test:publication:a11y
+
   docs:media:capture:
     desc: Recreate the reviewed synthetic demo screenshots from their canonical scenario
     dir: frontend
