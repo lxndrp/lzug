@@ -209,6 +209,37 @@ Master-Pushes erzeugen nur das Folgeartefakt; Browser- und A11y-Nachweise werden
 vor manueller Veröffentlichung erbracht.
 Der geplante Site-Lauf prüft die Byte-Reproduzierbarkeit.
 
+Vor einer Wiki-Umschaltung erzeugt `task docs:publication:candidate:check`
+ausschließlich unter `build/` einen flachen Wiki-Kandidaten,
+einen auf Produktseite und technische Referenzen reduzierten Pages-Kandidaten
+und das dazugehörige Quelle-/Ziel-/Entscheidung-Inventar.
+Die Repository-Handbuchquellen bleiben dabei bis zur öffentlichen Wiki-Abnahme kanonisch und unverändert erhalten.
+Der Kandidat enthält `Home`, `_Sidebar` und `Versionshinweise`,
+verwendet für interne Seiten ausschließlich flache extensionlose Ziele
+und wird zusätzlich mit der gelockten Gollum-Ausgabe gerendert.
+Lychee prüft Wiki-Markdown und reduziertes Pages-Artefakt getrennt.
+Browser- und Accessibility-Abnahme des Pages-Kandidaten laufen über
+`task docs:publication:candidate:browser` und `task docs:publication:candidate:a11y`.
+
+Nach einer gesondert freigegebenen Wiki-Veröffentlichung liest
+`task docs:wiki:post-publish WIKI_ROOT=/path/to/lzug.wiki`
+die erwarteten Routen aus dem lokal ausgecheckten `_Sidebar.md`.
+Der Check akzeptiert nur direkte HTTP-200-Antworten mit HTML-Content-Type
+und lehnt insbesondere Weiterleitungen auf Rohinhalte ab.
+Er besitzt weder Schreib-Token noch Push-Funktion.
+
+Vor dem Umschaltfenster werden die vollständige Repository-SHA,
+die vorherige Wiki-SHA sowie Lauf, Verfügbarkeit und Digest des letzten konsistenten Pages-Artefakts im Betriebs-Issue gebunden.
+`task docs:publication:rollback:check` gleicht diese konkreten Stände gegen den ausgecheckten Wiki-Bestand und das heruntergeladene Pages-Artefakt ab.
+Falls das gespeicherte Pages-Artefakt abgelaufen ist,
+kann der manuelle `Public site`-Workflow auf `master` eine vollständige frühere,
+von `master` erreichbare `repository_revision` neu bauen.
+Deployment und Pages-Environment-Freigabe bleiben auch für diesen Wiederveröffentlichungsweg zwingend manuell.
+Ein Wiki-Rückfall übernimmt den vorher festgehaltenen Baum als neuen geprüften Commit und verwendet keinen Force-Push.
+
+Kandidat, Inventar, Routenliste und Renderausgaben sind erzeugte Prüfarbeitsstände.
+Sie werden nicht versioniert und bilden weder eine zweite Handbuchquelle noch ein dauerhaft gepflegtes Migrationsdokument.
+
 ## Eigenständige Fehlergrenzen und kleinste Prüfebenen
 
 | Grenze | Realistischer Fehlerfall | Kleinste ausreichende Prüfung |

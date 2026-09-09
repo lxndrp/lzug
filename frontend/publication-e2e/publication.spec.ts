@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
+const publicationProfile = process.env['LZUG_PUBLICATION_PROFILE'] ?? 'current';
+
 const candidates = [
   {
     name: 'desktop-light',
@@ -182,15 +184,42 @@ test.describe('public site browser contract', () => {
   });
 
   test('renders the projected handbook with search', async ({ page }) => {
+    test.skip(publicationProfile === 'candidate', 'the reduced candidate excludes handbook routes');
     const response = await page.goto('/handbuch/', { waitUntil: 'networkidle' });
     expect(response?.ok(), 'handbook response').toBe(true);
     await expect(page.locator('input[type="search"]')).toHaveCount(1);
   });
 
+  test('keeps the reduced candidate on product and reference routes', async ({ page }) => {
+    test.skip(publicationProfile !== 'candidate', 'only applies to the reduced Pages candidate');
+    for (const route of [
+      '/produkt/',
+      '/referenz/',
+      '/referenz/api/',
+      '/referenz/backend/',
+      '/referenz/frontend/',
+      '/referenz/datenbank/',
+    ]) {
+      const response = await page.goto(route, { waitUntil: 'networkidle' });
+      expect(response?.ok(), `${route} response`).toBe(true);
+    }
+    for (const route of [
+      '/handbuch/',
+      '/fachlichkeit/',
+      '/nutzen/',
+      '/betreiben/',
+      '/entwickeln/',
+    ]) {
+      const response = await page.goto(route, { waitUntil: 'networkidle' });
+      expect(response?.status(), `${route} is absent`).toBe(404);
+    }
+  });
+
   test('attaches portal content evidence for the shared visual grammar', async ({
     page,
   }, testInfo) => {
-    await page.goto('/handbuch/', { waitUntil: 'networkidle' });
+    const evidenceRoute = publicationProfile === 'candidate' ? '/produkt/' : '/handbuch/';
+    await page.goto(evidenceRoute, { waitUntil: 'networkidle' });
     await expect(page.locator('main')).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
 

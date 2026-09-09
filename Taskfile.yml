@@ -229,6 +229,102 @@ tasks:
     cmds:
       - npm --prefix frontend run test:publication:a11y
 
+  docs:publication:candidate:
+    desc: Build the unactivated Wiki and reduced Pages candidates with generated evidence
+    deps:
+      - docs:check
+    vars:
+      PAGES_OUTPUT: '{{default "build/pages-candidate" .PAGES_OUTPUT}}'
+      WIKI_OUTPUT: '{{default "build/wiki-candidate" .WIKI_OUTPUT}}'
+      EVIDENCE_OUTPUT: '{{default "build/publication-candidate-evidence" .EVIDENCE_OUTPUT}}'
+      DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
+      BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
+    cmds:
+      - >-
+        {{.UV}} python -m docs.publication candidate
+        --typedoc frontend/node_modules/.bin/typedoc
+        --base-url "{{.BASE_URL}}"
+        --demo-url "{{.DEMO_URL}}"
+        --pages-output "{{.PAGES_OUTPUT}}"
+        --wiki-output "{{.WIKI_OUTPUT}}"
+        --evidence-output "{{.EVIDENCE_OUTPUT}}"
+
+  docs:publication:candidate:check:
+    desc: Reproduce and validate the Wiki and reduced Pages candidates without publishing
+    deps:
+      - docs:publication:candidate
+    vars:
+      PAGES_OUTPUT: '{{default "build/pages-candidate" .PAGES_OUTPUT}}'
+      WIKI_OUTPUT: '{{default "build/wiki-candidate" .WIKI_OUTPUT}}'
+      DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
+      BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
+    cmds:
+      - >-
+        {{.UV}} python -m docs.publication candidate-check
+        --typedoc frontend/node_modules/.bin/typedoc
+        --base-url "{{.BASE_URL}}"
+        --demo-url "{{.DEMO_URL}}"
+      - >-
+        lychee --config .lychee.toml --root-dir "$PWD/{{.PAGES_OUTPUT}}"
+        "{{.PAGES_OUTPUT}}"
+      - lychee --config .lychee.toml --fallback-extensions md "{{.WIKI_OUTPUT}}"
+      - >-
+        docker run --rm --network none --read-only --cap-drop all
+        --security-opt no-new-privileges --user "$(id -u):$(id -g)"
+        --tmpfs /tmp:rw,nosuid,nodev,noexec
+        --entrypoint ruby -v "$PWD:/workspace:ro" -w /workspace
+        ghcr.io/gollum/gollum@sha256:6dc5ba588bca0d7c5a5964e0537d0ee4cfa7d0738959b530f9bebaa776d1c641
+        docs/publication/check-wiki-render.rb "{{.WIKI_OUTPUT}}"
+
+  docs:publication:candidate:browser:
+    desc: Check the reduced Pages candidate on desktop and mobile with Playwright
+    deps:
+      - docs:publication:candidate
+    env:
+      LZUG_PUBLICATION_PROFILE: candidate
+      LZUG_PUBLICATION_ROOT: ../build/pages-candidate
+    cmds:
+      - npm --prefix frontend run test:publication
+
+  docs:publication:candidate:a11y:
+    desc: Check the reduced Pages candidate with Playwright and axe
+    deps:
+      - docs:publication:candidate
+    env:
+      LZUG_PUBLICATION_PROFILE: candidate
+      LZUG_PUBLICATION_ROOT: ../build/pages-candidate
+    cmds:
+      - npm --prefix frontend run test:publication:a11y
+
+  docs:wiki:post-publish:
+    desc: Read all published Wiki routes derived from a checked local Wiki clone
+    requires:
+      vars:
+        - WIKI_ROOT
+    vars:
+      WIKI_BASE_URL: '{{default "https://github.com/lxndrp/lzug/wiki" .WIKI_BASE_URL}}'
+    cmds:
+      - >-
+        {{.UV}} python -m docs.publication wiki-post-publish
+        --wiki-root "{{.WIKI_ROOT}}"
+        --wiki-base-url "{{.WIKI_BASE_URL}}"
+
+  docs:publication:rollback:check:
+    desc: Bind preserved Wiki and Pages data to concrete rollback revisions
+    requires:
+      vars:
+        - PAGES_ROOT
+        - REPOSITORY_REVISION
+        - WIKI_ROOT
+        - WIKI_REVISION
+    cmds:
+      - >-
+        {{.UV}} python -m docs.publication rollback-check
+        --pages-root "{{.PAGES_ROOT}}"
+        --repository-revision "{{.REPOSITORY_REVISION}}"
+        --wiki-root "{{.WIKI_ROOT}}"
+        --wiki-revision "{{.WIKI_REVISION}}"
+
   docs:media:capture:
     desc: Recreate the reviewed synthetic demo screenshots from their canonical scenario
     dir: frontend
