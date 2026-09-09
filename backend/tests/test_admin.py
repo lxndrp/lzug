@@ -11,11 +11,12 @@ import unittest
 from contextlib import closing, redirect_stdout
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import patch
 
-from backend.admin import EXIT_OK, EXIT_TOKEN_INVALID, _execute, _run_command, run
+from backend.admin import EXIT_OK, EXIT_TOKEN_INVALID, run
+from backend.application.admin import AdminServices, _run_command
 from backend.identity.admin_service import AdminOperationError, IssuedAuthToken, OperatorAuthService
 from backend.identity.auth import AuthenticationRepository
+from backend.persistence.database import PersistencePaths
 from backend.tests.helpers import TempDatabase
 
 
@@ -439,15 +440,22 @@ class AdminCommandHandlerTests(unittest.TestCase):
         consequences = _RecordingDependency(failing=failing)
         artifacts = _RecordingDependency(failing=failing)
         lifecycle = _RecordingDependency(failing=failing)
-        result = _execute(
+        services = AdminServices(
+            diagnostics=lambda diagnostic, _client: ({"command": diagnostic}, EXIT_OK),
+            readiness_probe=lambda _path: {"ready": True},
+            operator_auth_factory=lambda _path: service,
+            notification_factory=lambda _path: notifications,
+            committee_factory=lambda _path: committee,
+            consequence_factory=lambda _path, _notifications: consequences,
+            artifact_factory=lambda _paths: artifacts,
+            recipient_repository_factory=lambda _artifacts: artifacts,
+            lifecycle_factory=lambda _paths: lifecycle,
+        )
+        result, _exit_code = _run_command(
             command,
             self._COMMANDS[command],
-            service,
-            notifications,
-            committee,
-            consequences,
-            artifacts,
-            lifecycle,
+            PersistencePaths(),
+            services,
         )
         return result, (service, notifications, committee, consequences, artifacts, lifecycle)
 
@@ -478,17 +486,36 @@ class AdminCommandHandlerTests(unittest.TestCase):
         }
         for command, arguments in commands.items():
             with self.subTest(command=command, outcome="success"):
-                with patch("backend.admin.run_diagnostics", return_value=({"command": command}, 0)):
-                    result, exit_code = _run_command(
-                        command, arguments, None, None, None, None, None, None
-                    )
+                services = AdminServices(
+                    diagnostics=lambda diagnostic, _client: ({"command": diagnostic}, 0),
+                    readiness_probe=lambda _path: {"ready": True},
+                    operator_auth_factory=lambda _path: _RecordingDependency(),
+                    notification_factory=lambda _path: _RecordingDependency(),
+                    committee_factory=lambda _path: _RecordingDependency(),
+                    consequence_factory=lambda _path, _notifications: _RecordingDependency(),
+                    artifact_factory=lambda _paths: _RecordingDependency(),
+                    recipient_repository_factory=lambda _artifacts: _RecordingDependency(),
+                    lifecycle_factory=lambda _paths: _RecordingDependency(),
+                )
+                result, exit_code = _run_command(command, arguments, PersistencePaths(), services)
                 self.assertEqual(EXIT_OK, exit_code)
                 self.assertEqual(command, result["command"])
 
             with self.subTest(command=command, outcome="error"):
-                with patch(
-                    "backend.admin.run_diagnostics",
-                    side_effect=AdminOperationError("invalid_request", "diagnostic failed"),
-                ):
-                    with self.assertRaisesRegex(AdminOperationError, "diagnostic failed"):
-                        _run_command(command, arguments, None, None, None, None, None, None)
+
+                def fail(_command: str, _client: object):
+                    raise AdminOperationError("invalid_request", "diagnostic failed")
+
+                failing_services = AdminServices(
+                    diagnostics=fail,
+                    readiness_probe=lambda _path: {"ready": True},
+                    operator_auth_factory=lambda _path: _RecordingDependency(),
+                    notification_factory=lambda _path: _RecordingDependency(),
+                    committee_factory=lambda _path: _RecordingDependency(),
+                    consequence_factory=lambda _path, _notifications: _RecordingDependency(),
+                    artifact_factory=lambda _paths: _RecordingDependency(),
+                    recipient_repository_factory=lambda _artifacts: _RecordingDependency(),
+                    lifecycle_factory=lambda _paths: _RecordingDependency(),
+                )
+                with self.assertRaisesRegex(AdminOperationError, "diagnostic failed"):
+                    _run_command(command, arguments, PersistencePaths(), failing_services)
