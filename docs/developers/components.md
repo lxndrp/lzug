@@ -88,10 +88,21 @@ Kontext-Dependencies; fachliche Entscheidungen verbleiben in den vorhandenen
 Autorisierungs-, Lifecycle- und Fachservices.
 Ein Request teilt einen Kontext einschließlich der von der Runtime-Policy
 gewählten Datenbank.
-Die Transport-Middleware verwendet dieselbe Body-Dependency vor der
-Routerauswahl; JSON-, Medien- und tatsächliche Payloadgrößenprüfung bleiben
-am bisherigen Aufruf von `RequestContext.read_json`, damit die Reihenfolge
-von Sicherheits- und Eingabefehlern erhalten bleibt.
+Die Transport-Middleware prüft nach Origin und OPTIONS die Body-Header vor
+der Routerauswahl, ohne den Body einzulesen.
+Nur Handler mit einer Body-Dependency puffern die ASGI-Daten inkrementell;
+jeder Chunk wird vor dem Anhängen gegen die verbleibende Grenze geprüft.
+Bei Überschreitung folgen ein geheimnisfreier 413-Fehler und keine weiteren
+Receive-Aufrufe; ein Übertragungsabbruch verwirft den unvollständigen Body
+mit einem festen 400-Fehler.
+Die Grenze gilt auch ohne beziehungsweise bei zu kleinem `Content-Length`
+und unabhängig vom Datenbank-Lifecycle.
+Headerfehler bleiben vor Routing und Authentisierung;
+die tatsächliche Größenprüfung folgt der Auswahl einer bodylesenden Route
+und steht vor deren Authentisierung und Payloadverarbeitung.
+JSON- und Medienprüfung bleiben bei `RequestContext.read_json` nach den
+Zugriffsprüfungen; dort wird die Größe zusätzlich defensiv geprüft.
+GET, HEAD, unbekannte Routen und bodylose Aktionen lesen keinen Body.
 Der lokale Unix-Socket-Adapter besitzt eine getrennte
 Betreiberautorisierungsgrenze, verwendet aber dieselben Services,
 Transaktionen und Repositories wie HTTP.
