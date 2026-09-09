@@ -53,7 +53,15 @@ ROOT_MODULE_OWNERS = {
 
 ALLOWED_PACKAGE_DEPENDENCIES = {
     "application": frozenset(
-        {"assessment", "execution", "identity", "integrations", "persistence", "planning"}
+        {
+            "assessment",
+            "execution",
+            "identity",
+            "integrations",
+            "operations",
+            "persistence",
+            "planning",
+        }
     ),
     "assessment": frozenset({"execution", "identity", "persistence"}),
     "execution": frozenset({"identity", "integrations", "persistence"}),
@@ -86,6 +94,7 @@ TEST_OWNERS = {
     "application": frozenset(
         {
             "test_exam_venue_api.py",
+            "test_admin_application.py",
             "test_person_memberships.py",
             "test_repository.py",
             "test_venue_transport.py",

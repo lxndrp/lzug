@@ -106,6 +106,11 @@ GET, HEAD, unbekannte Routen und bodylose Aktionen lesen keinen Body.
 Der lokale Unix-Socket-Adapter besitzt eine getrennte
 Betreiberautorisierungsgrenze, verwendet aber dieselben Services,
 Transaktionen und Repositories wie HTTP.
+`AdminApplication` erhält den serverseitig ermittelten technischen Akteur,
+Service-Factories und Persistenzpfade ausdrücklich vom jeweiligen Adapter.
+Der Anwendungskern liest und schreibt keine globalen Prozessstreams;
+`backend.admin` kapselt bis zur vollständigen Socketumstellung den bisherigen
+stdin/stdout-Einstieg als Kompatibilitätsadapter.
 
 Die folgende Tabelle ist die kanonische knappe Zuordnung der aktuellen
 Backend-Paketstruktur.
@@ -115,7 +120,7 @@ Zyklen zwischen den acht Kernpaketen.
 
 | Paket | Verantwortung | Darf abhängen von |
 | --- | --- | --- |
-| `application/` | frameworkneutrale Use-Case-Orchestrierung, Ressourcenfassade, Transportobjekte und HATEOAS | `assessment`, `execution`, `identity`, `integrations`, `persistence`, `planning` |
+| `application/` | frameworkneutrale Use-Case-Orchestrierung, Ressourcenfassade, Transportobjekte und HATEOAS | `assessment`, `execution`, `identity`, `integrations`, `operations`, `persistence`, `planning` |
 | `planning/` | Planaggregate, mögliche Prüfungstage, Prüfungsorte und Folgen bestätigter Änderungen | `integrations`, `persistence` |
 | `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `identity`, `integrations`, `persistence` |
 | `assessment/` | individuelle Bewertungen und festgestellte Ergebnisse | `execution`, `identity`, `persistence` |
