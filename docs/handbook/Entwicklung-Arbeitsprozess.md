@@ -23,6 +23,15 @@ Planung, Refinement und fachliche Klärung erfolgen getrennt von der Umsetzung. 
 
 Der Implementierungsstand wird im zugehörigen Issue kommentiert: an sinnvollen Zwischenständen Umfang und Verifikation, Abweichungen und offene Punkte, vor Abschluss zusätzlich Pull Request und mögliche Folgearbeit. Fortschritt darf nicht ausschließlich im Chat stehen.
 
+Temporäre Codex-Umsetzungen erfassen Laufzeit und Tokenverbrauch nur aus dem
+jeweiligen Goal-Status.
+Fehlende Messwerte werden nicht geschätzt und bleiben im Project leer.
+Vor der ersten regulären Umsetzung eines neuen SemVer-Milestones dokumentiert
+ein vollständiger Codebasis-Review den geprüften Stand und seine Befunde;
+der Review-Anker selbst trägt kein `review:`-Label.
+Die technischen Nachweisregeln stehen im
+[Entwicklerhandbuch](../developers/development.md#codex-goals-und-milestone-reviews).
+
 ## Fachlichkeit und Rückverfolgbarkeit
 
 Die stabile fachliche Grundlage liegt unter [Business Domain](Fachlichkeit):

@@ -28,15 +28,30 @@ Frühere Chat-Inhalte sind kein Ersatz dafür.
 - Die Cloud-Chats `Fachlichkeit strukturieren`, `Projektablauf planen` und
 `Codebasis reviewen` dienen ausschließlich der fachlichen Strukturierung, Projektplanung und Codebasisbewertung.
 Sie ändern weder Produktcode noch lokale Repository-Dateien, Branches oder Worktrees.
+- `Codebasis reviewen` prüft vor der ersten regulären Umsetzung eines neuen
+SemVer-Milestones den vollständigen aktuellen Codebestand.
+Ein eigener Review-Anker dokumentiert geprüfte Revision, Umfang, Abschluss und
+verknüpfte Befunde, trägt aber selbst kein `review:`-Label;
+bestätigte Befunde werden als präzise GitHub Issues erfasst.
 - `Fachlichkeit strukturieren` darf Ergebnisse fachlicher Klärungen in GitHub
 Issues dokumentieren sowie bestehende Issues fachlich refinen.
 Technische Umsetzungen und Produktcode bleiben ausgeschlossen.
 - `Projektplan aktualisieren` überführt bestätigte Planungsentscheidungen aus
 den Cloud-Chats lokal mittels `gh` in GitHub Project, Issues, Abhängigkeiten und Unteraufgaben.
+Beim Umsetzungs-Closeout übernimmt der Chat ausschließlich belegbare finale
+Codex-Goal-Metriken in `Factual effort (h)` und `Cost (Tokens)`;
+fehlende Werte bleiben leer.
+Weitergehende Planungs- oder Project-README-Änderungen erfolgen nur bei
+belegbarem Bedarf und bestätigter Entscheidung.
 Der Chat ändert keine Repository-Dateien, Branches oder Worktrees.
 - `Weiterentwicklung koordinieren` prüft die Umsetzungsreife, startet und
 überwacht issuebezogene Umsetzungen und führt deren Closeout aus.
 Der Chat implementiert nicht in seinem eigenen Arbeitsbereich.
+- Vor der ersten regulären Issue-Umsetzung jedes neuen SemVer-Milestones
+prüft `Weiterentwicklung koordinieren`, ob `Codebasis reviewen` den aktuellen
+Codebestand vollständig geprüft und den Abschluss im zugehörigen
+Review-Anker dokumentiert hat.
+Ohne diesen Nachweis beginnt keine reguläre Umsetzung des Milestones.
 - `Entwicklungsumgebung anpassen` pflegt die lokale Entwicklungsumgebung. Nicht
 triviale Repository-Änderungen folgen ebenfalls dem Issue-Verfahren.
 - Externe Systeme zunächst read-only prüfen. Azure-, DNS-, GitHub-Environment-,
@@ -52,6 +67,12 @@ Das Issue bleibt maßgeblich; eine Übergabe ergänzt nur noch nicht dort dokume
 - Vor Beginn Issue, Kommentare, Labels, Milestone, Parent-/Sub-Issues,
 verknüpfte Pull Requests, Abhängigkeiten, Blocker und erreichbare
 Project-Felder prüfen.
+- Bei einem SemVer-Milestone zusätzlich den abgeschlossenen, dokumentierten
+Codebasis-Review dieses Milestones prüfen.
+Fehlt er, keine reguläre Umsetzung beginnen und das Gate an `Codebasis
+reviewen` zurückgeben;
+der Review-Anker sowie reine Planungs- und Review-Arbeit sind selbst keine
+regulären Umsetzungen.
 - Nicht beginnen, solange das Issue ein `needs:*`-Label trägt. Dasselbe gilt bei
 fehlendem Ziel, Scope oder Akzeptanzkriterien, ungelösten Blockern, widersprüchlichen Angaben oder einer konkurrierenden Umsetzung.
 - Voraussetzungen nicht erfinden. Bei fehlender Reife stoppen und den konkreten
@@ -60,11 +81,32 @@ Klärungsbedarf im vorgesehenen GitHub-Artefakt dokumentieren.
 temporären Umsetzungschat, einem Feature-Branch und einem Worktree.
 - Einen Umsetzungschat unabhängig neu anlegen, nicht durch Umbenennen,
 Delegation oder Übergabe eines permanenten Chats.
+- Für jede temporäre Issue-Umsetzung zu Beginn ein eigenes Codex-Goal anlegen.
+Kein Tokenbudget und keine Messwerte erfinden.
+Das Goal erst nach Umsetzung und lokaler Prüfung abschließen;
+nicht verfügbare Goal-Metriken bleiben als nicht verfügbar ausgewiesen.
 - Den Arbeitsbereich mit dem vorgesehenen lokalen Skill anlegen und aufräumen,
 soweit verfügbar.
 Der Umsetzungschat heißt `<issue> (<type>): <title>`, der Branch `codex/<issue>-<kurzer-name>`.
 - Der Umsetzungschat bezieht seinen Auftrag unmittelbar aus GitHub. Übergaben
 dürfen das Issue weder ersetzen noch abweichend erweitern.
+
+### Review-Gate für SemVer-Milestones
+
+- Der vollständige Codebasis-Review läuft im permanenten Chat
+`Codebasis reviewen` gegen den aktuellen kanonischen Stand.
+Der Review-Anker dokumentiert mindestens Milestone, geprüfte Revision, Umfang
+und Abschluss des Reviews; er trägt selbst kein `review:*`-Label.
+- Bestätigte Befunde werden als präzise GitHub-Issues erfasst, vor Duplikaten
+geschützt und nur mit den jeweils sachlich passenden `review:*`-Labels
+klassifiziert.
+Sie durchlaufen anschließend die normale Planung und können bei tatsächlicher
+Abhängigkeit ein reguläres Issue blockieren.
+- Für spätere reguläre Umsetzungen desselben Milestones genügt der vorhandene
+abgeschlossene Review-Anker.
+Ein neuer vollständiger Review wird erst für den nächsten SemVer-Milestone
+zum Gate, sofern ein neuer wesentlicher Befund nicht schon vorher einen Review
+erfordert.
 
 ## 4. Umsetzung und Prüfung
 
@@ -132,7 +174,8 @@ Unverändert fehlschlagende breite Prüfungen nicht wiederholen.
 Danach Zuordnungen und schließende Verknüpfung mit `gh pr view` prüfen.
 - Pull Request und Abschluss nennen knapp den live gelesenen Complexity-Wert,
 das abstrakte Profil aus der zentralen Zuordnung, wesentliche Abweichungen oder
-Eskalationen, relevante Befunde und die ausgeführte Verifikation.
+Eskalationen, relevante Befunde, die ausgeführte Verifikation sowie nur
+belegbare Goal-Metriken.
 Keine Secrets, personenbezogenen Daten, Prompts, internen Gedankengänge oder
 Reasoning-Protokolle aufnehmen.
 - Nach relevanten Änderungen die betroffenen lokalen Prüfungen wiederholen und
@@ -152,6 +195,17 @@ Major-, GitHub-Actions-, konfliktäre oder nicht eindeutig klassifizierte Update
 ## 6. Statusprüfung und Closeout
 
 - Fortschritt und Abschluss im zugehörigen Issue kurz dokumentieren.
+- Beim Abschluss eines Codex-Goals ausschließlich dessen tatsächlich
+ausgewiesene Laufzeit und Tokenzahl übernehmen.
+Die Laufzeit wird rechnerisch in Stunden in `Factual effort (h)`, die Tokenzahl
+unverändert in `Cost (Tokens)` übertragen.
+Fehlt eine der Metriken, bleibt das entsprechende Project-Feld leer;
+historische oder nicht messbare Werte werden nicht geschätzt.
+- Der Umsetzungschat übergibt Issue, Pull Request, Goal-Status und verfügbare
+Goal-Metriken an `Projektplan aktualisieren`.
+Dieser Chat pflegt nur die belegten Project-Felder, prüft Schätzung,
+Milestone-Planung und Kapazität gegen den aktuellen Project-Stand und ändert
+Project-README oder Planung nur bei belegbarem Bedarf.
 - Bei `Prüfe den Stand von Issue #<nummer>.` den Live-Stand von Issue,
 Akzeptanzkriterien, Pull Request, Reviews, CI, Dokumentation, Pages/Wiki sowie Branch und Worktree prüfen; nicht aus dem Chatverlauf auf den Status schließen.
 - Erst nach vollständiger Umsetzung, Merge, finaler CI und geklärten Reviews

@@ -230,6 +230,41 @@ Bestätigung, Priorität, Status oder Mergefreigabe.
 Eine langfristige Richtungsänderung benötigt gegebenenfalls einen ADR; eine
 lokale Korrektur nicht.
 
+## Codex-Goals und Milestone-Reviews
+
+Jede temporäre Issue-Umsetzung verwendet ein eigenes Codex-Goal.
+Nach tatsächlich erreichtem Ziel liefert dessen finaler Status die belegbare
+Laufzeit in Sekunden und, sofern technisch verfügbar, den Tokenverbrauch.
+`Projektplan aktualisieren` überträgt die Laufzeit als Stundenwert in
+`Factual effort (h)` und die unveränderte Tokenzahl in `Cost (Tokens)`.
+Ein fehlender Einzelwert lässt genau dieses Feld leer;
+ohne Goal-Nachweis bleiben beide Felder leer.
+Historische Zeitspannen, Chat-Zeitstempel und Schätzungen ersetzen keine
+Goal-Metrik.
+
+Vor der ersten regulären Umsetzung jedes neuen SemVer-Milestones prüft
+`Codebasis reviewen` den vollständigen aktuellen Stand von `master`.
+Ein geschlossener, demselben Milestone zugeordneter Review-Anker dokumentiert
+mindestens die geprüfte Commit-SHA, den Umfang, den Abschluss und die
+verknüpften Befunde.
+Der Anker ist ein `type: task` ohne `review:`-Label;
+bestätigte Befunde erhalten eigene präzise Issues und nur die jeweils
+zutreffenden `review:`-Labels.
+Ohne diesen Nachweis bleibt die erste reguläre Umsetzung gesperrt.
+Planungsfelder und Project-README werden aus dem Review oder den Goal-Metriken
+nur geändert, wenn ein belegbarer Planungsbedarf besteht und die Änderung
+bestätigt ist.
+
+Die folgenden Szenarien bilden die Prozessprüfung:
+
+| Szenario | Erwartetes Ergebnis |
+| --- | --- |
+| Goal weist Laufzeit und Tokenzahl aus | Beide Project-Felder werden aus genau diesen Werten gepflegt. |
+| Goal weist nur eine Metrik aus | Nur das zugehörige Project-Feld wird gepflegt; das andere bleibt leer. |
+| Goal weist keine Metrik aus | Beide Project-Felder bleiben leer; es erfolgt keine Schätzung. |
+| Erster regulärer Auftrag eines SemVer-Milestones ohne abgeschlossenen Review-Anker | Die Umsetzung bleibt blockiert, bis `Codebasis reviewen` den vollständigen Review dokumentiert hat. |
+| Abgeschlossener Review-Anker für den SemVer-Milestone | Die reguläre Umsetzung darf nach den übrigen Reifeprüfungen beginnen; Befunde werden über eigene Issues geplant. |
+
 ## Pull Request und Closeout
 
 Issue-Arbeit entsteht auf dem issuebezogenen Branch und Worktree.

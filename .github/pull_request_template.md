@@ -14,9 +14,12 @@
 
 - Complexity:
 - Ausführungsprofil:
+- Goal-Status:
 - Abweichungen/Eskalationen:
 - Relevante Befunde:
 - Verifikation:
+- Goal-Laufzeit (s; nur belegt, sonst leer):
+- Goal-Tokens (nur belegt, sonst leer):
 
 ## Verknüpfung
 
