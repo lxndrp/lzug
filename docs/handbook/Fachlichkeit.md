@@ -22,4 +22,6 @@ fachliche Regeln als gemeinsame Grundlage fest.
 - [Glossar](Fachlichkeit-Glossar) legt die fachlichen Begriffe einheitlich fest.
 
 Technische Architektur, API-Verträge und das daraus abgeleitete Datenmodell
-bleiben im [Entwicklerhandbuch](Entwicklung) dokumentiert.
+bleiben im
+[Entwicklerhandbuch](https://github.com/lxndrp/lzug/blob/master/docs/developers/index.md)
+dokumentiert.

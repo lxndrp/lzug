@@ -211,33 +211,35 @@ Der geplante Site-Lauf prüft die Byte-Reproduzierbarkeit.
 
 Vor einer Wiki-Umschaltung erzeugt `task docs:publication:candidate:check`
 ausschließlich unter `build/` einen flachen Wiki-Kandidaten,
-einen auf Produktseite und technische Referenzen reduzierten Pages-Kandidaten
-und das dazugehörige Quelle-/Ziel-/Entscheidung-Inventar.
+indem es die zielfertigen Wiki-Dateien unverändert kopiert,
+sowie einen auf Produktseite und technische Referenzen reduzierten Pages-Kandidaten.
+Das vollständige Quelle-/Ziel-/Entscheidung-Inventar wird einmalig im Issue oder Pull Request geprüft
+und nicht als generiertes Datenformat fortgeführt.
 Die Repository-Handbuchquellen bleiben dabei bis zur öffentlichen Wiki-Abnahme kanonisch und unverändert erhalten.
 Der Kandidat enthält `Home`, `_Sidebar` und `Versionshinweise`,
-verwendet für interne Seiten ausschließlich flache extensionlose Ziele
-und wird zusätzlich mit der gelockten Gollum-Ausgabe gerendert.
+verwendet für interne Seiten flache extensionlose Ziele
+und wird nicht lokal mit Gollum oder der GitHub-Markdown-API nachgebaut.
 Lychee prüft Wiki-Markdown und reduziertes Pages-Artefakt getrennt.
 Browser- und Accessibility-Abnahme des Pages-Kandidaten laufen über
 `task docs:publication:candidate:browser` und `task docs:publication:candidate:a11y`.
 
-Nach einer gesondert freigegebenen Wiki-Veröffentlichung liest
-`task docs:wiki:post-publish WIKI_ROOT=/path/to/lzug.wiki`
-die erwarteten Routen aus dem lokal ausgecheckten `_Sidebar.md`.
-Der Check akzeptiert nur direkte HTTP-200-Antworten mit HTML-Content-Type
-und lehnt insbesondere Weiterleitungen auf Rohinhalte ab.
-Er besitzt weder Schreib-Token noch Push-Funktion.
+Nach einer gesondert freigegebenen Wiki-Veröffentlichung werden `Home`,
+`Versionshinweise`, Navigation und repräsentative interne Links im tatsächlichen GitHub Wiki geprüft.
+Zentrale öffentliche Routen werden einmalig mit Curl oder Lychee auf direkte erfolgreiche Antworten geprüft.
+Diese Befunde und die veröffentlichte Wiki-SHA werden im Betriebs-Issue dokumentiert;
+ein dauerhaftes Post-Publish-Werkzeug bleibt nicht zurück.
 
 Vor dem Umschaltfenster werden die vollständige Repository-SHA,
 die vorherige Wiki-SHA sowie Lauf, Verfügbarkeit und Digest des letzten konsistenten Pages-Artefakts im Betriebs-Issue gebunden.
-`task docs:publication:rollback:check` gleicht diese konkreten Stände gegen den ausgecheckten Wiki-Bestand und das heruntergeladene Pages-Artefakt ab.
+Git-Kommandos und die von GitHub bereitgestellten Artifact-ID, URL und SHA-256-Digest
+belegen diese konkreten Stände ohne eigenen Rückfallvalidator.
 Falls das gespeicherte Pages-Artefakt abgelaufen ist,
 kann der manuelle `Public site`-Workflow auf `master` eine vollständige frühere,
 von `master` erreichbare `repository_revision` neu bauen.
 Deployment und Pages-Environment-Freigabe bleiben auch für diesen Wiederveröffentlichungsweg zwingend manuell.
 Ein Wiki-Rückfall übernimmt den vorher festgehaltenen Baum als neuen geprüften Commit und verwendet keinen Force-Push.
 
-Kandidat, Inventar, Routenliste und Renderausgaben sind erzeugte Prüfarbeitsstände.
+Wiki- und Pages-Kandidat sind kurzfristige Reviewartefakte.
 Sie werden nicht versioniert und bilden weder eine zweite Handbuchquelle noch ein dauerhaft gepflegtes Migrationsdokument.
 
 ## Eigenständige Fehlergrenzen und kleinste Prüfebenen

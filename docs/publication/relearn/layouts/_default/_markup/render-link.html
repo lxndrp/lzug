@@ -1,0 +1,9 @@
+{{- $destination := .Destination -}}
+{{- if eq $destination "/nutzen/" -}}
+  {{- $destination = printf "%s/Nutzung" .Page.Site.Params.wikiURL -}}
+{{- else if eq $destination "/betreiben/" -}}
+  {{- $destination = printf "%s/Administration" .Page.Site.Params.wikiURL -}}
+{{- else if eq $destination "/entwickeln/" -}}
+  {{- $destination = .Page.Site.Params.repositoryDocumentationURL -}}
+{{- end -}}
+<a href="{{ $destination | safeURL }}"{{ with .Title }} title="{{ . }}"{{ end }}>{{ .Text | safeHTML }}</a>

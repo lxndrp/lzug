@@ -1,8 +1,11 @@
 # lzug Handbuch
 
 `lzug` unterstützt Prüfungsausschüsse bei der Vorbereitung und Planung von
-Fachinformatiker-Prüfungen. Dieses Handbuch ist die vollständige und kanonische
-redaktionelle Handbuchquelle für Fachlichkeit, Nutzung und Administration.
+Fachinformatiker-Prüfungen.
+Dieses redaktionelle Handbuch beschreibt Fachlichkeit, Nutzung und Administration.
+
+Es beschreibt grundsätzlich den aktuellen stabilen Stand.
+Abweichungen zwischen unterstützten Versionen werden an der betroffenen Stelle erläutert.
 
 ## Einstieg
 
@@ -10,7 +13,8 @@ redaktionelle Handbuchquelle für Fachlichkeit, Nutzung und Administration.
 - [Nutzung](Nutzung): vorhandene Abläufe der aktuellen Anwendung.
 - [Administration](Administration): Installation, Konfiguration, Datensicherung,
   Wiederherstellung und Betriebsgrenzen einer eigenen Instanz.
-- [Entwicklung](Entwicklung): technischer Einstieg und Verweise auf die kanonischen Repository-Dokumente.
+- [Entwicklung](https://github.com/lxndrp/lzug/blob/master/docs/developers/index.md):
+  technischer Einstieg und kanonische Repository-Dokumentation.
 
 Das Handbuch beschreibt ausschließlich den vorhandenen Produkt- und Betriebsstand.
 Die lokale Kennwort-/TOTP-Authentifizierung und die Betreiber-CLI sind
