@@ -19,7 +19,14 @@ from backend.application import (
     ForbiddenRequestError,
     ReadApplication,
 )
+from backend.application.planning_payloads import (
+    confirmed_plan_change_from_payload as confirmed_plan_change_from_payload,
+)
+from backend.application.planning_payloads import (
+    planning_proposal_from_payload as planning_proposal_from_payload,
+)
 from backend.application.repositories import REST_RESOURCES, ResourceRepository
+from backend.application.resource_authorization import ResourceAuthorizer
 from backend.assessment.exam_results import ExamResultService
 from backend.execution.absence import AbsenceService
 from backend.execution.exam_day_closures import ExamDayClosureService
@@ -33,21 +40,9 @@ from backend.integrations.notifications import NotificationService
 from backend.observability import emit_event
 from backend.persistence.models import (
     CANDIDATE,
-    EXAM_DAY,
-    EXAM_HALF_YEAR,
-    EXAM_ROUND,
-    MEMBER_AVAILABILITY,
-    PLANNING_SETTINGS,
     Resource,
 )
-from backend.planning import (
-    ConfirmedPlanChange,
-    PlanAssignment,
-    PlanDay,
-    PlanningProposal,
-    PlanningService,
-    PlanSlot,
-)
+from backend.planning import PlanningService
 from backend.planning.candidate_days import CandidateDayService
 from backend.planning.plan_consequences import PlanConsequenceService
 from backend.runtime_policy import RuntimePolicy
@@ -61,105 +56,6 @@ class RequestTooLargeError(ValueError):
 
 class UnsupportedMediaTypeError(ValueError):
     """Signal a body that is not JSON at the transport boundary."""
-
-
-def planning_proposal_from_payload(round_id: int, payload: dict[str, Any]) -> PlanningProposal:
-    """Parse a complete proposal while keeping the path as authoritative scope."""
-
-    def integer(
-        container: dict[str, Any], field_name: str, *, nullable: bool = False
-    ) -> int | None:
-        value = container.get(field_name)
-        if nullable and value is None:
-            return None
-        if not isinstance(value, int) or isinstance(value, bool):
-            raise ValueError(f"{field_name} must be an integer")
-        return value
-
-    def room_identifier(container: dict[str, Any]) -> int:
-        """Accept the temporary location alias without weakening room identity."""
-        has_room = "room_id" in container
-        has_location = "location_id" in container
-        if not has_room and not has_location:
-            raise ValueError("room_id must be an integer")
-        room_id = integer(container, "room_id") if has_room else None
-        location_id = integer(container, "location_id") if has_location else None
-        if room_id is not None and location_id is not None and room_id != location_id:
-            raise ValueError("room_id and location_id must match")
-        if room_id is not None:
-            return room_id
-        if location_id is None:
-            raise ValueError("location_id must be an integer")
-        return location_id
-
-    if integer(payload, "round_id") != round_id:
-        raise ValueError("round_id must match the request path")
-    raw_days = payload.get("exam_days")
-    if not isinstance(raw_days, list):
-        raise ValueError("exam_days must be an array")
-    days: list[PlanDay] = []
-    for raw_day in raw_days:
-        if not isinstance(raw_day, dict):
-            raise ValueError("Each exam day must be an object")
-        raw_slots = raw_day.get("slots")
-        raw_assignments = raw_day.get("assignments")
-        if not isinstance(raw_slots, list) or not isinstance(raw_assignments, list):
-            raise ValueError("Each exam day needs slots and assignments arrays")
-        slots: list[PlanSlot] = []
-        for raw_slot in raw_slots:
-            if not isinstance(raw_slot, dict) or not isinstance(raw_slot.get("slot_type"), str):
-                raise ValueError("Each slot must be an object with a slot_type")
-            slots.append(
-                PlanSlot(
-                    id=integer(raw_slot, "id", nullable=True),
-                    round_candidate_id=integer(raw_slot, "round_candidate_id"),
-                    slot_type=raw_slot["slot_type"],
-                )
-            )
-        assignments: list[PlanAssignment] = []
-        for raw_assignment in raw_assignments:
-            if not isinstance(raw_assignment, dict):
-                raise ValueError("Each assignment must be an object")
-            if not isinstance(raw_assignment.get("assignment_role"), str) or not isinstance(
-                raw_assignment.get("day_part"), str
-            ):
-                raise ValueError("Assignment role and day part must be strings")
-            assignments.append(
-                PlanAssignment(
-                    id=integer(raw_assignment, "id", nullable=True),
-                    committee_member_id=integer(raw_assignment, "committee_member_id"),
-                    assignment_role=raw_assignment["assignment_role"],
-                    day_part=raw_assignment["day_part"],
-                )
-            )
-        days.append(
-            PlanDay(
-                id=integer(raw_day, "id", nullable=True),
-                candidate_exam_day_id=integer(raw_day, "candidate_exam_day_id"),
-                room_id=room_identifier(raw_day),
-                slots=tuple(slots),
-                assignments=tuple(assignments),
-            )
-        )
-    return PlanningProposal(
-        round_id=round_id,
-        revision=integer(payload, "revision"),
-        days=tuple(days),
-    )
-
-
-def confirmed_plan_change_from_payload(
-    round_id: int,
-    payload: dict[str, Any],
-) -> ConfirmedPlanChange:
-    """Parse a complete confirmed-plan revision command at its aggregate boundary."""
-    reason = payload.get("reason")
-    if not isinstance(reason, str):
-        raise ValueError("reason must be a string")
-    return ConfirmedPlanChange(
-        plan=planning_proposal_from_payload(round_id, payload),
-        reason=reason,
-    )
 
 
 @dataclass
@@ -363,15 +259,9 @@ class RequestContext:
         )
 
     def require_round_access(self, round_id: int, *, manage: bool = False) -> None:
-        round_data = self.repository.get(EXAM_ROUND, round_id)
-        committee_id = round_data["committee_id"] if round_data is not None else None
-        allowed = (
-            self.authorization_scope.can_manage_committee(committee_id)
-            if manage
-            else self.authorization_scope.can_read_committee(committee_id)
+        ResourceAuthorizer(self.db_path, self.authorization_scope).require_round_access(
+            round_id, manage=manage
         )
-        if not allowed:
-            raise ForbiddenRequestError("Forbidden.")
 
     def create_notifications_best_effort(self, event_type: str, round_id: int) -> str | None:
         try:
@@ -393,82 +283,17 @@ class RequestContext:
     def require_day_access(
         self, day_id: int, *, manage: bool = False, member_id: int | None = None
     ) -> None:
-        day = self.repository.get(EXAM_DAY, day_id)
-        round_id = day.get("exam_round_id") if day else None
-        if round_id is None:
-            raise ForbiddenRequestError("Forbidden.")
-        if manage:
-            self.require_round_access(round_id, manage=True)
-            return
-        self.require_round_access(round_id)
-        committee_id = self.repository.committee_id_for_resource(EXAM_DAY, day_id)
-        if not self.authorization_scope.can_edit_member(member_id, committee_id):
-            raise ForbiddenRequestError("Forbidden.")
+        ResourceAuthorizer(self.db_path, self.authorization_scope).require_day_access(
+            day_id, manage=manage, member_id=member_id
+        )
 
     def authorize_resource_action(
         self, resource_name: str, entity_id: int | None, payload: dict[str, Any], action: str
     ) -> dict[str, Any]:
         del action
-        resource = REST_RESOURCES[resource_name]
-        normalized = dict(payload)
-        for actor_field in ("created_by_member_id", "updated_by_member_id"):
-            normalized.pop(actor_field, None)
-        if resource == MEMBER_AVAILABILITY:
-            existing = self.repository.get(resource, entity_id) if entity_id is not None else None
-            round_id = existing["exam_round_id"] if existing else normalized.get("exam_round_id")
-            if round_id is None:
-                raise ForbiddenRequestError("Forbidden.")
-            self.require_round_access(int(round_id))
-            committee_id = self.repository.committee_id_for_resource(EXAM_ROUND, int(round_id))
-            target_member_id = (
-                existing["committee_member_id"]
-                if existing is not None
-                else normalized.get("committee_member_id")
-            )
-            managed = self.authorization_scope.can_manage_committee(committee_id)
-            own_member_id = self.authorization_scope.member_for_committee(committee_id)
-            if not managed:
-                if existing is not None and existing["committee_member_id"] != own_member_id:
-                    raise ForbiddenRequestError("Forbidden.")
-                target_member_id = own_member_id
-            target_member = (
-                self.repository.member_get(int(target_member_id))
-                if target_member_id is not None
-                else None
-            )
-            if (
-                target_member is None
-                or not target_member["is_active"]
-                or target_member["committee_id"] != committee_id
-                or not self.authorization_scope.can_edit_member(target_member["id"], committee_id)
-            ):
-                raise ForbiddenRequestError("Forbidden.")
-            normalized["exam_round_id"] = int(round_id)
-            normalized["committee_member_id"] = target_member["id"]
-            if existing is not None and "candidate_exam_day_id" not in normalized:
-                normalized["candidate_exam_day_id"] = existing["candidate_exam_day_id"]
-            return normalized
-        if resource == EXAM_HALF_YEAR:
-            raise ForbiddenRequestError(
-                "Prüfungshalbjahre entstehen ausschließlich gemeinsam mit einer Ausschussrunde."
-            )
-        committee_id = self.repository.committee_id_for_resource(resource, entity_id, normalized)
-        if not self.authorization_scope.can_manage_committee(committee_id):
-            raise ForbiddenRequestError("Forbidden.")
-        round_id = self.repository.round_id_for_resource(resource, entity_id, normalized)
-        if round_id is not None:
-            self.require_round_access(int(round_id), manage=True)
-        if resource == EXAM_ROUND:
-            member_id = self.authorization_scope.member_for_committee(committee_id)
-            if member_id is None:
-                raise ForbiddenRequestError("Forbidden.")
-            normalized["created_by_member_id"] = member_id
-        elif resource == PLANNING_SETTINGS and round_id is not None:
-            member_id = self.authorization_scope.member_for_committee(committee_id)
-            if member_id is None:
-                raise ForbiddenRequestError("Forbidden.")
-            normalized["updated_by_member_id"] = member_id
-        return normalized
+        return ResourceAuthorizer(self.db_path, self.authorization_scope).authorize(
+            REST_RESOURCES[resource_name], entity_id, payload
+        )
 
     def issue_session_cookies(
         self,

@@ -97,6 +97,9 @@ TEST_OWNERS = {
             "test_admin_application.py",
             "test_person_memberships.py",
             "test_repository.py",
+            "test_resource_access.py",
+            "test_planning_payloads.py",
+            "test_contract_validation.py",
             "test_venue_transport.py",
         }
     ),

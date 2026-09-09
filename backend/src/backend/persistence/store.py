@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from backend.persistence.models import Resource, model_to_dict
 
@@ -25,10 +26,17 @@ class Store:
     def all(self, resource: Resource) -> list[dict[str, Any]]:
         return self.where(resource)
 
-    def where(self, resource: Resource, **filters: Any) -> list[dict[str, Any]]:
-        statement = select(resource.model)
+    def where(
+        self, resource: Resource, *conditions: ColumnElement[bool], **filters: Any
+    ) -> list[dict[str, Any]]:
+        """Read ordered rows with repository-owned SQL predicates and field filters."""
+        statement = select(resource.model).where(*conditions)
         statement = self._filter(statement, resource, filters)
         statement = self._order(statement, resource)
+        if conditions and not resource.order_by:
+            # Scope predicates may select a different index. Keep the existing
+            # primary-key list order when no domain ordering is declared.
+            statement = statement.order_by(resource.model.id)
         rows = self.session.scalars(statement).all()
         return [model_to_dict(row, resource) for row in rows]
 

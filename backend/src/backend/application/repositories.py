@@ -6,11 +6,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from backend.application.resource_ownership import ResourceOwnership
+from backend.application.resource_visibility import visibility_condition
 from backend.execution.exam_day_closures import complete_day_mutation, guard_day_mutation
 from backend.execution.exam_protocols import create_protocol_for_started_slot
 from backend.identity.authorization import AuthorizationScope
 from backend.integrations.holiday_provider import GERMAN_SUBDIVISION_CODES
-from backend.persistence.database import DEFAULT_DB_PATH, session_scope
+from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, session_scope
 from backend.persistence.models import (
     CANDIDATE,
     CANDIDATE_COMMITTEE_ASSIGNMENT,
@@ -30,6 +32,7 @@ from backend.persistence.models import (
     PERSON,
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
+    Person,
     Resource,
 )
 from backend.persistence.store import Store
@@ -96,10 +99,9 @@ class ResourceRepository:
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Return only rows belonging to an active committee in ``scope``."""
-        with session_scope(self.db_path) as session:
+        with read_session_scope(self.db_path) as session:
             store = Store(session)
-            rows = store.where(resource, **(filters or {})) if filters else store.all(resource)
-            return [row for row in rows if self._visible(store, resource, row, scope)]
+            return store.where(resource, visibility_condition(resource, scope), **(filters or {}))
 
     def get(self, resource: Resource, resource_id: int) -> dict[str, Any] | None:
         with session_scope(self.db_path) as session:
@@ -111,10 +113,10 @@ class ResourceRepository:
         resource_id: int,
         scope: AuthorizationScope,
     ) -> dict[str, Any] | None:
-        with session_scope(self.db_path) as session:
+        with read_session_scope(self.db_path) as session:
             store = Store(session)
-            row = store.get(resource, resource_id)
-            return row if row is not None and self._visible(store, resource, row, scope) else None
+            rows = store.where(resource, visibility_condition(resource, scope), id=resource_id)
+            return rows[0] if rows else None
 
     def round_id_for_resource(
         self,
@@ -123,45 +125,9 @@ class ResourceRepository:
         payload: dict[str, Any] | None = None,
     ) -> int | None:
         """Resolve the owning exam round for authorization, never for response data."""
-        with session_scope(self.db_path) as session:
-            store = Store(session)
-            row = store.get(resource, resource_id) if resource_id is not None else None
-            values = {**(row or {}), **(payload or {})}
-            if resource == EXAM_ROUND:
-                return values.get("id")
-            if resource in {
-                ROUND_CANDIDATE,
-                PLANNING_SETTINGS,
-                CANDIDATE_EXAM_DAY,
-                MEMBER_AVAILABILITY,
-                EXAM_DAY,
-            }:
-                return values.get("exam_round_id")
-            if resource == CANDIDATE:
-                if values.get("exam_round_id") is not None:
-                    return values["exam_round_id"]
-                assignment = store.first(
-                    CANDIDATE_COMMITTEE_ASSIGNMENT,
-                    candidate_id=values.get("id"),
-                    ended_at=None,
-                )
-                return assignment.get("exam_round_id") if assignment else None
-            if resource == CANDIDATE_COMMITTEE_ASSIGNMENT:
-                return values.get("exam_round_id")
-            if resource == EXAM_SLOT:
-                day = store.get(EXAM_DAY, values.get("exam_day_id"))
-                return day.get("exam_round_id") if day else None
-            if resource == EXAM_DAY_ASSIGNMENT:
-                day = store.get(EXAM_DAY, values.get("exam_day_id"))
-                return day.get("exam_round_id") if day else None
-            if resource == CANDIDATE_EXAM_ATTENDANCE:
-                slot = store.get(EXAM_SLOT, values.get("exam_slot_id"))
-                day = store.get(EXAM_DAY, slot["exam_day_id"]) if slot else None
-                return day.get("exam_round_id") if day else None
-            if resource == MEMBER_EXAM_ATTENDANCE:
-                day = store.get(EXAM_DAY, values.get("exam_day_id"))
-                return day.get("exam_round_id") if day else None
-            return None
+        with read_session_scope(self.db_path) as session:
+            ownership = ResourceOwnership(Store(session))
+            return ownership.round_id(resource, ownership.values(resource, resource_id, payload))
 
     def committee_id_for_resource(
         self,
@@ -170,28 +136,12 @@ class ResourceRepository:
         payload: dict[str, Any] | None = None,
     ) -> int | None:
         """Resolve the owning committee for authorization-only decisions."""
-        with session_scope(self.db_path) as session:
-            store = Store(session)
-            row = store.get(resource, resource_id) if resource_id is not None else None
-            values = {**(row or {}), **(payload or {})}
-            if resource == COMMITTEE:
-                return values.get("id")
-            if resource == EXAM_ROUND:
-                return values.get("committee_id")
-            if resource == COMMITTEE_MEMBER:
-                return values.get("committee_id")
-            if resource == PERSON:
-                members = store.where(COMMITTEE_MEMBER, person_id=values.get("id"))
-                return next(
-                    (member["committee_id"] for member in members),
-                    None,
-                )
-            if resource == EXAM_HALF_YEAR:
-                rounds = store.where(EXAM_ROUND, exam_half_year_id=values.get("id"))
-                return rounds[0]["committee_id"] if rounds else None
-            round_id = self.round_id_for_resource(resource, resource_id, payload)
-            exam_round = store.get(EXAM_ROUND, round_id)
-            return exam_round.get("committee_id") if exam_round else None
+        with read_session_scope(self.db_path) as session:
+            return (
+                ResourceOwnership(Store(session))
+                .resolve(resource, resource_id, payload)
+                .committee_id
+            )
 
     def create(self, resource: Resource, payload: dict[str, Any]) -> dict[str, Any]:
         """Create a resource after applying its domain-specific write rules.
@@ -262,24 +212,24 @@ class ResourceRepository:
         filters: dict[str, Any] | None = None,
         scope: AuthorizationScope | None = None,
     ) -> list[dict[str, Any]]:
-        with session_scope(self.db_path) as session:
+        with read_session_scope(self.db_path) as session:
             store = Store(session)
-            rows = store.where(COMMITTEE_MEMBER, **(filters or {}))
-            if scope is not None:
-                rows = [row for row in rows if self._visible(store, COMMITTEE_MEMBER, row, scope)]
-            return [self._member_view(store, row) for row in rows]
+            conditions = (visibility_condition(COMMITTEE_MEMBER, scope),) if scope else ()
+            rows = store.where(COMMITTEE_MEMBER, *conditions, **(filters or {}))
+            people = {
+                person["id"]: person
+                for person in store.where(PERSON, Person.id.in_({row["person_id"] for row in rows}))
+            }
+            return [self._member_with_person(row, people[row["person_id"]]) for row in rows]
 
     def member_get(
         self, member_id: int, scope: AuthorizationScope | None = None
     ) -> dict[str, Any] | None:
-        with session_scope(self.db_path) as session:
+        with read_session_scope(self.db_path) as session:
             store = Store(session)
-            row = store.get(COMMITTEE_MEMBER, member_id)
-            if scope is not None and (
-                row is None or not self._visible(store, COMMITTEE_MEMBER, row, scope)
-            ):
-                return None
-            return self._member_view(store, row) if row else None
+            conditions = (visibility_condition(COMMITTEE_MEMBER, scope),) if scope else ()
+            rows = store.where(COMMITTEE_MEMBER, *conditions, id=member_id)
+            return self._member_view(store, rows[0]) if rows else None
 
     def create_membership(self, payload: dict[str, Any]) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
@@ -448,6 +398,10 @@ class ResourceRepository:
 
     def _member_view(self, store: Store, member: dict[str, Any]) -> dict[str, Any]:
         person = store.get(PERSON, member["person_id"])
+        return self._member_with_person(member, person)
+
+    @staticmethod
+    def _member_with_person(member: dict[str, Any], person: dict[str, Any]) -> dict[str, Any]:
         return {
             **member,
             **{key: person[key] for key in ("first_name", "last_name", "email", "mobile")},
@@ -562,17 +516,10 @@ class ResourceRepository:
         candidate_id: int | None = None,
         scope: AuthorizationScope | None = None,
     ) -> list[dict[str, Any]]:
-        with session_scope(self.db_path) as session:
-            store = Store(session)
-            filters = {"candidate_id": candidate_id} if candidate_id is not None else {}
-            rows = store.where(CANDIDATE_COMMITTEE_ASSIGNMENT, **filters)
-            if scope is None:
-                return rows
-            return [
-                row
-                for row in rows
-                if self._visible(store, CANDIDATE_COMMITTEE_ASSIGNMENT, row, scope)
-            ]
+        filters = {"candidate_id": candidate_id} if candidate_id is not None else {}
+        if scope is not None:
+            return self.list_visible(CANDIDATE_COMMITTEE_ASSIGNMENT, scope, filters)
+        return self.list_filtered(CANDIDATE_COMMITTEE_ASSIGNMENT, filters)
 
     def _assign_candidate_to_round(
         self,
@@ -1699,109 +1646,6 @@ class ResourceRepository:
                     store.create(MEMBER_AVAILABILITY, values)
                 else:
                     store.update(MEMBER_AVAILABILITY, existing["id"], values)
-
-    def _visible(
-        self,
-        store: Store,
-        resource: Resource,
-        row: dict[str, Any],
-        scope: AuthorizationScope,
-    ) -> bool:
-        """Apply committee scoping to direct and indirectly related resources."""
-        if resource in {COMMITTEE, PERSON, COMMITTEE_MEMBER}:
-            return self._direct_resource_visible(resource, row, scope)
-        if resource == EXAM_HALF_YEAR:
-            # A half-year is a global planning context.  It contains no
-            # committee data until a committee-specific round is attached.
-            return bool(scope.committee_ids)
-        if resource in {
-            EXAM_ROUND,
-            ROUND_CANDIDATE,
-            CANDIDATE_COMMITTEE_ASSIGNMENT,
-            PLANNING_SETTINGS,
-            CANDIDATE_EXAM_DAY,
-        }:
-            return self._round_resource_visible(store, resource, row, scope)
-        if resource == CANDIDATE:
-            return self._candidate_visible(store, row, scope)
-        if resource == MEMBER_AVAILABILITY:
-            return self._member_availability_visible(store, row, scope)
-        return self._exam_execution_resource_visible(store, resource, row, scope)
-
-    @staticmethod
-    def _direct_resource_visible(
-        resource: Resource,
-        row: dict[str, Any],
-        scope: AuthorizationScope,
-    ) -> bool:
-        if resource == COMMITTEE:
-            return row["id"] in scope.committee_ids
-        if resource == PERSON:
-            return row["id"] in scope.person_ids
-        return row["committee_id"] in scope.committee_ids
-
-    def _round_resource_visible(
-        self,
-        store: Store,
-        resource: Resource,
-        row: dict[str, Any],
-        scope: AuthorizationScope,
-    ) -> bool:
-        exam_round = row if resource == EXAM_ROUND else store.get(EXAM_ROUND, row["exam_round_id"])
-        return self._round_visible(store, exam_round, scope)
-
-    def _candidate_visible(
-        self,
-        store: Store,
-        row: dict[str, Any],
-        scope: AuthorizationScope,
-    ) -> bool:
-        return any(
-            assignment["ended_at"] is None
-            and self._round_visible(
-                store,
-                store.get(EXAM_ROUND, round_candidate["exam_round_id"]),
-                scope,
-            )
-            for round_candidate in store.where(ROUND_CANDIDATE, candidate_id=row["id"])
-            for assignment in store.where(
-                CANDIDATE_COMMITTEE_ASSIGNMENT,
-                round_candidate_id=round_candidate["id"],
-            )
-        )
-
-    def _member_availability_visible(
-        self,
-        store: Store,
-        row: dict[str, Any],
-        scope: AuthorizationScope,
-    ) -> bool:
-        exam_round = store.get(EXAM_ROUND, row["exam_round_id"])
-        member = store.get(COMMITTEE_MEMBER, row["committee_member_id"])
-        return (
-            exam_round is not None
-            and member is not None
-            and self._round_visible(store, exam_round, scope)
-            and member["committee_id"] in scope.committee_ids
-        )
-
-    def _exam_execution_resource_visible(
-        self,
-        store: Store,
-        resource: Resource,
-        row: dict[str, Any],
-        scope: AuthorizationScope,
-    ) -> bool:
-        exam_day = None
-        if resource == EXAM_DAY:
-            exam_day = row
-        elif resource in {EXAM_SLOT, EXAM_DAY_ASSIGNMENT, MEMBER_EXAM_ATTENDANCE}:
-            exam_day = store.get(EXAM_DAY, row["exam_day_id"])
-        elif resource == CANDIDATE_EXAM_ATTENDANCE:
-            exam_slot = store.get(EXAM_SLOT, row["exam_slot_id"])
-            exam_day = store.get(EXAM_DAY, exam_slot["exam_day_id"]) if exam_slot else None
-        exam_round = store.get(EXAM_ROUND, exam_day["exam_round_id"]) if exam_day else None
-        return self._round_visible(store, exam_round, scope)
 
     @staticmethod
     def _round_visible(

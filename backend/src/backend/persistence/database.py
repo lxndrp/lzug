@@ -326,6 +326,19 @@ def connection_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[Connection]:
 
 
 @contextmanager
+def read_session_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[Session]:
+    """Pin related authorization and visibility reads to one SQLite snapshot.
+
+    SQLite's legacy transaction mode does not begin a transaction for SELECT.
+    An explicit BEGIN therefore keeps successive reads consistent even when a
+    concurrent writer commits between them. Normal write scopes stay unchanged.
+    """
+    with session_scope(db_path) as session:
+        session.connection().exec_driver_sql("BEGIN")
+        yield session
+
+
+@contextmanager
 def session_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[Session]:
     """Yield a session that commits on success and rolls back on every error.
 
