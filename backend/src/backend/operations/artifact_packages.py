@@ -153,6 +153,24 @@ class ClearArtifactService(ArtifactService):
         safety_artifact: str | None,
         recipient_fingerprint: str,
     ) -> dict[str, Any]:
+        # Own the whole restore, including preparation, postcheck and audit.
+        # The inner activation uses the same reentrant lock and job admission.
+        with activation_scope(self.paths.database):
+            return self._restore_package(
+                package,
+                replace=replace,
+                safety_artifact=safety_artifact,
+                recipient_fingerprint=recipient_fingerprint,
+            )
+
+    def _restore_package(
+        self,
+        package: Path,
+        *,
+        replace: bool,
+        safety_artifact: str | None,
+        recipient_fingerprint: str,
+    ) -> dict[str, Any]:
         phase = "precheck"
         manifest: dict[str, Any] | None = None
         try:

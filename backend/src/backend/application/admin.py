@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Callable, Mapping
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ from backend.persistence.database import (
     PersistencePaths,
 )
 from backend.planning.plan_consequences import PlanConsequenceService
+from backend.runtime import RuntimeConflictError, RuntimeCoordinator
 
 PROTOCOL_VERSION = 1
 MAX_REQUEST_BYTES = 64 * 1024
@@ -436,9 +438,18 @@ def _parse_request(payload: bytes) -> Mapping[str, Any]:
 class AdminApplication:
     """Execute one administrator request without depending on a transport."""
 
-    def __init__(self, paths: PersistencePaths, services: AdminServices) -> None:
+    def __init__(
+        self,
+        paths: PersistencePaths,
+        services: AdminServices,
+        *,
+        runtime: RuntimeCoordinator | None = None,
+    ) -> None:
+        if runtime is not None and runtime.db_path != paths.database.resolve():
+            raise ValueError("Admin and runtime must share persistence")
         self.paths = paths
         self.services = services
+        self.runtime = runtime
 
     def handle(self, payload: bytes, actor: AdminActorContext) -> AdminApplicationResult:
         """Decode and execute one bounded JSON request from any byte-stream adapter."""
@@ -458,8 +469,23 @@ class AdminApplication:
                 raise AdminOperationError(
                     "authorization_failed", "Administrator authorization failed"
                 )
-            result, exit_code = _run_command(command, arguments, self.paths, self.services)
+            if self.runtime is not None and command in _DIAGNOSTIC_COMMANDS:
+                _diagnostic_client(command, arguments)
+                return AdminApplicationResult(
+                    _response(ok=True, result={"runtime": self.runtime.snapshot()}), EXIT_OK
+                )
+            # Lifecycle services own their exclusive admission. Ordinary admin
+            # work shares the same admission as HTTP, across all its transactions.
+            admission = (
+                self.runtime.admit()
+                if self.runtime is not None and command not in _LIFECYCLE_COMMANDS
+                else nullcontext()
+            )
+            with admission:
+                result, exit_code = _run_command(command, arguments, self.paths, self.services)
             return AdminApplicationResult(_response(ok=True, result=result), exit_code)
+        except RuntimeConflictError:
+            return _error("database_not_ready", "Runtime is not ready")
         except AdminOperationError as error:
             return _error(error.code, str(error))
         except ArtifactError as error:

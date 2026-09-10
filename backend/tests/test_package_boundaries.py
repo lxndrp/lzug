@@ -42,9 +42,11 @@ ROOT_MODULE_OWNERS = {
     "fastapi_master_data.py": "api",
     "fastapi_operations_routes.py": "api",
     "fastapi_planning_router.py": "api",
+    "fastapi_runtime.py": "api",
     "healthcheck.py": "operations-adapter",
     "observability.py": "runtime-foundation",
     "runtime_policy.py": "runtime-foundation",
+    "runtime.py": "runtime-foundation",
     "security.py": "runtime-foundation",
     "server.py": "api-bootstrap",
     "settings.py": "runtime-foundation",
@@ -152,7 +154,15 @@ TEST_OWNERS = {
             "test_venue_consequences.py",
         }
     ),
-    "runtime": frozenset({"test_security.py", "test_settings.py", "test_version.py"}),
+    "runtime": frozenset(
+        {
+            "test_security.py",
+            "test_settings.py",
+            "test_version.py",
+            "test_runtime.py",
+            "test_runtime_adapters.py",
+        }
+    ),
 }
 
 

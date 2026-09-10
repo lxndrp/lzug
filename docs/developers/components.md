@@ -145,6 +145,49 @@ Der Anwendungskern liest und schreibt keine globalen Prozessstreams;
 `backend.admin` kapselt bis zur vollständigen Socketumstellung den bisherigen
 stdin/stdout-Einstieg als Kompatibilitätsadapter.
 
+`backend.runtime.RuntimeCoordinator` besitzt im Serverprozess die
+Runtimezustände, Auftragszulassung und Start-/Stoppkoordination.
+Die HTTP-Assembly und ein injizierter `AdminApplication`-Kern verwenden denselben
+Koordinator; Services finden ihn über den kanonischen Datenbankpfad.
+Ein Prozess-Lock verhindert einen zweiten Server für diese Datenbank.
+Ein Auftrag hält seine Zulassung über alle Servicetransaktionen hinweg;
+jede Persistenztransaktion hält zusätzlich eine eigene Zulassung bis zum
+Schließen ihrer Verbindung.
+Dadurch kann ein abgebrochener HTTP-Aufruf keinen noch arbeitenden Worker
+vorzeitig aus der Stopp- oder Wartungskoordination entlassen.
+
+Restore und Migration schließen zuerst die Zulassung neuer Fachaufträge,
+warten auf bereits zugelassene Arbeit und führen anschließend exklusiv aus.
+Ein konkurrierender Wartungsauftrag wird abgewiesen; es gibt keine implizite
+Warteschlange oder automatische Wiederholung.
+Die Sperrordnung lautet Zulassung, Aktivierung, Snapshot und Migration.
+Snapshot und Migration verwenden auch im bisherigen separaten
+Kompatibilitätsadapter dieselben Dateisperren wie die Fachtransaktionen.
+Der Socketanschluss dieses Adapters bleibt #745 vorbehalten.
+
+Der interne Diagnose-Snapshot liest weder SQLite noch Dokumente.
+Der atomar geschriebene Sidecar `<datenbank>.runtime-job.json` hält ausschließlich
+ID, Klasse, Status und Wiederherstellungsbedarf des letzten exklusiven Auftrags fest.
+Er enthält keine Argumente, Ergebnisse oder Fehlertexte und gehört zusammen
+mit den dauerhaft bestehen bleibenden Lockdateien zur Instanz.
+Nach einem unterbrochenen oder fehlgeschlagenen Auftrag bleibt der Wiederanlauf
+gesperrt, bis eine ausdrücklich angestoßene Wiederherstellung erfolgreich
+geprüft wurde; der Koordinator wiederholt den Auftrag nicht.
+Ein noch wartender Auftrag kann abgebrochen werden.
+Ein laufender Auftrag beendet seine Arbeit unter den gehaltenen Sperren.
+Ein Stopp-Timeout lässt die Ownership bestehen und erlaubt keinen parallelen
+Ersatzprozess.
+
+`backend.server` erhält den bisherigen expliziten `--init`-Pfad für
+Initialisierung und Migration, jetzt unter der gemeinsamen Ownership.
+Ohne diesen Auftrag bleibt ein vorhandenes Schema mit Migrationsbedarf
+diagnostizierbar und sperrt Fachaufträge.
+Die bestehenden öffentlichen Health-/Ready-Antwortformate bleiben erhalten;
+Ready verwendet im Server den gemeinsamen Zustand.
+Die weitergehende öffentliche HTTP-/Frontenddarstellung gehört zu #707,
+die Ablösung der bisherigen Startmigration durch eine Migrationsfreigabe im
+laufenden Prozess zum Auftrag #272.
+
 Die folgende Tabelle ist die kanonische knappe Zuordnung der aktuellen
 Backend-Paketstruktur.
 Abhängigkeiten verlaufen nur in die genannten Zielpakete; der automatisierte
