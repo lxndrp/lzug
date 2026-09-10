@@ -503,7 +503,7 @@ class AdminSocketTests(unittest.TestCase):
                 self.assertEqual(200, client.get("/api/ready").status_code)
                 result = self.request(CONFIG)
                 self.assertEqual(
-                    app.state.runtime.snapshot(), result["response"]["result"]["runtime"]
+                    app.state.runtime.diagnosis(), result["response"]["result"]["runtime"]
                 )
             raise RuntimeError("HTTP test stop")
 
