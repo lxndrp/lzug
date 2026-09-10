@@ -212,7 +212,7 @@ class HttpSecurityTests(unittest.TestCase):
         self.assertIn("SameSite=Strict", headers["set-cookie"])
         self.assertIn("Secure", headers["set-cookie"])
 
-    def test_access_log_omits_client_query_cookie_and_request_body(self) -> None:
+    def test_http_error_log_uses_route_template_and_omits_request_data(self) -> None:
         secret_marker = "do-not-log-this-token"
         output = io.StringIO()
         with (
@@ -222,27 +222,105 @@ class HttpSecurityTests(unittest.TestCase):
         ):
             status, _headers, _body = api.request_raw(
                 "GET",
-                f"/api/health?token={secret_marker}",
+                f"/api/candidates/123?token={secret_marker}",
                 authenticated=False,
-                request_headers={"Cookie": f"session={secret_marker}"},
+                request_headers={
+                    "Cookie": f"session={secret_marker}",
+                    "Origin": "https://attacker.example.invalid",
+                },
+                raw_body=secret_marker.encode(),
             )
 
-        assert_status(status, HTTPStatus.OK)
+        assert_status(status, HTTPStatus.FORBIDDEN)
         logged = output.getvalue()
         entries = [json.loads(line) for line in logged.splitlines()]
         self.assertIn(
             {
-                "bytes": 0,
                 "deployment_digest": "unknown",
                 "event": "http_request",
                 "method": "GET",
-                "path": "/api/health",
-                "status": 200,
+                "path": "/api/candidates/{id}",
+                "status": 403,
             },
             entries,
         )
         self.assertNotIn(secret_marker, logged)
+        self.assertNotIn("123", logged)
         self.assertNotIn("127.0.0.1", logged)
+
+    def test_http_events_distinguish_templates_without_dynamic_identifiers(self) -> None:
+        output = io.StringIO()
+        with (
+            TempDatabase() as db_path,
+            redirect_stdout(output),
+            ApiServer(db_path, LoggingHandler) as api,
+        ):
+            candidate_status, _candidate = api.request(
+                "GET", "/api/candidates/123", authenticated=False
+            )
+            lifecycle_status, _lifecycle = api.request(
+                "GET", "/api/exam-rounds/456/lifecycle", authenticated=False
+            )
+
+        assert_status(candidate_status, HTTPStatus.UNAUTHORIZED)
+        assert_status(lifecycle_status, HTTPStatus.UNAUTHORIZED)
+        entries = [
+            json.loads(line)
+            for line in output.getvalue().splitlines()
+            if '"event":"http_request"' in line
+        ]
+        self.assertEqual(
+            ["/api/candidates/{id}", "/api/exam-rounds/{id}/lifecycle"],
+            [entry["path"] for entry in entries],
+        )
+        self.assertNotIn("123", output.getvalue())
+        self.assertNotIn("456", output.getvalue())
+
+    def test_http_events_suppress_successful_reads_and_keep_successful_mutations(self) -> None:
+        output = io.StringIO()
+        with (
+            TempDatabase() as db_path,
+            redirect_stdout(output),
+            ApiServer(db_path, LoggingHandler) as api,
+        ):
+            health_status, _health = api.request("GET", "/api/health", authenticated=False)
+            rotation_status, _rotation = api.request("POST", "/api/session/rotate")
+
+        assert_status(health_status, HTTPStatus.OK)
+        assert_status(rotation_status, HTTPStatus.OK)
+        entries = [
+            json.loads(line)
+            for line in output.getvalue().splitlines()
+            if '"event":"http_request"' in line
+        ]
+        self.assertEqual(1, len(entries))
+        self.assertEqual("/api/session/rotate", entries[0]["path"])
+        self.assertNotIn("bytes", entries[0])
+
+    def test_unmatched_http_paths_use_fixed_categories(self) -> None:
+        secret_marker = "private-route-marker"
+        output = io.StringIO()
+        with (
+            TempDatabase() as db_path,
+            redirect_stdout(output),
+            ApiServer(db_path, LoggingHandler) as api,
+        ):
+            api_status, _api_error = api.request(
+                "GET", f"/api/{secret_marker}", authenticated=False
+            )
+            static_status, _static_error = api.request(
+                "GET", f"/{secret_marker}.js", authenticated=False
+            )
+
+        assert_status(api_status, HTTPStatus.NOT_FOUND)
+        assert_status(static_status, HTTPStatus.NOT_FOUND)
+        entries = [
+            json.loads(line)
+            for line in output.getvalue().splitlines()
+            if '"event":"http_request"' in line
+        ]
+        self.assertEqual(["/api/unmatched", "/static"], [entry["path"] for entry in entries])
+        self.assertNotIn(secret_marker, output.getvalue())
 
     def test_frontend_error_signal_rejects_details_and_logs_only_classification(self) -> None:
         output = io.StringIO()

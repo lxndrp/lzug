@@ -213,6 +213,18 @@ Authentisierung und Persistenz einheitlich mit 503 ab.
 Origin- und Body-Headerprüfungen bleiben vorgeschaltet; ein schon abgewiesener
 Body wird nicht eingelesen.
 Health, Readiness, Lifecycle und statische GET-/HEAD-Pfade bleiben erreichbar.
+
+Die strukturierte HTTP-Observability verwendet ausschließlich die von FastAPI
+gematchte Routenschablone; dynamische Kennungen, Queryparameter, Header und
+Requestinhalte gelangen nicht in Ereignisse.
+Unbekannte API- und statische Pfade erhalten feste Kategorien.
+Das generische HTTP-Ereignis enthält keine nur vermutete Antwortgröße und wird
+für Fehler sowie erfolgreiche zustandsändernde Requests ausgegeben, nicht für
+erfolgreiche Lese-, Probe- oder Preflight-Aufrufe.
+Lifecycle-, Backend-, Frontend- und Admintransportereignisse bleiben ihre
+eigenen begrenzten Ereignistypen.
+Die Demo streamt diese Ereignisse nur bei Bedarf und richtet dafür weder
+Application Insights noch persistente Log Analytics ein.
 Der Betreiberweg steht unter
 [Installation und Konfiguration](../handbook/Administration-Installation-und-Konfiguration.md#lifecycle-und-wartungsanzeige).
 API-Einstieg, OpenAPI und interaktive API-Dokumentation sowie alle
