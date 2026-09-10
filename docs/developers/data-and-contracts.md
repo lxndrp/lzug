@@ -278,6 +278,10 @@ Ansicht von `backend/db/schema.sql`.
 
 Die Betreiber-CLI verwendet Protokollversion 1 für kleine JSON-Aufträge und
 Protokollversion 2 für getrennte Binär- und Kontrollströme über Container-`exec`.
+Die vorbereitete Socket-Factory führt beide Auftragsarten über einen gemeinsamen
+Handshake mit getaggten Datenframes und explizitem Streamabschluss;
+Framing, Ressourcen- und Abbruchgrenzen sind bei den
+[Komponenten](components.md) dokumentiert.
 Sie kennt weder SQLite noch SQLAlchemy und dupliziert keine fachliche Backup-,
 Restore-, Export-, Manifest- oder Migrationslogik.
 

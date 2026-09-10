@@ -68,6 +68,8 @@ def parse_args(settings: RuntimeSettings | None = None) -> argparse.Namespace:
     parser.add_argument("--admin-socket-handshake-timeout", type=float, default=5)
     parser.add_argument("--admin-socket-request-timeout", type=float, default=30)
     parser.add_argument("--admin-socket-shutdown-timeout", type=float, default=30)
+    parser.add_argument("--admin-socket-stream-timeout", type=float, default=300)
+    parser.add_argument("--admin-socket-max-stream-bytes", type=int, default=1024 * 1024 * 1024)
     args = parser.parse_args()
     args.admin_socket = None
     if (args.admin_socket_dir is None) != (args.admin_socket_gid is None):
@@ -81,6 +83,8 @@ def parse_args(settings: RuntimeSettings | None = None) -> argparse.Namespace:
                 handshake_timeout=args.admin_socket_handshake_timeout,
                 request_timeout=args.admin_socket_request_timeout,
                 shutdown_timeout=args.admin_socket_shutdown_timeout,
+                stream_timeout=args.admin_socket_stream_timeout,
+                max_stream_bytes=args.admin_socket_max_stream_bytes,
             )
         except ValueError as error:
             parser.error(str(error))
