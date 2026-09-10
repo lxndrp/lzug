@@ -104,7 +104,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual("unavailable", readiness["status"])
         self.assertEqual({"status", "version", "revision", "_links"}, set(health))
 
-    def test_health_reports_required_migration_without_exposing_data(self) -> None:
+    def test_readiness_reports_invalid_history_without_exposing_data(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
             with closing(sqlite3.connect(db_path)) as connection, connection:
                 connection.execute("DROP TABLE schema_migration_checksum")
@@ -129,7 +129,9 @@ class ApiTests(unittest.TestCase):
 
         assert_status(status, HTTPStatus.SERVICE_UNAVAILABLE)
         self.assertEqual("unavailable", health["status"])
-        self.assertEqual({"status", "version", "revision", "_links"}, set(health))
+        self.assertEqual({"status", "version", "revision", "_links", "state", "ready"}, set(health))
+        self.assertEqual("error", health["state"])
+        self.assertFalse(health["ready"])
 
     def test_health_and_round_summary_are_served_from_seeded_database(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:

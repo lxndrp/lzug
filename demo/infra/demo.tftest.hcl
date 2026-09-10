@@ -142,9 +142,11 @@ run "demo_contract" {
   assert {
     condition = (
       azurerm_container_app.demo.template[0].container[0].liveness_probe[0].path == "/api/health" &&
-      azurerm_container_app.demo.template[0].container[0].readiness_probe[0].path == "/api/ready"
+      azurerm_container_app.demo.template[0].container[0].readiness_probe[0].transport == "TCP" &&
+      azurerm_container_app.demo.template[0].container[0].readiness_probe[0].port == var.container_port &&
+      jsondecode(azurerm_logic_app_action_custom.check_readiness.body).inputs.uri == output.readiness_endpoint
     )
-    error_message = "Liveness and application readiness must remain separate signals."
+    error_message = "Ingress must retain the maintenance shell; reset and promotion must independently verify application readiness."
   }
 
   assert {

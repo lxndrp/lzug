@@ -182,11 +182,13 @@ Ersatzprozess.
 Initialisierung und Migration, jetzt unter der gemeinsamen Ownership.
 Ohne diesen Auftrag bleibt ein vorhandenes Schema mit Migrationsbedarf
 diagnostizierbar und sperrt Fachaufträge.
-Die bestehenden öffentlichen Health-/Ready-Antwortformate bleiben erhalten;
-Ready verwendet im Server den gemeinsamen Zustand.
-Die weitergehende öffentliche HTTP-/Frontenddarstellung gehört zu #707,
-die Ablösung der bisherigen Startmigration durch eine Migrationsfreigabe im
-laufenden Prozess zum Auftrag #272.
+`claim` erwirbt Ownership vor dem Listenerstart; der Server-Lifespan führt
+`initialize` anschließend im selben Prozess aus, während HTTP erreichbar bleibt.
+Ready und Fachzulassung werden erst nach erfolgreicher Prüfung und gespeichertem
+Auftragsabschluss atomar freigegeben.
+Die öffentliche HTTP-/Frontenddarstellung verwendet den gemeinsamen Snapshot.
+Die Ablösung der bisherigen Startmigration durch eine Migrationsfreigabe im
+laufenden Prozess gehört zum Auftrag #272.
 
 Die folgende Tabelle ist die kanonische knappe Zuordnung der aktuellen
 Backend-Paketstruktur.

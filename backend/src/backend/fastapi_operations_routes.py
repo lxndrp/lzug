@@ -21,6 +21,7 @@ from .api_contracts import (
     FactorActivationRequest,
     FrontendErrorRequest,
     HealthResponse,
+    LifecycleResponse,
     LoginRequest,
     SessionResponse,
     SessionRotationResponse,
@@ -58,10 +59,28 @@ def create_runtime_router(application: ReadApplication) -> APIRouter:
         return json_response(application.health())
 
     @router.get(
-        "/api/ready", response_model=HealthResponse, responses={503: {"model": HealthResponse}}
+        "/api/ready",
+        response_model=LifecycleResponse,
+        responses={503: {"model": LifecycleResponse}},
+        description=(
+            "200 only while ready; 503 during initialization, maintenance, migration or failure. "
+            "No diagnostic details."
+        ),
     )
     def ready():
         return json_response(application.readiness())
+
+    @router.get(
+        "/api/lifecycle",
+        response_model=LifecycleResponse,
+        description=(
+            "Public lifecycle snapshot, also reachable while not ready. "
+            "Does not authorize or repeat an operation. "
+            "Technical diagnosis: lzug-admin system status or system doctor."
+        ),
+    )
+    def lifecycle():
+        return json_response(application.lifecycle())
 
     @router.get("/api", response_model=ApiRootResponse)
     def api_root(context: SessionContext):

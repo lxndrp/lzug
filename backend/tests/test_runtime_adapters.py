@@ -66,7 +66,7 @@ class RuntimeAdapterTests(unittest.TestCase):
         ):
             self.assertEqual(200, client.get("/api/health").status_code)
             self.assertEqual(503, client.get("/api/ready").status_code)
-            for path in ("/api", "/api/candidates", "/api/auth/session", "/"):
+            for path in ("/api", "/api/candidates", "/api/auth/session"):
                 response = client.get(path)
                 self.assertEqual(503, response.status_code, path)
                 self.assertEqual("no-store", response.headers["cache-control"])
@@ -112,6 +112,10 @@ class RuntimeAdapterTests(unittest.TestCase):
         def run(app, **_kwargs):
             observations.append(app.state.runtime)
             with TestClient(app) as client:
+                deadline = monotonic() + 5
+                while not app.state.runtime.snapshot()["ready"]:
+                    self.assertLess(monotonic(), deadline)
+                    Event().wait(0.005)
                 self.assertEqual(200, client.get("/api/ready").status_code)
                 self.assertEqual(401, client.get("/api").status_code)
 
@@ -138,7 +142,7 @@ class RuntimeAdapterTests(unittest.TestCase):
         app = create_app(self.config, runtime=self.runtime)
         entered, finish = Event(), Event()
 
-        @app.get("/runtime-test")
+        @app.get("/api/runtime-test")
         def command():
             with session_scope(self.paths.database) as session:
                 session.execute(text("SELECT 1"))
@@ -158,7 +162,7 @@ class RuntimeAdapterTests(unittest.TestCase):
                 self.assertTrue(finish.is_set())
 
         with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as pool:
-            request = pool.submit(client.get, "/runtime-test")
+            request = pool.submit(client.get, "/api/runtime-test")
             self.assertTrue(entered.wait(5))
             maintenance = pool.submit(maintain)
             try:

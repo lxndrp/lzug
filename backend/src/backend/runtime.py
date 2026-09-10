@@ -13,6 +13,7 @@ import tempfile
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
+from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
 from enum import StrEnum
 from fcntl import LOCK_EX, LOCK_NB, LOCK_SH, LOCK_UN, flock
@@ -57,9 +58,12 @@ class JobStatus(StrEnum):
 class RuntimeConflictError(RuntimeError):
     """Safe rejection before admitting conflicting work."""
 
-    def __init__(self, code: str = "runtime_not_ready") -> None:
+    def __init__(
+        self, code: str = "runtime_not_ready", *, state: RuntimeState | None = None
+    ) -> None:
         super().__init__("Runtime cannot accept this operation")
         self.code = code
+        self.state = state
 
 
 @dataclass(frozen=True)
@@ -177,8 +181,10 @@ class RuntimeCoordinator:
         self._active = 0
         self._job: RuntimeJob | None = None
         self._busy = False
+        self._initializing = False
         self._owner: IO[str] | None = None
         self._journal = Path(f"{self.db_path}.runtime-job.json")
+        self._migration: dict[str, object] | None = None
 
     def snapshot(self) -> dict[str, object]:
         """Read immutable diagnostics without opening SQLite or documents."""
@@ -191,12 +197,43 @@ class RuntimeCoordinator:
                 "job": asdict(self._job) if self._job else None,
             }
 
+    def diagnosis(self) -> dict[str, object]:
+        """Give operators the same state plus an allowed, non-mutating next step."""
+        with self._condition:
+            snapshot = {**self.snapshot(), "migration": deepcopy(self._migration)}
+        state = snapshot["state"]
+        action = (
+            "none"
+            if state == RuntimeState.READY
+            else (
+                "inspect_upgrade"
+                if state == RuntimeState.MIGRATION_REQUIRED
+                else "inspect_recovery" if state == RuntimeState.ERROR else "wait"
+            )
+        )
+        return {
+            **snapshot,
+            "next_action": {
+                "code": action,
+                "command": (
+                    "lzug-admin system doctor"
+                    if action in {"inspect_upgrade", "inspect_recovery"}
+                    else "lzug-admin system status"
+                ),
+            },
+        }
+
     def start(self, prepare: Callable[[], None] | None = None) -> None:
         """Claim ownership and inspect storage; failures remain diagnosable.
 
         Ownership conflicts raise before preparation. An interrupted job keeps
         normal work closed even if the schema alone passes its readiness probe.
         """
+        self.claim()
+        self.initialize(prepare)
+
+    def claim(self) -> None:
+        """Acquire ownership before publishing transports, without accessing SQLite."""
         with self._condition, _registry_lock:
             if self._owner is not None or self.db_path in _runtimes:
                 raise RuntimeConflictError("runtime_owned")
@@ -211,7 +248,17 @@ class RuntimeCoordinator:
             _runtimes[self.db_path] = self
             self._state = RuntimeState.INITIALIZING
             self._reason = "initializing"
+            self._migration = None
+            self._busy = False
+
+    def initialize(self, prepare: Callable[[], None] | None = None) -> None:
+        """Prepare the owned instance while HTTP and admin transports remain live."""
+        with self._condition:
+            if self._owner is None or self._busy or self._state != RuntimeState.INITIALIZING:
+                raise RuntimeConflictError("runtime_not_owned")
             self._busy = True
+            self._initializing = True
+        inspected = None
         try:
             with self._exclusive_admission(), activation_lock(self.db_path, exclusive=True):
                 self._load_job()
@@ -220,7 +267,7 @@ class RuntimeCoordinator:
                     return
                 if prepare is not None:
                     prepare()
-                self._refresh()
+                inspected = self._inspect()
         except Exception:
             self._set_state(RuntimeState.ERROR, "initialization_failed")
         except BaseException:
@@ -228,7 +275,10 @@ class RuntimeCoordinator:
             raise
         finally:
             with self._condition:
+                if inspected is not None:
+                    self._set_state(*inspected)
                 self._busy = False
+                self._initializing = False
                 self._condition.notify_all()
 
     @contextmanager
@@ -240,7 +290,7 @@ class RuntimeCoordinator:
             _reject_stale_admission(self.db_path)
             inherited = parent is not None and parent.runtime is self and parent.active
             if not inherited and (self._state != RuntimeState.READY or self._busy):
-                raise RuntimeConflictError()
+                raise RuntimeConflictError(state=self._state)
             admission = _Admission(
                 self, exclusive=bool(inherited and parent is not None and parent.exclusive)
             )
@@ -280,7 +330,7 @@ class RuntimeCoordinator:
         if parent is not None and parent.runtime is self and parent.active:
             if not parent.exclusive:
                 raise RuntimeConflictError("lock_upgrade_forbidden")
-            if self._state == RuntimeState.INITIALIZING:
+            if self._initializing and (self._job is None or self._job.status != JobStatus.RUNNING):
                 with self._initialization_operation(operation):
                     yield self._job
             else:
@@ -310,6 +360,7 @@ class RuntimeCoordinator:
                 or bool(self._job and self._job.requires_recovery),
             )
         running = False
+        inspected = None
         try:
             self._save_job()
             self._drain(timeout)
@@ -317,8 +368,11 @@ class RuntimeCoordinator:
             running = True
             with self._exclusive_admission(), activation_lock(self.db_path, exclusive=True):
                 yield self._job
-                self._refresh()
+                candidate = self._inspect()
+                if candidate[0] != RuntimeState.READY:
+                    raise RuntimeConflictError("postcheck_failed")
             self._finish_job(JobStatus.SUCCEEDED)
+            inspected = candidate
         except BaseException:
             if running:
                 self._set_state(RuntimeState.ERROR, "operation_failed")
@@ -329,6 +383,8 @@ class RuntimeCoordinator:
             raise
         finally:
             with self._condition:
+                if inspected is not None:
+                    self._set_state(*inspected)
                 self._busy = False
                 self._condition.notify_all()
 
@@ -360,6 +416,14 @@ class RuntimeCoordinator:
 
     @contextmanager
     def _initialization_operation(self, operation: Operation) -> Iterator[None]:
+        self._set_state(
+            (
+                RuntimeState.MIGRATING
+                if operation == Operation.MIGRATION
+                else RuntimeState.MAINTENANCE
+            ),
+            operation.value,
+        )
         self._job = RuntimeJob(str(uuid4()), operation, JobStatus.RUNNING, requires_recovery=True)
         self._save_job()
         try:
@@ -398,14 +462,32 @@ class RuntimeCoordinator:
             if self._state != RuntimeState.STOPPING:
                 self._state, self._reason = state, reason
 
-    def _refresh(self) -> None:
+    def _inspect(self) -> tuple[RuntimeState, str]:
         result = self._probe()
+        migration = result.get("migration")
+        with self._condition:
+            # Capture the existing migration probe for privileged diagnosis only.
+            # Diagnostic reads never reopen storage during a schema transition.
+            self._migration = (
+                deepcopy(
+                    {key: migration.get(key) for key in ("state", "current", "target", "pending")}
+                )
+                if isinstance(migration, Mapping)
+                else None
+            )
         if result.get("ready") is True:
-            self._set_state(RuntimeState.READY, "ready")
-        elif result.get("reason") == "migration_required":
-            self._set_state(RuntimeState.MIGRATION_REQUIRED, "migration_required")
-        else:
-            self._set_state(RuntimeState.ERROR, "persistence_not_ready")
+            return RuntimeState.READY, "ready"
+        if result.get("reason") == "migration_required":
+            return RuntimeState.MIGRATION_REQUIRED, "migration_required"
+        if result.get("reason") in {
+            "database_missing",
+            "migration_error",
+            "schema_incomplete",
+            "sqlite_settings_invalid",
+            "database_unavailable",
+        }:
+            return RuntimeState.ERROR, str(result["reason"])
+        return RuntimeState.ERROR, "persistence_not_ready"
 
     def _finish_job(self, status: JobStatus) -> None:
         with self._condition:

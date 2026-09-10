@@ -45,6 +45,7 @@ ROOT_MODULE_OWNERS = {
     "fastapi_runtime.py": "api",
     "healthcheck.py": "operations-adapter",
     "observability.py": "runtime-foundation",
+    "public_lifecycle.py": "runtime-contract",
     "runtime_policy.py": "runtime-foundation",
     "runtime.py": "runtime-foundation",
     "security.py": "runtime-foundation",
@@ -161,6 +162,7 @@ TEST_OWNERS = {
             "test_version.py",
             "test_runtime.py",
             "test_runtime_adapters.py",
+            "test_public_lifecycle.py",
         }
     ),
 }

@@ -1,4 +1,4 @@
-"""Container healthcheck for the public readiness endpoint."""
+"""Container liveness check; controlled maintenance must not trigger restarts."""
 
 from __future__ import annotations
 
