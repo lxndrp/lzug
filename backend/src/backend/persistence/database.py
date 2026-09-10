@@ -27,6 +27,7 @@ from backend.persistence.exam_venue_migration import (
 )
 from backend.persistence.exam_venue_migration import (
     ExamVenueMigrationConflictError,
+    ExamVenueMigrationPreparation,
     migrate_plan_reference_json,
     normalize_migration_text,
     prepare_exam_venue_migration,
@@ -444,7 +445,21 @@ def _migration_state(
     expected_names = tuple(migration.name for migration in files)
     table = _migration_table(connection)
     rows = connection.execute(select(table.c.name, table.c.applied_at)).all()
-    names = tuple(row.name for row in rows)
+    records = _validate_migration_history(
+        tuple((row.name, row.applied_at) for row in rows), expected_names
+    )
+    checksum_rows = _read_migration_checksums(connection)
+    _validate_migration_checksums(
+        checksum_rows, checksums, expected_names, tuple(record.name for record in records)
+    )
+    return records, files[len(records) :]
+
+
+def _validate_migration_history(
+    rows: tuple[tuple[str, str | None], ...], expected_names: tuple[str, ...]
+) -> tuple[MigrationRecord, ...]:
+    """Validate the applied prefix without reading or changing persistent state."""
+    names = tuple(name for name, _applied_at in rows)
     if len(set(names)) != len(names):
         raise MigrationError("Migration history contains duplicate entries.")
     unknown = sorted(set(names) - set(expected_names))
@@ -454,44 +469,52 @@ def _migration_state(
     if set(names) != set(prefix):
         raise MigrationError("Migration history has a gap or was recorded out of order.")
 
-    records_by_name = {row.name: MigrationRecord(row.name, str(row.applied_at)) for row in rows}
-    if any(row.applied_at is None for row in rows):
+    records_by_name = {name: MigrationRecord(name, str(applied_at)) for name, applied_at in rows}
+    if any(applied_at is None for _name, applied_at in rows):
         raise MigrationError("Migration history contains an entry without an application time.")
-    records = tuple(records_by_name[name] for name in prefix)
+    return tuple(records_by_name[name] for name in prefix)
 
-    tables = set(inspect(connection).get_table_names())
-    checksum_table = None
-    if "schema_migration_checksum" in tables:
-        checksum_table = Table("schema_migration_checksum", MetaData(), autoload_with=connection)
-        checksum_columns = {column.name for column in checksum_table.columns}
-        if not {"name", "checksum"}.issubset(checksum_columns):
-            raise MigrationError("Migration checksum table is incompatible with this application.")
-        checksum_rows = connection.execute(
-            select(checksum_table.c.name, checksum_table.c.checksum)
-        ).all()
-        checksum_by_name = {row.name: row.checksum for row in checksum_rows}
-        if len(checksum_by_name) != len(checksum_rows):
-            raise MigrationError("Migration checksum history contains duplicate entries.")
-        unknown_checksums = sorted(set(checksum_by_name) - set(expected_names))
-        if unknown_checksums:
-            raise MigrationError(
-                "Migration checksum history contains unknown entries: "
-                + ", ".join(unknown_checksums)
-                + "."
-            )
-        for name, checksum in checksum_by_name.items():
-            if checksum != checksums[name]:
-                raise MigrationError(f"Checksum mismatch for migration {name}.")
+
+def _read_migration_checksums(connection: Connection) -> tuple[tuple[str, str], ...] | None:
+    if "schema_migration_checksum" not in inspect(connection).get_table_names():
+        return None
+    table = Table("schema_migration_checksum", MetaData(), autoload_with=connection)
+    if not {"name", "checksum"}.issubset({column.name for column in table.columns}):
+        raise MigrationError("Migration checksum table is incompatible with this application.")
+    return tuple(
+        (row.name, row.checksum)
+        for row in connection.execute(select(table.c.name, table.c.checksum))
+    )
+
+
+def _validate_migration_checksums(
+    checksum_rows: tuple[tuple[str, str], ...] | None,
+    checksums: Mapping[str, str],
+    expected_names: tuple[str, ...],
+    names: tuple[str, ...],
+) -> None:
+    if checksum_rows is None:
         if "009_harden_migration_history.sql" in names:
-            if set(checksum_by_name) != set(names):
-                raise MigrationError("Migration checksum history is incomplete.")
-    elif "009_harden_migration_history.sql" in names:
+            raise MigrationError(
+                "Migration history claims checksum protection without its metadata table."
+            )
+        return
+    checksum_by_name = dict(checksum_rows)
+    if len(checksum_by_name) != len(checksum_rows):
+        raise MigrationError("Migration checksum history contains duplicate entries.")
+    unknown_checksums = sorted(set(checksum_by_name) - set(expected_names))
+    if unknown_checksums:
         raise MigrationError(
-            "Migration history claims checksum protection without its metadata table."
+            "Migration checksum history contains unknown entries: "
+            + ", ".join(unknown_checksums)
+            + "."
         )
-
-    pending = files[len(records) :]
-    return records, pending
+    for name, checksum in checksum_by_name.items():
+        if checksum != checksums[name]:
+            raise MigrationError(f"Checksum mismatch for migration {name}.")
+    if "009_harden_migration_history.sql" in names:
+        if set(checksum_by_name) != set(names):
+            raise MigrationError("Migration checksum history is incomplete.")
 
 
 @contextmanager
@@ -603,67 +626,96 @@ def _apply_migrations_unlocked(
                 backup_name=migration_backup_name,
             )
         for migration in pending:
-            venue_preparation = None
-            if migration.name == EXAM_VENUE_MIGRATION:
-                if backup_path is None:
-                    raise MigrationError("Exam-venue migration requires a verified backup.")
-                try:
-                    venue_preparation = prepare_exam_venue_migration(
-                        db_path, backup_path, effective_backup_dir
-                    )
-                except ExamVenueMigrationConflictError as error:
-                    raise MigrationError(str(error), reason="migration_conflict") from error
-            raw_connection = engine.raw_connection()
-            try:
-                raw_connection.create_function(
-                    "lzug_normalize", 1, normalize_migration_text, deterministic=True
-                )
-                raw_connection.create_function(
-                    "lzug_migrate_plan_json", 1, migrate_plan_reference_json, deterministic=True
-                )
-                if venue_preparation is not None:
-                    raw_connection.create_function(
-                        "lzug_migration_timestamp",
-                        0,
-                        lambda: migration_timestamp or datetime.now(UTC).isoformat(),
-                    )
-                    raw_connection.create_function(
-                        "lzug_migration_backup",
-                        0,
-                        partial(str, venue_preparation.backup_reference),
-                    )
-                    raw_connection.create_function(
-                        "lzug_migration_report_json",
-                        0,
-                        partial(str, venue_preparation.machine_report),
-                    )
-                    raw_connection.create_function(
-                        "lzug_migration_report_text",
-                        0,
-                        partial(str, venue_preparation.human_report),
-                    )
-                raw_connection.executescript(migration.read_text(encoding="utf-8"))
-                raw_connection.commit()
-            except (OSError, sqlite3.Error) as error:
-                try:
-                    raw_connection.rollback()
-                except sqlite3.Error:
-                    pass
-                raise MigrationError(f"Migration {migration.name} failed: {error}") from error
-            finally:
-                raw_connection.close()
-            try:
-                _record_migration(engine, migration)
-            except MigrationError:
-                raise
-            except (OSError, SQLAlchemyError) as error:
-                raise MigrationError(
-                    f"Migration {migration.name} history could not be recorded: {error}"
-                ) from error
+            venue_preparation = _prepare_migration(
+                migration, db_path, backup_path, effective_backup_dir
+            )
+            _execute_migration(engine, migration, venue_preparation, migration_timestamp)
+            _verify_migration_history(engine, migration)
         with engine.connect() as connection:
             _migration_state(connection)
     finally:
         engine.dispose()
+
+
+def _prepare_migration(
+    migration: Path, db_path: Path, backup_path: Path | None, backup_dir: Path
+) -> ExamVenueMigrationPreparation | None:
+    venue_preparation = None
+    if migration.name == EXAM_VENUE_MIGRATION:
+        if backup_path is None:
+            raise MigrationError("Exam-venue migration requires a verified backup.")
+        try:
+            venue_preparation = prepare_exam_venue_migration(db_path, backup_path, backup_dir)
+        except ExamVenueMigrationConflictError as error:
+            raise MigrationError(str(error), reason="migration_conflict") from error
+    return venue_preparation
+
+
+def _execute_migration(
+    engine: Engine,
+    migration: Path,
+    venue_preparation: ExamVenueMigrationPreparation | None,
+    migration_timestamp: str | None,
+) -> None:
+    """Execute one historical script with its original commit and rollback boundary."""
+    raw_connection = engine.raw_connection()
+    try:
+        _register_migration_functions(raw_connection, venue_preparation, migration_timestamp)
+        raw_connection.executescript(migration.read_text(encoding="utf-8"))
+        raw_connection.commit()
+    except (OSError, sqlite3.Error) as error:
+        try:
+            raw_connection.rollback()
+        except sqlite3.Error:
+            pass
+        raise MigrationError(f"Migration {migration.name} failed: {error}") from error
+    finally:
+        raw_connection.close()
+
+
+def _register_migration_functions(
+    raw_connection,
+    venue_preparation: ExamVenueMigrationPreparation | None,
+    migration_timestamp: str | None,
+) -> None:
+    raw_connection.create_function(
+        "lzug_normalize", 1, normalize_migration_text, deterministic=True
+    )
+    raw_connection.create_function(
+        "lzug_migrate_plan_json", 1, migrate_plan_reference_json, deterministic=True
+    )
+    if venue_preparation is not None:
+        raw_connection.create_function(
+            "lzug_migration_timestamp",
+            0,
+            lambda: migration_timestamp or datetime.now(UTC).isoformat(),
+        )
+        raw_connection.create_function(
+            "lzug_migration_backup",
+            0,
+            partial(str, venue_preparation.backup_reference),
+        )
+        raw_connection.create_function(
+            "lzug_migration_report_json",
+            0,
+            partial(str, venue_preparation.machine_report),
+        )
+        raw_connection.create_function(
+            "lzug_migration_report_text",
+            0,
+            partial(str, venue_preparation.human_report),
+        )
+
+
+def _verify_migration_history(engine: Engine, migration: Path) -> None:
+    try:
+        _record_migration(engine, migration)
+    except MigrationError:
+        raise
+    except (OSError, SQLAlchemyError) as error:
+        raise MigrationError(
+            f"Migration {migration.name} history could not be recorded: {error}"
+        ) from error
 
 
 def initialize(

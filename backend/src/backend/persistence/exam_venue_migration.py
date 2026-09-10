@@ -76,6 +76,31 @@ def prepare_exam_venue_migration(
     """Inspect legacy rows and publish deterministic machine and human reports."""
     if backup_path.is_symlink() or not backup_path.is_file():
         raise ExamVenueMigrationConflictError("Exam-venue migration requires a verified backup")
+    snapshot = _read_legacy_venues(db_path)
+    report = _build_migration_report(snapshot, backup_path.name)
+    machine = json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    human = _human_report(report)
+    report_directory.mkdir(parents=True, exist_ok=True)
+    _atomic_text(report_directory / MACHINE_REPORT_NAME, machine)
+    _atomic_text(report_directory / HUMAN_REPORT_NAME, human)
+    if report["conflicts"]:
+        raise ExamVenueMigrationConflictError(
+            "Legacy exam-location migration has conflicts; inspect "
+            f"{MACHINE_REPORT_NAME} or {HUMAN_REPORT_NAME}"
+        )
+    return ExamVenueMigrationPreparation(machine, human, backup_path.name)
+
+
+@dataclass(frozen=True)
+class _LegacyVenueSnapshot:
+    locations: list[dict[str, Any]]
+    committees: set[int]
+    planning_references: list[dict[str, Any]]
+    day_references: list[dict[str, Any]]
+    plan_revisions: list[dict[str, Any]]
+
+
+def _read_legacy_venues(db_path: Path) -> _LegacyVenueSnapshot:
     with closing(sqlite3.connect(db_path)) as connection:
         connection.row_factory = sqlite3.Row
         tables = {
@@ -119,10 +144,16 @@ def prepare_exam_venue_migration(
             else []
         )
 
-    location_ids = {int(row["id"]) for row in locations}
+    return _LegacyVenueSnapshot(
+        locations, committees, planning_references, day_references, plan_revisions
+    )
+
+
+def _reference_conflicts(snapshot: _LegacyVenueSnapshot) -> list[dict[str, Any]]:
+    location_ids = {int(row["id"]) for row in snapshot.locations}
     conflicts: list[dict[str, Any]] = []
-    for row in locations:
-        if int(row["committee_id"]) not in committees:
+    for row in snapshot.locations:
+        if int(row["committee_id"]) not in snapshot.committees:
             conflicts.append(
                 {
                     "code": "orphan_committee",
@@ -131,8 +162,8 @@ def prepare_exam_venue_migration(
                 }
             )
     for kind, references, id_field in (
-        ("orphan_planning_default", planning_references, "planning_settings_id"),
-        ("orphan_exam_day", day_references, "exam_day_id"),
+        ("orphan_planning_default", snapshot.planning_references, "planning_settings_id"),
+        ("orphan_exam_day", snapshot.day_references, "exam_day_id"),
     ):
         for reference in references:
             if int(reference["legacy_location_id"]) not in location_ids:
@@ -144,7 +175,7 @@ def prepare_exam_venue_migration(
                     }
                 )
 
-    for revision in plan_revisions:
+    for revision in snapshot.plan_revisions:
         for field in ("before_state_json", "after_state_json"):
             try:
                 migrate_plan_reference_json(str(revision[field]))
@@ -158,6 +189,13 @@ def prepare_exam_venue_migration(
                     }
                 )
 
+    return conflicts
+
+
+def _group_legacy_venues(
+    locations: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    conflicts: list[dict[str, Any]] = []
     grouped: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
     for row in locations:
         normalized = tuple(
@@ -210,6 +248,11 @@ def prepare_exam_venue_migration(
             }
         )
 
+    return groups, conflicts, clarifications
+
+
+def _duplicate_venue_conflicts(groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    conflicts: list[dict[str, Any]] = []
     venue_names: dict[tuple[int, str], list[dict[str, Any]]] = defaultdict(list)
     for group in groups:
         venue_names[(group["committee_id"], normalize_migration_text(group["name"]))].append(group)
@@ -231,38 +274,38 @@ def prepare_exam_venue_migration(
                 }
             )
 
-    report = {
+    return conflicts
+
+
+def _build_migration_report(
+    snapshot: _LegacyVenueSnapshot, backup_reference: str
+) -> dict[str, Any]:
+    """Derive deterministic evidence before publishing files or running migration SQL."""
+    conflicts = _reference_conflicts(snapshot)
+    groups, room_conflicts, clarifications = _group_legacy_venues(snapshot.locations)
+    conflicts.extend(room_conflicts)
+    conflicts.extend(_duplicate_venue_conflicts(groups))
+    return {
         "format": "lzug-exam-venue-migration-report",
         "format_version": 1,
         "migration": MIGRATION_NAME,
-        "backup": {"reference": backup_path.name, "verified": True},
+        "backup": {"reference": backup_reference, "verified": True},
         "source": {
-            "locations": len(locations),
-            "planning_defaults": len(planning_references),
-            "exam_days": len(day_references),
-            "confirmed_plan_revisions": len(plan_revisions),
+            "locations": len(snapshot.locations),
+            "planning_defaults": len(snapshot.planning_references),
+            "exam_days": len(snapshot.day_references),
+            "confirmed_plan_revisions": len(snapshot.plan_revisions),
         },
         "target": {
             "venues": len(groups),
-            "rooms": len(locations),
-            "legacy_mappings": len(locations),
-            "grouped_legacy_locations": len(locations) - len(groups),
+            "rooms": len(snapshot.locations),
+            "legacy_mappings": len(snapshot.locations),
+            "grouped_legacy_locations": len(snapshot.locations) - len(groups),
         },
         "groups": groups,
         "conflicts": sorted(conflicts, key=lambda item: json.dumps(item, sort_keys=True)),
         "clarifications": clarifications,
     }
-    machine = json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-    human = _human_report(report)
-    report_directory.mkdir(parents=True, exist_ok=True)
-    _atomic_text(report_directory / MACHINE_REPORT_NAME, machine)
-    _atomic_text(report_directory / HUMAN_REPORT_NAME, human)
-    if conflicts:
-        raise ExamVenueMigrationConflictError(
-            "Legacy exam-location migration has conflicts; inspect "
-            f"{MACHINE_REPORT_NAME} or {HUMAN_REPORT_NAME}"
-        )
-    return ExamVenueMigrationPreparation(machine, human, backup_path.name)
 
 
 def _human_report(report: dict[str, Any]) -> str:

@@ -112,6 +112,27 @@ TOTP-Replay-Schutz, Recovery-Code-Verbrauch, Kennwort-Rehash und Sessionwechsel
 bleiben Teil einer gemeinsamen Transaktion mit generischen Anmeldefehlern und
 Dummy-Hash-Prüfung für unbekannte Konten oder Konten ohne Kennwort.
 
+`integrations.calendar` gleicht einzelne Zuweisungen und entfallene Termine
+innerhalb der bestehenden Rundentransaktion ab.
+Die Kalenderinhalte werden aus den geladenen Daten abgeleitet; Identität,
+Generation und Versionsänderungen werden beim Speichern zusammengeführt.
+`planning.plan_consequences` leitet Kalenderaktionen und Empfängerkategorien
+rein aus den Revisionsständen ab und ergänzt die aktuelle Ausschussleitung
+in der bestehenden Ableitungstransaktion.
+Die bisherigen eindeutigen Auftragsschlüssel sichern Wiederholungen ab.
+`integrations.notifications` entscheidet terminale Zustellfälle vor dem
+Providerzugriff und bildet dessen Ergebnis auf den Retry- oder Bestätigungsstatus ab.
+Der Providerzugriff erfolgt nach dem Commit des Claims; nur der weiterhin
+gültige Claim darf Ergebnis und Abonnementinvalidierung speichern.
+
+`persistence.database` prüft Historienpräfix und Checksummen getrennt von
+Backup, migrationsspezifischer Vorbereitung, SQL-Ausführung und Historiennachweis.
+Diese Phasen bleiben unter derselben Migrationssperre; historische SQL-Skripte
+behalten ihre eigenen Commit- und Rollbackgrenzen.
+Der Prüfungsort-Preflight liest zunächst den Altbestand, leitet daraus Gruppen,
+Konflikte und Berichte ab und veröffentlicht die Berichte vor dem SQL-Lauf.
+Ein Konflikt bleibt damit diagnostizierbar, ohne die Migration zu beginnen.
+
 `backend.fastapi_dependencies` stellt gemeinsame FastAPI-Dependencies
 für Request-Kontext, Session, CSRF, aktive Mitgliedschaft, Betreiberzugriff
 auf Prüfungsorte und Rundenzugriff bereit.

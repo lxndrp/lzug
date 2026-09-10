@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from icalendar import Calendar
 from sqlalchemy import select, text
@@ -230,6 +231,80 @@ class CalendarServiceTests(unittest.TestCase):
                 self.assertNotEqual(old.external_event_id, new.external_event_id)
         finally:
             database.__exit__(None, None, None)
+
+    def test_reactivated_assignment_gets_one_new_generation_without_touching_other_events(
+        self,
+    ) -> None:
+        database, db_path = self._confirmed_database()
+        self.addCleanup(database.__exit__, None, None, None)
+        service = CalendarService(db_path)
+        service.sync_round(1)
+        with session_scope(db_path) as session:
+            original = session.scalars(select(CalendarEvent).order_by(CalendarEvent.id)).first()
+            assignment_id = original.exam_day_assignment_id
+            old_id, old_uid = original.id, original.external_event_id
+            day = session.get(ExamDay, original.exam_day_id)
+            day_id = day.id
+            day.status = "cancelled"
+            untouched = {
+                event.id: (event.status, event.version, event.content_hash)
+                for event in session.scalars(select(CalendarEvent))
+                if event.id != old_id
+            }
+        service.sync_assignment(assignment_id)
+        with session_scope(db_path) as session:
+            self.assertEqual("cancelled", session.get(CalendarEvent, old_id).status)
+            session.get(ExamDay, day_id).status = "confirmed"
+        service.sync_assignment(assignment_id)
+        service.sync_assignment(assignment_id)
+        with session_scope(db_path) as session:
+            events = list(session.scalars(select(CalendarEvent)))
+            generations = [e for e in events if e.exam_day_assignment_id == assignment_id]
+            self.assertEqual(2, len(generations))
+            new = next(e for e in generations if e.id != old_id)
+            self.assertNotEqual(old_uid, new.external_event_id)
+            self.assertEqual(("sent", 1), (new.status, new.version))
+            self.assertEqual(
+                untouched,
+                {e.id: (e.status, e.version, e.content_hash) for e in events if e.id in untouched},
+            )
+
+    def test_round_sync_rolls_back_earlier_event_updates_on_payload_failure(self) -> None:
+        database, db_path = self._confirmed_database()
+        self.addCleanup(database.__exit__, None, None, None)
+        service = CalendarService(db_path)
+        service.sync_round(1)
+        with session_scope(db_path) as session:
+            before = {
+                event.id: (event.status, event.version, event.content_hash)
+                for event in session.scalars(select(CalendarEvent))
+            }
+            self.assertGreater(len(before), 1)
+            for day in session.scalars(select(ExamDay).where(ExamDay.exam_round_id == 1)):
+                day.status = "cancelled"
+        real_payload = service._event_payload
+        calls = 0
+
+        def fail_after_first_event(*args):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise ValueError("synthetic payload failure")
+            return real_payload(*args)
+
+        with patch.object(service, "_event_payload", side_effect=fail_after_first_event):
+            with self.assertRaisesRegex(ValueError, "synthetic payload failure"):
+                service.sync_round(1)
+        with session_scope(db_path) as session:
+            self.assertEqual(
+                before,
+                {
+                    e.id: (e.status, e.version, e.content_hash)
+                    for e in session.scalars(select(CalendarEvent))
+                },
+            )
+        self.assertGreater(service.sync_round(1), 0)
+        self.assertEqual(0, service.sync_round(1))
 
 
 class CalendarApiTests(unittest.TestCase):

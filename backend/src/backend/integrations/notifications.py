@@ -758,6 +758,19 @@ class NotificationService:
                 )
 
     def _dispatch_claimed(self, delivery: ClaimedDelivery, current: datetime) -> DeliveryResult:
+        terminal = self._dispatch_precondition(delivery)
+        if terminal is not None:
+            return terminal
+        try:
+            self._send_claimed(delivery)
+        except WebPushException as error:
+            return self._push_failure_result(delivery, error.status_code, current)
+        except OSError, smtplib.SMTPException:
+            return self._temporary_result(delivery, f"{delivery.channel}_unavailable", current)
+        return self._sent_result(delivery, current)
+
+    def _dispatch_precondition(self, delivery: ClaimedDelivery) -> DeliveryResult | None:
+        """Decide terminal push outcomes before accessing a provider."""
         if (
             delivery.channel == "web_push"
             and delivery.status == "pending"
@@ -768,47 +781,53 @@ class NotificationService:
                 "confirmation_timeout",
                 increment=False,
             )
-        try:
-            if delivery.channel == "sink":
-                self._send_sink(delivery.notification_id)
-            elif delivery.channel == "web_push":
-                if delivery.push_endpoint is None:
-                    return self._permanent_result(delivery, "invalid_subscription")
-                self._send_web_push(delivery.push_endpoint, delivery.notification_id)
-            elif delivery.channel == "email":
-                if delivery.recipient_email is None:
-                    raise OSError("Recipient is unavailable")
-                self._send_email(delivery)
-            confirmed_status = (
-                "technically_confirmed" if delivery.channel in {"email", "sink"} else "pending"
+        if delivery.channel == "web_push" and delivery.push_endpoint is None:
+            return self._permanent_result(delivery, "invalid_subscription")
+        return None
+
+    def _send_claimed(self, delivery: ClaimedDelivery) -> None:
+        """Perform channel I/O after the claim transaction has committed."""
+        if delivery.channel == "sink":
+            self._send_sink(delivery.notification_id)
+        elif delivery.channel == "web_push":
+            assert delivery.push_endpoint is not None
+            self._send_web_push(delivery.push_endpoint, delivery.notification_id)
+        elif delivery.channel == "email":
+            if delivery.recipient_email is None:
+                raise OSError("Recipient is unavailable")
+            self._send_email(delivery)
+
+    @staticmethod
+    def _sent_result(delivery: ClaimedDelivery, current: datetime) -> DeliveryResult:
+        confirmed_status = (
+            "technically_confirmed" if delivery.channel in {"email", "sink"} else "pending"
+        )
+        return DeliveryResult(
+            status=confirmed_status,
+            attempt_count=delivery.attempt_count + 1,
+            next_attempt_at=(
+                _timestamp(current + PUSH_CONFIRMATION_TIMEOUT)
+                if delivery.channel == "web_push"
+                else None
+            ),
+            technical_confirmed_at=(
+                _timestamp(current) if confirmed_status == "technically_confirmed" else None
+            ),
+            error_code=None,
+        )
+
+    def _push_failure_result(
+        self, delivery: ClaimedDelivery, status_code: int | None, current: datetime
+    ) -> DeliveryResult:
+        if status_code in {404, 410}:
+            return self._permanent_result(
+                delivery,
+                "invalid_subscription",
+                invalidate_subscription_id=delivery.push_subscription_id,
             )
-            return DeliveryResult(
-                status=confirmed_status,
-                attempt_count=delivery.attempt_count + 1,
-                next_attempt_at=(
-                    _timestamp(current + PUSH_CONFIRMATION_TIMEOUT)
-                    if delivery.channel == "web_push"
-                    else None
-                ),
-                technical_confirmed_at=(
-                    _timestamp(current) if confirmed_status == "technically_confirmed" else None
-                ),
-                error_code=None,
-            )
-        except WebPushException as error:
-            if error.status_code in {404, 410}:
-                return self._permanent_result(
-                    delivery,
-                    "invalid_subscription",
-                    invalidate_subscription_id=delivery.push_subscription_id,
-                )
-            if error.status_code is not None and 400 <= error.status_code < 500:
-                if error.status_code == 429:
-                    return self._temporary_result(delivery, "push_unavailable", current)
-                return self._permanent_result(delivery, "push_rejected")
-            return self._temporary_result(delivery, "push_unavailable", current)
-        except OSError, smtplib.SMTPException:
-            return self._temporary_result(delivery, f"{delivery.channel}_unavailable", current)
+        if status_code is not None and 400 <= status_code < 500 and status_code != 429:
+            return self._permanent_result(delivery, "push_rejected")
+        return self._temporary_result(delivery, "push_unavailable", current)
 
     def _temporary_result(
         self, delivery: ClaimedDelivery, code: str, current: datetime

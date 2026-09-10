@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import unittest
+from copy import deepcopy
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
@@ -13,11 +15,13 @@ from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CalendarEvent,
     CommitteeMember,
+    ConfirmedPlanRevision,
     ExamRoom,
     ExamVenue,
     MemberAvailability,
     Notification,
     PlanConsequence,
+    PlanConsequenceBatch,
 )
 from backend.planning import ConfirmedPlanChange, PlanningService
 from backend.planning.plan_consequences import PlanConsequenceService
@@ -60,6 +64,85 @@ class PlanConsequenceServiceTests(unittest.TestCase):
         planning.confirm_plan(1)
         CalendarService(db_path).sync_round(1)
         return planning, planning.get_confirmed_plan(1)
+
+    def test_task_derivation_is_order_independent_and_preserves_actor_scope(self) -> None:
+        before = {
+            "exam_days": [
+                {
+                    "id": 10,
+                    "date": "2026-09-10",
+                    "room_id": 1,
+                    "slots": [{"starts_at": "2026-09-10T09:00", "ends_at": "2026-09-10T11:00"}],
+                    "assignments": [
+                        {
+                            "id": 100 + member_id,
+                            "committee_member_id": member_id,
+                            "assignment_role": "examiner",
+                            "day_part": "full_day",
+                        }
+                        for member_id in (1, 2, 3)
+                    ],
+                }
+            ]
+        }
+        after = deepcopy(before)
+        after["exam_days"][0]["assignments"][0]["committee_member_id"] = 4
+        after["exam_days"][0]["room_id"] = 2
+        original_inputs = deepcopy((before, after))
+        revision = ConfirmedPlanRevision(exam_round_id=1, actor_member_id=1)
+        with TempDatabase() as db_path, session_scope(db_path) as session:
+            service = PlanConsequenceService(db_path)
+            tasks, scope = service._derive_tasks(session, revision, before, after)
+            reversed_before, reversed_after = deepcopy((before, after))
+            reversed_before["exam_days"][0]["assignments"].reverse()
+            reversed_after["exam_days"][0]["assignments"].reverse()
+            self.assertEqual(
+                (tasks, scope),
+                service._derive_tasks(session, revision, reversed_before, reversed_after),
+            )
+            self.assertEqual(original_inputs, (before, after))
+            self.assertTrue({1, 2, 3, 4}.issubset(scope))
+            calendars = [t for t in tasks if t["consequence_type"] == "calendar"]
+            self.assertEqual(
+                [(1, "cancel"), (4, "create"), (2, "update"), (3, "update")],
+                [(t["recipient_member_id"], t["action"]) for t in calendars],
+            )
+            notices = [t for t in tasks if t["consequence_type"] == "notification"]
+            self.assertEqual(scope - {1}, {t["recipient_member_id"] for t in notices})
+            self.assertEqual(len(scope - {1}), len(notices))
+            member_two = next(t for t in notices if t["recipient_member_id"] == 2)
+            self.assertTrue(
+                {"changed", "crew_changed"}.issubset(
+                    json.loads(member_two["details_json"])["categories"]
+                )
+            )
+
+    def test_invalid_snapshot_retries_keep_one_failed_batch_without_partial_tasks(self) -> None:
+        with TempDatabase() as db_path:
+            with session_scope(db_path) as session:
+                revision = ConfirmedPlanRevision(
+                    exam_round_id=1,
+                    previous_revision=0,
+                    resulting_revision=1,
+                    reason="Synthetic invalid snapshot",
+                    actor_member_id=1,
+                    before_state_json='{"exam_days": []}',
+                    after_state_json="{}",
+                )
+                session.add(revision)
+                session.flush()
+                revision_id = revision.id
+            service = PlanConsequenceService(db_path)
+            first = service.process_revision(revision_id)
+            second = service.process_revision(revision_id)
+            self.assertEqual("permanently_failed", first["derivation_status"])
+            self.assertEqual("permanently_failed", second["derivation_status"])
+            with session_scope(db_path) as session:
+                batches = list(session.scalars(select(PlanConsequenceBatch)))
+                self.assertEqual(1, len(batches))
+                self.assertEqual("invalid_revision_snapshot", batches[0].error_code)
+                self.assertIsNone(batches[0].next_attempt_at)
+                self.assertEqual([], list(session.scalars(select(PlanConsequence))))
 
     def test_room_change_updates_stable_events_and_creates_one_notice_per_recipient(
         self,
