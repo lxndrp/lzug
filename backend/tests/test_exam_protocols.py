@@ -4,11 +4,18 @@ import sqlite3
 import unittest
 from contextlib import closing
 from http import HTTPStatus
+from unittest.mock import patch
 
 from sqlalchemy import select
 
-from backend.execution.exam_protocols import ENTRY_CATEGORIES, create_protocol_for_started_slot
+from backend.execution.exam_protocols import (
+    ENTRY_CATEGORIES,
+    ExamProtocolConflictError,
+    ExamProtocolService,
+    create_protocol_for_started_slot,
+)
 from backend.identity.auth import AuthenticationRepository
+from backend.identity.authorization import AuthorizationService
 from backend.persistence.database import initialize, session_scope
 from backend.persistence.models import (
     CandidateExamAttendance,
@@ -16,6 +23,7 @@ from backend.persistence.models import (
     ExamDayAssignment,
     ExamProtocol,
     ExamProtocolParticipant,
+    ExamProtocolResponse,
     ExamProtocolRevision,
     ExamRound,
     ExamSlot,
@@ -389,6 +397,51 @@ class ExamProtocolTests(unittest.TestCase):
             retention.update({"retain_until": "2035-12-31", "legal_hold": False})
             status, _blocked = self.request(api, "PUT", "/retention", retention, self.deputy)
             assert_status(status, HTTPStatus.BAD_REQUEST)
+
+    def test_response_validation_and_failed_day_completion_leave_no_partial_response(self) -> None:
+        service = ExamProtocolService(self.db_path)
+        context = self.authentication.authenticate(self.chair.token)
+        scope = AuthorizationService(self.db_path).scope(context)
+        protocol = service.update_content(
+            scope,
+            self.protocol_id,
+            {"version": 1, "declaration": "without_special_occurrences", "entries": []},
+        )
+        version = protocol["current_version"]
+        service.submit(scope, self.protocol_id, {"version": version})
+        for details, message in (
+            ({"response": "reservation", "entry_id": True, "statement": "Vorbehalt"}, "Ungültige"),
+            (
+                {"response": "reservation", "entry_id": 9999, "statement": "Vorbehalt"},
+                "aktuellen Stand",
+            ),
+            ({"response": "reservation", "statement": ""}, "statement"),
+            ({"response": "confirmed", "statement": "Vorbehalt"}, "keinen Vorbehaltstext"),
+        ):
+            with self.subTest(details=details), self.assertRaisesRegex(ValueError, message):
+                service.respond(scope, self.protocol_id, {"version": version, **details})
+
+        command = {
+            "version": version,
+            "response": "reservation",
+            "statement": "Dokumentierter Vorbehalt",
+        }
+        with (
+            patch(
+                "backend.execution.exam_protocols.complete_day_mutation",
+                side_effect=RuntimeError("test day failure"),
+            ),
+            self.assertRaisesRegex(RuntimeError, "test day failure"),
+        ):
+            service.respond(scope, self.protocol_id, command)
+        with session_scope(self.db_path) as session:
+            self.assertEqual(0, session.query(ExamProtocolResponse).count())
+        recorded = service.respond(scope, self.protocol_id, command)
+        self.assertEqual(recorded, service.respond(scope, self.protocol_id, command))
+        with self.assertRaises(ExamProtocolConflictError):
+            service.respond(scope, self.protocol_id, {**command, "statement": "Anderer Vorbehalt"})
+        with session_scope(self.db_path) as session:
+            self.assertEqual(1, session.query(ExamProtocolResponse).count())
 
     def test_completion_contract_distinguishes_not_started_and_legacy_completed(self) -> None:
         with session_scope(self.db_path) as session:

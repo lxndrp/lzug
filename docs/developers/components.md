@@ -93,7 +93,26 @@ Zusammengehörige Autorisierungs- und Sichtbarkeitsabfragen verwenden über
 Die Ausführung eines Fachbefehls bleibt eine eigene Servicetransaktion.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am
 HTTP-Rand, während der synchrone Anwendungskern frameworkunabhängig bleibt.
-`backend.fastapi_dependencies` stellt dafür gemeinsame FastAPI-Dependencies
+
+In `execution.absence`, `execution.exam_protocols` und
+`execution.exam_round_lifecycle` bleiben die öffentlichen Servicebefehle die
+autoritative Grenze für Zustandsübergänge.
+Benannte Vorbedingungsprüfungen lesen den aktuellen Stand in derselben Session;
+Versions- und Replay-Prüfungen behalten ihre Reihenfolge vor der Mutation.
+Audit, Wiederöffnungsaufgaben und die Kennzeichnung überholter Exporte werden
+mit dem Zustandswechsel atomar gespeichert.
+Kalenderabgleich und Benachrichtigungen behalten ihre bisherigen Aufrufgrenzen
+außerhalb der Transaktion; eine Wiederholung erzeugt keine zusätzlichen
+Rundenentscheidungen oder Wiederöffnungsaufgaben.
+`identity.committee_admin` prüft die Wiedereinladungsberechtigung vor dem
+Austausch abgelaufener Tokens in der bestehenden Schreibtransaktion.
+`identity.local_auth` trennt Konto- und Kennwortprüfung von der atomaren
+Verwendung des zweiten Faktors.
+TOTP-Replay-Schutz, Recovery-Code-Verbrauch, Kennwort-Rehash und Sessionwechsel
+bleiben Teil einer gemeinsamen Transaktion mit generischen Anmeldefehlern und
+Dummy-Hash-Prüfung für unbekannte Konten oder Konten ohne Kennwort.
+
+`backend.fastapi_dependencies` stellt gemeinsame FastAPI-Dependencies
 für Request-Kontext, Session, CSRF, aktive Mitgliedschaft, Betreiberzugriff
 auf Prüfungsorte und Rundenzugriff bereit.
 Die Handler deklarieren ihren bisherigen Sicherheitsvertrag über die

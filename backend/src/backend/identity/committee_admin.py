@@ -365,49 +365,9 @@ class CommitteeAdminService:
                 replay = self._replay_in_session(session, key, digest)
                 if replay is not None:
                     return replay
-                committee = session.get(Committee, committee_id)
-                if (
-                    committee is None
-                    or not committee.is_active
-                    or committee.bootstrap_state != "ready"
-                ):
-                    raise AdminOperationError(
-                        "committee_not_found", "Active committee was not found"
-                    )
-                person = self._person_by_email(session, email)
-                if person is None:
-                    raise AdminOperationError(
-                        "invitation_not_eligible", "Invitation cannot be reissued"
-                    )
-                membership = session.scalars(
-                    select(CommitteeMember).where(
-                        CommitteeMember.committee_id == committee_id,
-                        CommitteeMember.person_id == person.id,
-                        CommitteeMember.is_active == 1,
-                    )
-                ).first()
-                if membership is None:
-                    raise AdminOperationError(
-                        "invitation_not_eligible", "Invitation cannot be reissued"
-                    )
-                account = self._linked_account(session, person)
-                if account is None or not self._never_activated(account):
-                    raise AdminOperationError(
-                        "invitation_not_eligible", "Invitation cannot be reissued"
-                    )
-                open_tokens = session.scalars(
-                    select(AuthToken).where(
-                        AuthToken.account_id == account.id,
-                        AuthToken.kind == "invitation",
-                        AuthToken.consumed_at.is_(None),
-                    )
-                ).all()
-                if not open_tokens or any(
-                    token.expires_at > current_timestamp for token in open_tokens
-                ):
-                    raise AdminOperationError(
-                        "invitation_not_eligible", "Invitation cannot be reissued"
-                    )
+                committee, person, membership, account = self._reinvitation_target(
+                    session, committee_id, email, current_timestamp
+                )
                 session.execute(
                     update(AuthToken)
                     .where(
@@ -439,6 +399,39 @@ class CommitteeAdminService:
             raise AdminOperationError(
                 "invitation_not_eligible", "Invitation cannot be reissued"
             ) from error
+
+    def _reinvitation_target(
+        self, session: Session, committee_id: int, email: str, current_timestamp: str
+    ) -> tuple[Committee, Person, CommitteeMember, UserAccount]:
+        """Resolve and validate eligibility before invalidating or issuing tokens."""
+        committee = session.get(Committee, committee_id)
+        if committee is None or not committee.is_active or committee.bootstrap_state != "ready":
+            raise AdminOperationError("committee_not_found", "Active committee was not found")
+        person = self._person_by_email(session, email)
+        if person is None:
+            raise AdminOperationError("invitation_not_eligible", "Invitation cannot be reissued")
+        membership = session.scalars(
+            select(CommitteeMember).where(
+                CommitteeMember.committee_id == committee_id,
+                CommitteeMember.person_id == person.id,
+                CommitteeMember.is_active == 1,
+            )
+        ).first()
+        if membership is None:
+            raise AdminOperationError("invitation_not_eligible", "Invitation cannot be reissued")
+        account = self._linked_account(session, person)
+        if account is None or not self._never_activated(account):
+            raise AdminOperationError("invitation_not_eligible", "Invitation cannot be reissued")
+        open_tokens = session.scalars(
+            select(AuthToken).where(
+                AuthToken.account_id == account.id,
+                AuthToken.kind == "invitation",
+                AuthToken.consumed_at.is_(None),
+            )
+        ).all()
+        if not open_tokens or any(token.expires_at > current_timestamp for token in open_tokens):
+            raise AdminOperationError("invitation_not_eligible", "Invitation cannot be reissued")
+        return committee, person, membership, account
 
     def deactivate(
         self, arguments: Mapping[str, Any], *, now: datetime | None = None

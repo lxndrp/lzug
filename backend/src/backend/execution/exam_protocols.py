@@ -272,22 +272,7 @@ class ExamProtocolService:
             if actor_id not in participants:
                 raise PermissionError("Forbidden.")
 
-            entry_id: int | None = None
-            statement: str | None = None
-            if response_type == "reservation":
-                raw_entry_id = payload.get("entry_id")
-                if raw_entry_id is not None:
-                    if not isinstance(raw_entry_id, int) or isinstance(raw_entry_id, bool):
-                        raise ValueError("Ungültige betroffene Protokollstelle")
-                    entry = session.get(ExamProtocolEntry, raw_entry_id)
-                    if entry is None or entry.exam_protocol_revision_id != revision.id:
-                        raise ValueError(
-                            "Die betroffene Protokollstelle gehört nicht zum aktuellen Stand"
-                        )
-                    entry_id = entry.id
-                statement = self._required_text(payload.get("statement"), "statement", 2000)
-            elif payload.get("entry_id") is not None or payload.get("statement") is not None:
-                raise ValueError("Eine Bestätigung enthält keinen Vorbehaltstext")
+            entry_id, statement = self._response_details(session, revision, response_type, payload)
 
             existing = session.scalar(
                 select(ExamProtocolResponse).where(
@@ -336,6 +321,33 @@ class ExamProtocolService:
                 protocol_revision_id=revision.id,
             )
             return self._view(session, protocol, scope)
+
+    def _response_details(
+        self,
+        session: Session,
+        revision: ExamProtocolRevision,
+        response_type: str,
+        payload: dict[str, Any],
+    ) -> tuple[int | None, str | None]:
+        """Validate reservation evidence against the current revision without writes."""
+        entry_id: int | None = None
+        statement: str | None = None
+        if response_type == "reservation":
+            raw_entry_id = payload.get("entry_id")
+            if raw_entry_id is not None:
+                if not isinstance(raw_entry_id, int) or isinstance(raw_entry_id, bool):
+                    raise ValueError("Ungültige betroffene Protokollstelle")
+                entry = session.get(ExamProtocolEntry, raw_entry_id)
+                if entry is None or entry.exam_protocol_revision_id != revision.id:
+                    raise ValueError(
+                        "Die betroffene Protokollstelle gehört nicht zum aktuellen Stand"
+                    )
+                entry_id = entry.id
+            statement = self._required_text(payload.get("statement"), "statement", 2000)
+        elif payload.get("entry_id") is not None or payload.get("statement") is not None:
+            raise ValueError("Eine Bestätigung enthält keinen Vorbehaltstext")
+
+        return entry_id, statement
 
     def request_correction(
         self, scope: AuthorizationScope, protocol_id: int, payload: dict[str, Any]

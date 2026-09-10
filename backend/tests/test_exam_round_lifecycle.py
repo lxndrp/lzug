@@ -2,19 +2,28 @@ from __future__ import annotations
 
 import unittest
 from http import HTTPStatus
+from unittest.mock import patch
 
 from sqlalchemy import select, text
 
+from backend.execution.exam_round_lifecycle import ExamRoundConflictError, ExamRoundLifecycleService
 from backend.identity.auth import AuthenticationRepository
+from backend.identity.authorization import AuthorizationService
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CalendarEvent,
+    CandidateCommitteeAssignment,
+    Committee,
     ExamDay,
+    ExamRound,
+    ExamRoundAuditEvent,
     ExamRoundDecision,
     ExamRoundExport,
     ExamRoundReopening,
+    ExamRoundTask,
     ExamSlot,
     Notification,
+    RoundCandidate,
 )
 from backend.tests.fixture_data import prepare_exam_protocol_scenario
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
@@ -336,6 +345,223 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             )
             assert_status(status, HTTPStatus.OK)
             self.assertEqual(1, len(repeated["ihk_statuses"]))
+
+    def test_decision_and_reopening_rollback_and_replay_preserve_all_evidence(self) -> None:
+        self._make_round_closable()
+        service = ExamRoundLifecycleService(self.db_path)
+        context = AuthenticationRepository(self.db_path).authenticate(self.chair.token)
+        scope = AuthorizationService(self.db_path).scope(context)
+        close = {"revision": 1, "confirmed": True}
+        with (
+            patch.object(service, "_view", side_effect=RuntimeError("test view failure")),
+            self.assertRaisesRegex(RuntimeError, "test view failure"),
+        ):
+            service.close(scope, 1, close)
+        with session_scope(self.db_path) as session:
+            exam_round = session.get(ExamRound, 1)
+            self.assertEqual(("open", 1), (exam_round.lifecycle_status, exam_round.revision))
+            self.assertEqual(0, session.query(ExamRoundDecision).count())
+            self.assertEqual(0, session.query(ExamRoundAuditEvent).count())
+
+        service.close(scope, 1, close)
+        service.machine_export(scope, 1)
+        command = {
+            "revision": 2,
+            "occasion": "Berichtigung",
+            "source": "IHK-Vorgang",
+            "reason": "Rundenbezeichnung korrigieren",
+            "scope": [{"kind": "planning", "entity_id": 1}],
+        }
+        with (
+            patch.object(service, "_view", side_effect=RuntimeError("test view failure")),
+            patch.object(service, "_notify") as notify,
+            self.assertRaisesRegex(RuntimeError, "test view failure"),
+        ):
+            service.reopen(scope, 1, command)
+        notify.assert_not_called()
+        with session_scope(self.db_path) as session:
+            exam_round = session.get(ExamRound, 1)
+            self.assertEqual(("closed", 2), (exam_round.lifecycle_status, exam_round.revision))
+            self.assertEqual("current", session.scalar(select(ExamRoundDecision)).status)
+            self.assertIsNone(session.scalar(select(ExamRoundExport)).superseded_at)
+            self.assertEqual(0, session.query(ExamRoundReopening).count())
+            self.assertEqual(0, session.query(ExamRoundTask).count())
+            self.assertEqual(1, session.query(ExamRoundAuditEvent).count())
+
+        with patch.object(service, "_notify", wraps=service._notify) as notify:
+            reopened = service.reopen(scope, 1, command)
+            repeated = service.reopen(scope, 1, command)
+        notify.assert_called_once()
+        self.assertEqual(reopened, repeated)
+        self.assertEqual(2, len(reopened["tasks"]))
+        self.assertEqual({"reconfirmation"}, {item["task_type"] for item in reopened["tasks"]})
+        with self.assertRaises(ExamRoundConflictError):
+            service.reopen(scope, 1, {**command, "reason": "Anderer Auftrag"})
+        reclosed = service.close(scope, 1, {"revision": 3, "confirmed": True})
+        self.assertEqual("reclosed", reclosed["history"][-1]["event_type"])
+        self.assertTrue(all(item["status"] == "completed" for item in reclosed["tasks"]))
+        with session_scope(self.db_path) as session:
+            self.assertEqual(2, session.query(ExamRoundDecision).count())
+            self.assertEqual(1, session.query(ExamRoundReopening).count())
+            self.assertEqual(3, session.query(ExamRoundAuditEvent).count())
+
+    def test_terminal_candidate_evidence_and_revision_guard_precede_mutation(self) -> None:
+        service = ExamRoundLifecycleService(self.db_path)
+        context = AuthenticationRepository(self.db_path).authenticate(self.chair.token)
+        scope = AuthorizationService(self.db_path).scope(context)
+        for details in (
+            {"terminal_status": "result_communicated"},
+            {"terminal_status": "transferred", "reason": "Wechsel"},
+            {"terminal_status": "transferred", "reason": "Wechsel", "effective_new_round_id": 9999},
+            {"terminal_status": "transferred", "reason": "Wechsel", "effective_new_round_id": 1},
+            {"terminal_status": "postponed", "reason": "Verschiebung"},
+            {"terminal_status": "ihk_terminated", "reason": "Beendigung"},
+        ):
+            with self.subTest(details=details), self.assertRaises(ValueError):
+                service.set_candidate_terminal_status(scope, 1, 1, {"revision": 1, **details})
+            with session_scope(self.db_path) as session:
+                self.assertEqual(1, session.get(ExamRound, 1).revision)
+                self.assertEqual("open", session.get(RoundCandidate, 1).terminal_status)
+
+        command = {
+            "revision": 1,
+            "terminal_status": "postponed",
+            "reason": "Neue Planung",
+            "postponed_until": "2027-12-01",
+        }
+        with (
+            patch.object(service, "_view", side_effect=RuntimeError("test view failure")),
+            self.assertRaisesRegex(RuntimeError, "test view failure"),
+        ):
+            service.set_candidate_terminal_status(scope, 1, 1, command)
+        with session_scope(self.db_path) as session:
+            self.assertIsNone(
+                session.scalar(
+                    select(CandidateCommitteeAssignment).where(
+                        CandidateCommitteeAssignment.round_candidate_id == 1
+                    )
+                ).ended_at
+            )
+        service.set_candidate_terminal_status(scope, 1, 1, command)
+        with self.assertRaises(ExamRoundConflictError):
+            service.set_candidate_terminal_status(scope, 1, 1, command)
+        with session_scope(self.db_path) as session:
+            candidate = session.get(RoundCandidate, 1)
+            self.assertEqual(
+                ("postponed", 0, "2027-12-01"),
+                (candidate.terminal_status, candidate.is_active, candidate.postponed_until),
+            )
+            ended_at = session.scalar(
+                select(CandidateCommitteeAssignment).where(
+                    CandidateCommitteeAssignment.round_candidate_id == 1
+                )
+            ).ended_at
+            self.assertIsNotNone(ended_at)
+        service.set_candidate_terminal_status(
+            scope,
+            1,
+            1,
+            {
+                "revision": 2,
+                "terminal_status": "ihk_terminated",
+                "reason": "IHK-Entscheidung",
+                "ihk_decision_reference": "IHK-754",
+            },
+        )
+        service.set_candidate_terminal_status(
+            scope, 1, 1, {"revision": 3, "terminal_status": "open"}
+        )
+        with session_scope(self.db_path) as session:
+            candidate = session.get(RoundCandidate, 1)
+            self.assertEqual(
+                ("open", 0, None, None, None),
+                (
+                    candidate.terminal_status,
+                    candidate.is_active,
+                    candidate.postponed_until,
+                    candidate.ihk_decision_reference,
+                    candidate.terminal_at,
+                ),
+            )
+            self.assertEqual(
+                ended_at,
+                session.scalar(
+                    select(CandidateCommitteeAssignment).where(
+                        CandidateCommitteeAssignment.round_candidate_id == 1
+                    )
+                ).ended_at,
+            )
+
+    def test_transferred_status_requires_effective_assignment_in_the_target_round(self) -> None:
+        service = ExamRoundLifecycleService(self.db_path)
+        context = AuthenticationRepository(self.db_path).authenticate(self.chair.token)
+        scope = AuthorizationService(self.db_path).scope(context)
+        with session_scope(self.db_path) as session:
+            target_committee = Committee(
+                name="Zielausschuss", ihk="IHK Teststadt", occupation="Fachinformatiker/in"
+            )
+            session.add(target_committee)
+            session.flush()
+            target = ExamRound(
+                exam_half_year_id=1,
+                committee_id=target_committee.id,
+                name="Neue Zuordnung",
+                created_by_member_id=1,
+            )
+            session.add(target)
+            session.flush()
+            target_id = target.id
+        command = {
+            "revision": 1,
+            "terminal_status": "transferred",
+            "reason": "Wirksamer Wechsel",
+            "effective_new_round_id": target_id,
+        }
+        with self.assertRaisesRegex(ValueError, "nicht wirksam"):
+            service.set_candidate_terminal_status(scope, 1, 1, command)
+        with session_scope(self.db_path) as session:
+            original = session.get(RoundCandidate, 1)
+            assignment = session.scalar(
+                select(CandidateCommitteeAssignment).where(
+                    CandidateCommitteeAssignment.round_candidate_id == 1
+                )
+            )
+            assignment.ended_at = "2026-09-10T10:00:00+00:00"
+            transferred = RoundCandidate(
+                exam_round_id=target_id,
+                candidate_id=original.candidate_id,
+                attempt_number=original.attempt_number,
+            )
+            session.add(transferred)
+            session.flush()
+            session.add(
+                CandidateCommitteeAssignment(
+                    candidate_id=original.candidate_id,
+                    exam_half_year_id=1,
+                    exam_round_id=target_id,
+                    round_candidate_id=transferred.id,
+                )
+            )
+        service.set_candidate_terminal_status(scope, 1, 1, command)
+        with session_scope(self.db_path) as session:
+            candidate = session.get(RoundCandidate, 1)
+            self.assertEqual(
+                ("transferred", 0, target_id),
+                (
+                    candidate.terminal_status,
+                    candidate.is_active,
+                    candidate.effective_new_round_id,
+                ),
+            )
+            self.assertEqual(2, session.get(ExamRound, 1).revision)
+            self.assertEqual(
+                "2026-09-10T10:00:00+00:00",
+                session.scalar(
+                    select(CandidateCommitteeAssignment).where(
+                        CandidateCommitteeAssignment.round_candidate_id == 1
+                    )
+                ).ended_at,
+            )
 
     def _make_round_closable(self) -> None:
         with session_scope(self.db_path) as session:
