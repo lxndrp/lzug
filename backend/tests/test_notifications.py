@@ -346,6 +346,65 @@ class NotificationServiceTests(unittest.TestCase):
             self.assertEqual(status, result.status)
             self.assertEqual(error_code, result.error_code)
 
+    def test_terminal_push_preconditions_do_not_send_or_consume_timeout_attempts(self) -> None:
+        current = datetime(2026, 9, 10, tzinfo=UTC)
+        delivery = ClaimedDelivery(
+            id=1,
+            claim_token="claim",
+            notification_id=1,
+            channel="web_push",
+            status="pending",
+            attempt_count=1,
+            push_subscription_id=7,
+            push_endpoint=None,
+            recipient_email=None,
+            title="Ignored",
+            message="Ignored",
+            action_path="/notifications",
+        )
+        with patch.object(self.service, "_send_web_push") as send:
+            timeout = self.service._dispatch_claimed(delivery, current)
+            missing = self.service._dispatch_claimed(replace(delivery, attempt_count=0), current)
+        send.assert_not_called()
+        self.assertEqual(
+            ("permanently_failed", "confirmation_timeout", 1),
+            (timeout.status, timeout.error_code, timeout.attempt_count),
+        )
+        self.assertEqual(
+            ("permanently_failed", "invalid_subscription", 1),
+            (missing.status, missing.error_code, missing.attempt_count),
+        )
+        self.assertIsNone(timeout.next_attempt_at)
+        self.assertIsNone(missing.invalidate_subscription_id)
+
+    def test_failed_dispatch_releases_claim_and_retry_sends_once(self) -> None:
+        notification_id = self.create_pending_sink()
+        current = datetime.now(UTC)
+        with patch.object(self.service, "_send_sink", side_effect=OSError("offline")) as send:
+            self.assertEqual(1, self.service.process_deliveries(now=current))
+            self.assertEqual(0, self.service.process_deliveries(now=current))
+            send.assert_called_once_with(notification_id)
+        with closing(sqlite3.connect(self.db_path)) as connection:
+            row = connection.execute(
+                "SELECT status, attempt_count, claim_token, next_attempt_at, error_code "
+                "FROM notification_delivery WHERE notification_id = ?",
+                (notification_id,),
+            ).fetchone()
+        self.assertEqual(("temporarily_failed", 1, None), row[:3])
+        self.assertEqual((current + timedelta(minutes=1)).isoformat(timespec="seconds"), row[3])
+        self.assertEqual("sink_unavailable", row[4])
+        with patch.object(self.service, "_send_sink") as send:
+            self.assertEqual(1, self.service.process_deliveries(now=current + timedelta(minutes=1)))
+            self.assertEqual(0, self.service.process_deliveries(now=current + timedelta(minutes=2)))
+            send.assert_called_once_with(notification_id)
+        with closing(sqlite3.connect(self.db_path)) as connection:
+            row = connection.execute(
+                "SELECT status, attempt_count, claim_token, next_attempt_at, error_code "
+                "FROM notification_delivery WHERE notification_id = ?",
+                (notification_id,),
+            ).fetchone()
+        self.assertEqual(("technically_confirmed", 2, None, None, None), row)
+
     def test_channel_access_runs_after_the_claim_transaction_commits(self) -> None:
         private_key = vapid_private_key()
         with patch.dict(

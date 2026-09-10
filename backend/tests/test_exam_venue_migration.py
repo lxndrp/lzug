@@ -15,7 +15,11 @@ from backend.persistence.database import (
     initialize,
     migration_status,
 )
-from backend.persistence.exam_venue_migration import HUMAN_REPORT_NAME, MACHINE_REPORT_NAME
+from backend.persistence.exam_venue_migration import (
+    HUMAN_REPORT_NAME,
+    MACHINE_REPORT_NAME,
+    prepare_exam_venue_migration,
+)
 
 
 class ExamVenueMigrationTests(unittest.TestCase):
@@ -69,6 +73,77 @@ class ExamVenueMigrationTests(unittest.TestCase):
             """)
             connection.commit()
         return db_path, directory / "reports"
+
+    def test_preflight_reports_are_repeatable_and_collect_reference_conflicts(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            directory = Path(raw_directory)
+            db_path, reports = self._legacy_database(directory)
+            backup = directory / "verified.sqlite"
+            shutil.copy(db_path, backup)
+            before = db_path.read_bytes()
+            first = prepare_exam_venue_migration(db_path, backup, reports)
+            second = prepare_exam_venue_migration(db_path, backup, reports)
+            self.assertEqual(first, second)
+            self.assertEqual(before, db_path.read_bytes())
+            self.assertEqual(first.machine_report, (reports / MACHINE_REPORT_NAME).read_text())
+            with closing(sqlite3.connect(db_path)) as connection:
+                connection.executescript("""
+                    UPDATE location SET committee_id = 999 WHERE id = 13;
+                    UPDATE planning_settings SET default_location_id = 999;
+                    UPDATE exam_day SET location_id = 999;
+                    UPDATE confirmed_plan_revision SET before_state_json =
+                      '{"location_id":10,"room_id":11}';
+                """)
+                connection.commit()
+            with self.assertRaisesRegex(ValueError, "has conflicts"):
+                prepare_exam_venue_migration(db_path, backup, reports)
+            report = json.loads((reports / MACHINE_REPORT_NAME).read_text())
+            self.assertEqual(
+                {
+                    "orphan_committee",
+                    "orphan_planning_default",
+                    "orphan_exam_day",
+                    "invalid_plan_reference",
+                },
+                {item["code"] for item in report["conflicts"]},
+            )
+
+    def test_backup_failure_prevents_reports_and_schema_mutation_then_allows_retry(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            directory = Path(raw_directory)
+            db_path, reports = self._legacy_database(directory)
+            before = db_path.read_bytes()
+            with patch(
+                "backend.persistence.database._migration_backup",
+                side_effect=MigrationError("synthetic backup failure"),
+            ):
+                with self.assertRaisesRegex(MigrationError, "synthetic backup failure"):
+                    apply_migrations(db_path, backup_dir=reports)
+            self.assertEqual(before, db_path.read_bytes())
+            self.assertFalse(reports.exists())
+            apply_migrations(db_path, backup_dir=reports)
+            self.assertEqual("ready", migration_status(db_path)["state"])
+
+    def test_report_publication_failure_keeps_history_unchanged_and_releases_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_directory:
+            directory = Path(raw_directory)
+            db_path, reports = self._legacy_database(directory)
+            before_history = migration_status(db_path)["history"]
+            with patch(
+                "backend.persistence.exam_venue_migration._atomic_text",
+                side_effect=OSError("synthetic report failure"),
+            ):
+                with self.assertRaisesRegex(OSError, "synthetic report failure"):
+                    apply_migrations(db_path, backup_dir=reports)
+            self.assertEqual(before_history, migration_status(db_path)["history"])
+            self.assertTrue(list(reports.glob("*.sqlite")))
+            apply_migrations(db_path, backup_dir=reports)
+            self.assertEqual("ready", migration_status(db_path)["state"])
+            evidence = (reports / MACHINE_REPORT_NAME).read_bytes()
+            with patch("backend.persistence.database._migration_backup") as backup:
+                apply_migrations(db_path, backup_dir=reports)
+            backup.assert_not_called()
+            self.assertEqual(evidence, (reports / MACHINE_REPORT_NAME).read_bytes())
 
     def test_migrates_exact_groups_references_and_migration_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as raw_directory:

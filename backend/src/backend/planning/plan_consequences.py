@@ -287,6 +287,19 @@ class PlanConsequenceService:
         before: dict[str, Any],
         after: dict[str, Any],
     ) -> tuple[list[dict[str, Any]], set[int]]:
+        calendar_tasks, notices = self._assignment_consequences(before, after)
+        if notices:
+            for member_id in self._manager_ids(session, revision.exam_round_id):
+                notices[member_id].add("overview")
+        return (
+            calendar_tasks + self._notification_tasks(notices, revision.actor_member_id),
+            set(notices),
+        )
+
+    def _assignment_consequences(
+        self, before: dict[str, Any], after: dict[str, Any]
+    ) -> tuple[list[dict[str, Any]], dict[int, set[str]]]:
+        """Derive calendar actions and recipient categories solely from snapshots."""
         old_assignments = self._assignments(before)
         new_assignments = self._assignments(after)
         calendar_tasks: list[dict[str, Any]] = []
@@ -321,24 +334,30 @@ class PlanConsequenceService:
                 for member_id in old_by_day[day_id] & new_by_day[day_id]:
                     notices[member_id].add("crew_changed")
 
-        if notices:
-            exam_round = session.get(ExamRound, revision.exam_round_id)
-            if exam_round is None:
-                raise ValueError("Exam round not found")
-            managers = session.scalars(
-                select(CommitteeMember).where(
+        return calendar_tasks, notices
+
+    @staticmethod
+    def _manager_ids(session, round_id: int) -> list[int]:
+        exam_round = session.get(ExamRound, round_id)
+        if exam_round is None:
+            raise ValueError("Exam round not found")
+        return list(
+            session.scalars(
+                select(CommitteeMember.id).where(
                     CommitteeMember.committee_id == exam_round.committee_id,
                     CommitteeMember.is_active == 1,
                     CommitteeMember.committee_role.in_({"chair", "deputy_chair"}),
                 )
-            ).all()
-            for manager in managers:
-                notices[manager.id].add("overview")
+            )
+        )
 
-        notification_scope = set(notices)
-        tasks = calendar_tasks
+    @staticmethod
+    def _notification_tasks(
+        notices: dict[int, set[str]], actor_member_id: int
+    ) -> list[dict[str, Any]]:
+        tasks: list[dict[str, Any]] = []
         for member_id, categories in sorted(notices.items()):
-            if member_id == revision.actor_member_id:
+            if member_id == actor_member_id:
                 continue
             tasks.append(
                 {
@@ -353,7 +372,7 @@ class PlanConsequenceService:
                     ),
                 }
             )
-        return tasks, notification_scope
+        return tasks
 
     @staticmethod
     def _assignments(payload: dict[str, Any]) -> dict[int, dict[str, Any]]:

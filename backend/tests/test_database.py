@@ -18,6 +18,7 @@ from backend.persistence.database import (
     BUSY_TIMEOUT_MS,
     SQLITE_JOURNAL_MODE,
     MigrationError,
+    apply_migrations,
     connect,
     connection_scope,
     database_path,
@@ -1444,6 +1445,110 @@ class DatabaseTests(unittest.TestCase):
 
         self.assertEqual(1, active_count)
         self.assertIn("004_add_candidate_committee_assignments.sql", migrations)
+
+    def test_malformed_history_and_checksums_fail_closed_before_backup(self) -> None:
+        cases = (
+            (
+                "duplicate history",
+                """
+                CREATE TABLE replacement AS SELECT * FROM schema_migration;
+                INSERT INTO replacement SELECT * FROM schema_migration LIMIT 1;
+                DROP TABLE schema_migration;
+                ALTER TABLE replacement RENAME TO schema_migration;
+            """,
+                "duplicate entries",
+            ),
+            (
+                "history gap",
+                "DELETE FROM schema_migration WHERE name = '007_add_documents.sql';",
+                "gap or was recorded out of order",
+            ),
+            (
+                "missing timestamp",
+                """
+                CREATE TABLE replacement AS SELECT * FROM schema_migration;
+                DROP TABLE schema_migration;
+                ALTER TABLE replacement RENAME TO schema_migration;
+                UPDATE schema_migration SET applied_at = NULL;
+            """,
+                "without an application time",
+            ),
+            (
+                "missing checksum table",
+                "DROP TABLE schema_migration_checksum;",
+                "without its metadata table",
+            ),
+            (
+                "incompatible checksum table",
+                "ALTER TABLE schema_migration_checksum RENAME COLUMN checksum TO invalid;",
+                "checksum table is incompatible",
+            ),
+            (
+                "duplicate checksum",
+                """
+                CREATE TABLE replacement AS SELECT * FROM schema_migration_checksum;
+                INSERT INTO replacement SELECT * FROM schema_migration_checksum LIMIT 1;
+                DROP TABLE schema_migration_checksum;
+                ALTER TABLE replacement RENAME TO schema_migration_checksum;
+            """,
+                "checksum history contains duplicate entries",
+            ),
+            (
+                "unknown checksum",
+                "UPDATE schema_migration_checksum SET name = '999_unknown.sql' "
+                "WHERE name = '007_add_documents.sql';",
+                "checksum history contains unknown entries",
+            ),
+            (
+                "incomplete checksum",
+                "DELETE FROM schema_migration_checksum WHERE name = '007_add_documents.sql';",
+                "checksum history is incomplete",
+            ),
+        )
+        for label, sql, message in cases:
+            with self.subTest(label=label), TempDatabase(with_seed=False) as db_path:
+                with closing(sqlite3.connect(db_path)) as connection:
+                    connection.executescript(sql)
+                    connection.commit()
+                with patch("backend.persistence.database._migration_backup") as backup:
+                    self.assertFalse(is_ready(db_path))
+                    self.assertEqual("migration_error", migration_status(db_path)["state"])
+                    with self.assertRaisesRegex(MigrationError, message):
+                        apply_migrations(db_path)
+                backup.assert_not_called()
+
+    def test_failed_script_rolls_back_schema_and_history_and_retry_remains_idempotent(self) -> None:
+        with TempDatabase(with_seed=False) as db_path, tempfile.TemporaryDirectory() as raw_dir:
+            migrations = Path(raw_dir) / "migrations"
+            shutil.copytree(Path("backend/db/migrations"), migrations)
+            migration = migrations / "999_synthetic_retry.sql"
+            script = (
+                "BEGIN; CREATE TABLE synthetic_retry (id INTEGER PRIMARY KEY); "
+                "INSERT INTO schema_migration(name) VALUES ('999_synthetic_retry.sql'); "
+            )
+            migration.write_text(script + "INSERT INTO missing_table VALUES (1); COMMIT;")
+            backups = Path(raw_dir) / "backups"
+            with patch("backend.persistence.database.MIGRATIONS_PATH", migrations):
+                before = migration_status(db_path)["history"]
+                with self.assertRaisesRegex(MigrationError, "999_synthetic_retry.sql failed"):
+                    apply_migrations(db_path, backup_dir=backups)
+                self.assertEqual(before, migration_status(db_path)["history"])
+                with closing(sqlite3.connect(db_path)) as connection:
+                    self.assertIsNone(
+                        connection.execute(
+                            "SELECT name FROM sqlite_master WHERE name = 'synthetic_retry'"
+                        ).fetchone()
+                    )
+                    self.assertEqual([], connection.execute("PRAGMA foreign_key_check").fetchall())
+                self.assertTrue(list(backups.glob("*.sqlite")))
+                migration.write_text(script + "COMMIT;")
+                apply_migrations(db_path, backup_dir=backups)
+                self.assertTrue(is_ready(db_path))
+                with patch("backend.persistence.database._migration_backup") as backup:
+                    apply_migrations(db_path, backup_dir=backups)
+                backup.assert_not_called()
+                history = migration_status(db_path)["history"]
+                self.assertEqual(1, sum(row["name"] == migration.name for row in history))
 
     def test_tampered_checksum_makes_database_unready(self) -> None:
         with TempDatabase(with_seed=False) as db_path:

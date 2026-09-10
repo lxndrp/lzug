@@ -288,85 +288,24 @@ class CalendarService:
         touched: set[str] = set()
         changed = 0
         for assignment in assignments:
-            day = session.get(ExamDay, assignment.exam_day_id)
-            member = session.get(CommitteeMember, assignment.committee_member_id)
-            if day is None or member is None:
-                continue
-            slots = session.scalars(
-                select(ExamSlot)
-                .where(ExamSlot.exam_day_id == day.id)
-                .order_by(ExamSlot.starts_at, ExamSlot.sequence_number)
-            ).all()
-            section_slots = self._section_slots(slots, assignment.day_part)
-            if not section_slots:
-                continue
-            active_section_slots = [slot for slot in section_slots if slot.status != "cancelled"]
-            source_prefix = f"assignment:{assignment.id}"
-            touched.add(source_prefix)
-            event = self._latest_event(session, source_prefix, member.id)
-            cancelled = day.status == "cancelled" or not active_section_slots
-            event_slots = active_section_slots or section_slots
-            if event and event.status == "cancelled" and not cancelled:
-                event = None
-            for previous in self._events_for_source(session, source_prefix):
-                if previous.recipient_member_id != member.id and previous.status != "cancelled":
-                    previous.status = "cancelled"
-                    previous.version += 1
-                    previous.updated_at = _timestamp()
-                    changed += 1
-            generation = self._next_generation(session, source_prefix) if event is None else None
-            source_key = (
-                f"{source_prefix}:{generation}" if generation is not None else event.source_key
+            source_prefix, assignment_changes = self._sync_assignment(
+                session, exam_round, half_year, assignment
             )
-            payload = self._event_payload(
-                session,
-                exam_round,
-                half_year,
-                day,
-                assignment,
-                member,
-                event_slots,
-                cancelled,
-                source_key,
-                event.sent_at if event else _timestamp(),
-            )
-            digest_payload = {key: value for key, value in payload.items() if key != "sent_at"}
-            digest = hashlib.sha256(
-                repr(sorted(digest_payload.items())).encode("utf-8")
-            ).hexdigest()
-            if event is None:
-                event = CalendarEvent(
-                    **payload,
-                    external_event_id=f"lzug-{assignment.id}-{generation}",
-                    version=1,
-                    content_hash=digest,
-                    created_at=_timestamp(),
-                )
-                session.add(event)
-                session.flush()
-                changed += 1
-            else:
-                content_changed = event.content_hash != digest or (
-                    (event.status == "cancelled") != cancelled
-                )
-                if content_changed:
-                    event.version += 1
-                    event.status = "cancelled" if cancelled else "updated"
-                    changed += 1
-                for key, value in payload.items():
-                    if key == "status" and not content_changed:
-                        continue
-                    setattr(event, key, value)
-                if content_changed and not cancelled:
-                    event.status = "updated"
-                event.content_hash = digest
-                event.updated_at = _timestamp()
+            if source_prefix is not None:
+                touched.add(source_prefix)
+            changed += assignment_changes
 
         if assignment_ids is not None:
             return changed
+        return changed + self._cancel_missing_events(session, exam_round.id, person_id, touched)
+
+    def _cancel_missing_events(
+        self, session, round_id: int, person_id: int | None, touched: set[str]
+    ) -> int:
+        changed = 0
         existing = session.scalars(
             select(CalendarEvent).where(
-                CalendarEvent.exam_round_id == exam_round.id,
+                CalendarEvent.exam_round_id == round_id,
                 *(
                     [
                         CalendarEvent.recipient_member_id.in_(
@@ -387,9 +326,103 @@ class CalendarService:
                 changed += 1
         return changed
 
+    def _sync_assignment(
+        self, session, exam_round: ExamRound, half_year: ExamHalfYear, assignment: ExamDayAssignment
+    ) -> tuple[str | None, int]:
+        """Reconcile one source identity within the round's existing transaction."""
+        day = session.get(ExamDay, assignment.exam_day_id)
+        member = session.get(CommitteeMember, assignment.committee_member_id)
+        if day is None or member is None:
+            return None, 0
+        slots = session.scalars(
+            select(ExamSlot)
+            .where(ExamSlot.exam_day_id == day.id)
+            .order_by(ExamSlot.starts_at, ExamSlot.sequence_number)
+        ).all()
+        section_slots = self._section_slots(slots, assignment.day_part)
+        if not section_slots:
+            return None, 0
+        active_section_slots = [slot for slot in section_slots if slot.status != "cancelled"]
+        source_prefix = f"assignment:{assignment.id}"
+        changed = 0
+        event = self._latest_event(session, source_prefix, member.id)
+        cancelled = day.status == "cancelled" or not active_section_slots
+        event_slots = active_section_slots or section_slots
+        if event and event.status == "cancelled" and not cancelled:
+            event = None
+        for previous in self._events_for_source(session, source_prefix):
+            if previous.recipient_member_id != member.id and previous.status != "cancelled":
+                previous.status = "cancelled"
+                previous.version += 1
+                previous.updated_at = _timestamp()
+                changed += 1
+        generation = self._next_generation(session, source_prefix) if event is None else None
+        source_key = f"{source_prefix}:{generation}" if generation is not None else event.source_key
+        room = session.get(ExamRoom, day.room_id)
+        venue = session.get(ExamVenue, room.venue_id) if room else None
+        payload = self._event_payload(
+            room,
+            venue,
+            exam_round,
+            half_year,
+            day,
+            assignment,
+            member,
+            event_slots,
+            cancelled,
+            source_key,
+            event.sent_at if event else _timestamp(),
+        )
+        changed += self._store_event(session, event, payload, assignment.id, generation, cancelled)
+        return source_prefix, changed
+
+    @staticmethod
+    def _store_event(
+        session,
+        event: CalendarEvent | None,
+        payload: dict[str, Any],
+        assignment_id: int,
+        generation: int | None,
+        cancelled: bool,
+    ) -> int:
+        """Persist content changes without replacing an existing event identity."""
+        digest_payload = {key: value for key, value in payload.items() if key != "sent_at"}
+        digest = hashlib.sha256(repr(sorted(digest_payload.items())).encode("utf-8")).hexdigest()
+        changed = 0
+        if event is None:
+            event = CalendarEvent(
+                **payload,
+                external_event_id=f"lzug-{assignment_id}-{generation}",
+                version=1,
+                content_hash=digest,
+                created_at=_timestamp(),
+            )
+            session.add(event)
+            session.flush()
+            changed += 1
+        else:
+            content_changed = event.content_hash != digest or (
+                (event.status == "cancelled") != cancelled
+            )
+            if content_changed:
+                event.version += 1
+                event.status = "cancelled" if cancelled else "updated"
+                changed += 1
+            for key, value in payload.items():
+                if key == "status" and not content_changed:
+                    continue
+                setattr(event, key, value)
+            if content_changed and not cancelled:
+                event.status = "updated"
+            event.content_hash = digest
+            event.updated_at = _timestamp()
+
+        return changed
+
     def _event_payload(
         self,
-        session,
+        room,
+        venue,
         exam_round,
         half_year,
         day,
@@ -400,8 +433,6 @@ class CalendarService:
         source_key,
         sent_at,
     ):
-        room = session.get(ExamRoom, day.room_id)
-        venue = session.get(ExamVenue, room.venue_id) if room else None
         location_text = ""
         if venue and room:
             location_text = ", ".join(
