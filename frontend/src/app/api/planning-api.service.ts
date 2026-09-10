@@ -19,6 +19,7 @@ import type {
 } from './planning.models';
 import type { CommitteeMember, Location } from './master-data.models';
 import type { SchedulingOverviewItem } from './execution.models';
+import type { PlanningProposalWriteRequest, PlanningRoundRequest } from './generated/types.gen';
 import { Injectable, inject } from '@angular/core';
 
 import { ApiClient } from './api-client.service';
@@ -160,7 +161,7 @@ export class PlanningApiService {
   generateCandidateExamDays() {
     return this.client.post<CandidateDayGenerationResult>('/api/candidate-exam-days/generate', {
       round_id: this.roundId,
-    });
+    } satisfies PlanningRoundRequest);
   }
 
   updateCandidateExamDay(id: number, payload: Partial<Pick<CandidateExamDay, 'is_active'>>) {
@@ -182,7 +183,9 @@ export class PlanningApiService {
   }
 
   generateProposal() {
-    return this.client.post<PlanningResult>('/api/planning-proposals', { round_id: this.roundId });
+    return this.client.post<PlanningResult>('/api/planning-proposals', {
+      round_id: this.roundId,
+    } satisfies PlanningRoundRequest);
   }
 
   getPlanningProposal() {
@@ -192,9 +195,10 @@ export class PlanningApiService {
   }
 
   savePlanningProposal(proposal: EditablePlanningProposal) {
+    const request: PlanningProposalWriteRequest = proposal;
     return this.client.put<EditablePlanningProposal>(
       `/api/exam-rounds/${this.roundId}/planning-proposal`,
-      proposal,
+      request,
     );
   }
 

@@ -22,6 +22,7 @@ jobs:
       docs: ${{ steps.domains.outputs.docs == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       backend: ${{ steps.domains.outputs.backend == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       frontend: ${{ steps.domains.outputs.frontend == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
+      transport: ${{ steps.domains.outputs.transport == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       cli: ${{ steps.domains.outputs.cli == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       container: ${{ steps.domains.outputs.container == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       infra: ${{ steps.domains.outputs.infra == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
@@ -58,6 +59,13 @@ jobs:
               - 'frontend/**'
               - '!frontend/**/*.md'
               - '!frontend/THIRD_PARTY_NOTICES.md'
+            transport:
+              - 'backend/**'
+              - 'frontend/openapi-ts.config.mjs'
+              - 'frontend/package.json'
+              - 'frontend/package-lock.json'
+              - 'frontend/src/app/api/generated/**'
+              - 'scripts/generate_frontend_transport.py'
             cli:
               - 'scripts/verify_cli_release.py'
               - 'scripts/operator-container-smoke.sh'
@@ -143,6 +151,7 @@ jobs:
               - '!scripts/demo-container-smoke.sh'
               - '!scripts/demo_deployment.py'
               - '!scripts/demo_snapshot.py'
+              - '!scripts/generate_frontend_transport.py'
               - '!scripts/operator-container-smoke.sh'
               - '!scripts/sbom.py'
               - '!scripts/validate_demo_url_contract.py'
@@ -256,6 +265,32 @@ jobs:
           path: frontend/coverage/frontend/lcov.info
           if-no-files-found: error
           retention-days: 7
+
+  transport:
+    name: OpenAPI transport drift
+    needs: changes
+    if: needs.changes.outputs.transport == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14.6"
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: frontend/.node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+      - name: Install locked contract dependencies
+        run: uv sync --locked --extra dev && npm ci --prefix frontend
+      - name: Verify generated TypeScript transport types
+        run: task quality:frontend-transport
 
   cli:
     name: CLI details
@@ -413,7 +448,7 @@ jobs:
 
   frontend-gate:
     name: Pull Request / Frontend
-    needs: [changes, frontend, codeql, source-scan]
+    needs: [changes, frontend, transport, codeql, source-scan]
     if: always()
     runs-on: ubuntu-24.04
     steps:
@@ -421,6 +456,8 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           SELECTED: ${{ needs.changes.outputs.frontend }}
           DETAIL: ${{ needs.frontend.result }}
+          TRANSPORT_SELECTED: ${{ needs.changes.outputs.transport }}
+          TRANSPORT: ${{ needs.transport.result }}
           CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_languages != '[]' }}
           SCAN_SELECTED: ${{ needs.changes.outputs.source_scan }}
           CODEQL: ${{ needs.codeql.result }}
@@ -430,6 +467,7 @@ jobs:
           test "$CODEQL_SELECTED:$CODEQL" = true:success || test "$CODEQL_SELECTED:$CODEQL" = false:skipped
           test "$SCAN_SELECTED:$SOURCE_SCAN" = true:success || test "$SCAN_SELECTED:$SOURCE_SCAN" = false:skipped
           test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
+          test "$TRANSPORT_SELECTED:$TRANSPORT" = true:success || test "$TRANSPORT_SELECTED:$TRANSPORT" = false:skipped
 
   cli-gate:
     name: Pull Request / CLI

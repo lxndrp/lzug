@@ -5,22 +5,17 @@ import { Router } from '@angular/router';
 import { catchError, map, of, switchMap, tap } from 'rxjs';
 
 import { DemoRole } from '../api/api.models';
+import type {
+  FactorActivationRequest,
+  LoginRequest,
+  SessionResponse,
+  TokenRequest,
+} from '../api/generated/types.gen';
 import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
 
 export type AuthState = 'checking' | 'authenticated' | 'anonymous';
 
-export type AuthSession = {
-  authenticated: boolean;
-  account_id: number;
-  person_id: number | null;
-  committee_member_id: number | null;
-  is_operator: boolean;
-  demo_role?: DemoRole;
-  display_name?: string;
-  capabilities?: string[];
-  demo_matrix_version?: string;
-  demo_workspace_expires_at?: string;
-};
+export type AuthSession = SessionResponse;
 
 export type AuthPreparation = {
   email: string;
@@ -48,7 +43,7 @@ export class AuthService {
 
   hasCapability(capability: string): boolean {
     const capabilities = this.session()?.capabilities;
-    return capabilities === undefined || capabilities.includes(capability);
+    return capabilities == null || capabilities.includes(capability);
   }
 
   initialize() {
@@ -69,12 +64,16 @@ export class AuthService {
   }
 
   login(email: string, password: string, secondFactor: string) {
+    const request = {
+      email,
+      password,
+      second_factor: secondFactor,
+    } satisfies LoginRequest;
     return this.http
-      .post<{ authenticated: true; account_id: number; expires_at: string }>('/api/auth/login', {
-        email,
-        password,
-        second_factor: secondFactor,
-      })
+      .post<{ authenticated: true; account_id: number; expires_at: string }>(
+        '/api/auth/login',
+        request,
+      )
       .pipe(
         tap(() => {
           this.state.set('authenticated');
@@ -103,7 +102,9 @@ export class AuthService {
   }
 
   prepareInvitation(token: string) {
-    return this.http.post<AuthPreparation>('/api/auth/invitation/prepare', { token });
+    return this.http.post<AuthPreparation>('/api/auth/invitation/prepare', {
+      token,
+    } satisfies TokenRequest);
   }
 
   activateInvitation(token: string, password: string, totpSecret: string, totpCode: string) {
@@ -112,11 +113,13 @@ export class AuthService {
       password,
       totp_secret: totpSecret,
       totp_code: totpCode,
-    });
+    } satisfies FactorActivationRequest);
   }
 
   prepareRecovery(token: string) {
-    return this.http.post<AuthPreparation>('/api/auth/recovery/prepare', { token });
+    return this.http.post<AuthPreparation>('/api/auth/recovery/prepare', {
+      token,
+    } satisfies TokenRequest);
   }
 
   completeRecovery(token: string, password: string, totpSecret: string, totpCode: string) {
@@ -125,7 +128,7 @@ export class AuthService {
       password,
       totp_secret: totpSecret,
       totp_code: totpCode,
-    });
+    } satisfies FactorActivationRequest);
   }
 
   markAnonymous(): void {

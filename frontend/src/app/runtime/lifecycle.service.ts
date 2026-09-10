@@ -2,6 +2,8 @@ import { HttpClient, HttpErrorResponse, HttpInterceptorFn } from '@angular/commo
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { catchError, finalize, map, of, tap, throwError, timeout } from 'rxjs';
 
+import type { RuntimeState } from '../api/generated/types.gen';
+
 /** Public state codes shared with the backend's lifecycle response. */
 export const lifecycleStates = [
   'initializing',
@@ -13,7 +15,7 @@ export const lifecycleStates = [
   'stopping',
   'stopped',
 ] as const;
-export type LifecycleState = (typeof lifecycleStates)[number];
+export type LifecycleState = RuntimeState;
 
 function stateFrom(payload: unknown): LifecycleState | null {
   if (!payload || typeof payload !== 'object') return null;

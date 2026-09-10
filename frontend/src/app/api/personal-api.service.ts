@@ -7,6 +7,11 @@ import type {
   NotificationItem,
   NotificationProblem,
 } from './personal.models';
+import type {
+  CalendarFeedActivationRequest,
+  PushSubscriptionRequest,
+  PushSubscriptionResponse,
+} from './generated/types.gen';
 import { Injectable, inject } from '@angular/core';
 
 import { ApiClient } from './api-client.service';
@@ -41,7 +46,9 @@ export class PersonalApiService {
   }
 
   activateCalendarFeed(rotate = false) {
-    return this.client.post<CalendarFeedActivation>('/api/calendar/feed', { rotate });
+    return this.client.post<CalendarFeedActivation>('/api/calendar/feed', {
+      rotate,
+    } satisfies CalendarFeedActivationRequest);
   }
 
   revokeCalendarFeed() {
@@ -80,8 +87,8 @@ export class PersonalApiService {
   }
 
   registerPushSubscription(endpoint: string) {
-    return this.client.post<{ id: number; active: boolean }>('/api/push-subscriptions', {
+    return this.client.post<PushSubscriptionResponse>('/api/push-subscriptions', {
       endpoint,
-    });
+    } satisfies PushSubscriptionRequest);
   }
 }
