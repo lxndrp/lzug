@@ -176,6 +176,9 @@ func setSocketError(failure *SocketTransportError, envelope socketEnvelope) {
 }
 
 func writeSocketFrame(destination io.Writer, payload []byte) error {
+	if len(payload) == 0 || len(payload) > maxBackendOutput {
+		return fmt.Errorf("invalid socket frame size")
+	}
 	frame := make([]byte, 4+len(payload))
 	binary.BigEndian.PutUint32(frame, uint32(len(payload)))
 	copy(frame[4:], payload)

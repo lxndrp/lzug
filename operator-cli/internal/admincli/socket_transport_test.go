@@ -222,6 +222,16 @@ func TestSocketMalformedAndOversizedResultsFailSafely(t *testing.T) {
 	}
 }
 
+func TestSocketWriterRejectsOversizedPayloadBeforeWriting(t *testing.T) {
+	var destination bytes.Buffer
+	if err := writeSocketFrame(&destination, make([]byte, maxBackendOutput+1)); err == nil {
+		t.Fatal("oversized frame accepted")
+	}
+	if destination.Len() != 0 {
+		t.Fatal("rejected frame was partially transmitted")
+	}
+}
+
 // TestSocketLive is invoked by the Linux backend suite against its real listener
 // and database. All CLI package unit tests remain independent of Python.
 func TestSocketLive(t *testing.T) {
