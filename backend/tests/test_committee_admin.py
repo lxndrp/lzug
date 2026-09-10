@@ -6,6 +6,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 import pyotp
 from sqlalchemy import func, select
@@ -452,6 +453,58 @@ class CommitteeAdminTests(unittest.TestCase):
                 now=self.now + timedelta(hours=26),
             )
             self.assertEqual([], replay["invitations"])
+
+    def test_reinvitation_rolls_back_token_replacement_when_evidence_fails(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            service = CommitteeAdminService(db_path)
+            created = service.bootstrap(bootstrap_arguments(), now=self.now)
+            arguments = {
+                "idempotency_key": "reinvite-rollback",
+                "committee_id": created["committee_id"],
+                "email": "chair@example.invalid",
+            }
+            with (
+                patch.object(
+                    service, "_record_result", side_effect=RuntimeError("test evidence failure")
+                ),
+                self.assertRaisesRegex(RuntimeError, "test evidence failure"),
+            ):
+                service.reinvite(arguments, now=self.now + timedelta(hours=25))
+            with session_scope(db_path) as session:
+                tokens = session.scalars(select(AuthToken)).all()
+                self.assertEqual(1, len(tokens))
+                self.assertIsNone(tokens[0].consumed_at)
+                self.assertEqual(1, session.query(CommitteeAdminOperation).count())
+            result = service.reinvite(arguments, now=self.now + timedelta(hours=25))
+            self.assertEqual(1, result["invitations_issued"])
+
+    def test_concurrent_reinvitation_issues_one_secret_and_one_operation(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            service = CommitteeAdminService(db_path)
+            created = service.bootstrap(bootstrap_arguments(), now=self.now)
+            arguments = {
+                "idempotency_key": "reinvite-concurrent",
+                "committee_id": created["committee_id"],
+                "email": "chair@example.invalid",
+            }
+            with self.assertRaises(AdminOperationError) as raised:
+                service.reinvite(arguments, now=self.now)
+            self.assertEqual("invitation_not_eligible", raised.exception.code)
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                results = list(
+                    executor.map(
+                        lambda _: service.reinvite(arguments, now=self.now + timedelta(hours=25)),
+                        range(2),
+                    )
+                )
+            self.assertEqual(1, sum(not result["replayed"] for result in results))
+            self.assertEqual(1, sum(bool(result["invitations"]) for result in results))
+            with session_scope(db_path) as session:
+                self.assertEqual(2, session.query(AuthToken).count())
+                self.assertEqual(
+                    1, session.query(AuthToken).filter(AuthToken.consumed_at.is_(None)).count()
+                )
+                self.assertEqual(2, session.query(CommitteeAdminOperation).count())
 
     def test_activated_chair_and_deputy_receive_only_their_committee_scope(self) -> None:
         with TempDatabase(with_seed=False) as db_path:

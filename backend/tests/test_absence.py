@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 from datetime import UTC, datetime
 from http import HTTPStatus
+from unittest.mock import patch
 
 from backend.execution.absence import AbsenceService
 from backend.identity.authorization import AuthorizationScope
@@ -212,6 +213,62 @@ class AbsenceServiceTests(unittest.TestCase):
             )
             self.assertTrue(events)
             self.assertTrue(all(event.status == "cancelled" for event in events))
+
+    def test_failed_selection_preserves_assignment_audit_version_and_follow_up_work(self) -> None:
+        service = AbsenceService(self.db_path)
+        current = datetime(2026, 11, 1, tzinfo=UTC)
+        report = service.report(
+            scope(1),
+            {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
+            now=current,
+        )
+        report = service.respond(
+            scope(7), report["responses"][0]["id"], {"response": "available"}, now=current
+        )
+        command = {"committee_member_id": 7, "version": report["version"]}
+        for actor, payload, error in (
+            (scope(2), command, PermissionError),
+            (scope(1, management=True), {**command, "version": 0}, ValueError),
+            (scope(1, management=True), {**command, "committee_member_id": 4}, ValueError),
+        ):
+            with self.subTest(payload=payload, actor=actor), self.assertRaises(error):
+                service.select_replacement(actor, report["id"], payload, now=current)
+            self.assertEqual(report, service.get(scope(1), report["id"]))
+
+        with session_scope(self.db_path) as session:
+            day_revision = session.get(ExamDay, self.day_id).revision
+        with (
+            patch.object(service, "_view", side_effect=RuntimeError("test view failure")),
+            patch.object(service, "_notify") as notify,
+            patch.object(
+                service.calendar_service, "sync_round", wraps=service.calendar_service.sync_round
+            ) as sync,
+            self.assertRaisesRegex(RuntimeError, "test view failure"),
+        ):
+            service.select_replacement(
+                scope(1, management=True), report["id"], command, now=current
+            )
+        notify.assert_not_called()
+        sync.assert_called_once_with(1)  # Existing preflight sync only; no post-commit work.
+        self.assertEqual(report, service.get(scope(1), report["id"]))
+        with session_scope(self.db_path) as session:
+            self.assertEqual(
+                1, session.get(ExamDayAssignment, self.assignment_id).committee_member_id
+            )
+            self.assertEqual(day_revision, session.get(ExamDay, self.day_id).revision)
+
+        selected = service.select_replacement(
+            scope(1, management=True), report["id"], command, now=current
+        )
+        self.assertEqual(report["version"] + 1, selected["version"])
+        self.assertEqual(
+            1, sum(event["event_type"] == "replacement_selected" for event in selected["audit"])
+        )
+        with self.assertRaises(ValueError):
+            service.select_replacement(
+                scope(1, management=True), report["id"], command, now=current
+            )
+        self.assertEqual(selected, service.get(scope(1), report["id"]))
 
     def test_member_cannot_report_another_member_absence(self) -> None:
         with self.assertRaises(PermissionError):

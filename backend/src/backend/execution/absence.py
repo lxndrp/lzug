@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from backend.execution.exam_day_closures import complete_day_mutation, guard_day_mutation
 from backend.identity.authorization import AuthorizationScope
@@ -331,27 +332,9 @@ class AbsenceService:
             report = session.get(AbsenceReport, report_id)
             if report is None:
                 raise ValueError("Ausfallmeldung nicht gefunden")
-            day = session.get(ExamDay, report.exam_day_id)
-            round_row = session.get(ExamRound, day.exam_round_id) if day else None
-            if (
-                day is None
-                or round_row is None
-                or not scope.can_manage_committee(round_row.committee_id)
-            ):
-                raise PermissionError("Nur Vorsitz oder Stellvertretung dürfen Ersatz auswählen")
-            self._assert_before_start(
-                session, day, session.get(ExamDayAssignment, report.exam_day_assignment_id), current
+            day, round_row, actor_id = self._require_replacement_selection(
+                session, report, scope, payload, current
             )
-            if report.status not in {
-                "fallback_confirmed",
-                "replacement_requested",
-                "fallback_expired",
-            }:
-                raise ValueError("Die Ausfallmeldung ist nicht auswählbar")
-            self._check_version(report, payload)
-            actor_id = scope.member_for_committee(round_row.committee_id)
-            if actor_id is None:
-                raise PermissionError("Forbidden.")
             day_guard = guard_day_mutation(
                 session,
                 day=day,
@@ -361,27 +344,7 @@ class AbsenceService:
                 actor_member_id=actor_id,
             )
             member_id = self._required_int(payload, "committee_member_id")
-            response = session.scalars(
-                select(ReplacementResponse).where(
-                    ReplacementResponse.absence_report_id == report.id,
-                    ReplacementResponse.committee_member_id == member_id,
-                    ReplacementResponse.response == "available",
-                )
-            ).first()
-            if response is None:
-                raise ValueError("Nur ein verfügbares angefragtes Mitglied kann ausgewählt werden")
-            assignment = session.get(ExamDayAssignment, report.exam_day_assignment_id)
-            target = session.get(CommitteeMember, report.committee_member_id)
-            replacement = session.get(CommitteeMember, member_id)
-            if assignment is None or target is None or replacement is None:
-                raise ValueError("Besetzung oder Mitglied nicht gefunden")
-            eligible, fallback = self._eligible_candidates(
-                session, day, assignment, target, urgent=True, include_member=member_id
-            )
-            if replacement.id not in {member.id for member in eligible} and replacement.id != (
-                fallback.id if fallback else None
-            ):
-                raise ValueError("Das gewählte Mitglied ist nicht mehr geeignet oder verfügbar")
+            assignment, replacement = self._available_replacement(session, report, day, member_id)
             old_status = report.status
             old_member_id = assignment.committee_member_id
             assignment.committee_member_id = replacement.id
@@ -436,6 +399,69 @@ class AbsenceService:
             report_id=result["id"],
         )
         return result
+
+    def _available_replacement(
+        self,
+        session: Session,
+        report: AbsenceReport,
+        day: ExamDay,
+        member_id: int,
+    ) -> tuple[ExamDayAssignment, CommitteeMember]:
+        """Recheck the response and current eligibility in the selection transaction."""
+        response = session.scalars(
+            select(ReplacementResponse).where(
+                ReplacementResponse.absence_report_id == report.id,
+                ReplacementResponse.committee_member_id == member_id,
+                ReplacementResponse.response == "available",
+            )
+        ).first()
+        if response is None:
+            raise ValueError("Nur ein verfügbares angefragtes Mitglied kann ausgewählt werden")
+        assignment = session.get(ExamDayAssignment, report.exam_day_assignment_id)
+        target = session.get(CommitteeMember, report.committee_member_id)
+        replacement = session.get(CommitteeMember, member_id)
+        if assignment is None or target is None or replacement is None:
+            raise ValueError("Besetzung oder Mitglied nicht gefunden")
+        eligible, fallback = self._eligible_candidates(
+            session, day, assignment, target, urgent=True, include_member=member_id
+        )
+        if replacement.id not in {member.id for member in eligible} and replacement.id != (
+            fallback.id if fallback else None
+        ):
+            raise ValueError("Das gewählte Mitglied ist nicht mehr geeignet oder verfügbar")
+        return assignment, replacement
+
+    def _require_replacement_selection(
+        self,
+        session: Session,
+        report: AbsenceReport,
+        scope: AuthorizationScope,
+        payload: dict[str, Any],
+        current: datetime,
+    ) -> tuple[ExamDay, ExamRound, int]:
+        """Check access, start time and report version before the day mutation guard."""
+        day = session.get(ExamDay, report.exam_day_id)
+        round_row = session.get(ExamRound, day.exam_round_id) if day else None
+        if (
+            day is None
+            or round_row is None
+            or not scope.can_manage_committee(round_row.committee_id)
+        ):
+            raise PermissionError("Nur Vorsitz oder Stellvertretung dürfen Ersatz auswählen")
+        self._assert_before_start(
+            session, day, session.get(ExamDayAssignment, report.exam_day_assignment_id), current
+        )
+        if report.status not in {
+            "fallback_confirmed",
+            "replacement_requested",
+            "fallback_expired",
+        }:
+            raise ValueError("Die Ausfallmeldung ist nicht auswählbar")
+        self._check_version(report, payload)
+        actor_id = scope.member_for_committee(round_row.committee_id)
+        if actor_id is None:
+            raise PermissionError("Forbidden.")
+        return day, round_row, actor_id
 
     def withdraw(
         self,

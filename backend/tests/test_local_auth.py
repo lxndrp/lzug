@@ -6,9 +6,11 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 import pyotp
 
+from backend.identity import local_auth
 from backend.identity.admin_service import OperatorAuthService
 from backend.identity.local_auth import (
     GENERIC_LOGIN_MESSAGE,
@@ -191,6 +193,107 @@ class LocalAuthTests(unittest.TestCase):
             credentials = service.authentication.create_session(account_id, now=self.now)
             OperatorAuthService(db_path).disable(account_id)
             self.assertIsNone(service.authentication.authenticate(credentials.token, now=self.now))
+
+    def test_unknown_and_passwordless_accounts_perform_dummy_hash_verification(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            OperatorAuthService(db_path).invite("pending@example.invalid", now=self.now)
+            service = LocalAuthService(db_path)
+            for email in ("unknown@example.invalid", "pending@example.invalid"):
+                with (
+                    self.subTest(email=email),
+                    patch.object(
+                        local_auth, "PASSWORD_HASHER", wraps=local_auth.PASSWORD_HASHER
+                    ) as hasher,
+                    self.assertRaises(LocalAuthError) as raised,
+                ):
+                    service.login(email, "wrong password", "000000", now=self.now)
+                self.assertEqual("login_failed", raised.exception.code)
+                self.assertEqual(GENERIC_LOGIN_MESSAGE, str(raised.exception))
+                hasher.verify.assert_called_once_with(
+                    local_auth._DUMMY_PASSWORD_HASH, "wrong password"
+                )
+
+    def test_login_failure_rolls_back_factor_rehash_and_session_revocation(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            service, account_id, secret, recovery_codes = self._activate(db_path)
+            previous = service.authentication.create_session(account_id, now=self.now)
+            with closing(sqlite3.connect(db_path)) as connection:
+                original_hash = connection.execute(
+                    "SELECT password_hash FROM user_account WHERE id = ?", (account_id,)
+                ).fetchone()[0]
+
+            for factor in (pyotp.TOTP(secret).at(self.now), recovery_codes[0]):
+                with self.subTest(factor_kind="totp" if len(factor) == 6 else "recovery"):
+                    with (
+                        patch.object(
+                            local_auth.PasswordHasher, "check_needs_rehash", return_value=True
+                        ),
+                        patch.object(
+                            service.authentication,
+                            "_create_session",
+                            side_effect=RuntimeError("test failure"),
+                        ),
+                        self.assertRaisesRegex(RuntimeError, "test failure"),
+                    ):
+                        service.login(
+                            "member@example.invalid",
+                            "correct horse battery staple",
+                            factor,
+                            now=self.now,
+                        )
+                    self.assertIsNotNone(
+                        service.authentication.authenticate(previous.token, now=self.now)
+                    )
+                    with closing(sqlite3.connect(db_path)) as connection:
+                        state = connection.execute(
+                            "SELECT password_hash, totp_last_step, last_login_at "
+                            "FROM user_account WHERE id = ?",
+                            (account_id,),
+                        ).fetchone()
+                        self.assertEqual((original_hash, None, None), state)
+                        self.assertEqual(
+                            0,
+                            connection.execute(
+                                "SELECT count(*) FROM auth_recovery_code "
+                                "WHERE consumed_at IS NOT NULL"
+                            ).fetchone()[0],
+                        )
+
+            current = service.login(
+                "member@example.invalid",
+                "correct horse battery staple",
+                pyotp.TOTP(secret).at(self.now),
+                now=self.now,
+            )
+            self.assertIsNone(service.authentication.authenticate(previous.token, now=self.now))
+            self.assertIsNotNone(
+                service.authentication.authenticate(current.credentials.token, now=self.now)
+            )
+            self.assertIsNone(
+                LoginRateLimiter.retry_after("local:member@example.invalid", self.now)
+            )
+
+    def test_totp_cannot_succeed_twice_in_parallel(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            service, _account_id, secret, _codes = self._activate(db_path)
+            factor = pyotp.TOTP(secret).at(self.now)
+
+            def attempt() -> bool:
+                try:
+                    service.login(
+                        "member@example.invalid",
+                        "correct horse battery staple",
+                        factor,
+                        now=self.now,
+                    )
+                    return True
+                except LocalAuthError as error:
+                    self.assertEqual("login_failed", error.code)
+                    return False
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                outcomes = list(executor.map(lambda _: attempt(), range(2)))
+            self.assertEqual([False, True], sorted(outcomes))
 
     def test_login_rate_limit_does_not_reveal_unknown_accounts(self) -> None:
         with TempDatabase(with_seed=False) as db_path:

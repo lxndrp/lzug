@@ -174,20 +174,9 @@ class ExamRoundLifecycleService:
             )
             if repeated is not None:
                 return self._view(session, exam_round, scope)
-            if exam_round.revision != expected_revision:
-                raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
-            if exam_round.lifecycle_status not in {"open", "reopening"}:
-                raise ExamRoundConflictError("Die Prüfungsrunde ist bereits fachlich beendet")
-            reopening = self._active_reopening(session, exam_round.id)
-            if exam_round.lifecycle_status == "reopening" and reopening is None:
-                raise ExamRoundConflictError("Der Wiederöffnungsstand ist inkonsistent")
-
-            evaluation = self._evaluate(session, exam_round, decision_type)
-            if not evaluation["ready"]:
-                raise ExamRoundValidationError(
-                    "Die Voraussetzungen für diesen Rundenstand sind nicht erfüllt",
-                    [item for item in evaluation["items"] if not item["ok"]],
-                )
+            reopening, evaluation = self._decision_prerequisites(
+                session, exam_round, expected_revision, decision_type
+            )
 
             now = _now()
             if decision_type == "cancel":
@@ -216,17 +205,7 @@ class ExamRoundLifecycleService:
             exam_round.revision += 1
             exam_round.lifecycle_status = "closed" if decision_type == "close" else "cancelled"
             exam_round.updated_at = now
-            if reopening is not None:
-                reopening.status = "completed"
-                reopening.completed_at = now
-                for task in session.scalars(
-                    select(ExamRoundTask).where(
-                        ExamRoundTask.reopening_id == reopening.id,
-                        ExamRoundTask.status == "open",
-                    )
-                ):
-                    task.status = "completed"
-                    task.completed_at = now
+            self._complete_reopening(session, reopening, now)
             session.add(
                 ExamRoundAuditEvent(
                     exam_round_id=exam_round.id,
@@ -255,6 +234,48 @@ class ExamRoundLifecycleService:
                 f"exam-round-decision:{decision_id}:cancelled",
             )
         return result
+
+    def _decision_prerequisites(
+        self,
+        session: Session,
+        exam_round: ExamRound,
+        expected_revision: int,
+        decision_type: str,
+    ) -> tuple[ExamRoundReopening | None, dict[str, Any]]:
+        """Evaluate the current state after replay detection and before any mutation."""
+        if exam_round.revision != expected_revision:
+            raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
+        if exam_round.lifecycle_status not in {"open", "reopening"}:
+            raise ExamRoundConflictError("Die Prüfungsrunde ist bereits fachlich beendet")
+        reopening = self._active_reopening(session, exam_round.id)
+        if exam_round.lifecycle_status == "reopening" and reopening is None:
+            raise ExamRoundConflictError("Der Wiederöffnungsstand ist inkonsistent")
+
+        evaluation = self._evaluate(session, exam_round, decision_type)
+        if not evaluation["ready"]:
+            raise ExamRoundValidationError(
+                "Die Voraussetzungen für diesen Rundenstand sind nicht erfüllt",
+                [item for item in evaluation["items"] if not item["ok"]],
+            )
+
+        return reopening, evaluation
+
+    @staticmethod
+    def _complete_reopening(
+        session: Session, reopening: ExamRoundReopening | None, now: str
+    ) -> None:
+        """Complete the correction and its open tasks in the decision transaction."""
+        if reopening is not None:
+            reopening.status = "completed"
+            reopening.completed_at = now
+            for task in session.scalars(
+                select(ExamRoundTask).where(
+                    ExamRoundTask.reopening_id == reopening.id,
+                    ExamRoundTask.status == "open",
+                )
+            ):
+                task.status = "completed"
+                task.completed_at = now
 
     def reopening_impact(
         self, scope: AuthorizationScope, round_id: int, payload: dict[str, Any]
@@ -303,17 +324,9 @@ class ExamRoundLifecycleService:
             )
             if repeated is not None:
                 return self._view(session, exam_round, scope)
-            if exam_round.revision != expected_revision:
-                raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
-            if exam_round.lifecycle_status not in TERMINAL_LIFECYCLE_STATUSES:
-                raise ExamRoundConflictError(
-                    "Nur eine beendete Prüfungsrunde kann wieder geöffnet werden"
-                )
-            if self._active_reopening(session, round_id) is not None:
-                raise ExamRoundConflictError(
-                    "Für die Prüfungsrunde läuft bereits eine Wiederöffnung"
-                )
-            impact = self._impact(session, exam_round, payload.get("scope"))
+            impact = self._reopening_prerequisites(
+                session, exam_round, expected_revision, payload.get("scope")
+            )
             now = _now()
             previous = self._current_or_latest_decision(session, round_id)
             if previous is not None:
@@ -340,42 +353,8 @@ class ExamRoundLifecycleService:
             exam_round.revision += 1
             exam_round.lifecycle_status = "reopening"
             exam_round.updated_at = now
-            for export in session.scalars(
-                select(ExamRoundExport).where(
-                    ExamRoundExport.exam_round_id == round_id,
-                    ExamRoundExport.superseded_at.is_(None),
-                )
-            ):
-                export.superseded_at = now
-                export.superseded_by_revision = exam_round.revision
-            recipients = set(impact["impacts"]["recipient_member_ids"])
-            for recipient_id in sorted(recipients):
-                session.add(
-                    ExamRoundTask(
-                        exam_round_id=round_id,
-                        reopening_id=reopening.id,
-                        recipient_member_id=recipient_id,
-                        task_type="reconfirmation",
-                        origin_key=f"exam-round-reopening:{reopening.id}:affected",
-                        details_json=_json({"reason": reason, "scope": impact["expanded_scope"]}),
-                        status="open",
-                        created_at=now,
-                    )
-                )
-            for result_id in impact["impacts"]["ihk_processed_result_ids"]:
-                for recipient_id in self._management_member_ids(session, exam_round):
-                    session.add(
-                        ExamRoundTask(
-                            exam_round_id=round_id,
-                            reopening_id=reopening.id,
-                            recipient_member_id=recipient_id,
-                            task_type="ihk_clarification",
-                            origin_key=f"exam-round-reopening:{reopening.id}:ihk:{result_id}",
-                            details_json=_json({"exam_result_id": result_id, "reason": reason}),
-                            status="open",
-                            created_at=now,
-                        )
-                    )
+            self._supersede_exports(session, exam_round, now)
+            recipients = self._create_reopening_tasks(session, exam_round, reopening, impact, now)
             session.add(
                 ExamRoundAuditEvent(
                     exam_round_id=round_id,
@@ -400,6 +379,73 @@ class ExamRoundLifecycleService:
                 f"exam-round-reopening:{reopening_id}:affected",
             )
         return result
+
+    def _reopening_prerequisites(
+        self, session: Session, exam_round: ExamRound, expected_revision: int, raw_scope: Any
+    ) -> dict[str, Any]:
+        """Read and validate correction impact without superseding any current evidence."""
+        if exam_round.revision != expected_revision:
+            raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
+        if exam_round.lifecycle_status not in TERMINAL_LIFECYCLE_STATUSES:
+            raise ExamRoundConflictError(
+                "Nur eine beendete Prüfungsrunde kann wieder geöffnet werden"
+            )
+        if self._active_reopening(session, exam_round.id) is not None:
+            raise ExamRoundConflictError("Für die Prüfungsrunde läuft bereits eine Wiederöffnung")
+        return self._impact(session, exam_round, raw_scope)
+
+    def _create_reopening_tasks(
+        self,
+        session: Session,
+        exam_round: ExamRound,
+        reopening: ExamRoundReopening,
+        impact: dict[str, Any],
+        now: str,
+    ) -> set[int]:
+        """Persist reconfirmation and IHK follow-up work with the reopening audit."""
+        round_id = exam_round.id
+        reason = reopening.reason
+        recipients = set(impact["impacts"]["recipient_member_ids"])
+        for recipient_id in sorted(recipients):
+            session.add(
+                ExamRoundTask(
+                    exam_round_id=round_id,
+                    reopening_id=reopening.id,
+                    recipient_member_id=recipient_id,
+                    task_type="reconfirmation",
+                    origin_key=f"exam-round-reopening:{reopening.id}:affected",
+                    details_json=_json({"reason": reason, "scope": impact["expanded_scope"]}),
+                    status="open",
+                    created_at=now,
+                )
+            )
+        for result_id in impact["impacts"]["ihk_processed_result_ids"]:
+            for recipient_id in self._management_member_ids(session, exam_round):
+                session.add(
+                    ExamRoundTask(
+                        exam_round_id=round_id,
+                        reopening_id=reopening.id,
+                        recipient_member_id=recipient_id,
+                        task_type="ihk_clarification",
+                        origin_key=f"exam-round-reopening:{reopening.id}:ihk:{result_id}",
+                        details_json=_json({"exam_result_id": result_id, "reason": reason}),
+                        status="open",
+                        created_at=now,
+                    )
+                )
+        return recipients
+
+    @staticmethod
+    def _supersede_exports(session: Session, exam_round: ExamRound, now: str) -> None:
+        """Mark earlier exports obsolete with the authoritative new revision."""
+        for export in session.scalars(
+            select(ExamRoundExport).where(
+                ExamRoundExport.exam_round_id == exam_round.id,
+                ExamRoundExport.superseded_at.is_(None),
+            )
+        ):
+            export.superseded_at = now
+            export.superseded_by_revision = exam_round.revision
 
     def set_candidate_terminal_status(
         self,
@@ -427,33 +473,13 @@ class ExamRoundLifecycleService:
             target_round_id = payload.get("effective_new_round_id")
             postponed_until = self._optional_text(payload.get("postponed_until"), 100)
             ihk_reference = self._optional_text(payload.get("ihk_decision_reference"), 1000)
+            self._require_terminal_details(
+                status, reason, target_round_id, postponed_until, ihk_reference
+            )
             if status == "result_communicated":
                 self._assert_result_communicated(session, candidate)
             elif status == "transferred":
-                if reason is None or not isinstance(target_round_id, int):
-                    raise ValueError("Ein Ausschusswechsel benötigt Grund und wirksame neue Runde")
-                target = session.get(ExamRound, target_round_id)
-                if (
-                    target is None
-                    or target.id == exam_round.id
-                    or target.exam_half_year_id != exam_round.exam_half_year_id
-                ):
-                    raise ValueError("Die neue Zuordnung ist nicht wirksam")
-                assignment = session.scalar(
-                    select(CandidateCommitteeAssignment).where(
-                        CandidateCommitteeAssignment.candidate_id == candidate.candidate_id,
-                        CandidateCommitteeAssignment.exam_round_id == target.id,
-                        CandidateCommitteeAssignment.ended_at.is_(None),
-                    )
-                )
-                if assignment is None:
-                    raise ValueError("Die neue Zuordnung ist nicht wirksam")
-            elif status == "postponed":
-                if reason is None or postponed_until is None:
-                    raise ValueError("Eine Verschiebung benötigt Grund und verbindlichen Termin")
-            elif status == "ihk_terminated":
-                if reason is None or ihk_reference is None:
-                    raise ValueError("Die IHK-Entscheidung benötigt Grund und Referenz")
+                self._require_effective_transfer(session, exam_round, candidate, target_round_id)
             now = _now()
             original_assignment = session.scalar(
                 select(CandidateCommitteeAssignment).where(
@@ -478,6 +504,47 @@ class ExamRoundLifecycleService:
             exam_round.updated_at = now
             session.flush()
             return self._view(session, exam_round, scope)
+
+    @staticmethod
+    def _require_terminal_details(
+        status: str,
+        reason: str | None,
+        target_round_id: Any,
+        postponed_until: str | None,
+        ihk_reference: str | None,
+    ) -> None:
+        """Decide required terminal evidence without reading or mutating persistence."""
+        if status == "transferred":
+            if reason is None or not isinstance(target_round_id, int):
+                raise ValueError("Ein Ausschusswechsel benötigt Grund und wirksame neue Runde")
+        elif status == "postponed":
+            if reason is None or postponed_until is None:
+                raise ValueError("Eine Verschiebung benötigt Grund und verbindlichen Termin")
+        elif status == "ihk_terminated":
+            if reason is None or ihk_reference is None:
+                raise ValueError("Die IHK-Entscheidung benötigt Grund und Referenz")
+
+    @staticmethod
+    def _require_effective_transfer(
+        session: Session, exam_round: ExamRound, candidate: RoundCandidate, target_round_id: int
+    ) -> None:
+        """Check the effective target assignment in the terminal transition's transaction."""
+        target = session.get(ExamRound, target_round_id)
+        if (
+            target is None
+            or target.id == exam_round.id
+            or target.exam_half_year_id != exam_round.exam_half_year_id
+        ):
+            raise ValueError("Die neue Zuordnung ist nicht wirksam")
+        assignment = session.scalar(
+            select(CandidateCommitteeAssignment).where(
+                CandidateCommitteeAssignment.candidate_id == candidate.candidate_id,
+                CandidateCommitteeAssignment.exam_round_id == target.id,
+                CandidateCommitteeAssignment.ended_at.is_(None),
+            )
+        )
+        if assignment is None:
+            raise ValueError("Die neue Zuordnung ist nicht wirksam")
 
     def delete_empty_draft(self, scope: AuthorizationScope, round_id: int) -> bool:
         with session_scope(self.db_path) as session:

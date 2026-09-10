@@ -25,6 +25,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import or_, select, update
+from sqlalchemy.orm import Session
 
 from backend.identity.auth import SESSION_TTL, AuthenticationRepository, SessionCredentials
 from backend.persistence.database import DEFAULT_DB_PATH, mutation_scope, session_scope
@@ -342,51 +343,10 @@ class LocalAuthService:
                 account = session.scalars(
                     select(UserAccount).where(UserAccount.email == normalized_email)
                 ).first()
-                if account is None or not account.password_hash:
-                    self._dummy_password_check(password)
-                    raise LocalAuthError("login_failed", GENERIC_LOGIN_MESSAGE)
-                if (
-                    not account.is_active
-                    or not account.totp_enabled
-                    or not account.totp_secret_encrypted
-                ):
-                    raise LocalAuthError("login_failed", GENERIC_LOGIN_MESSAGE)
-                try:
-                    password_ok = PASSWORD_HASHER.verify(account.password_hash, password)
-                except InvalidHashError, VerificationError, VerifyMismatchError:
-                    password_ok = False
-                if not password_ok:
-                    raise LocalAuthError("login_failed", GENERIC_LOGIN_MESSAGE)
+                account = self._require_login_password(account, password)
                 if PASSWORD_HASHER.check_needs_rehash(account.password_hash):
                     account.password_hash = PASSWORD_HASHER.hash(password)
-
-                recovery_consumed = False
-                accepted_step = None
-                try:
-                    secret = self._decrypt_secret(account.totp_secret_encrypted)
-                    accepted_step = _verify_totp(secret, second_factor, current)
-                except InvalidToken, LocalAuthError:
-                    accepted_step = None
-                if accepted_step is not None:
-                    changed = session.execute(
-                        update(UserAccount)
-                        .where(
-                            UserAccount.id == account.id,
-                            or_(
-                                UserAccount.totp_last_step.is_(None),
-                                UserAccount.totp_last_step < accepted_step,
-                            ),
-                        )
-                        .values(totp_last_step=accepted_step)
-                    ).rowcount
-                    if changed != 1:
-                        raise LocalAuthError("login_failed", GENERIC_LOGIN_MESSAGE)
-                else:
-                    recovery_consumed = self._consume_recovery_code(
-                        session, account.id, second_factor, current
-                    )
-                    if not recovery_consumed:
-                        raise LocalAuthError("login_failed", GENERIC_LOGIN_MESSAGE)
+                self._consume_login_factor(session, account, second_factor, current)
 
                 account.last_login_at = _timestamp(current)
                 self.authentication._revoke_account_sessions(session, account.id, "new-login")
@@ -400,6 +360,53 @@ class LocalAuthService:
                 LoginRateLimiter.succeeded(key)
             else:
                 LoginRateLimiter.failed(key, current)
+
+    def _require_login_password(self, account: UserAccount | None, password: str) -> UserAccount:
+        """Check account eligibility and password without mutating authentication state."""
+        if account is None or not account.password_hash:
+            self._dummy_password_check(password)
+            raise LocalAuthError("login_failed", GENERIC_LOGIN_MESSAGE)
+        if not account.is_active or not account.totp_enabled or not account.totp_secret_encrypted:
+            raise LocalAuthError("login_failed", GENERIC_LOGIN_MESSAGE)
+        try:
+            password_ok = PASSWORD_HASHER.verify(account.password_hash, password)
+        except InvalidHashError, VerificationError, VerifyMismatchError:
+            password_ok = False
+        if not password_ok:
+            raise LocalAuthError("login_failed", GENERIC_LOGIN_MESSAGE)
+        return account
+
+    def _login_totp_step(
+        self, account: UserAccount, second_factor: str, current: datetime
+    ) -> int | None:
+        """Verify a TOTP candidate; accepting it still requires atomic consumption."""
+        try:
+            secret = self._decrypt_secret(account.totp_secret_encrypted)
+            return _verify_totp(secret, second_factor, current)
+        except InvalidToken, LocalAuthError:
+            return None
+
+    def _consume_login_factor(
+        self, session: Session, account: UserAccount, second_factor: str, current: datetime
+    ) -> None:
+        """Consume exactly one factor in the transaction that replaces the session."""
+        accepted_step = self._login_totp_step(account, second_factor, current)
+        if accepted_step is not None:
+            changed = session.execute(
+                update(UserAccount)
+                .where(
+                    UserAccount.id == account.id,
+                    or_(
+                        UserAccount.totp_last_step.is_(None),
+                        UserAccount.totp_last_step < accepted_step,
+                    ),
+                )
+                .values(totp_last_step=accepted_step)
+            ).rowcount
+            if changed != 1:
+                raise LocalAuthError("login_failed", GENERIC_LOGIN_MESSAGE)
+        elif not self._consume_recovery_code(session, account.id, second_factor, current):
+            raise LocalAuthError("login_failed", GENERIC_LOGIN_MESSAGE)
 
     def _valid_token(self, token: str, kind: str, current: datetime) -> tuple[str, str]:
         if not isinstance(token, str) or not token or len(token) > 256:
