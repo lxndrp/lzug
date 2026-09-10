@@ -1,4 +1,5 @@
 import { HttpClient } from '@angular/common/http';
+import { Location } from '@angular/common';
 import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, map, of, switchMap, tap } from 'rxjs';
@@ -37,6 +38,7 @@ export type AuthCompletion = {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
+  private readonly location = inject(Location);
   private readonly router = inject(Router);
   private readonly runtimeExperience = inject(RuntimeExperienceService);
   private demoExpiryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -54,7 +56,7 @@ export class AuthService {
     return this.http.get<AuthSession>('/api/session').pipe(
       tap((session) => {
         this.acceptSession(session);
-        if (this.isAuthRoute(this.router.url)) {
+        if (this.isAuthRoute(this.currentUrl())) {
           void this.router.navigateByUrl(this.entryPath(session), { replaceUrl: true });
         }
       }),
@@ -131,9 +133,13 @@ export class AuthService {
     this.demoExpiryTimer = null;
     this.session.set(null);
     this.state.set('anonymous');
-    if (!this.isAuthRoute(this.router.url)) {
+    if (!this.isAuthRoute(this.currentUrl())) {
       void this.router.navigateByUrl('/login', { replaceUrl: true });
     }
+  }
+
+  private currentUrl(): string {
+    return this.router.url === '/' ? this.location.path(true) || '/' : this.router.url;
   }
 
   private isAuthRoute(url: string): boolean {

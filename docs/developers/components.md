@@ -428,14 +428,33 @@ Autorisierungslogik.
 `ApplicationWorkspaceService` hält ausschließlich den fachübergreifenden
 Lesezustand des gewählten Prüfungskontexts.
 Planungs-, Stammdaten- und Ortsbefehle liegen in den zuständigen
-Workflow-Services; `App` bleibt für Authentisierung, Navigation,
-Zugriffsansicht und die Anbindung der Feature-Ereignisse verantwortlich.
+Workflow-Services.
+`App` besitzt nur Rahmen, Authentisierung, globale Runtimezustände,
+Navigationsdarstellung und die gemeinsame Zugriffsansicht.
+Die Hauptpfade in `app.routes.ts` aktivieren über `loadComponent` jeweils einen
+eigenen Feature-Einstieg unter `frontend/src/app/routes/` oder eine bereits
+eigenständige Fachkomponente.
+Diese Einstiege binden Routeparameter und Feature-Ereignisse an den zuständigen
+Kontext beziehungsweise Workflow; die Shell interpretiert keine URL-Segmente
+und rendert Fachbereiche ausschließlich im `router-outlet`.
 
 `RoundContextService` hält den aktuellen Prüfungsrundenkontext.
 Dashboard, Stammdaten, Planung, Durchführung und Nachweise bleiben fachlich
 erkennbare Bereiche.
 Der Entwicklungsproxy leitet `/api` an das lokale Backend weiter; produktiv
 werden Browser-Bundle und API same-origin aus dem OCI-Image bereitgestellt.
+
+Der Produktionsbuild wurde für die Routingumstellung mit Node.js 26.5.0 und
+`CI=true npm run build:ci` gegen die Ausgangsrevision
+`cdf6849517e31c4858c74bfd08d1873de2c2eeda` und denselben Abhängigkeiten
+verglichen.
+Vor der Umstellung bestand der Initialbestand aus 1,27 MB Rohgröße bei einer
+geschätzten Übertragungsgröße von 252,70 kB und besaß keine Feature-Chunks.
+Mit den Routeneinstiegen beträgt er 661,50 kB beziehungsweise 158,06 kB.
+Authentisierung, Dashboard, Planung, Prüfungsplan, Prüfungstag, Stammdaten,
+Orte, Benachrichtigungen, Ausfall und Demo werden erst beim ersten Aufruf ihres
+Pfads geladen; die ausgewiesenen Feature-Chunks liegen zwischen 6,70 kB und
+96,18 kB Rohgröße.
 
 Für sichtbare Änderungen gelten diese Komponentenregeln:
 
