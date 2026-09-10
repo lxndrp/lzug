@@ -231,7 +231,13 @@ class DemoDeploymentTests(unittest.TestCase):
 
     def test_readiness_and_demo_api_bind_the_running_product_schema_and_seed(self) -> None:
         validate_application_readiness(
-            {"status": "ready", "revision": self.pair.product_commit}, self.pair
+            {
+                "status": "ready",
+                "state": "ready",
+                "ready": True,
+                "revision": self.pair.product_commit,
+            },
+            self.pair,
         )
         validate_demo_status(
             {
@@ -247,7 +253,10 @@ class DemoDeploymentTests(unittest.TestCase):
             self.pair,
         )
         with self.assertRaisesRegex(DeploymentError, "unexpected product commit"):
-            validate_application_readiness({"status": "ready", "revision": "f" * 40}, self.pair)
+            validate_application_readiness(
+                {"status": "ready", "state": "ready", "ready": True, "revision": "f" * 40},
+                self.pair,
+            )
         with self.assertRaisesRegex(DeploymentError, "status=ready"):
             validate_application_readiness(
                 {"status": "unavailable", "revision": self.pair.product_commit}, self.pair
@@ -346,7 +355,15 @@ class DemoDeploymentTests(unittest.TestCase):
         self,
     ) -> None:
         responses = (
-            ({"status": "ready", "revision": self.pair.product_commit}, "application/json"),
+            (
+                {
+                    "status": "ready",
+                    "state": "ready",
+                    "ready": True,
+                    "revision": self.pair.product_commit,
+                },
+                "application/json",
+            ),
             (
                 {
                     "product_version": "0.1.1",
@@ -386,7 +403,10 @@ class DemoDeploymentTests(unittest.TestCase):
             patch("scripts.demo_deployment.time.sleep"),
             patch(
                 "scripts.demo_deployment._http_get",
-                return_value=({"status": "ready", "revision": "f" * 40}, "application/json"),
+                return_value=(
+                    {"status": "ready", "state": "ready", "ready": True, "revision": "f" * 40},
+                    "application/json",
+                ),
             ) as http_get,
             self.assertRaisesRegex(DeploymentError, "unexpected product commit"),
         ):

@@ -59,8 +59,8 @@ export class AuthService {
         }
       }),
       map(() => true),
-      catchError(() => {
-        this.markAnonymous();
+      catchError((error: { status?: number; error?: { error?: { code?: string } } }) => {
+        if (error.error?.error?.code !== 'runtime_not_ready') this.markAnonymous();
         return of(false);
       }),
     );

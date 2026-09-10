@@ -55,6 +55,7 @@ services:
       LZUG_SMTP_USERNAME: ${LZUG_SMTP_USERNAME:-}
       LZUG_SMTP_PASSWORD: ${LZUG_SMTP_PASSWORD:-}
     healthcheck:
+      # Healthy means live, including maintenance; use /api/ready for acceptance.
       test: ["CMD", "python", "-m", "backend.healthcheck"]
       interval: 30s
       timeout: 5s

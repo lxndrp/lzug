@@ -472,7 +472,7 @@ class AdminApplication:
             if self.runtime is not None and command in _DIAGNOSTIC_COMMANDS:
                 _diagnostic_client(command, arguments)
                 return AdminApplicationResult(
-                    _response(ok=True, result={"runtime": self.runtime.snapshot()}), EXIT_OK
+                    _response(ok=True, result={"runtime": self.runtime.diagnosis()}), EXIT_OK
                 )
             # Lifecycle services own their exclusive admission. Ordinary admin
             # work shares the same admission as HTTP, across all its transactions.

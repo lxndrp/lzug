@@ -69,15 +69,25 @@ class ReadApplication:
 
     def readiness(self) -> ApplicationResult:
         """Return application and database readiness without exposing diagnostics."""
-        readiness = (
+        return self.lifecycle(readiness=True)
+
+    def lifecycle(self, *, readiness: bool = False) -> ApplicationResult:
+        """Project one snapshot for public status and the readiness probe."""
+        from backend.public_lifecycle import public_lifecycle
+
+        snapshot = (
             self.runtime.snapshot()
             if self.runtime is not None
             else self.services.readiness_probe(self.db_path)
         )
-        ready = bool(readiness["ready"])
+        lifecycle = public_lifecycle(snapshot)
+        ready = lifecycle["ready"]
+        payload = hateoas.health("ready" if ready else "unavailable", signal="ready")
+        if not readiness:
+            payload["_links"] = {"self": {"href": "/api/lifecycle"}}
         return ApplicationResult(
-            hateoas.health("ready" if ready else "unavailable", signal="ready"),
-            HTTPStatus.OK if ready else HTTPStatus.SERVICE_UNAVAILABLE,
+            {**payload, **lifecycle},
+            HTTPStatus.OK if ready or not readiness else HTTPStatus.SERVICE_UNAVAILABLE,
         )
 
     def authenticated_scope(self, token: str | None) -> AuthorizationScope:

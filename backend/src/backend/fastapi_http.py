@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from backend.application.transport import RequestContext
 
-from .api_contracts import ErrorResponse
+from .api_contracts import ErrorResponse, RuntimeUnavailableResponse
 from .application import ApplicationResult
 
 APPLICATION_ERROR_RESPONSES: dict[int, dict[str, object]] = {
@@ -29,6 +29,10 @@ APPLICATION_ERROR_RESPONSES: dict[int, dict[str, object]] = {
         HTTPStatus.TOO_MANY_REQUESTS,
         HTTPStatus.INTERNAL_SERVER_ERROR,
     )
+}
+APPLICATION_ERROR_RESPONSES[503] = {
+    "description": "Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.",
+    "model": RuntimeUnavailableResponse,
 }
 
 

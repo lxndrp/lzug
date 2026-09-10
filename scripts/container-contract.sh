@@ -51,7 +51,8 @@ lzug_wait_for_http_health() {
 }
 
 lzug_http_health_is_ready() {
-    curl --silent --show-error --fail "$1/api/ready" >/dev/null 2>&1
+    curl --silent --show-error --fail --max-time 5 "$1/api/ready" 2>/dev/null | \
+        python3 -c 'import json,sys; p=json.load(sys.stdin); sys.exit(0 if p.get("state")=="ready" and p.get("ready") is True else 1)' 2>/dev/null
 }
 
 lzug_wait_for_container_health() {
