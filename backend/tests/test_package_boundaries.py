@@ -29,6 +29,7 @@ ROOT_MODULE_OWNERS = {
     "__init__.py": "package-bootstrap",
     "admin.py": "operations-adapter",
     "admin_socket.py": "operations-adapter",
+    "admin_socket_artifacts.py": "operations-adapter",
     "admin_socket_path.py": "operations-adapter",
     "admin_socket_protocol.py": "operations-adapter",
     "api_contracts.py": "api",
@@ -141,6 +142,8 @@ TEST_OWNERS = {
         {
             "test_admin.py",
             "test_admin_socket.py",
+            "test_admin_socket_artifacts.py",
+            "test_artifact_limits.py",
             "test_backup_recipients.py",
             "test_backup_restore.py",
             "test_diagnostics.py",
