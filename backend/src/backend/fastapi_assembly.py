@@ -14,17 +14,26 @@ from .fastapi_app import (
 )
 from .fastapi_dependencies import BoundedBodyRoute
 from .fastapi_http import APPLICATION_ERROR_RESPONSES
+from .fastapi_runtime import RuntimeAdmissionMiddleware
+from .runtime import RuntimeCoordinator
 from .security import RequestRateLimiter
 
 __all__ = ["FastAPIConfig", "create_app"]
 
 
 def create_app(
-    config: FastAPIConfig | None = None, services: ApplicationServices | None = None
+    config: FastAPIConfig | None = None,
+    services: ApplicationServices | None = None,
+    *,
+    runtime: RuntimeCoordinator | None = None,
 ) -> FastAPI:
     """Create the single FastAPI application used by product and demo images."""
     resolved = config or FastAPIConfig.from_environment()
+    if runtime is not None and runtime.db_path != resolved.db_path.resolve():
+        raise ValueError("HTTP and runtime must share persistence")
     application = ReadApplication(resolved.db_path, services)
+    if runtime is not None:
+        application.runtime = runtime
     app = FastAPI(
         title="lzug API",
         docs_url=None,
@@ -34,6 +43,7 @@ def create_app(
     )
     app.router.route_class = BoundedBodyRoute
     app.state.lzug_config = resolved
+    app.state.runtime = runtime
     app.state.auth_rate_limiter = resolved.auth_rate_limiter or RequestRateLimiter(
         resolved.auth_rate_limit, resolved.auth_rate_window
     )
@@ -46,6 +56,8 @@ def create_app(
         register_transport_and_errors,
         register_application_routes,
     )
+    if runtime is not None:
+        app.add_middleware(RuntimeAdmissionMiddleware, runtime=runtime)
     for registrar in registration:
         registrar(
             app,

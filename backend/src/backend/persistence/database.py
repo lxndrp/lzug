@@ -8,10 +8,10 @@ import shutil
 import sqlite3
 import tempfile
 from collections.abc import Iterator, Mapping
-from contextlib import closing, contextmanager
+from contextlib import ExitStack, closing, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from fcntl import LOCK_EX, LOCK_SH, LOCK_UN, flock
+from fcntl import LOCK_EX, LOCK_SH
 from functools import partial
 from pathlib import Path
 
@@ -32,6 +32,13 @@ from backend.persistence.exam_venue_migration import (
     prepare_exam_venue_migration,
 )
 from backend.persistence.models import Base
+from backend.runtime import (
+    Operation,
+    activation_lock,
+    exclusive_operation,
+    file_lock,
+    persistence_access,
+)
 from backend.settings import PersistenceSettings, RuntimeSettings
 
 COMPONENT_ROOT = Path(__file__).resolve().parents[3]
@@ -263,20 +270,15 @@ def _activation_lock_path(db_path: Path) -> Path:
 
 @contextmanager
 def _file_lock(path: Path, operation: int) -> Iterator[None]:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a+") as lock_file:
-        flock(lock_file.fileno(), operation)
-        try:
-            yield
-        finally:
-            flock(lock_file.fileno(), LOCK_UN)
+    with file_lock(path, operation):
+        yield
 
 
 @contextmanager
 def mutation_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[None]:
     """Keep one database/document mutation outside an artifact snapshot or activation."""
     db_path = Path(db_path)
-    with _file_lock(_activation_lock_path(db_path), LOCK_SH):
+    with persistence_access(db_path), activation_lock(db_path):
         with _file_lock(_snapshot_lock_path(db_path), LOCK_SH):
             yield
 
@@ -284,14 +286,21 @@ def mutation_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[None]:
 @contextmanager
 def snapshot_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[None]:
     """Wait for active mutations and prevent new ones while readers continue."""
-    with _file_lock(_snapshot_lock_path(Path(db_path)), LOCK_EX):
+    with (
+        persistence_access(db_path),
+        activation_lock(db_path),
+        _file_lock(_snapshot_lock_path(Path(db_path)), LOCK_EX),
+    ):
         yield
 
 
 @contextmanager
 def activation_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[None]:
     """Drain all application transactions before atomically activating a restore."""
-    with _file_lock(_activation_lock_path(Path(db_path)), LOCK_EX):
+    with (
+        exclusive_operation(db_path, Operation.RESTORE),
+        activation_lock(db_path, exclusive=True),
+    ):
         yield
 
 
@@ -317,6 +326,13 @@ def connect(db_path: Path = DEFAULT_DB_PATH) -> Connection:
 @contextmanager
 def connection_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[Connection]:
     """Yield one connection and dispose its short-lived engine deterministically."""
+    with persistence_access(db_path), activation_lock(db_path):
+        with _connection_scope(db_path) as connection:
+            yield connection
+
+
+@contextmanager
+def _connection_scope(db_path: Path) -> Iterator[Connection]:
     engine = engine_for(db_path)
     try:
         with engine.connect() as connection:
@@ -352,13 +368,18 @@ def session_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[Session]:
     Yields:
         An open SQLAlchemy session.
     """
+    with persistence_access(db_path), activation_lock(db_path):
+        with _session_scope(db_path) as session:
+            yield session
+
+
+@contextmanager
+def _session_scope(db_path: Path) -> Iterator[Session]:
     db_path = Path(db_path)
     engine = engine_for(db_path)
     session_factory = sessionmaker(bind=engine, future=True)
     session = session_factory()
-    snapshot_lock_path = _snapshot_lock_path(db_path)
-    snapshot_lock_path.parent.mkdir(parents=True, exist_ok=True)
-    snapshot_lock_file = snapshot_lock_path.open("a+")
+    locks = ExitStack()
     mutation_locked = False
 
     def lock_before_mutation(
@@ -366,24 +387,22 @@ def session_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[Session]:
     ) -> None:
         nonlocal mutation_locked
         if not mutation_locked and _is_mutating_statement(statement):
-            flock(snapshot_lock_file.fileno(), LOCK_SH)
+            locks.enter_context(file_lock(_snapshot_lock_path(db_path), LOCK_SH))
             mutation_locked = True
 
     event.listen(engine, "before_cursor_execute", lock_before_mutation)
     try:
-        with _file_lock(_activation_lock_path(db_path), LOCK_SH):
+        with activation_lock(db_path):
             try:
                 yield session
                 session.commit()
-            except Exception:
+            except BaseException:
                 session.rollback()
                 raise
     finally:
         session.close()
         event.remove(engine, "before_cursor_execute", lock_before_mutation)
-        if mutation_locked:
-            flock(snapshot_lock_file.fileno(), LOCK_UN)
-        snapshot_lock_file.close()
+        locks.close()
         engine.dispose()
 
 
@@ -477,15 +496,16 @@ def _migration_state(
 
 @contextmanager
 def _migration_lock(db_path: Path) -> Iterator[None]:
-    """Serialize migration and reset attempts across application processes."""
+    """Drain transactions and snapshots before migration, reset or restore."""
     lock_path = Path(f"{db_path}.migration.lock")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a+") as lock_file:
-        flock(lock_file.fileno(), LOCK_EX)
-        try:
-            yield
-        finally:
-            flock(lock_file.fileno(), LOCK_UN)
+    with (
+        exclusive_operation(db_path, Operation.MIGRATION),
+        activation_lock(db_path, exclusive=True),
+        file_lock(_snapshot_lock_path(db_path), LOCK_EX),
+        file_lock(lock_path, LOCK_EX),
+    ):
+        yield
 
 
 def _migration_backup(
@@ -728,6 +748,11 @@ def apply_migrations(
 
 def migration_status(db_path: Path = DEFAULT_DB_PATH) -> dict[str, object]:
     """Return migration diagnostics containing only schema metadata."""
+    with persistence_access(db_path), activation_lock(db_path):
+        return _migration_status(db_path)
+
+
+def _migration_status(db_path: Path) -> dict[str, object]:
     files = _migration_files()
     target = files[-1].name if files else None
     if not db_path.exists() or db_path.stat().st_size == 0:

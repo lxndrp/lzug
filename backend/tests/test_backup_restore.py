@@ -22,8 +22,9 @@ from backend.integrations.document_storage import FilesystemDocumentStorage
 from backend.integrations.documents import DocumentService
 from backend.operations.artifact_packages import ClearArtifactService
 from backend.operations.backup_restore import FULL_EXPORT_SCHEMA, ArtifactError
-from backend.persistence.database import PersistencePaths, initialize
+from backend.persistence.database import PersistencePaths, database_readiness, initialize
 from backend.planning.exam_venues import ExamVenueService
+from backend.runtime import RuntimeCoordinator
 from backend.tests.fixture_data import DEMO_ROLES
 from backend.tests.helpers import development_seed_sql
 
@@ -249,6 +250,12 @@ class BackupRestoreTests(unittest.TestCase):
         target_paths, target = self.runtime("target", seed=False)
         package_copy, _result = self.write_package(source, "backup.zip")
 
+        coordinator = RuntimeCoordinator(
+            target_paths.database, lambda: database_readiness(target_paths.database)
+        )
+        self.addCleanup(coordinator.stop)
+        coordinator.start()
+
         report = target.restore_package(
             package_copy,
             replace=False,
@@ -257,6 +264,8 @@ class BackupRestoreTests(unittest.TestCase):
         )
 
         self.assertEqual("ready", report["readiness"])
+        self.assertTrue(coordinator.snapshot()["ready"])
+        self.assertEqual("succeeded", coordinator.snapshot()["job"]["status"])
         self.assertGreaterEqual(report["reset_security_state"]["sessions"], 1)
         self.assertIsNone(AuthenticationRepository(target_paths.database).authenticate(old_session))
         now = datetime.now(UTC)

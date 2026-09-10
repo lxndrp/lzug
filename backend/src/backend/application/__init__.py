@@ -22,6 +22,7 @@ from backend.identity.auth import AuthenticationRepository
 from backend.identity.authorization import AuthorizationScope, AuthorizationService
 from backend.persistence.database import DEFAULT_DB_PATH, database_readiness
 from backend.persistence.models import EXAM_ROUND
+from backend.runtime import RuntimeCoordinator
 
 
 class AuthenticationRequiredError(Exception):
@@ -60,6 +61,7 @@ class ReadApplication:
     ) -> None:
         self.db_path = Path(db_path)
         self.services = services or ApplicationServices()
+        self.runtime: RuntimeCoordinator | None = None
 
     def health(self) -> ApplicationResult:
         """Return pure process liveness without touching persistence."""
@@ -67,7 +69,11 @@ class ReadApplication:
 
     def readiness(self) -> ApplicationResult:
         """Return application and database readiness without exposing diagnostics."""
-        readiness = self.services.readiness_probe(self.db_path)
+        readiness = (
+            self.runtime.snapshot()
+            if self.runtime is not None
+            else self.services.readiness_probe(self.db_path)
+        )
         ready = bool(readiness["ready"])
         return ApplicationResult(
             hateoas.health("ready" if ready else "unavailable", signal="ready"),

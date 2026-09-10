@@ -10,7 +10,6 @@ from pathlib import Path
 import uvicorn
 
 from backend.persistence.database import (
-    MigrationError,
     PersistenceConfigurationError,
     database_readiness,
     initialize,
@@ -20,6 +19,7 @@ from backend.persistence.database import (
 
 from .fastapi_assembly import FastAPIConfig, create_app
 from .observability import emit_event
+from .runtime import RuntimeCoordinator
 from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from .settings import RuntimeSettings
 
@@ -58,28 +58,20 @@ def parse_args(settings: RuntimeSettings | None = None) -> argparse.Namespace:
 
 
 def prepare_database(args: argparse.Namespace) -> None:
-    try:
-        validate_persistence(args.paths)
-        if args.init:
-            initialize(
-                args.db,
-                reset=args.reset,
-                backup_dir=args.paths.backups,
-            )
-    except MigrationError as error:
-        raise SystemExit(f"Database migration failed: {error}") from error
-    except PersistenceConfigurationError as error:
-        raise SystemExit(f"Persistent storage is not ready: {error}") from error
-    readiness = database_readiness(args.db)
-    if not readiness["ready"]:
-        raise SystemExit(
-            f"Database is not ready: {args.db}. Reason: {readiness['reason']}. "
-            "Start with --init to initialize or migrate it, then retry."
-        )
-    try:
+    """Preserve the existing explicit --init path under runtime ownership."""
+    validate_persistence(args.paths)
+    if args.init:
+        initialize(args.db, reset=args.reset, backup_dir=args.paths.backups)
+
+
+def runtime_coordinator(args: argparse.Namespace) -> RuntimeCoordinator:
+    """Compose lifecycle ownership with the existing storage readiness checks."""
+
+    def probe():
         validate_persistence(args.paths, require_database=True)
-    except PersistenceConfigurationError as error:
-        raise SystemExit(f"Persistent storage is not ready: {error}") from error
+        return database_readiness(args.db)
+
+    return RuntimeCoordinator(args.db, probe)
 
 
 def main(
@@ -90,17 +82,25 @@ def main(
 ) -> None:
     settings = settings or RuntimeSettings.from_environment()
     args = parse_args(settings)
-    prepare_database(args)
+    runtime = runtime_coordinator(args)
     config = FastAPIConfig.from_settings(settings, db_path=args.db, static_dir=args.static_dir)
     config = replace(
         config,
         session_ttl=session_ttl or config.session_ttl,
         runtime_policy=runtime_policy or ProductRuntimePolicy(),
     )
-    emit_event("runtime", severity="info", signal="started")
-    uvicorn.run(
-        create_app(config), host=args.host, port=args.port, log_config=None, access_log=False
-    )
+    try:
+        runtime.start(lambda: prepare_database(args))
+        emit_event("runtime", severity="info", signal="started")
+        uvicorn.run(
+            create_app(config, runtime=runtime),
+            host=args.host,
+            port=args.port,
+            log_config=None,
+            access_log=False,
+        )
+    finally:
+        runtime.stop()
 
 
 if __name__ == "__main__":

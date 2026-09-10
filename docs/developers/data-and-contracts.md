@@ -143,6 +143,11 @@ SQLAlchemy ab.
 `backend/db/migrations/` entwickelt vorhandene Bestände geordnet vorwärts.
 Die Laufzeit prüft Reihenfolge, Prüfsummen und Integrität der
 Migrationshistorie fail-closed.
+Ohne den bisherigen expliziten Initialisierungs-/Migrationsauftrag `--init`
+bleibt der Server bei ausstehender Migration ohne Fachauftragszulassung
+diagnostizierbar.
+Die gemeinsame Zustands- und Sperrgrenze beschreibt
+[Komponenten](components.md#backend).
 
 Die Migrationen bis `028_add_exam_venue_change_notifications.sql` bilden den aktuellen
 Stand von Authentifizierung und Sitzungen, Planrevisionen, Benachrichtigungen,
