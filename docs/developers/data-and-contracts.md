@@ -202,8 +202,19 @@ Kalender-, Benachrichtigungs-, Abwesenheits- und Vertretungsendpunkte liegen in
 über ihre Runtime-Policy.
 
 `/api/health` ist ein öffentliches, fachinhaltsfreies Liveness-Signal.
-`/api/ready` prüft Anwendungs- und Datenbankbereitschaft und antwortet mit HTTP
-200 oder 503.
+`/api/ready` liefert nur bei freigegebener Fachzulassung HTTP 200, sonst 503.
+`/api/lifecycle` liefert denselben öffentlichen Snapshot immer mit HTTP 200.
+Die Modelle `LifecycleResponse` und `RuntimeUnavailableResponse` sowie die
+erzeugte OpenAPI-Beschreibung besitzen die Zustands- und Fehlercodes.
+`public_lifecycle` projiziert ausschließlich erlaubte Zustände aus dem
+Runtime-Snapshot; Diagnosefelder werden nie übernommen.
+Außerhalb von ready weist die HTTP-Zulassung fachliche Requests vor
+Authentisierung und Persistenz einheitlich mit 503 ab.
+Origin- und Body-Headerprüfungen bleiben vorgeschaltet; ein schon abgewiesener
+Body wird nicht eingelesen.
+Health, Readiness, Lifecycle und statische GET-/HEAD-Pfade bleiben erreichbar.
+Der Betreiberweg steht unter
+[Installation und Konfiguration](../handbook/Administration-Installation-und-Konfiguration.md#lifecycle-und-wartungsanzeige).
 API-Einstieg, OpenAPI und interaktive API-Dokumentation sowie alle
 Fachoperationen benötigen eine gültige Session; schreibende Operationen
 benötigen zusätzlich den CSRF-Nachweis.

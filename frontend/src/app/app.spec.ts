@@ -21,6 +21,7 @@ import {
 import { RoundContextService } from './api/round-context.service';
 import { routes } from './app.routes';
 import { UiFeedbackService } from './shell/ui-feedback.service';
+import { LifecycleService } from './runtime/lifecycle.service';
 import {
   apiRootFixture,
   assignmentsFixture,
@@ -61,6 +62,7 @@ describe('App', () => {
         provideHttpClientTesting(),
         provideTaiga({ scrollbars: 'native' }),
         TuiConfirmService,
+        { provide: LifecycleService, useValue: { ready: signal(true), check: () => of(true) } },
         {
           provide: AuthService,
           useValue: {

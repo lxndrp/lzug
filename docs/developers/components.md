@@ -150,6 +150,8 @@ an HTTP und den injizierten Anwendungskern.
 Die vorbereitende Assembly wird beim Start von `backend.server` mit
 `--admin-socket-dir /run/lzug-admin --admin-socket-gid <betreiber-gid>`
 ausdrücklich eingeschaltet.
+Nach `RuntimeCoordinator.claim()` startet zuerst der Socket; anschließend läuft
+die Initialisierung im HTTP-Lifespan, während beide Diagnosezugänge erreichbar sind.
 Das Verzeichnis muss bereits existieren, dem effektiven Serverbenutzer und der
 angegebenen Betreibergruppe gehören und exakt Modus `0750` haben.
 Es liegt auf flüchtigem Speicher außerhalb von Datenbank, `/data`, Dokumenten,
@@ -208,6 +210,9 @@ Warteschlange von Anwendungsaufträgen geschlossen.
 Eine bereits zugelassene Mutation behält auch nach Timeout oder Verbindungsabbruch
 ihren Worker und ihre Runtime-Zulassung bis zum Ende.
 Ein Drain-Timeout gibt weder den Verzeichnislock noch die Runtime-Ownership frei.
+Der HTTP-Lifespan beendet deshalb zuerst den Socket samt seinen Workern und gibt
+erst danach die Runtime-Ownership frei; dies gilt auch für Diagnoseaufträge ohne
+eigene Runtime-Zulassung.
 Listenerfehler schließen die normale Runtime-Zulassung und starten keinen Ersatzprozess.
 
 `config`, `status` und `doctor` enthalten neben dem Runtime-Snapshot den
@@ -265,11 +270,13 @@ Ersatzprozess.
 Initialisierung und Migration, jetzt unter der gemeinsamen Ownership.
 Ohne diesen Auftrag bleibt ein vorhandenes Schema mit Migrationsbedarf
 diagnostizierbar und sperrt Fachaufträge.
-Die bestehenden öffentlichen Health-/Ready-Antwortformate bleiben erhalten;
-Ready verwendet im Server den gemeinsamen Zustand.
-Die weitergehende öffentliche HTTP-/Frontenddarstellung gehört zu #707,
-die Ablösung der bisherigen Startmigration durch eine Migrationsfreigabe im
-laufenden Prozess zum Auftrag #272.
+`claim` erwirbt Ownership vor dem Listenerstart; der Server-Lifespan führt
+`initialize` anschließend im selben Prozess aus, während HTTP erreichbar bleibt.
+Ready und Fachzulassung werden erst nach erfolgreicher Prüfung und gespeichertem
+Auftragsabschluss atomar freigegeben.
+Die öffentliche HTTP-/Frontenddarstellung verwendet den gemeinsamen Snapshot.
+Die Ablösung der bisherigen Startmigration durch eine Migrationsfreigabe im
+laufenden Prozess gehört zum Auftrag #272.
 
 Die folgende Tabelle ist die kanonische knappe Zuordnung der aktuellen
 Backend-Paketstruktur.

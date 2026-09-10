@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
+from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
@@ -24,6 +26,27 @@ from .observability import emit_event
 from .runtime import RuntimeConflictError, RuntimeCoordinator
 from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from .settings import RuntimeSettings
+
+
+def initialization_lifespan(
+    runtime: RuntimeCoordinator, prepare, *, admin_socket: AdminSocket | None = None
+):
+    """Run preparation in this process after transport assembly, without blocking HTTP."""
+
+    @asynccontextmanager
+    async def lifespan(_app):
+        initialization = asyncio.create_task(asyncio.to_thread(runtime.initialize, prepare))
+        try:
+            yield
+        finally:
+            if admin_socket is not None:
+                # A failed drain must keep ownership while socket workers remain.
+                await asyncio.to_thread(admin_socket.stop)
+            # Stop admission before waiting; retain ownership until the worker exits.
+            await asyncio.to_thread(runtime.stop)
+            await initialization
+
+    return lifespan
 
 
 def parse_args(settings: RuntimeSettings | None = None) -> argparse.Namespace:
@@ -138,11 +161,15 @@ def main(
     admin_socket = None
 
     try:
-        runtime.start(lambda: prepare_database(args))
+        runtime.claim()
         admin_socket = start_admin_socket(args, settings, runtime)
+        app = create_app(config, runtime=runtime)
+        app.router.lifespan_context = initialization_lifespan(
+            runtime, lambda: prepare_database(args), admin_socket=admin_socket
+        )
         emit_event("runtime", severity="info", signal="started")
         uvicorn.run(
-            create_app(config, runtime=runtime),
+            app,
             host=args.host,
             port=args.port,
             log_config=None,

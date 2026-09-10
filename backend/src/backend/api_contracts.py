@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .runtime import RuntimeState
+
 
 class ErrorResponse(BaseModel):
     error: object
@@ -15,6 +17,24 @@ class HealthResponse(BaseModel):
     version: str
     revision: str
     links: dict[str, object] = Field(alias="_links")
+
+
+class LifecycleResponse(HealthResponse):
+    """Public state; diagnostics and recovery decisions belong to the admin adapter."""
+
+    state: RuntimeState
+    ready: bool
+
+
+class RuntimeUnavailableDetail(BaseModel):
+    code: Literal["runtime_not_ready"]
+    message: Literal["Application is temporarily unavailable."]
+    state: RuntimeState
+    ready: Literal[False]
+
+
+class RuntimeUnavailableResponse(BaseModel):
+    error: RuntimeUnavailableDetail
 
 
 class ApiRootResponse(BaseModel):

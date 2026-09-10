@@ -8,6 +8,7 @@ from http import HTTPStatus
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from .public_lifecycle import unavailable_payload
 from .runtime import RuntimeConflictError, RuntimeCoordinator
 
 
@@ -19,15 +20,23 @@ class RuntimeAdmissionMiddleware:
         self.runtime = runtime
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or scope["path"] in {"/api/health", "/api/ready"}:
+        if (
+            scope["type"] != "http"
+            or scope["path"] in {"/api/health", "/api/ready", "/api/lifecycle"}
+            or (
+                scope.get("method") in {"GET", "HEAD"}
+                and scope["path"] != "/api"
+                and not scope["path"].startswith("/api/")
+            )
+        ):
             await self.app(scope, receive, send)
             return
         admission = self.runtime.admit()
         try:
             admission.__enter__()
-        except RuntimeConflictError:
+        except RuntimeConflictError as error:
             await JSONResponse(
-                {"error": "Runtime is not ready."},
+                unavailable_payload({"state": error.state, "ready": False}),
                 status_code=HTTPStatus.SERVICE_UNAVAILABLE,
                 headers={"Cache-Control": "no-store"},
             )(scope, receive, send)

@@ -112,9 +112,10 @@ resource "azurerm_container_app" "demo" {
       }
 
       readiness_probe {
-        transport               = "HTTP"
+        # ACA gates all ingress, including the maintenance shell, on this probe.
+        # Application readiness remains /api/ready and is checked by promotion/reset.
+        transport               = "TCP"
         port                    = var.container_port
-        path                    = "/api/ready"
         initial_delay           = 5
         interval_seconds        = 10
         timeout                 = 5

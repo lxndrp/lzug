@@ -238,4 +238,49 @@ if docker logs "$container" 2>&1 | grep -F "$log_marker" >/dev/null; then
     exit 1
 fi
 
-echo "Container runtime, authentication isolation, and security smoke test passed with Docker: $image"
+echo "Verifying live but not ready operation with a pending migration."
+docker stop "$container" >/dev/null
+docker rm "$container" >/dev/null
+# Only the disposable smoke volume is modified, with its server stopped.
+docker run --rm --read-only --tmpfs /tmp \
+    --mount "type=volume,source=$volume,target=/data" --entrypoint python "$image" -c '
+import shutil, sqlite3
+shutil.copyfile("/data/lzug.sqlite", "/data/lifecycle-smoke.sqlite")
+with sqlite3.connect("/data/lzug.sqlite") as db:
+    name = db.execute("SELECT MAX(name) FROM schema_migration").fetchone()[0]
+    db.execute("DELETE FROM schema_migration_checksum WHERE name = ?", (name,))
+    db.execute("DELETE FROM schema_migration WHERE name = ?", (name,))
+'
+docker run --detach --name "$container" --read-only --tmpfs /tmp \
+    --publish 127.0.0.1::8000 --mount "type=volume,source=$volume,target=/data" \
+    "$image" --host 0.0.0.0 --port 8000 >/dev/null
+resolve_url
+if ! lzug_wait_for_container_health "$container" 30; then
+    echo "Pending migration lost process liveness." >&2
+    exit 1
+fi
+assert_status "Pending migration readiness" 503 \
+    "$(curl --silent --output /dev/null --write-out '%{http_code}' "$url/api/ready")"
+curl --silent --show-error --fail "$url/api/lifecycle" | python3 -c '
+import json, sys
+p = json.load(sys.stdin)
+assert p["state"] == "migration_required" and p["ready"] is False
+assert set(p) == {"status", "state", "ready", "version", "revision", "_links"}
+'
+curl --silent --show-error --fail "$url/dashboard" | grep -F '<app-root' >/dev/null
+assert_status "Pending migration business API" 503 \
+    "$(curl --silent --output /dev/null --write-out '%{http_code}' "$url/api/candidates")"
+docker stop "$container" >/dev/null
+docker rm "$container" >/dev/null
+docker run --rm --read-only --tmpfs /tmp \
+    --mount "type=volume,source=$volume,target=/data" --entrypoint python "$image" -c '
+from pathlib import Path
+Path("/data/lifecycle-smoke.sqlite").replace("/data/lzug.sqlite")
+'
+docker run --detach --name "$container" --read-only --tmpfs /tmp \
+    --publish 127.0.0.1::8000 --mount "type=volume,source=$volume,target=/data" \
+    "$image" --host 0.0.0.0 --port 8000 >/dev/null
+resolve_url
+wait_for_health
+
+echo "Container runtime, lifecycle, authentication isolation, and security smoke test passed with Docker: $image"

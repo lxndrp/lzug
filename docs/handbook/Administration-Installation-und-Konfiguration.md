@@ -153,6 +153,60 @@ mit Warnung und `31` mindestens einen Betriebsfehler.
 Anwendungs-, Schema-, Konfigurations- und Persistenzzustand ausreichend für die
 Inbetriebnahme.
 
+## Lifecycle und Wartungsanzeige
+
+Ein lebender Prozess ist nicht automatisch einsatzbereit.
+`/api/health` bestätigt ausschließlich, dass HTTP antwortet, auch während
+Initialisierung, Wartung, Migration oder eines diagnostizierbaren Fehlers.
+`/api/ready` liefert HTTP 200 ausschließlich bei `state: ready` und `ready: true`;
+alle anderen Zustände ergeben HTTP 503.
+`/api/lifecycle` bleibt mit HTTP 200 zur öffentlichen Statusprüfung erreichbar.
+
+| Öffentlicher Zustand | Bedeutung und nächster Schritt |
+| --- | --- |
+| `initializing` | Die Instanz wird geprüft und vorbereitet; Abschluss abwarten. |
+| `ready` | Fachliche Anfragen sind freigegeben. |
+| `maintenance` | Ein bewusst gestarteter Wartungsauftrag sperrt Fachanfragen; Auftragsstatus prüfen. |
+| `migration_required` | Das Schema benötigt eine Aktualisierung; Status und unterstützten Freigabeweg prüfen. |
+| `migrating` | Die Datenaktualisierung läuft; weder erneut starten noch den Prozess ersetzen. |
+| `error` | Initialisierung, Prüfung oder Auftrag fehlgeschlagen; Diagnose und Wiederherstellungsweg prüfen. |
+| `stopping`, `stopped` | Fachzulassung geschlossen; Prozessende beziehungsweise Wiederanlauf abwarten. |
+
+Fachliche HTTP-Anfragen werden außerhalb von ready mit einem einheitlichen 503
+und `error.code: runtime_not_ready` abgewiesen.
+Die Antwort nennt nur den öffentlichen Zustand, keine Schema-, Datenbank-,
+Pfad-, Secret- oder internen Fehlerdetails.
+Ein bereits gesendeter Änderungsauftrag darf nicht blind wiederholt werden.
+Die Weboberfläche zeigt einen zugänglichen Hinweis und eine manuelle
+Statusprüfung mit Prüfzeitpunkt; es gibt keine automatische Polling- oder
+Wiederholungsschleife.
+Die Shell und ihre statischen Dateien bleiben erreichbar.
+
+Betreiber verwenden `lzug-admin system status` beziehungsweise
+`lzug-admin system doctor` für die autoritative Diagnose mit Ursache und
+gegebenenfalls Auftrags-ID.
+Der Socketanschluss und die Migrationsfreigabe werden mit den zugehörigen
+Admintransport- und Upgradeverträgen bereitgestellt; die Wartungsanzeige
+genehmigt selbst keine Migration.
+Bis zur Umstellung bleibt der dokumentierte
+[Update- und Wiederherstellungsweg](Administration-Update-und-Rollback.md)
+maßgeblich; `--init` bleibt eine ausdrücklich angeforderte Startmigration.
+Ohne diesen Auftrag wartet ein migrationsbedürftiger Prozess live und not-ready.
+Ein fehlgeschlagener oder unterbrochener exklusiver Auftrag hält auch nach
+Neustart die Fachzulassung geschlossen, bis eine geprüfte Wiederherstellung gelingt.
+
+Docker- und Compose-Healthchecks prüfen ausschließlich Liveness.
+Für die Inbetriebnahme und Deploymentabnahme wird Readiness zusätzlich geprüft.
+Ein Reverse Proxy muss die Wartungs-Shell sowie die öffentlichen Probes auch
+bei negativer Anwendungs-Readiness zum lebenden Prozess durchlassen.
+Die Azure-Demo verwendet deshalb eine TCP-Probe für die plattformseitige
+Verkehrsfreigabe und HTTP-Liveness für die Prozessüberwachung.
+Promotion und Reset prüfen weiterhin ausdrücklich `/api/ready`, bevor sie
+Anwendungsbereitschaft melden.
+Die Plattformfreigabe allein ist kein erfolgreicher Deploymentnachweis.
+Die [Azure-Probe-Semantik](https://learn.microsoft.com/en-us/azure/container-apps/health-probes)
+unterscheidet diese Verkehrsfreigabe von der Liveness-Prüfung.
+
 ## Erstes Betreiberkonto
 
 Erzeugen Sie auf einer noch kontenlosen Instanz genau einmal eine Einladung:

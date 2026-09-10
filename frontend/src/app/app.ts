@@ -71,6 +71,9 @@ import { VenueWorkflowService } from './locations/venue-workflow.service';
 import { MasterDataWorkflowService } from './master-data/master-data-workflow.service';
 import { ApplicationWorkspaceService } from './shell/application-workspace.service';
 import { UiFeedbackService } from './shell/ui-feedback.service';
+import { LifecycleService } from './runtime/lifecycle.service';
+import { LifecycleNoticeComponent } from './runtime/lifecycle-notice.component';
+import { Title } from '@angular/platform-browser';
 
 @Component({
   selector: 'app-root',
@@ -90,6 +93,7 @@ import { UiFeedbackService } from './shell/ui-feedback.service';
     AboutComponent,
     PlanningComponent,
     RuntimeNoticeComponent,
+    LifecycleNoticeComponent,
     SchedulingOverviewComponent,
     TuiButton,
     TuiNotification,
@@ -99,6 +103,9 @@ import { UiFeedbackService } from './shell/ui-feedback.service';
   styleUrl: './app.css',
 })
 export class App {
+  protected readonly lifecycle = inject(LifecycleService);
+  private readonly documentTitle = inject(Title);
+  private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly auth = inject(AuthService);
   private readonly workspace = inject(ApplicationWorkspaceService);
   private readonly feedbackService = inject(UiFeedbackService);
@@ -233,6 +240,13 @@ export class App {
   });
 
   constructor() {
+    effect(() => {
+      this.documentTitle.setTitle(
+        this.lifecycle.ready()
+          ? `${this.pageTitle()} · lzug`
+          : 'Anwendung vorübergehend nicht verfügbar · lzug',
+      );
+    });
     let previousAuthState: ReturnType<AuthService['state']> | undefined;
     effect(() => {
       const authState = this.auth.state();
@@ -250,8 +264,24 @@ export class App {
         this.applyRoute(event.urlAfterRedirects, true);
       });
     this.applyRoute(this.router.url, false);
-    this.auth.initialize().subscribe((authenticated) => {
-      if (authenticated) this.refresh();
+    this.checkLifecycle();
+  }
+
+  protected checkLifecycle(): void {
+    this.lifecycle.check().subscribe((ready) => {
+      if (!ready) return;
+      this.feedbackService.dismiss();
+      this.auth.initialize().subscribe((authenticated) => {
+        if (authenticated) this.refresh();
+        afterNextRender(
+          () => {
+            const heading = this.element.nativeElement.querySelector('h1');
+            heading?.setAttribute('tabindex', '-1');
+            heading?.focus();
+          },
+          { injector: this.injector },
+        );
+      });
     });
   }
 

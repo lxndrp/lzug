@@ -199,7 +199,12 @@ def readiness_observation(
 
 
 def validate_application_readiness(payload: Any, pair: ArtifactPair) -> None:
-    if not isinstance(payload, dict) or payload.get("status") != "ready":
+    if (
+        not isinstance(payload, dict)
+        or payload.get("status") != "ready"
+        or payload.get("state") != "ready"
+        or payload.get("ready") is not True
+    ):
         raise DeploymentError("Readiness endpoint did not report status=ready")
     if payload.get("revision") != pair.product_commit:
         raise DeploymentError("Readiness endpoint reported an unexpected product commit")

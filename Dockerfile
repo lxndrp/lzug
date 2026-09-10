@@ -89,6 +89,7 @@ USER 10001:10001
 EXPOSE 8000
 VOLUME ["/data"]
 STOPSIGNAL SIGTERM
+# Process liveness only; deployment acceptance separately checks /api/ready.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD ["python", "-m", "backend.healthcheck"]
 

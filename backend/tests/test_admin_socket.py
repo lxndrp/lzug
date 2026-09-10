@@ -29,9 +29,10 @@ from backend.admin_socket_path import SocketPath, SocketSecurityError
 from backend.admin_socket_protocol import read_frame, write_frame
 from backend.application.admin import AdminActorContext, AdminApplicationResult
 from backend.build_metadata import BuildMetadata
+from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.persistence.database import initialize, persistence_paths, session_scope
 from backend.runtime import RuntimeConflictError, RuntimeCoordinator
-from backend.server import main
+from backend.server import initialization_lifespan, main
 
 HELLO = {"type": "hello", "protocol": 1, "schema": 1}
 CONFIG = {"version": 1, "command": "config", "arguments": {}}
@@ -472,9 +473,33 @@ class AdminSocketTests(unittest.TestCase):
             static_dir=None,
             admin_socket=self.config,
         )
+        entered, release = Event(), Event()
+
+        def prepare(_args):
+            entered.set()
+            self.assertTrue(release.wait(10))
+
+        original_stop = RuntimeCoordinator.stop
+
+        def stop(runtime, **kwargs):
+            self.assertFalse((self.directory / "admin.sock").exists())
+            return original_stop(runtime, **kwargs)
 
         def run(app, **_kwargs):
             with TestClient(app) as client:
+                try:
+                    self.assertTrue(entered.wait(5))
+                    self.assertEqual(503, client.get("/api/ready").status_code)
+                    result = self.request(CONFIG)
+                    self.assertEqual(
+                        "initializing", result["response"]["result"]["runtime"]["state"]
+                    )
+                finally:
+                    release.set()
+                deadline = monotonic() + 5
+                while not app.state.runtime.snapshot()["ready"]:
+                    self.assertLess(monotonic(), deadline)
+                    sleep(0.005)
                 self.assertEqual(200, client.get("/api/ready").status_code)
                 result = self.request(CONFIG)
                 self.assertEqual(
@@ -484,14 +509,59 @@ class AdminSocketTests(unittest.TestCase):
 
         with (
             patch("backend.server.parse_args", return_value=args),
+            patch("backend.server.prepare_database", side_effect=prepare),
             patch("backend.server.uvicorn.run", side_effect=run) as http,
             patch("backend.version.build_metadata", return_value=BuildMetadata.create("1" * 40)),
+            patch.object(RuntimeCoordinator, "stop", stop),
         ):
             with self.assertRaisesRegex(RuntimeError, "HTTP test stop"):
                 main()
             http.assert_called_once()
         self.assertFalse((self.directory / "admin.sock").exists())
         self.runtime.start()
+
+    def test_lifespan_socket_drain_timeout_keeps_ownership_without_runtime_admission(self):
+        self.runtime.stop()
+        self.runtime.claim()
+        self.listener.config = replace(self.config, shutdown_timeout=0.01)
+        self.listener.start()
+        with patch("backend.version.build_metadata", return_value=BuildMetadata.create("1" * 40)):
+            app = create_app(
+                FastAPIConfig(db_path=self.paths.database, session_cookie_name="session"),
+                runtime=self.runtime,
+            )
+        app.router.lifespan_context = initialization_lifespan(
+            self.runtime, None, admin_socket=self.listener
+        )
+        entered, release = Event(), Event()
+        original = self.application.execute
+
+        def delayed(request, actor):
+            # Diagnostics need no runtime lease, but their socket worker still owns work.
+            entered.set()
+            self.assertTrue(release.wait(10))
+            return original(request, actor)
+
+        with patch.object(self.application, "execute", side_effect=delayed):
+            try:
+                with self.assertRaises(TimeoutError), TestClient(app):
+                    deadline = monotonic() + 5
+                    while not self.runtime.snapshot()["ready"]:
+                        self.assertLess(monotonic(), deadline)
+                        sleep(0.005)
+                    connection = self.connect()
+                    self.handshake(connection)
+                    self.send(connection, CONFIG)
+                    self.assertTrue(entered.wait(5))
+                self.assertIsNotNone(self.listener.path.fd)
+                contender = RuntimeCoordinator(self.paths.database, lambda: {"ready": True})
+                with self.assertRaises(RuntimeConflictError):
+                    contender.claim()
+            finally:
+                release.set()
+            self.drained()
+        self.listener.stop()
+        self.runtime.stop()
 
     def test_real_go_adapter_against_authoritative_linux_backend(self):
         initialize(self.paths.database)
