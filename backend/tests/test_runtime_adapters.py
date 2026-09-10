@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -17,13 +18,14 @@ from sqlalchemy import text
 
 from backend.application.admin import EXIT_NOT_READY, EXIT_OK, AdminActorContext, AdminApplication
 from backend.fastapi_assembly import FastAPIConfig, create_app
+from backend.fastapi_runtime import RuntimeAdmissionMiddleware
 from backend.persistence.database import (
     PersistenceConfigurationError,
     initialize,
     persistence_paths,
     session_scope,
 )
-from backend.runtime import Operation, RuntimeCoordinator
+from backend.runtime import Operation, RuntimeConflictError, RuntimeCoordinator
 from backend.server import main, prepare_database, runtime_coordinator
 from backend.tests import test_admin_application
 
@@ -183,6 +185,46 @@ class RuntimeAdapterTests(unittest.TestCase):
                 test_admin_application.AdminApplicationTests().services(),
                 runtime=unrelated,
             )
+
+
+class RuntimeCancellationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_transport_cancellation_waits_for_the_entire_application_worker(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = RuntimeCoordinator(Path(directory) / "app.sqlite", lambda: {"ready": True})
+            runtime.start()
+            entered, release = Event(), Event()
+
+            def worker():
+                entered.set()
+                if not release.wait(5):
+                    raise AssertionError("worker was not released")
+
+            async def app(_scope, _receive, _send):
+                await asyncio.to_thread(worker)
+
+            async def receive():
+                return {"type": "http.disconnect"}
+
+            async def send(_message):
+                pass
+
+            middleware = RuntimeAdmissionMiddleware(app, runtime)
+            request = asyncio.create_task(
+                middleware({"type": "http", "path": "/api"}, receive, send)
+            )
+            try:
+                self.assertTrue(await asyncio.to_thread(entered.wait, 5))
+                request.cancel()
+                await asyncio.sleep(0)
+                self.assertFalse(request.done())
+                self.assertEqual(1, runtime.snapshot()["active"])
+                with self.assertRaises(RuntimeConflictError):
+                    runtime.stop(timeout=0)
+            finally:
+                release.set()
+                with self.assertRaises(asyncio.CancelledError):
+                    await asyncio.wait_for(request, timeout=5)
+                runtime.stop()
 
 
 if __name__ == "__main__":

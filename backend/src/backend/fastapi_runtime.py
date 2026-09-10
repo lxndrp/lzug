@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from http import HTTPStatus
 
 from starlette.responses import JSONResponse
@@ -32,6 +33,21 @@ class RuntimeAdmissionMiddleware:
             )(scope, receive, send)
             return
         try:
-            await self.app(scope, receive, send)
+            # Cancellation must not abandon a service worker between database
+            # transactions or while it is still accessing document storage.
+            execution = asyncio.ensure_future(self.app(scope, receive, send))
+            try:
+                await asyncio.shield(execution)
+            except asyncio.CancelledError:
+                while not execution.done():
+                    try:
+                        await asyncio.shield(execution)
+                    except asyncio.CancelledError:
+                        continue
+                    except Exception:
+                        break
+                if not execution.cancelled():
+                    execution.exception()
+                raise
         finally:
             admission.__exit__(None, None, None)

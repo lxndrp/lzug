@@ -335,7 +335,7 @@ ab; sie begründen keine Produktivitätszusage.
 - Decken Tests und Dokumentation das konkrete Risiko und die betroffenen
   Schichten ab?
 
-Der [OWASP Application Security Verification Standard](https://owasp.org/www-project-application-security-verification-standard/)
+Der [OWASP Application Security Verification Standard](https://github.com/OWASP/ASVS)
 wird nur bei berührten Anwendungssicherheitsrisiken herangezogen.
 Das [Azure Well-Architected Framework](https://learn.microsoft.com/azure/well-architected/what-is-well-architected-framework)
 ist nur für Änderungen an der Azure-Demo relevant.

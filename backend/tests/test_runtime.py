@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 from sqlalchemy import text
 
+from backend import runtime as runtime_module
 from backend.persistence.database import (
     activation_scope,
     apply_migrations,
@@ -230,6 +231,36 @@ class RuntimeCoordinatorTests(unittest.TestCase):
         finally:
             resume.set()
         request.result(5)
+
+    def test_detachment_between_admission_check_and_acquisition_is_rejected(self) -> None:
+        for stop in (False, True):
+            with self.subTest(stop=stop):
+                checked, resume = Event(), Event()
+                reject = runtime_module._reject_stale_admission
+
+                def pause_after_check(path, checked=checked, resume=resume, reject=reject):
+                    reject(path)
+                    checked.set()
+                    self.assertTrue(resume.wait(5))
+
+                def worker(stop=stop):
+                    scope = session_scope(self.database) if stop else self.runtime.admit()
+                    with self.assertRaises(RuntimeConflictError), scope:
+                        self.fail("detached worker acquired persistence")
+
+                with self.runtime.admit():
+                    inherited = copy_context()
+                    with patch.object(runtime_module, "_reject_stale_admission", pause_after_check):
+                        request = self.pool.submit(inherited.run, worker)
+                        self.assertTrue(checked.wait(5))
+                try:
+                    if stop:
+                        self.runtime.stop()
+                finally:
+                    resume.set()
+                request.result(5)
+                if stop:
+                    self.runtime.start()
 
     def test_failed_job_is_secret_free_and_restart_remains_closed(self) -> None:
         with self.assertRaisesRegex(ValueError, "secret"):

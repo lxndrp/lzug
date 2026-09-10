@@ -93,9 +93,13 @@ _file_leases: ContextVar[tuple[_FileLease, ...]] = ContextVar("lzug_file_leases"
 
 
 def runtime_for(db_path: Path) -> RuntimeCoordinator | None:
-    """Find the process owner for a service's canonical database path."""
+    """Keep inherited work bound to its owner, including after that owner stops."""
+    path = Path(db_path).resolve()
+    parent = _admission.get()
+    if parent is not None and parent.runtime.db_path == path:
+        return parent.runtime
     with _registry_lock:
-        return _runtimes.get(Path(db_path).resolve())
+        return _runtimes.get(path)
 
 
 @contextmanager
@@ -233,6 +237,7 @@ class RuntimeCoordinator:
         _reject_stale_admission(self.db_path)
         parent = _admission.get()
         with self._condition:
+            _reject_stale_admission(self.db_path)
             inherited = parent is not None and parent.runtime is self and parent.active
             if not inherited and (self._state != RuntimeState.READY or self._busy):
                 raise RuntimeConflictError()
@@ -282,6 +287,7 @@ class RuntimeCoordinator:
                 yield self._job
             return
         with self._condition:
+            _reject_stale_admission(self.db_path)
             if self._busy or self._state in {
                 RuntimeState.STOPPED,
                 RuntimeState.STOPPING,
