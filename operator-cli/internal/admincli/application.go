@@ -318,6 +318,16 @@ func BuildMetadata(build BuildInfo) buildMetadata {
 }
 
 func runtimeFailure(err error) *CLIError {
+	var socketError *SocketTransportError
+	if errors.As(err, &socketError) {
+		return &CLIError{
+			Class: socketError.Code, Phase: socketError.Phase,
+			Message:  "The local admin socket request failed.",
+			NextStep: "Inspect the operation status before deciding whether a retry is safe.",
+			ExitCode: ExitEngineFailed,
+			Details:  map[string]any{"job_id": socketError.JobID, "correlation_id": socketError.CorrelationID, "outcome_unknown": socketError.OutcomeUnknown},
+		}
+	}
 	if errors.Is(err, context.Canceled) {
 		return interruptedError()
 	}

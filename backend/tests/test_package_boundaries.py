@@ -28,6 +28,9 @@ CORE_PACKAGES = frozenset(
 ROOT_MODULE_OWNERS = {
     "__init__.py": "package-bootstrap",
     "admin.py": "operations-adapter",
+    "admin_socket.py": "operations-adapter",
+    "admin_socket_path.py": "operations-adapter",
+    "admin_socket_protocol.py": "operations-adapter",
     "api_contracts.py": "api",
     "artifact_stream.py": "operations-adapter",
     "build_metadata.py": "runtime-contract",
@@ -136,6 +139,7 @@ TEST_OWNERS = {
     "operations": frozenset(
         {
             "test_admin.py",
+            "test_admin_socket.py",
             "test_backup_recipients.py",
             "test_backup_restore.py",
             "test_diagnostics.py",

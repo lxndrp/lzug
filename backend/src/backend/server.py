@@ -17,9 +17,11 @@ from backend.persistence.database import (
     validate_persistence,
 )
 
+from .admin import _application
+from .admin_socket import AdminSocket, SocketConfig
 from .fastapi_assembly import FastAPIConfig, create_app
 from .observability import emit_event
-from .runtime import RuntimeCoordinator
+from .runtime import RuntimeConflictError, RuntimeCoordinator
 from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from .settings import RuntimeSettings
 
@@ -37,7 +39,28 @@ def parse_args(settings: RuntimeSettings | None = None) -> argparse.Namespace:
     parser.add_argument("--database-url")
     parser.add_argument("--init", action="store_true")
     parser.add_argument("--reset", action="store_true")
+    parser.add_argument("--admin-socket-dir", type=Path)
+    parser.add_argument("--admin-socket-gid", type=int)
+    parser.add_argument("--admin-socket-connections", type=int, default=8)
+    parser.add_argument("--admin-socket-handshake-timeout", type=float, default=5)
+    parser.add_argument("--admin-socket-request-timeout", type=float, default=30)
+    parser.add_argument("--admin-socket-shutdown-timeout", type=float, default=30)
     args = parser.parse_args()
+    args.admin_socket = None
+    if (args.admin_socket_dir is None) != (args.admin_socket_gid is None):
+        parser.error("Admin socket directory and dedicated operator GID must be set together")
+    if args.admin_socket_dir is not None:
+        try:
+            args.admin_socket = SocketConfig(
+                args.admin_socket_dir,
+                args.admin_socket_gid,
+                max_connections=args.admin_socket_connections,
+                handshake_timeout=args.admin_socket_handshake_timeout,
+                request_timeout=args.admin_socket_request_timeout,
+                shutdown_timeout=args.admin_socket_shutdown_timeout,
+            )
+        except ValueError as error:
+            parser.error(str(error))
     if args.db_value and args.database_url:
         parser.error("Use only one of --db and --database-url")
     try:
@@ -74,6 +97,29 @@ def runtime_coordinator(args: argparse.Namespace) -> RuntimeCoordinator:
     return RuntimeCoordinator(args.db, probe)
 
 
+def start_admin_socket(
+    args: argparse.Namespace, settings: RuntimeSettings, runtime: RuntimeCoordinator
+) -> AdminSocket | None:
+    """Attach the opt-in control listener to the existing process owner."""
+    if getattr(args, "admin_socket", None) is None:
+        return None
+
+    def listener_failed() -> None:
+        # Stop ordinary admission; HTTP can still expose liveness/not-readiness.
+        try:
+            runtime.stop(timeout=0)
+        except RuntimeConflictError:
+            pass
+
+    listener = AdminSocket(
+        args.admin_socket,
+        _application(settings=settings, paths=args.paths, runtime=runtime),
+        on_failure=listener_failed,
+    )
+    listener.start()
+    return listener
+
+
 def main(
     *,
     runtime_policy: RuntimePolicy | None = None,
@@ -89,8 +135,11 @@ def main(
         session_ttl=session_ttl or config.session_ttl,
         runtime_policy=runtime_policy or ProductRuntimePolicy(),
     )
+    admin_socket = None
+
     try:
         runtime.start(lambda: prepare_database(args))
+        admin_socket = start_admin_socket(args, settings, runtime)
         emit_event("runtime", severity="info", signal="started")
         uvicorn.run(
             create_app(config, runtime=runtime),
@@ -100,6 +149,9 @@ def main(
             access_log=False,
         )
     finally:
+        if admin_socket is not None:
+            # A drain timeout retains runtime ownership; never detach a mutation.
+            admin_socket.stop()
         runtime.stop()
 
 

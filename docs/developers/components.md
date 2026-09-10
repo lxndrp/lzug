@@ -145,6 +145,90 @@ Der Anwendungskern liest und schreibt keine globalen Prozessstreams;
 `backend.admin` kapselt bis zur vollständigen Socketumstellung den bisherigen
 stdin/stdout-Einstieg als Kompatibilitätsadapter.
 
+`backend.admin_socket.AdminSocket` bindet den Kontrolltransport im selben Prozess
+an HTTP und den injizierten Anwendungskern.
+Die vorbereitende Assembly wird beim Start von `backend.server` mit
+`--admin-socket-dir /run/lzug-admin --admin-socket-gid <betreiber-gid>`
+ausdrücklich eingeschaltet.
+Das Verzeichnis muss bereits existieren, dem effektiven Serverbenutzer und der
+angegebenen Betreibergruppe gehören und exakt Modus `0750` haben.
+Es liegt auf flüchtigem Speicher außerhalb von Datenbank, `/data`, Dokumenten,
+Backups, Schlüsseln und Konfiguration.
+Der Server erzeugt darin ausschließlich `admin.sock` mit Modus `0660`.
+Die Bereitstellung im Produktimage und der vollständige CLI-Wechsel folgen in #747.
+
+Die Linux-Assembly öffnet jede Verzeichniskomponente ohne Symlinkauflösung,
+verlangt vertrauenswürdige Eigentümer und verbietet schreibbare Vorfahren;
+ein root-eigener Sticky-Vorfahr wie `/tmp` ist mit anschließendem privaten
+Verzeichnis zulässig.
+Ein gesperrter Verzeichnisdeskriptor hält die Bindungs- und Löschoperationen
+unabhängig von Pfadumbenennungen am geprüften Verzeichnis.
+Fremde Dateien und aktive Sockets bleiben erhalten.
+Nur ein eigener Socket mit passenden Rechten und nachgewiesenem
+`ECONNREFUSED` darf beim Start ersetzt werden.
+Beim Stoppen wird nur der selbst erzeugte Socket-Inode entfernt.
+
+Zusätzlich zu den Linux-Dateirechten prüft der Server `SO_PEERCRED`.
+Zugelassen sind die Server-UID oder die konfigurierte **primäre** Betreiber-GID;
+eine ausschließlich ergänzende Gruppenzugehörigkeit genügt nicht.
+Ein Client kann seine Autorisierung nicht durch JSON-Akteursangaben erweitern.
+Die Listener-Assembly ist Linux-spezifisch; ohne aktivierten Socket bleibt der
+bestehende Serverstart auch auf den Entwicklungsplattformen verwendbar.
+Die Betriebssystemgrundlage erläutert [unix(7)](https://man7.org/linux/man-pages/man7/unix.7.html).
+
+Der Kontrollvertrag verwendet vier Byte vorzeichenlose Big-Endian-Länge und
+anschließend genau ein UTF-8-JSON-Objekt je Frame.
+Vor jedem Auftrag sendet der Client `{"type":"hello","protocol":1,"schema":1}`.
+`schema` bezeichnet das Admin-Auftragsschema, nicht den SQLite-Migrationsstand.
+Erst die passende Serverantwort erlaubt das Senden des bestehenden
+`BackendRequest`; Protokoll-/Schemaabweichungen beenden die Verbindung vor
+fachlicher Ausführung.
+Die Antwort enthält eine serverseitige Auftrags- und Korrelations-ID.
+Es folgt genau ein Kontrollauftrag und ein `result`-Frame mit unveränderter
+Anwendungskern-Antwort und Exitcode oder ein geheimnisfreier `error`-Frame.
+Weitere Aufträge auf derselben Verbindung werden nicht ausgeführt.
+Upgrade, Rollback und Artefaktstreams sind in dieser Assembly gesperrt.
+
+`SocketTransport` und `SocketRuntimeFactory` implementieren in der Go-CLI die
+vorhandenen injizierbaren Transportschnittstellen für diese Kontrollaufträge.
+Der Pfad wird der Factory ausdrücklich übergeben; sie startet keinen Prozess
+und kennt weder Transportfallback noch automatische Wiederholung.
+Die regulären CLI-Flags, die vollständige interaktive Anbindung, das Image und
+die Ablösung des Container-Exec-Adapters gehören zur nachfolgenden Umschaltung.
+
+Der Listener begrenzt gleichzeitig aktive Verbindungen standardmäßig auf acht,
+Handshake auf fünf Sekunden, Auftrag einschließlich Ergebnisübertragung auf
+30 Sekunden und Shutdown-Drain auf 30 Sekunden.
+Die Serveroptionen `--admin-socket-connections`,
+`--admin-socket-handshake-timeout`, `--admin-socket-request-timeout` und
+`--admin-socket-shutdown-timeout` setzen diese Grenzen ausdrücklich.
+Eingehende Kontrollaufträge sind auf 64 KiB, Ergebnisframes auf 1 MiB begrenzt.
+Teileingaben verlängern keine Deadline; zusätzliche Verbindungen werden ohne
+Warteschlange von Anwendungsaufträgen geschlossen.
+Eine bereits zugelassene Mutation behält auch nach Timeout oder Verbindungsabbruch
+ihren Worker und ihre Runtime-Zulassung bis zum Ende.
+Ein Drain-Timeout gibt weder den Verzeichnislock noch die Runtime-Ownership frei.
+Listenerfehler schließen die normale Runtime-Zulassung und starten keinen Ersatzprozess.
+
+`config`, `status` und `doctor` enthalten neben dem Runtime-Snapshot den
+geheimnisfreien Socketzustand und die effektiven Limits.
+Der Kontrollauftrag `socket-job-status` mit `arguments: {"job_id":"<uuid>"}`
+ermittelt den technischen Zustand eines zuvor angekündigten Auftrags.
+Der begrenzte Speicher hält 128 Aufträge mit Befehlsklasse, Phase, Status und
+Übertragungszustand, ohne Argumente, fachliche Ergebnisse oder Tokens.
+Nach Verdrängung oder Prozessneustart lautet der Zustand `unknown`;
+das ist kein Nachweis für eine unterbliebene Ausführung.
+`delivery: sent` belegt nur die Übergabe an den Kernel, keinen Empfang beim Client.
+Ein Ergebnisverlust erlaubt daher keine automatische Wiederholung.
+Auditereignisse enthalten ausschließlich verifizierte technische Identität,
+Befehlsklasse, Beginn/Ende, Fehlerphase, Status und die beiden IDs.
+
+`backend.tests.test_admin_socket` prüft echte Linux-Sockets einschließlich des
+Go-Adapters, negativer Dateisystem-/Peer-Fälle, Handshake, Abbruch und Shutdown.
+Der Backend-CI-Lauf installiert dafür auch die gepinnte Go-Toolchain.
+Tests mit echten UID-/GID-Wechseln benötigen zusätzlich einen isolierten
+Linux-Testcontainer mit root; sie verändern nur dessen temporäre Testverzeichnisse.
+
 `backend.runtime.RuntimeCoordinator` besitzt im Serverprozess die
 Runtimezustände, Auftragszulassung und Start-/Stoppkoordination.
 Die HTTP-Assembly und ein injizierter `AdminApplication`-Kern verwenden denselben
@@ -163,7 +247,6 @@ Warteschlange oder automatische Wiederholung.
 Die Sperrordnung lautet Zulassung, Aktivierung, Snapshot und Migration.
 Snapshot und Migration verwenden auch im bisherigen separaten
 Kompatibilitätsadapter dieselben Dateisperren wie die Fachtransaktionen.
-Der Socketanschluss dieses Adapters bleibt #745 vorbehalten.
 
 Der interne Diagnose-Snapshot liest weder SQLite noch Dokumente.
 Der atomar geschriebene Sidecar `<datenbank>.runtime-job.json` hält ausschließlich

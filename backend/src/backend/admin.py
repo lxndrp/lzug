@@ -46,6 +46,7 @@ from backend.persistence.database import (
     persistence_paths,
 )
 from backend.planning.plan_consequences import PlanConsequenceService
+from backend.runtime import RuntimeCoordinator
 from backend.settings import RuntimeSettings
 
 __all__ = [
@@ -82,6 +83,8 @@ def _application(
     artifacts: ArtifactService | None = None,
     lifecycle: LifecycleService | None = None,
     settings: RuntimeSettings | None = None,
+    paths: PersistencePaths | None = None,
+    runtime: RuntimeCoordinator | None = None,
 ) -> AdminApplication:
     active_settings = settings
     if active_settings is None:
@@ -91,7 +94,7 @@ def _application(
             # Diagnostic commands own their safe invalid-configuration reporting.
             # Other commands trigger the same error again through their factories.
             pass
-    paths = (
+    paths = paths or (
         persistence_paths(settings=active_settings.persistence)
         if active_settings is not None
         else PersistencePaths()
@@ -125,7 +128,7 @@ def _application(
         lifecycle_factory=lambda persistence: lifecycle
         or LifecycleService(persistence, settings=require_settings()),
     )
-    return AdminApplication(paths, configured_services)
+    return AdminApplication(paths, configured_services, runtime=runtime)
 
 
 def _write(result: AdminApplicationResult, output: BinaryIO) -> int:
