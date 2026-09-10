@@ -52,6 +52,7 @@ class FastAPIOperationsRouterTests(unittest.TestCase):
                 ("GET", "/api"),
                 ("GET", "/api/docs"),
                 ("GET", "/api/health"),
+                ("GET", "/api/lifecycle"),
                 ("GET", "/api/openapi.json"),
                 ("GET", "/api/ready"),
             },
