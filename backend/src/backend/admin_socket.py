@@ -14,8 +14,10 @@ from time import monotonic
 from typing import Any
 from uuid import UUID, uuid4
 
+from backend.admin_socket_artifacts import STREAM_COMMANDS, SocketArtifacts, validate_request
 from backend.admin_socket_path import SocketPath, SocketSecurityError
 from backend.admin_socket_protocol import (
+    MAX_DATA_BYTES,
     MAX_FRAME_BYTES,
     SOCKET_PROTOCOL,
     SOCKET_SCHEMA,
@@ -47,6 +49,8 @@ class SocketConfig:
     request_timeout: float = 30
     shutdown_timeout: float = 30
     history_size: int = 128
+    max_stream_bytes: int = 1024 * 1024 * 1024
+    stream_timeout: float = 300
 
     def __post_init__(self) -> None:
         if (
@@ -56,6 +60,9 @@ class SocketConfig:
             or not 0 < self.handshake_timeout <= 60
             or not 0 < self.request_timeout <= 3600
             or not 0 < self.shutdown_timeout <= 3600
+            or type(self.max_stream_bytes) is not int
+            or not 1 <= self.max_stream_bytes <= 1024 * 1024 * 1024
+            or not 0 < self.stream_timeout <= 3600
         ):
             raise ValueError("Invalid admin socket limits")
 
@@ -110,6 +117,9 @@ class AdminSocket:
         self._stopping = Event()
         self._lock = RLock()
         self._slots = BoundedSemaphore(config.max_connections)
+        self._artifact_slot = BoundedSemaphore(1)
+        self._artifact_cleanup_failed = Event()
+        self.artifacts = SocketArtifacts(application, config.max_stream_bytes)
         self._workers: dict[Thread, socket.socket] = {}
         self._jobs: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._state = "stopped"
@@ -126,6 +136,9 @@ class AdminSocket:
                 "schema": SOCKET_SCHEMA,
                 "max_request_bytes": MAX_REQUEST_BYTES,
                 "max_response_bytes": MAX_FRAME_BYTES,
+                "max_data_bytes": MAX_DATA_BYTES,
+                "max_artifact_connections": 1,
+                "artifact_cleanup_required": self._artifact_cleanup_failed.is_set(),
                 **limits,
             }
 
@@ -260,13 +273,33 @@ class AdminSocket:
         deadline = monotonic() + self.config.request_timeout
         request = read_frame(connection, deadline, MAX_REQUEST_BYTES)
         command = request.get("command")
-        if isinstance(command, str) and command in CONTROL_COMMANDS | {"socket-job-status"}:
+        if isinstance(command, str) and command in CONTROL_COMMANDS | STREAM_COMMANDS | {
+            "socket-job-status"
+        }:
             self._record(job, command=command)
         if self._stopping.is_set():
             raise SocketProtocolError("lifecycle", "socket_stopping")
         self._record(job, phase="execution")
         self._audit(job, actor.technical_identity, "execute")
-        response, code = self._execute(request, actor)
+        if isinstance(command, str) and command in STREAM_COMMANDS:
+            validate_request(request)
+            if self._artifact_cleanup_failed.is_set():
+                raise SocketProtocolError("lifecycle", "artifact_cleanup_required")
+            if not self._artifact_slot.acquire(blocking=False):
+                raise SocketProtocolError("lifecycle", "artifact_busy")
+            try:
+                connection.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, MAX_DATA_BYTES)
+                connection.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, MAX_DATA_BYTES)
+                deadline = monotonic() + self.config.stream_timeout
+                response, code = self.artifacts.execute(
+                    connection, request, deadline, job, self._record
+                )
+                if not response["ok"] and response["error"]["class"] == "artifact_cleanup_failed":
+                    self._artifact_cleanup_failed.set()
+            finally:
+                self._artifact_slot.release()
+        else:
+            response, code = self._execute(request, actor)
         phase = "execution"
         if not response["ok"]:
             phase = {"database_not_ready": "lifecycle", "invalid_request": "validation"}.get(
@@ -298,7 +331,7 @@ class AdminSocket:
             self._audit(job, actor.technical_identity, "begin")
             self._exchange(connection, actor, job)
         except SocketProtocolError as error:
-            fields = {"phase": error.phase, "delivery": "lost"}
+            fields = {"phase": error.phase, "delivery": "lost", "code": error.code}
             if job["status"] == "running":
                 fields["status"] = "rejected"
             self._record(job, **fields)
@@ -310,9 +343,14 @@ class AdminSocket:
                 )
             except OSError, SocketProtocolError:
                 pass
-        except OSError:
+        except OSError as error:
             if job["status"] == "running":
-                self._record(job, status="rejected", delivery="lost")
+                self._record(
+                    job,
+                    status="unknown" if job["phase"] == "execution" else "rejected",
+                    delivery="lost",
+                    code="timeout" if isinstance(error, TimeoutError) else "connection_lost",
+                )
             else:
                 self._record(job, phase="transfer", delivery="lost")
         except Exception:

@@ -31,14 +31,18 @@ type SocketTransportError struct {
 
 func (e *SocketTransportError) Error() string { return "Admin socket request failed" }
 
-// SocketRuntimeFactory is the explicit, injectable control assembly. Artifact and
-// release activation support belong to the subsequent transport migration issues.
+// SocketRuntimeFactory explicitly binds control and artifact requests to one socket.
+// Release activation and regular CLI selection remain separate integration work.
 type SocketRuntimeFactory struct {
 	Path    string
 	Timeout time.Duration
 }
 
 func (factory *SocketRuntimeFactory) Transport(_ EffectiveConfig) Transport {
+	return &SocketTransport{Path: factory.Path, Timeout: factory.Timeout}
+}
+
+func (factory *SocketRuntimeFactory) ArtifactTransport(_ EffectiveConfig) ArtifactTransport {
 	return &SocketTransport{Path: factory.Path, Timeout: factory.Timeout}
 }
 
@@ -60,80 +64,111 @@ type SocketTransport struct {
 }
 
 type socketEnvelope struct {
-	Type          string          `json:"type"`
-	Protocol      int             `json:"protocol,omitempty"`
-	Schema        int             `json:"schema,omitempty"`
-	JobID         string          `json:"job_id"`
-	CorrelationID string          `json:"correlation_id"`
-	Limits        json.RawMessage `json:"limits,omitempty"`
-	Command       string          `json:"command,omitempty"`
-	Phase         string          `json:"phase,omitempty"`
-	Status        string          `json:"status,omitempty"`
-	Delivery      string          `json:"delivery,omitempty"`
-	Code          string          `json:"code,omitempty"`
-	ExitCode      *int            `json:"exit_code,omitempty"`
-	Response      json.RawMessage `json:"response,omitempty"`
+	Type           string          `json:"type"`
+	Protocol       int             `json:"protocol,omitempty"`
+	Schema         int             `json:"schema,omitempty"`
+	JobID          string          `json:"job_id"`
+	CorrelationID  string          `json:"correlation_id"`
+	Limits         json.RawMessage `json:"limits,omitempty"`
+	Command        string          `json:"command,omitempty"`
+	Phase          string          `json:"phase,omitempty"`
+	Status         string          `json:"status,omitempty"`
+	Delivery       string          `json:"delivery,omitempty"`
+	Code           string          `json:"code,omitempty"`
+	ExitCode       *int            `json:"exit_code,omitempty"`
+	Response       json.RawMessage `json:"response,omitempty"`
+	Direction      string          `json:"direction,omitempty"`
+	MaxDataBytes   int             `json:"max_data_bytes,omitempty"`
+	MaxStreamBytes int64           `json:"max_stream_bytes,omitempty"`
+	Bytes          *int64          `json:"bytes,omitempty"`
+	SHA256         string          `json:"sha256,omitempty"`
 }
 
 func (transport *SocketTransport) Execute(ctx context.Context, request BackendRequest) (BackendResponse, int, error) {
+	session, err := transport.open(ctx, request, 30*time.Second)
+	if err != nil {
+		return BackendResponse{}, ExitEngineFailed, err
+	}
+	defer session.close()
+	result, err := readSocketFrame(session.connection)
+	if err != nil {
+		return session.fail()
+	}
+	return session.result(result, request)
+}
+
+type socketSession struct {
+	connection net.Conn
+	failure    *SocketTransportError
+	close      func()
+}
+
+func (session *socketSession) fail() (BackendResponse, int, error) {
+	return BackendResponse{}, ExitEngineFailed, session.failure
+}
+
+func (transport *SocketTransport) open(ctx context.Context, request BackendRequest, defaultTimeout time.Duration) (*socketSession, error) {
 	failure := &SocketTransportError{Phase: "connection", Code: "connection_failed"}
-	fail := func() (BackendResponse, int, error) { return BackendResponse{}, ExitEngineFailed, failure }
 	if !filepath.IsAbs(transport.Path) || bytes.IndexByte([]byte(transport.Path), 0) >= 0 {
-		return fail()
+		return nil, failure
 	}
 	payload, err := json.Marshal(request)
 	if err != nil || len(payload) > maxSocketRequest {
 		failure.Phase, failure.Code = "validation", "request_invalid"
-		return fail()
+		return nil, failure
 	}
 	timeout := transport.Timeout
 	if timeout == 0 {
-		timeout = 30 * time.Second
+		timeout = defaultTimeout
 	}
 	if timeout < 0 || timeout > time.Hour {
 		failure.Phase, failure.Code = "validation", "request_invalid"
-		return fail()
+		return nil, failure
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 	connection, err := (&net.Dialer{}).DialContext(ctx, "unix", transport.Path)
 	if err != nil {
-		return fail()
+		cancel()
+		return nil, failure
 	}
-	defer connection.Close()
 	stop := context.AfterFunc(ctx, func() { _ = connection.Close() })
-	defer stop()
+	session := &socketSession{connection: connection, failure: failure, close: func() { stop(); cancel(); _ = connection.Close() }}
+	failed := func() (*socketSession, error) { session.close(); return nil, failure }
 	deadline, _ := ctx.Deadline()
 	if err = connection.SetDeadline(deadline); err != nil {
-		return fail()
+		return failed()
 	}
 	failure.Phase, failure.Code = "handshake", "handshake_failed"
 	hello, _ := json.Marshal(map[string]any{"type": "hello", "protocol": socketProtocol, "schema": socketSchema})
 	if err = writeSocketFrame(connection, hello); err != nil {
-		return fail()
+		return failed()
 	}
 	accepted, err := readSocketFrame(connection)
 	if err != nil {
-		return fail()
+		return failed()
 	}
 	if accepted.Type == "error" {
 		setSocketError(failure, accepted)
-		return fail()
+		return failed()
 	}
 	if accepted.Type != "hello" || accepted.Protocol != socketProtocol || accepted.Schema != socketSchema ||
 		!socketID.MatchString(accepted.JobID) || !socketID.MatchString(accepted.CorrelationID) {
 		failure.Code = "version_incompatible"
-		return fail()
+		return failed()
 	}
 	failure.JobID, failure.CorrelationID = accepted.JobID, accepted.CorrelationID
 	failure.Phase, failure.Code = "transfer", "result_unavailable"
-	// A partial write or lost result is ambiguous. Do not reconnect or replay.
 	failure.OutcomeUnknown = true
 	if err = writeSocketFrame(connection, payload); err != nil {
-		return fail()
+		return failed()
 	}
-	result, err := readSocketFrame(connection)
-	if err != nil || result.JobID != accepted.JobID || result.CorrelationID != accepted.CorrelationID {
+	return session, nil
+}
+
+func (session *socketSession) result(result socketEnvelope, request BackendRequest) (BackendResponse, int, error) {
+	failure := session.failure
+	fail := session.fail
+	if result.JobID != failure.JobID || result.CorrelationID != failure.CorrelationID {
 		return fail()
 	}
 	if result.Type == "error" {
@@ -162,6 +197,10 @@ func setSocketError(failure *SocketTransportError, envelope socketEnvelope) {
 		"request_invalid": "validation", "frame_invalid": "validation",
 		"command_unsupported": "validation", "socket_stopping": "lifecycle",
 		"result_too_large": "transfer",
+		"artifact_busy":    "lifecycle", "lifecycle_conflict": "lifecycle",
+		"artifact_cleanup_required": "lifecycle",
+		"stream_frame_invalid":      "transfer", "stream_incomplete": "transfer",
+		"stream_limit_exceeded": "transfer",
 	}
 	if phase, ok := allowed[envelope.Code]; ok && envelope.Phase == phase {
 		failure.Phase, failure.Code = phase, envelope.Code
@@ -208,6 +247,13 @@ func readSocketFrame(source io.Reader) (socketEnvelope, error) {
 	if _, err := io.ReadFull(source, payload); err != nil {
 		return socketEnvelope{}, err
 	}
+	return decodeSocketEnvelope(payload)
+}
+
+func decodeSocketEnvelope(payload []byte) (socketEnvelope, error) {
+	if err := uniqueSocketJSON(json.NewDecoder(bytes.NewReader(payload)), 0); err != nil {
+		return socketEnvelope{}, err
+	}
 	decoder := json.NewDecoder(bytes.NewReader(payload))
 	decoder.DisallowUnknownFields()
 	var envelope socketEnvelope
@@ -218,4 +264,40 @@ func readSocketFrame(source io.Reader) (socketEnvelope, error) {
 		return socketEnvelope{}, fmt.Errorf("missing socket frame type")
 	}
 	return envelope, ensureJSONEnd(decoder)
+}
+
+func uniqueSocketJSON(decoder *json.Decoder, depth int) error {
+	if depth > 64 {
+		return fmt.Errorf("socket JSON nesting limit")
+	}
+	value, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	delimiter, compound := value.(json.Delim)
+	if !compound {
+		return nil
+	}
+	if delimiter != '{' && delimiter != '[' {
+		return fmt.Errorf("invalid JSON delimiter")
+	}
+	keys := map[string]bool{}
+	for decoder.More() {
+		if delimiter == '{' {
+			key, err := decoder.Token()
+			if err != nil {
+				return err
+			}
+			name, ok := key.(string)
+			if !ok || keys[name] {
+				return fmt.Errorf("duplicate JSON key")
+			}
+			keys[name] = true
+		}
+		if err := uniqueSocketJSON(decoder, depth+1); err != nil {
+			return err
+		}
+	}
+	_, err = decoder.Token()
+	return err
 }
