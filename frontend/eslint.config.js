@@ -12,6 +12,7 @@ export default [
       'test-results',
       'playwright-report',
       'karma.conf.cjs',
+      'src/app/api/generated',
     ],
   },
   js.configs.recommended,

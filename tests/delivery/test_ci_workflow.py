@@ -100,6 +100,8 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 "INFRA_DETAIL": "success",
                 "DELIVERY_SELECTED": "true",
                 "DELIVERY": "success",
+                "TRANSPORT_SELECTED": "true",
+                "TRANSPORT": "success",
             }
 
             def check(values: dict[str, str], script: str = command) -> int:
@@ -119,6 +121,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
                     "DETAIL",
                     "INFRA_DETAIL",
                     "DELIVERY",
+                    "TRANSPORT",
                 ):
                     if f"${key}" not in command and f"{key}:" not in command:
                         continue
@@ -145,6 +148,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "scripts/verify_cli_release.py": "cli",
             "scripts/compose-smoke.sh": "container",
             "scripts/demo_deployment.py": "delivery",
+            "scripts/generate_frontend_transport.py": "transport",
             "scripts/sbom.py": "full",
         }.items():
             with self.subTest(path=path):
@@ -203,6 +207,23 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("task quality:backend", quality_backend)
         self.assertNotIn("coverage xml", quality_backend)
         self.assertIn("name: backend-coverage", quality_backend)
+
+    def test_openapi_transport_drift_is_checked_for_backend_and_frontend_changes(self) -> None:
+        changes = job_block(self.pull_request, "changes")
+        transport_paths = mapping_block(changes, "transport", indent=12)
+        self.assertIn("'backend/**'", transport_paths)
+        self.assertIn("'frontend/src/app/api/generated/**'", transport_paths)
+
+        pull_request_transport = job_block(self.pull_request, "transport")
+        quality_transport = job_block(self.quality, "transport")
+        for job in (pull_request_transport, quality_transport):
+            self.assertIn("uv sync --locked --extra dev", job)
+            self.assertIn("npm ci --prefix frontend", job)
+            self.assertIn("task quality:frontend-transport", job)
+
+        frontend_gate = job_block(self.pull_request, "frontend-gate")
+        self.assertIn("transport", frontend_gate)
+        self.assertIn("TRANSPORT_SELECTED", frontend_gate)
 
     def test_release_and_both_promotion_channels_reject_wrong_quality_evidence(self) -> None:
         sha = "a" * 40

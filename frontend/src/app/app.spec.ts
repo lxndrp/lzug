@@ -75,7 +75,7 @@ describe('App', () => {
             session,
             hasCapability: (capability: string) => {
               const capabilities = session()?.capabilities;
-              return capabilities === undefined || capabilities.includes(capability);
+              return capabilities == null || capabilities.includes(capability);
             },
             initialize: () => of(true),
             markAnonymous: vi.fn(),

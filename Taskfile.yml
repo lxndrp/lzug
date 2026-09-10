@@ -305,6 +305,7 @@ tasks:
       - fixtures:check
       - brand:check
       - quality:backend
+      - quality:frontend-transport
       - quality:frontend
       - quality:security
       - quality:operator
@@ -394,6 +395,16 @@ tasks:
       - npm run format:check
       - npm run build:ci
       - npm run test:coverage
+
+  quality:frontend-transport:
+    desc: Verify TypeScript transport types against the canonical FastAPI OpenAPI document
+    cmds:
+      - "{{.UV}} python scripts/generate_frontend_transport.py --check"
+
+  frontend:transport:generate:
+    desc: Generate the low-level TypeScript transport types from FastAPI OpenAPI
+    cmds:
+      - "{{.UV}} python scripts/generate_frontend_transport.py"
 
   quality:security:
     desc: Run the production npm critical security gate

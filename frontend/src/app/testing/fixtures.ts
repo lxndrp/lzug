@@ -38,7 +38,6 @@ function fixtureById<T extends { id: number }>(items: T[], id: number): T {
 }
 
 export const apiRootFixture: ApiRoot = {
-  name: 'lzug API',
   version: '0.1.0',
   _links: {},
 };

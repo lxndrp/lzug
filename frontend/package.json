@@ -17,7 +17,7 @@
     "test:ui-review": "node e2e/run-playwright.mjs ui-review.spec.ts",
     "test:publication": "LZUG_PUBLICATION_SUITE=browser node e2e/run-playwright.mjs --config playwright.publication.config.ts",
     "test:publication:a11y": "LZUG_PUBLICATION_SUITE=a11y node e2e/run-playwright.mjs --config playwright.publication.config.ts",
-    "docs": "typedoc --treatWarningsAsErrors --entryPointStrategy expand --entryPoints src/app --out ../site/developers/reference/frontend",
+    "docs": "typedoc --treatWarningsAsErrors --validation.notExported false --entryPointStrategy expand --entryPoints src/app --exclude 'src/app/api/generated/**' --out ../site/developers/reference/frontend",
     "security:check": "npm audit --omit=dev --audit-level=critical",
     "lint": "eslint . --max-warnings=0",
     "format:check": "prettier --check ."
@@ -71,6 +71,7 @@
     "@angular/compiler-cli": "^22.1.4",
     "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.1",
+    "@hey-api/openapi-ts": "0.99.0",
     "@playwright/test": "^1.62.1",
     "@resvg/resvg-js": "2.6.2",
     "@typescript-eslint/eslint-plugin": "^8.69.0",

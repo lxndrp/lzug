@@ -1,4 +1,10 @@
 import type { ApiLink } from './common.models';
+import type {
+  PlanningProposalAssignmentPayload as TransportPlanningProposalAssignment,
+  PlanningProposalDayPayload as TransportPlanningProposalDay,
+  PlanningProposalResponse as TransportPlanningProposal,
+  PlanningProposalSlotPayload as TransportPlanningProposalSlot,
+} from './generated/types.gen';
 import type { CandidateView, CommitteeMember, Location } from './master-data.models';
 
 export type RoundSummary = {
@@ -194,9 +200,8 @@ export type PlanningConflict = {
 };
 
 /** One ordered slot inside the editable, revisioned planning aggregate. */
-export type PlanningProposalSlot = {
+export type PlanningProposalSlot = Pick<TransportPlanningProposalSlot, 'round_candidate_id'> & {
   id: number | null;
-  round_candidate_id: number;
   slot_type: 'regular' | 'mep';
   starts_at: string;
   ends_at: string;
@@ -205,18 +210,19 @@ export type PlanningProposalSlot = {
 };
 
 /** One examiner or fallback assignment for a proposal day part. */
-export type PlanningProposalAssignment = {
+export type PlanningProposalAssignment = Pick<
+  TransportPlanningProposalAssignment,
+  'committee_member_id'
+> & {
   id: number | null;
-  committee_member_id: number;
   assignment_role: 'examiner' | 'fallback';
   day_part: 'morning' | 'afternoon' | 'full_day';
   fallback_status: string | null;
 };
 
 /** One candidate exam day and its complete editable proposal content. */
-export type PlanningProposalDay = {
+export type PlanningProposalDay = Pick<TransportPlanningProposalDay, 'candidate_exam_day_id'> & {
   id: number | null;
-  candidate_exam_day_id: number;
   date: string;
   room_id?: number;
   location_id: number;
@@ -226,9 +232,7 @@ export type PlanningProposalDay = {
 };
 
 /** Complete proposal exchanged through the optimistic-lock aggregate endpoint. */
-export type EditablePlanningProposal = {
-  round_id: number;
-  revision: number;
+export type EditablePlanningProposal = Pick<TransportPlanningProposal, 'round_id' | 'revision'> & {
   exam_days: PlanningProposalDay[];
   _links?: Record<string, ApiLink>;
 };
