@@ -9,64 +9,7 @@ from typing import Any
 from .settings import RuntimeSettings
 
 DEPLOYMENT_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
-SAFE_API_SEGMENTS = frozenset(
-    {
-        "api",
-        "health",
-        "ready",
-        "observability",
-        "frontend-errors",
-        "demo",
-        "status",
-        "auth",
-        "calendar",
-        "cancellation",
-        "events",
-        "feed",
-        "session",
-        "openapi.json",
-        "docs",
-        "round-summary",
-        "scheduling-overview",
-        "planning-proposals",
-        "planning-settings",
-        "candidate-exam-days",
-        "candidates",
-        "committees",
-        "confirmed-plan-days",
-        "closure",
-        "exam-day-assignments",
-        "exam-days",
-        "exam-half-years",
-        "exam-rooms",
-        "exam-rounds",
-        "exam-venue-contacts",
-        "exam-venues",
-        "results",
-        "ihk-status",
-        "export.json",
-        "export.txt",
-        "exam-slots",
-        "locations",
-        "members",
-        "memberships",
-        "member-availabilities",
-        "notification-channels",
-        "notification-overview",
-        "notification-problems",
-        "notifications",
-        "persons",
-        "push-confirmation",
-        "push-subscriptions",
-        "round-candidates",
-        "lifecycle",
-        "reopening-impact",
-        "reopenings",
-        "rooms",
-        "contacts",
-        "terminal-status",
-    }
-)
+READ_ONLY_HTTP_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 
 def deployment_digest(environment: dict[str, str] | None = None) -> str:
@@ -80,23 +23,9 @@ def deployment_digest(environment: dict[str, str] | None = None) -> str:
     return value if DEPLOYMENT_DIGEST.fullmatch(value) else "unknown"
 
 
-def safe_http_path(path: str) -> str:
-    """Reduce a request path to a bounded route shape without user-provided values."""
-    if path == "/":
-        return "/"
-    segments = [segment for segment in path.split("/") if segment]
-    if not segments or segments[0] != "api":
-        return "/static"
-    safe = ["api"]
-    for segment in segments[1:]:
-        if segment.isdecimal():
-            safe.append(":id")
-        elif segment in SAFE_API_SEGMENTS:
-            safe.append(segment)
-        else:
-            safe.append("unknown")
-            break
-    return "/" + "/".join(safe)
+def should_emit_http_event(method: str, status: int) -> bool:
+    """Keep failures and successful mutations without logging routine reads or probes."""
+    return status >= 400 or method.upper() not in READ_ONLY_HTTP_METHODS
 
 
 def emit_event(event: str, **fields: Any) -> None:
@@ -117,7 +46,6 @@ def emit_event(event: str, **fields: Any) -> None:
         "correlation_id",
         "command",
         "phase",
-        "bytes",
         "category",
         "kind",
         "method",

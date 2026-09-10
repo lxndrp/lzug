@@ -15,6 +15,7 @@ from fastapi import Body, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.routing import Match
 
 from backend.application.transport import (
     RequestTooLargeError,
@@ -120,7 +121,7 @@ from .fastapi_http import same_origin as _same_origin
 from .fastapi_master_data import MIGRATED_DOMAIN_RESOURCES as MIGRATED_DOMAIN_RESOURCES
 from .fastapi_master_data import register_master_data_routes
 from .fastapi_planning_router import register_planning_router
-from .observability import emit_event, safe_http_path
+from .observability import emit_event, should_emit_http_event
 from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from .security import RequestRateLimiter, RuntimeSecurityConfig
 from .settings import RuntimeSettings
@@ -281,6 +282,34 @@ def _is_api_path(path: str) -> bool:
     return path == "/api" or path.startswith("/api/")
 
 
+def _http_route_template(request: Request) -> str:
+    """Return only an application-owned route template or a fixed fallback."""
+    matched_route = request.scope.get("route")
+    if matched_route is None:
+        partial_route = None
+        pending_routes = list(reversed(request.app.routes))
+        while pending_routes:
+            candidate = pending_routes.pop()
+            included_router = getattr(candidate, "original_router", None)
+            if included_router is not None:
+                pending_routes.extend(reversed(included_router.routes))
+                continue
+            match, _child_scope = candidate.matches(request.scope)
+            if match is Match.FULL:
+                matched_route = candidate
+                break
+            if match is Match.PARTIAL and partial_route is None:
+                partial_route = candidate
+        matched_route = matched_route or partial_route
+
+    route_path = getattr(matched_route, "path", None)
+    if route_path == "/{path:path}" or not isinstance(route_path, str):
+        return "/api/unmatched" if _is_api_path(request.url.path) else "/static"
+    if route_path == "/" or route_path.startswith("/api"):
+        return route_path
+    return "/static"
+
+
 async def _transport_guard(request: Request, call_next, config: FastAPIConfig) -> Response:
     origin = request.headers.get("Origin")
     cross_origin = (
@@ -323,13 +352,13 @@ async def _transport_guard(request: Request, call_next, config: FastAPIConfig) -
         if name.lower() not in response.headers:
             response.headers[name] = value
     response.headers.setdefault("Cache-Control", "no-store")
-    emit_event(
-        "http_request",
-        method=request.method,
-        path=safe_http_path(request.url.path),
-        status=response.status_code,
-        bytes=len(getattr(response, "body", b"") or b""),
-    )
+    if should_emit_http_event(request.method, response.status_code):
+        emit_event(
+            "http_request",
+            method=request.method,
+            path=_http_route_template(request),
+            status=response.status_code,
+        )
     return response
 
 
