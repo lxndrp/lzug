@@ -10,10 +10,11 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import struct
 import tempfile
 import zipfile
 from collections.abc import Iterator, Mapping
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from pathlib import Path, PurePosixPath
 from typing import Any
 from uuid import uuid4
@@ -29,14 +30,95 @@ from backend.operations.backup_restore import (
     ArtifactService,
     LoadedArtifact,
     _canonical_json,
+    _database_connection,
     _document_rows,
     _totp_key_binding,
 )
+from backend.persistence.artifact_limits import artifact_database_limit
 from backend.persistence.database import activation_scope
+
+MAX_PACKAGE_MEMBERS = 4096
+MAX_PACKAGE_METADATA = 8 * 1024 * 1024
+MAX_PACKAGE_DATABASE = 64 * 1024 * 1024
 
 
 class ClearArtifactService(ArtifactService):
     """Create and consume validated package streams without cryptography."""
+
+    def __init__(self, *args, package_limit: int | None = None, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.package_limit = package_limit
+
+    def _staging_limits(self, root: Path):
+        if self.package_limit is None:
+            return super()._staging_limits(root)
+        return artifact_database_limit(root, min(self.package_limit, MAX_PACKAGE_DATABASE))
+
+    def _cleanup_workspace(self, root: Path) -> None:
+        if self.package_limit is None:
+            super()._cleanup_workspace(root)
+            return
+        try:
+            shutil.rmtree(root)
+        except OSError:
+            raise ArtifactError(
+                "artifact_cleanup_failed", "Artifact workspace cleanup failed", phase="cleanup"
+            ) from None
+
+    def _check_size(self, size: int, limit: int) -> None:
+        if self.package_limit is not None and size > min(limit, self.package_limit):
+            raise ArtifactError("artifact_limit_exceeded", "Artifact resource limit exceeded")
+
+    def _copy_snapshot_locked(self, root, key):
+        # The same snapshot lock prevents document/SQLite mutation between this
+        # preflight and the existing snapshot copy. Documents are hardlinked.
+        if self.package_limit is None:
+            return super()._copy_snapshot_locked(root, key)
+        with closing(_database_connection(self.paths.database)) as connection:
+            database_size = (
+                connection.execute("PRAGMA page_count").fetchone()[0]
+                * connection.execute("PRAGMA page_size").fetchone()[0]
+            )
+        self._check_size(database_size, MAX_PACKAGE_DATABASE)
+        documents = []
+        for path in self.paths.documents.iterdir():
+            documents.append(path)
+            if len(documents) + 6 > MAX_PACKAGE_MEMBERS:
+                raise ArtifactError("artifact_limit_exceeded", "Artifact resource limit exceeded")
+        self._check_size(
+            database_size + sum(path.stat().st_size for path in documents),
+            self.package_limit or 0,
+        )
+        return super()._copy_snapshot_locked(root, key)
+
+    def _check_directory(self, package_path: Path) -> None:
+        if self.package_limit is None:
+            return
+        self._check_size(package_path.stat().st_size, self.package_limit)
+        # Bound the ZIP central directory before ZipFile allocates its entries.
+        # Socket packages fit below ZIP64 sizes; ZIP64/ambiguous trailers fail closed.
+        with package_path.open("rb") as source:
+            source.seek(max(0, package_path.stat().st_size - 65557))
+            trailer = source.read(65557)
+        offset = trailer.rfind(b"PK\x05\x06")
+        if (
+            offset < 0
+            or len(trailer) - offset < 22
+            or trailer[max(0, offset - 20) : offset - 16] == b"PK\x06\x07"
+        ):
+            raise ArtifactError("artifact_content_invalid", "Artifact package is invalid")
+        _, disk, start_disk, count, total, size, _, comment = struct.unpack(
+            "<4s4H2IH", trailer[offset : offset + 22]
+        )
+        if (
+            disk
+            or start_disk
+            or count != total
+            or total > MAX_PACKAGE_MEMBERS
+            or size > MAX_PACKAGE_METADATA
+            or offset + 22 + comment != len(trailer)
+        ):
+            raise ArtifactError("artifact_limit_exceeded", "Artifact resource limit exceeded")
 
     def write_backup_package(self, output, recipient_fingerprint: str) -> dict[str, Any]:
         try:
@@ -109,6 +191,7 @@ class ClearArtifactService(ArtifactService):
                 }
                 entries: dict[str, Path] = {}
                 for name, content in files.items():
+                    self._check_size(len(content), MAX_PACKAGE_METADATA)
                     target = export_root / name.removeprefix("export/")
                     target.write_bytes(content)
                     entries[name] = target
@@ -241,11 +324,14 @@ class ClearArtifactService(ArtifactService):
             self._record_operation("restore", error=error, manifest=manifest)
             raise
 
-    @staticmethod
-    def _write_package(output, manifest: Mapping[str, Any], entries: Mapping[str, Path]) -> None:
+    def _write_package(
+        self, output, manifest: Mapping[str, Any], entries: Mapping[str, Path]
+    ) -> None:
+        encoded_manifest = _canonical_json(manifest)
+        self._check_size(len(encoded_manifest), MAX_PACKAGE_METADATA)
         try:
             with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_STORED) as package:
-                package.writestr(MANIFEST_NAME, _canonical_json(manifest))
+                package.writestr(MANIFEST_NAME, encoded_manifest)
                 for name, source in sorted(entries.items()):
                     package.write(source, name)
         except (OSError, zipfile.BadZipFile) as error:
@@ -255,12 +341,24 @@ class ClearArtifactService(ArtifactService):
 
     @contextmanager
     def _loaded_package(self, package_path: Path) -> Iterator[LoadedArtifact]:
+        self._check_directory(package_path)
         self._ensure_runtime_paths()
         root = Path(tempfile.mkdtemp(prefix=".lzug-clear-verify-", dir=self.paths.backups))
         os.chmod(root, 0o700)
         try:
             with zipfile.ZipFile(package_path) as package:
                 members = package.infolist()
+                self._check_size(
+                    sum(member.file_size for member in members), self.package_limit or 0
+                )
+                for member in members:
+                    if (
+                        member.filename.endswith((".json", ".txt"))
+                        or member.filename == MANIFEST_NAME
+                    ):
+                        self._check_size(member.file_size, MAX_PACKAGE_METADATA)
+                    if member.filename == DATABASE_NAME:
+                        self._check_size(member.file_size, MAX_PACKAGE_DATABASE)
                 names = [member.filename for member in members]
                 if len(names) != len(set(names)) or MANIFEST_NAME not in names:
                     raise ArtifactError("artifact_content_invalid", "Artifact package is invalid")
@@ -268,6 +366,7 @@ class ClearArtifactService(ArtifactService):
                     path = PurePosixPath(member.filename)
                     if (
                         member.compress_type != zipfile.ZIP_STORED
+                        or member.compress_size != member.file_size
                         or path.is_absolute()
                         or ".." in path.parts
                         or not path.parts
@@ -292,7 +391,7 @@ class ClearArtifactService(ArtifactService):
                 "artifact_content_invalid", "Artifact package is invalid"
             ) from error
         finally:
-            shutil.rmtree(root, ignore_errors=True)
+            self._cleanup_workspace(root)
 
     @staticmethod
     def _result(

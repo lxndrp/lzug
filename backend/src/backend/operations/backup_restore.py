@@ -16,7 +16,7 @@ import shutil
 import sqlite3
 import tempfile
 from collections.abc import Callable, Iterator, Mapping
-from contextlib import closing, contextmanager
+from contextlib import closing, contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -26,6 +26,7 @@ from uuid import UUID, uuid4
 from cryptography.fernet import Fernet, InvalidToken
 
 from backend.identity.local_auth import authentication_key, authentication_key_path
+from backend.persistence.artifact_limits import configure_artifact_database
 from backend.persistence.database import (
     BUSY_TIMEOUT_MS,
     MIGRATIONS_PATH,
@@ -206,6 +207,11 @@ def _database_connection(path: Path, *, read_only: bool = True) -> sqlite3.Conne
         connection = sqlite3.connect(path, timeout=BUSY_TIMEOUT_MS / 1000)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
+    try:
+        configure_artifact_database(connection, path)
+    except Exception:
+        connection.close()
+        raise
     return connection
 
 
@@ -387,6 +393,12 @@ class ArtifactService:
         )
         self.fault_injector = fault_injector
 
+    def _staging_limits(self, root: Path):
+        return nullcontext()
+
+    def _cleanup_workspace(self, root: Path) -> None:
+        shutil.rmtree(root, ignore_errors=True)
+
     @contextmanager
     def _capture_snapshot(self, *, include_authentication_key: bool) -> Iterator[CapturedSnapshot]:
         self._ensure_runtime_paths()
@@ -406,7 +418,7 @@ class ArtifactService:
             self._verify_snapshot(snapshot)
             yield snapshot
         finally:
-            shutil.rmtree(root, ignore_errors=True)
+            self._cleanup_workspace(root)
 
     @contextmanager
     def _capture_snapshot_locked(self) -> Iterator[CapturedSnapshot]:
@@ -420,7 +432,7 @@ class ArtifactService:
             self._verify_snapshot(snapshot)
             yield snapshot
         finally:
-            shutil.rmtree(root, ignore_errors=True)
+            self._cleanup_workspace(root)
 
     def _copy_snapshot_locked(self, root: Path, key: bytes | None) -> CapturedSnapshot:
         if not self.paths.database.is_file():
@@ -1037,61 +1049,68 @@ class ArtifactService:
     ) -> Iterator[tuple[Path, Path, Path, list[str], dict[str, int]]]:
         root = Path(tempfile.mkdtemp(prefix=".lzug-restore-", dir=self.paths.data_dir))
         os.chmod(root, 0o700)
-        try:
-            database = root / "lzug.sqlite"
-            documents = root / "documents"
-            key = root / ".lzug-auth.key"
-            shutil.copy2(loaded.root / DATABASE_NAME, database)
-            shutil.copytree(loaded.root / "payload/documents", documents)
-            shutil.copy2(loaded.root / KEY_NAME, key)
-            os.chmod(key, 0o600)
-            source_schema, migrations = _schema_compatibility(database)
-            if source_schema != loaded.manifest["schema_version"]:
-                raise ArtifactError("manifest_invalid", "Manifest schema version is invalid")
-            if migrations:
-                try:
-                    apply_migrations(database, root / "migration-backups")
-                except Exception as error:
-                    raise ArtifactError(
-                        "migration_failed", "Prepared restore migration failed", phase="migration"
-                    ) from error
-            with closing(_database_connection(database, read_only=False)) as connection:
-                connection.execute(
-                    "UPDATE instance_metadata SET instance_id = ? WHERE id = 1",
-                    (loaded.manifest["instance_id"],),
-                )
-                reset = {
-                    "sessions": connection.execute("DELETE FROM auth_session").rowcount,
-                    "invitations": connection.execute(
-                        "DELETE FROM auth_token WHERE kind = 'invitation' AND consumed_at IS NULL"
-                    ).rowcount,
-                    "recovery_operations": connection.execute(
-                        "DELETE FROM auth_token WHERE kind = 'recovery' AND consumed_at IS NULL"
-                    ).rowcount,
-                    "recovery_codes": connection.execute("DELETE FROM auth_recovery_code").rowcount,
-                    "technical_claims": connection.execute(
-                        "UPDATE notification_delivery SET claim_token = NULL, claimed_at = NULL, "
-                        "claim_expires_at = NULL WHERE claim_token IS NOT NULL"
-                    ).rowcount,
-                }
-                now = _timestamp()
-                for task_table, reopening_table in (
-                    ("exam_day_task", "exam_day_reopening"),
-                    ("exam_round_task", "exam_round_reopening"),
-                ):
+        with self._staging_limits(root):
+            try:
+                database = root / "lzug.sqlite"
+                documents = root / "documents"
+                key = root / ".lzug-auth.key"
+                shutil.copy2(loaded.root / DATABASE_NAME, database)
+                shutil.copytree(loaded.root / "payload/documents", documents)
+                shutil.copy2(loaded.root / KEY_NAME, key)
+                os.chmod(key, 0o600)
+                source_schema, migrations = _schema_compatibility(database)
+                if source_schema != loaded.manifest["schema_version"]:
+                    raise ArtifactError("manifest_invalid", "Manifest schema version is invalid")
+                if migrations:
+                    try:
+                        apply_migrations(database, root / "migration-backups")
+                    except Exception as error:
+                        raise ArtifactError(
+                            "migration_failed",
+                            "Prepared restore migration failed",
+                            phase="migration",
+                        ) from error
+                with closing(_database_connection(database, read_only=False)) as connection:
                     connection.execute(
-                        f"UPDATE \"{task_table}\" SET status = 'completed', completed_at = ? "
-                        f"WHERE status = 'open' AND reopening_id IN "
-                        f"(SELECT id FROM \"{reopening_table}\" WHERE status != 'open')",
-                        (now,),
+                        "UPDATE instance_metadata SET instance_id = ? WHERE id = 1",
+                        (loaded.manifest["instance_id"],),
                     )
-                connection.commit()
-                connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            Path(f"{database}-wal").unlink(missing_ok=True)
-            Path(f"{database}-shm").unlink(missing_ok=True)
-            yield database, documents, key, migrations, reset
-        finally:
-            shutil.rmtree(root, ignore_errors=True)
+                    reset = {
+                        "sessions": connection.execute("DELETE FROM auth_session").rowcount,
+                        "invitations": connection.execute(
+                            "DELETE FROM auth_token WHERE kind = 'invitation' "
+                            "AND consumed_at IS NULL"
+                        ).rowcount,
+                        "recovery_operations": connection.execute(
+                            "DELETE FROM auth_token WHERE kind = 'recovery' AND consumed_at IS NULL"
+                        ).rowcount,
+                        "recovery_codes": connection.execute(
+                            "DELETE FROM auth_recovery_code"
+                        ).rowcount,
+                        "technical_claims": connection.execute(
+                            "UPDATE notification_delivery SET claim_token = NULL, "
+                            "claimed_at = NULL, "
+                            "claim_expires_at = NULL WHERE claim_token IS NOT NULL"
+                        ).rowcount,
+                    }
+                    now = _timestamp()
+                    for task_table, reopening_table in (
+                        ("exam_day_task", "exam_day_reopening"),
+                        ("exam_round_task", "exam_round_reopening"),
+                    ):
+                        connection.execute(
+                            f"UPDATE \"{task_table}\" SET status = 'completed', completed_at = ? "
+                            f"WHERE status = 'open' AND reopening_id IN "
+                            f"(SELECT id FROM \"{reopening_table}\" WHERE status != 'open')",
+                            (now,),
+                        )
+                    connection.commit()
+                    connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                Path(f"{database}-wal").unlink(missing_ok=True)
+                Path(f"{database}-shm").unlink(missing_ok=True)
+                yield database, documents, key, migrations, reset
+            finally:
+                self._cleanup_workspace(root)
 
     def _verify_prepared(
         self,
@@ -1138,7 +1157,7 @@ class ArtifactService:
                 "activation_failed", "Restore activation failed", phase="activation"
             ) from error
         finally:
-            shutil.rmtree(retired, ignore_errors=True)
+            self._cleanup_workspace(retired)
 
     def _checkpoint_target_database(self) -> None:
         if not self.paths.database.exists():

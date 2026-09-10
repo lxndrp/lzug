@@ -254,10 +254,15 @@ def _configure_sqlite_connection(dbapi_connection, _connection_record) -> None:
 
 
 def engine_for(db_path: Path = DEFAULT_DB_PATH) -> Engine:
+    from backend.persistence.artifact_limits import configure_artifact_database
+
     db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     engine = create_engine(database_url(db_path), future=True, poolclass=NullPool)
     event.listen(engine, "connect", _configure_sqlite_connection)
+    event.listen(
+        engine, "connect", lambda connection, _: configure_artifact_database(connection, db_path)
+    )
     return engine
 
 

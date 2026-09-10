@@ -229,10 +229,10 @@ Die Antwort enthält eine serverseitige Auftrags- und Korrelations-ID.
 Es folgt genau ein Kontrollauftrag und ein `result`-Frame mit unveränderter
 Anwendungskern-Antwort und Exitcode oder ein geheimnisfreier `error`-Frame.
 Weitere Aufträge auf derselben Verbindung werden nicht ausgeführt.
-Upgrade, Rollback und Artefaktstreams sind in dieser Assembly gesperrt.
+Upgrade und Rollback bleiben in dieser Assembly gesperrt.
 
 `SocketTransport` und `SocketRuntimeFactory` implementieren in der Go-CLI die
-vorhandenen injizierbaren Transportschnittstellen für diese Kontrollaufträge.
+vorhandenen injizierbaren Transportschnittstellen für Kontrollaufträge und Artefakte.
 Der Pfad wird der Factory ausdrücklich übergeben; sie startet keinen Prozess
 und kennt weder Transportfallback noch automatische Wiederholung.
 Die regulären CLI-Flags, die vollständige interaktive Anbindung, das Image und
@@ -255,6 +255,59 @@ erst danach die Runtime-Ownership frei; dies gilt auch für Diagnoseaufträge oh
 eigene Runtime-Zulassung.
 Listenerfehler schließen die normale Runtime-Zulassung und starten keinen Ersatzprozess.
 
+Artefaktaufträge verwenden denselben Handshake und dieselben serverseitigen IDs.
+`backend.admin_socket_artifacts` bindet den bestehenden `ClearArtifactService`
+an diesen Transport; die Go-Factory stellt dafür `ArtifactTransport` bereit.
+Ein `stream-ready`-Kontrollframe bestätigt Richtung und effektive Transfergrenzen,
+bevor Klartextpaketdaten gesendet werden.
+Das höchste Bit des vier Byte langen Frame-Headers kennzeichnet Binärdaten;
+die übrigen Bits geben deren Länge an.
+Ein Datenframe enthält höchstens 64 KiB; Kontrollframes sind weiterhin JSON.
+Der Transport hält jeweils nur einen Datenframe und verwendet synchrone,
+durch die Socketpuffer gebremste Schreibzugriffe ohne Anwendungswarteschlange.
+
+Ein `stream-end`-Kontrollframe enthält Bytezahl und SHA-256 des gesamten Streams.
+Beim Upload muss danach der Schreibkanal des Clients geschlossen sein;
+EOF ohne passenden Abschluss, zusätzliche Bytes oder fehlerhafte age-Integrität
+erlauben keine Paketprüfung und keinen Restore.
+Die CLI sendet diesen Abschluss erst nach authentifiziertem EOF ihres lokalen
+age-Lesers; private age-Identitäten bleiben ausschließlich dort.
+Beim Download veröffentlicht die CLI ihr verschlüsseltes temporäres Ziel erst
+nach passendem Streamabschluss, erfolgreichem Ergebnis und Verbindungsende.
+Fehler und Teilübertragungen veröffentlichen kein Zielartefakt.
+
+Es läuft höchstens ein Artefaktauftrag gleichzeitig; weitere werden mit
+`artifact_busy` ohne Warteschlange zurückgewiesen.
+Diagnose- und Kontrollverbindungen behalten ihre eigenen Verbindungsslots.
+`--admin-socket-max-stream-bytes` begrenzt den Transfer auf höchstens 1 GiB
+und kann diese Grenze absenken.
+`--admin-socket-stream-timeout` setzt die absolute Transferfrist,
+standardmäßig 300 Sekunden und höchstens eine Stunde; Teilframes verlängern sie nicht.
+Die Paketaufbereitung begrenzt zusätzlich SQLite-Kopien auf 64 MiB,
+JSON-Metadaten und ZIP-Zentralverzeichnis auf je 8 MiB und die ZIP-Einträge auf 4096.
+Komprimierte oder ZIP64-Eingabepakete werden am Socket abgewiesen.
+Der Klartextupload und seine entpackten Inhalte überschreiten jeweils das Transferlimit nicht;
+Restore benötigt zusätzlich eine vorbereitete Kopie und gegebenenfalls eine Migrationssicherung.
+SQLite-Verbindungen in dieser temporären Restore-Kopie erhalten eine Seitengrenze.
+Die Paketmetadaten bleiben begrenzt materialisiert; das vollständige Paket wird
+weder in Go noch im Socketadapter im Arbeitsspeicher gesammelt.
+
+Temporäre Klartextdateien liegen in privaten Backendverzeichnissen;
+ihre Bereinigung erfolgt vor Freigabe des Artefaktslots.
+Ein Bereinigungsfehler wird als `artifact_cleanup_failed` diagnostiziert.
+Danach bleibt die Artefaktzulassung dieses Listeners gesperrt,
+damit weitere Aufträge keine zusätzlichen temporären Reste ansammeln.
+Der Betreiber prüft und bereinigt die Reste, bevor er den Prozess erneut startet.
+Ein langsamer Upload hält noch keine exklusive Runtime-Zulassung.
+Nach vollständigem Empfang verwendet Restore die bestehende exklusive
+Runtime- und Aktivierungsgrenze; konkurrierende HTTP-Aufträge und Lifecycleoperationen
+folgen damit derselben Konfliktordnung.
+Eine zugelassene Ausführung wird bei Verbindungsverlust zu Ende geführt,
+ohne automatische Wiederholung oder vorzeitige Freigabe ihrer Sperren.
+Die Go-Aufrufer besitzen ihre lokalen Reader/Writer und müssen deren blockierende
+Datei- beziehungsweise Pipe-Zugriffe selbst abbrechbar halten;
+der Adapter erzeugt dafür keine zurückbleibenden I/O-Goroutinen.
+
 `config`, `status` und `doctor` enthalten neben dem Runtime-Snapshot den
 geheimnisfreien Socketzustand und die effektiven Limits.
 Der Kontrollauftrag `socket-job-status` mit `arguments: {"job_id":"<uuid>"}`
@@ -270,6 +323,9 @@ Befehlsklasse, Beginn/Ende, Fehlerphase, Status und die beiden IDs.
 
 `backend.tests.test_admin_socket` prüft echte Linux-Sockets einschließlich des
 Go-Adapters, negativer Dateisystem-/Peer-Fälle, Handshake, Abbruch und Shutdown.
+`backend.tests.test_admin_socket_artifacts` ergänzt begrenzte und fortlaufende
+Streams, fehlerhafte Abschlussgrenzen, Rückstau, Abbruch, Ergebnisverlust und
+den echten Go-age-Rundlauf für Backup, Export, Prüfung und Restore.
 Der Backend-CI-Lauf installiert dafür auch die gepinnte Go-Toolchain.
 Tests mit echten UID-/GID-Wechseln benötigen zusätzlich einen isolierten
 Linux-Testcontainer mit root; sie verändern nur dessen temporäre Testverzeichnisse.
