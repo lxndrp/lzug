@@ -21,7 +21,7 @@
     </main>
   } @else if (auth.state() === 'anonymous') {
     <app-runtime-notice />
-    <app-auth-flow />
+    <router-outlet />
   } @else {
     <div class="app-shell" [class.sidebar-collapsed]="!sidebarVisible()">
       <app-runtime-notice />
@@ -37,7 +37,7 @@
         aria-label="Prüfungsverwaltung"
       >
         <div class="app-sidebar-header">
-          <a class="app-brand" href="/dashboard" (click)="navigateFromShell('dashboard', $event)">
+          <a class="app-brand" routerLink="/dashboard" (click)="closeSidebarOnMobile()">
             <img src="brand/logo-mark-dark.svg" alt="" />
             <span>lzug</span>
           </a>
@@ -59,9 +59,9 @@
             <p class="app-nav-title">Öffentliche Demo</p>
             <a
               class="app-nav-link"
-              href="/demo-scenarios"
+              routerLink="/demo-scenarios"
               [class.is-active]="activeView() === 'demo-scenarios'"
-              (click)="navigateFromShell('demo-scenarios', $event)"
+              (click)="closeSidebarOnMobile()"
             >
               <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
               Szenarien und Rollen
@@ -71,9 +71,9 @@
           @if (canAccessView('exam-half-years')) {
             <a
               class="app-nav-link"
-              href="/exam-half-years"
+              routerLink="/exam-half-years"
               [class.is-active]="activeView() === 'exam-half-years'"
-              (click)="navigateFromShell('exam-half-years', $event)"
+              (click)="closeSidebarOnMobile()"
             >
               <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
               Prüfungskontext auswählen
@@ -91,9 +91,9 @@
           @if (canAccessView('notifications')) {
             <a
               class="app-nav-link"
-              href="/notifications"
+              routerLink="/notifications"
               [class.is-active]="activeView() === 'notifications'"
-              (click)="navigateFromShell('notifications', $event)"
+              (click)="closeSidebarOnMobile()"
             >
               <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
               Benachrichtigungen
@@ -102,9 +102,9 @@
           @if (canAccessView('absence-reports')) {
             <a
               class="app-nav-link"
-              href="/absence-reports"
+              routerLink="/absence-reports"
               [class.is-active]="activeView() === 'absence-reports'"
-              (click)="navigateFromShell('absence-reports', $event)"
+              (click)="closeSidebarOnMobile()"
             >
               <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
               Ausfall und Ersatz
@@ -114,9 +114,9 @@
           <p class="app-nav-title">Aktueller Prüfungskontext</p>
           <a
             class="app-nav-link"
-            href="/dashboard"
+            routerLink="/dashboard"
             [class.is-active]="activeView() === 'dashboard'"
-            (click)="navigateFromShell('dashboard', $event)"
+            (click)="closeSidebarOnMobile()"
           >
             <svg [cIcon]="icons.overview" class="app-nav-icon" aria-hidden="true"></svg>
             Übersicht
@@ -124,11 +124,11 @@
           @if (canAccessView('scheduling-overview')) {
             <a
               class="app-nav-link"
-              href="/scheduling-overview"
+              routerLink="/scheduling-overview"
               [class.is-active]="
                 activeView() === 'scheduling-overview' || activeView() === 'planning'
               "
-              (click)="navigateFromShell('scheduling-overview', $event)"
+              (click)="closeSidebarOnMobile()"
             >
               <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
               Terminorganisationen
@@ -137,9 +137,9 @@
           @if (canAccessView('confirmed-plans')) {
             <a
               class="app-nav-link"
-              href="/confirmed-plans"
+              routerLink="/confirmed-plans"
               [class.is-active]="activeView() === 'confirmed-plans'"
-              (click)="navigateFromShell('confirmed-plans', $event)"
+              (click)="closeSidebarOnMobile()"
             >
               <svg [cIcon]="icons.planning" class="app-nav-icon" aria-hidden="true"></svg>
               Prüfungspläne
@@ -148,9 +148,9 @@
           @if (!demoSession()) {
             <a
               class="app-nav-link"
-              href="/candidates"
+              routerLink="/candidates"
               [class.is-active]="activeView() === 'candidates'"
-              (click)="navigateFromShell('candidates', $event)"
+              (click)="closeSidebarOnMobile()"
             >
               <svg [cIcon]="icons.candidates" class="app-nav-icon" aria-hidden="true"></svg>
               Prüflinge
@@ -158,18 +158,18 @@
             <p class="app-nav-title">Globale Bereiche</p>
             <a
               class="app-nav-link"
-              href="/committee"
+              routerLink="/committee"
               [class.is-active]="activeView() === 'committee'"
-              (click)="navigateFromShell('committee', $event)"
+              (click)="closeSidebarOnMobile()"
             >
               <svg [cIcon]="icons.committee" class="app-nav-icon" aria-hidden="true"></svg>
               Prüfungsausschüsse
             </a>
             <a
               class="app-nav-link"
-              href="/locations"
+              routerLink="/locations"
               [class.is-active]="activeView() === 'locations'"
-              (click)="navigateFromShell('locations', $event)"
+              (click)="closeSidebarOnMobile()"
             >
               <svg [cIcon]="icons.locations" class="app-nav-icon" aria-hidden="true"></svg>
               Prüfungsorte
@@ -178,9 +178,9 @@
           <p class="app-nav-title">Information</p>
           <a
             class="app-nav-link"
-            href="/about"
+            routerLink="/about"
             [class.is-active]="activeView() === 'about'"
-            (click)="navigateFromShell('about', $event)"
+            (click)="closeSidebarOnMobile()"
           >
             <svg [cIcon]="icons.documentation" class="app-nav-icon" aria-hidden="true"></svg>
             Über lzug
@@ -221,12 +221,7 @@
                 aria-hidden="true"
               ></svg>
             </button>
-            <a
-              class="app-header-title"
-              href="/dashboard"
-              (click)="navigateFromShell('dashboard', $event)"
-              >Prüfungsverwaltung</a
-            >
+            <a class="app-header-title" routerLink="/dashboard">Prüfungsverwaltung</a>
             @if (demoSession(); as session) {
               <section class="app-demo-identity" aria-label="Aktive Demo-Identität">
                 <span class="app-demo-identity-label">Aktive Demo-Identität</span>
@@ -270,19 +265,13 @@
           <div class="app-content-inner">
             <header class="app-page-header">
               <nav class="app-breadcrumb app-muted" aria-label="Breadcrumb">
-                <a href="/dashboard" (click)="navigateFromShell('dashboard', $event)"
-                  >Prüfungsverwaltung</a
-                >
+                <a routerLink="/dashboard">Prüfungsverwaltung</a>
                 <span aria-hidden="true">/</span>
                 <span>{{ breadcrumb() }}</span>
               </nav>
               <h1>{{ pageTitle() }}</h1>
               @if (demoSession() && activeView() !== 'demo-scenarios') {
-                <a
-                  tuiButton
-                  appearance="secondary"
-                  href="/demo-scenarios"
-                  (click)="navigateFromShell('demo-scenarios', $event)"
+                <a tuiButton appearance="secondary" routerLink="/demo-scenarios"
                   >Zu Szenarien, Rollen und Neustart</a
                 >
               }
@@ -312,11 +301,7 @@
                       </div>
                     </dl>
                   </div>
-                  <a
-                    tuiButton
-                    appearance="secondary"
-                    href="/exam-half-years"
-                    (click)="navigateFromShell('exam-half-years', $event)"
+                  <a tuiButton appearance="secondary" routerLink="/exam-half-years"
                     >Prüfungskontext wechseln</a
                   >
                 </section>
@@ -329,11 +314,7 @@
                       zu arbeiten.
                     </p>
                   </div>
-                  <a
-                    tuiButton
-                    appearance="primary"
-                    href="/exam-half-years"
-                    (click)="navigateFromShell('exam-half-years', $event)"
+                  <a tuiButton appearance="primary" routerLink="/exam-half-years"
                     >Prüfungskontext auswählen</a
                   >
                 </section>
@@ -348,162 +329,11 @@
                     Die Oberfläche zeigt nur Aufgaben, die mit den effektiven Fähigkeiten dieser
                     Sitzung ausgeführt werden können.
                   </span>
-                  <a
-                    tuiButton
-                    appearance="primary"
-                    href="/dashboard"
-                    (click)="navigateFromShell('dashboard', $event)"
-                    >Zur Übersicht</a
-                  >
+                  <a tuiButton appearance="primary" routerLink="/dashboard">Zur Übersicht</a>
                 </div>
               </section>
             } @else {
-              @switch (activeView()) {
-                @case ('dashboard') {
-                  <app-dashboard
-                    [summary]="summary()"
-                    [round]="round()"
-                    [board]="board()"
-                    [planningResult]="lastPlanningResult()"
-                    [loading]="loading()"
-                    [actionBusy]="actionBusy()"
-                    (openView)="showView($event)"
-                  />
-                }
-                @case ('demo-scenarios') {
-                  <app-demo-scenarios />
-                }
-                @case ('about') {
-                  <app-about
-                    [version]="applicationVersion()"
-                    [demo]="demoSession() !== null"
-                    [demoMatrixVersion]="demoSession()?.demo_matrix_version ?? null"
-                  />
-                }
-                @case ('scheduling-overview') {
-                  <app-scheduling-overview (openRound)="openSchedulingRound($event)" />
-                }
-                @case ('confirmed-plans') {
-                  <app-confirmed-plans
-                    [roundId]="contextualRoundId()"
-                    [editRoundId]="confirmedPlanEditRoundId()"
-                    [board]="board()"
-                    [canEdit]="canEditConfirmedPlan()"
-                  />
-                }
-                @case ('exam-day') {
-                  <app-exam-day
-                    [roundId]="contextualRoundId()"
-                    [dayId]="contextualDayId()"
-                    [canCoordinateAttendance]="canCoordinateAttendance()"
-                    [canWriteOwnAttendance]="canWriteOwnAttendance()"
-                    [canReportOwnAbsence]="canReportOwnAbsence()"
-                    [ownMemberId]="auth.session()?.committee_member_id ?? null"
-                  />
-                }
-                @case ('candidates') {
-                  <app-candidates
-                    [masterData]="masterData()"
-                    [activeRound]="round()"
-                    [actionBusy]="actionBusy()"
-                    (createCandidate)="createCandidate($event)"
-                    (updateCandidate)="updateCandidate($event)"
-                    (deleteCandidate)="
-                      requestCandidateDeletion(
-                        $event.id,
-                        $event.first_name + ' ' + $event.last_name
-                      )
-                    "
-                  />
-                }
-                @case ('committee') {
-                  <app-committee
-                    [masterData]="masterData()"
-                    [selectedCommitteeIdInput]="selectedCommitteeId()"
-                    [actionBusy]="actionBusy()"
-                    (selectedCommitteeIdChange)="selectCommittee($event)"
-                    (createMember)="createMember($event)"
-                    (toggleMember)="toggleMember($event)"
-                  />
-                }
-                @case ('planning') {
-                  <app-planning
-                    [round]="round()"
-                    [summary]="summary()"
-                    [board]="board()"
-                    [masterData]="masterData()"
-                    [actionBusy]="actionBusy()"
-                    [candidateDayGenerationResult]="candidateDayGenerationResult()"
-                    [planningResult]="lastPlanningResult()"
-                    [availabilityOnly]="isDemoExaminer()"
-                    [ownMemberId]="auth.session()?.committee_member_id ?? null"
-                    [allowCandidateDayGeneration]="canGenerateCandidateDays()"
-                    [canCreateCandidateDay]="canCreateCandidateDay()"
-                    [canToggleCandidateDay]="canToggleCandidateDay()"
-                    [planningProposal]="planningProposal()"
-                    [proposalEditorState]="proposalEditorState()"
-                    [proposalEditorError]="proposalEditorError()"
-                    [proposalEditorViolations]="proposalEditorViolations()"
-                    (saveSettings)="savePlanningSettings($event)"
-                    (saveRound)="saveExamRound($event)"
-                    (requestAvailabilities)="requestAvailabilities($event)"
-                    (createCandidateDay)="createCandidateDay($event)"
-                    (generateCandidateDays)="generateCandidateDays($event)"
-                    (toggleCandidateDay)="toggleCandidateDay($event)"
-                    (saveAvailability)="saveAvailability($event)"
-                    (generateProposal)="generateProposal()"
-                    (loadPlanningProposal)="loadPlanningProposal()"
-                    (reloadPlanningProposal)="reloadPlanningProposal()"
-                    (savePlanningProposal)="savePlanningProposal($event)"
-                    (confirmPlan)="requestPlanConfirmation()"
-                    (cancel)="cancelScheduling()"
-                  />
-                }
-                @case ('locations') {
-                  <app-locations
-                    [masterData]="masterData()"
-                    [actionBusy]="actionBusy()"
-                    [isOperator]="auth.session()?.is_operator ?? false"
-                    [readOnly]="demoSession() !== null"
-                    [loading]="loading()"
-                    [loadError]="masterDataError()"
-                    [detailVenueId]="contextualVenueId()"
-                    [canCreateVenue]="canManageVenueCreation()"
-                    [geocodeCandidate]="geocodeCandidate()"
-                    (openVenue)="openVenue($event)"
-                    (closeDetail)="closeVenueDetail()"
-                    (createVenue)="createVenue($event)"
-                    (updateVenue)="updateVenue($event)"
-                    (geocodeVenue)="geocodeVenue($event)"
-                    (retryConsequences)="retryVenueConsequences($event)"
-                    (deleteVenue)="requestVenueDeletion($event)"
-                    (createRoom)="createRoom($event)"
-                    (updateRoom)="updateRoom($event)"
-                    (deleteRoom)="deleteRoom($event)"
-                    (createContact)="createContact($event)"
-                    (updateContact)="updateContact($event)"
-                    (deleteContact)="deleteContact($event)"
-                    (requestPromotion)="requestPromotion($event)"
-                    (decidePromotion)="decidePromotion($event)"
-                  />
-                }
-                @case ('notifications') {
-                  <app-notifications />
-                }
-                @case ('absence-reports') {
-                  <app-absence-reports />
-                }
-                @case ('exam-half-years') {
-                  <app-exam-half-years
-                    [committees]="masterData()?.committees || []"
-                    [candidates]="masterData()?.candidates || []"
-                    [candidateAssignments]="masterData()?.candidateAssignments || []"
-                    [activeRoundId]="round()?.id || null"
-                    [readOnly]="demoSession() !== null && !hasCapability('exam-round:close')"
-                    (roundSelected)="selectExamRound($event)"
-                  />
-                }
-              }
+              <router-outlet />
             }
           </div>
         </main>

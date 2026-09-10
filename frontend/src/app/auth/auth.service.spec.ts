@@ -1,5 +1,6 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
+import { Location } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { vi } from 'vitest';
@@ -53,6 +54,18 @@ describe('AuthService', () => {
     expect(authenticated).toBe(false);
     expect(service.state()).toBe('anonymous');
     expect(service.session()).toBeNull();
+  });
+
+  it('preserves an authentication deep link while initial navigation is pending', () => {
+    const location = TestBed.inject(Location);
+    location.go('/activate');
+
+    service.initialize().subscribe();
+    http
+      .expectOne('/api/session')
+      .flush({ error: 'Authentication required.' }, { status: 401, statusText: 'Unauthorized' });
+
+    expect(location.path()).toBe('/activate');
   });
 
   it('uses explicit demo capabilities while preserving product sessions', () => {

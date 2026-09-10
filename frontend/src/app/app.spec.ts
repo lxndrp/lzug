@@ -1,7 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
-import { signal } from '@angular/core';
+import { signal, Type } from '@angular/core';
+import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
 import { TuiConfirmService } from '@taiga-ui/kit';
@@ -20,7 +21,11 @@ import {
 } from './locations/locations.component';
 import { RoundContextService } from './api/round-context.service';
 import { routes } from './app.routes';
+import { PlanningWorkflowService } from './planning/planning-workflow.service';
+import { LocationsRouteComponent } from './routes/locations-route.component';
+import { ApplicationWorkspaceService } from './shell/application-workspace.service';
 import { UiFeedbackService } from './shell/ui-feedback.service';
+import { VenueWorkflowService } from './locations/venue-workflow.service';
 import { LifecycleService } from './runtime/lifecycle.service';
 import {
   apiRootFixture,
@@ -85,13 +90,15 @@ describe('App', () => {
     TestBed.inject(HttpTestingController).verify();
   });
 
-  it('should render the exam round dashboard', () => {
+  it('should render the exam round dashboard', async () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
 
     flushDashboardRequests(http);
 
     fixture.detectChanges();
+    await TestBed.inject(Router).navigateByUrl('/dashboard');
+    await stabilizeRoute(fixture);
 
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('h1')?.textContent).toContain('Übersicht');
@@ -155,17 +162,14 @@ describe('App', () => {
   });
 
   it('should update the selected committee', () => {
-    const fixture = TestBed.createComponent(App);
+    TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
     flushDashboardRequests(http);
 
-    const app = fixture.componentInstance as unknown as {
-      selectCommittee(id: number | null): void;
-      selectedCommitteeId: () => number | null;
-    };
-    app.selectCommittee(2);
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    workspace.selectCommittee(2);
 
-    expect(app.selectedCommitteeId()).toBe(2);
+    expect(workspace.selectedCommitteeId()).toBe(2);
   });
 
   it('should refresh the visible context after selecting another exam round', () => {
@@ -173,10 +177,7 @@ describe('App', () => {
     const http = TestBed.inject(HttpTestingController);
     flushDashboardRequests(http);
 
-    const app = fixture.componentInstance as unknown as {
-      selectExamRound(id: number): void;
-    };
-    app.selectExamRound(2);
+    TestBed.inject(ApplicationWorkspaceService).selectExamRound(2);
     flushDashboardRequests(http, foreignExamRoundFixture);
     fixture.detectChanges();
 
@@ -223,6 +224,21 @@ describe('App', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Aktueller Prüfungskontext',
     );
+  });
+
+  it('updates title and focus from route data after browser navigation', async () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    const router = TestBed.inject(Router);
+    flushDashboardRequests(http);
+
+    await router.navigateByUrl('/about');
+    await stabilizeRoute(fixture);
+
+    const heading = (fixture.nativeElement as HTMLElement).querySelector('h1');
+    expect(heading?.textContent).toContain('Über lzug');
+    expect(document.title).toBe('Über lzug · lzug');
+    expect(document.activeElement).toBe(heading);
   });
 
   it('should expose operation errors as a consistent alert', () => {
@@ -344,22 +360,13 @@ describe('App', () => {
     fixture.detectChanges();
 
     const app = fixture.componentInstance as unknown as {
-      savePlanningSettings(payload: never): void;
-      saveExamRound(payload: never): void;
-      requestAvailabilities(payload: never): void;
-      createCandidateDay(payload: never): void;
-      generateCandidateDays(payload: never): void;
-      toggleCandidateDay(payload: never): void;
-      saveAvailability(payload: never): void;
-      generateProposal(): void;
-      savePlanningProposal(payload: never): void;
-      confirmPlan(): void;
       demoRoleLabel(): string;
       demoRoleTask(): string;
       canAccessView(view: string): boolean;
       switchDemoRole(): void;
       roleSwitchBusy(): boolean;
     };
+    const planning = TestBed.inject(PlanningWorkflowService);
 
     expect(app.demoRoleLabel()).toBe('Eingeplanter Prüfer');
     expect(app.demoRoleTask()).toBe('Eigenen Ausfall melden');
@@ -367,20 +374,20 @@ describe('App', () => {
     expect(app.canAccessView('confirmed-plans')).toBe(true);
     expect(app.canAccessView('candidates')).toBe(false);
 
-    app.savePlanningSettings(undefined as never);
-    app.saveExamRound(undefined as never);
-    app.requestAvailabilities(undefined as never);
-    app.createCandidateDay(undefined as never);
-    app.generateCandidateDays(undefined as never);
-    app.toggleCandidateDay(undefined as never);
-    app.saveAvailability({
+    planning.savePlanningSettings(undefined as never);
+    planning.saveExamRound(undefined as never);
+    planning.requestAvailabilities(undefined as never);
+    planning.createCandidateDay(undefined as never);
+    planning.generateCandidateDays(undefined as never);
+    planning.toggleCandidateDay(undefined as never);
+    planning.saveAvailability({
       committee_member_id: 99,
       candidate_exam_day_id: 1,
       availability: 'full_day',
     } as never);
-    app.generateProposal();
-    app.savePlanningProposal(undefined as never);
-    app.confirmPlan();
+    planning.generateProposal();
+    planning.savePlanningProposal(undefined as never);
+    planning.confirmPlan();
 
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
@@ -416,12 +423,12 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
     flushDashboardRequests(http);
-    const app = fixture.componentInstance as unknown as {
+    const workflow = TestBed.inject(VenueWorkflowService) as unknown as {
       createVenue(payload: VenueCreate): void;
       updateVenue(update: VenueUpdate): void;
       updateRoom(update: RoomUpdate): void;
-      actionBusy(): boolean;
     };
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
     const venue = masterDataFixture.examVenues[0];
     const create: VenueCreate = {
       scope: 'committee',
@@ -436,8 +443,8 @@ describe('App', () => {
       is_active: true,
     };
 
-    app.createVenue(create);
-    expect(app.actionBusy()).toBe(true);
+    workflow.createVenue(create);
+    expect(workspace.actionBusy()).toBe(true);
     const duplicateCheck = http.expectOne('/api/exam-venues/duplicate-check');
     expect(duplicateCheck.request.method).toBe('POST');
     duplicateCheck.flush({ items: [] });
@@ -445,13 +452,13 @@ describe('App', () => {
     expect(createRequest.request.body).toEqual({ ...create, duplicates_reviewed: false });
     createRequest.flush({ ...venue, id: 7, name: create.name });
     flushDashboardRequests(http);
-    expect(app.actionBusy()).toBe(false);
+    expect(workspace.actionBusy()).toBe(false);
 
     const update: VenueUpdate = {
       id: venue.id,
       payload: { expected_revision: venue.revision, name: 'Prüfungszentrum Neu' },
     };
-    app.updateVenue(update);
+    workflow.updateVenue(update);
     const venueImpact = http.expectOne(`/api/exam-venues/${venue.id}/change-impact`);
     expect(venueImpact.request.method).toBe('POST');
     expect(venueImpact.request.body).toEqual(update.payload);
@@ -466,7 +473,7 @@ describe('App', () => {
     updateRequest.flush({ ...venue, name: 'Prüfungszentrum Neu', revision: venue.revision + 1 });
     flushDashboardRequests(http);
 
-    app.updateRoom({
+    workflow.updateRoom({
       id: venue.rooms[0].id,
       payload: { expected_revision: venue.rooms[0].revision, name: 'A-102' },
     });
@@ -482,7 +489,7 @@ describe('App', () => {
     roomRequest.flush({ ...venue.rooms[0], name: 'A-102', revision: 2 });
     flushDashboardRequests(http);
 
-    app.createVenue(create);
+    workflow.createVenue(create);
     http
       .expectOne('/api/exam-venues/duplicate-check')
       .flush({ error: 'unavailable' }, { status: 503, statusText: 'Unavailable' });
@@ -493,12 +500,12 @@ describe('App', () => {
 
     const confirm = TestBed.inject(TuiConfirmService);
     vi.spyOn(confirm, 'withConfirm').mockReturnValue(of(false));
-    app.createVenue(create);
+    workflow.createVenue(create);
     http.expectOne('/api/exam-venues/duplicate-check').flush({
       items: [{ id: 9, name: 'Prüfungszentrum West', address: 'Testweg 2, Hamburg' }],
     });
 
-    app.updateVenue(update);
+    workflow.updateVenue(update);
     http.expectOne(`/api/exam-venues/${venue.id}/change-impact`).flush({
       count: 2,
       date_from: '2026-11-01',
@@ -507,7 +514,7 @@ describe('App', () => {
     http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
     expect(http.match(`/api/exam-venues/${venue.id}`)).toHaveLength(0);
 
-    app.updateVenue(update);
+    workflow.updateVenue(update);
     http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
     http
       .expectOne(`/api/exam-venues/${venue.id}/change-impact`)
@@ -515,10 +522,10 @@ describe('App', () => {
   });
 
   it('keeps explicit geocoding candidates separate from venue data on success and failure', () => {
-    const fixture = TestBed.createComponent(App);
+    TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
     flushDashboardRequests(http);
-    const app = fixture.componentInstance as unknown as {
+    const workflow = TestBed.inject(VenueWorkflowService) as unknown as {
       geocodeVenue(venue: ExamVenue): void;
       geocodeCandidate(): {
         venueId: number;
@@ -526,35 +533,35 @@ describe('App', () => {
         longitude: number;
         source: string;
       } | null;
-      actionBusy(): boolean;
       updateVenue(update: VenueUpdate): void;
     };
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
     const venue = masterDataFixture.examVenues[0];
 
-    app.geocodeVenue(venue);
-    expect(app.actionBusy()).toBe(true);
+    workflow.geocodeVenue(venue);
+    expect(workspace.actionBusy()).toBe(true);
     const success = http.expectOne(`/api/exam-venues/${venue.id}/geocode`);
     expect(success.request.body).toEqual({ expected_revision: venue.revision });
     success.flush({ latitude: 53.55, longitude: 9.99, source: 'nominatim' });
-    expect(app.geocodeCandidate()).toEqual({
+    expect(workflow.geocodeCandidate()).toEqual({
       venueId: venue.id,
       latitude: 53.55,
       longitude: 9.99,
       source: 'nominatim',
     });
-    expect(app.actionBusy()).toBe(false);
+    expect(workspace.actionBusy()).toBe(false);
 
-    app.geocodeVenue(venue);
+    workflow.geocodeVenue(venue);
     http
       .expectOne(`/api/exam-venues/${venue.id}/geocode`)
       .flush({}, { status: 503, statusText: 'Provider unavailable' });
-    expect(app.geocodeCandidate()).toEqual({
+    expect(workflow.geocodeCandidate()).toEqual({
       venueId: venue.id,
       latitude: 53.55,
       longitude: 9.99,
       source: 'nominatim',
     });
-    expect(app.actionBusy()).toBe(false);
+    expect(workspace.actionBusy()).toBe(false);
 
     const coordinateUpdate: VenueUpdate = {
       id: venue.id,
@@ -566,26 +573,26 @@ describe('App', () => {
         coordinate_source: 'nominatim',
       },
     };
-    app.updateVenue(coordinateUpdate);
+    workflow.updateVenue(coordinateUpdate);
     http.expectOne(`/api/exam-venues/${venue.id}/change-impact`).flush({ count: 0 });
     http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
     http
       .expectOne(`/api/exam-venues/${venue.id}`)
       .flush({ ...venue, ...coordinateUpdate.payload, revision: venue.revision + 1 });
     flushDashboardRequests(http);
-    expect(app.geocodeCandidate()).toBeNull();
+    expect(workflow.geocodeCandidate()).toBeNull();
 
-    app.geocodeVenue(venue);
+    workflow.geocodeVenue(venue);
     http
       .expectOne(`/api/exam-venues/${venue.id}/geocode`)
       .flush({ latitude: 53.55, longitude: 9.99, source: 'nominatim' });
-    app.updateVenue(coordinateUpdate);
+    workflow.updateVenue(coordinateUpdate);
     http.expectOne(`/api/exam-venues/${venue.id}/change-impact`).flush({ count: 0 });
     http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
     http
       .expectOne(`/api/exam-venues/${venue.id}`)
       .flush({}, { status: 503, statusText: 'Provider unavailable' });
-    expect(app.geocodeCandidate()).not.toBeNull();
+    expect(workflow.geocodeCandidate()).not.toBeNull();
   });
 
   it('routes into and out of the selected venue detail', async () => {
@@ -593,36 +600,42 @@ describe('App', () => {
     const http = TestBed.inject(HttpTestingController);
     const router = TestBed.inject(Router);
     flushDashboardRequests(http);
-    const app = fixture.componentInstance as unknown as {
+    await router.navigateByUrl('/locations');
+    await stabilizeRoute(fixture);
+    const route = routeComponent(fixture, LocationsRouteComponent) as unknown as {
       openVenue(id: number): void;
-      closeVenueDetail(): void;
-      breadcrumb(): string;
+      closeDetail(): void;
     };
 
-    app.openVenue(masterDataFixture.examVenues[0].id);
+    route.openVenue(masterDataFixture.examVenues[0].id);
     await fixture.whenStable();
     expect(router.url).toBe(`/locations/${masterDataFixture.examVenues[0].id}`);
-    expect(app.breadcrumb()).toBe('Globale Bereiche');
+    expect((fixture.componentInstance as unknown as { breadcrumb(): string }).breadcrumb()).toBe(
+      'Globale Bereiche',
+    );
 
-    app.closeVenueDetail();
+    const detailRoute = routeComponent(fixture, LocationsRouteComponent) as unknown as {
+      closeDetail(): void;
+    };
+    detailRoute.closeDetail();
     await fixture.whenStable();
     expect(router.url).toBe('/locations');
   });
 
   it('covers confirmed venue actions and their non-mutating failure paths', () => {
-    const fixture = TestBed.createComponent(App);
+    TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
     flushDashboardRequests(http);
     const confirm = TestBed.inject(TuiConfirmService);
     vi.spyOn(confirm, 'withConfirm').mockReturnValue(of(true));
-    const app = fixture.componentInstance as unknown as {
+    const workflow = TestBed.inject(VenueWorkflowService) as unknown as {
       requestVenueDeletion(venue: ExamVenue): void;
       createVenue(payload: VenueCreate): void;
       updateRoom(update: RoomUpdate): void;
     };
     const venue = masterDataFixture.examVenues[0];
 
-    app.requestVenueDeletion(venue);
+    workflow.requestVenueDeletion(venue);
     http
       .expectOne(`/api/exam-venues/${venue.id}`)
       .flush({}, { status: 409, statusText: 'Venue in use' });
@@ -639,7 +652,7 @@ describe('App', () => {
       is_accessible: true,
       is_active: true,
     };
-    app.createVenue(create);
+    workflow.createVenue(create);
     http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
     http
       .expectOne('/api/exam-venues')
@@ -649,7 +662,7 @@ describe('App', () => {
       id: venue.rooms[0].id,
       payload: { expected_revision: venue.rooms[0].revision, name: 'A-102' },
     };
-    app.updateRoom(roomUpdate);
+    workflow.updateRoom(roomUpdate);
     http.expectOne(`/api/exam-rooms/${roomUpdate.id}/change-impact`).flush({
       count: 1,
       date_from: '2026-11-01',
@@ -659,7 +672,7 @@ describe('App', () => {
       .expectOne(`/api/exam-rooms/${roomUpdate.id}`)
       .flush({}, { status: 409, statusText: 'Revision conflict' });
 
-    app.updateRoom(roomUpdate);
+    workflow.updateRoom(roomUpdate);
     http
       .expectOne(`/api/exam-rooms/${roomUpdate.id}/change-impact`)
       .flush({}, { status: 503, statusText: 'Impact unavailable' });
@@ -669,7 +682,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
     flushDashboardRequests(http);
-    const app = fixture.componentInstance as unknown as {
+    const workflow = TestBed.inject(VenueWorkflowService) as unknown as {
       deleteVenue(venue: ExamVenue): void;
       createRoom(command: RoomCreate): void;
       deleteRoom(room: ExamRoom): void;
@@ -704,19 +717,19 @@ describe('App', () => {
       request.flush({ error: 'expected test failure' }, { status: 409, statusText: 'Conflict' });
     };
 
-    app.deleteVenue(venue);
+    workflow.deleteVenue(venue);
     const deleteVenue = http.expectOne(`/api/exam-venues/${venue.id}`);
     expect(deleteVenue.request.method).toBe('DELETE');
     deleteVenue.flush(null, { status: 204, statusText: 'No Content' });
     flushDashboardRequests(http);
-    app.createRoom({
+    workflow.createRoom({
       venueId: venue.id,
       payload: { name: 'B-202', capacity: 12, is_active: true },
     });
     fail(`/api/exam-venues/${venue.id}/rooms`, 'POST');
-    app.deleteRoom(room);
+    workflow.deleteRoom(room);
     fail(`/api/exam-rooms/${room.id}`, 'DELETE');
-    app.createContact({
+    workflow.createContact({
       venueId: venue.id,
       payload: {
         label: 'Empfang',
@@ -727,16 +740,16 @@ describe('App', () => {
       },
     });
     fail(`/api/exam-venues/${venue.id}/contacts`, 'POST');
-    app.updateContact({
+    workflow.updateContact({
       id: contact.id,
       payload: { expected_revision: contact.revision, label: 'Neu' },
     });
     fail(`/api/exam-venue-contacts/${contact.id}`, 'PATCH');
-    app.deleteContact(contact);
+    workflow.deleteContact(contact);
     fail(`/api/exam-venue-contacts/${contact.id}`, 'DELETE');
-    app.requestPromotion({ venue, reason: 'Bundesweit geeignet' });
+    workflow.requestPromotion({ venue, reason: 'Bundesweit geeignet' });
     fail(`/api/exam-venues/${venue.id}/promotion-requests`, 'POST');
-    app.decidePromotion({ venue, decision: 'approve', reason: 'Geprüft' });
+    workflow.decidePromotion({ venue, decision: 'approve', reason: 'Geprüft' });
     fail(`/api/exam-venue-promotion-requests/${venue.id}/decision`, 'POST');
 
     fixture.detectChanges();
@@ -750,6 +763,18 @@ function clickButton(fixture: ComponentFixture<App>, label: string): void {
   );
   expect(button).toBeDefined();
   button?.click();
+}
+
+async function stabilizeRoute(fixture: ComponentFixture<App>): Promise<void> {
+  fixture.detectChanges();
+  await fixture.whenStable();
+  fixture.detectChanges();
+}
+
+function routeComponent<T>(fixture: ComponentFixture<App>, component: Type<T>): T {
+  const debugElement = fixture.debugElement.query(By.directive(component));
+  expect(debugElement).not.toBeNull();
+  return debugElement.componentInstance as T;
 }
 
 function flushDashboardRequests(http: HttpTestingController, round = examRoundFixture): void {
