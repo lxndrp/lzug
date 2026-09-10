@@ -102,6 +102,7 @@ def safe_http_path(path: str) -> str:
 def emit_event(event: str, **fields: Any) -> None:
     """Emit one bounded JSON object; callers may only provide allowlisted scalars."""
     allowed_events = {
+        "admin_socket",
         "backend_error",
         "frontend_error",
         "http_request",
@@ -111,6 +112,11 @@ def emit_event(event: str, **fields: Any) -> None:
     if event not in allowed_events:
         raise ValueError("Unsupported observability event")
     allowed_fields = {
+        "actor",
+        "job_id",
+        "correlation_id",
+        "command",
+        "phase",
         "bytes",
         "category",
         "kind",

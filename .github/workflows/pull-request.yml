@@ -223,6 +223,11 @@ jobs:
           version: 3.52.0
       - name: Install locked dependencies
         run: uv sync --locked --extra dev
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.5"
+          cache: true
+          cache-dependency-path: operator-cli/go.sum
       - name: Run pull-request backend quality
         run: task quality:backend:pr
 
