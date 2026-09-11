@@ -1,7 +1,7 @@
 package admincli
 
-// TargetRuntimeFactory connects to an explicitly supplied endpoint. The caller
-// owns that endpoint and any tunnel behind it; lzug never creates either one.
+// TargetRuntimeFactory connects to an explicitly supplied local socket endpoint.
+// It owns only the connections it opens.
 type TargetRuntimeFactory struct {
 	Legacy RuntimeFactory
 }

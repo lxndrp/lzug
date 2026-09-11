@@ -239,15 +239,7 @@ jobs:
           cache: true
           cache-dependency-path: operator-cli/go.sum
       - name: Run pull-request backend quality
-        env:
-          LZUG_TEST_OPENSSH_REQUIRED: "1"
-        run: |
-          if ! test -x /usr/sbin/sshd; then
-            sudo apt-get update
-            sudo apt-get install --no-install-recommends -y openssh-server
-          fi
-          sudo install -d -m 0755 /run/sshd
-          task quality:backend:pr
+        run: task quality:backend:pr
 
   frontend:
     name: Frontend details

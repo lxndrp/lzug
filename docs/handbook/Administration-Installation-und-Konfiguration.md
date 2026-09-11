@@ -256,113 +256,89 @@ Der Container stellt selbst kein TLS bereit.
 Docker-Socket, `/data`, Betreiber-CLI und der lokale Python-Adminprozess dürfen
 niemals über den Reverse Proxy erreichbar sein.
 
-## SSH- und Socketzugriff
+## Socketzugriff
 
-Die CLI verwendet einen bereits vorhandenen lokalen Admin-Endpunkt.
-Bei entfernter Administration stellt der Betreiber den SSH-Tunnel extern bereit.
-`lzug-admin` startet weder `ssh` noch `sshd`, liest keine SSH-Konfiguration und
-verwaltet keine SSH-Schlüssel oder Tunnelprozesse.
-Der Adminvertrag und die Bedienung bleiben beim direkten Socket und über einen
-Tunnel identisch; die [CLI-Referenz](../developers/reference/cli.md) beschreibt die Commands.
+Die CLI verwendet einen bereits bereitgestellten lokalen Socket-Endpunkt.
+Client und Backend sprechen darüber denselben versionierten Adminvertrag.
+Bereitstellung und mögliche entfernte Weiterleitung liegen beim Betreiber;
+der Anwendungsvertrag und die Tests enden am Socket.
 
-Voraussetzung ist ein Linux-Backend mit aktiviertem Admin-Socket.
-Die vollständige Imageumstellung bleibt #747 vorbehalten;
-die Migrations- und Releasefreigabe folgt separat in #272.
+Ein nicht geheimes Zielprofil lautet beispielsweise:
+
+```json
+{
+  "endpoint": "unix:///run/lzug-admin/admin.sock",
+  "target-name": "lzug-production"
+}
+```
+
+`--config admin.json` wählt dieses Profil für direkte Commands oder `cli` aus.
+Explizite Optionen haben Vorrang vor Umgebung und Konfigurationsdatei.
+`target-name` ist ein optionaler Anzeigename, kein Identitätsnachweis.
+Das Profil darf nicht zugleich einen Container auswählen.
+Die [CLI-Referenz](https://github.com/lxndrp/lzug/blob/master/docs/developers/reference/cli.md)
+beschreibt die Commands und Optionen.
+
+Linux und macOS unterstützen einen absoluten Unix-Socketpfad.
+Auf allen drei Bedienplattformen einschließlich Windows kann ein vorhandener
+lokaler TCP-Socket mit `tcp://127.0.0.1:PORT` oder `tcp://[::1]:PORT` verwendet werden.
+DNS-Namen, Wildcard- und entfernte TCP-Adressen werden abgewiesen.
+Die CLI erstellt keinen Listener.
+Ein Loopback-Port ist auch für andere lokale Prozesse erreichbar;
+die Zugriffsbeschränkung des bereitgestellten Endpunkts liegt beim Betreiber.
+Der Backend-Adminsocket bleibt ein Unix-Domain-Socket auf Linux.
+
+Vor destruktiven Vorgängen zeigt die CLI den Zielnamen und den lokalen Endpunkt an.
+Jeder Auftrag öffnet eine eigene Verbindung und prüft den Admin-Handshake,
+bevor fachliche Daten übertragen werden.
+Eine interaktive Sitzung hält das Ziel bis zum ausdrücklichen Zielwechsel stabil.
+Bei Erfolg, Fehler, Abbruch oder Timeout schließt die CLI nur ihre Verbindung;
+der bereitgestellte Listener und Socketpfad bleiben unverändert.
+Aufträge werden nicht automatisch wiederholt.
+
+`connection_failed` kennzeichnet einen fehlgeschlagenen Verbindungsaufbau;
+`handshake_failed` eine fehlende gültige Adminantwort und
+`version_incompatible` einen inkompatiblen Vertrag.
+Ursachen unterhalb der Socket-Schnittstelle müssen mit den jeweiligen
+Betriebsmitteln diagnostiziert werden.
+Nach möglichem Ausführungsbeginn bleiben Auftrags- und Korrelations-ID sowie
+`outcome_unknown` für die Zuordnung zu Audit und Auftragsstatus erhalten.
+Prüfen Sie den Zustand vor einer erneuten Mutation.
+Private Backup-/Restore-/Exportschlüssel verbleiben beim lokalen age-Schritt.
+
+Die vollständige Image-/Compose-Umstellung folgt in #747;
+die Migrations- und Releasefreigabe bleibt #272 zugeordnet.
 Für veröffentlichte Installationen sind die verfügbaren Release-Artefakte maßgeblich.
 
-### Externe Unix-Socketweiterleitung
+### Beispiel: externe Weiterleitung mit SSH
 
-Der autoritative Backendprozess benötigt ein flüchtiges Laufzeitverzeichnis
-und eine dedizierte Betreibergruppe gemäß dem
-[Socketvertrag](../developers/components.md#backend).
-Das SSH-Konto benötigt dieselbe Server-UID oder die konfigurierte primäre
-Betreiber-GID; eine zusätzliche Gruppenzugehörigkeit genügt nicht.
-Der Zielpfad ist beispielsweise `/run/lzug-admin/admin.sock`.
-Der SSH-Dienst des Hosts muss Streamlocal-Weiterleitungen erlauben.
-Hostvertrauen, SSH-Kontorechte, Identität und Agent richtet der Betreiber ein.
-Auf dem Zielhost werden kein TCP-/HTTP-Adminport, keine lzug-Bridge und keine
-entfernte CLI benötigt.
+Dieses Beispiel zeigt eine mögliche Bereitstellung des Sockets.
+Es begründet kein Support- oder Testversprechen für SSH oder den entfernten Transport.
+Der SSH-Dienst läuft auf dem Linux-Containerhost.
+Ein Bind-Mount des dedizierten Laufzeitverzeichnisses macht den vom Backend
+angelegten Socket auch auf dem Host zugänglich.
+Das ganze Verzeichnis bleibt eingebunden, wenn das Backend den Socket neu erzeugt.
+Bei User-Namespace-Remapping müssen die tatsächlich abgebildeten numerischen IDs
+zur Eigentümer- und Peer-Prüfung des Backends passen.
+Das verbindende SSH-Konto benötigt dieselbe Server-UID oder die konfigurierte
+primäre Betreiber-GID; eine zusätzliche Gruppenzugehörigkeit genügt nicht.
+Hinzu kommen die Zugriffsrechte des Socketpfads und seiner Verzeichnisse.
+Die Anforderungen beschreibt der
+[Socketvertrag](https://github.com/lxndrp/lzug/blob/master/docs/developers/components.md#backend).
 
-Für einen Backendcontainer kann der Host das dedizierte Laufzeitverzeichnis
-per Bind-Mount in den Container einbinden.
-Das Backend erzeugt seinen Socket darin; der SSH-Dienst auf dem Host greift
-über den Hostpfad auf denselben Socket zu.
-Das Verzeichnis bleibt eingebunden, auch wenn das Backend den Socket beim
-Neustart neu erzeugt.
-Die numerischen Eigentümer- und Betreiber-IDs müssen zum Socketvertrag passen.
-Die konkrete Image-/Compose-Einrichtung folgt in #747.
-
-Unter Linux/macOS kann der Betreiber beispielsweise in einem eigenen Terminal
-folgende Weiterleitung betreiben:
+Der Betreiber richtet Hostvertrauen, Authentisierung und erlaubte
+Streamlocal-Weiterleitungen in OpenSSH ein.
+Unter Linux/macOS kann er in einem eigenen Terminal beispielsweise ausführen:
 
 ```console
 mkdir -m 700 /tmp/lzug-tunnel
 ssh -N -T -o ExitOnForwardFailure=yes -L /tmp/lzug-tunnel/admin.sock:/run/lzug-admin/admin.sock lzug-production
 ```
 
-OpenSSH verbindet den lokalen Unix-Socket mit dem entfernten Unix-Socket.
-Das private lokale Verzeichnis begrenzt den Zugriff auf den Tunnel.
-SSH-Authentisierung und Hostprüfung erfolgen durch das externe OpenSSH.
-Der Betreiber beendet den Tunnel und bereinigt dessen lokalen Socket und
-Verzeichnis nach der Nutzung.
-Die CLI verändert diese Ressourcen nicht.
-
-Ein nicht geheimes Zielprofil für den bereitgestellten Endpunkt lautet:
-
-```json
-{
-  "endpoint": "unix:///tmp/lzug-tunnel/admin.sock",
-  "target-name": "lzug-production"
-}
-```
-
-`--config remote.json` wählt dieses Profil für direkte Commands oder `cli` aus.
-Ohne Weiterleitung kann `endpoint` direkt auf den lokalen Admin-Socket zeigen,
-beispielsweise `unix:///run/lzug-admin/admin.sock`.
-Ein von der Containerplattform gestartetes CLI-Binary verwendet denselben Zugang.
-Explizite Optionen haben Vorrang vor Umgebung und Konfigurationsdatei.
-Das Profil enthält keine Geheimnisse und darf nicht zugleich einen Container auswählen.
-
-### Optionaler lokaler TCP-Endpunkt
-
-Ein externes Tunnelwerkzeug kann auch einen Port ausschließlich auf dem
-Bedienrechner bereitstellen und zum entfernten Unix-Socket weiterleiten.
-Dafür akzeptiert die CLI `tcp://127.0.0.1:PORT` oder `tcp://[::1]:PORT`.
-DNS-Namen, Wildcard- und entfernte TCP-Adressen werden abgewiesen.
-Die CLI öffnet selbst keinen Listener.
-Diese Variante ermöglicht Bedienrechner einschließlich Windows ohne lokale
-Unix-Socketweiterleitung; die Zielplattform bleibt Linux.
-Während der Tunnel läuft, können andere lokale Prozesse dessen Loopback-Port
-verwenden; seine sichere Einrichtung liegt beim Betreiber.
-
-### Zielzuordnung, Diagnose und Abbruch
-
-Vor destruktiven Vorgängen zeigt die CLI den konfigurierten Zielnamen und den
-lokalen Endpunkt an.
-Der Zielname ist eine vom Betreiber gewählte Bezeichnung, kein Nachweis des
-entfernten Hosts.
-Die Zuordnung zwischen Endpunkt und Zielhost muss zum extern eingerichteten
-Tunnel passen; die CLI kann dessen SSH-Hostidentität nicht prüfen.
-
-Jeder Auftrag öffnet eine eigene Verbindung und prüft den versionierten
-Admin-Handshake, bevor fachliche Daten übertragen werden.
-Eine interaktive Sitzung hält ihre Zielkonfiguration bis zum ausdrücklichen
-Zielwechsel stabil.
-Bei Erfolg, Fehler, Abbruch oder Timeout schließt die CLI ihre Verbindung;
-der externe Tunnel bleibt davon unabhängig bestehen.
-Es gibt weder Transportfallback noch automatische Wiederholung eines Auftrags.
-
-`connection_failed` verweist auf den lokalen Endpunkt oder den externen Tunnel.
-`handshake_failed` bedeutet, dass keine gültige Adminantwort zustande kam;
-`version_incompatible` kennzeichnet einen inkompatiblen Vertrag.
-Die konkrete SSH-Ursache muss im externen Tunnelwerkzeug geprüft werden.
-Lifecyclekonflikte und kontrollierte Backendfehler behalten ihre gemeinsame
-Fehlerausgabe.
-Ein live, aber nicht ready befindliches Ziel bleibt für Diagnose und zulässige
-Lifecycleaufträge erreichbar.
-
-Nach möglichem Ausführungsbeginn bleiben Auftrags- und Korrelations-ID sowie
-`outcome_unknown` für die Zuordnung zu Audit und Auftragsstatus erhalten.
-Prüfen Sie den Zustand vor einer erneuten Mutation.
-Private Backup-/Restore-/Exportschlüssel verbleiben beim lokalen age-Schritt;
-über die Verbindung gehen ausschließlich gemeinsamer Auftrag und Paketstrom.
+Danach verwendet die CLI `--endpoint unix:///tmp/lzug-tunnel/admin.sock`.
+OpenSSH stellt die Verbindung zum entfernten Socket her;
+ein dortiger Admin-Netzwerkport oder eine entfernte CLI sind dafür nicht erforderlich.
+Beenden und Bereinigen der Weiterleitung bleiben Aufgabe des Betreibers.
+Details zu [OpenSSH-Weiterleitungen](https://man.openbsd.org/ssh.1#L) und
+[Docker-Bind-Mounts](https://docs.docker.com/engine/storage/bind-mounts/)
+stehen in der jeweiligen Betriebsdokumentation.

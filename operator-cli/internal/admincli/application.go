@@ -345,7 +345,7 @@ func runtimeFailure(err error) *CLIError {
 		}
 		nextStep := "Inspect the operation status before deciding whether a retry is safe."
 		if socketError.Phase == "connection" || socketError.Phase == "handshake" {
-			nextStep = "Check the configured local endpoint, any externally provided tunnel, and CLI/backend protocol compatibility."
+			nextStep = "Check the configured local socket endpoint and CLI/backend protocol compatibility."
 		}
 		return &CLIError{
 			Class: socketError.Code, Phase: socketError.Phase,

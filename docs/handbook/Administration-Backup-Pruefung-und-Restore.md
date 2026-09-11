@@ -6,10 +6,10 @@ Ein Vollexport enthält fachliche Daten und Dokumente, aber keine Authentifizier
 Ab v0.7.0 erzeugt `lzug-admin` geschützte Artefakte im offenen age-Format.
 Der private Schlüssel verbleibt immer auf dem Bedienrechner.
 Das Backend erhält nur den öffentlichen Backup-Empfänger und Klartext-Paketströme
-über den ausdrücklich gewählten Transport.
-[Direkter Socket und SSH-Weiterleitung](Administration-Installation-und-Konfiguration#ssh-und-socketzugriff)
-verwenden dieselbe Kryptographiegrenze.
-Ihre konfigurierten Transfergrenzen und der technische Auftragsstatus sind über
+über den bereitgestellten Socket.
+Der [Socketzugriff](Administration-Installation-und-Konfiguration.md#socketzugriff)
+behält diese Kryptographiegrenze bei.
+Die konfigurierten Transfergrenzen und der technische Auftragsstatus sind über
 die Socket-Diagnose verfügbar; die reguläre CLI-/Imageumschaltung ist eine eigene Lieferung.
 Nach Verbindungsabbruch darf ein Restore nicht automatisch wiederholt werden.
 Klären Sie zuerst den Zustand anhand der gemeldeten Auftrags-ID;

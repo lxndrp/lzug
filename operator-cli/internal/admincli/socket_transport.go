@@ -57,7 +57,7 @@ func (unsupportedSocketRelease) Target(context.Context, BuildInfo) (map[string]a
 }
 
 // SocketTransport sends one request to an existing local endpoint. It owns only
-// its connection: no subprocess, listener, tunnel cleanup, fallback or retry.
+// its connection and never changes the endpoint or retries requests.
 type SocketTransport struct {
 	Path     string // Direct Unix pathname retained for internal callers.
 	Endpoint string

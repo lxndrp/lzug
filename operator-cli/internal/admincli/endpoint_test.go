@@ -59,7 +59,7 @@ func endpointResult(t *testing.T, connection net.Conn, request BackendRequest) {
 }
 
 func TestEndpointValidationAndPrecedence(t *testing.T) {
-	for _, endpoint := range []string{"tcp://example.com:1234", "tcp://0.0.0.0:1234", "tcp://192.0.2.1:1234", "tcp://[::]:1234", "tcp://127.0.0.1:0", "tcp://127.0.0.1:65536", "tcp://127.0.0.1:+12", "tcp://user@127.0.0.1:12", "tcp://127.0.0.1:12/?x", "unix://relative", "ssh://host/socket", "unix:///tmp/%2e/socket", "unix:///tmp/\nsecret"} {
+	for _, endpoint := range []string{"tcp://example.com:1234", "tcp://0.0.0.0:1234", "tcp://192.0.2.1:1234", "tcp://[::]:1234", "tcp://127.0.0.1:0", "tcp://127.0.0.1:65536", "tcp://127.0.0.1:+12", "tcp://user@127.0.0.1:12", "tcp://127.0.0.1:12/?x", "unix://relative", "invalid://host/socket", "unix:///tmp/%2e/socket", "unix:///tmp/\nsecret"} {
 		if _, _, err := parseEndpoint(endpoint); err == nil {
 			t.Error("unsafe endpoint accepted", endpoint)
 		}
@@ -90,7 +90,7 @@ func TestEndpointValidationAndPrecedence(t *testing.T) {
 }
 
 func TestEndpointApplicationOwnsOnlyConnectionsAndFreezesSession(t *testing.T) {
-	// No SSH or other external executable is needed by endpoint transport.
+	// Socket access works without external executables.
 	t.Setenv("PATH", t.TempDir())
 	var requests, closed atomic.Int32
 	endpoint := endpointServer(t, func(connection net.Conn) {
