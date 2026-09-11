@@ -233,6 +233,12 @@ lokale Korrektur nicht.
 ## Codex-Goals und Milestone-Reviews
 
 Jede temporäre Issue-Umsetzung verwendet ein eigenes Codex-Goal.
+Eine klar beschriebene Umsetzung startet mit Luna und medium.
+Complexity bleibt Planungsmetadatum und steuert die Prüfung, nicht automatisch
+Modell oder Reasoning.
+Eine Hochstufung wird bei fachlicher Unsicherheit oder einem wiederholten
+inhaltlichen Fehlversuch knapp mit Grund und Vorschlag beim Nutzer angefragt;
+Sandboxfehler, Berechtigungen und CI-Wartezeit lösen keine Eskalation aus.
 Nach tatsächlich erreichtem Ziel liefert dessen finaler Status die belegbare
 Laufzeit in Sekunden und, sofern technisch verfügbar, den Tokenverbrauch.
 `Projektplan aktualisieren` überträgt die Laufzeit als Stundenwert in
@@ -263,13 +269,18 @@ Die folgenden Szenarien bilden die Prozessprüfung:
 | Goal weist nur eine Metrik aus | Nur das zugehörige Project-Feld wird gepflegt; das andere bleibt leer. |
 | Goal weist keine Metrik aus | Beide Project-Felder bleiben leer; es erfolgt keine Schätzung. |
 | Erster regulärer Auftrag eines SemVer-Milestones ohne abgeschlossenen Review-Anker | Die Umsetzung bleibt blockiert, bis `Codebasis reviewen` den vollständigen Review dokumentiert hat. |
-| Abgeschlossener Review-Anker für den SemVer-Milestone | Die reguläre Umsetzung darf nach den übrigen Reifeprüfungen beginnen; Befunde werden über eigene Issues geplant. |
+| Abgeschlossener Review-Anker für den SemVer-Milestone | Die reguläre Umsetzung darf nach den übrigen Reifeprüfungen mit dem schlanken Standard beginnen; Befunde werden über eigene Issues geplant. |
+| Fachliche Unsicherheit oder wiederholter inhaltlicher Fehlversuch | Der Umsetzungstask fragt einmalig nach Freigabe einer begründeten Modell-/Reasoning-Hochstufung; ein automatischer Wechsel erfolgt nicht. |
+| Eindeutige erfolgreiche reversible Operation | Die Werkzeugantwort genügt; eine unabhängige Zweitprüfung erfolgt nicht. |
+| Neuer Commit, neuer Befund oder relevante Umweltänderung | Nur die dadurch betroffene Prüfung wird aktualisiert. |
 
 ## Pull Request und Closeout
 
 Issue-Arbeit entsteht auf dem issuebezogenen Branch und Worktree.
 Vor dem Pull Request werden Assignees, Milestone und Project des Issues live
 gelesen.
+Complexity und Profil werden nicht routinemäßig in den Pull Request kopiert;
+nur wesentliche Modellabweichungen oder Eskalationen werden einmal benannt.
 `task pr:create` prüft die exakte `Closes #<nummer>`- oder ausdrücklich
 gewählte `Tracks #<nummer>`-Zeile, übernimmt nur gesetzte Metadaten und ordnet
 den Pull Request dem Project `lzug Roadmap` zu.
