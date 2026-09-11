@@ -12,10 +12,8 @@
 
 ## Codex-Abschluss
 
-- Complexity:
-- Ausführungsprofil:
 - Goal-Status:
-- Abweichungen/Eskalationen:
+- Wesentliche Modellabweichungen/Eskalationen:
 - Relevante Befunde:
 - Verifikation:
 - Goal-Laufzeit (s; nur belegt, sonst leer):
