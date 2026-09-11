@@ -93,20 +93,26 @@ class SocketArtifactTests(unittest.TestCase):
         self.assertEqual([], list(self.paths.backups.glob(".lzug-*")))
 
     def test_real_go_age_backup_export_verify_restore(self):
+        self._real_go_age_roundtrip("TestSocketArtifactsLive")
+
+    def test_real_go_ssh_age_backup_export_verify_restore(self):
+        self._real_go_age_roundtrip("TestExternalSSHArtifactsLive")
+
+    def _real_go_age_roundtrip(self, test_name):
         initialize(self.paths.database)
         authentication_key(self.paths.database)
         self.start(limit=64 * 1024 * 1024, timeout=30)
         binary = os.environ.get("LZUG_SOCKET_TEST_BINARY")
         result = subprocess.run(
             (
-                [binary, "-test.run=^TestSocketArtifactsLive$", "-test.v"]
+                [binary, f"-test.run=^{test_name}$", "-test.v"]
                 if binary
                 else [
                     "go",
                     "test",
                     "./internal/admincli",
                     "-run",
-                    "^TestSocketArtifactsLive$",
+                    f"^{test_name}$",
                     "-count=1",
                     "-v",
                 ]
@@ -126,7 +132,7 @@ class SocketArtifactTests(unittest.TestCase):
             result.returncode,
             result.stdout + result.stderr + json.dumps(list(self.listener._jobs.values())),
         )
-        self.assertIn("PASS: TestSocketArtifactsLive", result.stdout)
+        self.assertIn(f"PASS: {test_name}", result.stdout)
         self.clean()
         self.assertNotIn("AGE-SECRET-KEY-", self.audit.getvalue())
         self.assertEqual("ready", self.runtime.snapshot()["state"])

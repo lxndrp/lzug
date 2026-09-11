@@ -235,8 +235,9 @@ Upgrade und Rollback bleiben in dieser Assembly gesperrt.
 vorhandenen injizierbaren Transportschnittstellen für Kontrollaufträge und Artefakte.
 Der Pfad wird der Factory ausdrücklich übergeben; sie startet keinen Prozess
 und kennt weder Transportfallback noch automatische Wiederholung.
-Die regulären CLI-Flags, die vollständige interaktive Anbindung, das Image und
-die Ablösung des Container-Exec-Adapters gehören zur nachfolgenden Umschaltung.
+`TargetRuntimeFactory` bindet diese Aufträge über die expliziten Zieloptionen
+auch an die gemeinsame direkte und interaktive CLI an.
+Imageumschaltung und Ablösung des Container-Exec-Adapters folgen separat in #747.
 
 Der Listener begrenzt gleichzeitig aktive Verbindungen standardmäßig auf acht,
 Handshake auf fünf Sekunden, Auftrag einschließlich Ergebnisübertragung auf
@@ -566,6 +567,19 @@ Container-Engine-spezifische Details; direkter und SSH-weitergeleiteter Zugriff
 verwenden denselben versionierten Backendauftrag.
 Ein im `lzug-app`-Container gestartetes CLI-Binary verwendet ebenfalls direkt
 den Socket.
+
+`TargetRuntimeFactory` verwendet einen ausdrücklich konfigurierten, bereits
+vorhandenen lokalen Endpunkt: `unix:///pfad` oder einen numerischen Loopback-Port.
+Die CLI startet weder SSH-Prozesse noch Listener und verwaltet keinen Tunnel.
+Der externe Betreiber verantwortet dessen Einrichtung, Hostvertrauen,
+Authentisierung, Lebensdauer und Bereinigung.
+Jeder Auftrag erhält eine eigene begrenzte Verbindung und einen Admin-Handshake
+vor der fachlichen Übertragung.
+Die interaktive Sitzung hält ihre Zielkonfiguration bis zum ausdrücklichen
+Zielwechsel stabil; Verbindungsverluste lösen keine automatische Wiederholung aus.
+Die CLI schließt ausschließlich eigene Verbindungen.
+Die [Betriebsanleitung](../handbook/Administration-Installation-und-Konfiguration.md#ssh-und-socketzugriff)
+beschreibt die externe Socketweiterleitung und ihre Diagnosegrenzen.
 
 Die Befehlsgruppen umfassen:
 

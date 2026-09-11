@@ -82,6 +82,9 @@ func (application *Application) RunInteractive(ctx context.Context, global Globa
 		global:      global,
 		config:      config,
 	}
+	previousConfig := application.sessionConfig
+	application.sessionConfig = &session.config
+	defer func() { application.sessionConfig = previousConfig }()
 	return session.run(ctx)
 }
 
@@ -526,7 +529,7 @@ func (session *interactiveSession) summary(command *Command, args []string) {
 		return
 	}
 	session.write("\nZusammenfassung vor der Ausführung:\n")
-	session.write(fmt.Sprintf("  Ziel: container=%s\n", session.config.Container.Value))
+	session.write(fmt.Sprintf("  Ziel: %s\n", session.config.targetDescription()))
 	session.write("  Wirkung: " + command.Description + "\n")
 	for _, argument := range command.Arguments {
 		if value, ok := values[argument.Name]; ok {
@@ -560,6 +563,9 @@ func (session *interactiveSession) result(name string, code int, failure *CLIErr
 }
 
 func (session *interactiveSession) changeTarget(ctx context.Context) int {
+	if session.config.target("endpoint") != "" {
+		return session.changeSocketTarget(ctx)
+	}
 	container, action, err := session.field(ctx, "container", "Exact application container name for this session.", true, nil, session.config.Container.Value, false, Values{})
 	if err != nil {
 		return session.readFailure(ctx, err, false)
@@ -581,6 +587,10 @@ func (session *interactiveSession) changeTarget(ctx context.Context) int {
 }
 
 func (session *interactiveSession) showTarget() {
+	if session.config.target("endpoint") != "" {
+		session.write("Sitzungsziel: " + session.config.targetDescription() + "\n")
+		return
+	}
 	container := session.config.Container.Value
 	if container == "" {
 		container = "<nicht gesetzt>"
@@ -599,7 +609,7 @@ func (session *interactiveSession) unavailable(command *Command) string {
 	if command.Name() == "cli" {
 		return "Sitzung bereits aktiv"
 	}
-	if command.Transport == ContainerExecTransport && session.config.Container.Value == "" {
+	if command.Transport == ContainerExecTransport && !session.config.hasTarget() {
 		return "kein Container im Sitzungsziel"
 	}
 	return ""
@@ -707,7 +717,36 @@ func unknownOutcome(failure *CLIError) bool {
 	if failure == nil {
 		return false
 	}
-	return failure.Class == string(RuntimeEngineFailed) || failure.Class == "interrupted" || failure.Class == "timeout"
+	unknown, _ := failure.Details["outcome_unknown"].(bool)
+	return unknown || failure.Class == string(RuntimeEngineFailed) || failure.Class == "interrupted" || failure.Class == "timeout"
+}
+
+func (session *interactiveSession) changeSocketTarget(ctx context.Context) int {
+	values := map[string]string{}
+	for key, value := range session.config.Target {
+		values[key] = value.Value
+	}
+	keys := []string{"endpoint", "target-name"}
+	for _, key := range keys {
+		value, action, err := session.field(ctx, key, "Explizites Ziel dieser Sitzung.", key == "endpoint", nil, values[key], false, Values{})
+		if err != nil {
+			return session.readFailure(ctx, err, false)
+		}
+		if action != dialogValue {
+			return ExitOK
+		}
+		values[key] = value
+	}
+	global := session.global
+	global.TargetValues = values
+	config, failure := session.application.Config.Resolve(global)
+	if failure != nil {
+		session.application.Renderer.Error(global, "cli", failure)
+		return ExitOK
+	}
+	session.global, session.config, session.checked = global, config, false
+	session.showTarget()
+	return ExitOK
 }
 
 func normalizeAction(value string) string {

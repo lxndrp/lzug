@@ -7,6 +7,8 @@ import (
 
 func GlobalOptionSpecs() []OptionSpec {
 	return []OptionSpec{
+		{Name: "endpoint", ValueName: "ENDPOINT", Summary: "Existing local unix:///path or tcp://127.0.0.1:PORT admin endpoint.", Kind: StringOption},
+		{Name: "target-name", ValueName: "NAME", Summary: "Non-secret display name for the endpoint target.", Kind: StringOption},
 		{Name: "container", ValueName: "NAME", Summary: "Exact running container name.", Kind: StringOption},
 		{Name: "config", ValueName: "FILE", Summary: "Read this explicit non-secret JSON configuration file.", Kind: StringOption},
 		{Name: "no-config", Summary: "Do not read a configuration file.", Kind: BooleanOption},
@@ -128,12 +130,12 @@ func commandHelp(command *Command) string {
 	output.WriteString("\nTransport:\n")
 	if command.Transport == LocalTransport {
 		if command.UsesConfig {
-			output.WriteString("  Local orchestration over the Docker container transport; secret key material stays in the CLI.\n")
+			output.WriteString("  Local orchestration over the selected target transport; secret key material stays in the CLI.\n")
 		} else {
 			output.WriteString("  Local command; no container request is sent.\n")
 		}
 	} else {
-		output.WriteString("  Versioned request through the Docker container transport.\n")
+		output.WriteString("  Versioned request through the selected target transport.\n")
 	}
 	output.WriteString("\nOutput:\n")
 	output.WriteString("  " + command.Output.Summary + "\n")

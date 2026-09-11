@@ -32,15 +32,16 @@ func GenerateReference(registry *Registry) string {
 	output.WriteString("| `--help` | Globale oder kontextbezogene Hilfe ausgeben. | - |\n")
 	output.WriteString("| `--version` | CLI-Version ausgeben. | - |\n")
 	output.WriteString("| `--build-metadata` | Kanonische Build-Metadaten als JSON ausgeben. | - |\n\n")
-	output.WriteString("Konfigurierbar ist nur der Containername.\n")
+	output.WriteString("Nicht geheime Zielparameter wählen den Transport ausdrücklich; es gibt keinen automatischen Wechsel.\n")
 	output.WriteString("Die Priorität lautet Flag vor Umgebungsvariable vor optionaler JSON-Datei vor Standardwert.\n\n")
 	output.WriteString("## Konfiguration und sichere Eingabe\n\n")
-	output.WriteString("`LZUG_ADMIN_CONTAINER` ist der einzige von der CLI ausgewertete Konfigurationswert.\n")
+	output.WriteString("`LZUG_ADMIN_ENDPOINT` und `LZUG_ADMIN_TARGET_NAME` entsprechen den Zieloptionen.\nDer bisherige `LZUG_ADMIN_CONTAINER` bleibt bis zur vollständigen Imageumstellung separat verfügbar.\n")
 	output.WriteString("Ohne `--config` sucht die CLI plattformgerecht unter dem durch `os.UserConfigDir` bestimmten Verzeichnis nach `lzug/admin.json`; eine fehlende Standarddatei ist zulässig.\n")
 	output.WriteString("Eine explizite fehlende oder ungültige Datei ist ein Konfigurationsfehler, und `--no-config` unterbindet jeden Dateizugriff.\n\n")
 	output.WriteString("```json\n")
-	output.WriteString("{\"container\":\"lzug\"}\n")
+	output.WriteString("{\"endpoint\":\"unix:///run/lzug-admin/admin.sock\",\"target-name\":\"lzug-production\"}\n")
 	output.WriteString("```\n\n")
+	output.WriteString("Ein externer Tunnel wird vor dem CLI-Aufruf bereitgestellt und bleibt nach dessen Ende bestehen.\nDie CLI verwaltet ausschließlich ihre eigenen Verbindungen.\n")
 	output.WriteString("Andere Dateischlüssel sowie Umgebungsvariablen für Secrets, Bestätigungen oder Ausgabepräferenzen werden abgewiesen.\n")
 	output.WriteString("Einmaltoken und private Empfängerschlüssel besitzen keine CLI-Option und werden ausschließlich als einzelne Eingabe über `stdin` gelesen; am TTY bleibt die Eingabe ohne Echo.\n\n")
 	output.WriteString("## Ausgabe, Fehler und Bestätigung\n\n")
@@ -113,12 +114,12 @@ func GenerateReference(registry *Registry) string {
 		}
 		if command.Transport == LocalTransport {
 			if command.UsesConfig {
-				output.WriteString("Transport: lokale Orchestrierung über den Docker-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.\n\n")
+				output.WriteString("Transport: lokale Orchestrierung über den ausgewählten Zieltransport; geheimes Schlüsselmaterial verbleibt in der CLI.\n\n")
 			} else {
 				output.WriteString("Transport: lokale Ausführung ohne Container-Auftrag.\n\n")
 			}
 		} else {
-			output.WriteString("Transport: versionierter Auftrag über den Docker-Containertransport.\n\n")
+			output.WriteString("Transport: versionierter Auftrag über den ausgewählten Zieltransport.\n\n")
 			fmt.Fprintf(&output, "Zeitlimit: `%s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.\n\n", command.Timeout)
 		}
 		if command.Mutating {

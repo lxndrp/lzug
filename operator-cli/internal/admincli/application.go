@@ -95,7 +95,7 @@ func (application *Application) Run(ctx context.Context, args []string) int {
 		}
 	}
 	if len(remaining) == 1 && remaining[0] == "--version" {
-		if global.ForceSet || global.ConfigSet || global.NoConfig || global.ContainerSet {
+		if global.ForceSet || global.ConfigSet || global.NoConfig || global.ContainerSet || len(global.TargetValues) != 0 {
 			failure = invalidInvocation("--version cannot be combined with operational options")
 			application.Renderer.Error(global, "", failure)
 			return failure.ExitCode
@@ -107,7 +107,7 @@ func (application *Application) Run(ctx context.Context, args []string) int {
 		return ExitOK
 	}
 	if len(remaining) == 1 && remaining[0] == "--build-metadata" {
-		if global.ForceSet || global.ConfigSet || global.NoConfig || global.ContainerSet {
+		if global.ForceSet || global.ConfigSet || global.NoConfig || global.ContainerSet || len(global.TargetValues) != 0 {
 			failure = invalidInvocation("--build-metadata cannot be combined with operational options")
 			application.Renderer.Error(global, "", failure)
 			return failure.ExitCode
@@ -182,18 +182,31 @@ func (application *Application) Execute(
 
 	config := EffectiveConfig{}
 	if command.Transport == ContainerExecTransport || command.UsesConfig {
-		config, failure = application.Config.Resolve(global)
+		if application.sessionConfig != nil {
+			config = *application.sessionConfig
+		} else {
+			config, failure = application.Config.Resolve(global)
+		}
 		if failure != nil {
 			application.Renderer.Error(global, command.Name(), failure)
 			return failure.ExitCode
 		}
 	}
-	if command.Transport == ContainerExecTransport && config.Container.Value == "" {
+	if command.Transport == ContainerExecTransport && !config.hasTarget() {
 		failure = invalidInvocation("a container must be set by --container, LZUG_ADMIN_CONTAINER, or configuration file")
 		application.Renderer.Error(global, command.Name(), failure)
 		return failure.ExitCode
 	}
 
+	if command.Confirmation.Required && config.target("endpoint") != "" {
+		if renderer, ok := application.Renderer.(interface{ Target(EffectiveConfig) error }); ok {
+			if renderer.Target(config) != nil {
+				failure = unexpectedError()
+				application.Renderer.Error(global, command.Name(), failure)
+				return failure.ExitCode
+			}
+		}
+	}
 	if command.Confirmation.Required && !command.Confirmation.Deferred && !global.Force {
 		if !application.Input.IsTerminal() {
 			failure = &CLIError{
@@ -206,6 +219,9 @@ func (application *Application) Execute(
 			return failure.ExitCode
 		}
 		prompt := command.Confirmation.Prompt(values, config)
+		if config.target("endpoint") != "" {
+			prompt = "Target: " + config.targetDescription() + "\n" + prompt
+		}
 		if strings.TrimSpace(prompt) == "" {
 			failure = unexpectedError()
 			application.Renderer.Error(global, command.Name(), failure)
@@ -320,11 +336,22 @@ func BuildMetadata(build BuildInfo) buildMetadata {
 func runtimeFailure(err error) *CLIError {
 	var socketError *SocketTransportError
 	if errors.As(err, &socketError) {
+		code := ExitEngineFailed
+		if socketError.Code == "version_incompatible" {
+			code = ExitProtocolIncompatible
+		}
+		if socketError.Code == "interrupted" {
+			code = ExitInterrupted
+		}
+		nextStep := "Inspect the operation status before deciding whether a retry is safe."
+		if socketError.Phase == "connection" || socketError.Phase == "handshake" {
+			nextStep = "Check the configured local endpoint, any externally provided tunnel, and CLI/backend protocol compatibility."
+		}
 		return &CLIError{
 			Class: socketError.Code, Phase: socketError.Phase,
-			Message:  "The local admin socket request failed.",
-			NextStep: "Inspect the operation status before deciding whether a retry is safe.",
-			ExitCode: ExitEngineFailed,
+			Message:  "The admin socket request failed.",
+			NextStep: nextStep,
+			ExitCode: code,
 			Details:  map[string]any{"job_id": socketError.JobID, "correlation_id": socketError.CorrelationID, "outcome_unknown": socketError.OutcomeUnknown},
 		}
 	}

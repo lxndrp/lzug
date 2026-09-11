@@ -55,6 +55,11 @@ func (renderer *OutputRenderer) Dialog(text string) error {
 	return err
 }
 
+func (renderer *OutputRenderer) Target(config EffectiveConfig) error {
+	_, err := fmt.Fprintln(renderer.stderr, "Target:", config.targetDescription())
+	return err
+}
+
 func (renderer *OutputRenderer) Error(global GlobalOptions, command string, failure *CLIError) {
 	if global.JSON {
 		_ = json.NewEncoder(renderer.stdout).Encode(outputEnvelope{

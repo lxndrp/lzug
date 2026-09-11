@@ -78,7 +78,11 @@ func (transport *SocketTransport) artifact(ctx context.Context, request BackendR
 		if err = sendSocketArtifact(ctx, session.connection, source, ready); err != nil {
 			return session.fail()
 		}
-		if err = session.connection.(*net.UnixConn).CloseWrite(); err != nil {
+		writer, ok := session.connection.(interface{ CloseWrite() error })
+		if !ok {
+			return session.fail()
+		}
+		if err = writer.CloseWrite(); err != nil {
 			return session.fail()
 		}
 	}

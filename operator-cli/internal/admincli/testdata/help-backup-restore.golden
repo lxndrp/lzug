@@ -17,7 +17,7 @@ Confirmation:
   --replace is a separate danger-zone confirmation and is never implied by --force.
 
 Transport:
-  Local orchestration over the Docker container transport; secret key material stays in the CLI.
+  Local orchestration over the selected target transport; secret key material stays in the CLI.
 
 Output:
   Human success is silent; JSON includes restore phases and safety evidence.

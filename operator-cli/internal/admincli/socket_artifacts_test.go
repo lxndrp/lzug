@@ -236,6 +236,11 @@ func TestSocketArtifactsLive(t *testing.T) {
 	}
 	factory := &SocketRuntimeFactory{Path: path, Timeout: 30 * time.Second}
 	transport := factory.ArtifactTransport(EffectiveConfig{})
+	testLiveArtifactRoundtrip(t, transport)
+}
+
+func testLiveArtifactRoundtrip(t *testing.T, transport ArtifactTransport) {
+	t.Helper()
 	identity, _ := age.GenerateX25519Identity()
 	_, fingerprint, _ := parseRecipient(identity.Recipient().String())
 	for _, kind := range []string{"backup", "export"} {
@@ -245,7 +250,7 @@ func TestSocketArtifactsLive(t *testing.T) {
 			return transport.Produce(context.Background(), request, writer)
 		})
 		if failure != nil {
-			t.Fatalf("%s create failed: %+v", kind, failure)
+			t.Fatalf("%s create failed: %#v", kind, failure)
 		}
 		artifactType := "backup"
 		if kind == "export" {
@@ -256,7 +261,7 @@ func TestSocketArtifactsLive(t *testing.T) {
 			return transport.Consume(context.Background(), request, reader)
 		})
 		if failure != nil {
-			t.Fatalf("%s verify failed: %+v", kind, failure)
+			t.Fatalf("%s verify failed: %#v", kind, failure)
 		}
 		if kind == "backup" {
 			request = BackendRequest{Command: "backup-package-restore", Arguments: map[string]any{"replace": true, "safety_artifact": artifact, "recipient_key_fingerprint": fingerprint}}
@@ -264,7 +269,7 @@ func TestSocketArtifactsLive(t *testing.T) {
 				return transport.Consume(context.Background(), request, reader)
 			})
 			if failure != nil {
-				t.Fatalf("restore failed: %+v", failure)
+				t.Fatalf("restore failed: %#v", failure)
 			}
 		}
 	}

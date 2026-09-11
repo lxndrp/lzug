@@ -56,11 +56,12 @@ func (unsupportedSocketRelease) Target(context.Context, BuildInfo) (map[string]a
 	return nil, &SocketTransportError{Phase: "validation", Code: "command_unsupported"}
 }
 
-// SocketTransport sends one control request directly to a pathname Unix socket.
-// There is no subprocess, network listener, fallback transport or automatic retry.
+// SocketTransport sends one request to an existing local endpoint. It owns only
+// its connection: no subprocess, listener, tunnel cleanup, fallback or retry.
 type SocketTransport struct {
-	Path    string
-	Timeout time.Duration
+	Path     string // Direct Unix pathname retained for internal callers.
+	Endpoint string
+	Timeout  time.Duration
 }
 
 type socketEnvelope struct {
@@ -101,15 +102,35 @@ type socketSession struct {
 	connection net.Conn
 	failure    *SocketTransportError
 	close      func()
+	ctx        context.Context
 }
 
 func (session *socketSession) fail() (BackendResponse, int, error) {
+	setSocketContextFailure(session.failure, session.ctx)
 	return BackendResponse{}, ExitEngineFailed, session.failure
+}
+
+func setSocketContextFailure(failure *SocketTransportError, ctx context.Context) {
+	if ctx.Err() == context.Canceled {
+		failure.Code = "interrupted"
+		return
+	}
+	deadline, bounded := ctx.Deadline()
+	if ctx.Err() == context.DeadlineExceeded || bounded && !time.Now().Before(deadline) {
+		failure.Code = "timeout"
+	}
 }
 
 func (transport *SocketTransport) open(ctx context.Context, request BackendRequest, defaultTimeout time.Duration) (*socketSession, error) {
 	failure := &SocketTransportError{Phase: "connection", Code: "connection_failed"}
-	if !filepath.IsAbs(transport.Path) || bytes.IndexByte([]byte(transport.Path), 0) >= 0 {
+	network, address := "unix", transport.Path
+	if transport.Endpoint != "" {
+		var err error
+		network, address, err = parseEndpoint(transport.Endpoint)
+		if err != nil {
+			return nil, failure
+		}
+	} else if !filepath.IsAbs(address) || bytes.IndexByte([]byte(address), 0) >= 0 {
 		return nil, failure
 	}
 	payload, err := json.Marshal(request)
@@ -126,14 +147,19 @@ func (transport *SocketTransport) open(ctx context.Context, request BackendReque
 		return nil, failure
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
-	connection, err := (&net.Dialer{}).DialContext(ctx, "unix", transport.Path)
+	connection, err := (&net.Dialer{}).DialContext(ctx, network, address)
 	if err != nil {
+		setSocketContextFailure(failure, ctx)
 		cancel()
 		return nil, failure
 	}
 	stop := context.AfterFunc(ctx, func() { _ = connection.Close() })
-	session := &socketSession{connection: connection, failure: failure, close: func() { stop(); cancel(); _ = connection.Close() }}
-	failed := func() (*socketSession, error) { session.close(); return nil, failure }
+	session := &socketSession{connection: connection, failure: failure, ctx: ctx, close: func() { stop(); cancel(); _ = connection.Close() }}
+	failed := func() (*socketSession, error) {
+		setSocketContextFailure(failure, ctx)
+		session.close()
+		return nil, failure
+	}
 	deadline, _ := ctx.Deadline()
 	if err = connection.SetDeadline(deadline); err != nil {
 		return failed()

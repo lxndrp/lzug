@@ -83,6 +83,19 @@ class QualityWorkflowContractTests(unittest.TestCase):
     def test_codeql_go_cache_uses_component_lockfile(self) -> None:
         self.assertIn("cache-dependency-path: operator-cli/go.sum", self.codeql)
 
+    def test_endpoint_platforms_and_external_linux_tunnel_evidence(self) -> None:
+        cli = job_block(self.pull_request, "cli")
+        for platform in ("ubuntu-24.04", "macos-14", "windows-2025"):
+            self.assertIn(platform, cli)
+        self.assertNotIn("openssh-server", cli)
+        self.assertIn("-run TestEndpoint", cli)
+        self.assertIn(
+            "'operator-cli/**'",
+            mapping_block(job_block(self.pull_request, "changes"), "backend", indent=12),
+        )
+        for workflow in (self.pull_request, self.quality):
+            self.assertIn('LZUG_TEST_OPENSSH_REQUIRED: "1"', job_block(workflow, "backend"))
+
     def test_gates_reject_missing_failed_or_cancelled_selected_evidence(self) -> None:
         for gate_id in PR_GATES:
             gate = job_block(self.pull_request, gate_id)
