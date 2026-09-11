@@ -192,12 +192,6 @@ func (application *Application) Execute(
 			return failure.ExitCode
 		}
 	}
-	if command.Transport == ContainerExecTransport && !config.hasTarget() {
-		failure = invalidInvocation("a container must be set by --container, LZUG_ADMIN_CONTAINER, or configuration file")
-		application.Renderer.Error(global, command.Name(), failure)
-		return failure.ExitCode
-	}
-
 	if command.Confirmation.Required && config.target("endpoint") != "" {
 		if renderer, ok := application.Renderer.(interface{ Target(EffectiveConfig) error }); ok {
 			if renderer.Target(config) != nil {

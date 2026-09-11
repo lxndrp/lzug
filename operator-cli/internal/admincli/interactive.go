@@ -609,9 +609,6 @@ func (session *interactiveSession) unavailable(command *Command) string {
 	if command.Name() == "cli" {
 		return "Sitzung bereits aktiv"
 	}
-	if command.Transport == ContainerExecTransport && !session.config.hasTarget() {
-		return "kein Container im Sitzungsziel"
-	}
 	return ""
 }
 
