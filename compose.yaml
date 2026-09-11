@@ -20,6 +20,9 @@ services:
       - type: volume
         source: lzug_data
         target: /data
+      - type: bind
+        source: ${LZUG_ADMIN_SOCKET_DIR:-./var/lzug-admin}
+        target: /run/lzug-admin
     environment:
       LZUG_HOST: ${LZUG_HOST:-0.0.0.0}
       LZUG_PORT: ${LZUG_PORT:-8000}
@@ -61,6 +64,15 @@ services:
       timeout: 5s
       start_period: 20s
       retries: 3
+    command:
+      - "--host"
+      - "${LZUG_HOST:-0.0.0.0}"
+      - "--port"
+      - "${LZUG_PORT:-8000}"
+      - "--admin-socket-dir"
+      - "/run/lzug-admin"
+      - "--admin-socket-gid"
+      - "10001"
 
 volumes:
   lzug_data:

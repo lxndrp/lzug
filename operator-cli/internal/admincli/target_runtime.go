@@ -3,30 +3,27 @@ package admincli
 // TargetRuntimeFactory connects to an explicitly supplied local socket endpoint.
 // It owns only the connections it opens.
 type TargetRuntimeFactory struct {
-	Legacy RuntimeFactory
 }
 
 func NewTargetRuntimeFactory() *TargetRuntimeFactory {
-	return &TargetRuntimeFactory{Legacy: NewContainerRuntimeFactory()}
+	return &TargetRuntimeFactory{}
 }
 
 func (factory *TargetRuntimeFactory) Transport(config EffectiveConfig) Transport {
-	if config.target("endpoint") == "" {
-		return factory.Legacy.Transport(config)
-	}
-	return &SocketTransport{Endpoint: config.target("endpoint")}
+	return socketTransportForConfig(config)
 }
 
 func (factory *TargetRuntimeFactory) ArtifactTransport(config EffectiveConfig) ArtifactTransport {
-	if config.target("endpoint") == "" {
-		return factory.Legacy.(ArtifactRuntimeFactory).ArtifactTransport(config)
-	}
-	return &SocketTransport{Endpoint: config.target("endpoint")}
+	return socketTransportForConfig(config)
 }
 
-func (factory *TargetRuntimeFactory) ReleaseInspector(config EffectiveConfig) ReleaseInspector {
-	if config.target("endpoint") == "" {
-		return factory.Legacy.ReleaseInspector(config)
-	}
+func (factory *TargetRuntimeFactory) ReleaseInspector(_ EffectiveConfig) ReleaseInspector {
 	return unsupportedSocketRelease{} // Engine-free release approval belongs to #272.
+}
+
+func socketTransportForConfig(config EffectiveConfig) *SocketTransport {
+	if endpoint := config.target("endpoint"); endpoint != "" {
+		return &SocketTransport{Endpoint: endpoint}
+	}
+	return &SocketTransport{Path: "/run/lzug-admin/admin.sock"}
 }
