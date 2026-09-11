@@ -26,9 +26,19 @@ Der Implementierungsstand wird im zugehörigen Issue kommentiert: an sinnvollen 
 Temporäre Codex-Umsetzungen erfassen Laufzeit und Tokenverbrauch nur aus dem
 jeweiligen Goal-Status.
 Fehlende Messwerte werden nicht geschätzt und bleiben im Project leer.
+Klar beschriebene Umsetzungen starten mit Luna und medium.
+Complexity bleibt ein Planungsmetadatum und steuert die Prüfung, nicht
+automatisch Modell oder Reasoning.
+Eine Hochstufung wird nur bei fachlicher Unsicherheit oder einem wiederholten
+inhaltlichen Fehlversuch mit Grund und Vorschlag beim Nutzer angefragt.
+Sandboxfehler, Berechtigungen und CI-Wartezeit sind keine Modelleskalation.
 Vor der ersten regulären Umsetzung eines neuen SemVer-Milestones dokumentiert
 ein vollständiger Codebasis-Review den geprüften Stand und seine Befunde;
 der Review-Anker selbst trägt kein `review:`-Label.
+Reifeprüfung, Metadatenmutation und Closeout haben jeweils genau eine
+zuständige Stelle.
+Eindeutige erfolgreiche reversible Werkzeugantworten genügen; Nachprüfungen
+erfolgen nur bei konkretem Anlass wie Lücke, Widerspruch oder neuem Commit.
 Die technischen Nachweisregeln stehen im
 [Entwicklerhandbuch](../developers/development.md#codex-goals-und-milestone-reviews).
 
