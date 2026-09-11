@@ -252,7 +252,7 @@ func TestLocalCommandWorksWithoutContainerAndUnavailableCommandsStayVisible(t *t
 		t.Fatalf("session returned %d", code)
 	}
 	output := stdout.String()
-	if !strings.Contains(output, "account") || !strings.Contains(output, "kein Container im Sitzungsziel") || !strings.Contains(output, "Ergebnis: config inspect erfolgreich") {
+	if !strings.Contains(output, "account") || !strings.Contains(output, "Ergebnis: config inspect erfolgreich") {
 		t.Fatalf("availability or local execution is missing: %q", output)
 	}
 	if len(transport.requests) != 0 {

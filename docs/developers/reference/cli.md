@@ -27,7 +27,7 @@ Die Priorität lautet Flag vor Umgebungsvariable vor optionaler JSON-Datei vor S
 ## Konfiguration und sichere Eingabe
 
 `LZUG_ADMIN_ENDPOINT` und `LZUG_ADMIN_TARGET_NAME` entsprechen den Zieloptionen.
-Der bisherige `LZUG_ADMIN_CONTAINER` bleibt bis zur vollständigen Imageumstellung separat verfügbar.
+Der Backendtransport verwendet ausschließlich den bereitgestellten lokalen Socket; Container-Engine- und Python-Prozessparameter gehören nicht zum CLI-Vertrag.
 Ohne `--config` sucht die CLI plattformgerecht unter dem durch `os.UserConfigDir` bestimmten Verzeichnis nach `lzug/admin.json`; eine fehlende Standarddatei ist zulässig.
 Eine explizite fehlende oder ungültige Datei ist ein Konfigurationsfehler, und `--no-config` unterbindet jeden Dateizugriff.
 

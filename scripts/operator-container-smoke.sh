@@ -10,6 +10,7 @@ admin_binary="${LZUG_ADMIN_BINARY:-}"
 lzug_require_docker
 
 temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/lzug-operator-container.XXXXXX")
+mkdir "$temporary_directory/socket"
 container="lzug-operator-smoke-$$"
 volume="$container-data"
 if [ -z "$admin_binary" ]; then
@@ -46,6 +47,7 @@ docker run --detach --name "$container" \
     --env "LZUG_SMTP_USERNAME=diagnostic-operator" \
     --env "LZUG_SMTP_PASSWORD=diagnostic-secret-marker" \
     --mount "type=volume,source=$volume,target=/data" \
+    --mount "type=bind,source=$temporary_directory/socket,target=/run/lzug-admin" \
     "$image" --host 0.0.0.0 --port 8000 --init >/dev/null
 if ! lzug_wait_for_container_health "$container" 30; then
     echo "Container did not become ready for the operator contract." >&2
@@ -78,10 +80,9 @@ assert payload["error"]["class"] == "invalid_invocation"
 ' "$temporary_directory/unverified-release.json"
 
 maintenance_status=0
-printf '%s\n' '{"version":1,"command":"rollback","arguments":{}}' | \
-    docker exec --interactive "$container" python -m backend.admin --protocol 1 \
-        >"$temporary_directory/live-server-lifecycle.json" \
-        2>"$temporary_directory/live-server-lifecycle.stderr" || maintenance_status=$?
+"$admin_binary" --endpoint "unix://$temporary_directory/socket/admin.sock" --json \
+    upgrade rollback >"$temporary_directory/live-server-lifecycle.json" \
+    2>"$temporary_directory/live-server-lifecycle.stderr" || maintenance_status=$?
 test "$maintenance_status" -eq 28
 python3 -c '
 import json

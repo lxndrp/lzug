@@ -109,7 +109,9 @@ type InteractiveRenderer interface {
 type TransportKind string
 
 const (
-	ContainerExecTransport TransportKind = "container-exec"
+	// ContainerExecTransport is retained as a source-compatible registry name;
+	// its runtime meaning is the versioned local admin socket.
+	ContainerExecTransport TransportKind = "socket"
 	LocalTransport         TransportKind = "local"
 )
 
