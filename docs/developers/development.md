@@ -230,6 +230,36 @@ Bestätigung, Priorität, Status oder Mergefreigabe.
 Eine langfristige Richtungsänderung benötigt gegebenenfalls einen ADR; eine
 lokale Korrektur nicht.
 
+## Aufträge und Zuständigkeiten
+
+Übergaben zwischen Codex-Tasks sind asynchrone Aufträge.
+Der Link zum maßgeblichen Issue oder Pull Request und die dafür notwendigen
+neuen Angaben genügen;
+Empfangsbestätigung, Rückversicherungsrunde und Kontrolle des Empfänger-Tasks
+durch den Sender entfallen.
+Die Zustellung belegt nicht die Umsetzung, deren Stand ausschließlich an den
+GitHub-Artefakten abgelesen wird.
+Fehlgeschlagene Zustellungen werden gezielt behandelt und unklare vor einer
+Wiederholung geklärt.
+
+| Schritt | Zuständigkeit |
+| --- | --- |
+| koordinierter Start | `Weiterentwicklung koordinieren` prüft Reife, Review-Gate und Complexity einmal; der Issue-Task übernimmt diese Evidenz. |
+| direkter Start | Der Issue-Task führt die sonst fehlende Startprüfung einmal durch. |
+| Umsetzung | Der Issue-Task bearbeitet Code, Tests, Pull Request und neue Reviewbefunde. |
+| Merge und lokaler Closeout | `Weiterentwicklung koordinieren` handelt erst nach der jeweiligen Maintainer-Freigabe. |
+| Istwerte und Planung | `Projektplan aktualisieren` übernimmt belegte Goal-Werte und bestätigte Planänderungen. |
+
+Ein Task dokumentiert seinen Abschluss am maßgeblichen GitHub-Artefakt.
+Nur ein tatsächlich nötiger Folgeschritt wird genau einmal an den dafür
+zuständigen Task übergeben;
+eine Berichtskette durch vorherige Tasks entsteht nicht.
+Rückfragen bleiben auf unklare Entscheidungen, fehlende Berechtigungen,
+Blocker und begründete Modellhochstufungen beschränkt.
+Codeprüfung, CI und menschlicher Review bleiben eigenständige fachliche
+Prüfungen und werden weder durch Übergaben noch durch administrative Abgleiche
+ersetzt.
+
 ## Codex-Goals und Milestone-Reviews
 
 Jede temporäre Issue-Umsetzung verwendet ein eigenes Codex-Goal.
@@ -277,16 +307,16 @@ Die folgenden Szenarien bilden die Prozessprüfung:
 ## Pull Request und Closeout
 
 Issue-Arbeit entsteht auf dem issuebezogenen Branch und Worktree.
-Vor dem Pull Request werden Assignees, Milestone und Project des Issues live
-gelesen.
 Complexity und Profil werden nicht routinemäßig in den Pull Request kopiert;
 nur wesentliche Modellabweichungen oder Eskalationen werden einmal benannt.
+Der Issue-Task liest Assignees, Milestone und Project-Zuordnung unmittelbar vor
+dem Pull Request einmal.
 `task pr:create` prüft die exakte `Closes #<nummer>`- oder ausdrücklich
-gewählte `Tracks #<nummer>`-Zeile, übernimmt nur gesetzte Metadaten und ordnet
-den Pull Request dem Project `lzug Roadmap` zu.
-
-Nach dem Erstellen werden schließende Verknüpfung, Assignees, Milestone und
-Project mit `gh pr view` verifiziert.
+gewählte `Tracks #<nummer>`-Zeile, übernimmt die gesetzten Werte und ordnet den
+Pull Request dem Project `lzug Roadmap` zu.
+Eine eindeutige erfolgreiche Werkzeugantwort benötigt keine zusätzliche
+Metadatenprüfung;
+nur bei Lücke, Widerspruch oder relevanter Änderung wird gezielt nachgelesen.
 Nach jeder inhaltlichen Änderung laufen die betroffenen lokalen Prüfungen und
 die CI des neuen Commits erneut.
 Vor dem Merge werden allgemeine Kommentare, Review-Threads,
@@ -295,7 +325,23 @@ geprüft und sinnvolle Befunde vor dem Auflösen umgesetzt.
 
 Merge, Release, Workflow-Dispatch und externe Aktivierung bleiben getrennte
 Maintainerentscheidungen.
-Nach einem freigegebenen Merge werden relevante Folgebuilds, Issue- und
-Project-Status live geprüft.
-Vor dem Entfernen des issuebezogenen Worktrees muss er sauber sein; nur der
-zugehörige lokale und Remote-Feature-Branch wird entfernt.
+`Weiterentwicklung koordinieren` führt einen freigegebenen Merge und danach den
+lokalen Closeout aus.
+Vor dem Entfernen des issuebezogenen Worktrees prüft die Koordination lokale
+und ignorierte Daten;
+bei Resten stoppt sie ohne Verwerfen oder Sichern.
+Nur ein sauberer zugehöriger Worktree sowie sein lokaler und Remote-Feature-
+Branch werden entfernt;
+der Umsetzungstask wird nicht automatisch archiviert.
+
+Am Iterationsende und vor Release-Abschluss erfolgt ein ereignisgesteuerter
+Sammelabgleich, bei zusammenfallenden Anlässen nur einmal.
+Er ist Teil des bestehenden Closeouts und kein zeitgesteuerter Scheduler.
+Die Koordination bearbeitet offene Pull-Request-, CI- und Closeout-Reste sowie
+verwaiste Issue-Arbeitsbereiche und bündelt unklare Lücken.
+Ein einzelner Sammelauftrag an `Projektplan aktualisieren` prüft abgeschlossene
+Issues auf Project-Zuordnung, Status, vorhandene Istwerte und daraus folgende
+Planungs- oder Project-README-Abweichungen.
+Eindeutig belegte Routinekorrekturen erfolgen im bestehenden Auftrag;
+Goal-Werte werden nicht doppelt gezählt, fehlende Werte nicht erfunden und
+Planänderungen weiterhin nur nach bestätigter Entscheidung vorgenommen.

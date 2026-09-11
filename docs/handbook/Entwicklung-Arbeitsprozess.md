@@ -19,7 +19,15 @@ Refinements von Stories und Epics aktualisieren Titel, Beschreibung, Labels oder
 
 ## Planung, Umsetzung und Nachweise
 
-Planung, Refinement und fachliche Klärung erfolgen getrennt von der Umsetzung. Threads für Issues verwenden das Muster `<issue> (<type>): <title>`. Jeder Umsetzungsthread hat einen eigenen Worktree und Feature-Branch; beim Übergang werden Issue-Nummer, Ziel, Akzeptanzkriterien, technische Entscheidungen, Randbedingungen und offene Punkte übergeben.
+Planung, Refinement und fachliche Klärung erfolgen getrennt von der Umsetzung.
+Threads für Issues verwenden das Muster `<issue> (<type>): <title>`.
+Jeder Umsetzungsthread hat einen eigenen Worktree und Feature-Branch.
+Eine Übergabe ist ein asynchroner Auftrag mit Link zum maßgeblichen Issue oder
+Pull Request und nur den notwendigen neuen Angaben;
+Empfangsbestätigung und Rückversicherungsrunde entfallen.
+Die Zustellung belegt nicht die Umsetzung, deren Stand in GitHub sichtbar ist.
+Ein Task dokumentiert dort seinen Abschluss und beauftragt nur einen
+tatsächlich nötigen Folgeschritt genau einmal beim zuständigen Task.
 
 Der Implementierungsstand wird im zugehörigen Issue kommentiert: an sinnvollen Zwischenständen Umfang und Verifikation, Abweichungen und offene Punkte, vor Abschluss zusätzlich Pull Request und mögliche Folgearbeit. Fortschritt darf nicht ausschließlich im Chat stehen.
 
@@ -35,8 +43,12 @@ Sandboxfehler, Berechtigungen und CI-Wartezeit sind keine Modelleskalation.
 Vor der ersten regulären Umsetzung eines neuen SemVer-Milestones dokumentiert
 ein vollständiger Codebasis-Review den geprüften Stand und seine Befunde;
 der Review-Anker selbst trägt kein `review:`-Label.
-Reifeprüfung, Metadatenmutation und Closeout haben jeweils genau eine
-zuständige Stelle.
+`Weiterentwicklung koordinieren` prüft bei einem koordinierten Start Reife,
+Review-Gate und Complexity einmal;
+bei einem direkten Auftrag übernimmt der Issue-Task diese Startprüfung.
+Der Issue-Task bearbeitet Umsetzung, Tests, Pull Request und neue Reviewbefunde,
+die Koordination den freigegebenen Merge und lokalen Closeout und
+`Projektplan aktualisieren` belegte Istwerte sowie bestätigte Planänderungen.
 Eindeutige erfolgreiche reversible Werkzeugantworten genügen; Nachprüfungen
 erfolgen nur bei konkretem Anlass wie Lücke, Widerspruch oder neuem Commit.
 Die technischen Nachweisregeln stehen im
@@ -69,7 +81,32 @@ als dauerhafter Verifikationsbericht in der Fachlichkeitsdokumentation.
 
 Produkt- und Fehlerbehebungsarbeiten zu Issues entstehen auf `codex/<issue>-<kurzer-name>`, nie direkt auf `master`. Commits bleiben klein, thematisch und auf Englisch. Vor dem Commit werden nur auftragsbezogene Dateien gestaged; bei lokal störendem fsmonitor hilft `git -c core.fsmonitor=false status`.
 
-Issue-Pull-Requests werden mit `scripts/create-issue-pr.sh` gegen `master` erstellt. Das Script übernimmt Project, Milestone und Assignees aus dem Issue. Vollständige Umsetzungen verwenden `Closes #<nummer>`, Teilumsetzungen eine nicht schließende Verknüpfung. Erst erfolgreiche CI und Review erlauben Merge. Danach werden das Issue auf `Done` gesetzt und geschlossen, sofern vollständig. Archivierung eines zugehörigen Threads erfolgt gemeinsam mit dem Entfernen genau des Issue-Worktrees sowie der lokalen und Remote-Feature-Branches; `master`, andere Issues und aktive Arbeitsverzeichnisse bleiben unberührt.
+Issue-Pull-Requests werden mit `task pr:create` gegen `master` erstellt.
+Der Issue-Task liest Project, Milestone und Assignees dafür einmal und übergibt
+nur gesetzte Werte;
+eine eindeutige erfolgreiche Werkzeugantwort benötigt keine zweite
+Metadatenprüfung.
+Vollständige Umsetzungen verwenden `Closes #<nummer>`, Teilumsetzungen eine
+nicht schließende Verknüpfung.
+Erst erfolgreiche CI und Review erlauben den ausdrücklich freigegebenen Merge.
+Danach entfernt die Koordination nur einen sauberen Issue-Worktree sowie dessen
+lokalen und Remote-Feature-Branch;
+lokale oder ignorierte Restdaten werden weder stillschweigend verworfen noch
+gesichert.
+Der zugehörige Umsetzungstask wird nicht automatisch archiviert.
+`master`, andere Issues, laufende Tasks und aktive Arbeitsverzeichnisse bleiben
+unberührt.
+
+Am Iterationsende und vor Release-Abschluss gleicht die Koordination offene
+Pull-Request-, CI- und Closeout-Reste sowie verwaiste Issue-Arbeitsbereiche
+gebündelt ab;
+fallen beide Anlässe zusammen, erfolgt der Abgleich nur einmal.
+Ein einzelner Sammelauftrag an `Projektplan aktualisieren` prüft abgeschlossene
+Issues auf Project-Zuordnung, Status, vorhandene Istwerte und daraus folgende
+Planungs- oder README-Abweichungen.
+Eindeutige administrative Lücken werden korrigiert, unklare gebündelt benannt;
+Goal-Werte werden nicht doppelt gezählt und Planänderungen bleiben
+bestätigungspflichtig.
 
 ## Verifikation und Sandbox
 
