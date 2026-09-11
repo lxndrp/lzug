@@ -12,9 +12,11 @@ lzug_require_docker
 temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/lzug-v060-migration.XXXXXX")
 container="lzug-v060-migration-$$"
 volume="$container-data"
+current_volume="$container-current-data"
 admin_binary="$temporary_directory/lzug-admin"
 cleanup() {
     lzug_cleanup_contract_container "$container" "$volume"
+    docker volume rm "$current_volume" >/dev/null 2>&1 || true
     rm -rf "$temporary_directory"
 }
 trap cleanup EXIT INT TERM
@@ -158,9 +160,23 @@ docker exec "$container" python -c '
 from backend.persistence.database import database_path, migration_status
 
 status = migration_status(database_path())
-assert status["state"] == "ready"
-assert status["current"] == "028_add_exam_venue_change_notifications.sql"
+assert status["state"] == "migration_required"
+assert status["current"] != status["target"]
 '
+
+# An image start must preserve the legacy data and wait for explicit migration.
+# The new-format roundtrip uses a separate empty instance. Full approval and
+# interrupted migration are exercised through the authoritative socket suite.
+docker rm --force "$container" >/dev/null
+docker volume create "$current_volume" >/dev/null
+docker run --detach --name "$container" \
+    --read-only --tmpfs /tmp \
+    --mount "type=volume,source=$current_volume,target=/data" \
+    "$current_image" --host 0.0.0.0 --port 8000 --init >/dev/null
+if ! lzug_wait_for_container_health "$container" 30; then
+    echo "The new-format instance did not become live." >&2
+    exit 1
+fi
 
 "$admin_binary" recipient-key generate \
     --identity-file "$temporary_directory/current.agekey" \
@@ -194,4 +210,4 @@ assert inspected["ok"] is True and inspected["result"]["protection"] == "age-x25
 assert created["result"]["recipient_key_fingerprint"] == inspected["result"]["recipient_key_fingerprint"]
 ' "$temporary_directory/current-backup.json" "$temporary_directory/current-verify.json" "$temporary_directory/current-inspect.json"
 
-echo "v0.6.0 restore, current schema upgrade, and new age backup path passed with Docker"
+echo "v0.6.0 restore, migration-required startup, and new age backup path passed with Docker"

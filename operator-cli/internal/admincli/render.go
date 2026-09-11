@@ -338,8 +338,12 @@ func publicBackendMessage(class string) (string, string) {
 	case "irreversible_confirmation_required":
 		return "Upgrade requires the separate irreversible-migration confirmation.", "Review the pending migrations and retry with --confirm-irreversible; --force does not imply it."
 	case "release_artifact_unverified", "maintenance_required":
-		return "The release-bound lifecycle prerequisites are not satisfied.", "Use the matching release CLI and a prepared maintenance container."
-	case "source_newer", "source_unsupported", "schema_incompatible", "migration_failed", "rollback_not_supported":
+		return "The running backend cannot approve this data transition.", "Use the authoritative backend socket and inspect lzug-admin upgrade status."
+	case "rollback_not_supported":
+		return rollbackBoundary, "Inspect lzug-admin upgrade status and the documented restore procedure."
+	case "migration_failed":
+		return "Data migration failed; the backend remains live and not ready.", "Inspect lzug-admin system status and the retained job ID before a supported recovery; do not replay the migration."
+	case "source_newer", "source_unsupported", "schema_incompatible":
 		return "The requested operation is incompatible with the current data or release state.", "Review the supported version and migration path before retrying."
 	case "database_not_ready":
 		return "The application database is not ready for this administration request.", "Run lzug-admin system doctor and resolve the reported readiness problem."
@@ -369,6 +373,12 @@ func safeErrorDetails(raw json.RawMessage) map[string]any {
 	sort.Strings(keys)
 	result := map[string]any{}
 	for _, key := range keys {
+		if key == "job_id" || key == "backup_artifact_id" {
+			if value, ok := source[key].(string); ok && socketID.MatchString(value) {
+				result[key] = value
+			}
+			continue
+		}
 		if !allowed[key] {
 			continue
 		}
@@ -400,6 +410,7 @@ var knownBackendErrorClasses = map[string]bool{
 	"maintenance_required": true, "manifest_invalid": true, "membership_conflict": true,
 	"migration_failed": true, "person_conflict": true, "person_not_found": true,
 	"persistence_error": true, "postcheck_failed": true, "recipient_key_invalid": true,
+	"recipient_not_configured": true, "recipient_already_configured": true,
 	"recipient_key_mismatch": true, "release_artifact_unverified": true, "replace_confirmation_required": true,
 	"restore_failed": true, "restore_requires_backup": true, "rollback_not_supported": true,
 	"schema_incompatible": true, "snapshot_failed": true, "source_newer": true,

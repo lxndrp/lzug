@@ -363,17 +363,25 @@ Ein laufender Auftrag beendet seine Arbeit unter den gehaltenen Sperren.
 Ein Stopp-Timeout lässt die Ownership bestehen und erlaubt keinen parallelen
 Ersatzprozess.
 
-`backend.server` erhält den bisherigen expliziten `--init`-Pfad für
-Initialisierung und Migration, jetzt unter der gemeinsamen Ownership.
-Ohne diesen Auftrag bleibt ein vorhandenes Schema mit Migrationsbedarf
-diagnostizierbar und sperrt Fachaufträge.
-`claim` erwirbt Ownership vor dem Listenerstart; der Server-Lifespan führt
-`initialize` anschließend im selben Prozess aus, während HTTP erreichbar bleibt.
-Ready und Fachzulassung werden erst nach erfolgreicher Prüfung und gespeichertem
-Auftragsabschluss atomar freigegeben.
-Die öffentliche HTTP-/Frontenddarstellung verwendet den gemeinsamen Snapshot.
-Die Ablösung der bisherigen Startmigration durch eine Migrationsfreigabe im
-laufenden Prozess gehört zum Auftrag #272.
+`backend.server --init` initialisiert ausschließlich leere Datenbestände.
+Ein vorhandenes Schema mit Migrationsbedarf bleibt live/not-ready und sperrt
+Fachaufträge bis zur ausdrücklichen Freigabe über `lzug-admin upgrade apply`.
+`upgrade status` liest den gecachten Schema- und Buildstand und weist
+Freigabepfad, Backupanforderung und Restoregrenze aus.
+Der Socket prüft das lokal entschlüsselte Paket gegen den im selben Prozess
+angelegten Sicherungsnachweis; Clientbehauptungen ersetzen keine Paketprüfung.
+Eine Migration hält die exklusive Runtime-Sperre und verwendet die
+Socket-Auftrags-ID auch für das dauerhafte Runtime-Journal.
+Nach Fehler oder unterbrochenem Auftrag bleibt die Runtime gesperrt;
+Verbindungsverlust und Neustart wiederholen keine Mutation.
+Ready und Fachzulassung werden erst nach erfolgreicher Nachprüfung und
+persistiertem Auftragsabschluss freigegeben.
+Die öffentliche HTTP-/Frontenddarstellung verwendet denselben Snapshot.
+Imagewechsel und Containerstart bleiben gemäß
+[ADR-0033](decisions/0033-aio-betrieb-admintransport-und-lifecycle.md)
+bei der Containerplattform.
+Das [Betreiberverfahren](../handbook/Administration-Update-und-Rollback.md)
+beschreibt Freigabe und Wiederherstellungsgrenzen.
 
 Die folgende Tabelle ist die kanonische knappe Zuordnung der aktuellen
 Backend-Paketstruktur.

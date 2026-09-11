@@ -65,7 +65,7 @@ lifecycle_status=0
         --confirm-irreversible --force \
         >"$temporary_directory/unverified-release.json" \
         2>"$temporary_directory/unverified-release.stderr" || lifecycle_status=$?
-test "$lifecycle_status" -eq 33
+test "$lifecycle_status" -eq 2
 python3 -c '
 import json
 import sys
@@ -73,16 +73,16 @@ import sys
 with open(sys.argv[1], encoding="utf-8") as stream:
     payload = json.load(stream)
 assert payload["schema_version"] == 1 and payload["protocol_version"] == 1
-assert payload["exit_code"] == 33 and payload["ok"] is False
-assert payload["error"]["class"] == "release_artifact_unverified"
+assert payload["exit_code"] == 2 and payload["ok"] is False
+assert payload["error"]["class"] == "invalid_invocation"
 ' "$temporary_directory/unverified-release.json"
 
 maintenance_status=0
-printf '%s\n' '{"version":1,"command":"rollback","arguments":{"target":{"identity":"0.6.0","image":"ghcr.io/lxndrp/lzug@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","release":true,"revision":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","tag":"v0.6.0"}}}' | \
+printf '%s\n' '{"version":1,"command":"rollback","arguments":{}}' | \
     docker exec --interactive "$container" python -m backend.admin --protocol 1 \
         >"$temporary_directory/live-server-lifecycle.json" \
         2>"$temporary_directory/live-server-lifecycle.stderr" || maintenance_status=$?
-test "$maintenance_status" -eq 33
+test "$maintenance_status" -eq 28
 python3 -c '
 import json
 import sys
@@ -90,7 +90,7 @@ import sys
 with open(sys.argv[1], encoding="utf-8") as stream:
     payload = json.load(stream)
 assert payload["version"] == 1 and payload["ok"] is False
-assert payload["error"]["class"] == "maintenance_required"
+assert payload["error"]["class"] == "rollback_not_supported"
 ' "$temporary_directory/live-server-lifecycle.json"
 
 invitation=$(

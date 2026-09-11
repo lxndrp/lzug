@@ -108,9 +108,9 @@ def parse_args(settings: RuntimeSettings | None = None) -> argparse.Namespace:
 
 
 def prepare_database(args: argparse.Namespace) -> None:
-    """Preserve the existing explicit --init path under runtime ownership."""
+    """Initialize empty storage; existing schemas require an operator approval."""
     validate_persistence(args.paths)
-    if args.init:
+    if args.init and (args.reset or not args.db.exists() or args.db.stat().st_size == 0):
         initialize(args.db, reset=args.reset, backup_dir=args.paths.backups)
 
 

@@ -38,6 +38,7 @@ from backend.persistence.database import (
     persistence_paths,
     snapshot_scope,
 )
+from backend.runtime import runtime_for
 from backend.settings import RuntimeSettings
 from backend.version import application_version
 
@@ -1329,6 +1330,11 @@ class ArtifactService:
         error: ArtifactError | None = None,
         manifest: dict[str, Any] | None = None,
     ) -> None:
+        runtime = runtime_for(self.paths.database)
+        # Socket audit already records the technical operation. Do not mutate
+        # the source schema while preparing its pre-migration safety backup.
+        if runtime is not None and runtime.snapshot()["state"] == "migration_required":
+            return
         if not self.paths.database.exists():
             return
         artifact_id = result.get("artifact_id") if result else None

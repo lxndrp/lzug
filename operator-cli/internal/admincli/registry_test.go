@@ -28,7 +28,7 @@ func TestDefaultRegistryContainsTheCompletePublicCommandTree(t *testing.T) {
 		"plan-consequence retry", "plan-consequence status",
 		"recipient-key generate", "recipient-key inspect",
 		"system config", "system doctor", "system status",
-		"upgrade apply", "upgrade rollback",
+		"upgrade apply", "upgrade rollback", "upgrade status",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected command tree:\n got: %#v\nwant: %#v", got, want)

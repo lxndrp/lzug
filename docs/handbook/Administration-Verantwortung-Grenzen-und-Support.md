@@ -169,10 +169,10 @@ Supportsysteme.
   alte Artefakte benötigen den dokumentierten v0.6-Wiederherstellungspfad.
 - Restore unterstützt nur den dokumentierten Vorwärtspfad auf gleiche oder
   neuere kompatible Schemastände; es gibt keine Datenbank-Downgrade-Migration.
-- `rollback` ist nur eine nicht mutierende Kompatibilitätsfreigabe für ein
-  älteres Release und verändert weder Schema noch Fachdaten.
-- `v0.5.0` und ältere Releases enthalten den Lifecycle-Befehl nicht und sind
-  daher kein CLI-Rollbackziel.
+- `upgrade rollback` lehnt automatische Rückwärtsmigration und Containerrollback
+  ausdrücklich ab und verweist auf die kompatible vollständige Wiederherstellung.
+- Imagewechsel und Containerzustände werden ausschließlich durch die
+  Containerplattform beziehungsweise den Betreiber gesteuert.
 - Ein Vollexport kann nicht als Backup wiederhergestellt werden.
 - Ein Vollexport ist nur instanzweit verfügbar; Teil-, Ausschuss- und
   personenbezogene Exporte gehören nicht zum Vertrag.

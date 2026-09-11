@@ -16,7 +16,7 @@ Objects:
   plan-consequence   Inspect and retry confirmed-plan consequences.
   recipient-key      Manage local age recipient keys.
   system             Inspect the local runtime and its readiness.
-  upgrade            Apply upgrades and inspect rollback eligibility.
+  upgrade            Approve data migrations and inspect rollback boundaries.
   cli                Start the guided interactive operator dialog.
 
 Global options:

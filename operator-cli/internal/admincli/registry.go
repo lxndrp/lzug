@@ -35,7 +35,7 @@ func DefaultRegistry() (*Registry, error) {
 		{Name: "plan-consequence", Summary: "Inspect and retry confirmed-plan consequences.", Description: "Inspect or retry technical follow-up work without exposing business content."},
 		{Name: "recipient-key", Summary: "Manage local age recipient keys.", Description: "Generate and inspect local X25519 age identities without transmitting private keys."},
 		{Name: "system", Summary: "Inspect the local runtime and its readiness.", Description: "Run secret-free configuration, status, and diagnostic checks in the selected container."},
-		{Name: "upgrade", Summary: "Apply upgrades and inspect rollback eligibility.", Description: "Use release-bound lifecycle operations in a prepared maintenance container."},
+		{Name: "upgrade", Summary: "Approve data migrations and inspect rollback boundaries.", Description: "Use the existing backend socket; image and container changes belong to the container platform."},
 	}
 	commands := make([]Command, 0, 32)
 	commands = append(commands, accountCommands()...)
@@ -129,6 +129,7 @@ func applyInteractiveMetadata(command *Command) {
 		"system doctor":           true,
 		"system status":           true,
 		"upgrade rollback":        true,
+		"upgrade status":          true,
 	}
 	localMutations := map[string]bool{
 		"backup create":            true,
@@ -136,6 +137,7 @@ func applyInteractiveMetadata(command *Command) {
 		"backup recipient set":     true,
 		"backup restore":           true,
 		"export create":            true,
+		"upgrade apply":            true,
 	}
 	command.Mutating = (command.BackendCommand != "" && !readOnly[command.Name()]) || localMutations[command.Name()]
 	command.RetrySafe = readOnly[command.Name()] || strings.HasPrefix(command.Name(), "completion ") || strings.HasPrefix(command.Name(), "committee ")

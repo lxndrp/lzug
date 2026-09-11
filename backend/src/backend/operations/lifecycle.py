@@ -1,39 +1,32 @@
-"""Release-bound upgrade and rollback orchestration for the local admin protocol."""
+"""Operator-approved data transitions in the already running backend process."""
 
 from __future__ import annotations
 
-import re
+import hashlib
+import json
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
 from backend.build_metadata import BuildMetadata
+from backend.operations.artifact_packages import ClearArtifactService
+from backend.operations.backup_recipients import BackupRecipientRepository
+from backend.operations.backup_restore import MIN_SUPPORTED_SCHEMA
 from backend.persistence.database import (
     PersistencePaths,
     apply_migrations,
-    database_readiness,
     migration_status,
     persistence_paths,
 )
+from backend.runtime import Operation, RuntimeCoordinator, runtime_for
 from backend.settings import RuntimeSettings
 from backend.version import build_metadata
 
-MAINTENANCE_ENV = "LZUG_LIFECYCLE_MAINTENANCE"
-_CANONICAL_IMAGE = "ghcr.io/lxndrp/lzug-app"
-_CANONICAL_DIGEST = re.compile(r"^ghcr\.io/lxndrp/lzug-app@sha256:[0-9a-f]{64}$")
-
-
-def _dedicated_maintenance_process() -> bool:
-    process_entries = False
-    for command_path in Path("/proc").glob("[0-9]*/cmdline"):
-        try:
-            command = command_path.read_bytes().split(b"\0")
-        except OSError:
-            continue
-        process_entries = True
-        if b"backend.server" in command:
-            return False
-    return process_entries
+ROLLBACK_BOUNDARY = (
+    "No reverse migration is supported. Image replacement belongs to the container platform. "
+    "After a data migration, use a complete verified backup with a compatible image for restore, "
+    "or a supported forward recovery. An image rollback alone does not restore data."
+)
 
 
 class LifecycleError(RuntimeError):
@@ -48,13 +41,16 @@ class LifecycleError(RuntimeError):
         details: Mapping[str, Any] | None = None,
     ) -> None:
         super().__init__(message)
-        self.code = code
-        self.phase = phase
-        self.details = dict(details or {})
+        self.code, self.phase, self.details = code, phase, dict(details or {})
 
 
 class LifecycleService:
-    """Coordinate existing release, backup, and migration contracts."""
+    """Approve migration using server-owned build, schema and backup evidence.
+
+    The socket keeps one instance for serialized artifact exchanges. Its bounded
+    backup receipt is created only after a complete download and consumed once.
+    A restart discards it, so an old approval can never replay a mutation.
+    """
 
     def __init__(
         self,
@@ -64,9 +60,7 @@ class LifecycleService:
         settings: RuntimeSettings | None = None,
         metadata: BuildMetadata | None = None,
         migration_runner: Callable[[Path, Path | None], None] = apply_migrations,
-        maintenance_probe: Callable[[], bool] = _dedicated_maintenance_process,
     ) -> None:
-        self.settings = settings
         self.paths = paths or persistence_paths(
             settings=settings.persistence if settings else None,
             environment=environment,
@@ -78,161 +72,146 @@ class LifecycleService:
         )
         self.metadata = metadata or build_metadata()
         self.migration_runner = migration_runner
-        self.maintenance_probe = maintenance_probe
+        self._backup: tuple[str, str, str] | None = None
 
-    def upgrade(
-        self,
-        target: Mapping[str, Any],
-        backup: Mapping[str, Any],
-        *,
-        confirm_irreversible: bool,
-    ) -> dict[str, Any]:
-        release = self._release_precheck(target)
-        before = migration_status(self.paths.database)
-        if before["state"] not in {"ready", "migration_required"}:
+    def _runtime(self) -> RuntimeCoordinator:
+        runtime = runtime_for(self.paths.database)
+        if runtime is None:
             raise LifecycleError(
-                "schema_incompatible",
-                "Database schema is not compatible with the target release",
+                "maintenance_required", "Use the authoritative backend admin socket"
             )
-        pending = before.get("pending")
-        if not isinstance(pending, list):
-            raise LifecycleError("schema_incompatible", "Migration plan is unavailable")
-        if pending and not confirm_irreversible:
+        return runtime
+
+    def status(self) -> dict[str, Any]:
+        """Inspect cached schema and running build without accessing persistence."""
+        runtime = self._runtime().diagnosis()
+        migration = runtime.get("migration")
+        plan = {"application": json.loads(self.metadata.to_json()), "migration": migration}
+        plan_id = hashlib.sha256(json.dumps(plan, sort_keys=True).encode()).hexdigest()
+        supported = (
+            runtime["state"] == "migration_required"
+            and self.metadata.release
+            and isinstance(migration, dict)
+            and isinstance(migration.get("current"), str)
+            and migration["current"] >= MIN_SUPPORTED_SCHEMA
+            and bool(migration.get("pending"))
+        )
+        return {
+            **plan,
+            "plan_id": plan_id,
+            "runtime": runtime,
+            "supported": supported,
+            "backup_required": True,
+            "confirmation_required": True,
+            "rollback_boundary": ROLLBACK_BOUNDARY,
+            "approval_command": "lzug-admin upgrade apply",
+        }
+
+    def _plan(self, plan_id: str | None = None) -> dict[str, Any]:
+        status = self.status()
+        if not status["supported"] or (plan_id is not None and plan_id != status["plan_id"]):
+            raise LifecycleError(
+                "schema_incompatible", "No supported pending migration matches this approval"
+            )
+        return status
+
+    def recipient(self) -> dict[str, str]:
+        """Read the configured recipient without migrating legacy configuration."""
+        current = BackupRecipientRepository(
+            self.paths.database, environment=self.environment
+        ).inspect()
+        if current is None:
+            raise LifecycleError(
+                "recipient_not_configured", "Configure a backup recipient before the image change"
+            )
+        return current
+
+    def backup_created(self, digest: str, fingerprint: str) -> None:
+        """Bind the exact generated package to this process and pending plan."""
+        plan = self._plan()
+        if self.recipient()["fingerprint"] != fingerprint:
+            raise LifecycleError("recipient_key_mismatch", "Backup recipient does not match")
+        self._backup = (plan["plan_id"], digest, fingerprint)
+
+    def apply_package(
+        self,
+        package: Path,
+        artifacts: ClearArtifactService,
+        *,
+        plan_id: str,
+        fingerprint: str,
+        confirm_irreversible: bool,
+        job_id: str,
+        release_package: Callable[[], None] | None = None,
+    ) -> dict[str, Any]:
+        """Verify authenticated backup EOF before entering the central migration lease."""
+        if not confirm_irreversible:
             raise LifecycleError(
                 "irreversible_confirmation_required",
-                "Pending migrations require explicit irreversible-step confirmation",
+                "Explicit irreversible-migration approval is required",
             )
-
-        self._verified_upgrade_backup(backup, before)
-
-        if pending:
-            try:
-                self.migration_runner(self.paths.database, self.paths.backups)
-            except Exception as error:
+        runtime = self._runtime()
+        with runtime.inspect_storage():
+            plan = self._plan(plan_id)
+            with package.open("rb") as source:
+                digest = hashlib.file_digest(source, "sha256").hexdigest()
+            if self._backup != (plan_id, digest, fingerprint):
                 raise LifecycleError(
-                    "migration_failed",
-                    "Target migrations failed; the target runtime must not be started",
-                    phase="migration",
-                    details=self._backup_details(backup, before),
-                ) from error
-
-        after = database_readiness(self.paths.database)
-        if after.get("ready") is not True:
+                    "upgrade_backup_invalid",
+                    "Backup must be created and decrypted for this running instance",
+                    phase="backup_verify",
+                )
+            if self.recipient()["fingerprint"] != fingerprint:
+                raise LifecycleError("recipient_key_mismatch", "Backup recipient changed")
+            backup = artifacts.verify_package(package, expected_type="backup")
+            before = plan["migration"]
+            if (
+                backup["source_schema_version"] != before["current"]
+                or backup["pending_migrations"] != before["pending"]
+                or backup["readiness"] == "not_ready"
+            ):
+                raise LifecycleError(
+                    "upgrade_backup_invalid",
+                    "Backup is incompatible with this transition",
+                    phase="backup_verify",
+                )
+            # Remove staged plaintext before any irreversible transition. The
+            # socket retains no package that could fail cleanup after ready.
+            if release_package is not None:
+                release_package()
+        # Consume before mutation, including failures. The socket ID is also
+        # the durable runtime job ID, observable after disconnect and restart.
+        self._backup = None
+        try:
+            with runtime.operation(Operation.MIGRATION, job_id=job_id):
+                current = migration_status(self.paths.database)
+                if any(
+                    current.get(key) != before.get(key)
+                    for key in ("state", "current", "target", "pending")
+                ):
+                    raise LifecycleError(
+                        "schema_incompatible", "Schema changed after backup verification"
+                    )
+                self.migration_runner(self.paths.database, self.paths.backups)
+        except Exception:
             raise LifecycleError(
                 "migration_failed",
-                "Post-upgrade schema verification failed; the target runtime must not be started",
-                phase="postcheck",
-                details=self._backup_details(backup, before),
-            )
-        migration = after.get("migration")
-        target_schema = migration.get("target") if isinstance(migration, Mapping) else None
+                "Migration failed; inspect the runtime job and restore boundary",
+                phase="migration",
+                details={"job_id": job_id, "backup_artifact_id": backup["artifact_id"]},
+            ) from None
         return {
             "operation": "upgrade",
-            "target": release,
-            "source_schema_version": before.get("current"),
-            "target_schema_version": target_schema,
-            "migrations": pending,
-            "irreversible": bool(pending),
-            "backup": {
-                "artifact": backup["artifact"],
-                "artifact_id": backup["artifact_id"],
-                "snapshot_at": backup["snapshot_at"],
-                "recipient_key_fingerprint": backup["recipient_key_fingerprint"],
-                "verified": True,
-            },
-            "phases": ["release_precheck", "schema_precheck", "backup", "backup_verify"]
-            + (["migration"] if pending else [])
-            + ["postcheck"],
+            "application": plan["application"],
+            "source_schema_version": before["current"],
+            "target_schema_version": before["target"],
+            "migrations": before["pending"],
+            "backup_artifact_id": backup["artifact_id"],
+            "job_id": job_id,
+            "runtime": runtime.diagnosis(),
+            "rollback_boundary": ROLLBACK_BOUNDARY,
         }
 
-    def rollback(self, target: Mapping[str, Any]) -> dict[str, Any]:
-        release = self._release_precheck(target)
-        status = migration_status(self.paths.database)
-        if status.get("state") != "ready":
-            raise LifecycleError(
-                "rollback_not_supported",
-                "Database schema is not directly compatible with the rollback release",
-            )
-        return {
-            "operation": "rollback",
-            "target": release,
-            "schema_version": status.get("current"),
-            "mutated": False,
-            "phases": ["release_precheck", "schema_precheck", "approved"],
-        }
-
-    def _release_precheck(self, target: Mapping[str, Any]) -> dict[str, str]:
-        if (
-            self.environment.get(MAINTENANCE_ENV, "").strip().lower() != "true"
-            or not self.maintenance_probe()
-        ):
-            raise LifecycleError(
-                "maintenance_required",
-                f"{MAINTENANCE_ENV} must be true in a dedicated maintenance container",
-            )
-        required_fields = {"identity", "image", "release", "revision", "tag"}
-        if set(target) not in {frozenset(required_fields), frozenset(required_fields | {"digest"})}:
-            raise LifecycleError(
-                "release_artifact_unverified", "Target release metadata is invalid"
-            )
-        try:
-            candidate = BuildMetadata.create(str(target.get("revision")), target.get("tag"))
-        except (TypeError, ValueError) as error:
-            raise LifecycleError(
-                "release_artifact_unverified", "Target release metadata is invalid"
-            ) from error
-        image = target.get("image")
-        digest = target.get("digest")
-        if (
-            not candidate.release
-            or target.get("release") is not True
-            or target.get("identity") != candidate.identity
-            or not isinstance(image, str)
-            or image != f"{_CANONICAL_IMAGE}:{candidate.identity}"
-            or (
-                digest is not None
-                and (not isinstance(digest, str) or _CANONICAL_DIGEST.fullmatch(digest) is None)
-            )
-            or candidate != self.metadata
-        ):
-            raise LifecycleError(
-                "release_artifact_unverified",
-                "Target container is not the matching canonical release artifact",
-            )
-        release = {
-            "identity": candidate.identity,
-            "image": image,
-            "revision": candidate.revision,
-            "tag": candidate.tag or "",
-        }
-        if isinstance(digest, str):
-            release["digest"] = digest
-        return release
-
-    @staticmethod
-    def _verified_upgrade_backup(
-        verification: Mapping[str, Any], before: Mapping[str, Any]
-    ) -> None:
-        pending = before.get("pending")
-        if (
-            verification.get("artifact_type") != "backup"
-            or verification.get("verified") is not True
-            or verification.get("protection") != "age-x25519-v1"
-            or verification.get("source_schema_version") != before.get("current")
-            or verification.get("pending_migrations") != pending
-            or verification.get("readiness") == "not_ready"
-        ):
-            raise LifecycleError(
-                "upgrade_backup_invalid",
-                "Verified backup is not suitable for this instance and target release",
-                phase="backup_verify",
-            )
-
-    @staticmethod
-    def _backup_details(backup: Mapping[str, Any], before: Mapping[str, Any]) -> dict[str, Any]:
-        return {
-            "backup_artifact": backup.get("artifact"),
-            "backup_artifact_id": backup.get("artifact_id"),
-            "source_schema_version": before.get("current"),
-            "target_schema_version": before.get("target"),
-        }
+    def rollback(self) -> dict[str, Any]:
+        """Reject automatic reverse migration or container rollback explicitly."""
+        raise LifecycleError("rollback_not_supported", ROLLBACK_BOUNDARY)

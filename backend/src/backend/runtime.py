@@ -216,9 +216,13 @@ class RuntimeCoordinator:
             "next_action": {
                 "code": action,
                 "command": (
-                    "lzug-admin system doctor"
-                    if action in {"inspect_upgrade", "inspect_recovery"}
-                    else "lzug-admin system status"
+                    "lzug-admin upgrade status"
+                    if action == "inspect_upgrade"
+                    else (
+                        "lzug-admin system doctor"
+                        if action == "inspect_recovery"
+                        else "lzug-admin system status"
+                    )
                 ),
             },
         }
@@ -306,6 +310,32 @@ class RuntimeCoordinator:
             _admission.reset(token)
 
     @contextmanager
+    def inspect_storage(self) -> Iterator[None]:
+        """Lease backup/diagnostic access to a compatible, quiescent schema.
+
+        This is an internal operator capability, never ordinary request admission.
+        Exclusive lifecycle work drains these leases before touching storage.
+        """
+        with self._condition:
+            if self._busy or self._state not in {
+                RuntimeState.READY,
+                RuntimeState.MIGRATION_REQUIRED,
+            }:
+                raise RuntimeConflictError("lifecycle_conflict")
+            admission = _Admission(self)
+            self._active += 1
+        token = _admission.set(admission)
+        try:
+            with activation_lock(self.db_path):
+                yield
+        finally:
+            with self._condition:
+                admission.active = False
+                self._active -= 1
+                self._condition.notify_all()
+            _admission.reset(token)
+
+    @contextmanager
     def _exclusive_admission(self) -> Iterator[None]:
         admission = _Admission(self, exclusive=True)
         token = _admission.set(admission)
@@ -318,7 +348,7 @@ class RuntimeCoordinator:
 
     @contextmanager
     def operation(
-        self, operation: Operation, *, timeout: float = 30
+        self, operation: Operation, *, timeout: float = 30, job_id: str | None = None
     ) -> Iterator[RuntimeJob | None]:
         """Drain before restore/migration; reject competing jobs without queuing.
 
@@ -353,7 +383,7 @@ class RuntimeCoordinator:
             )
             self._reason = operation.value
             self._job = RuntimeJob(
-                str(uuid4()),
+                str(UUID(job_id)) if job_id else str(uuid4()),
                 operation,
                 JobStatus.WAITING,
                 requires_recovery=before[0] == RuntimeState.ERROR

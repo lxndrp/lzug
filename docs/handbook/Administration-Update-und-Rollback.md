@@ -1,195 +1,130 @@
 # Update und Rollback
 
-Diese Verfahren stehen ab `v0.6.0` zur Verfügung.
-Sie werden ausschließlich mit veröffentlichten Release-Artefakten in einem
-dedizierten Wartungscontainer ausgeführt.
-Der normale Anwendungscontainer ist dabei gestoppt; der Wartungscontainer
-veröffentlicht keinen Port und startet keinen Server.
+Die Zuständigkeiten folgen
+[ADR-0033](https://github.com/lxndrp/lzug/blob/master/docs/developers/decisions/0033-aio-betrieb-admintransport-und-lifecycle.md).
+Die Containerplattform bezieht das geprüfte Release-Image, ersetzt den Container
+und startet es mit den vorhandenen Daten.
+`lzug-admin` verändert weder Images noch Containerzustände.
+Es gibt keinen separaten Wartungs- oder Migrationsprozess.
 
-Ein Update des Image-Verweises allein ist kein unterstütztes Upgrade.
-Ein Rollback ist keine Datenbank-Rückmigration.
+## Imagewechsel vorbereiten
 
-## Zielrelease und Wartungsfenster vorbereiten
+Lesen Sie die Release Notes und prüfen Sie die Herkunft des veröffentlichten
+Zielimages nach dem [Installationsverfahren](Administration-Installation-und-Konfiguration).
+Planen Sie ein Wartungsfenster.
+Konfigurieren Sie den öffentlichen Backup-Empfänger vor dem Imagewechsel und
+halten Sie dessen privaten Schlüssel auf dem Bedienrechner verfügbar.
+Erstellen und prüfen Sie ein vollständiges Backup nach dem
+[Backup- und Restore-Verfahren](Administration-Backup-Pruefung-und-Restore).
+Die CLI prüft keine Image-Referenzen oder OCI-Labels; diese Prüfung gehört zur
+Bereitstellung durch den Betreiber.
 
-1. Lesen Sie Release Notes, bekannte Grenzen und den ausgewiesenen
-   Migrationsumfang des Zielreleases.
-2. Planen Sie ein Wartungsfenster und sperren Sie den öffentlichen Zugriff am
-   Reverse Proxy.
-3. Prüfen Sie, dass das konfigurierte Backup-Empfängerschlüsselpaar verfügbar
-   ist und ein aktuelles vollständiges Backup nicht mutierend verifiziert wurde.
-4. Wählen Sie die exakte SemVer-Version des veröffentlichten Zielreleases und
-   prüfen Sie deren Herkunft.
-5. Verwenden Sie `lzug-admin` aus demselben Release wie das Zielimage.
+Nach dem Imagewechsel erkennt derselbe bereits laufende Backendprozess den
+Schema- und Kompatibilitätsstand.
+`--init` initialisiert leere Datenbestände; vorhandene Daten werden dabei nicht
+mehr automatisch migriert.
+Bei ausstehenden Migrationen bleibt die Anwendung live, aber nicht ready.
+Das Frontend erklärt die vorübergehende Nichtverfügbarkeit und normale
+Fachaufträge bleiben gesperrt.
+Ohne ausstehende Migration und bei kompatiblen Daten ist die Anwendung ready;
+eine Migrationsfreigabe ist dann nicht erforderlich.
+
+## Datenübergang prüfen und freigeben
+
+Verwenden Sie den bereitgestellten lokalen Endpunkt gemäß der
+[CLI-Konfiguration](Administration-Installation-und-Konfiguration).
+Ein extern weitergeleiteter Endpunkt verwendet denselben Socketvertrag.
+Bereitstellung, SSH und Lebensdauer einer Weiterleitung bleiben außerhalb der
+Anwendung und ihres Testversprechens.
+Container-Exec ist kein Migrationstransport.
 
 ```sh
-TARGET_VERSION=0.8.0
-TARGET_IMAGE="ghcr.io/lxndrp/lzug-app:${TARGET_VERSION}"
-
-gh attestation verify "oci://$TARGET_IMAGE" --repo lxndrp/lzug
-docker pull "$TARGET_IMAGE"
-./lzug-admin --version
-./lzug-admin --build-metadata
+lzug-admin --endpoint unix:///run/lzug-admin/admin.sock system status
+lzug-admin --endpoint unix:///run/lzug-admin/admin.sock upgrade status
 ```
 
-Die CLI prüft zusätzlich selbst den kanonischen Produktnamen und die exakte
-SemVer-Version der Docker-Image-Referenz sowie die OCI-Labels für Quelle,
-Version und Commit.
-Einen durch Docker aufgelösten Digest nimmt sie, sofern verfügbar, nur als
-Diagnose- und Herkunftsinformation in den technischen Nachweis auf.
-Entwicklungsbuilds, bewegliche Tags, fremde Repositories und eine von der CLI
-abweichende Release-Identität werden vor dem Backendaufruf abgewiesen.
-
-## Wartungscontainer starten
-
-Erstellen Sie außerhalb des Repositorys eine temporäre, nur für den
-Service-Account lesbare Env-Datei mit der wirksamen Laufzeitkonfiguration.
-Der aktive öffentliche Backup-Empfänger liegt ab v0.7.0 auditiert im
-Datenbestand; der private Empfängerschlüssel gehört weder in diese Datei noch
-in den Container.
-
-Stoppen Sie die Referenzinstallation und starten Sie den Wartungscontainer mit
-demselben persistenten Volume:
+`upgrade status` ist nicht mutierend.
+Es nennt den Build der laufenden Anwendung, Quell- und Zielschema, ausstehende
+Migrationen, Freigabemöglichkeit und Rollbackgrenze.
+Entwicklungsbuilds, unbekannte Schemata und ein bereits fehlgeschlagener oder
+unterbrochener Datenübergang erhalten keine reguläre Migrationsfreigabe.
 
 ```sh
-DATA_VOLUME="${LZUG_DATA_VOLUME:-lzug_data}"
-MAINTENANCE_ENV_FILE=/geschuetzter/pfad/lzug-maintenance.env
-
-docker compose -f compose.yaml stop lzug
-docker run --detach --name lzug-maintenance \
-  --read-only \
-  --tmpfs /tmp:rw,noexec,nosuid,nodev \
-  --env-file "$MAINTENANCE_ENV_FILE" \
-  --env LZUG_LIFECYCLE_MAINTENANCE=true \
-  --mount "type=volume,source=${DATA_VOLUME},target=/data" \
-  --entrypoint sleep "$TARGET_IMAGE" infinity
-```
-
-Der Wartungscontainer darf keinen Port veröffentlichen.
-Das Backend weist den Lifecycle-Aufruf außerdem ab, wenn der normale
-`backend.server` der Container-Hauptprozess ist.
-
-## Upgrade durchführen
-
-`upgrade apply` prüft Release-Identität, Migrationshistorie, Zielpfad und
-Wartungsgrenze.
-Die CLI erzeugt davor lokal ein age-geschütztes vollständiges Backup des
-aktuellen Datenstands und prüft es mit der lokalen privaten Identität, bevor
-eine Migration beginnt.
-
-Bei ausstehenden Migrationen ist die ausdrückliche Bestätigung zwingend:
-
-```sh
-PRIVATE_KEY_FILE=/geschuetzter/pfad/lzug-backup.agekey
-./lzug-admin --container lzug-maintenance \
-  upgrade apply \
-  --backup-output ./lzug-pre-upgrade.lzug \
-  --identity-file "$PRIVATE_KEY_FILE" \
+lzug-admin --endpoint unix:///run/lzug-admin/admin.sock upgrade apply \
+  --backup-output ./lzug-vor-migration.lzug \
+  --identity-file /geschuetzter/pfad/backup.agekey \
   --confirm-irreversible
 ```
 
-Die Bestätigung ersetzt weder Backup noch kryptographische und fachliche
-Prüfung.
-Ohne ausstehende Migration darf `--confirm-irreversible` entfallen; das
-vollständige Backup wird trotzdem erzeugt und geprüft.
+Die CLI zeigt vor der interaktiven Bestätigung den ausgewählten Endpunkt,
+Versions- und Schemaplan sowie die Restoregrenze.
+Im nicht interaktiven Betrieb ist zusätzlich `--force` erforderlich.
+`--force` ersetzt weder `--confirm-irreversible` noch die Sicherungsprüfung.
+Der interaktive Einstieg `lzug-admin cli` nutzt dieselben Commands und Regeln.
 
-Ein geeignetes Backup muss entschlüsselbar und vollständig sein, exakt zum
-Quellschema und zum ausstehenden Zielpfad passen und darf keine fehlende
-Pflichtkonfiguration melden.
-Fehlender öffentlicher Empfänger, falsche private Identität, Beschädigung,
-inkompatibles Schema oder ungeprüftes Zielimage brechen vor der Migration ab.
+Der Backendprozess erzeugt ein vollständiges Sicherungspaket aus seinem
+unveränderten Quellbestand.
+Die CLI schützt es mit age, veröffentlicht die lokale Datei erst nach
+vollständigem Erfolg und entschlüsselt diese anschließend mit dem lokalen
+privaten Schlüssel.
+Das Backend prüft das zurückübertragene Paket nicht mutierend auf Vollständigkeit,
+Integrität, Schema und erforderliche Konfiguration.
+Vor der Migration prüft es erneut das exakte Paket gegen seinen eigenen
+Sicherungsnachweis und den freigegebenen Plan.
+Ein vom Client behauptetes `verified: true` genügt nicht.
 
-## Erfolgreiches Upgrade aktivieren
+Fehlender Empfänger, falscher Schlüssel, beschädigtes, unvollständiges,
+instanzfremdes oder inkompatibles Backup verhindern die Migration.
+Private Schlüssel und Passphrasen verlassen den Bedienrechner nicht und
+erscheinen weder in Argumenten noch in Logs, Audit oder Fehlerdetails.
 
-Aktivieren Sie das Zielimage erst nach `ok: true` und vollständig
-abgeschlossenen Phasen:
+## Abschluss und Verbindungsverlust
 
-```sh
-docker rm --force lzug-maintenance
-export LZUG_IMAGE="$TARGET_IMAGE"
-docker compose -f compose.yaml up -d
+Die Migration läuft unter Transaktions-, Sperr- und Lifecyclekoordination des
+bereits laufenden Backendprozesses.
+Erst erfolgreiche Migration, Nachprüfung und gespeicherter Auftragsabschluss
+geben Readiness und Fachbetrieb frei.
+Prüfen Sie anschließend `system status`, `/api/ready` und eine fachliche
+Stichprobe über die reguläre Oberfläche.
 
-CONTAINER_ID="$(docker compose -f compose.yaml ps -q lzug)"
-CONTAINER="$(docker inspect --format '{{.Name}}' "$CONTAINER_ID")"
-CONTAINER="${CONTAINER#/}"
-./lzug-admin --container "$CONTAINER" system doctor
-curl -fsS http://127.0.0.1:8000/api/ready
-```
+Eine verlorene CLI-Verbindung beendet oder wiederholt eine bereits laufende
+Migration nicht.
+Bewahren Sie die ausgegebene Auftrags-ID auf und prüfen Sie `system status`
+beziehungsweise `upgrade status --job-id <UUID>`.
+Die Socket-Auftrags-ID entspricht bei einer begonnenen Migration der dauerhaft
+gespeicherten Runtime-Auftrags-ID.
+Der letzte exklusive Auftrag bleibt nach Neustart erhalten; ältere nicht mehr
+vorhandene Aufträge werden nicht als erfolgreich behauptet.
 
-Prüfen Sie anschließend über HTTPS Anmeldung, erwartete Ausschusszuordnung und
-eine fachliche Stichprobe.
-Entfernen Sie die temporäre Wartungs-Env-Datei und geben Sie den Reverse Proxy
-erst nach erfolgreicher Abnahme wieder frei.
+Bei Migrations- oder Nachprüfungsfehler bleibt die Anwendung live/not-ready und
+diagnostizierbar.
+Ein Neustart wiederholt keinen Auftrag und entfernt die Wiederherstellungssperre
+nicht.
+Ein Sicherungsnachweis aus einem früheren Prozess erlaubt keine neue Mutation.
+Nutzen Sie den dokumentierten Restore- oder Supportweg.
+Verändern Sie SQLite, Migrationstabellen oder das Runtime-Journal nicht manuell.
 
-## Fehlergrenzen beim Upgrade
+## Rollback- und Restoregrenze
 
-Ein Fehler vor der Migration verändert den Datenstand nicht.
-Entfernen Sie den Wartungscontainer und starten Sie den unveränderten bisherigen
-Anwendungscontainer nur dann erneut:
+`upgrade rollback` lehnt mit `rollback_not_supported` und Exit `28` ab und erklärt
+die Grenze vor jeder Änderung.
+Es führt weder Containerrollback noch Rückwärtsmigration aus.
+Ein Image-Rollback gehört zur Containerplattform; die dann gestartete Anwendung
+prüft selbst, ob sie das vorhandene Schema kennt und sicher verwenden kann.
+Ein unbekanntes neueres Schema bleibt nicht ready.
 
-```sh
-docker rm --force lzug-maintenance
-docker compose -f compose.yaml start lzug
-```
+Nach einer Datenmigration erfordert die Rückkehr zum früheren Datenstand ein
+vollständiges, geprüftes Backup und ein mit dessen Format und Schema kompatibles
+Image.
+Der [Restore-Vertrag](Administration-Backup-Pruefung-und-Restore) auf einer
+leeren Instanz oder mit ausdrücklicher Ersatzfreigabe ist ein eigener Vorgang.
+Ein Restore durch ein neueres Image kann wieder vorwärts migrieren und stellt
+deshalb keine Rückwärtsmigration dar.
+Ist kein kompatibler Wiederherstellungs- oder Vorwärtspfad belegt, bleibt die
+Instanz gesperrt und benötigt den
+[Supportweg](Administration-Verantwortung-Grenzen-und-Support).
 
-Nach einem Migrations- oder Nachprüfungsfehler bleibt die Instanz gestoppt.
-Die JSON-Antwort nennt Fehlerphase und geheimnisfreien Namen des zuvor
-verifizierten Backups.
-Starten Sie weder altes noch neues Image, solange die Schema-Kompatibilität
-nicht eindeutig feststeht.
-
-Für die Rückkehr zum vollständigen Vor-Upgrade-Datenstand gilt ausschließlich
-der getrennte
-[Restore-Vertrag](Administration-Backup-Pruefung-und-Restore) auf einer leeren
-Instanz oder mit ausdrücklich bestätigtem `--replace`.
-Der Restore muss von einem veröffentlichten Release ausgeführt werden, das
-dieses Backupformat und Quellschema unterstützt.
-Ist ein solcher Pfad nicht belegt, lassen Sie die Instanz gestoppt und nutzen
-Sie den [Supportweg](Administration-Verantwortung-Grenzen-und-Support), statt
-SQLite oder Migrationstabellen manuell zu verändern.
-
-## Rollback ohne Datenänderung prüfen
-
-Ein Rollback verwendet einen Wartungscontainer der gewünschten älteren
-Release-Version und `lzug-admin` aus exakt demselben älteren Release.
-Vorbereitung, Attestation, gestoppter Anwendungscontainer, Volume und
-Wartungsgrenze entsprechen dem Upgrade-Ablauf.
-Das Zielrelease muss diesen Lifecycle-Vertrag selbst enthalten;
-`v0.5.0` und ältere Releases können deshalb nicht per `lzug-admin upgrade rollback`
-freigegeben werden.
-
-```sh
-./lzug-admin --container lzug-maintenance upgrade rollback
-```
-
-`rollback` verändert weder Datenbank noch Dokumente.
-Der Befehl gibt die ältere Release-Version nur frei, wenn diese Runtime die
-vollständige vorhandene Migrationshistorie kennt und keine Migration aussteht.
-Nach `ok: true` darf der Wartungscontainer entfernt, `LZUG_IMAGE` auf genau
-diese geprüfte SemVer-Version gesetzt und die Referenzinstallation wieder mit
-`compose up -d` gestartet werden.
-
-Ein unbekannter neuerer Schemastand oder ein nur vorwärts migrierbarer Stand
-wird mit `rollback_not_supported` vor jeder Änderung abgewiesen.
-Es gibt keine Rückmigration, kein automatisches Datenrollback und keine
-heuristische SQLite-Bearbeitung.
-
-## Exit-Codes und Nachweise
-
-- Exit `0`: Vorgang erfolgreich.
-- Exit `29`: irreversible Migration noch nicht ausdrücklich bestätigt.
-- Exit `28`: Rollback nicht unterstützt oder Migration fehlgeschlagen.
-- Exit `26` oder `27`: Backup ungültig beziehungsweise Empfängerschlüssel
-  unbrauchbar oder unpassend.
-- Exit `33`: Release-Artefakt, Wartungsgrenze oder Lifecycle-Ausführung nicht
-  verifiziert.
-
-Bewahren Sie vorübergehend Zielrelease, CLI-Build-Metadaten, Zeitfenster,
-Backup-Artefaktname und die geheimnisfreie JSON-Antwort auf.
-Enthält die Antwort einen durch Docker aufgelösten Digest, gehört auch dieser
-automatische Herkunftsnachweis dazu.
-Private Schlüssel, Env-Werte, Pfade und Fachdaten gehören nicht in den
-Nachweis.
-
-Der ausführbare technische Vertrag bleibt im Hauptrepository unter
-[Betreiber-CLI](https://github.com/lxndrp/lzug/blob/master/docs/developers/components.md#betreiber-cli)
-kanonisch.
+Maschinenlesbare Ergebnisse und Exit-Codes folgen der
+[CLI-Referenz](https://github.com/lxndrp/lzug/blob/master/docs/developers/reference/cli.md).
+Bewahren Sie Build, Plan, Auftrags-ID, Backup-Artefakt-ID und Ergebnis als
+technischen Nachweis auf; Secrets und Fachdaten gehören nicht in diesen Nachweis.

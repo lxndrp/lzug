@@ -131,6 +131,21 @@ func validSocketArtifact(request BackendRequest, produce bool) bool {
 				return false
 			}
 		}
+	case "upgrade-package-apply":
+		if produce {
+			return false
+		}
+		fields["plan_id"], fields["confirm_irreversible"] = true, true
+		plan, ok := request.Arguments["plan_id"].(string)
+		if !ok || len(plan) != 64 {
+			return false
+		}
+		if _, err := hex.DecodeString(plan); err != nil {
+			return false
+		}
+		if _, ok := request.Arguments["confirm_irreversible"].(bool); !ok {
+			return false
+		}
 	default:
 		return false
 	}

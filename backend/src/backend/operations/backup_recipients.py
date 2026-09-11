@@ -9,10 +9,11 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
+from sqlalchemy import inspect
 from sqlalchemy.exc import IntegrityError
 
 from backend.operations.backup_restore import BACKUP_PUBLIC_KEY_ENV, ArtifactError
-from backend.persistence.database import DEFAULT_DB_PATH, session_scope
+from backend.persistence.database import DEFAULT_DB_PATH, connection_scope, session_scope
 from backend.persistence.models import BackupRecipient, BackupRecipientAudit
 
 _AGE_X25519 = re.compile(r"^age1[023456789acdefghjklmnpqrstuvwxyz]{58}$")
@@ -51,6 +52,25 @@ class BackupRecipientRepository:
         with session_scope(self.db_path) as session:
             current = session.get(BackupRecipient, 1)
             return self._result(current) if current is not None else None
+
+    def inspect(self) -> dict[str, str] | None:
+        """Read a recipient on a pending schema without persisting environment migration."""
+        with connection_scope(self.db_path) as connection:
+            present = inspect(connection).has_table(BackupRecipient.__tablename__)
+        if present:
+            with session_scope(self.db_path) as session:
+                current = session.get(BackupRecipient, 1)
+                if current is not None:
+                    return self._result(current)
+        value = self.environment.get(BACKUP_PUBLIC_KEY_ENV)
+        if not value:
+            return None
+        recipient = _migrate_legacy_recipient(value)
+        return {
+            "recipient": recipient,
+            "fingerprint": recipient_fingerprint(recipient),
+            "protection": "age-x25519-v1",
+        }
 
     def set(self, recipient: str, fingerprint: str) -> dict[str, str]:
         return self._change(recipient, fingerprint, replace=False)

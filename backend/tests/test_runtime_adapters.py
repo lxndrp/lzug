@@ -90,8 +90,8 @@ class RuntimeAdapterTests(unittest.TestCase):
             self.assertEqual(EXIT_NOT_READY, result.exit_code)
             self.assertNotIn("secret", result.encode().decode())
 
-    def test_existing_pending_schema_without_init_stays_live_and_not_ready(self) -> None:
-        self.args.init = False
+    def test_existing_pending_schema_with_init_stays_live_and_not_ready(self) -> None:
+        self.args.init = True
         initialize(self.paths.database)
         with session_scope(self.paths.database) as session:
             last = session.execute(text("SELECT MAX(name) FROM schema_migration")).scalar_one()
