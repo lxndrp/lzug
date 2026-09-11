@@ -59,6 +59,11 @@ func (r *SystemConfigResolver) Resolve(global GlobalOptions) (EffectiveConfig, *
 			if value, exists := parsed["container"]; exists {
 				config.Container = EffectiveValue{Value: value, Source: "file"}
 			}
+			for key, value := range parsed {
+				if key != "container" {
+					setTargetValue(&config, key, value, "file")
+				}
+			}
 		}
 	}
 
@@ -68,9 +73,20 @@ func (r *SystemConfigResolver) Resolve(global GlobalOptions) (EffectiveConfig, *
 	if global.ContainerSet {
 		config.Container = EffectiveValue{Value: global.Container, Source: "flag"}
 	}
+	for key, name := range targetEnvironment {
+		if value, exists := environment[name]; exists {
+			setTargetValue(&config, key, value, name)
+		}
+	}
+	for key, value := range global.TargetValues {
+		setTargetValue(&config, key, value, "flag")
+	}
 
 	if config.Container.Value != "" && !containerNamePattern.MatchString(config.Container.Value) {
 		return EffectiveConfig{}, configurationError("The effective container must be a valid exact container name.")
+	}
+	if failure := validateTarget(config); failure != nil {
+		return EffectiveConfig{}, failure
 	}
 	return config, nil
 }
@@ -91,8 +107,8 @@ func parseConfigFile(payload []byte) (map[string]string, error) {
 	sort.Strings(keys)
 	values := map[string]string{}
 	for _, key := range keys {
-		if key != "container" {
-			return nil, fmt.Errorf("Configuration key %q is not allowed; only container is supported.", key)
+		if key != "container" && targetEnvironment[key] == "" {
+			return nil, fmt.Errorf("The CLI configuration contains an unsupported key.")
 		}
 		var value string
 		if err := json.Unmarshal(raw[key], &value); err != nil || strings.TrimSpace(value) == "" {
@@ -121,7 +137,11 @@ func allowedEnvironment(entries []string) (map[string]string, *CLIError) {
 		if !found || !strings.HasPrefix(name, "LZUG_ADMIN_") {
 			continue
 		}
-		if name == "LZUG_ADMIN_CONTAINER" {
+		isTarget := false
+		for _, variable := range targetEnvironment {
+			isTarget = isTarget || name == variable
+		}
+		if name == "LZUG_ADMIN_CONTAINER" || isTarget {
 			if strings.TrimSpace(value) == "" {
 				return nil, configurationError(fmt.Sprintf("Environment variable %s must not be empty.", name))
 			}
@@ -145,7 +165,7 @@ func configurationError(message string) *CLIError {
 	return &CLIError{
 		Class:    "configuration_error",
 		Message:  message,
-		NextStep: "Use only container in the CLI configuration, or pass --no-config.",
+		NextStep: "Use only documented non-secret target settings, or pass --no-config with explicit target options.",
 		ExitCode: ExitConfiguration,
 	}
 }

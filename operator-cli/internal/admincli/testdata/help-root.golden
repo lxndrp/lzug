@@ -20,6 +20,8 @@ Objects:
   cli                Start the guided interactive operator dialog.
 
 Global options:
+  --endpoint ENDPOINT      Existing local unix:///path or tcp://127.0.0.1:PORT admin endpoint.
+  --target-name NAME       Non-secret display name for the endpoint target.
   --container NAME         Exact running container name.
   --config FILE            Read this explicit non-secret JSON configuration file.
   --no-config              Do not read a configuration file.

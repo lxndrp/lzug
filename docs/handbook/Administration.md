@@ -9,6 +9,7 @@ Führen Sie releasegebundene Schritte nur mit einer tatsächlich unter
 den zugehörigen Artefakten aus.
 
 - [Installation und Konfiguration](Administration-Installation-und-Konfiguration)
+- [Socketzugriff](Administration-Installation-und-Konfiguration.md#socketzugriff)
 - [Backup, Restore und Vollexport](Administration-Backup-Pruefung-und-Restore)
 - [Update und Rollback](Administration-Update-und-Rollback)
 - [Verantwortung, Datenlebenszyklus und Support](Administration-Verantwortung-Grenzen-und-Support)

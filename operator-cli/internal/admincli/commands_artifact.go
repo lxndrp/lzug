@@ -272,6 +272,9 @@ func artifactRestoreCommand(artifact OptionSpec, identityOptions []OptionSpec) C
 		Examples:    []string{"lzug-admin --container lzug backup restore --artifact backup.lzug --identity-file backup.agekey --force"},
 		Options:     options,
 		Confirmation: ConfirmationSpec{Required: true, Prompt: func(values Values, config EffectiveConfig) string {
+			if config.target("endpoint") != "" {
+				return fmt.Sprintf("Restore %q into %s?", values.String("artifact"), config.targetDescription())
+			}
 			return fmt.Sprintf("Restore %q into container %q?", values.String("artifact"), config.Container.Value)
 		}},
 		UsesConfig:  true,

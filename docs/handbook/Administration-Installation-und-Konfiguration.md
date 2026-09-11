@@ -255,3 +255,90 @@ und [ASGI-Requestereignisse](https://asgi.readthedocs.io/en/stable/specs/www.htm
 Der Container stellt selbst kein TLS bereit.
 Docker-Socket, `/data`, Betreiber-CLI und der lokale Python-Adminprozess dürfen
 niemals über den Reverse Proxy erreichbar sein.
+
+## Socketzugriff
+
+Die CLI verwendet einen bereits bereitgestellten lokalen Socket-Endpunkt.
+Client und Backend sprechen darüber denselben versionierten Adminvertrag.
+Bereitstellung und mögliche entfernte Weiterleitung liegen beim Betreiber;
+der Anwendungsvertrag und die Tests enden am Socket.
+
+Ein nicht geheimes Zielprofil lautet beispielsweise:
+
+```json
+{
+  "endpoint": "unix:///run/lzug-admin/admin.sock",
+  "target-name": "lzug-production"
+}
+```
+
+`--config admin.json` wählt dieses Profil für direkte Commands oder `cli` aus.
+Explizite Optionen haben Vorrang vor Umgebung und Konfigurationsdatei.
+`target-name` ist ein optionaler Anzeigename, kein Identitätsnachweis.
+Das Profil darf nicht zugleich einen Container auswählen.
+Die [CLI-Referenz](https://github.com/lxndrp/lzug/blob/master/docs/developers/reference/cli.md)
+beschreibt die Commands und Optionen.
+
+Linux und macOS unterstützen einen absoluten Unix-Socketpfad.
+Auf allen drei Bedienplattformen einschließlich Windows kann ein vorhandener
+lokaler TCP-Socket mit `tcp://127.0.0.1:PORT` oder `tcp://[::1]:PORT` verwendet werden.
+DNS-Namen, Wildcard- und entfernte TCP-Adressen werden abgewiesen.
+Die CLI erstellt keinen Listener.
+Ein Loopback-Port ist auch für andere lokale Prozesse erreichbar;
+die Zugriffsbeschränkung des bereitgestellten Endpunkts liegt beim Betreiber.
+Der Backend-Adminsocket bleibt ein Unix-Domain-Socket auf Linux.
+
+Vor destruktiven Vorgängen zeigt die CLI den Zielnamen und den lokalen Endpunkt an.
+Jeder Auftrag öffnet eine eigene Verbindung und prüft den Admin-Handshake,
+bevor fachliche Daten übertragen werden.
+Eine interaktive Sitzung hält das Ziel bis zum ausdrücklichen Zielwechsel stabil.
+Bei Erfolg, Fehler, Abbruch oder Timeout schließt die CLI nur ihre Verbindung;
+der bereitgestellte Listener und Socketpfad bleiben unverändert.
+Aufträge werden nicht automatisch wiederholt.
+
+`connection_failed` kennzeichnet einen fehlgeschlagenen Verbindungsaufbau;
+`handshake_failed` eine fehlende gültige Adminantwort und
+`version_incompatible` einen inkompatiblen Vertrag.
+Ursachen unterhalb der Socket-Schnittstelle müssen mit den jeweiligen
+Betriebsmitteln diagnostiziert werden.
+Nach möglichem Ausführungsbeginn bleiben Auftrags- und Korrelations-ID sowie
+`outcome_unknown` für die Zuordnung zu Audit und Auftragsstatus erhalten.
+Prüfen Sie den Zustand vor einer erneuten Mutation.
+Private Backup-/Restore-/Exportschlüssel verbleiben beim lokalen age-Schritt.
+
+Die vollständige Image-/Compose-Umstellung folgt in #747;
+die Migrations- und Releasefreigabe bleibt #272 zugeordnet.
+Für veröffentlichte Installationen sind die verfügbaren Release-Artefakte maßgeblich.
+
+### Beispiel: externe Weiterleitung mit SSH
+
+Dieses Beispiel zeigt eine mögliche Bereitstellung des Sockets.
+Es begründet kein Support- oder Testversprechen für SSH oder den entfernten Transport.
+Der SSH-Dienst läuft auf dem Linux-Containerhost.
+Ein Bind-Mount des dedizierten Laufzeitverzeichnisses macht den vom Backend
+angelegten Socket auch auf dem Host zugänglich.
+Das ganze Verzeichnis bleibt eingebunden, wenn das Backend den Socket neu erzeugt.
+Bei User-Namespace-Remapping müssen die tatsächlich abgebildeten numerischen IDs
+zur Eigentümer- und Peer-Prüfung des Backends passen.
+Das verbindende SSH-Konto benötigt dieselbe Server-UID oder die konfigurierte
+primäre Betreiber-GID; eine zusätzliche Gruppenzugehörigkeit genügt nicht.
+Hinzu kommen die Zugriffsrechte des Socketpfads und seiner Verzeichnisse.
+Die Anforderungen beschreibt der
+[Socketvertrag](https://github.com/lxndrp/lzug/blob/master/docs/developers/components.md#backend).
+
+Der Betreiber richtet Hostvertrauen, Authentisierung und erlaubte
+Streamlocal-Weiterleitungen in OpenSSH ein.
+Unter Linux/macOS kann er in einem eigenen Terminal beispielsweise ausführen:
+
+```console
+mkdir -m 700 /tmp/lzug-tunnel
+ssh -N -T -o ExitOnForwardFailure=yes -L /tmp/lzug-tunnel/admin.sock:/run/lzug-admin/admin.sock lzug-production
+```
+
+Danach verwendet die CLI `--endpoint unix:///tmp/lzug-tunnel/admin.sock`.
+OpenSSH stellt die Verbindung zum entfernten Socket her;
+ein dortiger Admin-Netzwerkport oder eine entfernte CLI sind dafür nicht erforderlich.
+Beenden und Bereinigen der Weiterleitung bleiben Aufgabe des Betreibers.
+Details zu [OpenSSH-Weiterleitungen](https://man.openbsd.org/ssh.1#L) und
+[Docker-Bind-Mounts](https://docs.docker.com/engine/storage/bind-mounts/)
+stehen in der jeweiligen Betriebsdokumentation.

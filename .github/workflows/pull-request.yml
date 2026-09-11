@@ -51,6 +51,7 @@ jobs:
               - 'tests/docs/**'
             backend:
               - 'backend/**'
+              - 'operator-cli/**'
               - 'db/**'
               - 'fixtures/**'
             frontend:
@@ -296,7 +297,11 @@ jobs:
     name: CLI details
     needs: changes
     if: needs.changes.outputs.cli == 'true'
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14, windows-2025]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -313,7 +318,12 @@ jobs:
         with:
           version: 3.52.0
       - name: Test the CLI and validate its packaging configuration
+        if: runner.os == 'Linux'
         run: task quality:operator
+      - name: Native local endpoint contracts
+        if: runner.os != 'Linux'
+        working-directory: operator-cli
+        run: go test ./internal/admincli -run TestEndpoint -count=1 -timeout=90s
 
   delivery:
     name: Delivery and tooling contracts

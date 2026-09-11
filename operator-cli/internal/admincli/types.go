@@ -255,6 +255,7 @@ func (c Command) IsLocal() bool {
 }
 
 type GlobalOptions struct {
+	TargetValues map[string]string
 	Container    string
 	ContainerSet bool
 	ConfigPath   string
@@ -272,7 +273,8 @@ type EffectiveValue struct {
 }
 
 type EffectiveConfig struct {
-	Container EffectiveValue `json:"container"`
+	Container EffectiveValue            `json:"container"`
+	Target    map[string]EffectiveValue `json:"target,omitempty"`
 }
 
 type CLIError struct {
@@ -307,10 +309,11 @@ func unexpectedError() *CLIError {
 }
 
 type Application struct {
-	Registry *Registry
-	Build    BuildInfo
-	Runtime  RuntimeFactory
-	Config   ConfigResolver
-	Input    Input
-	Renderer Renderer
+	Registry      *Registry
+	Build         BuildInfo
+	Runtime       RuntimeFactory
+	Config        ConfigResolver
+	Input         Input
+	Renderer      Renderer
+	sessionConfig *EffectiveConfig
 }

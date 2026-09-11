@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"syscall"
 
 	"github.com/lxndrp/lzug/operator-cli/internal/admincli"
 )
@@ -21,12 +22,13 @@ func main() {
 		_, _ = fmt.Fprintln(os.Stderr, "Error [unexpected_local_error]: The command registry is invalid.")
 		os.Exit(admincli.ExitUnexpected)
 	}
-	var ctx context.Context = context.Background()
-	stop := func() {}
-	if !admincli.InteractiveRequested(os.Args[1:]) {
-		ctx, stop = signal.NotifyContext(ctx, os.Interrupt)
-	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
 	defer stop()
+	if !admincli.InteractiveRequested(os.Args[1:]) {
+		var stopInterrupt context.CancelFunc
+		ctx, stopInterrupt = signal.NotifyContext(ctx, os.Interrupt)
+		defer stopInterrupt()
+	}
 	application := admincli.NewApplication(
 		registry,
 		admincli.BuildInfo{
@@ -34,7 +36,7 @@ func main() {
 			Revision: applicationRevision,
 			Tag:      applicationTag,
 		},
-		admincli.NewContainerRuntimeFactory(),
+		admincli.NewTargetRuntimeFactory(),
 		admincli.NewSystemConfigResolver(),
 		admincli.NewConsoleInput(os.Stdin, os.Stderr),
 		admincli.NewOutputRenderer(

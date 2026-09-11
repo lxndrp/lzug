@@ -9,6 +9,8 @@ Die handgeschriebenen Betriebsabläufe bleiben im Administrationshandbuch.
 
 | Option | Bedeutung | Werte/Standard |
 | --- | --- | --- |
+| `--endpoint ENDPOINT` | Existing local unix:///path or tcp://127.0.0.1:PORT admin endpoint. | - |
+| `--target-name NAME` | Non-secret display name for the endpoint target. | - |
 | `--container NAME` | Exact running container name. | - |
 | `--config FILE` | Read this explicit non-secret JSON configuration file. | - |
 | `--no-config` | Do not read a configuration file. | - |
@@ -19,19 +21,22 @@ Die handgeschriebenen Betriebsabläufe bleiben im Administrationshandbuch.
 | `--version` | CLI-Version ausgeben. | - |
 | `--build-metadata` | Kanonische Build-Metadaten als JSON ausgeben. | - |
 
-Konfigurierbar ist nur der Containername.
+Nicht geheime Zielparameter benennen den vorhandenen lokalen Socket-Endpunkt und optional dessen Anzeigenamen.
 Die Priorität lautet Flag vor Umgebungsvariable vor optionaler JSON-Datei vor Standardwert.
 
 ## Konfiguration und sichere Eingabe
 
-`LZUG_ADMIN_CONTAINER` ist der einzige von der CLI ausgewertete Konfigurationswert.
+`LZUG_ADMIN_ENDPOINT` und `LZUG_ADMIN_TARGET_NAME` entsprechen den Zieloptionen.
+Der bisherige `LZUG_ADMIN_CONTAINER` bleibt bis zur vollständigen Imageumstellung separat verfügbar.
 Ohne `--config` sucht die CLI plattformgerecht unter dem durch `os.UserConfigDir` bestimmten Verzeichnis nach `lzug/admin.json`; eine fehlende Standarddatei ist zulässig.
 Eine explizite fehlende oder ungültige Datei ist ein Konfigurationsfehler, und `--no-config` unterbindet jeden Dateizugriff.
 
 ```json
-{"container":"lzug"}
+{"endpoint":"unix:///run/lzug-admin/admin.sock","target-name":"lzug-production"}
 ```
 
+Der Socket-Endpunkt muss vor dem CLI-Aufruf bereitstehen.
+Die CLI verwaltet ausschließlich ihre eigenen Verbindungen und verändert den bereitgestellten Endpunkt nicht.
 Andere Dateischlüssel sowie Umgebungsvariablen für Secrets, Bestätigungen oder Ausgabepräferenzen werden abgewiesen.
 Einmaltoken und private Empfängerschlüssel besitzen keine CLI-Option und werden ausschließlich als einzelne Eingabe über `stdin` gelesen; am TTY bleibt die Eingabe ohne Echo.
 
@@ -73,7 +78,7 @@ Bootstrap an empty installation and issue its one-time invitation token.
 | --- | --- | --- |
 | `--email EMAIL` | Account email address. | Pflicht |
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -92,7 +97,7 @@ Read one invitation token from standard input and consume it through the local a
 
 Sichere Eingabe: One-time token read only from standard input.
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -111,7 +116,7 @@ Read one recovery token from standard input and consume it through the local adm
 
 Sichere Eingabe: One-time token read only from standard input.
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -134,7 +139,7 @@ Disable one account and revoke its active sessions.
 
 Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -155,7 +160,7 @@ Create or reuse an eligible account invitation and print its one-time token.
 | --- | --- | --- |
 | `--email EMAIL` | Account email address. | Pflicht |
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -177,7 +182,7 @@ Select exactly one account by identifier or email and issue a one-time recovery 
 | `--account-id ID` | Positive account identifier. | optional |
 | `--email EMAIL` | Account email address. | optional |
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -199,7 +204,7 @@ Show format, protection method, and required fingerprint without an identity or 
 | --- | --- | --- |
 | `--artifact PATH` | Regular protected artifact file. | Pflicht |
 
-Transport: lokale Ausführung ohne Container-Auftrag.
+Ausführung: lokal ohne Backendauftrag.
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
@@ -218,7 +223,7 @@ Stream a backend-validated clear package directly into a local age-encrypted ato
 | --- | --- | --- |
 | `--output PATH` | New protected target artifact file. | Pflicht |
 
-Transport: lokale Orchestrierung über den Docker-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+Ausführung: lokale Orchestrierung mit Backendaufträgen; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
 
@@ -241,7 +246,7 @@ Manage only the persistent public age recipient after local possession proof; pr
 
 Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
 
-Transport: lokale Orchestrierung über den Docker-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+Ausführung: lokale Orchestrierung mit Backendaufträgen; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
 
@@ -262,7 +267,7 @@ Manage only the persistent public age recipient after local possession proof; pr
 | `--identity-stdin` | Read the age identity from redirected standard input. | optional; Standard: false |
 | `--identity-prompt` | Read the age identity from a hidden terminal prompt. | optional; Standard: false |
 
-Transport: lokale Orchestrierung über den Docker-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+Ausführung: lokale Orchestrierung mit Backendaufträgen; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
 
@@ -277,7 +282,7 @@ lzug-admin --container lzug backup recipient set --identity-file backup.agekey
 
 Manage only the persistent public age recipient after local possession proof; private identities never reach the backend.
 
-Transport: lokale Orchestrierung über den Docker-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+Ausführung: lokale Orchestrierung mit Backendaufträgen; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
@@ -302,7 +307,7 @@ Decrypt locally, validate and stage in the backend, then activate only after eve
 
 Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
 
-Transport: lokale Orchestrierung über den Docker-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+Ausführung: lokale Orchestrierung mit Backendaufträgen; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
 
@@ -324,7 +329,7 @@ Decrypt locally and stream the clear package to the backend for complete validat
 | `--identity-stdin` | Read the age identity from redirected standard input. | optional; Standard: false |
 | `--identity-prompt` | Read the age identity from a hidden terminal prompt. | optional; Standard: false |
 
-Transport: lokale Orchestrierung über den Docker-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+Ausführung: lokale Orchestrierung mit Backendaufträgen; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
@@ -339,7 +344,7 @@ lzug-admin --container lzug backup verify --artifact backup.lzug --identity-file
 
 Start the line-oriented terminal dialog generated from this command registry. Interactive input and output terminals are required; --json and --force are invalid. Direct subcommands remain the interface for automation.
 
-Transport: lokale Ausführung ohne Container-Auftrag.
+Ausführung: lokal ohne Backendauftrag.
 
 Ausgabe: Runs the guided terminal session until the operator exits or interrupts it.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
@@ -373,7 +378,7 @@ Create one committee, select its initial chair and optional deputy, and issue an
 | `--deputy-member-status STATUS` | Deputy chair membership status. | optional |
 | `--deputy-representing-side SIDE` | Deputy chair represented side. | optional |
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -411,7 +416,7 @@ Complete one imported committee with its chair and optional deputy using an idem
 | `--deputy-member-status STATUS` | Deputy chair membership status. | optional |
 | `--deputy-representing-side SIDE` | Deputy chair represented side. | optional |
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -438,7 +443,7 @@ Deactivate one committee with an idempotent, reasoned administration request.
 
 Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -463,7 +468,7 @@ Reactivate one committee with an idempotent, reasoned administration request.
 | `--committee-id ID` | Positive committee identifier. | Pflicht |
 | `--reason TEXT` | Required lifecycle reason. | Pflicht |
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -488,7 +493,7 @@ Reissue an invitation for one committee account through an idempotent administra
 | `--committee-id ID` | Positive committee identifier. | Pflicht |
 | `--email EMAIL` | Eligible committee account email address. | Pflicht |
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -507,7 +512,7 @@ lzug-admin --container lzug committee reinvite --idempotency-key reinvite-001 --
 
 Print an installable bash completion script derived only from static registry metadata.
 
-Transport: lokale Ausführung ohne Container-Auftrag.
+Ausführung: lokal ohne Backendauftrag.
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
@@ -522,7 +527,7 @@ lzug-admin completion bash > lzug-admin.bash
 
 Print an installable fish completion script derived only from static registry metadata.
 
-Transport: lokale Ausführung ohne Container-Auftrag.
+Ausführung: lokal ohne Backendauftrag.
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
@@ -537,7 +542,7 @@ lzug-admin completion fish > lzug-admin.fish
 
 Print an installable powershell completion script derived only from static registry metadata.
 
-Transport: lokale Ausführung ohne Container-Auftrag.
+Ausführung: lokal ohne Backendauftrag.
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
@@ -552,7 +557,7 @@ lzug-admin completion powershell > lzug-admin.ps1
 
 Print an installable zsh completion script derived only from static registry metadata.
 
-Transport: lokale Ausführung ohne Container-Auftrag.
+Ausführung: lokal ohne Backendauftrag.
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
@@ -565,13 +570,13 @@ lzug-admin completion zsh > lzug-admin.zsh
 
 ### `lzug-admin config inspect`
 
-Show the effective container together with its flag, environment, file, or default source. No configuration is changed.
+Show the effective non-secret target together with its flag, environment, file, or default source. No configuration is changed.
 
-Transport: lokale Orchestrierung über den Docker-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+Ausführung: lokale Orchestrierung mit Backendaufträgen; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
-Ausgabe: Prints the effective non-secret container and its source; JSON exposes the same field.
+Ausgabe: Prints the effective non-secret target and its source; JSON exposes the same fields.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
@@ -590,7 +595,7 @@ Stream a backend-validated clear package directly into a local age-encrypted ato
 
 Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
 
-Transport: lokale Orchestrierung über den Docker-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+Ausführung: lokale Orchestrierung mit Backendaufträgen; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
 
@@ -612,7 +617,7 @@ Decrypt locally and stream the clear package to the backend for complete validat
 | `--identity-stdin` | Read the age identity from redirected standard input. | optional; Standard: false |
 | `--identity-prompt` | Read the age identity from a hidden terminal prompt. | optional; Standard: false |
 
-Transport: lokale Orchestrierung über den Docker-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+Ausführung: lokale Orchestrierung mit Backendaufträgen; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
@@ -627,7 +632,7 @@ lzug-admin --container lzug export verify --artifact export.lzug --identity-file
 
 Process due notification deliveries and confirmed-plan consequences without returning message content.
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `10m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -649,7 +654,7 @@ Run a technical synthetic delivery for one committee member without returning me
 | `--member-id ID` | Positive committee member identifier. | Pflicht |
 | `--channel CHANNEL` | Notification channel. | Pflicht |
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -670,7 +675,7 @@ Retry eligible technical follow-up work for one confirmed plan revision without 
 | --- | --- | --- |
 | `--revision-id ID` | Positive confirmed plan revision identifier. | Pflicht |
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `10m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -691,7 +696,7 @@ Inspect technical follow-up states for one confirmed plan revision without expos
 | --- | --- | --- |
 | `--revision-id ID` | Positive confirmed plan revision identifier. | Pflicht |
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -713,7 +718,7 @@ Create a protected private identity and a shareable public recipient atomically 
 | `--identity-file PATH` | New private identity file. | Pflicht |
 | `--recipient-file PATH` | New public recipient file. | Pflicht |
 
-Transport: lokale Ausführung ohne Container-Auftrag.
+Ausführung: lokal ohne Backendauftrag.
 
 Ausgabe: Human output reminds about independent key backup; JSON excludes the private identity.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
@@ -730,7 +735,7 @@ Show only the canonical public recipient, method, and complete fingerprint.
 | --- | --- | --- |
 | `--key-file PATH` | Private identity or public recipient file. | Pflicht |
 
-Transport: lokale Ausführung ohne Container-Auftrag.
+Ausführung: lokal ohne Backendauftrag.
 
 Ausgabe: Shows no private identity value.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
@@ -743,7 +748,7 @@ lzug-admin recipient-key inspect --key-file backup.agekey
 
 Validate the runtime's secret-free configuration contract. The backend receives no operator secrets or business data.
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -760,7 +765,7 @@ lzug-admin --container lzug system config
 
 Run runtime, schema, persistence, storage, and readiness diagnostics. The backend receives no operator secrets or business data.
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -777,7 +782,7 @@ lzug-admin --container lzug system doctor
 
 Inspect runtime identity and application readiness. The backend receives no operator secrets or business data.
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
@@ -804,7 +809,7 @@ Create and locally decrypt a protected safety backup before applying supported m
 
 Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
 
-Transport: lokale Orchestrierung über den Docker-Containertransport; geheimes Schlüsselmaterial verbleibt in der CLI.
+Ausführung: lokale Orchestrierung mit Backendaufträgen; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Ausgabe: Successful human output is silent; JSON includes the validated lifecycle result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
@@ -817,7 +822,7 @@ lzug-admin --container lzug-maintenance upgrade apply --backup-output pre-upgrad
 
 Verify CLI and container release identity and evaluate rollback eligibility without mutating the installation.
 
-Transport: versionierter Auftrag über den Docker-Containertransport.
+Ausführung: versionierter Backendauftrag.
 
 Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 

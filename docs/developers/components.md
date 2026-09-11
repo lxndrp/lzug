@@ -14,7 +14,7 @@ Die gemeinsame AIO-, Admintransport- und Lifecyclegrenze legt
 | --- | --- | --- | --- |
 | Backend | ein autoritativer Prozess für HTTP, Admin-Socket, Lifecycle, Fachservices, Persistenz, Dokumente und Integrationsadapter | OpenAPI/JSON, versionierter Unix-Socket-Vertrag, SQLite und kontrollierte Provideradapter | `backend/src/backend/`, `backend/db/` |
 | Frontend | aufgabenorientierte Ausschussoberfläche, Routing, Formulare und sichtbare Zustände | same-origin API über zentrale Modelle und Services | `frontend/src/app/` |
-| Betreiber-CLI | portable Orchestrierung von Administration, Diagnose und Lifecycle | direkter Unix-Socket oder System-OpenSSH-Forwarding desselben Adminvertrags | `operator-cli/cmd/lzug-admin/`, `operator-cli/internal/admincli/`, `operator-cli/internal/tools/cli-reference/`, `operator-cli/.goreleaser.yml` |
+| Betreiber-CLI | portable Orchestrierung von Administration, Diagnose und Lifecycle | bereitgestellter lokaler Socket mit versioniertem Adminvertrag | `operator-cli/cmd/lzug-admin/`, `operator-cli/internal/admincli/`, `operator-cli/internal/tools/cli-reference/`, `operator-cli/.goreleaser.yml` |
 | OCI und Self-Hosting | Produktimage `lzug-app`, gehärtete Docker-Referenz und persistentes `/data` | `Dockerfile`, optionaler Docker-Compose-Weg und Containerverträge | Dockerfile, Compose und `scripts/*container*` |
 | Öffentliche Demo | getrenntes Image `lzug-demo`, flüchtige App-/Seed-Assembly, Reset, Promotion und Azure-Deployment | digestgebundene Manifeste, OIDC und Demo-Runtime-Policy | `demo/contract.py`, `demo/runtime/`, `demo/delivery/`, `demo/containers/`, `demo/infra/`, `demo/tests/`, Demo-Workflows |
 
@@ -235,8 +235,9 @@ Upgrade und Rollback bleiben in dieser Assembly gesperrt.
 vorhandenen injizierbaren Transportschnittstellen für Kontrollaufträge und Artefakte.
 Der Pfad wird der Factory ausdrücklich übergeben; sie startet keinen Prozess
 und kennt weder Transportfallback noch automatische Wiederholung.
-Die regulären CLI-Flags, die vollständige interaktive Anbindung, das Image und
-die Ablösung des Container-Exec-Adapters gehören zur nachfolgenden Umschaltung.
+`TargetRuntimeFactory` bindet diese Aufträge über die expliziten Zieloptionen
+auch an die gemeinsame direkte und interaktive CLI an.
+Imageumschaltung und Ablösung des Container-Exec-Adapters folgen separat in #747.
 
 Der Listener begrenzt gleichzeitig aktive Verbindungen standardmäßig auf acht,
 Handshake auf fünf Sekunden, Auftrag einschließlich Ergebnisübertragung auf
@@ -550,22 +551,31 @@ Eine statische Registry ordnet jeden Command nach dem Muster
 Hilfe, Completion und die
 [generierte Befehlsreferenz](reference/cli.md).
 Explizite Konstruktorverdrahtung verbindet Registry, Konfiguration, sichere
-Eingabe, Renderer sowie direkten Unix-Socket- und System-OpenSSH-Transport ohne
-IoC-Framework,
+Eingabe, Renderer und Socket-Zugriff ohne IoC-Framework,
 Service Locator, Reflection oder versteckte Registrierung.
 
-Der lokale Transport verbindet sich direkt mit dem gehärteten Unix-Domain-Socket.
-Der entfernte Transport übergibt strukturierte Argumente an System-OpenSSH und
-leitet denselben Socketvertrag weiter, ohne Shell-Stringverkettung,
-abgeschwächte Hostprüfung oder SSH-Agent-Weiterleitung.
+Die CLI verbindet sich mit einem bereitgestellten lokalen Socket-Endpunkt.
+`TargetRuntimeFactory` verwendet dafür `unix:///pfad` oder einen numerischen
+Loopback-Endpunkt (`tcp://127.0.0.1:PORT`, `tcp://[::1]:PORT`).
+Client und Backend kennen den Socket-Zugriff und den versionierten Adminvertrag;
+die Bereitstellung des Endpunkts liegt außerhalb ihrer Zuständigkeit.
 Kleine Aufträge und Antworten sind genau ein UTF-8-JSON-Objekt;
 Artefaktoperationen trennen den potenziell großen Binärstrom von der
 strukturierten Kontrollantwort.
 Command-Handler greifen weder direkt auf Persistenz zu noch kennen sie
-Container-Engine-spezifische Details; direkter und SSH-weitergeleiteter Zugriff
-verwenden denselben versionierten Backendauftrag.
-Ein im `lzug-app`-Container gestartetes CLI-Binary verwendet ebenfalls direkt
-den Socket.
+die Bereitstellung des Endpunkts.
+Jeder Auftrag erhält eine eigene begrenzte Verbindung und einen Admin-Handshake
+vor der fachlichen Übertragung.
+Die interaktive Sitzung hält ihre Zielkonfiguration bis zum ausdrücklichen
+Zielwechsel stabil; Verbindungsverluste lösen keine automatische Wiederholung aus.
+Die CLI schließt ausschließlich eigene Verbindungen und verändert keine
+bereitgestellten Listener oder Socketpfade.
+Tests prüfen diese Socket-Eigenschaften und den gemeinsamen Adminvertrag.
+Externe Transportwege sind weder Teil des Anwendungsvertrags noch der Testabnahme.
+Die [Betriebsanleitung](../handbook/Administration-Installation-und-Konfiguration.md#socketzugriff)
+beschreibt die Endpunktkonfiguration und ein optionales Bereitstellungsbeispiel.
+Die vollständige Ablösung des bisherigen Container-Exec-Adapters und die
+Image-/Compose-Einrichtung bleiben #747 zugeordnet.
 
 Die Befehlsgruppen umfassen:
 
@@ -594,8 +604,8 @@ Werte oder ausdrücklich abgefragte Diagnose aus.
 `--json` liefert bei Erfolg und Fehler genau ein Objekt mit Schema- und
 Protokollversion, Fehlerklasse und Exit Code auf `stdout`; ungeprüfte
 Backendtexte und Engine-Diagnose werden nicht durchgereicht.
-Nicht geheime Zielprofile wählen direkten Socket oder System-OpenSSH und dürfen
-Hostalias, entfernten Socketpfad und lokale Weiterleitungsart referenzieren.
+Nicht geheime Zielprofile enthalten den lokalen Socket-Endpunkt und einen
+optionalen Anzeigenamen.
 Explizite Parameter, Umgebung, optionale JSON-Datei und Standardwerte behalten
 ihre dokumentierte Priorität.
 `lzug-admin config inspect` zeigt effektive geheimnisfreie Werte und ihre
@@ -622,7 +632,7 @@ verwendet weiterhin direkte Subcommands.
 
 CLI und Backend geben technische Identität, Zustände, Phasen, Zähler und
 geheimnisfreie Fehlercodes aus, aber keine privaten Schlüssel, internen
-SSH-Ausgaben oder ungefilterten Fehlertexte.
+Systemausgaben oder ungefilterten Fehlertexte.
 Die aufgabenorientierte Bedienung bleibt im
 [Administrationshandbuch](../portal/betreiben.md).
 

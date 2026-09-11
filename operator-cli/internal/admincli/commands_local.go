@@ -3,6 +3,7 @@ package admincli
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 func localCommands() []Command {
@@ -10,15 +11,24 @@ func localCommands() []Command {
 		{
 			Path:        []string{"config", "inspect"},
 			Summary:     "Inspect effective non-secret CLI configuration.",
-			Description: "Show the effective container together with its flag, environment, file, or default source. No configuration is changed.",
+			Description: "Show the effective non-secret target together with its flag, environment, file, or default source. No configuration is changed.",
 			Examples: []string{
 				"lzug-admin config inspect",
 				"lzug-admin --no-config --container lzug config inspect --json",
 			},
 			UsesConfig: true,
 			Transport:  LocalTransport,
-			Output:     OutputSpec{Human: HumanLocal, Verbose: VerboseSummary, JSON: JSONLocal, Summary: "Prints the effective non-secret container and its source; JSON exposes the same field.", ResultKeys: []string{"container"}},
+			Output:     OutputSpec{Human: HumanLocal, Verbose: VerboseSummary, JSON: JSONLocal, Summary: "Prints the effective non-secret target and its source; JSON exposes the same fields.", ResultKeys: []string{"container", "target"}},
 			Local: func(_ context.Context, local LocalContext, _ Values) (LocalResult, *CLIError) {
+				if local.Config.target("endpoint") != "" {
+					var output strings.Builder
+					for _, key := range []string{"endpoint", "target-name"} {
+						if value, ok := local.Config.Target[key]; ok {
+							fmt.Fprintf(&output, "%s: %s (%s)\n", key, value.Value, value.Source)
+						}
+					}
+					return LocalResult{Result: local.Config, HumanOutput: output.String()}, nil
+				}
 				container := local.Config.Container.Value
 				if container == "" {
 					container = "<unset>"

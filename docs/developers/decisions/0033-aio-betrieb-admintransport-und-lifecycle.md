@@ -3,6 +3,7 @@
 ## Datum
 
 2026-09-07.
+Präzisierung der Socket-Zuständigkeitsgrenze am 2026-09-11 in #581.
 
 ## Status
 
@@ -59,13 +60,17 @@ behauptete Identitätsdaten begründen keine Autorisierung.
 
 ### Einheitlicher CLI-Zugriff
 
-Die portable CLI verwendet lokal den Unix-Domain-Socket direkt.
-Ein externer Aufruf verwendet die vorhandene System-OpenSSH-Implementierung und
-leitet exakt denselben Socketvertrag weiter.
-Auf dem Zielhost wird kein lzug-Adminport veröffentlicht, und im Container
-läuft weder ein SSH-Dienst noch eine entfernte CLI-Bridge.
-SSH-Authentisierung, Hostprüfung, Identitätswahl, Agent und Sprunghost bleiben
-in der Verantwortung von OpenSSH und der Betreiberkonfiguration.
+Die portable CLI verwendet einen bereitgestellten lokalen Socket-Endpunkt.
+Client und Server kennen ausschließlich den Socket-Zugriff und denselben
+versionierten Adminvertrag.
+Die Bereitstellung des Endpunkts und ein möglicher entfernter Transport liegen
+außerhalb der Applikation.
+Konfiguration und CLI benötigen dafür keinen Transportumschalter oder
+Parameter für entfernte Hosts und Weiterleitungen.
+Tests und zugesicherte Eigenschaften enden an der Socket-Schnittstelle.
+Ein Betriebsbeispiel darf eine externe Weiterleitung beschreiben, ohne sie zum
+unterstützten oder geprüften Produktbestandteil zu erklären.
+Auf dem Zielhost wird kein lzug-Adminport veröffentlicht.
 
 Direkte Befehle verwenden `lzug-admin <objekt> <aktion>`; der interaktive
 Einstieg verwendet `lzug-admin cli`.
@@ -74,7 +79,7 @@ Ergebnisinterpretation.
 Auch ein durch die Containerplattform im Produktcontainer gestartetes
 CLI-Binary spricht anschließend den lokalen Socket direkt an.
 Es gibt kein Helper-Skript, keine abweichende Containeroberfläche und keinen
-automatischen Fallback zwischen Socket, SSH und Container-Engine.
+automatischen Wechsel des konfigurierten Endpunkts.
 
 Private Schlüssel für geschützte Sicherungs-, Restore- oder Exportartefakte
 bleiben gemäß ADR-0031 auf dem Bedienrechner.
@@ -149,8 +154,8 @@ Supportversprechen oder Release-Gates.
   autoritative Schreib- und Zustandsgrenze.
 - HTTP und lokaler Adminzugriff können unterschiedliche Vertrauensgrenzen
   erzwingen, ohne Anwendungslogik oder Transaktionen auf Prozesse aufzuteilen.
-- Die Adminschnittstelle bleibt lokal; externer Zugriff übernimmt die
-  etablierte Sicherheits- und Konfigurationsgrenze von System-OpenSSH.
+- Die Adminschnittstelle bleibt lokal; Bereitstellung und entfernte
+  Transportwege bleiben in der Verantwortung des Betreibers.
 - Plattformprobes, Frontend und CLI dürfen einen live, aber nicht ready
   befindlichen Zustand nicht als Ausfall oder einsatzbereiten Normalbetrieb
   fehlinterpretieren.
