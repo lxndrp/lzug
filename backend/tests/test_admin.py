@@ -403,12 +403,8 @@ class AdminCommandHandlerTests(unittest.TestCase):
         "committee-reactivate": {"idempotency_key": "reactivate-001"},
         "retry-plan-consequences": {"revision_id": 7},
         "plan-consequences-status": {"revision_id": 7},
-        "upgrade": {
-            "target": {"version": "0.7.0"},
-            "backup": {"verified": True},
-            "confirm_irreversible": True,
-        },
-        "rollback": {"target": {"version": "0.6.0"}},
+        "upgrade-status": {},
+        "rollback": {},
     }
 
     _EXPECTED_HANDLER = {
@@ -427,7 +423,7 @@ class AdminCommandHandlerTests(unittest.TestCase):
         "committee-reactivate": "reactivate",
         "retry-plan-consequences": "retry_revision",
         "plan-consequences-status": "operator_status",
-        "upgrade": "upgrade",
+        "upgrade-status": "status",
         "rollback": "rollback",
     }
 

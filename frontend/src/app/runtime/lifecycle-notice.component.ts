@@ -35,7 +35,10 @@ import { LifecycleService } from './lifecycle.service';
           </p>
           <p>
             Führen Sie nur den dort ausgewiesenen und im Betreiberhandbuch beschriebenen
-            Wiederherstellungs- oder Freigabeschritt aus.
+            Wiederherstellungs- oder Freigabeschritt aus. Prüfen Sie eine erforderliche
+            Datenaktualisierung mit
+            <code>lzug-admin upgrade status</code> und geben Sie sie nach der Sicherungsprüfung mit
+            <code>lzug-admin upgrade apply</code> frei.
           </p>
         </details>
       </section>

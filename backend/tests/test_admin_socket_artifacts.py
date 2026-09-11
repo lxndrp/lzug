@@ -341,3 +341,183 @@ class StreamWriterTests(unittest.TestCase):
         right.setblocking(False)
         with self.assertRaises(BlockingIOError):
             right.recv(1)
+
+
+@unittest.skipUnless(sys.platform == "linux", "Linux authoritative migration socket")
+class SocketMigrationTests(unittest.TestCase):
+    connect = SocketArtifactTests.connect
+    send = SocketArtifactTests.send
+    read = SocketArtifactTests.read
+    handshake = SocketArtifactTests.handshake
+    request = SocketArtifactTests.request
+    drained = SocketArtifactTests.drained
+    begin = SocketArtifactTests.begin
+    finish = SocketArtifactTests.finish
+    clean = SocketArtifactTests.clean
+    start = SocketArtifactTests.start
+
+    # Keep only dedicated migration cases; inherited generic artifact cases stay
+    # in SocketArtifactTests and use their own ready-runtime setup.
+    def setUp(self):
+        control.AdminSocketTests.setUp(self)
+
+    def pending(self, recipient=None):
+        import sqlite3
+        from contextlib import closing
+
+        from backend.build_metadata import BuildMetadata
+        from backend.operations.backup_recipients import (
+            BackupRecipientRepository,
+            recipient_fingerprint,
+        )
+        from backend.persistence.database import database_readiness
+        from backend.tests.test_backup_recipients import RECIPIENT
+
+        self.runtime.stop()
+        initialize(self.paths.database)
+        authentication_key(self.paths.database)
+        recipient = recipient or RECIPIENT
+        self.fingerprint = recipient_fingerprint(recipient)
+        BackupRecipientRepository(self.paths.database).set(recipient, self.fingerprint)
+        with closing(sqlite3.connect(self.paths.database)) as db, db:
+            db.execute("DELETE FROM schema_migration_checksum WHERE name LIKE '028_%'")
+            db.execute("DELETE FROM schema_migration WHERE name LIKE '028_%'")
+        self.runtime._probe = lambda: database_readiness(self.paths.database)
+        self.runtime.start()
+        lifecycle = self.listener.artifacts.lifecycle
+        lifecycle.metadata = BuildMetadata.create("a" * 40, "v0.9.0")
+        self.application.services = replace(
+            self.application.services, lifecycle_factory=lambda _: lifecycle
+        )
+        self.plan = lifecycle.status()["plan_id"]
+        self.create = {**CREATE, "arguments": {"recipient_key_fingerprint": self.fingerprint}}
+        self.apply = {
+            "version": 1,
+            "command": "upgrade-package-apply",
+            "arguments": {
+                "plan_id": self.plan,
+                "recipient_key_fingerprint": self.fingerprint,
+                "confirm_irreversible": True,
+            },
+        }
+        self.start(limit=64 * 1024 * 1024, timeout=30)
+
+    def backup_bytes(self):
+        connection, _job_id = self.begin(self.create)
+        data = bytearray()
+        while True:
+            frame = read_stream_frame(connection, monotonic() + 30)
+            if isinstance(frame, bytes):
+                data.extend(frame)
+            else:
+                self.assertEqual("stream-end", frame["type"])
+                break
+        result = self.read(connection)
+        self.assertTrue(result["response"]["ok"], result)
+        connection.close()
+        self.drained()
+        return bytes(data)
+
+    def upload(self, content):
+        connection, job_id = self.begin(self.apply)
+        for offset in range(0, len(content), MAX_DATA_BYTES):
+            write_data(connection, content[offset : offset + MAX_DATA_BYTES], monotonic() + 30)
+        self.finish(connection, content)
+        return connection, job_id
+
+    def test_migration_disconnect_keeps_durable_job_and_never_replays(self):
+        from backend.persistence.database import apply_migrations
+
+        self.pending()
+        content = self.backup_bytes()
+        entered, release = Event(), Event()
+        calls = []
+
+        def migrate(database, backups):
+            calls.append(os.getpid())
+            entered.set()
+            if not release.wait(10):
+                raise AssertionError("test release missing")
+            apply_migrations(database, backups)
+
+        self.listener.artifacts.lifecycle.migration_runner = migrate
+        connection, job_id = self.upload(content)
+        self.assertTrue(entered.wait(5))
+        connection.close()
+        self.assertFalse(self.runtime.snapshot()["ready"])
+        self.assertEqual(job_id, self.runtime.snapshot()["job"]["id"])
+        release.set()
+        self.drained()
+        self.assertTrue(self.runtime.snapshot()["ready"])
+        self.assertEqual([os.getpid()], calls)
+        # A repeated mutation stream is rejected by state/evidence, never replayed.
+        connection, _ = self.upload(content)
+        self.assertFalse(self.read(connection)["response"]["ok"])
+        connection.close()
+        self.drained()
+        self.assertEqual([os.getpid()], calls)
+        self.listener._jobs.clear()
+        self.runtime.stop()
+        self.runtime.start()
+        result = self.request(
+            {"version": 1, "command": "socket-job-status", "arguments": {"job_id": job_id}}
+        )
+        self.assertEqual("succeeded", result["response"]["result"]["status"])
+        self.assertNotIn("AGE-SECRET", self.audit.getvalue())
+
+    def test_incomplete_upload_never_authorizes_migration(self):
+        self.pending()
+        content = self.backup_bytes()
+        connection, _ = self.begin(self.apply)
+        write_data(connection, content[:100], monotonic() + 5)
+        connection.shutdown(socket.SHUT_WR)
+        with self.assertRaises(ConnectionError):
+            self.read(connection)
+        connection.close()
+        self.drained()
+        self.assertEqual("migration_required", self.runtime.snapshot()["state"])
+        self.assertIsNone(self.runtime.snapshot()["job"])
+        self.clean()
+
+    def test_real_go_cli_backup_approval_migration_and_job_lookup(self):
+        directory = self.root / "operator"
+        directory.mkdir()
+        binary = os.environ.get("LZUG_SOCKET_TEST_BINARY")
+        command = (
+            [binary, "-test.run=^TestSocketMigrationLive$", "-test.v"]
+            if binary
+            else [
+                "go",
+                "test",
+                "./internal/admincli",
+                "-run",
+                "^TestSocketMigrationLive$",
+                "-count=1",
+                "-v",
+            ]
+        )
+        environment = {
+            **os.environ,
+            "LZUG_MIGRATION_TEST_DIRECTORY": str(directory),
+            "LZUG_MIGRATION_TEST_ENDPOINT": "",
+        }
+
+        def invoke():
+            result = subprocess.run(
+                command,
+                cwd=Path(__file__).resolve().parents[2] / "operator-cli",
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=90,
+            )
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+        invoke()
+        self.pending((directory / "recipient").read_text().strip())
+        environment["LZUG_MIGRATION_TEST_ENDPOINT"] = "unix://" + str(self.directory / "admin.sock")
+        invoke()
+        self.assertTrue(self.runtime.snapshot()["ready"])
+        self.assertEqual("succeeded", self.runtime.snapshot()["job"]["status"])
+        self.assertNotIn((directory / "identity").read_text().strip(), self.audit.getvalue())
+        self.clean()

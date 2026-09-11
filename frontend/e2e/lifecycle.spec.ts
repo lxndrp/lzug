@@ -26,6 +26,8 @@ test('keeps the maintenance shell usable and resumes only after a manual check',
   await expect(page.getByRole('main')).not.toContainText('/private/secret');
   await page.getByText('Hinweise für Betreiber', { exact: true }).click();
   await expect(page.getByRole('main')).toContainText('lzug-admin system doctor');
+  await expect(page.getByRole('main')).toContainText('lzug-admin upgrade status');
+  await expect(page.getByRole('main')).toContainText('lzug-admin upgrade apply');
   state = 'ready';
   await page.getByRole('button', { name: 'Status erneut prüfen' }).click();
   await expect(page.getByRole('heading', { name: 'Übersicht', exact: true })).toBeVisible();

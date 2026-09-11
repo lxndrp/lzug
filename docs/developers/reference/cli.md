@@ -797,42 +797,61 @@ lzug-admin --container lzug system status
 
 ### `lzug-admin upgrade apply`
 
-Create and locally decrypt a protected safety backup before applying supported migrations in a maintenance container.
+Inspect the plan, create and locally decrypt a protected backup, then explicitly approve the data transition in the same running backend. No reverse migration is supported. Image changes belong to the container platform. After migration, restore a complete verified backup with a compatible image or use supported forward recovery.
 
 | Option | Bedeutung | Pflicht/Standard |
 | --- | --- | --- |
-| `--backup-output PATH` | New local protected pre-upgrade backup. | Pflicht |
+| `--backup-output PATH` | New local protected pre-migration backup. | Pflicht |
 | `--identity-file PATH` | Protected local age identity file. | optional |
 | `--identity-stdin` | Read the age identity from redirected standard input. | optional; Standard: false |
 | `--identity-prompt` | Read the age identity from a hidden terminal prompt. | optional; Standard: false |
-| `--confirm-irreversible` | Confirm pending irreversible migrations when the backend requires it. | optional; Standard: false; separate Danger-Zone-Bestätigung |
+| `--confirm-irreversible` | Explicitly approve the data migration and restore-only rollback boundary; --force does not imply this. | optional; Standard: false; separate Danger-Zone-Bestätigung |
 
 Bestätigung: interaktive TTY-Rückfrage oder `--force`; separate Danger-Zone-Flags werden dadurch nicht gesetzt.
 
 Ausführung: lokale Orchestrierung mit Backendaufträgen; geheimes Schlüsselmaterial verbleibt in der CLI.
 
-Ausgabe: Successful human output is silent; JSON includes the validated lifecycle result.
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
+
+Ausgabe: JSON includes the runtime job ID and result. Lost connections never replay the migration.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug-maintenance upgrade apply --backup-output pre-upgrade.lzug --identity-file backup.agekey --force
+lzug-admin --endpoint unix:///run/lzug-admin/admin.sock upgrade apply --backup-output pre-upgrade.lzug --identity-file backup.agekey --confirm-irreversible --force
 ```
 
 ### `lzug-admin upgrade rollback`
 
-Verify CLI and container release identity and evaluate rollback eligibility without mutating the installation.
+Read application and schema compatibility through the existing socket. No reverse migration is supported. Image changes belong to the container platform. After migration, restore a complete verified backup with a compatible image or use supported forward recovery.
 
-Ausführung: versionierter Backendauftrag.
-
-Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+Ausführung: lokale Orchestrierung mit Backendaufträgen; geheimes Schlüsselmaterial verbleibt in der CLI.
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
-Ausgabe: Successful human output is silent; JSON includes the validated rollback result.
-`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
+Ausgabe: Human and JSON output expose the migration plan and rollback boundary.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug-maintenance upgrade rollback
+lzug-admin --endpoint unix:///run/lzug-admin/admin.sock upgrade rollback
+```
+
+### `lzug-admin upgrade status`
+
+Read application and schema compatibility through the existing socket. No reverse migration is supported. Image changes belong to the container platform. After migration, restore a complete verified backup with a compatible image or use supported forward recovery.
+
+| Option | Bedeutung | Pflicht/Standard |
+| --- | --- | --- |
+| `--job-id UUID` | Inspect a prior socket job, including the last durable migration job after restart. | optional |
+
+Ausführung: lokale Orchestrierung mit Backendaufträgen; geheimes Schlüsselmaterial verbleibt in der CLI.
+
+Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
+
+Ausgabe: Human and JSON output expose the migration plan and rollback boundary.
+`--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
+
+```console
+lzug-admin --endpoint unix:///run/lzug-admin/admin.sock upgrade status
 ```
 
 ## Migration der alten Syntax

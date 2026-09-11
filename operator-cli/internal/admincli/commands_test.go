@@ -50,7 +50,6 @@ func TestEveryBackendCommandBuildsTheExistingVersionedRequest(t *testing.T) {
 		{path: "system config", backend: "config"},
 		{path: "system status", backend: "status", assert: assertClientMetadata},
 		{path: "system doctor", backend: "doctor", assert: assertClientMetadata},
-		{path: "upgrade rollback", backend: "rollback", assert: assertReleaseTarget},
 		{path: "notification process", backend: "process-notifications"},
 		{path: "notification test", args: []string{"--member-id", "7", "--channel", "web_push"}, backend: "test-notification"},
 		{path: "plan-consequence status", args: []string{"--revision-id", "17"}, backend: "plan-consequences-status"},
@@ -95,14 +94,6 @@ func assertClientMetadata(t *testing.T, request BackendRequest) {
 	client := request.Arguments["client"].(map[string]any)
 	if client["identity"] != "1.2.3" || client["revision"] != strings.Repeat("a", 40) {
 		t.Fatalf("unexpected client metadata: %#v", client)
-	}
-}
-
-func assertReleaseTarget(t *testing.T, request BackendRequest) {
-	t.Helper()
-	target := request.Arguments["target"].(map[string]any)
-	if target["identity"] != "1.2.3" || target["release"] != true {
-		t.Fatalf("unexpected release target: %#v", target)
 	}
 }
 

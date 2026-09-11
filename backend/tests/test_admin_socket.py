@@ -143,7 +143,7 @@ class AdminSocketTests(unittest.TestCase):
         self.drained()
         self.assertNotIn("claimed-secret", self.audit.getvalue())
 
-    def test_exactly_one_command_per_connection_and_no_lifecycle_or_streaming(self):
+    def test_exactly_one_command_and_no_legacy_migration_or_artifact_control(self):
         self.listener.start()
         connection = self.connect()
         self.handshake(connection)
@@ -154,9 +154,12 @@ class AdminSocketTests(unittest.TestCase):
             self.assertEqual(b"", connection.recv(1))
         except ConnectionResetError:
             pass
-        for command in ("upgrade", "rollback", "backup-create", "secret-invalid-command"):
+        for command in ("upgrade", "backup-create", "secret-invalid-command"):
             response = self.request({**CONFIG, "command": command})
             self.assertEqual("command_unsupported", response["code"])
+        rollback = self.request({**CONFIG, "command": "rollback"})
+        self.assertEqual(28, rollback["exit_code"])
+        self.assertEqual("rollback_not_supported", rollback["response"]["error"]["class"])
         self.assertNotIn("secret-invalid", self.audit.getvalue())
 
     def test_input_limits_duplicates_and_timeout_before_mutation(self):

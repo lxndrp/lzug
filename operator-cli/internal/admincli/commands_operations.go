@@ -9,23 +9,8 @@ import (
 func operationalCommands() []Command {
 	return []Command{
 		upgradeApplyCommand(),
-		{
-			Path:           []string{"upgrade", "rollback"},
-			Summary:        "Inspect release-bound rollback eligibility.",
-			Description:    "Verify CLI and container release identity and evaluate rollback eligibility without mutating the installation.",
-			Examples:       []string{"lzug-admin --container lzug-maintenance upgrade rollback"},
-			Transport:      ContainerExecTransport,
-			BackendCommand: "rollback",
-			LegacyForms:    []string{"rollback"},
-			Output:         OutputSpec{Human: HumanSilent, Verbose: VerboseSummary, JSON: JSONProjected, Summary: "Successful human output is silent; JSON includes the validated rollback result.", ResultKeys: []string{"target", "eligible", "reason"}},
-			BuildRequest: func(ctx context.Context, prepare PrepareContext, _, _ Values) (BackendRequest, error) {
-				target, err := prepare.ReleaseInspector.Target(ctx, prepare.Build)
-				if err != nil {
-					return BackendRequest{}, err
-				}
-				return BackendRequest{Version: ProtocolVersion, Command: "rollback", Arguments: map[string]any{"target": target}}, nil
-			},
-		},
+		upgradeInspectionCommand("status"),
+		upgradeInspectionCommand("rollback"),
 		{
 			Path:           []string{"notification", "process"},
 			Summary:        "Process due technical notifications.",
@@ -59,92 +44,162 @@ func operationalCommands() []Command {
 	}
 }
 
+const rollbackBoundary = "No reverse migration is supported. Image changes belong to the container platform. After migration, restore a complete verified backup with a compatible image or use supported forward recovery."
+
+func upgradeInspectionCommand(action string) Command {
+	var options []OptionSpec
+	if action == "status" {
+		options = []OptionSpec{{Name: "job-id", ValueName: "UUID", Summary: "Inspect a prior socket job, including the last durable migration job after restart.", Kind: StringOption}}
+	}
+	return Command{
+		Path:        []string{"upgrade", action},
+		Summary:     map[string]string{"status": "Inspect the running backend's data migration plan.", "rollback": "Explain and reject unsupported automatic rollback."}[action],
+		Description: "Read application and schema compatibility through the existing socket. " + rollbackBoundary,
+		Examples:    []string{"lzug-admin --endpoint unix:///run/lzug-admin/admin.sock upgrade " + action},
+		UsesConfig:  true, Transport: LocalTransport,
+		Options:     options,
+		LegacyForms: map[string][]string{"rollback": {"rollback"}}[action],
+		Output:      OutputSpec{Human: HumanLocal, Verbose: VerboseSummary, JSON: JSONLocal, Summary: "Human and JSON output expose the migration plan and rollback boundary."},
+		Local: func(ctx context.Context, local LocalContext, values Values) (LocalResult, *CLIError) {
+			if failure := requireMigrationSocket(local); failure != nil {
+				return LocalResult{}, failure
+			}
+			command := "upgrade-status"
+			arguments := map[string]any{}
+			if id := values.String("job-id"); id != "" {
+				if !socketID.MatchString(id) {
+					return LocalResult{}, invalidInvocation("--job-id requires a valid job UUID")
+				}
+				command, arguments = "socket-job-status", map[string]any{"job_id": id}
+			}
+			if action == "rollback" {
+				command = "rollback"
+			}
+			result, failure := callBackend(ctx, local, command, arguments)
+			if failure != nil {
+				return LocalResult{}, failure
+			}
+			if command == "socket-job-status" {
+				return LocalResult{Result: result, HumanOutput: fmt.Sprintf("Job: %v. Status: %v.\n", result["job_id"], result["status"])}, nil
+			}
+			return LocalResult{Result: result, HumanOutput: migrationSummary(result)}, nil
+		},
+	}
+}
+
+func requireMigrationSocket(local LocalContext) *CLIError {
+	// Keep the general legacy adapter for #747, but never reach it for upgrades.
+	if local.Config.target("endpoint") == "" {
+		return invalidInvocation("upgrade commands require --endpoint for the running backend; container-exec is not a migration transport")
+	}
+	return nil
+}
+
+func migrationSummary(result map[string]any) string {
+	application, _ := result["application"].(map[string]any)
+	migration, _ := result["migration"].(map[string]any)
+	runtime, _ := result["runtime"].(map[string]any)
+	return fmt.Sprintf("Application: %v. State: %v. Schema: %v -> %v. Pending: %v.\n%s\n", application["identity"], runtime["state"], migration["current"], migration["target"], migration["pending"], rollbackBoundary)
+}
+
 func upgradeApplyCommand() Command {
 	return Command{
 		Path:        []string{"upgrade", "apply"},
-		Summary:     "Apply a release-bound upgrade.",
-		Description: "Create and locally decrypt a protected safety backup before applying supported migrations in a maintenance container.",
-		Examples: []string{
-			"lzug-admin --container lzug-maintenance upgrade apply --backup-output pre-upgrade.lzug --identity-file backup.agekey --force",
-		},
+		Summary:     "Approve the running backend's data migration.",
+		Description: "Inspect the plan, create and locally decrypt a protected backup, then explicitly approve the data transition in the same running backend. " + rollbackBoundary,
+		Examples:    []string{"lzug-admin --endpoint unix:///run/lzug-admin/admin.sock upgrade apply --backup-output pre-upgrade.lzug --identity-file backup.agekey --confirm-irreversible --force"},
 		Options: []OptionSpec{
-			{Name: "backup-output", ValueName: "PATH", Summary: "New local protected pre-upgrade backup.", Kind: StringOption, Required: true},
+			{Name: "backup-output", ValueName: "PATH", Summary: "New local protected pre-migration backup.", Kind: StringOption, Required: true},
 			{Name: "identity-file", ValueName: "PATH", Summary: "Protected local age identity file.", Kind: StringOption},
 			{Name: "identity-stdin", Summary: "Read the age identity from redirected standard input.", Kind: BooleanOption, DefaultText: "false"},
 			{Name: "identity-prompt", Summary: "Read the age identity from a hidden terminal prompt.", Kind: BooleanOption, DefaultText: "false"},
-			{Name: "confirm-irreversible", Summary: "Confirm pending irreversible migrations when the backend requires it.", Kind: BooleanOption, DangerZone: true, DefaultText: "false"},
+			{Name: "confirm-irreversible", Summary: "Explicitly approve the data migration and restore-only rollback boundary; --force does not imply this.", Kind: BooleanOption, DangerZone: true, DefaultText: "false"},
 		},
-		Confirmation: ConfirmationSpec{Required: true, Prompt: func(_ Values, config EffectiveConfig) string {
-			return fmt.Sprintf("Apply the verified release upgrade to maintenance container %q?", config.Container.Value)
+		Confirmation: ConfirmationSpec{Required: true, Deferred: true, Prompt: func(_ Values, _ EffectiveConfig) string {
+			return "Approve the data migration in the running backend? " + rollbackBoundary
 		}},
-		UsesConfig:  true,
-		Transport:   LocalTransport,
-		LegacyForms: []string{"upgrade"},
-		Output:      OutputSpec{Human: HumanLocal, Verbose: VerboseSummary, JSON: JSONLocal, Summary: "Successful human output is silent; JSON includes the validated lifecycle result."},
-		Validate:    validateIdentitySource,
-		Local: func(ctx context.Context, local LocalContext, values Values) (LocalResult, *CLIError) {
-			target, err := local.Runtime.ReleaseInspector(local.Config).Target(ctx, local.Build)
-			if err != nil {
-				return LocalResult{}, runtimeFailure(err)
-			}
-			identity, _, fingerprint, failure := loadIdentity(local.Input, values)
-			if failure != nil {
-				return LocalResult{}, failure
-			}
-			configured, failure := callBackend(ctx, local, "backup-recipient-show", map[string]any{})
-			if failure != nil {
-				return LocalResult{}, failure
-			}
-			recipientValue, _ := configured["recipient"].(string)
-			recipient, configuredFingerprint, parseErr := parseRecipient(recipientValue)
-			if parseErr != nil {
-				return LocalResult{}, parseErr.(*CLIError)
-			}
-			if configuredFingerprint != fingerprint {
-				return LocalResult{}, artifactLocalError("recipient_key_mismatch", "The identity does not match the configured backup recipient.", ExitInvalidInvocation)
-			}
-			transport, failure := ensureArtifactTransport(local)
-			if failure != nil {
-				return LocalResult{}, failure
-			}
-			createRequest := BackendRequest{Command: "backup-package-create", Arguments: map[string]any{"recipient_key_fingerprint": fingerprint}}
-			created, _, localFailure := writeProtectedArtifact(ctx, values.String("backup-output"), recipient, fingerprint, func(target io.Writer) (BackendResponse, int, error) {
-				return transport.Produce(ctx, createRequest, target)
-			})
-			if localFailure != nil {
-				return LocalResult{}, localFailure
-			}
-			createdResult, failure := decodeBackendResult(created)
-			if failure != nil {
-				return LocalResult{}, failure
-			}
-			verifyRequest := BackendRequest{Command: "artifact-package-verify", Arguments: map[string]any{"artifact_type": "backup"}}
-			verified, _, localFailure := consumeProtectedArtifact(values.String("backup-output"), identity, fingerprint, func(source io.Reader) (BackendResponse, int, error) {
-				return transport.Consume(ctx, verifyRequest, source)
-			})
-			if localFailure != nil {
-				return LocalResult{}, localFailure
-			}
-			backup, failure := decodeBackendResult(verified)
-			if failure != nil {
-				return LocalResult{}, failure
-			}
-			backup["artifact"] = values.String("backup-output")
-			backup["artifact_id"] = createdResult["artifact_id"]
-			backup["recipient_key_fingerprint"] = fingerprint
-			backup["protection"] = artifactProtection
-			backup["verified"] = true
-			result, failure := callBackend(ctx, local, "upgrade", map[string]any{
-				"target":               target,
-				"backup":               backup,
-				"confirm_irreversible": values.Bool("confirm-irreversible"),
-			})
-			if failure != nil {
-				return LocalResult{}, failure
-			}
-			return LocalResult{Result: result, HumanOutput: ""}, nil
-		},
+		UsesConfig: true, Transport: LocalTransport, LegacyForms: []string{"upgrade"},
+		Output:   OutputSpec{Human: HumanLocal, Verbose: VerboseSummary, JSON: JSONLocal, Summary: "JSON includes the runtime job ID and result. Lost connections never replay the migration."},
+		Validate: validateIdentitySource,
+		Local:    runUpgrade,
 	}
+}
+
+func runUpgrade(ctx context.Context, local LocalContext, values Values) (LocalResult, *CLIError) {
+	if failure := requireMigrationSocket(local); failure != nil {
+		return LocalResult{}, failure
+	}
+	plan, failure := callBackend(ctx, local, "upgrade-status", map[string]any{})
+	if failure != nil {
+		return LocalResult{}, failure
+	}
+	planID, _ := plan["plan_id"].(string)
+	if plan["supported"] != true || len(planID) != 64 {
+		return LocalResult{}, artifactLocalError("schema_incompatible", "No supported pending data migration. Inspect upgrade status.", ExitSchemaIncompatible)
+	}
+	if !values.Bool("confirm-irreversible") {
+		return LocalResult{}, invalidInvocation("--confirm-irreversible is required; --force does not approve irreversible migration. %s", rollbackBoundary)
+	}
+	if !local.Global.Force {
+		if !local.Input.IsTerminal() {
+			return LocalResult{}, invalidInvocation("upgrade apply requires interactive confirmation or --force. %s", rollbackBoundary)
+		}
+		confirmed, err := local.Input.Confirm("Target: " + local.Config.targetDescription() + "\n" + migrationSummary(plan) + "Create a verified backup and approve this data migration?")
+		if err != nil {
+			return LocalResult{}, interruptedError()
+		}
+		if !confirmed {
+			return LocalResult{}, invalidInvocation("data migration was not approved")
+		}
+	}
+	identity, _, fingerprint, failure := loadIdentity(local.Input, values)
+	if failure != nil {
+		return LocalResult{}, failure
+	}
+	configured, failure := callBackend(ctx, local, "backup-recipient-show", map[string]any{})
+	if failure != nil {
+		return LocalResult{}, failure
+	}
+	recipientValue, _ := configured["recipient"].(string)
+	recipient, configuredFingerprint, err := parseRecipient(recipientValue)
+	if err != nil {
+		return LocalResult{}, err.(*CLIError)
+	}
+	if configuredFingerprint != fingerprint {
+		return LocalResult{}, artifactLocalError("recipient_key_mismatch", "The identity does not match the configured backup recipient.", ExitInvalidInvocation)
+	}
+	transport, failure := ensureArtifactTransport(local)
+	if failure != nil {
+		return LocalResult{}, failure
+	}
+	createRequest := BackendRequest{Command: "backup-package-create", Arguments: map[string]any{"recipient_key_fingerprint": fingerprint}}
+	_, _, failure = writeProtectedArtifact(ctx, values.String("backup-output"), recipient, fingerprint, func(target io.Writer) (BackendResponse, int, error) {
+		return transport.Produce(ctx, createRequest, target)
+	})
+	if failure != nil {
+		return LocalResult{}, failure
+	}
+	verifyRequest := BackendRequest{Command: "artifact-package-verify", Arguments: map[string]any{"artifact_type": "backup"}}
+	_, _, failure = consumeProtectedArtifact(values.String("backup-output"), identity, fingerprint, func(source io.Reader) (BackendResponse, int, error) {
+		return transport.Consume(ctx, verifyRequest, source)
+	})
+	if failure != nil {
+		return LocalResult{}, failure
+	}
+	request := BackendRequest{Command: "upgrade-package-apply", Arguments: map[string]any{
+		"plan_id": planID, "recipient_key_fingerprint": fingerprint, "confirm_irreversible": true,
+	}}
+	response, _, failure := consumeProtectedArtifact(values.String("backup-output"), identity, fingerprint, func(source io.Reader) (BackendResponse, int, error) {
+		return transport.Consume(ctx, request, source)
+	})
+	if failure != nil {
+		return LocalResult{}, failure
+	}
+	result, failure := decodeBackendResult(response)
+	if failure != nil {
+		return LocalResult{}, failure
+	}
+	return LocalResult{Result: result, HumanOutput: fmt.Sprintf("Data migration completed. Job: %v.\n", result["job_id"])}, nil
 }
 
 func planConsequenceCommand(action string) Command {

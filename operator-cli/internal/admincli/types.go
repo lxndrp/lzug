@@ -19,6 +19,7 @@ const (
 	ExitEngineUnavailable    = 10
 	ExitEngineFailed         = 11
 	ExitConfiguration        = 12
+	ExitSchemaIncompatible   = 28
 	ExitReleaseUnverified    = 33
 	ExitProtocolIncompatible = 40
 	ExitInterrupted          = 130

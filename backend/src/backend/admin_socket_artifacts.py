@@ -23,10 +23,11 @@ from backend.admin_socket_protocol import (
 from backend.application.admin import _EXIT_CODES, EXIT_INTERNAL, AdminApplication
 from backend.operations.artifact_packages import ClearArtifactService
 from backend.operations.backup_restore import ArtifactError
+from backend.operations.lifecycle import LifecycleError
 from backend.runtime import RuntimeConflictError
 
 PRODUCE_COMMANDS = {"backup-package-create", "export-package-create"}
-CONSUME_COMMANDS = {"artifact-package-verify", "backup-package-restore"}
+CONSUME_COMMANDS = {"artifact-package-verify", "backup-package-restore", "upgrade-package-apply"}
 STREAM_COMMANDS = PRODUCE_COMMANDS | CONSUME_COMMANDS
 
 
@@ -59,6 +60,14 @@ def validate_request(request: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         safety = arguments.get("safety_artifact")
         if type(arguments.get("replace")) is not bool or (
             safety is not None and (not isinstance(safety, str) or not 0 < len(safety) <= 4096)
+        ):
+            raise SocketProtocolError("validation", "request_invalid")
+    if command == "upgrade-package-apply":
+        fields |= {"plan_id", "confirm_irreversible"}
+        if (
+            not isinstance(arguments.get("plan_id"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", arguments["plan_id"]) is None
+            or type(arguments.get("confirm_irreversible")) is not bool
         ):
             raise SocketProtocolError("validation", "request_invalid")
     if set(arguments) != fields:
@@ -133,6 +142,7 @@ class SocketArtifacts:
 
     def __init__(self, application: AdminApplication, limit: int) -> None:
         self.application, self.limit = application, limit
+        self.lifecycle = application.services.lifecycle_factory(application.paths)
 
     @contextmanager
     def _incoming(self, service: ClearArtifactService):
@@ -140,7 +150,8 @@ class SocketArtifacts:
         try:
             yield root
         finally:
-            service._cleanup_workspace(root)
+            if root.exists():
+                service._cleanup_workspace(root)
 
     def execute(
         self,
@@ -162,7 +173,22 @@ class SocketArtifacts:
         )
         try:
             if command in PRODUCE_COMMANDS:
-                with runtime.admit():
+                admission = (
+                    runtime.inspect_storage()
+                    if command == "backup-package-create"
+                    else runtime.admit()
+                )
+                with admission:
+                    migration_backup = runtime.snapshot()["state"] == "migration_required"
+                    if migration_backup:
+                        self.lifecycle._plan()
+                        if (
+                            self.lifecycle.recipient()["fingerprint"]
+                            != arguments["recipient_key_fingerprint"]
+                        ):
+                            raise LifecycleError(
+                                "recipient_key_mismatch", "Backup recipient does not match"
+                            )
                     self._ready(connection, deadline, job, "download")
                     record(job, phase="download")
                     output = StreamWriter(connection, deadline, self.limit)
@@ -173,10 +199,17 @@ class SocketArtifacts:
                     )
                     result = produce(output, arguments["recipient_key_fingerprint"])
                     output.end()
+                    if migration_backup:
+                        self.lifecycle.backup_created(
+                            output.digest.hexdigest(), arguments["recipient_key_fingerprint"]
+                        )
             else:
                 # Uploads do not hold a maintenance lease while waiting on a peer.
                 # Restore obtains exclusive runtime admission after verified EOF.
-                if not runtime.snapshot()["ready"] and command != "backup-package-restore":
+                if runtime.snapshot()["state"] not in {
+                    "ready",
+                    "migration_required",
+                } and command not in {"backup-package-restore", "upgrade-package-apply"}:
                     raise RuntimeConflictError()
                 self.application.paths.backups.mkdir(parents=True, exist_ok=True)
                 with self._incoming(service) as directory:
@@ -188,10 +221,20 @@ class SocketArtifacts:
                         receive_package(connection, target, deadline, self.limit)
                     record(job, phase="execution")
                     if command == "artifact-package-verify":
-                        with runtime.admit():
+                        with runtime.inspect_storage():
                             result = service.verify_package(
                                 package, expected_type=arguments["artifact_type"]
                             )
+                    elif command == "upgrade-package-apply":
+                        result = self.lifecycle.apply_package(
+                            package,
+                            service,
+                            plan_id=arguments["plan_id"],
+                            fingerprint=arguments["recipient_key_fingerprint"],
+                            confirm_irreversible=arguments["confirm_irreversible"],
+                            job_id=job["job_id"],
+                            release_package=lambda: service._cleanup_workspace(directory),
+                        )
                     else:
                         result = service.restore_package(
                             package,
@@ -202,7 +245,7 @@ class SocketArtifacts:
             return {"version": 1, "ok": True, "result": result}, 0
         except RuntimeConflictError:
             raise SocketProtocolError("lifecycle", "lifecycle_conflict") from None
-        except ArtifactError as error:
+        except (ArtifactError, LifecycleError) as error:
             return {
                 "version": 1,
                 "ok": False,
@@ -210,6 +253,11 @@ class SocketArtifacts:
                     "class": error.code,
                     "message": "Artifact operation failed",
                     "phase": error.phase,
+                    **(
+                        {"details": error.details}
+                        if isinstance(error, LifecycleError) and error.details
+                        else {}
+                    ),
                 },
             }, _EXIT_CODES.get(error.code, EXIT_INTERNAL)
 

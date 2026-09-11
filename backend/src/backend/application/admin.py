@@ -110,7 +110,7 @@ _ARTIFACT_COMMANDS = frozenset(
         "backup-recipient-replace",
     }
 )
-_LIFECYCLE_COMMANDS = frozenset({"upgrade", "rollback"})
+_LIFECYCLE_COMMANDS = frozenset({"upgrade-status", "upgrade", "rollback"})
 _ADMIN_COMMANDS = frozenset(
     {
         "bootstrap",
@@ -277,25 +277,14 @@ def _issued_response(issued: Any) -> dict[str, Any]:
 def _execute_lifecycle(
     command: str, arguments: Mapping[str, Any], lifecycle: LifecycleService
 ) -> dict[str, Any]:
-    target = _require_mapping(arguments.get("target"), "Argument target must be release metadata")
-    if command == "rollback":
-        if set(arguments) != {"target"}:
-            raise AdminOperationError("invalid_request", "rollback requires only target")
-        return lifecycle.rollback(target)
-    if set(arguments) != {"target", "backup", "confirm_irreversible"}:
+    if command == "upgrade":
         raise AdminOperationError(
-            "invalid_request", "upgrade requires exact backup and target arguments"
+            "invalid_request",
+            "Migration approval requires the authenticated backup package socket stream",
         )
-    confirmation = arguments.get("confirm_irreversible")
-    if not isinstance(confirmation, bool):
-        raise AdminOperationError(
-            "invalid_request", "Argument confirm_irreversible must be boolean"
-        )
-    return lifecycle.upgrade(
-        target,
-        _require_mapping(arguments.get("backup"), "Argument backup must be verified evidence"),
-        confirm_irreversible=confirmation,
-    )
+    if arguments:
+        raise AdminOperationError("invalid_request", "Lifecycle inspection accepts no arguments")
+    return lifecycle.status() if command == "upgrade-status" else lifecycle.rollback()
 
 
 def _execute_artifact(
@@ -471,11 +460,10 @@ class AdminApplication:
                 raise AdminOperationError(
                     "authorization_failed", "Administrator authorization failed"
                 )
-            if self.runtime is not None and command in _DIAGNOSTIC_COMMANDS:
-                _diagnostic_client(command, arguments)
-                return AdminApplicationResult(
-                    _response(ok=True, result={"runtime": self.runtime.diagnosis()}), EXIT_OK
-                )
+            if self.runtime is not None and command in _DIAGNOSTIC_COMMANDS | {
+                "backup-recipient-show"
+            }:
+                return self._inspect(command, arguments)
             # Lifecycle services own their exclusive admission. Ordinary admin
             # work shares the same admission as HTTP, across all its transactions.
             admission = (
@@ -503,6 +491,21 @@ class AdminApplication:
             return _error("persistence_error", "Admin operation failed")
         except Exception:
             return _error("internal_error", "Admin operation failed")
+
+    def _inspect(self, command: str, arguments: Mapping[str, Any]) -> AdminApplicationResult:
+        """Keep privileged inspection separate from ordinary work admission."""
+        assert self.runtime is not None
+        if command in _DIAGNOSTIC_COMMANDS:
+            _diagnostic_client(command, arguments)
+            result = {"runtime": self.runtime.diagnosis()}
+        else:
+            if arguments:
+                raise AdminOperationError(
+                    "invalid_request", "backup-recipient-show takes no arguments"
+                )
+            with self.runtime.inspect_storage():
+                result = self.services.lifecycle_factory(self.paths).recipient()
+        return AdminApplicationResult(_response(ok=True, result=result), EXIT_OK)
 
 
 def invalid_protocol_result() -> AdminApplicationResult:

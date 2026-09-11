@@ -29,13 +29,19 @@ from backend.application.admin import (
     _ADMIN_COMMANDS,
     _ARTIFACT_COMMANDS,
     _DIAGNOSTIC_COMMANDS,
+    _LIFECYCLE_COMMANDS,
     MAX_REQUEST_BYTES,
     AdminActorContext,
     AdminApplication,
 )
 from backend.observability import emit_event
 
-CONTROL_COMMANDS = _ADMIN_COMMANDS | _ARTIFACT_COMMANDS | _DIAGNOSTIC_COMMANDS
+CONTROL_COMMANDS = (
+    _ADMIN_COMMANDS
+    | _ARTIFACT_COMMANDS
+    | _DIAGNOSTIC_COMMANDS
+    | (_LIFECYCLE_COMMANDS - {"upgrade"})
+)
 
 
 @dataclass(frozen=True)
@@ -254,6 +260,10 @@ class AdminSocket:
                 raise SocketProtocolError("validation", "request_invalid") from None
             with self._lock:
                 result = self._jobs.get(key)
+                if result is None:
+                    durable = self.application.runtime.snapshot()["job"]
+                    if durable and durable["id"] == key:
+                        result = {"job_id": key, **durable}
                 result = dict(result) if result else {"job_id": key, "status": "unknown"}
             return {"version": SOCKET_SCHEMA, "ok": True, "result": result}, 0
         if command not in CONTROL_COMMANDS:
