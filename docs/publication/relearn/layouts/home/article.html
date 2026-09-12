@@ -1,5 +1,4 @@
 <article class="home publication-home">
-  {{- $candidate := eq .Site.Params.publicationProfile "candidate" -}}
   <section class="publication-hero" aria-labelledby="publication-title">
     <picture class="publication-hero-visual" aria-hidden="true">
       <img class="publication-hero-visual-light" src="{{ relURL "images/brand/key-visual-light.svg" }}" alt="" />
@@ -33,9 +32,9 @@
   <section class="publication-features" aria-labelledby="publication-areas">
     <h2 id="publication-areas" class="publication-visually-hidden">Bereiche</h2>
     <article><h3>Für Interessierte</h3><p>Produktnutzen, Funktionen und <a href="{{ relURL "produkt/" }}">öffentliche Demo</a> ohne internes Projektwissen verstehen.</p></article>
-    <article><h3>Für Nutzer</h3><p>{{ if $candidate }}Nach der Anmeldung im <a href="{{ .Site.Params.wikiURL }}/Nutzung">Nutzerhandbuch im GitHub Wiki</a> den nächsten fachlich zulässigen Schritt finden.{{ else }}Nach der Anmeldung den <a href="{{ relURL "nutzen/" }}">nächsten fachlich zulässigen Schritt</a> finden.{{ end }}</p></article>
-    <article><h3>Für Betreiber</h3><p>{{ if $candidate }}Das <a href="{{ .Site.Params.wikiURL }}/Administration">Betreiberhandbuch im GitHub Wiki</a> nutzen.{{ else }}<a href="{{ relURL "betreiben/" }}">Self-Hosting, Bootstrap, Diagnose und erstes Backup</a> nachvollziehbar durchführen.{{ end }}</p></article>
-    <article><h3>Für Entwickler</h3><p>{{ if $candidate }}Die <a href="{{ .Site.Params.repositoryDocumentationURL }}">Entwicklerdokumentation im Hauptrepository</a>{{ else }}<a href="{{ relURL "entwickeln/" }}">Architektur, Entwicklung, Referenzen und ADRs</a>{{ end }} aus einer Revision lesen.</p></article>
+    <article><h3>Für Nutzer</h3><p>Nach der Anmeldung im <a href="{{ .Site.Params.wikiURL }}/Nutzung">Nutzerhandbuch im GitHub Wiki</a> den nächsten fachlich zulässigen Schritt finden.</p></article>
+    <article><h3>Für Betreiber</h3><p>Das <a href="{{ .Site.Params.wikiURL }}/Administration">Betreiberhandbuch im GitHub Wiki</a> nutzen.</p></article>
+    <article><h3>Für Entwickler</h3><p>Die <a href="{{ .Site.Params.repositoryDocumentationURL }}">Entwicklerdokumentation im Hauptrepository</a> aus einer Revision lesen.</p></article>
   </section>
 </article>
 <script src="{{ relURL "js/demo-warmup.js" }}" defer></script>

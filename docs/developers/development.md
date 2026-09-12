@@ -171,8 +171,8 @@ an.
 
 Jede Information hat eine primäre Zielgruppe, genau eine Dokumentart und eine
 kanonische Quelle.
-Fachliche, Nutzungs- und Betreiberanleitungen liegen unter `docs/handbook/`
-und `docs/portal/`; aktuelle technische Orientierung in Einstieg plus fünf Kernbereichen; langfristige
+Fachliche, Nutzungs- und Betreiberanleitungen liegen im
+[GitHub Wiki](https://github.com/lxndrp/lzug/wiki); aktuelle technische Orientierung in Einstieg plus fünf Kernbereichen; langfristige
 Entscheidungen in ADRs; ausführbare API-, Daten-, Qualitäts- und
 Releaseverträge in Code und deklarativen Quellen.
 

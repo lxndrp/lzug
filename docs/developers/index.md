@@ -4,9 +4,8 @@ Dieses Handbuch ordnet den aktuellen technischen Stand der jeweils gebauten Repo
 Für Beiträge und lokale Entwicklung bleibt
 [`CONTRIBUTING.md`](https://github.com/lxndrp/lzug/blob/master/CONTRIBUTING.md)
 der verbindliche Einstieg.
-Fachliche, Nutzungs- und Betreiberanleitungen liegen im Repository unter
-[`docs/handbook/`](../handbook/Home.md) und den zielgruppenorientierten
-[Portal-Einstiegen](../portal/produkt.md).
+Fachliche, Nutzungs- und Betreiberanleitungen liegen im
+[GitHub Wiki](https://github.com/lxndrp/lzug/wiki).
 
 ## Fünf Kernbereiche
 
@@ -33,7 +32,7 @@ Fachliche, Nutzungs- und Betreiberanleitungen liegen im Repository unter
 | --- | --- |
 | Produktstatus und öffentlicher Einstieg | `README.md` |
 | Beitragsregeln | `CONTRIBUTING.md` |
-| Fachlichkeit, Nutzung und Betreiberverfahren | `docs/handbook/` und `docs/portal/` |
+| Fachlichkeit, Nutzung und Betreiberverfahren | [GitHub Wiki](https://github.com/lxndrp/lzug/wiki) |
 | Planung, Umfang und Fortschritt | GitHub Issues, native Beziehungen, Milestones und Project-Felder |
 | HTTP-Vertrag | FastAPI-Routen und daraus erzeugte OpenAPI-Beschreibung |
 | Datenstruktur | SQLAlchemy-Modelle, `backend/db/schema.sql` und `backend/db/migrations/` |
@@ -49,7 +48,7 @@ Die [Python-Referenz](reference/backend.md),
 [JSON-Schema des Vollexports](reference/full-export-v1.schema.json) sind
 untergeordnete Referenzquellen und keine weiteren redaktionellen Kernbereiche.
 
-`task docs` baut das Handbuch strikt, prüft die Registry-generierte
+`task docs` baut die technische Dokumentation strikt, prüft die Registry-generierte
 CLI-Referenz und erzeugt die übrigen Code-Referenzen.
 Die CI stellt das Ergebnis revisionsgebunden als Artefakt
 `lzug-documentation` bereit.

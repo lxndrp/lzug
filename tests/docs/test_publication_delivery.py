@@ -7,9 +7,7 @@ from pathlib import Path
 
 from docs.publication import (
     PUBLICATION_BASE_URL,
-    convert_handbook_links,
     convert_repository_links,
-    handbook_route,
     public_url,
     publication_base_url,
 )
@@ -139,22 +137,29 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("--lzug-role-content-max", frontend_css)
         self.assertIn("--lzug-role-card-radius", frontend_css)
 
-    def test_readme_uses_public_portal_entrypoints_for_reader_audiences(self) -> None:
+    def test_readme_uses_canonical_publication_boundaries(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        for route in ("/", "/nutzen/", "/betreiben/", "/entwickeln/"):
-            with self.subTest(route=route):
-                self.assertIn(
-                    f"https://lzug.repertoire.papaspyrou.name{route}",
-                    readme,
-                )
-        for repository_link in (
-            "docs/portal/betreiben.md",
-            "docs/handbook/Nutzung.md",
+        for link in (
+            "https://lzug.repertoire.papaspyrou.name/",
+            "https://github.com/lxndrp/lzug/wiki",
+            "CONTRIBUTING.md",
             "docs/developers/index.md",
-            "docs/migrations/wiki-2026-09-03.md",
         ):
-            with self.subTest(repository_link=repository_link):
-                self.assertNotIn(repository_link, readme)
+            with self.subTest(link=link):
+                self.assertIn(link, readme)
+        for legacy_route in ("/nutzen/", "/betreiben/", "/entwickeln/"):
+            with self.subTest(legacy_route=legacy_route):
+                self.assertNotIn(f"lzug.repertoire.papaspyrou.name{legacy_route}", readme)
+
+    def test_pages_publication_contains_only_product_and_technical_references(self) -> None:
+        publication = (ROOT / "docs/publication.py").read_text(encoding="utf-8")
+        taskfile = (ROOT / "Taskfile.yml").read_text(encoding="utf-8")
+        self.assertIn('"produkt/index.html"', publication)
+        self.assertIn('"referenz/index.html"', publication)
+        for legacy in ("handbuch/index.html", "nutzen/index.html", "betreiben/index.html"):
+            with self.subTest(legacy=legacy):
+                self.assertNotIn(legacy, publication)
+        self.assertNotIn("docs:publication:candidate:", taskfile)
 
     def test_generated_public_site_has_one_canonical_linkcheck_entry(self) -> None:
         config = (ROOT / ".lychee.toml").read_text(encoding="utf-8")
@@ -170,21 +175,6 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("lychee --config .lychee.toml", taskfile)
         self.assertIn("task docs:publication:linkcheck", workflow)
         self.assertIn('".lychee.toml"', workflow)
-
-    def test_repository_handbook_routes_are_rendered_without_a_wiki_checkout(self) -> None:
-        self.assertEqual("/handbuch/", handbook_route(Path("Home.md")))
-        self.assertEqual("/nutzen/grundbegriffe/", handbook_route(Path("Nutzung-Grundbegriffe.md")))
-        self.assertEqual(
-            "/betreiben/installation-und-konfiguration/",
-            handbook_route(Path("Administration-Installation-und-Konfiguration.md")),
-        )
-        self.assertEqual(
-            "[Nutzung](/nutzen/#details)",
-            convert_handbook_links(
-                "[Nutzung](Nutzung#details)",
-                {"Home": "/handbuch/", "Nutzung": "/nutzen/"},
-            ),
-        )
 
     def test_publication_remaps_source_fragments_to_rendered_relearn_anchors(self) -> None:
         self.assertEqual(

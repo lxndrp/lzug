@@ -226,7 +226,7 @@ eigenen begrenzten Ereignistypen.
 Die Demo streamt diese Ereignisse nur bei Bedarf und richtet dafür weder
 Application Insights noch persistente Log Analytics ein.
 Der Betreiberweg steht unter
-[Installation und Konfiguration](../handbook/Administration-Installation-und-Konfiguration.md#lifecycle-und-wartungsanzeige).
+[Installation und Konfiguration](https://github.com/lxndrp/lzug/wiki/Administration-Installation-und-Konfiguration#lifecycle-und-wartungsanzeige).
 API-Einstieg, OpenAPI und interaktive API-Dokumentation sowie alle
 Fachoperationen benötigen eine gültige Session; schreibende Operationen
 benötigen zusätzlich den CSRF-Nachweis.
@@ -308,7 +308,7 @@ Persistenzprobleme, Artefakt- und Schlüsselbefunde, Inkompatibilität,
 erforderliche Ersetzungs- oder Migrationsbestätigung sowie vollständig
 ausgeführte Diagnosewarnungen und -fehler.
 Die verbindlichen Bedienfolgen stehen ausschließlich im
-[Administrationshandbuch](../portal/betreiben.md).
+[Administrationshandbuch](https://github.com/lxndrp/lzug/wiki/Administration).
 
 ## Erzeugte Referenzen
 
