@@ -184,11 +184,10 @@ geschütztes Artefakt `lzug-documentation` hoch.
 Das ist eine revisionsgebundene technische Referenz und Teil der
 repository-zentrierten öffentlichen Dokumentation.
 
-`task docs:publication` baut die vollständige statische Site ausschließlich
+`task docs:publication` baut das vollständige statische Pages-Artefakt ausschließlich
 aus dem Hauptrepository:
 
 - Produkt- und Landingpage-Quellen;
-- Nutzer-, Betreiber- und Fachhandbuch unter `docs/handbook/` und `docs/portal/`;
 - technische Referenzen aus Docstrings/TSDoc, OpenAPI und
   `backend/db/schema.sql`.
 
@@ -209,19 +208,13 @@ Master-Pushes erzeugen nur das Folgeartefakt; Browser- und A11y-Nachweise werden
 vor manueller Veröffentlichung erbracht.
 Der geplante Site-Lauf prüft die Byte-Reproduzierbarkeit.
 
-Vor einer Wiki-Umschaltung erzeugt `task docs:publication:candidate:check`
-ausschließlich unter `build/` einen flachen Wiki-Kandidaten,
-indem es die zielfertigen Wiki-Dateien unverändert kopiert,
-sowie einen auf Produktseite und technische Referenzen reduzierten Pages-Kandidaten.
-Das vollständige Quelle-/Ziel-/Entscheidung-Inventar wird einmalig im Issue oder Pull Request geprüft
-und nicht als generiertes Datenformat fortgeführt.
-Die Repository-Handbuchquellen bleiben dabei bis zur öffentlichen Wiki-Abnahme kanonisch und unverändert erhalten.
-Der Kandidat enthält `Home`, `_Sidebar` und `Versionshinweise`,
-verwendet für interne Seiten flache extensionlose Ziele
-und wird nicht lokal mit Gollum oder der GitHub-Markdown-API nachgebaut.
-Lychee prüft Wiki-Markdown und reduziertes Pages-Artefakt getrennt.
-Browser- und Accessibility-Abnahme des Pages-Kandidaten laufen über
-`task docs:publication:candidate:browser` und `task docs:publication:candidate:a11y`.
+Nach der öffentlichen Wiki-Abnahme erzeugt `task docs:publication:check`
+ausschließlich die Produktseite und technischen Referenzen.
+Das vollständige Quelle-/Ziel-/Entscheidung-Inventar wurde einmalig im Issue und Pull Request geprüft
+und wird nicht als generiertes Datenformat fortgeführt.
+Lychee prüft das Pages-Artefakt;
+Browser- und Accessibility-Prüfungen laufen getrennt über
+`task docs:publication:browser` und `task docs:publication:a11y`.
 
 Nach einer gesondert freigegebenen Wiki-Veröffentlichung werden `Home`,
 `Versionshinweise`, Navigation und repräsentative interne Links im tatsächlichen GitHub Wiki geprüft.
@@ -239,8 +232,8 @@ von `master` erreichbare `repository_revision` neu bauen.
 Deployment und Pages-Environment-Freigabe bleiben auch für diesen Wiederveröffentlichungsweg zwingend manuell.
 Ein Wiki-Rückfall übernimmt den vorher festgehaltenen Baum als neuen geprüften Commit und verwendet keinen Force-Push.
 
-Wiki- und Pages-Kandidat sind kurzfristige Reviewartefakte.
-Sie werden nicht versioniert und bilden weder eine zweite Handbuchquelle noch ein dauerhaft gepflegtes Migrationsdokument.
+Die Pages-Ausgabe ist ein kurzlebiges, revisionsgebundenes Artefakt.
+Sie bildet weder eine zweite Handbuchquelle noch ein dauerhaft gepflegtes Migrationsdokument.
 
 ## Eigenständige Fehlergrenzen und kleinste Prüfebenen
 

@@ -11,10 +11,9 @@ Es gibt keine Zusage für produktiven Betrieb, garantierte Verfügbarkeit, indiv
 existiert, und eine möglichst kleine Reproduktion angeben.
 - Für lokale Einrichtung und Entwicklung ist
 [CONTRIBUTING.md](CONTRIBUTING.md) maßgeblich.
-- Für Installation, Konfiguration, Datensicherung und Wiederherstellung ist die
-[Betreiberanleitung](docs/portal/betreiben.md) maßgeblich.
-Sie beschreibt auch bekannte Grenzen und die Informationen, die eine technische
-Fehlermeldung enthalten sollte.
+- Für redaktionelle Hinweise zu Installation, Konfiguration, Datensicherung und
+Wiederherstellung ist das [Betreiberhandbuch im GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Administration) maßgeblich.
+- Für technische Beiträge ist [CONTRIBUTING.md](CONTRIBUTING.md) maßgeblich.
 
 ## Sicherheitsmeldungen
 

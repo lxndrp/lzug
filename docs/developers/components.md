@@ -380,7 +380,7 @@ Die öffentliche HTTP-/Frontenddarstellung verwendet denselben Snapshot.
 Imagewechsel und Containerstart bleiben gemäß
 [ADR-0033](decisions/0033-aio-betrieb-admintransport-und-lifecycle.md)
 bei der Containerplattform.
-Das [Betreiberverfahren](../handbook/Administration-Update-und-Rollback.md)
+Das [Betreiberverfahren](https://github.com/lxndrp/lzug/wiki/Administration-Update-und-Rollback)
 beschreibt Freigabe und Wiederherstellungsgrenzen.
 
 Die folgende Tabelle ist die kanonische knappe Zuordnung der aktuellen
@@ -580,7 +580,7 @@ Die CLI schließt ausschließlich eigene Verbindungen und verändert keine
 bereitgestellten Listener oder Socketpfade.
 Tests prüfen diese Socket-Eigenschaften und den gemeinsamen Adminvertrag.
 Externe Transportwege sind weder Teil des Anwendungsvertrags noch der Testabnahme.
-Die [Betriebsanleitung](../handbook/Administration-Installation-und-Konfiguration.md#socketzugriff)
+Die [Betriebsanleitung](https://github.com/lxndrp/lzug/wiki/Administration-Installation-und-Konfiguration#socketzugriff)
 beschreibt die Endpunktkonfiguration und ein optionales Bereitstellungsbeispiel.
 Die vollständige Ablösung des bisherigen Container-Exec-Adapters und die
 Image-/Compose-Einrichtung bleiben #747 zugeordnet.
@@ -642,7 +642,7 @@ CLI und Backend geben technische Identität, Zustände, Phasen, Zähler und
 geheimnisfreie Fehlercodes aus, aber keine privaten Schlüssel, internen
 Systemausgaben oder ungefilterten Fehlertexte.
 Die aufgabenorientierte Bedienung bleibt im
-[Administrationshandbuch](../portal/betreiben.md).
+[Administrationshandbuch](https://github.com/lxndrp/lzug/wiki/Administration).
 
 ## OCI-Runtime und Infrastruktur
 

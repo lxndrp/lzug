@@ -163,7 +163,7 @@ Die OCI-Liefergrenze bleibt portabel; weitere konkrete Laufzeiten gehören
 dadurch nicht zum unterstützten oder geprüften Umfang.
 TLS-Terminierung, Host-Härtung, Schlüsselverwahrung, Sicherung und
 Aufbewahrung liegen in Betreiberverantwortung und sind im
-[Betreiberanleitung](../portal/betreiben.md) beschrieben.
+[Betreiberanleitung](https://github.com/lxndrp/lzug/wiki/Administration) beschrieben.
 Die öffentliche Demo verwendet das getrennte Image `lzug-demo`, eine flüchtige
 Azure-Assembly mit synthetischem Basisseed und kein Self-Hosting-Muster.
 Ihre Runtime-Policy erzeugt je Besuch eine isolierte SQLite-Arbeitskopie,

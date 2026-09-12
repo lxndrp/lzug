@@ -36,29 +36,6 @@ EXPECTED_OUTPUTS = (
     "images/screenshots/demo-scenarios-mobile.png",
     "js/demo-warmup.js",
     "produkt/index.html",
-    "nutzen/index.html",
-    "betreiben/index.html",
-    "entwickeln/index.html",
-    "handbuch/index.html",
-    "referenz/index.html",
-    "referenz/api/index.html",
-    "referenz/api/openapi.json",
-    "referenz/backend/index.html",
-    "referenz/frontend/index.html",
-    "referenz/datenbank/index.html",
-    "entwickeln/reference/full-export-v1.schema.json",
-    "quellen/index.html",
-    "quellen.json",
-    "searchindex.de.js",
-    ".nojekyll",
-)
-PAGES_CANDIDATE_EXPECTED_OUTPUTS = (
-    "index.html",
-    "images/favicon.svg",
-    "images/screenshots/demo-scenarios-desktop.png",
-    "images/screenshots/demo-scenarios-mobile.png",
-    "js/demo-warmup.js",
-    "produkt/index.html",
     "referenz/index.html",
     "referenz/api/index.html",
     "referenz/api/openapi.json",
@@ -69,13 +46,6 @@ PAGES_CANDIDATE_EXPECTED_OUTPUTS = (
     "quellen.json",
     "searchindex.de.js",
     ".nojekyll",
-)
-PAGES_CANDIDATE_FORBIDDEN_PATHS = (
-    "handbuch",
-    "fachlichkeit",
-    "nutzen",
-    "betreiben",
-    "entwickeln",
 )
 
 
@@ -106,27 +76,6 @@ def ensure_safe_output(root: Path, output: Path) -> Path:
     return resolved
 
 
-def convert_handbook_links(markdown: str, known_pages: dict[str, str]) -> str:
-    def replace(match: re.Match[str]) -> str:
-        raw_target = match.group("target")
-        target, separator, fragment = raw_target.partition("#")
-        if (
-            not target
-            or target.startswith(("http://", "https://", "mailto:", "/"))
-            or "/" in target
-            or Path(target).suffix
-        ):
-            return match.group(0)
-        if target not in known_pages:
-            raise ValueError(f"Unknown extensionless handbook target: {target}")
-        converted = known_pages[target]
-        if separator:
-            converted += f"#{fragment}"
-        return f"{match.group('prefix')}{converted}{match.group('suffix')}"
-
-    return MARKDOWN_LINK.sub(replace, markdown)
-
-
 def convert_repository_links(markdown: str, source: Path, source_routes: dict[str, str]) -> str:
     """Rewrite Markdown source links to their one generated public route."""
 
@@ -150,30 +99,6 @@ def source_url(path: Path, repository_revision: str) -> str:
     """Return the immutable repository source URL for one rendered page."""
 
     return f"https://github.com/lxndrp/lzug/blob/{repository_revision}/{path.as_posix()}"
-
-
-def handbook_route(path: Path) -> str:
-    """Return the public route for one migrated handbook source page."""
-
-    stem = path.stem.lower()
-    if path.name == "Home.md":
-        return "/handbuch/"
-    if stem.startswith("administration"):
-        return f"/betreiben/{stem.removeprefix('administration-')}/"
-    if stem.startswith("nutzung"):
-        return f"/nutzen/{stem.removeprefix('nutzung-')}/"
-    if stem.startswith("entwicklung"):
-        return f"/entwickeln/{stem.removeprefix('entwicklung-')}/"
-    return f"/fachlichkeit/{stem}/"
-
-
-def handbook_file(route: str) -> Path:
-    """Convert a public handbook route into its generated Hugo content path."""
-
-    parts = [part for part in route.strip("/").split("/") if part]
-    if route == "/handbuch/":
-        return Path("handbuch/_index.md")
-    return Path(*parts) / "_index.md"
 
 
 def hugo_page(
@@ -246,8 +171,6 @@ def configure_relearn(
     base_url: str,
     demo_url: str,
     repository_revision: str,
-    *,
-    pages_candidate: bool = False,
 ) -> None:
     (site / "hugo.toml").write_text(
         f"baseURL = {json.dumps(base_url + '/', ensure_ascii=False)}\n"
@@ -262,7 +185,7 @@ def configure_relearn(
         "  disableThemeSwitchingButton = false\n"
         "  linkTitle = 'lzug'\n"
         f"  demoURL = {json.dumps(demo_url, ensure_ascii=False)}\n"
-        f"  publicationProfile = {json.dumps('candidate' if pages_candidate else 'current')}\n"
+        "  publicationProfile = 'current'\n"
         "  wikiURL = 'https://github.com/lxndrp/lzug/wiki'\n"
         "  repositoryDocumentationURL = "
         f"{json.dumps(source_url(Path('docs/developers/index.md'), repository_revision))}\n"
@@ -294,20 +217,19 @@ def configure_relearn(
         / "publication-scope.html",
         site / "layouts" / "_shortcodes" / "publication-scope.html",
     )
-    if pages_candidate:
-        render_hook = site / "layouts" / "_default" / "_markup" / "render-link.html"
-        render_hook.parent.mkdir(parents=True)
-        shutil.copyfile(
-            root
-            / "docs"
-            / "publication"
-            / "relearn"
-            / "layouts"
-            / "_default"
-            / "_markup"
-            / "render-link.html",
-            render_hook,
-        )
+    render_hook = site / "layouts" / "_default" / "_markup" / "render-link.html"
+    render_hook.parent.mkdir(parents=True)
+    shutil.copyfile(
+        root
+        / "docs"
+        / "publication"
+        / "relearn"
+        / "layouts"
+        / "_default"
+        / "_markup"
+        / "render-link.html",
+        render_hook,
+    )
     shutil.copyfile(
         root / "docs" / "publication" / "relearn" / "layouts" / "partials" / "favicon.html",
         site / "layouts" / "partials" / "favicon.html",
@@ -331,11 +253,6 @@ def configure_relearn(
             root / "brand" / "derived" / name,
             site / "static" / "images" / "brand" / name,
         )
-    if not pages_candidate:
-        schema_source = root / "docs" / "developers" / "reference" / "full-export-v1.schema.json"
-        schema_target = site / "static" / "entwickeln" / "reference" / schema_source.name
-        schema_target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(schema_source, schema_target)
     shutil.copyfile(
         root / "brand" / "derived" / "favicon.svg",
         site / "static" / "images" / "favicon.svg",
@@ -370,50 +287,10 @@ def write_content(
     root: Path,
     site: Path,
     repository_revision: str,
-    *,
-    pages_candidate: bool = False,
 ) -> None:
-    handbook_root = root / "docs" / "handbook"
-    handbook_files = sorted(
-        path
-        for path in handbook_root.glob("*.md")
-        if path.name not in {"_Sidebar.md", "Versionshinweise.md"}
-    )
-    if not handbook_files or not (handbook_root / "Home.md").is_file():
-        raise ValueError("Repository handbook must contain Home.md and migrated content")
-
-    known_pages = {path.stem: handbook_route(path) for path in handbook_files}
-    developer_files = sorted((root / "docs" / "developers").rglob("*.md"))
-    source_routes = {
-        **{path.relative_to(root).as_posix(): handbook_route(path) for path in handbook_files},
-        "docs/portal/produkt.md": "/produkt/",
-        "docs/portal/nutzen.md": "/nutzen/",
-        "docs/portal/betreiben.md": "/betreiben/",
-        **{
-            path.relative_to(root).as_posix(): "/entwickeln/"
-            + path.relative_to(root / "docs" / "developers")
-            .with_suffix("")
-            .as_posix()
-            .replace("/index", "")
-            + "/"
-            for path in developer_files
-        },
-        "docs/developers/reference/backend.md": "/referenz/backend/",
-        "docs/developers/reference/frontend.md": "/referenz/frontend/",
-        "docs/developers/reference/cli.md": "/referenz/cli/",
-        "docs/developers/reference/full-export-v1.schema.json": (
-            "/entwickeln/reference/full-export-v1.schema.json"
-        ),
-    }
-    source_routes["docs/developers/index.md"] = "/entwickeln/"
-    source_routes["docs/developers/decisions/index.md"] = "/entwickeln/entscheidungen/"
+    source_routes = {"docs/portal/produkt.md": "/produkt/"}
     content = site / "content"
     (content / "produkt").mkdir(parents=True)
-    if not pages_candidate:
-        (content / "handbuch").mkdir(parents=True)
-        (content / "nutzen").mkdir(parents=True)
-        (content / "betreiben").mkdir(parents=True)
-        (content / "entwickeln").mkdir(parents=True)
     (content / "referenz" / "api").mkdir(parents=True)
     (content / "referenz" / "backend").mkdir(parents=True)
     (content / "referenz" / "frontend").mkdir(parents=True)
@@ -427,13 +304,6 @@ def write_content(
         encoding="utf-8",
     )
     portal_pages = {"produkt": ("lzug", "Produktinformation und öffentlicher Einstieg")}
-    if not pages_candidate:
-        portal_pages.update(
-            {
-                "nutzen": ("Nutzung", "Erste fachliche Schritte und Nutzerhandbuch"),
-                "betreiben": ("Self-Hosting", "Installation, Bootstrap und Betrieb"),
-            }
-        )
     for slug, (title, description) in portal_pages.items():
         source = root / "docs" / "portal" / f"{slug if slug != 'betreiben' else 'betreiben'}.md"
         body = convert_repository_links(
@@ -452,68 +322,6 @@ def write_content(
             ),
             encoding="utf-8",
         )
-    if not pages_candidate:
-        developer_source = root / "docs" / "developers" / "index.md"
-        (content / "entwickeln" / "_index.md").write_text(
-            hugo_page(
-                "Entwicklung",
-                "Architektur, Entwicklung, Referenzen und Entscheidungen",
-                convert_repository_links(
-                    developer_source.read_text(encoding="utf-8"),
-                    developer_source.relative_to(root),
-                    source_routes,
-                ),
-                provenance=(
-                    f"Quelle: [{developer_source.relative_to(root)}]"
-                    f"({source_url(developer_source.relative_to(root), repository_revision)}) · "
-                    f"Revision `{repository_revision}`."
-                ),
-            ),
-            encoding="utf-8",
-        )
-        for developer_source in developer_files:
-            if developer_source == root / "docs" / "developers" / "index.md":
-                continue
-            relative = developer_source.relative_to(root)
-            route = source_routes[relative.as_posix()]
-            target = content / Path(*route.strip("/").split("/")) / "_index.md"
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(
-                hugo_page(
-                    developer_source.stem,
-                    f"Kanonische Entwicklerdokumentation: {developer_source.stem}",
-                    convert_repository_links(
-                        developer_source.read_text(encoding="utf-8"),
-                        relative,
-                        source_routes,
-                    ),
-                    provenance=(
-                        f"Quelle: [{relative}]({source_url(relative, repository_revision)}) · "
-                        f"Revision `{repository_revision}`."
-                    ),
-                ),
-                encoding="utf-8",
-            )
-        for handbook_source in handbook_files:
-            relative = handbook_source.relative_to(root)
-            route = handbook_route(handbook_source)
-            body = convert_handbook_links(handbook_source.read_text(encoding="utf-8"), known_pages)
-            body = convert_repository_links(body, relative, source_routes)
-            target = content / handbook_file(route)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(
-                hugo_page(
-                    handbook_source.stem if handbook_source.name != "Home.md" else "Handbuch",
-                    f"Kanonisches Repository-Handbuch: {handbook_source.stem}",
-                    body,
-                    provenance=(
-                        f"Quelle: [{relative}]({source_url(relative, repository_revision)}) · "
-                        f"Revision `{repository_revision}`."
-                    ),
-                ),
-                encoding="utf-8",
-            )
-
     backend = (root / "docs" / "developers" / "reference" / "backend.md").read_text(
         encoding="utf-8"
     )
@@ -576,7 +384,7 @@ def write_content(
     )
 
     manifest = {
-        "profile": "reduced-pages-candidate" if pages_candidate else "current-publication",
+        "profile": "current-publication",
         "relearn_revision": RELEARN_REVISION,
         "repository": "https://github.com/lxndrp/lzug",
         "repository_revision": repository_revision,
@@ -602,8 +410,6 @@ def prepare_site(
     destination: Path,
     base_url: str,
     demo_url: str,
-    *,
-    pages_candidate: bool = False,
 ) -> None:
     destination.mkdir(parents=True)
     repository_revision = run("git", "rev-parse", "HEAD", cwd=root)
@@ -614,30 +420,19 @@ def prepare_site(
         base_url,
         demo_url,
         repository_revision,
-        pages_candidate=pages_candidate,
     )
     write_content(
         root,
         destination,
         repository_revision,
-        pages_candidate=pages_candidate,
     )
 
 
-def verify_output(output: Path, stage: Path, *, pages_candidate: bool = False) -> None:
-    expected = PAGES_CANDIDATE_EXPECTED_OUTPUTS if pages_candidate else EXPECTED_OUTPUTS
+def verify_output(output: Path, stage: Path) -> None:
+    expected = EXPECTED_OUTPUTS
     missing = [relative for relative in expected if not (output / relative).is_file()]
     if missing:
         raise ValueError(f"Publication artifact is missing: {', '.join(missing)}")
-    if pages_candidate:
-        unexpected = [
-            relative for relative in PAGES_CANDIDATE_FORBIDDEN_PATHS if (output / relative).exists()
-        ]
-        if unexpected:
-            raise ValueError(
-                "Reduced Pages candidate still contains handbook or developer routes: "
-                + ", ".join(unexpected)
-            )
     stage_text = str(stage).encode()
     for path in output.rglob("*"):
         if path.is_file() and stage_text in path.read_bytes():
@@ -649,8 +444,6 @@ def render(
     site: Path,
     output: Path,
     typedoc: Path,
-    *,
-    pages_candidate: bool = False,
 ) -> None:
     if output.exists():
         shutil.rmtree(output)
@@ -669,7 +462,7 @@ def render(
         cwd=root / "frontend",
     )
     (output / ".nojekyll").write_text("", encoding="utf-8")
-    verify_output(output, site, pages_candidate=pages_candidate)
+    verify_output(output, site)
 
 
 def parse_args() -> argparse.Namespace:
@@ -678,7 +471,6 @@ def parse_args() -> argparse.Namespace:
     for command in ("build", "check"):
         subparser = subparsers.add_parser(command)
         subparser.add_argument("--typedoc", type=Path, required=True)
-        subparser.add_argument("--profile", choices=("current", "candidate"), default="current")
         subparser.add_argument(
             "--base-url",
             default=os.environ.get("PUBLICATION_BASE_URL", PUBLICATION_BASE_URL),
@@ -704,24 +496,22 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="lzug-publication-") as temporary:
         temporary_root = Path(temporary)
         site = temporary_root / "relearn-site"
-        pages_candidate = args.profile == "candidate"
         prepare_site(
             root,
             site,
             base_url,
             demo_url,
-            pages_candidate=pages_candidate,
         )
         if args.command == "build":
             output = ensure_safe_output(root, args.output)
-            render(root, site, output, typedoc, pages_candidate=pages_candidate)
+            render(root, site, output, typedoc)
             print(f"Publication artifact built at {output}")
             return 0
 
         first = temporary_root / "first"
         second = temporary_root / "second"
-        render(root, site, first, typedoc, pages_candidate=pages_candidate)
-        render(root, site, second, typedoc, pages_candidate=pages_candidate)
+        render(root, site, first, typedoc)
+        render(root, site, second, typedoc)
         run("git", "diff", "--no-index", "--exit-code", "--", str(first), str(second), cwd=root)
         print("Publication artifact is reproducible")
     return 0

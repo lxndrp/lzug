@@ -22,15 +22,15 @@ Prüfungsorte sowie die nachvollziehbare Kommunikation von Planänderungen.
 
 ## Weiterführende Informationen
 
-- Das [Nutzerhandbuch](/nutzen/) erläutert die produktive Arbeit nach Anmeldung.
-- Die [Betreiberanleitung](/betreiben/) führt sicher von einer Release-Auswahl bis zum ersten verifizierten Backup.
-- Das [Entwicklerhandbuch](/entwickeln/) beschreibt Architektur, Entwicklung, Referenzen und ADRs.
+- Das [Nutzerhandbuch im GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Nutzung) erläutert die produktive Arbeit nach Anmeldung.
+- Das [Betreiberhandbuch im GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Administration) führt durch den Betrieb.
+- Die [technischen Referenzen](/referenz/) werden aus der jeweiligen Produktrevision erzeugt.
 
 ## Grenzen und Kontakte
 
 Selbst betriebene Instanzen haben einen lokalen Betreiberkontakt.
 Fehlt dieser Kontakt, entsteht dadurch kein zentraler Supportanspruch.
-Betreiber finden den Projektweg in der [Betreiberanleitung](/betreiben/).
+Betreiber finden den Projektweg im [Betreiberhandbuch im GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Administration).
 Sicherheitslücken werden ausschließlich nach [SECURITY.md](https://github.com/lxndrp/lzug/blob/master/SECURITY.md) vertraulich gemeldet,
 nicht über öffentliche Issues.
 
