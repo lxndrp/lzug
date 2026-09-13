@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Build and verify the public Relearn documentation artifact.
+"""Build and verify the public Blowfish documentation artifact.
 
-The build checks out one reviewed Relearn revision, builds a static artifact and
+The build checks out one reviewed Blowfish revision, builds a static artifact and
 never calls a hosting API or mutates the GitHub Wiki.
 """
 
@@ -20,8 +20,9 @@ from urllib.parse import urlparse
 
 from backend.fastapi_assembly import FastAPIConfig, create_app
 
-RELEARN_REPOSITORY = "https://github.com/McShelby/hugo-theme-relearn.git"
-RELEARN_REVISION = "8bb66fa674351f3a0b0917a7552caac686eca920"
+BLOWFISH_REPOSITORY = "https://github.com/nunocoracao/blowfish.git"
+BLOWFISH_VERSION = "v3.6.0"
+BLOWFISH_REVISION = "4643c46bd5e921fee51c420575fadebf9f4b3681"
 PUBLICATION_BASE_URL = "https://lzug.repertoire.papaspyrou.name"
 INHERITED_PUBLIC_HOSTS = frozenset({"lxndrp.github.io", "stage.papaspyrou.name"})
 MARKDOWN_LINK = re.compile(r"(?P<prefix>\[[^\]]+\]\()(?P<target>[^)]+)(?P<suffix>\))")
@@ -119,19 +120,19 @@ def hugo_page(
     return f"---\n{json.dumps(frontmatter, ensure_ascii=False)}\n---\n\n{prefix}{body.rstrip()}\n"
 
 
-def prepare_relearn_checkout(destination: Path) -> None:
-    local_source = os.environ.get("LZUG_RELEARN_SOURCE")
+def prepare_blowfish_checkout(destination: Path) -> None:
+    local_source = os.environ.get("LZUG_BLOWFISH_SOURCE")
     if local_source:
         source = Path(local_source).resolve()
-        if run("git", "rev-parse", "HEAD", cwd=source) != RELEARN_REVISION:
-            raise ValueError("LZUG_RELEARN_SOURCE does not match the pinned revision")
+        if run("git", "rev-parse", "HEAD", cwd=source) != BLOWFISH_REVISION:
+            raise ValueError("LZUG_BLOWFISH_SOURCE does not match the pinned revision")
         shutil.copytree(source, destination, ignore=shutil.ignore_patterns("public", "resources"))
         return
 
-    run("git", "clone", "--filter=blob:none", "--no-checkout", RELEARN_REPOSITORY, str(destination))
-    run("git", "checkout", "--detach", RELEARN_REVISION, cwd=destination)
-    if run("git", "rev-parse", "HEAD", cwd=destination) != RELEARN_REVISION:
-        raise ValueError("Relearn checkout does not match the pinned revision")
+    run("git", "clone", "--filter=blob:none", "--no-checkout", BLOWFISH_REPOSITORY, str(destination))
+    run("git", "checkout", "--detach", BLOWFISH_REVISION, cwd=destination)
+    if run("git", "rev-parse", "HEAD", cwd=destination) != BLOWFISH_REVISION:
+        raise ValueError("Blowfish checkout does not match the pinned revision")
 
 
 def public_url(value: str, *, allow_path: bool) -> str:
@@ -165,7 +166,7 @@ def publication_base_url(value: str) -> str:
     return normalized
 
 
-def configure_relearn(
+def configure_blowfish(
     root: Path,
     site: Path,
     base_url: str,
@@ -175,25 +176,30 @@ def configure_relearn(
     (site / "hugo.toml").write_text(
         f"baseURL = {json.dumps(base_url + '/', ensure_ascii=False)}\n"
         "title = 'lzug'\n"
-        "theme = 'relearn'\n"
+        "theme = 'blowfish'\n"
         "defaultContentLanguage = 'de'\n"
         "disableHugoGeneratorInject = true\n\n"
         "[languages.de]\n  title = 'lzug'\n  languageCode = 'de-DE'\n"
         "  languageName = 'Deutsch'\n  contentDir = 'content'\n  weight = 1\n\n"
-        "[params]\n  disableLandingPageButton = true\n"
-        "  disableLanguageSwitchingButton = true\n"
-        "  disableThemeSwitchingButton = false\n"
-        "  linkTitle = 'lzug'\n"
+        "[params]\n  defaultAppearance = 'light'\n"
+        "  autoSwitchAppearance = true\n"
+        "  enableSearch = true\n"
+        "  enableCodeCopy = false\n"
+        "  disableImageOptimization = true\n"
+        "  disableTextInHeader = false\n"
+        "  fingerprintAlgorithm = 'sha512'\n"
         f"  demoURL = {json.dumps(demo_url, ensure_ascii=False)}\n"
         "  publicationProfile = 'current'\n"
         "  wikiURL = 'https://github.com/lxndrp/lzug/wiki'\n"
+        "  repositoryURL = 'https://github.com/lxndrp/lzug'\n"
+        "  securityURL = 'https://github.com/lxndrp/lzug/security'\n"
+        "  supportURL = 'https://github.com/lxndrp/lzug/blob/master/SUPPORT.md'\n"
         "  repositoryDocumentationURL = "
         f"{json.dumps(source_url(Path('docs/developers/index.md'), repository_revision))}\n"
-        "  [[params.themeVariant]]\n    identifier = 'relearn-light'\n    name = 'Hell'\n"
-        "  [[params.themeVariant]]\n    identifier = 'relearn-dark'\n    name = 'Dunkel'\n",
+        "\n[params.header]\n  layout = 'basic'\n\n[params.homepage]\n  layout = 'custom'\n  showRecent = false\n\n[params.footer]\n  showMenu = true\n  showCopyright = true\n  showThemeAttribution = true\n  showAppearanceSwitcher = true\n  showScrollToTop = true\n",
         encoding="utf-8",
     )
-    (site / "layouts" / "home").mkdir(parents=True)
+    (site / "layouts" / "_default").mkdir(parents=True)
     (site / "layouts" / "_shortcodes").mkdir(parents=True)
     (site / "layouts" / "partials").mkdir(parents=True)
     (site / "assets" / "css").mkdir(parents=True)
@@ -204,42 +210,29 @@ def configure_relearn(
     (site / "static" / "css").mkdir(parents=True)
     (site / "static" / "js").mkdir(parents=True)
     shutil.copyfile(
-        root / "docs" / "publication" / "relearn" / "layouts" / "home" / "article.html",
-        site / "layouts" / "home" / "article.html",
+        root / "docs" / "publication" / "blowfish" / "layouts" / "_default" / "baseof.html",
+        site / "layouts" / "_default" / "baseof.html",
     )
     shutil.copyfile(
-        root
-        / "docs"
-        / "publication"
-        / "relearn"
-        / "layouts"
-        / "_shortcodes"
-        / "publication-scope.html",
+        root / "docs" / "publication" / "blowfish" / "layouts" / "index.html",
+        site / "layouts" / "index.html",
+    )
+    shutil.copyfile(
+        root / "docs" / "publication" / "blowfish" / "layouts" / "_shortcodes" / "publication-scope.html",
         site / "layouts" / "_shortcodes" / "publication-scope.html",
     )
     render_hook = site / "layouts" / "_default" / "_markup" / "render-link.html"
     render_hook.parent.mkdir(parents=True)
     shutil.copyfile(
-        root
-        / "docs"
-        / "publication"
-        / "relearn"
-        / "layouts"
-        / "_default"
-        / "_markup"
-        / "render-link.html",
+        root / "docs" / "publication" / "blowfish" / "layouts" / "_default" / "_markup" / "render-link.html",
         render_hook,
     )
     shutil.copyfile(
-        root / "docs" / "publication" / "relearn" / "layouts" / "partials" / "favicon.html",
-        site / "layouts" / "partials" / "favicon.html",
-    )
-    shutil.copyfile(
-        root / "docs" / "publication" / "relearn" / "assets" / "css" / "custom.css",
+        root / "docs" / "publication" / "blowfish" / "assets" / "css" / "custom.css",
         site / "assets" / "css" / "custom.css",
     )
     shutil.copyfile(
-        root / "docs" / "publication" / "relearn" / "static" / "js" / "demo-warmup.js",
+        root / "docs" / "publication" / "blowfish" / "static" / "js" / "demo-warmup.js",
         site / "static" / "js" / "demo-warmup.js",
     )
     for name in (
@@ -262,6 +255,9 @@ def configure_relearn(
     shutil.copyfile(
         root / "brand" / "tokens.css",
         site / "static" / "css" / "brand-tokens.css",
+    )
+    (site / "static" / "searchindex.de.js").write_text(
+        "window.searchIndex = [];\n", encoding="utf-8"
     )
     shutil.copyfile(
         root / "docs" / "publication" / "public-font.css",
@@ -385,7 +381,9 @@ def write_content(
 
     manifest = {
         "profile": "current-publication",
-        "relearn_revision": RELEARN_REVISION,
+        "theme": "Blowfish",
+        "blowfish_version": BLOWFISH_VERSION,
+        "blowfish_revision": BLOWFISH_REVISION,
         "repository": "https://github.com/lxndrp/lzug",
         "repository_revision": repository_revision,
     }
@@ -397,7 +395,7 @@ def write_content(
             "Quellen und Versionen",
             "Revisionsidentität der erzeugten Ausgabe",
             f"- Hauptrepository: `{repository_revision}`\n"
-            f"- Relearn: `{RELEARN_REVISION}`\n\n"
+            f"- Blowfish {BLOWFISH_VERSION}: `{BLOWFISH_REVISION}`\n\n"
             "[Maschinenlesbare Fassung](/quellen.json)",
             provenance=f"Revision `{repository_revision}`.",
         ),
@@ -413,8 +411,8 @@ def prepare_site(
 ) -> None:
     destination.mkdir(parents=True)
     repository_revision = run("git", "rev-parse", "HEAD", cwd=root)
-    prepare_relearn_checkout(destination / "themes" / "relearn")
-    configure_relearn(
+    prepare_blowfish_checkout(destination / "themes" / "blowfish")
+    configure_blowfish(
         root,
         destination,
         base_url,
@@ -495,7 +493,7 @@ def main() -> int:
     demo_url = public_url(args.demo_url, allow_path=False)
     with tempfile.TemporaryDirectory(prefix="lzug-publication-") as temporary:
         temporary_root = Path(temporary)
-        site = temporary_root / "relearn-site"
+        site = temporary_root / "blowfish-site"
         prepare_site(
             root,
             site,

@@ -61,6 +61,23 @@ Seiteneffekt des normalen Servers.
 | querschnittliche Änderung | `task quality` |
 
 Vor Browserprüfungen läuft `task doctor`.
+
+Die öffentliche Pages-Hülle wird mit Hugo Extended und Blowfish v3.6.0 gebaut.
+`docs/publication.py` prüft dabei den vollständigen Blowfish-Commit
+`4643c46bd5e921fee51c420575fadebf9f4b3681` und verwendet weder `latest` noch
+ein bewegliches Theme-Branch.
+Für eine lokale Vorschau genügt:
+
+```text
+task setup:frontend
+HUGO_CACHEDIR=/tmp/lzug-hugo-cache task docs:publication
+```
+
+Der Theme-Checkout bleibt temporär.
+Ein Rückfall auf den letzten konsistenten Pages-Stand erfolgt durch erneuten
+Build der dort dokumentierten Repository-Revision mit derselben
+Blowfish-Pin; Pages-Dispatch und Deployment bleiben davon getrennte,
+manuell freizugebende Schritte.
 Jeder Playwright-Lauf verwendet eigene Ports, eine eigene SQLite-Datei unter
 `var/e2e/` und synthetische Seed-Daten.
 Browser-E2E und Accessibility bleiben getrennte Nachweise; Chromium wird weder

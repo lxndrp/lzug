@@ -5,25 +5,25 @@ const candidates = [
   {
     name: 'desktop-light',
     colorScheme: 'light',
-    themeVariant: 'relearn-light',
+    themeVariant: 'light',
     viewport: { width: 1440, height: 1000 },
   },
   {
     name: 'desktop-dark',
     colorScheme: 'dark',
-    themeVariant: 'relearn-dark',
+    themeVariant: 'dark',
     viewport: { width: 1440, height: 1000 },
   },
   {
     name: 'mobile-light',
     colorScheme: 'light',
-    themeVariant: 'relearn-light',
+    themeVariant: 'light',
     viewport: { width: 390, height: 844 },
   },
   {
     name: 'mobile-dark',
     colorScheme: 'dark',
-    themeVariant: 'relearn-dark',
+    themeVariant: 'dark',
     viewport: { width: 390, height: 844 },
   },
 ] as const;
@@ -40,7 +40,7 @@ test.describe('public site accessibility contract', () => {
       const page = await context.newPage();
       await page.addInitScript((themeVariant) => {
         window.localStorage.setItem(
-          'https://lzug.repertoire.papaspyrou.name/variant',
+          'lzug-appearance',
           themeVariant,
         );
       }, candidate.themeVariant);

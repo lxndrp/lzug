@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 
 from docs.publication import (
+    BLOWFISH_REVISION,
+    BLOWFISH_VERSION,
     PUBLICATION_BASE_URL,
     convert_repository_links,
     public_url,
@@ -17,6 +19,13 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class PublicationDeliveryContractTests(unittest.TestCase):
+    def test_theme_is_a_concrete_blowfish_v3_pin(self) -> None:
+        self.assertEqual("v3.6.0", BLOWFISH_VERSION)
+        self.assertEqual(40, len(BLOWFISH_REVISION))
+        self.assertIn("theme = 'blowfish'", (ROOT / "docs/publication.py").read_text())
+        self.assertNotIn("RELEARN", (ROOT / "docs/publication.py").read_text())
+        self.assertFalse((ROOT / "docs/publication/relearn").exists())
+
     def test_public_urls_are_https_and_demo_url_is_an_origin(self) -> None:
         self.assertEqual(
             PUBLICATION_BASE_URL,
@@ -42,7 +51,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
             publication_base_url("https://stage.papaspyrou.name/lzug/")
 
     def test_warm_up_is_bounded_and_sends_no_credentials_or_referrer(self) -> None:
-        script = (ROOT / "docs/publication/relearn/static/js/demo-warmup.js").read_text(
+        script = (ROOT / "docs/publication/blowfish/static/js/demo-warmup.js").read_text(
             encoding="utf-8"
         )
         browser_check = (ROOT / "frontend/publication-e2e/publication.spec.ts").read_text(
@@ -51,7 +60,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         playwright_config = (ROOT / "frontend/playwright.publication.config.ts").read_text(
             encoding="utf-8"
         )
-        template = (ROOT / "docs/publication/relearn/layouts/home/article.html").read_text(
+        template = (ROOT / "docs/publication/blowfish/layouts/index.html").read_text(
             encoding="utf-8"
         )
 
@@ -80,7 +89,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
 
     def test_favicon_uses_the_publication_base_path_and_existing_product_asset(self) -> None:
         favicon_partial = (
-            ROOT / "docs/publication/relearn/layouts/partials/favicon.html"
+            ROOT / "docs/publication/blowfish/layouts/_default/baseof.html"
         ).read_text(encoding="utf-8")
 
         self.assertTrue((ROOT / "brand/derived/favicon.svg").is_file())
@@ -97,17 +106,18 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         for relative in (
             "content/index.md",
             "public-font.css",
-            "relearn/assets/css/custom.css",
-            "relearn/layouts/home/article.html",
-            "relearn/layouts/partials/favicon.html",
-            "relearn/static/js/demo-warmup.js",
+            "blowfish/assets/css/custom.css",
+            "blowfish/layouts/index.html",
+            "blowfish/layouts/_default/baseof.html",
+            "blowfish/layouts/_shortcodes/publication-scope.html",
+            "blowfish/static/js/demo-warmup.js",
         ):
             with self.subTest(relative=relative):
                 self.assertTrue((ROOT / "docs/publication" / relative).is_file())
 
     def test_product_and_portal_adapters_use_one_shared_visual_grammar(self) -> None:
         tokens = (ROOT / "brand/tokens.css").read_text(encoding="utf-8")
-        portal_css = (ROOT / "docs/publication/relearn/assets/css/custom.css").read_text(
+        portal_css = (ROOT / "docs/publication/blowfish/assets/css/custom.css").read_text(
             encoding="utf-8"
         )
         frontend_css = "\n".join(
@@ -176,7 +186,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("task docs:publication:linkcheck", workflow)
         self.assertIn('".lychee.toml"', workflow)
 
-    def test_publication_remaps_source_fragments_to_rendered_relearn_anchors(self) -> None:
+    def test_publication_remaps_source_fragments_to_rendered_blowfish_anchors(self) -> None:
         self.assertEqual(
             "[Qualität](/entwickeln/delivery/#vollständige-qualität)",
             convert_repository_links(

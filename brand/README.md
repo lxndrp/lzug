@@ -53,8 +53,8 @@ Komponentenframework zu benötigen:
 | Kopfbereich und Marke | Dunkle Markenfläche mit weißer Wort-/Bildmarke; Portalnavigation und Anwendungsshell dürfen funktional verschieden bleiben |
 
 `frontend/src/styles.scss` und
-`docs/publication/relearn/assets/css/custom.css` sind die jeweiligen Adapter.
-Sie verwenden diese Rollen und dürfen nur Taiga- beziehungsweise Relearn-
+`docs/publication/blowfish/assets/css/custom.css` sind die jeweiligen Adapter.
+Sie verwenden diese Rollen und dürfen nur Taiga- beziehungsweise Blowfish-
 Variablen ergänzen.
 Navigation, Seitenaufbau und fachliche Komponenten bleiben wegen ihres
 unterschiedlichen Nutzungskontexts bewusst eigenständig.
