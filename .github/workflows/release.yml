@@ -65,6 +65,7 @@ jobs:
     needs: preflight
     uses: ./.github/workflows/product-publish.yml
     permissions:
+      actions: read
       attestations: write
       contents: write
       id-token: write

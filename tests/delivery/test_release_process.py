@@ -21,6 +21,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
         cls.workflow = workflow_text(".github/workflows/release.yml")
         cls.product_workflow = workflow_text(".github/workflows/product-publish.yml")
         cls.preflight = job_block(cls.workflow, "preflight")
+        cls.product = job_block(cls.workflow, "product")
         cls.publish = job_block(cls.product_workflow, "publish")
 
     def test_dispatch_requires_an_explicit_semver_tag_on_master(self) -> None:
@@ -35,6 +36,11 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertNotIn("milestone", self.workflow.lower())
         self.assertNotIn("type: release", self.workflow)
         self.assertNotIn("gh issue", self.workflow)
+
+    def test_stable_product_publish_inherits_minimal_preflight_actions_permission(self) -> None:
+        self.assertIn("actions: read", self.product)
+        self.assertNotIn("actions: write", self.product)
+        self.assertIn("actions: read", job_block(self.product_workflow, "preflight"))
 
     def test_preflight_loads_build_metadata_from_checkout_src_layout(self) -> None:
         python_path = re.search(r"^\s+PYTHONPATH:\s+(\S+)\s*$", self.preflight, re.MULTILINE)
