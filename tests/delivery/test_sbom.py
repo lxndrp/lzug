@@ -306,6 +306,13 @@ class SbomContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "build-only ecosystems"):
             validate_image(invalid)
 
+        invalid = copy.deepcopy(report)
+        invalid["components"].append(
+            component("stdlib", "go1.26.5", "pkg:golang/stdlib@go1.26.5")
+        )
+        with self.assertRaisesRegex(ValueError, "build-only ecosystems: golang"):
+            validate_image(invalid)
+
     def test_release_sbom_aggregates_eight_detailed_boms(self) -> None:
         details = release_detail_payloads()
 

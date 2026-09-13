@@ -43,14 +43,6 @@ COPY frontend/src ./src
 COPY scripts/build-frontend.sh /src/scripts/build-frontend.sh
 RUN npm run build:ci
 
-FROM golang:1.26.5-bookworm AS operator-build
-
-WORKDIR /src/operator-cli
-COPY operator-cli/go.mod operator-cli/go.sum ./
-RUN go mod download
-COPY operator-cli ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /dist/lzug-admin ./cmd/lzug-admin
-
 FROM python:3.14.6-slim-bookworm AS python-dependencies
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.28 /uv /uvx /bin/
@@ -92,7 +84,6 @@ COPY --from=python-dependencies --chown=10001:10001 /src/backend/src ./backend/s
 COPY --from=build-metadata --chown=10001:10001 /build-metadata.json ./backend/src/build-metadata.json
 COPY --chown=10001:10001 backend/db ./backend/db
 COPY --from=frontend-build --chown=10001:10001 /src/frontend/dist/frontend/browser ./frontend
-COPY --from=operator-build --chown=10001:10001 /dist/lzug-admin /usr/local/bin/lzug-admin
 
 USER 10001:10001
 EXPOSE 8000

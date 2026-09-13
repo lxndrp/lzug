@@ -554,6 +554,8 @@ Dokumentationsartefakt von TypeDoc ersetzt.
 
 `lzug-admin` ist eine portable Go-CLI für Linux, macOS und Windows auf amd64 und
 arm64.
+Sie wird als Betreiberartefakt getrennt vom Python- und Frontend-Produktimage
+ausgeliefert.
 Eine statische Registry ordnet jeden Command nach dem Muster
 `lzug-admin <objekt> <aktion>` ein und ist die gemeinsame Quelle für Parser,
 Hilfe, Completion und die

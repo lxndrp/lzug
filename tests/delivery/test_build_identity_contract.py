@@ -31,6 +31,16 @@ class BuildIdentityContractTests(unittest.TestCase):
         self.assertIn('org.opencontainers.image.version="$BUILD_IDENTITY"', dockerfile)
         self.assertIn('org.opencontainers.image.revision="$VCS_REF"', dockerfile)
 
+    def test_oci_runtime_excludes_the_separate_operator_cli(self) -> None:
+        dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
+        operator_smoke = Path("scripts/operator-container-smoke.sh").read_text(encoding="utf-8")
+
+        self.assertNotIn("FROM golang:", dockerfile)
+        self.assertNotIn("operator-cli", dockerfile)
+        self.assertNotIn("/usr/local/bin/lzug-admin", dockerfile)
+        self.assertIn("go build -trimpath", operator_smoke)
+        self.assertIn('cmp "$temporary_directory/container-metadata.json"', operator_smoke)
+
     def test_runtime_contract_compares_backend_frontend_cli_and_oci(self) -> None:
         container_smoke = Path("scripts/container-smoke.sh").read_text(encoding="utf-8")
         operator_smoke = Path("scripts/operator-container-smoke.sh").read_text(encoding="utf-8")
