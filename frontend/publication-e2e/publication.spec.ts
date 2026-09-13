@@ -4,25 +4,25 @@ const candidates = [
   {
     name: 'desktop-light',
     colorScheme: 'light',
-    themeVariant: 'relearn-light',
+    themeVariant: 'light',
     viewport: { width: 1440, height: 1000 },
   },
   {
     name: 'desktop-dark',
     colorScheme: 'dark',
-    themeVariant: 'relearn-dark',
+    themeVariant: 'dark',
     viewport: { width: 1440, height: 1000 },
   },
   {
     name: 'mobile-light',
     colorScheme: 'light',
-    themeVariant: 'relearn-light',
+    themeVariant: 'light',
     viewport: { width: 390, height: 844 },
   },
   {
     name: 'mobile-dark',
     colorScheme: 'dark',
-    themeVariant: 'relearn-dark',
+    themeVariant: 'dark',
     viewport: { width: 390, height: 844 },
   },
 ] as const;
@@ -62,10 +62,7 @@ test.describe('public site browser contract', () => {
         });
         const page = await context.newPage();
         await page.addInitScript((themeVariant) => {
-          window.localStorage.setItem(
-            'https://lzug.repertoire.papaspyrou.name/variant',
-            themeVariant,
-          );
+          window.localStorage.setItem('lzug-appearance', themeVariant);
         }, candidate.themeVariant);
         const consoleErrors: string[] = [];
         const failedResponses: string[] = [];
@@ -91,7 +88,7 @@ test.describe('public site browser contract', () => {
           nav: document.querySelectorAll('nav').length,
           search: document.querySelectorAll('input[type="search"]').length,
           demoStart: document.querySelectorAll('[data-demo-start]').length,
-          themeVariant: document.documentElement.dataset.rThemeVariant,
+          themeVariant: document.documentElement.dataset.appearance,
           overflow: document.documentElement.scrollWidth - window.innerWidth,
         }));
         expect(structure.h1).toBe(1);
@@ -113,13 +110,13 @@ test.describe('public site browser contract', () => {
           };
 
           return {
-            primary: resolveColor('--PRIMARY-color'),
+            primary: resolveColor('--lzug-color-brand-ink'),
             brandInk: resolveColor('--lzug-color-brand-ink'),
-            mainBackground: resolveColor('--MAIN-BG-color'),
+            mainBackground: resolveColor('--lzug-color-neutral-canvas'),
             canvas: resolveColor('--lzug-color-neutral-canvas'),
-            menuBackground: resolveColor('--MENU-SECTIONS-BG-color'),
+            menuBackground: resolveColor('--lzug-color-neutral-surface'),
             surface: resolveColor('--lzug-color-neutral-surface'),
-            menuText: resolveColor('--MENU-SECTIONS-LINK-color'),
+            menuText: resolveColor('--lzug-color-text'),
             text: resolveColor('--lzug-color-text'),
           };
         });
@@ -152,9 +149,9 @@ test.describe('public site browser contract', () => {
             interLoaded: document.fonts.check('16px "Inter Variable"', 'Prüfungsplanung'),
             body: fontFamily('.publication-lead'),
             heading: fontFamily('.publication-hero h1'),
-            navigation: fontFamily('#R-sidebar a'),
+            navigation: fontFamily('.site-header nav a'),
             button: fontFamily('.publication-button'),
-            formControl: fontFamily('#R-search-by'),
+            formControl: fontFamily('#site-search'),
             code: codeFont,
             pre: preFont,
           };
