@@ -307,9 +307,7 @@ class SbomContractTests(unittest.TestCase):
             validate_image(invalid)
 
         invalid = copy.deepcopy(report)
-        invalid["components"].append(
-            component("stdlib", "go1.26.5", "pkg:golang/stdlib@go1.26.5")
-        )
+        invalid["components"].append(component("stdlib", "go1.26.5", "pkg:golang/stdlib@go1.26.5"))
         with self.assertRaisesRegex(ValueError, "build-only ecosystems: golang"):
             validate_image(invalid)
 
