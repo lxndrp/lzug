@@ -7,6 +7,7 @@ import sqlite3
 import tempfile
 import unittest
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -339,17 +340,51 @@ class BackupRestoreTests(unittest.TestCase):
         runtime = RuntimeCoordinator(paths.database, lambda: {"ready": True})
         runtime.start()
         self.addCleanup(runtime.stop)
-        with runtime.operation(Operation.MIGRATION):
+        with runtime.operation(Operation.MIGRATION), ThreadPoolExecutor(max_workers=1) as pool:
             with patch.object(target, "_target_is_empty") as inspect:
+                competing = pool.submit(
+                    target.restore_package,
+                    self.root / "unused.zip",
+                    replace=False,
+                    safety_artifact=None,
+                    recipient_fingerprint=FINGERPRINT,
+                )
                 with self.assertRaises(RuntimeConflictError):
-                    target.restore_package(
-                        self.root / "unused.zip",
-                        replace=False,
-                        safety_artifact=None,
-                        recipient_fingerprint=FINGERPRINT,
-                    )
+                    competing.result(timeout=5)
                 inspect.assert_not_called()
         self.assertTrue(runtime.snapshot()["ready"])
+
+    def test_restore_into_uninitialized_target_preserves_recovery_path(self) -> None:
+        _source_paths, source, _token = self.prepare_source()
+        package, _result = self.write_package(source, "backup.zip")
+        for managed in (False, True):
+            with self.subTest(managed=managed):
+                root = self.root / f"fresh-{managed}"
+                paths = PersistencePaths(
+                    data_dir=root,
+                    database=root / "lzug.sqlite",
+                    documents=root / "documents",
+                    backups=root / "backups",
+                )
+                target = ClearArtifactService(paths, environment={})
+                runtime = None
+                if managed:
+                    runtime = RuntimeCoordinator(
+                        paths.database, lambda paths=paths: database_readiness(paths.database)
+                    )
+                    runtime.start()
+                    self.addCleanup(runtime.stop)
+                    self.assertEqual("error", runtime.snapshot()["state"])
+                result = target.restore_package(
+                    package,
+                    replace=False,
+                    safety_artifact=None,
+                    recipient_fingerprint=FINGERPRINT,
+                )
+                self.assertEqual("backup", result["artifact_type"])
+                self.assertTrue(database_readiness(paths.database)["ready"])
+                if runtime is not None:
+                    self.assertTrue(runtime.snapshot()["ready"])
 
     def test_activation_failure_leaves_existing_target_unchanged(self) -> None:
         _source_paths, source, _token = self.prepare_source()

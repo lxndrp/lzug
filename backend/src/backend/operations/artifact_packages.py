@@ -240,9 +240,13 @@ class ClearArtifactService(ArtifactService):
         # Reject missing operator consent before starting a destructive runtime
         # job. The checks inside the exclusive scope remain authoritative if
         # the target changes after this read-only preflight.
-        if not replace or not safety_artifact:
+        runtime = runtime_for(self.paths.database)
+        inspectable = runtime is None or runtime.snapshot()["state"] in {
+            "ready",
+            "migration_required",
+        }
+        if (not replace or not safety_artifact) and inspectable and self.paths.documents.is_dir():
             try:
-                runtime = runtime_for(self.paths.database)
                 inspection = (
                     runtime.inspect_storage() if runtime else snapshot_scope(self.paths.database)
                 )
