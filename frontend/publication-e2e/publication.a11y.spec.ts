@@ -39,10 +39,7 @@ test.describe('public site accessibility contract', () => {
       });
       const page = await context.newPage();
       await page.addInitScript((themeVariant) => {
-        window.localStorage.setItem(
-          'lzug-appearance',
-          themeVariant,
-        );
+        window.localStorage.setItem('lzug-appearance', themeVariant);
       }, candidate.themeVariant);
       await page.goto('/', { waitUntil: 'networkidle' });
 

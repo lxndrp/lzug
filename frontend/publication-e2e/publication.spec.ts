@@ -62,10 +62,7 @@ test.describe('public site browser contract', () => {
         });
         const page = await context.newPage();
         await page.addInitScript((themeVariant) => {
-          window.localStorage.setItem(
-            'lzug-appearance',
-            themeVariant,
-          );
+          window.localStorage.setItem('lzug-appearance', themeVariant);
         }, candidate.themeVariant);
         const consoleErrors: string[] = [];
         const failedResponses: string[] = [];
