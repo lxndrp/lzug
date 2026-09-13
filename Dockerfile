@@ -73,6 +73,11 @@ ENV PATH="/opt/venv/bin:$PATH" \
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install --no-install-recommends --only-upgrade -y libpcre2-8-0 \
+    && dpkg --compare-versions "$(dpkg-query --showformat='${Version}' --show libpcre2-8-0)" ge "10.42-1+deb12u1" \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --system --gid 10001 lzug \
     && useradd --system --uid 10001 --gid 10001 --home-dir /nonexistent \
        --shell /usr/sbin/nologin lzug \
