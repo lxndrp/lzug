@@ -18,9 +18,6 @@
 !scripts/
 !scripts/**
 
-!operator-cli/
-!operator-cli/**
-
 !demo/
 !demo/contract.py
 !demo/__init__.py
