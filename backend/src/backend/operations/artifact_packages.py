@@ -35,7 +35,8 @@ from backend.operations.backup_restore import (
     _totp_key_binding,
 )
 from backend.persistence.artifact_limits import artifact_database_limit
-from backend.persistence.database import activation_scope
+from backend.persistence.database import activation_scope, snapshot_scope
+from backend.runtime import runtime_for
 
 MAX_PACKAGE_MEMBERS = 4096
 MAX_PACKAGE_METADATA = 8 * 1024 * 1024
@@ -241,7 +242,12 @@ class ClearArtifactService(ArtifactService):
         # the target changes after this read-only preflight.
         if not replace or not safety_artifact:
             try:
-                self._require_restore_confirmation(replace, safety_artifact)
+                runtime = runtime_for(self.paths.database)
+                inspection = (
+                    runtime.inspect_storage() if runtime else snapshot_scope(self.paths.database)
+                )
+                with inspection:
+                    self._require_restore_confirmation(replace, safety_artifact)
             except ArtifactError as error:
                 self._record_operation("restore", error=error)
                 raise

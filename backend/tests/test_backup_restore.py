@@ -24,7 +24,7 @@ from backend.operations.artifact_packages import ClearArtifactService
 from backend.operations.backup_restore import FULL_EXPORT_SCHEMA, ArtifactError
 from backend.persistence.database import PersistencePaths, database_readiness, initialize
 from backend.planning.exam_venues import ExamVenueService
-from backend.runtime import RuntimeCoordinator
+from backend.runtime import Operation, RuntimeConflictError, RuntimeCoordinator
 from backend.tests.fixture_data import DEMO_ROLES
 from backend.tests.helpers import development_seed_sql
 
@@ -333,6 +333,23 @@ class BackupRestoreTests(unittest.TestCase):
         self.assertEqual("backup", restored["artifact_type"])
         self.assertTrue(runtime.snapshot()["ready"])
         self.assertEqual("succeeded", runtime.snapshot()["job"]["status"])
+
+    def test_restore_preflight_does_not_inspect_storage_during_lifecycle_work(self) -> None:
+        paths, target = self.runtime("target", seed=True)
+        runtime = RuntimeCoordinator(paths.database, lambda: {"ready": True})
+        runtime.start()
+        self.addCleanup(runtime.stop)
+        with runtime.operation(Operation.MIGRATION):
+            with patch.object(target, "_target_is_empty") as inspect:
+                with self.assertRaises(RuntimeConflictError):
+                    target.restore_package(
+                        self.root / "unused.zip",
+                        replace=False,
+                        safety_artifact=None,
+                        recipient_fingerprint=FINGERPRINT,
+                    )
+                inspect.assert_not_called()
+        self.assertTrue(runtime.snapshot()["ready"])
 
     def test_activation_failure_leaves_existing_target_unchanged(self) -> None:
         _source_paths, source, _token = self.prepare_source()
