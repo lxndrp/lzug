@@ -26,7 +26,10 @@ on:
       - "docs/mkdocs.yml"
       - "docs/publication/**"
       - "pyproject.toml"
-      - "docs/publication.py"
+      - "docs/publication/hugo.toml"
+      - "docs/publication/go.mod"
+      - "docs/publication/go.sum"
+      - "scripts/export_openapi.py"
       - "scripts/validate_demo_url_contract.py"
       - "uv.lock"
   push:
@@ -131,19 +134,19 @@ jobs:
 
       - name: Build and verify reduced Pages publication
         if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.repository_revision == '')
-        run: mise x hugo-extended@0.165.0 -- task docs:publication:check DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+        run: task docs:publication:check DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
       - name: Check the public site in Chromium
         if: github.event_name == 'pull_request'
         env:
           PLAYWRIGHT_BROWSER_CHANNEL: chrome
-        run: mise x hugo-extended@0.165.0 -- task docs:publication:browser
+        run: task docs:publication:browser
 
       - name: Check public-site accessibility
         if: github.event_name == 'pull_request'
         env:
           PLAYWRIGHT_BROWSER_CHANNEL: chrome
-        run: mise x hugo-extended@0.165.0 -- task docs:publication:a11y
+        run: task docs:publication:a11y
 
       - name: Upload pull-request visual evidence
         if: github.event_name == 'pull_request'
@@ -156,15 +159,15 @@ jobs:
 
       - name: Verify reproducible public artifact
         if: github.event_name == 'schedule'
-        run: mise x hugo-extended@0.165.0 -- task docs:publication:check DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+        run: task docs:publication:check DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
       - name: Check generated public-site links
         if: github.event_name == 'schedule'
-        run: mise x hugo-extended@0.165.0 -- task docs:publication:linkcheck DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+        run: task docs:publication:linkcheck DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
       - name: Build public artifact
         if: github.event_name != 'schedule'
-        run: mise x hugo-extended@0.165.0 -- task docs:publication:linkcheck DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+        run: task docs:publication:linkcheck DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
       - name: Check responsive themes and warm-up flow with Playwright
         if: github.event_name == 'workflow_dispatch'

@@ -63,9 +63,9 @@ Seiteneffekt des normalen Servers.
 Vor Browserprüfungen läuft `task doctor`.
 
 Die öffentliche Pages-Hülle wird mit Hugo Extended und Blowfish v3.6.0 gebaut.
-`docs/publication.py` prüft dabei den vollständigen Blowfish-Commit
-`4643c46bd5e921fee51c420575fadebf9f4b3681` und verwendet weder `latest` noch
-ein bewegliches Theme-Branch.
+Das eingecheckte Projekt unter `docs/publication/` bindet den vollständigen
+Blowfish-Commit `4643c46bd5e921fee51c420575fadebf9f4b3681` über Hugo Modules
+ein und verwendet weder `latest` noch einen beweglichen Theme-Branch.
 Für eine lokale Vorschau genügt:
 
 ```text
