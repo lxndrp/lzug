@@ -38,7 +38,10 @@ class BuildIdentityContractTests(unittest.TestCase):
         self.assertNotIn("FROM golang:", dockerfile)
         self.assertNotIn("operator-cli", dockerfile)
         self.assertNotIn("/usr/local/bin/lzug-admin", dockerfile)
-        self.assertIn("go build -trimpath", operator_smoke)
+        self.assertIn("lzug_build_operator_cli", operator_smoke)
+        self.assertIn(
+            "go build -trimpath", Path("scripts/operator-container-contract.sh").read_text()
+        )
         self.assertIn('cmp "$temporary_directory/container-metadata.json"', operator_smoke)
 
     def test_runtime_contract_compares_backend_frontend_cli_and_oci(self) -> None:

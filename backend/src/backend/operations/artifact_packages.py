@@ -236,6 +236,15 @@ class ClearArtifactService(ArtifactService):
         safety_artifact: str | None,
         recipient_fingerprint: str,
     ) -> dict[str, Any]:
+        # Reject missing operator consent before starting a destructive runtime
+        # job. The checks inside the exclusive scope remain authoritative if
+        # the target changes after this read-only preflight.
+        if not replace or not safety_artifact:
+            try:
+                self._require_restore_confirmation(replace, safety_artifact)
+            except ArtifactError as error:
+                self._record_operation("restore", error=error)
+                raise
         # Own the whole restore, including preparation, postcheck and audit.
         # The inner activation uses the same reentrant lock and job admission.
         with activation_scope(self.paths.database):
@@ -244,6 +253,20 @@ class ClearArtifactService(ArtifactService):
                 replace=replace,
                 safety_artifact=safety_artifact,
                 recipient_fingerprint=recipient_fingerprint,
+            )
+
+    def _require_restore_confirmation(self, replace: bool, safety_artifact: str | None) -> None:
+        if self._target_is_empty():
+            return
+        if not replace:
+            raise ArtifactError(
+                "replace_confirmation_required",
+                "Target contains data and explicit replacement was not confirmed",
+            )
+        if not safety_artifact:
+            raise ArtifactError(
+                "safety_artifact_required",
+                "Replacement requires a completed safety artifact",
             )
 
     def _restore_package(
@@ -263,17 +286,7 @@ class ClearArtifactService(ArtifactService):
                 if manifest.get("artifact_type") != "backup":
                     raise ArtifactError("restore_requires_backup", "Only a backup can be restored")
                 verification = self._verify_loaded(loaded)
-                target_empty = self._target_is_empty()
-                if not target_empty and not replace:
-                    raise ArtifactError(
-                        "replace_confirmation_required",
-                        "Target contains data and explicit replacement was not confirmed",
-                    )
-                if replace and not target_empty and not safety_artifact:
-                    raise ArtifactError(
-                        "safety_artifact_required",
-                        "Replacement requires a completed safety artifact",
-                    )
+                self._require_restore_confirmation(replace, safety_artifact)
                 phase = "prepared_restore"
                 self._fault(phase)
                 with self._prepared_restore(loaded) as prepared:
