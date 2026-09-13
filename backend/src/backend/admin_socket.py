@@ -323,6 +323,16 @@ class AdminSocket:
         )
         self._record(job, delivery="sent")
 
+    def _drain_pipelined_input(self, connection: socket.socket) -> None:
+        """Avoid a reset when rejecting a handshake with unread client data."""
+        try:
+            connection.shutdown(socket.SHUT_WR)
+            connection.settimeout(min(0.1, self.config.handshake_timeout))
+            while connection.recv(4096):
+                pass
+        except OSError, TimeoutError:
+            pass
+
     def _serve(self, connection: socket.socket) -> None:
         job = {
             "job_id": str(uuid4()),
@@ -353,6 +363,8 @@ class AdminSocket:
                 )
             except OSError, SocketProtocolError:
                 pass
+            if error.phase == "handshake":
+                self._drain_pipelined_input(connection)
         except OSError as error:
             if job["status"] == "running":
                 self._record(
