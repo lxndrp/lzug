@@ -102,6 +102,11 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertNotIn('checksums.txt" release-assets', self.publish)
         self.assertNotIn("release-manifest.json", self.publish)
 
+    def test_stable_product_publish_defines_syft_before_using_its_output(self) -> None:
+        syft_step = "id: syft\n        uses: anchore/sbom-action/download-syft@"
+        self.assertIn(syft_step, self.publish)
+        self.assertLess(self.publish.index(syft_step), self.publish.index("SYFT_BINARY:"))
+
 
 if __name__ == "__main__":
     unittest.main()
