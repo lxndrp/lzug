@@ -360,6 +360,28 @@ def go_module_contract(go_mod: str) -> tuple[str, set[str]]:
     return module_match.group(1), required
 
 
+def dependency_go_module_inventory(
+    root: Path = ROOT,
+) -> tuple[set[str], set[str], set[str]]:
+    """Return main, declared, and resolved modules from every repository Go module."""
+
+    module_specs = (
+        (root / "operator-cli/go.mod", root / "operator-cli"),
+        (root / "docs/publication/go.mod", root / "docs/publication"),
+    )
+    main_modules: set[str] = set()
+    declared_modules: set[str] = set()
+    resolved_modules: set[str] = set()
+    for go_mod_path, module_dir in module_specs:
+        go_mod = go_mod_path.read_text(encoding="utf-8")
+        main_module, declared = go_module_contract(go_mod)
+        _, resolved = go_module_graph(go_mod, module_dir=module_dir)
+        main_modules.add(main_module)
+        declared_modules.update(declared)
+        resolved_modules.update(resolved)
+    return main_modules, declared_modules, resolved_modules
+
+
 def go_sum_module_names(go_sum: str) -> set[str]:
     """Return module paths anchored by entries in go.sum."""
 
@@ -452,7 +474,11 @@ def go_component_names(components: list[dict[str, Any]]) -> set[str]:
 
 
 def validate_dependencies(
-    payload: dict[str, Any], go_mod: str, go_modules: set[str] | None = None
+    payload: dict[str, Any],
+    go_mod: str,
+    go_modules: set[str] | None = None,
+    main_modules: set[str] | None = None,
+    declared_modules: set[str] | None = None,
 ) -> dict[str, Any]:
     """Validate the dependency-review SBOM and return its visible review summary."""
 
@@ -484,11 +510,15 @@ def validate_dependencies(
     if len(project_components) != 1 or not component_has_license(project_components[0]):
         raise ValueError("dependency SBOM must contain one licensed lzug Python distribution")
 
-    main_module, declared_modules = go_module_contract(go_mod)
+    main_module, contract_modules = go_module_contract(go_mod)
+    if main_modules is None:
+        main_modules = {main_module}
+    if declared_modules is None:
+        declared_modules = contract_modules
     if go_modules is None:
         _, go_modules = go_module_graph(go_mod)
     represented_go_modules = go_component_names(components)
-    external_go_modules = represented_go_modules - {main_module, "stdlib"}
+    external_go_modules = represented_go_modules - main_modules - {"stdlib"}
     missing_go_modules = sorted(declared_modules - represented_go_modules)
     if missing_go_modules:
         raise ValueError(
@@ -612,7 +642,14 @@ def validate(args: argparse.Namespace) -> None:
     payload = json.loads(Path(args.input).read_text(encoding="utf-8"))
     go_mod = (ROOT / "operator-cli/go.mod").read_text(encoding="utf-8")
     if args.kind == "dependencies":
-        summary = validate_dependencies(payload, go_mod)
+        main_modules, declared_modules, go_modules = dependency_go_module_inventory()
+        summary = validate_dependencies(
+            payload,
+            go_mod,
+            go_modules,
+            main_modules=main_modules,
+            declared_modules=declared_modules,
+        )
     elif args.kind == "cli":
         if not args.artifact:
             raise ValueError("--artifact is required to validate a CLI SBOM against its binary")
