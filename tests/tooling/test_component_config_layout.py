@@ -6,6 +6,31 @@ from pathlib import Path
 
 
 class ComponentConfigLayoutTests(unittest.TestCase):
+    def test_component_taskfiles_are_included_from_the_root_aggregator(self) -> None:
+        taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
+
+        for path in (
+            "backend/Taskfile.yml",
+            "delivery/Taskfile.yml",
+            "demo/Taskfile.yml",
+            "docs/Taskfile.yml",
+            "frontend/Taskfile.yml",
+            "operator-cli/Taskfile.yml",
+        ):
+            with self.subTest(path=path):
+                self.assertIn(f"taskfile: {path}", taskfile)
+
+        for task in (
+            "backend:test",
+            "delivery:test",
+            "demo:test",
+            "docs:build",
+            "frontend:test",
+            "operator:test",
+        ):
+            with self.subTest(task=task):
+                self.assertIn(task, taskfile)
+
     def test_component_owned_configuration_is_not_left_at_the_root(self) -> None:
         self.assertFalse(Path(".node-version").exists())
         self.assertFalse(Path("mkdocs.yml").exists())

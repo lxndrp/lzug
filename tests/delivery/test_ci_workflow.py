@@ -201,8 +201,8 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("quality:oci", job_block(self.pull_request, "container"))
         self.assertNotIn("quality:container", job_block(self.pull_request, "container"))
         self.assertNotIn("task test:demo", job_block(self.pull_request, "delivery"))
-        self.assertIn("task test:oci", job_block(self.pull_request, "container"))
-        self.assertIn("task fixtures:check test:fixtures", self.quality)
+        self.assertIn("task delivery:oci", job_block(self.pull_request, "container"))
+        self.assertIn("task fixtures:check delivery:fixtures", self.quality)
         self.assertIn("quality:oci quality:container quality:compose", self.quality)
         self.assertIn("npm --prefix frontend run test:e2e", self.quality)
         self.assertIn("npm --prefix frontend run test:a11y", self.quality)
@@ -212,9 +212,9 @@ class QualityWorkflowContractTests(unittest.TestCase):
         pull_request_backend = job_block(self.pull_request, "backend")
         quality_backend = job_block(self.quality, "backend")
 
-        self.assertIn("task quality:backend:pr", pull_request_backend)
+        self.assertIn("task backend:quality:pr", pull_request_backend)
         self.assertNotIn("coverage", pull_request_backend)
-        self.assertIn("task quality:backend", quality_backend)
+        self.assertIn("task backend:quality", quality_backend)
         self.assertNotIn("coverage xml", quality_backend)
         self.assertIn("name: backend-coverage", quality_backend)
 
@@ -229,7 +229,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
         for job in (pull_request_transport, quality_transport):
             self.assertIn("uv sync --locked --extra dev", job)
             self.assertIn("npm ci --prefix frontend", job)
-            self.assertIn("task quality:frontend-transport", job)
+            self.assertIn("task frontend:transport", job)
 
         frontend_gate = job_block(self.pull_request, "frontend-gate")
         self.assertIn("transport", frontend_gate)
