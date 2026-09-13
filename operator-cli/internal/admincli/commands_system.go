@@ -7,19 +7,19 @@ func systemCommands() []Command {
 	for _, action := range []string{"config", "status", "doctor"} {
 		action := action
 		description := map[string]string{
-			"config": "Validate the runtime's secret-free configuration contract.",
-			"status": "Inspect runtime identity and application readiness.",
-			"doctor": "Run runtime, schema, persistence, storage, and readiness diagnostics.",
+			"config": "Inspect the live runtime, or validate legacy runtime configuration.",
+			"status": "Inspect live readiness, or legacy runtime identity and health checks.",
+			"doctor": "Inspect live runtime and listener state, or legacy storage diagnostics.",
 		}[action]
 		command := Command{
 			Path:           []string{"system", action},
 			Summary:        description,
-			Description:    description + " The backend receives no operator secrets or business data.",
-			Examples:       []string{"lzug-admin --container lzug system " + action},
+			Description:    description + " Socket targets report live runtime and listener state without opening storage. The backend receives no operator secrets or business data.",
+			Examples:       []string{"lzug-admin --endpoint unix:///run/lzug-admin/admin.sock system " + action},
 			Transport:      ContainerExecTransport,
 			BackendCommand: action,
 			LegacyForms:    []string{action},
-			Output:         OutputSpec{Human: HumanDiagnostics, Verbose: VerboseSummary, JSON: JSONProjected, Summary: "Prints a secret-free status and check summary; JSON includes the validated diagnostic result.", ResultKeys: []string{"command", "status", "checks"}},
+			Output:         OutputSpec{Human: HumanDiagnostics, Verbose: VerboseSummary, JSON: JSONProjected, Summary: "Prints a secret-free status and check summary; JSON includes the validated runtime/socket snapshot or legacy diagnostic checks.", ResultKeys: []string{"runtime", "socket", "command", "status", "checks"}},
 		}
 		command.BuildRequest = func(_ context.Context, prepare PrepareContext, _, _ Values) (BackendRequest, error) {
 			arguments := map[string]any{}

@@ -4,6 +4,7 @@ set -eu
 
 root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 . "$root_dir/scripts/container-contract.sh"
+. "$root_dir/scripts/operator-container-contract.sh"
 current_image="${1:-lzug-app:smoke}"
 v060_image="${LZUG_V060_IMAGE:-ghcr.io/lxndrp/lzug@sha256:00e467d8acd6602ba8b4259b3f2a4e51ec98273e0be551f367e5979d5c780fe6}"
 
@@ -13,26 +14,27 @@ temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/lzug-v060-migration.XXXXXX")
 container="lzug-v060-migration-$$"
 volume="$container-data"
 current_volume="$container-current-data"
-admin_binary="$temporary_directory/lzug-admin"
+image="$current_image"
+socket_volume="$container-socket"
+stage="build current Linux CLI"
 cleanup() {
+    status=$?
+    trap - EXIT
+    if [ "$status" -ne 0 ]; then
+        lzug_operator_failure "$status"
+    fi
     lzug_cleanup_contract_container "$container" "$volume"
     docker volume rm "$current_volume" >/dev/null 2>&1 || true
+    docker volume rm "$socket_volume" >/dev/null 2>&1 || true
     rm -rf "$temporary_directory"
+    exit "$status"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
-revision=$(git -C "$root_dir" rev-parse HEAD)
-application_version=$(
-    python3 "$root_dir/scripts/build_metadata.py" \
-        --revision "$revision" --field identity
-)
-(
-    cd "$root_dir/operator-cli"
-    GOCACHE="${LZUG_GO_CACHE:-${TMPDIR:-/tmp}/lzug-go-build-cache}" go build -trimpath \
-        -ldflags="-s -w -X main.applicationVersion=$application_version -X main.applicationRevision=$revision" \
-        -o "$admin_binary" ./cmd/lzug-admin
-)
-
+lzug_build_operator_cli
+stage="legacy v0.6.0 fixture and artifact"
 docker pull "$v060_image" >/dev/null
 legacy_keys=$(docker run --rm --entrypoint python "$v060_image" -c '
 import json
@@ -129,7 +131,7 @@ assert payload["result"]["phases"] == [
 docker cp "$container:/data/backups/$legacy_artifact" "$temporary_directory/legacy.lzug"
 
 legacy_status=0
-"$admin_binary" --json artifact inspect \
+lzug_operator_cli --json artifact inspect \
     --artifact "$temporary_directory/legacy.lzug" \
     >"$temporary_directory/legacy-inspect.json" \
     2>"$temporary_directory/legacy-inspect.stderr" || legacy_status=$?
@@ -146,6 +148,7 @@ assert "v0.6.0" in payload["error"]["message"]
 ' "$temporary_directory/legacy-inspect.json"
 
 docker rm --force "$container" >/dev/null
+stage="current image preserves legacy artifact"
 docker run --detach --name "$container" \
     --read-only --tmpfs /tmp \
     --mount "type=volume,source=$volume,target=/data" \
@@ -168,30 +171,36 @@ assert status["current"] != status["target"]
 # The new-format roundtrip uses a separate empty instance. Full approval and
 # interrupted migration are exercised through the authoritative socket suite.
 docker rm --force "$container" >/dev/null
+stage="new-format socket and instance"
+lzug_prepare_operator_socket
 docker volume create "$current_volume" >/dev/null
 docker run --detach --name "$container" \
     --read-only --tmpfs /tmp \
     --mount "type=volume,source=$current_volume,target=/data" \
-    "$current_image" --host 0.0.0.0 --port 8000 --init >/dev/null
+    --mount "type=volume,source=$socket_volume,target=/run/lzug-admin,volume-nocopy" \
+    "$current_image" --host 0.0.0.0 --port 8000 --init \
+    --admin-socket-dir /run/lzug-admin --admin-socket-gid 10001 >/dev/null
 if ! lzug_wait_for_container_health "$container" 30; then
     echo "The new-format instance did not become live." >&2
     exit 1
 fi
 
-"$admin_binary" recipient-key generate \
+lzug_assert_operator_socket
+stage="new-format backup roundtrip"
+lzug_operator_cli recipient-key generate \
     --identity-file "$temporary_directory/current.agekey" \
     --recipient-file "$temporary_directory/current.agepub" >/dev/null
-"$admin_binary" --container "$container" --json \
+lzug_operator_cli --endpoint unix:///run/lzug-admin/admin.sock --json \
     backup recipient set --identity-file "$temporary_directory/current.agekey" \
     >"$temporary_directory/recipient.json"
-"$admin_binary" --container "$container" --json \
+lzug_operator_cli --endpoint unix:///run/lzug-admin/admin.sock --json \
     backup create --output "$temporary_directory/current.lzug" \
     >"$temporary_directory/current-backup.json"
-"$admin_binary" --container "$container" --json \
+lzug_operator_cli --endpoint unix:///run/lzug-admin/admin.sock --json \
     backup verify --artifact "$temporary_directory/current.lzug" \
     --identity-file "$temporary_directory/current.agekey" \
     >"$temporary_directory/current-verify.json"
-"$admin_binary" --json artifact inspect \
+lzug_operator_cli --json artifact inspect \
     --artifact "$temporary_directory/current.lzug" \
     >"$temporary_directory/current-inspect.json"
 python3 -c '
