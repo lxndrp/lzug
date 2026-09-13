@@ -147,6 +147,7 @@ TEST_OWNERS = {
             "test_backup_recipients.py",
             "test_backup_restore.py",
             "test_diagnostics.py",
+            "test_healthcheck.py",
             "test_lifecycle.py",
         }
     ),
