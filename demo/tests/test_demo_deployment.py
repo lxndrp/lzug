@@ -281,7 +281,7 @@ class DemoDeploymentTests(unittest.TestCase):
         pair = ArtifactPair(
             app_image=self.pair.app_image,
             seed_image=self.pair.seed_image,
-            product_tag="demo/v0.2.0-SNAPSHOT.abcdef0",
+            product_tag="snapshot/v0.2.0-SNAPSHOT.abcdef0",
             product_commit=revision,
             runtime_contract=self.pair.runtime_contract,
             schema_fingerprint=self.pair.schema_fingerprint,

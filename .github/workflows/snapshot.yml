@@ -1,0 +1,113 @@
+name: Snapshot
+
+on:
+  push:
+    tags:
+      - "snapshot/v[0-9]*.[0-9]*.[0-9]*-SNAPSHOT.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]"
+
+permissions: {}
+
+concurrency:
+  group: snapshot-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Verify immutable current master snapshot
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      snapshot_tag: ${{ steps.contract.outputs.snapshot_tag }}
+      target_sha: ${{ steps.contract.outputs.target_sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+      - name: Verify new annotated snapshot tag and current master SHA
+        id: contract
+        env:
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_CREATED: ${{ github.event.created }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          SNAPSHOT_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          zero_sha=0000000000000000000000000000000000000000
+          test "$EVENT_CREATED" = true
+          test "$EVENT_DELETED" = false
+          test "$EVENT_FORCED" = false
+          test "$EVENT_BEFORE" = "$zero_sha"
+          test "$(git cat-file -t "$SNAPSHOT_TAG")" = tag
+          tag_object=$(git rev-parse "$SNAPSHOT_TAG")
+          target_sha=$(git rev-parse "$SNAPSHOT_TAG^{}")
+          test "$EVENT_AFTER" = "$tag_object" || test "$EVENT_AFTER" = "$target_sha"
+          git fetch --no-tags origin master
+          test "$target_sha" = "$(git rev-parse refs/remotes/origin/master)"
+          test "$(git rev-parse HEAD)" = "$target_sha"
+          python3 -m demo.delivery.contract identity \
+            --tag "$SNAPSHOT_TAG" --commit "$target_sha" \
+            --channel snapshot --field identity >/dev/null
+          quality_runs=$(gh api \
+            "repos/${{ github.repository }}/actions/workflows/quality.yml/runs?branch=master&head_sha=$target_sha&status=success&per_page=100")
+          jq -e --arg sha "$target_sha" '
+            any(.workflow_runs[];
+              .head_sha == $sha and .head_branch == "master" and
+              (.event == "schedule" or .event == "workflow_dispatch") and
+              .conclusion == "success")
+          ' <<<"$quality_runs" >/dev/null
+          printf 'snapshot_tag=%s\ntarget_sha=%s\n' "$SNAPSHOT_TAG" "$target_sha" >> "$GITHUB_OUTPUT"
+
+  product:
+    name: Publish snapshot product artifacts
+    needs: preflight
+    uses: ./.github/workflows/product-publish.yml
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    with:
+      channel: snapshot
+      product_tag: ${{ needs.preflight.outputs.snapshot_tag }}
+      target_sha: ${{ needs.preflight.outputs.target_sha }}
+
+  demo-publish:
+    name: Publish snapshot demo pair
+    needs: [preflight, product]
+    uses: ./.github/workflows/demo-publish.yml
+    permissions:
+      actions: read
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    with:
+      channel: snapshot
+      product_tag: ${{ needs.preflight.outputs.snapshot_tag }}
+      target_sha: ${{ needs.preflight.outputs.target_sha }}
+
+  demo-deploy:
+    name: Deploy snapshot demo pair
+    needs: [preflight, demo-publish]
+    uses: ./.github/workflows/demo-deploy.yml
+    permissions:
+      actions: read
+      attestations: read
+      contents: read
+      id-token: write
+      packages: read
+    with:
+      operation: deploy
+      promotion_channel: snapshot
+      app_image: ${{ needs.demo-publish.outputs.app_image }}
+      seed_image: ${{ needs.demo-publish.outputs.seed_image }}
+      product_tag: ${{ needs.preflight.outputs.snapshot_tag }}
+      product_commit: ${{ needs.preflight.outputs.target_sha }}
+      runtime_contract: ${{ needs.demo-publish.outputs.runtime_contract }}
+      schema_fingerprint: ${{ needs.demo-publish.outputs.schema_fingerprint }}
+      seed_revision: ${{ needs.demo-publish.outputs.seed_revision }}

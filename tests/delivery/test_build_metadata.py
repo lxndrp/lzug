@@ -38,7 +38,7 @@ class BuildMetadataTests(unittest.TestCase):
 
     def test_demo_snapshot_is_non_release_and_requires_explicit_opt_in(self) -> None:
         revision = "abcdef0123456789abcdef0123456789abcdef01"
-        tag = "demo/v0.2.0-SNAPSHOT.abcdef0"
+        tag = "snapshot/v0.2.0-SNAPSHOT.abcdef0"
         with self.assertRaisesRegex(ValueError, "reserved for the demo assembly"):
             BuildMetadata.create(revision, tag)
 

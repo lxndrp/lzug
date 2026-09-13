@@ -359,7 +359,7 @@ class DemoArtifactTests(unittest.TestCase):
 
     def test_snapshot_manifests_bind_non_release_identity_and_target_version(self) -> None:
         revision = "abcdef0123456789abcdef0123456789abcdef01"
-        tag = "demo/v0.2.0-SNAPSHOT.abcdef0"
+        tag = "snapshot/v0.2.0-SNAPSHOT.abcdef0"
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             seed = build_seed(

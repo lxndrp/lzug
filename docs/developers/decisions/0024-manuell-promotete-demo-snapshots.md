@@ -20,9 +20,9 @@ Gleichzeitig dürfen Build, Seed, Nachweise und Azure-Revision nicht aus dem ver
 
 ## Entscheidung
 
-Ein Maintainer setzt bewusst einen neuen annotierten Tag im engen Namespace `demo/vMAJOR.MINOR.PATCH-SNAPSHOT.<7-stellige Commit-SHA>`.
+Ein Maintainer setzt bewusst einen neuen annotierten Tag im engen Namespace `snapshot/vMAJOR.MINOR.PATCH-SNAPSHOT.<7-stellige Commit-SHA>`.
 Dieser Tag-Push ist die einzige manuelle Promotion.
-Er startet genau den Workflow `.github/workflows/demo-snapshot.yml`; der Workflow erzeugt, verschiebt oder ersetzt den Tag nicht und besitzt keinen manuellen Dispatch.
+Er startet genau den Workflow `.github/workflows/snapshot.yml`; der Workflow erzeugt, verschiebt oder ersetzt den Tag nicht und besitzt keinen manuellen Dispatch.
 
 Der Preflight akzeptiert ausschließlich einen neu erzeugten annotierten Tag, der auf die zum Prüfzeitpunkt aktuelle `master`-SHA zeigt.
 Der SHA-Suffix muss mit dem vollständigen Commit übereinstimmen.
@@ -41,7 +41,7 @@ Nach dem autorisierten Tag-Push gibt es keinen weiteren manuellen Dispatch und k
 Atomare Azure-Revision, Readiness, Liveness, Anwendungs-Readiness und der vollständige Smoke-Vertrag bleiben unverändert.
 Ein Rückfall verwendet weiterhin ausschließlich ein früheres, vollständig geprüftes Digestpaar über den bestehenden manuellen Rollback-Pfad.
 
-Das bestehende Environment verwendet dafür ausgewählte Branch-/Tag-Regeln: `master` bleibt für den manuellen Release-/Rollback-Pfad erlaubt, `demo/v*-SNAPSHOT.*` ausschließlich für die Snapshot-Tags.
+Das bestehende Environment verwendet dafür ausgewählte Branch-/Tag-Regeln: `master` bleibt für den manuellen Release-/Rollback-Pfad erlaubt, `snapshot/v*-SNAPSHOT.*` ausschließlich für die Snapshot-Tags.
 Nach erfolgreicher Quality, OCI-Veröffentlichung, SBOM, Provenance und digestgebundener Manifestpaarprüfung prüft erst das Deployment-Gate diese Regeln und die Abwesenheit eines Required Reviewers.
 Eine fehlende Policy verhindert damit weiterhin jede Azure-Anmeldung, nicht aber die für ihre einmalige IaC-Adoption benötigte unveränderliche Artefaktassembly.
 

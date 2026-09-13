@@ -91,7 +91,7 @@ verfügbar sind.
 
 ## Release und Artefakte
 
-`.github/workflows/release.yml` ist der einzige Releasepfad.
+`.github/workflows/release.yml` und `.github/workflows/snapshot.yml` sind die einzigen Veröffentlichungseinstiege.
 Der Maintainer startet ihn für einen vorgesehenen annotierten SemVer-Tag auf
 `master`; Milestone und Project-Felder sind keine Workfloweingaben.
 Der Preflight bindet Tag, Changelog und den erfolgreichen vollständigen
@@ -125,8 +125,10 @@ Nachweis für veröffentlichte Versionen.
 ## Demo-Promotion und Deployment
 
 Ein stabiler Release ruft nach der Veröffentlichung
-`.github/workflows/demo-promote.yml` auf; Release Candidates überspringen die
+`.github/workflows/demo-publish.yml` auf; Release Candidates überspringen die
 Promotion.
+Ein Snapshot durchläuft denselben Publish-/Deploy-Baustein mit dem Kanal
+`snapshot` und erzeugt keine stabile Referenz oder einen GitHub Release.
 `demo-publish.yml` erzeugt oder verwendet ein unveränderliches App-/Seed-Paar
 mit gemeinsamem Produkt-Tag, Commit, Runtimevertrag, Schemafingerprint und
 Seed-Revision.

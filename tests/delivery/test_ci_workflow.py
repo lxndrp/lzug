@@ -243,7 +243,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "conclusion": "success",
             "event": "schedule",
         }
-        for path in ("release", "demo-publish", "demo-snapshot"):
+        for path in ("release", "product-publish", "demo-publish", "snapshot"):
             workflow = workflow_text(f".github/workflows/{path}.yml")
             expression = re.search(
                 r"jq -e --arg sha [^\n]+ '(.*?)' <<<\"\$quality_runs", workflow, re.S
