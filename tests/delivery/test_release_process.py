@@ -19,8 +19,9 @@ class ReleaseWorkflowTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.workflow = workflow_text(".github/workflows/release.yml")
+        cls.product_workflow = workflow_text(".github/workflows/product-publish.yml")
         cls.preflight = job_block(cls.workflow, "preflight")
-        cls.publish = job_block(cls.workflow, "publish")
+        cls.publish = job_block(cls.product_workflow, "publish")
 
     def test_dispatch_requires_an_explicit_semver_tag_on_master(self) -> None:
         dispatch = trigger_block(self.workflow)

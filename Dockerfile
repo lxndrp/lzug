@@ -22,7 +22,7 @@ RUN set -eu; \
     test -n "$VCS_REF"; \
     if [ -n "$RELEASE_TAG" ]; then \
       BUILD_REVISION="$VCS_REF" BUILD_RELEASE_TAG="$RELEASE_TAG" python -c \
-        'import os; from pathlib import Path; from backend.build_metadata import BuildMetadata; BuildMetadata.create(os.environ["BUILD_REVISION"], os.environ["BUILD_RELEASE_TAG"]).write(Path("/build-metadata.json"))'; \
+        'import os; from pathlib import Path; from backend.build_metadata import BuildMetadata; tag=os.environ["BUILD_RELEASE_TAG"]; BuildMetadata.create(os.environ["BUILD_REVISION"], tag, allow_demo_snapshot=tag.startswith("snapshot/")).write(Path("/build-metadata.json"))'; \
     else \
       python scripts/build_metadata.py --revision "$VCS_REF" \
         --output /build-metadata.json >/dev/null; \

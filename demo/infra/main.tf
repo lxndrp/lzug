@@ -194,7 +194,7 @@ locals {
     }
     snapshot = {
       type    = "tag"
-      pattern = "demo/v*-SNAPSHOT.*"
+      pattern = "snapshot/v*-SNAPSHOT.*"
     }
     release = {
       type    = "tag"

@@ -378,7 +378,7 @@ tasks:
           rm -rf "$temporary_directory"
         }
         trap cleanup EXIT
-        product_tag="demo/v0.2.0-SNAPSHOT.$short_revision"
+        product_tag="snapshot/v0.2.0-SNAPSHOT.$short_revision"
         build_identity=$(python3 -m demo.delivery.contract identity \
           --tag "$product_tag" --commit "$revision" --channel snapshot --field identity)
         seed_image="lzug-demo-seed:local"

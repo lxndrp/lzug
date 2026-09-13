@@ -55,13 +55,14 @@ class BuildIdentityContractTests(unittest.TestCase):
         )
         taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
         release = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
+        product = Path(".github/workflows/product-publish.yml").read_text(encoding="utf-8")
 
         self.assertIn("task quality:oci", workflows)
         self.assertIn('--revision "$revision" --field identity', taskfile)
         self.assertIn('--build-arg "BUILD_IDENTITY=$build_identity"', taskfile)
-        self.assertIn('--tag "$RELEASE_TAG" --revision "$TARGET_SHA"', release)
-        self.assertIn("RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}", release)
-        self.assertIn("VCS_REF=${{ env.TARGET_SHA }}", release)
+        self.assertIn('--tag "$RELEASE_TAG" --revision "$TARGET_SHA"', product)
+        self.assertIn("RELEASE_TAG: ${{ inputs.product_tag }}", product)
+        self.assertIn("VCS_REF=${{ env.TARGET_SHA }}", product)
         self.assertNotIn("CANDIDATE_SHA", release)
 
 
