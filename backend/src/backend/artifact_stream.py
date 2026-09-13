@@ -132,8 +132,8 @@ def run(mode: str, source: BinaryIO, output: BinaryIO, control: BinaryIO) -> int
         _write_control(control, error=error)
         return _EXIT_CODES.get(error.code, EXIT_INTERNAL)
     except Exception:
-        error = ArtifactError("internal_error", "Artifact stream operation failed")
-        _write_control(control, error=error)
+        internal_error = ArtifactError("internal_error", "Artifact stream operation failed")
+        _write_control(control, error=internal_error)
         return EXIT_INTERNAL
 
 
