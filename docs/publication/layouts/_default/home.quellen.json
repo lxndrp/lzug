@@ -1,0 +1,8 @@
+{
+  "profile": "current-publication",
+  "theme": "Blowfish",
+  "blowfish_version": "{{ .Site.Params.blowfishVersion }}",
+  "blowfish_revision": "{{ .Site.Params.blowfishRevision }}",
+  "repository": "https://github.com/lxndrp/lzug",
+  "repository_revision": "{{ .Site.Params.repositoryRevision }}"
+}

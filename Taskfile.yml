@@ -169,11 +169,22 @@ tasks:
       BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
       - >-
-        {{.UV}} python -m docs.publication build
-        --typedoc frontend/node_modules/.bin/typedoc
-        --base-url "{{.BASE_URL}}"
-        --demo-url "{{.DEMO_URL}}"
-        --output "{{.OUTPUT}}"
+        output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
+        SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+        HUGO_PARAMS_DEMOURL="{{.DEMO_URL}}"
+        HUGO_PARAMS_REPOSITORYREVISION="$(git rev-parse HEAD)"
+        hugo --source docs/publication --destination "$output"
+        --minify --gc --baseURL "{{.BASE_URL}}/"
+      - >-
+        output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
+        mkdir -p "$output/referenz/api" "$output/referenz/frontend"
+        && {{.UV}} python scripts/export_openapi.py "$output/referenz/api/openapi.json"
+        && cd frontend && node_modules/.bin/typedoc
+        --treatWarningsAsErrors --entryPointStrategy expand
+        --entryPoints src/app --out "$output/referenz/frontend"
+      - >-
+        output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
+        touch "$output/.nojekyll"
 
   docs:publication:check:
     desc: Verify that the configured public site builds byte-identically
@@ -183,11 +194,15 @@ tasks:
       DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
       BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
-      - >-
-        {{.UV}} python -m docs.publication check
-        --typedoc frontend/node_modules/.bin/typedoc
-        --base-url "{{.BASE_URL}}"
-        --demo-url "{{.DEMO_URL}}"
+      - |
+        set -eu
+        first="$(mktemp -d)"
+        second="$(mktemp -d)"
+        trap 'rm -rf "$first" "$second"' EXIT
+        task docs:publication OUTPUT="$first" DEMO_URL="{{.DEMO_URL}}" BASE_URL="{{.BASE_URL}}"
+        task docs:publication OUTPUT="$second" DEMO_URL="{{.DEMO_URL}}" BASE_URL="{{.BASE_URL}}"
+        git diff --no-index --exit-code -- "$first" "$second"
+        echo "Publication artifact is reproducible"
 
   docs:publication:linkcheck:
     desc: Check every link and fragment in the generated public site

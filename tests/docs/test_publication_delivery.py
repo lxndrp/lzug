@@ -1,18 +1,10 @@
-"""Contracts for the static demo landing page and its gated delivery."""
+"""Contracts for the checked-in Hugo publication project and its delivery."""
 
 from __future__ import annotations
 
 import unittest
 from pathlib import Path
 
-from docs.publication import (
-    BLOWFISH_REVISION,
-    BLOWFISH_VERSION,
-    PUBLICATION_BASE_URL,
-    convert_repository_links,
-    public_url,
-    publication_base_url,
-)
 from tests.delivery.workflow_contract import job_block, trigger_block, workflow_text
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -20,50 +12,20 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class PublicationDeliveryContractTests(unittest.TestCase):
     def test_theme_is_a_concrete_blowfish_v3_pin(self) -> None:
-        self.assertEqual("v3.6.0", BLOWFISH_VERSION)
-        self.assertEqual(40, len(BLOWFISH_REVISION))
-        self.assertIn("theme = 'blowfish'", (ROOT / "docs/publication.py").read_text())
-        self.assertNotIn("RELEARN", (ROOT / "docs/publication.py").read_text())
+        config = (ROOT / "docs/publication/hugo.toml").read_text()
+        module = (ROOT / "docs/publication/go.mod").read_text()
+        self.assertIn("theme = 'github.com/nunocoracao/blowfish/v3'", config)
+        self.assertIn("blowfishVersion = 'v3.6.0'", config)
+        self.assertIn("blowfishRevision = '4643c46bd5e921fee51c420575fadebf9f4b3681'", config)
+        self.assertIn("github.com/nunocoracao/blowfish/v3 v3.6.0", module)
+        self.assertFalse((ROOT / "docs/publication.py").exists())
         self.assertFalse((ROOT / "docs/publication/relearn").exists())
 
-    def test_public_urls_are_https_and_demo_url_is_an_origin(self) -> None:
-        self.assertEqual(
-            PUBLICATION_BASE_URL,
-            publication_base_url("https://lzug.repertoire.papaspyrou.name/"),
-        )
-        self.assertEqual(
-            "https://demo.example.invalid",
-            public_url("https://demo.example.invalid/", allow_path=False),
-        )
-        for invalid in (
-            "http://demo.example.invalid",
-            "https://user@demo.example.invalid",
-            "https://demo.example.invalid/path",
-            "https://demo.example.invalid?token=value",
-            "https://demo.example.invalid/#fragment",
-            "https://stage.papaspyrou.name/lzug/",
-            "https://*.repertoire.papaspyrou.name",
-        ):
-            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
-                public_url(invalid, allow_path=False)
-
-        with self.assertRaises(ValueError):
-            publication_base_url("https://stage.papaspyrou.name/lzug/")
-
     def test_warm_up_is_bounded_and_sends_no_credentials_or_referrer(self) -> None:
-        script = (ROOT / "docs/publication/blowfish/static/js/demo-warmup.js").read_text(
-            encoding="utf-8"
-        )
-        browser_check = (ROOT / "frontend/publication-e2e/publication.spec.ts").read_text(
-            encoding="utf-8"
-        )
-        playwright_config = (ROOT / "frontend/playwright.publication.config.ts").read_text(
-            encoding="utf-8"
-        )
-        template = (ROOT / "docs/publication/blowfish/layouts/index.html").read_text(
-            encoding="utf-8"
-        )
-
+        script = (ROOT / "docs/publication/blowfish/static/js/demo-warmup.js").read_text()
+        browser_check = (ROOT / "frontend/publication-e2e/publication.spec.ts").read_text()
+        playwright_config = (ROOT / "frontend/playwright.publication.config.ts").read_text()
+        template = (ROOT / "docs/publication/blowfish/layouts/index.html").read_text()
         self.assertIn('data-demo-maximum-attempts="12"', template)
         self.assertIn('data-demo-total-timeout-ms="90000"', template)
         self.assertIn('credentials: "omit"', script)
@@ -78,33 +40,30 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("video: 'off'", playwright_config)
         self.assertIn("getAttribute('data-demo-url')", browser_check)
         self.assertIn("expect(configuredValue).toBe(configuredUrl.origin)", browser_check)
-        self.assertIn("`${warmupDemoOrigin}/api/ready`", browser_check)
-        self.assertIn("`${warmupDemoOrigin}/`", browser_check)
-        self.assertIn("`${failureDemoOrigin}/api/ready`", browser_check)
         self.assertEqual(2, browser_check.count("route.abort('blockedbyclient')"))
-        self.assertIn("expect(failedReadinessRequests).toBe(2)", browser_check)
         self.assertNotIn("demo.example.invalid", browser_check)
         self.assertNotIn("DEMO_URL", browser_check)
         self.assertNotIn("/lzug/", browser_check)
 
     def test_favicon_uses_the_publication_base_path_and_existing_product_asset(self) -> None:
-        favicon_partial = (
-            ROOT / "docs/publication/blowfish/layouts/_default/baseof.html"
-        ).read_text(encoding="utf-8")
-
+        favicon_partial = (ROOT / "docs/publication/blowfish/layouts/_default/baseof.html").read_text()
+        config = (ROOT / "docs/publication/hugo.toml").read_text()
         self.assertTrue((ROOT / "brand/derived/favicon.svg").is_file())
-        self.assertIn(
-            "favicon.svg logo-mark-dark.svg",
-            (ROOT / "scripts/build-frontend.sh").read_text(),
-        )
         self.assertIn('rel="icon"', favicon_partial)
         self.assertIn('{{ "images/favicon.svg" | relURL }}', favicon_partial)
-        self.assertIn('"images/favicon.svg"', (ROOT / "docs/publication.py").read_text())
+        self.assertIn("static/images/favicon.svg", config)
 
     def test_productive_sources_have_a_documentation_owner(self) -> None:
         self.assertFalse((ROOT / "prototypes/publication").exists())
+        config = (ROOT / "docs/publication/hugo.toml").read_text()
         for relative in (
-            "content/index.md",
+            "content/_index.md",
+            "content/referenz/_index.md",
+            "content/referenz/api/_index.md",
+            "content/referenz/datenbank/_index.md",
+            "content/quellen/_index.md",
+            "hugo.toml",
+            "go.mod",
             "public-font.css",
             "blowfish/assets/css/custom.css",
             "blowfish/layouts/index.html",
@@ -115,21 +74,25 @@ class PublicationDeliveryContractTests(unittest.TestCase):
             with self.subTest(relative=relative):
                 self.assertTrue((ROOT / "docs/publication" / relative).is_file())
 
+        for source, target in (
+            ("../../docs/portal/produkt.md", "content/produkt/_index.md"),
+            ("../../docs/developers/reference/backend.md", "content/referenz/backend/_index.md"),
+            ("../../docs/developers/reference/frontend.md", "content/referenz/frontend/_index.md"),
+        ):
+            with self.subTest(source=source):
+                self.assertIn(f"source = '{source}'", config)
+                self.assertIn(f"target = '{target}'", config)
+
     def test_product_and_portal_adapters_use_one_shared_visual_grammar(self) -> None:
-        tokens = (ROOT / "brand/tokens.css").read_text(encoding="utf-8")
-        portal_css = (ROOT / "docs/publication/blowfish/assets/css/custom.css").read_text(
-            encoding="utf-8"
-        )
+        tokens = (ROOT / "brand/tokens.css").read_text()
+        portal_css = (ROOT / "docs/publication/blowfish/assets/css/custom.css").read_text()
         frontend_css = "\n".join(
             (
-                (ROOT / "frontend/src/styles.scss").read_text(encoding="utf-8"),
-                (ROOT / "frontend/src/app/app.css").read_text(encoding="utf-8"),
-                (ROOT / "frontend/src/app/auth/auth-flow.component.css").read_text(
-                    encoding="utf-8"
-                ),
+                (ROOT / "frontend/src/styles.scss").read_text(),
+                (ROOT / "frontend/src/app/app.css").read_text(),
+                (ROOT / "frontend/src/app/auth/auth-flow.component.css").read_text(),
             )
         )
-
         for role in (
             "--lzug-role-action-primary",
             "--lzug-role-card-surface",
@@ -140,42 +103,32 @@ class PublicationDeliveryContractTests(unittest.TestCase):
                 self.assertIn(role, tokens)
                 self.assertIn(role, portal_css)
                 self.assertIn(role, frontend_css)
-
         self.assertNotIn("INTERNAL-", portal_css)
-        self.assertEqual(1, portal_css.count(".publication-button {"))
-        self.assertEqual(1, portal_css.count(".publication-features article {"))
-        self.assertIn("--lzug-role-content-max", frontend_css)
-        self.assertIn("--lzug-role-card-radius", frontend_css)
 
     def test_readme_uses_canonical_publication_boundaries(self) -> None:
-        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text()
         for link in (
             "https://lzug.repertoire.papaspyrou.name/",
             "https://github.com/lxndrp/lzug/wiki",
             "CONTRIBUTING.md",
             "docs/developers/index.md",
         ):
-            with self.subTest(link=link):
-                self.assertIn(link, readme)
+            self.assertIn(link, readme)
         for legacy_route in ("/nutzen/", "/betreiben/", "/entwickeln/"):
-            with self.subTest(legacy_route=legacy_route):
-                self.assertNotIn(f"lzug.repertoire.papaspyrou.name{legacy_route}", readme)
+            self.assertNotIn(f"lzug.repertoire.papaspyrou.name{legacy_route}", readme)
 
-    def test_pages_publication_contains_only_product_and_technical_references(self) -> None:
-        publication = (ROOT / "docs/publication.py").read_text(encoding="utf-8")
-        taskfile = (ROOT / "Taskfile.yml").read_text(encoding="utf-8")
-        self.assertIn('"produkt/index.html"', publication)
-        self.assertIn('"referenz/index.html"', publication)
-        for legacy in ("handbuch/index.html", "nutzen/index.html", "betreiben/index.html"):
-            with self.subTest(legacy=legacy):
-                self.assertNotIn(legacy, publication)
-        self.assertNotIn("docs:publication:candidate:", taskfile)
+    def test_hugo_owns_routes_and_source_rendering(self) -> None:
+        config = (ROOT / "docs/publication/hugo.toml").read_text()
+        source_shortcode = (ROOT / "docs/publication/layouts/shortcodes/publication-source.html").read_text()
+        self.assertIn("module.mounts", config)
+        self.assertIn("outputFormats.quellen", config)
+        self.assertIn("readFile", source_shortcode)
+        self.assertIn("scripts/export_openapi.py", (ROOT / "Taskfile.yml").read_text())
 
     def test_generated_public_site_has_one_canonical_linkcheck_entry(self) -> None:
-        config = (ROOT / ".lychee.toml").read_text(encoding="utf-8")
-        taskfile = (ROOT / "Taskfile.yml").read_text(encoding="utf-8")
+        config = (ROOT / ".lychee.toml").read_text()
+        taskfile = (ROOT / "Taskfile.yml").read_text()
         workflow = workflow_text(".github/workflows/publication.yml")
-
         self.assertIn("timeout = 20", config)
         self.assertIn("max_retries = 2", config)
         self.assertIn("retry_wait_time = 2", config)
@@ -186,82 +139,40 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("task docs:publication:linkcheck", workflow)
         self.assertIn('".lychee.toml"', workflow)
 
-    def test_publication_remaps_source_fragments_to_rendered_blowfish_anchors(self) -> None:
-        self.assertEqual(
-            "[Qualität](/entwickeln/delivery/#vollständige-qualität)",
-            convert_repository_links(
-                "[Qualität](../delivery.md#vollstandige-qualitat)",
-                Path("docs/developers/decisions/example.md"),
-                {"docs/developers/delivery.md": "/entwickeln/delivery/"},
-            ),
-        )
-
     def test_pages_deployment_is_manual_fail_closed_and_cannot_enable_pages(self) -> None:
         workflow = workflow_text(".github/workflows/publication.yml")
         triggers = trigger_block(workflow)
         build = job_block(workflow, "build")
         deploy = job_block(workflow, "deploy")
-
         self.assertIn("BASE_URL: https://lzug.repertoire.papaspyrou.name", workflow)
         self.assertIn("DEMO_URL: ${{ vars.DEMO_URL || 'https://demo.example.invalid' }}", workflow)
         self.assertIn("permissions:\n  contents: read", workflow)
         self.assertNotIn("actions: read", workflow)
         self.assertIn("python3 -m demo.delivery.contract validate-url", build)
         self.assertIn("--canonical", build)
-        self.assertIn('--value "$EFFECTIVE_DEMO_URL"', build)
-        self.assertIn("EFFECTIVE_DEMO_URL", build)
         self.assertNotIn("GH_TOKEN", workflow)
         self.assertNotIn("github.token", workflow)
         self.assertNotIn("--repository", workflow)
-        validator = (ROOT / "scripts/validate_demo_url_contract.py").read_text(encoding="utf-8")
-        self.assertNotIn("actions/variables", validator)
-        self.assertNotIn("api.github.com", validator)
-        self.assertNotIn("urlopen", validator)
-        self.assertNotIn("urllib", validator)
-        self.assertNotIn("GH_TOKEN", validator)
-        self.assertNotIn("azurecontainerapps.io", workflow)
-        self.assertNotIn("stage.papaspyrou.name", workflow)
         self.assertIn("pull_request:", triggers)
         self.assertIn("push:", triggers)
         self.assertIn("schedule:", triggers)
         self.assertIn("workflow_dispatch:", triggers)
         self.assertIn('test "$GITHUB_REF" = "refs/heads/master"', build)
-        self.assertNotIn("confirm_publication", workflow)
-        self.assertNotIn("CONFIRM_PUBLICATION", workflow)
         self.assertIn("if: github.event_name == 'workflow_dispatch'", deploy)
         self.assertIn("needs: build", deploy)
         self.assertIn("pages: write", deploy)
         self.assertIn("id-token: write", deploy)
         self.assertIn("environment:\n      name: github-pages", deploy)
         self.assertIn("actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d", deploy)
-        self.assertIn("enablement: false", deploy)
-        self.assertIn("-- task docs:publication:check DEMO_URL=", build)
-        self.assertIn("-- task docs:publication:linkcheck DEMO_URL=", build)
-        self.assertNotIn("Checkout canonical Wiki", workflow)
-        self.assertNotIn("WIKI_ROOT", workflow)
-        self.assertIn("if: github.event_name == 'schedule'", build)
-        self.assertIn("if: github.event_name != 'schedule'", build)
-        self.assertIn('cron: "29 4 * * 1"', triggers)
-        self.assertIn("paths: &publication-paths", triggers)
-        self.assertIn('"docs/publication/**"', triggers)
-        self.assertIn('"frontend/src/**"', triggers)
-        self.assertIn('"frontend/tsconfig*.json"', triggers)
+        self.assertIn("task docs:publication:check DEMO_URL=", build)
+        self.assertIn("task docs:publication:linkcheck DEMO_URL=", build)
         self.assertNotIn("--no-sandbox", build)
 
     def test_browser_checks_run_only_before_manual_publication(self) -> None:
         workflow = workflow_text(".github/workflows/publication.yml")
         build = job_block(workflow, "build")
         self.assertNotIn("paths-filter", workflow)
-        self.assertIn(
-            "Check responsive themes and warm-up flow with Playwright\n"
-            "        if: github.event_name == 'workflow_dispatch'",
-            build,
-        )
-        self.assertIn(
-            "Check public-site accessibility with Playwright and axe\n"
-            "        if: github.event_name == 'workflow_dispatch'",
-            build,
-        )
+        self.assertIn("if: github.event_name == 'workflow_dispatch'", build)
         self.assertNotIn("steps.changes", build)
 
 

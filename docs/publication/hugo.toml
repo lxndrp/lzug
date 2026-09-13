@@ -1,0 +1,115 @@
+baseURL = 'https://lzug.repertoire.papaspyrou.name/'
+title = 'lzug'
+defaultContentLanguage = 'de'
+disableHugoGeneratorInject = true
+theme = 'github.com/nunocoracao/blowfish/v3'
+disableKinds = ['taxonomy', 'term', 'RSS']
+
+[languages.de]
+  title = 'lzug'
+  languageCode = 'de-DE'
+  languageName = 'Deutsch'
+  contentDir = 'content'
+  weight = 1
+
+[params]
+  defaultAppearance = 'light'
+  autoSwitchAppearance = true
+  enableSearch = true
+  enableCodeCopy = false
+  disableImageOptimization = true
+  disableTextInHeader = false
+  fingerprintAlgorithm = 'sha512'
+  demoURL = 'https://demo.example.invalid'
+  publicationProfile = 'current'
+  wikiURL = 'https://github.com/lxndrp/lzug/wiki'
+  repositoryURL = 'https://github.com/lxndrp/lzug'
+  securityURL = 'https://github.com/lxndrp/lzug/security'
+  supportURL = 'https://github.com/lxndrp/lzug/blob/master/SUPPORT.md'
+  repositoryDocumentationURL = 'https://github.com/lxndrp/lzug/blob/master/docs/developers/index.md'
+  repositoryRevision = 'unknown'
+  blowfishVersion = 'v3.6.0'
+  blowfishRevision = '4643c46bd5e921fee51c420575fadebf9f4b3681'
+
+[params.header]
+  layout = 'basic'
+
+[params.homepage]
+  layout = 'custom'
+  showRecent = false
+
+[params.footer]
+  showMenu = true
+  showCopyright = true
+  showThemeAttribution = true
+  showAppearanceSwitcher = true
+  showScrollToTop = true
+
+[module]
+  [[module.imports]]
+    path = 'github.com/nunocoracao/blowfish/v3'
+
+  [[module.mounts]]
+    source = 'blowfish/assets'
+    target = 'assets'
+  [[module.mounts]]
+    source = 'blowfish/layouts'
+    target = 'layouts'
+  [[module.mounts]]
+    source = 'blowfish/static'
+    target = 'static'
+  [[module.mounts]]
+    source = 'layouts'
+    target = 'layouts'
+  [[module.mounts]]
+    source = '../../docs/portal/produkt.md'
+    target = 'content/produkt/_index.md'
+  [[module.mounts]]
+    source = '../../docs/developers/reference/backend.md'
+    target = 'content/referenz/backend/_index.md'
+  [[module.mounts]]
+    source = '../../docs/developers/reference/frontend.md'
+    target = 'content/referenz/frontend/_index.md'
+  [[module.mounts]]
+    source = '../../brand/tokens.css'
+    target = 'static/css/brand-tokens.css'
+  [[module.mounts]]
+    source = 'public-font.css'
+    target = 'static/css/brand-font.css'
+  [[module.mounts]]
+    source = '../../brand/derived/favicon.svg'
+    target = 'static/images/favicon.svg'
+  [[module.mounts]]
+    source = '../../brand/derived/key-visual-light.svg'
+    target = 'static/images/brand/key-visual-light.svg'
+  [[module.mounts]]
+    source = '../../brand/derived/logo-horizontal-light.svg'
+    target = 'static/images/brand/logo-horizontal-light.svg'
+  [[module.mounts]]
+    source = '../../brand/derived/logo-horizontal-dark.svg'
+    target = 'static/images/brand/logo-horizontal-dark.svg'
+  [[module.mounts]]
+    source = '../../docs/media'
+    target = 'static/images/screenshots'
+  [[module.mounts]]
+    source = '../../docs/developers/reference/full-export-v1.schema.json'
+    target = 'static/entwickeln/reference/full-export-v1.schema.json'
+  [[module.mounts]]
+    source = '../../frontend/node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2'
+    target = 'static/fonts/inter-latin-wght-normal.woff2'
+  [[module.mounts]]
+    source = '../../frontend/node_modules/@fontsource-variable/inter/files/inter-greek-wght-normal.woff2'
+    target = 'static/fonts/inter-greek-wght-normal.woff2'
+  [[module.mounts]]
+    source = '../../frontend/node_modules/@fontsource-variable/inter/files/inter-greek-ext-wght-normal.woff2'
+    target = 'static/fonts/inter-greek-ext-wght-normal.woff2'
+
+[outputFormats.quellen]
+  mediaType = 'application/json'
+  baseName = 'quellen'
+  isPlainText = true
+  notAlternative = true
+  permalink = '/quellen.json'
+
+[markup.goldmark.renderer]
+  unsafe = true
