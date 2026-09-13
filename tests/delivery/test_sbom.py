@@ -152,6 +152,28 @@ class SbomContractTests(unittest.TestCase):
 
         self.assertEqual("2 resolved third-party module components", summary["go_boundary"])
 
+    def test_declared_publication_theme_module_is_accepted(self) -> None:
+        report = payload(
+            component("lzug", "0.1.0", "pkg:pypi/lzug@0.1.0", "AGPL-3.0-or-later"),
+            component("rxjs", "7.8.2", "pkg:npm/rxjs@7.8.2", "Apache-2.0"),
+            component(
+                "github.com/nunocoracao/blowfish/v3",
+                "v3.6.0",
+                "pkg:golang/github.com/nunocoracao/blowfish/v3@v3.6.0",
+            ),
+        )
+
+        validate_dependencies(
+            report,
+            "module github.com/lxndrp/lzug/operator-cli\n",
+            {"github.com/nunocoracao/blowfish/v3"},
+            main_modules={
+                "github.com/lxndrp/lzug/operator-cli",
+                "github.com/lxndrp/lzug/docs/publication",
+            },
+            declared_modules={"github.com/nunocoracao/blowfish/v3"},
+        )
+
     def test_go_module_outside_the_resolved_graph_is_rejected(self) -> None:
         report = payload(
             component("lzug", "0.1.0", "pkg:pypi/lzug@0.1.0", "AGPL-3.0-or-later"),
