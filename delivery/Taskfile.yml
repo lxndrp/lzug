@@ -1,0 +1,25 @@
+version: "3.52"
+
+vars:
+  UV: uv run --locked --extra dev
+
+tasks:
+  test:
+    desc: Run delivery and workflow contract tests
+    cmds:
+      - "{{.UV}} python -m unittest discover -s tests/delivery"
+
+  tooling:
+    desc: Run repository tooling tests
+    cmds:
+      - "{{.UV}} python -m unittest discover -s tests/tooling"
+
+  fixtures:
+    desc: Run synthetic fixture tests
+    cmds:
+      - "{{.UV}} python -m unittest discover -s tests/fixtures"
+
+  oci:
+    desc: Run OCI and Compose tests
+    cmds:
+      - "{{.UV}} python -m unittest discover -s tests/oci"

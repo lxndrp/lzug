@@ -1,5 +1,19 @@
 version: "3.52"
 
+includes:
+  backend:
+    taskfile: backend/Taskfile.yml
+  delivery:
+    taskfile: delivery/Taskfile.yml
+  demo:
+    taskfile: demo/Taskfile.yml
+  docs:
+    taskfile: docs/Taskfile.yml
+  frontend:
+    taskfile: frontend/Taskfile.yml
+  operator:
+    taskfile: operator-cli/Taskfile.yml
+
 vars:
   UV: uv run --locked --extra dev
 
@@ -98,76 +112,52 @@ tasks:
   test:backend:
     desc: Run backend unit tests
     cmds:
-      - "{{.UV}} python -m unittest discover -s backend/tests"
+      - task: backend:test
 
   test:frontend:
     desc: Run frontend unit tests
-    dir: frontend
     cmds:
-      - npm run test:ci
+      - task: frontend:test
 
   test:operator:
     desc: Run Go operator CLI contract tests
-    dir: operator-cli
     cmds:
-      - go test ./...
+      - task: operator:test
 
   test:demo:
     desc: Run public demo component tests
     cmds:
-      - "{{.UV}} python -m unittest discover -s demo/tests"
+      - task: demo:test
 
   test:delivery:
     desc: Run delivery and workflow contract tests
     cmds:
-      - "{{.UV}} python -m unittest discover -s tests/delivery"
+      - task: delivery:test
 
   test:docs:
     desc: Run documentation and publication tests
     cmds:
-      - "{{.UV}} python -m unittest discover -s tests/docs"
+      - task: docs:test
 
   test:fixtures:
     desc: Run synthetic fixture tests
     cmds:
-      - "{{.UV}} python -m unittest discover -s tests/fixtures"
+      - task: delivery:fixtures
 
   test:oci:
     desc: Run OCI and Compose tests
     cmds:
-      - "{{.UV}} python -m unittest discover -s tests/oci"
+      - task: delivery:oci
 
   test:tooling:
     desc: Run repository tooling tests
     cmds:
-      - "{{.UV}} python -m unittest discover -s tests/tooling"
+      - task: delivery:tooling
 
   docs:
     desc: Build the local technical reference and generated code references
     cmds:
-      - task: test:docs
-      - task: docs:check
-      - task: docs:media:check
-      - task: docs:cli
-      - task: docs:technical
-      - task: docs:frontend
-
-  docs:check:
-    desc: Check project-specific documentation structure contracts
-    cmds:
-      - python3 -m scripts.check_documentation
-
-  docs:media:check:
-    desc: Check Playwright-captured demo media metadata and image dimensions
-    cmds:
-      - python3 -m docs.media.check
-
-  docs:cli:
-    desc: Verify the generated operator CLI reference
-    internal: true
-    dir: operator-cli
-    cmds:
-      - go run ./internal/tools/cli-reference --check ../docs/developers/reference/cli.md
+      - task: docs:build
 
   docs:publication:
     desc: Build the complete static GitHub Pages artifact without deploying it
@@ -288,13 +278,7 @@ tasks:
   quality:demo-deployment:
     desc: Validate release and snapshot demo promotion, OIDC deployment, and smoke contracts
     cmds:
-      - >-
-        {{.UV}} python -m unittest
-        demo.tests.test_demo_contract
-        demo.tests.test_demo_deployment
-        demo.tests.test_demo_snapshot
-        demo.tests.test_demo_delivery_contract
-        demo.tests.test_demo_url_contract
+      - task: demo:delivery
 
   quality:sbom:
     desc: Generate and validate the dependency SBOM once
@@ -317,47 +301,32 @@ tasks:
   quality:backend:
     desc: Run backend lint, audit, tests, and coverage
     cmds:
-      - task: backend:static
-      - task: backend:coverage
+      - task: backend:quality
 
   quality:backend:pr:
     desc: Run pull-request backend quality without coverage
     cmds:
-      - task: backend:static
-      - task: test:backend
+      - task: backend:quality:pr
 
   quality:frontend:
     desc: Run frontend lint, build, and unit tests
-    dir: frontend
     cmds:
-      - npm run lint
-      - npm run format:check
-      - npm run build:ci
-      - npm run test:coverage
+      - task: frontend:quality
 
   quality:frontend-transport:
     desc: Verify TypeScript transport types against the canonical FastAPI OpenAPI document
     cmds:
-      - "{{.UV}} python scripts/generate_frontend_transport.py --check"
-
-  frontend:transport:generate:
-    desc: Generate the low-level TypeScript transport types from FastAPI OpenAPI
-    cmds:
-      - "{{.UV}} python scripts/generate_frontend_transport.py"
+      - task: frontend:transport
 
   quality:security:
     desc: Run the production npm critical security gate
-    dir: frontend
     cmds:
-      - npm run security:check
+      - task: frontend:security
 
   quality:operator:
     desc: Run Go operator CLI tests, vet, and packaging configuration validation
-    dir: operator-cli
     cmds:
-      - task: test:operator
-      - go vet ./...
-      - goreleaser check
+      - task: operator:quality
 
   quality:operator-packaging:
     desc: Verify reproducible CLI archives and their native binary SBOM
@@ -454,7 +423,7 @@ tasks:
   quality:demo-matrix:
     desc: Verify demo roles, capabilities, mutation allowlist, and default-deny paths
     cmds:
-      - "{{.UV}} python -m unittest demo.tests.test_demo_runtime"
+      - task: demo:matrix
 
   quality:overall:
     desc: Run all local cross-domain integration contracts in parallel
@@ -535,21 +504,18 @@ tasks:
 
   quality:e2e:
     desc: Run browser end-to-end tests
-    dir: frontend
     cmds:
-      - npm run test:e2e
+      - task: frontend:e2e
 
   quality:a11y:
     desc: Run browser accessibility tests
-    dir: frontend
     cmds:
-      - npm run test:a11y
+      - task: frontend:a11y
 
   quality:ui-review:
     desc: Run the focused Chromium, Firefox, and WebKit UI review matrix
-    dir: frontend
     cmds:
-      - npm run test:ui-review
+      - task: frontend:ui-review
 
   dev:
     desc: Start backend and frontend development servers in parallel
@@ -557,74 +523,15 @@ tasks:
       - dev:backend
       - dev:frontend
 
-  backend:lint:
-    internal: true
-    cmds:
-      - "{{.UV}} python -m ruff check ."
-
-  backend:static:
-    internal: true
-    cmds:
-      - task: backend:complexity
-      - task: backend:typecheck
-      - task: backend:lint
-      - task: backend:format
-      - task: backend:audit
-
-  backend:complexity:
-    desc: Report cyclomatic complexity of productive backend modules
-    cmds:
-      - >-
-        {{.UV}} python -m ruff check backend
-        --select C901
-        --exclude backend/tests
-        --output-format concise
-        --exit-zero
-
-  backend:typecheck:
-    desc: Statically check API, transport, and persistence contract models
-    cmds:
-      - "{{.UV}} python -m mypy"
-
-  backend:format:
-    internal: true
-    cmds:
-      - "{{.UV}} python -m black --check ."
-
-  backend:audit:
-    internal: true
-    cmds:
-      - "{{.UV}} python -m pip_audit --skip-editable --cache-dir /tmp/lzug-pip-audit"
-
-  backend:coverage:
-    internal: true
-    cmds:
-      - "{{.UV}} python -m coverage run -m unittest discover -s backend/tests"
-      - "{{.UV}} python -m coverage report"
-      - "{{.UV}} python -m coverage xml"
-
-  docs:technical:
-    internal: true
-    cmds:
-      - "{{.UV}} mkdocs build --strict --config-file docs/mkdocs.yml"
-
-  docs:frontend:
-    internal: true
-    dir: frontend
-    cmds:
-      - npm run docs
-
   setup:frontend:
     internal: true
-    dir: frontend
     cmds:
-      - npm ci
+      - task: frontend:setup
 
   setup:playwright:
     internal: true
-    dir: frontend
     cmds:
-      - npx playwright install chromium firefox webkit
+      - task: frontend:setup:playwright
 
   sbom:
     desc: Generate the canonical dependency and license-review CycloneDX SBOM
@@ -680,10 +587,9 @@ tasks:
   dev:backend:
     desc: Start the backend development server
     cmds:
-      - "{{.UV}} python -m backend.server --init"
+      - task: backend:dev
 
   dev:frontend:
     desc: Start the frontend development server
-    dir: frontend
     cmds:
-      - npm start
+      - task: frontend:dev

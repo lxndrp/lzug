@@ -239,7 +239,7 @@ jobs:
           cache: true
           cache-dependency-path: operator-cli/go.sum
       - name: Run pull-request backend quality
-        run: task quality:backend:pr
+        run: task backend:quality:pr
 
   frontend:
     name: Frontend details
@@ -259,7 +259,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --prefix frontend
       - name: Run frontend quality and production dependency audit
-        run: task brand:check quality:frontend quality:security
+        run: task brand:check frontend:quality frontend:security
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: frontend-coverage
@@ -291,7 +291,7 @@ jobs:
       - name: Install locked contract dependencies
         run: uv sync --locked --extra dev && npm ci --prefix frontend
       - name: Verify generated TypeScript transport types
-        run: task quality:frontend-transport
+        run: task frontend:transport
 
   cli:
     name: CLI details
@@ -319,7 +319,7 @@ jobs:
           version: 3.52.0
       - name: Test the CLI and validate its packaging configuration
         if: runner.os == 'Linux'
-        run: task quality:operator
+        run: task operator:quality
       - name: Native local endpoint contracts
         if: runner.os != 'Linux'
         working-directory: operator-cli
@@ -342,7 +342,7 @@ jobs:
         with:
           version: 3.52.0
       - run: uv sync --locked --extra dev
-      - run: task test:delivery test:tooling
+      - run: task delivery:test delivery:tooling
 
   container:
     name: Container details
@@ -363,7 +363,7 @@ jobs:
       - name: Install locked backend dependencies
         run: uv sync --locked --extra dev
       - name: Validate lzug container contracts without building an image
-        run: task test:oci
+        run: task delivery:oci
 
   infra:
     name: Infrastructure details

@@ -1,0 +1,73 @@
+version: "3.52"
+
+vars:
+  UV: uv run --locked --extra dev
+
+tasks:
+  test:
+    desc: Run backend unit tests
+    cmds:
+      - "{{.UV}} python -m unittest discover -s backend/tests"
+
+  quality:
+    desc: Run backend lint, audit, tests, and coverage
+    cmds:
+      - task: static
+      - task: coverage
+
+  quality:pr:
+    desc: Run pull-request backend quality without coverage
+    cmds:
+      - task: static
+      - task: test
+
+  static:
+    internal: true
+    cmds:
+      - task: complexity
+      - task: typecheck
+      - task: lint
+      - task: format
+      - task: audit
+
+  complexity:
+    desc: Report cyclomatic complexity of productive backend modules
+    cmds:
+      - >-
+        {{.UV}} python -m ruff check backend
+        --select C901
+        --exclude backend/tests
+        --output-format concise
+        --exit-zero
+
+  typecheck:
+    desc: Statically check API, transport, and persistence contract models
+    cmds:
+      - "{{.UV}} python -m mypy"
+
+  lint:
+    internal: true
+    cmds:
+      - "{{.UV}} python -m ruff check ."
+
+  format:
+    internal: true
+    cmds:
+      - "{{.UV}} python -m black --check ."
+
+  audit:
+    internal: true
+    cmds:
+      - "{{.UV}} python -m pip_audit --skip-editable --cache-dir /tmp/lzug-pip-audit"
+
+  coverage:
+    internal: true
+    cmds:
+      - "{{.UV}} python -m coverage run -m unittest discover -s backend/tests"
+      - "{{.UV}} python -m coverage report"
+      - "{{.UV}} python -m coverage xml"
+
+  dev:
+    desc: Start the backend development server
+    cmds:
+      - "{{.UV}} python -m backend.server --init"

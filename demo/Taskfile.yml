@@ -1,0 +1,26 @@
+version: "3.52"
+
+vars:
+  UV: uv run --locked --extra dev
+
+tasks:
+  test:
+    desc: Run public demo component tests
+    cmds:
+      - "{{.UV}} python -m unittest discover -s demo/tests"
+
+  matrix:
+    desc: Verify demo roles, capabilities, mutation allowlist, and default-deny paths
+    cmds:
+      - "{{.UV}} python -m unittest demo.tests.test_demo_runtime"
+
+  delivery:
+    desc: Validate release and snapshot demo promotion, OIDC deployment, and smoke contracts
+    cmds:
+      - >-
+        {{.UV}} python -m unittest
+        demo.tests.test_demo_contract
+        demo.tests.test_demo_deployment
+        demo.tests.test_demo_snapshot
+        demo.tests.test_demo_delivery_contract
+        demo.tests.test_demo_url_contract
