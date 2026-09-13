@@ -669,6 +669,12 @@ Runtimevertrag.
 Container-, Compose- und CLI-zu-Container-Smokes teilen Docker-Lifecycle,
 Health-Waiting und Build-Identitätsprüfung in
 `scripts/container-contract.sh`.
+Der Compose-Smoke bereitet sein isoliertes Datenvolume und ein eigenes
+temporäres Socket-Bind-Verzeichnis vor dem unveränderten Servicestart vor.
+Nur der kurzlebige Verzeichnishelfer erhält Root mit `CHOWN` und `FOWNER`;
+Initialisierung und Service laufen als `10001:10001`.
+Nach Start, Restart und Stop/Start prüft der Smoke die effektive UID/GID,
+Verzeichniseigentümerschaft und Modus `0750` sowie den Socket mit Modus `0660`.
 
 Die öffentliche Demo verwendet das getrennte Image `lzug-demo` und ein
 zugehöriges Seed-Image mit gemeinsamer Produktrevision, Runtimevertrag,
