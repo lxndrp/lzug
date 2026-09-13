@@ -50,6 +50,9 @@ disableKinds = ['taxonomy', 'term', 'RSS']
     path = 'github.com/nunocoracao/blowfish/v3'
 
   [[module.mounts]]
+    source = 'content'
+    target = 'content'
+  [[module.mounts]]
     source = 'blowfish/assets'
     target = 'assets'
   [[module.mounts]]
