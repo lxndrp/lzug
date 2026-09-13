@@ -46,7 +46,8 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertNotIn("/lzug/", browser_check)
 
     def test_favicon_uses_the_publication_base_path_and_existing_product_asset(self) -> None:
-        favicon_partial = (ROOT / "docs/publication/blowfish/layouts/_default/baseof.html").read_text()
+        favicon_partial_path = ROOT / "docs/publication/blowfish/layouts/_default/baseof.html"
+        favicon_partial = favicon_partial_path.read_text()
         config = (ROOT / "docs/publication/hugo.toml").read_text()
         self.assertTrue((ROOT / "brand/derived/favicon.svg").is_file())
         self.assertIn('rel="icon"', favicon_partial)
@@ -119,7 +120,8 @@ class PublicationDeliveryContractTests(unittest.TestCase):
 
     def test_hugo_owns_routes_and_source_rendering(self) -> None:
         config = (ROOT / "docs/publication/hugo.toml").read_text()
-        source_shortcode = (ROOT / "docs/publication/layouts/shortcodes/publication-source.html").read_text()
+        source_shortcode_path = ROOT / "docs/publication/layouts/shortcodes/publication-source.html"
+        source_shortcode = source_shortcode_path.read_text()
         self.assertIn("module.mounts", config)
         self.assertIn("outputFormats.quellen", config)
         self.assertIn("readFile", source_shortcode)
