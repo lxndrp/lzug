@@ -13,6 +13,13 @@ Wiederholung sicher ist.
 `.github/workflows/pull-request.yml` ordnet geänderte Pfade konservativ den
 Domänen Fixtures, Dokumentation, Backend, Frontend, CLI, Container, Browser und
 Infrastruktur zu.
+Manifeständerungen wählen dabei vorrangig die betroffene Komponente:
+npm bleibt bei Frontend und Transport,
+Go bei CLI und Adminsocket,
+Python-/uv-Lockdaten bei den betroffenen Python-, Delivery- und
+Containergrenzen.
+Nur nachgewiesene Querverbindungen wählen zusätzliche Prüfungen;
+Workflow-, Test-, Toolchain- und unbekannte Pfade bleiben Vollauslöser.
 Änderungen an der PR-/Quality-/Releaseauswahl, Toolchain, Abhängigkeiten und
 `Taskfile.yml` wählen alle Domänen; unbekannte Pfade ebenfalls.
 Der Public-Site-Workflow, die Linkcheck-Konfiguration und ihre Vertragstests
@@ -193,17 +200,19 @@ aus dem Hauptrepository:
 - technische Referenzen aus Docstrings/TSDoc, OpenAPI und
   `backend/db/schema.sql`.
 
-Der Build schreibt Repository- und Theme-Revision in `quellen.json`.
-`task docs:publication:check` erzeugt das Artefakt zweimal und verlangt
-Byte-Identität.
-`task docs:publication:linkcheck` baut dasselbe vollständige Artefakt und prüft
-HTML-Routen, Assets und Fragmente mit Lychee.
+Der Build schreibt Repository- und Theme-Revision in `quellen.json` sowie
+Revision, URLs, Buildparameter und Toolversionen in `publication-metadata.json`.
+`task docs:publication:check` erzeugt das Artefakt zweimal, verlangt
+Byte-Identität und übernimmt einen der verglichenen Builds als Ausgabe.
+`task docs:publication:linkcheck` prüft ein bereits erzeugtes vollständiges Artefakt
+auf HTML-Routen, Assets und Fragmente mit Lychee.
 Die Sitemap-XML bleibt ausgenommen, weil ihre von Hugo erzeugten
 `index.html`-Referenzen nicht die kanonischen öffentlichen Seitenrouten sind;
 die eigentlichen HTML-Routen werden vollständig geprüft.
 Browser- und Accessibility-Prüfung laufen getrennt.
 `.github/workflows/publication.yml` baut bei relevanten Pull Requests und
-`master`-Pushes nur ein Artefakt; ein Pages-Deployment erfolgt ausschließlich
+`master`-Pushes nur ein Artefakt und richtet alle Prüfungen auf dieses unveränderte
+Artefakt; ein Pages-Deployment erfolgt ausschließlich
 nach manuellem Dispatch auf `master` und dem geschützten Environment
 `github-pages`.
 Master-Pushes erzeugen nur das Folgeartefakt; Browser- und A11y-Nachweise werden

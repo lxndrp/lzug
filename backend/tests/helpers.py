@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 from contextlib import AbstractContextManager
 from copy import deepcopy
@@ -18,6 +19,21 @@ from backend.integrations.map_provider import MapProviderConfig
 from backend.persistence.database import initialize, is_ready
 from backend.runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from backend.security import RequestRateLimiter
+
+
+def run_admin(payload: bytes, **services: Any) -> int:
+    """Invoke the transport-neutral administrator core in unit tests."""
+    from backend.application.admin import AdminActorContext
+    from backend.fastapi_assembly import create_admin_application
+
+    result = create_admin_application(**services).handle(
+        payload,
+        AdminActorContext("test", True),
+    )
+    output = sys.stdout.buffer
+    output.write(result.encode())
+    output.flush()
+    return result.exit_code
 
 
 def development_seed_sql() -> str:

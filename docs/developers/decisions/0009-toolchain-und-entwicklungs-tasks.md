@@ -28,9 +28,14 @@ Die darin ausgeführten Prüfkommandos entsprechen weiter den lokalen Workflow-S
 
 ## Konsequenzen
 
-Die lokale Einrichtung beginnt mit `mise install` und setzt sich mit `task setup` fort.
+Die lokale Einrichtung beginnt mit `mise install` und setzt sich mit
+`mise exec -- task setup` fort.
 Python-Kommandos im Taskfile nutzen `uv run` gegen die gesperrten Entwicklungsabhängigkeiten, Frontend-Aufgaben verwenden ihr Arbeitsverzeichnis und `npm ci`.
-Die Einrichtung installiert außerdem den Playwright-Chromium-Browser; `task doctor` prüft Toolchain, virtuelle Python-Umgebung und die verwendete Browser-Executable ohne vollständigen Qualitätslauf.
+Die Einrichtung installiert die Frontend-Abhängigkeiten; die Playwright-Browser
+werden mit dem separaten `task setup:playwright`-Task geladen.
+`task doctor` prüft Toolchain und virtuelle Python-Umgebung, während
+`task doctor:playwright` die Browser-Executables ohne vollständigen
+Qualitätslauf prüft.
 `task quality` führt Backend, Frontend, Security, Operator-CLI, OCI-Build, standardisierte Dependency-SBOM, Dokumentation und Overall parallel aus.
 `task quality:overall` bündelt Container-, Compose-, CLI-zu-Container-, Browser-End-to-End- und Accessibility-Verträge.
 Die beiden Browser-Tasks bleiben separat aufrufbar, werden im lokalen Vollauf jedoch seriell ausgeführt.

@@ -12,12 +12,13 @@ from contextlib import closing, redirect_stdout
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
-from backend.admin import EXIT_OK, EXIT_TOKEN_INVALID, run
-from backend.application.admin import AdminServices, _run_command
+from backend.application.admin import EXIT_OK, EXIT_TOKEN_INVALID, AdminServices, _run_command
 from backend.identity.admin_service import AdminOperationError, IssuedAuthToken, OperatorAuthService
 from backend.identity.auth import AuthenticationRepository
 from backend.persistence.database import PersistencePaths
-from backend.tests.helpers import TempDatabase
+from backend.tests.helpers import TempDatabase, run_admin
+
+run = run_admin
 
 
 class _RecordingDependency:
@@ -48,6 +49,25 @@ class _RecordingDependency:
 
 
 class AdminAuthenticationTests(unittest.TestCase):
+    def test_removed_legacy_module_entrypoints_cannot_access_data(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            environment = os.environ.copy()
+            environment["LZUG_DATABASE_PATH"] = str(db_path)
+            for module, arguments in (
+                ("backend.admin", ("--protocol", "1")),
+                ("backend.artifact_stream", ("--protocol", "2", "produce")),
+            ):
+                with self.subTest(module=module):
+                    process = subprocess.run(
+                        [sys.executable, "-m", module, *arguments],
+                        input=b"{}\n",
+                        capture_output=True,
+                        env=environment,
+                        check=False,
+                    )
+                    self.assertNotEqual(0, process.returncode)
+                    self.assertIn(b"No module named", process.stderr)
+
     def test_bootstrap_is_once_only_and_token_is_hashed_and_single_use(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
             service = OperatorAuthService(db_path)
@@ -241,30 +261,6 @@ class AdminAuthenticationTests(unittest.TestCase):
             self.assertTrue(replay["result"]["replayed"])
             self.assertEqual([], replay["result"]["invitations"])
             self.assertNotIn(token, replay_output.getvalue().decode())
-
-    def test_module_process_uses_the_versioned_protocol_and_no_stderr_secret(self) -> None:
-        with TempDatabase(with_seed=False) as db_path:
-            environment = os.environ.copy()
-            environment["LZUG_DATABASE_PATH"] = str(db_path)
-            process = subprocess.run(
-                [sys.executable, "-m", "backend.admin", "--protocol", "1"],
-                input=json.dumps(
-                    {
-                        "version": 1,
-                        "command": "bootstrap",
-                        "arguments": {"email": "operator@example.invalid"},
-                    }
-                ).encode(),
-                capture_output=True,
-                env=environment,
-                check=False,
-            )
-
-            self.assertEqual(0, process.returncode)
-            self.assertEqual(b"", process.stderr)
-            response = json.loads(process.stdout)
-            self.assertTrue(response["ok"])
-            self.assertTrue(response["result"]["token"])
 
     def test_notification_protocol_exposes_only_synthetic_diagnostics(self) -> None:
         class Notifications:

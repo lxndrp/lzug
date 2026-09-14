@@ -17,14 +17,19 @@ Abhängigkeiten.
 
 ```sh
 mise install
-task setup
-task doctor
+mise exec -- task setup
+mise exec -- task doctor
 ```
 
 `task setup` erzeugt `.venv`, synchronisiert die gelockten Python-Pakete,
-installiert das Frontend mit `npm ci` und lädt Playwright Chromium.
-`task doctor` prüft die lokale Toolchain, den gemeinsamen uv-Cache unter
-`~/.cache/uv`, die virtuelle Umgebung und die Browser-Executable.
+installiert das Frontend mit `npm ci`.
+Der Codex-Setup-Aufruf verwendet `mise exec --`, damit auch Task-Unterprozesse
+die in `.mise.toml` gepinnten Werkzeuge verwenden.
+`task setup:playwright` lädt die Browserdaten separat.
+`task doctor` prüft die lokale Toolchain und die virtuelle Umgebung;
+`task doctor:playwright` prüft die Browser-Executables separat.
+Ein gemeinsamer uv-Cache unter `~/.cache/uv` kann lokale Codex-Läufe
+beschleunigen, ist aber keine Projektvoraussetzung.
 Persönliche Codex-, IDE- oder Secret-Konfiguration gehört nicht in das
 Repository.
 
@@ -60,7 +65,8 @@ Seiteneffekt des normalen Servers.
 | Erzeugte öffentliche Site und Portal-Links | `task docs:publication:linkcheck` |
 | querschnittliche Änderung | `task quality` |
 
-Vor Browserprüfungen läuft `task doctor`.
+Vor Browserprüfungen laufen `mise exec -- task doctor` und
+`mise exec -- task doctor:playwright`.
 
 Die öffentliche Pages-Hülle wird mit Hugo Extended und Blowfish v3.6.0 gebaut.
 Das eingecheckte Projekt unter `docs/publication/` bindet den vollständigen
@@ -122,10 +128,11 @@ betroffenen Audits, Builds und Vertragstests und in der Regel den breiten
 Qualitätspfad.
 
 Dependabot prüft Go-Module, uv, npm und GitHub Actions wöchentlich.
-Die Go-Erweiterungsmodule, Angular, Taiga UI, Frontend-Linting, Vitest und
-CodeQL werden in ihren in
-`.github/dependabot.yml` definierten technischen Familien gebündelt;
-Version- und Sicherheitsgruppen bleiben getrennt.
+Routineupdates werden in `.github/dependabot.yml` nach technischem Ökosystem
+und, bei npm, nach den bekannten Angular-, Taiga-UI-, Linting- und Vitest-
+Familien gebündelt.
+Version- und Sicherheitsgruppen bleiben getrennt;
+Majorupdates bleiben außerhalb der Routinegruppen und damit manuell.
 Eine neue Gruppierungsregel ändert bereits offene Einzel-Pull-Requests nicht
 rückwirkend.
 Ein Einzel-PR wird deshalb erst geschlossen, wenn ein sichtbarer erfolgreicher

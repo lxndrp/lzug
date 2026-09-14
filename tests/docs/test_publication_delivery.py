@@ -166,8 +166,8 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("id-token: write", deploy)
         self.assertIn("environment:\n      name: github-pages", deploy)
         self.assertIn("actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d", deploy)
-        self.assertIn("task docs:publication:check DEMO_URL=", build)
-        self.assertIn("task docs:publication:linkcheck DEMO_URL=", build)
+        self.assertIn("task docs:publication:check OUTPUT=build/publication DEMO_URL=", build)
+        self.assertIn("task docs:publication:linkcheck OUTPUT=build/publication", build)
         self.assertNotIn("--no-sandbox", build)
 
     def test_browser_checks_run_only_before_manual_publication(self) -> None:
