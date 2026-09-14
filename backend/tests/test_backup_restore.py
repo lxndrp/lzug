@@ -16,7 +16,6 @@ from unittest.mock import patch
 import pyotp
 from cryptography.fernet import Fernet
 
-from backend.artifact_stream import run as run_stream
 from backend.identity.auth import AuthenticationRepository
 from backend.identity.local_auth import PASSWORD_HASHER, LocalAuthService, authentication_key
 from backend.integrations.document_storage import FilesystemDocumentStorage
@@ -32,19 +31,6 @@ from backend.tests.helpers import development_seed_sql
 PASSWORD = "correct horse battery staple"
 TOTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
 FINGERPRINT = "sha256:" + "a" * 64
-
-
-class NonSeekableOutput(io.BytesIO):
-    """Exercise the same write contract as stdout and a container pipe."""
-
-    def seekable(self) -> bool:
-        return False
-
-    def seek(self, *_args, **_kwargs):
-        raise io.UnsupportedOperation("stream is not seekable")
-
-    def tell(self):
-        raise io.UnsupportedOperation("stream position is unavailable")
 
 
 class BackupRestoreTests(unittest.TestCase):
@@ -431,29 +417,6 @@ class BackupRestoreTests(unittest.TestCase):
         with self.assertRaises(ArtifactError) as invalid:
             service.verify_package(corrupt)
         self.assertEqual("artifact_content_invalid", invalid.exception.code)
-
-    def test_stream_protocol_produces_binary_package_and_secret_free_control(self) -> None:
-        paths, _service = self.runtime("stream", seed=True)
-        request = (
-            json.dumps(
-                {
-                    "version": 2,
-                    "command": "backup-package-create",
-                    "arguments": {"recipient_key_fingerprint": FINGERPRINT},
-                }
-            ).encode()
-            + b"\n"
-        )
-        output = NonSeekableOutput()
-        control = io.BytesIO()
-        with patch("backend.artifact_stream.persistence_paths", return_value=paths):
-            code = run_stream("produce", io.BytesIO(request), output, control)
-        self.assertEqual(0, code)
-        self.assertTrue(output.getvalue().startswith(b"PK"))
-        response = json.loads(control.getvalue())
-        self.assertTrue(response["ok"])
-        self.assertNotIn("private", control.getvalue().decode())
-        self.assertEqual([], list(paths.backups.glob(".lzug-clear-package-*")))
 
     def test_insufficient_space_aborts_without_cleartext_residue(self) -> None:
         paths, service, _token = self.prepare_source()

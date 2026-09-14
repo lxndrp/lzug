@@ -23,13 +23,12 @@ from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from backend.admin import _application
 from backend.admin_socket import AdminSocket, SocketConfig, peer_actor
 from backend.admin_socket_path import SocketPath, SocketSecurityError
 from backend.admin_socket_protocol import read_frame, write_frame
 from backend.application.admin import AdminActorContext, AdminApplicationResult
 from backend.build_metadata import BuildMetadata
-from backend.fastapi_assembly import FastAPIConfig, create_app
+from backend.fastapi_assembly import FastAPIConfig, create_admin_application, create_app
 from backend.persistence.database import initialize, persistence_paths, session_scope
 from backend.runtime import RuntimeConflictError, RuntimeCoordinator
 from backend.server import initialization_lifespan, main
@@ -51,7 +50,7 @@ class AdminSocketTests(unittest.TestCase):
         self.runtime = RuntimeCoordinator(self.paths.database, lambda: {"ready": True})
         self.runtime.start()
         self.addCleanup(self.runtime.stop)
-        self.application = _application(paths=self.paths, runtime=self.runtime)
+        self.application = create_admin_application(paths=self.paths, runtime=self.runtime)
         self.config = SocketConfig(self.directory, os.getegid(), handshake_timeout=0.5)
         self.failure = Mock()
         self.listener = AdminSocket(self.config, self.application, on_failure=self.failure)

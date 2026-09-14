@@ -19,9 +19,8 @@ from backend.persistence.database import (
     validate_persistence,
 )
 
-from .admin import _application
 from .admin_socket import AdminSocket, SocketConfig
-from .fastapi_assembly import FastAPIConfig, create_app
+from .fastapi_assembly import FastAPIConfig, create_admin_application, create_app
 from .observability import emit_event
 from .runtime import RuntimeConflictError, RuntimeCoordinator
 from .runtime_policy import ProductRuntimePolicy, RuntimePolicy
@@ -140,7 +139,7 @@ def start_admin_socket(
 
     listener = AdminSocket(
         args.admin_socket,
-        _application(settings=settings, paths=args.paths, runtime=runtime),
+        create_admin_application(settings=settings, paths=args.paths, runtime=runtime),
         on_failure=listener_failed,
     )
     listener.start()
