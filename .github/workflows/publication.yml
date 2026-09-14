@@ -132,21 +132,21 @@ jobs:
           uv sync --locked --extra dev
           npm ci --prefix frontend
 
-      - name: Build and verify reduced Pages publication
-        if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.repository_revision == '')
-        run: task docs:publication:check DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+      - name: Build the Pages publication once
+        if: github.event_name != 'schedule'
+        run: task docs:publication DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
       - name: Check the public site in Chromium
         if: github.event_name == 'pull_request'
         env:
           PLAYWRIGHT_BROWSER_CHANNEL: chrome
-        run: task docs:publication:browser
+        run: task docs:publication:browser OUTPUT=build/publication
 
       - name: Check public-site accessibility
         if: github.event_name == 'pull_request'
         env:
           PLAYWRIGHT_BROWSER_CHANNEL: chrome
-        run: task docs:publication:a11y
+        run: task docs:publication:a11y OUTPUT=build/publication
 
       - name: Upload pull-request visual evidence
         if: github.event_name == 'pull_request'
@@ -157,29 +157,29 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Verify reproducible public artifact
+      - name: Build and verify the reproducible public artifact
         if: github.event_name == 'schedule'
-        run: task docs:publication:check DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+        run: task docs:publication:check OUTPUT=build/publication DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
       - name: Check generated public-site links
         if: github.event_name == 'schedule'
-        run: task docs:publication:linkcheck DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+        run: task docs:publication:linkcheck OUTPUT=build/publication
 
-      - name: Build public artifact
+      - name: Check the built public artifact
         if: github.event_name != 'schedule'
-        run: task docs:publication:linkcheck DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+        run: task docs:publication:linkcheck OUTPUT=build/publication
 
       - name: Check responsive themes and warm-up flow with Playwright
         if: github.event_name == 'workflow_dispatch'
         env:
           PLAYWRIGHT_BROWSER_CHANNEL: chrome
-        run: npm --prefix frontend run test:publication
+        run: task docs:publication:browser OUTPUT=build/publication
 
       - name: Check public-site accessibility with Playwright and axe
         if: github.event_name == 'workflow_dispatch'
         env:
           PLAYWRIGHT_BROWSER_CHANNEL: chrome
-        run: npm --prefix frontend run test:publication:a11y
+        run: task docs:publication:a11y OUTPUT=build/publication
 
       - name: Upload checked artifact
         if: github.event_name != 'schedule'
