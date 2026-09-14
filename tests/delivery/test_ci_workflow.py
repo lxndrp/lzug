@@ -215,9 +215,14 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "actions-routine:",
         ):
             self.assertIn(routine_group, config)
+            routine_pattern = (
+                rf"{routine_group}\n"
+                r"        applies-to: version-updates\n"
+                r"        update-types: \[\"minor\", \"patch\"\]"
+            )
             self.assertRegex(
                 config,
-                rf"{routine_group}\n        applies-to: version-updates\n        update-types: \[\"minor\", \"patch\"\]",
+                routine_pattern,
             )
         for security_group in (
             "golang-x-security:",
