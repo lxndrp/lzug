@@ -60,10 +60,10 @@
     "@taiga-ui/icons": "^5.23.0",
     "@taiga-ui/kit": "^5.23.0",
     "@taiga-ui/layout": "^5.23.0",
-    "lucide": "1.39.0",
+    "lucide": "1.45.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
-    "zone.js": "^0.16.2"
+    "zone.js": "^0.16.3"
   },
   "devDependencies": {
     "@angular/build": "^22.1.7",
@@ -72,7 +72,7 @@
     "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.1",
     "@hey-api/openapi-ts": "0.99.0",
-    "@playwright/test": "^1.62.1",
+    "@playwright/test": "^1.63.0",
     "@resvg/resvg-js": "2.6.2",
     "@typescript-eslint/eslint-plugin": "^8.70.0",
     "@typescript-eslint/parser": "^8.70.0",
@@ -81,7 +81,7 @@
     "eslint-config-prettier": "^10.1.8",
     "istanbul-lib-instrument": "^6.0.3",
     "jsdom": "^30.0.1",
-    "less": "^4.9.0",
+    "less": "^4.9.1",
     "prettier": "^3.9.6",
     "sass": "^1.104.0",
     "typedoc": "^0.28.20",
