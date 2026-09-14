@@ -83,9 +83,8 @@ func TestEndpointValidationAndPrecedence(t *testing.T) {
 	if failure != nil || config.target("endpoint") != "tcp://127.0.0.1:1236" || config.Target["endpoint"].Source != "flag" {
 		t.Fatalf("precedence: %#v %#v", config, failure)
 	}
-	config.Container.Value = "legacy"
-	if validateTarget(config) == nil {
-		t.Fatal("mixed target accepted")
+	if _, _, failure := parseGlobalOptions([]string{"--container", "legacy", "system", "status"}); failure == nil || failure.ExitCode != ExitConfiguration {
+		t.Fatal("removed container option was accepted")
 	}
 }
 

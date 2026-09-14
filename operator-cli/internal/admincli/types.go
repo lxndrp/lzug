@@ -276,7 +276,7 @@ type EffectiveValue struct {
 }
 
 type EffectiveConfig struct {
-	Container EffectiveValue            `json:"container"`
+	Container EffectiveValue            `json:"-"` // retained only for source compatibility with older test adapters
 	Target    map[string]EffectiveValue `json:"target,omitempty"`
 }
 

@@ -57,10 +57,7 @@ func parseEndpoint(value string) (network, address string, err error) {
 func validateTarget(config EffectiveConfig) *CLIError {
 	endpoint := config.target("endpoint")
 	if endpoint == "" && len(config.Target) == 0 {
-		return nil // Transitional container selection is removed by #747.
-	}
-	if config.Container.Value != "" {
-		return configurationError("An endpoint target cannot include a container target.")
+		return nil
 	}
 	if _, _, err := parseEndpoint(endpoint); err != nil {
 		return configurationError("Use an absolute unix:///path endpoint or tcp://127.0.0.1:PORT (also tcp://[::1]:PORT).")
@@ -79,9 +76,9 @@ func (config EffectiveConfig) targetDescription() string {
 		}
 		return endpoint
 	}
-	return "container=" + config.Container.Value
+	return defaultAdminEndpoint
 }
 
 func (config EffectiveConfig) hasTarget() bool {
-	return config.target("endpoint") != "" || config.Container.Value != ""
+	return config.target("endpoint") != ""
 }

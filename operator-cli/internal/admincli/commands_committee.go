@@ -17,7 +17,7 @@ func committeeCommands() []Command {
 			Summary:     "Bootstrap a complete examination committee.",
 			Description: "Create one committee, select its initial chair and optional deputy, and issue any required invitations atomically.",
 			Examples: []string{
-				"lzug-admin --container lzug committee bootstrap --idempotency-key bootstrap-001 --name 'PA Nord' --ihk 'IHK Teststadt' --occupation 'Fachinformatiker/in' --chair-existing-email chair@example.invalid --chair-member-status ordinary --chair-representing-side employer",
+				"lzug-admin committee bootstrap --idempotency-key bootstrap-001 --name 'PA Nord' --ihk 'IHK Teststadt' --occupation 'Fachinformatiker/in' --chair-existing-email chair@example.invalid --chair-member-status ordinary --chair-representing-side employer",
 			},
 			Options:        bootstrapOptions,
 			Transport:      ContainerExecTransport,
@@ -42,7 +42,7 @@ func committeeCommands() []Command {
 			Summary:     "Complete an existing examination committee.",
 			Description: "Complete one imported committee with its chair and optional deputy using an idempotent administration request.",
 			Examples: []string{
-				"lzug-admin --container lzug committee complete --idempotency-key complete-001 --committee-id 7 --chair-existing-email chair@example.invalid --chair-member-status ordinary --chair-representing-side employer",
+				"lzug-admin committee complete --idempotency-key complete-001 --committee-id 7 --chair-existing-email chair@example.invalid --chair-member-status ordinary --chair-representing-side employer",
 			},
 			Options:        completeOptions,
 			Transport:      ContainerExecTransport,
@@ -63,7 +63,7 @@ func committeeCommands() []Command {
 			Summary:     "Reissue one eligible committee invitation.",
 			Description: "Reissue an invitation for one committee account through an idempotent administration request.",
 			Examples: []string{
-				"lzug-admin --container lzug committee reinvite --idempotency-key reinvite-001 --committee-id 7 --email member@example.invalid",
+				"lzug-admin committee reinvite --idempotency-key reinvite-001 --committee-id 7 --email member@example.invalid",
 			},
 			Options: []OptionSpec{
 				idempotencyOption(),
@@ -213,7 +213,7 @@ func committeeLifecycleCommand(action string, confirmation bool) Command {
 		Summary:     strings.ToUpper(action[:1]) + action[1:] + " an examination committee.",
 		Description: strings.ToUpper(action[:1]) + action[1:] + " one committee with an idempotent, reasoned administration request.",
 		Examples: []string{
-			fmt.Sprintf("lzug-admin --container lzug committee %s --idempotency-key %s-001 --committee-id 7 --reason 'Operator decision'%s", action, action, map[bool]string{true: " --force"}[confirmation]),
+			fmt.Sprintf("lzug-admin committee %s --idempotency-key %s-001 --committee-id 7 --reason 'Operator decision'%s", action, action, map[bool]string{true: " --force"}[confirmation]),
 		},
 		Options: []OptionSpec{
 			idempotencyOption(),

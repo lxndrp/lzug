@@ -75,11 +75,11 @@ type dialogRuntimeFactory struct {
 type sessionConfigResolver struct{}
 
 func (*sessionConfigResolver) Resolve(global GlobalOptions) (EffectiveConfig, *CLIError) {
-	container := EffectiveValue{Value: "lzug", Source: "file"}
-	if global.ContainerSet {
-		container = EffectiveValue{Value: global.Container, Source: "flag"}
+	config := testEndpointConfig("unix:///run/lzug-admin/admin.sock")
+	for key, value := range global.TargetValues {
+		setTargetValue(&config, key, value, "session")
 	}
-	return EffectiveConfig{Container: container}, nil
+	return config, nil
 }
 
 func (factory *dialogRuntimeFactory) Transport(EffectiveConfig) Transport {
@@ -371,7 +371,7 @@ func TestTargetChangeRequiresANewHandshake(t *testing.T) {
 	invite := successResponse(`{"account":{"id":7},"kind":"invitation","expires_at":"soon","token":"one-time"}`)
 	application, _, transport, stdout, _ := interactiveApplication(t, []string{
 		"account", "invite", "first@example.invalid",
-		"ziel", "lzug-next",
+		"ziel", "tcp://127.0.0.1:1235", "next",
 		"account", "invite", "second@example.invalid",
 		"beenden",
 	}, status, invite, status, invite)
@@ -382,7 +382,7 @@ func TestTargetChangeRequiresANewHandshake(t *testing.T) {
 	if len(transport.requests) != 4 || transport.requests[0].Command != "status" || transport.requests[2].Command != "status" {
 		t.Fatalf("target change did not invalidate the handshake: %#v", transport.requests)
 	}
-	if !strings.Contains(stdout.String(), "container=lzug-next (session)") {
+	if !strings.Contains(stdout.String(), "next (tcp://127.0.0.1:1235)") {
 		t.Fatalf("session target and source were not displayed: %q", stdout.String())
 	}
 }
