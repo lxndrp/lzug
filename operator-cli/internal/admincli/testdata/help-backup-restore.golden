@@ -25,4 +25,4 @@ Output:
   --json uses the declared local result contract on stdout.
 
 Examples:
-  lzug-admin --container lzug backup restore --artifact backup.lzug --identity-file backup.agekey --force
+  lzug-admin backup restore --artifact backup.lzug --identity-file backup.agekey --force

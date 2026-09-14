@@ -8,12 +8,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 )
 
-var containerNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`)
+const defaultAdminEndpoint = "unix:///run/lzug-admin/admin.sock"
 
 type SystemConfigResolver struct {
 	Environment   func() []string
@@ -30,7 +29,7 @@ func NewSystemConfigResolver() *SystemConfigResolver {
 }
 
 func (r *SystemConfigResolver) Resolve(global GlobalOptions) (EffectiveConfig, *CLIError) {
-	config := EffectiveConfig{Container: EffectiveValue{Value: "", Source: "default"}}
+	config := EffectiveConfig{}
 	environment, environmentError := allowedEnvironment(r.Environment())
 	if environmentError != nil {
 		return EffectiveConfig{}, environmentError
@@ -56,23 +55,12 @@ func (r *SystemConfigResolver) Resolve(global GlobalOptions) (EffectiveConfig, *
 			if parseErr != nil {
 				return EffectiveConfig{}, configurationError(parseErr.Error())
 			}
-			if value, exists := parsed["container"]; exists {
-				config.Container = EffectiveValue{Value: value, Source: "file"}
-			}
 			for key, value := range parsed {
-				if key != "container" {
-					setTargetValue(&config, key, value, "file")
-				}
+				setTargetValue(&config, key, value, "file")
 			}
 		}
 	}
 
-	if value, exists := environment["LZUG_ADMIN_CONTAINER"]; exists {
-		config.Container = EffectiveValue{Value: value, Source: "LZUG_ADMIN_CONTAINER"}
-	}
-	if global.ContainerSet {
-		config.Container = EffectiveValue{Value: global.Container, Source: "flag"}
-	}
 	for key, name := range targetEnvironment {
 		if value, exists := environment[name]; exists {
 			setTargetValue(&config, key, value, name)
@@ -82,11 +70,11 @@ func (r *SystemConfigResolver) Resolve(global GlobalOptions) (EffectiveConfig, *
 		setTargetValue(&config, key, value, "flag")
 	}
 
-	if config.Container.Value != "" && !containerNamePattern.MatchString(config.Container.Value) {
-		return EffectiveConfig{}, configurationError("The effective container must be a valid exact container name.")
-	}
 	if failure := validateTarget(config); failure != nil {
 		return EffectiveConfig{}, failure
+	}
+	if config.target("endpoint") == "" {
+		setTargetValue(&config, "endpoint", defaultAdminEndpoint, "default")
 	}
 	return config, nil
 }
@@ -107,7 +95,10 @@ func parseConfigFile(payload []byte) (map[string]string, error) {
 	sort.Strings(keys)
 	values := map[string]string{}
 	for _, key := range keys {
-		if key != "container" && targetEnvironment[key] == "" {
+		if targetEnvironment[key] == "" {
+			if key == "container" {
+				return nil, fmt.Errorf("The configuration key %q was removed; use %q instead.", key, "endpoint")
+			}
 			return nil, fmt.Errorf("The CLI configuration contains an unsupported key.")
 		}
 		var value string
@@ -142,6 +133,9 @@ func allowedEnvironment(entries []string) (map[string]string, *CLIError) {
 			isTarget = isTarget || name == variable
 		}
 		if name == "LZUG_ADMIN_CONTAINER" || isTarget {
+			if name == "LZUG_ADMIN_CONTAINER" {
+				return nil, legacyContainerError(name)
+			}
 			if strings.TrimSpace(value) == "" {
 				return nil, configurationError(fmt.Sprintf("Environment variable %s must not be empty.", name))
 			}
@@ -159,6 +153,10 @@ func allowedEnvironment(entries []string) (map[string]string, *CLIError) {
 		}
 	}
 	return allowed, nil
+}
+
+func legacyContainerError(source string) *CLIError {
+	return &CLIError{Class: "configuration_error", Message: fmt.Sprintf("%s was removed; the CLI no longer selects containers. Use --endpoint or LZUG_ADMIN_ENDPOINT for the running admin socket.", source), NextStep: "Use unix:///run/lzug-admin/admin.sock or another explicit supported local endpoint.", ExitCode: ExitConfiguration}
 }
 
 func configurationError(message string) *CLIError {

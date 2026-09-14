@@ -36,6 +36,7 @@ func GenerateReference(registry *Registry) string {
 	output.WriteString("Die Priorität lautet Flag vor Umgebungsvariable vor optionaler JSON-Datei vor Standardwert.\n\n")
 	output.WriteString("## Konfiguration und sichere Eingabe\n\n")
 	output.WriteString("`LZUG_ADMIN_ENDPOINT` und `LZUG_ADMIN_TARGET_NAME` entsprechen den Zieloptionen.\nDer Backendtransport verwendet ausschließlich den bereitgestellten lokalen Socket; Container-Engine- und Python-Prozessparameter gehören nicht zum CLI-Vertrag.\n")
+	output.WriteString("Die entfernte Option `--container`, die Umgebungsvariable `LZUG_ADMIN_CONTAINER` und das gleichnamige JSON-Feld werden mit einer Migrationsmeldung abgewiesen; sie wählen niemals stillschweigend den Standard-Endpunkt.\n")
 	output.WriteString("Ohne `--config` sucht die CLI plattformgerecht unter dem durch `os.UserConfigDir` bestimmten Verzeichnis nach `lzug/admin.json`; eine fehlende Standarddatei ist zulässig.\n")
 	output.WriteString("Eine explizite fehlende oder ungültige Datei ist ein Konfigurationsfehler, und `--no-config` unterbindet jeden Dateizugriff.\n\n")
 	output.WriteString("```json\n")

@@ -14,11 +14,11 @@ func localCommands() []Command {
 			Description: "Show the effective non-secret target together with its flag, environment, file, or default source. No configuration is changed.",
 			Examples: []string{
 				"lzug-admin config inspect",
-				"lzug-admin --no-config --container lzug config inspect --json",
+				"lzug-admin --no-config config inspect --json",
 			},
 			UsesConfig: true,
 			Transport:  LocalTransport,
-			Output:     OutputSpec{Human: HumanLocal, Verbose: VerboseSummary, JSON: JSONLocal, Summary: "Prints the effective non-secret target and its source; JSON exposes the same fields.", ResultKeys: []string{"container", "target"}},
+			Output:     OutputSpec{Human: HumanLocal, Verbose: VerboseSummary, JSON: JSONLocal, Summary: "Prints the effective non-secret socket endpoint and its source; JSON exposes the same fields.", ResultKeys: []string{"target"}},
 			Local: func(_ context.Context, local LocalContext, _ Values) (LocalResult, *CLIError) {
 				if local.Config.target("endpoint") != "" {
 					var output strings.Builder
@@ -29,13 +29,9 @@ func localCommands() []Command {
 					}
 					return LocalResult{Result: local.Config, HumanOutput: output.String()}, nil
 				}
-				container := local.Config.Container.Value
-				if container == "" {
-					container = "<unset>"
-				}
 				return LocalResult{
 					Result:      local.Config,
-					HumanOutput: fmt.Sprintf("container: %s (%s)\n", container, local.Config.Container.Source),
+					HumanOutput: fmt.Sprintf("endpoint: %s (%s)\n", defaultAdminEndpoint, "default"),
 				}, nil
 			},
 		},

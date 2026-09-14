@@ -41,7 +41,7 @@ func TestCompletionIsStaticCompleteAndSecretFree(t *testing.T) {
 		if generateErr != nil {
 			t.Fatal(generateErr)
 		}
-		for _, required := range []string{"account", "committee", "backup", "export", "completion", "container", "json"} {
+		for _, required := range []string{"account", "committee", "backup", "export", "completion", "endpoint", "json"} {
 			if !strings.Contains(script, required) {
 				t.Fatalf("%s completion lacks %q", shell, required)
 			}
@@ -89,7 +89,7 @@ func TestBashCompletionFindsCommandAfterGlobalOptionValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	script += "\nCOMP_WORDS=(lzug-admin --container lzug account invite --e)\n"
+	script += "\nCOMP_WORDS=(lzug-admin --endpoint tcp://127.0.0.1:1234 account invite --e)\n"
 	script += "COMP_CWORD=5\n_lzug_admin_completion\nprintf '%s\\n' \"${COMPREPLY[@]}\"\n"
 	output, err := exec.Command(path, "-c", script).CombinedOutput()
 	if err != nil {

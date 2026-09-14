@@ -274,7 +274,7 @@ func TestJSONModeCoversEarlyParserErrorsAndCancellation(t *testing.T) {
 		ctx  context.Context
 		code int
 	}{
-		{name: "missing value before json", args: []string{"--container", "--json", "system", "status"}, ctx: context.Background(), code: ExitInvalidInvocation},
+		{name: "removed container option", args: []string{"--container", "lzug", "--json", "system", "status"}, ctx: context.Background(), code: ExitConfiguration},
 		{name: "invalid json value", args: []string{"--json=invalid", "system", "status"}, ctx: context.Background(), code: ExitInvalidInvocation},
 		{name: "cancelled", args: []string{"--json", "system", "status"}, ctx: cancelledContext(), code: ExitInterrupted},
 	} {

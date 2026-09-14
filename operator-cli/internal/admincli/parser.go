@@ -23,7 +23,9 @@ func parseGlobalOptions(args []string) (GlobalOptions, []string, *CLIError) {
 		}
 		name, inline, hasInline := splitLongOption(token)
 		switch name {
-		case "container", "config", "endpoint", "target-name":
+		case "container":
+			return options, nil, legacyContainerError("--container")
+		case "config", "endpoint", "target-name":
 			if seen[name] {
 				return options, nil, invalidInvocation("--%s may be specified only once", name)
 			}
@@ -40,8 +42,6 @@ func parseGlobalOptions(args []string) (GlobalOptions, []string, *CLIError) {
 			}
 			seen[name] = true
 			switch name {
-			case "container":
-				options.Container, options.ContainerSet = value, true
 			case "config":
 				options.ConfigPath, options.ConfigSet = value, true
 			default:

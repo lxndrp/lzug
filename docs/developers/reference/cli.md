@@ -11,7 +11,6 @@ Die handgeschriebenen Betriebsabläufe bleiben im Administrationshandbuch.
 | --- | --- | --- |
 | `--endpoint ENDPOINT` | Existing local unix:///path or tcp://127.0.0.1:PORT admin endpoint. | - |
 | `--target-name NAME` | Non-secret display name for the endpoint target. | - |
-| `--container NAME` | Exact running container name. | - |
 | `--config FILE` | Read this explicit non-secret JSON configuration file. | - |
 | `--no-config` | Do not read a configuration file. | - |
 | `--json` | Write exactly one machine-readable result object to stdout. | - |
@@ -28,6 +27,7 @@ Die Priorität lautet Flag vor Umgebungsvariable vor optionaler JSON-Datei vor S
 
 `LZUG_ADMIN_ENDPOINT` und `LZUG_ADMIN_TARGET_NAME` entsprechen den Zieloptionen.
 Der Backendtransport verwendet ausschließlich den bereitgestellten lokalen Socket; Container-Engine- und Python-Prozessparameter gehören nicht zum CLI-Vertrag.
+Die entfernte Option `--container`, die Umgebungsvariable `LZUG_ADMIN_CONTAINER` und das gleichnamige JSON-Feld werden mit einer Migrationsmeldung abgewiesen; sie wählen niemals stillschweigend den Standard-Endpunkt.
 Ohne `--config` sucht die CLI plattformgerecht unter dem durch `os.UserConfigDir` bestimmten Verzeichnis nach `lzug/admin.json`; eine fehlende Standarddatei ist zulässig.
 Eine explizite fehlende oder ungültige Datei ist ein Konfigurationsfehler, und `--no-config` unterbindet jeden Dateizugriff.
 
@@ -88,7 +88,7 @@ Ausgabe: Prints the issued one-time token; JSON includes the validated backend r
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug account bootstrap --email operator@example.invalid
+lzug-admin account bootstrap --email operator@example.invalid
 ```
 
 ### `lzug-admin account consume-invitation`
@@ -107,7 +107,7 @@ Ausgabe: Successful human output is silent; JSON includes the account result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
-printf 'TOKEN' | lzug-admin --container lzug account consume-invitation
+printf 'TOKEN' | lzug-admin account consume-invitation
 ```
 
 ### `lzug-admin account consume-recovery`
@@ -126,7 +126,7 @@ Ausgabe: Successful human output is silent; JSON includes the account result.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
-printf 'TOKEN' | lzug-admin --container lzug account consume-recovery
+printf 'TOKEN' | lzug-admin account consume-recovery
 ```
 
 ### `lzug-admin account disable`
@@ -149,7 +149,7 @@ Ausgabe: Successful human output is silent; JSON includes account and revocation
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug account disable --account-id 7 --force
+lzug-admin account disable --account-id 7 --force
 ```
 
 ### `lzug-admin account invite`
@@ -170,7 +170,7 @@ Ausgabe: Prints the issued one-time token; JSON includes the validated backend r
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug account invite --email member@example.invalid
+lzug-admin account invite --email member@example.invalid
 ```
 
 ### `lzug-admin account recover`
@@ -192,8 +192,8 @@ Ausgabe: Prints the issued one-time token; JSON includes the validated backend r
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug account recover --account-id 7
-lzug-admin --container lzug account recover --email member@example.invalid
+lzug-admin account recover --account-id 7
+lzug-admin account recover --email member@example.invalid
 ```
 
 ### `lzug-admin artifact inspect`
@@ -231,7 +231,7 @@ Ausgabe: Prints the activated local artifact path; JSON includes secret-free met
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug backup create --output backup.lzug
+lzug-admin backup create --output backup.lzug
 ```
 
 ### `lzug-admin backup recipient replace`
@@ -254,7 +254,7 @@ Ausgabe: Shows the canonical public recipient and complete fingerprint.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug backup recipient replace --identity-file backup.agekey
+lzug-admin backup recipient replace --identity-file backup.agekey
 ```
 
 ### `lzug-admin backup recipient set`
@@ -275,7 +275,7 @@ Ausgabe: Shows the canonical public recipient and complete fingerprint.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug backup recipient set --identity-file backup.agekey
+lzug-admin backup recipient set --identity-file backup.agekey
 ```
 
 ### `lzug-admin backup recipient show`
@@ -290,7 +290,7 @@ Ausgabe: Shows the canonical public recipient and complete fingerprint.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug backup recipient show
+lzug-admin backup recipient show
 ```
 
 ### `lzug-admin backup restore`
@@ -315,7 +315,7 @@ Ausgabe: Human success is silent; JSON includes restore phases and safety eviden
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug backup restore --artifact backup.lzug --identity-file backup.agekey --force
+lzug-admin backup restore --artifact backup.lzug --identity-file backup.agekey --force
 ```
 
 ### `lzug-admin backup verify`
@@ -337,7 +337,7 @@ Ausgabe: Human success is silent; JSON contains the validated backend report.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug backup verify --artifact backup.lzug --identity-file backup.agekey
+lzug-admin backup verify --artifact backup.lzug --identity-file backup.agekey
 ```
 
 ### `lzug-admin cli`
@@ -390,7 +390,7 @@ Ausgabe: Prints newly issued one-time invitation tokens; JSON includes the techn
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug committee bootstrap --idempotency-key bootstrap-001 --name 'PA Nord' --ihk 'IHK Teststadt' --occupation 'Fachinformatiker/in' --chair-existing-email chair@example.invalid --chair-member-status ordinary --chair-representing-side employer
+lzug-admin committee bootstrap --idempotency-key bootstrap-001 --name 'PA Nord' --ihk 'IHK Teststadt' --occupation 'Fachinformatiker/in' --chair-existing-email chair@example.invalid --chair-member-status ordinary --chair-representing-side employer
 ```
 
 ### `lzug-admin committee complete`
@@ -428,7 +428,7 @@ Ausgabe: Prints newly issued one-time invitation tokens; JSON includes the techn
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug committee complete --idempotency-key complete-001 --committee-id 7 --chair-existing-email chair@example.invalid --chair-member-status ordinary --chair-representing-side employer
+lzug-admin committee complete --idempotency-key complete-001 --committee-id 7 --chair-existing-email chair@example.invalid --chair-member-status ordinary --chair-representing-side employer
 ```
 
 ### `lzug-admin committee deactivate`
@@ -455,7 +455,7 @@ Ausgabe: Successful human output is silent; JSON includes the technical lifecycl
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug committee deactivate --idempotency-key deactivate-001 --committee-id 7 --reason 'Operator decision' --force
+lzug-admin committee deactivate --idempotency-key deactivate-001 --committee-id 7 --reason 'Operator decision' --force
 ```
 
 ### `lzug-admin committee reactivate`
@@ -480,7 +480,7 @@ Ausgabe: Successful human output is silent; JSON includes the technical lifecycl
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug committee reactivate --idempotency-key reactivate-001 --committee-id 7 --reason 'Operator decision'
+lzug-admin committee reactivate --idempotency-key reactivate-001 --committee-id 7 --reason 'Operator decision'
 ```
 
 ### `lzug-admin committee reinvite`
@@ -505,7 +505,7 @@ Ausgabe: Prints the newly issued one-time invitation token; JSON includes the te
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug committee reinvite --idempotency-key reinvite-001 --committee-id 7 --email member@example.invalid
+lzug-admin committee reinvite --idempotency-key reinvite-001 --committee-id 7 --email member@example.invalid
 ```
 
 ### `lzug-admin completion bash`
@@ -576,12 +576,12 @@ Ausführung: lokale Orchestrierung mit Backendaufträgen; geheimes Schlüsselmat
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
-Ausgabe: Prints the effective non-secret target and its source; JSON exposes the same fields.
+Ausgabe: Prints the effective non-secret socket endpoint and its source; JSON exposes the same fields.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
 lzug-admin config inspect
-lzug-admin --no-config --container lzug config inspect --json
+lzug-admin --no-config config inspect --json
 ```
 
 ### `lzug-admin export create`
@@ -603,7 +603,7 @@ Ausgabe: Prints the activated local artifact path; JSON includes secret-free met
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug export create --recipient age1... --output export.lzug --force
+lzug-admin export create --recipient age1... --output export.lzug --force
 ```
 
 ### `lzug-admin export verify`
@@ -625,7 +625,7 @@ Ausgabe: Human success is silent; JSON contains the validated backend report.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug export verify --artifact export.lzug --identity-file backup.agekey
+lzug-admin export verify --artifact export.lzug --identity-file backup.agekey
 ```
 
 ### `lzug-admin notification process`
@@ -642,7 +642,7 @@ Ausgabe: Successful human output is silent; JSON includes technical counters onl
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug notification process
+lzug-admin notification process
 ```
 
 ### `lzug-admin notification test`
@@ -664,7 +664,7 @@ Ausgabe: Successful human output is silent; JSON includes synthetic technical de
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug notification test --member-id 7 --channel web_push
+lzug-admin notification test --member-id 7 --channel web_push
 ```
 
 ### `lzug-admin plan-consequence retry`
@@ -685,7 +685,7 @@ Ausgabe: Successful human output is silent; JSON includes technical counters onl
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug plan-consequence retry --revision-id 17
+lzug-admin plan-consequence retry --revision-id 17
 ```
 
 ### `lzug-admin plan-consequence status`
@@ -706,7 +706,7 @@ Ausgabe: Prints a technical status summary; JSON includes the validated technica
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
-lzug-admin --container lzug plan-consequence status --revision-id 17
+lzug-admin plan-consequence status --revision-id 17
 ```
 
 ### `lzug-admin recipient-key generate`

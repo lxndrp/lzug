@@ -97,7 +97,7 @@ func backupRecipientCommand(action string, identityOptions []OptionSpec) Command
 		Path:        []string{"backup", "recipient", action},
 		Summary:     map[string]string{"show": "Show the active public backup recipient.", "set": "Set the first public backup recipient.", "replace": "Replace the active public backup recipient."}[action],
 		Description: "Manage only the persistent public age recipient after local possession proof; private identities never reach the backend.",
-		Examples:    []string{"lzug-admin --container lzug backup recipient " + action},
+		Examples:    []string{"lzug-admin backup recipient " + action},
 		UsesConfig:  true,
 		Transport:   LocalTransport,
 		Output:      OutputSpec{Human: HumanLocal, Verbose: VerboseSummary, JSON: JSONLocal, Summary: "Shows the canonical public recipient and complete fingerprint."},
@@ -164,7 +164,7 @@ func artifactCreateCommand(kind string, output OptionSpec) Command {
 		Path:        []string{kind, "create"},
 		Summary:     map[bool]string{false: "Create a protected full backup.", true: "Create a protected full export."}[isExport],
 		Description: "Stream a backend-validated clear package directly into a local age-encrypted atomic target.",
-		Examples:    []string{map[bool]string{false: "lzug-admin --container lzug backup create --output backup.lzug", true: "lzug-admin --container lzug export create --recipient age1... --output export.lzug --force"}[isExport]},
+		Examples:    []string{map[bool]string{false: "lzug-admin backup create --output backup.lzug", true: "lzug-admin export create --recipient age1... --output export.lzug --force"}[isExport]},
 		Options:     options,
 		UsesConfig:  true,
 		Transport:   LocalTransport,
@@ -226,7 +226,7 @@ func artifactVerifyCommand(kind string, artifact OptionSpec, identityOptions []O
 		Path:        []string{kind, "verify"},
 		Summary:     "Verify a protected " + kind + " without mutation.",
 		Description: "Decrypt locally and stream the clear package to the backend for complete validation.",
-		Examples:    []string{"lzug-admin --container lzug " + kind + " verify --artifact " + kind + ".lzug --identity-file backup.agekey"},
+		Examples:    []string{"lzug-admin " + kind + " verify --artifact " + kind + ".lzug --identity-file backup.agekey"},
 		Options:     options,
 		UsesConfig:  true,
 		Transport:   LocalTransport,
@@ -269,13 +269,13 @@ func artifactRestoreCommand(artifact OptionSpec, identityOptions []OptionSpec) C
 		Path:        []string{"backup", "restore"},
 		Summary:     "Restore a protected backup.",
 		Description: "Decrypt locally, validate and stage in the backend, then activate only after every precheck succeeds.",
-		Examples:    []string{"lzug-admin --container lzug backup restore --artifact backup.lzug --identity-file backup.agekey --force"},
+		Examples:    []string{"lzug-admin backup restore --artifact backup.lzug --identity-file backup.agekey --force"},
 		Options:     options,
 		Confirmation: ConfirmationSpec{Required: true, Prompt: func(values Values, config EffectiveConfig) string {
 			if config.target("endpoint") != "" {
 				return fmt.Sprintf("Restore %q into %s?", values.String("artifact"), config.targetDescription())
 			}
-			return fmt.Sprintf("Restore %q into container %q?", values.String("artifact"), config.Container.Value)
+			return fmt.Sprintf("Restore %q into %s?", values.String("artifact"), config.targetDescription())
 		}},
 		UsesConfig:  true,
 		Transport:   LocalTransport,

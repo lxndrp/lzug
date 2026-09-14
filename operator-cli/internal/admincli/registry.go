@@ -34,7 +34,7 @@ func DefaultRegistry() (*Registry, error) {
 		{Name: "notification", Summary: "Process and test technical notifications.", Description: "Run secret-free notification processing and synthetic delivery diagnostics."},
 		{Name: "plan-consequence", Summary: "Inspect and retry confirmed-plan consequences.", Description: "Inspect or retry technical follow-up work without exposing business content."},
 		{Name: "recipient-key", Summary: "Manage local age recipient keys.", Description: "Generate and inspect local X25519 age identities without transmitting private keys."},
-		{Name: "system", Summary: "Inspect the local runtime and its readiness.", Description: "Run secret-free configuration, status, and diagnostic checks in the selected container."},
+		{Name: "system", Summary: "Inspect the local runtime and its readiness.", Description: "Run secret-free configuration, status, and diagnostic checks at the selected admin endpoint."},
 		{Name: "upgrade", Summary: "Approve data migrations and inspect rollback boundaries.", Description: "Use the existing backend socket; image and container changes belong to the container platform."},
 	}
 	commands := make([]Command, 0, 32)
@@ -110,7 +110,7 @@ func applyInteractiveMetadata(command *Command) {
 		"cli":              {"dialog", "interaktiv", "geführt"},
 		"committee":        {"ausschuss", "prüfungsausschuss", "mitglied"},
 		"completion":       {"shell", "vervollstaendigung"},
-		"config":           {"konfiguration", "ziel", "container"},
+		"config":           {"konfiguration", "ziel", "endpoint"},
 		"export":           {"export", "archiv"},
 		"notification":     {"benachrichtigung", "zustellung"},
 		"plan-consequence": {"planfolge", "termin", "status"},

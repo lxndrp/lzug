@@ -9,7 +9,6 @@ func GlobalOptionSpecs() []OptionSpec {
 	return []OptionSpec{
 		{Name: "endpoint", ValueName: "ENDPOINT", Summary: "Existing local unix:///path or tcp://127.0.0.1:PORT admin endpoint.", Kind: StringOption},
 		{Name: "target-name", ValueName: "NAME", Summary: "Non-secret display name for the endpoint target.", Kind: StringOption},
-		{Name: "container", ValueName: "NAME", Summary: "Exact running container name.", Kind: StringOption},
 		{Name: "config", ValueName: "FILE", Summary: "Read this explicit non-secret JSON configuration file.", Kind: StringOption},
 		{Name: "no-config", Summary: "Do not read a configuration file.", Kind: BooleanOption},
 		{Name: "json", Summary: "Write exactly one machine-readable result object to stdout.", Kind: BooleanOption},

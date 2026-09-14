@@ -4,35 +4,38 @@ import (
 	"errors"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
 func TestConfigurationPriorityIsFlagEnvironmentFileDefault(t *testing.T) {
 	resolver := &SystemConfigResolver{
 		Environment: func() []string {
-			return []string{"LZUG_ADMIN_CONTAINER=from-environment"}
+			return []string{"LZUG_ADMIN_ENDPOINT=tcp://127.0.0.1:1235"}
 		},
 		UserConfigDir: func() (string, error) { return "/configuration", nil },
 		ReadFile: func(path string) ([]byte, error) {
 			if path != "/configuration/lzug/admin.json" {
 				t.Fatalf("unexpected config path %q", path)
 			}
-			return []byte(`{"container":"from-file"}`), nil
+			return []byte(`{"endpoint":"tcp://127.0.0.1:1234"}`), nil
 		},
 	}
 	config, failure := resolver.Resolve(GlobalOptions{})
 	if failure != nil {
 		t.Fatal(failure)
 	}
-	want := EffectiveConfig{Container: EffectiveValue{Value: "from-environment", Source: "LZUG_ADMIN_CONTAINER"}}
+	want := EffectiveConfig{}
+	setTargetValue(&want, "endpoint", "tcp://127.0.0.1:1235", "LZUG_ADMIN_ENDPOINT")
 	if !reflect.DeepEqual(config, want) {
 		t.Fatalf("unexpected effective config: %#v", config)
 	}
-	config, failure = resolver.Resolve(GlobalOptions{Container: "from-flag", ContainerSet: true})
+	config, failure = resolver.Resolve(GlobalOptions{TargetValues: map[string]string{"endpoint": "tcp://127.0.0.1:1236"}})
 	if failure != nil {
 		t.Fatal(failure)
 	}
-	want = EffectiveConfig{Container: EffectiveValue{Value: "from-flag", Source: "flag"}}
+	want = EffectiveConfig{}
+	setTargetValue(&want, "endpoint", "tcp://127.0.0.1:1236", "flag")
 	if !reflect.DeepEqual(config, want) {
 		t.Fatalf("unexpected flag config: %#v", config)
 	}
@@ -48,7 +51,7 @@ func TestMissingDefaultConfigIsAllowedButExplicitConfigFails(t *testing.T) {
 	if failure != nil {
 		t.Fatal(failure)
 	}
-	if config.Container.Value != "" || config.Container.Source != "default" {
+	if config.target("endpoint") != defaultAdminEndpoint || config.Target["endpoint"].Source != "default" {
 		t.Fatalf("unexpected defaults: %#v", config)
 	}
 	_, failure = resolver.Resolve(GlobalOptions{ConfigPath: "/missing.json", ConfigSet: true})
@@ -59,7 +62,7 @@ func TestMissingDefaultConfigIsAllowedButExplicitConfigFails(t *testing.T) {
 
 func TestNoConfigSkipsFileAndUsesEnvironment(t *testing.T) {
 	resolver := &SystemConfigResolver{
-		Environment: func() []string { return []string{"LZUG_ADMIN_CONTAINER=lzug"} },
+		Environment: func() []string { return []string{"LZUG_ADMIN_ENDPOINT=tcp://127.0.0.1:1234"} },
 		UserConfigDir: func() (string, error) {
 			return "", errors.New("must not be called")
 		},
@@ -72,7 +75,7 @@ func TestNoConfigSkipsFileAndUsesEnvironment(t *testing.T) {
 	if failure != nil {
 		t.Fatal(failure)
 	}
-	if config.Container != (EffectiveValue{Value: "lzug", Source: "LZUG_ADMIN_CONTAINER"}) {
+	if config.target("endpoint") != "tcp://127.0.0.1:1234" {
 		t.Fatalf("unexpected no-config result: %#v", config)
 	}
 }
@@ -97,7 +100,7 @@ func TestConfigurationRejectsSecretsConfirmationsAndInvalidFiles(t *testing.T) {
 		`{"force":true}`,
 		`{"json":true}`,
 		`{"engine":"docker"}`,
-		`{"container":"../lzug"}`,
+		`{"container":"lzug"}`,
 		`[]`,
 		`{"container":"lzug"} {"container":"other"}`,
 	} {
@@ -109,5 +112,30 @@ func TestConfigurationRejectsSecretsConfirmationsAndInvalidFiles(t *testing.T) {
 		if _, failure := resolver.Resolve(GlobalOptions{}); failure == nil {
 			t.Fatalf("invalid configuration was accepted: %s", payload)
 		}
+	}
+}
+
+func TestRemovedContainerSourcesFailBeforeTransport(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		environment []string
+		file        []byte
+	}{
+		{name: "environment", environment: []string{"LZUG_ADMIN_CONTAINER=legacy"}},
+		{name: "file", file: []byte(`{"container":"legacy"}`)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			resolver := &SystemConfigResolver{
+				Environment:   func() []string { return test.environment },
+				UserConfigDir: func() (string, error) { return "/configuration", nil },
+				ReadFile:      func(string) ([]byte, error) { return test.file, nil },
+			}
+			if test.file == nil {
+				resolver.ReadFile = func(string) ([]byte, error) { return nil, os.ErrNotExist }
+			}
+			if _, failure := resolver.Resolve(GlobalOptions{}); failure == nil || failure.ExitCode != ExitConfiguration || !strings.Contains(failure.Message, "removed") {
+				t.Fatalf("legacy source was not rejected with migration guidance: %#v", failure)
+			}
+		})
 	}
 }

@@ -193,7 +193,7 @@ func (session *interactiveSession) home(ctx context.Context) (string, dialogActi
 		normalized := normalizeAction(value)
 		switch normalized {
 		case "hilfe":
-			session.write("Wählen Sie eine Nummer oder einen Objektnamen. Suche findet Name, Hilfe und Suchbegriffe. Ziel ändert den Container nur für diese Sitzung.\n")
+			session.write("Wählen Sie eine Nummer oder einen Objektnamen. Suche findet Name, Hilfe und Suchbegriffe. Ziel ändert den Socket-Endpunkt nur für diese Sitzung.\n")
 			continue
 		case "beenden":
 			return "", dialogExit, nil
@@ -563,27 +563,7 @@ func (session *interactiveSession) result(name string, code int, failure *CLIErr
 }
 
 func (session *interactiveSession) changeTarget(ctx context.Context) int {
-	if session.config.target("endpoint") != "" {
-		return session.changeSocketTarget(ctx)
-	}
-	container, action, err := session.field(ctx, "container", "Exact application container name for this session.", true, nil, session.config.Container.Value, false, Values{})
-	if err != nil {
-		return session.readFailure(ctx, err, false)
-	}
-	if action != dialogValue {
-		return ExitOK
-	}
-	global := session.global
-	global.Container, global.ContainerSet = container, true
-	config, failure := session.application.Config.Resolve(global)
-	if failure != nil {
-		session.application.Renderer.Error(global, "cli", failure)
-		return ExitOK
-	}
-	session.global, session.config, session.checked = global, config, false
-	session.config.Container.Source = "session"
-	session.showTarget()
-	return ExitOK
+	return session.changeSocketTarget(ctx)
 }
 
 func (session *interactiveSession) showTarget() {
@@ -591,11 +571,11 @@ func (session *interactiveSession) showTarget() {
 		session.write("Sitzungsziel: " + session.config.targetDescription() + "\n")
 		return
 	}
-	container := session.config.Container.Value
-	if container == "" {
-		container = "<nicht gesetzt>"
+	endpoint := session.config.target("endpoint")
+	if endpoint == "" {
+		endpoint = defaultAdminEndpoint
 	}
-	session.write(fmt.Sprintf("Sitzungsziel: container=%s (%s)\n", container, session.config.Container.Source))
+	session.write(fmt.Sprintf("Sitzungsziel: %s\n", endpoint))
 }
 
 func (session *interactiveSession) availability(command *Command) string {
