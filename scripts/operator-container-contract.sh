@@ -1,29 +1,8 @@
 #!/usr/bin/env sh
 
-# Disposable Linux CLI fixture: keys and artifacts never enter the backend.
+# The CLI is executed from the unchanged product image. Keys and artifacts remain
+# in the disposable helper container and never enter the backend.
 # Callers supply image, temporary_directory, container, socket_volume and stage.
-lzug_build_operator_cli() {
-    if [ "$(id -u)" -eq 10001 ]; then
-        echo "Smoke CLI requires a host UID distinct from backend UID 10001 for process isolation." >&2
-        return 2
-    fi
-    if [ -n "${admin_binary:-}" ]; then
-        cp "$admin_binary" "$temporary_directory/lzug-admin"
-    else
-        revision=$(git -C "$root_dir" rev-parse HEAD)
-        application_version=$(python3 "$root_dir/scripts/build_metadata.py" \
-            --revision "$revision" --field identity)
-        architecture=$(docker image inspect --format '{{.Architecture}}' "$image")
-        (
-            cd "$root_dir/operator-cli"
-            CGO_ENABLED=0 GOOS=linux GOARCH="$architecture" \
-                GOCACHE="${LZUG_GO_CACHE:-${TMPDIR:-/tmp}/lzug-go-build-cache}" \
-                go build -trimpath \
-                -ldflags="-s -w -X main.applicationVersion=$application_version -X main.applicationRevision=$revision" \
-                -o "$temporary_directory/lzug-admin" ./cmd/lzug-admin
-        )
-    fi
-}
 
 lzug_prepare_operator_socket() {
     # Prevent Docker from replacing prepared ownership when an empty volume
@@ -40,7 +19,7 @@ lzug_prepare_operator_socket() {
 lzug_operator_cli() {
     cli_status=0
     printf '%s\n' "$stage" >"$temporary_directory/last-cli.stage"
-    set -- --entrypoint "$temporary_directory/lzug-admin" "$image" "$@"
+    set -- --entrypoint /usr/local/bin/lzug-admin "$image" "$@"
     if [ "${operator_socket_ready:-false}" = true ]; then
         # SO_PEERCRED must see a positive PID. Sibling PID namespaces hide it.
         set -- --pid "container:$container" "$@"

@@ -29,6 +29,25 @@ RUN set -eu; \
     fi; \
     test "$(python -c 'from pathlib import Path; from backend.build_metadata import BuildMetadata; print(BuildMetadata.read(Path("/build-metadata.json")).identity)')" = "$BUILD_IDENTITY"
 
+FROM --platform=$BUILDPLATFORM golang:1.26.0-bookworm AS operator-cli-build
+
+ARG BUILD_IDENTITY
+ARG RELEASE_TAG=""
+ARG TARGETOS
+ARG TARGETARCH
+ARG VCS_REF
+WORKDIR /src/operator-cli
+COPY operator-cli/go.mod operator-cli/go.sum ./
+RUN go mod download
+COPY operator-cli ./
+RUN set -eu; \
+    test -n "$BUILD_IDENTITY"; \
+    test -n "$VCS_REF"; \
+    CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" \
+      go build -trimpath \
+      -ldflags="-s -w -X main.applicationVersion=$BUILD_IDENTITY -X main.applicationRevision=$VCS_REF -X main.applicationTag=$RELEASE_TAG" \
+      -o /dist/lzug-admin ./cmd/lzug-admin
+
 FROM node:26.5.0-bookworm-slim AS frontend-build
 
 WORKDIR /src/frontend
@@ -89,6 +108,7 @@ COPY --from=python-dependencies --chown=10001:10001 /src/backend/src ./backend/s
 COPY --from=build-metadata --chown=10001:10001 /build-metadata.json ./backend/src/build-metadata.json
 COPY --chown=10001:10001 backend/db ./backend/db
 COPY --from=frontend-build --chown=10001:10001 /src/frontend/dist/frontend/browser ./frontend
+COPY --from=operator-cli-build --chown=10001:10001 /dist/lzug-admin /usr/local/bin/lzug-admin
 
 USER 10001:10001
 EXPOSE 8000

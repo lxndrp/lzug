@@ -312,7 +312,7 @@ class SbomContractTests(unittest.TestCase):
         ):
             cli_modules(Path("binary"), go_mod)
 
-    def test_image_sbom_excludes_build_only_ecosystems(self) -> None:
+    def test_image_sbom_excludes_npm_but_retains_embedded_go_cli_modules(self) -> None:
         report = payload(
             component("sqlalchemy", "2.0.51", "pkg:pypi/sqlalchemy@2.0.51", "MIT"),
             component("base-files", "12.4", "pkg:deb/debian/base-files@12.4"),
@@ -328,10 +328,12 @@ class SbomContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "build-only ecosystems"):
             validate_image(invalid)
 
-        invalid = copy.deepcopy(report)
-        invalid["components"].append(component("stdlib", "go1.26.5", "pkg:golang/stdlib@go1.26.5"))
-        with self.assertRaisesRegex(ValueError, "build-only ecosystems: golang"):
-            validate_image(invalid)
+        embedded_cli = copy.deepcopy(report)
+        embedded_cli["components"].append(
+            component("stdlib", "go1.26.5", "pkg:golang/stdlib@go1.26.5")
+        )
+        summary = validate_image(embedded_cli)
+        self.assertEqual({"deb": 1, "golang": 1, "pypi": 1}, summary["purl_types"])
 
     def test_release_sbom_aggregates_eight_detailed_boms(self) -> None:
         details = release_detail_payloads()

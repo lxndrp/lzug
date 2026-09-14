@@ -593,7 +593,7 @@ def validate_image(payload: dict[str, Any]) -> dict[str, Any]:
     counts = Counter(filter(None, (component_purl_type(item) for item in components)))
     if not counts["pypi"]:
         raise ValueError("image SBOM contains no installed Python components")
-    unexpected = sorted(kind for kind in ("npm", "golang") if counts[kind])
+    unexpected = sorted(kind for kind in ("npm",) if counts[kind])
     if unexpected:
         raise ValueError(
             "final image unexpectedly contains build-only ecosystems: " + ", ".join(unexpected)
@@ -601,7 +601,10 @@ def validate_image(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "components": len(components),
         "purl_types": dict(sorted(counts.items())),
-        "scope": "final OCI image; npm build dependencies and the separate Go CLI are excluded",
+        "scope": (
+            "final OCI image; npm build dependencies are excluded while "
+            "embedded Go CLI modules are retained"
+        ),
     }
 
 
