@@ -52,14 +52,19 @@ jobs:
           python3 -m demo.delivery.contract identity \
             --tag "$SNAPSHOT_TAG" --commit "$target_sha" \
             --channel snapshot --field identity >/dev/null
-          quality_runs=$(gh api \
-            "repos/${{ github.repository }}/actions/workflows/quality.yml/runs?branch=master&head_sha=$target_sha&status=success&per_page=100")
-          jq -e --arg sha "$target_sha" '
-            any(.workflow_runs[];
-              .head_sha == $sha and .head_branch == "master" and
-              (.event == "schedule" or .event == "workflow_dispatch") and
-              .conclusion == "success")
-          ' <<<"$quality_runs" >/dev/null
+          gh api --paginate --slurp "repos/${{ github.repository }}/actions/workflows/quality.yml/runs?branch=master&per_page=100" > "$RUNNER_TEMP/quality-runs.json"
+          gh api --paginate --slurp "repos/${{ github.repository }}/actions/artifacts?per_page=100" > "$RUNNER_TEMP/quality-artifacts.json"
+          python3 scripts/quality_evidence.py \
+            --runs "$RUNNER_TEMP/quality-runs.json" \
+            --artifacts "$RUNNER_TEMP/quality-artifacts.json" \
+            --sha "$target_sha" \
+            --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --required-artifact quality-evidence-v2 \
+            --required-artifact backend-coverage \
+            --required-artifact frontend-coverage \
+            --required-artifact lzug-documentation \
+            --required-artifact lzug-sboms > "$RUNNER_TEMP/quality-decision.json"
+          jq -e '.decision == "reused"' "$RUNNER_TEMP/quality-decision.json" >/dev/null
           printf 'snapshot_tag=%s\ntarget_sha=%s\n' "$SNAPSHOT_TAG" "$target_sha" >> "$GITHUB_OUTPUT"
 
   product:

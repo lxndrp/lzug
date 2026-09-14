@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 import os
-import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -260,6 +258,36 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("inputs.revision", self.quality)
         self.assertIn("QUALITY_REVISION: ${{ github.sha }}", self.quality)
 
+    def test_quality_reuses_complete_evidence_but_keeps_audit_frequency(self) -> None:
+        revision = job_block(self.quality, "revision")
+        self.assertIn("actions/workflows/quality.yml/runs", revision)
+        self.assertIn("actions/artifacts", revision)
+        self.assertIn("quality-evidence-v2", revision)
+        self.assertIn("source_run_id", revision)
+        self.assertIn("force_full", self.quality)
+        self.assertIn("cancel-in-progress: false", self.quality)
+        audits = job_block(self.quality, "audits")
+        self.assertIn(
+            "decision == 'execute' || needs.revision.outputs.decision == 'reused'",
+            audits,
+        )
+        self.assertIn("task quality:security", audits)
+        self.assertIn(
+            "decision == 'execute' || needs.revision.outputs.decision == 'reused'",
+            job_block(self.quality, "source-scan"),
+        )
+
+    def test_complete_evidence_requires_all_deterministic_jobs(self) -> None:
+        evidence = job_block(self.quality, "complete-evidence")
+        jobs = (
+            "fixtures", "backend", "frontend", "transport", "docs", "cli",
+            "infra", "delivery", "container", "e2e", "a11y", "codeql",
+            "source-scan", "audits",
+        )
+        for job in jobs:
+            self.assertIn(job, evidence)
+        self.assertIn("quality-evidence-v2", evidence)
+
     def test_pr_defers_product_browser_packaging_and_demo_checks_to_quality(self) -> None:
         self.assertNotIn("\n  fixtures:\n", self.pull_request)
         self.assertNotIn("\n  e2e:\n", self.pull_request)
@@ -301,44 +329,18 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("transport", frontend_gate)
         self.assertIn("TRANSPORT_SELECTED", frontend_gate)
 
-    def test_release_and_both_promotion_channels_reject_wrong_quality_evidence(self) -> None:
-        sha = "a" * 40
-        valid = {
-            "head_sha": sha,
-            "head_branch": "master",
-            "conclusion": "success",
-            "event": "schedule",
-        }
+    def test_release_and_promotion_workflows_require_the_complete_selector(self) -> None:
         for path in ("release", "product-publish", "demo-publish", "snapshot"):
             workflow = workflow_text(f".github/workflows/{path}.yml")
-            expression = re.search(
-                r"jq -e --arg sha [^\n]+ '(.*?)' <<<\"\$quality_runs", workflow, re.S
-            )
-            self.assertIsNotNone(expression, path)
-            assert expression is not None
-            for change, accepted in (
-                ({}, True),
-                ({"event": "workflow_dispatch"}, True),
-                ({"head_sha": "b" * 40}, False),
-                ({"head_branch": "topic"}, False),
-                ({"conclusion": "failure"}, False),
-                ({"conclusion": "cancelled"}, False),
-                ({"event": "push"}, False),
-                ({"event": "workflow_call"}, False),
-            ):
-                with self.subTest(workflow=path, change=change):
-                    result = subprocess.run(
-                        ["jq", "-e", "--arg", "sha", sha, expression.group(1)],
-                        input=json.dumps({"workflow_runs": [valid | change]}),
-                        text=True,
-                        capture_output=True,
-                        check=False,
-                    )
-                    self.assertEqual(accepted, result.returncode == 0, result.stderr)
+            with self.subTest(workflow=path):
+                self.assertIn("scripts/quality_evidence.py", workflow)
+                self.assertIn("quality-evidence-v2", workflow)
+                self.assertIn(".decision == \"reused\"", workflow)
 
     def test_dispatch_rejects_a_moved_master_or_another_branch(self) -> None:
         gate = job_block(self.quality, "revision")
         command = gate.split("        run: |\n", 1)[1]
+        command = command.split("      - name: Select reusable complete evidence", 1)[0]
         command = "\n".join(line[10:] for line in command.splitlines())
         valid = {
             "GITHUB_SHA": "a" * 40,

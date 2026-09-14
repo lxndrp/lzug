@@ -51,13 +51,19 @@ jobs:
           )
           escaped_version=${version//./\\.}
           test "$(grep -Ec "^## \\[$escaped_version\\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md)" = 1
-          quality_runs=$(gh api "repos/$GH_REPO/actions/workflows/quality.yml/runs?branch=master&head_sha=$TARGET_SHA&status=success&per_page=100")
-          jq -e --arg sha "$TARGET_SHA" '
-            any(.workflow_runs[];
-              .head_sha == $sha and .head_branch == "master" and
-              (.event == "schedule" or .event == "workflow_dispatch") and
-              .conclusion == "success")
-          ' <<<"$quality_runs" >/dev/null
+          gh api --paginate --slurp "repos/$GH_REPO/actions/workflows/quality.yml/runs?branch=master&per_page=100" > "$RUNNER_TEMP/quality-runs.json"
+          gh api --paginate --slurp "repos/$GH_REPO/actions/artifacts?per_page=100" > "$RUNNER_TEMP/quality-artifacts.json"
+          python3 scripts/quality_evidence.py \
+            --runs "$RUNNER_TEMP/quality-runs.json" \
+            --artifacts "$RUNNER_TEMP/quality-artifacts.json" \
+            --sha "$TARGET_SHA" \
+            --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --required-artifact quality-evidence-v2 \
+            --required-artifact backend-coverage \
+            --required-artifact frontend-coverage \
+            --required-artifact lzug-documentation \
+            --required-artifact lzug-sboms > "$RUNNER_TEMP/quality-decision.json"
+          jq -e '.decision == "reused"' "$RUNNER_TEMP/quality-decision.json" >/dev/null
           printf 'release_tag=%s\ntarget_sha=%s\n' "$RELEASE_TAG" "$TARGET_SHA" >> "$GITHUB_OUTPUT"
 
   product:
