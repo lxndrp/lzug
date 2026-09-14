@@ -67,7 +67,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
         )
         changes = job_block(self.pull_request, "changes")
         self.assertIn(
-            "codeql_languages: '[\"python\",\"javascript-typescript\",\"go\"]'",
+            'codeql_languages: \'["python","javascript-typescript","go"]\'',
             changes,
         )
         self.assertNotIn("Select CodeQL languages", changes)
@@ -89,9 +89,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
         category = ".github/workflows/ci.yml:codeql/language:${{ matrix.language }}"
         self.assertIn(category, self.codeql)
         self.assertEqual(
-            self.pull_request.count(
-                "languages: ${{ needs.changes.outputs.codeql_languages }}"
-            ),
+            self.pull_request.count("languages: ${{ needs.changes.outputs.codeql_languages }}"),
             1,
         )
 
