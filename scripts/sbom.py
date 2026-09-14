@@ -601,7 +601,10 @@ def validate_image(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "components": len(components),
         "purl_types": dict(sorted(counts.items())),
-        "scope": "final OCI image; npm build dependencies are excluded while embedded Go CLI modules are retained",
+        "scope": (
+            "final OCI image; npm build dependencies are excluded while "
+            "embedded Go CLI modules are retained"
+        ),
     }
 
 

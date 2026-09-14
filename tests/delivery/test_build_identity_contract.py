@@ -36,10 +36,13 @@ class BuildIdentityContractTests(unittest.TestCase):
         operator_smoke = Path("scripts/operator-container-smoke.sh").read_text(encoding="utf-8")
 
         self.assertIn("AS operator-cli-build", dockerfile)
-        self.assertIn("GOOS=\"$TARGETOS\" GOARCH=\"$TARGETARCH\"", dockerfile)
+        self.assertIn('GOOS="$TARGETOS" GOARCH="$TARGETARCH"', dockerfile)
         self.assertIn("go build -trimpath", dockerfile)
         self.assertIn("/usr/local/bin/lzug-admin", dockerfile)
-        self.assertIn("--entrypoint /usr/local/bin/lzug-admin", Path("scripts/operator-container-contract.sh").read_text())
+        self.assertIn(
+            "--entrypoint /usr/local/bin/lzug-admin",
+            Path("scripts/operator-container-contract.sh").read_text(),
+        )
         self.assertIn("docker exec --user 10001:10001", operator_smoke)
         self.assertIn("command -v go", operator_smoke)
         self.assertIn('cmp "$temporary_directory/container-metadata.json"', operator_smoke)

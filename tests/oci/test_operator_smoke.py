@@ -31,7 +31,11 @@ elif args[0] == "exec":
         elif "--build-metadata" in args:
             print("{}")
         else:
-            print(json.dumps({"schema_version": 1, "protocol_version": 1, "exit_code": 0, "ok": True}))
+            print(
+                json.dumps(
+                    {"schema_version": 1, "protocol_version": 1, "exit_code": 0, "ok": True}
+                )
+            )
     elif args[-2:] == ["id", "-u"]:
         print("10001")
     elif args[-1] == "/app/backend/src/build-metadata.json":
