@@ -182,8 +182,9 @@ Transaktionen und Repositories wie HTTP.
 `AdminApplication` erhält den serverseitig ermittelten technischen Akteur,
 Service-Factories und Persistenzpfade ausdrücklich vom jeweiligen Adapter.
 Der Anwendungskern liest und schreibt keine globalen Prozessstreams;
-`backend.admin` kapselt bis zur vollständigen Socketumstellung den bisherigen
-stdin/stdout-Einstieg als Kompatibilitätsadapter.
+Die Socket-Adapter sind die einzigen ausführbaren Betreibergrenzen des aktuellen
+Backends; der Anwendungskern wird ausschließlich in der Backend-Assembly
+komponiert.
 
 `backend.admin_socket.AdminSocket` bindet den Kontrolltransport im selben Prozess
 an HTTP und den injizierten Anwendungskern.

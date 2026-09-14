@@ -23,8 +23,10 @@ task doctor
 
 `task setup` erzeugt `.venv`, synchronisiert die gelockten Python-Pakete,
 installiert das Frontend mit `npm ci` und lädt Playwright Chromium.
-`task doctor` prüft die lokale Toolchain, den gemeinsamen uv-Cache unter
-`~/.cache/uv`, die virtuelle Umgebung und die Browser-Executable.
+`task doctor` prüft die lokale Toolchain, die virtuelle Umgebung und die
+Browser-Executable.
+Ein gemeinsamer uv-Cache unter `~/.cache/uv` kann lokale Codex-Läufe
+beschleunigen, ist aber keine Projektvoraussetzung.
 Persönliche Codex-, IDE- oder Secret-Konfiguration gehört nicht in das
 Repository.
 
