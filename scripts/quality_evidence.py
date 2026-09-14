@@ -33,7 +33,8 @@ def select_evidence(
     force_full: bool = False,
 ) -> dict[str, Any]:
     runs = [
-        run for run in payload_items(runs_payload, "workflow_runs")
+        run
+        for run in payload_items(runs_payload, "workflow_runs")
         if run.get("head_sha") == target_sha
         and run.get("head_branch") == "master"
         and run.get("event") in QUALITY_EVENTS
@@ -74,7 +75,7 @@ def select_evidence(
     for run in sorted(successful, key=lambda item: item.get("id", 0), reverse=True):
         try:
             age_hours = (now - parse_time(run["completed_at"])).total_seconds() / 3600
-        except (KeyError, TypeError, ValueError):
+        except KeyError, TypeError, ValueError:
             continue
         run_id = str(run.get("id"))
         available = artifacts_by_run.get(run_id, set())

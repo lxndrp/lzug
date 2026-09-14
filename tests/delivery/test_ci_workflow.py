@@ -280,9 +280,20 @@ class QualityWorkflowContractTests(unittest.TestCase):
     def test_complete_evidence_requires_all_deterministic_jobs(self) -> None:
         evidence = job_block(self.quality, "complete-evidence")
         jobs = (
-            "fixtures", "backend", "frontend", "transport", "docs", "cli",
-            "infra", "delivery", "container", "e2e", "a11y", "codeql",
-            "source-scan", "audits",
+            "fixtures",
+            "backend",
+            "frontend",
+            "transport",
+            "docs",
+            "cli",
+            "infra",
+            "delivery",
+            "container",
+            "e2e",
+            "a11y",
+            "codeql",
+            "source-scan",
+            "audits",
         )
         for job in jobs:
             self.assertIn(job, evidence)
@@ -335,7 +346,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             with self.subTest(workflow=path):
                 self.assertIn("scripts/quality_evidence.py", workflow)
                 self.assertIn("quality-evidence-v2", workflow)
-                self.assertIn(".decision == \"reused\"", workflow)
+                self.assertIn('.decision == "reused"', workflow)
 
     def test_dispatch_rejects_a_moved_master_or_another_branch(self) -> None:
         gate = job_block(self.quality, "revision")
