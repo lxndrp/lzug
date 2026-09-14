@@ -58,6 +58,12 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 workflow = path.read_text(encoding="utf-8")
                 self.assertNotRegex(workflow, r"runs-on:\s*\S+-latest\b")
 
+    def test_quality_validates_all_workflows_with_actionlint(self) -> None:
+        workflow_job = job_block(self.quality, "workflows")
+        self.assertIn("name: GitHub Actions workflows", workflow_job)
+        self.assertIn("mise install aqua:rhysd/actionlint@1.7.12", workflow_job)
+        self.assertIn("mise exec -- actionlint", workflow_job)
+
     def test_pull_request_codeql_matrix_covers_all_configured_languages(self) -> None:
         self.assertIn(
             "language: ${{ fromJSON(inputs.languages) }}",
