@@ -87,7 +87,9 @@ jobs:
             --required-artifact lzug-documentation
             --required-artifact lzug-sboms
           )
-          test "$FORCE_FULL" = true && args+=(--force-full) || true
+          if test "$FORCE_FULL" = true; then
+            args+=(--force-full)
+          fi
           python3 scripts/quality_evidence.py "${args[@]}" > "$RUNNER_TEMP/quality-decision.json"
           tee -a "$GITHUB_STEP_SUMMARY" < "$RUNNER_TEMP/quality-decision.json"
           decision=$(jq -r .decision "$RUNNER_TEMP/quality-decision.json")
