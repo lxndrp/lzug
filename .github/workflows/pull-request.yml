@@ -205,7 +205,7 @@ jobs:
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           install: false
-      - run: mise install aqua:rhysd/actionlint@1.7.12
+      - run: mise install aqua:go-task/task@3.52.0 aqua:rhysd/actionlint@1.7.12
       - run: mise exec -- task quality:workflows
 
   docs:
