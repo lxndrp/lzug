@@ -20,7 +20,7 @@ Der Demo-Pfad darf außerdem weder bereits bestätigte Quality-Evidenz noch dekl
 
 ## Entscheidung
 
-Der Releaseworkflow veröffentlicht den GitHub Release zuerst und ruft danach für stabile SemVer-Tags direkt den wiederverwendbaren Workflow `.github/workflows/demo-promote.yml` über `workflow_call` auf.
+Der Releaseworkflow veröffentlicht den GitHub Release zuerst und ruft danach für stabile SemVer-Tags direkt den wiederverwendbaren Workflow `.github/workflows/demo-publish.yml` über `workflow_call` auf.
 Release Candidates werden nicht promotet.
 Der Pfad besitzt kein zweites `release`-Environment; dessen Freigabe bleibt das einzige menschliche Gate des stabilen Produktpfads.
 Ein Demo-Fehler lässt Tag, Produktimage, CLI-Archive, SBOM und GitHub Release unverändert und erscheint als eigener nachgelagerter Jobfehler.
@@ -46,7 +46,7 @@ Der finale Smoke umfasst `/api/health`; ein separates vorgelagertes Health-Polli
 Der Snapshotpfad startet keine zweite vollständige Quality-Pipeline.
 Er akzeptiert nur vorhandene erfolgreiche vollständige Quality-Evidenz für dieselbe aktuelle `master`-SHA und verwendet danach den gemeinsamen Deploymentworkflow.
 Milestone-, Release- und GitHub-Environment-Policy-Abfragen gehören nicht in seinen Laufzeitpfad.
-Die Environment-Regeln für `master`, `demo/v*-SNAPSHOT.*` und stabile `v*`-Tags bleiben deklarativ in OpenTofu; ihre reale Aktivierung erfordert weiterhin ein gesondertes Maintainer-GO.
+Die Environment-Regeln für `master`, `snapshot/v*-SNAPSHOT.*` und stabile `v*`-Tags bleiben deklarativ in OpenTofu; ihre reale Aktivierung erfordert weiterhin ein gesondertes Maintainer-GO.
 
 ## Fehler- und Wiederanlaufvertrag
 

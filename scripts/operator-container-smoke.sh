@@ -4,70 +4,76 @@ set -eu
 
 root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$root_dir/scripts/container-contract.sh"
+. "$root_dir/scripts/operator-container-contract.sh"
 image="${1:-lzug-app:smoke}"
 admin_binary="${LZUG_ADMIN_BINARY:-}"
 
 lzug_require_docker
 
 temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/lzug-operator-container.XXXXXX")
-mkdir "$temporary_directory/socket"
 container="lzug-operator-smoke-$$"
 volume="$container-data"
-if [ -z "$admin_binary" ]; then
-    admin_binary="$temporary_directory/lzug-admin"
-    revision=$(git -C "$root_dir" rev-parse HEAD)
-    application_version=$(
-        python3 "$root_dir/scripts/build_metadata.py" \
-            --revision "$revision" --field identity
-    )
-    (
-        cd "$root_dir/operator-cli"
-        go build -trimpath \
-            -ldflags="-s -w -X main.applicationVersion=$application_version -X main.applicationRevision=$revision" \
-            -o "$admin_binary" ./cmd/lzug-admin
-    )
-fi
+socket_volume="$container-socket"
+stage="prepare CLI"
 cleanup() {
+    status=$?
+    trap - EXIT
+    if [ "$status" -ne 0 ]; then
+        lzug_operator_failure "$status"
+    fi
     lzug_cleanup_contract_container "$container" "$volume"
+    docker volume rm "$socket_volume" >/dev/null 2>&1 || true
     rm -rf "$temporary_directory"
+    exit "$status"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
-"$admin_binary" recipient-key generate \
+lzug_build_operator_cli
+stage="prepare private socket volume"
+lzug_prepare_operator_socket
+stage="generate recipient keys"
+lzug_operator_cli recipient-key generate \
     --identity-file "$temporary_directory/backup.agekey" \
     --recipient-file "$temporary_directory/backup.agepub" >/dev/null
-"$admin_binary" recipient-key generate \
+lzug_operator_cli recipient-key generate \
     --identity-file "$temporary_directory/wrong.agekey" \
     --recipient-file "$temporary_directory/wrong.agepub" >/dev/null
 recipient_public_key=$(cat "$temporary_directory/backup.agepub")
 
+stage="start backend with admin socket"
 docker volume create "$volume" >/dev/null
 docker run --detach --name "$container" \
     --read-only --tmpfs /tmp \
     --env "LZUG_SMTP_USERNAME=diagnostic-operator" \
     --env "LZUG_SMTP_PASSWORD=diagnostic-secret-marker" \
     --mount "type=volume,source=$volume,target=/data" \
-    --mount "type=bind,source=$temporary_directory/socket,target=/run/lzug-admin" \
-    "$image" --host 0.0.0.0 --port 8000 --init >/dev/null
+    --mount "type=volume,source=$socket_volume,target=/run/lzug-admin,volume-nocopy" \
+    "$image" --host 0.0.0.0 --port 8000 --init \
+    --admin-socket-dir /run/lzug-admin --admin-socket-gid 10001 >/dev/null
 if ! lzug_wait_for_container_health "$container" 30; then
     echo "Container did not become ready for the operator contract." >&2
-    docker logs "$container" >&2 || true
     exit 1
 fi
 
+stage="runtime UID and socket permissions"
 lzug_assert_runtime_user "$container"
+lzug_assert_operator_socket
+stage="matching CLI and container build metadata"
 lzug_copy_build_metadata "$container" "$temporary_directory/container-metadata.json"
-"$admin_binary" --build-metadata > "$temporary_directory/cli-metadata.json"
+lzug_operator_cli --build-metadata > "$temporary_directory/cli-metadata.json"
 cmp "$temporary_directory/container-metadata.json" "$temporary_directory/cli-metadata.json"
 
+stage="reject legacy container-exec upgrade transport"
 lifecycle_status=0
-"$admin_binary" --container "$container" --json \
+lzug_operator_cli --container "$container" --json \
         upgrade apply --backup-output "$temporary_directory/pre-upgrade.lzug" \
         --identity-file "$temporary_directory/backup.agekey" \
         --confirm-irreversible --force \
         >"$temporary_directory/unverified-release.json" \
         2>"$temporary_directory/unverified-release.stderr" || lifecycle_status=$?
-test "$lifecycle_status" -eq 2
+lzug_expect_operator_exit 2 "$lifecycle_status"
 python3 -c '
 import json
 import sys
@@ -79,23 +85,26 @@ assert payload["exit_code"] == 2 and payload["ok"] is False
 assert payload["error"]["class"] == "invalid_invocation"
 ' "$temporary_directory/unverified-release.json"
 
+stage="reject rollback through live admin socket"
 maintenance_status=0
-"$admin_binary" --endpoint "unix://$temporary_directory/socket/admin.sock" --json \
+lzug_operator_cli --endpoint unix:///run/lzug-admin/admin.sock --json \
     upgrade rollback >"$temporary_directory/live-server-lifecycle.json" \
     2>"$temporary_directory/live-server-lifecycle.stderr" || maintenance_status=$?
-test "$maintenance_status" -eq 28
+lzug_expect_operator_exit 28 "$maintenance_status"
 python3 -c '
 import json
 import sys
 
 with open(sys.argv[1], encoding="utf-8") as stream:
     payload = json.load(stream)
-assert payload["version"] == 1 and payload["ok"] is False
+assert payload["schema_version"] == 1 and payload["protocol_version"] == 1
+assert payload["exit_code"] == 28 and payload["ok"] is False
 assert payload["error"]["class"] == "rollback_not_supported"
 ' "$temporary_directory/live-server-lifecycle.json"
 
+stage="account invitation"
 invitation=$(
-    "$admin_binary" --container "$container" --json \
+    lzug_operator_cli --endpoint unix:///run/lzug-admin/admin.sock --json \
         account invite --email cli-contract@example.invalid
 )
 token=$(printf '%s' "$invitation" | python3 -c '
@@ -109,8 +118,9 @@ assert payload["result"]["account"]["email"] == "cli-contract@example.invalid"
 assert payload["result"]["kind"] == "invitation"
 print(payload["result"]["token"])
 ')
+stage="consume account invitation"
 consumed=$(
-    printf '%s' "$token" | "$admin_binary" --container "$container" --json \
+    printf '%s' "$token" | lzug_operator_cli --endpoint unix:///run/lzug-admin/admin.sock --json \
         account consume-invitation
 )
 printf '%s' "$consumed" | python3 -c '
@@ -123,8 +133,9 @@ assert payload["exit_code"] == 0 and payload["ok"] is True
 assert payload["result"]["account"]["email"] == "cli-contract@example.invalid"
 ' >/dev/null
 
+stage="committee bootstrap"
 committee=$(
-    "$admin_binary" --container "$container" --json \
+    lzug_operator_cli --endpoint unix:///run/lzug-admin/admin.sock --json \
         committee bootstrap \
         --idempotency-key cli-contract-committee \
         --name "CLI-Vertragsausschuss" \
@@ -152,9 +163,11 @@ assert len(payload["result"]["invitations"]) == 1
 assert payload["result"]["invitations"][0]["token"]
 ' >/dev/null
 
+stage="redacted system diagnostics"
 for diagnostic in status config doctor; do
+    stage="system $diagnostic and redaction"
     diagnostic_output=$(
-        "$admin_binary" --container "$container" --json \
+        lzug_operator_cli --endpoint unix:///run/lzug-admin/admin.sock --json \
             system "$diagnostic"
     )
     printf '%s' "$diagnostic_output" | python3 -c '
@@ -166,8 +179,15 @@ payload = json.load(sys.stdin)
 assert payload["schema_version"] == 1 and payload["protocol_version"] == 1
 assert payload["exit_code"] == 0 and payload["ok"] is True
 result = payload["result"]
-assert result["command"] == command and result["status"] == "ok"
-assert result["checks"]
+assert payload["command"] == "system " + command
+assert result["runtime"]["state"] == "ready" and result["runtime"]["ready"] is True
+assert result["runtime"]["active"] >= 0
+assert result["runtime"]["next_action"]["code"] == "none"
+assert result["socket"]["state"] == "listening"
+assert result["socket"]["protocol"] == 1 and result["socket"]["schema"] == 1
+assert result["socket"]["active_connections"] >= 1
+assert result["socket"]["max_connections"] > 0
+assert result["socket"]["artifact_cleanup_required"] is False
 encoded = json.dumps(payload)
 for forbidden in (
     "diagnostic-secret-marker",
@@ -179,12 +199,14 @@ for forbidden in (
 ' "$diagnostic" "$token" >/dev/null
 done
 
-"$admin_binary" --container "$container" --json \
+stage="configure backup recipient"
+lzug_operator_cli --endpoint unix:///run/lzug-admin/admin.sock --json \
     backup recipient set --identity-file "$temporary_directory/backup.agekey" \
     >"$temporary_directory/recipient.json"
 
+stage="create encrypted backup"
 backup=$(
-    "$admin_binary" --container "$container" --json \
+    lzug_operator_cli --endpoint unix:///run/lzug-admin/admin.sock --json \
         backup create --output "$temporary_directory/backup.lzug"
 )
 backup_artifact=$(printf '%s' "$backup" | python3 -c '
@@ -200,8 +222,9 @@ assert result["artifact_id"] and result["snapshot_at"]
 print(result["artifact"])
 ')
 
+stage="verify encrypted backup"
 verified_backup=$(
-    "$admin_binary" --container "$container" --json \
+    lzug_operator_cli --endpoint unix:///run/lzug-admin/admin.sock --json \
         backup verify --artifact "$backup_artifact" \
         --identity-file "$temporary_directory/backup.agekey"
 )
@@ -216,13 +239,14 @@ assert payload["result"]["artifact_type"] == "backup"
 assert payload["result"]["documents"] >= 0
 ' >/dev/null
 
+stage="reject wrong recipient key"
 wrong_key_status=0
-"$admin_binary" --container "$container" --json \
+lzug_operator_cli --endpoint unix:///run/lzug-admin/admin.sock --json \
         backup verify --artifact "$backup_artifact" \
         --identity-file "$temporary_directory/wrong.agekey" \
         >"$temporary_directory/wrong-key.json" \
         2>"$temporary_directory/wrong-key.stderr" || wrong_key_status=$?
-test "$wrong_key_status" -eq 2
+lzug_expect_operator_exit 2 "$wrong_key_status"
 python3 -c '
 import json
 import sys
@@ -235,8 +259,9 @@ assert payload["error"]["class"] == "recipient_key_mismatch"
 assert payload["error"]["phase"] == "local-artifact"
 ' "$temporary_directory/wrong-key.json"
 
+stage="create encrypted full export"
 full_export=$(
-    "$admin_binary" --container "$container" --json \
+    lzug_operator_cli --endpoint unix:///run/lzug-admin/admin.sock --json \
         export create --recipient "$recipient_public_key" \
         --output "$temporary_directory/export.lzug" --force
 )
@@ -252,8 +277,9 @@ assert result["artifact_type"] == "full_export"
 assert result["artifact_id"] and result["snapshot_at"]
 print(result["artifact"])
 ')
+stage="verify encrypted full export"
 verified_export=$(
-    "$admin_binary" --container "$container" --json \
+    lzug_operator_cli --endpoint unix:///run/lzug-admin/admin.sock --json \
         export verify --artifact "$export_artifact" \
         --identity-file "$temporary_directory/backup.agekey"
 )
@@ -267,13 +293,14 @@ assert payload["exit_code"] == 0 and payload["ok"] is True
 assert payload["result"]["artifact_type"] == "full_export"
 ' >/dev/null
 
+stage="require explicit restore replacement"
 replace_required_status=0
-"$admin_binary" --container "$container" --json \
+lzug_operator_cli --endpoint unix:///run/lzug-admin/admin.sock --json \
         backup restore --artifact "$backup_artifact" \
         --identity-file "$temporary_directory/backup.agekey" --force \
         >"$temporary_directory/replace-required.json" \
         2>"$temporary_directory/replace-required.stderr" || replace_required_status=$?
-test "$replace_required_status" -eq 29
+lzug_expect_operator_exit 29 "$replace_required_status"
 python3 -c '
 import json
 import sys
@@ -286,8 +313,9 @@ assert payload["error"]["class"] == "replace_confirmation_required"
 assert payload["error"]["phase"] == "precheck"
 ' "$temporary_directory/replace-required.json"
 
+stage="restore encrypted backup"
 restored=$(
-    "$admin_binary" --container "$container" --json \
+    lzug_operator_cli --endpoint unix:///run/lzug-admin/admin.sock --json \
         backup restore --artifact "$backup_artifact" \
         --identity-file "$temporary_directory/backup.agekey" --replace --force
 )
@@ -307,6 +335,7 @@ assert result["phases"] == [
 assert result["readiness"] in {"ready", "restricted", "not_ready"}
 ' >/dev/null
 
+stage="private key non-disclosure"
 if printf '%s\n%s\n%s\n%s\n' \
     "$backup" "$verified_backup" "$full_export" "$restored" | \
     grep -F -f "$temporary_directory/backup.agekey" >/dev/null; then
@@ -329,4 +358,4 @@ if docker logs "$container" 2>&1 | \
     exit 1
 fi
 
-echo "Operator CLI-to-container administration, diagnostic, and artifact contracts passed with Docker: $image"
+echo "Operator CLI-to-container socket administration, diagnostic, and artifact contracts passed with Docker: $image"

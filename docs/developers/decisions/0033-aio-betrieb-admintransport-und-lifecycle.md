@@ -76,8 +76,7 @@ Direkte Befehle verwenden `lzug-admin <objekt> <aktion>`; der interaktive
 Einstieg verwendet `lzug-admin cli`.
 Beide Wege nutzen dieselbe Registry, Validierung, Auftragsbildung und
 Ergebnisinterpretation.
-Auch ein durch die Containerplattform im Produktcontainer gestartetes
-CLI-Binary spricht anschließend den lokalen Socket direkt an.
+Die separat ausgelieferte CLI spricht den lokalen Socket direkt an.
 Es gibt kein Helper-Skript, keine abweichende Containeroberfläche und keinen
 automatischen Wechsel des konfigurierten Endpunkts.
 

@@ -22,6 +22,9 @@
   } @else if (auth.state() === 'anonymous') {
     <app-runtime-notice />
     <router-outlet />
+  } @else if (isAuthRoute()) {
+    <app-runtime-notice />
+    <router-outlet />
   } @else {
     <div class="app-shell" [class.sidebar-collapsed]="!sidebarVisible()">
       <app-runtime-notice />

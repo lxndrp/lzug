@@ -102,6 +102,11 @@ files = [
   "backend/src/backend/application/planning_payloads.py",
   "backend/src/backend/application/resource_authorization.py",
   "backend/src/backend/persistence/models.py",
+  "backend/src/backend/server.py",
+  "backend/src/backend/healthcheck.py",
+  "backend/src/backend/artifact_stream.py",
+  "backend/src/backend/build_metadata.py",
+  "backend/src/backend/security.py",
 ]
 python_version = "3.14"
 follow_imports = "skip"

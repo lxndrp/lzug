@@ -125,6 +125,21 @@ describe('App', () => {
     flushDashboardRequests(http);
   });
 
+  it('keeps the authenticated shell landmark outside auth routes', async () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+
+    fixture.detectChanges();
+    await TestBed.inject(Router).navigateByUrl('/login');
+    await stabilizeRoute(fixture);
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelectorAll('main')).toHaveLength(1);
+    expect(compiled.querySelector('main.auth-page')).not.toBeNull();
+    expect(compiled.querySelector('main.app-content')).toBeNull();
+  });
+
   it('should expose the sidebar visibility through accessible toggle state', () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);

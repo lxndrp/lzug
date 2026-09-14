@@ -31,6 +31,19 @@ class BuildIdentityContractTests(unittest.TestCase):
         self.assertIn('org.opencontainers.image.version="$BUILD_IDENTITY"', dockerfile)
         self.assertIn('org.opencontainers.image.revision="$VCS_REF"', dockerfile)
 
+    def test_oci_runtime_excludes_the_separate_operator_cli(self) -> None:
+        dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
+        operator_smoke = Path("scripts/operator-container-smoke.sh").read_text(encoding="utf-8")
+
+        self.assertNotIn("FROM golang:", dockerfile)
+        self.assertNotIn("operator-cli", dockerfile)
+        self.assertNotIn("/usr/local/bin/lzug-admin", dockerfile)
+        self.assertIn("lzug_build_operator_cli", operator_smoke)
+        self.assertIn(
+            "go build -trimpath", Path("scripts/operator-container-contract.sh").read_text()
+        )
+        self.assertIn('cmp "$temporary_directory/container-metadata.json"', operator_smoke)
+
     def test_runtime_contract_compares_backend_frontend_cli_and_oci(self) -> None:
         container_smoke = Path("scripts/container-smoke.sh").read_text(encoding="utf-8")
         operator_smoke = Path("scripts/operator-container-smoke.sh").read_text(encoding="utf-8")
@@ -55,13 +68,14 @@ class BuildIdentityContractTests(unittest.TestCase):
         )
         taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
         release = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
+        product = Path(".github/workflows/product-publish.yml").read_text(encoding="utf-8")
 
         self.assertIn("task quality:oci", workflows)
         self.assertIn('--revision "$revision" --field identity', taskfile)
         self.assertIn('--build-arg "BUILD_IDENTITY=$build_identity"', taskfile)
-        self.assertIn('--tag "$RELEASE_TAG" --revision "$TARGET_SHA"', release)
-        self.assertIn("RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}", release)
-        self.assertIn("VCS_REF=${{ env.TARGET_SHA }}", release)
+        self.assertIn('--tag "$RELEASE_TAG" --revision "$TARGET_SHA"', product)
+        self.assertIn("RELEASE_TAG: ${{ inputs.product_tag }}", product)
+        self.assertIn("VCS_REF=${{ env.TARGET_SHA }}", product)
         self.assertNotIn("CANDIDATE_SHA", release)
 
 

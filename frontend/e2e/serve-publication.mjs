@@ -37,6 +37,7 @@ const server = createServer(async (request, response) => {
   try {
     let path = resolveRequest(request.url ?? '/');
     if ((await stat(path)).isDirectory()) path = join(path, 'index.html');
+    if (!(await stat(path)).isFile()) throw new Error(`Publication path is not a file: ${path}`);
     response.writeHead(200, {
       'content-type': mimeTypes.get(extname(path)) ?? 'application/octet-stream',
     });

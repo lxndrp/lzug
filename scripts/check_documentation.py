@@ -19,7 +19,7 @@ ROOT_DOCUMENT_MARKERS = {
         "GitHub Releases",
         "lzug Roadmap",
         "CONTRIBUTING.md",
-        "Produkt- und Dokumentationsportal",
+        "Produktseite",
     ),
     "CONTRIBUTING.md": (
         "nicht produktionsreifer",
@@ -255,22 +255,15 @@ def check_documentation_paths(root: Path) -> list[str]:
 
 
 def check_handbook(root: Path) -> list[str]:
-    """Require the complete, repository-owned handbook."""
+    """Ensure the migrated editorial handbook is no longer repository-owned."""
 
     handbook = root / "docs" / "handbook"
     actual = {path.name for path in handbook.glob("*.md")} if handbook.is_dir() else set()
-    missing = sorted(HANDBOOK_FILES - actual)
-    unexpected = sorted(actual - HANDBOOK_FILES - {"_Sidebar.md", "Versionshinweise.md"})
     violations: list[str] = []
-    if missing:
+    if actual:
         violations.append(
-            "[DOC-HANDBOOK-001] docs/handbook: required handbook pages are missing; "
-            f"restore {missing!r}."
-        )
-    if unexpected:
-        violations.append(
-            "[DOC-HANDBOOK-002] docs/handbook: unexpected handbook pages; "
-            f"move new material to its target documentation type instead: {unexpected!r}."
+            "[DOC-HANDBOOK-001] docs/handbook: migrated editorial pages must be removed; "
+            f"move remaining material to its canonical target: {sorted(actual)!r}."
         )
     return violations
 

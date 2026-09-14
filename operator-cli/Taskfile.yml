@@ -1,0 +1,16 @@
+version: "3.52"
+
+tasks:
+  test:
+    desc: Run Go operator CLI contract tests
+    dir: operator-cli
+    cmds:
+      - go test ./...
+
+  quality:
+    desc: Run Go operator CLI tests, vet, and packaging configuration validation
+    dir: operator-cli
+    cmds:
+      - task: test
+      - go vet ./...
+      - goreleaser check

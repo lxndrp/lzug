@@ -22,7 +22,7 @@ RUN set -eu; \
     test -n "$VCS_REF"; \
     if [ -n "$RELEASE_TAG" ]; then \
       BUILD_REVISION="$VCS_REF" BUILD_RELEASE_TAG="$RELEASE_TAG" python -c \
-        'import os; from pathlib import Path; from backend.build_metadata import BuildMetadata; BuildMetadata.create(os.environ["BUILD_REVISION"], os.environ["BUILD_RELEASE_TAG"]).write(Path("/build-metadata.json"))'; \
+        'import os; from pathlib import Path; from backend.build_metadata import BuildMetadata; tag=os.environ["BUILD_RELEASE_TAG"]; BuildMetadata.create(os.environ["BUILD_REVISION"], tag, allow_demo_snapshot=tag.startswith("snapshot/")).write(Path("/build-metadata.json"))'; \
     else \
       python scripts/build_metadata.py --revision "$VCS_REF" \
         --output /build-metadata.json >/dev/null; \
@@ -42,14 +42,6 @@ COPY --from=build-metadata /build-metadata.json ./public/build-metadata.json
 COPY frontend/src ./src
 COPY scripts/build-frontend.sh /src/scripts/build-frontend.sh
 RUN npm run build:ci
-
-FROM golang:1.26.5-bookworm AS operator-build
-
-WORKDIR /src/operator-cli
-COPY operator-cli/go.mod operator-cli/go.sum ./
-RUN go mod download
-COPY operator-cli ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /dist/lzug-admin ./cmd/lzug-admin
 
 FROM python:3.14.6-slim-bookworm AS python-dependencies
 
@@ -81,6 +73,11 @@ ENV PATH="/opt/venv/bin:$PATH" \
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install --no-install-recommends --only-upgrade -y libpcre2-8-0 \
+    && dpkg --compare-versions "$(dpkg-query --showformat='${Version}' --show libpcre2-8-0)" ge "10.42-1+deb12u1" \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --system --gid 10001 lzug \
     && useradd --system --uid 10001 --gid 10001 --home-dir /nonexistent \
        --shell /usr/sbin/nologin lzug \
@@ -92,7 +89,6 @@ COPY --from=python-dependencies --chown=10001:10001 /src/backend/src ./backend/s
 COPY --from=build-metadata --chown=10001:10001 /build-metadata.json ./backend/src/build-metadata.json
 COPY --chown=10001:10001 backend/db ./backend/db
 COPY --from=frontend-build --chown=10001:10001 /src/frontend/dist/frontend/browser ./frontend
-COPY --from=operator-build --chown=10001:10001 /dist/lzug-admin /usr/local/bin/lzug-admin
 
 USER 10001:10001
 EXPOSE 8000

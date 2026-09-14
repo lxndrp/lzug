@@ -1,30 +1,28 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const publicationProfile = process.env['LZUG_PUBLICATION_PROFILE'] ?? 'current';
-
 const candidates = [
   {
     name: 'desktop-light',
     colorScheme: 'light',
-    themeVariant: 'relearn-light',
+    themeVariant: 'light',
     viewport: { width: 1440, height: 1000 },
   },
   {
     name: 'desktop-dark',
     colorScheme: 'dark',
-    themeVariant: 'relearn-dark',
+    themeVariant: 'dark',
     viewport: { width: 1440, height: 1000 },
   },
   {
     name: 'mobile-light',
     colorScheme: 'light',
-    themeVariant: 'relearn-light',
+    themeVariant: 'light',
     viewport: { width: 390, height: 844 },
   },
   {
     name: 'mobile-dark',
     colorScheme: 'dark',
-    themeVariant: 'relearn-dark',
+    themeVariant: 'dark',
     viewport: { width: 390, height: 844 },
   },
 ] as const;
@@ -64,10 +62,7 @@ test.describe('public site browser contract', () => {
         });
         const page = await context.newPage();
         await page.addInitScript((themeVariant) => {
-          window.localStorage.setItem(
-            'https://lzug.repertoire.papaspyrou.name/variant',
-            themeVariant,
-          );
+          window.localStorage.setItem('lzug-appearance', themeVariant);
         }, candidate.themeVariant);
         const consoleErrors: string[] = [];
         const failedResponses: string[] = [];
@@ -93,7 +88,7 @@ test.describe('public site browser contract', () => {
           nav: document.querySelectorAll('nav').length,
           search: document.querySelectorAll('input[type="search"]').length,
           demoStart: document.querySelectorAll('[data-demo-start]').length,
-          themeVariant: document.documentElement.dataset.rThemeVariant,
+          themeVariant: document.documentElement.dataset.appearance,
           overflow: document.documentElement.scrollWidth - window.innerWidth,
         }));
         expect(structure.h1).toBe(1);
@@ -115,13 +110,13 @@ test.describe('public site browser contract', () => {
           };
 
           return {
-            primary: resolveColor('--PRIMARY-color'),
+            primary: resolveColor('--lzug-color-brand-ink'),
             brandInk: resolveColor('--lzug-color-brand-ink'),
-            mainBackground: resolveColor('--MAIN-BG-color'),
+            mainBackground: resolveColor('--lzug-color-neutral-canvas'),
             canvas: resolveColor('--lzug-color-neutral-canvas'),
-            menuBackground: resolveColor('--MENU-SECTIONS-BG-color'),
+            menuBackground: resolveColor('--lzug-color-neutral-surface'),
             surface: resolveColor('--lzug-color-neutral-surface'),
-            menuText: resolveColor('--MENU-SECTIONS-LINK-color'),
+            menuText: resolveColor('--lzug-color-text'),
             text: resolveColor('--lzug-color-text'),
           };
         });
@@ -154,9 +149,9 @@ test.describe('public site browser contract', () => {
             interLoaded: document.fonts.check('16px "Inter Variable"', 'Prüfungsplanung'),
             body: fontFamily('.publication-lead'),
             heading: fontFamily('.publication-hero h1'),
-            navigation: fontFamily('#R-sidebar a'),
+            navigation: fontFamily('.site-header nav a'),
             button: fontFamily('.publication-button'),
-            formControl: fontFamily('#R-search-by'),
+            formControl: fontFamily('#site-search'),
             code: codeFont,
             pre: preFont,
           };
@@ -183,15 +178,7 @@ test.describe('public site browser contract', () => {
     });
   });
 
-  test('renders the projected handbook with search', async ({ page }) => {
-    test.skip(publicationProfile === 'candidate', 'the reduced candidate excludes handbook routes');
-    const response = await page.goto('/handbuch/', { waitUntil: 'networkidle' });
-    expect(response?.ok(), 'handbook response').toBe(true);
-    await expect(page.locator('input[type="search"]')).toHaveCount(1);
-  });
-
-  test('keeps the reduced candidate on product and reference routes', async ({ page }) => {
-    test.skip(publicationProfile !== 'candidate', 'only applies to the reduced Pages candidate');
+  test('keeps the public site on product and reference routes', async ({ page }) => {
     for (const route of [
       '/produkt/',
       '/referenz/',
@@ -218,8 +205,7 @@ test.describe('public site browser contract', () => {
   test('attaches portal content evidence for the shared visual grammar', async ({
     page,
   }, testInfo) => {
-    const evidenceRoute = publicationProfile === 'candidate' ? '/produkt/' : '/handbuch/';
-    await page.goto(evidenceRoute, { waitUntil: 'networkidle' });
+    await page.goto('/produkt/', { waitUntil: 'networkidle' });
     await expect(page.locator('main')).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
 

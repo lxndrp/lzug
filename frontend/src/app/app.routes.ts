@@ -12,6 +12,7 @@ export type AppRouteData = {
   title: string;
   breadcrumb: string;
   contextual: boolean;
+  auth?: boolean;
 };
 
 const routeData = (
@@ -44,9 +45,21 @@ const authRoute = () =>
   import('./auth/auth-flow.component').then((module) => module.AuthFlowComponent);
 
 export const routes: Routes = [
-  { path: 'login', loadComponent: authRoute, data: routeData('dashboard', 'Übersicht') },
-  { path: 'activate', loadComponent: authRoute, data: routeData('dashboard', 'Übersicht') },
-  { path: 'recover', loadComponent: authRoute, data: routeData('dashboard', 'Übersicht') },
+  {
+    path: 'login',
+    loadComponent: authRoute,
+    data: { ...routeData('dashboard', 'Übersicht'), auth: true },
+  },
+  {
+    path: 'activate',
+    loadComponent: authRoute,
+    data: { ...routeData('dashboard', 'Übersicht'), auth: true },
+  },
+  {
+    path: 'recover',
+    loadComponent: authRoute,
+    data: { ...routeData('dashboard', 'Übersicht'), auth: true },
+  },
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
   { path: 'dashboard', loadComponent: dashboardRoute, data: routeData('dashboard', 'Übersicht') },
   {

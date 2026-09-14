@@ -61,6 +61,23 @@ Seiteneffekt des normalen Servers.
 | querschnittliche Änderung | `task quality` |
 
 Vor Browserprüfungen läuft `task doctor`.
+
+Die öffentliche Pages-Hülle wird mit Hugo Extended und Blowfish v3.6.0 gebaut.
+Das eingecheckte Projekt unter `docs/publication/` bindet den vollständigen
+Blowfish-Commit `4643c46bd5e921fee51c420575fadebf9f4b3681` über Hugo Modules
+ein und verwendet weder `latest` noch einen beweglichen Theme-Branch.
+Für eine lokale Vorschau genügt:
+
+```text
+task setup:frontend
+HUGO_CACHEDIR=/tmp/lzug-hugo-cache task docs:publication
+```
+
+Der Theme-Checkout bleibt temporär.
+Ein Rückfall auf den letzten konsistenten Pages-Stand erfolgt durch erneuten
+Build der dort dokumentierten Repository-Revision mit derselben
+Blowfish-Pin; Pages-Dispatch und Deployment bleiben davon getrennte,
+manuell freizugebende Schritte.
 Jeder Playwright-Lauf verwendet eigene Ports, eine eigene SQLite-Datei unter
 `var/e2e/` und synthetische Seed-Daten.
 Browser-E2E und Accessibility bleiben getrennte Nachweise; Chromium wird weder
@@ -71,6 +88,22 @@ Container-Engine-Fehler wird als Umgebungsthema dokumentiert.
 Er rechtfertigt keine Abschwächung von Produktcode oder Sicherheitsgrenzen.
 Die CI ist die finale Abnahme für die ausgewählten Plattform- und
 Repositoryverträge.
+
+Der Operator-Container-Smoke (`task quality:operator-container`) baut eine separate
+statische Linux-CLI passend zur Image-Architektur.
+Sie läuft in einer isolierten Hilfsinstanz am geschützten Admin-Socket;
+Schlüssel und Artefakte liegen ausschließlich in deren temporärem Arbeitsverzeichnis,
+das Backend erhält nur das Socket-Volume und sein Datenvolume.
+Für die Peer-Prüfung teilt die CLI nach dem Start den PID-Namespace des Backends,
+verwendet jedoch die abweichende Host-UID und die Betreiber-GID 10001.
+Eine Host-UID von 10001 wird daher mit Diagnose abgelehnt.
+Damit funktioniert der Test auch über eine Docker-Desktop-Linux-VM.
+`LZUG_ADMIN_BINARY` kann für den Operator-Smoke ein bereits gebautes Linux-Binary
+mit passender Architektur und Build-Metadaten vorgeben.
+Fehler nennen Vertragsphase, Exitcode und strukturelle CLI-/Socket-Diagnosen.
+Die Diagnose gibt keine vollständigen Antworten, Schlüssel, Umgebungswerte oder
+Containerlogs aus; die zugehörigen Fehler-Injektionen laufen mit `task delivery:oci`
+auch ohne Docker-Engine in der Pull-Request-CI.
 
 `task backend:complexity` gibt den Ruff-C901-Befund für produktive
 Backendmodule mit der Schwelle 10 aus.
@@ -171,8 +204,8 @@ an.
 
 Jede Information hat eine primäre Zielgruppe, genau eine Dokumentart und eine
 kanonische Quelle.
-Fachliche, Nutzungs- und Betreiberanleitungen liegen unter `docs/handbook/`
-und `docs/portal/`; aktuelle technische Orientierung in Einstieg plus fünf Kernbereichen; langfristige
+Fachliche, Nutzungs- und Betreiberanleitungen liegen im
+[GitHub Wiki](https://github.com/lxndrp/lzug/wiki); aktuelle technische Orientierung in Einstieg plus fünf Kernbereichen; langfristige
 Entscheidungen in ADRs; ausführbare API-, Daten-, Qualitäts- und
 Releaseverträge in Code und deklarativen Quellen.
 

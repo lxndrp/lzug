@@ -86,7 +86,7 @@
 }
 
 body[tuitheme="dark"],
-[data-r-theme-variant="relearn-dark"] {
+html[data-appearance="dark"] {
   color-scheme: dark;
   --lzug-color-brand-ink: #c8bbff;
   --lzug-color-brand-ink-hover: #ded6ff;
