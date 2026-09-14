@@ -66,32 +66,31 @@ class QualityWorkflowContractTests(unittest.TestCase):
             self.codeql,
         )
         changes = job_block(self.pull_request, "changes")
-        self.assertIn("steps.codeql.outputs.changes", changes)
         self.assertIn(
-            "id: codeql",
+            'codeql_languages: \'["python","javascript-typescript","go"]\'',
             changes,
         )
-        self.assertIn(
-            "python:\n              - '**/*.py'",
-            changes,
-        )
-        self.assertIn(
-            "javascript-typescript:\n              - '**/*.cjs'",
-            changes,
-        )
-        self.assertIn(
-            "go:\n              - '**/*.go'",
-            changes,
-        )
+        self.assertNotIn("Select CodeQL languages", changes)
+        self.assertNotIn("steps.codeql.outputs.changes", changes)
         self.assertIn(
             "languages: ${{ needs.changes.outputs.codeql_languages }}",
             self.pull_request,
         )
-        self.assertIn("name: Select CodeQL languages", self.pull_request)
-        self.assertIn("steps.codeql.outputs.changes", self.pull_request)
+        self.assertNotIn(
+            "if: needs.changes.outputs.codeql_languages != '[]'",
+            job_block(self.pull_request, "codeql"),
+        )
         self.assertIn(
             'languages: \'["python","javascript-typescript","go"]\'',
             self.quality,
+        )
+
+    def test_codeql_categories_are_stable_across_callers(self) -> None:
+        category = ".github/workflows/ci.yml:codeql/language:${{ matrix.language }}"
+        self.assertIn(category, self.codeql)
+        self.assertEqual(
+            self.pull_request.count("languages: ${{ needs.changes.outputs.codeql_languages }}"),
+            1,
         )
 
     def test_codeql_go_cache_uses_component_lockfile(self) -> None:
