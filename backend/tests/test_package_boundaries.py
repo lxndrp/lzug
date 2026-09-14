@@ -27,13 +27,11 @@ CORE_PACKAGES = frozenset(
 # container and operator-CLI contracts.
 ROOT_MODULE_OWNERS = {
     "__init__.py": "package-bootstrap",
-    "admin.py": "operations-adapter",
     "admin_socket.py": "operations-adapter",
     "admin_socket_artifacts.py": "operations-adapter",
     "admin_socket_path.py": "operations-adapter",
     "admin_socket_protocol.py": "operations-adapter",
     "api_contracts.py": "api",
-    "artifact_stream.py": "operations-adapter",
     "build_metadata.py": "runtime-contract",
     "e2e_server.py": "api-bootstrap",
     "fastapi_app.py": "api",

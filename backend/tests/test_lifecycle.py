@@ -13,10 +13,9 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from backend.admin import _application
 from backend.application.admin import AdminActorContext
 from backend.build_metadata import BuildMetadata
-from backend.fastapi_assembly import FastAPIConfig, create_app
+from backend.fastapi_assembly import FastAPIConfig, create_admin_application, create_app
 from backend.identity.local_auth import authentication_key
 from backend.operations.artifact_packages import ClearArtifactService
 from backend.operations.backup_recipients import BackupRecipientRepository, recipient_fingerprint
@@ -188,7 +187,7 @@ class LifecycleTests(unittest.TestCase):
                 self.fail("business operation admitted")
 
     def test_rollback_and_forged_control_approval_never_mutate(self):
-        application = _application(paths=self.paths, runtime=self.runtime)
+        application = create_admin_application(paths=self.paths, runtime=self.runtime)
         actor = AdminActorContext("operator", True)
         rollback = application.execute(
             {"version": 1, "command": "rollback", "arguments": {}}, actor

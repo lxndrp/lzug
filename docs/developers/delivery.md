@@ -13,6 +13,13 @@ Wiederholung sicher ist.
 `.github/workflows/pull-request.yml` ordnet geänderte Pfade konservativ den
 Domänen Fixtures, Dokumentation, Backend, Frontend, CLI, Container, Browser und
 Infrastruktur zu.
+Manifeständerungen wählen dabei vorrangig die betroffene Komponente:
+npm bleibt bei Frontend und Transport,
+Go bei CLI und Adminsocket,
+Python-/uv-Lockdaten bei den betroffenen Python-, Delivery- und
+Containergrenzen.
+Nur nachgewiesene Querverbindungen wählen zusätzliche Prüfungen;
+Workflow-, Test-, Toolchain- und unbekannte Pfade bleiben Vollauslöser.
 Änderungen an der PR-/Quality-/Releaseauswahl, Toolchain, Abhängigkeiten und
 `Taskfile.yml` wählen alle Domänen; unbekannte Pfade ebenfalls.
 Der Public-Site-Workflow, die Linkcheck-Konfiguration und ihre Vertragstests

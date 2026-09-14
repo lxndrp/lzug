@@ -23,8 +23,10 @@ task doctor
 
 `task setup` erzeugt `.venv`, synchronisiert die gelockten Python-Pakete,
 installiert das Frontend mit `npm ci` und lädt Playwright Chromium.
-`task doctor` prüft die lokale Toolchain, den gemeinsamen uv-Cache unter
-`~/.cache/uv`, die virtuelle Umgebung und die Browser-Executable.
+`task doctor` prüft die lokale Toolchain, die virtuelle Umgebung und die
+Browser-Executable.
+Ein gemeinsamer uv-Cache unter `~/.cache/uv` kann lokale Codex-Läufe
+beschleunigen, ist aber keine Projektvoraussetzung.
 Persönliche Codex-, IDE- oder Secret-Konfiguration gehört nicht in das
 Repository.
 
@@ -122,10 +124,11 @@ betroffenen Audits, Builds und Vertragstests und in der Regel den breiten
 Qualitätspfad.
 
 Dependabot prüft Go-Module, uv, npm und GitHub Actions wöchentlich.
-Die Go-Erweiterungsmodule, Angular, Taiga UI, Frontend-Linting, Vitest und
-CodeQL werden in ihren in
-`.github/dependabot.yml` definierten technischen Familien gebündelt;
-Version- und Sicherheitsgruppen bleiben getrennt.
+Routineupdates werden in `.github/dependabot.yml` nach technischem Ökosystem
+und, bei npm, nach den bekannten Angular-, Taiga-UI-, Linting- und Vitest-
+Familien gebündelt.
+Version- und Sicherheitsgruppen bleiben getrennt;
+Majorupdates bleiben außerhalb der Routinegruppen und damit manuell.
 Eine neue Gruppierungsregel ändert bereits offene Einzel-Pull-Requests nicht
 rückwirkend.
 Ein Einzel-PR wird deshalb erst geschlossen, wenn ein sichtbarer erfolgreicher

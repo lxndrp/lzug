@@ -104,7 +104,6 @@ files = [
   "backend/src/backend/persistence/models.py",
   "backend/src/backend/server.py",
   "backend/src/backend/healthcheck.py",
-  "backend/src/backend/artifact_stream.py",
   "backend/src/backend/build_metadata.py",
   "backend/src/backend/security.py",
 ]
