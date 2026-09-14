@@ -22,7 +22,20 @@ class ActionlintContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             workflow = Path(directory) / "invalid.yml"
             workflow.write_text(
-                """name: invalid\n\non: push\n\njobs:\n  check:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo '${{ needs.missing.result }}'\n""",
+                "\n".join(
+                    (
+                        "name: invalid",
+                        "",
+                        "on: push",
+                        "",
+                        "jobs:",
+                        "  check:",
+                        "    runs-on: ubuntu-24.04",
+                        "    steps:",
+                        "      - run: echo '${{ needs.missing.result }}'",
+                        "",
+                    )
+                ),
                 encoding="utf-8",
             )
             invalid = subprocess.run(
