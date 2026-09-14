@@ -65,16 +65,30 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "language: ${{ fromJSON(inputs.languages) }}",
             self.codeql,
         )
+        changes = job_block(self.pull_request, "changes")
+        self.assertIn("steps.codeql.outputs.changes", changes)
         self.assertIn(
-            'codeql_languages: \'["python","javascript-typescript","go"]\'',
-            job_block(self.pull_request, "changes"),
+            "id: codeql",
+            changes,
+        )
+        self.assertIn(
+            'python:\n              - \'**/*.py\'',
+            changes,
+        )
+        self.assertIn(
+            'javascript-typescript:\n              - \'**/*.cjs\'',
+            changes,
+        )
+        self.assertIn(
+            "go:\n              - '**/*.go'",
+            changes,
         )
         self.assertIn(
             "languages: ${{ needs.changes.outputs.codeql_languages }}",
             self.pull_request,
         )
-        self.assertNotIn("name: Select CodeQL languages", self.pull_request)
-        self.assertNotIn("steps.codeql.outputs.changes", self.pull_request)
+        self.assertIn("name: Select CodeQL languages", self.pull_request)
+        self.assertIn("steps.codeql.outputs.changes", self.pull_request)
         self.assertIn(
             'languages: \'["python","javascript-typescript","go"]\'',
             self.quality,
@@ -90,7 +104,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("-run TestEndpoint", cli)
         self.assertIn(
             "'operator-cli/**'",
-            mapping_block(job_block(self.pull_request, "changes"), "backend", indent=12),
+            mapping_block(job_block(self.pull_request, "changes"), "cli", indent=12),
         )
 
     def test_gates_reject_missing_failed_or_cancelled_selected_evidence(self) -> None:
@@ -165,6 +179,54 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 self.assertIn(f"'{path}'", mapping_block(changes, owner, indent=12))
         self.assertIn("steps.unknown.outputs.unknown == 'true'", changes)
         self.assertIn("steps.domains.outputs.full == 'true'", changes)
+
+    def test_dependency_manifests_select_component_checks_without_full_suite(self) -> None:
+        changes = job_block(self.pull_request, "changes")
+        full = mapping_block(changes, "full", indent=12)
+        frontend = mapping_block(changes, "frontend", indent=12)
+        transport = mapping_block(changes, "transport", indent=12)
+        cli = mapping_block(changes, "cli", indent=12)
+        container = mapping_block(changes, "container", indent=12)
+
+        for manifest in ("frontend/package.json", "frontend/package-lock.json"):
+            self.assertIn("'frontend/**'", frontend)
+            self.assertIn(f"'{manifest}'", transport)
+            self.assertNotIn(f"'{manifest}'", full)
+
+        for manifest in ("operator-cli/go.mod", "operator-cli/go.sum"):
+            self.assertIn(f"'{manifest}'", cli)
+            self.assertIn("'operator-cli/**'", container)
+            self.assertNotIn(f"'{manifest}'", full)
+
+        for manifest in (".python-version", "pyproject.toml", "uv.lock"):
+            for domain in ("docs", "backend", "delivery", "infra", "container"):
+                self.assertIn(
+                    f"'{manifest}'",
+                    mapping_block(changes, domain, indent=12),
+                )
+            self.assertNotIn(f"'{manifest}'", full)
+
+    def test_dependabot_groups_routine_updates_and_keeps_security_separate(self) -> None:
+        config = self.dependabot_config
+        for routine_group in (
+            "gomod-routine:",
+            "python-routine:",
+            "frontend-routine:",
+            "actions-routine:",
+        ):
+            self.assertIn(routine_group, config)
+            self.assertRegex(
+                config,
+                rf"{routine_group}\n        applies-to: version-updates\n        update-types: \[\"minor\", \"patch\"\]",
+            )
+        for security_group in (
+            "golang-x-security:",
+            "python-security:",
+            "frontend-security:",
+            "actions-security:",
+        ):
+            self.assertIn(security_group, config)
+        self.assertNotIn('update-types: ["major"]', config)
 
     def test_documentation_contract_sources_do_not_select_all_domains(self) -> None:
         changes = job_block(self.pull_request, "changes")

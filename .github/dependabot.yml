@@ -8,17 +8,33 @@ updates:
     groups:
       golang-x:
         applies-to: version-updates
+        update-types: ["minor", "patch"]
         patterns:
           - "golang.org/x/*"
       golang-x-security:
         applies-to: security-updates
         patterns:
           - "golang.org/x/*"
+      gomod-routine:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+        patterns:
+          - "*"
 
   - package-ecosystem: uv
     directory: /
     schedule:
       interval: weekly
+    groups:
+      python-routine:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+        patterns:
+          - "*"
+      python-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: npm
     directory: /frontend
@@ -27,6 +43,7 @@ updates:
     groups:
       angular:
         applies-to: version-updates
+        update-types: ["minor", "patch"]
         patterns:
           - "@angular/*"
       angular-security:
@@ -35,6 +52,7 @@ updates:
           - "@angular/*"
       taiga-ui:
         applies-to: version-updates
+        update-types: ["minor", "patch"]
         patterns:
           - "@taiga-ui/*"
       taiga-ui-security:
@@ -43,6 +61,7 @@ updates:
           - "@taiga-ui/*"
       frontend-linting:
         applies-to: version-updates
+        update-types: ["minor", "patch"]
         patterns:
           - "eslint"
           - "@eslint/js"
@@ -61,14 +80,24 @@ updates:
           - "@typescript-eslint/parser"
       vitest:
         applies-to: version-updates
+        update-types: ["minor", "patch"]
         patterns:
           - "vitest"
           - "@vitest/coverage-v8"
+      frontend-routine:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+        patterns:
+          - "*"
       vitest-security:
         applies-to: security-updates
         patterns:
           - "vitest"
           - "@vitest/coverage-v8"
+      frontend-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: github-actions
     directory: /
@@ -77,9 +106,19 @@ updates:
     groups:
       codeql:
         applies-to: version-updates
+        update-types: ["minor", "patch"]
         patterns:
           - "github/codeql-action/*"
       codeql-security:
         applies-to: security-updates
         patterns:
           - "github/codeql-action/*"
+      actions-routine:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+        patterns:
+          - "*"
+      actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"

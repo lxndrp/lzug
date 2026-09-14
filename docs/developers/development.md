@@ -122,10 +122,11 @@ betroffenen Audits, Builds und Vertragstests und in der Regel den breiten
 Qualitätspfad.
 
 Dependabot prüft Go-Module, uv, npm und GitHub Actions wöchentlich.
-Die Go-Erweiterungsmodule, Angular, Taiga UI, Frontend-Linting, Vitest und
-CodeQL werden in ihren in
-`.github/dependabot.yml` definierten technischen Familien gebündelt;
-Version- und Sicherheitsgruppen bleiben getrennt.
+Routineupdates werden in `.github/dependabot.yml` nach technischem Ökosystem
+und, bei npm, nach den bekannten Angular-, Taiga-UI-, Linting- und Vitest-
+Familien gebündelt.
+Version- und Sicherheitsgruppen bleiben getrennt;
+Majorupdates bleiben außerhalb der Routinegruppen und damit manuell.
 Eine neue Gruppierungsregel ändert bereits offene Einzel-Pull-Requests nicht
 rückwirkend.
 Ein Einzel-PR wird deshalb erst geschlossen, wenn ein sichtbarer erfolgreicher
