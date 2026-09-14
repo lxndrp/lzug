@@ -262,8 +262,11 @@ eine bestätigte Entscheidung.
 
 ## 7. Codex-Sandbox
 
-- Vor Browserprüfungen `task doctor` verwenden. Den gemeinsamen uv-Cache unter
-`~/.cache/uv` nur über die globale Codex-Konfiguration freigeben; keine benutzerspezifische Konfiguration versionieren.
+- Vor Browserprüfungen `task doctor` verwenden.
+Ein gemeinsamer uv-Cache unter `~/.cache/uv` kann Codex-Läufe lokal
+beschleunigen und wird nur über die globale Codex-Konfiguration freigegeben;
+er ist keine Projektvoraussetzung.
+Keine benutzerspezifische Konfiguration versionieren.
 - Browser-E2E- und A11y-Prüfungen getrennt halten. Nicht reproduzierbare
 Browserfehler gezielt lokal freigeben oder durch CI abnehmen lassen.
 Chromium nie mit `--no-sandbox` starten.
