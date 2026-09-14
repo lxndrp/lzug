@@ -41,7 +41,7 @@ jobs:
         with:
           install: false
       - run: mise install aqua:rhysd/actionlint@1.7.12
-      - run: mise exec -- actionlint
+      - run: mise exec -- task quality:workflows
 
   revision:
     name: Bind complete evidence to master

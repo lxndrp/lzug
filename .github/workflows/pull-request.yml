@@ -197,6 +197,17 @@ jobs:
               - '!pyproject.toml'
               - '!uv.lock'
 
+  workflow-lint:
+    name: GitHub Actions workflow syntax
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install: false
+      - run: mise install aqua:rhysd/actionlint@1.7.12
+      - run: mise exec -- task quality:workflows
+
   docs:
     name: Documentation details
     needs: changes

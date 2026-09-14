@@ -62,7 +62,13 @@ class QualityWorkflowContractTests(unittest.TestCase):
         workflow_job = job_block(self.quality, "workflows")
         self.assertIn("name: GitHub Actions workflows", workflow_job)
         self.assertIn("mise install aqua:rhysd/actionlint@1.7.12", workflow_job)
-        self.assertIn("mise exec -- actionlint", workflow_job)
+        self.assertIn("mise exec -- task quality:workflows", workflow_job)
+
+    def test_pull_requests_run_the_same_workflow_quality_task(self) -> None:
+        workflow_job = job_block(self.pull_request, "workflow-lint")
+        self.assertIn("name: GitHub Actions workflow syntax", workflow_job)
+        self.assertIn("mise install aqua:rhysd/actionlint@1.7.12", workflow_job)
+        self.assertIn("mise exec -- task quality:workflows", workflow_job)
 
     def test_pull_request_codeql_matrix_covers_all_configured_languages(self) -> None:
         self.assertIn(
