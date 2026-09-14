@@ -6,7 +6,6 @@ root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$root_dir/scripts/container-contract.sh"
 . "$root_dir/scripts/operator-container-contract.sh"
 image="${1:-lzug-app:smoke}"
-admin_binary="${LZUG_ADMIN_BINARY:-}"
 
 lzug_require_docker
 
@@ -30,7 +29,6 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-lzug_build_operator_cli
 stage="prepare private socket volume"
 lzug_prepare_operator_socket
 stage="generate recipient keys"
@@ -60,10 +58,35 @@ fi
 stage="runtime UID and socket permissions"
 lzug_assert_runtime_user "$container"
 lzug_assert_operator_socket
+stage="delivered CLI binary and runtime boundary"
+docker exec --user 10001:10001 "$container" test -x /usr/local/bin/lzug-admin
+if docker exec --user 10001:10001 "$container" sh -c 'command -v go' >/dev/null 2>&1; then
+    echo "Runtime image unexpectedly contains the Go compiler." >&2
+    exit 1
+fi
 stage="matching CLI and container build metadata"
 lzug_copy_build_metadata "$container" "$temporary_directory/container-metadata.json"
 lzug_operator_cli --build-metadata > "$temporary_directory/cli-metadata.json"
 cmp "$temporary_directory/container-metadata.json" "$temporary_directory/cli-metadata.json"
+
+stage="direct non-privileged docker-exec admin socket access"
+direct_status=$(docker exec --user 10001:10001 "$container" \
+    /usr/local/bin/lzug-admin --endpoint unix:///run/lzug-admin/admin.sock --json system status)
+printf '%s' "$direct_status" | python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+assert payload["schema_version"] == 1 and payload["protocol_version"] == 1
+assert payload["exit_code"] == 0 and payload["ok"] is True
+' >/dev/null
+
+stage="interactive non-privileged docker-exec CLI access"
+printf 'system\nstatus\nbeenden\n' | docker exec --interactive --tty --user 10001:10001 "$container" \
+    /usr/local/bin/lzug-admin --endpoint unix:///run/lzug-admin/admin.sock cli \
+    >"$temporary_directory/interactive-cli.txt"
+tr -d '\r' <"$temporary_directory/interactive-cli.txt" | \
+    grep -F 'Sitzung beendet.' >/dev/null
 
 stage="reject legacy container-exec upgrade transport"
 lifecycle_status=0

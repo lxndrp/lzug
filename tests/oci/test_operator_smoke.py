@@ -23,7 +23,16 @@ elif args[0] == "inspect":
 elif args[0] == "logs":
     print("backend.admin_socket_path.SocketSecurityError: invitation-token-sentinel")
 elif args[0] == "exec":
-    if args[-2:] == ["id", "-u"]:
+    if args[-3:] == ["sh", "-c", "command -v go"]:
+        sys.exit(1)
+    elif "/usr/local/bin/lzug-admin" in args:
+        if "cli" in args:
+            print("Sitzung beendet.")
+        elif "--build-metadata" in args:
+            print("{}")
+        else:
+            print(json.dumps({"schema_version": 1, "protocol_version": 1, "exit_code": 0, "ok": True}))
+    elif args[-2:] == ["id", "-u"]:
         print("10001")
     elif args[-1] == "/app/backend/src/build-metadata.json":
         print("{}")
@@ -65,14 +74,11 @@ class OperatorSmokeTests(unittest.TestCase):
             docker = root / "docker"
             docker.write_text(textwrap.dedent(FAKE_DOCKER))
             docker.chmod(0o755)
-            binary = root / "linux-cli"
-            binary.write_text("fixture")
             log = root / "engine.log"
             env = dict(
                 os.environ,
                 PATH=f"{root}:{os.environ['PATH']}",
                 ENGINE_LOG=str(log),
-                LZUG_ADMIN_BINARY=str(binary),
             )
             env.update(overrides)
             result = subprocess.run(
@@ -111,19 +117,26 @@ class OperatorSmokeTests(unittest.TestCase):
         backend = next(cmd for cmd in commands if "--detach" in cmd)
         self.assertIn("--admin-socket-dir", backend)
         self.assertIn("--admin-socket-gid", backend)
+        direct = next(
+            cmd for cmd in commands if cmd[0] == "exec" and "/usr/local/bin/lzug-admin" in cmd
+        )
+        self.assertIn("--user", direct)
+        self.assertIn("10001:10001", direct)
         for cmd in commands:
             if "--interactive" in cmd:
-                self.assertIn(f"{os.getuid()}:10001", cmd)
-                if "--endpoint" in cmd:
+                expected_user = "10001:10001" if cmd[0] == "exec" else f"{os.getuid()}:10001"
+                self.assertIn(expected_user, cmd)
+                if cmd[0] == "run" and "--endpoint" in cmd:
                     self.assertIn("--pid", cmd)
                     self.assertIn("container:" + backend[backend.index("--name") + 1], cmd)
-                if "recipient-key" in cmd:
-                    self.assertNotIn("--pid", cmd)
-                self.assertIn("no-new-privileges:true", cmd)
-                self.assertIn("--read-only", cmd)
-                self.assertIn("none", cmd)
-                self.assertFalse(any("target=/data" in arg for arg in cmd))
-                self.assertTrue(any("target=/run/lzug-admin,readonly" in arg for arg in cmd))
+                if cmd[0] == "run":
+                    if "recipient-key" in cmd:
+                        self.assertNotIn("--pid", cmd)
+                    self.assertIn("no-new-privileges:true", cmd)
+                    self.assertIn("--read-only", cmd)
+                    self.assertIn("none", cmd)
+                    self.assertFalse(any("target=/data" in arg for arg in cmd))
+                    self.assertTrue(any("target=/run/lzug-admin,readonly" in arg for arg in cmd))
         self.assertTrue(any(cmd[:2] == ["rm", "--force"] for cmd in commands))
 
     def test_malformed_response_reports_json_failure_without_raw_payload(self) -> None:

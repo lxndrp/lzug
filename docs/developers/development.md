@@ -97,17 +97,17 @@ Er rechtfertigt keine Abschwächung von Produktcode oder Sicherheitsgrenzen.
 Die CI ist die finale Abnahme für die ausgewählten Plattform- und
 Repositoryverträge.
 
-Der Operator-Container-Smoke (`task quality:operator-container`) baut eine separate
-statische Linux-CLI passend zur Image-Architektur.
-Sie läuft in einer isolierten Hilfsinstanz am geschützten Admin-Socket;
+Der Operator-Container-Smoke (`task quality:operator-container`) verwendet das
+unveränderte, im Produktimage ausgelieferte Linux-Binary.
+Ein nichtprivilegierter `docker exec`-Aufruf prüft dessen direkten
+Socketzugriff und den interaktiven Einstieg `lzug-admin cli`.
+Weitere Befehle laufen in einer isolierten Hilfsinstanz am geschützten Admin-Socket;
 Schlüssel und Artefakte liegen ausschließlich in deren temporärem Arbeitsverzeichnis,
 das Backend erhält nur das Socket-Volume und sein Datenvolume.
 Für die Peer-Prüfung teilt die CLI nach dem Start den PID-Namespace des Backends,
 verwendet jedoch die abweichende Host-UID und die Betreiber-GID 10001.
 Eine Host-UID von 10001 wird daher mit Diagnose abgelehnt.
 Damit funktioniert der Test auch über eine Docker-Desktop-Linux-VM.
-`LZUG_ADMIN_BINARY` kann für den Operator-Smoke ein bereits gebautes Linux-Binary
-mit passender Architektur und Build-Metadaten vorgeben.
 Fehler nennen Vertragsphase, Exitcode und strukturelle CLI-/Socket-Diagnosen.
 Die Diagnose gibt keine vollständigen Antworten, Schlüssel, Umgebungswerte oder
 Containerlogs aus; die zugehörigen Fehler-Injektionen laufen mit `task delivery:oci`

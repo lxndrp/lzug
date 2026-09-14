@@ -15,6 +15,9 @@
 !backend/db/
 !backend/db/**
 
+!operator-cli/
+!operator-cli/**
+
 !scripts/
 !scripts/**
 
