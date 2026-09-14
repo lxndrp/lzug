@@ -63,6 +63,8 @@ Seiteneffekt des normalen Servers.
 | Demo-Liefervertrag | `task quality:demo-deployment` und je nach Änderung `quality:demo` oder `quality:infra` |
 | Dokumentation | `task docs:check`, danach `task docs` |
 | Erzeugte öffentliche Site und Portal-Links | `task docs:publication:linkcheck` |
+| Workflow-/Quality-Evidenzvertrag | betroffener `unittest` unter `tests/delivery/`; API-Auswahl an exakter SHA |
+| Zeitabhängige Vulnerability-, Secret- oder externe Linkprüfung | jeweiliger Security-/Linkcheck nach eigener Frequenz; nicht durch Build-Evidenz ersetzen |
 | querschnittliche Änderung | `task quality` |
 
 Vor Browserprüfungen laufen `mise exec -- task doctor` und

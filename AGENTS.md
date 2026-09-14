@@ -173,6 +173,20 @@ mindestens `git diff --check` und die betroffenen Format-, Link- oder Fachprüfu
 - `task quality` ist für querschnittliche, Toolchain-, Abhängigkeits-, CI-,
 Migrations-, sicherheitsrelevante oder breite Backend-/Frontend-Änderungen vorgesehen.
 Die finale Abnahme bleibt der CI vorbehalten.
+- Vollständige Quality-Evidenz darf bei identischer SHA, unverändertem
+Prüfvertrag, passenden Tool-/Lock-/Buildinputs, vollständigen Artefakten und
+höchstens 24 Stunden Alter wiederverwendet werden.
+Der Ursprungs-Run und die Auswahlentscheidung bleiben sichtbar.
+Laufende, fehlgeschlagene, abgebrochene, abgelaufene oder unvollständige Runs
+gelten nicht als Nachweis.
+- Zeitabhängige Vulnerability-, Secret- und externe Linkprüfungen bleiben von
+deterministischen Code-/Buildnachweisen getrennt und laufen nach ihrer eigenen
+Frequenz.
+- Lokal werden betroffene Prüfungen und erforderliche Integrationsgrenzen
+begründet ausgeführt.
+Eine vollständige lokale Wiederholung ist weder wegen eines Issueabschlusses
+noch wegen einer Koordinationsübergabe erforderlich;
+die vollständige finale Abnahme erfolgt einmalig in CI am exakten Kandidaten.
 - Sandbox-Probleme als Umgebungsthema dokumentieren und von Produktfehlern
 trennen.
 Unverändert fehlschlagende breite Prüfungen nicht wiederholen.

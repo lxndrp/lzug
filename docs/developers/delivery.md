@@ -104,6 +104,24 @@ Die CI bleibt finale Abnahme, insbesondere für GitHub-Rulesets, CodeQL,
 Source-Scanning und Plattformkombinationen, die lokal nicht vollständig
 verfügbar sind.
 
+### Wiederverwendung vollständiger Quality-Evidenz
+
+Der `revision`-Job fragt vor einer vollständigen Ausführung passende Schedule-
+und Dispatch-Runs sowie ihre Artefakte über die GitHub-API ab.
+Wiederverwendung setzt die exakte `master`-SHA, den unveränderten
+Quality-Vertrag, passende Tool-/Lock-/Buildinputs, den Marker
+`quality-evidence-v2`, alle erforderlichen Artefakte und höchstens 24 Stunden
+Alter voraus.
+Der Ursprungs-Run und die Auswahlentscheidung werden in der Zusammenfassung
+ausgewiesen.
+
+Ein laufender passender Run blockiert einen parallelen vollständigen Lauf;
+fehlgeschlagene, abgebrochene, alte oder unvollständige Runs werden verworfen.
+Ein wiederverwendeter Workflow erzeugt selbst keinen neuen vollständigen
+Nachweis und verlängert dessen Frist nicht.
+Zeitabhängige Sicherheitsprüfungen laufen auch bei wiederverwendeter
+deterministischer Evidenz weiter.
+
 ## Release und Artefakte
 
 `.github/workflows/release.yml` und `.github/workflows/snapshot.yml` sind die einzigen Veröffentlichungseinstiege.

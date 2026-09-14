@@ -73,15 +73,19 @@ jobs:
             exit 1
           }
 
-          quality_runs=$(gh api \
-            "repos/$GH_REPO/actions/workflows/quality.yml/runs?branch=master&head_sha=$TARGET_SHA&status=success&per_page=100")
-          jq -e --arg sha "$TARGET_SHA" '
-            any(.workflow_runs[];
-              .head_sha == $sha and
-              .head_branch == "master" and
-              (.event == "schedule" or .event == "workflow_dispatch") and
-              .conclusion == "success")
-          ' <<<"$quality_runs" >/dev/null || {
+          gh api --paginate --slurp "repos/$GH_REPO/actions/workflows/quality.yml/runs?branch=master&per_page=100" > "$RUNNER_TEMP/quality-runs.json"
+          gh api --paginate --slurp "repos/$GH_REPO/actions/artifacts?per_page=100" > "$RUNNER_TEMP/quality-artifacts.json"
+          python3 scripts/quality_evidence.py \
+            --runs "$RUNNER_TEMP/quality-runs.json" \
+            --artifacts "$RUNNER_TEMP/quality-artifacts.json" \
+            --sha "$TARGET_SHA" \
+            --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --required-artifact quality-evidence-v2 \
+            --required-artifact backend-coverage \
+            --required-artifact frontend-coverage \
+            --required-artifact lzug-documentation \
+            --required-artifact lzug-sboms > "$RUNNER_TEMP/quality-decision.json"
+          jq -e '.decision == "reused"' "$RUNNER_TEMP/quality-decision.json" >/dev/null || {
             echo "Run Quality on master with expected_sha before continuing. No successful complete Quality workflow exists for master SHA $TARGET_SHA." >&2
             exit 1
           }
