@@ -67,6 +67,7 @@ export class App {
   protected readonly pageTitle = signal('Übersicht');
   protected readonly breadcrumb = signal('Aktueller Prüfungskontext');
   protected readonly isContextualView = signal(true);
+  protected readonly isAuthRoute = signal(false);
   protected readonly sidebarVisible = signal(
     typeof window === 'undefined' || window.innerWidth >= 768,
   );
@@ -247,6 +248,7 @@ export class App {
     this.pageTitle.set(data.title ?? 'Übersicht');
     this.breadcrumb.set(data.breadcrumb ?? 'Aktueller Prüfungskontext');
     this.isContextualView.set(data.contextual ?? true);
+    this.isAuthRoute.set(data.auth === true);
     if (focusHeading) this.focusPageHeading();
   }
 

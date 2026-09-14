@@ -1,0 +1,46 @@
+version: "3.52"
+
+vars:
+  UV: uv run --locked --extra dev
+
+tasks:
+  test:
+    desc: Run documentation and publication tests
+    cmds:
+      - "{{.UV}} python -m unittest discover -s tests/docs"
+
+  check:
+    desc: Check project-specific documentation structure contracts
+    cmds:
+      - python3 -m scripts.check_documentation
+
+  build:
+    desc: Build the local technical reference and generated code references
+    cmds:
+      - task: test
+      - task: check
+      - task: media:check
+      - task: cli
+      - task: technical
+      - task: frontend
+
+  media:check:
+    desc: Check Playwright-captured demo media metadata and image dimensions
+    cmds:
+      - python3 -m docs.media.check
+
+  cli:
+    internal: true
+    dir: operator-cli
+    cmds:
+      - go run ./internal/tools/cli-reference --check ../docs/developers/reference/cli.md
+
+  technical:
+    internal: true
+    cmds:
+      - "{{.UV}} mkdocs build --strict --config-file docs/mkdocs.yml"
+
+  frontend:
+    internal: true
+    cmds:
+      - cd frontend && npm run docs

@@ -31,7 +31,7 @@ die Build-Revision sichtbar machen und ohne Kopien oder eine zusätzliche Publis
    Struktur- und Navigationsprüfungen sichern den aktuellen Repository-Bestand.
 6. Das GitHub Wiki ist keine Quelle für die öffentliche Dokumentation.
    Es entsteht weder ein dauerhafter Wiki-Checker noch ein Parallelarchiv.
-7. Hugo/Relearn bleibt die schlanke Hülle für Navigation, Suche, Responsive-Verhalten und Corporate Design.
+7. Hugo/Blowfish bleibt die schlanke Hülle für Navigation, Suche, Responsive-Verhalten und Corporate Design.
    MkDocs, TypeDoc und OpenAPI bleiben unabhängige Generatoren und werden nur in das Zielartefakt montiert.
 
 ## Konsequenzen
@@ -57,5 +57,5 @@ nicht ein impliziter Rückfall.
 
 ## Referenzen
 
-- [Publications-Skript](https://github.com/lxndrp/lzug/blob/master/docs/publication.py)
+- [Eingechecktes Hugo-Projekt](https://github.com/lxndrp/lzug/tree/master/docs/publication)
 - [ADR-0007: MkDocs und Code-Referenzen](0007-dokumentation-und-code-referenz.md)

@@ -9,6 +9,67 @@ Versionen folgen [Semantic Versioning](https://semver.org/lang/de/).
 Bei einer Release-Vorbereitung verschiebt ein Maintainer die freizugebenden Einträge in genau einen Abschnitt `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`.
 Der Release-Workflow übernimmt ausschließlich diesen Abschnitt als Release Notes und veröffentlicht nur aus dem nach der Environment-Freigabe erzeugten, annotierten SemVer-Tag.
 
+## [0.9.0] - 2026-09-13
+
+### Added
+
+- Der autoritative Backendprozess stellt einen gehärteten Unix-Domain-Socket
+  mit direktem Go-Adapter für die Betreiber-CLI bereit.
+  Liveness, Readiness und Wartungszustand sind über die Betriebsverträge
+  durchgängig sichtbar.
+- Artefakte können begrenzt und versioniert über denselben Admin-Socketvertrag
+  gestreamt werden.
+
+### Changed
+
+- CLI und Produktimage verwenden vollständig die bereitgestellten lokalen
+  Socket-Endpunkte.
+  Runtime-, Lifecycle- und Persistenzkoordination sowie Integrations-,
+  Planfolgen- und Migrationsorchestrierung sind dafür in klar abgegrenzte
+  Verantwortungen gegliedert.
+- Backend-Fachmodule, transportneutraler Admin-Anwendungskern,
+  Ressourcenautorisierung und SQL-Sichtbarkeit sind getrennt organisiert.
+  Kritische Backend-Betriebsbereiche sind statisch typisiert und gezielt
+  getestet; die FastAPI-Kompatibilitätsschicht wurde nach erreichter Parität
+  reduziert.
+- Frontend-Shell, API-Module und E2E-Suiten folgen getrennten
+  Verantwortungsgrenzen.
+  Echte Angular-Routen aktivieren die Feature-Einstiege, und die
+  Frontend-Transporttypen werden aus dem OpenAPI-Vertrag erzeugt.
+- HTTP-Observability verwendet kanonische Routenschablonen und konsistente
+  Messwerte.
+- Die Publikations- und Versionsarchitektur trennt Produkt, technische
+  Referenzen und redaktionelle Quellen.
+  Das GitHub Wiki ist kontrolliert aktiviert, Pages sind auf Produkt und
+  Referenzen reduziert, und die Veröffentlichung verwendet ein reguläres
+  Hugo-Projekt mit Blowfish v3.
+- Release- und Snapshot-Publishing sowie Task- und Workflow-Orchestrierung
+  sind in eindeutige Phasen und zentrale Zuständigkeiten gegliedert.
+  Qualitäts- und Release-Evidenz wird risikobasiert konsolidiert.
+- Die Entwicklungsdokumentation beschreibt bestätigte Planänderungen,
+  asynchrone Task-Übergaben, Project-basierte Ausführungsprofile sowie
+  dokumentierte Release-Review- und Istaufwand-Gates.
+
+### Fixed
+
+- HTTP-Requests werden bereits beim Streaming begrenzt.
+  Fehlende Ressourcen-IDs werden vor dem SQLAlchemy-Zugriff validiert.
+- Die Dokumentation zu den Folgen bestätigter Planänderungen entspricht wieder
+  dem bestätigten fachlichen Verhalten.
+
+### Security
+
+- Ressourcenautorisierung und SQL-Sichtbarkeit sind transaktionsklar getrennt.
+  Der lokale Admintransport verwendet gehärtete Socket-Grenzen und einen
+  versionierten Vertrag.
+- Datenmigrationen können kontrolliert über die Betreiber-CLI freigegeben
+  werden.
+
+### Toolchain
+
+- Hono, Ruff und `holidays` wurden auf die im Milestone geprüften Versionen
+  aktualisiert.
+
 ## [0.8.0] - 2026-09-08
 
 ### Changed

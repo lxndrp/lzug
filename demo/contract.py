@@ -211,7 +211,7 @@ class DemoArtifactPair:
 
     @property
     def signer_workflow(self) -> str:
-        workflow = "demo-snapshot.yml" if self.identity.is_snapshot else "demo-publish.yml"
+        workflow = "demo-publish.yml"
         return f"lxndrp/lzug/.github/workflows/{workflow}"
 
 

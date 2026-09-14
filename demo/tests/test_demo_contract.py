@@ -23,7 +23,7 @@ from demo.delivery.contract import main
 class DemoContractTests(unittest.TestCase):
     release_tag = "v0.4.0"
     release_commit = "a" * 40
-    snapshot_tag = "demo/v0.4.0-SNAPSHOT.abcdef0"
+    snapshot_tag = "snapshot/v0.4.0-SNAPSHOT.abcdef0"
     snapshot_commit = "abcdef0" + "b" * 33
 
     def manifests(self) -> tuple[dict, dict]:
@@ -104,7 +104,7 @@ class DemoContractTests(unittest.TestCase):
             product_tag=self.snapshot_tag, product_commit=self.snapshot_commit
         )
         self.assertEqual(
-            "lxndrp/lzug/.github/workflows/demo-snapshot.yml",
+            "lxndrp/lzug/.github/workflows/demo-publish.yml",
             snapshot_pair.signer_workflow,
         )
 

@@ -53,7 +53,7 @@ jobs:
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
         with:
           version: 3.52.0
-      - run: task fixtures:check test:fixtures
+      - run: task fixtures:check delivery:fixtures
 
   backend:
     name: Backend
@@ -78,7 +78,7 @@ jobs:
           go-version: "1.26.5"
           cache: true
           cache-dependency-path: operator-cli/go.sum
-      - run: task quality:backend
+      - run: task backend:quality
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: backend-coverage
@@ -103,7 +103,7 @@ jobs:
         with:
           version: 3.52.0
       - run: npm ci --prefix frontend
-      - run: task brand:check quality:frontend quality:security
+      - run: task brand:check frontend:quality frontend:security
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: frontend-coverage
@@ -134,7 +134,7 @@ jobs:
         with:
           version: 3.52.0
       - run: uv sync --locked --extra dev && npm ci --prefix frontend
-      - run: task quality:frontend-transport
+      - run: task frontend:transport
 
   docs:
     name: Documentation
@@ -199,7 +199,7 @@ jobs:
           syft-version: v1.51.0
       - env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
-        run: task quality:operator quality:operator-packaging
+        run: task operator:quality quality:operator-packaging
 
   infra:
     name: Infrastructure
@@ -242,7 +242,7 @@ jobs:
         with:
           version: 3.52.0
       - run: uv sync --locked --extra dev
-      - run: task test:delivery test:demo test:tooling
+      - run: task delivery:test demo:test delivery:tooling
 
   container:
     name: Container
@@ -273,7 +273,7 @@ jobs:
           syft-version: v1.51.0
       - env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
-        run: task quality:oci quality:container quality:compose quality:operator-container quality:demo test:oci
+        run: task quality:oci quality:container quality:compose quality:operator-container quality:demo delivery:oci
       - name: Generate and validate the dependency SBOM
         env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}

@@ -12,9 +12,23 @@ FAKE_DOCKER = r"""#!/usr/bin/env sh
 set -eu
 
 printf '%s\n' "$*" >>"$FAKE_ENGINE_LOG"
+if [ "$1" = compose ]; then
+    printf 'socket-dir=%s database=%s url=%s\n' \
+        "$LZUG_ADMIN_SOCKET_DIR" "$LZUG_DATABASE_PATH" "$LZUG_DATABASE_URL" \
+        >>"$FAKE_ENGINE_LOG"
+fi
 
 case "$*" in
     info)
+        ;;
+    compose*" run "*"--user 0:0"*)
+        exit "${FAKE_SOCKET_SETUP_STATUS:-0}"
+        ;;
+    compose*" run "*"initialize()"*)
+        exit "${FAKE_DATABASE_INIT_STATUS:-0}"
+        ;;
+    compose*" exec -T lzug python -c "*"stat.S_ISSOCK"*)
+        exit "${FAKE_SOCKET_CHECK_STATUS:-0}"
         ;;
     compose*" ps -q lzug")
         echo "fake-container"
@@ -103,6 +117,52 @@ class ComposeSmokeTests(unittest.TestCase):
         start_offset = commands.index(" start lzug")
         self.assertLess(stop_offset, stopped_state_offset)
         self.assertLess(stopped_state_offset, start_offset)
+        self.assertEqual(commands.count("stat.S_ISSOCK"), 3)
+
+    def test_private_fixture_is_prepared_before_service_start_and_removed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            operator_directory = Path(directory) / "operator-socket"
+            operator_directory.mkdir(mode=0o700)
+            marker = operator_directory / "keep"
+            marker.write_text("operator data", encoding="utf-8")
+            result, commands = self.run_smoke(
+                LZUG_ADMIN_SOCKET_DIR=str(operator_directory),
+                LZUG_DATABASE_PATH="/run/operator.sqlite",
+                LZUG_DATABASE_URL="sqlite:////run/operator.sqlite",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(marker.read_text(encoding="utf-8"), "operator data")
+            self.assertEqual(stat.S_IMODE(operator_directory.stat().st_mode), 0o700)
+            self.assertNotIn(str(operator_directory), commands)
+            self.assertNotIn("operator.sqlite", commands)
+
+        mounts = [line for line in commands.splitlines() if line.startswith("socket-dir=")]
+        self.assertTrue(mounts)
+        self.assertEqual(len(set(mounts)), 1)
+        self.assertTrue(mounts[0].endswith(" database=/data/lzug.sqlite url="))
+        socket_directory = Path(mounts[0].split(" database=")[0].removeprefix("socket-dir="))
+        self.assertFalse(socket_directory.parent.exists())
+        setup = commands.index("--user 0:0 --cap-add CHOWN --cap-add FOWNER")
+        initialize = commands.index(" run --rm --no-deps --entrypoint python lzug")
+        start = commands.index(" up -d")
+        self.assertLess(setup, initialize)
+        self.assertLess(initialize, start)
+        self.assertIn("chown 10001:10001 /run/lzug-admin && chmod 0750", commands)
+        self.assertNotIn("--user", commands[initialize:start])
+
+    def test_fixture_failure_prevents_start_and_still_cleans_up(self) -> None:
+        for failure in ("FAKE_SOCKET_SETUP_STATUS", "FAKE_DATABASE_INIT_STATUS"):
+            with self.subTest(failure=failure):
+                result, commands = self.run_smoke(**{failure: "1"})
+                self.assertEqual(result.returncode, 1)
+                self.assertNotIn(" up -d", commands)
+                self.assertIn(" down --volumes --remove-orphans", commands)
+
+    def test_socket_contract_failure_stops_lifecycle_checks(self) -> None:
+        result, commands = self.run_smoke(FAKE_SOCKET_CHECK_STATUS="1")
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn(" restart lzug", commands)
+        self.assertIn(" down --volumes --remove-orphans", commands)
 
     def test_stop_timeout_does_not_start_a_container_that_is_still_stopping(self) -> None:
         result, commands = self.run_smoke(
