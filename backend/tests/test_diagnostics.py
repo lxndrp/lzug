@@ -9,11 +9,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from backend.admin import run
 from backend.build_metadata import BuildMetadata
 from backend.identity.admin_service import OperatorAuthService
 from backend.operations.diagnostics import EXIT_DIAGNOSTIC_ERROR, EXIT_DIAGNOSTIC_WARNING
-from backend.tests.helpers import TempDatabase
+from backend.tests.helpers import TempDatabase, run_admin
+
+run = run_admin
 
 
 class OperatorDiagnosticsTests(unittest.TestCase):
