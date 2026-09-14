@@ -7,6 +7,7 @@ import sqlite3
 import tempfile
 import unittest
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -24,7 +25,7 @@ from backend.operations.artifact_packages import ClearArtifactService
 from backend.operations.backup_restore import FULL_EXPORT_SCHEMA, ArtifactError
 from backend.persistence.database import PersistencePaths, database_readiness, initialize
 from backend.planning.exam_venues import ExamVenueService
-from backend.runtime import RuntimeCoordinator
+from backend.runtime import Operation, RuntimeConflictError, RuntimeCoordinator
 from backend.tests.fixture_data import DEMO_ROLES
 from backend.tests.helpers import development_seed_sql
 
@@ -297,6 +298,94 @@ class BackupRestoreTests(unittest.TestCase):
         )
         self.assertEqual("/operator/pre-restore.lzug", restored["safety_artifact"])
 
+    def test_restore_consent_refusal_does_not_poison_the_live_runtime(self) -> None:
+        _source_paths, source, _token = self.prepare_source()
+        target_paths, target = self.runtime("target", seed=True)
+        package, _result = self.write_package(source, "backup.zip")
+        runtime = RuntimeCoordinator(target_paths.database, lambda: {"ready": True})
+        runtime.start()
+        self.addCleanup(runtime.stop)
+
+        for replace, expected in (
+            (False, "replace_confirmation_required"),
+            (True, "safety_artifact_required"),
+        ):
+            with self.assertRaises(ArtifactError) as raised:
+                target.restore_package(
+                    package,
+                    replace=replace,
+                    safety_artifact=None,
+                    recipient_fingerprint=FINGERPRINT,
+                )
+            self.assertEqual(expected, raised.exception.code)
+            self.assertTrue(runtime.snapshot()["ready"])
+            self.assertIsNone(runtime.snapshot()["job"])
+            # The CLI must still be able to inspect the recipient and create
+            # the pre-restore safety backup after an invocation was refused.
+            with runtime.inspect_storage():
+                self.write_package(target, "safety.zip")
+
+        restored = target.restore_package(
+            package,
+            replace=True,
+            safety_artifact="/operator/pre-restore.lzug",
+            recipient_fingerprint=FINGERPRINT,
+        )
+        self.assertEqual("backup", restored["artifact_type"])
+        self.assertTrue(runtime.snapshot()["ready"])
+        self.assertEqual("succeeded", runtime.snapshot()["job"]["status"])
+
+    def test_restore_preflight_does_not_inspect_storage_during_lifecycle_work(self) -> None:
+        paths, target = self.runtime("target", seed=True)
+        runtime = RuntimeCoordinator(paths.database, lambda: {"ready": True})
+        runtime.start()
+        self.addCleanup(runtime.stop)
+        with runtime.operation(Operation.MIGRATION), ThreadPoolExecutor(max_workers=1) as pool:
+            with patch.object(target, "_target_is_empty") as inspect:
+                competing = pool.submit(
+                    target.restore_package,
+                    self.root / "unused.zip",
+                    replace=False,
+                    safety_artifact=None,
+                    recipient_fingerprint=FINGERPRINT,
+                )
+                with self.assertRaises(RuntimeConflictError):
+                    competing.result(timeout=5)
+                inspect.assert_not_called()
+        self.assertTrue(runtime.snapshot()["ready"])
+
+    def test_restore_into_uninitialized_target_preserves_recovery_path(self) -> None:
+        _source_paths, source, _token = self.prepare_source()
+        package, _result = self.write_package(source, "backup.zip")
+        for managed in (False, True):
+            with self.subTest(managed=managed):
+                root = self.root / f"fresh-{managed}"
+                paths = PersistencePaths(
+                    data_dir=root,
+                    database=root / "lzug.sqlite",
+                    documents=root / "documents",
+                    backups=root / "backups",
+                )
+                target = ClearArtifactService(paths, environment={})
+                runtime = None
+                if managed:
+                    runtime = RuntimeCoordinator(
+                        paths.database, lambda paths=paths: database_readiness(paths.database)
+                    )
+                    runtime.start()
+                    self.addCleanup(runtime.stop)
+                    self.assertEqual("error", runtime.snapshot()["state"])
+                result = target.restore_package(
+                    package,
+                    replace=False,
+                    safety_artifact=None,
+                    recipient_fingerprint=FINGERPRINT,
+                )
+                self.assertEqual("backup", result["artifact_type"])
+                self.assertTrue(database_readiness(paths.database)["ready"])
+                if runtime is not None:
+                    self.assertTrue(runtime.snapshot()["ready"])
+
     def test_activation_failure_leaves_existing_target_unchanged(self) -> None:
         _source_paths, source, _token = self.prepare_source()
 
@@ -308,6 +397,9 @@ class BackupRestoreTests(unittest.TestCase):
         with closing(sqlite3.connect(target_paths.database)) as connection:
             connection.execute("UPDATE candidate SET first_name = 'TargetOnly' WHERE id = 1")
             connection.commit()
+        runtime = RuntimeCoordinator(target_paths.database, lambda: {"ready": True})
+        runtime.start()
+        self.addCleanup(runtime.stop)
         package_copy, _result = self.write_package(source, "backup.zip")
 
         with self.assertRaises(ArtifactError) as raised:
@@ -318,6 +410,9 @@ class BackupRestoreTests(unittest.TestCase):
                 recipient_fingerprint=FINGERPRINT,
             )
         self.assertEqual("activation_failed", raised.exception.code)
+        self.assertEqual("error", runtime.snapshot()["state"])
+        self.assertEqual("failed", runtime.snapshot()["job"]["status"])
+        self.assertTrue(runtime.snapshot()["job"]["requires_recovery"])
         with closing(sqlite3.connect(target_paths.database)) as connection:
             self.assertEqual(
                 "TargetOnly",

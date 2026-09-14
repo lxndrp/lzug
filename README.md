@@ -31,21 +31,21 @@ operative Reihenfolge im GitHub Project `lzug Roadmap`.
 
 Wähle den Einstieg nach Aufgabe:
 
-- Das öffentliche [Produkt- und Dokumentationsportal](https://lzug.repertoire.papaspyrou.name/)
-führt zu Produktinformation und Demo sowie zu Nutzer-, Betreiber- und Entwicklerdokumentation.
-- Die öffentliche [Nutzungsdokumentation](https://lzug.repertoire.papaspyrou.name/nutzen/)
-erklärt die fachliche Arbeit nach Anmeldung.
-- Die öffentliche [Betreiberanleitung](https://lzug.repertoire.papaspyrou.name/betreiben/)
-führt durch Installation, Bootstrap, Diagnose und das erste verifizierte Backup.
+- Die öffentliche [Produktseite](https://lzug.repertoire.papaspyrou.name/)
+führt zu Produktinformation und Demo.
+- Das [GitHub Wiki](https://github.com/lxndrp/lzug/wiki) enthält das aktuelle
+redaktionelle Fach-, Nutzer- und Betreiberhandbuch.
+- Die [technischen Referenzen](https://lzug.repertoire.papaspyrou.name/referenz/)
+werden aus API-, Quelltext- und Schemadateien erzeugt.
 - [CONTRIBUTING.md](CONTRIBUTING.md) ist der Einstieg für Beiträge und lokale
 Entwicklung.
-- Das öffentliche [Entwicklerhandbuch](https://lzug.repertoire.papaspyrou.name/entwickeln/)
-enthält aktuelle
+- Das [Entwicklerhandbuch](docs/developers/index.md) enthält aktuelle
 technische Verträge, Runbooks, Referenzen und Entscheidungen.
 
-Das Repository ist die einzige kanonische Quelle.
-Pages rendert diese Inhalte aus derselben Revision;
-jede Seite verlinkt ihre Quelle und Build-Revision.
+Das Repository ist die kanonische Quelle für Code, technische Dokumentation und Referenzen;
+das Wiki ist die kanonische redaktionelle Quelle für Fachlichkeit, Nutzung und Betrieb.
+Pages rendert Produktseite und technische Referenzen aus derselben Revision;
+jede generierte Referenz weist ihre Quellrevision aus.
 `task docs` baut die versionierte technische Referenz lokal; CI stellt sie als geschütztes Artefakt bereit.
 
 ## Lizenz

@@ -1,5 +1,15 @@
 # Third-party notices
 
+## Blowfish
+
+The GitHub Pages publication uses Blowfish v3.6.0 from
+`https://github.com/nunocoracao/blowfish.git` at commit
+`4643c46bd5e921fee51c420575fadebf9f4b3681`.
+The theme is included only in the temporary build checkout; its build assets
+are not copied into the repository.
+Blowfish is distributed under the MIT License; the complete license text is
+available in the pinned upstream source checkout.
+
 This file covers third-party material used by the source repository, the
 installed locked Python environment, and the production frontend. Exact npm
 versions and license expressions come from `frontend/package-lock.json`.

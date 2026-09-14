@@ -50,7 +50,7 @@ variable "demo_artifact_pair" {
       (
         can(regex("^v[0-9]+\\.[0-9]+\\.[0-9]+([+-][0-9A-Za-z.-]+)?$", var.demo_artifact_pair.product_tag)) ||
         (
-          can(regex("^demo/v[0-9]+\\.[0-9]+\\.[0-9]+-SNAPSHOT\\.[0-9a-f]{7}$", var.demo_artifact_pair.product_tag)) &&
+          can(regex("^snapshot/v[0-9]+\\.[0-9]+\\.[0-9]+-SNAPSHOT\\.[0-9a-f]{7}$", var.demo_artifact_pair.product_tag)) &&
           endswith(var.demo_artifact_pair.product_tag, substr(var.demo_artifact_pair.product_commit, 0, 7))
         )
       ) &&

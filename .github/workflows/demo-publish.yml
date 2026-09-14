@@ -3,8 +3,16 @@ name: Publish Demo Images
 on:
   workflow_call:
     inputs:
+      channel:
+        description: Demo publication channel
+        required: true
+        type: string
       product_tag:
-        description: Published stable product tag (for example v0.2.0)
+        description: Stable release or immutable snapshot tag
+        required: true
+        type: string
+      target_sha:
+        description: Commit bound to the product tag
         required: true
         type: string
     outputs:
@@ -34,7 +42,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: demo-publish-${{ inputs.product_tag }}
+  group: demo-publish-${{ inputs.channel }}-${{ inputs.product_tag }}
   cancel-in-progress: false
 
 jobs:
@@ -49,6 +57,7 @@ jobs:
     outputs:
       product_tag: ${{ steps.contract.outputs.product_tag }}
       product_version: ${{ steps.contract.outputs.product_version }}
+      product_identity: ${{ steps.contract.outputs.product_identity }}
       target_sha: ${{ steps.contract.outputs.target_sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -56,12 +65,14 @@ jobs:
           ref: ${{ inputs.product_tag }}
           fetch-depth: 0
 
-      - name: Verify stable tag, product release, image, attestation, and quality evidence
+      - name: Verify channel-bound product, image, attestation, and quality evidence
         id: contract
         env:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
           PRODUCT_TAG: ${{ inputs.product_tag }}
+          CHANNEL: ${{ inputs.channel }}
+          EXPECTED_SHA: ${{ inputs.target_sha }}
         run: |
           set -euo pipefail
           git fetch --tags origin
@@ -70,15 +81,21 @@ jobs:
             exit 1
           }
           target_sha=$(git rev-parse "$PRODUCT_TAG^{}")
+          test -z "$EXPECTED_SHA" || test "$target_sha" = "$EXPECTED_SHA"
           test "$(git rev-parse HEAD)" = "$target_sha"
+          product_identity=$(python3 -m demo.delivery.contract identity \
+            --tag "$PRODUCT_TAG" --commit "$target_sha" \
+            --channel "$CHANNEL" --field identity)
           product_version=$(python3 -m demo.delivery.contract identity \
             --tag "$PRODUCT_TAG" --commit "$target_sha" \
-            --channel stable --field identity)
-          gh release view "$PRODUCT_TAG" --repo "$GH_REPO" \
-            --json isDraft --jq 'select(.isDraft == false)' >/dev/null || {
-            echo "The product release must be published, not a draft." >&2
-            exit 1
-          }
+            --channel "$CHANNEL" --field oci_tag)
+          if test "$CHANNEL" = stable; then
+            gh release view "$PRODUCT_TAG" --repo "$GH_REPO" \
+              --json isDraft --jq 'select(.isDraft == false)' >/dev/null || {
+              echo "The product release must be published, not a draft." >&2
+              exit 1
+            }
+          fi
 
           product_image="ghcr.io/${GH_REPO,,}-app:$product_version"
           gh attestation verify "oci://$product_image" --repo "$GH_REPO" >/dev/null
@@ -99,6 +116,7 @@ jobs:
           {
             echo "product_tag=$PRODUCT_TAG"
             echo "product_version=$product_version"
+            echo "product_identity=$product_identity"
             echo "target_sha=$target_sha"
           } >> "$GITHUB_OUTPUT"
 
@@ -115,6 +133,7 @@ jobs:
       GH_REPO: ${{ github.repository }}
       PRODUCT_TAG: ${{ needs.preflight.outputs.product_tag }}
       PRODUCT_VERSION: ${{ needs.preflight.outputs.product_version }}
+      PRODUCT_IDENTITY: ${{ needs.preflight.outputs.product_identity }}
       TARGET_SHA: ${{ needs.preflight.outputs.target_sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -246,7 +265,7 @@ jobs:
           push: true
           tags: ${{ steps.images.outputs.app_ref }}
           build-args: |
-            BUILD_IDENTITY=${{ env.PRODUCT_VERSION }}
+            BUILD_IDENTITY=${{ env.PRODUCT_IDENTITY }}
             PRODUCT_TAG=${{ env.PRODUCT_TAG }}
             VCS_REF=${{ env.TARGET_SHA }}
             SEED_REVISION=${{ steps.images.outputs.seed_revision }}

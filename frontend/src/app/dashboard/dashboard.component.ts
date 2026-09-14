@@ -105,21 +105,21 @@ export class DashboardComponent {
       return {
         title: 'Planungsgrundlagen vervollständigen',
         text: 'Erfassen Sie zunächst Prüfungshalbjahr, Ausschuss, Beteiligte und Planungsrahmen.',
-        href: 'https://lzug.repertoire.papaspyrou.name/nutzen/terminplanung/',
+        href: 'https://github.com/lxndrp/lzug/wiki/Nutzung-Terminplanung',
       };
     }
     if (status === 'availability_requested') {
       return {
         title: 'Rückmeldungen prüfen',
         text: 'Warten Sie auf die offenen Verfügbarkeiten, bevor Sie einen Vorschlag erzeugen.',
-        href: 'https://lzug.repertoire.papaspyrou.name/nutzen/terminplanung/',
+        href: 'https://github.com/lxndrp/lzug/wiki/Nutzung-Terminplanung',
       };
     }
     if (status === 'plan_proposed') {
       return {
         title: 'Vorschlag kontrollieren',
         text: 'Prüfen Sie Termine, Besetzung und Folgen vor der verbindlichen Bestätigung.',
-        href: 'https://lzug.repertoire.papaspyrou.name/nutzen/terminplanung/',
+        href: 'https://github.com/lxndrp/lzug/wiki/Nutzung-Terminplanung',
       };
     }
     if (status === 'plan_confirmed') {

@@ -195,7 +195,7 @@ run "demo_contract" {
       !github_repository_environment.demo.deployment_branch_policy[0].protected_branches &&
       github_repository_environment.demo.deployment_branch_policy[0].custom_branch_policies &&
       github_repository_environment_deployment_policy.demo["master"].branch_pattern == "master" &&
-      github_repository_environment_deployment_policy.demo["snapshot"].tag_pattern == "demo/v*-SNAPSHOT.*" &&
+      github_repository_environment_deployment_policy.demo["snapshot"].tag_pattern == "snapshot/v*-SNAPSHOT.*" &&
       github_repository_environment_deployment_policy.demo["release"].tag_pattern == "v*"
     )
     error_message = "The GitHub demo environment must declaratively preserve its selected master, snapshot, and stable release policies."
@@ -288,7 +288,7 @@ run "accept_bound_snapshot_artifact_pair" {
     demo_artifact_pair = {
       app_image          = "ghcr.io/lxndrp/lzug-demo-app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       seed_image         = "ghcr.io/lxndrp/lzug-demo-seed@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
-      product_tag        = "demo/v0.2.0-SNAPSHOT.0123456"
+      product_tag        = "snapshot/v0.2.0-SNAPSHOT.0123456"
       product_commit     = "0123456789abcdef0123456789abcdef01234567"
       runtime_contract   = "lzug-demo-health-ready-v1"
       schema_fingerprint = "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"

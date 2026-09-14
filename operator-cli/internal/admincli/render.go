@@ -223,6 +223,9 @@ func presentResult(command *Command, raw json.RawMessage) (map[string]any, strin
 		}
 		return projected, artifact + "\n", nil
 	case HumanDiagnostics:
+		if _, exists := source["runtime"]; exists {
+			return socketDiagnosticOutput(raw)
+		}
 		output, err := diagnosticOutput(source)
 		return projected, output, err
 	case HumanPlanStatus:

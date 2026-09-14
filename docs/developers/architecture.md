@@ -58,9 +58,10 @@ flowchart LR
   app -.->|"best effort"| channels
 ```
 
-Browser-Bundle, Python-Anwendung und CLI werden gemeinsam im OCI-Image
-`lzug-app` ausgeliefert, bleiben aber getrennte C4-Container mit expliziten
-Transportgrenzen.
+Browser-Bundle und Python-Anwendung werden gemeinsam im OCI-Image `lzug-app`
+ausgeliefert.
+Die CLI bleibt ein separates, zur selben Revision gehörendes Betreiberartefakt;
+alle drei bleiben getrennte C4-Container mit expliziten Transportgrenzen.
 Genau ein Backendprozess führt die Persistenz und bedient HTTP sowie den
 lokalen Admin-Socket als Adapter desselben Anwendungskerns.
 `lzug-admin` erreicht lokal oder über System-OpenSSH denselben Socketvertrag;
@@ -126,7 +127,6 @@ flowchart TB
       subgraph image["Container-Instanz: lzug-app<br/>UID/GID 10001, read-only Root-Dateisystem"]
         app["Prozess: autoritatives Backend<br/>HTTP, Anwendungskern und Lifecycle"]
         socket["Unix-Domain-Socket<br/>lokaler Adminadapter"]
-        container_cli["Executable: lzug-admin<br/>bei Bedarf kurzlebig gestartet"]
       end
       data[("Volume: /data<br/>SQLite, Dokumente,<br/>Schlüssel und Backups")]
     end
@@ -138,7 +138,6 @@ flowchart TB
   remote -->|"System-SSH"| ssh
   admin -->|"direkt"| socket
   ssh -->|"Socket-Forwarding"| socket
-  container_cli -->|"direkt"| socket
   socket --> app
   app -->|"einziger dauerhafter Schreibbereich"| data
 ```
@@ -150,10 +149,10 @@ Der Dialog ergänzt ausschließlich Navigation, Eingabe, Zusammenfassung und
 Statusrückmeldung.
 Er enthält weder eigene Commandparameter noch Backendaufträge oder
 Fachlogik.
-Lokaler Zugriff, ein im Container gestartetes CLI-Binary und
-SSH-Socket-Forwarding verändern weder Bedien- noch Commandvertrag.
-Die Containerplattform startet Image, Container und bei Bedarf die CLI; sie ist
-nicht der fachliche Backendtransport.
+Lokaler Zugriff und SSH-Socket-Forwarding verändern weder Bedien- noch
+Commandvertrag.
+Die Containerplattform startet ausschließlich das Produktimage und ist nicht
+der fachliche Backendtransport.
 
 Die unterstützte Referenz ist eine einzelne Self-Hosting-Instanz mit
 `lzug-app`, Docker auf Linux und persistenter `/data`-Grenze.
@@ -163,7 +162,7 @@ Die OCI-Liefergrenze bleibt portabel; weitere konkrete Laufzeiten gehören
 dadurch nicht zum unterstützten oder geprüften Umfang.
 TLS-Terminierung, Host-Härtung, Schlüsselverwahrung, Sicherung und
 Aufbewahrung liegen in Betreiberverantwortung und sind im
-[Betreiberanleitung](../portal/betreiben.md) beschrieben.
+[Betreiberanleitung](https://github.com/lxndrp/lzug/wiki/Administration) beschrieben.
 Die öffentliche Demo verwendet das getrennte Image `lzug-demo`, eine flüchtige
 Azure-Assembly mit synthetischem Basisseed und kein Self-Hosting-Muster.
 Ihre Runtime-Policy erzeugt je Besuch eine isolierte SQLite-Arbeitskopie,

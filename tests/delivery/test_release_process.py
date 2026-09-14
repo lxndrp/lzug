@@ -19,8 +19,10 @@ class ReleaseWorkflowTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.workflow = workflow_text(".github/workflows/release.yml")
+        cls.product_workflow = workflow_text(".github/workflows/product-publish.yml")
         cls.preflight = job_block(cls.workflow, "preflight")
-        cls.publish = job_block(cls.workflow, "publish")
+        cls.product = job_block(cls.workflow, "product")
+        cls.publish = job_block(cls.product_workflow, "publish")
 
     def test_dispatch_requires_an_explicit_semver_tag_on_master(self) -> None:
         dispatch = trigger_block(self.workflow)
@@ -34,6 +36,11 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertNotIn("milestone", self.workflow.lower())
         self.assertNotIn("type: release", self.workflow)
         self.assertNotIn("gh issue", self.workflow)
+
+    def test_stable_product_publish_inherits_minimal_preflight_actions_permission(self) -> None:
+        self.assertIn("actions: read", self.product)
+        self.assertNotIn("actions: write", self.product)
+        self.assertIn("actions: read", job_block(self.product_workflow, "preflight"))
 
     def test_preflight_loads_build_metadata_from_checkout_src_layout(self) -> None:
         python_path = re.search(r"^\s+PYTHONPATH:\s+(\S+)\s*$", self.preflight, re.MULTILINE)
@@ -100,6 +107,11 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertNotIn("release-assets/cli/$archive_stem.cdx", self.publish)
         self.assertNotIn('checksums.txt" release-assets', self.publish)
         self.assertNotIn("release-manifest.json", self.publish)
+
+    def test_stable_product_publish_defines_syft_before_using_its_output(self) -> None:
+        syft_step = "id: syft\n        uses: anchore/sbom-action/download-syft@"
+        self.assertIn(syft_step, self.publish)
+        self.assertLess(self.publish.index(syft_step), self.publish.index("SYFT_BINARY:"))
 
 
 if __name__ == "__main__":

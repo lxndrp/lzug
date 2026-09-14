@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="de" data-appearance="light">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="{{ .Description | default .Site.Title }}">
+    <title>{{ .Title }} · {{ .Site.Title }}</title>
+    <link rel="icon" href="{{ "images/favicon.svg" | relURL }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ "css/brand-tokens.css" | relURL }}">
+    <link rel="stylesheet" href="{{ "css/brand-font.css" | relURL }}">
+    {{ $custom := resources.Get "css/custom.css" | resources.Minify | resources.Fingerprint "sha512" }}
+    <link rel="stylesheet" href="{{ $custom.RelPermalink }}">
+    <script>
+      (() => {
+        const root = document.documentElement;
+        const stored = localStorage.getItem('lzug-appearance');
+        root.dataset.appearance = stored === 'dark' || stored === 'light'
+          ? stored
+          : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Zum Inhalt springen</a>
+    <header class="site-header">
+      <a class="site-logo" href="{{ relURL "" }}" aria-label="lzug Startseite">
+        <img src="{{ relURL "images/brand/logo-horizontal-light.svg" }}" alt="lzug">
+      </a>
+      <nav aria-label="Hauptnavigation">
+        <a href="{{ relURL "produkt/" }}">Produkt</a>
+        <a href="{{ relURL "referenz/" }}">Technische Referenz</a>
+        <a href="{{ .Site.Params.wikiURL }}">GitHub Wiki</a>
+        <a href="{{ .Site.Params.repositoryURL }}">Quellcode</a>
+      </nav>
+      <label class="search-label" for="site-search">Suche</label>
+      <input id="site-search" type="search" placeholder="Suche" aria-label="Öffentliche Seiten durchsuchen">
+      <button class="appearance-toggle" type="button" aria-label="Erscheinungsbild wechseln">Hell/Dunkel</button>
+    </header>
+    <main id="main-content">{{ block "main" . }}{{ .Content }}{{ end }}</main>
+    <footer class="site-footer">
+      <nav aria-label="Fußnavigation">
+        <a href="{{ .Site.Params.wikiURL }}/Nutzung">Nutzerhandbuch im Wiki</a>
+        <a href="{{ .Site.Params.wikiURL }}/Administration">Betreiberhandbuch im Wiki</a>
+        <a href="{{ .Site.Params.repositoryDocumentationURL }}">Entwicklerdokumentation</a>
+        <a href="{{ .Site.Params.securityURL }}">Security</a>
+        <a href="{{ .Site.Params.supportURL }}">Support</a>
+      </nav>
+      <p>lzug · <a href="{{ relURL "quellen/" }}">Quellen und Versionen</a></p>
+    </footer>
+    <script>
+      document.querySelector('.appearance-toggle')?.addEventListener('click', () => {
+        const root = document.documentElement;
+        const next = root.dataset.appearance === 'dark' ? 'light' : 'dark';
+        root.dataset.appearance = next;
+        localStorage.setItem('lzug-appearance', next);
+      });
+    </script>
+  </body>
+</html>

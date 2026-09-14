@@ -1,0 +1,2 @@
+{{- $path := .Get "path" -}}
+{{- readFile (path.Join .Site.Home.File.Dir "../../" $path) -}}
