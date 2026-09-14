@@ -17,14 +17,17 @@ Abhängigkeiten.
 
 ```sh
 mise install
-task setup
-task doctor
+mise exec -- task setup
+mise exec -- task doctor
 ```
 
 `task setup` erzeugt `.venv`, synchronisiert die gelockten Python-Pakete,
-installiert das Frontend mit `npm ci` und lädt Playwright Chromium.
-`task doctor` prüft die lokale Toolchain, die virtuelle Umgebung und die
-Browser-Executable.
+installiert das Frontend mit `npm ci`.
+Der Codex-Setup-Aufruf verwendet `mise exec --`, damit auch Task-Unterprozesse
+die in `.mise.toml` gepinnten Werkzeuge verwenden.
+`task setup:playwright` lädt die Browserdaten separat.
+`task doctor` prüft die lokale Toolchain und die virtuelle Umgebung;
+`task doctor:playwright` prüft die Browser-Executables separat.
 Ein gemeinsamer uv-Cache unter `~/.cache/uv` kann lokale Codex-Läufe
 beschleunigen, ist aber keine Projektvoraussetzung.
 Persönliche Codex-, IDE- oder Secret-Konfiguration gehört nicht in das
@@ -62,7 +65,8 @@ Seiteneffekt des normalen Servers.
 | Erzeugte öffentliche Site und Portal-Links | `task docs:publication:linkcheck` |
 | querschnittliche Änderung | `task quality` |
 
-Vor Browserprüfungen läuft `task doctor`.
+Vor Browserprüfungen laufen `mise exec -- task doctor` und
+`mise exec -- task doctor:playwright`.
 
 Die öffentliche Pages-Hülle wird mit Hugo Extended und Blowfish v3.6.0 gebaut.
 Das eingecheckte Projekt unter `docs/publication/` bindet den vollständigen
