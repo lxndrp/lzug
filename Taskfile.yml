@@ -170,10 +170,7 @@ tasks:
     cmds:
       - >-
         output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
-        SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
-        HUGO_PARAMS_DEMOURL="{{.DEMO_URL}}"
-        HUGO_PARAMS_REPOSITORYREVISION="$(git rev-parse HEAD)"
-        hugo --source docs/publication --destination "$output"
+        env SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)" HUGO_PARAMS_DEMOURL="{{.DEMO_URL}}" HUGO_PARAMS_REPOSITORYREVISION="$(git rev-parse HEAD)" hugo --source docs/publication --destination "$output"
         --minify --gc --baseURL "{{.BASE_URL}}/"
       - >-
         output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
@@ -185,12 +182,18 @@ tasks:
       - >-
         output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
         touch "$output/.nojekyll"
+      - >-
+        output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
+        {{.UV}} python scripts/publication_metadata.py "$output"
+        --revision "$(git rev-parse HEAD)" --base-url "{{.BASE_URL}}"
+        --demo-url "{{.DEMO_URL}}" --source-date-epoch "$(git show -s --format=%ct HEAD)"
 
   docs:publication:check:
-    desc: Verify that the configured public site builds byte-identically
+    desc: Build two identical publication artifacts and retain the first one
     deps:
       - docs:check
     vars:
+      OUTPUT: '{{default "build/publication" .OUTPUT}}'
       DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
       BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
     cmds:
@@ -202,12 +205,18 @@ tasks:
         task docs:publication OUTPUT="$first" DEMO_URL="{{.DEMO_URL}}" BASE_URL="{{.BASE_URL}}"
         task docs:publication OUTPUT="$second" DEMO_URL="{{.DEMO_URL}}" BASE_URL="{{.BASE_URL}}"
         git diff --no-index --exit-code -- "$first" "$second"
+        output="{{.OUTPUT}}"
+        case "$output" in
+          /*) ;;
+          *) output="$PWD/$output" ;;
+        esac
+        rm -rf "$output"
+        mkdir -p "$output"
+        cp -a "$first/." "$output/"
         echo "Publication artifact is reproducible"
 
   docs:publication:linkcheck:
     desc: Check every link and fragment in the generated public site
-    deps:
-      - docs:publication
     vars:
       OUTPUT: '{{default "build/publication" .OUTPUT}}'
     cmds:
@@ -218,21 +227,31 @@ tasks:
           /*) root_dir="$output" ;;
           *) root_dir="$PWD/$output" ;;
         esac
+        test -d "$root_dir" || {
+          echo "Publication artifact is missing: $root_dir" >&2
+          exit 1
+        }
         lychee --config .lychee.toml --root-dir "$root_dir" "$output"
 
   docs:publication:browser:
     desc: Check the production landing flow on desktop and mobile with Playwright
-    deps:
-      - docs:publication
+    vars:
+      OUTPUT: '{{default "build/publication" .OUTPUT}}'
     cmds:
-      - npm --prefix frontend run test:publication
+      - >-
+        output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
+        test -d "$output" || { echo "Publication artifact is missing: $output" >&2; exit 1; };
+        LZUG_PUBLICATION_ROOT="$output" npm --prefix frontend run test:publication
 
   docs:publication:a11y:
     desc: Check the production landing page with Playwright and axe
-    deps:
-      - docs:publication
+    vars:
+      OUTPUT: '{{default "build/publication" .OUTPUT}}'
     cmds:
-      - npm --prefix frontend run test:publication:a11y
+      - >-
+        output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
+        test -d "$output" || { echo "Publication artifact is missing: $output" >&2; exit 1; };
+        LZUG_PUBLICATION_ROOT="$output" npm --prefix frontend run test:publication:a11y
 
   docs:media:capture:
     desc: Recreate the reviewed synthetic demo screenshots from their canonical scenario
