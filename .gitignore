@@ -1,6 +1,11 @@
 # OS
 .DS_Store
 
+# Codex
+/.codex/**
+!/.codex/environments/
+!/.codex/environments/environment.toml
+
 # Frontend
 /.angular/
 node_modules/
