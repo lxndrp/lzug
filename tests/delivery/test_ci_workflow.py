@@ -72,11 +72,11 @@ class QualityWorkflowContractTests(unittest.TestCase):
             changes,
         )
         self.assertIn(
-            'python:\n              - \'**/*.py\'',
+            "python:\n              - '**/*.py'",
             changes,
         )
         self.assertIn(
-            'javascript-typescript:\n              - \'**/*.cjs\'',
+            "javascript-typescript:\n              - '**/*.cjs'",
             changes,
         )
         self.assertIn(
