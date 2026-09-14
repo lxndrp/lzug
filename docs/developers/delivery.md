@@ -43,6 +43,14 @@ Source-Scan und CodeQL ergänzen die fachlichen Gates.
 CodeQL ist bewusst nicht pfadselektiv und analysiert in jedem Pull Request
 alle auf `master` konfigurierten Sprachen (`python`, `javascript-typescript`
 und `go`).
+Damit erzeugt jeder Pull Request drei stabile CodeQL-Jobs und drei stabile
+Kategorien; Python und JavaScript/TypeScript verwenden den Buildmodus `none`,
+Go wird vor der Analyse gebaut.
+Gegenüber einer pfadselektiven Matrix steigt damit die minimale CodeQL-Laufzeit
+und der Verbrauch von GitHub-Actions-Minuten bei kleinen Änderungen.
+Die konkrete Dauer und der Minutenverbrauch bleiben von Runner-Auslastung,
+Repository-Code und GitHub-Abrechnung abhängig und werden deshalb aus den
+jeweiligen Workflow-Läufen abgelesen, nicht geschätzt.
 Unveränderte SARIF-Baselines werden nicht auf den PR übertragen.
 Source-Scan überspringt reine Dokumentationsprosa; ausführbare Quellen,
 Konfiguration und unbekannte Änderungen bleiben prüfpflichtig.
