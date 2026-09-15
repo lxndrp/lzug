@@ -14,12 +14,27 @@ from backend.application.transport import RequestContext
 from backend.persistence.models import CANDIDATE_COMMITTEE_ASSIGNMENT, COMMITTEE
 
 from .api_contracts import (
+    CandidateCollectionResponse,
+    CandidateCreate,
+    CandidateResponse,
+    CandidateUpdate,
+    CommitteeCollectionResponse,
+    CommitteeResponse,
+    CommitteeUpdate,
     DomainCollectionResponse,
     DomainResourceResponse,
     DomainResourceWrite,
+    ExamHalfYearCollectionResponse,
+    ExamHalfYearCreate,
+    ExamHalfYearResponse,
+    ExamHalfYearUpdate,
     ExamRoomCreateRequest,
     ExamRoomResponse,
     ExamRoomUpdateRequest,
+    ExamRoundCollectionResponse,
+    ExamRoundCreate,
+    ExamRoundResponse,
+    ExamRoundUpdate,
     ExamVenueCollectionResponse,
     ExamVenueContactCreateRequest,
     ExamVenueContactResponse,
@@ -34,7 +49,19 @@ from .api_contracts import (
     ExamVenueUpdateRequest,
     LegacyLocationCollectionResponse,
     LegacyLocationResponse,
+    MembershipCollectionResponse,
+    MembershipCreate,
+    MembershipResponse,
+    MembershipUpdate,
+    PersonCollectionResponse,
+    PersonCreate,
+    PersonResponse,
+    PersonUpdate,
     RevisionDeleteRequest,
+    RoundCandidateCollectionResponse,
+    RoundCandidateCreate,
+    RoundCandidateResponse,
+    RoundCandidateUpdate,
 )
 from .fastapi_dependencies import (
     BoundedBodyRoute,
@@ -77,6 +104,47 @@ MIGRATED_DOMAIN_RESOURCES = (
     "planning-settings",
     "member-availabilities",
 )
+
+MASTER_DATA_CONTRACTS = {
+    "committees": (None, CommitteeUpdate, CommitteeResponse, CommitteeCollectionResponse),
+    "persons": (PersonCreate, PersonUpdate, PersonResponse, PersonCollectionResponse),
+    "members": (
+        MembershipCreate,
+        MembershipUpdate,
+        MembershipResponse,
+        MembershipCollectionResponse,
+    ),
+    "memberships": (
+        MembershipCreate,
+        MembershipUpdate,
+        MembershipResponse,
+        MembershipCollectionResponse,
+    ),
+    "exam-half-years": (
+        ExamHalfYearCreate,
+        ExamHalfYearUpdate,
+        ExamHalfYearResponse,
+        ExamHalfYearCollectionResponse,
+    ),
+    "exam-rounds": (
+        ExamRoundCreate,
+        ExamRoundUpdate,
+        ExamRoundResponse,
+        ExamRoundCollectionResponse,
+    ),
+    "round-candidates": (
+        RoundCandidateCreate,
+        RoundCandidateUpdate,
+        RoundCandidateResponse,
+        RoundCandidateCollectionResponse,
+    ),
+    "candidates": (
+        CandidateCreate,
+        CandidateUpdate,
+        CandidateResponse,
+        CandidateCollectionResponse,
+    ),
+}
 
 
 def _resource_collection_route(resolved: FastAPIConfig, resource_name: str, resource):
@@ -162,6 +230,7 @@ def _resource_create_route(resolved: FastAPIConfig, resource_name: str, resource
             context.respond(hateoas.resource_item(resource_name, resource, row), status),
         )
 
+    create.__annotations__["request"] = MASTER_DATA_CONTRACTS[resource_name][0]
     return create
 
 
@@ -191,6 +260,7 @@ def _resource_update_route(resolved: FastAPIConfig, resource_name: str, resource
             )
         )
 
+    update.__annotations__["request"] = MASTER_DATA_CONTRACTS[resource_name][1]
     return update
 
 
@@ -752,7 +822,7 @@ def _register_resource_routes(app, resolved, application, read_security, write_s
             get_collection,
             methods=["GET"],
             name=f"get_{name}",
-            response_model=DomainCollectionResponse,
+            response_model=MASTER_DATA_CONTRACTS[name][3],
             openapi_extra=read_security,
         )
         app.add_api_route(
@@ -760,7 +830,7 @@ def _register_resource_routes(app, resolved, application, read_security, write_s
             get_item,
             methods=["GET"],
             name=f"get_{name}_item",
-            response_model=DomainResourceResponse,
+            response_model=MASTER_DATA_CONTRACTS[name][2],
             openapi_extra=read_security,
         )
         if name != "committees":
@@ -770,7 +840,7 @@ def _register_resource_routes(app, resolved, application, read_security, write_s
                 methods=["POST"],
                 name=f"create_{name}",
                 status_code=201,
-                response_model=DomainResourceResponse,
+                response_model=MASTER_DATA_CONTRACTS[name][2],
                 openapi_extra=write_security,
             )
         app.add_api_route(
@@ -778,7 +848,7 @@ def _register_resource_routes(app, resolved, application, read_security, write_s
             update,
             methods=["PATCH"],
             name=f"update_{name}",
-            response_model=DomainResourceResponse,
+            response_model=MASTER_DATA_CONTRACTS[name][2],
             openapi_extra=write_security,
         )
         app.add_api_route(

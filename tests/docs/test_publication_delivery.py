@@ -150,7 +150,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("DEMO_URL: ${{ vars.DEMO_URL || 'https://demo.example.invalid' }}", workflow)
         self.assertIn("permissions:\n  contents: read", workflow)
         self.assertNotIn("actions: read", workflow)
-        self.assertIn("python3 -m demo.delivery.contract validate-url", build)
+        self.assertIn("python3 scripts/validate_demo_url_contract.py", build)
         self.assertIn("--canonical", build)
         self.assertNotIn("GH_TOKEN", workflow)
         self.assertNotIn("github.token", workflow)

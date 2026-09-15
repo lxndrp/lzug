@@ -374,12 +374,12 @@ jobs:
         id: metadata
         run: |
           set -euo pipefail
-          identity=$(python3 -m demo.delivery.contract identity \
-            --tag "$PRODUCT_TAG" --commit "$TARGET_SHA" \
-            --channel snapshot --field identity)
-          oci_tag=$(python3 -m demo.delivery.contract identity \
-            --tag "$PRODUCT_TAG" --commit "$TARGET_SHA" \
-            --channel snapshot --field oci_tag)
+          [[ "$PRODUCT_TAG" =~ ^snapshot/(v[0-9]+\.[0-9]+\.[0-9]+)-SNAPSHOT\.([0-9a-f]{7})$ ]] || exit 1
+          snapshot_version="${BASH_REMATCH[1]}"
+          snapshot_revision="${BASH_REMATCH[2]}"
+          [[ "$TARGET_SHA" == "$snapshot_revision"* ]] || exit 1
+          identity="${snapshot_version}-SNAPSHOT@${snapshot_revision}"
+          oci_tag="${snapshot_version}-SNAPSHOT-${snapshot_revision}"
           {
             echo "identity=$identity"
             echo "oci_tag=$oci_tag"

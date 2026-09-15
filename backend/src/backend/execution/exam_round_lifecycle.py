@@ -55,6 +55,7 @@ from backend.persistence.models import (
     ResultRetention,
     RoundCandidate,
 )
+from backend.presentation.exam_exports import render_round_lifecycle_export
 
 TERMINAL_LIFECYCLE_STATUSES = {"closed", "cancelled", "historical"}
 TERMINAL_CANDIDATE_STATUSES = {
@@ -570,57 +571,7 @@ class ExamRoundLifecycleService:
         export = self._export(scope, round_id, "human")
         lifecycle = export["lifecycle"]
         snapshot = export["snapshot"]
-        lines = [
-            f"Prüfungsrundennachweis {round_id}",
-            f"Runde: {snapshot['round']['name']}",
-            f"Zeitraum: {snapshot['half_year']['season']} {snapshot['half_year']['year']}",
-            f"Ausschuss: {snapshot['committee']['name']}",
-            f"Status: {lifecycle['status']}",
-            f"Revision: {lifecycle['revision']}",
-            "",
-            "Kandidaten:",
-        ]
-        lines.extend(
-            f"- {item['first_name']} {item['last_name']}: {item['terminal_status']}"
-            for item in snapshot["candidates"]
-        )
-        lines.extend(["", "Ausschussrollen:"])
-        lines.extend(
-            f"- {item['first_name']} {item['last_name']}: {item['committee_role']}"
-            for item in snapshot["roles"]
-        )
-        lines.extend(["", "Prüfungstage und tatsächliche Durchführung:"])
-        lines.extend(
-            f"- {item['date']}: {item['status']} / {item['closure_status']}"
-            for item in snapshot["days"]
-        )
-        lines.extend(["", "Ergebnisse und Mitteilungen:"])
-        lines.extend(
-            f"- Ergebnis {item['id']}: {item['state']}, "
-            f"Mitteilungen {len(item['communications'])}"
-            for item in snapshot["results"]
-        )
-        lines.extend(["", "Abschluss-, Absage- und Wiederöffnungshistorie:"])
-        lines.extend(
-            f"- Revision {item['round_revision']}: {item['event_type']} ({item['created_at']})"
-            for item in lifecycle["history"]
-        )
-        lines.extend(
-            [
-                "",
-                "Aufbewahrung:",
-                f"- bis: {lifecycle['retention']['retain_until'] or 'nicht festgelegt'}",
-                f"- Sperre: {'ja' if lifecycle['retention']['legal_hold'] else 'nein'}",
-                "",
-                "Nachträgliche förmliche IHK-Status:",
-            ]
-        )
-        lines.extend(
-            f"- Ergebnis {item['exam_result_id']}: {item['document_status']} "
-            f"({item['document_reference']})"
-            for item in lifecycle["ihk_statuses"]
-        )
-        return "\n".join(lines) + "\n"
+        return render_round_lifecycle_export(round_id, lifecycle, snapshot)
 
     def document_ihk_status(
         self,

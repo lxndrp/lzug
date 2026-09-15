@@ -18,6 +18,7 @@ CORE_PACKAGES = frozenset(
         "integrations",
         "operations",
         "persistence",
+        "presentation",
         "planning",
     }
 )
@@ -69,12 +70,13 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
             "planning",
         }
     ),
-    "assessment": frozenset({"execution", "identity", "persistence"}),
-    "execution": frozenset({"identity", "integrations", "persistence"}),
+    "assessment": frozenset({"execution", "identity", "persistence", "presentation"}),
+    "execution": frozenset({"identity", "integrations", "persistence", "presentation"}),
     "identity": frozenset({"persistence"}),
     "integrations": frozenset({"identity", "persistence"}),
     "operations": frozenset({"identity", "integrations", "persistence"}),
     "persistence": frozenset(),
+    "presentation": frozenset(),
     "planning": frozenset({"integrations", "persistence"}),
 }
 
@@ -117,6 +119,7 @@ TEST_OWNERS = {
             "test_synthetic_fixtures.py",
             "test_operator_cli_layout.py",
             "test_package_boundaries.py",
+            "test_exam_export_renderers.py",
         }
     ),
     "execution": frozenset(

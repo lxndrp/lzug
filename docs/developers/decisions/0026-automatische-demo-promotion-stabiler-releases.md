@@ -25,12 +25,14 @@ Release Candidates werden nicht promotet.
 Der Pfad besitzt kein zweites `release`-Environment; dessen Freigabe bleibt das einzige menschliche Gate des stabilen Produktpfads.
 Ein Demo-Fehler lässt Tag, Produktimage, CLI-Archive, SBOM und GitHub Release unverändert und erscheint als eigener nachgelagerter Jobfehler.
 
-Die Promotionslogik besteht aus zwei wiederverwendbaren Verträgen:
+Die Promotionslogik besteht aus zwei wiederverwendbaren Workflows:
 
 - `.github/workflows/demo-publish.yml` veröffentlicht neue unveränderliche
 Demo-Pakete oder verifiziert ein bei einem Retry bereits vollständig vorhandenes Paar.
-- `.github/workflows/demo-deploy.yml` prüft und deployt dieses Paar. Derselbe
-Workflow bleibt per `workflow_dispatch` für manuellen Deploy und Rollback verfügbar und wird vom Snapshotpfad wiederverwendet.
+- `.github/workflows/demo-deploy.yml` nimmt die beiden unveränderlichen OCI-
+Referenzen entgegen und übergibt sie nach Provenanceprüfung direkt an Azure
+CLI. Derselbe Workflow bleibt per `workflow_dispatch` für manuellen Deploy und
+Rollback verfügbar und wird vom Snapshotpfad wiederverwendet.
 
 Der stabile Produkt-Tag ist der einzige Einstiegspunkt der Paarauflösung.
 Nach dem Publish wird zunächst der versionierte App-Paketname aufgelöst und dessen Registry-Digest festgeschrieben.
@@ -39,7 +41,9 @@ Erst daraus wird der versionierte Seed-Paketname abgeleitet und ebenfalls auf ei
 Ab dann werden ausschließlich die beiden Digestreferenzen verwendet.
 Ein separates Pair-Deskriptor-Artefakt ist nicht erforderlich.
 
-Vor Azure bleiben die Provenance beider Digests, der gemeinsame Manifestvertrag, GitHub OIDC, die atomare ACA-Revision, Azure-Readiness, Application-Readiness und der abschließende öffentliche Smoke verpflichtend.
+Vor Azure bleiben die Provenance beider Digests, GitHub OIDC, die atomare ACA-
+Revision, Azure-Readiness, Application-Readiness und der abschließende
+öffentliche Smoke verpflichtend.
 SBOM-Attestierungen werden weiterhin für beide Images erzeugt, sind aber kein zusätzliches Deployment-Gate.
 Der finale Smoke umfasst `/api/health`; ein separates vorgelagertes Health-Polling entfällt.
 
@@ -64,7 +68,8 @@ Workflowlauf, aber mit getrenntem Fehlerstatus.
 - Stable, Snapshot und manueller Rollback teilen dieselbe Azure-Mutationsgrenze.
 - App-Manifest und Seed-Manifest binden dieselbe Seed-Revision; die
 paketbasierte Auflösung ist damit ohne bewegliche Deploymentidentität möglich.
-- OpenTofu bereitet die stabile Tag-Regel nur deklarativ vor. Dieses ADR
+- OpenTofu beschreibt die Infrastruktur und die Environment-Policies nur
+deklarativ; Azure CLI führt die notwendige Promotion aus. Dieses ADR
 autorisiert weder einen Apply noch eine GitHub-Environment- oder Azure-Änderung.
 
 ## Referenzen

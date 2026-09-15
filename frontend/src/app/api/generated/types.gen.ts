@@ -169,6 +169,228 @@ export type CalendarStatusResponse = {
 };
 
 /**
+ * CandidateCollectionResponse
+ */
+export type CandidateCollectionResponse = {
+    /**
+     * Links
+     */
+    _links: {
+        [key: string]: unknown;
+    };
+    /**
+     * Items
+     */
+    items: Array<CandidateResponse>;
+};
+
+/**
+ * CandidateCreate
+ */
+export type CandidateCreate = {
+    /**
+     * Attempt Number
+     */
+    attempt_number?: number;
+    /**
+     * Exam Round Id
+     */
+    exam_round_id?: number | null;
+    /**
+     * First Name
+     */
+    first_name: string;
+    /**
+     * Ihk Exam Number
+     */
+    ihk_exam_number: string;
+    /**
+     * Last Name
+     */
+    last_name: string;
+    /**
+     * Requires Mep
+     */
+    requires_mep?: boolean | number;
+    /**
+     * Specialization
+     */
+    specialization: string;
+    /**
+     * Training Company
+     */
+    training_company: string;
+};
+
+/**
+ * CandidateResponse
+ */
+export type CandidateResponse = {
+    /**
+     * Links
+     */
+    _links: {
+        [key: string]: unknown;
+    };
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * First Name
+     */
+    first_name: string;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Ihk Exam Number
+     */
+    ihk_exam_number: string;
+    /**
+     * Last Name
+     */
+    last_name: string;
+    /**
+     * Specialization
+     */
+    specialization: string;
+    /**
+     * Specialization Label
+     */
+    specialization_label?: string | null;
+    /**
+     * Training Company
+     */
+    training_company: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * CandidateUpdate
+ */
+export type CandidateUpdate = {
+    /**
+     * Assignment Change Reason
+     */
+    assignment_change_reason?: string | null;
+    /**
+     * Attempt Number
+     */
+    attempt_number?: number | null;
+    /**
+     * Exam Round Id
+     */
+    exam_round_id?: number | null;
+    /**
+     * First Name
+     */
+    first_name?: string | null;
+    /**
+     * Ihk Exam Number
+     */
+    ihk_exam_number?: string | null;
+    /**
+     * Last Name
+     */
+    last_name?: string | null;
+    /**
+     * Requires Mep
+     */
+    requires_mep?: boolean | number | null;
+    /**
+     * Specialization
+     */
+    specialization?: string | null;
+    /**
+     * Training Company
+     */
+    training_company?: string | null;
+};
+
+/**
+ * CommitteeCollectionResponse
+ */
+export type CommitteeCollectionResponse = {
+    /**
+     * Links
+     */
+    _links: {
+        [key: string]: unknown;
+    };
+    /**
+     * Items
+     */
+    items: Array<CommitteeResponse>;
+};
+
+/**
+ * CommitteeResponse
+ */
+export type CommitteeResponse = {
+    /**
+     * Links
+     */
+    _links: {
+        [key: string]: unknown;
+    };
+    /**
+     * Bootstrap State
+     */
+    bootstrap_state: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Ihk
+     */
+    ihk: string;
+    /**
+     * Is Active
+     */
+    is_active: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Occupation
+     */
+    occupation: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * CommitteeUpdate
+ */
+export type CommitteeUpdate = {
+    /**
+     * Ihk
+     */
+    ihk?: string | null;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Occupation
+     */
+    occupation?: string | null;
+};
+
+/**
  * ConfirmedPlanChangeRequest
  *
  * Complete confirmed-plan replacement with its mandatory audit reason.
@@ -415,6 +637,98 @@ export type ExamAttendanceUpdateRequest = {
 };
 
 /**
+ * ExamHalfYearCollectionResponse
+ */
+export type ExamHalfYearCollectionResponse = {
+    /**
+     * Links
+     */
+    _links: {
+        [key: string]: unknown;
+    };
+    /**
+     * Items
+     */
+    items: Array<ExamHalfYearResponse>;
+};
+
+/**
+ * ExamHalfYearCreate
+ */
+export type ExamHalfYearCreate = {
+    /**
+     * Season
+     */
+    season: string;
+    /**
+     * Status
+     */
+    status?: string;
+    /**
+     * Year
+     */
+    year: number;
+};
+
+/**
+ * ExamHalfYearResponse
+ */
+export type ExamHalfYearResponse = {
+    /**
+     * Links
+     */
+    _links: {
+        [key: string]: unknown;
+    };
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Legacy Status
+     */
+    legacy_status: string | null;
+    /**
+     * Season
+     */
+    season: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Year
+     */
+    year: number;
+};
+
+/**
+ * ExamHalfYearUpdate
+ */
+export type ExamHalfYearUpdate = {
+    /**
+     * Season
+     */
+    season?: string | null;
+    /**
+     * Status
+     */
+    status?: string | null;
+    /**
+     * Year
+     */
+    year?: number | null;
+};
+
+/**
  * ExamProtocolContentRequest
  *
  * Version-guarded replacement of the protocol's factual content.
@@ -653,6 +967,162 @@ export type ExamRoomUpdateRequest = {
      * Wing
      */
     wing?: string | null;
+};
+
+/**
+ * ExamRoundCollectionResponse
+ */
+export type ExamRoundCollectionResponse = {
+    /**
+     * Links
+     */
+    _links: {
+        [key: string]: unknown;
+    };
+    /**
+     * Items
+     */
+    items: Array<ExamRoundResponse>;
+};
+
+/**
+ * ExamRoundCreate
+ */
+export type ExamRoundCreate = {
+    /**
+     * Availability Deadline
+     */
+    availability_deadline?: string | null;
+    /**
+     * Availability Reminder At
+     */
+    availability_reminder_at?: string | null;
+    /**
+     * Committee Id
+     */
+    committee_id: number;
+    /**
+     * Created By Member Id
+     */
+    created_by_member_id: number;
+    /**
+     * Exam Half Year Id
+     */
+    exam_half_year_id?: number | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Season
+     */
+    season?: string | null;
+    /**
+     * Status
+     */
+    status?: string;
+    /**
+     * Year
+     */
+    year?: number | null;
+};
+
+/**
+ * ExamRoundResponse
+ */
+export type ExamRoundResponse = {
+    /**
+     * Links
+     */
+    _links: {
+        [key: string]: unknown;
+    };
+    /**
+     * Availability Deadline
+     */
+    availability_deadline: string | null;
+    /**
+     * Availability Reminder At
+     */
+    availability_reminder_at: string | null;
+    /**
+     * Committee Id
+     */
+    committee_id: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Created By Member Id
+     */
+    created_by_member_id: number;
+    /**
+     * Exam Half Year Id
+     */
+    exam_half_year_id: number;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Legacy Status
+     */
+    legacy_status: string | null;
+    /**
+     * Lifecycle Status
+     */
+    lifecycle_status: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * ExamRoundUpdate
+ */
+export type ExamRoundUpdate = {
+    /**
+     * Availability Deadline
+     */
+    availability_deadline?: string | null;
+    /**
+     * Availability Reminder At
+     */
+    availability_reminder_at?: string | null;
+    /**
+     * Committee Id
+     */
+    committee_id?: number | null;
+    /**
+     * Created By Member Id
+     */
+    created_by_member_id?: number | null;
+    /**
+     * Exam Half Year Id
+     */
+    exam_half_year_id?: number | null;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Status
+     */
+    status?: string | null;
 };
 
 /**
@@ -1491,6 +1961,182 @@ export type LoginRequest = {
 };
 
 /**
+ * MembershipCollectionResponse
+ */
+export type MembershipCollectionResponse = {
+    /**
+     * Links
+     */
+    _links: {
+        [key: string]: unknown;
+    };
+    /**
+     * Items
+     */
+    items: Array<MembershipResponse>;
+};
+
+/**
+ * MembershipCreate
+ */
+export type MembershipCreate = {
+    /**
+     * Committee Id
+     */
+    committee_id: number;
+    /**
+     * Committee Role
+     */
+    committee_role?: string;
+    /**
+     * Email
+     */
+    email?: string | null;
+    /**
+     * First Name
+     */
+    first_name?: string | null;
+    /**
+     * Is Active
+     */
+    is_active?: boolean | number;
+    /**
+     * Last Name
+     */
+    last_name?: string | null;
+    /**
+     * Member Status
+     */
+    member_status?: string;
+    /**
+     * Mobile
+     */
+    mobile?: string | null;
+    /**
+     * Person Id
+     */
+    person_id?: number | null;
+    /**
+     * Representing Side
+     */
+    representing_side?: string;
+};
+
+/**
+ * MembershipResponse
+ */
+export type MembershipResponse = {
+    /**
+     * Links
+     */
+    _links: {
+        [key: string]: unknown;
+    };
+    /**
+     * Committee Id
+     */
+    committee_id: number;
+    /**
+     * Committee Role
+     */
+    committee_role: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Email Verified At
+     */
+    email_verified_at?: string | null;
+    /**
+     * First Name
+     */
+    first_name: string;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Is Active
+     */
+    is_active: number;
+    /**
+     * Last Name
+     */
+    last_name: string;
+    /**
+     * Member Status
+     */
+    member_status: string;
+    /**
+     * Mobile
+     */
+    mobile: string | null;
+    /**
+     * Person Id
+     */
+    person_id: number;
+    /**
+     * Representing Side
+     */
+    representing_side: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * MembershipUpdate
+ */
+export type MembershipUpdate = {
+    /**
+     * Committee Id
+     */
+    committee_id?: number | null;
+    /**
+     * Committee Role
+     */
+    committee_role?: string | null;
+    /**
+     * Email
+     */
+    email?: string | null;
+    /**
+     * First Name
+     */
+    first_name?: string | null;
+    /**
+     * Is Active
+     */
+    is_active?: boolean | number | null;
+    /**
+     * Last Name
+     */
+    last_name?: string | null;
+    /**
+     * Member Status
+     */
+    member_status?: string | null;
+    /**
+     * Mobile
+     */
+    mobile?: string | null;
+    /**
+     * Person Id
+     */
+    person_id?: number | null;
+    /**
+     * Representing Side
+     */
+    representing_side?: string | null;
+};
+
+/**
  * NotificationChannelsResponse
  */
 export type NotificationChannelsResponse = {
@@ -1526,6 +2172,106 @@ export type NotificationCollectionResponse = {
     items: Array<{
         [key: string]: unknown;
     }>;
+};
+
+/**
+ * PersonCollectionResponse
+ */
+export type PersonCollectionResponse = {
+    /**
+     * Links
+     */
+    _links: {
+        [key: string]: unknown;
+    };
+    /**
+     * Items
+     */
+    items: Array<PersonResponse>;
+};
+
+/**
+ * PersonCreate
+ */
+export type PersonCreate = {
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * First Name
+     */
+    first_name: string;
+    /**
+     * Last Name
+     */
+    last_name: string;
+    /**
+     * Mobile
+     */
+    mobile?: string | null;
+};
+
+/**
+ * PersonResponse
+ */
+export type PersonResponse = {
+    /**
+     * Links
+     */
+    _links: {
+        [key: string]: unknown;
+    };
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * First Name
+     */
+    first_name: string;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Last Name
+     */
+    last_name: string;
+    /**
+     * Mobile
+     */
+    mobile: string | null;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PersonUpdate
+ */
+export type PersonUpdate = {
+    /**
+     * Email
+     */
+    email?: string | null;
+    /**
+     * First Name
+     */
+    first_name?: string | null;
+    /**
+     * Last Name
+     */
+    last_name?: string | null;
+    /**
+     * Mobile
+     */
+    mobile?: string | null;
 };
 
 /**
@@ -1787,6 +2533,174 @@ export type RevisionDeleteRequest = {
      * Reason
      */
     reason?: string | null;
+};
+
+/**
+ * RoundCandidateCollectionResponse
+ */
+export type RoundCandidateCollectionResponse = {
+    /**
+     * Links
+     */
+    _links: {
+        [key: string]: unknown;
+    };
+    /**
+     * Items
+     */
+    items: Array<RoundCandidateResponse>;
+};
+
+/**
+ * RoundCandidateCreate
+ */
+export type RoundCandidateCreate = {
+    /**
+     * Assignment Change Reason
+     */
+    assignment_change_reason?: string | null;
+    /**
+     * Attempt Number
+     */
+    attempt_number?: number;
+    /**
+     * Candidate Id
+     */
+    candidate_id: number;
+    /**
+     * Exam Round Id
+     */
+    exam_round_id: number;
+    /**
+     * Is Active
+     */
+    is_active?: boolean | number;
+    /**
+     * Requires Mep
+     */
+    requires_mep?: boolean | number;
+};
+
+/**
+ * RoundCandidateResponse
+ */
+export type RoundCandidateResponse = {
+    /**
+     * Links
+     */
+    _links: {
+        [key: string]: unknown;
+    };
+    /**
+     * Attempt Number
+     */
+    attempt_number: number;
+    /**
+     * Candidate Id
+     */
+    candidate_id: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Effective New Round Id
+     */
+    effective_new_round_id: number | null;
+    /**
+     * Exam Round Id
+     */
+    exam_round_id: number;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Ihk Decision Reference
+     */
+    ihk_decision_reference: string | null;
+    /**
+     * Is Active
+     */
+    is_active: number;
+    /**
+     * Postponed Until
+     */
+    postponed_until: string | null;
+    /**
+     * Requires Mep
+     */
+    requires_mep: number;
+    /**
+     * Terminal At
+     */
+    terminal_at: string | null;
+    /**
+     * Terminal Reason
+     */
+    terminal_reason: string | null;
+    /**
+     * Terminal Status
+     */
+    terminal_status: string | null;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * RoundCandidateUpdate
+ */
+export type RoundCandidateUpdate = {
+    /**
+     * Assignment Change Reason
+     */
+    assignment_change_reason?: string | null;
+    /**
+     * Attempt Number
+     */
+    attempt_number?: number | null;
+    /**
+     * Candidate Id
+     */
+    candidate_id?: number | null;
+    /**
+     * Effective New Round Id
+     */
+    effective_new_round_id?: number | null;
+    /**
+     * Exam Round Id
+     */
+    exam_round_id?: number | null;
+    /**
+     * Ihk Decision Reference
+     */
+    ihk_decision_reference?: string | null;
+    /**
+     * Is Active
+     */
+    is_active?: boolean | number | null;
+    /**
+     * Postponed Until
+     */
+    postponed_until?: string | null;
+    /**
+     * Requires Mep
+     */
+    requires_mep?: boolean | number | null;
+    /**
+     * Terminal At
+     */
+    terminal_at?: string | null;
+    /**
+     * Terminal Reason
+     */
+    terminal_reason?: string | null;
+    /**
+     * Terminal Status
+     */
+    terminal_status?: string | null;
 };
 
 /**
@@ -3093,13 +4007,13 @@ export type GetCandidatesApiCandidatesGetResponses = {
     /**
      * Successful Response
      */
-    200: DomainCollectionResponse;
+    200: CandidateCollectionResponse;
 };
 
 export type GetCandidatesApiCandidatesGetResponse = GetCandidatesApiCandidatesGetResponses[keyof GetCandidatesApiCandidatesGetResponses];
 
 export type CreateCandidatesApiCandidatesPostData = {
-    body: DomainResourceWrite;
+    body: CandidateCreate;
     headers?: {
         /**
          * X-Csrf-Token
@@ -3164,7 +4078,7 @@ export type CreateCandidatesApiCandidatesPostResponses = {
     /**
      * Successful Response
      */
-    201: DomainResourceResponse;
+    201: CandidateResponse;
 };
 
 export type CreateCandidatesApiCandidatesPostResponse = CreateCandidatesApiCandidatesPostResponses[keyof CreateCandidatesApiCandidatesPostResponses];
@@ -3310,13 +4224,13 @@ export type GetCandidatesItemApiCandidatesIdGetResponses = {
     /**
      * Successful Response
      */
-    200: DomainResourceResponse;
+    200: CandidateResponse;
 };
 
 export type GetCandidatesItemApiCandidatesIdGetResponse = GetCandidatesItemApiCandidatesIdGetResponses[keyof GetCandidatesItemApiCandidatesIdGetResponses];
 
 export type UpdateCandidatesApiCandidatesIdPatchData = {
-    body: DomainResourceWrite;
+    body: CandidateUpdate;
     headers?: {
         /**
          * X-Csrf-Token
@@ -3386,7 +4300,7 @@ export type UpdateCandidatesApiCandidatesIdPatchResponses = {
     /**
      * Successful Response
      */
-    200: DomainResourceResponse;
+    200: CandidateResponse;
 };
 
 export type UpdateCandidatesApiCandidatesIdPatchResponse = UpdateCandidatesApiCandidatesIdPatchResponses[keyof UpdateCandidatesApiCandidatesIdPatchResponses];
@@ -3451,7 +4365,7 @@ export type GetCommitteesApiCommitteesGetResponses = {
     /**
      * Successful Response
      */
-    200: DomainCollectionResponse;
+    200: CommitteeCollectionResponse;
 };
 
 export type GetCommitteesApiCommitteesGetResponse = GetCommitteesApiCommitteesGetResponses[keyof GetCommitteesApiCommitteesGetResponses];
@@ -3597,13 +4511,13 @@ export type GetCommitteesItemApiCommitteesIdGetResponses = {
     /**
      * Successful Response
      */
-    200: DomainResourceResponse;
+    200: CommitteeResponse;
 };
 
 export type GetCommitteesItemApiCommitteesIdGetResponse = GetCommitteesItemApiCommitteesIdGetResponses[keyof GetCommitteesItemApiCommitteesIdGetResponses];
 
 export type UpdateCommitteesApiCommitteesIdPatchData = {
-    body: DomainResourceWrite;
+    body: CommitteeUpdate;
     headers?: {
         /**
          * X-Csrf-Token
@@ -3673,7 +4587,7 @@ export type UpdateCommitteesApiCommitteesIdPatchResponses = {
     /**
      * Successful Response
      */
-    200: DomainResourceResponse;
+    200: CommitteeResponse;
 };
 
 export type UpdateCommitteesApiCommitteesIdPatchResponse = UpdateCommitteesApiCommitteesIdPatchResponses[keyof UpdateCommitteesApiCommitteesIdPatchResponses];
@@ -5190,13 +6104,13 @@ export type GetExamHalfYearsApiExamHalfYearsGetResponses = {
     /**
      * Successful Response
      */
-    200: DomainCollectionResponse;
+    200: ExamHalfYearCollectionResponse;
 };
 
 export type GetExamHalfYearsApiExamHalfYearsGetResponse = GetExamHalfYearsApiExamHalfYearsGetResponses[keyof GetExamHalfYearsApiExamHalfYearsGetResponses];
 
 export type CreateExamHalfYearsApiExamHalfYearsPostData = {
-    body: DomainResourceWrite;
+    body: ExamHalfYearCreate;
     headers?: {
         /**
          * X-Csrf-Token
@@ -5261,7 +6175,7 @@ export type CreateExamHalfYearsApiExamHalfYearsPostResponses = {
     /**
      * Successful Response
      */
-    201: DomainResourceResponse;
+    201: ExamHalfYearResponse;
 };
 
 export type CreateExamHalfYearsApiExamHalfYearsPostResponse = CreateExamHalfYearsApiExamHalfYearsPostResponses[keyof CreateExamHalfYearsApiExamHalfYearsPostResponses];
@@ -5407,13 +6321,13 @@ export type GetExamHalfYearsItemApiExamHalfYearsIdGetResponses = {
     /**
      * Successful Response
      */
-    200: DomainResourceResponse;
+    200: ExamHalfYearResponse;
 };
 
 export type GetExamHalfYearsItemApiExamHalfYearsIdGetResponse = GetExamHalfYearsItemApiExamHalfYearsIdGetResponses[keyof GetExamHalfYearsItemApiExamHalfYearsIdGetResponses];
 
 export type UpdateExamHalfYearsApiExamHalfYearsIdPatchData = {
-    body: DomainResourceWrite;
+    body: ExamHalfYearUpdate;
     headers?: {
         /**
          * X-Csrf-Token
@@ -5483,7 +6397,7 @@ export type UpdateExamHalfYearsApiExamHalfYearsIdPatchResponses = {
     /**
      * Successful Response
      */
-    200: DomainResourceResponse;
+    200: ExamHalfYearResponse;
 };
 
 export type UpdateExamHalfYearsApiExamHalfYearsIdPatchResponse = UpdateExamHalfYearsApiExamHalfYearsIdPatchResponses[keyof UpdateExamHalfYearsApiExamHalfYearsIdPatchResponses];
@@ -7568,13 +8482,13 @@ export type GetExamRoundsApiExamRoundsGetResponses = {
     /**
      * Successful Response
      */
-    200: DomainCollectionResponse;
+    200: ExamRoundCollectionResponse;
 };
 
 export type GetExamRoundsApiExamRoundsGetResponse = GetExamRoundsApiExamRoundsGetResponses[keyof GetExamRoundsApiExamRoundsGetResponses];
 
 export type CreateExamRoundsApiExamRoundsPostData = {
-    body: DomainResourceWrite;
+    body: ExamRoundCreate;
     headers?: {
         /**
          * X-Csrf-Token
@@ -7639,7 +8553,7 @@ export type CreateExamRoundsApiExamRoundsPostResponses = {
     /**
      * Successful Response
      */
-    201: DomainResourceResponse;
+    201: ExamRoundResponse;
 };
 
 export type CreateExamRoundsApiExamRoundsPostResponse = CreateExamRoundsApiExamRoundsPostResponses[keyof CreateExamRoundsApiExamRoundsPostResponses];
@@ -7785,13 +8699,13 @@ export type GetExamRoundsItemApiExamRoundsIdGetResponses = {
     /**
      * Successful Response
      */
-    200: DomainResourceResponse;
+    200: ExamRoundResponse;
 };
 
 export type GetExamRoundsItemApiExamRoundsIdGetResponse = GetExamRoundsItemApiExamRoundsIdGetResponses[keyof GetExamRoundsItemApiExamRoundsIdGetResponses];
 
 export type UpdateExamRoundsApiExamRoundsIdPatchData = {
-    body: DomainResourceWrite;
+    body: ExamRoundUpdate;
     headers?: {
         /**
          * X-Csrf-Token
@@ -7861,7 +8775,7 @@ export type UpdateExamRoundsApiExamRoundsIdPatchResponses = {
     /**
      * Successful Response
      */
-    200: DomainResourceResponse;
+    200: ExamRoundResponse;
 };
 
 export type UpdateExamRoundsApiExamRoundsIdPatchResponse = UpdateExamRoundsApiExamRoundsIdPatchResponses[keyof UpdateExamRoundsApiExamRoundsIdPatchResponses];
@@ -11472,13 +12386,13 @@ export type GetMembersApiMembersGetResponses = {
     /**
      * Successful Response
      */
-    200: DomainCollectionResponse;
+    200: MembershipCollectionResponse;
 };
 
 export type GetMembersApiMembersGetResponse = GetMembersApiMembersGetResponses[keyof GetMembersApiMembersGetResponses];
 
 export type CreateMembersApiMembersPostData = {
-    body: DomainResourceWrite;
+    body: MembershipCreate;
     headers?: {
         /**
          * X-Csrf-Token
@@ -11543,7 +12457,7 @@ export type CreateMembersApiMembersPostResponses = {
     /**
      * Successful Response
      */
-    201: DomainResourceResponse;
+    201: MembershipResponse;
 };
 
 export type CreateMembersApiMembersPostResponse = CreateMembersApiMembersPostResponses[keyof CreateMembersApiMembersPostResponses];
@@ -11689,13 +12603,13 @@ export type GetMembersItemApiMembersIdGetResponses = {
     /**
      * Successful Response
      */
-    200: DomainResourceResponse;
+    200: MembershipResponse;
 };
 
 export type GetMembersItemApiMembersIdGetResponse = GetMembersItemApiMembersIdGetResponses[keyof GetMembersItemApiMembersIdGetResponses];
 
 export type UpdateMembersApiMembersIdPatchData = {
-    body: DomainResourceWrite;
+    body: MembershipUpdate;
     headers?: {
         /**
          * X-Csrf-Token
@@ -11765,7 +12679,7 @@ export type UpdateMembersApiMembersIdPatchResponses = {
     /**
      * Successful Response
      */
-    200: DomainResourceResponse;
+    200: MembershipResponse;
 };
 
 export type UpdateMembersApiMembersIdPatchResponse = UpdateMembersApiMembersIdPatchResponses[keyof UpdateMembersApiMembersIdPatchResponses];
@@ -11830,13 +12744,13 @@ export type GetMembershipsApiMembershipsGetResponses = {
     /**
      * Successful Response
      */
-    200: DomainCollectionResponse;
+    200: MembershipCollectionResponse;
 };
 
 export type GetMembershipsApiMembershipsGetResponse = GetMembershipsApiMembershipsGetResponses[keyof GetMembershipsApiMembershipsGetResponses];
 
 export type CreateMembershipsApiMembershipsPostData = {
-    body: DomainResourceWrite;
+    body: MembershipCreate;
     headers?: {
         /**
          * X-Csrf-Token
@@ -11901,7 +12815,7 @@ export type CreateMembershipsApiMembershipsPostResponses = {
     /**
      * Successful Response
      */
-    201: DomainResourceResponse;
+    201: MembershipResponse;
 };
 
 export type CreateMembershipsApiMembershipsPostResponse = CreateMembershipsApiMembershipsPostResponses[keyof CreateMembershipsApiMembershipsPostResponses];
@@ -12047,13 +12961,13 @@ export type GetMembershipsItemApiMembershipsIdGetResponses = {
     /**
      * Successful Response
      */
-    200: DomainResourceResponse;
+    200: MembershipResponse;
 };
 
 export type GetMembershipsItemApiMembershipsIdGetResponse = GetMembershipsItemApiMembershipsIdGetResponses[keyof GetMembershipsItemApiMembershipsIdGetResponses];
 
 export type UpdateMembershipsApiMembershipsIdPatchData = {
-    body: DomainResourceWrite;
+    body: MembershipUpdate;
     headers?: {
         /**
          * X-Csrf-Token
@@ -12123,7 +13037,7 @@ export type UpdateMembershipsApiMembershipsIdPatchResponses = {
     /**
      * Successful Response
      */
-    200: DomainResourceResponse;
+    200: MembershipResponse;
 };
 
 export type UpdateMembershipsApiMembershipsIdPatchResponse = UpdateMembershipsApiMembershipsIdPatchResponses[keyof UpdateMembershipsApiMembershipsIdPatchResponses];
@@ -12325,13 +13239,13 @@ export type GetPersonsApiPersonsGetResponses = {
     /**
      * Successful Response
      */
-    200: DomainCollectionResponse;
+    200: PersonCollectionResponse;
 };
 
 export type GetPersonsApiPersonsGetResponse = GetPersonsApiPersonsGetResponses[keyof GetPersonsApiPersonsGetResponses];
 
 export type CreatePersonsApiPersonsPostData = {
-    body: DomainResourceWrite;
+    body: PersonCreate;
     headers?: {
         /**
          * X-Csrf-Token
@@ -12396,7 +13310,7 @@ export type CreatePersonsApiPersonsPostResponses = {
     /**
      * Successful Response
      */
-    201: DomainResourceResponse;
+    201: PersonResponse;
 };
 
 export type CreatePersonsApiPersonsPostResponse = CreatePersonsApiPersonsPostResponses[keyof CreatePersonsApiPersonsPostResponses];
@@ -12542,13 +13456,13 @@ export type GetPersonsItemApiPersonsIdGetResponses = {
     /**
      * Successful Response
      */
-    200: DomainResourceResponse;
+    200: PersonResponse;
 };
 
 export type GetPersonsItemApiPersonsIdGetResponse = GetPersonsItemApiPersonsIdGetResponses[keyof GetPersonsItemApiPersonsIdGetResponses];
 
 export type UpdatePersonsApiPersonsIdPatchData = {
-    body: DomainResourceWrite;
+    body: PersonUpdate;
     headers?: {
         /**
          * X-Csrf-Token
@@ -12618,7 +13532,7 @@ export type UpdatePersonsApiPersonsIdPatchResponses = {
     /**
      * Successful Response
      */
-    200: DomainResourceResponse;
+    200: PersonResponse;
 };
 
 export type UpdatePersonsApiPersonsIdPatchResponse = UpdatePersonsApiPersonsIdPatchResponses[keyof UpdatePersonsApiPersonsIdPatchResponses];
@@ -13240,13 +14154,13 @@ export type GetRoundCandidatesApiRoundCandidatesGetResponses = {
     /**
      * Successful Response
      */
-    200: DomainCollectionResponse;
+    200: RoundCandidateCollectionResponse;
 };
 
 export type GetRoundCandidatesApiRoundCandidatesGetResponse = GetRoundCandidatesApiRoundCandidatesGetResponses[keyof GetRoundCandidatesApiRoundCandidatesGetResponses];
 
 export type CreateRoundCandidatesApiRoundCandidatesPostData = {
-    body: DomainResourceWrite;
+    body: RoundCandidateCreate;
     headers?: {
         /**
          * X-Csrf-Token
@@ -13311,7 +14225,7 @@ export type CreateRoundCandidatesApiRoundCandidatesPostResponses = {
     /**
      * Successful Response
      */
-    201: DomainResourceResponse;
+    201: RoundCandidateResponse;
 };
 
 export type CreateRoundCandidatesApiRoundCandidatesPostResponse = CreateRoundCandidatesApiRoundCandidatesPostResponses[keyof CreateRoundCandidatesApiRoundCandidatesPostResponses];
@@ -13457,13 +14371,13 @@ export type GetRoundCandidatesItemApiRoundCandidatesIdGetResponses = {
     /**
      * Successful Response
      */
-    200: DomainResourceResponse;
+    200: RoundCandidateResponse;
 };
 
 export type GetRoundCandidatesItemApiRoundCandidatesIdGetResponse = GetRoundCandidatesItemApiRoundCandidatesIdGetResponses[keyof GetRoundCandidatesItemApiRoundCandidatesIdGetResponses];
 
 export type UpdateRoundCandidatesApiRoundCandidatesIdPatchData = {
-    body: DomainResourceWrite;
+    body: RoundCandidateUpdate;
     headers?: {
         /**
          * X-Csrf-Token
@@ -13533,7 +14447,7 @@ export type UpdateRoundCandidatesApiRoundCandidatesIdPatchResponses = {
     /**
      * Successful Response
      */
-    200: DomainResourceResponse;
+    200: RoundCandidateResponse;
 };
 
 export type UpdateRoundCandidatesApiRoundCandidatesIdPatchResponse = UpdateRoundCandidatesApiRoundCandidatesIdPatchResponses[keyof UpdateRoundCandidatesApiRoundCandidatesIdPatchResponses];
