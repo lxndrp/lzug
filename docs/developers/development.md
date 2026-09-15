@@ -119,6 +119,14 @@ Backendmodule mit der Schwelle 10 aus.
 Der Befund ist zunächst nicht blockierend und wird über `task quality:backend`
 auch in der Backend-CI ausgegeben.
 
+Der reguläre Backend-Typcheck verwendet die verbindliche Dateiliste in
+`pyproject.toml`.
+Sie umfasst die typisierten Anwendungs- und Persistenzgrenzen sowie
+`server.py`, `healthcheck.py`, `build_metadata.py`, `security.py`, `runtime.py`,
+`admin_socket.py` und `admin_socket_artifacts.py`.
+Der Aufruf erfolgt als Teil von `task quality:backend:pr` beziehungsweise
+`task quality:backend`.
+
 ## Dependencies und Dependabot
 
 Python-Abhängigkeiten werden mit `uv add` und anschließendem gelocktem Sync

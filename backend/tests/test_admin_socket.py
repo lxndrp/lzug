@@ -198,6 +198,11 @@ class AdminSocketTests(unittest.TestCase):
         with self.assertRaises(OSError):
             peer_actor(connection, self.config.gid)
 
+    def test_peer_actor_fails_closed_without_kernel_credentials(self):
+        with patch.object(socket, "SO_PEERCRED", None):
+            with self.assertRaisesRegex(OSError, "peer credentials are unavailable"):
+                peer_actor(Mock(), self.config.gid)
+
     def test_group_peer_is_checked_using_real_linux_credentials(self):
         if os.geteuid() != 0:
             self.skipTest("Changing OS identities requires the isolated root Linux test container")
