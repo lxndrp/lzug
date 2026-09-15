@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 )
 
 func operationalCommands() []Command {
@@ -12,7 +13,8 @@ func operationalCommands() []Command {
 		upgradeInspectionCommand("status"),
 		upgradeInspectionCommand("rollback"),
 		{
-			Path:           []string{"notification", "process"},
+			Path:        []string{"notification", "process"},
+			Interactive: InteractiveSpec{SearchTerms: []string{"benachrichtigung", "zustellung"}}, Effect: MutatingEffect, Retry: RetryForbidden, Timeout: 10 * time.Minute,
 			Summary:        "Process due technical notifications.",
 			Description:    "Process due notification deliveries and confirmed-plan consequences without returning message content.",
 			Examples:       []string{"lzug-admin notification process"},
@@ -24,6 +26,7 @@ func operationalCommands() []Command {
 		},
 		{
 			Path:        []string{"notification", "test"},
+			Interactive: InteractiveSpec{SearchTerms: []string{"benachrichtigung", "zustellung"}}, Effect: MutatingEffect, Retry: RetryForbidden, Timeout: 2 * time.Minute,
 			Summary:     "Run one synthetic notification test.",
 			Description: "Run a technical synthetic delivery for one committee member without returning message content.",
 			Examples:    []string{"lzug-admin notification test --member-id 7 --channel web_push"},
@@ -53,6 +56,7 @@ func upgradeInspectionCommand(action string) Command {
 	}
 	return Command{
 		Path:        []string{"upgrade", action},
+		Interactive: InteractiveSpec{SearchTerms: []string{"aktualisierung", "migration", "rollback"}}, Effect: ReadOnlyEffect, Retry: RetryAllowed, Timeout: 2 * time.Minute,
 		Summary:     map[string]string{"status": "Inspect the running backend's data migration plan.", "rollback": "Explain and reject unsupported automatic rollback."}[action],
 		Description: "Read application and schema compatibility through the existing socket. " + rollbackBoundary,
 		Examples:    []string{"lzug-admin --endpoint unix:///run/lzug-admin/admin.sock upgrade " + action},
@@ -105,6 +109,7 @@ func migrationSummary(result map[string]any) string {
 func upgradeApplyCommand() Command {
 	return Command{
 		Path:        []string{"upgrade", "apply"},
+		Interactive: InteractiveSpec{SearchTerms: []string{"aktualisierung", "migration", "rollback"}}, Effect: MutatingEffect, Retry: RetryForbidden, Timeout: 30 * time.Minute,
 		Summary:     "Approve the running backend's data migration.",
 		Description: "Inspect the plan, create and locally decrypt a protected backup, then explicitly approve the data transition in the same running backend. " + rollbackBoundary,
 		Examples:    []string{"lzug-admin --endpoint unix:///run/lzug-admin/admin.sock upgrade apply --backup-output pre-upgrade.lzug --identity-file backup.agekey --confirm-irreversible --force"},
@@ -215,8 +220,15 @@ func planConsequenceCommand(action string) Command {
 		description = "Retry eligible technical follow-up work for one confirmed plan revision without exposing business content."
 		output = OutputSpec{Human: HumanSilent, Verbose: VerboseSummary, JSON: JSONProjected, Summary: "Successful human output is silent; JSON includes technical counters only.", ResultKeys: []string{"revision_id", "derivation_status", "processed", "problems", "pending", "superseded"}}
 	}
+	effect := ReadOnlyEffect
+	retry := RetryAllowed
+	if action == "retry" {
+		effect = MutatingEffect
+		retry = RetryForbidden
+	}
 	return Command{
-		Path:           []string{"plan-consequence", action},
+		Path:        []string{"plan-consequence", action},
+		Interactive: InteractiveSpec{SearchTerms: []string{"planfolge", "termin", "status"}}, Effect: effect, Retry: retry, Timeout: 10 * time.Minute,
 		Summary:        summary,
 		Description:    description,
 		Examples:       []string{fmt.Sprintf("lzug-admin plan-consequence %s --revision-id 17", action)},

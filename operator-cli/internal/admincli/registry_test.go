@@ -3,7 +3,9 @@ package admincli
 import (
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestDefaultRegistryContainsTheCompletePublicCommandTree(t *testing.T) {
@@ -69,8 +71,23 @@ func TestEveryBackendCommandDeclaresABoundedTimeout(t *testing.T) {
 			t.Fatalf("backend command %q has no bounded timeout", command.Name())
 		}
 	}
-	if restore, _ := registry.Find([]string{"backup", "restore"}); restore.Timeout <= commandTimeout("system status") {
+	if restore, _ := registry.Find([]string{"backup", "restore"}); restore.Timeout <= 2*time.Minute {
 		t.Fatal("long-running restore did not receive its explicit extended timeout")
+	}
+}
+
+func TestEveryCommandDeclaresInteractiveExecutionMetadata(t *testing.T) {
+	registry, err := DefaultRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range registry.Commands() {
+		if command.Effect == "" || command.Retry == "" || len(command.Interactive.SearchTerms) == 0 {
+			t.Fatalf("command %q has incomplete execution metadata: %#v", command.Name(), command)
+		}
+		if command.Effect == MutatingEffect && command.Retry == RetryAllowed && !strings.HasPrefix(command.Name(), "committee ") {
+			t.Fatalf("unexpected retryable mutation %q", command.Name())
+		}
 	}
 }
 
@@ -78,6 +95,10 @@ func TestRegistryRejectsDuplicatesAndIncompleteMetadata(t *testing.T) {
 	groups := []CommandGroup{{Name: "test", Summary: "Test commands.", Description: "Test command group."}}
 	valid := Command{
 		Path:           []string{"test", "run"},
+		Interactive:    InteractiveSpec{SearchTerms: []string{"test"}},
+		Effect:         MutatingEffect,
+		Retry:          RetryForbidden,
+		Timeout:        time.Minute,
 		Summary:        "Run a test.",
 		Description:    "Run a deterministic test command.",
 		Examples:       []string{"lzug-admin test run"},
@@ -93,6 +114,21 @@ func TestRegistryRejectsDuplicatesAndIncompleteMetadata(t *testing.T) {
 	invalid.Summary = ""
 	if _, err := NewRegistry(groups, []Command{invalid}); err == nil {
 		t.Fatal("incomplete command metadata was accepted")
+	}
+	missingPolicy := valid
+	missingPolicy.Effect = ""
+	if _, err := NewRegistry(groups, []Command{missingPolicy}); err == nil {
+		t.Fatal("command without an explicit effect was accepted")
+	}
+	missingRetry := valid
+	missingRetry.Retry = ""
+	if _, err := NewRegistry(groups, []Command{missingRetry}); err == nil {
+		t.Fatal("command without an explicit retry policy was accepted")
+	}
+	missingInteractive := valid
+	missingInteractive.Interactive = InteractiveSpec{}
+	if _, err := NewRegistry(groups, []Command{missingInteractive}); err == nil {
+		t.Fatal("command without interactive metadata was accepted")
 	}
 	secretOption := valid
 	secretOption.Options = []OptionSpec{{Name: "token", ValueName: "TOKEN", Summary: "A token.", Kind: StringOption}}

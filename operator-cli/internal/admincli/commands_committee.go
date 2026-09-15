@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var idempotencyKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$`)
@@ -14,6 +15,7 @@ func committeeCommands() []Command {
 	return []Command{
 		{
 			Path:        []string{"committee", "bootstrap"},
+			Interactive: InteractiveSpec{SearchTerms: []string{"ausschuss", "prüfungsausschuss", "mitglied"}}, Effect: MutatingEffect, Retry: RetryAllowed, Timeout: 2 * time.Minute,
 			Summary:     "Bootstrap a complete examination committee.",
 			Description: "Create one committee, select its initial chair and optional deputy, and issue any required invitations atomically.",
 			Examples: []string{
@@ -39,6 +41,7 @@ func committeeCommands() []Command {
 		},
 		{
 			Path:        []string{"committee", "complete"},
+			Interactive: InteractiveSpec{SearchTerms: []string{"ausschuss", "prüfungsausschuss", "mitglied"}}, Effect: MutatingEffect, Retry: RetryAllowed, Timeout: 2 * time.Minute,
 			Summary:     "Complete an existing examination committee.",
 			Description: "Complete one imported committee with its chair and optional deputy using an idempotent administration request.",
 			Examples: []string{
@@ -60,6 +63,7 @@ func committeeCommands() []Command {
 		},
 		{
 			Path:        []string{"committee", "reinvite"},
+			Interactive: InteractiveSpec{SearchTerms: []string{"ausschuss", "prüfungsausschuss", "mitglied"}}, Effect: MutatingEffect, Retry: RetryAllowed, Timeout: 2 * time.Minute,
 			Summary:     "Reissue one eligible committee invitation.",
 			Description: "Reissue an invitation for one committee account through an idempotent administration request.",
 			Examples: []string{
@@ -210,6 +214,7 @@ func anyNonEmpty(values ...string) bool {
 func committeeLifecycleCommand(action string, confirmation bool) Command {
 	command := Command{
 		Path:        []string{"committee", action},
+		Interactive: InteractiveSpec{SearchTerms: []string{"ausschuss", "prüfungsausschuss", "mitglied"}}, Effect: MutatingEffect, Retry: RetryAllowed, Timeout: 2 * time.Minute,
 		Summary:     strings.ToUpper(action[:1]) + action[1:] + " an examination committee.",
 		Description: strings.ToUpper(action[:1]) + action[1:] + " one committee with an idempotent, reasoned administration request.",
 		Examples: []string{

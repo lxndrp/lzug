@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 )
 
 func localCommands() []Command {
 	commands := []Command{
 		{
 			Path:        []string{"config", "inspect"},
+			Interactive: InteractiveSpec{SearchTerms: []string{"konfiguration", "ziel", "endpoint"}}, Effect: ReadOnlyEffect, Retry: RetryAllowed, Timeout: 2 * time.Minute,
 			Summary:     "Inspect effective non-secret CLI configuration.",
 			Description: "Show the effective non-secret target together with its flag, environment, file, or default source. No configuration is changed.",
 			Examples: []string{
@@ -37,6 +39,7 @@ func localCommands() []Command {
 		},
 		{
 			Path:        []string{"cli"},
+			Interactive: InteractiveSpec{SearchTerms: []string{"dialog", "interaktiv", "geführt"}}, Effect: ReadOnlyEffect, Retry: RetryForbidden,
 			Summary:     "Start the guided interactive operator dialog.",
 			Description: "Start the line-oriented terminal dialog generated from this command registry. Interactive input and output terminals are required; --json and --force are invalid. Direct subcommands remain the interface for automation.",
 			Examples:    []string{"lzug-admin cli"},
@@ -56,6 +59,7 @@ func localCommands() []Command {
 		shell := shell
 		commands = append(commands, Command{
 			Path:        []string{"completion", shell},
+			Interactive: InteractiveSpec{SearchTerms: []string{"shell", "vervollstaendigung"}}, Effect: ReadOnlyEffect, Retry: RetryAllowed,
 			Summary:     fmt.Sprintf("Generate %s completion.", shell),
 			Description: fmt.Sprintf("Print an installable %s completion script derived only from static registry metadata.", shell),
 			Examples:    []string{fmt.Sprintf("lzug-admin completion %s > lzug-admin.%s", shell, completionExtension(shell))},

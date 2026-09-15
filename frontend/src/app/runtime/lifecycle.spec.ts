@@ -10,6 +10,7 @@ import { of } from 'rxjs';
 import { App } from '../app';
 import { AuthService } from '../auth/auth.service';
 import { LifecycleService, lifecycleInterceptor, lifecycleStates } from './lifecycle.service';
+import { LifecycleNoticeComponent } from './lifecycle-notice.component';
 
 describe('public lifecycle', () => {
   let http: HttpTestingController;
@@ -77,9 +78,10 @@ describe('public lifecycle', () => {
     });
   }
 
-  it('shows unknown, contradictory and network responses as unavailable', () => {
+  it('shows unknown, incomplete, contradictory and network responses as unavailable', () => {
     for (const payload of [
       { state: 'secret', ready: false },
+      { state: 'maintenance' },
       { state: 'ready', ready: false },
     ]) {
       lifecycle.check().subscribe();
@@ -90,6 +92,21 @@ describe('public lifecycle', () => {
     http.expectOne('/api/lifecycle').error(new ProgressEvent('offline'));
     expect(lifecycle.ready()).toBe(false);
     expect(lifecycle.checking()).toBe(false);
+  });
+
+  it('uses the complete state mapping for every non-ready public state', () => {
+    for (const state of [
+      ...lifecycleStates.filter((value) => value !== 'ready'),
+      'unreachable',
+    ] as const) {
+      lifecycle.state.set(state);
+      const fixture = TestBed.createComponent(LifecycleNoticeComponent);
+      fixture.detectChanges();
+      const main = fixture.nativeElement.querySelector('main') as HTMLElement;
+      expect(main.querySelector('h1')?.textContent?.trim()).toBeTruthy();
+      expect(main.textContent).toContain('lzug-admin system status');
+      fixture.destroy();
+    }
   });
 
   it('accepts a business 503, blocks subsequent work and never replays the mutation', () => {

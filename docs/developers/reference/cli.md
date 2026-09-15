@@ -284,8 +284,6 @@ Manage only the persistent public age recipient after local possession proof; pr
 
 Ausführung: lokale Orchestrierung mit Backendaufträgen; geheimes Schlüsselmaterial verbleibt in der CLI.
 
-Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
-
 Ausgabe: Shows the canonical public recipient and complete fingerprint.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.
 
@@ -698,7 +696,7 @@ Inspect technical follow-up states for one confirmed plan revision without expos
 
 Ausführung: versionierter Backendauftrag.
 
-Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
+Zeitlimit: `10m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
@@ -719,6 +717,8 @@ Create a protected private identity and a shareable public recipient atomically 
 | `--recipient-file PATH` | New public recipient file. | Pflicht |
 
 Ausführung: lokal ohne Backendauftrag.
+
+Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
 
 Ausgabe: Human output reminds about independent key backup; JSON excludes the private identity.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `local`-Ergebnisvertrag auf `stdout`.

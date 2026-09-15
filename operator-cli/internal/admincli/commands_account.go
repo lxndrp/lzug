@@ -3,6 +3,7 @@ package admincli
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 func accountCommands() []Command {
@@ -10,7 +11,8 @@ func accountCommands() []Command {
 	accountID := OptionSpec{Name: "account-id", ValueName: "ID", Summary: "Positive account identifier.", Kind: IntegerOption, Required: true, Positive: true}
 	return []Command{
 		{
-			Path:           []string{"account", "bootstrap"},
+			Path:        []string{"account", "bootstrap"},
+			Interactive: InteractiveSpec{SearchTerms: []string{"konto", "benutzer", "einladung", "wiederherstellung"}}, Effect: MutatingEffect, Retry: RetryForbidden, Timeout: 2 * time.Minute,
 			Summary:        "Create the first operator account.",
 			Description:    "Bootstrap an empty installation and issue its one-time invitation token.",
 			Examples:       []string{"lzug-admin account bootstrap --email operator@example.invalid"},
@@ -24,7 +26,8 @@ func accountCommands() []Command {
 			}),
 		},
 		{
-			Path:           []string{"account", "invite"},
+			Path:        []string{"account", "invite"},
+			Interactive: InteractiveSpec{SearchTerms: []string{"konto", "benutzer", "einladung", "wiederherstellung"}}, Effect: MutatingEffect, Retry: RetryForbidden, Timeout: 2 * time.Minute,
 			Summary:        "Invite an operator account.",
 			Description:    "Create or reuse an eligible account invitation and print its one-time token.",
 			Examples:       []string{"lzug-admin account invite --email member@example.invalid"},
@@ -39,6 +42,7 @@ func accountCommands() []Command {
 		},
 		{
 			Path:        []string{"account", "disable"},
+			Interactive: InteractiveSpec{SearchTerms: []string{"konto", "benutzer", "einladung", "wiederherstellung"}}, Effect: MutatingEffect, Retry: RetryForbidden, Timeout: 2 * time.Minute,
 			Summary:     "Disable an operator account.",
 			Description: "Disable one account and revoke its active sessions.",
 			Examples:    []string{"lzug-admin account disable --account-id 7 --force"},
@@ -59,6 +63,7 @@ func accountCommands() []Command {
 		},
 		{
 			Path:        []string{"account", "recover"},
+			Interactive: InteractiveSpec{SearchTerms: []string{"konto", "benutzer", "einladung", "wiederherstellung"}}, Effect: MutatingEffect, Retry: RetryForbidden, Timeout: 2 * time.Minute,
 			Summary:     "Issue account recovery credentials.",
 			Description: "Select exactly one account by identifier or email and issue a one-time recovery token.",
 			Examples: []string{
@@ -91,7 +96,8 @@ func accountCommands() []Command {
 func accountConsumeCommand(kind string) Command {
 	action := "consume-" + kind
 	return Command{
-		Path:           []string{"account", action},
+		Path:        []string{"account", action},
+		Interactive: InteractiveSpec{SearchTerms: []string{"konto", "benutzer", "einladung", "wiederherstellung"}}, Effect: MutatingEffect, Retry: RetryForbidden, Timeout: 2 * time.Minute,
 		Summary:        fmt.Sprintf("Consume a one-time %s token.", kind),
 		Description:    fmt.Sprintf("Read one %s token from standard input and consume it through the local administration boundary.", kind),
 		Examples:       []string{fmt.Sprintf("printf 'TOKEN' | lzug-admin account %s", action)},
