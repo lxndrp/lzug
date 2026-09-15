@@ -85,6 +85,10 @@ Persistenzzugriff; `resource_authorization` prüft Ressourcenaktionen und bindet
 serverseitige Akteurfelder.
 `resource_ownership` löst Ausschuss- und Rundenbesitz im übergebenen Store auf,
 ohne eine weitere Session zu öffnen.
+Bei Updates wird zuerst der gespeicherte Quellbesitz autorisiert;
+Payloadwerte dürfen die Quelle nicht ersetzen.
+Bereits bestehende Quell-/Zielwechsel prüfen zusätzlich den Zielscope,
+während andere Ownershipfelder über den generischen HTTP-Vertrag unveränderlich bleiben.
 `resource_visibility` begrenzt Listen und Einzelabfragen bereits in SQL;
 historische Rundenzuordnungen und aktive Kandidatenzuständigkeit behalten ihre
 unterschiedlichen Sichtbarkeitsregeln.
