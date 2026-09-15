@@ -1,6 +1,63 @@
 import { DatePipe } from '@angular/common';
 import { Component, ElementRef, ViewChild, afterNextRender, computed, inject } from '@angular/core';
-import { LifecycleService } from './lifecycle.service';
+import { LifecycleService, type LifecycleState } from './lifecycle.service';
+
+type LifecycleNoticeState = LifecycleState | 'unreachable';
+
+type LifecycleNoticeCopy = {
+  title: string;
+  explanation: string;
+  operatorHint: string;
+};
+
+const lifecycleNoticeCopy = {
+  initializing: {
+    title: 'Anwendung wird gestartet',
+    explanation: 'Die Anwendung ist vorübergehend nicht einsatzbereit.',
+    operatorHint: 'Prüfen Sie den Zustand und die Diagnose über den lokalen Adminzugang.',
+  },
+  ready: {
+    title: 'Anwendung ist bereit',
+    explanation: '',
+    operatorHint: '',
+  },
+  maintenance: {
+    title: 'Anwendung wird gewartet',
+    explanation: 'Die Anwendung ist vorübergehend nicht einsatzbereit.',
+    operatorHint: 'Prüfen Sie den Zustand und die Diagnose über den lokalen Adminzugang.',
+  },
+  migration_required: {
+    title: 'Datenaktualisierung erforderlich',
+    explanation: 'Der Betreiber muss die erforderliche Datenaktualisierung prüfen.',
+    operatorHint:
+      'Prüfen Sie den Zustand und die Diagnose und geben Sie die Datenaktualisierung erst nach der Sicherungsprüfung frei.',
+  },
+  migrating: {
+    title: 'Daten werden aktualisiert',
+    explanation: 'Eine Datenaktualisierung läuft. Bitte warten Sie deren Abschluss ab.',
+    operatorHint: 'Prüfen Sie den Zustand und die Diagnose über den lokalen Adminzugang.',
+  },
+  error: {
+    title: 'Anwendung benötigt Unterstützung',
+    explanation: 'Der Betreiber muss die Ursache prüfen und den Betrieb wiederherstellen.',
+    operatorHint: 'Prüfen Sie den Zustand und die Diagnose über den lokalen Adminzugang.',
+  },
+  stopping: {
+    title: 'Anwendung wird beendet',
+    explanation: 'Die Anwendung ist vorübergehend nicht einsatzbereit.',
+    operatorHint: 'Prüfen Sie den Zustand und die Diagnose über den lokalen Adminzugang.',
+  },
+  stopped: {
+    title: 'Anwendung wird beendet',
+    explanation: 'Die Anwendung ist vorübergehend nicht einsatzbereit.',
+    operatorHint: 'Prüfen Sie den Zustand und die Diagnose über den lokalen Adminzugang.',
+  },
+  unreachable: {
+    title: 'Anwendung nicht erreichbar',
+    explanation: 'Der aktuelle Zustand konnte nicht ermittelt werden. Prüfen Sie Ihre Verbindung.',
+    operatorHint: 'Prüfen Sie den Zustand und die Diagnose über den lokalen Adminzugang.',
+  },
+} satisfies Record<LifecycleNoticeState, LifecycleNoticeCopy>;
 
 /** Accessible public maintenance screen with a separate operator diagnosis path. */
 @Component({
@@ -30,7 +87,8 @@ import { LifecycleService } from './lifecycle.service';
         <details>
           <summary>Hinweise für Betreiber</summary>
           <p>
-            Prüfen Sie den Zustand mit <code>lzug-admin system status</code> und die Diagnose mit
+            {{ operatorHint() }} Prüfen Sie den Zustand mit
+            <code>lzug-admin system status</code> und die Diagnose mit
             <code>lzug-admin system doctor</code> über den lokalen Adminzugang.
           </p>
           <p>
@@ -85,39 +143,10 @@ import { LifecycleService } from './lifecycle.service';
 export class LifecycleNoticeComponent {
   readonly lifecycle = inject(LifecycleService);
   @ViewChild('heading') private heading?: ElementRef<HTMLHeadingElement>;
-  readonly title = computed(() => {
-    switch (this.lifecycle.state()) {
-      case 'initializing':
-        return 'Anwendung wird gestartet';
-      case 'maintenance':
-        return 'Anwendung wird gewartet';
-      case 'migration_required':
-        return 'Datenaktualisierung erforderlich';
-      case 'migrating':
-        return 'Daten werden aktualisiert';
-      case 'error':
-        return 'Anwendung benötigt Unterstützung';
-      case 'stopping':
-      case 'stopped':
-        return 'Anwendung wird beendet';
-      default:
-        return 'Anwendung nicht erreichbar';
-    }
-  });
-  readonly explanation = computed(() => {
-    switch (this.lifecycle.state()) {
-      case 'migration_required':
-        return 'Der Betreiber muss die erforderliche Datenaktualisierung prüfen.';
-      case 'migrating':
-        return 'Eine Datenaktualisierung läuft. Bitte warten Sie deren Abschluss ab.';
-      case 'error':
-        return 'Der Betreiber muss die Ursache prüfen und den Betrieb wiederherstellen.';
-      case 'unreachable':
-        return 'Der aktuelle Zustand konnte nicht ermittelt werden. Prüfen Sie Ihre Verbindung.';
-      default:
-        return 'Die Anwendung ist vorübergehend nicht einsatzbereit.';
-    }
-  });
+  private readonly copy = computed(() => lifecycleNoticeCopy[this.lifecycle.state()]);
+  readonly title = computed(() => this.copy().title);
+  readonly explanation = computed(() => this.copy().explanation);
+  readonly operatorHint = computed(() => this.copy().operatorHint);
 
   constructor() {
     afterNextRender(() => this.heading?.nativeElement.focus());

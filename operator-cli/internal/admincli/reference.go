@@ -123,10 +123,10 @@ func GenerateReference(registry *Registry) string {
 			output.WriteString("Ausführung: versionierter Backendauftrag.\n\n")
 			fmt.Fprintf(&output, "Zeitlimit: `%s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederholung geprüft werden.\n\n", command.Timeout)
 		}
-		if command.Mutating {
+		if command.Effect == MutatingEffect {
 			output.WriteString("Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.\n\n")
 		}
-		if command.RetrySafe {
+		if command.Retry == RetryAllowed {
 			output.WriteString("Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.\n\n")
 		}
 		output.WriteString("Ausgabe: " + command.Output.Summary + "\n")

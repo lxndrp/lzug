@@ -159,6 +159,24 @@ type ConfirmationSpec struct {
 	Prompt   func(Values, EffectiveConfig) string
 }
 
+type CommandEffect string
+
+const (
+	ReadOnlyEffect CommandEffect = "read-only"
+	MutatingEffect CommandEffect = "mutating"
+)
+
+type RetryPolicy string
+
+const (
+	RetryForbidden RetryPolicy = "forbidden"
+	RetryAllowed   RetryPolicy = "allowed"
+)
+
+type InteractiveSpec struct {
+	SearchTerms []string
+}
+
 type HumanOutput string
 
 const (
@@ -240,9 +258,9 @@ type Command struct {
 	BackendCommand string
 	LegacyForms    []string
 	Output         OutputSpec
-	SearchTerms    []string
-	Mutating       bool
-	RetrySafe      bool
+	Interactive    InteractiveSpec
+	Effect         CommandEffect
+	Retry          RetryPolicy
 	Timeout        time.Duration
 	Validate       func(Values) error
 	BuildRequest   func(context.Context, PrepareContext, Values, Values) (BackendRequest, error)

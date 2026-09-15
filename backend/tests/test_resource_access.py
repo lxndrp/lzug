@@ -354,6 +354,33 @@ class ResourceAccessTests(unittest.TestCase):
             self.assertIsNone(self.repository.committee_id_for_resource(resource))
             self.assertIsNone(self.repository.round_id_for_resource(resource))
 
+    def test_updates_authorize_stored_source_before_payload_target(self) -> None:
+        foreign_member_before = self.repository.get(COMMITTEE_MEMBER, self.foreign_member)
+        with self.assertRaisesRegex(ForbiddenRequestError, "^Forbidden\\.$"):
+            self.authorizer.authorize(
+                COMMITTEE_MEMBER,
+                self.foreign_member,
+                {"committee_id": 1, "person_id": 1},
+            )
+        self.assertEqual(
+            foreign_member_before,
+            self.repository.get(COMMITTEE_MEMBER, self.foreign_member),
+        )
+        with self.assertRaisesRegex(ForbiddenRequestError, "^Forbidden\\.$"):
+            self.authorizer.authorize(
+                CANDIDATE,
+                self.foreign_candidate,
+                {"exam_round_id": 1},
+            )
+
+    def test_allowed_candidate_round_change_checks_target_scope(self) -> None:
+        with self.assertRaisesRegex(ForbiddenRequestError, "^Forbidden\\.$"):
+            self.authorizer.authorize(
+                CANDIDATE,
+                1,
+                {"exam_round_id": self.foreign_round},
+            )
+
     def test_availability_binds_actor_and_preserves_existing_owner(self) -> None:
         member_scope = replace(self.scope, management_committee_ids=frozenset())
         member = ResourceAuthorizer(self.db_path, member_scope)

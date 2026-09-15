@@ -28,6 +28,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  workflows:
+    name: GitHub Actions workflows
+    needs: revision
+    if: needs.revision.outputs.decision == 'execute'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install: false
+      - run: mise install aqua:go-task/task@3.52.0 aqua:rhysd/actionlint@1.7.12
+      - run: mise exec --no-deps aqua:go-task/task@3.52.0 aqua:rhysd/actionlint@1.7.12 -- task quality:workflows
+
   revision:
     name: Bind complete evidence to master
     runs-on: ubuntu-24.04
@@ -72,7 +87,9 @@ jobs:
             --required-artifact lzug-documentation
             --required-artifact lzug-sboms
           )
-          test "$FORCE_FULL" = true && args+=(--force-full) || true
+          if test "$FORCE_FULL" = true; then
+            args+=(--force-full)
+          fi
           python3 scripts/quality_evidence.py "${args[@]}" > "$RUNNER_TEMP/quality-decision.json"
           tee -a "$GITHUB_STEP_SUMMARY" < "$RUNNER_TEMP/quality-decision.json"
           decision=$(jq -r .decision "$RUNNER_TEMP/quality-decision.json")
@@ -498,7 +515,7 @@ jobs:
 
   complete-evidence:
     name: Record complete Quality evidence
-    needs: [revision, fixtures, backend, frontend, transport, docs, cli, infra, delivery, container, e2e, a11y, codeql, source-scan, audits]
+    needs: [revision, workflows, fixtures, backend, frontend, transport, docs, cli, infra, delivery, container, e2e, a11y, codeql, source-scan, audits]
     if: >-
       always() && needs.revision.outputs.decision == 'execute' &&
       !contains(needs.*.result, 'failure') &&

@@ -54,16 +54,16 @@ class ResourceOwnership:
         self.store = store
 
     def values(
-        self, resource: Resource, resource_id: int | None, payload: dict[str, Any] | None
+        self, resource: Resource, resource_id: int | None, payload: dict[str, Any] | None = None
     ) -> dict[str, Any]:
-        """Overlay proposed fields on the stored resource for authorization."""
+        """Return the stored row, optionally overlaid for target resolution."""
         row = self.store.get(resource, resource_id) if resource_id is not None else None
         return {**(row or {}), **(payload or {})}
 
     def resolve(
         self, resource: Resource, resource_id: int | None, payload: dict[str, Any] | None = None
     ) -> ResourceOwner:
-        """Resolve both ownership dimensions from the same resource snapshot."""
+        """Resolve both ownership dimensions from one stored or proposed snapshot."""
         values = self.values(resource, resource_id, payload)
         round_id = self.round_id(resource, values)
         return ResourceOwner(self.committee_id(resource, values, round_id), round_id)

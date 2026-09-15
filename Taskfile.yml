@@ -40,6 +40,8 @@ tasks:
       - go version
       - command -v goreleaser >/dev/null || { echo "GoReleaser is missing; run mise install"; exit 1; }
       - goreleaser --version
+      - command -v actionlint >/dev/null || { echo "actionlint is missing; run mise install"; exit 1; }
+      - actionlint -version
       - command -v lychee >/dev/null || { echo "Lychee is missing; run mise install"; exit 1; }
       - lychee --version
 
@@ -286,6 +288,7 @@ tasks:
       - quality:infra
       - quality:demo
       - docs
+      - quality:workflows
 
   brand:check:
     desc: Verify canonical brand sources, consumer derivatives, fonts, and icons
@@ -333,6 +336,11 @@ tasks:
         tests.delivery.test_build_metadata
         tests.delivery.test_build_identity_contract
       - cd operator-cli && goreleaser check
+
+  quality:workflows:
+    desc: Validate all GitHub Actions workflows with actionlint
+    cmds:
+      - actionlint
 
   quality:backend:
     desc: Run backend lint, audit, tests, and coverage
