@@ -64,6 +64,7 @@ Seiteneffekt des normalen Servers.
 | Dokumentation | `task docs:check`, danach `task docs` |
 | Erzeugte öffentliche Site und Portal-Links | `task docs:publication:linkcheck` |
 | Workflow-/Quality-Evidenzvertrag | betroffener `unittest` unter `tests/delivery/`; API-Auswahl an exakter SHA |
+| GitHub-Workflow-Syntax und Expressions | `actionlint` über `task quality:workflows` |
 | Zeitabhängige Vulnerability-, Secret- oder externe Linkprüfung | jeweiliger Security-/Linkcheck nach eigener Frequenz; nicht durch Build-Evidenz ersetzen |
 | querschnittliche Änderung | `task quality` |
 
