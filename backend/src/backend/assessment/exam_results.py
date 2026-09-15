@@ -47,6 +47,7 @@ from backend.persistence.models import (
     ResultRetention,
     RoundCandidate,
 )
+from backend.presentation.exam_exports import render_result_export
 
 MODEL_FIELDS = {
     "model_key",
@@ -1173,75 +1174,7 @@ class ExamResultService:
             )
             session.flush()
             result = self._view(session, aggregate, scope)
-        calculation = result["current_calculation"]
-        determination = result["current_determination"]
-        candidate = result["candidate"]
-        marker = "FESTGESTELLT" if determination else "ENTWURF"
-        lines = [
-            f"Ergebnisniederschrift {result['id']} – {marker}",
-            "Kein amtliches IHK-Dokument",
-            f"Prüfling: {candidate['first_name']} {candidate['last_name']}",
-            f"IHK-Prüfungsnummer: {candidate['ihk_exam_number']}",
-            f"Bewertungsmodell: {result['model_version']['model_key']} "
-            f"v{result['model_version']['version']}",
-            f"Zustand: {result['state']}",
-            "",
-            "Bestätigte externe Eingangsergebnisse:",
-        ]
-        confirmed_external = [
-            item for item in result["external_results"] if item["status"] == "confirmed"
-        ]
-        lines.extend(
-            f"- {item['area_key']}: {item['points']} Punkte ({item['source_reference']})"
-            for item in confirmed_external
-        )
-        if not confirmed_external:
-            lines.append("- keine")
-        lines.extend(["", "Festgestellte Komponentenbewertungen:"])
-        lines.extend(
-            f"- {item['component_key']}: {item['points']} Punkte"
-            for item in result["committee_assessments"]
-            if item["status"] == "current"
-        )
-        if calculation:
-            lines.extend(
-                [
-                    "",
-                    "Berechnungsweg:",
-                    *[
-                        f"- {item['kind']} {item['key']}: {item['points']} × {item['weight']} %"
-                        for item in calculation["path"]["inputs"]
-                    ],
-                    f"Gesamtergebnis: {calculation['total_points']} Punkte, "
-                    f"{calculation['grade']}, "
-                    f"{'bestanden' if calculation['passed'] else 'nicht bestanden'}",
-                ]
-            )
-        if determination:
-            lines.extend(
-                [
-                    "",
-                    f"Feststellung: Version {determination['revision']} am "
-                    f"{determination['determined_at']}",
-                    "Mitwirkende: "
-                    + ", ".join(str(item) for item in determination["participant_member_ids"]),
-                    "Bestätigungen: "
-                    + ", ".join(str(item) for item in determination["confirmation_member_ids"]),
-                ]
-            )
-            if determination["dissent"]:
-                lines.append("Abweichende Voten: " + self._json(determination["dissent"]))
-        if result["correction_open"]:
-            lines.append("Korrekturvorgang: offen")
-        if result["communications"]:
-            current = next(
-                (item for item in result["communications"] if item["status"] == "current"), None
-            )
-            if current:
-                lines.append(
-                    f"Ergebnismitteilung: {current['communicated_at']} ({current['method']})"
-                )
-        return "\n".join(lines) + "\n"
+        return render_result_export(result)
 
     # Internal calculation and view helpers ----------------------------------------
 
