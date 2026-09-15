@@ -167,7 +167,7 @@ def build_seed(
     product_commit: str,
 ) -> dict[str, Any]:
     from backend.persistence.database import database_readiness, initialize
-    from fixtures.generate import load_source, render_profile_sql, runtime_profile
+    from backend.synthetic_fixtures import load_source, render_profile_sql, runtime_profile
 
     fixture_data = load_source()
     fixture_runtime = runtime_profile(fixture_data, "public-demo")
@@ -213,7 +213,6 @@ def build_seed(
             **fixture_runtime,
         },
         "fixture_sha256": sha256_file(source_root / "fixtures/synthetic-fixtures.json"),
-        "generator_sha256": sha256_file(source_root / "fixtures/generate.py"),
         "seed_sql_sha256": hashlib.sha256(seed_sql.encode("utf-8")).hexdigest(),
         "snapshot_sha256": sha256_file(database),
         "reset": {"time": "03:00", "timezone": "Europe/Berlin"},

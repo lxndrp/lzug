@@ -14,11 +14,6 @@ tasks:
     cmds:
       - "{{.UV}} python -m unittest discover -s tests/tooling"
 
-  fixtures:
-    desc: Run synthetic fixture tests
-    cmds:
-      - "{{.UV}} python -m unittest discover -s tests/fixtures"
-
   oci:
     desc: Run OCI and Compose tests
     cmds:

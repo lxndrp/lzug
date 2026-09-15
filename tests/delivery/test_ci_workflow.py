@@ -306,7 +306,6 @@ class QualityWorkflowContractTests(unittest.TestCase):
     def test_complete_evidence_requires_all_deterministic_jobs(self) -> None:
         evidence = job_block(self.quality, "complete-evidence")
         jobs = (
-            "fixtures",
             "backend",
             "frontend",
             "transport",
@@ -333,7 +332,6 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("quality:container", job_block(self.pull_request, "container"))
         self.assertNotIn("task test:demo", job_block(self.pull_request, "delivery"))
         self.assertIn("task delivery:oci", job_block(self.pull_request, "container"))
-        self.assertIn("task fixtures:check delivery:fixtures", self.quality)
         self.assertIn("quality:oci quality:container quality:compose", self.quality)
         self.assertIn("npm --prefix frontend run test:e2e", self.quality)
         self.assertIn("npm --prefix frontend run test:a11y", self.quality)

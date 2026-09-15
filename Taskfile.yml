@@ -109,7 +109,6 @@ tasks:
       - task: test:demo
       - task: test:delivery
       - task: test:docs
-      - task: test:fixtures
       - task: test:oci
       - task: test:tooling
 
@@ -142,11 +141,6 @@ tasks:
     desc: Run documentation and publication tests
     cmds:
       - task: docs:test
-
-  test:fixtures:
-    desc: Run synthetic fixture tests
-    cmds:
-      - task: delivery:fixtures
 
   test:oci:
     desc: Run OCI and Compose tests
@@ -269,7 +263,6 @@ tasks:
   quality:
     desc: Run the complete local quality assurance suite in parallel
     deps:
-      - fixtures:check
       - brand:check
       - quality:backend
       - quality:frontend-transport
@@ -279,7 +272,6 @@ tasks:
       - quality:operator-packaging
       - test:delivery
       - test:demo
-      - test:fixtures
       - test:oci
       - test:tooling
       - quality:oci
@@ -299,11 +291,6 @@ tasks:
     desc: Generate reproducible brand derivatives from canonical vector sources
     cmds:
       - node brand/generate-assets.mjs
-
-  fixtures:check:
-    desc: Compile synthetic fixture profiles and verify tracked adapters
-    cmds:
-      - python3 fixtures/generate.py --check
 
   quality:infra:
     desc: Format, validate, and mock-plan the public demo infrastructure without cloud access

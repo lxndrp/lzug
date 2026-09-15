@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from fixtures.generate import ENTITY_GROUPS, demo_roles, load_source, runtime_profile
+from backend.synthetic_fixtures import ENTITY_GROUPS, demo_roles, load_source, runtime_profile
 
 DATA = load_source()
 FIXTURE_ROOT = DATA["fixture_root"]
@@ -74,7 +74,7 @@ def _closest_relative_exam_date(current: datetime):
 def seed_demo_scenarios(db_path, created_at: datetime) -> None:
     """Rebuild a test database from the public profile at a chosen reference time."""
     from backend.persistence.database import initialize
-    from fixtures.generate import render_profile_sql
+    from backend.synthetic_fixtures import render_profile_sql
 
     initialize(
         db_path,
@@ -86,7 +86,7 @@ def seed_demo_scenarios(db_path, created_at: datetime) -> None:
 
 
 def public_demo_seed_sql() -> str:
-    from fixtures.generate import render_profile_sql
+    from backend.synthetic_fixtures import render_profile_sql
 
     return render_profile_sql(
         DATA,
@@ -98,6 +98,6 @@ def public_demo_seed_sql() -> str:
 def prepare_exam_protocol_scenario(db_path) -> None:
     """Prepare the complete development profile for protocol/lifecycle tests."""
     from backend.persistence.database import initialize
-    from fixtures.generate import render_profile_sql
+    from backend.synthetic_fixtures import render_profile_sql
 
     initialize(db_path, seed_sql=render_profile_sql(DATA, "development"), reset=True)

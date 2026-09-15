@@ -20,7 +20,7 @@ from .settings import RuntimeSettings
 
 
 def _development_seed_sql() -> str:
-    from fixtures.generate import load_source, render_profile_sql
+    from backend.synthetic_fixtures import load_source, render_profile_sql
 
     data = deepcopy(load_source())
     # Browser tests use the historical single-round baseline so their

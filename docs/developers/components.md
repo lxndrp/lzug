@@ -719,7 +719,7 @@ geschützte Environment `demo` begrenzen echte Mutationen.
 | Demo-Runtime oder Demo-Artefakt | passendes Modul unter `demo/tests/` |
 | Release-, SBOM- oder Workflowvertrag | passendes Modul unter `tests/delivery/` |
 | Dokumentations- oder Publikationsvertrag | passendes Modul unter `tests/docs/` |
-| Synthetische Fixture-Quelle | passendes Modul unter `tests/fixtures/` und `task fixtures:check` |
+| Synthetische Fixture-Quelle | `backend/tests/test_synthetic_fixtures.py`, Backend- und Demo-Tests |
 | Angular-Komponente oder Service | zugehöriger Vitest-Test unter `frontend/src/` |
 | sichtbarer Hauptablauf | `task quality:e2e` und bei UI-Änderung `task quality:a11y` getrennt |
 | Go-CLI | `cd operator-cli && go test ./...` beziehungsweise `task quality:operator` |

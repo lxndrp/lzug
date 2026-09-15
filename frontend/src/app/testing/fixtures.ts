@@ -1,3 +1,4 @@
+import fixtureData from '../../../../fixtures/synthetic-fixtures.json';
 import {
   ApiRoot,
   Candidate,
@@ -19,7 +20,216 @@ import {
   RoundCandidate,
   RoundSummary,
 } from '../api/api.models';
-import { syntheticFixtures } from './synthetic-fixtures.generated';
+
+// The JSON catalog is deliberately validated by the owning Python component;
+// this adapter only maps its stable, component-facing fields.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type FixtureRow = Record<string, any>;
+type FixtureGroup =
+  | 'organizations'
+  | 'committees'
+  | 'persons'
+  | 'memberships'
+  | 'accounts'
+  | 'locations'
+  | 'rooms'
+  | 'location_contacts'
+  | 'candidates';
+
+const fixtureGroups: FixtureGroup[] = [
+  'organizations',
+  'committees',
+  'persons',
+  'memberships',
+  'accounts',
+  'locations',
+  'rooms',
+  'location_contacts',
+  'candidates',
+];
+
+function records(group: FixtureGroup): readonly FixtureRow[] {
+  return fixtureData[group] as readonly FixtureRow[];
+}
+
+function fixtureByKey(group: FixtureGroup, key: string): FixtureRow {
+  const row = records(group).find((candidate) => candidate['fixture_key'] === key);
+  if (!row) {
+    throw new Error(`Unknown synthetic fixture key: ${key}`);
+  }
+  return row;
+}
+
+function adapterRows(group: FixtureGroup): readonly FixtureRow[] {
+  return records(group).filter((row) => row['adapters']?.includes('frontend'));
+}
+
+const specializationLabels: Record<string, string> = {
+  application_development: 'Anwendungsentwicklung',
+  system_integration: 'Systemintegration',
+  data_and_process_analysis: 'Daten- und Prozessanalyse',
+  digital_networking: 'Digitale Vernetzung',
+};
+
+const frontendRooms = adapterRows('rooms');
+const syntheticFixtures = {
+  version: fixtureData.version,
+  revision: fixtureData.revision,
+  fixtureRoot: fixtureData.fixture_root,
+  demoMatrixVersion: fixtureData.demo_matrix_version,
+  keys: Object.fromEntries(
+    fixtureGroups.map((group) => [
+      group,
+      Object.fromEntries(
+        records(group)
+          .filter((row) => row['id'] !== undefined)
+          .map((row) => [row['fixture_key'], row['id']]),
+      ),
+    ]),
+  ),
+  demoRoles: Object.fromEntries(
+    fixtureData.accounts
+      .filter((account) => account.demo_role)
+      .map((account) => {
+        const person = fixtureByKey('persons', account.person_key);
+        const membership = fixtureByKey('memberships', account.membership_key);
+        return [
+          account.demo_role,
+          {
+            account_id: account.id,
+            person_id: person['id'],
+            committee_member_id: membership['id'],
+            first_name: person['first_name'],
+            last_name: person['last_name'],
+            display_name: `${person['first_name']} ${person['last_name']}`,
+            account_email: account.email,
+            person_email: person['email'],
+            fixture_key: person['fixture_key'],
+          },
+        ];
+      }),
+  ),
+  committees: adapterRows('committees').map((row) => ({
+    id: row['id'],
+    name: row['name'],
+    occupation: row['occupation'],
+    ihk: fixtureByKey('organizations', row['organization_key'])['name'],
+    is_active: 1,
+    bootstrap_state: 'ready' as const,
+  })),
+  members: records('memberships')
+    .filter((row) => row['adapters']?.includes('frontend'))
+    .map((row) => {
+      const person = fixtureByKey('persons', row['person_key']);
+      const committee = fixtureByKey('committees', row['committee_key']);
+      return {
+        id: row['id'],
+        person_id: person['id'],
+        committee_id: committee['id'],
+        first_name: person['first_name'],
+        last_name: person['last_name'],
+        email: person['email'],
+        mobile: person['mobile'],
+        member_status: row['member_status'],
+        committee_role: row['committee_role'],
+        representing_side: row['representing_side'],
+        is_active: row['is_active'],
+        email_verified_at: null,
+      };
+    }),
+  locations: frontendRooms.map((room) => {
+    const venue = fixtureByKey('locations', room['venue_key']);
+    const committee = venue['committee_key']
+      ? fixtureByKey('committees', venue['committee_key'])['id']
+      : null;
+    return {
+      id: room['id'],
+      committee_id: committee,
+      name: venue['name'],
+      street: venue['street'],
+      postal_code: venue['postal_code'],
+      city: venue['city'],
+      room: room['name'],
+      is_active: Number(Boolean(venue['is_active']) && Boolean(room['is_active'])),
+    };
+  }),
+  examVenues: adapterRows('locations').map((venue) => {
+    const venueRooms = frontendRooms.filter((room) => room['venue_key'] === venue['fixture_key']);
+    const venueContacts = adapterRows('location_contacts').filter(
+      (contact) => contact['venue_key'] === venue['fixture_key'],
+    );
+    return {
+      id: venue['id'],
+      scope: venue['scope'],
+      committee_id: venue['committee_key']
+        ? fixtureByKey('committees', venue['committee_key'])['id']
+        : null,
+      ...Object.fromEntries(
+        [
+          'name',
+          'street',
+          'postal_code',
+          'city',
+          'country',
+          'site_name',
+          'entrance',
+          'travel_directions',
+          'is_accessible',
+          'accessibility_status',
+          'accessibility_notes',
+          'latitude',
+          'longitude',
+          'coordinate_status',
+          'coordinate_source',
+          'is_active',
+        ].map((field) => [field, venue[field]]),
+      ),
+      revision: 1,
+      rooms: venueRooms.map((room) => ({
+        id: room['id'],
+        venue_id: venue['id'],
+        name: room['name'],
+        building: null,
+        wing: null,
+        floor: null,
+        room_number: null,
+        access_notes: room['access_notes'],
+        capacity: room['capacity'],
+        is_active: room['is_active'],
+        revision: 1,
+        _links: {},
+      })),
+      contacts: venueContacts.map((contact) => ({
+        id: contact['id'],
+        venue_id: venue['id'],
+        label: contact['label'],
+        role: contact['role'],
+        phone: contact['phone'],
+        email: contact['email'],
+        availability_notes: contact['availability_notes'],
+        is_active: contact['is_active'],
+        revision: 1,
+        room_ids: contact['room_keys'].map((key: string) => fixtureByKey('rooms', key)['id']),
+        _links: {},
+      })),
+      map_provider: {
+        mode: 'osm',
+        attribution: '© OpenStreetMap-Mitwirkende',
+        attribution_url: 'https://www.openstreetmap.org/copyright',
+      },
+      capabilities: { manage: false, request_promotion: false, decide_promotion: false },
+      _links: {},
+    };
+  }) as ExamVenue[],
+  candidates: adapterRows('candidates').map((row) => ({
+    id: row['id'],
+    first_name: row['first_name'],
+    last_name: row['last_name'],
+    ihk_exam_number: row['ihk_exam_number'],
+    specialization: specializationLabels[row['specialization']],
+    training_company: row['training_company'],
+  })),
+};
 
 function fixtureId(group: keyof typeof syntheticFixtures.keys, key: string): number {
   const id = (syntheticFixtures.keys[group] as Record<string, number>)[key];

@@ -38,7 +38,7 @@ def run_admin(payload: bytes, **services: Any) -> int:
 
 def development_seed_sql() -> str:
     """Compile the development seed only for tests that explicitly request it."""
-    from fixtures.generate import load_source, render_profile_sql
+    from backend.synthetic_fixtures import load_source, render_profile_sql
 
     data = load_source()
     # Keep the unit-test baseline focused on the core development round. The
