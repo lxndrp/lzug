@@ -143,6 +143,10 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 "SOURCE_SCAN": "success",
                 "SELECTED": "true",
                 "DETAIL": "success",
+                "INTEGRATION_SELECTED": "true",
+                "INTEGRATION": "success",
+                "DEPENDENCIES_SELECTED": "true",
+                "DEPENDENCIES": "success",
                 "INFRA_SELECTED": "true",
                 "INFRA_DETAIL": "success",
                 "DELIVERY_SELECTED": "true",
@@ -166,6 +170,8 @@ class QualityWorkflowContractTests(unittest.TestCase):
                     "CODEQL",
                     "SOURCE_SCAN",
                     "DETAIL",
+                    "INTEGRATION",
+                    "DEPENDENCIES",
                     "INFRA_DETAIL",
                     "DELIVERY",
                     "TRANSPORT",
@@ -227,6 +233,22 @@ class QualityWorkflowContractTests(unittest.TestCase):
                     mapping_block(changes, domain, indent=12),
                 )
             self.assertNotIn(f"'{manifest}'", full)
+
+    def test_backend_details_defer_go_and_python_dependency_audits(self) -> None:
+        changes = job_block(self.pull_request, "changes")
+        backend = job_block(self.pull_request, "backend")
+        integration = job_block(self.pull_request, "backend-integration")
+        dependencies = job_block(self.pull_request, "python-dependencies")
+
+        self.assertIn("backend_integration", changes)
+        self.assertIn("python_dependencies", changes)
+        self.assertNotIn("setup-go", backend)
+        self.assertNotIn("pip_audit", backend)
+        self.assertIn("go test -c -o", integration)
+        self.assertIn("LZUG_SOCKET_TEST_BINARY", integration)
+        self.assertIn("task backend:audit", dependencies)
+        self.assertIn("backend-integration", job_block(self.pull_request, "backend-gate"))
+        self.assertIn("python-dependencies", job_block(self.pull_request, "backend-gate"))
 
     def test_dependabot_groups_routine_updates_and_keeps_security_separate(self) -> None:
         config = self.dependabot_config

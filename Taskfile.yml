@@ -339,6 +339,11 @@ tasks:
     cmds:
       - task: backend:quality:pr
 
+  quality:backend:integration:
+    desc: Run backend and operator admin-socket integration contracts
+    cmds:
+      - task: backend:integration
+
   quality:frontend:
     desc: Run frontend lint, build, and unit tests
     cmds:
@@ -350,8 +355,9 @@ tasks:
       - task: frontend:transport
 
   quality:security:
-    desc: Run the production npm critical security gate
+    desc: Run Python and production npm dependency security audits
     cmds:
+      - task: backend:audit
       - task: frontend:security
 
   quality:operator:

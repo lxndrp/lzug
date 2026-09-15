@@ -21,6 +21,14 @@ tasks:
       - task: static
       - task: test
 
+  integration:
+    desc: Run backend and operator admin-socket integration contracts
+    cmds:
+      - >-
+        test -n "${LZUG_SOCKET_TEST_BINARY:-}" ||
+        { echo "LZUG_SOCKET_TEST_BINARY is required" >&2; exit 1; }
+      - "{{.UV}} python -m unittest backend.tests.test_admin_socket backend.tests.test_admin_socket_artifacts"
+
   static:
     internal: true
     cmds:
@@ -28,7 +36,6 @@ tasks:
       - task: typecheck
       - task: lint
       - task: format
-      - task: audit
 
   complexity:
     desc: Report cyclomatic complexity of productive backend modules
@@ -56,7 +63,6 @@ tasks:
       - "{{.UV}} python -m black --check ."
 
   audit:
-    internal: true
     cmds:
       - "{{.UV}} python -m pip_audit --skip-editable --cache-dir /tmp/lzug-pip-audit"
 
