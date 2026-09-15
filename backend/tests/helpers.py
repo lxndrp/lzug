@@ -27,6 +27,18 @@ _DATABASE_TEMPLATES: dict[tuple[bool, str | None], Path] = {}
 _OPENAPI_DOCUMENT: dict[str, Any] | None = None
 
 
+def copy_database_template(db_path: Path, seed_sql: str) -> None:
+    """Copy an initialized, test-local database template to ``db_path``."""
+    key = (True, seed_sql)
+    template = _DATABASE_TEMPLATES.get(key)
+    if template is None:
+        digest = hashlib.sha256(repr(key).encode("utf-8")).hexdigest()
+        template = Path(_DATABASE_TEMPLATE_DIRECTORY.name) / f"{digest}.sqlite3"
+        initialize(template, seed_sql=seed_sql, reset=True)
+        _DATABASE_TEMPLATES[key] = template
+    shutil.copyfile(template, db_path)
+
+
 def run_admin(payload: bytes, **services: Any) -> int:
     """Invoke the transport-neutral administrator core in unit tests."""
     from backend.application.admin import AdminActorContext
@@ -107,14 +119,17 @@ class TempDatabase(AbstractContextManager):
         self._directory = tempfile.TemporaryDirectory()
         self.path = Path(self._directory.name) / "lzug-test.sqlite3"
         seed_sql = (self.seed_sql or development_seed_sql()) if self.with_seed else None
-        key = (self.with_seed, seed_sql)
-        template = _DATABASE_TEMPLATES.get(key)
-        if template is None:
-            digest = hashlib.sha256(repr(key).encode("utf-8")).hexdigest()
-            template = Path(_DATABASE_TEMPLATE_DIRECTORY.name) / f"{digest}.sqlite3"
-            initialize(template, seed_sql=seed_sql, reset=True)
-            _DATABASE_TEMPLATES[key] = template
-        shutil.copyfile(template, self.path)
+        if seed_sql is None:
+            key = (self.with_seed, seed_sql)
+            template = _DATABASE_TEMPLATES.get(key)
+            if template is None:
+                digest = hashlib.sha256(repr(key).encode("utf-8")).hexdigest()
+                template = Path(_DATABASE_TEMPLATE_DIRECTORY.name) / f"{digest}.sqlite3"
+                initialize(template, seed_sql=None, reset=True)
+                _DATABASE_TEMPLATES[key] = template
+            shutil.copyfile(template, self.path)
+        else:
+            copy_database_template(self.path, seed_sql)
         return self.path
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
@@ -150,7 +165,13 @@ class FastAPIAdapter(AbstractContextManager):
             auth_rate_limiter=self.handler_type.auth_rate_limiter,
             map_provider=self.handler_type.map_provider,
         )
-        self.client = TestClient(create_app(config), base_url="http://127.0.0.1")
+        app = create_app(config)
+        global _OPENAPI_DOCUMENT
+        if _OPENAPI_DOCUMENT is None:
+            _OPENAPI_DOCUMENT = app.openapi()
+        else:
+            app.openapi_schema = deepcopy(_OPENAPI_DOCUMENT)
+        self.client = TestClient(app, base_url="http://127.0.0.1")
         if is_ready(self.db_path):
             self.credentials = AuthenticationRepository(self.db_path).create_session(1)
         return self

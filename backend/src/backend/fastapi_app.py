@@ -14,6 +14,7 @@ from urllib.parse import unquote
 from fastapi import Body, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
+from fastapi.routing import APIRoute
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.routing import Match
 
@@ -112,10 +113,10 @@ from .fastapi_dependencies import (
     validate_body_headers,
 )
 from .fastapi_execution import create_execution_router
+from .fastapi_http import attach_application_responses, payload_data
 from .fastapi_http import finish as _finish
 from .fastapi_http import json_response as _json_response
 from .fastapi_http import not_found as _not_found
-from .fastapi_http import payload_data
 from .fastapi_http import plain_text as _plain_text
 from .fastapi_http import same_origin as _same_origin
 from .fastapi_master_data import MIGRATED_DOMAIN_RESOURCES as MIGRATED_DOMAIN_RESOURCES
@@ -911,24 +912,34 @@ def _register_planning_router(app, resolved, application, read_security, write_s
 def _register_execution_assessment_routes(
     app, resolved, application, read_security, write_security
 ):
-    app.include_router(
+    _extend_router(
+        app,
         create_execution_router(
             finish=_finish,
             not_found=_not_found,
             plain_text=_plain_text,
             read_security=read_security,
             write_security=write_security,
-        )
+        ),
     )
-    app.include_router(
+    _extend_router(
+        app,
         create_assessment_router(
             finish=_finish,
             not_found=_not_found,
             plain_text=_plain_text,
             read_security=read_security,
             write_security=write_security,
-        )
+        ),
     )
+
+
+def _extend_router(app: FastAPI, router) -> None:
+    """Attach prebuilt routes without rebuilding FastAPI's dependency graph."""
+    for route in router.routes:
+        if isinstance(route, APIRoute):
+            attach_application_responses(route)
+    app.router.routes.extend(router.routes)
 
 
 def _register_static_route(app, resolved, application, read_security, write_security):

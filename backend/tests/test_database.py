@@ -35,6 +35,7 @@ from backend.tests.fixture_data import (
     CANDIDATE_EXAM_NUMBERS,
     FIXTURE_IDS,
     FIXTURE_ROOT,
+    prepare_exam_protocol_scenario,
 )
 from backend.tests.helpers import TempDatabase, development_seed_sql
 
@@ -743,6 +744,22 @@ class DatabaseTests(unittest.TestCase):
             },
             counts,
         )
+
+    def test_complete_fixture_template_copies_remain_isolated(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            first = Path(directory) / "first.sqlite3"
+            second = Path(directory) / "second.sqlite3"
+            prepare_exam_protocol_scenario(first)
+            prepare_exam_protocol_scenario(second)
+
+            with connect(first) as connection, connection.begin():
+                connection.execute(text("UPDATE committee SET name = 'changed' WHERE id = 1"))
+
+            with connect(second) as connection:
+                name = connection.execute(
+                    text("SELECT name FROM committee WHERE id = 1")
+                ).scalar_one()
+            self.assertNotEqual("changed", name)
 
     def test_schema_enforces_core_constraints(self) -> None:
         with TempDatabase() as db_path, connect(db_path) as connection:

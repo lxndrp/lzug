@@ -97,7 +97,7 @@ def public_demo_seed_sql() -> str:
 
 def prepare_exam_protocol_scenario(db_path) -> None:
     """Prepare the complete development profile for protocol/lifecycle tests."""
-    from backend.persistence.database import initialize
     from backend.synthetic_fixtures import render_profile_sql
+    from backend.tests.helpers import copy_database_template
 
-    initialize(db_path, seed_sql=render_profile_sql(DATA, "development"), reset=True)
+    copy_database_template(db_path, render_profile_sql(DATA, "development"))
