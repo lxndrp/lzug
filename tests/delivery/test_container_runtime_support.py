@@ -11,8 +11,7 @@ class ContainerRuntimeSupportTests(unittest.TestCase):
             Path("docs"),
             Path("operator-cli"),
             Path("scripts"),
-            Path("tests/compatibility"),
-            Path("tests/oci"),
+            Path("tests/pester"),
         )
         files = [Path("Taskfile.yml"), Path("compose.yaml"), Path(".env.example")]
         for root in roots:

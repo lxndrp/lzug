@@ -257,6 +257,10 @@ jobs:
           python-version: "3.14.6"
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       - run: uv sync --locked --extra dev
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install: false
+      - run: mise install aqua:PowerShell/PowerShell@7.5.3
       - id: syft
         uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
@@ -341,6 +345,13 @@ jobs:
       - env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
         run: task quality:oci quality:container quality:compose quality:operator-container quality:demo delivery:oci
+      - name: Publish Pester test report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pester-results
+          path: build/quality/pester/pester.xml
+          if-no-files-found: error
+          retention-days: 7
       - name: Generate and validate the dependency SBOM
         env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}

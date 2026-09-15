@@ -51,7 +51,7 @@ Seiteneffekt des normalen Servers.
 | Dokumentation und Publikation | betroffener `unittest` unter `tests/docs/` |
 | Synthetische Fixtures | `task test:backend` und `task test:demo` |
 | Repository-Tooling | betroffener `unittest` unter `tests/tooling/` |
-| OCI- oder Compose-Regel | betroffener `unittest` unter `tests/oci/` |
+| OCI- oder Compose-Regel | passender Pester-Test unter `tests/pester/` |
 | Backend im Pull Request | `task quality:backend:pr` |
 | Backend vollständig mit Coverage | `task quality:backend` |
 | API-, Transport- und Persistenzmodelle | `task backend:typecheck` |
@@ -61,7 +61,7 @@ Seiteneffekt des normalen Servers.
 | Go-CLI | `task test:operator` oder `task quality:operator`; für native Archive zusätzlich `task quality:operator-packaging` |
 | sichtbarer Browserablauf | `task quality:e2e` |
 | Accessibility | `task quality:a11y` getrennt vom E2E-Lauf |
-| OCI, Compose oder CLI-Container | der passende `task quality:container`, `quality:compose` oder `quality:operator-container` |
+| OCI, Compose oder CLI-Container | `task quality:pester` beziehungsweise `task quality:container`, `quality:compose` oder `quality:operator-container` |
 | Demo-Liefervertrag | `task quality:demo-deployment` und je nach Änderung `quality:demo` oder `quality:infra` |
 | Dokumentation | `task docs:check`, danach `task docs` |
 | Erzeugte öffentliche Site und Portal-Links | `task docs:publication:linkcheck` |
