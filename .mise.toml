@@ -9,6 +9,7 @@ uv = "0.11.28"
 "aqua:anchore/syft" = "1.51.0"
 "aqua:goreleaser/goreleaser" = "2.17.1"
 "aqua:rhysd/actionlint" = "1.7.12"
+"aqua:PowerShell/PowerShell" = "7.5.3"
 opentofu = "1.12.5"
 
 [settings]

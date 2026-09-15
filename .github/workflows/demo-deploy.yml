@@ -162,66 +162,8 @@ jobs:
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Promote the immutable pair through Azure CLI
-        run: |
-          set -euo pipefail
-          revision_suffix="gh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          az containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
-            --query "properties.template.{app:containers[?name=='lzug-demo-app'].image | [0],seed:initContainers[?name=='lzug-demo-seed'].image | [0]}" \
-            --output json > "$RUNNER_TEMP/demo-previous.json"
-          az containerapp update --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
-            --revision-suffix "$revision_suffix" \
-            --set "properties.template.containers[0].image=$APP_IMAGE" \
-                  "properties.template.initContainers[0].image=$SEED_IMAGE"
-          echo "revision_suffix=$revision_suffix" >> "$GITHUB_OUTPUT"
-        id: deployment
-
-      - name: Wait for the promoted Azure revision
-        run: |
-          set -euo pipefail
-          for _ in $(seq 1 30); do
-            state=$(az containerapp revision list --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
-              --query "[?contains(name, '--${{ steps.deployment.outputs.revision_suffix }}')].properties.runningState | [0]" --output tsv)
-            test "$state" = Running && exit 0
-            test "$state" != Failed && test "$state" != Degraded || exit 1
-            sleep 10
-          done
-          echo "The promoted Azure revision did not become ready." >&2
-          exit 1
-
-      - name: Verify runtime readiness and protected API boundary
-        run: |
-          set -euo pipefail
-          readiness=$(curl --fail --silent --show-error "$DEMO_URL/api/ready")
-          test "$(jq -r '.ready' <<<"$readiness")" = true
-          status=$(curl --fail --silent --show-error "$DEMO_URL/api/demo/status")
-          test "$(jq -r '.initialized' <<<"$status")" = true
-          test "$(jq -r '.initialization_status' <<<"$status")" = ready
-          test "$(jq -r '.runtime_contract' <<<"$status")" = "$RUNTIME_CONTRACT"
-          test "$(jq -r '.seed_revision' <<<"$status")" = "$SEED_REVISION"
-          test "$(curl --silent --output /dev/null --write-out '%{http_code}' "$DEMO_URL/api/openapi.json")" = 401
-          curl --fail --silent --show-error "$DEMO_URL/" | grep -q '<app-root'
-
-      - name: Record the deployment evidence
-        if: success()
-        run: |
-          previous_app=$(jq -er '.app' "$RUNNER_TEMP/demo-previous.json")
-          previous_seed=$(jq -er '.seed' "$RUNNER_TEMP/demo-previous.json")
-          {
-            echo "### ${{ inputs.operation == 'rollback' && 'Demo rollback' || 'Demo deployment' }} succeeded"
-            echo "- URL: $DEMO_URL"
-            echo "- App: \`$APP_IMAGE\`"
-            echo "- Seed: \`$SEED_IMAGE\`"
-            echo "- Demo source tag: \`$PRODUCT_TAG\`"
-            echo "- Product commit: \`$PRODUCT_COMMIT\`"
-            echo "- Runtime contract: \`$RUNTIME_CONTRACT\`"
-            echo "- Schema fingerprint: \`$SCHEMA_FINGERPRINT\`"
-            echo "- Seed revision: \`$SEED_REVISION\`"
-            echo "- Azure revision suffix: \`${{ steps.deployment.outputs.revision_suffix }}\`"
-            echo "- Previous app digest: \`$previous_app\`"
-            echo "- Previous seed digest: \`$previous_seed\`"
-            echo "- Azure revision readiness, runtime readiness, protected OpenAPI authentication boundary, and frontend checks passed."
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Promote and verify the immutable pair
+        run: pwsh -NoProfile -File scripts/demo-deploy.ps1 -Operation "${{ inputs.operation }}" -PromotionChannel "${{ inputs.promotion_channel }}"
 
       - name: Explain failure and collect non-sensitive diagnostics
         if: failure()

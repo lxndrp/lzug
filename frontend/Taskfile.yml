@@ -17,12 +17,12 @@ tasks:
   transport:
     desc: Verify TypeScript transport types against the canonical FastAPI OpenAPI document
     cmds:
-      - 'uv run --locked --extra dev python scripts/generate_frontend_transport.py --check'
+      - 'pwsh -NoProfile -File scripts/generate-frontend-transport.ps1 -Check'
 
   transport:generate:
     desc: Generate the low-level TypeScript transport types from FastAPI OpenAPI
     cmds:
-      - 'uv run --locked --extra dev python scripts/generate_frontend_transport.py'
+      - 'pwsh -NoProfile -File scripts/generate-frontend-transport.ps1'
 
   security:
     desc: Run the production npm critical security gate

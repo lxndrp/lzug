@@ -20,11 +20,19 @@ die risikobasierte Auswahl lokaler Prüfungen steht dort ebenfalls.
 Architektur, API-Vertrag und technische Dokumentationsstandards stehen im
 [Entwicklerhandbuch](docs/developers/index.md).
 
-Das Repository ist die einzige kanonische Dokumentationsquelle.
-Die Zuordnung aller Dokumentarten und Quellen steht unter
+Technische Verträge, generierte Referenzen und Entwicklungsanleitungen sind im
+Repository kanonisch.
+Fachliche, Nutzer- und Betreiberanleitungen werden dagegen im GitHub Wiki
+gepflegt; die Zuordnung aller Dokumentarten und Quellen steht unter
 [Entwicklung](docs/developers/development.md#dokumentation-bearbeiten);
 der öffentliche Buildvertrag unter
 [Delivery und Veröffentlichung](docs/developers/delivery.md#technische-referenz-und-oeffentliche-site).
+
+Wiki-Änderungen und davon abhängige Repository-Referenzen gehören in denselben
+Issue-Scope.
+Die ausführbare CLI-Hilfe und der Socket-/Imagevertrag bleiben ausschließlich
+im Repository maßgeblich; Wiki-Beispiele verweisen darauf und duplizieren keine
+abweichende technische Syntax.
 
 Eigene gepflegte Markdown-Prosa wird mit Semantic Line Breaks geschrieben: Sätze und sinnvolle Gedankeneinheiten beginnen in neuen Quellzeilen.
 Tabellen, Listenstruktur, Codeblöcke, Front Matter, URLs und technische Zeichenketten bleiben unverändert; Drittmaterial, Lizenztexte und generierte Inhalte werden nicht rein redaktionell umgebrochen.

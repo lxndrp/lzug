@@ -746,7 +746,7 @@ lzug-admin recipient-key inspect --key-file backup.agekey
 
 ### `lzug-admin system config`
 
-Inspect the live runtime, or validate legacy runtime configuration. Socket targets report live runtime and listener state without opening storage. The backend receives no operator secrets or business data.
+Inspect the selected runtime configuration through the admin endpoint. Socket targets report live runtime and listener state without opening storage. The backend receives no operator secrets or business data.
 
 Ausführung: versionierter Backendauftrag.
 
@@ -754,7 +754,7 @@ Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederho
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
-Ausgabe: Prints a secret-free status and check summary; JSON includes the validated runtime/socket snapshot or legacy diagnostic checks.
+Ausgabe: Prints a secret-free status and check summary; JSON includes the validated runtime and socket snapshot.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
@@ -763,7 +763,7 @@ lzug-admin --endpoint unix:///run/lzug-admin/admin.sock system config
 
 ### `lzug-admin system doctor`
 
-Inspect live runtime and listener state, or legacy storage diagnostics. Socket targets report live runtime and listener state without opening storage. The backend receives no operator secrets or business data.
+Inspect live runtime and listener state through the admin endpoint. Socket targets report live runtime and listener state without opening storage. The backend receives no operator secrets or business data.
 
 Ausführung: versionierter Backendauftrag.
 
@@ -771,7 +771,7 @@ Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederho
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
-Ausgabe: Prints a secret-free status and check summary; JSON includes the validated runtime/socket snapshot or legacy diagnostic checks.
+Ausgabe: Prints a secret-free status and check summary; JSON includes the validated runtime and socket snapshot.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
@@ -780,7 +780,7 @@ lzug-admin --endpoint unix:///run/lzug-admin/admin.sock system doctor
 
 ### `lzug-admin system status`
 
-Inspect live readiness, or legacy runtime identity and health checks. Socket targets report live runtime and listener state without opening storage. The backend receives no operator secrets or business data.
+Inspect live readiness and runtime identity through the admin endpoint. Socket targets report live runtime and listener state without opening storage. The backend receives no operator secrets or business data.
 
 Ausführung: versionierter Backendauftrag.
 
@@ -788,7 +788,7 @@ Zeitlimit: `2m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederho
 
 Wiederholung: im geführten Modus nach kontrollierten Fehlern als sicher eingestuft; Geheimnisse und Bestätigungen werden neu erfasst.
 
-Ausgabe: Prints a secret-free status and check summary; JSON includes the validated runtime/socket snapshot or legacy diagnostic checks.
+Ausgabe: Prints a secret-free status and check summary; JSON includes the validated runtime and socket snapshot.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console

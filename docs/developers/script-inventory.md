@@ -10,7 +10,7 @@ Die Liste ist keine zweite Test- oder API-Dokumentation.
 
 | Einstieg | Eigentümer und direkte Aufrufer | Eigenständiger Vertrag und Entscheidung |
 | --- | --- | --- |
-| `scripts/build-frontend.sh` | Frontend; `frontend/package.json`, Dockerfiles | Staged die exakt benötigten Brand- und Build-Metadaten und ruft Angular mit der gewählten Konfiguration auf. Behalten, weil diese Assembly nicht durch `npm` oder Angular ausgedrückt wird. |
+| `scripts/build-frontend.ps1` | Frontend; `frontend/package.json`, Dockerfiles | Staged die exakt benötigten Brand- und Build-Metadaten und ruft Angular mit der gewählten Konfiguration auf. Der PowerShell-Adapter bleibt plattformübergreifend und enthält keine Frontendfachlogik. |
 | `scripts/build_metadata.py` | Repository-/Buildgrenze; Dockerfiles, Taskfile, Demo- und Releaseabläufe | Liefert die fail-closed Identität aus Tag, Revision und Version für Backend, Frontend, OCI und CLI. Behalten als gemeinsam genutzten Produktmetadatenvertrag. |
 | `scripts/check_documentation.py` | Dokumentation; `task docs:check` | Prüft nur den aktuellen Dokumentationsbaum, MkDocs-Navigation, ADR-Status, den entfernten Repository-Handbuchbestand und Root-Grenzen. Link-, Markdown- und Buildprüfung verbleiben bei MkDocs/Hugo. |
 | `scripts/compose-smoke.sh` | OCI/Self-Hosting; `task quality:compose` | Beweist den tatsächlich gestarteten Compose-Container, Restart, Stop/Start und `/data`-Persistenz. Behalten, weil `compose config` keinen Laufzeit- oder Wiederanlaufvertrag beweist. |

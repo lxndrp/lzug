@@ -23,6 +23,8 @@ mise exec -- task doctor
 
 `task setup` erzeugt `.venv`, synchronisiert die gelockten Python-Pakete,
 installiert das Frontend mit `npm ci`.
+PowerShell 7.5.3 wird über `.mise.toml` bereitgestellt und verbindet die
+wenigen plattformabhängigen Werkzeuggrenzen.
 Der Codex-Setup-Aufruf verwendet `mise exec --`, damit auch Task-Unterprozesse
 die in `.mise.toml` gepinnten Werkzeuge verwenden.
 `task setup:playwright` lädt die Browserdaten separat.

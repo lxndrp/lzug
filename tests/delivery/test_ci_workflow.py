@@ -197,10 +197,10 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("'Taskfile.yml'", full)
         for path, owner in {
             "scripts/check_documentation.py": "docs",
-            "scripts/build-frontend.sh": "frontend",
+            "scripts/build-frontend.ps1": "frontend",
             "scripts/verify_cli_release.py": "cli",
             "scripts/compose-smoke.sh": "container",
-            "scripts/generate_frontend_transport.py": "transport",
+            "scripts/generate-frontend-transport.ps1": "transport",
             "scripts/sbom.py": "full",
         }.items():
             with self.subTest(path=path):
