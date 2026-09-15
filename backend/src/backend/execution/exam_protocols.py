@@ -40,6 +40,7 @@ from backend.persistence.models import (
     Person,
     RoundCandidate,
 )
+from backend.presentation.exam_exports import render_protocol_export
 
 DECLARATIONS = {"without_special_occurrences", "with_special_occurrences"}
 ENTRY_CATEGORIES = {
@@ -625,49 +626,7 @@ class ExamProtocolService:
         export = self.machine_export(scope, protocol_id)
         protocol = export["protocol"]
         references = export["references"]
-        current = protocol["current_revision"]
-        marker = "VOLLSTÄNDIG" if export["complete"] else "UNVOLLSTÄNDIG"
-        candidate_name = (
-            f"{references['candidate']['first_name']} {references['candidate']['last_name']}"
-        )
-        actual_completed_at = references["slot"]["actual_completed_at"] or "nicht erfasst"
-        lines = [
-            f"Prüfungsprotokoll {protocol['id']} – {marker}",
-            f"Status: {protocol['state']}",
-            f"Prüfling: {candidate_name}",
-            f"IHK-Prüfungsnummer: {references['candidate']['ihk_exam_number']}",
-            f"Prüfungsslot: {references['slot']['starts_at']} bis {references['slot']['ends_at']}",
-            f"Tatsächlicher Beginn: {references['slot']['actual_started_at']}",
-            f"Tatsächlicher Abschluss: {actual_completed_at}",
-            f"Ort: {references['location']['name']} / {references['location']['room']}",
-            "",
-            "Tatsächlich beteiligte Prüfer:",
-        ]
-        lines.extend(
-            f"- {person['first_name']} {person['last_name']} ({person['attendance']['status']})"
-            for person in references["participants"]
-        )
-        lines.extend(["", f"Verlauf: {current['declaration'] or 'noch nicht festgestellt'}"])
-        if current["entries"]:
-            lines.append("Besonderheiten:")
-            lines.extend(
-                f"- [{entry['category']}] {entry['occurred_from']}"
-                f"{(' bis ' + entry['occurred_to']) if entry['occurred_to'] else ''}: "
-                f"{entry['statement']}"
-                for entry in current["entries"]
-            )
-        lines.append("Reaktionen:")
-        if current["responses"]:
-            lines.extend(
-                f"- Mitglied {response['committee_member_id']}: {response['response']}"
-                f"{(': ' + response['statement']) if response['statement'] else ''}"
-                for response in current["responses"]
-            )
-        else:
-            lines.append("- keine")
-        if protocol["open_correction"]:
-            lines.append("Korrekturvorgang: offen")
-        return "\n".join(lines) + "\n"
+        return render_protocol_export(protocol, references)
 
     def _view(
         self, session: Session, protocol: ExamProtocol, scope: AuthorizationScope

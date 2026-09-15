@@ -48,6 +48,7 @@ from backend.persistence.models import (
     ResultRecordConfirmation,
     RoundCandidate,
 )
+from backend.presentation.exam_exports import render_day_closure_export
 
 CLOSED_STATUSES = {"closed", "closed_exception", "historical"}
 TERMINAL_SLOT_STATUSES = {"completed", "cancelled"}
@@ -754,25 +755,7 @@ class ExamDayClosureService:
         export = self._export(scope, day_id, "human")
         day = export["exam_day"]
         closure = export["closure"]
-        lines = [
-            f"Abschlussnachweis Prüfungstag {day['id']}",
-            f"Datum: {day['date']}",
-            f"Status: {closure['status']}",
-            f"Tagesrevision: {closure['revision']}",
-            "",
-            "Abschlussvoraussetzungen:",
-        ]
-        lines.extend(
-            f"- {'erfüllt' if item['ok'] else 'nicht erfüllt'}: {item['label']}"
-            for item in closure["evaluation"]["items"]
-        )
-        if closure["history"]:
-            lines.extend(["", "Abschluss- und Wiederöffnungshistorie:"])
-            lines.extend(
-                f"- {item['kind']} · Revision {item['revision']} · {item['created_at']}"
-                for item in closure["history"]
-            )
-        return "\n".join(lines) + "\n"
+        return render_day_closure_export(day, closure)
 
     def _view(self, session: Session, day: ExamDay, scope: AuthorizationScope) -> dict[str, Any]:
         actor_id, _committee_id, _round_id = self._require_access(session, day, scope)
