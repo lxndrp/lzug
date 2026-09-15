@@ -145,7 +145,7 @@ tasks:
       - task: docs:test
 
   test:oci:
-    desc: Run OCI and Compose tests
+    desc: Run OCI and Compose Pester contracts
     cmds:
       - task: delivery:oci
 
@@ -405,8 +405,7 @@ tasks:
     cmds:
       - |
         set -eu
-        . scripts/container-contract.sh
-        lzug_require_docker
+        docker info >/dev/null
         revision="$(git rev-parse HEAD)"
         short_revision="$(echo "$revision" | cut -c1-7)"
         temporary_directory="$(mktemp -d)"
@@ -456,10 +455,13 @@ tasks:
   quality:overall:
     desc: Run all local cross-domain integration contracts in parallel
     deps:
-      - quality:container
-      - quality:compose
-      - quality:operator-container
+      - quality:pester
       - quality:browser
+
+  quality:pester:
+    desc: Run the pinned PowerShell/Pester integration contracts
+    cmds:
+      - pwsh -NoProfile -File scripts/run-pester.ps1
 
   quality:browser:
     internal: true
@@ -474,8 +476,7 @@ tasks:
     cmds:
       - |
         set -eu
-        . scripts/container-contract.sh
-        lzug_require_docker
+        docker info >/dev/null
         revision="$(git rev-parse HEAD)"
         build_identity="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
         docker build \
@@ -488,47 +489,30 @@ tasks:
           OUTPUT: build/quality/lzug.image.sbom.cdx.json
 
   quality:container:
-    desc: Run the packaged container runtime contract
+    desc: Run the packaged container runtime contract through Pester
     deps:
       - quality:image
     cmds:
-      - scripts/container-smoke.sh lzug-app:0.0.0-dev.local
+      - task: quality:pester
 
   quality:operator-container:
-    desc: Run the operator CLI against the packaged application container
+    desc: Run the operator CLI contract through Pester
     deps:
       - quality:image
     cmds:
-      - scripts/operator-container-smoke.sh lzug-app:0.0.0-dev.local
-      - tests/compatibility/v060-age-migration-smoke.sh lzug-app:0.0.0-dev.local
+      - task: quality:pester
 
   quality:compose:
-    desc: Run the Compose runtime and persistence contract
+    desc: Run the Compose runtime contract through Pester
     deps:
       - quality:image
-      - quality:compose-config
     cmds:
-      - LZUG_IMAGE=lzug-app:0.0.0-dev.local scripts/compose-smoke.sh
+      - task: quality:pester
 
   quality:compose-config:
-    desc: Validate Compose with standard tooling and the separate lzug policy
+    desc: Validate Compose with standard tooling and Pester
     cmds:
-      - |
-        set -eu
-        . scripts/container-contract.sh
-        lzug_require_docker
-        LZUG_IMAGE=ghcr.io/lxndrp/lzug-app:0.0.0-dev.local \
-          docker compose -f compose.yaml config --quiet
-      - |
-        set -eu
-        . scripts/container-contract.sh
-        lzug_require_docker
-        config_file="$(mktemp "${TMPDIR:-/tmp}/lzug-compose-config.XXXXXX")"
-        trap 'rm -f "$config_file"' EXIT
-        LZUG_IMAGE=ghcr.io/lxndrp/lzug-app:0.0.0-dev.local \
-          docker compose -f compose.yaml config --format json >"$config_file"
-        python3 scripts/compose_policy.py "$config_file"
-      - "{{.UV}} python -m unittest tests.oci.test_compose_policy"
+      - task: quality:pester
 
   quality:e2e:
     desc: Run browser end-to-end tests

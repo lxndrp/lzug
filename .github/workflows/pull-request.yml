@@ -83,8 +83,7 @@ jobs:
               - 'scripts/generate_frontend_transport.py'
             cli:
               - 'scripts/verify_cli_release.py'
-              - 'scripts/operator-container-smoke.sh'
-              - 'scripts/operator-container-contract.sh'
+              - 'tests/pester/**'
               - 'scripts/operator-smoke-diagnostics.py'
               - 'operator-cli/**'
               - 'operator-cli/.goreleaser.yml'
@@ -106,13 +105,9 @@ jobs:
               - 'pyproject.toml'
               - 'uv.lock'
             container:
-              - 'scripts/compose-smoke.sh'
-              - 'scripts/compose_policy.py'
-              - 'scripts/container-contract.sh'
-              - 'scripts/container-smoke.sh'
-              - 'scripts/operator-container-smoke.sh'
-              - 'scripts/operator-container-contract.sh'
-              - 'scripts/operator-smoke-diagnostics.py'
+              - 'tests/pester/Container.Tests.ps1'
+              - 'tests/pester/Compatibility.Tests.ps1'
+              - 'tests/pester/**'
               - '.dockerignore'
               - '.env.example'
               - 'Dockerfile'
@@ -164,17 +159,10 @@ jobs:
               - '!scripts/build-frontend.ps1'
               - '!scripts/build_metadata.py'
               - '!scripts/check_documentation.py'
-              - '!scripts/compose-smoke.sh'
-              - '!scripts/compose_policy.py'
-              - '!scripts/container-contract.sh'
-              - '!scripts/container-smoke.sh'
-              - '!scripts/demo-container-smoke.sh'
+              - '!scripts/run-pester.ps1'
               - '!scripts/demo-deploy.ps1'
               - '!scripts/generate-frontend-transport.ps1'
               - '!scripts/generate_frontend_transport.py'
-              - '!scripts/operator-container-smoke.sh'
-              - '!scripts/operator-container-contract.sh'
-              - '!scripts/operator-smoke-diagnostics.py'
               - '!scripts/sbom.py'
               - '!scripts/validate_demo_url_contract.py'
               - '!scripts/verify_cli_release.py'
@@ -445,6 +433,10 @@ jobs:
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
         with:
           version: 3.52.0
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install: false
+      - run: mise install aqua:PowerShell/PowerShell@7.5.3
       - name: Install locked backend dependencies
         run: uv sync --locked --extra dev
       - name: Validate lzug container contracts without building an image
