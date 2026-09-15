@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, Response
+from fastapi.routing import APIRoute
+from fastapi.utils import create_model_field
 from pydantic import BaseModel
 
 from backend.application.transport import RequestContext
@@ -34,6 +36,20 @@ APPLICATION_ERROR_RESPONSES[503] = {
     "description": "Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.",
     "model": RuntimeUnavailableResponse,
 }
+
+
+def attach_application_responses(route: APIRoute) -> None:
+    """Keep application error schemas when attaching a prebuilt route."""
+    route.responses = {**APPLICATION_ERROR_RESPONSES, **route.responses}
+    route.response_fields = {
+        status_code: create_model_field(
+            name=f"Response_{status_code}_{route.unique_id}",
+            type_=response["model"],
+            mode="serialization",
+        )
+        for status_code, response in route.responses.items()
+        if response.get("model")
+    }
 
 
 def json_response(result: ApplicationResult, context: RequestContext | None = None) -> Response:
