@@ -310,7 +310,7 @@ func (session *interactiveSession) command(ctx context.Context, command *Command
 		session.write("Auftrag vor Ausführung abgebrochen. Es wurde kein Transportauftrag gesendet.\n")
 		return ExitOK
 	}
-	if command.Mutating {
+	if command.Effect == MutatingEffect {
 		session.summary(command, args)
 	}
 	for {
@@ -337,7 +337,7 @@ func (session *interactiveSession) command(ctx context.Context, command *Command
 			session.write("Der Ausgang nach Abbruch oder Transportverlust ist unbekannt. Prüfen Sie den Status vor einem neuen Auftrag.\n")
 			return ExitOK
 		}
-		if code == ExitOK || !command.RetrySafe || failure == nil || unknownOutcome(failure) {
+		if code == ExitOK || command.Retry != RetryAllowed || failure == nil || unknownOutcome(failure) {
 			if code != ExitOK && unknownOutcome(failure) {
 				session.write("Keine Wiederholung angeboten: Der Ausgang kann unbekannt sein. Nutzen Sie einen passenden Status- oder Diagnose-Command.\n")
 			}
@@ -639,7 +639,7 @@ func (registry *Registry) Search(query string) []*Command {
 	matches := make([]*Command, 0)
 	for _, command := range registry.commands {
 		haystack := []string{command.Name(), command.Summary, command.Description}
-		haystack = append(haystack, command.SearchTerms...)
+		haystack = append(haystack, command.Interactive.SearchTerms...)
 		if strings.Contains(strings.ToLower(strings.Join(haystack, "\n")), needle) {
 			matches = append(matches, command)
 		}
