@@ -6,12 +6,13 @@ from pathlib import Path
 from fastapi.routing import APIRoute
 
 from backend.api_contracts import (
-    DomainCollectionResponse,
-    DomainResourceResponse,
-    DomainResourceWrite,
+    CandidateCollectionResponse,
+    CandidateCreate,
+    CandidateResponse,
+    CandidateUpdate,
 )
 from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES, FastAPIConfig
-from backend.fastapi_master_data import create_master_data_router
+from backend.fastapi_master_data import MASTER_DATA_CONTRACTS, create_master_data_router
 from backend.fastapi_planning_router import PLANNING_DOMAIN_RESOURCES
 
 
@@ -64,13 +65,45 @@ class FastAPIMasterDataRouterTests(unittest.TestCase):
         create = routes[("POST", "/api/candidates")]
         update = routes[("PATCH", "/api/candidates/{id}")]
 
-        self.assertIs(collection.response_model, DomainCollectionResponse)
-        self.assertIs(item.response_model, DomainResourceResponse)
-        self.assertIs(create.response_model, DomainResourceResponse)
-        self.assertIs(update.response_model, DomainResourceResponse)
+        self.assertIs(collection.response_model, CandidateCollectionResponse)
+        self.assertIs(item.response_model, CandidateResponse)
+        self.assertIs(create.response_model, CandidateResponse)
+        self.assertIs(update.response_model, CandidateResponse)
         for route in (create, update):
             self.assertIsNotNone(route.body_field)
-            self.assertIs(route.body_field.field_info.annotation, DomainResourceWrite)
+        self.assertIs(create.body_field.field_info.annotation, CandidateCreate)
+        self.assertIs(update.body_field.field_info.annotation, CandidateUpdate)
+
+    def test_each_generic_resource_uses_its_explicit_contract(self) -> None:
+        routes = self.routes()
+        for name, (
+            create_model,
+            update_model,
+            response_model,
+            collection_model,
+        ) in MASTER_DATA_CONTRACTS.items():
+            with self.subTest(resource=name):
+                collection = routes[("GET", f"/api/{name}")]
+                item = routes[("GET", f"/api/{name}/{{id}}")]
+                update = routes[("PATCH", f"/api/{name}/{{id}}")]
+                self.assertIs(collection.response_model, collection_model)
+                self.assertIs(item.response_model, response_model)
+                self.assertIs(update.response_model, response_model)
+                self.assertIs(update.body_field.field_info.annotation, update_model)
+                if create_model is not None:
+                    create = routes[("POST", f"/api/{name}")]
+                    self.assertIs(create.response_model, response_model)
+                    self.assertIs(create.body_field.field_info.annotation, create_model)
+
+    def test_partial_updates_preserve_missing_and_null_values(self) -> None:
+        omitted = CandidateUpdate.model_validate({})
+        explicit_null = CandidateUpdate.model_validate({"training_company": None})
+        self.assertNotIn("training_company", omitted.model_fields_set)
+        self.assertIn("training_company", explicit_null.model_fields_set)
+        self.assertIsNone(explicit_null.training_company)
+
+        with self.assertRaises(ValueError):
+            CandidateUpdate.model_validate({"not_a_candidate_field": "rejected"})
 
 
 if __name__ == "__main__":
