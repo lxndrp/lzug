@@ -35,6 +35,7 @@ func artifactCommands() []Command {
 func recipientGenerateCommand() Command {
 	return Command{
 		Path:        []string{"recipient-key", "generate"},
+		Interactive: InteractiveSpec{SearchTerms: []string{"schlüssel", "empfänger", "lokal"}}, Effect: MutatingEffect, Retry: RetryForbidden,
 		Summary:     "Generate a dedicated X25519 age recipient keypair.",
 		Description: "Create a protected private identity and a shareable public recipient atomically without overwriting files.",
 		Examples:    []string{"lzug-admin recipient-key generate --identity-file backup.agekey --recipient-file backup.agepub"},
@@ -57,6 +58,7 @@ func recipientGenerateCommand() Command {
 func recipientInspectCommand() Command {
 	return Command{
 		Path:        []string{"recipient-key", "inspect"},
+		Interactive: InteractiveSpec{SearchTerms: []string{"schlüssel", "empfänger", "lokal"}}, Effect: ReadOnlyEffect, Retry: RetryForbidden,
 		Summary:     "Inspect a private identity or public recipient file.",
 		Description: "Show only the canonical public recipient, method, and complete fingerprint.",
 		Examples:    []string{"lzug-admin recipient-key inspect --key-file backup.agekey"},
@@ -76,6 +78,7 @@ func recipientInspectCommand() Command {
 func artifactInspectCommand(artifact OptionSpec) Command {
 	return Command{
 		Path:        []string{"artifact", "inspect"},
+		Interactive: InteractiveSpec{SearchTerms: []string{"artefakt", "sicherung", "export"}}, Effect: ReadOnlyEffect, Retry: RetryAllowed,
 		Summary:     "Inspect the public minimum artifact preamble.",
 		Description: "Show format, protection method, and required fingerprint without an identity or business data.",
 		Examples:    []string{"lzug-admin artifact inspect --artifact backup.lzug"},
@@ -95,6 +98,7 @@ func artifactInspectCommand(artifact OptionSpec) Command {
 func backupRecipientCommand(action string, identityOptions []OptionSpec) Command {
 	command := Command{
 		Path:        []string{"backup", "recipient", action},
+		Interactive: InteractiveSpec{SearchTerms: []string{"sicherung", "wiederherstellung", "restore"}}, Effect: ReadOnlyEffect, Retry: RetryForbidden, Timeout: 2 * time.Minute,
 		Summary:     map[string]string{"show": "Show the active public backup recipient.", "set": "Set the first public backup recipient.", "replace": "Replace the active public backup recipient."}[action],
 		Description: "Manage only the persistent public age recipient after local possession proof; private identities never reach the backend.",
 		Examples:    []string{"lzug-admin backup recipient " + action},
@@ -103,6 +107,7 @@ func backupRecipientCommand(action string, identityOptions []OptionSpec) Command
 		Output:      OutputSpec{Human: HumanLocal, Verbose: VerboseSummary, JSON: JSONLocal, Summary: "Shows the canonical public recipient and complete fingerprint."},
 	}
 	if action != "show" {
+		command.Effect = MutatingEffect
 		command.Options = append([]OptionSpec{}, identityOptions...)
 		command.Validate = validateIdentitySource
 		command.Examples[0] += " --identity-file backup.agekey"
@@ -162,6 +167,7 @@ func artifactCreateCommand(kind string, output OptionSpec) Command {
 	}
 	command := Command{
 		Path:        []string{kind, "create"},
+		Interactive: InteractiveSpec{SearchTerms: []string{kind, "archiv", "sicherung"}}, Effect: MutatingEffect, Retry: RetryForbidden, Timeout: 10 * time.Minute,
 		Summary:     map[bool]string{false: "Create a protected full backup.", true: "Create a protected full export."}[isExport],
 		Description: "Stream a backend-validated clear package directly into a local age-encrypted atomic target.",
 		Examples:    []string{map[bool]string{false: "lzug-admin backup create --output backup.lzug", true: "lzug-admin export create --recipient age1... --output export.lzug --force"}[isExport]},
@@ -224,6 +230,7 @@ func artifactVerifyCommand(kind string, artifact OptionSpec, identityOptions []O
 	options := append([]OptionSpec{artifact}, identityOptions...)
 	return Command{
 		Path:        []string{kind, "verify"},
+		Interactive: InteractiveSpec{SearchTerms: []string{kind, "archiv", "sicherung"}}, Effect: ReadOnlyEffect, Retry: RetryAllowed, Timeout: 2 * time.Minute,
 		Summary:     "Verify a protected " + kind + " without mutation.",
 		Description: "Decrypt locally and stream the clear package to the backend for complete validation.",
 		Examples:    []string{"lzug-admin " + kind + " verify --artifact " + kind + ".lzug --identity-file backup.agekey"},
@@ -267,6 +274,7 @@ func artifactRestoreCommand(artifact OptionSpec, identityOptions []OptionSpec) C
 	options = append(options, identityOptions...)
 	return Command{
 		Path:        []string{"backup", "restore"},
+		Interactive: InteractiveSpec{SearchTerms: []string{"sicherung", "wiederherstellung", "restore"}}, Effect: MutatingEffect, Retry: RetryForbidden, Timeout: 30 * time.Minute,
 		Summary:     "Restore a protected backup.",
 		Description: "Decrypt locally, validate and stage in the backend, then activate only after every precheck succeeds.",
 		Examples:    []string{"lzug-admin backup restore --artifact backup.lzug --identity-file backup.agekey --force"},

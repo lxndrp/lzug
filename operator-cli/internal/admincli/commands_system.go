@@ -1,6 +1,9 @@
 package admincli
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 func systemCommands() []Command {
 	commands := []Command{}
@@ -12,7 +15,8 @@ func systemCommands() []Command {
 			"doctor": "Inspect live runtime and listener state, or legacy storage diagnostics.",
 		}[action]
 		command := Command{
-			Path:           []string{"system", action},
+			Path:        []string{"system", action},
+			Interactive: InteractiveSpec{SearchTerms: []string{"system", "diagnose", "bereitschaft", "status"}}, Effect: ReadOnlyEffect, Retry: RetryAllowed, Timeout: 2 * time.Minute,
 			Summary:        description,
 			Description:    description + " Socket targets report live runtime and listener state without opening storage. The backend receives no operator secrets or business data.",
 			Examples:       []string{"lzug-admin --endpoint unix:///run/lzug-admin/admin.sock system " + action},
