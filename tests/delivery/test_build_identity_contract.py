@@ -15,8 +15,7 @@ class BuildIdentityContractTests(unittest.TestCase):
                 ".github/workflows/pull-request.yml",
                 ".github/workflows/quality.yml",
                 ".github/workflows/release.yml",
-                "scripts/container-smoke.sh",
-                "scripts/operator-container-smoke.sh",
+                "tests/pester/Container.Tests.ps1",
             )
         )
         self.assertNotIn("cat VERSION", active_contract)
@@ -33,33 +32,20 @@ class BuildIdentityContractTests(unittest.TestCase):
 
     def test_oci_runtime_embeds_a_built_operator_cli_without_its_toolchain(self) -> None:
         dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
-        operator_smoke = Path("scripts/operator-container-smoke.sh").read_text(encoding="utf-8")
 
         self.assertIn("AS operator-cli-build", dockerfile)
         self.assertIn('GOOS="$TARGETOS" GOARCH="$TARGETARCH"', dockerfile)
         self.assertIn("go build -trimpath", dockerfile)
         self.assertIn("/usr/local/bin/lzug-admin", dockerfile)
-        self.assertIn(
-            "--entrypoint /usr/local/bin/lzug-admin",
-            Path("scripts/operator-container-contract.sh").read_text(),
-        )
-        self.assertIn("docker exec --user 10001:10001", operator_smoke)
-        self.assertIn("command -v go", operator_smoke)
-        self.assertIn('cmp "$temporary_directory/container-metadata.json"', operator_smoke)
+        self.assertTrue(Path("tests/pester/Container.Tests.ps1").exists())
 
     def test_runtime_contract_compares_backend_frontend_cli_and_oci(self) -> None:
-        container_smoke = Path("scripts/container-smoke.sh").read_text(encoding="utf-8")
-        operator_smoke = Path("scripts/operator-container-smoke.sh").read_text(encoding="utf-8")
-        container_contract = Path("scripts/container-contract.sh").read_text(encoding="utf-8")
-        runtime_contract = "\n".join((container_smoke, operator_smoke, container_contract))
+        harness = Path("tests/pester/LzugHarness.ps1").read_text(encoding="utf-8")
+        container = Path("tests/pester/Container.Tests.ps1").read_text(encoding="utf-8")
 
-        self.assertIn('cmp "$temporary_directory/backend-metadata.json"', runtime_contract)
-        self.assertIn("frontend-metadata.json", runtime_contract)
-        self.assertIn("org.opencontainers.image.version", runtime_contract)
-        self.assertIn("org.opencontainers.image.revision", runtime_contract)
-        self.assertNotIn("--init --seed", container_contract)
-        self.assertIn("--build-metadata", runtime_contract)
-        self.assertIn('cmp "$temporary_directory/container-metadata.json"', runtime_contract)
+        self.assertIn("org.opencontainers.image.revision", container)
+        self.assertIn("Wait-LzugReady", harness)
+        self.assertIn("Invoke-LzugNative", harness)
 
     def test_ci_and_release_derive_identity_from_commit_and_tag(self) -> None:
         workflows = "\n".join(

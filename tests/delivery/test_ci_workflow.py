@@ -199,7 +199,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "scripts/check_documentation.py": "docs",
             "scripts/build-frontend.ps1": "frontend",
             "scripts/verify_cli_release.py": "cli",
-            "scripts/compose-smoke.sh": "container",
+            "tests/pester/Container.Tests.ps1": "container",
             "scripts/generate-frontend-transport.ps1": "transport",
             "scripts/sbom.py": "full",
         }.items():

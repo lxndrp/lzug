@@ -6,7 +6,7 @@
 
 ## Status
 
-Abgelehnt.
+Akzeptiert; abgelöst durch [ADR-0037: PowerShell/Pester-Testharness](0037-powershell-pester-testharness.md).
 
 ## Kontext
 
@@ -105,6 +105,8 @@ Folgeoption, sobald ein konkreter, heute nicht belegter Livezustand geprüft wer
 Sie nutzt die bestehende OIDC-Kette und kann auf die minimal erlaubte Ressource begrenzt werden.
 
 ## Konsequenzen
+
+Diese Entscheidung ist durch ADR-0037 abgelöst.
 
 Der heutige Qualitätslauf, die Docker-Referenz und die least-privilege OIDC-Identity bleiben unverändert.
 Es entstehen keine neuen Azure-Ressourcen, Rollen, Secrets, Lizenzkosten oder Cloudabfragen.

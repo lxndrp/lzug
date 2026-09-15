@@ -678,7 +678,7 @@ projektspezifische Invarianten wie unveränderliche Images und den
 Runtimevertrag.
 Container-, Compose- und CLI-zu-Container-Smokes teilen Docker-Lifecycle,
 Health-Waiting und Build-Identitätsprüfung in
-`scripts/container-contract.sh`.
+`tests/pester/LzugHarness.ps1`.
 Der Compose-Smoke bereitet sein isoliertes Datenvolume und ein eigenes
 temporäres Socket-Bind-Verzeichnis vor dem unveränderten Servicestart vor.
 Nur der kurzlebige Verzeichnishelfer erhält Root mit `CHOWN` und `FOWNER`;
@@ -732,7 +732,7 @@ geschützte Environment `demo` begrenzen echte Mutationen.
 | Angular-Komponente oder Service | zugehöriger Vitest-Test unter `frontend/src/` |
 | sichtbarer Hauptablauf | `task quality:e2e` und bei UI-Änderung `task quality:a11y` getrennt |
 | Go-CLI | `cd operator-cli && go test ./...` beziehungsweise `task quality:operator` |
-| OCI oder Compose | passendes Modul unter `tests/oci/` sowie `task quality:container`, `quality:compose` oder `quality:operator-container` |
+| OCI oder Compose | passendes Modul unter `tests/pester/` sowie `task quality:pester` |
 | Repository-Tooling | passendes Modul unter `tests/tooling/` |
 | Demo-Lieferung | `task quality:demo-deployment`, `task quality:demo` und bei Infrastruktur `task quality:infra` |
 
