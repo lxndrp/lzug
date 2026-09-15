@@ -11,6 +11,13 @@ import type {
   Person,
   RoundCandidate,
 } from './master-data.models';
+import type {
+  CandidateCreate,
+  CandidateUpdate,
+  CommitteeUpdate,
+  MembershipCreate,
+  MembershipUpdate,
+} from './generated/types.gen';
 import type { ExamHalfYear, ExamRound } from './planning.models';
 import { Injectable, inject } from '@angular/core';
 
@@ -78,40 +85,26 @@ export class MasterDataApiService {
    * all sources complete successfully.
    */
 
-  updateCommittee(id: number, payload: Partial<Pick<Committee, 'name' | 'occupation' | 'ihk'>>) {
+  updateCommittee(id: number, payload: CommitteeUpdate) {
     return this.client.patch<Committee>(`/api/committees/${id}`, payload);
   }
 
-  createMember(payload: Partial<Omit<CommitteeMember, 'id' | 'email_verified_at'>>) {
+  createMember(payload: MembershipCreate) {
     return this.client.post<CommitteeMember>('/api/members', payload);
   }
 
-  updateMember(id: number, payload: Partial<Omit<CommitteeMember, 'id'>>) {
+  updateMember(id: number, payload: MembershipUpdate) {
     return this.client.patch<CommitteeMember>(`/api/members/${id}`, payload);
   }
 
-  createCandidate(
-    payload: Omit<Candidate, 'id'> & {
-      attempt_number: number;
-      requires_mep: number;
-      exam_round_id?: number;
-    },
-  ) {
+  createCandidate(payload: CandidateCreate) {
     return this.client.post<Candidate>('/api/candidates', {
       ...payload,
       exam_round_id: payload.exam_round_id ?? this.roundId,
     });
   }
 
-  updateCandidate(
-    id: number,
-    payload: Omit<Candidate, 'id'> & {
-      attempt_number: number;
-      requires_mep: number;
-      exam_round_id?: number;
-      assignment_change_reason?: string;
-    },
-  ) {
+  updateCandidate(id: number, payload: CandidateUpdate) {
     return this.client.patch<Candidate>(`/api/candidates/${id}`, {
       ...payload,
       exam_round_id: payload.exam_round_id ?? this.roundId,

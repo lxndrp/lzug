@@ -8,7 +8,6 @@ import type {
   ExamDay,
   ExamDayAssignment,
   ExamRound,
-  ExamRoundUpdate,
   ExamSlot,
   AvailabilityRequest,
   MemberAvailability,
@@ -20,6 +19,7 @@ import type {
 import type { CommitteeMember, Location } from './master-data.models';
 import type { SchedulingOverviewItem } from './execution.models';
 import type { PlanningProposalWriteRequest, PlanningRoundRequest } from './generated/types.gen';
+import type { ExamRoundUpdate } from './generated/types.gen';
 import { Injectable, inject } from '@angular/core';
 
 import { ApiClient } from './api-client.service';

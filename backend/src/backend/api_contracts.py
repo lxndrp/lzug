@@ -3,7 +3,7 @@
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from .runtime import RuntimeState
 
@@ -223,6 +223,284 @@ class DomainResourceResponse(BaseModel):
 class DomainCollectionResponse(BaseModel):
     items: list[DomainResourceResponse]
     links: dict[str, object] = Field(alias="_links")
+
+
+class MasterDataResponse(BaseModel):
+    """Common explicit response boundary for generic master-data resources."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: int
+    links: dict[str, object] = Field(alias="_links")
+
+
+class MasterDataUpdate(BaseModel):
+    """Partial master-data update; omitted fields remain distinct from null."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CommitteeResponse(MasterDataResponse):
+    name: str
+    occupation: str
+    ihk: str
+    is_active: int
+    bootstrap_state: str
+    created_at: str
+    updated_at: str
+
+
+class CommitteeUpdate(MasterDataUpdate):
+    name: str | None = None
+    occupation: str | None = None
+    ihk: str | None = None
+
+
+class PersonCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    first_name: str
+    last_name: str
+    email: str
+    mobile: str | None = None
+
+
+class PersonUpdate(MasterDataUpdate):
+    first_name: str | None = None
+    last_name: str | None = None
+    email: str | None = None
+    mobile: str | None = None
+
+
+class PersonResponse(MasterDataResponse):
+    first_name: str
+    last_name: str
+    email: str
+    mobile: str | None
+    created_at: str
+    updated_at: str
+
+
+class MembershipCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    person_id: int | None = None
+    committee_id: int
+    first_name: str | None = None
+    last_name: str | None = None
+    email: str | None = None
+    mobile: str | None = None
+    member_status: str = "ordinary"
+    committee_role: str = "member"
+    representing_side: str = "employer"
+    is_active: bool | int = True
+
+
+class MembershipUpdate(MasterDataUpdate):
+    person_id: int | None = None
+    committee_id: int | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    email: str | None = None
+    mobile: str | None = None
+    member_status: str | None = None
+    committee_role: str | None = None
+    representing_side: str | None = None
+    is_active: bool | int | None = None
+
+
+class MembershipResponse(MasterDataResponse):
+    person_id: int
+    committee_id: int
+    first_name: str
+    last_name: str
+    member_status: str
+    committee_role: str
+    representing_side: str
+    email: str
+    email_verified_at: str | None = None
+    mobile: str | None
+    is_active: int
+    created_at: str
+    updated_at: str
+
+
+class ExamHalfYearCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    season: str
+    year: int
+    status: str = "draft"
+
+
+class ExamHalfYearUpdate(MasterDataUpdate):
+    season: str | None = None
+    year: int | None = None
+    status: str | None = None
+
+
+class ExamHalfYearResponse(MasterDataResponse):
+    season: str
+    year: int
+    status: str
+    legacy_status: str | None
+    created_at: str
+    updated_at: str
+
+
+class ExamRoundCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    exam_half_year_id: int | None = None
+    season: str | None = None
+    year: int | None = None
+    committee_id: int
+    name: str
+    status: str = "draft"
+    availability_deadline: str | None = None
+    availability_reminder_at: str | None = None
+    created_by_member_id: int
+
+
+class ExamRoundUpdate(MasterDataUpdate):
+    exam_half_year_id: int | None = None
+    committee_id: int | None = None
+    name: str | None = None
+    status: str | None = None
+    availability_deadline: str | None = None
+    availability_reminder_at: str | None = None
+    created_by_member_id: int | None = None
+
+
+class ExamRoundResponse(MasterDataResponse):
+    exam_half_year_id: int
+    committee_id: int
+    name: str
+    status: str
+    revision: int
+    lifecycle_status: str
+    legacy_status: str | None
+    availability_deadline: str | None
+    availability_reminder_at: str | None
+    created_by_member_id: int
+    created_at: str
+    updated_at: str
+
+
+class RoundCandidateCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    exam_round_id: int
+    candidate_id: int
+    attempt_number: int = 1
+    requires_mep: bool | int = False
+    is_active: bool | int = True
+    assignment_change_reason: str | None = None
+
+
+class RoundCandidateUpdate(MasterDataUpdate):
+    exam_round_id: int | None = None
+    candidate_id: int | None = None
+    attempt_number: int | None = None
+    requires_mep: bool | int | None = None
+    is_active: bool | int | None = None
+    terminal_status: str | None = None
+    terminal_reason: str | None = None
+    effective_new_round_id: int | None = None
+    postponed_until: str | None = None
+    ihk_decision_reference: str | None = None
+    terminal_at: str | None = None
+    assignment_change_reason: str | None = None
+
+
+class RoundCandidateResponse(MasterDataResponse):
+    exam_round_id: int
+    candidate_id: int
+    attempt_number: int
+    requires_mep: int
+    is_active: int
+    terminal_status: str | None
+    terminal_reason: str | None
+    effective_new_round_id: int | None
+    postponed_until: str | None
+    ihk_decision_reference: str | None
+    terminal_at: str | None
+    created_at: str
+    updated_at: str
+
+
+class CandidateCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    first_name: str
+    last_name: str
+    ihk_exam_number: str
+    specialization: str
+    training_company: str
+    exam_round_id: int | None = None
+    attempt_number: int = 1
+    requires_mep: bool | int = False
+
+
+class CandidateUpdate(MasterDataUpdate):
+    first_name: str | None = None
+    last_name: str | None = None
+    ihk_exam_number: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ihk_exam_number", "exam_number"),
+    )
+    specialization: str | None = None
+    training_company: str | None = None
+    exam_round_id: int | None = None
+    attempt_number: int | None = None
+    requires_mep: bool | int | None = None
+    assignment_change_reason: str | None = None
+
+
+class CandidateResponse(MasterDataResponse):
+    first_name: str
+    last_name: str
+    ihk_exam_number: str
+    specialization: str
+    training_company: str
+    specialization_label: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class MasterDataCollection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[MasterDataResponse]
+    links: dict[str, object] = Field(alias="_links")
+
+
+class CommitteeCollectionResponse(MasterDataCollection):
+    items: list[CommitteeResponse]
+
+
+class PersonCollectionResponse(MasterDataCollection):
+    items: list[PersonResponse]
+
+
+class MembershipCollectionResponse(MasterDataCollection):
+    items: list[MembershipResponse]
+
+
+class ExamHalfYearCollectionResponse(MasterDataCollection):
+    items: list[ExamHalfYearResponse]
+
+
+class ExamRoundCollectionResponse(MasterDataCollection):
+    items: list[ExamRoundResponse]
+
+
+class RoundCandidateCollectionResponse(MasterDataCollection):
+    items: list[RoundCandidateResponse]
+
+
+class CandidateCollectionResponse(MasterDataCollection):
+    items: list[CandidateResponse]
 
 
 class ExamSlotStartRequest(BaseModel):
