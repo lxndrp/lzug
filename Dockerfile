@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
 
+FROM mcr.microsoft.com/powershell:7.5.3 AS powershell
+
 FROM python:3.14.6-slim-bookworm AS backend-build
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.28 /uv /uvx /bin/
@@ -50,6 +52,9 @@ RUN set -eu; \
 
 FROM node:26.5.0-bookworm-slim AS frontend-build
 
+COPY --from=powershell /opt/microsoft/powershell/7 /opt/microsoft/powershell/7
+ENV PATH="/opt/microsoft/powershell/7:$PATH"
+
 WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
@@ -59,7 +64,7 @@ COPY brand/derived/favicon.ico brand/derived/favicon.svg brand/derived/logo-mark
 COPY frontend/public ./public
 COPY --from=build-metadata /build-metadata.json ./public/build-metadata.json
 COPY frontend/src ./src
-COPY scripts/build-frontend.sh /src/scripts/build-frontend.sh
+COPY scripts/build-frontend.ps1 /src/scripts/build-frontend.ps1
 RUN npm run build:ci
 
 FROM python:3.14.6-slim-bookworm AS python-dependencies

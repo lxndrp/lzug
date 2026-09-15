@@ -42,6 +42,8 @@ tasks:
       - goreleaser --version
       - command -v actionlint >/dev/null || { echo "actionlint is missing; run mise install"; exit 1; }
       - actionlint -version
+      - command -v pwsh >/dev/null || { echo "PowerShell is missing; run mise install"; exit 1; }
+      - pwsh --version
       - command -v lychee >/dev/null || { echo "Lychee is missing; run mise install"; exit 1; }
       - lychee --version
 

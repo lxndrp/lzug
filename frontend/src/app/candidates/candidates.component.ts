@@ -9,7 +9,15 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import {
+  AbstractControl,
+  FormControl,
+  FormGroup,
+  FormsModule,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+} from '@angular/forms';
 import { TuiButton, TuiCheckbox, TuiInput, TuiTextfield } from '@taiga-ui/core';
 import { TuiBadge, TuiSelect } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
@@ -22,19 +30,33 @@ import {
   ExamRound,
   MasterData,
 } from '../api/api.models';
+import type {
+  CandidateCreate,
+  CandidateUpdate as GeneratedCandidateUpdate,
+} from '../api/generated/types.gen';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
 import { type SelectOption, selectLabel, selectStringify, selectValues } from '../select-options';
 
-export type CandidatePayload = Omit<Candidate, 'id'> & {
-  attempt_number: number;
-  requires_mep: number;
+export type CandidatePayload = CandidateCreate & {
   exam_round_id?: number;
-  assignment_change_reason?: string;
+  assignment_change_reason?: string | null;
 };
 export type CandidateUpdate = {
   id: number;
-  payload: CandidatePayload;
+  payload: GeneratedCandidateUpdate;
+};
+
+type CandidateFormModel = {
+  first_name: FormControl<string>;
+  last_name: FormControl<string>;
+  ihk_exam_number: FormControl<string>;
+  specialization: FormControl<string>;
+  training_company: FormControl<string>;
+  attempt_number: FormControl<number>;
+  requires_mep: FormControl<boolean>;
+  exam_round_id: FormControl<number | null>;
+  assignment_change_reason: FormControl<string>;
 };
 
 @Component({
@@ -42,6 +64,7 @@ export type CandidateUpdate = {
   imports: [
     AppIconDirective,
     FormsModule,
+    ReactiveFormsModule,
     TuiButton,
     TuiBadge,
     TuiCheckbox,
@@ -60,8 +83,8 @@ export class CandidatesComponent {
   protected readonly icons = appIcons;
   @ViewChild('candidateCreateButton')
   private candidateCreateButton?: ElementRef<HTMLButtonElement>;
-  @ViewChild('candidateCreateForm', { read: ElementRef })
-  private candidateCreateForm?: ElementRef<HTMLFormElement>;
+  @ViewChild('candidateCreateFormElement', { read: ElementRef })
+  private candidateCreateFormElement?: ElementRef<HTMLFormElement>;
 
   @Input() masterData: MasterData | null = null;
   @Input() activeRound: ExamRound | null = null;
@@ -72,21 +95,13 @@ export class CandidatesComponent {
   @Output() deleteCandidate = new EventEmitter<Candidate>();
 
   protected readonly editingCandidateId = signal<number | null>(null);
-  protected readonly editDraft = signal<CandidatePayload | null>(null);
+  protected readonly editForm = signal<FormGroup<CandidateFormModel> | null>(null);
   protected readonly creatingCandidate = signal(false);
   protected readonly createValidationAttempted = signal(false);
 
   protected readonly query = signal('');
   protected readonly specialization = signal<string | null>(null);
-  protected readonly draft: CandidatePayload = {
-    first_name: '',
-    last_name: '',
-    ihk_exam_number: '',
-    specialization: 'application_development',
-    training_company: '',
-    attempt_number: 1,
-    requires_mep: 0,
-  };
+  protected readonly candidateCreateForm = this.createForm();
 
   protected readonly specializationSelectOptions: readonly SelectOption<string>[] = [
     { value: 'application_development', label: 'Anwendungsentwicklung' },
@@ -163,34 +178,22 @@ export class CandidatesComponent {
 
   protected submitCandidate(): void {
     this.createValidationAttempted.set(true);
-    if (this.candidateCreateErrors().length) {
+    this.candidateCreateForm.markAllAsTouched();
+    if (this.candidateCreateForm.invalid) {
       this.changeDetector.detectChanges();
-      this.candidateCreateForm?.nativeElement
+      this.candidateCreateFormElement?.nativeElement
         .querySelector<HTMLElement>('.app-form-error-summary')
         ?.focus();
       return;
     }
 
-    this.createCandidate.emit({
-      ...this.draft,
-      first_name: this.draft.first_name.trim(),
-      last_name: this.draft.last_name.trim(),
-      ihk_exam_number: this.draft.ihk_exam_number.trim(),
-      training_company: this.draft.training_company.trim(),
-      attempt_number: Number(this.draft.attempt_number) || 1,
-      requires_mep: this.draft.requires_mep ? 1 : 0,
-    });
+    this.createCandidate.emit(this.toPayload(this.candidateCreateForm));
   }
 
   resetDraft(): void {
-    this.candidateCreateForm?.nativeElement.reset();
-    this.draft.first_name = '';
-    this.draft.last_name = '';
-    this.draft.ihk_exam_number = '';
-    this.draft.specialization = 'application_development';
-    this.draft.training_company = '';
-    this.draft.attempt_number = 1;
-    this.draft.requires_mep = 0;
+    this.candidateCreateForm.reset(this.initialFormValue());
+    this.candidateCreateForm.markAsPristine();
+    this.candidateCreateForm.markAsUntouched();
     this.createValidationAttempted.set(false);
     this.creatingCandidate.set(false);
     this.focusCreateButton();
@@ -198,26 +201,34 @@ export class CandidatesComponent {
 
   protected candidateCreateErrors(): readonly { field: string; message: string }[] {
     return [
-      { field: 'candidateFirstName', message: 'Vorname eingeben.' },
-      { field: 'candidateLastName', message: 'Nachname eingeben.' },
-      { field: 'candidateExamNumber', message: 'Prüfungsnummer eingeben.' },
-    ].filter(({ field }) => {
-      if (field === 'candidateFirstName') return !this.draft.first_name.trim();
-      if (field === 'candidateLastName') return !this.draft.last_name.trim();
-      return !this.draft.ihk_exam_number.trim();
-    });
+      {
+        field: 'candidateFirstName',
+        control: this.candidateCreateForm.controls.first_name,
+        message: 'Vorname eingeben.',
+      },
+      {
+        field: 'candidateLastName',
+        control: this.candidateCreateForm.controls.last_name,
+        message: 'Nachname eingeben.',
+      },
+      {
+        field: 'candidateExamNumber',
+        control: this.candidateCreateForm.controls.ihk_exam_number,
+        message: 'Prüfungsnummer eingeben.',
+      },
+    ].filter(({ control }) => control.invalid);
   }
 
   protected candidateCreateFieldInvalid(field: string): boolean {
     return (
-      this.createValidationAttempted() &&
+      (this.createValidationAttempted() || Boolean(this.candidateCreateForm.get(field)?.touched)) &&
       this.candidateCreateErrors().some((error) => error.field === field)
     );
   }
 
   protected focusCandidateCreateField(field: string, event: Event): void {
     event.preventDefault();
-    this.candidateCreateForm?.nativeElement.querySelector<HTMLElement>(`#${field}`)?.focus();
+    this.candidateCreateFormElement?.nativeElement.querySelector<HTMLElement>(`#${field}`)?.focus();
   }
 
   protected toggleCandidateCreation(): void {
@@ -236,53 +247,38 @@ export class CandidatesComponent {
   protected startEditing(item: CandidateView): void {
     const activeAssignment = this.activeAssignment(item.candidate.id);
     this.editingCandidateId.set(item.candidate.id);
-    this.editDraft.set({
-      first_name: item.candidate.first_name,
-      last_name: item.candidate.last_name,
-      ihk_exam_number: item.candidate.ihk_exam_number,
-      specialization: item.candidate.specialization,
-      training_company: item.candidate.training_company,
-      attempt_number: item.roundCandidate?.attempt_number ?? 1,
-      requires_mep: item.roundCandidate?.requires_mep ?? 0,
-      exam_round_id: activeAssignment?.exam_round_id ?? this.activeRound?.id,
-      assignment_change_reason: '',
-    });
+    this.editForm.set(
+      this.createForm({
+        first_name: item.candidate.first_name,
+        last_name: item.candidate.last_name,
+        ihk_exam_number: item.candidate.ihk_exam_number,
+        specialization: item.candidate.specialization,
+        training_company: item.candidate.training_company,
+        attempt_number: item.roundCandidate?.attempt_number ?? 1,
+        requires_mep: Boolean(item.roundCandidate?.requires_mep),
+        exam_round_id: activeAssignment?.exam_round_id ?? this.activeRound?.id ?? null,
+        assignment_change_reason: '',
+      }),
+    );
   }
 
   protected submitCandidateUpdate(): void {
     const id = this.editingCandidateId();
-    const draft = this.editDraft();
-    if (!id || !draft) {
+    const form = this.editForm();
+    if (!id || !form) {
       return;
     }
-
-    const { exam_round_id, assignment_change_reason, ...candidateDraft } = draft;
-    const payload: CandidatePayload = {
-      ...candidateDraft,
-      first_name: draft.first_name.trim(),
-      last_name: draft.last_name.trim(),
-      ihk_exam_number: draft.ihk_exam_number.trim(),
-      training_company: draft.training_company.trim(),
-      attempt_number: Number(draft.attempt_number) || 1,
-      requires_mep: draft.requires_mep ? 1 : 0,
-    };
-    if (exam_round_id !== undefined) {
-      payload.exam_round_id = exam_round_id;
-    }
-    const changeReason = assignment_change_reason?.trim();
-    if (changeReason) {
-      payload.assignment_change_reason = changeReason;
-    }
-    if (!payload.first_name || !payload.last_name || !payload.ihk_exam_number) {
+    form.controls.assignment_change_reason.updateValueAndValidity();
+    form.markAllAsTouched();
+    if (form.invalid) {
       return;
     }
-
-    this.updateCandidate.emit({ id, payload });
+    this.updateCandidate.emit({ id, payload: this.toPayload(form) });
   }
 
   protected cancelEditing(): void {
     this.editingCandidateId.set(null);
-    this.editDraft.set(null);
+    this.editForm.set(null);
   }
 
   finishEditing(id: number): void {
@@ -354,5 +350,90 @@ export class CandidatesComponent {
 
   private focusCreateButton(): void {
     queueMicrotask(() => this.candidateCreateButton?.nativeElement.focus());
+  }
+
+  private createForm(
+    value: Partial<Record<keyof CandidateFormModel, unknown>> = {},
+  ): FormGroup<CandidateFormModel> {
+    const initial = this.initialFormValue();
+    return new FormGroup({
+      first_name: new FormControl(String(value.first_name ?? initial.first_name), {
+        nonNullable: true,
+        validators: [this.requiredText],
+      }),
+      last_name: new FormControl(String(value.last_name ?? initial.last_name), {
+        nonNullable: true,
+        validators: [this.requiredText],
+      }),
+      ihk_exam_number: new FormControl(String(value.ihk_exam_number ?? initial.ihk_exam_number), {
+        nonNullable: true,
+        validators: [this.requiredText],
+      }),
+      specialization: new FormControl(String(value.specialization ?? initial.specialization), {
+        nonNullable: true,
+        validators: [this.requiredText],
+      }),
+      training_company: new FormControl(
+        String(value.training_company ?? initial.training_company),
+        { nonNullable: true },
+      ),
+      attempt_number: new FormControl(Number(value.attempt_number ?? initial.attempt_number) || 1, {
+        nonNullable: true,
+        validators: [Validators.min(1)],
+      }),
+      requires_mep: new FormControl(Boolean(value.requires_mep ?? initial.requires_mep), {
+        nonNullable: true,
+      }),
+      exam_round_id: new FormControl(
+        (value.exam_round_id as number | null | undefined) ?? initial.exam_round_id,
+      ),
+      assignment_change_reason: new FormControl(String(value.assignment_change_reason ?? ''), {
+        nonNullable: true,
+        validators: [this.changeReasonValidator.bind(this)],
+      }),
+    });
+  }
+
+  private requiredText(control: AbstractControl) {
+    return String(control.value).trim() ? null : { required: true };
+  }
+
+  private changeReasonValidator(control: AbstractControl): ValidationErrors | null {
+    const roundId = control.parent?.get('exam_round_id')?.value as number | null | undefined;
+    const candidateId = this.editingCandidateId();
+    return candidateId &&
+      this.needsChangeReason(candidateId, roundId ?? undefined) &&
+      !String(control.value).trim()
+      ? { required: true }
+      : null;
+  }
+
+  private initialFormValue() {
+    return {
+      first_name: '',
+      last_name: '',
+      ihk_exam_number: '',
+      specialization: 'application_development',
+      training_company: '',
+      attempt_number: 1,
+      requires_mep: false,
+      exam_round_id: null,
+      assignment_change_reason: '',
+    };
+  }
+
+  private toPayload(form: FormGroup<CandidateFormModel>): CandidatePayload {
+    const value = form.getRawValue();
+    return {
+      first_name: value.first_name.trim(),
+      last_name: value.last_name.trim(),
+      ihk_exam_number: value.ihk_exam_number.trim(),
+      specialization: value.specialization,
+      training_company: value.training_company.trim(),
+      attempt_number: Number(value.attempt_number) || 1,
+      requires_mep: value.requires_mep ? 1 : 0,
+      exam_round_id: value.exam_round_id ?? undefined,
+      assignment_change_reason: value.assignment_change_reason.trim() || undefined,
+    };
   }
 }

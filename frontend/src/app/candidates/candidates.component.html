@@ -51,7 +51,8 @@
             <span class="app-required-hint"><span aria-hidden="true">*</span> Pflichtfelder</span>
           </header>
           <form
-            #candidateCreateForm
+            #candidateCreateFormElement
+            [formGroup]="candidateCreateForm"
             tuiForm="m"
             class="app-form-grid"
             (ngSubmit)="submitCandidate()"
@@ -87,7 +88,7 @@
                   tuiInput
                   id="candidateFirstName"
                   name="firstName"
-                  [(ngModel)]="draft.first_name"
+                  formControlName="first_name"
                   [attr.aria-describedby]="
                     candidateCreateFieldInvalid('candidateFirstName')
                       ? 'candidateFirstNameError'
@@ -110,7 +111,7 @@
                   tuiInput
                   id="candidateLastName"
                   name="lastName"
-                  [(ngModel)]="draft.last_name"
+                  formControlName="last_name"
                   [attr.aria-describedby]="
                     candidateCreateFieldInvalid('candidateLastName')
                       ? 'candidateLastNameError'
@@ -133,7 +134,7 @@
                   tuiInput
                   id="candidateExamNumber"
                   name="examNumber"
-                  [(ngModel)]="draft.ihk_exam_number"
+                  formControlName="ihk_exam_number"
                   [attr.aria-describedby]="
                     candidateCreateFieldInvalid('candidateExamNumber')
                       ? 'candidateExamNumberError'
@@ -159,7 +160,7 @@
                   id="candidateSpecialization"
                   name="candidateSpecialization"
                   [items]="specializationOptions"
-                  [(ngModel)]="draft.specialization"
+                  formControlName="specialization"
                   required
                 ></select>
               </tui-textfield>
@@ -173,7 +174,7 @@
                   min="1"
                   name="attempt"
                   type="number"
-                  [(ngModel)]="draft.attempt_number"
+                  formControlName="attempt_number"
                 />
               </tui-textfield>
             </div>
@@ -184,7 +185,7 @@
                   tuiInput
                   id="candidateCompany"
                   name="company"
-                  [(ngModel)]="draft.training_company"
+                  formControlName="training_company"
                 />
               </tui-textfield>
             </div>
@@ -195,8 +196,7 @@
                   name="requiresMep"
                   tuiCheckbox
                   type="checkbox"
-                  [ngModel]="draft.requires_mep === 1"
-                  (ngModelChange)="draft.requires_mep = $event ? 1 : 0"
+                  formControlName="requires_mep"
                 />
                 <label for="candidateMep">MEP erforderlich</label>
               </div>
@@ -349,11 +349,12 @@
                   </td>
                 </tr>
                 @if (editingCandidateId() === item.candidate.id) {
-                  @if (editDraft(); as currentDraft) {
+                  @if (editForm(); as candidateEditForm) {
                     <tr>
                       <td colspan="7">
                         <form
                           tuiForm="m"
+                          [formGroup]="candidateEditForm"
                           class="app-form-grid app-inline-editor"
                           [attr.aria-label]="
                             'Prüfling ' +
@@ -373,7 +374,7 @@
                                 tuiInput
                                 [id]="'editCandidateFirstName-' + item.candidate.id"
                                 [name]="'editCandidateFirstName-' + item.candidate.id"
-                                [(ngModel)]="currentDraft.first_name"
+                                formControlName="first_name"
                                 required
                               />
                             </tui-textfield>
@@ -387,7 +388,7 @@
                                 tuiInput
                                 [id]="'editCandidateLastName-' + item.candidate.id"
                                 [name]="'editCandidateLastName-' + item.candidate.id"
-                                [(ngModel)]="currentDraft.last_name"
+                                formControlName="last_name"
                                 required
                               />
                             </tui-textfield>
@@ -401,7 +402,7 @@
                                 tuiInput
                                 [id]="'editCandidateExamNumber-' + item.candidate.id"
                                 [name]="'editCandidateExamNumber-' + item.candidate.id"
-                                [(ngModel)]="currentDraft.ihk_exam_number"
+                                formControlName="ihk_exam_number"
                                 required
                               />
                             </tui-textfield>
@@ -419,7 +420,7 @@
                                 [id]="'editCandidateSpecialization-' + item.candidate.id"
                                 [name]="'editCandidateSpecialization-' + item.candidate.id"
                                 [items]="specializationOptions"
-                                [(ngModel)]="currentDraft.specialization"
+                                formControlName="specialization"
                                 required
                               ></select>
                             </tui-textfield>
@@ -435,7 +436,7 @@
                                 [name]="'editCandidateAttempt-' + item.candidate.id"
                                 min="1"
                                 type="number"
-                                [(ngModel)]="currentDraft.attempt_number"
+                                formControlName="attempt_number"
                               />
                             </tui-textfield>
                           </div>
@@ -448,7 +449,7 @@
                                 tuiInput
                                 [id]="'editCandidateCompany-' + item.candidate.id"
                                 [name]="'editCandidateCompany-' + item.candidate.id"
-                                [(ngModel)]="currentDraft.training_company"
+                                formControlName="training_company"
                               />
                             </tui-textfield>
                           </div>
@@ -459,8 +460,7 @@
                                 [name]="'editCandidateMep-' + item.candidate.id"
                                 tuiCheckbox
                                 type="checkbox"
-                                [ngModel]="currentDraft.requires_mep === 1"
-                                (ngModelChange)="currentDraft.requires_mep = $event ? 1 : 0"
+                                formControlName="requires_mep"
                               />
                               <label [for]="'editCandidateMep-' + item.candidate.id"
                                 >MEP erforderlich</label
@@ -480,7 +480,10 @@
                                 [id]="'editCandidateRound-' + item.candidate.id"
                                 [name]="'editCandidateRound-' + item.candidate.id"
                                 [items]="eligibleRoundIds()"
-                                [(ngModel)]="currentDraft.exam_round_id"
+                                formControlName="exam_round_id"
+                                (change)="
+                                  candidateEditForm.controls.assignment_change_reason.updateValueAndValidity()
+                                "
                                 required
                               ></select>
                             </tui-textfield>
@@ -496,13 +499,15 @@
                                 tuiInput
                                 [id]="'editCandidateChangeReason-' + item.candidate.id"
                                 [name]="'editCandidateChangeReason-' + item.candidate.id"
-                                [(ngModel)]="currentDraft.assignment_change_reason"
-                                [required]="
-                                  needsChangeReason(item.candidate.id, currentDraft.exam_round_id)
-                                "
+                                formControlName="assignment_change_reason"
                               />
                             </tui-textfield>
-                            @if (needsChangeReason(item.candidate.id, currentDraft.exam_round_id)) {
+                            @if (
+                              needsChangeReason(
+                                item.candidate.id,
+                                candidateEditForm.controls.exam_round_id.value ?? undefined
+                              )
+                            ) {
                               <span class="app-muted app-block">Bei Wechsel erforderlich</span>
                             }
                           </div>
