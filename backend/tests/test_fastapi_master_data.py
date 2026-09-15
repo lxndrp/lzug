@@ -98,9 +98,12 @@ class FastAPIMasterDataRouterTests(unittest.TestCase):
     def test_partial_updates_preserve_missing_and_null_values(self) -> None:
         omitted = CandidateUpdate.model_validate({})
         explicit_null = CandidateUpdate.model_validate({"training_company": None})
+        legacy_exam_number = CandidateUpdate.model_validate({"exam_number": "E2E-RESET-001"})
         self.assertNotIn("training_company", omitted.model_fields_set)
         self.assertIn("training_company", explicit_null.model_fields_set)
         self.assertIsNone(explicit_null.training_company)
+        self.assertEqual("E2E-RESET-001", legacy_exam_number.ihk_exam_number)
+        self.assertIn("ihk_exam_number", legacy_exam_number.model_fields_set)
 
         with self.assertRaises(ValueError):
             CandidateUpdate.model_validate({"not_a_candidate_field": "rejected"})

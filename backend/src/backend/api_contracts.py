@@ -3,7 +3,7 @@
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from .runtime import RuntimeState
 
@@ -445,7 +445,10 @@ class CandidateCreate(BaseModel):
 class CandidateUpdate(MasterDataUpdate):
     first_name: str | None = None
     last_name: str | None = None
-    ihk_exam_number: str | None = None
+    ihk_exam_number: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ihk_exam_number", "exam_number"),
+    )
     specialization: str | None = None
     training_company: str | None = None
     exam_round_id: int | None = None
