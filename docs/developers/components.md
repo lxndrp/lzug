@@ -691,7 +691,7 @@ festgelegt:
 | --- | --- |
 | `demo/contract.py` | kleinster gemeinsamer Identitäts-, Manifest- und Laufzeitvertrag ohne ausführbare Delivery-Werkzeuge |
 | `demo/runtime/` | App-Einstieg, serverseitige Demo-Policy, Szenarioansicht, Arbeitskopien, Runtime-Verifikation und Seed-Initialisierung |
-| `demo/delivery/` | Artefaktbau, Veröffentlichungsprüfung und Kommandozeilenadapter des gemeinsamen Vertrags |
+| `demo/delivery/` | Build-time Seed- und App-Manifeste; Veröffentlichung und Promotion bleiben bei Docker, GitHub Packages, Attestations und Azure CLI |
 | `demo/containers/` | Builddefinitionen für Demo-App und Seed-Artefakt bei unverändertem Root-Buildkontext |
 | `demo/infra/` | vollständige OpenTofu-Topologie der öffentlichen Azure-Demo einschließlich unveränderter OIDC-, Environment- und State-Verträge mit `lzug-demo.tfstate` |
 | `demo/tests/` | komponentenspezifische Runtime-, Delivery-, Container-, Infrastruktur- und Vertragsprüfungen der Demo |
@@ -699,8 +699,8 @@ festgelegt:
 Echte repositoryweite Integrations- und Lieferwegprüfungen bleiben unter
 `tests/`.
 Runtime-Images kopieren nur `demo/contract.py` und die benötigten Module aus
-`demo/runtime/`; Build- und Veröffentlichungswerkzeuge aus `demo/delivery/`
-bleiben außerhalb der laufenden Images.
+`demo/runtime/`; der Build-time Artefaktbau aus `demo/delivery/` bleibt außerhalb
+der laufenden Images.
 Beim Einstieg erzeugt die Demo aus dem synthetischen Basisseed eine eigene
 SQLite-Arbeitskopie pro Besuch.
 Nur die drei Rollen dieses Besuchs teilen sie; Sitzung und Arbeitskopie laufen
