@@ -221,6 +221,19 @@ class QualityWorkflowContractTests(unittest.TestCase):
             self.assertIn(f"'{manifest}'", transport)
             self.assertNotIn(f"'{manifest}'", full)
 
+        for manifest in ("operator-cli/go.mod", "operator-cli/go.sum"):
+            self.assertIn(f"'{manifest}'", cli)
+            self.assertIn("'operator-cli/**'", container)
+            self.assertNotIn(f"'{manifest}'", full)
+
+        for manifest in (".python-version", "pyproject.toml", "uv.lock"):
+            for domain in ("docs", "backend", "delivery", "infra", "container"):
+                self.assertIn(
+                    f"'{manifest}'",
+                    mapping_block(changes, domain, indent=12),
+                )
+            self.assertNotIn(f"'{manifest}'", full)
+
     def test_backend_details_defer_go_and_python_dependency_audits(self) -> None:
         changes = job_block(self.pull_request, "changes")
         backend = job_block(self.pull_request, "backend")
@@ -236,19 +249,6 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("task backend:audit", dependencies)
         self.assertIn("backend-integration", job_block(self.pull_request, "backend-gate"))
         self.assertIn("python-dependencies", job_block(self.pull_request, "backend-gate"))
-
-        for manifest in ("operator-cli/go.mod", "operator-cli/go.sum"):
-            self.assertIn(f"'{manifest}'", cli)
-            self.assertIn("'operator-cli/**'", container)
-            self.assertNotIn(f"'{manifest}'", full)
-
-        for manifest in (".python-version", "pyproject.toml", "uv.lock"):
-            for domain in ("docs", "backend", "delivery", "infra", "container"):
-                self.assertIn(
-                    f"'{manifest}'",
-                    mapping_block(changes, domain, indent=12),
-                )
-            self.assertNotIn(f"'{manifest}'", full)
 
     def test_dependabot_groups_routine_updates_and_keeps_security_separate(self) -> None:
         config = self.dependabot_config
