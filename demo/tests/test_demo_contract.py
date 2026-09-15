@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import copy
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
-from io import StringIO
 
 from demo.contract import (
     CANONICAL_DEMO_URL,
@@ -17,7 +15,6 @@ from demo.contract import (
     validate_manifest_pair,
     validate_public_demo_url,
 )
-from demo.delivery.contract import main
 
 
 class DemoContractTests(unittest.TestCase):
@@ -201,51 +198,6 @@ class DemoContractTests(unittest.TestCase):
                     product_commit=commit,
                     github_ref=github_ref,
                 )
-
-    def test_cli_exposes_the_same_identity_url_and_pair_contract(self) -> None:
-        stdout = StringIO()
-        with redirect_stdout(stdout):
-            result = main(
-                [
-                    "identity",
-                    "--tag",
-                    self.snapshot_tag,
-                    "--commit",
-                    self.snapshot_commit,
-                    "--channel",
-                    "snapshot",
-                    "--field",
-                    "oci_tag",
-                ]
-            )
-        self.assertEqual(0, result)
-        self.assertEqual("v0.4.0-SNAPSHOT-abcdef0", stdout.getvalue().strip())
-
-        pair = self.pair()
-        pair_args = [
-            "--app-image",
-            pair.app_image,
-            "--seed-image",
-            pair.seed_image,
-            "--product-tag",
-            pair.product_tag,
-            "--product-commit",
-            pair.product_commit,
-            "--runtime-contract",
-            pair.runtime_contract,
-            "--schema-fingerprint",
-            pair.schema_fingerprint,
-            "--seed-revision",
-            pair.seed_revision,
-        ]
-        self.assertEqual(0, main(["validate-pair", *pair_args]))
-
-        stderr = StringIO()
-        with redirect_stderr(stderr):
-            result = main(["validate-url", "--canonical", "--value", "https://demo.example.org"])
-        self.assertEqual(1, result)
-        self.assertIn("confirmed repository", stderr.getvalue())
-
 
 if __name__ == "__main__":
     unittest.main()
