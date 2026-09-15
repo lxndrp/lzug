@@ -11,7 +11,7 @@ from backend.fastapi_planning_router import (
     PLANNING_DOMAIN_RESOURCES,
 )
 from backend.identity.auth import AuthenticationRepository
-from backend.tests.helpers import TempDatabase
+from backend.tests.helpers import TempDatabase, openapi_document
 
 
 def api_routes(routes):
@@ -109,7 +109,7 @@ class FastAPIPlanningRouterTests(unittest.TestCase):
         )
 
     def test_significant_planning_payloads_use_pydantic_openapi_models(self) -> None:
-        document = self.app.openapi()
+        document = openapi_document(self.app)
         requests = (
             ("post", "/api/planning-proposals", "PlanningRoundRequest"),
             ("post", "/api/candidate-exam-days/generate", "PlanningRoundRequest"),

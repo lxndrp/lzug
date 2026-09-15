@@ -15,6 +15,7 @@ from backend.fastapi_integration_routes import (
     create_integration_router,
     create_notification_router,
 )
+from backend.tests.helpers import openapi_document
 
 
 def _operations(router) -> set[tuple[str, str]]:
@@ -95,7 +96,7 @@ class FastAPIIntegrationRouterTests(unittest.TestCase):
             config = FastAPIConfig(
                 db_path=Path(directory) / "integrations.sqlite", session_cookie_name="session"
             )
-            document = create_app(config).openapi()
+            document = openapi_document(create_app(config))
 
         requests = {
             ("/api/calendar/feed", "CalendarFeedActivationRequest"),

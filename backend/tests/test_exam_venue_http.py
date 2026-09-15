@@ -6,7 +6,7 @@ from http import HTTPStatus
 from backend.application.contract import validate_response
 from backend.identity.auth import AuthenticationRepository
 from backend.tests.fixture_data import FIXTURE_IDS, FIXTURE_ROOT
-from backend.tests.helpers import ApiServer, TempDatabase
+from backend.tests.helpers import ApiServer, TempDatabase, openapi_document
 
 
 class ExamVenueHttpTests(unittest.TestCase):
@@ -39,7 +39,7 @@ class ExamVenueHttpTests(unittest.TestCase):
         status, response = api.request(method, path, payload, **kwargs)
         if api.client is None:
             raise AssertionError("API client is not active")
-        validate_response(api.client.app.openapi(), method, path, status, response)
+        validate_response(openapi_document(api.client.app), method, path, status, response)
         return status, response
 
     def test_venue_room_contact_lifecycle_uses_revisioned_aggregate_routes(self) -> None:
