@@ -10,9 +10,9 @@ func systemCommands() []Command {
 	for _, action := range []string{"config", "status", "doctor"} {
 		action := action
 		description := map[string]string{
-			"config": "Inspect the live runtime, or validate legacy runtime configuration.",
-			"status": "Inspect live readiness, or legacy runtime identity and health checks.",
-			"doctor": "Inspect live runtime and listener state, or legacy storage diagnostics.",
+			"config": "Inspect the selected runtime configuration through the admin endpoint.",
+			"status": "Inspect live readiness and runtime identity through the admin endpoint.",
+			"doctor": "Inspect live runtime and listener state through the admin endpoint.",
 		}[action]
 		command := Command{
 			Path:        []string{"system", action},
@@ -23,7 +23,7 @@ func systemCommands() []Command {
 			Transport:      ContainerExecTransport,
 			BackendCommand: action,
 			LegacyForms:    []string{action},
-			Output:         OutputSpec{Human: HumanDiagnostics, Verbose: VerboseSummary, JSON: JSONProjected, Summary: "Prints a secret-free status and check summary; JSON includes the validated runtime/socket snapshot or legacy diagnostic checks.", ResultKeys: []string{"runtime", "socket", "command", "status", "checks"}},
+			Output:         OutputSpec{Human: HumanDiagnostics, Verbose: VerboseSummary, JSON: JSONProjected, Summary: "Prints a secret-free status and check summary; JSON includes the validated runtime and socket snapshot.", ResultKeys: []string{"runtime", "socket", "command", "status", "checks"}},
 		}
 		command.BuildRequest = func(_ context.Context, prepare PrepareContext, _, _ Values) (BackendRequest, error) {
 			arguments := map[string]any{}

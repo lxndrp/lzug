@@ -202,7 +202,10 @@ angegebenen Betreibergruppe gehören und exakt Modus `0750` haben.
 Es liegt auf flüchtigem Speicher außerhalb von Datenbank, `/data`, Dokumenten,
 Backups, Schlüsseln und Konfiguration.
 Der Server erzeugt darin ausschließlich `admin.sock` mit Modus `0660`.
-Die Bereitstellung im Produktimage und der vollständige CLI-Wechsel folgen in #747.
+Das Produktimage liefert das `lzug-admin`-Binary zusammen mit dem Backend aus.
+Die CLI spricht den bereitgestellten lokalen Admin-Socket;
+die Image- und Compose-Konfiguration liegt bei der Betriebsanleitung und den
+Containerverträgen.
 
 Die Linux-Assembly öffnet jede Verzeichniskomponente ohne Symlinkauflösung,
 verlangt vertrauenswürdige Eigentümer und verbietet schreibbare Vorfahren;
@@ -242,7 +245,9 @@ Der Pfad wird der Factory ausdrücklich übergeben; sie startet keinen Prozess
 und kennt weder Transportfallback noch automatische Wiederholung.
 `TargetRuntimeFactory` bindet diese Aufträge über die expliziten Zieloptionen
 auch an die gemeinsame direkte und interaktive CLI an.
-Imageumschaltung und Ablösung des Container-Exec-Adapters folgen separat in #747.
+Imagewechsel und Containerstart bleiben Aufgaben der Containerplattform.
+Die CLI führt sie nicht selbst aus und verwendet für den laufenden Backendprozess
+den bereitgestellten Admin-Socket.
 
 Der Listener begrenzt gleichzeitig aktive Verbindungen standardmäßig auf acht,
 Handshake auf fünf Sekunden, Auftrag einschließlich Ergebnisübertragung auf
@@ -589,8 +594,8 @@ Tests prüfen diese Socket-Eigenschaften und den gemeinsamen Adminvertrag.
 Externe Transportwege sind weder Teil des Anwendungsvertrags noch der Testabnahme.
 Die [Betriebsanleitung](https://github.com/lxndrp/lzug/wiki/Administration-Installation-und-Konfiguration#socketzugriff)
 beschreibt die Endpunktkonfiguration und ein optionales Bereitstellungsbeispiel.
-Die vollständige Ablösung des bisherigen Container-Exec-Adapters und die
-Image-/Compose-Einrichtung bleiben #747 zugeordnet.
+Die Betriebsanleitung beschreibt die Endpunktkonfiguration sowie die
+Bereitstellung des passenden CLI-Binaries im Produktimage.
 
 Die Befehlsgruppen umfassen:
 
