@@ -106,6 +106,9 @@ files = [
   "backend/src/backend/healthcheck.py",
   "backend/src/backend/build_metadata.py",
   "backend/src/backend/security.py",
+  "backend/src/backend/runtime.py",
+  "backend/src/backend/admin_socket.py",
+  "backend/src/backend/admin_socket_artifacts.py",
 ]
 python_version = "3.14"
 follow_imports = "skip"

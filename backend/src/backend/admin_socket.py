@@ -79,8 +79,11 @@ def peer_actor(connection: socket.socket, gid: int) -> AdminActorContext:
     The service UID or the dedicated primary operator GID is required in
     addition to filesystem DAC. Supplementary-group-only peers fail closed.
     """
+    peercred_option = getattr(socket, "SO_PEERCRED", None)
+    if peercred_option is None:
+        raise OSError("peer credentials are unavailable")
     pid, uid, peer_gid = struct.unpack(
-        "3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
+        "3i", connection.getsockopt(socket.SOL_SOCKET, peercred_option, 12)
     )
     return AdminActorContext(
         f"pid:{pid}:uid:{uid}:gid:{peer_gid}",
