@@ -15,6 +15,7 @@ from backend.fastapi_operations_routes import (
     create_operations_router,
     create_runtime_router,
 )
+from backend.tests.helpers import openapi_document
 
 
 def _operations(router) -> set[tuple[str, str]]:
@@ -84,7 +85,7 @@ class FastAPIOperationsRouterTests(unittest.TestCase):
         self.assertEqual(runtime | demo | authentication | observability, composed)
 
     def test_operations_generate_request_schemas_from_runtime_payload_models(self) -> None:
-        document = create_app(self.config).openapi()
+        document = openapi_document(create_app(self.config))
         expected = {
             ("/api/auth/login", "LoginRequest"),
             ("/api/auth/invitation/prepare", "TokenRequest"),

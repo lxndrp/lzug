@@ -25,7 +25,7 @@ from backend.identity.auth import AuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import COMMITTEE, COMMITTEE_MEMBER, EXAM_ROUND, Committee
 from backend.runtime_policy import ProductRuntimePolicy
-from backend.tests.helpers import TempDatabase
+from backend.tests.helpers import TempDatabase, openapi_document
 
 
 class FastAPIDependencyTests(unittest.TestCase):
@@ -333,7 +333,7 @@ class FastAPIDependencyTests(unittest.TestCase):
         )
 
     def test_declarative_parameters_do_not_leak_context_into_openapi(self) -> None:
-        for item in self.app.openapi()["paths"].values():
+        for item in openapi_document(self.app)["paths"].values():
             for operation in item.values():
                 for parameter in operation.get("parameters", []):
                     self.assertNotIn(

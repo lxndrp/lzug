@@ -7,7 +7,7 @@ tasks:
   test:
     desc: Run backend unit tests
     cmds:
-      - "{{.UV}} python -m unittest discover -s backend/tests"
+      - "{{.UV}} python -m backend.tests.runner"
 
   quality:
     desc: Run backend lint, audit, tests, and coverage
@@ -69,7 +69,7 @@ tasks:
   coverage:
     internal: true
     cmds:
-      - "{{.UV}} python -m coverage run -m unittest discover -s backend/tests"
+      - "{{.UV}} python -m coverage run -m backend.tests.runner"
       - "{{.UV}} python -m coverage report"
       - "{{.UV}} python -m coverage xml"
 

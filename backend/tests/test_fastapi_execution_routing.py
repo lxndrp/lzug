@@ -7,7 +7,7 @@ from fastapi.routing import APIRoute
 
 from backend.fastapi_assessment import create_assessment_router
 from backend.fastapi_execution import create_execution_router
-from backend.tests.helpers import ApiServer, TempDatabase
+from backend.tests.helpers import ApiServer, TempDatabase, openapi_document
 
 
 class FastAPIExecutionRoutingTests(unittest.TestCase):
@@ -96,7 +96,7 @@ class FastAPIExecutionRoutingTests(unittest.TestCase):
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             if api.client is None:
                 raise AssertionError("API client is not active")
-            document = api.client.app.openapi()
+            document = openapi_document(api.client.app)
 
         commands = (
             (

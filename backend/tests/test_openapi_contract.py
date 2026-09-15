@@ -13,7 +13,7 @@ from backend.application.contract import ContractValidationError, validate_respo
 from backend.application.repositories import REST_RESOURCES
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.persistence.database import connect
-from backend.tests.helpers import ApiServer, TempDatabase
+from backend.tests.helpers import ApiServer, TempDatabase, openapi_document
 
 
 class OpenApiContractTests(unittest.TestCase):
@@ -27,14 +27,14 @@ class OpenApiContractTests(unittest.TestCase):
         status, response = api.request(method, path, payload)
         if api.client is None:
             raise AssertionError("API client is not active")
-        validate_response(api.client.app.openapi(), method, path, status, response)
+        validate_response(openapi_document(api.client.app), method, path, status, response)
         return status, response
 
     def test_local_artifact_operations_are_not_public_http_routes(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             if api.client is None:
                 raise AssertionError("API client is not active")
-            paths = api.client.app.openapi()["paths"]
+            paths = openapi_document(api.client.app)["paths"]
 
         self.assertFalse(
             {
@@ -48,7 +48,7 @@ class OpenApiContractTests(unittest.TestCase):
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             if api.client is None:
                 raise AssertionError("API client is not active")
-            document = api.client.app.openapi()
+            document = openapi_document(api.client.app)
             commands = (
                 ("post", "/api/exam-venues", "ExamVenueCreateRequest"),
                 ("patch", "/api/exam-venues/{id}", "ExamVenueUpdateRequest"),
@@ -542,7 +542,7 @@ class OpenApiContractTests(unittest.TestCase):
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             if api.client is None:
                 raise AssertionError("API client is not active")
-            documented = api.client.app.openapi()["paths"]
+            documented = openapi_document(api.client.app)["paths"]
 
             self.assertNotIn("post", documented["/api/committees"])
             self.assertFalse(
@@ -571,15 +571,16 @@ class OpenApiContractTests(unittest.TestCase):
             altered_health.pop("status")
 
         with self.assertRaisesRegex(ContractValidationError, "missing required field 'status'"):
+            app = create_app(
+                FastAPIConfig(
+                    db_path=db_path,
+                    session_cookie_name="lzug_session",
+                    cookie_secure=False,
+                    https_only=False,
+                )
+            )
             validate_response(
-                create_app(
-                    FastAPIConfig(
-                        db_path=db_path,
-                        session_cookie_name="lzug_session",
-                        cookie_secure=False,
-                        https_only=False,
-                    )
-                ).openapi(),
+                openapi_document(app),
                 "GET",
                 "/api/health",
                 status,
@@ -599,14 +600,15 @@ class OpenApiContractTests(unittest.TestCase):
             )
             operations.extend(source_operations)
         with TempDatabase() as db_path:
-            documented_spec = create_app(
+            app = create_app(
                 FastAPIConfig(
                     db_path=db_path,
                     session_cookie_name="lzug_session",
                     cookie_secure=False,
                     https_only=False,
                 )
-            ).openapi()
+            )
+            documented_spec = openapi_document(app)
         documented = {
             (method.upper(), _route_shape(path))
             for path, item in documented_spec["paths"].items()
