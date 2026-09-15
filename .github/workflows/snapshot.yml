@@ -49,9 +49,8 @@ jobs:
           git fetch --no-tags origin master
           test "$target_sha" = "$(git rev-parse refs/remotes/origin/master)"
           test "$(git rev-parse HEAD)" = "$target_sha"
-          python3 -m demo.delivery.contract identity \
-            --tag "$SNAPSHOT_TAG" --commit "$target_sha" \
-            --channel snapshot --field identity >/dev/null
+          [[ "$SNAPSHOT_TAG" =~ ^snapshot/(v[0-9]+\.[0-9]+\.[0-9]+)-SNAPSHOT\.([0-9a-f]{7})$ ]]
+          [[ "$target_sha" == "${BASH_REMATCH[2]}"* ]]
           gh api --paginate --slurp "repos/${{ github.repository }}/actions/workflows/quality.yml/runs?branch=master&per_page=100" > "$RUNNER_TEMP/quality-runs.json"
           gh api --paginate --slurp "repos/${{ github.repository }}/actions/artifacts?per_page=100" > "$RUNNER_TEMP/quality-artifacts.json"
           python3 scripts/quality_evidence.py \

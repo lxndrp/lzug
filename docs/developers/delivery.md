@@ -165,8 +165,10 @@ Ein Snapshot durchläuft denselben Publish-/Deploy-Baustein mit dem Kanal
 `demo-publish.yml` erzeugt oder verwendet ein unveränderliches App-/Seed-Paar
 mit gemeinsamem Produkt-Tag, Commit, Runtimevertrag, Schemafingerprint und
 Seed-Revision.
-`demo-deploy.yml` validiert beide Manifeste und Provenance-Attestations vor der
-Azure-Anmeldung und aktualisiert sie als eine Container-Apps-Revision.
+Die Manifestfelder werden direkt aus dem OCI-Artefakt gelesen; Provenance wird
+mit GitHub Attestations geprüft.
+`demo-deploy.yml` übergibt die beiden Digest-Referenzen nach der
+Inputprüfung per Azure CLI als eine Container-Apps-Revision.
 
 Die echte Mutation läuft ausschließlich im geschützten Environment `demo` mit
 GitHub OIDC.
@@ -174,9 +176,11 @@ Azure-Readiness bindet die aktive Plattformrevision an beide erwarteten Digests.
 Der anschließende Smoke wartet einmal auf die öffentliche, commitgebundene
 Application-Readiness und prüft dann Demo-Status, die geschützte OpenAPI-Grenze
 und die zentrale Frontendroute.
-Ein zusätzlicher Liveness-Aufruf und eine erneute Readiness-Abfrage entfallen.
-Provenance und App-/Seed-Paarprüfung bleiben eigenständige Sicherheitsgrenzen
-vor der Azure-Anmeldung, auch beim manuellen Retry.
+Ein zusätzlicher Liveness-Aufruf und eine erneute Readiness-Abfrage entfallen;
+Azure-Revision-Readiness und öffentliche Runtime-Readiness bleiben getrennte,
+jeweils einmalige Grenzen.
+Provenance bleibt eine eigenständige Sicherheitsgrenze vor der Azure-Anmeldung,
+auch beim manuellen Retry.
 Die anonyme OpenAPI-Anfrage muss HTTP 401 mit
 `{"error": "Authentication required."}` liefern.
 
