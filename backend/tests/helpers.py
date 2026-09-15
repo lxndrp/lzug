@@ -165,7 +165,13 @@ class FastAPIAdapter(AbstractContextManager):
             auth_rate_limiter=self.handler_type.auth_rate_limiter,
             map_provider=self.handler_type.map_provider,
         )
-        self.client = TestClient(create_app(config), base_url="http://127.0.0.1")
+        app = create_app(config)
+        global _OPENAPI_DOCUMENT
+        if _OPENAPI_DOCUMENT is None:
+            _OPENAPI_DOCUMENT = app.openapi()
+        else:
+            app.openapi_schema = deepcopy(_OPENAPI_DOCUMENT)
+        self.client = TestClient(app, base_url="http://127.0.0.1")
         if is_ready(self.db_path):
             self.credentials = AuthenticationRepository(self.db_path).create_session(1)
         return self

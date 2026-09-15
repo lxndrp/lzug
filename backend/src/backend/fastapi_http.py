@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import cache
 from http import HTTPStatus
 from typing import Any
 from urllib.parse import urlparse
@@ -38,15 +39,20 @@ APPLICATION_ERROR_RESPONSES[503] = {
 }
 
 
+@cache
+def _application_response_field(status_code: int, model: type[BaseModel]):
+    return create_model_field(
+        name=f"Response_{status_code}",
+        type_=model,
+        mode="serialization",
+    )
+
+
 def attach_application_responses(route: APIRoute) -> None:
     """Keep application error schemas when attaching a prebuilt route."""
     route.responses = {**APPLICATION_ERROR_RESPONSES, **route.responses}
     route.response_fields = {
-        status_code: create_model_field(
-            name=f"Response_{status_code}_{route.unique_id}",
-            type_=response["model"],
-            mode="serialization",
-        )
+        status_code: _application_response_field(status_code, response["model"])
         for status_code, response in route.responses.items()
         if response.get("model")
     }
