@@ -4,8 +4,9 @@ import unittest
 from http import HTTPStatus
 from unittest.mock import patch
 
-from sqlalchemy import text
+from sqlalchemy import event, text
 
+from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.identity.auth import AuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
@@ -39,6 +40,45 @@ class ExamDayClosureTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.database.__exit__(None, None, None)
+
+    def test_closure_evaluation_keeps_finding_order(self) -> None:
+        with session_scope(self.db_path) as session:
+            evaluation = ExamDayClosureService._evaluate(
+                ExamDayClosureService(self.db_path), session, session.get(ExamDay, 2)
+            )
+        self.assertEqual(
+            [
+                "day_has_slots",
+                "slots_terminal",
+                "cancelled_slots_reasoned",
+                "actual_times_complete",
+                "candidate_attendance_complete",
+                "staff_attendance_complete",
+                "staffing_rule_compliant",
+                "absence_processes_complete",
+                "protocols_complete",
+                "results_complete",
+            ],
+            [item["code"] for item in evaluation["items"]],
+        )
+
+    def test_closure_snapshot_loads_attendance_in_bounded_queries(self) -> None:
+        statements: list[str] = []
+        with session_scope(self.db_path) as session:
+            day = session.get(ExamDay, 2)
+            connection = session.connection()
+
+            def count_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+                statements.append(statement)
+
+            event.listen(connection, "before_cursor_execute", count_statement)
+            try:
+                snapshot = ExamDayClosureService._load_closure_snapshot(session, day)
+            finally:
+                event.remove(connection, "before_cursor_execute", count_statement)
+
+        self.assertEqual(1, len(snapshot.slots))
+        self.assertEqual(6, len(statements))
 
     def test_regular_cancelled_day_close_is_atomic_idempotent_locked_and_exportable(
         self,
