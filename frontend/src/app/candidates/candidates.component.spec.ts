@@ -168,8 +168,9 @@ describe('CandidatesComponent', () => {
     const summary = element.querySelector<HTMLElement>('.app-form-error-summary');
     expect(summary?.textContent).toContain('Prüfling noch nicht angelegt');
     expect(summary?.querySelectorAll('li')).toHaveLength(3);
-    expect(element.querySelector('#candidateFirstName')?.getAttribute('aria-describedby')).toBe(
-      'candidateFirstNameError',
+    expect(element.querySelector('#candidateFirstName')?.getAttribute('aria-invalid')).toBe('true');
+    expect(element.querySelector('#candidateFirstNameError')?.textContent).toContain(
+      'Vorname eingeben.',
     );
     expect(summary).toBe(document.activeElement);
     expect(component.createCandidate.emit).not.toHaveBeenCalled();
@@ -181,6 +182,24 @@ describe('CandidatesComponent', () => {
     expect(element.querySelector('.app-form-error-summary')?.textContent).not.toContain(
       'Vorname eingeben.',
     );
+  });
+
+  it('should reject whitespace-only required candidate values through the form model', () => {
+    const component = fixture.componentInstance;
+    vi.spyOn(component.createCandidate, 'emit').mockReturnValue(undefined);
+    clickButton('Neuen Prüfling anlegen');
+    setInput('#candidateFirstName', '   ');
+    setInput('#candidateLastName', '\t');
+    setInput('#candidateExamNumber', '  ');
+
+    const form = (fixture.nativeElement as HTMLElement).querySelector<HTMLFormElement>(
+      '#candidate-create-editor form',
+    )!;
+    form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+
+    expect(component.createCandidate.emit).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelectorAll('.app-form-error-summary li')).toHaveLength(3);
   });
 
   it('should offer candidate creation inside an empty list', () => {
@@ -237,11 +256,9 @@ describe('CandidatesComponent', () => {
     expect(
       (
         component as unknown as {
-          draft: {
-            first_name: string;
-          };
+          candidateCreateForm: { controls: { first_name: { value: string } } };
         }
-      ).draft.first_name,
+      ).candidateCreateForm.controls.first_name.value,
     ).toBe('');
 
     clickButton('Löschen');
@@ -254,14 +271,16 @@ describe('CandidatesComponent', () => {
 
     clickButton('Bearbeiten');
     const editor = component as unknown as {
-      editDraft: () => {
-        last_name: string;
-        attempt_number: number;
-      };
+      editForm: () => {
+        controls: {
+          last_name: { value: string; setValue(value: string): void };
+          attempt_number: { setValue(value: number): void };
+        };
+      } | null;
       submitCandidateUpdate: () => void;
     };
-    editor.editDraft().last_name = 'Alpha-Neu';
-    editor.editDraft().attempt_number = 3;
+    editor.editForm()!.controls.last_name.setValue('Alpha-Neu');
+    editor.editForm()!.controls.attempt_number.setValue(3);
     editor.submitCandidateUpdate();
 
     expect(component.updateCandidate.emit).toHaveBeenCalledWith({
@@ -272,7 +291,7 @@ describe('CandidatesComponent', () => {
         requires_mep: 0,
       }),
     });
-    expect(editor.editDraft().last_name).toBe('Alpha-Neu');
+    expect(editor.editForm()!.controls.last_name.value).toBe('Alpha-Neu');
 
     component.finishEditing(1);
     fixture.detectChanges();
