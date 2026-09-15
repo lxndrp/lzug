@@ -177,8 +177,9 @@ tasks:
         mkdir -p "$output/referenz/api" "$output/referenz/frontend"
         && {{.UV}} python scripts/export_openapi.py "$output/referenz/api/openapi.json"
         && cd frontend && node_modules/.bin/typedoc
-        --treatWarningsAsErrors --entryPointStrategy expand
-        --entryPoints src/app --out "$output/referenz/frontend"
+        --treatWarningsAsErrors --validation.notExported false
+        --entryPointStrategy expand --entryPoints src/app
+        --exclude 'src/app/api/generated/**' --out "$output/referenz/frontend"
       - >-
         output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
         touch "$output/.nojekyll"
