@@ -21,6 +21,8 @@ jobs:
     outputs:
       docs: ${{ steps.domains.outputs.docs == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       backend: ${{ steps.domains.outputs.backend == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
+      backend_integration: ${{ steps.domains.outputs.backend_integration == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
+      python_dependencies: ${{ steps.domains.outputs.python_dependencies == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       frontend: ${{ steps.domains.outputs.frontend == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       transport: ${{ steps.domains.outputs.transport == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       cli: ${{ steps.domains.outputs.cli == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
@@ -57,6 +59,12 @@ jobs:
               - 'db/**'
               - 'fixtures/**'
               - '.python-version'
+              - 'pyproject.toml'
+              - 'uv.lock'
+            backend_integration:
+              - 'backend/**'
+              - 'operator-cli/**'
+            python_dependencies:
               - 'pyproject.toml'
               - 'uv.lock'
             frontend:
@@ -252,13 +260,57 @@ jobs:
           version: 3.52.0
       - name: Install locked dependencies
         run: uv sync --locked --extra dev
+      - name: Run pull-request backend quality
+        run: task backend:quality:pr
+
+  backend-integration:
+    name: Backend admin-socket integration
+    needs: changes
+    if: needs.changes.outputs.backend_integration == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14.6"
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.26.5"
           cache: true
           cache-dependency-path: operator-cli/go.sum
-      - name: Run pull-request backend quality
-        run: task backend:quality:pr
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+      - run: uv sync --locked --extra dev
+      - name: Build the operator CLI socket test binary once
+        working-directory: operator-cli
+        run: go test -c -o "$RUNNER_TEMP/lzug-admin-socket-tests" ./internal/admincli
+      - name: Run positive and negative admin-socket contracts
+        env:
+          LZUG_SOCKET_TEST_BINARY: ${{ runner.temp }}/lzug-admin-socket-tests
+        run: task backend:integration
+
+  python-dependencies:
+    name: Python dependency audit
+    needs: changes
+    if: needs.changes.outputs.python_dependencies == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14.6"
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+      - run: uv sync --locked --extra dev
+      - run: task backend:audit
 
   frontend:
     name: Frontend details
@@ -458,7 +510,7 @@ jobs:
 
   backend-gate:
     name: Pull Request / Backend
-    needs: [changes, backend, codeql, source-scan]
+    needs: [changes, backend, backend-integration, python-dependencies, codeql, source-scan]
     if: always()
     runs-on: ubuntu-24.04
     steps:
@@ -466,6 +518,10 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           SELECTED: ${{ needs.changes.outputs.backend }}
           DETAIL: ${{ needs.backend.result }}
+          INTEGRATION_SELECTED: ${{ needs.changes.outputs.backend_integration }}
+          INTEGRATION: ${{ needs.backend-integration.result }}
+          DEPENDENCIES_SELECTED: ${{ needs.changes.outputs.python_dependencies }}
+          DEPENDENCIES: ${{ needs.python-dependencies.result }}
           CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_languages != '[]' }}
           SCAN_SELECTED: ${{ needs.changes.outputs.source_scan }}
           CODEQL: ${{ needs.codeql.result }}
@@ -475,6 +531,8 @@ jobs:
           test "$CODEQL_SELECTED:$CODEQL" = true:success || test "$CODEQL_SELECTED:$CODEQL" = false:skipped
           test "$SCAN_SELECTED:$SOURCE_SCAN" = true:success || test "$SCAN_SELECTED:$SOURCE_SCAN" = false:skipped
           test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
+          test "$INTEGRATION_SELECTED:$INTEGRATION" = true:success || test "$INTEGRATION_SELECTED:$INTEGRATION" = false:skipped
+          test "$DEPENDENCIES_SELECTED:$DEPENDENCIES" = true:success || test "$DEPENDENCIES_SELECTED:$DEPENDENCIES" = false:skipped
 
   frontend-gate:
     name: Pull Request / Frontend

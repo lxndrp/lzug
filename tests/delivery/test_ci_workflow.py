@@ -143,6 +143,10 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 "SOURCE_SCAN": "success",
                 "SELECTED": "true",
                 "DETAIL": "success",
+                "INTEGRATION_SELECTED": "true",
+                "INTEGRATION": "success",
+                "DEPENDENCIES_SELECTED": "true",
+                "DEPENDENCIES": "success",
                 "INFRA_SELECTED": "true",
                 "INFRA_DETAIL": "success",
                 "DELIVERY_SELECTED": "true",
@@ -166,6 +170,8 @@ class QualityWorkflowContractTests(unittest.TestCase):
                     "CODEQL",
                     "SOURCE_SCAN",
                     "DETAIL",
+                    "INTEGRATION",
+                    "DEPENDENCIES",
                     "INFRA_DETAIL",
                     "DELIVERY",
                     "TRANSPORT",
@@ -214,6 +220,22 @@ class QualityWorkflowContractTests(unittest.TestCase):
             self.assertIn("'frontend/**'", frontend)
             self.assertIn(f"'{manifest}'", transport)
             self.assertNotIn(f"'{manifest}'", full)
+
+    def test_backend_details_defer_go_and_python_dependency_audits(self) -> None:
+        changes = job_block(self.pull_request, "changes")
+        backend = job_block(self.pull_request, "backend")
+        integration = job_block(self.pull_request, "backend-integration")
+        dependencies = job_block(self.pull_request, "python-dependencies")
+
+        self.assertIn("backend_integration", changes)
+        self.assertIn("python_dependencies", changes)
+        self.assertNotIn("setup-go", backend)
+        self.assertNotIn("pip_audit", backend)
+        self.assertIn("go test -c -o", integration)
+        self.assertIn("LZUG_SOCKET_TEST_BINARY", integration)
+        self.assertIn("task backend:audit", dependencies)
+        self.assertIn("backend-integration", job_block(self.pull_request, "backend-gate"))
+        self.assertIn("python-dependencies", job_block(self.pull_request, "backend-gate"))
 
         for manifest in ("operator-cli/go.mod", "operator-cli/go.sum"):
             self.assertIn(f"'{manifest}'", cli)
