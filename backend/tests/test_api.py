@@ -12,6 +12,9 @@ from unittest.mock import patch
 
 from sqlalchemy.exc import SAWarning, SQLAlchemyError
 
+from backend.persistence.database import session_scope
+from backend.persistence.models import COMMITTEE, COMMITTEE_MEMBER, PERSON
+from backend.persistence.store import Store
 from backend.tests.fixture_data import DISPLAY_NAMES, FIXTURE_IDS, FIXTURE_ROOT
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler, assert_status
 
@@ -21,6 +24,46 @@ class StaticTestHandler(TestLzugHandler):
 
 
 class ApiTests(unittest.TestCase):
+    def test_foreign_membership_cannot_be_moved_by_payload_scope(self) -> None:
+        with TempDatabase() as db_path:
+            with session_scope(db_path) as session:
+                store = Store(session)
+                committee = store.create(
+                    COMMITTEE,
+                    {"name": "Fremdausschuss", "occupation": "FI", "bootstrap_state": "ready"},
+                )
+                person = store.create(
+                    PERSON,
+                    {
+                        "first_name": "Fremd",
+                        "last_name": "Person",
+                        "email": "fremd@demo.lzug.invalid",
+                    },
+                )
+                member = store.create(
+                    COMMITTEE_MEMBER,
+                    {
+                        "committee_id": committee["id"],
+                        "person_id": person["id"],
+                        "member_status": "ordinary",
+                        "committee_role": "chair",
+                        "representing_side": "employer",
+                        "is_active": 1,
+                    },
+                )
+            with ApiServer(db_path) as api:
+                status, body = api.request(
+                    "PATCH",
+                    f"/api/members/{member['id']}",
+                    {"committee_id": 1, "person_id": 1},
+                )
+            self.assertEqual(HTTPStatus.FORBIDDEN, status)
+            self.assertEqual("Forbidden.", body["error"])
+            with session_scope(db_path) as session:
+                unchanged = Store(session).get(COMMITTEE_MEMBER, member["id"])
+            self.assertEqual(committee["id"], unchanged["committee_id"])
+            self.assertEqual(person["id"], unchanged["person_id"])
+
     def test_static_files_and_spa_fallback_do_not_hide_api_or_assets(self) -> None:
         with TemporaryDirectory() as directory, TempDatabase() as db_path:
             static_dir = Path(directory) / "static"

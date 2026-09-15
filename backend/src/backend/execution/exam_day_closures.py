@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -103,6 +104,18 @@ class NotificationJob:
     title: str
     message: str
     origin_key: str
+
+
+@dataclass(frozen=True)
+class ExamDayClosureSnapshot:
+    """The bounded, transaction-local input for the closure checklist."""
+
+    slots: tuple[ExamSlot, ...]
+    candidate_attendance: dict[int, CandidateExamAttendance]
+    assignments: tuple[ExamDayAssignment, ...]
+    member_attendance: dict[int, MemberExamAttendance]
+    members: dict[int, CommitteeMember]
+    absences: tuple[AbsenceReport, ...]
 
 
 def _now() -> str:
@@ -907,22 +920,18 @@ class ExamDayClosureService:
         }
 
     def _evaluate(self, session: Session, day: ExamDay) -> dict[str, Any]:
-        slots = list(
-            session.scalars(
-                select(ExamSlot).where(ExamSlot.exam_day_id == day.id).order_by(ExamSlot.id)
-            )
-        )
+        snapshot = self._load_closure_snapshot(session, day)
         items: list[dict[str, Any]] = []
         warnings: list[dict[str, Any]] = []
         protocol_references: list[dict[str, Any]] = []
         result_references: list[dict[str, Any]] = []
-        self._evaluate_slot_execution(session, slots, items)
-        self._evaluate_staffing(session, day, slots, items)
-        self._evaluate_absence_processes(session, day, items)
+        self._evaluate_slot_execution(snapshot, items)
+        self._evaluate_staffing(snapshot, items)
+        self._evaluate_absence_processes(snapshot, items)
         exception_candidates = self._evaluate_protocols(
-            session, slots, items, warnings, protocol_references
+            session, snapshot.slots, items, warnings, protocol_references
         )
-        self._evaluate_results(session, slots, items, result_references)
+        self._evaluate_results(session, snapshot.slots, items, result_references)
 
         regular_ready = all(item["ok"] for item in items)
         non_protocol_ready = all(
@@ -939,9 +948,62 @@ class ExamDayClosureService:
             "result_references": result_references,
         }
 
+    @staticmethod
+    def _load_closure_snapshot(session: Session, day: ExamDay) -> ExamDayClosureSnapshot:
+        slots = tuple(
+            session.scalars(
+                select(ExamSlot).where(ExamSlot.exam_day_id == day.id).order_by(ExamSlot.id)
+            )
+        )
+        completed_slot_ids = [slot.id for slot in slots if slot.execution_status == "completed"]
+        candidate_attendance = {
+            attendance.exam_slot_id: attendance
+            for attendance in session.scalars(
+                select(CandidateExamAttendance).where(
+                    CandidateExamAttendance.exam_slot_id.in_(completed_slot_ids)
+                )
+            )
+        }
+        assignments = tuple(
+            session.scalars(
+                select(ExamDayAssignment).where(
+                    ExamDayAssignment.exam_day_id == day.id,
+                    ExamDayAssignment.assignment_role == "examiner",
+                )
+            )
+        )
+        member_ids = {assignment.committee_member_id for assignment in assignments}
+        member_attendance = {
+            attendance.committee_member_id: attendance
+            for attendance in session.scalars(
+                select(MemberExamAttendance).where(
+                    MemberExamAttendance.exam_day_id == day.id,
+                    MemberExamAttendance.committee_member_id.in_(member_ids),
+                )
+            )
+        }
+        members = {
+            member.id: member
+            for member in session.scalars(
+                select(CommitteeMember).where(CommitteeMember.id.in_(member_ids))
+            )
+        }
+        absences = tuple(
+            session.scalars(select(AbsenceReport).where(AbsenceReport.exam_day_id == day.id))
+        )
+        return ExamDayClosureSnapshot(
+            slots=slots,
+            candidate_attendance=candidate_attendance,
+            assignments=assignments,
+            member_attendance=member_attendance,
+            members=members,
+            absences=absences,
+        )
+
     def _evaluate_slot_execution(
-        self, session: Session, slots: list[ExamSlot], items: list[dict[str, Any]]
+        self, snapshot: ExamDayClosureSnapshot, items: list[dict[str, Any]]
     ) -> None:
+        slots = snapshot.slots
         self._finding(items, "day_has_slots", "Der Prüfungstag enthält Prüfungsslots", bool(slots))
         terminal = [
             slot.id for slot in slots if slot.execution_status not in TERMINAL_SLOT_STATUSES
@@ -978,7 +1040,7 @@ class ExamDayClosureService:
             not missing_times,
             missing_times,
         )
-        missing_attendance = self._missing_candidate_attendance(session, slots)
+        missing_attendance = self._missing_candidate_attendance(snapshot)
         self._finding(
             items,
             "candidate_attendance_complete",
@@ -988,34 +1050,20 @@ class ExamDayClosureService:
         )
 
     @staticmethod
-    def _missing_candidate_attendance(session: Session, slots: list[ExamSlot]) -> list[int]:
+    def _missing_candidate_attendance(snapshot: ExamDayClosureSnapshot) -> list[int]:
         missing: list[int] = []
-        for slot in slots:
+        for slot in snapshot.slots:
             if slot.execution_status != "completed":
                 continue
-            attendance = session.scalar(
-                select(CandidateExamAttendance).where(
-                    CandidateExamAttendance.exam_slot_id == slot.id
-                )
-            )
+            attendance = snapshot.candidate_attendance.get(slot.id)
             if attendance is None or attendance.status not in {"present", "late"}:
                 missing.append(slot.id)
         return missing
 
     def _evaluate_staffing(
-        self, session: Session, day: ExamDay, slots: list[ExamSlot], items: list[dict[str, Any]]
+        self, snapshot: ExamDayClosureSnapshot, items: list[dict[str, Any]]
     ) -> None:
-        assignments = list(
-            session.scalars(
-                select(ExamDayAssignment).where(
-                    ExamDayAssignment.exam_day_id == day.id,
-                    ExamDayAssignment.assignment_role == "examiner",
-                )
-            )
-        )
-        open_attendance, invalid_staffing = self._staffing_findings(
-            session, day, slots, assignments
-        )
+        open_attendance, invalid_staffing = self._staffing_findings(snapshot)
         self._finding(
             items,
             "staff_attendance_complete",
@@ -1033,17 +1081,12 @@ class ExamDayClosureService:
 
     def _staffing_findings(
         self,
-        session: Session,
-        day: ExamDay,
-        slots: list[ExamSlot],
-        assignments: list[ExamDayAssignment],
+        snapshot: ExamDayClosureSnapshot,
     ) -> tuple[list[dict[str, int]], list[dict[str, Any]]]:
         open_attendance: list[dict[str, int]] = []
         invalid_staffing: list[dict[str, Any]] = []
-        for slot in (item for item in slots if item.execution_status == "completed"):
-            present_members = self._present_members(
-                session, day, slot, assignments, open_attendance
-            )
+        for slot in (item for item in snapshot.slots if item.execution_status == "completed"):
+            present_members = self._present_members(snapshot, slot, open_attendance)
             sides = {member.representing_side for member in present_members}
             if len(present_members) < 3 or sides != {"employer", "employee", "school"}:
                 invalid_staffing.append(
@@ -1057,41 +1100,30 @@ class ExamDayClosureService:
 
     def _present_members(
         self,
-        session: Session,
-        day: ExamDay,
+        snapshot: ExamDayClosureSnapshot,
         slot: ExamSlot,
-        assignments: list[ExamDayAssignment],
         open_attendance: list[dict[str, int]],
     ) -> list[CommitteeMember]:
         present_members: list[CommitteeMember] = []
-        for assignment in assignments:
+        for assignment in snapshot.assignments:
             if not self._assignment_applies_to_slot(assignment, slot):
                 continue
-            attendance = session.scalar(
-                select(MemberExamAttendance).where(
-                    MemberExamAttendance.exam_day_id == day.id,
-                    MemberExamAttendance.committee_member_id == assignment.committee_member_id,
-                )
-            )
+            attendance = snapshot.member_attendance.get(assignment.committee_member_id)
             if attendance is None or attendance.status not in {"present", "late"}:
                 open_attendance.append(
                     {"exam_slot_id": slot.id, "committee_member_id": assignment.committee_member_id}
                 )
                 continue
-            member = session.get(CommitteeMember, assignment.committee_member_id)
+            member = snapshot.members.get(assignment.committee_member_id)
             if member is not None and member.is_active == 1:
                 present_members.append(member)
         return present_members
 
     def _evaluate_absence_processes(
-        self, session: Session, day: ExamDay, items: list[dict[str, Any]]
+        self, snapshot: ExamDayClosureSnapshot, items: list[dict[str, Any]]
     ) -> None:
         open_absences = [
-            item.id
-            for item in session.scalars(
-                select(AbsenceReport).where(AbsenceReport.exam_day_id == day.id)
-            )
-            if item.status not in TERMINAL_ABSENCE_STATUSES
+            item.id for item in snapshot.absences if item.status not in TERMINAL_ABSENCE_STATUSES
         ]
         self._finding(
             items,
@@ -1104,7 +1136,7 @@ class ExamDayClosureService:
     def _evaluate_protocols(
         self,
         session: Session,
-        slots: list[ExamSlot],
+        slots: Sequence[ExamSlot],
         items: list[dict[str, Any]],
         warnings: list[dict[str, Any]],
         references: list[dict[str, Any]],
@@ -1251,7 +1283,7 @@ class ExamDayClosureService:
     def _evaluate_results(
         self,
         session: Session,
-        slots: list[ExamSlot],
+        slots: Sequence[ExamSlot],
         items: list[dict[str, Any]],
         references: list[dict[str, Any]],
     ) -> None:

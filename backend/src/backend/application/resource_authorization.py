@@ -10,12 +10,18 @@ from backend.application.resource_ownership import ResourceOwnership
 from backend.identity.authorization import AuthorizationScope
 from backend.persistence.database import read_session_scope
 from backend.persistence.models import (
+    CANDIDATE,
+    CANDIDATE_COMMITTEE_ASSIGNMENT,
+    CANDIDATE_EXAM_DAY,
     COMMITTEE_MEMBER,
     EXAM_DAY,
+    EXAM_DAY_ASSIGNMENT,
     EXAM_HALF_YEAR,
     EXAM_ROUND,
+    EXAM_SLOT,
     MEMBER_AVAILABILITY,
     PLANNING_SETTINGS,
+    ROUND_CANDIDATE,
     Resource,
 )
 from backend.persistence.store import Store
@@ -28,6 +34,32 @@ class ResourceAuthorizer:
     call a repository entrypoint that would open another session. This boundary
     authorizes a command; the executing service still owns its write transaction.
     """
+
+    OWNERSHIP_FIELDS = {
+        CANDIDATE: frozenset({"exam_round_id"}),
+        CANDIDATE_COMMITTEE_ASSIGNMENT: frozenset(
+            {"candidate_id", "exam_half_year_id", "exam_round_id", "round_candidate_id"}
+        ),
+        COMMITTEE_MEMBER: frozenset({"committee_id", "person_id"}),
+        ROUND_CANDIDATE: frozenset({"exam_round_id", "candidate_id"}),
+        PLANNING_SETTINGS: frozenset({"exam_round_id"}),
+        CANDIDATE_EXAM_DAY: frozenset({"exam_round_id"}),
+        MEMBER_AVAILABILITY: frozenset(
+            {"exam_round_id", "committee_member_id", "candidate_exam_day_id"}
+        ),
+        EXAM_DAY: frozenset({"exam_round_id"}),
+        EXAM_SLOT: frozenset({"exam_day_id", "round_candidate_id"}),
+        EXAM_DAY_ASSIGNMENT: frozenset({"exam_day_id", "committee_member_id"}),
+    }
+
+    # These are existing command contracts with explicit source/target handling.
+    # All other ownership fields are immutable through the generic resource API.
+    ALLOWED_OWNERSHIP_CHANGES = {
+        CANDIDATE: frozenset({"exam_round_id"}),
+        MEMBER_AVAILABILITY: frozenset(
+            {"exam_round_id", "committee_member_id", "candidate_exam_day_id"}
+        ),
+    }
 
     def __init__(self, db_path: Path, scope: AuthorizationScope):
         self.db_path = db_path
@@ -81,13 +113,51 @@ class ResourceAuthorizer:
             store = Store(session)
             if resource == MEMBER_AVAILABILITY:
                 return self._authorize_availability(store, entity_id, normalized)
-            owner = ResourceOwnership(store).resolve(resource, entity_id, normalized)
-            if not self.scope.can_manage_committee(owner.committee_id):
+            ownership = ResourceOwnership(store)
+            if entity_id is None:
+                target = ownership.resolve(resource, None, normalized)
+                if not self.scope.can_manage_committee(target.committee_id):
+                    raise ForbiddenRequestError("Forbidden.")
+                if target.round_id is not None:
+                    self._require_round_access(store, int(target.round_id), manage=True)
+                self._bind_actor(resource, target.committee_id, target.round_id, normalized)
+                return normalized
+            source = ownership.resolve(resource, entity_id)
+            if not self.scope.can_manage_committee(source.committee_id):
                 raise ForbiddenRequestError("Forbidden.")
-            if owner.round_id is not None:
-                self._require_round_access(store, int(owner.round_id), manage=True)
-            self._bind_actor(resource, owner.committee_id, owner.round_id, normalized)
+            target = ownership.resolve(resource, entity_id, normalized)
+            self._check_target(resource, source, target, normalized, store, entity_id)
+            self._bind_actor(resource, source.committee_id, source.round_id, normalized)
             return normalized
+
+    def _check_target(
+        self,
+        resource: Resource,
+        source,
+        target,
+        payload: dict[str, Any],
+        store: Store,
+        entity_id: int | None,
+    ) -> None:
+        stored = store.get(resource, entity_id) if entity_id is not None else {}
+        ownership_fields = self.OWNERSHIP_FIELDS.get(resource, frozenset())
+        changed = {
+            field
+            for field in ownership_fields
+            if field in payload
+            and payload[field]
+            != stored.get(field, source.round_id if field == "exam_round_id" else None)
+        }
+        disallowed = changed - self.ALLOWED_OWNERSHIP_CHANGES.get(resource, frozenset())
+        # The planning aggregate owns these writes and must retain its
+        # established domain error rather than turning them into an auth error.
+        if resource not in {EXAM_DAY, EXAM_SLOT, EXAM_DAY_ASSIGNMENT} and disallowed:
+            raise ForbiddenRequestError("Forbidden.")
+        if (target.committee_id, target.round_id) != (source.committee_id, source.round_id):
+            if not self.scope.can_manage_committee(target.committee_id):
+                raise ForbiddenRequestError("Forbidden.")
+            if target.round_id is not None:
+                self._require_round_access(store, int(target.round_id), manage=True)
 
     def _bind_actor(
         self,

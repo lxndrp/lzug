@@ -172,6 +172,33 @@ class ExamResultRuleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unbekannten Bereich"):
             self.service._validate_rules(invalid)
 
+    def test_rule_models_preserve_strict_booleans_and_reject_shape_drift(self) -> None:
+        invalid = assessment_rules()
+        invalid["components"][0]["day_scoped"] = 1
+        with self.assertRaisesRegex(ValueError, "bool"):
+            self.service._validate_rules(invalid)
+
+        invalid = assessment_rules()
+        invalid["components"][0]["weight"] = True
+        with self.assertRaisesRegex(ValueError, "Zahl"):
+            self.service._validate_rules(invalid)
+
+        invalid = assessment_rules()
+        invalid["components"][0]["criteria"][0]["label"] = None
+        with self.assertRaises(ValueError):
+            self.service._validate_rules(invalid)
+
+        invalid = assessment_rules()
+        invalid["rounding"]["unexpected"] = "ignored?"
+        with self.assertRaises(ValueError):
+            self.service._validate_rules(invalid)
+
+    def test_rule_models_keep_decimal_json_contract(self) -> None:
+        normalized = self.service._validate_rules(assessment_rules())
+        self.assertEqual("20", normalized["components"][0]["weight"])
+        self.assertEqual("0", normalized["components"][0]["criteria"][0]["raw_min"])
+        self.assertIsNone(normalized["rounding"]["intermediate"]["digits"])
+
 
 class ExamResultTests(unittest.TestCase):
     def setUp(self) -> None:
