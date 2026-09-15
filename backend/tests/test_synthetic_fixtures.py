@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import tempfile
 import unittest
 from copy import deepcopy
-from pathlib import Path
-from unittest.mock import patch
 
-from fixtures import generate as generator
+from backend import synthetic_fixtures as generator
 
 
 class SyntheticFixtureGeneratorTests(unittest.TestCase):
@@ -130,7 +127,7 @@ class SyntheticFixtureGeneratorTests(unittest.TestCase):
         )
         chair["committee_role"] = "member"
         with self.assertRaisesRegex(ValueError, "exactly one active chair"):
-            generator.outputs(missing)
+            generator.validate_catalog(missing)
 
         conflicting = deepcopy(data)
         deputy = next(
@@ -140,7 +137,7 @@ class SyntheticFixtureGeneratorTests(unittest.TestCase):
         )
         deputy["committee_role"] = "chair"
         with self.assertRaisesRegex(ValueError, "exactly one active chair"):
-            generator.outputs(conflicting)
+            generator.validate_catalog(conflicting)
 
     def test_catalog_rejects_duplicate_keys_forbidden_contacts_and_missing_coverage(self) -> None:
         data = generator.load_source()
@@ -148,37 +145,37 @@ class SyntheticFixtureGeneratorTests(unittest.TestCase):
         duplicate = deepcopy(data)
         duplicate["candidates"][0]["fixture_key"] = duplicate["persons"][0]["fixture_key"]
         with self.assertRaisesRegex(ValueError, "Duplicate semantic fixture key"):
-            generator.outputs(duplicate)
+            generator.validate_catalog(duplicate)
 
         missing_key = deepcopy(data)
         del missing_key["rooms"][0]["fixture_key"]
         with self.assertRaisesRegex(ValueError, "Fixture key is missing"):
-            generator.outputs(missing_key)
+            generator.validate_catalog(missing_key)
 
         short_key = deepcopy(data)
         short_key["rooms"][0]["fixture_key"] = "room.short"
         with self.assertRaisesRegex(ValueError, "invalid root"):
-            generator.outputs(short_key)
+            generator.validate_catalog(short_key)
 
         forbidden_email = deepcopy(data)
         forbidden_email["persons"][0]["email"] = "theseus@example.invalid"
         with self.assertRaisesRegex(ValueError, "forbidden domain"):
-            generator.outputs(forbidden_email)
+            generator.validate_catalog(forbidden_email)
 
         phone = deepcopy(data)
         phone["persons"][0]["mobile"] = "+30 210 0000000"
         with self.assertRaisesRegex(ValueError, "phone numbers are forbidden"):
-            generator.outputs(phone)
+            generator.validate_catalog(phone)
 
         incomplete = deepcopy(data)
         incomplete["coverage_matrix"].pop("demo_487_absence")
         with self.assertRaisesRegex(ValueError, "coverage matrix is incomplete"):
-            generator.outputs(incomplete)
+            generator.validate_catalog(incomplete)
 
         obsolete_adapter = deepcopy(data)
         obsolete_adapter["candidates"][0]["adapters"].append("prototype")
         with self.assertRaisesRegex(ValueError, "unknown adapters: prototype"):
-            generator.outputs(obsolete_adapter)
+            generator.validate_catalog(obsolete_adapter)
 
     def test_catalog_rejects_invalid_role_links_and_scenario_references(self) -> None:
         data = generator.load_source()
@@ -188,17 +185,17 @@ class SyntheticFixtureGeneratorTests(unittest.TestCase):
             "membership_key"
         ]
         with self.assertRaisesRegex(ValueError, "reference different people"):
-            generator.outputs(invalid_role_link)
+            generator.validate_catalog(invalid_role_link)
 
         unknown_scenario = deepcopy(data)
         unknown_scenario["persons"][0]["scenarios"].append("demo.unknown")
         with self.assertRaisesRegex(ValueError, "references unknown scenarios"):
-            generator.outputs(unknown_scenario)
+            generator.validate_catalog(unknown_scenario)
 
         uncovered = deepcopy(data)
         uncovered["persons"][0]["scenarios"] = []
         with self.assertRaisesRegex(ValueError, "has no scenario coverage"):
-            generator.outputs(uncovered)
+            generator.validate_catalog(uncovered)
 
     def test_cross_committee_membership_and_legacy_ids_are_explicit(self) -> None:
         data = generator.load_source()
@@ -210,26 +207,6 @@ class SyntheticFixtureGeneratorTests(unittest.TestCase):
         for mapping in data["legacy_mapping"]:
             _, target = generator.catalog_index(data)[mapping["fixture_key"]]
             self.assertEqual(mapping["technical_id"], target["id"])
-
-    def test_repeated_generation_is_byte_identical(self) -> None:
-        data = generator.load_source()
-        first = generator.outputs(data)
-        second = generator.outputs(deepcopy(data))
-
-        self.assertEqual(first, second)
-
-    def test_check_accepts_current_and_rejects_missing_or_outdated_adapters(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            target = Path(directory) / "synthetic-fixtures.generated.ts"
-            expected = "generated fixture adapter\n"
-            with patch.object(generator, "outputs", return_value={target: expected}):
-                self.assertEqual([target], generator.generate(check=True))
-
-                target.write_text("outdated fixture adapter\n", encoding="utf-8")
-                self.assertEqual([target], generator.generate(check=True))
-
-                target.write_text(expected, encoding="utf-8")
-                self.assertEqual([], generator.generate(check=True))
 
 
 if __name__ == "__main__":

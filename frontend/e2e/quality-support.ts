@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import type { ExamResult } from '../src/app/api/api.models';
-import { syntheticFixtures } from '../src/app/testing/synthetic-fixtures.generated';
+import { syntheticFixtures } from '../src/app/testing/fixtures';
 import { expect } from './fixtures';
 
 export const athenCommittee = syntheticFixtures.committees.find(

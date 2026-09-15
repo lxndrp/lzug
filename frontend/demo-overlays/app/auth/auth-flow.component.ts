@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 
 import { DemoRole } from '../api/api.models';
-import { syntheticFixtures } from '../testing/synthetic-fixtures.generated';
+import { syntheticFixtures } from '../testing/fixtures';
 import { AuthService } from './auth.service';
 
 @Component({

@@ -18,7 +18,7 @@ Die Anwendung benötigt ein ausführbares, lokal testbares Datenmodell.
 SQLite ist die lokale Entwicklungsdatenbank.
 `backend/db/schema.sql` und die versionierten Migrationen sind die einzige getrackte
 SQL-Quelle.
-`fixtures/synthetic-fixtures.json` und `fixtures/generate.py` kompilieren bei
+`fixtures/synthetic-fixtures.json` bildet bei
 Bedarf disposable Entwicklungs- und Public-Demo-Seeds in ein Build- oder
 Testverzeichnis.
 Versionierte Änderungen liegen unter `backend/db/migrations/` und werden in

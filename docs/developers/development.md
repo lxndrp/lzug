@@ -47,7 +47,7 @@ Seiteneffekt des normalen Servers.
 | Demo-Vertrag oder -Runtime | betroffener `unittest` unter `demo/tests/` |
 | Delivery- oder Workflow-Vertrag | betroffener `unittest` unter `tests/delivery/` |
 | Dokumentation und Publikation | betroffener `unittest` unter `tests/docs/` |
-| Synthetische Fixtures | `task test:fixtures` oder `task fixtures:check` |
+| Synthetische Fixtures | `task test:backend` und `task test:demo` |
 | Repository-Tooling | betroffener `unittest` unter `tests/tooling/` |
 | OCI- oder Compose-Regel | betroffener `unittest` unter `tests/oci/` |
 | Backend im Pull Request | `task quality:backend:pr` |
@@ -187,16 +187,12 @@ Synthetische E-Mail-Adressen verwenden ausschließlich
 `@demo.lzug.invalid`; Telefonnummern sind nicht belegt.
 Jede reale Ortsreferenz enthält eine kanonische HTTPS-Quelle und das feste
 Abrufdatum `2026-09-01`.
-`fixtures/generate.py` ist der einzige Fixture-Compiler.
-Er erzeugt den Entwicklungsseed und den vollständigen Public-Demo-Seed als
-disposable SQL-Buildartefakte sowie den Angular-Testadapter.
+Die zuständigen Python-Komponenten bilden den Katalog zur Laufzeit in
+disposable SQL-Seeds und Testdaten ab.
+Das Frontend lädt die kanonische JSON-Quelle direkt.
 Die Profile `development` und `public-demo` stehen deklarativ im Katalog.
-Generierte Dateien werden nicht direkt bearbeitet.
-
-```sh
-python3 fixtures/generate.py
-task fixtures:check
-```
+Es gibt keine generierten sprachspezifischen Fixture-Kopien und keinen
+separaten Fixture-Compiler.
 
 Der Demo-Artefaktbau kompiliert den Public-Demo-Seed aus Katalog und Profil
 und schreibt nur die daraus erzeugte Datenbank in das Seed-Image.
@@ -210,8 +206,7 @@ Reset.
 Katalogversion, Katalogrevision und Demo-Matrixversion sind an das
 inhaltsadressierte Seed-Manifest gebunden; eine unpassende Kombination
 verhindert den Demo-Start.
-Der Driftcheck ist Teil von Pull-Request-Auswahl und `task quality` und weist
-manuelle Änderungen an jedem generierten Adapter zurück.
+Die Katalogvalidierung ist Teil der zuständigen Backend- und Demo-Tests.
 Eine Veröffentlichung des geänderten sichtbaren Demo-Inhalts und des daraus
 entstehenden Deployment-Digests setzt die Freigabe des konkreten Stands oder
 eine Delta-Freigabe nach #584 voraus.
