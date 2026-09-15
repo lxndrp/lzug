@@ -570,16 +570,19 @@ class AdminSocketTests(unittest.TestCase):
         self.listener.stop()
         self.runtime.stop()
 
+    @unittest.skipUnless(
+        os.environ.get("LZUG_SOCKET_TEST_BINARY"),
+        "requires the prebuilt operator CLI socket test binary",
+    )
     def test_real_go_adapter_against_authoritative_linux_backend(self):
         initialize(self.paths.database)
         self.listener.start()
         environment = {**os.environ, "LZUG_SOCKET_TEST_PATH": str(self.directory / "admin.sock")}
-        binary = os.environ.get("LZUG_SOCKET_TEST_BINARY")
-        command = (
-            [binary, "-test.run=^TestSocketLive$", "-test.v"]
-            if binary
-            else ["go", "test", "./internal/admincli", "-run", "^TestSocketLive$", "-count=1", "-v"]
-        )
+        command = [
+            os.environ["LZUG_SOCKET_TEST_BINARY"],
+            "-test.run=^TestSocketLive$",
+            "-test.v",
+        ]
         result = subprocess.run(
             command,
             cwd=Path(__file__).resolve().parents[2] / "operator-cli",

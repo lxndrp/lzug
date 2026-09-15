@@ -92,25 +92,20 @@ class SocketArtifactTests(unittest.TestCase):
         self.drained()
         self.assertEqual([], list(self.paths.backups.glob(".lzug-*")))
 
+    @unittest.skipUnless(
+        os.environ.get("LZUG_SOCKET_TEST_BINARY"),
+        "requires the prebuilt operator CLI socket test binary",
+    )
     def test_real_go_age_backup_export_verify_restore(self):
         initialize(self.paths.database)
         authentication_key(self.paths.database)
         self.start(limit=64 * 1024 * 1024, timeout=30)
-        binary = os.environ.get("LZUG_SOCKET_TEST_BINARY")
         result = subprocess.run(
-            (
-                [binary, "-test.run=^TestSocketArtifactsLive$", "-test.v"]
-                if binary
-                else [
-                    "go",
-                    "test",
-                    "./internal/admincli",
-                    "-run",
-                    "^TestSocketArtifactsLive$",
-                    "-count=1",
-                    "-v",
-                ]
-            ),
+            [
+                os.environ["LZUG_SOCKET_TEST_BINARY"],
+                "-test.run=^TestSocketArtifactsLive$",
+                "-test.v",
+            ],
             cwd=Path(__file__).resolve().parents[2] / "operator-cli",
             env={
                 **os.environ,
@@ -479,23 +474,18 @@ class SocketMigrationTests(unittest.TestCase):
         self.assertIsNone(self.runtime.snapshot()["job"])
         self.clean()
 
+    @unittest.skipUnless(
+        os.environ.get("LZUG_SOCKET_TEST_BINARY"),
+        "requires the prebuilt operator CLI socket test binary",
+    )
     def test_real_go_cli_backup_approval_migration_and_job_lookup(self):
         directory = self.root / "operator"
         directory.mkdir()
-        binary = os.environ.get("LZUG_SOCKET_TEST_BINARY")
-        command = (
-            [binary, "-test.run=^TestSocketMigrationLive$", "-test.v"]
-            if binary
-            else [
-                "go",
-                "test",
-                "./internal/admincli",
-                "-run",
-                "^TestSocketMigrationLive$",
-                "-count=1",
-                "-v",
-            ]
-        )
+        command = [
+            os.environ["LZUG_SOCKET_TEST_BINARY"],
+            "-test.run=^TestSocketMigrationLive$",
+            "-test.v",
+        ]
         environment = {
             **os.environ,
             "LZUG_MIGRATION_TEST_DIRECTORY": str(directory),

@@ -125,7 +125,12 @@ jobs:
           go-version: "1.26.5"
           cache: true
           cache-dependency-path: operator-cli/go.sum
-      - run: task backend:quality
+      - name: Build the operator CLI socket test binary once
+        working-directory: operator-cli
+        run: go test -c -o "$RUNNER_TEMP/lzug-admin-socket-tests" ./internal/admincli
+      - env:
+          LZUG_SOCKET_TEST_BINARY: ${{ runner.temp }}/lzug-admin-socket-tests
+        run: task backend:quality
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: backend-coverage
@@ -478,6 +483,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14.6"
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: frontend/.node-version
@@ -487,6 +498,7 @@ jobs:
         with:
           version: 3.52.0
       - run: npm ci --prefix frontend
+      - run: uv sync --locked --extra dev
       - run: task quality:security
       - name: Record reused evidence origin
         if: needs.revision.outputs.decision == 'reused'
