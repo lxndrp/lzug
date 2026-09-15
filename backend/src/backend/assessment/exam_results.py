@@ -9,9 +9,11 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from backend.assessment.rules import AssessmentRules
 from backend.execution.exam_day_closures import (
     DayMutationGuard,
     complete_day_mutation,
@@ -63,20 +65,6 @@ MODEL_FIELDS = {
     "retention_rule_reference",
     "retention_years",
 }
-COMPONENT_FIELDS = {
-    "key",
-    "label",
-    "mode",
-    "weight",
-    "day_scoped",
-    "required_assessors",
-    "max_deviation",
-    "additional_assessor_on_deviation",
-    "criteria",
-}
-CRITERION_FIELDS = {"key", "label", "raw_min", "raw_max", "weight"}
-EXTERNAL_AREA_FIELDS = {"key", "label", "weight", "required"}
-RULE_FIELDS = {"components", "external_areas", "rounding", "grades", "passing", "quorum"}
 RETENTION_FIELDS = {
     "version",
     "period_start",
@@ -85,7 +73,6 @@ RETENTION_FIELDS = {
     "hold_reason",
     "release_reason",
 }
-MODEL_MODES = {"committee", "independent"}
 RESULT_STATES = {"incomplete", "calculation_ready", "determined", "communicated"}
 HISTORY_STATUSES = {"current", "superseded"}
 
@@ -1936,221 +1923,11 @@ class ExamResultService:
                 )
 
     def _validate_rules(self, raw: Any) -> dict[str, Any]:
-        if not isinstance(raw, dict):
-            raise ValueError("rules muss ein Objekt sein")
-        if set(raw) != RULE_FIELDS:
-            raise ValueError("Die Rechenregeln sind unvollständig oder enthalten unbekannte Felder")
-        normalized_components, component_keys = self._validate_components(raw["components"])
-        normalized_external, external_keys = self._validate_external_areas(
-            raw["external_areas"], component_keys
-        )
-        self._assert_weight_sum(
-            [Decimal(item["weight"]) for item in normalized_components]
-            + [Decimal(item["weight"]) for item in normalized_external],
-            "Komponenten und Prüfungsbereiche",
-        )
-        return {
-            "components": normalized_components,
-            "external_areas": normalized_external,
-            "rounding": self._validate_rounding(raw["rounding"]),
-            "grades": self._validate_grades(raw["grades"]),
-            "passing": self._validate_passing(raw["passing"], component_keys, external_keys),
-            "quorum": self._validate_quorum(raw["quorum"]),
-        }
-
-    def _validate_components(self, raw: Any) -> tuple[list[dict[str, Any]], set[str]]:
-        if not isinstance(raw, list) or not raw:
-            raise ValueError("Mindestens eine bewertete Komponente ist erforderlich")
-        normalized_components = []
-        keys: set[str] = set()
-        for component in raw:
-            normalized = self._validate_component(component)
-            key = normalized["key"]
-            if key in keys:
-                raise ValueError("Komponentenschlüssel müssen eindeutig sein")
-            keys.add(key)
-            normalized_components.append(normalized)
-        return normalized_components, keys
-
-    def _validate_component(self, raw: Any) -> dict[str, Any]:
-        if not isinstance(raw, dict) or set(raw) != COMPONENT_FIELDS:
-            raise ValueError("Eine Komponente ist unvollständig oder enthält unbekannte Felder")
-        mode = raw.get("mode")
-        if mode not in MODEL_MODES:
-            raise ValueError("Unbekanntes Bewertungsverfahren")
-        day_scoped = raw.get("day_scoped")
-        additional = raw.get("additional_assessor_on_deviation")
-        if not isinstance(day_scoped, bool) or not isinstance(additional, bool):
-            raise ValueError("day_scoped und additional_assessor_on_deviation sind boolesch")
-        return {
-            "key": self._required_text(raw.get("key"), "component key", 100),
-            "label": self._required_text(raw.get("label"), "label", 300),
-            "mode": mode,
-            "weight": _decimal_text(self._percentage(raw.get("weight"), "component weight")),
-            "day_scoped": day_scoped,
-            "required_assessors": self._integer(
-                raw.get("required_assessors"), "required_assessors", 1
-            ),
-            "max_deviation": _decimal_text(
-                self._percentage(raw.get("max_deviation"), "max_deviation", allow_zero=True)
-            ),
-            "additional_assessor_on_deviation": additional,
-            "criteria": self._validate_criteria(raw.get("criteria")),
-        }
-
-    def _validate_criteria(self, raw: Any) -> list[dict[str, Any]]:
-        if not isinstance(raw, list) or not raw:
-            raise ValueError("Eine Komponente benötigt Kriterien")
-        normalized = []
-        keys: set[str] = set()
-        for criterion in raw:
-            if not isinstance(criterion, dict) or set(criterion) != CRITERION_FIELDS:
-                raise ValueError("Ein Kriterium ist unvollständig oder enthält unbekannte Felder")
-            key = self._required_text(criterion.get("key"), "criterion key", 100)
-            if key in keys:
-                raise ValueError("Kriterienschlüssel müssen eindeutig sein")
-            keys.add(key)
-            raw_min = self._decimal(criterion.get("raw_min"), "raw_min")
-            raw_max = self._decimal(criterion.get("raw_max"), "raw_max")
-            if raw_max <= raw_min:
-                raise ValueError("Eine Rohpunkteskala benötigt ein echtes Intervall")
-            normalized.append(
-                {
-                    "key": key,
-                    "label": self._required_text(criterion.get("label"), "label", 300),
-                    "raw_min": _decimal_text(raw_min),
-                    "raw_max": _decimal_text(raw_max),
-                    "weight": _decimal_text(
-                        self._percentage(criterion.get("weight"), "criterion weight")
-                    ),
-                }
-            )
-        self._assert_weight_sum([Decimal(item["weight"]) for item in normalized], "Kriterien")
-        return normalized
-
-    def _validate_external_areas(
-        self, raw: Any, occupied_keys: set[str]
-    ) -> tuple[list[dict[str, Any]], set[str]]:
-        if not isinstance(raw, list):
-            raise ValueError("external_areas muss eine Liste sein")
-        normalized_external = []
-        external_keys: set[str] = set()
-        keys = set(occupied_keys)
-        for area in raw:
-            if not isinstance(area, dict) or set(area) != EXTERNAL_AREA_FIELDS:
-                raise ValueError("Ein externer Prüfungsbereich ist unvollständig")
-            key = self._required_text(area.get("key"), "external area key", 100)
-            if key in keys:
-                raise ValueError("Prüfungsbereichsschlüssel müssen eindeutig sein")
-            keys.add(key)
-            external_keys.add(key)
-            required_area = area.get("required")
-            if not isinstance(required_area, bool):
-                raise ValueError("required muss ein boolescher Wert sein")
-            normalized_external.append(
-                {
-                    "key": key,
-                    "label": self._required_text(area.get("label"), "label", 300),
-                    "weight": _decimal_text(
-                        self._percentage(area.get("weight"), "external weight", allow_zero=True)
-                    ),
-                    "required": required_area,
-                }
-            )
-        return normalized_external, external_keys
-
-    def _validate_rounding(self, raw: Any) -> dict[str, Any]:
-        if not isinstance(raw, dict) or set(raw) != {
-            "intermediate",
-            "overall",
-            "threshold_basis",
-        }:
-            raise ValueError("Die Rundungsregel ist unvollständig")
-        threshold_basis = raw["threshold_basis"]
-        if threshold_basis not in {"unrounded", "rounded"}:
-            raise ValueError("Unbekannte Grundlage für Bestehensgrenzen")
-        return {
-            "intermediate": self._rounding_stage(raw["intermediate"]),
-            "overall": self._rounding_stage(raw["overall"]),
-            "threshold_basis": threshold_basis,
-        }
-
-    def _rounding_stage(self, raw: Any) -> dict[str, Any]:
-        if not isinstance(raw, dict) or set(raw) != {"mode", "digits"}:
-            raise ValueError("Eine Rundungsstufe ist unvollständig")
-        mode = raw["mode"]
-        digits = raw["digits"]
-        if mode not in {"none", "half_up"}:
-            raise ValueError("Unbekanntes Rundungsverfahren")
-        if mode == "none":
-            if digits is not None:
-                raise ValueError("Ohne Rundung dürfen keine Nachkommastellen angegeben werden")
-            return {"mode": mode, "digits": None}
-        return {"mode": mode, "digits": self._integer(digits, "digits", 0, maximum=6)}
-
-    def _validate_grades(self, raw: Any) -> list[dict[str, Any]]:
-        if not isinstance(raw, list) or not raw:
-            raise ValueError("Mindestens eine Notenzuordnung ist erforderlich")
-        grades = []
-        previous = Decimal(101)
-        for item in raw:
-            if not isinstance(item, dict) or set(item) != {"label", "min_points"}:
-                raise ValueError("Eine Notenzuordnung ist unvollständig")
-            minimum = self._points(item["min_points"], "min_points")
-            if minimum >= previous:
-                raise ValueError("Notengrenzen müssen streng absteigend sortiert sein")
-            previous = minimum
-            grades.append(
-                {
-                    "label": self._required_text(item["label"], "grade label", 100),
-                    "min_points": _decimal_text(minimum),
-                }
-            )
-        if Decimal(grades[-1]["min_points"]) != 0:
-            raise ValueError("Die Notenzuordnung muss die gesamte Skala bis 0 abdecken")
-        return grades
-
-    def _validate_passing(
-        self, raw: Any, component_keys: set[str], external_keys: set[str]
-    ) -> dict[str, Any]:
-        if not isinstance(raw, dict) or set(raw) != {
-            "overall_min",
-            "component_minima",
-            "external_minima",
-        }:
-            raise ValueError("Die Bestehensregeln sind unvollständig")
-        component_minima = raw["component_minima"]
-        external_minima = raw["external_minima"]
-        if not isinstance(component_minima, dict) or not isinstance(external_minima, dict):
-            raise ValueError("Teilbestehensgrenzen müssen Objekte sein")
-        if set(component_minima) - component_keys or set(external_minima) - external_keys:
-            raise ValueError("Eine Bestehensgrenze verweist auf einen unbekannten Bereich")
-        return {
-            "overall_min": _decimal_text(self._points(raw["overall_min"], "overall_min")),
-            "component_minima": {
-                key: _decimal_text(self._points(value, key))
-                for key, value in component_minima.items()
-            },
-            "external_minima": {
-                key: _decimal_text(self._points(value, key))
-                for key, value in external_minima.items()
-            },
-        }
-
-    def _validate_quorum(self, raw: Any) -> dict[str, Any]:
-        if not isinstance(raw, dict) or set(raw) != {"minimum_members", "majority"}:
-            raise ValueError("Die Beschlussregel ist unvollständig")
-        if raw["majority"] != "simple":
-            raise ValueError("Aktuell wird nur die einfache Mehrheit unterstützt")
-        return {
-            "minimum_members": self._integer(raw["minimum_members"], "minimum_members", 1),
-            "majority": "simple",
-        }
-
-    @staticmethod
-    def _assert_weight_sum(weights: list[Decimal], level: str) -> None:
-        if sum(weights, Decimal(0)) != Decimal(100):
-            raise ValueError(f"Direkte Gewichte der Ebene {level} müssen 100 Prozent ergeben")
+        try:
+            return AssessmentRules.model_validate(raw).as_json_data()
+        except ValidationError as error:
+            message = error.errors()[0]["msg"]
+            raise ValueError(message) from error
 
     def _assert_quorum(
         self, rules: dict[str, Any], participants: set[int], actual: set[int]
