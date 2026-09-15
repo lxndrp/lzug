@@ -69,7 +69,7 @@ jobs:
               - 'uv.lock'
             frontend:
               - 'brand/**'
-              - 'scripts/build-frontend.sh'
+              - 'scripts/build-frontend.ps1'
               - 'frontend/**'
               - '!frontend/**/*.md'
               - '!frontend/THIRD_PARTY_NOTICES.md'
@@ -79,6 +79,7 @@ jobs:
               - 'frontend/package.json'
               - 'frontend/package-lock.json'
               - 'frontend/src/app/api/generated/**'
+              - 'scripts/generate-frontend-transport.ps1'
               - 'scripts/generate_frontend_transport.py'
             cli:
               - 'scripts/verify_cli_release.py'
@@ -93,6 +94,7 @@ jobs:
             delivery:
               - 'backend/**'
               - 'demo/**'
+              - 'scripts/demo-deploy.ps1'
               - 'fixtures/**'
               - '.python-version'
               - 'pyproject.toml'
@@ -121,7 +123,7 @@ jobs:
               - 'db/**'
               - 'fixtures/**'
               - 'frontend/demo-overlays/**'
-              - 'scripts/build-frontend.sh'
+              - 'scripts/build-frontend.ps1'
               - 'scripts/demo-container-smoke.sh'
               - 'fixtures/generate.py'
               - 'operator-cli/**'
@@ -159,7 +161,7 @@ jobs:
               - '!frontend/**'
               - '!infra/**'
               - '!operator-cli/**'
-              - '!scripts/build-frontend.sh'
+              - '!scripts/build-frontend.ps1'
               - '!scripts/build_metadata.py'
               - '!scripts/check_documentation.py'
               - '!scripts/compose-smoke.sh'
@@ -167,6 +169,8 @@ jobs:
               - '!scripts/container-contract.sh'
               - '!scripts/container-smoke.sh'
               - '!scripts/demo-container-smoke.sh'
+              - '!scripts/demo-deploy.ps1'
+              - '!scripts/generate-frontend-transport.ps1'
               - '!scripts/generate_frontend_transport.py'
               - '!scripts/operator-container-smoke.sh'
               - '!scripts/operator-container-contract.sh'
@@ -327,6 +331,10 @@ jobs:
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
         with:
           version: 3.52.0
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install: false
+      - run: mise install aqua:PowerShell/PowerShell@7.5.3
       - name: Install locked dependencies
         run: npm ci --prefix frontend
       - name: Run frontend quality and production dependency audit
@@ -359,6 +367,10 @@ jobs:
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
         with:
           version: 3.52.0
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install: false
+      - run: mise install aqua:PowerShell/PowerShell@7.5.3
       - name: Install locked contract dependencies
         run: uv sync --locked --extra dev && npm ci --prefix frontend
       - name: Verify generated TypeScript transport types

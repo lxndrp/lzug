@@ -51,3 +51,4 @@ die Formatentscheidung steht im Registereintrag für ADR-0029.
 | [0033](0033-aio-betrieb-admintransport-und-lifecycle.md) | AIO-Betrieb, Admintransport und Lifecycle gemeinsam begrenzen | Akzeptiert |
 | [0034](0034-versionsbindung-und-unveraenderliche-referenzen.md) | Versionsbindung und unveränderliche Referenzen an Risikogrenzen | Akzeptiert |
 | [0035](0035-getrennte-publikations-und-versionsarchitektur.md) | Getrennte Publikations- und Versionsarchitektur | Akzeptiert |
+| [0036](0036-powershell-adapter-fuer-werkzeuggrenzen.md) | PowerShell-Adapter für portable Werkzeuggrenzen | Akzeptiert |
