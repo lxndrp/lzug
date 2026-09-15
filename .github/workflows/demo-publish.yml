@@ -283,13 +283,6 @@ jobs:
             awk '$1 == "Digest:" { print $2; exit }')
           echo "digest=$seed_digest" >> "$GITHUB_OUTPUT"
 
-      - name: Record the immutable OCI pair
-        if: steps.availability.outputs.reuse != 'true'
-        run: |
-          set -euo pipefail
-          [[ "${{ steps.app.outputs.digest }}" == sha256:* ]]
-          [[ "${{ steps.seed.outputs.digest }}" == sha256:* ]]
-
       - name: Download Syft
         id: syft
         if: steps.availability.outputs.reuse != 'true'

@@ -199,5 +199,6 @@ class DemoContractTests(unittest.TestCase):
                     github_ref=github_ref,
                 )
 
+
 if __name__ == "__main__":
     unittest.main()

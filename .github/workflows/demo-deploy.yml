@@ -167,7 +167,7 @@ jobs:
           set -euo pipefail
           revision_suffix="gh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           az containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
-            --query 'properties.template.{app:containers[?name==`lzug-demo-app`].image | [0],seed:initContainers[?name==`lzug-demo-seed`].image | [0]}' \
+            --query "properties.template.{app:containers[?name=='lzug-demo-app'].image | [0],seed:initContainers[?name=='lzug-demo-seed'].image | [0]}" \
             --output json > "$RUNNER_TEMP/demo-previous.json"
           az containerapp update --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
             --revision-suffix "$revision_suffix" \

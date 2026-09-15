@@ -43,7 +43,7 @@ class DemoDeliveryContractTests(unittest.TestCase):
         self.assertIn("inputs.channel == 'snapshot'", product)
         self.assertIn("channel:", demo)
         self.assertIn('if test "$CHANNEL" = snapshot', demo)
-        self.assertIn('scripts/build_metadata.py', demo)
+        self.assertIn("scripts/build_metadata.py", demo)
 
     def test_snapshot_namespace_is_consistent(self) -> None:
         for path in (
