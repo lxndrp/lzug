@@ -1,138 +1,115 @@
-import { Injectable, inject } from '@angular/core';
-import { finalize } from 'rxjs';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { Observable, catchError, defer, finalize, map, of, tap } from 'rxjs';
 
-import type { CommitteeMember } from '../api/api.models';
+import type { Candidate, CommitteeMember } from '../api/api.models';
 import { MasterDataApiService } from '../api/master-data-api.service';
-import type {
-  CandidatePayload,
-  CandidatesComponent,
-  CandidateUpdate,
-} from '../candidates/candidates.component';
-import type { CommitteeComponent, CommitteeMemberPayload } from '../committee/committee.component';
+import type { CandidatePayload, CandidateUpdate } from '../candidates/candidates.component';
+import type { CommitteeMemberPayload } from '../committee/committee.component';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
-import { UiFeedbackService } from '../shell/ui-feedback.service';
+
+export type MasterDataWorkflowResult<T> =
+  | { ok: true; value: T; requestId: number; contextKey: string; current: boolean }
+  | { ok: false; error: unknown; requestId: number; contextKey: string; current: boolean };
+
+export type MasterDataRequestState =
+  | { status: 'idle' }
+  | { status: 'pending'; requestId: number; contextKey: string }
+  | { status: 'success'; requestId: number; contextKey: string }
+  | { status: 'error'; requestId: number; contextKey: string; error: unknown };
 
 /** Candidate and committee-member commands owned outside the application shell. */
 @Injectable({ providedIn: 'root' })
 export class MasterDataWorkflowService {
   private readonly api = inject(MasterDataApiService);
-  private readonly feedback = inject(UiFeedbackService);
   private readonly workspace = inject(ApplicationWorkspaceService);
+  private readonly requestCounter = signal(0);
+  private readonly state = signal<MasterDataRequestState>({ status: 'idle' });
 
-  requestCandidateDeletion(id: number, label: string): void {
-    this.feedback.confirm(
-      `${label} löschen?`,
-      `${label} wird dauerhaft aus der Prüfungsverwaltung entfernt.`,
-      `${label} löschen`,
-      () => this.deleteCandidate(id, label),
+  readonly requestState = this.state.asReadonly();
+  readonly actionBusy = computed(() => this.state().status === 'pending');
+
+  createMember(
+    payload: CommitteeMemberPayload,
+  ): Observable<MasterDataWorkflowResult<CommitteeMember>> {
+    return this.run(
+      `committee:${payload.committee_id}`,
+      () => this.api.createMember(payload),
+      () => this.workspace.selectedCommitteeId() === payload.committee_id,
     );
   }
 
-  createMember(payload: CommitteeMemberPayload, component?: CommitteeComponent): void {
-    this.workspace.actionBusy.set(true);
-    this.api
-      .createMember(payload)
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
-      .subscribe({
-        next: (member) => {
-          component?.resetMemberForm();
-          this.workspace.selectedCommitteeId.set(member.committee_id);
-          this.feedback.notify('success', 'Prüfer angelegt', this.fullMemberName(member));
-          this.workspace.refresh();
-        },
-        error: () =>
-          this.feedback.notify(
-            'error',
-            'Prüfer nicht gespeichert',
-            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
-          ),
-      });
+  createCandidate(payload: CandidatePayload): Observable<MasterDataWorkflowResult<Candidate>> {
+    return this.run(`candidate:create`, () => this.api.createCandidate(payload));
   }
 
-  createCandidate(payload: CandidatePayload, component?: CandidatesComponent): void {
-    this.workspace.actionBusy.set(true);
-    this.api
-      .createCandidate(payload)
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
-      .subscribe({
-        next: (candidate) => {
-          component?.resetDraft();
-          this.feedback.notify(
-            'success',
-            'Prüfling angelegt',
-            `${candidate.first_name} ${candidate.last_name}`,
-          );
-          this.workspace.refresh();
-        },
-        error: () =>
-          this.feedback.notify(
-            'error',
-            'Prüfling nicht gespeichert',
-            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
-          ),
-      });
+  deleteCandidate(id: number): Observable<MasterDataWorkflowResult<void>> {
+    return this.run(`candidate:${id}`, () => this.api.deleteCandidate(id));
   }
 
-  deleteCandidate(id: number, label: string): void {
-    this.workspace.actionBusy.set(true);
-    this.api
-      .deleteCandidate(id)
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
-      .subscribe({
-        next: () => {
-          this.feedback.notify('success', 'Prüfling gelöscht', label);
-          this.workspace.refresh();
-        },
-        error: () =>
-          this.feedback.notify('error', 'Prüfling nicht gelöscht', 'Bitte erneut versuchen.'),
-      });
+  updateCandidate(update: CandidateUpdate): Observable<MasterDataWorkflowResult<Candidate>> {
+    return this.run(`candidate:${update.id}`, () =>
+      this.api.updateCandidate(update.id, update.payload),
+    );
   }
 
-  updateCandidate(update: CandidateUpdate, component?: CandidatesComponent): void {
-    this.workspace.actionBusy.set(true);
-    this.api
-      .updateCandidate(update.id, update.payload)
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
-      .subscribe({
-        next: (candidate) => {
-          component?.finishEditing(candidate.id);
-          this.feedback.notify(
-            'success',
-            'Prüfling gespeichert',
-            `${candidate.first_name} ${candidate.last_name}`,
-          );
-          this.workspace.refresh();
-        },
-        error: () =>
-          this.feedback.notify(
-            'error',
-            'Prüfling nicht gespeichert',
-            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
-          ),
-      });
-  }
-
-  toggleMember(member: CommitteeMember): void {
+  toggleMember(member: CommitteeMember): Observable<MasterDataWorkflowResult<CommitteeMember>> {
     const nextActive = member.is_active ? 0 : 1;
-    this.workspace.actionBusy.set(true);
-    this.api
-      .updateMember(member.id, { is_active: nextActive })
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
-      .subscribe({
-        next: () => {
-          this.feedback.notify(
-            'success',
-            `Prüfer ${nextActive ? 'aktiviert' : 'deaktiviert'}`,
-            this.fullMemberName(member),
-          );
-          this.workspace.refresh();
-        },
-        error: () =>
-          this.feedback.notify('error', 'Status nicht geändert', 'Bitte erneut versuchen.'),
-      });
+    return this.run(
+      `committee:${member.committee_id}`,
+      () => this.api.updateMember(member.id, { is_active: nextActive }),
+      () => this.workspace.selectedCommitteeId() === member.committee_id,
+    );
   }
 
-  private fullMemberName(member: CommitteeMember): string {
-    return `${member.first_name} ${member.last_name}`;
+  private run<T>(
+    contextKey: string,
+    request: () => Observable<T>,
+    isCurrentContext: () => boolean = () => true,
+  ): Observable<MasterDataWorkflowResult<T>> {
+    if (this.actionBusy()) {
+      return of();
+    }
+
+    const requestId = this.requestCounter() + 1;
+    this.requestCounter.set(requestId);
+    this.state.set({ status: 'pending', requestId, contextKey });
+
+    return defer(request).pipe(
+      map((value): MasterDataWorkflowResult<T> => ({
+        ok: true,
+        value,
+        requestId,
+        contextKey,
+        current: this.requestCounter() === requestId && isCurrentContext(),
+      })),
+      tap((result) => {
+        if (this.requestCounter() === requestId) {
+          this.state.set(
+            result.current ? { status: 'success', requestId, contextKey } : { status: 'idle' },
+          );
+        }
+        this.workspace.refresh();
+      }),
+      catchError((error: unknown) => {
+        const current = this.requestCounter() === requestId && isCurrentContext();
+        if (this.requestCounter() === requestId) {
+          this.state.set(
+            current ? { status: 'error', requestId, contextKey, error } : { status: 'idle' },
+          );
+        }
+        return of<MasterDataWorkflowResult<T>>({
+          ok: false,
+          error,
+          requestId,
+          contextKey,
+          current,
+        });
+      }),
+      finalize(() => {
+        if (this.requestCounter() === requestId && this.state().status === 'pending') {
+          this.state.set({ status: 'idle' });
+        }
+      }),
+    );
   }
 }
