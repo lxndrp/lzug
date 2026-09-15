@@ -53,6 +53,7 @@ ROOT_MODULE_OWNERS = {
     "security.py": "runtime-foundation",
     "server.py": "api-bootstrap",
     "settings.py": "runtime-foundation",
+    "synthetic_fixtures.py": "fixture-runtime",
     "version.py": "runtime-contract",
 }
 
@@ -113,6 +114,7 @@ TEST_OWNERS = {
         {
             "fixture_data.py",
             "helpers.py",
+            "test_synthetic_fixtures.py",
             "test_operator_cli_layout.py",
             "test_package_boundaries.py",
         }
