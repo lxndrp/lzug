@@ -40,6 +40,8 @@ jobs:
           filters: |
             docs:
               - '.github/workflows/publication.yml'
+              - '.github/ISSUE_TEMPLATE/**'
+              - '.github/pull_request_template.md'
               - '.lychee.toml'
               - 'docs/**'
               - 'docs/mkdocs.yml'
@@ -131,6 +133,8 @@ jobs:
             full:
               - '.github/**'
               - '!.github/workflows/publication.yml'
+              - '!.github/ISSUE_TEMPLATE/**'
+              - '!.github/pull_request_template.md'
               - 'tests/**'
               - '!tests/docs/**'
               - '.mise.toml'
