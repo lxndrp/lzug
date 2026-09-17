@@ -16,9 +16,8 @@ Die Liste ist keine zweite Test- oder API-Dokumentation.
 | `tests/pester/Container.Tests.ps1` | OCI/Self-Hosting; `task quality:pester` | Maßgeblicher Pester-Vertrag für Image-, Runtime- und Compose-Grenzen. |
 | `scripts/demo-container-smoke.sh` | Öffentliche Demo; `task quality:demo` | Beweist den separaten App-/Seed-Containervertrag einschließlich Seed-Revision, Runtime-Policy und Wiederanlaufgrenzen. Behalten, weil der allgemeine Produktimage-Smoke diese Demo-Paarung nicht abdeckt. |
 | `tests/pester/Compatibility.Tests.ps1` | Kompatibilitätstests; `task quality:pester` | Hält den unterstützten Upgradepfad als Pester-Kompatibilitätsvertrag sichtbar. |
-| `scripts/sbom.py` | Delivery/OCI; Quality-, PR- und Release-Workflows | Bindet Syft an die lzug-eigene CycloneDX-Identität, CLI-/Image-/Dependency-Quellen und die deterministische Release-Aggregation. Behalten, weil diese Lieferartefaktgrenze über Standard-SBOM-Erzeugung hinausgeht. |
+| `scripts/sbom.py` | Delivery/OCI; Qualitäts-, PR- und Release-Workflows | Erzeugt keine SBOMs mehr; Dependency-, Image- und CLI-Scans laufen als direkte gepinnte Syft-Aufrufe in Task und Workflows. Behalten bleiben die CycloneDX-Identität, die deterministische Release-Aggregation und die Validierung, die kein Standardwerkzeug ausdrückt. |
 | `scripts/validate_demo_url_contract.py` | Öffentliche Publikation; Publication-Workflow und Vertragstests | Erzwingt die erlaubte kanonische HTTPS-Origin ohne Credentials, Pfad oder fremde Demo-/Stage-Hosts. Behalten als Sicherheitsgrenze der konfigurierten Publikation. |
-| `scripts/verify_cli_release.py` | Betreiber-CLI; `task quality:operator-packaging` | Vergleicht zwei GoReleaser-Läufe einschließlich Archive, Metadaten und Lizenzen. Behalten als reproduzierbare Lieferprüfung, die GoReleaser allein nicht garantiert. |
 
 ## Komponentenbezogene Werkzeuge außerhalb von `scripts/`
 
@@ -39,3 +38,8 @@ Die einmalige Wiki-Migration und ihre Dauerverträge wurden mit #640 entfernt.
 durch direkte, im Taskfile sichtbare Docker-Aufrufe ersetzt.
 `check_demo_media.py` wurde nach `docs/media/check.py` verlagert und auf den
 kleinen Metadatenvertrag mit dem Standardwerkzeug `file` reduziert.
+Die SBOM-Erzeugung aus `scripts/sbom.py` wurde mit #811 durch direkte gepinnte
+Syft-Aufrufe in Task und Workflows ersetzt.
+`scripts/verify_cli_release.py` wurde mit #811 entfernt;
+die Reproduzierbarkeitsprüfung der CLI übernimmt GoReleaser zusammen mit dem
+Build-Metadaten-Vertragstest des Ziel-Go-Moduls.

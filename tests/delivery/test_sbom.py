@@ -11,10 +11,8 @@ from scripts.sbom import (
     CYCLONEDX_SPEC_VERSION,
     DEPENDENCY_SOURCE_NAME,
     aggregate_release_sbom,
-    cli_command,
     cli_modules,
     configured_syft_version,
-    dependency_command,
     go_module_contract,
     go_module_graph,
     validate_cli,
@@ -57,26 +55,6 @@ class SbomContractTests(unittest.TestCase):
 
         self.assertEqual("github.com/lxndrp/lzug/operator-cli", main)
         self.assertIn("filippo.io/age", required)
-
-    def test_dependency_generation_uses_standard_format_and_only_agreed_catalogers(self) -> None:
-        command = dependency_command(Path("result.cdx.json"), "0.1.0")
-
-        self.assertEqual("syft", command[0])
-        self.assertIn("cyclonedx-json@1.6=result.cdx.json", command)
-        self.assertIn("./backend/src/lzug.egg-info/**", command)
-        catalogers = command[command.index("--override-default-catalogers") + 1]
-        self.assertEqual(
-            "python-installed-package-cataloger,javascript-lock-cataloger,go-module-file-cataloger",
-            catalogers,
-        )
-
-    def test_cli_generation_scans_one_already_built_artifact(self) -> None:
-        command = cli_command(Path("result.cdx.json"), Path("dist/lzug-admin"), "0.1.0")
-
-        self.assertEqual("syft", command[0])
-        self.assertIn("file:", command[2])
-        self.assertTrue(command[2].endswith("/dist/lzug-admin"))
-        self.assertIn("cyclonedx-json@1.6=result.cdx.json", command)
 
     def test_dependency_sbom_covers_python_npm_and_current_go_boundary(self) -> None:
         report = payload(

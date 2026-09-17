@@ -37,7 +37,9 @@ Bei einem Release prüft sie, dass der SemVer-Tag annotiert ist und exakt auf di
 GoReleaser injiziert dieselbe Version, Revision und denselben Tag in das Binary und nimmt die erzeugte `build-metadata.json` in jedes Archiv auf.
 Snapshots verwenden weiterhin die Entwicklungsidentität `0.0.0-dev+sha.<vollständige Revision>`.
 
-`task quality:operator` validiert die Konfiguration, erzeugt zweimal alle sechs Snapshot-Archive und prüft Matrix, Namen, Inhalte, Metadaten, fehlende Checksummendatei sowie Bytegleichheit der Binärdateien und Archive.
+`task quality:operator` validiert die Konfiguration und führt die Go-Tests und `go vet` aus.
+`task quality:operator-packaging` erzeugt einmal alle sechs Snapshot-Archive und prüft Matrix, Namen, Inhalte, Metadaten und fehlende Checksummendatei.
+`task quality:operator-reproducibility` erzeugt zwei unabhängige Clean-Builds, vergleicht Archive und Binärdateien bytegleich und sichert die Build-Metadaten über den Go-Vertragstest.
 Damit wird Verhalten statt GoReleaser-interner Verdrahtung abgesichert.
 
 ## Integration in #347
@@ -58,7 +60,7 @@ Wiederanlauf bleiben vollständig im Umfang von #347.
 
 Der eigene Builder und seine Implementierungstests entfallen.
 Die verbleibende projektspezifische Logik prüft nur Produktmetadaten und beobachtbare Artefaktinvarianten.
-Ein Upgrade von Go oder GoReleaser muss die doppelte Snapshot-Prüfung erneut bestehen; ohne Bytegleichheit oder bei zusätzlichen Artefakten ist es nicht zulässig.
+Ein Upgrade von Go oder GoReleaser muss die Reproduzierbarkeitsprüfung in `quality:operator-reproducibility` erneut bestehen; ohne Bytegleichheit oder bei zusätzlichen Artefakten ist es nicht zulässig.
 
 ## Alternativen
 

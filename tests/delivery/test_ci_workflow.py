@@ -130,6 +130,44 @@ class QualityWorkflowContractTests(unittest.TestCase):
             mapping_block(job_block(self.pull_request, "changes"), "cli", indent=12),
         )
 
+    def test_packaging_reproducibility_is_a_gated_domain_of_its_own(self) -> None:
+        changes = job_block(self.pull_request, "changes")
+        packaging = mapping_block(changes, "packaging", indent=12)
+        for path in (
+            "operator-cli/.goreleaser.yml",
+            "operator-cli/go.mod",
+            "operator-cli/go.sum",
+            "scripts/build_metadata.py",
+            "scripts/sbom.py",
+            "THIRD_PARTY_NOTICES.md",
+            ".mise.toml",
+            "Taskfile.yml",
+        ):
+            with self.subTest(path=path):
+                self.assertIn(f"'{path}'", packaging)
+        self.assertIn(
+            "packaging: ${{ steps.domains.outputs.packaging == 'true' "
+            "|| steps.domains.outputs.full == 'true' "
+            "|| steps.unknown.outputs.unknown == 'true' }}",
+            changes,
+        )
+
+        gate = job_block(self.pull_request, "cli-gate")
+        self.assertIn("needs: [changes, cli, packaging, codeql, source-scan]", gate)
+        self.assertIn("PACKAGING_SELECTED", gate)
+        self.assertIn("PACKAGING", gate)
+
+        package_job = job_block(self.pull_request, "packaging")
+        self.assertIn("needs: changes", package_job)
+        self.assertIn("needs.changes.outputs.packaging == 'true'", package_job)
+        packaging_tasks = "task quality:operator-packaging quality:operator-reproducibility"
+        self.assertIn(packaging_tasks, package_job)
+        self.assertNotIn("verify_cli_release", self.pull_request)
+
+        cli_quality = job_block(self.quality, "cli")
+        self.assertIn("quality:operator-packaging quality:operator-reproducibility", cli_quality)
+        self.assertNotIn("PowerShell", cli_quality)
+
     def test_gates_reject_missing_failed_or_cancelled_selected_evidence(self) -> None:
         for gate_id in PR_GATES:
             gate = job_block(self.pull_request, gate_id)
@@ -153,6 +191,8 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 "DELIVERY": "success",
                 "TRANSPORT_SELECTED": "true",
                 "TRANSPORT": "success",
+                "PACKAGING_SELECTED": "true",
+                "PACKAGING": "success",
             }
 
             def check(values: dict[str, str], script: str = command) -> int:
@@ -175,6 +215,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
                     "INFRA_DETAIL",
                     "DELIVERY",
                     "TRANSPORT",
+                    "PACKAGING",
                 ):
                     if f"${key}" not in command and f"{key}:" not in command:
                         continue
@@ -198,10 +239,10 @@ class QualityWorkflowContractTests(unittest.TestCase):
         for path, owner in {
             "scripts/check_documentation.py": "docs",
             "scripts/build-frontend.ps1": "frontend",
-            "scripts/verify_cli_release.py": "cli",
             "tests/pester/Container.Tests.ps1": "container",
             "scripts/generate-frontend-transport.ps1": "transport",
             "scripts/sbom.py": "full",
+            "scripts/build_metadata.py": "full",
         }.items():
             with self.subTest(path=path):
                 self.assertIn(f"'{path}'", mapping_block(changes, owner, indent=12))
