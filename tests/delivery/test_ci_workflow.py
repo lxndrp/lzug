@@ -134,12 +134,10 @@ class QualityWorkflowContractTests(unittest.TestCase):
         changes = job_block(self.pull_request, "changes")
         packaging = mapping_block(changes, "packaging", indent=12)
         for path in (
-            ".syft.yaml",
             "operator-cli/.goreleaser.yml",
             "operator-cli/go.mod",
             "operator-cli/go.sum",
             "scripts/build_metadata.py",
-            "scripts/sbom.py",
             "THIRD_PARTY_NOTICES.md",
             ".mise.toml",
             "Taskfile.yml",
@@ -213,12 +211,12 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 self.assertNotIn("SYFT_FORMAT_PRETTY", source)
                 self.assertNotIn("SYFT_JAVASCRIPT_INCLUDE_DEV_DEPENDENCIES", source)
 
-        self.assertIn("scan --config ../.syft.yaml", taskfile)
         self.assertIn("SYFT_CACHE_DIR=/tmp/lzug-syft-cache", taskfile)
-        self.assertIn("--exclude './.git/**'", taskfile)
-        self.assertIn("--exclude './.git/**'", product_publish)
+        self.assertNotIn("scan --config ../.syft.yaml", taskfile)
+        self.assertNotIn("--exclude './.git/**'", taskfile)
+        self.assertNotIn("--exclude './.git/**'", product_publish)
         changes = job_block(self.pull_request, "changes")
-        self.assertIn("'.syft.yaml'", mapping_block(changes, "packaging", indent=12))
+        self.assertNotIn("'.syft.yaml'", mapping_block(changes, "packaging", indent=12))
         self.assertIn("'.syft.yaml'", mapping_block(changes, "container", indent=12))
 
     def test_gates_reject_missing_failed_or_cancelled_selected_evidence(self) -> None:
@@ -294,7 +292,6 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "scripts/build-frontend.ps1": "frontend",
             "tests/pester/Container.Tests.ps1": "container",
             "scripts/generate-frontend-transport.ps1": "transport",
-            "scripts/sbom.py": "full",
             "scripts/build_metadata.py": "full",
         }.items():
             with self.subTest(path=path):

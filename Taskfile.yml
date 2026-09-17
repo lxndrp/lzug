@@ -279,7 +279,6 @@ tasks:
       - test:tooling
       - quality:oci
       - quality:overall
-      - quality:sbom
       - quality:infra
       - quality:demo
       - docs
@@ -309,20 +308,12 @@ tasks:
     cmds:
       - task: demo:delivery
 
-  quality:sbom:
-    desc: Generate and validate the dependency SBOM once
-    cmds:
-      - task: sbom
-        vars:
-          OUTPUT: build/quality/lzug.dependencies.sbom.cdx.json
-
   quality:release:
-    desc: Check the release workflow, aggregate SBOM, metadata, and GoReleaser contracts
+    desc: Check the release workflow, metadata, and GoReleaser contracts
     cmds:
       - >-
         {{.UV}} python -m unittest
         tests.delivery.test_release_process
-        tests.delivery.test_sbom
         tests.delivery.test_build_metadata
         tests.delivery.test_build_identity_contract
       - cd operator-cli && goreleaser check
@@ -369,7 +360,7 @@ tasks:
       - task: operator:quality
 
   quality:operator-packaging:
-    desc: Build CLI archives once, validate one native binary SBOM, and retain the reproducibility baseline
+    desc: Build CLI archives once and retain the reproducibility baseline
     dir: operator-cli
     cmds:
       - |
@@ -384,13 +375,6 @@ tasks:
         application_version="$(python3 ../scripts/build_metadata.py --revision "$revision" --field identity)"
         goreleaser release --snapshot --clean
         mv dist "$baseline"
-        artifact=$(python3 -c 'import json; from pathlib import Path; import sys; p=Path(sys.argv[1]); print(p / next(a["path"].removeprefix("dist/") for a in json.loads((p / "artifacts.json").read_text()) if a["type"] == "Binary"))' "$baseline")
-        env SYFT_CACHE_DIR=/tmp/lzug-syft-cache \
-          "${SYFT_BINARY:-syft}" scan --config ../.syft.yaml "file:$artifact" \
-          --source-name lzug-admin --source-version "$application_version" \
-          --output "cyclonedx-json@1.6=$baseline/cli.cdx.json"
-        python3 ../scripts/sbom.py validate \
-          --kind cli --artifact "$artifact" --input "$baseline/cli.cdx.json"
 
   quality:operator-packaging-and-reproducibility:
     desc: Verify the CLI packaging contract and reproducibility with two clean builds
@@ -524,10 +508,11 @@ tasks:
           --build-arg "BUILD_IDENTITY=$build_identity" \
           --build-arg "VCS_REF=$revision" \
           -t lzug-app:0.0.0-dev.local .
-      - task: sbom:image
-        vars:
-          IMAGE: lzug-app:0.0.0-dev.local
-          OUTPUT: build/quality/lzug.image.sbom.cdx.json
+      - >-
+        mkdir -p build/quality
+        && env SYFT_CACHE_DIR=/tmp/lzug-syft-cache
+        "${SYFT_BINARY:-syft}" scan --config .syft.yaml lzug-app:0.0.0-dev.local
+        --output "cyclonedx-json@1.6=build/quality/lzug.image.sbom.cdx.json"
 
   quality:container:
     desc: Run the packaged container runtime contract through Pester
@@ -585,65 +570,6 @@ tasks:
     desc: Install the Playwright Chromium, Firefox, and WebKit browsers
     cmds:
       - task: frontend:setup:playwright
-
-  sbom:
-    desc: Generate the canonical dependency and license-review CycloneDX SBOM
-    vars:
-      OUTPUT: '{{default "lzug.dependencies.sbom.cdx.json" .OUTPUT}}'
-    cmds:
-      - |
-        set -eu
-        revision="$(git rev-parse HEAD)"
-        source_version="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
-        uv sync --locked --extra dev --check
-        env SYFT_CACHE_DIR=/tmp/lzug-syft-cache \
-          "${SYFT_BINARY:-syft}" scan --config .syft.yaml dir:. \
-          --source-name lzug-dependencies \
-          --source-version "$source_version" \
-          --override-default-catalogers python-installed-package-cataloger,javascript-lock-cataloger,go-module-file-cataloger \
-          --exclude './.git/**' --exclude './.venv/**/__pycache__/**' --exclude './frontend/node_modules/**' \
-          --exclude './frontend/dist/**' --exclude './lzug.egg-info/**' --exclude './backend/src/lzug.egg-info/**' \
-          --exclude './site/**' --exclude './operator-cli/lzug-admin' \
-          --output "cyclonedx-json@1.6={{.OUTPUT}}"
-        python3 scripts/sbom.py validate \
-          --kind dependencies \
-          --input "{{.OUTPUT}}"
-
-  sbom:image:
-    desc: Generate the canonical CycloneDX SBOM for an exact local OCI image
-    requires:
-      vars:
-        - IMAGE
-    vars:
-      OUTPUT: '{{default "lzug.image.sbom.cdx.json" .OUTPUT}}'
-    cmds:
-      - >-
-        env SYFT_CACHE_DIR=/tmp/lzug-syft-cache
-        "${SYFT_BINARY:-syft}" scan --config .syft.yaml "{{.IMAGE}}"
-        --output "cyclonedx-json@1.6={{.OUTPUT}}"
-      - >-
-        python3 scripts/sbom.py validate
-        --kind image
-        --input "{{.OUTPUT}}"
-
-  sbom:cli:
-    desc: Generate CycloneDX for one native CLI artifact built by the caller
-    requires:
-      vars:
-        - ARTIFACT
-        - OUTPUT
-    cmds:
-      - |
-        set -eu
-        revision="$(git rev-parse HEAD)"
-        source_version="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
-        env SYFT_CACHE_DIR=/tmp/lzug-syft-cache \
-          "${SYFT_BINARY:-syft}" scan --config .syft.yaml "file:{{.ARTIFACT}}" \
-          --source-name "$(basename "{{.ARTIFACT}}")" \
-          --source-version "$source_version" \
-          --output "cyclonedx-json@1.6={{.OUTPUT}}"
-        python3 scripts/sbom.py validate \
-          --kind cli --artifact "{{.ARTIFACT}}" --input "{{.OUTPUT}}"
 
   dev:backend:
     desc: Start the backend development server

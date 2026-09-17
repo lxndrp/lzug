@@ -91,12 +91,10 @@ jobs:
               - 'operator-cli/go.sum'
               - 'THIRD_PARTY_NOTICES.md'
             packaging:
-              - '.syft.yaml'
               - 'operator-cli/.goreleaser.yml'
               - 'operator-cli/go.mod'
               - 'operator-cli/go.sum'
               - 'scripts/build_metadata.py'
-              - 'scripts/sbom.py'
               - 'THIRD_PARTY_NOTICES.md'
               - '.mise.toml'
               - 'Taskfile.yml'
@@ -148,7 +146,6 @@ jobs:
               - 'frontend/.node-version'
               - 'Taskfile.yml'
               - 'scripts/build_metadata.py'
-              - 'scripts/sbom.py'
 
       - name: Detect unknown paths
         id: unknown
@@ -174,7 +171,6 @@ jobs:
               - '!scripts/demo-deploy.ps1'
               - '!scripts/generate-frontend-transport.ps1'
               - '!scripts/generate_frontend_transport.py'
-              - '!scripts/sbom.py'
               - '!scripts/validate_demo_url_contract.py'
               - '!.github/**'
               - '!.lychee.toml'
@@ -429,13 +425,7 @@ jobs:
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
         with:
           version: 3.52.0
-      - id: syft
-        uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
-        with:
-          syft-version: v1.51.0
-      - name: Build the CLI and verify SBOM contract and reproducibility
-        env:
-          SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
+      - name: Build the CLI and verify reproducibility
         run: task quality:operator-packaging-and-reproducibility
 
   delivery:

@@ -47,12 +47,9 @@ Damit wird Verhalten statt GoReleaser-interner Verdrahtung abgesichert.
 
 - GoReleaser schreibt Archive, Binärdateien und `artifacts.json` nach `dist/`.
 - Der Releaseablauf übernimmt ausschließlich die sechs Archive als sichtbare
-CLI-Assets und verwendet die Binärpfade aus `artifacts.json` für temporäre Detail-SBOMs.
+CLI-Assets.
 - GitHub Attestations attestieren die Archive weiterhin außerhalb von
 GoReleaser.
-Die temporäre Digestliste für Attestations ist kein Release-Asset.
-- Die einzige zusätzlich sichtbare Datei bleibt die aggregierte CycloneDX-SBOM
-aus #347.
 GoReleaser erzeugt weder eigene SBOMs noch Checksummen- oder Provenance-Dateien.
 - Auslöser, Environment-Freigabe, Tag-Erzeugung, OCI-Publish, Draft-Release und
 Wiederanlauf bleiben vollständig im Umfang von #347.

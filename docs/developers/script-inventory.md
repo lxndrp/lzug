@@ -16,7 +16,7 @@ Die Liste ist keine zweite Test- oder API-Dokumentation.
 | `tests/pester/Container.Tests.ps1` | OCI/Self-Hosting; `task quality:pester` | Maßgeblicher Pester-Vertrag für Image-, Runtime- und Compose-Grenzen. |
 | `scripts/demo-container-smoke.sh` | Öffentliche Demo; `task quality:demo` | Beweist den separaten App-/Seed-Containervertrag einschließlich Seed-Revision, Runtime-Policy und Wiederanlaufgrenzen. Behalten, weil der allgemeine Produktimage-Smoke diese Demo-Paarung nicht abdeckt. |
 | `tests/pester/Compatibility.Tests.ps1` | Kompatibilitätstests; `task quality:pester` | Hält den unterstützten Upgradepfad als Pester-Kompatibilitätsvertrag sichtbar. |
-| `scripts/sbom.py` und `.syft.yaml` | Delivery/OCI; Qualitäts-, PR- und Release-Workflows | Erzeugt keine SBOMs mehr; Dependency-, Image- und CLI-Scans laufen als direkte gepinnte Syft-Aufrufe in Task und Workflows. `.syft.yaml` hält die portable scannerweite Policy deklarativ; Scan-Ziele, Artefaktpfade und Identität bleiben sichtbar bei ihren Aufrufen. Behalten bleiben die CycloneDX-Identität, die deterministische Release-Aggregation und die Validierung, die kein Standardwerkzeug ausdrückt. |
+| `.syft.yaml` | Delivery/OCI; Quality- sowie Produkt- und Demo-Publish-Workflows | Hält die portable scannerweite Policy deklarativ. Syft erzeugt direkt die SBOMs der veröffentlichten OCI-Images; Scan-Ziele, Ausgabe und der flüchtige Cache bleiben sichtbar bei den Aufrufen. |
 | `scripts/validate_demo_url_contract.py` | Öffentliche Publikation; Publication-Workflow und Vertragstests | Erzwingt die erlaubte kanonische HTTPS-Origin ohne Credentials, Pfad oder fremde Demo-/Stage-Hosts. Behalten als Sicherheitsgrenze der konfigurierten Publikation. |
 
 ## Komponentenbezogene Werkzeuge außerhalb von `scripts/`
@@ -38,8 +38,8 @@ Die einmalige Wiki-Migration und ihre Dauerverträge wurden mit #640 entfernt.
 durch direkte, im Taskfile sichtbare Docker-Aufrufe ersetzt.
 `check_demo_media.py` wurde nach `docs/media/check.py` verlagert und auf den
 kleinen Metadatenvertrag mit dem Standardwerkzeug `file` reduziert.
-Die SBOM-Erzeugung aus `scripts/sbom.py` wurde mit #811 durch direkte gepinnte
-Syft-Aufrufe in Task und Workflows ersetzt.
+`scripts/sbom.py` wurde mit #811 entfernt;
+direkte gepinnte Syft-Aufrufe erzeugen ausschließlich die SBOMs der veröffentlichten OCI-Images.
 `scripts/verify_cli_release.py` wurde mit #811 entfernt;
 die Reproduzierbarkeitsprüfung der CLI übernimmt GoReleaser zusammen mit dem
 Build-Metadaten-Vertragstest des Ziel-Go-Moduls.
