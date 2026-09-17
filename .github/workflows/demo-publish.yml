@@ -298,17 +298,13 @@ jobs:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
         run: |
           set -euo pipefail
-          env SYFT_CACHE_DIR=/tmp/lzug-syft-cache SYFT_CHECK_FOR_APP_UPDATE=false \
-            SYFT_FILE_METADATA_SELECTION=none SYFT_FORMAT_PRETTY=true \
-            SYFT_JAVASCRIPT_INCLUDE_DEV_DEPENDENCIES=true \
-            "${SYFT_BINARY:-syft}" scan "$APP_REF" \
+          env SYFT_CACHE_DIR=/tmp/lzug-syft-cache \
+            "${SYFT_BINARY:-syft}" scan --config .syft.yaml "$APP_REF" \
             --output "cyclonedx-json@1.6=$RUNNER_TEMP/lzug-demo-app.sbom.cdx.json"
           python3 scripts/sbom.py validate \
             --kind image --input "$RUNNER_TEMP/lzug-demo-app.sbom.cdx.json"
-          env SYFT_CACHE_DIR=/tmp/lzug-syft-cache SYFT_CHECK_FOR_APP_UPDATE=false \
-            SYFT_FILE_METADATA_SELECTION=none SYFT_FORMAT_PRETTY=true \
-            SYFT_JAVASCRIPT_INCLUDE_DEV_DEPENDENCIES=true \
-            "${SYFT_BINARY:-syft}" scan "$SEED_REF" \
+          env SYFT_CACHE_DIR=/tmp/lzug-syft-cache \
+            "${SYFT_BINARY:-syft}" scan --config .syft.yaml "$SEED_REF" \
             --output "cyclonedx-json@1.6=$RUNNER_TEMP/lzug-demo-seed.sbom.cdx.json"
           python3 scripts/sbom.py validate \
             --kind image --input "$RUNNER_TEMP/lzug-demo-seed.sbom.cdx.json"

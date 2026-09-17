@@ -134,6 +134,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
         changes = job_block(self.pull_request, "changes")
         packaging = mapping_block(changes, "packaging", indent=12)
         for path in (
+            ".syft.yaml",
             "operator-cli/.goreleaser.yml",
             "operator-cli/go.mod",
             "operator-cli/go.sum",
@@ -167,6 +168,37 @@ class QualityWorkflowContractTests(unittest.TestCase):
         cli_quality = job_block(self.quality, "cli")
         self.assertIn("quality:operator-packaging quality:operator-reproducibility", cli_quality)
         self.assertNotIn("PowerShell", cli_quality)
+
+    def test_direct_syft_scans_use_the_declarative_repository_configuration(self) -> None:
+        config = Path(".syft.yaml").read_text(encoding="utf-8")
+        self.assertIn("check-for-app-update: false", config)
+        self.assertIn("pretty: true", config)
+        self.assertIn("selection: none", config)
+        self.assertIn("include-dev-dependencies: true", config)
+        self.assertNotIn("cache:", config)
+
+        taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
+        product_publish = workflow_text(".github/workflows/product-publish.yml")
+        demo_publish = workflow_text(".github/workflows/demo-publish.yml")
+        for source, config_path in (
+            (taskfile, "scan --config .syft.yaml"),
+            (product_publish, "scan --config .syft.yaml"),
+            (demo_publish, "scan --config .syft.yaml"),
+        ):
+            with self.subTest(source=source[:20]):
+                self.assertIn(config_path, source)
+                self.assertNotIn("SYFT_CHECK_FOR_APP_UPDATE", source)
+                self.assertNotIn("SYFT_FILE_METADATA_SELECTION", source)
+                self.assertNotIn("SYFT_FORMAT_PRETTY", source)
+                self.assertNotIn("SYFT_JAVASCRIPT_INCLUDE_DEV_DEPENDENCIES", source)
+
+        self.assertIn("scan --config ../.syft.yaml", taskfile)
+        self.assertIn("SYFT_CACHE_DIR=/tmp/lzug-syft-cache", taskfile)
+        self.assertIn("--exclude './.git/**'", taskfile)
+        self.assertIn("--exclude './.git/**'", product_publish)
+        changes = job_block(self.pull_request, "changes")
+        self.assertIn("'.syft.yaml'", mapping_block(changes, "packaging", indent=12))
+        self.assertIn("'.syft.yaml'", mapping_block(changes, "container", indent=12))
 
     def test_gates_reject_missing_failed_or_cancelled_selected_evidence(self) -> None:
         for gate_id in PR_GATES:

@@ -91,6 +91,7 @@ jobs:
               - 'operator-cli/go.sum'
               - 'THIRD_PARTY_NOTICES.md'
             packaging:
+              - '.syft.yaml'
               - 'operator-cli/.goreleaser.yml'
               - 'operator-cli/go.mod'
               - 'operator-cli/go.sum'
@@ -114,6 +115,7 @@ jobs:
               - 'pyproject.toml'
               - 'uv.lock'
             container:
+              - '.syft.yaml'
               - 'tests/pester/Container.Tests.ps1'
               - 'tests/pester/Compatibility.Tests.ps1'
               - 'tests/pester/**'
@@ -181,6 +183,7 @@ jobs:
               - '!.env.example'
               - '!.gitignore'
               - '!.mise.toml'
+              - '!.syft.yaml'
               - '!frontend/.node-version'
               - '!.python-version'
               - '!AGENTS.md'

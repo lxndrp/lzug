@@ -19,11 +19,14 @@ Issue [#811](https://github.com/lxndrp/lzug/issues/811) und der zugehörige Revi
 
 Dependency-, Image- und CLI-SBOMs werden als direkte, gepinnte Syft-Aufrufe in `Taskfile.yml` sowie in den Qualitäts-, Pull-Request- und Publish-Workflows erzeugt.
 `scripts/sbom.py` enthält keine Befehlszusammenstellung, Binärdateiauswahl oder `subprocess`-Steuerung von Syft mehr.
+Die stabile scannerweite Policy liegt deklarativ in `.syft.yaml` und wird bei jedem Aufruf explizit über `--config .syft.yaml` geladen.
 
 Der direkte Syft-Aufruf:
 
 - hält dieselben lzug-Verträge wie zuvor (nur die vereinbarten Cataloger, Offline- und Metadaten-Konfiguration, Quellidentität und CycloneDX-1.6-Ausgabe),
 - respektiert die Umgebungsvariable `SYFT_BINARY` für den gepinnten CI-Pfad,
+- bezieht Updateprüfung, Ausgabeformat, Dateimetadaten und JavaScript-Dev-Abhängigkeiten aus der versionierten `.syft.yaml`,
+- hält Scan-Ziel, Ausgabe, Quellidentität, Cataloger und den flüchtigen `SYFT_CACHE_DIR` am jeweiligen Task- oder Workflow-Aufruf sichtbar,
 - bleibt über `configured_syft_version` in `scripts/sbom.py` an die kanonische `.mise.toml`-Pin gebunden, denn die Validierung lehnt SBOMs ab, die nicht von dieser einen Syft-Version stammen.
 
 `scripts/sbom.py` behält ausschließlich:
@@ -38,6 +41,7 @@ Der direkte Syft-Aufruf:
 
 - Die erzeugten SBOM-Dateien bleiben bei unverändertem Syft, denselben Quellen, Flaggen und Umgebung inhaltsgleich zum bisherigen Ablauf.
 - Die Erzeugung ist in Taskfile und Workflows sichtbar wie die übrigen Standardwerkzeug-Aufrufe.
+- `.syft.yaml` bündelt nur die portable, scannerweite Policy; sie enthält weder Artefaktpfade noch Quellidentität, Zielauswahl oder einen benutzerspezifischen Cachepfad.
 - `scripts/sbom.py` schrumpft auf Validierung und Aggregation; `scripts/verify_cli_release.py` wird entfernt.
 - Normale CLI-Fachänderungen lösen keinen pauschalen Doppel-Archivbau aus; die Reproduzierbarkeitsprüfung läuft nur im vollständigen Quality-Gate und bei packaging-relevanten Pull Requests.
 - Die Boundaries (Syft-Pin, releasespezifische Lizenzliste, Go-Modulgrenzen, OCI-Bildauswahl, Determinismus der Aggregation) bleiben unverändert und werden weiterhin durch denselben Vertragstest auspärrt.
