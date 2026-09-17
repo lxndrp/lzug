@@ -290,6 +290,9 @@ jobs:
               "${SYFT_BINARY:-syft}" scan --config .syft.yaml "file:$binary" \
               --source-name "$archive_stem" --source-version "$VERSION" \
               --output "cyclonedx-json@1.6=$detailed_sboms/cli/$archive_stem.cdx.json"
+            python3 scripts/sbom.py validate \
+              --kind cli --artifact "$binary" \
+              --input "$detailed_sboms/cli/$archive_stem.cdx.json"
             aggregate_inputs+=(--input "$detailed_sboms/cli/$archive_stem.cdx.json")
           done
           python3 scripts/sbom.py aggregate \

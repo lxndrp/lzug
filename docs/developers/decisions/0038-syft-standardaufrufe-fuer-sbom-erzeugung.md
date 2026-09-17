@@ -45,6 +45,7 @@ Der direkte Syft-Aufruf:
 - `scripts/sbom.py` schrumpft auf Validierung und Aggregation; `scripts/verify_cli_release.py` wird entfernt.
 - Normale CLI-Fachänderungen lösen keinen pauschalen Doppel-Archivbau aus; die Reproduzierbarkeitsprüfung läuft nur im vollständigen Quality-Gate und bei packaging-relevanten Pull Requests.
 - Die Boundaries (Syft-Pin, releasespezifische Lizenzliste, Go-Modulgrenzen, OCI-Bildauswahl, Determinismus der Aggregation) bleiben unverändert und werden weiterhin durch denselben Vertragstest auspärrt.
+- Der Releaseablauf validiert jede der sechs CLI-SBOMs unmittelbar gegen die zugehörige von GoReleaser erzeugte Binärdatei, bevor er sie zur sichtbaren Release-SBOM aggregiert.
 - Der direkt ausführbare kanonische FastAPI-Assembly-Einstieg erzeugt das OpenAPI-Dokument für die Publikation; ein separates Exportskript entfällt, ohne den davon getrennten internen Transportgenerator zusammenzuführen.
 
 ## Alternativen

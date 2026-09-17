@@ -339,6 +339,19 @@ class SbomContractTests(unittest.TestCase):
                 "a" * 40,
             )
 
+    def test_release_validation_does_not_replace_each_cli_binary_contract(self) -> None:
+        details = release_detail_payloads()
+        for report in details[2:]:
+            report["components"] = [
+                item
+                for item in report["components"]
+                if item.get("name") != "github.com/lxndrp/lzug/operator-cli"
+            ]
+
+        aggregate = aggregate_release_sbom(details, "1.2.3", "v1.2.3", "a" * 40)
+
+        validate_release(aggregate)
+
 
 def release_detail_payloads() -> list[dict]:
     dependency = payload(

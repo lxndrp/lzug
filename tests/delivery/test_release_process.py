@@ -96,6 +96,14 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("goreleaser/goreleaser-action@", self.publish)
         self.assertIn("linux-amd64 linux-arm64 darwin-amd64 darwin-arm64", self.publish)
         self.assertIn("scripts/sbom.py aggregate", self.publish)
+        self.assertIn(
+            '--kind cli --artifact "$binary"',
+            self.publish,
+        )
+        self.assertLess(
+            self.publish.index('--kind cli --artifact "$binary"'),
+            self.publish.index('aggregate_inputs+=(--input "$detailed_sboms/cli/$archive_stem.cdx.json")'),
+        )
         self.assertIn("release-assets/lzug-$VERSION.sbom.cdx.json", self.publish)
         self.assertIn("actions/attest@", self.publish)
         self.assertIn("subject-checksums: ${{ runner.temp }}/lzug-release-subjects", self.publish)
