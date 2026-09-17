@@ -34,7 +34,7 @@ Der direkte Syft-Aufruf:
 - die deterministische Aggregation der acht detaillierten Inventare zur einzigen sichtbaren Release-SBOM und
 - die Validierung der CycloneDX-1.6-Herkunft, Quellidentität, Lizenz-, Go-, OCI- und Releasegrenzen.
 
-`scripts/verify_cli_release.py` entfällt; die Reproduzierbarkeit der CLI wird über zwei bytegleiche GoReleaser-Snapshot-Läufe im Quality- und PR-Packaging-Ablauf zusammen mit einem Go-Vertragstest für die Build-Metadaten geprüft.
+`scripts/verify_cli_release.py` entfällt; der Packaging-Build wird zugleich als erster von zwei bytegleichen GoReleaser-Snapshot-Läufen im Quality- und PR-Packaging-Ablauf genutzt, ergänzt um den Go-Vertragstest für die Build-Metadaten.
 [ADR-0028](0028-sbom-orchestrierung-und-cyclonedx-standardwerkzeuge.md) wird hierdurch vollständig abgelöst.
 
 ## Konsequenzen

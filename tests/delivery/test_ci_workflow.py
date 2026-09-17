@@ -161,13 +161,34 @@ class QualityWorkflowContractTests(unittest.TestCase):
         package_job = job_block(self.pull_request, "packaging")
         self.assertIn("needs: changes", package_job)
         self.assertIn("needs.changes.outputs.packaging == 'true'", package_job)
-        packaging_tasks = "task quality:operator-packaging quality:operator-reproducibility"
+        packaging_tasks = "task quality:operator-packaging-and-reproducibility"
         self.assertIn(packaging_tasks, package_job)
         self.assertNotIn("verify_cli_release", self.pull_request)
 
         cli_quality = job_block(self.quality, "cli")
-        self.assertIn("quality:operator-packaging quality:operator-reproducibility", cli_quality)
+        self.assertIn("quality:operator-packaging-and-reproducibility", cli_quality)
         self.assertNotIn("PowerShell", cli_quality)
+
+        taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
+        packaging = taskfile.split("  quality:operator-packaging:\n", 1)[1].split(
+            "  quality:operator-reproducibility:\n", 1
+        )[0]
+        reproducibility = taskfile.split("  quality:operator-reproducibility:\n", 1)[1].split(
+            "  quality:oci:\n", 1
+        )[0]
+        snapshot_build = "goreleaser release --snapshot --clean"
+        self.assertEqual(1, packaging.count(snapshot_build))
+        self.assertEqual(2, reproducibility.count(snapshot_build))
+        self.assertIn('baseline="$repository_root/build/quality/operator-packaging"', packaging)
+        self.assertIn('mkdir -p "$(dirname "$baseline")"', packaging)
+        self.assertIn('baseline="$repository_root/build/quality/operator-packaging"', reproducibility)
+        self.assertIn('if test ! -d "$baseline"; then', reproducibility)
+        self.assertIn('cmp "$baseline/$artifact"', reproducibility)
+        combined = taskfile.split("  quality:operator-packaging-and-reproducibility:\n", 1)[1].split(
+            "  quality:operator-reproducibility:\n", 1
+        )[0]
+        self.assertIn("task: quality:operator-packaging", combined)
+        self.assertIn("task: quality:operator-reproducibility", combined)
 
     def test_direct_syft_scans_use_the_declarative_repository_configuration(self) -> None:
         config = Path(".syft.yaml").read_text(encoding="utf-8")

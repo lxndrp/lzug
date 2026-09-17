@@ -263,7 +263,7 @@ jobs:
           syft-version: v1.51.0
       - env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
-        run: task operator:quality quality:operator-packaging quality:operator-reproducibility
+        run: task operator:quality quality:operator-packaging-and-reproducibility
 
   infra:
     name: Infrastructure

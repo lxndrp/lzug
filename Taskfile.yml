@@ -272,7 +272,7 @@ tasks:
       - quality:frontend
       - quality:security
       - quality:operator
-      - quality:operator-packaging
+      - quality:operator-packaging-and-reproducibility
       - test:delivery
       - test:demo
       - test:oci
@@ -369,25 +369,34 @@ tasks:
       - task: operator:quality
 
   quality:operator-packaging:
-    desc: Build CLI archives once and validate one native binary SBOM
+    desc: Build CLI archives once, validate one native binary SBOM, and retain the reproducibility baseline
     dir: operator-cli
     cmds:
       - |
         set -eu
         test ! -e dist || { echo "operator-cli dist directory must not exist before CLI verification" >&2; exit 1; }
-        temporary_directory="$(mktemp -d)"
-        trap 'rm -rf dist "$temporary_directory"; rm -f .goreleaser-build-metadata.json .goreleaser-license .goreleaser-third-party-notices.md' EXIT
+        repository_root="$(git rev-parse --show-toplevel)"
+        baseline="$repository_root/build/quality/operator-packaging"
+        rm -rf "$baseline"
+        mkdir -p "$(dirname "$baseline")"
+        trap 'rm -rf dist; rm -f .goreleaser-build-metadata.json .goreleaser-license .goreleaser-third-party-notices.md' EXIT
         revision="$(git rev-parse HEAD)"
         application_version="$(python3 ../scripts/build_metadata.py --revision "$revision" --field identity)"
         goreleaser release --snapshot --clean
-        mv dist "$temporary_directory/dist"
-        artifact=$(python3 -c 'import json; from pathlib import Path; import sys; p=Path(sys.argv[1]); print(p / next(a["path"].removeprefix("dist/") for a in json.loads((p / "artifacts.json").read_text()) if a["type"] == "Binary"))' "$temporary_directory/dist")
+        mv dist "$baseline"
+        artifact=$(python3 -c 'import json; from pathlib import Path; import sys; p=Path(sys.argv[1]); print(p / next(a["path"].removeprefix("dist/") for a in json.loads((p / "artifacts.json").read_text()) if a["type"] == "Binary"))' "$baseline")
         env SYFT_CACHE_DIR=/tmp/lzug-syft-cache \
           "${SYFT_BINARY:-syft}" scan --config ../.syft.yaml "file:$artifact" \
           --source-name lzug-admin --source-version "$application_version" \
-          --output "cyclonedx-json@1.6=$temporary_directory/cli.cdx.json"
+          --output "cyclonedx-json@1.6=$baseline/cli.cdx.json"
         python3 ../scripts/sbom.py validate \
-          --kind cli --artifact "$artifact" --input "$temporary_directory/cli.cdx.json"
+          --kind cli --artifact "$artifact" --input "$baseline/cli.cdx.json"
+
+  quality:operator-packaging-and-reproducibility:
+    desc: Verify the CLI packaging contract and reproducibility with two clean builds
+    cmds:
+      - task: quality:operator-packaging
+      - task: quality:operator-reproducibility
 
   quality:operator-reproducibility:
     desc: Verify byte-stable CLI archives and binaries across two clean builds
@@ -396,16 +405,20 @@ tasks:
       - |
         set -eu
         test ! -e dist || { echo "operator-cli dist directory must not exist before CLI verification" >&2; exit 1; }
+        repository_root="$(git rev-parse --show-toplevel)"
+        baseline="$repository_root/build/quality/operator-packaging"
         temporary_directory="$(mktemp -d)"
-        trap 'rm -rf dist "$temporary_directory"; rm -f .goreleaser-build-metadata.json .goreleaser-license .goreleaser-third-party-notices.md' EXIT
+        trap 'rm -rf dist "$baseline" "$temporary_directory"; rm -f .goreleaser-build-metadata.json .goreleaser-license .goreleaser-third-party-notices.md' EXIT
         revision="$(git rev-parse HEAD)"
         application_version="$(python3 ../scripts/build_metadata.py --revision "$revision" --field identity)"
-        for run in first second; do
+        if test ! -d "$baseline"; then
           goreleaser release --snapshot --clean
-          mv dist "$temporary_directory/$run"
-        done
-        for artifact in $(python3 -c 'import json; from pathlib import Path; import sys; p=Path(sys.argv[1]).resolve().parent; [print(a["path"].removeprefix("dist/")) for a in json.loads((p / "artifacts.json").read_text()) if a["type"] in ("Archive", "Binary")]' "$temporary_directory/first/artifacts.json"); do
-          cmp "$temporary_directory/first/$artifact" "$temporary_directory/second/$artifact"
+          mv dist "$baseline"
+        fi
+        goreleaser release --snapshot --clean
+        mv dist "$temporary_directory/second"
+        for artifact in $(python3 -c 'import json; from pathlib import Path; import sys; p=Path(sys.argv[1]).resolve().parent; [print(a["path"].removeprefix("dist/")) for a in json.loads((p / "artifacts.json").read_text()) if a["type"] in ("Archive", "Binary")]' "$baseline/artifacts.json"); do
+          cmp "$baseline/$artifact" "$temporary_directory/second/$artifact"
         done
         case "$(uname -s)-$(uname -m)" in
           Linux-x86_64) host_target="linux/amd64" ;;
@@ -414,7 +427,7 @@ tasks:
           *) host_target="" ;;
         esac
         if [ -n "$host_target" ]; then
-          host_binary=$(python3 -c 'import json; from pathlib import Path; import sys; p=Path(sys.argv[1]).resolve().parent; goos, goarch = sys.argv[2].split("/"); print(p / next(a["path"].removeprefix("dist/") for a in json.loads((p / "artifacts.json").read_text()) if a["type"] == "Binary" and a["goos"] == goos and a["goarch"] == goarch))' "$temporary_directory/first/artifacts.json" "$host_target")
+          host_binary=$(python3 -c 'import json; from pathlib import Path; import sys; p=Path(sys.argv[1]).resolve().parent; goos, goarch = sys.argv[2].split("/"); print(p / next(a["path"].removeprefix("dist/") for a in json.loads((p / "artifacts.json").read_text()) if a["type"] == "Binary" and a["goos"] == goos and a["goarch"] == goarch))' "$baseline/artifacts.json" "$host_target")
           actual=$("$host_binary" --build-metadata)
           expected=$(python3 -c 'import json, sys; print(json.dumps({"identity": sys.argv[1], "release": False, "revision": sys.argv[2], "tag": None}, separators=(",", ":")))' "$application_version" "$revision")
           test "$actual" = "$expected"

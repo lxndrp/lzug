@@ -436,7 +436,7 @@ jobs:
       - name: Build the CLI and verify SBOM contract and reproducibility
         env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
-        run: task quality:operator-packaging quality:operator-reproducibility
+        run: task quality:operator-packaging-and-reproducibility
 
   delivery:
     name: Delivery and tooling contracts

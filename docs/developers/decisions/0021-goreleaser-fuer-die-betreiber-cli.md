@@ -38,8 +38,9 @@ GoReleaser injiziert dieselbe Version, Revision und denselben Tag in das Binary 
 Snapshots verwenden weiterhin die Entwicklungsidentität `0.0.0-dev+sha.<vollständige Revision>`.
 
 `task quality:operator` validiert die Konfiguration und führt die Go-Tests und `go vet` aus.
-`task quality:operator-packaging` erzeugt einmal alle sechs Snapshot-Archive und prüft Matrix, Namen, Inhalte, Metadaten und fehlende Checksummendatei.
-`task quality:operator-reproducibility` erzeugt zwei unabhängige Clean-Builds, vergleicht Archive und Binärdateien bytegleich und sichert die Build-Metadaten über den Go-Vertragstest.
+`task quality:operator-packaging` erzeugt einmal alle sechs Snapshot-Archive, prüft Matrix, Namen, Inhalte, Metadaten und fehlende Checksummendatei und behält diesen Build als Vergleichsbasis.
+`task quality:operator-reproducibility` nutzt diese Basis, erzeugt genau einen weiteren unabhängigen Clean-Build und vergleicht Archive und Binärdateien bytegleich; allein aufgerufen erzeugt der Task zunächst selbst eine Basis und bleibt damit ein vollständiger Zwei-Build-Nachweis.
+`task quality:operator-packaging-and-reproducibility` führt beide Schritte seriell aus und ist der gemeinsame Quality- und PR-Einstieg.
 Damit wird Verhalten statt GoReleaser-interner Verdrahtung abgesichert.
 
 ## Integration in #347
@@ -60,7 +61,7 @@ Wiederanlauf bleiben vollständig im Umfang von #347.
 
 Der eigene Builder und seine Implementierungstests entfallen.
 Die verbleibende projektspezifische Logik prüft nur Produktmetadaten und beobachtbare Artefaktinvarianten.
-Ein Upgrade von Go oder GoReleaser muss die Reproduzierbarkeitsprüfung in `quality:operator-reproducibility` erneut bestehen; ohne Bytegleichheit oder bei zusätzlichen Artefakten ist es nicht zulässig.
+Ein Upgrade von Go oder GoReleaser muss die Reproduzierbarkeitsprüfung aus dem einmaligen Packaging-Build und einem weiteren Clean-Build erneut bestehen; ohne Bytegleichheit oder bei zusätzlichen Artefakten ist es nicht zulässig.
 
 ## Alternativen
 
