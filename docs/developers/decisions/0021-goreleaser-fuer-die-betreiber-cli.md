@@ -38,10 +38,10 @@ GoReleaser injiziert dieselbe Version, Revision und denselben Tag in das Binary 
 Snapshots verwenden weiterhin die Entwicklungsidentität `0.0.0-dev+sha.<vollständige Revision>`.
 
 `task quality:operator` validiert die Konfiguration und führt die Go-Tests und `go vet` aus.
-`task quality:operator-packaging` erzeugt einmal alle sechs Snapshot-Archive, prüft Matrix, Namen, Inhalte, Metadaten und fehlende Checksummendatei und behält diesen Build als Vergleichsbasis.
+`task quality:operator-packaging` erzeugt einmal die von GoReleaser konfigurierte Snapshot-Assembly und behält sie als Vergleichsbasis.
 `task quality:operator-reproducibility` nutzt diese Basis, erzeugt genau einen weiteren unabhängigen Clean-Build und vergleicht Archive und Binärdateien bytegleich; allein aufgerufen erzeugt der Task zunächst selbst eine Basis und bleibt damit ein vollständiger Zwei-Build-Nachweis.
 `task quality:operator-packaging-and-reproducibility` führt beide Schritte seriell aus und ist der gemeinsame Quality- und PR-Einstieg.
-Damit wird Verhalten statt GoReleaser-interner Verdrahtung abgesichert.
+Damit wird die Wiederholbarkeit der von GoReleaser konfigurierten Assembly statt ihrer internen Verdrahtung abgesichert.
 
 ## Integration in #347
 
@@ -65,7 +65,7 @@ Ein Upgrade von Go oder GoReleaser muss die Reproduzierbarkeitsprüfung aus dem 
 - Den Python-Builder behalten: erfüllt den Vertrag, dupliziert aber
 Standardfunktionen für Cross-Build und Archive.
 - GoReleaser einschließlich GitHub-Publisher verwenden: würde die in ADR-0020
-festgelegte Orchestrierungsgrenze verwischen und den exakt sieben sichtbaren Assets umfassenden Vertrag unnötig gefährden.
+festgelegte Orchestrierungsgrenze verwischen und den Vertrag der sechs sichtbaren CLI-Archive unnötig gefährden.
 - Die GoReleaser-Checksummendatei nur beim Upload herausfiltern: wäre weniger
 belastbar als ihre Erzeugung ausdrücklich zu deaktivieren.
 
