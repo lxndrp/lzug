@@ -125,7 +125,10 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("module.mounts", config)
         self.assertIn("outputFormats.quellen", config)
         self.assertIn("readFile", source_shortcode)
-        self.assertIn("scripts/export_openapi.py", (ROOT / "Taskfile.yml").read_text())
+        self.assertIn(
+            "python -m backend.fastapi_assembly",
+            (ROOT / "Taskfile.yml").read_text(),
+        )
 
     def test_publication_typedoc_matches_frontend_non_exported_validation(self) -> None:
         taskfile = (ROOT / "Taskfile.yml").read_text()

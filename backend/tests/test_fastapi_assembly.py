@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
 from contextlib import ExitStack
 from pathlib import Path
@@ -8,7 +10,7 @@ from unittest.mock import patch
 from fastapi import FastAPI
 
 from backend.fastapi_app import register_application_routes
-from backend.fastapi_assembly import FastAPIConfig, create_app
+from backend.fastapi_assembly import FastAPIConfig, create_app, export_openapi_document
 from backend.fastapi_dependencies import BoundedBodyRoute
 
 
@@ -71,6 +73,24 @@ class FastAPIAssemblyTests(unittest.TestCase):
             operation["responses"]["403"]["content"]["application/json"]["schema"]["$ref"],
         )
         self.assertNotIn("201", document["paths"]["/api/scheduling-overview"]["get"]["responses"])
+
+    def test_openapi_export_uses_the_canonical_assembly_and_creates_the_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "publication" / "openapi.json"
+
+            export_openapi_document(output)
+
+            document = json.loads(output.read_text(encoding="utf-8"))
+            serialized = output.read_text(encoding="utf-8")
+
+        expected = create_app(
+            FastAPIConfig(db_path=Path(":memory:"), session_cookie_name="__Host-lzug_session")
+        ).openapi()
+        self.assertEqual(expected, document)
+        self.assertEqual(
+            json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            serialized,
+        )
 
     def test_application_route_boundary_registers_each_route_group(self) -> None:
         expected = (

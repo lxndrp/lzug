@@ -25,7 +25,7 @@ Die Liste ist keine zweite Test- oder API-Dokumentation.
 | --- | --- | --- |
 | `brand/generate-assets.mjs` | Brand; `task brand:generate` und `task brand:check` | Ein einziger Einstieg erzeugt und prüft die tatsächlich ausgelieferten Derivate, Quellen, Tokens und Lizenzen. Die beiden früheren Brand-Skripte wurden nicht zusammenkopiert, sondern als ein gemeinsamer Vertrag mit einer Eigentümergrenze zusammengeführt. |
 | `docs/media/check.py` | Dokumentation/Publikation; `task docs:media:check` | Prüft die von Playwright erzeugten PNG-Dateien und die dazugehörigen Fixture-/Viewport-Metadaten mit dem Standardwerkzeug `file`. Behalten als kleiner Medienvertrag; ein eigener PNG-Parser ist entfernt. |
-| `docs/publication/` und `scripts/export_openapi.py` | Dokumentation/Publikation; `task docs:publication*` und der Publication-Workflow | Eingechecktes Hugo-Projekt mit Blowfish-Modulpin; Hugo, OpenAPI, TypeDoc, Git und Lychee werden direkt über Task aufgerufen. Wiki-Inhalte bleiben im GitHub Wiki; die generische Linkprüfung bleibt beim Standardwerkzeug. |
+| `docs/publication/` und `backend.fastapi_assembly` | Dokumentation/Publikation; `task docs:publication*` und der Publication-Workflow | Eingechecktes Hugo-Projekt mit Blowfish-Modulpin; der direkt ausführbare kanonische FastAPI-Assembly-Einstieg schreibt das OpenAPI-Dokument. Hugo, TypeDoc, Git und Lychee werden direkt über Task aufgerufen. Wiki-Inhalte bleiben im GitHub Wiki; die generische Linkprüfung bleibt beim Standardwerkzeug. |
 | `scripts/run-pester.ps1` | OCI, Compose und Kompatibilität; `task quality:pester` | Installiert die gepinnte Pester-Version und erzeugt den standardisierten NUnit-Report. |
 
 ## Entfernte Einstiege
@@ -43,3 +43,6 @@ Syft-Aufrufe in Task und Workflows ersetzt.
 `scripts/verify_cli_release.py` wurde mit #811 entfernt;
 die Reproduzierbarkeitsprüfung der CLI übernimmt GoReleaser zusammen mit dem
 Build-Metadaten-Vertragstest des Ziel-Go-Moduls.
+`scripts/export_openapi.py` wurde mit #811 entfernt;
+der direkt ausführbare kanonische FastAPI-Assembly-Einstieg erzeugt das
+OpenAPI-Dokument für die Publikation.

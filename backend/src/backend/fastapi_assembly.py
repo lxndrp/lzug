@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 from collections.abc import Mapping
 from datetime import timedelta
 from pathlib import Path
@@ -31,7 +33,7 @@ from .runtime import RuntimeCoordinator
 from .security import RequestRateLimiter
 from .settings import RuntimeSettings
 
-__all__ = ["FastAPIConfig", "create_admin_application", "create_app"]
+__all__ = ["FastAPIConfig", "create_admin_application", "create_app", "export_openapi_document"]
 
 
 def create_admin_application(
@@ -138,3 +140,30 @@ def create_app(
         )
 
     return app
+
+
+def export_openapi_document(output: Path) -> None:
+    """Write the canonical publication OpenAPI document to ``output``."""
+
+    document = create_app(
+        FastAPIConfig(db_path=Path(":memory:"), session_cookie_name="__Host-lzug_session")
+    ).openapi()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def main() -> int:
+    """Export the canonical application OpenAPI document for the publication."""
+
+    parser = argparse.ArgumentParser(description=main.__doc__)
+    parser.add_argument("output", type=Path, help="destination OpenAPI JSON file")
+    args = parser.parse_args()
+    export_openapi_document(args.output)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -41,13 +41,13 @@ Der direkte Syft-Aufruf:
 - `scripts/sbom.py` schrumpft auf Validierung und Aggregation; `scripts/verify_cli_release.py` wird entfernt.
 - Normale CLI-Fachänderungen lösen keinen pauschalen Doppel-Archivbau aus; die Reproduzierbarkeitsprüfung läuft nur im vollständigen Quality-Gate und bei packaging-relevanten Pull Requests.
 - Die Boundaries (Syft-Pin, releasespezifische Lizenzliste, Go-Modulgrenzen, OCI-Bildauswahl, Determinismus der Aggregation) bleiben unverändert und werden weiterhin durch denselben Vertragstest auspärrt.
-- `scripts/export_openapi.py` bleibt als minimaler Passthrough für die Publikation erhalten; die Konsolidierung mit dem internen OpenAPI-Transport bliebe aus Join- und Konfigurationsgründen nachrangig.
+- Der direkt ausführbare kanonische FastAPI-Assembly-Einstieg erzeugt das OpenAPI-Dokument für die Publikation; ein separates Exportskript entfällt, ohne den davon getrennten internen Transportgenerator zusammenzuführen.
 
 ## Alternativen
 
 - Die Syft-Orchestrierung in `scripts/sbom.py` belassen: hält die Erzeugung unsichtbar hinter einer Projektskriptgrenze, statt sie den Standardwerkzeugen zuzuordnen.
 - Die Syft-Aufrufe in eigene Task-Wrapper oder Docker-Adapter verlagern: hätte erneut eine Projektgrenze erzeugt, statt den unveränderten Standardaufruf sichtbar zu machen.
-- `scripts/export_openapi.py` mit dem internen Transport-Export zusammenführen: verbindet getrennte Konfigurationsverträge (Publication-Cookie-Name und In-Memory-Cache vs. lokalen Cookie-Transport).
+- Den Publikations- und Transportgenerator vollständig zusammenführen: verbindet getrennte Konfigurationsverträge (Publication-Cookie-Name und In-Memory-Cache vs. lokalen Cookie-Transport).
 
 ## Referenzen
 
