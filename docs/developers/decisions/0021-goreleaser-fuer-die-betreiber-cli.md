@@ -37,19 +37,19 @@ Bei einem Release prüft sie, dass der SemVer-Tag annotiert ist und exakt auf di
 GoReleaser injiziert dieselbe Version, Revision und denselben Tag in das Binary und nimmt die erzeugte `build-metadata.json` in jedes Archiv auf.
 Snapshots verwenden weiterhin die Entwicklungsidentität `0.0.0-dev+sha.<vollständige Revision>`.
 
-`task quality:operator` validiert die Konfiguration, erzeugt zweimal alle sechs Snapshot-Archive und prüft Matrix, Namen, Inhalte, Metadaten, fehlende Checksummendatei sowie Bytegleichheit der Binärdateien und Archive.
-Damit wird Verhalten statt GoReleaser-interner Verdrahtung abgesichert.
+`task quality:operator` validiert die Konfiguration und führt die Go-Tests und `go vet` aus.
+`task quality:operator-packaging` erzeugt einmal die von GoReleaser konfigurierte Snapshot-Assembly und behält sie als Vergleichsbasis.
+`task quality:operator-reproducibility` nutzt diese Basis, erzeugt genau einen weiteren unabhängigen Clean-Build und vergleicht Archive und Binärdateien bytegleich; allein aufgerufen erzeugt der Task zunächst selbst eine Basis und bleibt damit ein vollständiger Zwei-Build-Nachweis.
+`task quality:operator-packaging-and-reproducibility` führt beide Schritte seriell aus und ist der gemeinsame Quality- und PR-Einstieg.
+Damit wird die Wiederholbarkeit der von GoReleaser konfigurierten Assembly statt ihrer internen Verdrahtung abgesichert.
 
 ## Integration in #347
 
 - GoReleaser schreibt Archive, Binärdateien und `artifacts.json` nach `dist/`.
 - Der Releaseablauf übernimmt ausschließlich die sechs Archive als sichtbare
-CLI-Assets und verwendet die Binärpfade aus `artifacts.json` für temporäre Detail-SBOMs.
+CLI-Assets.
 - GitHub Attestations attestieren die Archive weiterhin außerhalb von
 GoReleaser.
-Die temporäre Digestliste für Attestations ist kein Release-Asset.
-- Die einzige zusätzlich sichtbare Datei bleibt die aggregierte CycloneDX-SBOM
-aus #347.
 GoReleaser erzeugt weder eigene SBOMs noch Checksummen- oder Provenance-Dateien.
 - Auslöser, Environment-Freigabe, Tag-Erzeugung, OCI-Publish, Draft-Release und
 Wiederanlauf bleiben vollständig im Umfang von #347.
@@ -58,14 +58,14 @@ Wiederanlauf bleiben vollständig im Umfang von #347.
 
 Der eigene Builder und seine Implementierungstests entfallen.
 Die verbleibende projektspezifische Logik prüft nur Produktmetadaten und beobachtbare Artefaktinvarianten.
-Ein Upgrade von Go oder GoReleaser muss die doppelte Snapshot-Prüfung erneut bestehen; ohne Bytegleichheit oder bei zusätzlichen Artefakten ist es nicht zulässig.
+Ein Upgrade von Go oder GoReleaser muss die Reproduzierbarkeitsprüfung aus dem einmaligen Packaging-Build und einem weiteren Clean-Build erneut bestehen; ohne Bytegleichheit oder bei zusätzlichen Artefakten ist es nicht zulässig.
 
 ## Alternativen
 
 - Den Python-Builder behalten: erfüllt den Vertrag, dupliziert aber
 Standardfunktionen für Cross-Build und Archive.
 - GoReleaser einschließlich GitHub-Publisher verwenden: würde die in ADR-0020
-festgelegte Orchestrierungsgrenze verwischen und den exakt sieben sichtbaren Assets umfassenden Vertrag unnötig gefährden.
+festgelegte Orchestrierungsgrenze verwischen und den Vertrag der sechs sichtbaren CLI-Archive unnötig gefährden.
 - Die GoReleaser-Checksummendatei nur beim Upload herausfiltern: wäre weniger
 belastbar als ihre Erzeugung ausdrücklich zu deaktivieren.
 

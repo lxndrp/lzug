@@ -8,7 +8,6 @@ from scripts.check_documentation import (
     check,
     check_adrs,
     check_developer_structure,
-    check_handbook,
     check_navigation,
 )
 
@@ -71,17 +70,6 @@ class DocumentationContractTests(unittest.TestCase):
             violations = check_developer_structure(root)
 
         self.assertTrue(any("DOC-STRUCT-003" in violation for violation in violations))
-
-    def test_handbook_check_rejects_repository_owned_editorial_pages(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            handbook = root / "docs/handbook"
-            handbook.mkdir(parents=True)
-            (handbook / "Home.md").write_text("# Home\n", encoding="utf-8")
-
-            violations = check_handbook(root)
-
-        self.assertTrue(any("DOC-HANDBOOK-001" in violation for violation in violations))
 
     def test_adr_requires_status_and_keeps_supersession_in_status(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

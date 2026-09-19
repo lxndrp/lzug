@@ -201,19 +201,6 @@ jobs:
           version: v2.17.1
           install-only: true
 
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: "3.14.6"
-
-      - name: Set up UV
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          enable-cache: true
-
-      - name: Install locked SBOM dependencies
-        run: uv sync --locked --extra dev
-
       - name: Download Syft
         id: syft
         uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
@@ -248,55 +235,26 @@ jobs:
           provenance: false
           sbom: false
 
-      - name: Build CLI archives and the aggregate release SBOM
+      - name: Build CLI archives
         env:
-          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
-          IMAGE_NAME: ${{ steps.release.outputs.image }}
-          SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
           VERSION: ${{ steps.release.outputs.version }}
-          IMAGE: ${{ steps.release.outputs.canonical_ref }}
         run: |
           set -euo pipefail
-          detailed_sboms="$RUNNER_TEMP/lzug-release-sboms"
-          subject_checksums="$RUNNER_TEMP/lzug-release-subjects.checksums.txt"
-          mkdir -p release-assets/cli "$detailed_sboms/cli"
+          mkdir -p release-assets/cli
           (cd operator-cli && goreleaser release --clean)
           cp operator-cli/dist/lzug-admin-"$VERSION"-*.tar.gz operator-cli/dist/lzug-admin-"$VERSION"-*.zip \
             release-assets/cli/
-          python3 scripts/sbom.py generate-dependencies \
-            --source-version "$VERSION" --output "$detailed_sboms/dependencies.cdx.json"
-          python3 scripts/sbom.py generate-image \
-            --image "$IMAGE" --output "$detailed_sboms/image.cdx.json"
-          aggregate_inputs=(
-            --input "$detailed_sboms/dependencies.cdx.json"
-            --input "$detailed_sboms/image.cdx.json"
-          )
-          for target in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64 windows-arm64; do
-            archive_stem="lzug-admin-$VERSION-$target"
-            goos="${target%-*}"
-            goarch="${target#*-}"
-            binary=$(jq -er --arg goos "$goos" --arg goarch "$goarch" \
-              '.[] | select(.type == "Binary" and .goos == $goos and .goarch == $goarch) | .path' \
-              operator-cli/dist/artifacts.json)
-            binary="operator-cli/$binary"
-            python3 scripts/sbom.py generate-cli \
-              --source-version "$VERSION" --source-name "$archive_stem" \
-              --artifact "$binary" --output "$detailed_sboms/cli/$archive_stem.cdx.json"
-            aggregate_inputs+=(--input "$detailed_sboms/cli/$archive_stem.cdx.json")
-          done
-          python3 scripts/sbom.py aggregate \
-            "${aggregate_inputs[@]}" \
-            --source-version "$VERSION" --release-tag "$RELEASE_TAG" --revision "$TARGET_SHA" \
-            --output "release-assets/lzug-$VERSION.sbom.cdx.json"
-          python3 scripts/sbom.py validate \
-            --kind release --input "release-assets/lzug-$VERSION.sbom.cdx.json"
-          (
-            cd release-assets/cli
-            for asset in ./*.tar.gz ./*.zip; do
-              sha256sum "${asset#./}"
-            done
-          ) > "$subject_checksums"
-          printf '%s  %s\n' "${IMAGE_DIGEST#sha256:}" "$IMAGE_NAME" >> "$subject_checksums"
+
+      - name: Generate the OCI image SBOM
+        env:
+          IMAGE: ${{ steps.release.outputs.canonical_ref }}
+          SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/lzug-release-sboms"
+          env SYFT_CACHE_DIR=/tmp/lzug-syft-cache \
+            "${SYFT_BINARY:-syft}" scan --config .syft.yaml "$IMAGE" \
+            --output "cyclonedx-json@1.6=$RUNNER_TEMP/lzug-release-sboms/image.cdx.json"
 
       - name: Attest CLI archive provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
@@ -304,13 +262,6 @@ jobs:
           subject-path: |
             release-assets/cli/*.tar.gz
             release-assets/cli/*.zip
-          show-summary: true
-
-      - name: Attest the aggregate release SBOM
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
-        with:
-          subject-checksums: ${{ runner.temp }}/lzug-release-subjects.checksums.txt
-          sbom-path: release-assets/lzug-${{ steps.release.outputs.version }}.sbom.cdx.json
           show-summary: true
 
       - name: Attest OCI provenance
@@ -345,7 +296,7 @@ jobs:
               --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
 
-      - name: Upload the seven release assets and publish last
+      - name: Upload the six release assets and publish last
         run: |
           set -euo pipefail
           find release-assets -type f -print0 | sort -z | \

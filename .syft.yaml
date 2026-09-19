@@ -1,0 +1,14 @@
+# Stable repository-wide Syft scan policy.
+# Targets, output files, source identity, catalogers, and the transient cache
+# remain explicit at their task or workflow call sites.
+check-for-app-update: false
+
+format:
+  pretty: true
+
+file:
+  metadata:
+    selection: none
+
+javascript:
+  include-dev-dependencies: true

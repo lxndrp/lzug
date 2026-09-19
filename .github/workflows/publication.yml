@@ -29,7 +29,6 @@ on:
       - "docs/publication/hugo.toml"
       - "docs/publication/go.mod"
       - "docs/publication/go.sum"
-      - "scripts/export_openapi.py"
       - "scripts/generate-frontend-transport.ps1"
       - "scripts/validate_demo_url_contract.py"
       - "uv.lock"

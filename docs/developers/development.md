@@ -58,7 +58,7 @@ Seiteneffekt des normalen Servers.
 | Backend-Komplexität | `task backend:complexity` |
 | Angular-Code | betroffener Vitest-Test, danach `task quality:frontend` |
 | produktive npm-Abhängigkeiten | `task quality:security` |
-| Go-CLI | `task test:operator` oder `task quality:operator`; für native Archive zusätzlich `task quality:operator-packaging` |
+| Go-CLI | `task test:operator` oder `task quality:operator`; für native Archive und bytegleiche Reproduzierbarkeit `task quality:operator-packaging-and-reproducibility`, das den ersten Packaging-Build als Vergleichsbasis nutzt; die beiden Einzeltasks bleiben für gezielte Diagnose verfügbar |
 | sichtbarer Browserablauf | `task quality:e2e` |
 | Accessibility | `task quality:a11y` getrennt vom E2E-Lauf |
 | OCI, Compose oder CLI-Container | `task quality:pester` beziehungsweise `task quality:container`, `quality:compose` oder `quality:operator-container` |

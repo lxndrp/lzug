@@ -6,7 +6,7 @@
 
 ## Status
 
-Akzeptiert.
+Akzeptiert; abgelöst durch [ADR-0038: SBOM-Erzeugung als direkte Syft-Standardaufrufe](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md).
 
 ## Kontext
 
