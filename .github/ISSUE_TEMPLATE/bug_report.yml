@@ -9,31 +9,33 @@ body:
       value: |
         `lzug` ist ein nicht produktionsreifer Quellcode-Prototyp. Bitte keine vertraulichen oder personenbezogenen Daten einfügen.
   - type: textarea
-    id: reproduction
+    id: why
     attributes:
-      label: Reproduktion
+      label: Why
+      description: Tatsächliches Verhalten und welches Problem daraus entsteht
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: Erwartetes Verhalten
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: How
       description: Welche Schritte führen zum Fehler?
-    validations:
-      required: true
-  - type: textarea
-    id: expected
-    attributes:
-      label: Erwartetes Verhalten
-    validations:
-      required: true
-  - type: textarea
-    id: actual
-    attributes:
-      label: Tatsächliches Verhalten
     validations:
       required: true
   - type: input
     id: environment
     attributes:
-      label: Umgebung
+      label: Umgebung und Diagnose
       description: Browser, Betriebssystem und relevanter Commit oder Branch
   - type: textarea
     id: evidence
     attributes:
-      label: Nachweise
+      label: Nachweis
       description: Logs oder Screenshots ohne vertrauliche Inhalte

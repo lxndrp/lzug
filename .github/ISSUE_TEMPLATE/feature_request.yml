@@ -9,20 +9,28 @@ body:
       value: |
         Bitte den Nutzerwert und die fachliche Abgrenzung beschreiben. Produktions-, Self-Hosting- und Demo-Anforderungen gehören in das getrennte Release-Gate.
   - type: textarea
-    id: user-value
+    id: why
     attributes:
-      label: Nutzerwert
+      label: Why
       description: Wer soll was tun können und warum?
     validations:
       required: true
   - type: textarea
-    id: acceptance
+    id: what
     attributes:
-      label: Akzeptanzkriterien
-      description: Woran lässt sich die Umsetzung prüfen?
+      label: What
+      description: Ziel, Erhaltungsbedingungen und Nicht-Scope
     validations:
       required: true
   - type: textarea
-    id: context
+    id: how
     attributes:
-      label: Kontext und Abgrenzung
+      label: How
+      description: Kurzer Lösungsvorschlag und verbindliche ADR-Verweise; nur ausfüllen, wenn ein konkreter Ansatz vorliegt
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Nachweis
+      description: Woran lässt sich die Umsetzung beobachten und prüfen?
+    validations:
+      required: true

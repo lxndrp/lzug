@@ -164,6 +164,13 @@ Fremde oder ungefragte Änderungen nicht zurücksetzen und nur auftragsbezogene 
 - Die kleinste Änderung umsetzen, die das Issue vollständig erfüllt. Nicht zum
 Scope gehörende Refactorings vermeiden.
 Geforderte Tests, Dokumentation, Pages-, Wiki-, Migrations- und Betriebsänderungen gehören zur Umsetzung.
+- Technische Mittel erfüllen den Auftrag erst, wenn das Ziel des Issues (What)
+vollständig erreicht ist und seine Akzeptanzkriterien belegt sind.
+Werkzeugmigration, grüne Teiltests, Metadaten- oder Wortlautprüfungen sind
+ohne erreichtes Laufzeitverhalten kein Umsetzungsnachweis;
+ein Wrapper oder ein Verschieben von Code räumt keine Eigenlogik ab.
+Bei Vereinfachungs- und Rückbauaufträgen dokumentieren Umsetzung und Pull
+Request, welche Eigenlogik entfallen ist und welches Verhalten erhalten blieb.
 - Commit-Nachrichten sind Englisch; deutsche Prosa verwendet korrekte Umlaute.
 - Eigene gepflegte Markdown-Prosa wird mit Semantic Line Breaks geschrieben:
 Sätze und sinnvolle Gedankeneinheiten beginnen in neuen Quellzeilen.
@@ -200,6 +207,9 @@ vor dem Pull Request einmal und übergibt nur gesetzte Werte an
 Eine eindeutige erfolgreiche Werkzeugantwort genügt;
 nur bei Lücke, Widerspruch oder relevanter Änderung werden Metadaten oder
 schließende Verknüpfung gezielt nachgelesen.
+- Der Pull Request beschreibt knapp Ziel → Nachweis → Abweichung.
+Die Review- und Mergeinstanz prüft das am ursprünglichen Issue und am Diff.
+Es entsteht keine neue Berichtskette.
 - Pull Request und Abschluss nennen knapp wesentliche Modellabweichungen oder
 Eskalationen, relevante Befunde, die ausgeführte Verifikation sowie nur
 belegbare Goal-Metriken.

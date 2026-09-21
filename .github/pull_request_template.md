@@ -1,24 +1,24 @@
-## Zusammenfassung
+## Ziel
 
-- Welche Änderung wird vorgenommen?
-- Welches Issue oder welcher fachliche Zusammenhang wird bearbeitet?
+- Welches Ergebnis des Issues wird erreicht?
+- Welche Erhaltungsbedingungen und Nicht-Scope-Abgrenzungen bleiben bestehen?
 
-## Prüfung
+## Nachweis
 
+- [ ] Beobachtbare Kriterien am Diff und am Issue erfüllt
 - [ ] Betroffene lokale Prüfungen ausgeführt
+- [ ] Bei Vereinfachung: entfallene Eigenlogik und erhaltenes Verhalten belegt
 - [ ] Dokumentation und öffentliche Statusaussagen geprüft
 - [ ] Keine vertraulichen oder personenbezogenen Daten ergänzt
 - [ ] Keine Produktions- oder IHK-Zusage eingeführt
 
-## Codex-Abschluss
+## Abweichungen
 
-- Goal-Status:
-- Wesentliche Modellabweichungen/Eskalationen:
-- Relevante Befunde:
-- Verifikation:
-- Goal-Laufzeit (s; nur belegt, sonst leer):
-- Goal-Tokens (nur belegt, sonst leer):
+- Wesentliche Modellabweichungen oder Eskalationen
+- Relevante Befunde
+- Belegte Goal-Metriken (sonst leer)
 
 ## Verknüpfung
 
-Closes #
+Closes #<nummer> bei vollständiger Umsetzung.
+Bei wesentlicher Restarbeit `Tracks #<nummer>` verwenden und die offenen Punkte im Issue benennen.

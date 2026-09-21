@@ -377,6 +377,8 @@ class QualityWorkflowContractTests(unittest.TestCase):
         unknown = mapping_block(changes, "unknown", indent=12)
         for path, unknown_exclusion in {
             ".github/workflows/publication.yml": ".github/**",
+            ".github/pull_request_template.md": ".github/**",
+            ".github/ISSUE_TEMPLATE/**": ".github/**",
             ".lychee.toml": ".lychee.toml",
             "tests/docs/**": "tests/**",
         }.items():
