@@ -43,7 +43,7 @@ die Formatentscheidung steht im Registereintrag für ADR-0029.
 | [0025](0025-kein-inspec-infrastruktur-harness.md) | Kein InSpec-Infrastruktur-Harness | Abgelehnt |
 | [0026](0026-automatische-demo-promotion-stabiler-releases.md) | Automatische Demo-Promotion stabiler Releases | Akzeptiert |
 | [0027](0027-synchroner-fastapi-migrationskern.md) | Synchroner FastAPI-Kern für die schrittweise HTTP-Migration | Akzeptiert |
-| [0028](0028-sbom-orchestrierung-und-cyclonedx-standardwerkzeuge.md) | SBOM-Orchestrierung und CycloneDX-Standardwerkzeuge abgrenzen | Akzeptiert |
+| [0028](0028-sbom-orchestrierung-und-cyclonedx-standardwerkzeuge.md) | SBOM-Orchestrierung und CycloneDX-Standardwerkzeuge abgrenzen | Akzeptiert; abgelöst durch ADR-0038 |
 | [0029](0029-einheitliches-nygard-format.md) | Einheitliches Nygard-Format für Architekturentscheidungen | Akzeptiert |
 | [0030](0030-x25519-aes-gcm-fuer-geschuetzte-artefakte.md) | X25519 und AES-GCM für geschützte Artefakte | Abgelöst durch ADR-0031 |
 | [0031](0031-age-huelle-in-der-betreiber-cli.md) | age-Hülle in der Betreiber-CLI | Akzeptiert |
@@ -53,3 +53,4 @@ die Formatentscheidung steht im Registereintrag für ADR-0029.
 | [0035](0035-getrennte-publikations-und-versionsarchitektur.md) | Getrennte Publikations- und Versionsarchitektur | Akzeptiert |
 | [0036](0036-powershell-adapter-fuer-werkzeuggrenzen.md) | PowerShell-Adapter für portable Werkzeuggrenzen | Akzeptiert |
 | [0037](0037-powershell-pester-testharness.md) | PowerShell/Pester-Testharness | Akzeptiert |
+| [0038](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md) | SBOM-Erzeugung als direkte Syft-Standardaufrufe | Akzeptiert |

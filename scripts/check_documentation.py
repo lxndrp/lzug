@@ -1,9 +1,9 @@
 """Check repository-specific documentation structure contracts.
 
 The checker deliberately covers only structural invariants that standard
-documentation tools do not express. MkDocs remains responsible for the
-technical documentation build and its link validation; publication and
-generated-reference checks remain separate contracts.
+documentation tools do not express. MkDocs builds the technical documentation
+and validates its links; Lychee checks publication links; the publication
+build covers generated references and the OpenAPI contract.
 """
 
 from __future__ import annotations
@@ -11,41 +11,6 @@ from __future__ import annotations
 import argparse
 import re
 from pathlib import Path
-
-ROOT_DOCUMENT_MARKERS = {
-    "README.md": (
-        "nicht produktionsreif",
-        "GitHub Issues",
-        "GitHub Releases",
-        "lzug Roadmap",
-        "CONTRIBUTING.md",
-        "Produktseite",
-    ),
-    "CONTRIBUTING.md": (
-        "nicht produktionsreifer",
-        "GitHub Issues",
-        "lzug Roadmap",
-        "Entwicklerhandbuch",
-        "Closes #",
-    ),
-    "SECURITY.md": (
-        "keine Zusicherung für ungeprüfte Installationen oder produktiven Betrieb",
-        "Sicherheitslücken",
-        "Private Vulnerability Reporting",
-        "GitHub Secret Scanning",
-    ),
-    "SUPPORT.md": (
-        "nicht produktreifer",
-        "GitHub Issue",
-        "Private Vulnerability Reporting",
-        "CONTRIBUTING.md",
-    ),
-    "CHANGELOG.md": (
-        "## [Unreleased]",
-        "GitHub Release",
-        "Semantic Versioning",
-    ),
-}
 
 ADR_PATH = Path("docs/developers/decisions")
 ADR_FILENAME = re.compile(r"(?P<number>\d{4})-[a-z0-9]+(?:-[a-z0-9]+)*\.md$")
@@ -64,44 +29,6 @@ GENERATED_REFERENCE_FILES = {
     Path("reference/cli.md"),
     Path("reference/frontend.md"),
     Path("reference/full-export-v1.schema.json"),
-}
-HANDBOOK_FILES = {
-    "Administration-Backup-Pruefung-und-Restore.md",
-    "Administration-Installation-und-Konfiguration.md",
-    "Administration-Update-und-Rollback.md",
-    "Administration-Verantwortung-Grenzen-und-Support.md",
-    "Administration.md",
-    "Entscheidungsmatrix-Ausfall-und-Ersatzbesetzung.md",
-    "Entscheidungsmatrix-Besetzung-und-Planbarkeit.md",
-    "Entscheidungsmatrix-Verbindliche-Gesamtbewertung.md",
-    "Entwicklung-Arbeitsprozess.md",
-    "Entwicklung-Architektur.md",
-    "Entwicklung-Dokumentation.md",
-    "Entwicklung-Einrichtung.md",
-    "Entwicklung-Qualitaet-und-Sicherheit.md",
-    "Entwicklung.md",
-    "Fachlichkeit-Glossar.md",
-    "Fachlichkeit-Kernprozesse.md",
-    "Fachlichkeit-Rollen-und-Verantwortlichkeiten.md",
-    "Fachlichkeit.md",
-    "Home.md",
-    "Nutzung-Grundbegriffe.md",
-    "Nutzung-Pruefungshalbjahre.md",
-    "Nutzung-Stammdaten.md",
-    "Nutzung-Terminplanung.md",
-    "Nutzung.md",
-    "Prozess-Ergebnis-feststellen-und-bekanntgeben.md",
-    "Prozess-Muendliche-Pruefung-planen-und-durchfuehren.md",
-    "Prozess-Pruefungshalbjahr-planen.md",
-    "Prozess-Pruefungsleistungen-bewerten.md",
-    "Prozess-Schriftliche-Pruefungen-organisieren.md",
-    "Prozess-Zulassung-und-Antraege-bewerten.md",
-    "User-Journey-Dokumentation-individuell-bewerten.md",
-    "User-Journey-Ergebnis-gemeinsam-feststellen.md",
-    "User-Journey-Muendlichen-Pruefungstag-vorbereiten-und-durchfuehren.md",
-    "User-Journey-Praesentation-und-Fachgespraech-bewerten.md",
-    "User-Journey-Pruefungshalbjahr-planen.md",
-    "User-Journey-Verfuegbarkeit-melden.md",
 }
 DEVELOPER_NAV_TARGETS = {
     "developers/architecture.md",
@@ -254,20 +181,6 @@ def check_documentation_paths(root: Path) -> list[str]:
     return violations
 
 
-def check_handbook(root: Path) -> list[str]:
-    """Ensure the migrated editorial handbook is no longer repository-owned."""
-
-    handbook = root / "docs" / "handbook"
-    actual = {path.name for path in handbook.glob("*.md")} if handbook.is_dir() else set()
-    violations: list[str] = []
-    if actual:
-        violations.append(
-            "[DOC-HANDBOOK-001] docs/handbook: migrated editorial pages must be removed; "
-            f"move remaining material to its canonical target: {sorted(actual)!r}."
-        )
-    return violations
-
-
 def check_adrs(root: Path) -> list[str]:
     """Check ADR structure, status markers, and index coverage."""
 
@@ -352,41 +265,14 @@ def check_adrs(root: Path) -> list[str]:
     return violations
 
 
-def check_root_documents(root: Path) -> list[str]:
-    """Ensure root documents retain their small, distinct responsibility markers."""
-
-    violations: list[str] = []
-    for filename, markers in ROOT_DOCUMENT_MARKERS.items():
-        path = root / filename
-        if not path.is_file():
-            violations.append(
-                f"[DOC-ROOT-001] {filename}: canonical root document is missing; "
-                "restore the document instead of moving its responsibility into docs/."
-            )
-            continue
-        document = path.read_text(encoding="utf-8")
-        document = re.sub(r"[*_>`]", "", document)
-        document = " ".join(document.split())
-        for marker in markers:
-            if marker not in document:
-                violations.append(
-                    f"[DOC-ROOT-002] {filename}: missing canonical boundary marker {marker!r}; "
-                    "restore the concise product, release, security, or support "
-                    "statement and keep details in its canonical source."
-                )
-    return violations
-
-
 def check(root: Path) -> list[str]:
     """Return all structural documentation contract violations."""
 
     return [
         *check_documentation_paths(root),
-        *check_handbook(root),
         *check_developer_structure(root),
         *check_navigation(root),
         *check_adrs(root),
-        *check_root_documents(root),
     ]
 
 

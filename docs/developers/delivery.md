@@ -308,22 +308,14 @@ wird nicht nochmals als eigenes Testziel nachgebildet.
 Der reale Compose-Persistenztest bleibt, weil er das Zusammenwirken unserer
 Volume-, Benutzer- und Anwendungskonfiguration nach einem Neustart beweist.
 
-Die Go-Dependency-SBOM muss die in `go.mod` deklarierten Module enthalten;
-zusätzliche transitive Einträge müssen im aufgelösten, gelockten Graph liegen.
-Die CLI-SBOM wird dagegen direkt gegen `go version -m -json` der gescannten
-Binärdatei geprüft und bereits beim Erzeugen validiert.
-Upstream-Testabhängigkeiten sind keine Pflichtbestandteile eines Binaries;
-fehlende oder zusätzlich behauptete eingebettete Module schlagen fehl.
-
 Release und Snapshot verwenden dieselben Docker-Stages ohne kanalabhängige
 Packagingpfade.
 Der lokale und nächtliche Demo-Smoke baut deshalb einmal das Paar mit der
 komplexeren Snapshot-Identität.
 Die stabilen Tags, Kanalableitungen und ungültigen Kombinationen bleiben durch
 Identitäts- und Manifesttests abgedeckt.
-`quality:image` erzeugt und validiert seine Image-SBOM einmal; `quality:sbom`
-verwendet den gemeinsamen Dependency-SBOM-Task.
-Die CI lädt diese Ergebnisse hoch, ohne denselben Input erneut zu scannen.
+`quality:image` erzeugt seine Image-SBOM einmal;
+die CI lädt dieses OCI-Inventar als Quality-Evidenz hoch, ohne dasselbe Image erneut zu scannen.
 
 ## Fehlerdiagnose und sichere Wiederholung
 

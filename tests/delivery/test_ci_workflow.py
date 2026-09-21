@@ -130,6 +130,97 @@ class QualityWorkflowContractTests(unittest.TestCase):
             mapping_block(job_block(self.pull_request, "changes"), "cli", indent=12),
         )
 
+    def test_packaging_reproducibility_is_a_gated_domain_of_its_own(self) -> None:
+        changes = job_block(self.pull_request, "changes")
+        packaging = mapping_block(changes, "packaging", indent=12)
+        for path in (
+            "operator-cli/.goreleaser.yml",
+            "operator-cli/go.mod",
+            "operator-cli/go.sum",
+            "scripts/build_metadata.py",
+            "THIRD_PARTY_NOTICES.md",
+            ".mise.toml",
+            "Taskfile.yml",
+        ):
+            with self.subTest(path=path):
+                self.assertIn(f"'{path}'", packaging)
+        self.assertIn(
+            "packaging: ${{ steps.domains.outputs.packaging == 'true' "
+            "|| steps.domains.outputs.full == 'true' "
+            "|| steps.unknown.outputs.unknown == 'true' }}",
+            changes,
+        )
+
+        gate = job_block(self.pull_request, "cli-gate")
+        self.assertIn("needs: [changes, cli, packaging, codeql, source-scan]", gate)
+        self.assertIn("PACKAGING_SELECTED", gate)
+        self.assertIn("PACKAGING", gate)
+
+        package_job = job_block(self.pull_request, "packaging")
+        self.assertIn("needs: changes", package_job)
+        self.assertIn("needs.changes.outputs.packaging == 'true'", package_job)
+        packaging_tasks = "task quality:operator-packaging-and-reproducibility"
+        self.assertIn(packaging_tasks, package_job)
+        self.assertNotIn("verify_cli_release", self.pull_request)
+
+        cli_quality = job_block(self.quality, "cli")
+        self.assertIn("quality:operator-packaging-and-reproducibility", cli_quality)
+        self.assertNotIn("PowerShell", cli_quality)
+
+        taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
+        packaging = taskfile.split("  quality:operator-packaging:\n", 1)[1].split(
+            "  quality:operator-reproducibility:\n", 1
+        )[0]
+        reproducibility = taskfile.split("  quality:operator-reproducibility:\n", 1)[1].split(
+            "  quality:oci:\n", 1
+        )[0]
+        snapshot_build = "goreleaser release --snapshot --clean"
+        self.assertEqual(1, packaging.count(snapshot_build))
+        self.assertEqual(2, reproducibility.count(snapshot_build))
+        baseline = 'baseline="$repository_root/build/quality/operator-packaging"'
+        self.assertIn(baseline, packaging)
+        self.assertIn('mkdir -p "$(dirname "$baseline")"', packaging)
+        self.assertIn(baseline, reproducibility)
+        self.assertIn('if test ! -d "$baseline"; then', reproducibility)
+        self.assertIn('cmp "$baseline/$artifact"', reproducibility)
+        combined_extract = "quality:operator-packaging-and-reproducibility:\n"
+        combined = taskfile.split("  " + combined_extract, 1)[1].split(
+            "  quality:operator-reproducibility:\n", 1
+        )[0]
+        self.assertIn("task: quality:operator-packaging", combined)
+        self.assertIn("task: quality:operator-reproducibility", combined)
+
+    def test_direct_syft_scans_use_the_declarative_repository_configuration(self) -> None:
+        config = Path(".syft.yaml").read_text(encoding="utf-8")
+        self.assertIn("check-for-app-update: false", config)
+        self.assertIn("pretty: true", config)
+        self.assertIn("selection: none", config)
+        self.assertIn("include-dev-dependencies: true", config)
+        self.assertNotIn("cache:", config)
+
+        taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
+        product_publish = workflow_text(".github/workflows/product-publish.yml")
+        demo_publish = workflow_text(".github/workflows/demo-publish.yml")
+        for source, config_path in (
+            (taskfile, "scan --config .syft.yaml"),
+            (product_publish, "scan --config .syft.yaml"),
+            (demo_publish, "scan --config .syft.yaml"),
+        ):
+            with self.subTest(source=source[:20]):
+                self.assertIn(config_path, source)
+                self.assertNotIn("SYFT_CHECK_FOR_APP_UPDATE", source)
+                self.assertNotIn("SYFT_FILE_METADATA_SELECTION", source)
+                self.assertNotIn("SYFT_FORMAT_PRETTY", source)
+                self.assertNotIn("SYFT_JAVASCRIPT_INCLUDE_DEV_DEPENDENCIES", source)
+
+        self.assertIn("SYFT_CACHE_DIR=/tmp/lzug-syft-cache", taskfile)
+        self.assertNotIn("scan --config ../.syft.yaml", taskfile)
+        self.assertNotIn("--exclude './.git/**'", taskfile)
+        self.assertNotIn("--exclude './.git/**'", product_publish)
+        changes = job_block(self.pull_request, "changes")
+        self.assertNotIn("'.syft.yaml'", mapping_block(changes, "packaging", indent=12))
+        self.assertIn("'.syft.yaml'", mapping_block(changes, "container", indent=12))
+
     def test_gates_reject_missing_failed_or_cancelled_selected_evidence(self) -> None:
         for gate_id in PR_GATES:
             gate = job_block(self.pull_request, gate_id)
@@ -153,6 +244,8 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 "DELIVERY": "success",
                 "TRANSPORT_SELECTED": "true",
                 "TRANSPORT": "success",
+                "PACKAGING_SELECTED": "true",
+                "PACKAGING": "success",
             }
 
             def check(values: dict[str, str], script: str = command) -> int:
@@ -175,6 +268,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
                     "INFRA_DETAIL",
                     "DELIVERY",
                     "TRANSPORT",
+                    "PACKAGING",
                 ):
                     if f"${key}" not in command and f"{key}:" not in command:
                         continue
@@ -198,10 +292,9 @@ class QualityWorkflowContractTests(unittest.TestCase):
         for path, owner in {
             "scripts/check_documentation.py": "docs",
             "scripts/build-frontend.ps1": "frontend",
-            "scripts/verify_cli_release.py": "cli",
             "tests/pester/Container.Tests.ps1": "container",
             "scripts/generate-frontend-transport.ps1": "transport",
-            "scripts/sbom.py": "full",
+            "scripts/build_metadata.py": "full",
         }.items():
             with self.subTest(path=path):
                 self.assertIn(f"'{path}'", mapping_block(changes, owner, indent=12))

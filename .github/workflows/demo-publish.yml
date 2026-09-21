@@ -290,7 +290,7 @@ jobs:
         with:
           syft-version: v1.51.0
 
-      - name: Generate and validate separate image SBOMs
+      - name: Generate separate image SBOMs
         if: steps.availability.outputs.reuse != 'true'
         env:
           APP_REF: ${{ steps.images.outputs.app_ref }}
@@ -298,14 +298,12 @@ jobs:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
         run: |
           set -euo pipefail
-          python3 scripts/sbom.py generate-image \
-            --image "$APP_REF" --output "$RUNNER_TEMP/lzug-demo-app.sbom.cdx.json"
-          python3 scripts/sbom.py validate \
-            --kind image --input "$RUNNER_TEMP/lzug-demo-app.sbom.cdx.json"
-          python3 scripts/sbom.py generate-image \
-            --image "$SEED_REF" --output "$RUNNER_TEMP/lzug-demo-seed.sbom.cdx.json"
-          python3 scripts/sbom.py validate \
-            --kind image --input "$RUNNER_TEMP/lzug-demo-seed.sbom.cdx.json"
+          env SYFT_CACHE_DIR=/tmp/lzug-syft-cache \
+            "${SYFT_BINARY:-syft}" scan --config .syft.yaml "$APP_REF" \
+            --output "cyclonedx-json@1.6=$RUNNER_TEMP/lzug-demo-app.sbom.cdx.json"
+          env SYFT_CACHE_DIR=/tmp/lzug-syft-cache \
+            "${SYFT_BINARY:-syft}" scan --config .syft.yaml "$SEED_REF" \
+            --output "cyclonedx-json@1.6=$RUNNER_TEMP/lzug-demo-seed.sbom.cdx.json"
 
       - name: Attest demo application provenance
         if: steps.availability.outputs.reuse != 'true'

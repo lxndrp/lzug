@@ -88,23 +88,26 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn('gh release create "$RELEASE_TAG"', self.publish)
         self.assertIn("--clobber", self.publish)
 
-    def test_release_builds_only_the_seven_visible_tag_bound_assets(self) -> None:
+    def test_release_builds_only_the_six_cli_assets_and_attests_the_oci_image(self) -> None:
         self.assertIn('image="ghcr.io/${GH_REPO,,}-app"', self.publish)
         self.assertIn("platforms: linux/amd64,linux/arm64", self.publish)
         self.assertNotIn('image="ghcr.io/${GH_REPO,,}"', self.publish)
         self.assertIn("goreleaser release --clean", self.publish)
         self.assertIn("goreleaser/goreleaser-action@", self.publish)
-        self.assertIn("linux-amd64 linux-arm64 darwin-amd64 darwin-arm64", self.publish)
-        self.assertIn("scripts/sbom.py aggregate", self.publish)
-        self.assertIn("release-assets/lzug-$VERSION.sbom.cdx.json", self.publish)
+        self.assertIn('lzug-admin-"$VERSION"-*.tar.gz', self.publish)
+        self.assertIn('lzug-admin-"$VERSION"-*.zip', self.publish)
+        self.assertIn("Generate the OCI image SBOM", self.publish)
+        self.assertIn('"${SYFT_BINARY:-syft}" scan --config .syft.yaml "$IMAGE"', self.publish)
+        self.assertNotIn("scripts/sbom.py", self.publish)
+        self.assertNotIn("release-assets/lzug-$VERSION.sbom.cdx.json", self.publish)
         self.assertIn("actions/attest@", self.publish)
-        self.assertIn("subject-checksums: ${{ runner.temp }}/lzug-release-subjects", self.publish)
         self.assertIn(
             'gh release edit "$RELEASE_TAG" --repo "$GH_REPO" --draft=false', self.publish
         )
         self.assertNotIn("release-assets/lzug-$VERSION.dependencies", self.publish)
         self.assertNotIn("release-assets/lzug-$VERSION.image", self.publish)
         self.assertNotIn("release-assets/cli/$archive_stem.cdx", self.publish)
+        self.assertNotIn("subject-checksums", self.publish)
         self.assertNotIn('checksums.txt" release-assets', self.publish)
         self.assertNotIn("release-manifest.json", self.publish)
 

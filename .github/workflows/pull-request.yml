@@ -26,6 +26,7 @@ jobs:
       frontend: ${{ steps.domains.outputs.frontend == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       transport: ${{ steps.domains.outputs.transport == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       cli: ${{ steps.domains.outputs.cli == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
+      packaging: ${{ steps.domains.outputs.packaging == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       container: ${{ steps.domains.outputs.container == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       infra: ${{ steps.domains.outputs.infra == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
       delivery: ${{ steps.domains.outputs.delivery == 'true' || steps.domains.outputs.full == 'true' || steps.unknown.outputs.unknown == 'true' }}
@@ -84,7 +85,6 @@ jobs:
               - 'scripts/generate-frontend-transport.ps1'
               - 'scripts/generate_frontend_transport.py'
             cli:
-              - 'scripts/verify_cli_release.py'
               - 'tests/pester/**'
               - 'scripts/operator-smoke-diagnostics.py'
               - 'operator-cli/**'
@@ -92,6 +92,14 @@ jobs:
               - 'operator-cli/go.mod'
               - 'operator-cli/go.sum'
               - 'THIRD_PARTY_NOTICES.md'
+            packaging:
+              - 'operator-cli/.goreleaser.yml'
+              - 'operator-cli/go.mod'
+              - 'operator-cli/go.sum'
+              - 'scripts/build_metadata.py'
+              - 'THIRD_PARTY_NOTICES.md'
+              - '.mise.toml'
+              - 'Taskfile.yml'
             delivery:
               - 'backend/**'
               - 'demo/**'
@@ -107,6 +115,7 @@ jobs:
               - 'pyproject.toml'
               - 'uv.lock'
             container:
+              - '.syft.yaml'
               - 'tests/pester/Container.Tests.ps1'
               - 'tests/pester/Compatibility.Tests.ps1'
               - 'tests/pester/**'
@@ -141,7 +150,6 @@ jobs:
               - 'frontend/.node-version'
               - 'Taskfile.yml'
               - 'scripts/build_metadata.py'
-              - 'scripts/sbom.py'
 
       - name: Detect unknown paths
         id: unknown
@@ -167,9 +175,7 @@ jobs:
               - '!scripts/demo-deploy.ps1'
               - '!scripts/generate-frontend-transport.ps1'
               - '!scripts/generate_frontend_transport.py'
-              - '!scripts/sbom.py'
               - '!scripts/validate_demo_url_contract.py'
-              - '!scripts/verify_cli_release.py'
               - '!.github/**'
               - '!.lychee.toml'
               - '!.vscode/**'
@@ -177,6 +183,7 @@ jobs:
               - '!.env.example'
               - '!.gitignore'
               - '!.mise.toml'
+              - '!.syft.yaml'
               - '!frontend/.node-version'
               - '!.python-version'
               - '!AGENTS.md'
@@ -402,6 +409,29 @@ jobs:
         working-directory: operator-cli
         run: go test ./internal/admincli -run TestEndpoint -count=1 -timeout=90s
 
+  packaging:
+    name: Packaging and reproducibility
+    needs: changes
+    if: needs.changes.outputs.packaging == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.5"
+          cache: true
+          cache-dependency-path: operator-cli/go.sum
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: v2.17.1
+          install-only: true
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+      - name: Build the CLI and verify reproducibility
+        run: task quality:operator-packaging-and-reproducibility
+
   delivery:
     name: Delivery and tooling contracts
     needs: changes
@@ -567,7 +597,7 @@ jobs:
 
   cli-gate:
     name: Pull Request / CLI
-    needs: [changes, cli, codeql, source-scan]
+    needs: [changes, cli, packaging, codeql, source-scan]
     if: always()
     runs-on: ubuntu-24.04
     steps:
@@ -575,6 +605,8 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           SELECTED: ${{ needs.changes.outputs.cli }}
           DETAIL: ${{ needs.cli.result }}
+          PACKAGING_SELECTED: ${{ needs.changes.outputs.packaging }}
+          PACKAGING: ${{ needs.packaging.result }}
           CODEQL_SELECTED: ${{ needs.changes.outputs.codeql_languages != '[]' }}
           SCAN_SELECTED: ${{ needs.changes.outputs.source_scan }}
           CODEQL: ${{ needs.codeql.result }}
@@ -584,6 +616,7 @@ jobs:
           test "$CODEQL_SELECTED:$CODEQL" = true:success || test "$CODEQL_SELECTED:$CODEQL" = false:skipped
           test "$SCAN_SELECTED:$SOURCE_SCAN" = true:success || test "$SCAN_SELECTED:$SOURCE_SCAN" = false:skipped
           test "$SELECTED:$DETAIL" = true:success || test "$SELECTED:$DETAIL" = false:skipped
+          test "$PACKAGING_SELECTED:$PACKAGING" = true:success || test "$PACKAGING_SELECTED:$PACKAGING" = false:skipped
 
   container-gate:
     name: Pull Request / Container

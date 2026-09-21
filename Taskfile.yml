@@ -175,7 +175,7 @@ tasks:
       - >-
         output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
         mkdir -p "$output/referenz/api" "$output/referenz/frontend"
-        && {{.UV}} python scripts/export_openapi.py "$output/referenz/api/openapi.json"
+        && {{.UV}} python -m backend.fastapi_assembly "$output/referenz/api/openapi.json"
         && cd frontend && node_modules/.bin/typedoc
         --treatWarningsAsErrors --validation.notExported false
         --entryPointStrategy expand --entryPoints src/app
@@ -272,14 +272,13 @@ tasks:
       - quality:frontend
       - quality:security
       - quality:operator
-      - quality:operator-packaging
+      - quality:operator-packaging-and-reproducibility
       - test:delivery
       - test:demo
       - test:oci
       - test:tooling
       - quality:oci
       - quality:overall
-      - quality:sbom
       - quality:infra
       - quality:demo
       - docs
@@ -309,20 +308,12 @@ tasks:
     cmds:
       - task: demo:delivery
 
-  quality:sbom:
-    desc: Generate and validate the dependency SBOM once
-    cmds:
-      - task: sbom
-        vars:
-          OUTPUT: build/quality/lzug.dependencies.sbom.cdx.json
-
   quality:release:
-    desc: Check the release workflow, aggregate SBOM, metadata, and GoReleaser contracts
+    desc: Check the release workflow, metadata, and GoReleaser contracts
     cmds:
       - >-
         {{.UV}} python -m unittest
         tests.delivery.test_release_process
-        tests.delivery.test_sbom
         tests.delivery.test_build_metadata
         tests.delivery.test_build_identity_contract
       - cd operator-cli && goreleaser check
@@ -369,29 +360,63 @@ tasks:
       - task: operator:quality
 
   quality:operator-packaging:
-    desc: Verify reproducible CLI archives and their native binary SBOM
+    desc: Build CLI archives once and retain the reproducibility baseline
     dir: operator-cli
     cmds:
       - |
         set -eu
         test ! -e dist || { echo "operator-cli dist directory must not exist before CLI verification" >&2; exit 1; }
-        temporary_directory="$(mktemp -d)"
-        trap 'rm -rf dist "$temporary_directory"; rm -f .goreleaser-build-metadata.json .goreleaser-license .goreleaser-third-party-notices.md' EXIT
+        repository_root="$(git rev-parse --show-toplevel)"
+        baseline="$repository_root/build/quality/operator-packaging"
+        rm -rf "$baseline"
+        mkdir -p "$(dirname "$baseline")"
+        trap 'rm -rf dist; rm -f .goreleaser-build-metadata.json .goreleaser-license .goreleaser-third-party-notices.md' EXIT
         revision="$(git rev-parse HEAD)"
         application_version="$(python3 ../scripts/build_metadata.py --revision "$revision" --field identity)"
-        for run in first second; do
+        goreleaser release --snapshot --clean
+        mv dist "$baseline"
+
+  quality:operator-packaging-and-reproducibility:
+    desc: Verify the CLI packaging contract and reproducibility with two clean builds
+    cmds:
+      - task: quality:operator-packaging
+      - task: quality:operator-reproducibility
+
+  quality:operator-reproducibility:
+    desc: Verify byte-stable CLI archives and binaries across two clean builds
+    dir: operator-cli
+    cmds:
+      - |
+        set -eu
+        test ! -e dist || { echo "operator-cli dist directory must not exist before CLI verification" >&2; exit 1; }
+        repository_root="$(git rev-parse --show-toplevel)"
+        baseline="$repository_root/build/quality/operator-packaging"
+        temporary_directory="$(mktemp -d)"
+        trap 'rm -rf dist "$baseline" "$temporary_directory"; rm -f .goreleaser-build-metadata.json .goreleaser-license .goreleaser-third-party-notices.md' EXIT
+        revision="$(git rev-parse HEAD)"
+        application_version="$(python3 ../scripts/build_metadata.py --revision "$revision" --field identity)"
+        if test ! -d "$baseline"; then
           goreleaser release --snapshot --clean
-          mv dist "$temporary_directory/$run"
+          mv dist "$baseline"
+        fi
+        goreleaser release --snapshot --clean
+        mv dist "$temporary_directory/second"
+        for artifact in $(python3 -c 'import json; from pathlib import Path; import sys; p=Path(sys.argv[1]).resolve().parent; [print(a["path"].removeprefix("dist/")) for a in json.loads((p / "artifacts.json").read_text()) if a["type"] in ("Archive", "Binary")]' "$baseline/artifacts.json"); do
+          cmp "$baseline/$artifact" "$temporary_directory/second/$artifact"
         done
-        python3 ../scripts/verify_cli_release.py \
-          --first "$temporary_directory/first" \
-          --second "$temporary_directory/second" \
-          --version "$application_version" \
-          --revision "$revision"
-        artifact=$(python3 -c 'import json; from pathlib import Path; p=Path(__import__("sys").argv[1]); print(next(p / a["path"].removeprefix("dist/") for a in json.loads((p / "artifacts.json").read_text()) if a["type"] == "Binary"))' "$temporary_directory/first")
-        python3 ../scripts/sbom.py generate-cli --artifact "$artifact" \
-          --source-name lzug-admin --source-version "$application_version" \
-          --output "$temporary_directory/cli.cdx.json"
+        case "$(uname -s)-$(uname -m)" in
+          Linux-x86_64) host_target="linux/amd64" ;;
+          Darwin-x86_64) host_target="darwin/amd64" ;;
+          Darwin-arm64) host_target="darwin/arm64" ;;
+          *) host_target="" ;;
+        esac
+        if [ -n "$host_target" ]; then
+          host_binary=$(python3 -c 'import json; from pathlib import Path; import sys; p=Path(sys.argv[1]).resolve().parent; goos, goarch = sys.argv[2].split("/"); print(p / next(a["path"].removeprefix("dist/") for a in json.loads((p / "artifacts.json").read_text()) if a["type"] == "Binary" and a["goos"] == goos and a["goarch"] == goarch))' "$baseline/artifacts.json" "$host_target")
+          actual=$("$host_binary" --build-metadata)
+          expected=$(python3 -c 'import json, sys; print(json.dumps({"identity": sys.argv[1], "release": False, "revision": sys.argv[2], "tag": None}, separators=(",", ":")))' "$application_version" "$revision")
+          test "$actual" = "$expected"
+        fi
+        echo "CLI release artifacts are byte-stable"
 
   quality:oci:
     desc: Build the local OCI quality image
@@ -483,10 +508,11 @@ tasks:
           --build-arg "BUILD_IDENTITY=$build_identity" \
           --build-arg "VCS_REF=$revision" \
           -t lzug-app:0.0.0-dev.local .
-      - task: sbom:image
-        vars:
-          IMAGE: lzug-app:0.0.0-dev.local
-          OUTPUT: build/quality/lzug.image.sbom.cdx.json
+      - >-
+        mkdir -p build/quality
+        && env SYFT_CACHE_DIR=/tmp/lzug-syft-cache
+        "${SYFT_BINARY:-syft}" scan --config .syft.yaml lzug-app:0.0.0-dev.local
+        --output "cyclonedx-json@1.6=build/quality/lzug.image.sbom.cdx.json"
 
   quality:container:
     desc: Run the packaged container runtime contract through Pester
@@ -544,57 +570,6 @@ tasks:
     desc: Install the Playwright Chromium, Firefox, and WebKit browsers
     cmds:
       - task: frontend:setup:playwright
-
-  sbom:
-    desc: Generate the canonical dependency and license-review CycloneDX SBOM
-    vars:
-      OUTPUT: '{{default "lzug.dependencies.sbom.cdx.json" .OUTPUT}}'
-    cmds:
-      - |
-        set -eu
-        revision="$(git rev-parse HEAD)"
-        source_version="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
-        uv sync --locked --extra dev --check
-        python3 scripts/sbom.py generate-dependencies \
-          --source-version "$source_version" \
-          --output "{{.OUTPUT}}"
-        python3 scripts/sbom.py validate \
-          --kind dependencies \
-          --input "{{.OUTPUT}}"
-
-  sbom:image:
-    desc: Generate the canonical CycloneDX SBOM for an exact local OCI image
-    requires:
-      vars:
-        - IMAGE
-    vars:
-      OUTPUT: '{{default "lzug.image.sbom.cdx.json" .OUTPUT}}'
-    cmds:
-      - >-
-        python3 scripts/sbom.py generate-image
-        --image "{{.IMAGE}}"
-        --output "{{.OUTPUT}}"
-      - >-
-        python3 scripts/sbom.py validate
-        --kind image
-        --input "{{.OUTPUT}}"
-
-  sbom:cli:
-    desc: Generate CycloneDX for one native CLI artifact built by the caller
-    requires:
-      vars:
-        - ARTIFACT
-        - OUTPUT
-    cmds:
-      - |
-        set -eu
-        revision="$(git rev-parse HEAD)"
-        source_version="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
-        python3 scripts/sbom.py generate-cli \
-          --artifact "{{.ARTIFACT}}" \
-          --source-name "$(basename "{{.ARTIFACT}}")" \
-          --source-version "$source_version" \
-          --output "{{.OUTPUT}}"
 
   dev:backend:
     desc: Start the backend development server

@@ -16,9 +16,8 @@ Die Liste ist keine zweite Test- oder API-Dokumentation.
 | `tests/pester/Container.Tests.ps1` | OCI/Self-Hosting; `task quality:pester` | Maßgeblicher Pester-Vertrag für Image-, Runtime- und Compose-Grenzen. |
 | `scripts/demo-container-smoke.sh` | Öffentliche Demo; `task quality:demo` | Beweist den separaten App-/Seed-Containervertrag einschließlich Seed-Revision, Runtime-Policy und Wiederanlaufgrenzen. Behalten, weil der allgemeine Produktimage-Smoke diese Demo-Paarung nicht abdeckt. |
 | `tests/pester/Compatibility.Tests.ps1` | Kompatibilitätstests; `task quality:pester` | Hält den unterstützten Upgradepfad als Pester-Kompatibilitätsvertrag sichtbar. |
-| `scripts/sbom.py` | Delivery/OCI; Quality-, PR- und Release-Workflows | Bindet Syft an die lzug-eigene CycloneDX-Identität, CLI-/Image-/Dependency-Quellen und die deterministische Release-Aggregation. Behalten, weil diese Lieferartefaktgrenze über Standard-SBOM-Erzeugung hinausgeht. |
+| `.syft.yaml` | Delivery/OCI; Quality- sowie Produkt- und Demo-Publish-Workflows | Hält die portable scannerweite Policy deklarativ. Syft erzeugt direkt die SBOMs der veröffentlichten OCI-Images; Scan-Ziele, Ausgabe und der flüchtige Cache bleiben sichtbar bei den Aufrufen. |
 | `scripts/validate_demo_url_contract.py` | Öffentliche Publikation; Publication-Workflow und Vertragstests | Erzwingt die erlaubte kanonische HTTPS-Origin ohne Credentials, Pfad oder fremde Demo-/Stage-Hosts. Behalten als Sicherheitsgrenze der konfigurierten Publikation. |
-| `scripts/verify_cli_release.py` | Betreiber-CLI; `task quality:operator-packaging` | Vergleicht zwei GoReleaser-Läufe einschließlich Archive, Metadaten und Lizenzen. Behalten als reproduzierbare Lieferprüfung, die GoReleaser allein nicht garantiert. |
 
 ## Komponentenbezogene Werkzeuge außerhalb von `scripts/`
 
@@ -26,7 +25,7 @@ Die Liste ist keine zweite Test- oder API-Dokumentation.
 | --- | --- | --- |
 | `brand/generate-assets.mjs` | Brand; `task brand:generate` und `task brand:check` | Ein einziger Einstieg erzeugt und prüft die tatsächlich ausgelieferten Derivate, Quellen, Tokens und Lizenzen. Die beiden früheren Brand-Skripte wurden nicht zusammenkopiert, sondern als ein gemeinsamer Vertrag mit einer Eigentümergrenze zusammengeführt. |
 | `docs/media/check.py` | Dokumentation/Publikation; `task docs:media:check` | Prüft die von Playwright erzeugten PNG-Dateien und die dazugehörigen Fixture-/Viewport-Metadaten mit dem Standardwerkzeug `file`. Behalten als kleiner Medienvertrag; ein eigener PNG-Parser ist entfernt. |
-| `docs/publication/` und `scripts/export_openapi.py` | Dokumentation/Publikation; `task docs:publication*` und der Publication-Workflow | Eingechecktes Hugo-Projekt mit Blowfish-Modulpin; Hugo, OpenAPI, TypeDoc, Git und Lychee werden direkt über Task aufgerufen. Wiki-Inhalte bleiben im GitHub Wiki; die generische Linkprüfung bleibt beim Standardwerkzeug. |
+| `docs/publication/` und `backend.fastapi_assembly` | Dokumentation/Publikation; `task docs:publication*` und der Publication-Workflow | Eingechecktes Hugo-Projekt mit Blowfish-Modulpin; der direkt ausführbare kanonische FastAPI-Assembly-Einstieg schreibt das OpenAPI-Dokument. Hugo, TypeDoc, Git und Lychee werden direkt über Task aufgerufen. Wiki-Inhalte bleiben im GitHub Wiki; die generische Linkprüfung bleibt beim Standardwerkzeug. |
 | `scripts/run-pester.ps1` | OCI, Compose und Kompatibilität; `task quality:pester` | Installiert die gepinnte Pester-Version und erzeugt den standardisierten NUnit-Report. |
 
 ## Entfernte Einstiege
@@ -39,3 +38,11 @@ Die einmalige Wiki-Migration und ihre Dauerverträge wurden mit #640 entfernt.
 durch direkte, im Taskfile sichtbare Docker-Aufrufe ersetzt.
 `check_demo_media.py` wurde nach `docs/media/check.py` verlagert und auf den
 kleinen Metadatenvertrag mit dem Standardwerkzeug `file` reduziert.
+`scripts/sbom.py` wurde mit #811 entfernt;
+direkte gepinnte Syft-Aufrufe erzeugen ausschließlich die SBOMs der veröffentlichten OCI-Images.
+`scripts/verify_cli_release.py` wurde mit #811 entfernt;
+die Reproduzierbarkeitsprüfung der CLI übernimmt GoReleaser zusammen mit dem
+Build-Metadaten-Vertragstest des Ziel-Go-Moduls.
+`scripts/export_openapi.py` wurde mit #811 entfernt;
+der direkt ausführbare kanonische FastAPI-Assembly-Einstieg erzeugt das
+OpenAPI-Dokument für die Publikation.
