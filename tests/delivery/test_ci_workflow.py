@@ -177,12 +177,14 @@ class QualityWorkflowContractTests(unittest.TestCase):
         snapshot_build = "goreleaser release --snapshot --clean"
         self.assertEqual(1, packaging.count(snapshot_build))
         self.assertEqual(2, reproducibility.count(snapshot_build))
-        self.assertIn('baseline="$repository_root/build/quality/operator-packaging"', packaging)
+        baseline = 'baseline="$repository_root/build/quality/operator-packaging"'
+        self.assertIn(baseline, packaging)
         self.assertIn('mkdir -p "$(dirname "$baseline")"', packaging)
-        self.assertIn('baseline="$repository_root/build/quality/operator-packaging"', reproducibility)
+        self.assertIn(baseline, reproducibility)
         self.assertIn('if test ! -d "$baseline"; then', reproducibility)
         self.assertIn('cmp "$baseline/$artifact"', reproducibility)
-        combined = taskfile.split("  quality:operator-packaging-and-reproducibility:\n", 1)[1].split(
+        combined_extract = "quality:operator-packaging-and-reproducibility:\n"
+        combined = taskfile.split("  " + combined_extract, 1)[1].split(
             "  quality:operator-reproducibility:\n", 1
         )[0]
         self.assertIn("task: quality:operator-packaging", combined)
