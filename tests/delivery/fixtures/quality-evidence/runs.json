@@ -1,0 +1,17 @@
+{
+  "total_count": 1,
+  "workflow_runs": [
+    {
+      "conclusion": "success",
+      "created_at": "2026-09-15T05:00:00Z",
+      "event": "workflow_dispatch",
+      "head_branch": "master",
+      "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "id": 42,
+      "run_attempt": 1,
+      "run_started_at": "2026-09-15T05:00:00Z",
+      "status": "completed",
+      "updated_at": "2026-09-15T06:00:00Z"
+    }
+  ]
+}

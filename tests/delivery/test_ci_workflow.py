@@ -414,6 +414,15 @@ class QualityWorkflowContractTests(unittest.TestCase):
             audits,
         )
         self.assertIn("task quality:security", audits)
+        image_audit = job_block(self.quality, "image-audit")
+        self.assertIn("decision == 'reused'", image_audit)
+        self.assertIn("source_run_id || github.run_id", image_audit)
+        self.assertIn("gh run download", image_audit)
+        self.assertIn("| docker load", image_audit)
+        self.assertNotIn("docker build", image_audit)
+        self.assertIn("scanners: vuln,secret,misconfig", image_audit)
+        self.assertIn("quality-container-image", revision)
+        self.assertIn("docker save", job_block(self.quality, "container"))
         self.assertIn(
             "decision == 'execute' || needs.revision.outputs.decision == 'reused'",
             job_block(self.quality, "source-scan"),
@@ -435,6 +444,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "codeql",
             "source-scan",
             "audits",
+            "image-audit",
         )
         for job in jobs:
             self.assertIn(job, evidence)
