@@ -359,7 +359,6 @@ class ExamRoundCreate(BaseModel):
     status: str = "draft"
     availability_deadline: str | None = None
     availability_reminder_at: str | None = None
-    created_by_member_id: int
 
 
 class ExamRoundUpdate(MasterDataUpdate):

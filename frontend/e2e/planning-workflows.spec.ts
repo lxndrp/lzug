@@ -371,7 +371,9 @@ test.describe('planning workflows', () => {
         response.url().endsWith('/api/exam-rounds') && response.request().method() === 'POST',
     );
     await page.getByRole('button', { name: 'Prüfungsrunde anlegen', exact: true }).last().click();
-    expect((await roundResponse).status()).toBe(201);
+    const createdRound = await roundResponse;
+    expect(createdRound.status()).toBe(201);
+    expect(createdRound.request().postDataJSON()).not.toHaveProperty('created_by_member_id');
     await expect(page).toHaveURL('/dashboard');
     await expect(page.getByLabel('Aktueller Prüfungskontext')).toContainText('Sommer 2027');
   });

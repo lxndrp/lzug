@@ -104,6 +104,16 @@ class OpenApiContractTests(unittest.TestCase):
             document["components"]["schemas"]["RevisionDeleteRequest"]["required"],
         )
 
+    def test_exam_round_create_contract_does_not_accept_a_client_actor(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            if api.client is None:
+                raise AssertionError("API client is not active")
+            document = openapi_document(api.client.app)
+
+        request_schema = document["components"]["schemas"]["ExamRoundCreate"]
+        self.assertNotIn("created_by_member_id", request_schema["properties"])
+        self.assertNotIn("created_by_member_id", request_schema.get("required", []))
+
     def test_seeded_read_operations_match_the_openapi_responses(self) -> None:
         """Exercise each documented collection and item response through the HTTP adapter."""
         with TempDatabase() as db_path, ApiServer(db_path) as api:

@@ -568,7 +568,6 @@ class ApiTests(unittest.TestCase):
                         "committee_id": 1,
                         "name": name,
                         "status": "draft",
-                        "created_by_member_id": 1,
                     },
                 )
                 assert_status(status, HTTPStatus.CREATED)
@@ -724,7 +723,6 @@ class ApiTests(unittest.TestCase):
                     "year": 2027,
                     "committee_id": 1,
                     "name": "Sommer 2027 · Prüfungsausschuss Teststadt 1",
-                    "created_by_member_id": 1,
                 },
             )
             assert_status(status, HTTPStatus.CREATED)
@@ -742,11 +740,55 @@ class ApiTests(unittest.TestCase):
                     "year": 2027,
                     "committee_id": 1,
                     "name": "Doppelte Runde",
-                    "created_by_member_id": 1,
                 },
             )
             assert_status(status, HTTPStatus.CONFLICT)
             self.assertEqual("Database constraint violated.", error["error"])
+
+    def test_exam_round_create_binds_actor_server_side_for_both_context_paths(self) -> None:
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            with closing(sqlite3.connect(db_path)) as connection, connection:
+                cursor = connection.execute(
+                    "INSERT INTO exam_half_year (season, year) VALUES ('winter', 2041)"
+                )
+                half_year_id = cursor.lastrowid
+
+            for index, context in enumerate(
+                ({"season": "summer", "year": 2040}, {"exam_half_year_id": half_year_id}),
+                start=1,
+            ):
+                status, created = api.request(
+                    "POST",
+                    "/api/exam-rounds",
+                    {
+                        **context,
+                        "committee_id": 1,
+                        "name": f"Actorvertrag {index}",
+                    },
+                )
+                assert_status(status, HTTPStatus.CREATED)
+                self.assertEqual(1, created["created_by_member_id"])
+
+            status, error = api.request(
+                "POST",
+                "/api/exam-rounds",
+                {
+                    "exam_half_year_id": half_year_id,
+                    "committee_id": 1,
+                    "name": "Manipulierter Actor",
+                    "created_by_member_id": 2,
+                },
+            )
+            assert_status(status, HTTPStatus.BAD_REQUEST)
+            self.assertEqual("Invalid request", error["error"])
+            with closing(sqlite3.connect(db_path)) as connection:
+                self.assertEqual(
+                    0,
+                    connection.execute(
+                        "SELECT COUNT(*) FROM exam_round WHERE name = ?",
+                        ("Manipulierter Actor",),
+                    ).fetchone()[0],
+                )
 
     def test_candidate_committee_change_is_visible_as_history_over_http(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
@@ -1081,7 +1123,6 @@ class ApiTests(unittest.TestCase):
                     "committee_id": 1,
                     "name": "Bypass",
                     "status": "plan_proposed",
-                    "created_by_member_id": 1,
                 },
             )
             assert_status(status, HTTPStatus.BAD_REQUEST)

@@ -91,7 +91,7 @@ class AuthenticationTests(unittest.TestCase):
             status, _body = api.request("GET", "/api/candidates", credentials=invalid)
             assert_status(status, HTTPStatus.UNAUTHORIZED)
 
-    def test_mutations_require_csrf_and_server_overwrites_actor(self) -> None:
+    def test_mutations_require_csrf_and_server_binds_actor(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             invalid_csrf = replace(api.credentials, csrf_token="invalid-csrf")
             status, _body = api.request(
@@ -115,7 +115,6 @@ class AuthenticationTests(unittest.TestCase):
                     "year": 2030,
                     "committee_id": 1,
                     "name": "Session actor",
-                    "created_by_member_id": 999999,
                 },
             )
             assert_status(status, HTTPStatus.CREATED)
@@ -144,7 +143,6 @@ class AuthenticationTests(unittest.TestCase):
                     "exam_half_year_id": 1,
                     "committee_id": committee["id"],
                     "name": "Unauthorized round",
-                    "created_by_member_id": 999999,
                 },
             )
             assert_status(status, HTTPStatus.FORBIDDEN)
