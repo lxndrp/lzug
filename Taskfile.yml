@@ -524,30 +524,28 @@ tasks:
         --output "cyclonedx-json@1.6=build/quality/lzug.image.sbom.cdx.json"
 
   quality:container:
-    desc: Run the packaged container runtime contract through Pester
+    desc: Run the packaged image and runtime integration smoke
     deps:
       - quality:image
     cmds:
-      - task: quality:pester
+      - pwsh -NoProfile -File scripts/run-pester.ps1 -TestFile Container.Tests.ps1
 
   quality:operator-container:
-    desc: Run the operator CLI contract through Pester
+    desc: Run the built operator CLI PTY contract through the product runtime
     deps:
       - quality:image
     cmds:
-      - task: quality:pester
+      - pwsh -NoProfile -File scripts/run-pester.ps1 -TestFile Operator.Tests.ps1
 
   quality:compose:
-    desc: Run the Compose runtime contract through Pester
-    deps:
-      - quality:image
+    desc: Run the supported Compose image and runtime smoke
     cmds:
-      - task: quality:pester
+      - task: quality:container
 
   quality:compose-config:
-    desc: Validate Compose with standard tooling and Pester
+    desc: Validate Compose configuration with standard tooling
     cmds:
-      - task: quality:pester
+      - docker compose config -q
 
   quality:e2e:
     desc: Run browser end-to-end tests

@@ -23,6 +23,11 @@ Die Pester-Version ist in `tests/pester/requirements.psd1` gepinnt und wird übe
 `tests/pester/LzugHarness.ps1` kapselt ausschließlich native Aufrufe, Docker-
 Voraussetzungen und Readiness-Wartezyklen.
 Die Verträge bleiben komponentennah in den Pester-Testdateien.
+Der allgemeine Image-Smoke prüft Imagezusammenbau und Runtimeintegration;
+fachliche HTTP-, Sicherheits-, CLI-, Backup- und Restoreaussagen verbleiben in
+ihren Modul- und Integrationsverträgen.
+Der gebaute CLI-PTY-Nachweis und der historische v0.6.0-Kompatibilitätsvertrag
+bleiben eigenständige Pester-Verträge.
 Pester erzeugt NUnit-XML unter `build/quality/pester/pester.xml`, damit CI die
 Ergebnisse als Standardtestreport weiterverarbeiten kann.
 

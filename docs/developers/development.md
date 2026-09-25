@@ -51,7 +51,9 @@ Seiteneffekt des normalen Servers.
 | Dokumentation und Publikation | betroffener `unittest` unter `tests/docs/` |
 | Synthetische Fixtures | `task test:backend` und `task test:demo` |
 | Repository-Tooling | betroffener `unittest` unter `tests/tooling/` |
-| OCI- oder Compose-Regel | passender Pester-Test unter `tests/pester/` |
+| ausgeliefertes OCI-Image und Compose-Runtimeintegration | `task quality:container` |
+| historische v0.6.0-Restore-/Upgradekompatibilität | `task quality:pester` mit `Compatibility.Tests.ps1` |
+| reales CLI-Terminal im Produktimage | `task quality:operator-container` |
 | Backend im Pull Request | `task quality:backend:pr` |
 | Backend vollständig mit Coverage | `task quality:backend` |
 | API-, Transport- und Persistenzmodelle | `task backend:typecheck` |
@@ -61,7 +63,7 @@ Seiteneffekt des normalen Servers.
 | Go-CLI | `task test:operator` oder `task quality:operator`; für native Archive und bytegleiche Reproduzierbarkeit `task quality:operator-packaging-and-reproducibility`, das den ersten Packaging-Build als Vergleichsbasis nutzt; die beiden Einzeltasks bleiben für gezielte Diagnose verfügbar |
 | sichtbarer Browserablauf | `task quality:e2e` |
 | Accessibility | `task quality:a11y` getrennt vom E2E-Lauf |
-| OCI, Compose oder CLI-Container | `task quality:pester` beziehungsweise `task quality:container`, `quality:compose` oder `quality:operator-container` |
+| OCI-/Compose-Smoke, CLI-Terminal oder Kompatibilitätsvertrag | `task quality:container`, `task quality:operator-container` beziehungsweise `task quality:pester` |
 | Demo-Liefervertrag | `task quality:demo-deployment` und je nach Änderung `quality:demo` oder `quality:infra` |
 | Dokumentation | `task docs:check`, danach `task docs` |
 | Erzeugte öffentliche Site und Portal-Links | `task docs:publication:linkcheck` |
@@ -109,9 +111,12 @@ Die CI ist die finale Abnahme für die ausgewählten Plattform- und
 Repositoryverträge.
 
 `task quality:pester` baut zuerst die Produkt- und Migrationsfixture und führt
-die gepinnte Pester-Suite einmal pro Task-Aufrufgraph aus.
-`quality:container`, `quality:compose`, `quality:operator-container`,
-`quality:compose-config` und `delivery:oci` verweisen auf denselben Nachweis.
+die gepinnte vollständige Pester-Suite einmal pro Task-Aufrufgraph aus.
+Sie enthält den Container-Smoke, den Operator-PTY-Vertrag und den eigenständigen
+Kompatibilitätsvertrag.
+`quality:container` und `quality:compose` führen nur den Image- und Runtime-Smoke
+aus; `quality:operator-container` führt nur den realen PTY-Vertrag aus.
+`quality:compose-config` validiert ausschließlich die Compose-Konfiguration.
 Die Pull-Request- und Quality-Containerjobs führen reale Containerstarts aus
 und bewahren den NUnit-Report unter `build/quality/pester/pester.xml` auf.
 Fehlende Engine, fehlendes Image und fehlgeschlagene Readiness sind Fehler;
@@ -119,8 +124,8 @@ die Suite kennt keine stillen lokalen Skips.
 Nach einem bereits erfolgten Build kann `pwsh -NoProfile -File
 scripts/run-pester.ps1` die betroffenen Verträge gezielt erneut ausführen.
 
-Die Tests verwenden ausschließlich eindeutige temporäre Compose-Projekte,
-Daten-, Socket- und CLI-Artefaktvolumes.
+Die Pester-Verträge verwenden ausschließlich eindeutige temporäre Compose-
+Projekte, Daten-, Socket- und CLI-Artefaktvolumes.
 Eigene `LZUG_*`-Deploymentvariablen werden während Compose-Aufrufen isoliert,
 damit keine vorhandenen Daten oder Socketpfade ausgewählt werden.
 Pester räumt die eigenen Ressourcen auch nach fehlgeschlagenen Assertions auf.
@@ -129,7 +134,8 @@ im Produktcontainer als auch mit UID/GID `10002:10001` in einem isolierten
 Hilfscontainer mit gemeinsamem PID-Namespace und Socketzugriff.
 Private age-Dateien und aktuelle Artefakte bleiben in dessen eigenem Volume;
 das Backend erhält dieses Volume nicht.
-Ein echtes Pseudoterminal prüft den interaktiven Einstieg `lzug-admin cli`.
+`Operator.Tests.ps1` prüft den interaktiven Einstieg `lzug-admin cli` mit einem
+echten Pseudoterminal und dem im Image gebauten Binary.
 Native Fehlerdiagnosen nennen Exitcode und verfügbare strukturierte
 Fehlerklasse, ohne rohe Antworten, Schlüssel oder Containerlogs auszugeben.
 Die konkreten Runtime-, Persistenz- und Upgradegrenzen beschreibt

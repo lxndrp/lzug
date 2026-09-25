@@ -106,6 +106,26 @@ class FastAPIDependencyTests(unittest.TestCase):
             200, self.client.get("/api/session", headers=self.headers(self.member)).status_code
         )
 
+    def test_exam_round_http_create_binds_actor_and_rejects_client_actor_fields(self) -> None:
+        payload = {
+            "season": "summer",
+            "year": 2030,
+            "committee_id": 1,
+            "name": "Actor contract round",
+        }
+        headers = self.headers(self.chair)
+        rejected = self.client.post(
+            "/api/exam-rounds",
+            json={**payload, "created_by_member_id": 999999},
+            headers=headers,
+        )
+        self.assert_error(rejected, 400, "Invalid request")
+
+        created = self.client.post("/api/exam-rounds", json=payload, headers=headers)
+        self.assertEqual(201, created.status_code, created.text)
+        actor = self.auth.authenticate(self.chair.token).committee_member_id
+        self.assertEqual(actor, created.json()["created_by_member_id"])
+
     def test_absent_expired_revoked_and_invalid_sessions_never_reach_the_handler(self) -> None:
         expired = self.auth.create_session(1, now=datetime.now(UTC) - timedelta(days=1))
         revoked = self.auth.create_session(1)

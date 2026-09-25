@@ -2,7 +2,9 @@
 
 [CmdletBinding()]
 param(
-    [string]$OutputDirectory = 'build/quality/pester'
+    [string]$OutputDirectory = 'build/quality/pester',
+    [ValidateSet('Container.Tests.ps1', 'Operator.Tests.ps1', 'Compatibility.Tests.ps1')]
+    [string]$TestFile
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,7 +23,15 @@ if (-not (Test-Path -LiteralPath $moduleManifest)) { throw "Pinned Pester module
 Import-Module $moduleManifest -Force
 
 $configuration = New-PesterConfiguration
-$configuration.Run.Path = Join-Path $root 'tests/pester'
+$configuration.Run.Path = if ($TestFile) {
+    $path = Join-Path $root 'tests/pester' $TestFile
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw "Pester test file does not exist: $TestFile"
+    }
+    $path
+} else {
+    Join-Path $root 'tests/pester'
+}
 $configuration.Run.Exit = $true
 $configuration.TestResult.Enabled = $true
 $configuration.TestResult.OutputPath = Join-Path $results 'pester.xml'
