@@ -50,8 +50,9 @@ Teilumsetzung eine nicht schließende Verknüpfung.
 - Prüfe die Zuordnungen nach dem Erstellen mit `gh pr view`.
 - CI und Review sind Voraussetzung für den Merge.
 
-Die vollständigen Befehle und der Ablauf bis zum Closeout stehen unter
-[Pull Request und Closeout](docs/developers/development.md#pull-request-und-closeout).
+Den lokalen Einstieg zum Pull Request beschreibt
+[Entwicklung](docs/developers/development.md#pull-request-und-closeout),
+die technischen CI-Gates [Delivery und Veröffentlichung](docs/developers/delivery.md#pull-request-gates).
 
 Release-Tags und öffentliche Artefakte bleiben Maintainer-Aufgaben.
 Der verbindliche SemVer-, Changelog-, GitHub-Release- und GHCR-Ablauf steht
