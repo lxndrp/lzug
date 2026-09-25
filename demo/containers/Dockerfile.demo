@@ -45,7 +45,7 @@ FROM node:26.5.0-bookworm-slim AS frontend-build
 
 COPY --from=powershell /powershell.tar.gz /tmp/powershell.tar.gz
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y libicu72 \
+    && apt-get install --no-install-recommends -y libicu72 libssl3 \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /opt/microsoft/powershell/7 \
     && tar -xzf /tmp/powershell.tar.gz -C /opt/microsoft/powershell/7 \
