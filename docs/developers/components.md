@@ -674,11 +674,24 @@ unterstützten oder geprüften Umfang.
 `compose.yaml` ist ein optionaler knapper Docker-Referenzweg für genau einen
 `lzug-app`-Container und ein persistentes Volume.
 Docker Compose validiert und startet den Referenzservice im Pester-Vertrag.
-`tests/pester/Container.Tests.ps1` prüft das ausgelieferte Produktimage über
-HTTP und das enthaltene CLI-Binary: Runtime-Rechte, gemeinsame Build-Identität,
-Authentisierungsgrenzen, persistente Fachschreibvorgänge und Betreiberabläufe.
-Nach Restart, Stop/Start und Container-Neuerstellung wird der gespeicherte
-Bootstrap-Auftrag als Replay gelesen; ein leeres Ersatzvolume verletzt denselben Nachweis.
+`tests/pester/Container.Tests.ps1` prüft den ausgelieferten Image- und
+Compose-Vertrag: gemeinsame Build-Identität, tatsächliche Runtime-Rechte,
+Frontend-Auslieferung, Health-Identität und die Verbindung der CLI zum
+Backend-Socket.
+Ein unterstützter Bootstrap-Roundtrip über Container-Neuerstellung prüft das
+Volume-Mapping.
+Fachliche HTTP- und Sicherheitsaussagen liegen in den Backend-Verträgen für
+FastAPI-Abhängigkeiten, Security, HTTP-Parität, Ressourcenautorisierung und
+OpenAPI.
+Diagnostik, Einladung und Actorverhalten liegen in Backend-Admin-/Diagnostik-
+und Go-CLI-Tests.
+Backup, Export, Restore, Schlüsselgrenzen und Rollback liegen in
+Backend-Backup-/Lifecycle-/Socket-Integration sowie CLI-Artefakt- und
+Migrationsprüfungen.
+`tests/pester/Operator.Tests.ps1` behält den echten PTY-Nachweis mit dem im Image
+gebauten CLI-Binary.
+`tests/pester/Compatibility.Tests.ps1` behält den historischen v0.6.0-Restore-
+und Upgradevertrag samt bisheriger Ausführungsfrequenz.
 
 `tests/pester/LzugHarness.ps1` bündelt native Aufrufe, isolierte Ressourcen,
 Readiness und Cleanup.
@@ -689,8 +702,10 @@ Datenvolume, Servicebefehl, UID/GID, Read-only-Dateisystem und übrige
 Sicherheitskonfiguration stammen aus `compose.yaml`.
 Nur die kurzlebigen Vorbereitungsschritte erhalten die benötigten Root-Rechte;
 Initialisierung und Service laufen als `10001:10001`.
-Die Suite prüft effektive Eigentümer, Verzeichnis-Modus `0750`, Socket-Modus
-`0660` und die tatsächliche Ablehnung eines unsicheren Socket-Verzeichnisses.
+Der Image-Smoke prüft effektive Eigentümer, Verzeichnis-Modus `0750` und
+Socket-Modus `0660`.
+Die Ablehnung unsicherer Socket-Verzeichnisse bleibt durch
+`backend/tests/test_admin_socket.py` abgedeckt.
 
 `tests/pester/Compatibility.Tests.ps1` startet die digestgebundene
 v0.6.0-Fixture, erzeugt und restauriert ein Legacy-Backup und führt anschließend
