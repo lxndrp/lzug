@@ -1,4 +1,4 @@
-import fixtureData from '../../../../fixtures/synthetic-fixtures.json';
+import fixtureData from '../../../../fixtures/synthetic-fixtures.json' with { type: 'json' };
 import {
   ApiRoot,
   Candidate,
@@ -72,7 +72,7 @@ const specializationLabels: Record<string, string> = {
 };
 
 const frontendRooms = adapterRows('rooms');
-const syntheticFixtures = {
+export const syntheticFixtures = {
   version: fixtureData.version,
   revision: fixtureData.revision,
   fixtureRoot: fixtureData.fixture_root,
