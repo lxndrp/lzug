@@ -58,6 +58,28 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 workflow = path.read_text(encoding="utf-8")
                 self.assertNotRegex(workflow, r"runs-on:\s*\S+-latest\b")
 
+    def test_go_toolchain_patch_is_consistent_across_build_contexts(self) -> None:
+        expected_version = "1.26.8"
+        self.assertIn(
+            f'go = "{expected_version}"',
+            Path(".mise.toml").read_text(encoding="utf-8"),
+        )
+        self.assertIn(
+            f"golang:{expected_version}-bookworm AS operator-cli-build",
+            Path("Dockerfile").read_text(encoding="utf-8"),
+        )
+        for path in (
+            ".github/workflows/ci.yml",
+            ".github/workflows/pull-request.yml",
+            ".github/workflows/quality.yml",
+            ".github/workflows/product-publish.yml",
+        ):
+            with self.subTest(path=path):
+                self.assertIn(
+                    f'go-version: "{expected_version}"',
+                    workflow_text(path),
+                )
+
     def test_quality_validates_all_workflows_with_actionlint(self) -> None:
         workflow_job = job_block(self.quality, "workflows")
         self.assertIn("name: GitHub Actions workflows", workflow_job)
