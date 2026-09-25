@@ -42,3 +42,15 @@ Die Runtime-Verträge benötigen weiterhin Docker und bleiben auf die unterstüt
 Linux-Referenzplattform angewiesen.
 Die Pester-Modulauflösung ist reproduzierbar gepinnt, aber kein Produkt-
 Runtimebestandteil.
+
+## Präzisierung des Umsetzungsumfangs
+
+Die Ablösung von ADR-0025 betrifft die Shell-/Python-Orchestrierung der
+Produkt-, Compose- und Kompatibilitätsverträge.
+Die Entscheidung gegen einen zusätzlichen InSpec-Harness bleibt bestehen;
+Demo-Smokes und OpenTofu-Prüfungen behalten ihre komponenteneigenen Aufgaben.
+Pester ersetzt keine Laufzeitnachweise durch Image-Metadaten oder Textmuster.
+Der gemeinsame Lifecycle umfasst isolierte Ressourcen und Cleanup;
+fachliche Assertions bleiben in den Testdateien.
+Der tatsächlich ausführbare Umfang steht unter
+[OCI-Runtime und Infrastruktur](../components.md#oci-runtime-und-infrastruktur).

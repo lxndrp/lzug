@@ -17,4 +17,4 @@ tasks:
   oci:
     desc: Run OCI and Compose Pester contracts
     cmds:
-      - pwsh -NoProfile -File scripts/run-pester.ps1
+      - task: :quality:pester

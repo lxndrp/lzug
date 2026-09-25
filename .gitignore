@@ -23,6 +23,7 @@ __pycache__/
 !.env.example
 
 # Build artifacts
+.tools/powershell/
 build/
 site/
 .goreleaser-build-metadata.json

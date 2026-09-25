@@ -15,7 +15,7 @@ Die gemeinsame AIO-, Admintransport- und Lifecyclegrenze legt
 | Backend | ein autoritativer Prozess für HTTP, Admin-Socket, Lifecycle, Fachservices, Persistenz, Dokumente und Integrationsadapter | OpenAPI/JSON, versionierter Unix-Socket-Vertrag, SQLite und kontrollierte Provideradapter | `backend/src/backend/`, `backend/db/` |
 | Frontend | aufgabenorientierte Ausschussoberfläche, Routing, Formulare und sichtbare Zustände | same-origin API über zentrale Modelle und Services | `frontend/src/app/` |
 | Betreiber-CLI | portable Orchestrierung von Administration, Diagnose und Lifecycle | bereitgestellter lokaler Socket mit versioniertem Adminvertrag | `operator-cli/cmd/lzug-admin/`, `operator-cli/internal/admincli/`, `operator-cli/internal/tools/cli-reference/`, `operator-cli/.goreleaser.yml` |
-| OCI und Self-Hosting | Produktimage `lzug-app`, gehärtete Docker-Referenz und persistentes `/data` | `Dockerfile`, optionaler Docker-Compose-Weg und Containerverträge | Dockerfile, Compose und `scripts/*container*` |
+| OCI und Self-Hosting | Produktimage `lzug-app`, gehärtete Docker-Referenz und persistentes `/data` | `Dockerfile`, optionaler Docker-Compose-Weg und Containerverträge | Dockerfile, Compose und `tests/pester/` |
 | Öffentliche Demo | getrenntes Image `lzug-demo`, flüchtige App-/Seed-Assembly, Reset, Promotion und Azure-Deployment | digestgebundene Manifeste, OIDC und Demo-Runtime-Policy | `demo/contract.py`, `demo/runtime/`, `demo/delivery/`, `demo/containers/`, `demo/infra/`, `demo/tests/`, Demo-Workflows |
 
 Das Frontend greift nicht direkt auf Persistenz zu.
@@ -673,18 +673,32 @@ Das OCI-Image bleibt portabel; weitere konkrete Laufzeiten gehören nicht zum
 unterstützten oder geprüften Umfang.
 `compose.yaml` ist ein optionaler knapper Docker-Referenzweg für genau einen
 `lzug-app`-Container und ein persistentes Volume.
-Standardtooling prüft die Compose-Struktur; die kleine lzug-Policy prüft nur
-projektspezifische Invarianten wie unveränderliche Images und den
-Runtimevertrag.
-Container-, Compose- und CLI-zu-Container-Smokes teilen Docker-Lifecycle,
-Health-Waiting und Build-Identitätsprüfung in
-`tests/pester/LzugHarness.ps1`.
-Der Compose-Smoke bereitet sein isoliertes Datenvolume und ein eigenes
-temporäres Socket-Bind-Verzeichnis vor dem unveränderten Servicestart vor.
-Nur der kurzlebige Verzeichnishelfer erhält Root mit `CHOWN` und `FOWNER`;
+Docker Compose validiert und startet den Referenzservice im Pester-Vertrag.
+`tests/pester/Container.Tests.ps1` prüft das ausgelieferte Produktimage über
+HTTP und das enthaltene CLI-Binary: Runtime-Rechte, gemeinsame Build-Identität,
+Authentisierungsgrenzen, persistente Fachschreibvorgänge und Betreiberabläufe.
+Nach Restart, Stop/Start und Container-Neuerstellung wird der gespeicherte
+Bootstrap-Auftrag als Replay gelesen; ein leeres Ersatzvolume verletzt denselben Nachweis.
+
+`tests/pester/LzugHarness.ps1` bündelt native Aufrufe, isolierte Ressourcen,
+Readiness und Cleanup.
+Ein temporäres Compose-Override ersetzt ausschließlich das Socket-Bind-Mount
+durch ein privates Engine-Volume, damit POSIX-Eigentum auch in Docker Desktop
+geprüft werden kann.
+Datenvolume, Servicebefehl, UID/GID, Read-only-Dateisystem und übrige
+Sicherheitskonfiguration stammen aus `compose.yaml`.
+Nur die kurzlebigen Vorbereitungsschritte erhalten die benötigten Root-Rechte;
 Initialisierung und Service laufen als `10001:10001`.
-Nach Start, Restart und Stop/Start prüft der Smoke die effektive UID/GID,
-Verzeichniseigentümerschaft und Modus `0750` sowie den Socket mit Modus `0660`.
+Die Suite prüft effektive Eigentümer, Verzeichnis-Modus `0750`, Socket-Modus
+`0660` und die tatsächliche Ablehnung eines unsicheren Socket-Verzeichnisses.
+
+`tests/pester/Compatibility.Tests.ps1` startet die digestgebundene
+v0.6.0-Fixture, erzeugt und restauriert ein Legacy-Backup und führt anschließend
+die freigegebene Vorwärtsmigration über den Admin-Socket aus.
+Der gemeinsame Image-Build erzeugt dafür zusätzlich eine ausschließlich lokale
+Fixture mit synthetischen Release-Metadaten `v0.0.0-rc.0`;
+Entwicklungsbuilds dürfen die Migration produktseitig nicht freigeben.
+Dabei entstehen weder Git-Tag noch veröffentlichter Release.
 
 Die öffentliche Demo verwendet das getrennte Image `lzug-demo` und ein
 zugehöriges Seed-Image mit gemeinsamer Produktrevision, Runtimevertrag,

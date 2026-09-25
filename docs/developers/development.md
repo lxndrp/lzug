@@ -100,21 +100,32 @@ Er rechtfertigt keine Abschwächung von Produktcode oder Sicherheitsgrenzen.
 Die CI ist die finale Abnahme für die ausgewählten Plattform- und
 Repositoryverträge.
 
-Der Operator-Container-Smoke (`task quality:operator-container`) verwendet das
-unveränderte, im Produktimage ausgelieferte Linux-Binary.
-Ein nichtprivilegierter `docker exec`-Aufruf prüft dessen direkten
-Socketzugriff und den interaktiven Einstieg `lzug-admin cli`.
-Weitere Befehle laufen in einer isolierten Hilfsinstanz am geschützten Admin-Socket;
-Schlüssel und Artefakte liegen ausschließlich in deren temporärem Arbeitsverzeichnis,
-das Backend erhält nur das Socket-Volume und sein Datenvolume.
-Für die Peer-Prüfung teilt die CLI nach dem Start den PID-Namespace des Backends,
-verwendet jedoch die abweichende Host-UID und die Betreiber-GID 10001.
-Eine Host-UID von 10001 wird daher mit Diagnose abgelehnt.
-Damit funktioniert der Test auch über eine Docker-Desktop-Linux-VM.
-Fehler nennen Vertragsphase, Exitcode und strukturelle CLI-/Socket-Diagnosen.
-Die Diagnose gibt keine vollständigen Antworten, Schlüssel, Umgebungswerte oder
-Containerlogs aus; die zugehörigen Fehler-Injektionen laufen mit `task delivery:oci`
-auch ohne Docker-Engine in der Pull-Request-CI.
+`task quality:pester` baut zuerst die Produkt- und Migrationsfixture und führt
+die gepinnte Pester-Suite einmal pro Task-Aufrufgraph aus.
+`quality:container`, `quality:compose`, `quality:operator-container`,
+`quality:compose-config` und `delivery:oci` verweisen auf denselben Nachweis.
+Die Pull-Request- und Quality-Containerjobs führen reale Containerstarts aus
+und bewahren den NUnit-Report unter `build/quality/pester/pester.xml` auf.
+Fehlende Engine, fehlendes Image und fehlgeschlagene Readiness sind Fehler;
+die Suite kennt keine stillen lokalen Skips.
+Nach einem bereits erfolgten Build kann `pwsh -NoProfile -File
+scripts/run-pester.ps1` die betroffenen Verträge gezielt erneut ausführen.
+
+Die Tests verwenden ausschließlich eindeutige temporäre Compose-Projekte,
+Daten-, Socket- und CLI-Artefaktvolumes.
+Eigene `LZUG_*`-Deploymentvariablen werden während Compose-Aufrufen isoliert,
+damit keine vorhandenen Daten oder Socketpfade ausgewählt werden.
+Pester räumt die eigenen Ressourcen auch nach fehlgeschlagenen Assertions auf.
+Das unveränderte CLI-Binary läuft sowohl direkt als UID/GID `10001:10001`
+im Produktcontainer als auch mit UID/GID `10002:10001` in einem isolierten
+Hilfscontainer mit gemeinsamem PID-Namespace und Socketzugriff.
+Private age-Dateien und aktuelle Artefakte bleiben in dessen eigenem Volume;
+das Backend erhält dieses Volume nicht.
+Ein echtes Pseudoterminal prüft den interaktiven Einstieg `lzug-admin cli`.
+Native Fehlerdiagnosen nennen Exitcode und verfügbare strukturierte
+Fehlerklasse, ohne rohe Antworten, Schlüssel oder Containerlogs auszugeben.
+Die konkreten Runtime-, Persistenz- und Upgradegrenzen beschreibt
+[Komponenten](components.md#oci-runtime-und-infrastruktur).
 
 `task backend:complexity` gibt den Ruff-C901-Befund für produktive
 Backendmodule mit der Schwelle 10 aus.

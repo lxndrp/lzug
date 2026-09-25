@@ -484,7 +484,10 @@ tasks:
       - quality:browser
 
   quality:pester:
-    desc: Run the pinned PowerShell/Pester integration contracts
+    desc: Build once and run the pinned real runtime contracts once
+    run: once
+    deps:
+      - quality:image
     cmds:
       - pwsh -NoProfile -File scripts/run-pester.ps1
 
@@ -508,6 +511,12 @@ tasks:
           --build-arg "BUILD_IDENTITY=$build_identity" \
           --build-arg "VCS_REF=$revision" \
           -t lzug-app:0.0.0-dev.local .
+        # Local release-form fixture for the guarded migration path, never published.
+        docker build \
+          --build-arg "BUILD_IDENTITY=0.0.0-rc.0" \
+          --build-arg "RELEASE_TAG=v0.0.0-rc.0" \
+          --build-arg "VCS_REF=$revision" \
+          -t lzug-app:0.0.0-rc.0-contract .
       - >-
         mkdir -p build/quality
         && env SYFT_CACHE_DIR=/tmp/lzug-syft-cache
