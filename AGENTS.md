@@ -1,303 +1,133 @@
 # Hinweise für Coding Agents
 
-Diese Datei enthält die verbindlichen Regeln für Codex und andere Coding Agents
-in diesem Repository. Anleitungen für Menschen stehen im
-[GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung), technische
-Details im [Entwicklerhandbuch](docs/developers/index.md).
+Diese Datei enthält die verbindlichen Projektregeln für Coding Agents.
+Anleitungen für Menschen stehen im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung),
+technische Details im [Entwicklerhandbuch](docs/developers/index.md).
 
-## 1. Kanonischer Stand
+## 1. Kanonischer Stand und Auftrag
 
-- GitHub ist die kanonische Quelle für Aufgaben, Entscheidungen, Abhängigkeiten
-und Status.
-Der versionierte Code und die technische Dokumentation im Repository sowie der reale Zustand externer Systeme bleiben jeweils für ihren Gegenstand maßgeblich.
+- GitHub ist die kanonische Quelle für Aufgaben, Entscheidungen, Abhängigkeiten und Status.
+Versionierter Code, technische Dokumentation und der reale Zustand externer Systeme bleiben für ihren jeweiligen Gegenstand maßgeblich.
 Chat-Inhalte werden erst durch Dokumentation im passenden GitHub-Artefakt zum Projektstand.
-- Das Issue ist der vollständige Umsetzungsauftrag: Ziel, Scope und Nicht-Scope,
-Akzeptanzkriterien, Entscheidungen, Abhängigkeiten und Blocker sowie betroffene Tests, Dokumentation, Pages, Wiki, Migration und Betrieb.
-- Das GitHub Project enthält Planungsmetadaten. Pull Request und CI belegen
-Umsetzung und Prüfung.
-Repository, Pages und Wiki enthalten die dauerhafte Dokumentation.
-- Inhalte nicht zwischen Artefakten oder Chats duplizieren. Issue- und
-Pull-Request-Beschreibungen sowie Kommentare bleiben kurz und zweckbezogen; Kommentare halten nur neue Entscheidungen, Befunde, Blocker oder Statusänderungen fest.
-- Vor Planung, Umsetzung und Statusauskunft den aktuellen GitHub- und Git-Stand
-lesen.
-Frühere Chat-Inhalte sind kein Ersatz dafür.
+- Das Issue enthält den vollständigen Umsetzungsauftrag: Ziel, Scope und Nicht-Scope, Akzeptanzkriterien, Entscheidungen, Abhängigkeiten, Blocker und betroffene Tests, Dokumentation, Pages, Wiki, Migration und Betrieb.
+Das Project enthält Planungsmetadaten; Pull Request und CI belegen Umsetzung und Prüfung.
+Inhalte nicht zwischen Artefakten duplizieren; Kommentare halten neue Entscheidungen, Befunde, Blocker oder Statusänderungen knapp fest.
+- Vor Planung, Umsetzung und Statusauskunft aktuellen GitHub- und Git-Stand lesen.
+Übergebene belastbare Startevidenz wiederverwenden; nur bei Lücke, Widerspruch oder relevanter Änderung gezielt aktualisieren.
+- Ein Gedankenexperiment oder ein umsetzungsreifes Issue allein ist keine Beauftragung.
+`Implementiere Issue #<nummer>.` ist bei umsetzungsreifem Issue ein vollständiger Auftrag bis zu Tests, Pull Request und geklärten Reviewbefunden im Scope.
+Neue Entscheidungen oder Scope-Änderungen im Issue dokumentieren und genau einmal an die Koordination übergeben.
 
-## 2. Arbeitskontexte
+## 2. Verantwortlichkeiten und Delegation
 
-- Planung, Refinement und Review bleiben gegenüber dem Produktcode read-only.
-- Übergaben zwischen Koordination, Umsetzung und Projektplanung sind
-asynchrone Aufträge.
-Ein Link zum maßgeblichen Issue oder Pull Request und nur die notwendigen neuen
-Angaben genügen;
-der Sender fordert keine Empfangsbestätigung oder Rückversicherungsrunde an und
-prüft nicht den Empfänger-Task.
-Eine erfolgreiche Zustellung ist kein Umsetzungsnachweis;
-den tatsächlichen Stand zeigen die GitHub-Artefakte.
-- Rückfragen sind auf unklare Entscheidungen, fehlende Berechtigungen, Blocker
-und benötigte Modellhochstufungen begrenzt.
-Bereits beauftragte Schritte benötigen keine erneute Freigabe.
-Jeder Task hält seinen Abschluss am maßgeblichen GitHub-Artefakt fest und
-übergibt nur einen tatsächlich nötigen Folgeschritt genau einmal an dessen
-zuständigen Task;
-es gibt keine Berichtskette zurück durch alle beteiligten Tasks.
-Eine fehlgeschlagene Zustellung wird gezielt behandelt, eine unklare Zustellung
-vor einer Wiederholung geklärt.
-Laufende Tasks und Nutzerarbeit bleiben ungestört.
-- Die Cloud-Chats `Fachlichkeit strukturieren`, `Projektablauf planen` und
-`Codebasis reviewen` dienen ausschließlich der fachlichen Strukturierung, Projektplanung und Codebasisbewertung.
-Sie ändern weder Produktcode noch lokale Repository-Dateien, Branches oder Worktrees.
-- `Codebasis reviewen` prüft vor der ersten regulären Umsetzung eines neuen
-SemVer-Milestones den vollständigen aktuellen Codebestand.
-Ein eigener Review-Anker dokumentiert geprüfte Revision, Umfang, Abschluss und
-verknüpfte Befunde, trägt aber selbst kein `review:`-Label;
-bestätigte Befunde werden als präzise GitHub Issues erfasst.
-- `Fachlichkeit strukturieren` darf Ergebnisse fachlicher Klärungen in GitHub
-Issues dokumentieren sowie bestehende Issues fachlich refinen.
-Technische Umsetzungen und Produktcode bleiben ausgeschlossen.
-- `Projektplan aktualisieren` überführt bestätigte Planungsentscheidungen aus
-den Cloud-Chats lokal mittels `gh` in GitHub Project, Issues, Abhängigkeiten und Unteraufgaben.
-Beim Umsetzungs-Closeout übernimmt der Chat ausschließlich belegbare finale
-Codex-Goal-Metriken in `Factual effort (h)` und `Cost (Tokens)`;
-fehlende Werte bleiben leer.
-Weitergehende Planungs- oder Project-README-Änderungen erfolgen nur bei
-belegbarem Bedarf und bestätigter Entscheidung.
-Der Chat ändert keine Repository-Dateien, Branches oder Worktrees.
-- `Weiterentwicklung koordinieren` prüft Umsetzungsreife, Review-Gate und
-`Complexity` einmal, startet issuebezogene Umsetzungen und verantwortet nach
-ausdrücklicher Freigabe Merge und lokalen Closeout.
-Der Issue-Task übernimmt diese Startevidenz und bearbeitet Code, Tests, Pull
-Request und neue Reviewbefunde.
-Der Chat implementiert nicht in seinem eigenen Arbeitsbereich.
-- Vor der ersten regulären Issue-Umsetzung jedes neuen SemVer-Milestones
-prüft `Weiterentwicklung koordinieren`, ob `Codebasis reviewen` den aktuellen
-Codebestand vollständig geprüft und den Abschluss im zugehörigen
-Review-Anker dokumentiert hat.
-Ohne diesen Nachweis beginnt keine reguläre Umsetzung des Milestones.
-- `Entwicklungsumgebung anpassen` pflegt die lokale Entwicklungsumgebung. Nicht
-triviale Repository-Änderungen folgen ebenfalls dem Issue-Verfahren.
-- Externe Systeme zunächst read-only prüfen. Azure-, DNS-, GitHub-Environment-,
-Secret-, OIDC-, Deployment- und OpenTofu-`apply`-Änderungen erfolgen nur nach ausdrücklicher Freigabe des Maintainers.
-- Die sechs permanenten Chats `Fachlichkeit strukturieren`, `Projektablauf
-planen`, `Codebasis reviewen`, `Weiterentwicklung koordinieren`, `Projektplan aktualisieren` und `Entwicklungsumgebung anpassen` weder umbenennen noch für eine Umsetzung verwenden oder archivieren.
+| Rolle | Verantwortung |
+| --- | --- |
+| `Projekt entwickeln` | Interaktive Fachlichkeit, Architektur, Planung und Umgebung; bestätigte Ziele, Scope, Akzeptanzkriterien, Priority, Complexity, Schätzung, Iteration, Milestone und Project-README pflegen. |
+| `Umsetzung koordinieren` | Reife einmal prüfen, ausdrücklich beauftragte Arbeit zuordnen, Ausführungsstatus pflegen und nach Freigabe Merge/Closeout einschließlich belegter Istwerte verantworten. |
+| Verantwortlicher Bearbeiter je Issue | Code, Tests, Dokumentation, Pull Request, neue Reviewbefunde und Prüfnachweise im isolierten Arbeitsbereich liefern. |
+| Review-Lauf | Geprüfte Revision und Abdeckung im Review-Anker dokumentieren und bestätigte Befunde nach Duplikatprüfung erfassen. |
 
-## 3. Umsetzungsreife und Arbeitsbereich
+- Planung, Refinement und Review bleiben gegenüber Produktcode read-only.
+Die beiden dauerhaften Chats implementieren keine Produktänderungen in ihrem permanenten Arbeitsbereich.
+Nicht triviale Repository-Änderungen zur Entwicklungsumgebung folgen ebenfalls dem Issue-Verfahren.
+- Höchstens zwei Issue-Umsetzungen gleichzeitig, mit genau einem verantwortlichen Bearbeiter sowie eigenem Feature-Branch und Worktree je Issue.
+Die Grenze zählt aktive Issue-Aufträge, nicht reine Recherche- oder Review-Teilaufträge; technische Agentenlimits gelten zusätzlich.
+Abgegrenzte Arbeit kann ein Subagent übernehmen; längere oder interaktive Umsetzung erhält einen eigenständigen Issue-Task.
+Die Koordination darf solche Tasks im ausdrücklich beauftragten Umfang anlegen.
+Teilaufträge erhalten eindeutige Arbeitsbereiche; gleichzeitige Änderungen an denselben Dateien vermeiden.
+- Der Branch heißt `codex/<issue>-<kurzer-name>`, ein eigenständiger Issue-Task `<issue> (<type>): <title>`.
+Niemals direkt auf `master` committen; fremde Änderungen nicht zurücksetzen und nur auftragsbezogene Dateien stagen.
+Bestehende Issue-Tasks laufen bei einer Prozessumstellung unverändert weiter.
+- Übergaben enthalten den maßgeblichen Issue-/PR-Link und nur notwendige neue Angaben.
+Keine Empfangsbestätigungs- oder Berichtsketten; der Stand bleibt an GitHub-Artefakten belegbar.
+Ergebnisse delegierter Arbeit prüft der verantwortliche Bearbeiter vor Übernahme.
+Unklare Zustellungen vor Wiederholung klären; laufende Tasks und Nutzerarbeit nicht stören.
+- Reifeprüfung, Metadatenmutation und Closeout haben jeweils genau eine zuständige Stelle.
+Eindeutige erfolgreiche Antworten genügen für reversible Routineoperationen; keine routinemäßige unabhängige Zweitprüfung.
+Rückfragen auf unklare Entscheidungen, fehlende Berechtigungen, Blocker und begründete Modellhochstufungen beschränken.
 
-- `Implementiere Issue #<nummer>.` ist ein vollständiger Auftrag, wenn das Issue
-umsetzungsreif ist.
-Das Issue bleibt maßgeblich; eine Übergabe ergänzt nur noch nicht dort dokumentierte, entscheidungsrelevante Randbedingungen.
-- Vor der Beauftragung prüft `Weiterentwicklung koordinieren` Issue, Kommentare,
-Labels, Milestone, Parent-/Sub-Issues, verknüpfte Pull Requests, Abhängigkeiten,
-Blocker, erreichbare Project-Felder und bei einem SemVer-Milestone den
-abgeschlossenen Codebasis-Review.
-Der Issue-Task verwendet die mit Issue-Link übergebene Startevidenz und liest
-sie nur bei Lücke, Widerspruch oder relevanter Änderung erneut.
-Bei einem direkten Issue-Auftrag ohne Koordinationsübergabe führt der
-Issue-Task diese Prüfung einmal selbst durch.
-- Fehlt der abgeschlossene, dokumentierte Codebasis-Review des Milestones,
-keine reguläre Umsetzung beginnen und das Gate an `Codebasis reviewen`
-zurückgeben;
-der Review-Anker sowie reine Planungs- und Review-Arbeit sind selbst keine
-regulären Umsetzungen.
-- Nicht beginnen, solange das Issue ein `needs:*`-Label trägt. Dasselbe gilt bei
-fehlendem Ziel, Scope oder Akzeptanzkriterien, ungelösten Blockern, widersprüchlichen Angaben oder einer konkurrierenden Umsetzung.
-- Voraussetzungen nicht erfinden. Bei fehlender Reife stoppen und den konkreten
-Klärungsbedarf im vorgesehenen GitHub-Artefakt dokumentieren.
-- Für nicht triviale Änderungen gilt: ein Issue entspricht genau einem
-temporären Umsetzungschat, einem Feature-Branch und einem Worktree.
-- Einen Umsetzungschat unabhängig neu anlegen, nicht durch Umbenennen,
-Delegation oder Übergabe eines permanenten Chats.
-- Für jede temporäre Issue-Umsetzung zu Beginn ein eigenes Codex-Goal anlegen.
-Kein Tokenbudget und keine Messwerte erfinden.
-Das Goal erst nach Umsetzung und lokaler Prüfung abschließen;
-nicht verfügbare Goal-Metriken bleiben als nicht verfügbar ausgewiesen.
-- Den Arbeitsbereich mit dem vorgesehenen lokalen Skill anlegen, soweit
-verfügbar.
-Der Umsetzungschat heißt `<issue> (<type>): <title>`, der Branch `codex/<issue>-<kurzer-name>`.
-- Der Umsetzungschat bezieht seinen Auftrag unmittelbar aus GitHub. Übergaben
-dürfen das Issue weder ersetzen noch abweichend erweitern.
+Generische Verfahren liegen in persönlichen Skills: `lxndrp-github-project-planning`,
+`lxndrp-github-delivery-coordination`, `lxndrp-github-issue-delivery` und `lxndrp-codebase-review`.
+Roadmap-Review, Qualitäts-Triage, Review-Triage, Integration-Debugging und Umgebungsberatung ergänzen sie nach Bedarf.
+Skills erteilen keine Befugnisse und ersetzen keine Projektregeln.
+Fehlt ein Skill, das Verfahren anhand dieser Regeln und des Entwicklerhandbuchs durchführen;
+fehlende Prüfungen oder Zugänge benennen, niemals Befugnisse oder Prüfergebnisse erfinden.
+Der [Entwicklereinstieg](docs/developers/development.md) beschreibt Einrichtung und lokale Prüfungen.
 
-### Review-Gate für SemVer-Milestones
+## 3. Reife und Codebasis-Review
 
-- Der vollständige Codebasis-Review läuft im permanenten Chat
-`Codebasis reviewen` gegen den aktuellen kanonischen Stand.
-Der Review-Anker dokumentiert mindestens Milestone, geprüfte Revision, Umfang
-und Abschluss des Reviews; er trägt selbst kein `review:*`-Label.
-- Bestätigte Befunde werden als präzise GitHub-Issues erfasst, vor Duplikaten
-geschützt und nur mit den jeweils sachlich passenden `review:*`-Labels
-klassifiziert.
-Sie durchlaufen anschließend die normale Planung und können bei tatsächlicher
-Abhängigkeit ein reguläres Issue blockieren.
-- Für spätere reguläre Umsetzungen desselben Milestones genügt der vorhandene
-abgeschlossene Review-Anker.
-Ein neuer vollständiger Review wird erst für den nächsten SemVer-Milestone
-zum Gate, sofern ein neuer wesentlicher Befund nicht schon vorher einen Review
-erfordert.
+- Vor dem Start Issue, Kommentare, Labels, Milestone, Parent-/Sub-Issues, verknüpfte PRs, Abhängigkeiten, Blocker und erreichbare Project-Felder prüfen.
+Die Koordination übergibt diese Startevidenz; ohne Übergabe prüft der verantwortliche Bearbeiter einmal selbst.
+- Bei `needs:*`, fehlendem Ziel, Scope oder Akzeptanzkriterien, ungelösten Blockern, widersprüchlichen Angaben oder konkurrierender Umsetzung nicht beginnen.
+Voraussetzungen nicht erfinden; konkreten Klärungsbedarf im GitHub-Artefakt dokumentieren.
+- Vor der ersten regulären Umsetzung eines neuen SemVer-Milestones ist ein vollständiger Review des aktuellen `master` erforderlich.
+Die Koordination veranlasst ihn und prüft den abgeschlossenen, dem Milestone zugeordneten Review-Anker.
+Der Anker ist `type: task`, trägt selbst kein `review:*`-Label und dokumentiert feste Commit-SHA, Umfang, Abschluss und verknüpfte Befunde.
+Ohne diesen Nachweis keine reguläre Umsetzung; reine Planung und Review sind selbst keine regulären Umsetzungen.
+Für spätere Umsetzungen desselben Milestones genügt der vorhandene vollständige Nachweis, sofern kein neuer wesentlicher Befund einen weiteren Review erfordert.
+- Der lokale Wochenreview folgt dem dokumentierten Verfahren für feste Revisionen und hält Umfang und Abschluss im Review-Anker fest.
+Unvollständige Läufe verschieben den geprüften Ausgangsstand nicht; inkrementelle Nachweise ersetzen das vollständige Milestone-Gate nicht.
+- Review-Befunde anhand von Evidenz bestätigen, gegen vorhandene Issues abgleichen und nur sachlich passende `review:*`-Labels verwenden.
+Keine automatischen Reparaturen, Priorisierungen oder Planänderungen aus einem Review ableiten.
+Benachrichtigungen auf neue relevante Befunde, Fehler und erforderliche Entscheidungen beschränken.
 
-## 4. Umsetzung und Prüfung
+## 4. Umsetzung, Modelle und Prüfung
 
-- `Complexity` bleibt ein live zu lesendes Planungsmetadatum und steuert die
-angemessene Prüfung, nicht automatisch Modellgröße oder Reasoning.
-Bei fehlendem, unbekanntem oder widersprüchlichem Wert wird keine Einstufung
-erfunden; die Einplanung klärt den konkreten Mangel.
-Eine direkte, klar beschriebene Umsetzung startet standardmäßig mit Luna und
-medium.
-Spark und low sind für mechanische Aufgaben möglich; Terra bei konkretem
-Mehrbedarf, Sol/high bei schwieriger Ursachen- und Wechselwirkungsanalyse und
-Astra/high bei besonders anspruchsvoller Analyse.
-xhigh wird nur gezielt eingesetzt.
-- Eine Hochstufung erfolgt nicht automatisch.
-Bei fachlicher Unsicherheit oder einem wiederholten inhaltlichen Fehlversuch
-fragt der Umsetzungstask den Nutzer knapp nach Freigabe und nennt Grund sowie
-vorgeschlagenes Modell und Reasoning.
-Sandboxfehler, Berechtigungen und CI-Wartezeit sind keine Modelleskalation.
-Routinefolgen dürfen heruntergestuft werden.
-- Die Complexity-Einstufung bleibt unverändert, sofern keine ausdrücklich
-bestätigte Planungsänderung vorliegt.
+- `Complexity` wird live gelesen und steuert angemessene Prüfung, nicht automatisch Modell oder Reasoning.
+Fehlende, unbekannte oder widersprüchliche Werte durch die Projektplanung klären; keine Einstufung erfinden.
+Änderungen der Einstufung benötigen eine bestätigte Planungsentscheidung.
 Bestehende C4-Zerlegungs- und menschliche Reviewregeln bleiben erhalten.
-Komponentenübergreifende, öffentliche, sicherheitsrelevante, irreversible
-oder produktionsnahe Risiken begründen weiterhin eine entsprechend gründliche
-Prüfung, aber keine automatische Modellwahl.
-
-- Ausschließlich im issuebezogenen Worktree arbeiten und niemals direkt auf
-`master` committen.
-Fremde oder ungefragte Änderungen nicht zurücksetzen und nur auftragsbezogene Dateien stagen.
-- Die kleinste Änderung umsetzen, die das Issue vollständig erfüllt. Nicht zum
-Scope gehörende Refactorings vermeiden.
-Geforderte Tests, Dokumentation, Pages-, Wiki-, Migrations- und Betriebsänderungen gehören zur Umsetzung.
-- Technische Mittel erfüllen den Auftrag erst, wenn das Ziel des Issues (What)
-vollständig erreicht ist und seine Akzeptanzkriterien belegt sind.
-Werkzeugmigration, grüne Teiltests, Metadaten- oder Wortlautprüfungen sind
-ohne erreichtes Laufzeitverhalten kein Umsetzungsnachweis;
-ein Wrapper oder ein Verschieben von Code räumt keine Eigenlogik ab.
-Bei Vereinfachungs- und Rückbauaufträgen dokumentieren Umsetzung und Pull
-Request, welche Eigenlogik entfallen ist und welches Verhalten erhalten blieb.
+- Klar beschriebene Umsetzung startet mit Luna/medium.
+Bei fachlicher Unsicherheit oder wiederholtem inhaltlichem Fehlversuch eine begründete Modell- oder Reasoning-Hochstufung beim Nutzer anfragen; nicht automatisch wechseln.
+Sandboxfehler, Berechtigungen und CI-Wartezeit sind keine Modelleskalation.
+- Die kleinste Änderung liefern, die das Issue vollständig erfüllt, einschließlich erforderlicher Tests, Dokumentation, Pages, Wiki, Migration und Betrieb.
+Akzeptanzkriterien und beobachtbares Laufzeitverhalten belegen.
+Werkzeugmigration, Wortlautprüfungen, Wrapper oder verschobener Code allein erfüllen keinen Vereinfachungsauftrag.
+Bei Rückbau entfallene Eigenlogik und erhaltenes Verhalten dokumentieren.
 - Commit-Nachrichten sind Englisch; deutsche Prosa verwendet korrekte Umlaute.
-- Eigene gepflegte Markdown-Prosa wird mit Semantic Line Breaks geschrieben:
-Sätze und sinnvolle Gedankeneinheiten beginnen in neuen Quellzeilen.
-Tabellen, Listenstruktur, Codeblöcke, Front Matter, URLs und technische Zeichenketten bleiben unverändert; Drittmaterial, Lizenztexte und generierte Inhalte werden nicht rein redaktionell umgebrochen.
-- Prüfungen am Änderungsrisiko ausrichten. Eng begrenzte Änderungen erhalten
-mindestens `git diff --check` und die betroffenen Format-, Link- oder Fachprüfungen.
-- `task quality` ist für querschnittliche, Toolchain-, Abhängigkeits-, CI-,
-Migrations-, sicherheitsrelevante oder breite Backend-/Frontend-Änderungen vorgesehen.
-Die finale Abnahme bleibt der CI vorbehalten.
-- Vollständige Quality-Evidenz darf bei identischer SHA, unverändertem
-Prüfvertrag, passenden Tool-/Lock-/Buildinputs, vollständigen Artefakten und
-höchstens 24 Stunden Alter wiederverwendet werden.
-Der Ursprungs-Run und die Auswahlentscheidung bleiben sichtbar.
-Laufende, fehlgeschlagene, abgebrochene, abgelaufene oder unvollständige Runs
-gelten nicht als Nachweis.
-- Zeitabhängige Vulnerability-, Secret- und externe Linkprüfungen bleiben von
-deterministischen Code-/Buildnachweisen getrennt und laufen nach ihrer eigenen
-Frequenz.
-- Lokal werden betroffene Prüfungen und erforderliche Integrationsgrenzen
-begründet ausgeführt.
-Eine vollständige lokale Wiederholung ist weder wegen eines Issueabschlusses
-noch wegen einer Koordinationsübergabe erforderlich;
-die vollständige finale Abnahme erfolgt einmalig in CI am exakten Kandidaten.
-- Sandbox-Probleme als Umgebungsthema dokumentieren und von Produktfehlern
-trennen.
-Unverändert fehlschlagende breite Prüfungen nicht wiederholen.
+Eigene Markdown-Prosa verwendet Semantic Line Breaks; Tabellen, Listenstruktur, Codeblöcke, Front Matter, URLs und technische Zeichenketten unverändert lassen.
+Drittmaterial, Lizenztexte und generierte Inhalte nicht rein redaktionell umbrechen.
+- Lokal mindestens `git diff --check` und betroffene Format-, Link- oder Fachprüfungen ausführen.
+Prüfungen und erforderliche Integrationsgrenzen am Änderungsrisiko ausrichten.
+`task quality` ist für querschnittliche, Toolchain-, Abhängigkeits-, CI-, Migrations-, sicherheitsrelevante oder breite Backend-/Frontend-Änderungen vorgesehen.
+Die vollständige finale Abnahme erfolgt in CI am exakten Kandidaten; ein Abschluss oder eine Übergabe verlangt keine zusätzliche vollständige lokale Wiederholung.
+- Vollständige Quality-Evidenz nur nach dem dokumentierten Nachweisvertrag wiederverwenden; unvollständige oder fehlgeschlagene Runs sind kein Nachweis.
+Zeitabhängige Vulnerability-, Secret- und externe Linkprüfungen folgen ihrer eigenen Frequenz.
+- Sandbox-Probleme als Umgebungsthema von Produktfehlern trennen; unverändert fehlschlagende breite Prüfungen nicht wiederholen.
 
-## 5. Pull Request und Review
+## 5. Pull Request, Freigaben und Closeout
 
-- Der Issue-Task liest Assignees, Milestone und Project-Zuordnung unmittelbar
-vor dem Pull Request einmal und übergibt nur gesetzte Werte an
-`task pr:create`.
-- Vollständige Umsetzungen enthalten eine eigene Zeile `Closes #<nummer>`.
-Eine eindeutige erfolgreiche Werkzeugantwort genügt;
-nur bei Lücke, Widerspruch oder relevanter Änderung werden Metadaten oder
-schließende Verknüpfung gezielt nachgelesen.
-- Der Pull Request beschreibt knapp Ziel → Nachweis → Abweichung.
-Die Review- und Mergeinstanz prüft das am ursprünglichen Issue und am Diff.
-Es entsteht keine neue Berichtskette.
-- Pull Request und Abschluss nennen knapp wesentliche Modellabweichungen oder
-Eskalationen, relevante Befunde, die ausgeführte Verifikation sowie nur
-belegbare Goal-Metriken.
-Keine Secrets, personenbezogenen Daten, Prompts, internen Gedankengänge oder
-Reasoning-Protokolle aufnehmen.
-- Nach relevanten Änderungen die betroffenen lokalen Prüfungen wiederholen und
-CI sowie Review erneut abwarten.
-Review-Threads, allgemeine Kommentare, Security-Audits, Code-Scanning-Alerts und automatisierte Prüfhinweise mit Pull-Request-Bezug vollständig prüfen.
-Übergaben und administrative Sammelabgleiche ersetzen weder Code- und
-CI-Prüfungen noch einen erforderlichen menschlichen Review.
-- Sinnvolle Hinweise im Issue-Scope umsetzen. Threads erst danach als
-`Resolved` markieren.
-Unklare, unzutreffende oder sachfremde Hinweise beantworten oder eskalieren.
-- Erst mergen, wenn die CI nach den letzten Änderungen erfolgreich ist, alle
-relevanten Befunde geklärt und die Akzeptanzkriterien erfüllt sind.
-- Merge, Release, Workflow-Dispatch und externe Aktivierung erfolgen nur nach
-ausdrücklicher Freigabe des Maintainers.
-Den freigegebenen Merge führt `Weiterentwicklung koordinieren` aus;
-der Issue-Task führt ihn nicht selbst aus.
-- Qualifizierte Dependabot-Pull-Requests werden nur durch den vorgesehenen
-Squash-Auto-Merge-Workflow angemeldet.
+- Vor `task pr:create` Assignees, Milestone und Project-Zuordnung einmal lesen und nur gesetzte Werte übergeben.
+Vollständige Umsetzung erhält eine eigene Zeile `Closes #<nummer>`.
+PR und Abschluss beschreiben knapp Ziel, Nachweis, Abweichung, relevante Befunde, wesentliche Modellabweichungen und belegte Goal-Metriken.
+Keine Secrets, personenbezogenen Daten, Prompts oder internen Reasoning-Protokolle aufnehmen.
+- Nach relevanten Änderungen betroffene lokale Prüfungen wiederholen sowie CI und Review des neuen Stands abwarten.
+Review-Threads, allgemeine Kommentare, Security-Audits, Code-Scanning-Alerts und automatisierte PR-Hinweise vollständig prüfen.
+Sinnvolle Befunde im Scope vor dem Auflösen beheben; unklare, unzutreffende oder sachfremde Hinweise beantworten oder eskalieren.
+Übergaben und administrative Abgleiche ersetzen weder Code-/CI-Prüfungen noch erforderlichen menschlichen Review.
+- Merge erst nach erfolgreicher CI des letzten Stands, geklärten relevanten Befunden und erfüllten Akzeptanzkriterien.
+Merge, Release, Workflow-Dispatch und externe Aktivierung benötigen ausdrückliche Maintainer-Freigabe.
+Den freigegebenen Merge führt die Koordination aus, nicht der Umsetzungsbearbeiter.
+Azure-, DNS-, GitHub-Environment-, Secret-, OIDC-, Deployment- und OpenTofu-`apply`-Änderungen ebenfalls nur nach ausdrücklicher Freigabe; externe Systeme zunächst read-only prüfen.
+- Qualifizierte Dependabot-PRs nur durch den vorgesehenen Squash-Auto-Merge-Workflow anmelden.
 Major-, GitHub-Actions-, konfliktäre oder nicht eindeutig klassifizierte Updates bleiben manuell.
-
-## 6. Statusprüfung und Closeout
-
-- Fortschritt und Abschluss im zugehörigen Issue kurz dokumentieren.
-- Beim Abschluss eines Codex-Goals ausschließlich dessen tatsächlich
-ausgewiesene Laufzeit und Tokenzahl übernehmen.
-Die Laufzeit wird rechnerisch in Stunden in `Factual effort (h)`, die Tokenzahl
-unverändert in `Cost (Tokens)` übertragen.
-Fehlt eine der Metriken, bleibt das entsprechende Project-Feld leer;
-historische oder nicht messbare Werte werden nicht geschätzt.
-- Der Umsetzungschat übergibt Issue, Pull Request, Goal-Status und verfügbare
-Goal-Metriken einmal an `Projektplan aktualisieren`.
-Dieser Chat pflegt nur die belegten Project-Felder, prüft Schätzung,
-Milestone-Planung und Kapazität gegen den aktuellen Project-Stand und ändert
-Project-README oder Planung nur bei belegbarem Bedarf und bestätigter
-Entscheidung.
-- Reifeprüfung, Metadatenmutation und Closeout haben jeweils genau eine
-zuständige Stelle.
-Eindeutige erfolgreiche Werkzeugantworten genügen für routinemäßige
-reversible Operationen; Nachprüfungen erfolgen nur bei Lücke, Widerspruch,
-neuem Commit, neuem Befund oder relevanter Umweltänderung.
-- Bei `Prüfe den Stand von Issue #<nummer>.` den Live-Stand von Issue,
-Akzeptanzkriterien, Pull Request, Reviews, CI, Dokumentation, Pages/Wiki sowie Branch und Worktree prüfen; nicht aus dem Chatverlauf auf den Status schließen.
-- Nach freigegebenem Merge, finaler CI und geklärten Reviews führt
-`Weiterentwicklung koordinieren` den Closeout aus.
-Vor dem Entfernen des issuebezogenen Worktrees prüft die Koordination auch
-lokale und ignorierte Daten.
-Bei Reständerungen stoppt sie, benennt die Dateien und verwirft oder sichert
-nichts ohne ausdrückliche Entscheidung.
-Ist der Worktree sauber, entfernt sie ausschließlich den zugehörigen Worktree
-sowie lokalen und Remote-Feature-Branch.
-Der temporäre Umsetzungschat wird nicht automatisch archiviert.
-
-### Sammelabgleich
-
-- Am Ende jeder Iteration und vor jedem Release-Abschluss führt
-`Weiterentwicklung koordinieren` einen ereignisgesteuerten Sammelabgleich aus;
-fallen beide Anlässe zusammen, erfolgt er nur einmal.
-Der Abgleich gehört zum bestehenden Iterations- und Release-Closeout und ist
-kein zeitgesteuerter Scheduler.
-- Die Koordination bearbeitet offene Pull-Request-, CI- und Closeout-Reste sowie
-verwaiste Issue-Arbeitsbereiche.
-Routinekorrekturen mit eindeutiger Evidenz erfolgen im bestehenden Auftrag;
-unklare Lücken werden gebündelt benannt.
-Bestehende Merge- und externe Freigaben gelten unverändert.
-- Genau ein gebündelter Auftrag an `Projektplan aktualisieren` prüft
-abgeschlossene Issues auf fehlende Project-Zuordnung, Status und vorhandene
-Istwerte sowie daraus folgende Planungs- oder Project-README-Abweichungen.
-Vorhandene Goal-Werte werden weder erneut gemessen noch doppelt gezählt;
-fehlende Werte werden nicht erfunden und Planänderungen benötigen weiterhin
-eine bestätigte Entscheidung.
-
-## 7. Codex-Sandbox
-
-- Vor Browserprüfungen `task doctor` verwenden.
-Ein gemeinsamer uv-Cache unter `~/.cache/uv` kann Codex-Läufe lokal
-beschleunigen und wird nur über die globale Codex-Konfiguration freigegeben;
-er ist keine Projektvoraussetzung.
-Keine benutzerspezifische Konfiguration versionieren.
-- Browser-E2E- und A11y-Prüfungen getrennt halten. Nicht reproduzierbare
-Browserfehler gezielt lokal freigeben oder durch CI abnehmen lassen.
-Chromium nie mit `--no-sandbox` starten.
-- Bei störendem Git-Fsmonitor
-`git -c core.fsmonitor=false status ...` verwenden.
+- Fortschritt und Abschluss im Issue dokumentieren.
+Je Issue ein eigenes Codex-Goal verwenden, soweit technisch isoliert zurechenbar; erst nach erreichtem Ziel und lokaler Prüfung abschließen.
+Kein Tokenbudget erfinden.
+Die Koordination übernimmt ausschließlich ausgewiesene finale Laufzeit als Stunden in `Factual effort (h)` und Tokenzahl unverändert in `Cost (Tokens)`.
+Fehlende Einzelwerte bleiben leer; gemeinsame Eltern-/Subagent-Metriken nicht verteilen und historische Werte nicht schätzen.
+- Nach freigegebenem Merge, finaler CI und geklärten Reviews entfernt die Koordination nur den zugehörigen sauberen Worktree und lokalen/Remote-Feature-Branch.
+Zuvor auch lokale und ignorierte Daten prüfen.
+Der Worktree darf ohne Rückfrage entfernt werden, wenn der Merge-Commit auf `origin/master` liegt,
+keine nicht ignorierten oder auftragsfremden Änderungen vorhanden sind und nur eindeutig regenerierbare Standardartefakte verbleiben,
+etwa virtuelle Python-Umgebungen, Bytecode-, Test- oder Linter-Caches sowie vergleichbare werkzeuggenerierte Build-Caches.
+Alle sonstigen ignorierten oder nicht eindeutig zuordenbaren Artefakte benennt die Koordination
+und verwirft oder sichert sie nur nach ausdrücklicher Entscheidung.
+Eigenständige Umsetzungstasks nicht automatisch archivieren.
+- Bei Statusaufträgen aktuellen Stand von Issue, Akzeptanzkriterien, PR, Reviews, CI, Dokumentation, Pages/Wiki, Branch und Worktree prüfen.
+Am Iterationsende und vor Release-Abschluss offene PR-/CI-/Closeout-Reste, verwaiste Arbeitsbereiche sowie Project-Zuordnung, Status und vorhandene Istwerte einmal gebündelt abgleichen.
+Dieser ereignisgesteuerte Closeout ist vom wöchentlichen Codebasis-Review getrennt.
+Die Koordination korrigiert belegte Ausführungsdaten; erforderliche Planänderungen gehen einmal an `Projekt entwickeln` und benötigen eine bestätigte Entscheidung.
 
 Ergänzend gelten die Frontend- und Reviewregeln unter
-[Komponenten](docs/developers/components.md) und
-[Entwicklung](docs/developers/development.md) sowie das
-[Entwicklerhandbuch](docs/developers/index.md).
+[Komponenten](docs/developers/components.md) und [Entwicklung](docs/developers/development.md).

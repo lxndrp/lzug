@@ -305,116 +305,22 @@ lokale Korrektur nicht.
 
 ## Aufträge und Zuständigkeiten
 
-Übergaben zwischen Codex-Tasks sind asynchrone Aufträge.
-Der Link zum maßgeblichen Issue oder Pull Request und die dafür notwendigen
-neuen Angaben genügen;
-Empfangsbestätigung, Rückversicherungsrunde und Kontrolle des Empfänger-Tasks
-durch den Sender entfallen.
-Die Zustellung belegt nicht die Umsetzung, deren Stand ausschließlich an den
-GitHub-Artefakten abgelesen wird.
-Fehlgeschlagene Zustellungen werden gezielt behandelt und unklare vor einer
-Wiederholung geklärt.
-
-| Schritt | Zuständigkeit |
-| --- | --- |
-| koordinierter Start | `Weiterentwicklung koordinieren` prüft Reife, Review-Gate und Complexity einmal; der Issue-Task übernimmt diese Evidenz. |
-| direkter Start | Der Issue-Task führt die sonst fehlende Startprüfung einmal durch. |
-| Umsetzung | Der Issue-Task bearbeitet Code, Tests, Pull Request und neue Reviewbefunde. |
-| Merge und lokaler Closeout | `Weiterentwicklung koordinieren` handelt erst nach der jeweiligen Maintainer-Freigabe. |
-| Istwerte und Planung | `Projektplan aktualisieren` übernimmt belegte Goal-Werte und bestätigte Planänderungen. |
-
-Ein Task dokumentiert seinen Abschluss am maßgeblichen GitHub-Artefakt.
-Nur ein tatsächlich nötiger Folgeschritt wird genau einmal an den dafür
-zuständigen Task übergeben;
-eine Berichtskette durch vorherige Tasks entsteht nicht.
-Rückfragen bleiben auf unklare Entscheidungen, fehlende Berechtigungen,
-Blocker und begründete Modellhochstufungen beschränkt.
-Codeprüfung, CI und menschlicher Review bleiben eigenständige fachliche
-Prüfungen und werden weder durch Übergaben noch durch administrative Abgleiche
-ersetzt.
-
-## Codex-Goals und Milestone-Reviews
-
-Jede temporäre Issue-Umsetzung verwendet ein eigenes Codex-Goal.
-Eine klar beschriebene Umsetzung startet mit Luna und medium.
-Complexity bleibt Planungsmetadatum und steuert die Prüfung, nicht automatisch
-Modell oder Reasoning.
-Eine Hochstufung wird bei fachlicher Unsicherheit oder einem wiederholten
-inhaltlichen Fehlversuch knapp mit Grund und Vorschlag beim Nutzer angefragt;
-Sandboxfehler, Berechtigungen und CI-Wartezeit lösen keine Eskalation aus.
-Nach tatsächlich erreichtem Ziel liefert dessen finaler Status die belegbare
-Laufzeit in Sekunden und, sofern technisch verfügbar, den Tokenverbrauch.
-`Projektplan aktualisieren` überträgt die Laufzeit als Stundenwert in
-`Factual effort (h)` und die unveränderte Tokenzahl in `Cost (Tokens)`.
-Ein fehlender Einzelwert lässt genau dieses Feld leer;
-ohne Goal-Nachweis bleiben beide Felder leer.
-Historische Zeitspannen, Chat-Zeitstempel und Schätzungen ersetzen keine
-Goal-Metrik.
-
-Vor der ersten regulären Umsetzung jedes neuen SemVer-Milestones prüft
-`Codebasis reviewen` den vollständigen aktuellen Stand von `master`.
-Ein geschlossener, demselben Milestone zugeordneter Review-Anker dokumentiert
-mindestens die geprüfte Commit-SHA, den Umfang, den Abschluss und die
-verknüpften Befunde.
-Der Anker ist ein `type: task` ohne `review:`-Label;
-bestätigte Befunde erhalten eigene präzise Issues und nur die jeweils
-zutreffenden `review:`-Labels.
-Ohne diesen Nachweis bleibt die erste reguläre Umsetzung gesperrt.
-Planungsfelder und Project-README werden aus dem Review oder den Goal-Metriken
-nur geändert, wenn ein belegbarer Planungsbedarf besteht und die Änderung
-bestätigt ist.
-
-Die folgenden Szenarien bilden die Prozessprüfung:
-
-| Szenario | Erwartetes Ergebnis |
-| --- | --- |
-| Goal weist Laufzeit und Tokenzahl aus | Beide Project-Felder werden aus genau diesen Werten gepflegt. |
-| Goal weist nur eine Metrik aus | Nur das zugehörige Project-Feld wird gepflegt; das andere bleibt leer. |
-| Goal weist keine Metrik aus | Beide Project-Felder bleiben leer; es erfolgt keine Schätzung. |
-| Erster regulärer Auftrag eines SemVer-Milestones ohne abgeschlossenen Review-Anker | Die Umsetzung bleibt blockiert, bis `Codebasis reviewen` den vollständigen Review dokumentiert hat. |
-| Abgeschlossener Review-Anker für den SemVer-Milestone | Die reguläre Umsetzung darf nach den übrigen Reifeprüfungen mit dem schlanken Standard beginnen; Befunde werden über eigene Issues geplant. |
-| Fachliche Unsicherheit oder wiederholter inhaltlicher Fehlversuch | Der Umsetzungstask fragt einmalig nach Freigabe einer begründeten Modell-/Reasoning-Hochstufung; ein automatischer Wechsel erfolgt nicht. |
-| Eindeutige erfolgreiche reversible Operation | Die Werkzeugantwort genügt; eine unabhängige Zweitprüfung erfolgt nicht. |
-| Neuer Commit, neuer Befund oder relevante Umweltänderung | Nur die dadurch betroffene Prüfung wird aktualisiert. |
+Issues enthalten Ziel, Umfang und Akzeptanzkriterien.
+Für Coding Agents gelten die Projektregeln in `AGENTS.md`;
+ein umsetzungsreifes Issue allein ist für sie noch keine Beauftragung.
+Persönliche Skills ergänzen das Verfahren, sind aber keine Projektvoraussetzung.
+Review- und Umsetzungsnachweise werden an den zugehörigen GitHub-Artefakten
+festgehalten.
 
 ## Pull Request und Closeout
 
-Issue-Arbeit entsteht auf dem issuebezogenen Branch und Worktree.
-Complexity und Profil werden nicht routinemäßig in den Pull Request kopiert;
-nur wesentliche Modellabweichungen oder Eskalationen werden einmal benannt.
-Der Issue-Task liest Assignees, Milestone und Project-Zuordnung unmittelbar vor
-dem Pull Request einmal.
-`task pr:create` prüft die exakte `Closes #<nummer>`- oder ausdrücklich
-gewählte `Tracks #<nummer>`-Zeile, übernimmt die gesetzten Werte und ordnet den
-Pull Request dem Project `lzug Roadmap` zu.
-Eine eindeutige erfolgreiche Werkzeugantwort benötigt keine zusätzliche
-Metadatenprüfung;
-nur bei Lücke, Widerspruch oder relevanter Änderung wird gezielt nachgelesen.
-Nach jeder inhaltlichen Änderung laufen die betroffenen lokalen Prüfungen und
-die CI des neuen Commits erneut.
-Vor dem Merge werden allgemeine Kommentare, Review-Threads,
-Security-Audits, Code-Scanning- und automatisierte PR-Hinweise vollständig
-geprüft und sinnvolle Befunde vor dem Auflösen umgesetzt.
-
-Merge, Release, Workflow-Dispatch und externe Aktivierung bleiben getrennte
-Maintainerentscheidungen.
-`Weiterentwicklung koordinieren` führt einen freigegebenen Merge und danach den
-lokalen Closeout aus.
-Vor dem Entfernen des issuebezogenen Worktrees prüft die Koordination lokale
-und ignorierte Daten;
-bei Resten stoppt sie ohne Verwerfen oder Sichern.
-Nur ein sauberer zugehöriger Worktree sowie sein lokaler und Remote-Feature-
-Branch werden entfernt;
-der Umsetzungstask wird nicht automatisch archiviert.
-
-Am Iterationsende und vor Release-Abschluss erfolgt ein ereignisgesteuerter
-Sammelabgleich, bei zusammenfallenden Anlässen nur einmal.
-Er ist Teil des bestehenden Closeouts und kein zeitgesteuerter Scheduler.
-Die Koordination bearbeitet offene Pull-Request-, CI- und Closeout-Reste sowie
-verwaiste Issue-Arbeitsbereiche und bündelt unklare Lücken.
-Ein einzelner Sammelauftrag an `Projektplan aktualisieren` prüft abgeschlossene
-Issues auf Project-Zuordnung, Status, vorhandene Istwerte und daraus folgende
-Planungs- oder Project-README-Abweichungen.
-Eindeutig belegte Routinekorrekturen erfolgen im bestehenden Auftrag;
-Goal-Werte werden nicht doppelt gezählt, fehlende Werte nicht erfunden und
-Planänderungen weiterhin nur nach bestätigter Entscheidung vorgenommen.
+Änderungen folgen einem GitHub Issue und werden auf einem eigenen Branch
+eingereicht.
+Der [Beitragsleitfaden](https://github.com/lxndrp/lzug/blob/master/CONTRIBUTING.md) nennt
+Verknüpfung, Metadaten und Reviewvoraussetzungen.
+`task pr:create` prüft die schließende oder ausdrücklich nicht schließende
+Issue-Verknüpfung und ordnet den Pull Request dem Project zu.
+Nach Änderungen werden die betroffenen Prüfungen und die CI am neuen Commit
+erneut bewertet.
+Merge, Release und Veröffentlichung bleiben getrennte Maintainerentscheidungen;
+der [Delivery-Vertrag](delivery.md) beschreibt die technischen Gates.

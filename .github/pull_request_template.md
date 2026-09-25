@@ -16,7 +16,7 @@
 
 - Wesentliche Modellabweichungen oder Eskalationen
 - Relevante Befunde
-- Belegte Goal-Metriken (sonst leer)
+- Belegte, dem Issue eindeutig zurechenbare Goal-Metriken (sonst leer)
 
 ## Verknüpfung
 
