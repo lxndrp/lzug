@@ -37,7 +37,7 @@ RUN set -eu; \
     fi; \
     test "$(python -c 'from pathlib import Path; from backend.build_metadata import BuildMetadata; print(BuildMetadata.read(Path("/build-metadata.json")).identity)')" = "$BUILD_IDENTITY"
 
-FROM --platform=$BUILDPLATFORM golang:1.26.5-bookworm AS operator-cli-build
+FROM --platform=$BUILDPLATFORM golang:1.26.8-bookworm AS operator-cli-build
 
 ARG BUILD_IDENTITY
 ARG RELEASE_TAG=""
