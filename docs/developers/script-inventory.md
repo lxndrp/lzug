@@ -15,7 +15,7 @@ Die Liste ist keine zweite Test- oder API-Dokumentation.
 | `scripts/check_documentation.py` | Dokumentation; `task docs:check` | Prüft nur den aktuellen Dokumentationsbaum, MkDocs-Navigation, ADR-Status, den entfernten Repository-Handbuchbestand und Root-Grenzen. Link-, Markdown- und Buildprüfung verbleiben bei MkDocs/Hugo. |
 | `tests/pester/Container.Tests.ps1` | OCI/Self-Hosting; `task quality:pester` | Maßgeblicher Pester-Vertrag für Image-, Runtime- und Compose-Grenzen. |
 | `scripts/demo-container-smoke.sh` | Öffentliche Demo; `task quality:demo` | Beweist den separaten App-/Seed-Containervertrag einschließlich Seed-Revision, Runtime-Policy und Wiederanlaufgrenzen. Behalten, weil der allgemeine Produktimage-Smoke diese Demo-Paarung nicht abdeckt. |
-| `tests/pester/Compatibility.Tests.ps1` | Kompatibilitätstests; `task quality:pester` | Hält den unterstützten Upgradepfad als Pester-Kompatibilitätsvertrag sichtbar. |
+| `tests/pester/Compatibility.Tests.ps1` | Kompatibilitätstests; `task quality:pester` | Führt Legacy-Restore, explizite Socketmigration und Wiederanlauf mit der digestgebundenen v0.6.0-Fixture aus. |
 | `.syft.yaml` | Delivery/OCI; Quality- sowie Produkt- und Demo-Publish-Workflows | Hält die portable scannerweite Policy deklarativ. Syft erzeugt direkt die SBOMs der veröffentlichten OCI-Images; Scan-Ziele, Ausgabe und der flüchtige Cache bleiben sichtbar bei den Aufrufen. |
 | `scripts/validate_demo_url_contract.py` | Öffentliche Publikation; Publication-Workflow und Vertragstests | Erzwingt die erlaubte kanonische HTTPS-Origin ohne Credentials, Pfad oder fremde Demo-/Stage-Hosts. Behalten als Sicherheitsgrenze der konfigurierten Publikation. |
 

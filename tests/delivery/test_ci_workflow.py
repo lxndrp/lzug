@@ -450,7 +450,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             self.assertIn(job, evidence)
         self.assertIn("quality-evidence-v2", evidence)
 
-    def test_pr_defers_product_browser_packaging_and_demo_checks_to_quality(self) -> None:
+    def test_pr_runs_container_contracts_and_defers_browser_and_demo(self) -> None:
         self.assertNotIn("\n  fixtures:\n", self.pull_request)
         self.assertNotIn("\n  e2e:\n", self.pull_request)
         self.assertNotIn("\n  a11y:\n", self.pull_request)
@@ -458,7 +458,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("quality:container", job_block(self.pull_request, "container"))
         self.assertNotIn("task test:demo", job_block(self.pull_request, "delivery"))
         self.assertIn("task delivery:oci", job_block(self.pull_request, "container"))
-        self.assertIn("quality:oci quality:container quality:compose", self.quality)
+        self.assertIn("quality:oci quality:pester quality:demo", self.quality)
         self.assertIn("npm --prefix frontend run test:e2e", self.quality)
         self.assertIn("npm --prefix frontend run test:a11y", self.quality)
         self.assertIn("npm --prefix frontend run test:ui-review", self.quality)

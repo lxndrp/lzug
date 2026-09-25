@@ -40,7 +40,7 @@ die Formatentscheidung steht im Registereintrag für ADR-0029.
 | [0022](0022-tag-gebundene-demo-assembly-und-seed.md) | Tag-gebundene Demo-Assembly und inhaltsadressierter Seed | Akzeptiert |
 | [0023](0023-oeffentliche-web-und-dokumentationspublikation.md) | Öffentliche Web- und Dokumentationspublikation | Abgelöst durch ADR-0032 |
 | [0024](0024-manuell-promotete-demo-snapshots.md) | Manuell promotete Demo-Snapshots | Akzeptiert |
-| [0025](0025-kein-inspec-infrastruktur-harness.md) | Kein InSpec-Infrastruktur-Harness | Abgelehnt |
+| [0025](0025-kein-inspec-infrastruktur-harness.md) | Kein InSpec-Infrastruktur-Harness | Akzeptiert; abgelöst durch ADR-0037 |
 | [0026](0026-automatische-demo-promotion-stabiler-releases.md) | Automatische Demo-Promotion stabiler Releases | Akzeptiert |
 | [0027](0027-synchroner-fastapi-migrationskern.md) | Synchroner FastAPI-Kern für die schrittweise HTTP-Migration | Akzeptiert |
 | [0028](0028-sbom-orchestrierung-und-cyclonedx-standardwerkzeuge.md) | SBOM-Orchestrierung und CycloneDX-Standardwerkzeuge abgrenzen | Akzeptiert; abgelöst durch ADR-0038 |

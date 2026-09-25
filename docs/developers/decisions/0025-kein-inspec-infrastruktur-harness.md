@@ -106,7 +106,8 @@ Sie nutzt die bestehende OIDC-Kette und kann auf die minimal erlaubte Ressource 
 
 ## Konsequenzen
 
-Diese Entscheidung ist durch ADR-0037 abgelöst.
+Die Orchestrierungsentscheidung ist durch ADR-0037 abgelöst.
+Die Entscheidung gegen einen zusätzlichen InSpec-Harness bleibt bestehen.
 
 Der heutige Qualitätslauf, die Docker-Referenz und die least-privilege OIDC-Identity bleiben unverändert.
 Es entstehen keine neuen Azure-Ressourcen, Rollen, Secrets, Lizenzkosten oder Cloudabfragen.

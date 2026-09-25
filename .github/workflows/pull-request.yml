@@ -475,8 +475,22 @@ jobs:
       - run: mise install aqua:PowerShell/PowerShell@7.5.3
       - name: Install locked backend dependencies
         run: uv sync --locked --extra dev
-      - name: Validate lzug container contracts without building an image
+      - id: syft
+        uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          syft-version: v1.51.0
+      - name: Build and exercise the real container contracts
+        env:
+          SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
         run: task delivery:oci
+      - name: Publish Pester test report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pr-pester-results
+          path: build/quality/pester/pester.xml
+          if-no-files-found: error
+          retention-days: 7
 
   infra:
     name: Infrastructure details
